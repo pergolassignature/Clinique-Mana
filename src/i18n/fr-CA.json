@@ -31,6 +31,7 @@
     "professionals": "Professionnels",
     "availability": "Disponibilités",
     "reasons": "Motifs",
+    "services": "Services",
     "clients": "Clients",
     "requests": "Demandes",
     "reports": "Rapports",
@@ -97,6 +98,7 @@
       "backLink": "Retour aux professionnels",
       "tabs": {
         "profil": "Profil",
+        "onboarding": "Intégration",
         "portrait": "Portrait",
         "documents": "Documents",
         "fiche": "Fiche",
@@ -147,6 +149,55 @@
           "approve": "Approuver",
           "reject": "Rejeter"
         }
+      },
+      "onboarding": {
+        "title": "Intégration",
+        "progressTitle": "Progression de l'intégration",
+        "allComplete": "Toutes les étapes sont complétées",
+        "stepsComplete": "étapes complétées",
+        "steps": {
+          "formulaire": {
+            "label": "Formulaire",
+            "description": "Créer et envoyer le formulaire d'intégration au professionnel",
+            "status": {
+              "a_envoyer": "À envoyer",
+              "envoye": "Envoyé",
+              "consulte": "Consulté",
+              "soumis": "Soumis",
+              "en_revision": "En révision",
+              "approuve": "Approuvé",
+              "expire": "Expiré",
+              "revoque": "Révoqué"
+            }
+          },
+          "documents": {
+            "label": "Documents",
+            "description": "Téléverser les documents requis (photo, assurance, consentement)"
+          },
+          "activation": {
+            "label": "Activation",
+            "description": "Vérifier les informations et activer le profil"
+          }
+        },
+        "status": {
+          "pending": "En attente",
+          "inProgress": "En cours",
+          "completed": "Complété",
+          "blocked": "Bloqué"
+        },
+        "actions": {
+          "createLink": "Créer le lien",
+          "newLink": "Créer un nouveau lien",
+          "viewLink": "Voir le lien",
+          "copyLink": "Copier le lien",
+          "markSent": "Marquer envoyé",
+          "revoke": "Révoquer",
+          "viewSubmission": "Voir la soumission",
+          "goToPortrait": "Aller au Portrait",
+          "manageDocuments": "Gérer les documents",
+          "activate": "Activer le professionnel"
+        },
+        "processExplanation": "L'intégration d'un professionnel se fait en trois étapes: envoi et complétion du formulaire, téléversement des documents requis, et activation finale."
       }
     },
     "portrait": {
@@ -183,6 +234,9 @@
         },
         "empty": "Aucune spécialité sélectionnée"
       },
+      "motifs": {
+        "title": "Motifs de consultation"
+      },
       "empty": {
         "title": "Portrait non complété",
         "description": "Le professionnel n'a pas encore complété son portrait. Envoyez une invitation pour lui permettre de remplir le questionnaire."
@@ -196,9 +250,33 @@
         "diploma": "Diplôme",
         "license": "Permis de pratique",
         "insurance": "Assurance professionnelle",
-        "photo": "Photo",
+        "photo": "Photo professionnelle",
         "fiche": "Fiche professionnelle",
+        "consent": "Consentement droit à l'image",
+        "service_contract": "Contrat de service",
         "other": "Autre"
+      },
+      "required": {
+        "title": "Documents requis",
+        "photo": {
+          "label": "Photo professionnelle",
+          "description": "Photo de qualité pour le profil public"
+        },
+        "insurance": {
+          "label": "Assurance professionnelle",
+          "description": "Preuve d'assurance responsabilité civile"
+        },
+        "consent": {
+          "label": "Consentement droit à l'image",
+          "description": "Autorisation d'utilisation de la photo",
+          "renewalNotice": "Renouvellement automatique chaque année. Préavis de retrait de 3 mois."
+        },
+        "service_contract": {
+          "label": "Contrat de service",
+          "description": "Entente avec la Clinique MANA"
+        },
+        "missing": "Document manquant",
+        "missingCount": "document(s) requis manquant(s)"
       },
       "status": {
         "pending": "En attente",
@@ -269,15 +347,22 @@
     },
     "history": {
       "title": "Historique",
+      "subtitle": "Historique des modifications",
+      "eventsRecorded": "événement(s) enregistré(s)",
       "empty": {
-        "title": "Aucune activité",
-        "description": "L'historique des modifications apparaîtra ici."
+        "title": "Aucun historique",
+        "description": "L'historique des modifications apparaîtra ici au fur et à mesure que des changements sont effectués."
       },
       "actions": {
         "created": "Profil créé",
         "updated": "Profil mis à jour",
         "status_changed": "Statut modifié",
+        "status_activated": "Professionnel activé",
+        "status_deactivated": "Professionnel désactivé",
         "portrait_updated": "Portrait mis à jour",
+        "bio_updated": "Biographie mise à jour",
+        "approach_updated": "Approche thérapeutique mise à jour",
+        "contact_updated": "Coordonnées mises à jour",
         "fiche_generated": "Fiche générée",
         "document_uploaded": "Document téléversé",
         "document_verified": "Document vérifié",
@@ -294,11 +379,22 @@
         "questionnaire_submitted": "Questionnaire soumis",
         "questionnaire_reviewed": "Questionnaire revu",
         "questionnaire_approved": "Questionnaire approuvé",
+        "questionnaire_rejected": "Questionnaire rejeté",
         "specialty_added": "Spécialité ajoutée",
         "specialty_removed": "Spécialité retirée"
       },
       "by": "par",
-      "system": "Système"
+      "system": "Système",
+      "unknownUser": "Utilisateur inconnu",
+      "showDetails": "Voir les détails",
+      "hideDetails": "Masquer les détails",
+      "timeAgo": {
+        "justNow": "À l'instant",
+        "minutesAgo": "Il y a {{count}} min",
+        "hoursAgo": "Il y a {{count}} h",
+        "daysAgo": "Il y a {{count}} jour(s)"
+      },
+      "footer": "L'historique enregistre automatiquement toutes les modifications apportées au profil professionnel, aux documents, aux invitations et aux questionnaires."
     },
     "invite": {
       "public": {
@@ -342,9 +438,102 @@
           "publicPhonePlaceholder": "514-555-0123",
           "specialties": "Spécialités",
           "specialtiesHelper": "Sélectionnez les spécialités qui décrivent votre pratique.",
+          "motifs": "Motifs de consultation",
+          "motifsHelper": "Sélectionnez les motifs pour lesquels vous accompagnez vos clients.",
+          "photo": {
+            "title": "Photo professionnelle",
+            "description": "Téléversez une photo de qualité pour votre profil public. Cette photo sera visible sur votre fiche professionnelle.",
+            "dropzone": "Glissez votre photo ici ou cliquez pour sélectionner",
+            "requirements": "Format accepté: JPEG ou PNG. Taille maximale: 5 Mo.",
+            "preview": "Aperçu",
+            "change": "Changer la photo",
+            "uploading": "Téléversement en cours...",
+            "success": "Photo téléversée avec succès",
+            "error": "Erreur lors du téléversement",
+            "errorSize": "La photo dépasse la taille maximale de 5 Mo",
+            "errorFormat": "Format non supporté. Utilisez JPEG ou PNG."
+          },
+          "insurance": {
+            "title": "Assurance professionnelle",
+            "description": "Téléversez une preuve de votre assurance responsabilité civile professionnelle en vigueur.",
+            "dropzone": "Glissez votre document ici ou cliquez pour sélectionner",
+            "requirements": "Formats acceptés: PDF, JPEG, PNG. Taille maximale: 10 Mo.",
+            "uploaded": "Document téléversé",
+            "change": "Changer le document",
+            "uploading": "Téléversement en cours...",
+            "success": "Document téléversé avec succès",
+            "error": "Erreur lors du téléversement",
+            "errorSize": "Le document dépasse la taille maximale de 10 Mo",
+            "errorFormat": "Format non supporté. Utilisez PDF, JPEG ou PNG."
+          },
+          "consent": {
+            "title": "Consentement au droit à l'image",
+            "description": "Veuillez lire attentivement le formulaire de consentement ci-dessous et le signer pour autoriser l'utilisation de votre photo.",
+            "documentTitle": "Formulaire de consentement au droit à l'image",
+            "documentVersion": "Version",
+            "renewalPolicy": "Renouvellement automatique tous les 12 mois",
+            "withdrawalNotice": "Retrait possible avec un préavis de 3 mois",
+            "readDocument": "J'ai lu et compris le formulaire de consentement ci-dessus",
+            "checkboxLabel": "J'accepte les termes du consentement au droit à l'image",
+            "signature": {
+              "label": "Signature électronique",
+              "placeholder": "Entrez votre nom complet pour signer",
+              "helper": "Votre nom complet servira de signature électronique",
+              "date": "Date de signature"
+            },
+            "signed": "Consentement signé",
+            "notSigned": "Consentement non signé",
+            "required": "Ce consentement est requis pour continuer"
+          },
+          "review": {
+            "title": "Révision et soumission",
+            "description": "Vérifiez vos informations avant de soumettre le questionnaire.",
+            "sections": {
+              "personal": "Informations personnelles",
+              "professional": "Informations professionnelles",
+              "portrait": "Portrait",
+              "contact": "Coordonnées",
+              "specialties": "Spécialités",
+              "motifs": "Motifs de consultation",
+              "photo": "Photo professionnelle",
+              "insurance": "Assurance",
+              "consent": "Consentement"
+            },
+            "uploaded": "Téléversé",
+            "notUploaded": "Non téléversé",
+            "signed": "Signé",
+            "notSigned": "Non signé",
+            "missingRequired": "Éléments requis manquants",
+            "allComplete": "Tous les éléments requis sont complétés",
+            "editSection": "Modifier"
+          },
+          "steps": {
+            "personal": "Personnel",
+            "professional": "Professionnel",
+            "portrait": "Portrait",
+            "contact": "Contact",
+            "specialties": "Spécialités",
+            "motifs": "Motifs",
+            "photo": "Photo",
+            "insurance": "Assurance",
+            "consent": "Consentement",
+            "review": "Révision"
+          },
+          "navigation": {
+            "previous": "Précédent",
+            "next": "Suivant",
+            "goToStep": "Aller à l'étape"
+          },
           "submit": "Soumettre le questionnaire",
           "submitting": "Soumission en cours...",
-          "saveDraft": "Enregistrer le brouillon"
+          "saveDraft": "Enregistrer le brouillon",
+          "validation": {
+            "photoRequired": "La photo professionnelle est requise",
+            "insuranceRequired": "La preuve d'assurance est requise",
+            "consentRequired": "Le consentement au droit à l'image est requis",
+            "consentNotRead": "Veuillez confirmer avoir lu le formulaire de consentement",
+            "signatureRequired": "Veuillez signer le formulaire de consentement"
+          }
         }
       }
     },
@@ -410,13 +599,234 @@
         "description": "Les disponibilités seront affichées ici une fois que les professionnels auront configuré leurs horaires."
       }
     },
-    "reasons": {
-      "title": "Motifs de consultation",
-      "subtitle": "Définissez les types de consultations offerts",
-      "action": "Créer un motif",
+    "motifs": {
+      "page": {
+        "title": "Motifs de consultation",
+        "subtitle": "Les motifs aident à orienter les demandes vers les ressources appropriées.",
+        "action": "Créer un motif",
+        "searchPlaceholder": "Rechercher un motif...",
+        "noResults": "Aucun motif ne correspond à votre recherche.",
+        "viewFlat": "Vue simple (A–Z)",
+        "viewGrouped": "Par sphère",
+        "filters": {
+          "active": "Actifs",
+          "archived": "Archivés",
+          "all": "Tous"
+        }
+      },
+      "actions": {
+        "archive": "Archiver",
+        "restore": "Restaurer"
+      },
+      "archive": {
+        "title": "Archiver ce motif?",
+        "description": "Il ne sera plus proposé lors de la création d'une demande, mais restera disponible dans l'historique.",
+        "cancel": "Annuler",
+        "confirm": "Archiver"
+      },
+      "restore": {
+        "success": "Motif restauré"
+      },
+      "create": {
+        "title": "Créer un motif",
+        "subtitle": "Ce motif sera disponible pour orienter les nouvelles demandes.",
+        "labelField": "Libellé",
+        "labelPlaceholder": "Ex: Anxiété de performance",
+        "labelHelper": "Texte exact affiché aux intervenants.",
+        "keyField": "Clé technique",
+        "keyPlaceholder": "Ex: anxiete_performance",
+        "keyHelper": "Identifiant unique en minuscules (généré automatiquement).",
+        "keyAdvanced": "Modifier la clé",
+        "cancel": "Annuler",
+        "submit": "Créer le motif",
+        "submitting": "Création en cours...",
+        "success": "Motif créé",
+        "validation": {
+          "labelRequired": "Le libellé est requis.",
+          "keyRequired": "La clé est requise.",
+          "keyInvalid": "La clé doit être en minuscules, commencer par une lettre et ne contenir que des lettres, chiffres et underscores.",
+          "keyExists": "Cette clé existe déjà."
+        }
+      },
+      "errors": {
+        "permissionTitle": "Action non autorisée",
+        "permissionDescription": "Votre compte ne permet pas encore de modifier les motifs.",
+        "archiveFailed": "Impossible d'archiver ce motif.",
+        "restoreFailed": "Impossible de restaurer ce motif.",
+        "createFailed": "Impossible de créer ce motif."
+      },
+      "disclaimer": {
+        "text": "Les motifs servent à orienter la demande. Ils ne constituent pas un diagnostic.",
+        "ariaLabel": "Information importante sur l'utilisation des motifs"
+      },
       "empty": {
         "title": "Aucun motif défini",
-        "description": "Les motifs permettent de catégoriser les demandes de vos clients."
+        "description": "Les motifs permettent d'orienter les demandes de vos clients."
+      },
+      "card": {
+        "restricted": "Accès restreint",
+        "restrictedTooltip": "Ce motif peut être sélectionné uniquement par un professionnel avec permis de pratique actif."
+      },
+      "groups": {
+        "innerLife": "Vie intérieure",
+        "relationships": "Relations et famille",
+        "dependencies": "Dépendances",
+        "work": "Travail et finances",
+        "development": "Développement et apprentissage",
+        "identity": "Identité et sexualité",
+        "trauma": "Traumatismes",
+        "lifeChanges": "Parcours de vie",
+        "other": "Autre"
+      },
+      "picker": {
+        "label": "Motifs exprimés par le client",
+        "guidance": "Sélectionnez ce qui correspond le mieux à la situation telle que perçue par le client.",
+        "addButton": "Ajouter un motif…",
+        "doneButton": "Terminer",
+        "searchPlaceholder": "Rechercher un motif…",
+        "noResults": "Aucun motif trouvé",
+        "placeholder": "Aucun motif sélectionné",
+        "otherInput": {
+          "label": "Précisez (optionnel)",
+          "placeholder": "Décrivez brièvement..."
+        },
+        "description": {
+          "label": "Description complémentaire (optionnelle)",
+          "placeholder": "Précisions sur la demande du client...",
+          "helper": "Utilisé pour mieux comprendre la demande, sans interprétation clinique."
+        }
+      },
+      "restrictions": {
+        "title": "Accès restreint",
+        "explanation": "Ce motif peut être sélectionné uniquement par un professionnel avec permis de pratique actif.",
+        "learnMore": "En savoir plus",
+        "banner": "Certains motifs nécessitent une accréditation spécifique pour être sélectionnés."
+      }
+    },
+    "services": {
+      "page": {
+        "title": "Services offerts",
+        "subtitle": "Gérez les services de la clinique (durée, tarif, disponibilité interne).",
+        "action": "Créer un service",
+        "searchPlaceholder": "Rechercher un service...",
+        "noResults": "Aucun service ne correspond à votre recherche.",
+        "filters": {
+          "active": "Actifs",
+          "archived": "Archivés",
+          "all": "Tous"
+        },
+        "sort": {
+          "order": "Ordre",
+          "name": "Nom (A–Z)",
+          "duration": "Durée",
+          "price": "Tarif"
+        }
+      },
+      "disclaimer": {
+        "message": "Ces services servent à structurer l'offre de la clinique. Ils ne gèrent pas les rendez-vous."
+      },
+      "table": {
+        "name": "Nom",
+        "duration": "Durée",
+        "price": "Tarif",
+        "mode": "Mode",
+        "online": "En ligne",
+        "status": "Statut",
+        "actions": "Actions"
+      },
+      "values": {
+        "minutes": "min",
+        "onlineYes": "Oui",
+        "onlineNo": "Non",
+        "active": "Actif",
+        "archived": "Archivé",
+        "modeAppointment": "Sur rendez-vous",
+        "variantsCount": "variante(s)"
+      },
+      "actions": {
+        "edit": "Modifier",
+        "archive": "Archiver",
+        "restore": "Restaurer",
+        "duplicate": "Dupliquer"
+      },
+      "archive": {
+        "title": "Archiver ce service?",
+        "description": "Il ne sera plus proposé aux clients, mais restera dans l'historique.",
+        "cancel": "Annuler",
+        "confirm": "Archiver"
+      },
+      "restore": {
+        "success": "Service restauré"
+      },
+      "create": {
+        "title": "Créer un service",
+        "subtitle": "Ce service sera disponible pour la prise de rendez-vous.",
+        "tabs": {
+          "details": "Détails",
+          "parameters": "Paramètres",
+          "status": "Statut"
+        },
+        "fields": {
+          "name": "Nom du service",
+          "namePlaceholder": "Ex: Consultation individuelle",
+          "nameHelper": "Nom affiché aux clients et dans les rapports.",
+          "description": "Description interne",
+          "descriptionPlaceholder": "Notes internes sur ce service...",
+          "descriptionHelper": "Visible uniquement par l'équipe.",
+          "duration": "Durée (minutes)",
+          "durationPlaceholder": "50",
+          "price": "Tarif ($)",
+          "pricePlaceholder": "130",
+          "priceHelper": "0 $ pour les services gratuits.",
+          "isOnlineAvailable": "Disponible en ligne",
+          "isOnlineAvailableHelper": "Permet la réservation en ligne par les clients.",
+          "internalType": "Type interne",
+          "internalTypeHelper": "Catégorisation pour les rapports et le triage."
+        },
+        "variants": {
+          "title": "Variantes (optionnel)",
+          "subtitle": "Ajoutez des variantes si ce service a plusieurs déclinaisons (ex: Couple, Famille).",
+          "add": "Ajouter une variante",
+          "label": "Libellé",
+          "labelPlaceholder": "Ex: Couple",
+          "priceOverride": "Tarif",
+          "durationOverride": "Durée",
+          "remove": "Retirer",
+          "inheritPrice": "Même tarif",
+          "inheritDuration": "Même durée"
+        },
+        "cancel": "Annuler",
+        "submit": "Créer le service",
+        "success": "Service créé"
+      },
+      "edit": {
+        "title": "Modifier le service",
+        "submit": "Enregistrer",
+        "success": "Modifications enregistrées"
+      },
+      "internalTypes": {
+        "ouvertureDossier": "Ouverture de dossier",
+        "consultation": "Consultation",
+        "appelDecouverte": "Appel découverte",
+        "annulationFrais": "Annulation / frais",
+        "autre": "Autre"
+      },
+      "empty": {
+        "title": "Aucun service défini",
+        "description": "Les services permettent de structurer l'offre de la clinique."
+      },
+      "errors": {
+        "archiveFailed": "Impossible d'archiver ce service.",
+        "restoreFailed": "Impossible de restaurer ce service.",
+        "createFailed": "Impossible de créer ce service.",
+        "editFailed": "Impossible de modifier ce service."
+      },
+      "validation": {
+        "nameRequired": "Le nom est requis.",
+        "durationRequired": "La durée est requise.",
+        "durationMin": "La durée doit être positive.",
+        "priceRequired": "Le tarif est requis.",
+        "priceMin": "Le tarif ne peut être négatif."
       }
     },
     "clients": {
@@ -625,6 +1035,68 @@
           "helper": "Utilisé pour mieux comprendre la demande du client, sans interprétation clinique."
         },
         "guidance": "Les motifs servent à orienter la demande, non à poser un diagnostic.",
+        "intake": {
+          "besoin": {
+            "label": "Quel est le besoin?",
+            "helper": "En quelques mots, décrivez ce qui vous amène à consulter (tel que vous le percevez).",
+            "placeholder": "Décrivez brièvement la raison de la demande…"
+          },
+          "enjeux": {
+            "label": "Y a-t-il des enjeux dans la réalisation de la démarche?",
+            "helper": "Ces informations nous aident à mieux orienter la demande.",
+            "options": {
+              "financial": "Contraintes financières",
+              "availability": "Disponibilités / horaire",
+              "coparenting": "Parents séparés / coparentalité",
+              "other": "Autre"
+            },
+            "otherInput": {
+              "label": "Précisez (optionnel)",
+              "placeholder": "Décrivez brièvement…"
+            }
+          },
+          "diagnostic": {
+            "label": "Avez-vous déjà reçu un diagnostic ou une évaluation?",
+            "helper": "Information déclarative — utilisée pour orienter la demande, sans interprétation clinique.",
+            "options": {
+              "yes": "Oui",
+              "no": "Non",
+              "unknown": "Je ne sais pas / préfère ne pas répondre"
+            },
+            "detailInput": {
+              "label": "Si oui, lequel? (tel que mentionné par le professionnel)",
+              "placeholder": "Ex.: …"
+            }
+          },
+          "consultations": {
+            "label": "Avez-vous déjà consulté? Si oui, avec quel type de professionnel?",
+            "options": {
+              "psychologist": "Psychologue",
+              "socialWorker": "Travailleur social",
+              "psychoeducator": "Psychoéducateur",
+              "doctor": "Médecin",
+              "other": "Autre",
+              "none": "Non"
+            },
+            "otherInput": {
+              "label": "Précisez (optionnel)",
+              "placeholder": "Décrivez brièvement…"
+            }
+          },
+          "legalContext": {
+            "label": "Y a-t-il un contexte légal ou judiciaire à considérer?",
+            "options": {
+              "courtOrder": "Ordonnance de la Cour",
+              "youthProtection": "Signalement (DPJ ou autre)",
+              "none": "Aucun",
+              "preferNotToAnswer": "Je préfère ne pas répondre"
+            },
+            "detailInput": {
+              "label": "Précisions utiles (optionnel)",
+              "helper": "Cette information sert uniquement à orienter adéquatement la prise en charge."
+            }
+          }
+        },
         "list": {
           "anxiety": {
             "label": "Anxiété",
@@ -866,6 +1338,38 @@
             "age": "ans"
           }
         }
+      }
+    },
+    "requestStatus": {
+      "title": "Statut de la demande",
+      "helper": "Complétez la demande pour passer à l'analyse.",
+      "saveFirst": "Enregistrez la demande pour accéder à l'analyse."
+    },
+    "requestAnalysis": {
+      "title": "Analyse de la demande",
+      "backToRequest": "Retour à la demande",
+      "summary": {
+        "title": "Résumé de la demande",
+        "motifs": "Motifs exprimés",
+        "besoin": "Besoin identifié",
+        "enjeux": "Enjeux",
+        "legalContext": "Contexte légal",
+        "urgency": "Urgence perçue",
+        "noMotifs": "Aucun motif sélectionné",
+        "noBesoin": "Non renseigné",
+        "noEnjeux": "Aucun enjeu identifié",
+        "noLegalContext": "Aucun contexte légal"
+      },
+      "recommendations": {
+        "title": "Recommandations",
+        "empty": "Les recommandations seront proposées ici selon les motifs, le contexte et les règles d'orientation.",
+        "helper": "Cette étape aide à orienter la demande vers les ressources appropriées."
+      },
+      "actions": {
+        "title": "Actions",
+        "propose": "Proposer un professionnel",
+        "assign": "Assigner",
+        "helper": "Disponible lorsque l'analyse est prête."
       }
     },
     "reports": {
