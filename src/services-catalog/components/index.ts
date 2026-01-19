@@ -2,3 +2,4 @@
 
 export * from './service-disclaimer-banner'
 export * from './archive-service-dialog'
+export * from './service-table-row'
