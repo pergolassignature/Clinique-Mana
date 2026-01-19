@@ -150,7 +150,7 @@ insert into auth.identities (
   now(),
   now(),
   now()
-) on conflict (id, provider) do nothing;
+) on conflict (provider_id, provider) do nothing;
 
 insert into auth.identities (
   id,
@@ -170,7 +170,7 @@ insert into auth.identities (
   now(),
   now(),
   now()
-) on conflict (id, provider) do nothing;
+) on conflict (provider_id, provider) do nothing;
 
 insert into auth.identities (
   id,
@@ -190,7 +190,7 @@ insert into auth.identities (
   now(),
   now(),
   now()
-) on conflict (id, provider) do nothing;
+) on conflict (provider_id, provider) do nothing;
 
 insert into auth.identities (
   id,
@@ -210,7 +210,7 @@ insert into auth.identities (
   now(),
   now(),
   now()
-) on conflict (id, provider) do nothing;
+) on conflict (provider_id, provider) do nothing;
 
 -- =============================================================================
 -- CREATE PROFILES (linked to auth.users)
@@ -285,135 +285,28 @@ insert into public.profiles (
 ) on conflict (user_id) do nothing;
 
 -- =============================================================================
--- PROFESSIONAL: ALEXANDRE BOISVERT (Travailleur social)
--- =============================================================================
-
--- Auth user for Alexandre Boisvert
-insert into auth.users (
-  id,
-  instance_id,
-  email,
-  encrypted_password,
-  email_confirmed_at,
-  raw_app_meta_data,
-  raw_user_meta_data,
-  created_at,
-  updated_at,
-  role,
-  aud,
-  confirmation_token
-) values (
-  '55555555-5555-5555-5555-555555555555',
-  '00000000-0000-0000-0000-000000000000',
-  'boisvertalexts@hotmail.com',
-  crypt('testpassword123', gen_salt('bf')),
-  now(),
-  '{"provider": "email", "providers": ["email"]}',
-  '{"display_name": "Alexandre Boisvert"}',
-  now(),
-  now(),
-  'authenticated',
-  'authenticated',
-  ''
-) on conflict (id) do nothing;
-
--- Identity for Alexandre Boisvert
-insert into auth.identities (
-  id,
-  user_id,
-  provider_id,
-  identity_data,
-  provider,
-  last_sign_in_at,
-  created_at,
-  updated_at
-) values (
-  '55555555-5555-5555-5555-555555555555',
-  '55555555-5555-5555-5555-555555555555',
-  'boisvertalexts@hotmail.com',
-  '{"sub": "55555555-5555-5555-5555-555555555555", "email": "boisvertalexts@hotmail.com"}',
-  'email',
-  now(),
-  now(),
-  now()
-) on conflict (id, provider) do nothing;
-
--- Profile for Alexandre Boisvert
-insert into public.profiles (
-  id,
-  user_id,
-  role,
-  display_name,
-  email,
-  status
-) values (
-  'eeee5555-eeee-5555-eeee-555555555555',
-  '55555555-5555-5555-5555-555555555555',
-  'provider',
-  'Alexandre Boisvert',
-  'boisvertalexts@hotmail.com',
-  'active'
-) on conflict (user_id) do nothing;
-
--- Professional record for Alexandre Boisvert
-insert into public.professionals (
-  id,
-  profile_id,
-  status,
-  portrait_bio,
-  portrait_approach,
-  public_email,
-  public_phone,
-  license_number,
-  years_experience,
-  fiche_version
-) values (
-  'ffff5555-ffff-5555-ffff-555555555555',
-  'eeee5555-eeee-5555-eeee-555555555555',
-  'active',
-  'Travailleur social passionné par l''accompagnement des individus et des familles dans leur parcours de vie. Formé à l''intervention psychosociale, je m''intéresse particulièrement aux enjeux relationnels et aux transitions de vie.',
-  'Mon approche est centrée sur la personne et ses forces. Je crois en la capacité de chacun à trouver ses propres solutions avec un accompagnement adapté. J''utilise des techniques d''entrevue motivationnelle et d''intervention systémique.',
-  'boisvertalexts@hotmail.com',
-  '438-503-5751',
-  'DESA2410230TS',
-  2,
-  1
-) on conflict (id) do nothing;
-
--- =============================================================================
 -- SPECIALTIES SEED DATA
+-- Note: Professionals are created through the invite flow, not seeded here.
 -- =============================================================================
 
 insert into public.specialties (id, code, name_fr, category, is_active, sort_order) values
-  ('11111111-spec-1111-1111-111111111111', 'individual_therapy', 'Thérapie individuelle', 'therapy_type', true, 1),
-  ('22222222-spec-2222-2222-222222222222', 'couple_therapy', 'Thérapie de couple', 'therapy_type', true, 2),
-  ('33333333-spec-3333-3333-333333333333', 'family_therapy', 'Thérapie familiale', 'therapy_type', true, 3),
-  ('44444444-spec-4444-4444-444444444444', 'group_therapy', 'Thérapie de groupe', 'therapy_type', true, 4),
-  ('55555555-spec-5555-5555-555555555555', 'adults', 'Adultes', 'population', true, 1),
-  ('66666666-spec-6666-6666-666666666666', 'adolescents', 'Adolescents', 'population', true, 2),
-  ('77777777-spec-7777-7777-777777777777', 'children', 'Enfants', 'population', true, 3),
-  ('88888888-spec-8888-8888-888888888888', 'seniors', 'Aînés', 'population', true, 4),
-  ('99999999-spec-9999-9999-999999999999', 'anxiety', 'Anxiété', 'issue', true, 1),
-  ('aaaaaaaa-spec-aaaa-aaaa-aaaaaaaaaaaa', 'depression', 'Dépression', 'issue', true, 2),
-  ('bbbbbbbb-spec-bbbb-bbbb-bbbbbbbbbbbb', 'trauma', 'Trauma', 'issue', true, 3),
-  ('cccccccc-spec-cccc-cccc-cccccccccccc', 'relationships', 'Relations', 'issue', true, 4),
-  ('dddddddd-spec-dddd-dddd-dddddddddddd', 'grief', 'Deuil', 'issue', true, 5),
-  ('eeeeeeee-spec-eeee-eeee-eeeeeeeeeeee', 'in_person', 'En personne', 'modality', true, 1),
-  ('ffffffff-spec-ffff-ffff-ffffffffffff', 'video', 'Vidéoconférence', 'modality', true, 2),
-  ('11112222-spec-1111-2222-111122221111', 'phone', 'Téléphone', 'modality', true, 3)
-on conflict (id) do nothing;
-
--- Assign specialties to Alexandre Boisvert
-insert into public.professional_specialties (professional_id, specialty_id, proficiency_level) values
-  ('ffff5555-ffff-5555-ffff-555555555555', '11111111-spec-1111-1111-111111111111', 'primary'),    -- Thérapie individuelle
-  ('ffff5555-ffff-5555-ffff-555555555555', '33333333-spec-3333-3333-333333333333', 'secondary'),  -- Thérapie familiale
-  ('ffff5555-ffff-5555-ffff-555555555555', '55555555-spec-5555-5555-555555555555', 'primary'),    -- Adultes
-  ('ffff5555-ffff-5555-ffff-555555555555', '66666666-spec-6666-6666-666666666666', 'secondary'),  -- Adolescents
-  ('ffff5555-ffff-5555-ffff-555555555555', '99999999-spec-9999-9999-999999999999', 'primary'),    -- Anxiété
-  ('ffff5555-ffff-5555-ffff-555555555555', 'cccccccc-spec-cccc-cccc-cccccccccccc', 'primary'),    -- Relations
-  ('ffff5555-ffff-5555-ffff-555555555555', 'eeeeeeee-spec-eeee-eeee-eeeeeeeeeeee', 'primary'),    -- En personne
-  ('ffff5555-ffff-5555-ffff-555555555555', 'ffffffff-spec-ffff-ffff-ffffffffffff', 'secondary')   -- Vidéoconférence
-on conflict do nothing;
+  ('11111111-0001-4001-8001-111111111111', 'individual_therapy', 'Thérapie individuelle', 'therapy_type', true, 1),
+  ('22222222-0002-4002-8002-222222222222', 'couple_therapy', 'Thérapie de couple', 'therapy_type', true, 2),
+  ('33333333-0003-4003-8003-333333333333', 'family_therapy', 'Thérapie familiale', 'therapy_type', true, 3),
+  ('44444444-0004-4004-8004-444444444444', 'group_therapy', 'Thérapie de groupe', 'therapy_type', true, 4),
+  ('55555555-0005-4005-8005-555555555555', 'adults', 'Adultes', 'population', true, 1),
+  ('66666666-0006-4006-8006-666666666666', 'adolescents', 'Adolescents', 'population', true, 2),
+  ('77777777-0007-4007-8007-777777777777', 'children', 'Enfants', 'population', true, 3),
+  ('88888888-0008-4008-8008-888888888888', 'seniors', 'Aînés', 'population', true, 4),
+  ('99999999-0009-4009-8009-999999999999', 'anxiety', 'Anxiété', 'issue', true, 1),
+  ('aaaaaaaa-000a-400a-800a-aaaaaaaaaaaa', 'depression', 'Dépression', 'issue', true, 2),
+  ('bbbbbbbb-000b-400b-800b-bbbbbbbbbbbb', 'trauma', 'Trauma', 'issue', true, 3),
+  ('cccccccc-000c-400c-800c-cccccccccccc', 'relationships', 'Relations', 'issue', true, 4),
+  ('dddddddd-000d-400d-800d-dddddddddddd', 'grief', 'Deuil', 'issue', true, 5),
+  ('eeeeeeee-000e-400e-800e-eeeeeeeeeeee', 'in_person', 'En personne', 'modality', true, 1),
+  ('ffffffff-000f-400f-800f-ffffffffffff', 'video', 'Vidéoconférence', 'modality', true, 2),
+  ('11112222-0010-4010-8010-111122221111', 'phone', 'Téléphone', 'modality', true, 3)
+on conflict (code) do nothing;
 
 -- =============================================================================
 -- SUMMARY
@@ -427,13 +320,8 @@ on conflict do nothing;
 -- │ staff    │ staff@test.cliniquemana.local       │ testpassword123 │ bbbb2222-bbbb-2222-bbbb-222222222222 │
 -- │ provider │ provider1@test.cliniquemana.local   │ testpassword123 │ cccc3333-cccc-3333-cccc-333333333333 │
 -- │ provider │ provider2@test.cliniquemana.local   │ testpassword123 │ dddd4444-dddd-4444-dddd-444444444444 │
--- │ provider │ boisvertalexts@hotmail.com          │ testpassword123 │ eeee5555-eeee-5555-eeee-555555555555 │
 -- └──────────┴─────────────────────────────────────┴──────────┴────────────────────────────────────┘
 --
--- Professionals Created:
--- ┌─────────────────────┬────────────────────┬─────────────────┬────────────────────────────────────┐
--- │ Name                │ Title              │ License         │ Professional ID                    │
--- ├─────────────────────┼────────────────────┼─────────────────┼────────────────────────────────────┤
--- │ Alexandre Boisvert  │ Travailleur social │ DESA2410230TS   │ ffff5555-ffff-5555-ffff-555555555555 │
--- └─────────────────────┴────────────────────┴─────────────────┴────────────────────────────────────┘
+-- Note: Professionals are created through the invite flow, not seeded.
+-- Use the Professionnels page to create and send invitations.
 --
