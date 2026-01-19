@@ -24,11 +24,13 @@ import { ProfessionalsPage } from '@/pages/professionals'
 import { ProfessionalDetailPage } from '@/pages/professional-detail'
 import { InvitePage } from '@/pages/invite'
 import { AvailabilityPage } from '@/pages/availability'
-import { ReasonsPage } from '@/pages/reasons'
+import { MotifsPage } from '@/pages/motifs'
+import { ServicesPage } from '@/pages/services'
 import { ClientsPage } from '@/pages/clients'
 import { ClientDetailPage } from '@/pages/client-detail'
 import { RequestsPage } from '@/pages/requests'
 import { RequestDetailPage } from '@/pages/request-detail'
+import { RequestAnalysisPage } from '@/pages/request-analysis'
 import { ReportsPage } from '@/pages/reports'
 import { SettingsPage } from '@/pages/settings'
 import { LoginPage } from '@/pages/login'
@@ -105,11 +107,18 @@ const availabilityRoute = createRoute({
   component: AvailabilityPage,
 })
 
-// Reasons
-const reasonsRoute = createRoute({
+// Motifs
+const motifsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/motifs',
-  component: ReasonsPage,
+  component: MotifsPage,
+})
+
+// Services
+const servicesRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/services',
+  component: ServicesPage,
 })
 
 // Clients
@@ -142,6 +151,13 @@ const requestDetailRoute = createRoute({
   validateSearch: validateDetailSearchParams,
 })
 
+// Request Analysis
+const requestAnalysisRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/demandes/$id/analyse',
+  component: RequestAnalysisPage,
+})
+
 // Reports
 const reportsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
@@ -166,11 +182,13 @@ const routeTree = rootRoute.addChildren([
     professionalsRoute,
     professionalDetailRoute,
     availabilityRoute,
-    reasonsRoute,
+    motifsRoute,
+    servicesRoute,
     clientsRoute,
     clientDetailRoute,
     requestsRoute,
     requestDetailRoute,
+    requestAnalysisRoute,
     reportsRoute,
     settingsRoute,
   ]),

@@ -12,6 +12,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Briefcase,
 } from 'lucide-react'
 import { Logo, LogoMark } from '@/assets/logo'
 import { t } from '@/i18n'
@@ -55,6 +56,7 @@ const navItems = [
   { path: '/professionnels', label: 'nav.professionals', icon: Users },
   { path: '/disponibilites', label: 'nav.availability', icon: Calendar },
   { path: '/motifs', label: 'nav.reasons', icon: FileText },
+  { path: '/services', label: 'nav.services', icon: Briefcase },
   { path: '/rapports', label: 'nav.reports', icon: BarChart3 },
   { path: '/parametres', label: 'nav.settings', icon: Settings },
 ] as const
