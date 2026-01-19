@@ -1,0 +1,144 @@
+{
+  "app": {
+    "name": "Clinique MANA",
+    "tagline": "Portail de gestion clinique"
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "professionals": "Professionnels",
+    "availability": "Disponibilités",
+    "reasons": "Motifs",
+    "clients": "Clients",
+    "requests": "Demandes",
+    "reports": "Rapports",
+    "settings": "Paramètres",
+    "logout": "Déconnexion",
+    "collapse": "Réduire le menu",
+    "expand": "Agrandir le menu"
+  },
+  "topbar": {
+    "search": "Rechercher…",
+    "searchHint": "⌘K",
+    "notifications": "Notifications",
+    "help": "Aide",
+    "profile": "Profil"
+  },
+  "roles": {
+    "clinic": "Clinique",
+    "professional": "Professionnel"
+  },
+  "pages": {
+    "dashboard": {
+      "title": "Tableau de bord",
+      "subtitle": "Vue d'ensemble de votre activité clinique"
+    },
+    "professionals": {
+      "title": "Professionnels",
+      "subtitle": "Gérez les professionnels de votre clinique",
+      "action": "Ajouter un professionnel",
+      "empty": {
+        "title": "Aucun professionnel",
+        "description": "Commencez par ajouter les professionnels qui exercent dans votre clinique."
+      }
+    },
+    "availability": {
+      "title": "Disponibilités",
+      "subtitle": "Consultez et gérez les plages horaires disponibles",
+      "action": "Nouvelle disponibilité",
+      "empty": {
+        "title": "Aucune disponibilité configurée",
+        "description": "Les disponibilités seront affichées ici une fois que les professionnels auront configuré leurs horaires."
+      }
+    },
+    "reasons": {
+      "title": "Motifs de consultation",
+      "subtitle": "Définissez les types de consultations offerts",
+      "action": "Créer un motif",
+      "empty": {
+        "title": "Aucun motif défini",
+        "description": "Créez des motifs de consultation pour catégoriser les rendez-vous de vos clients."
+      }
+    },
+    "clients": {
+      "title": "Clients",
+      "subtitle": "Gérez les dossiers de vos clients",
+      "action": "Nouveau client",
+      "empty": {
+        "title": "Aucun client enregistré",
+        "description": "Les dossiers clients apparaîtront ici au fur et à mesure des inscriptions."
+      }
+    },
+    "requests": {
+      "title": "Demandes",
+      "subtitle": "Suivez et traitez les demandes entrantes",
+      "action": "Nouvelle demande",
+      "empty": {
+        "title": "Aucune demande en attente",
+        "description": "Les nouvelles demandes de rendez-vous et de consultation s'afficheront ici."
+      }
+    },
+    "reports": {
+      "title": "Rapports",
+      "subtitle": "Analysez les données de votre clinique",
+      "action": "Générer un rapport",
+      "empty": {
+        "title": "Aucun rapport disponible",
+        "description": "Les rapports d'activité et statistiques seront disponibles une fois que des données auront été enregistrées."
+      }
+    },
+    "settings": {
+      "title": "Paramètres",
+      "subtitle": "Configurez les préférences de votre portail",
+      "action": "Enregistrer",
+      "empty": {
+        "title": "Configuration en cours",
+        "description": "Les options de paramétrage seront disponibles prochainement."
+      }
+    }
+  },
+  "common": {
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "retry": "Réessayer",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "export": "Exporter",
+    "all": "Tous",
+    "none": "Aucun",
+    "status": "Statut",
+    "date": "Date",
+    "name": "Nom",
+    "email": "Courriel",
+    "phone": "Téléphone",
+    "actions": "Actions"
+  },
+  "filters": {
+    "all": "Tous",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "pending": "En attente",
+    "confirmed": "Confirmé",
+    "cancelled": "Annulé",
+    "dateRange": "Période",
+    "today": "Aujourd'hui",
+    "thisWeek": "Cette semaine",
+    "thisMonth": "Ce mois"
+  },
+  "commandPalette": {
+    "placeholder": "Rechercher une page ou une action...",
+    "noResults": "Aucun résultat trouvé",
+    "navigation": "Navigation"
+  },
+  "errors": {
+    "pageNotFound": "Page non trouvée",
+    "pageNotFoundDescription": "La page que vous recherchez n'existe pas ou a été déplacée.",
+    "goHome": "Retour à l'accueil",
+    "somethingWrong": "Quelque chose s'est mal passé",
+    "tryAgain": "Veuillez réessayer ou contacter le support si le problème persiste."
+  }
+}
