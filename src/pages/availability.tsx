@@ -1,6 +1,5 @@
 import { Plus, Calendar } from 'lucide-react'
 import { t } from '@/i18n'
-import { PageHeader } from '@/shared/components/page-header'
 import { EmptyState } from '@/shared/components/empty-state'
 import { FilterBarSkeleton } from '@/shared/components/filter-bar-skeleton'
 import { Button } from '@/shared/ui/button'
@@ -10,15 +9,13 @@ export function AvailabilityPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('pages.availability.title')}
-        subtitle={t('pages.availability.subtitle')}
-        action={{
-          label: t('pages.availability.action'),
-          icon: <Plus className="h-4 w-4" />,
-          disabled: true,
-        }}
-      />
+      {/* Toolbar: Action button */}
+      <div className="flex justify-end">
+        <Button disabled>
+          <Plus className="h-4 w-4" />
+          {t('pages.availability.action')}
+        </Button>
+      </div>
 
       {/* Filter Bar */}
       <FilterBarSkeleton filters={4} showSearch={false} />
@@ -38,12 +35,6 @@ export function AvailabilityPage() {
           icon={<Calendar className="h-8 w-8" />}
           title={t('pages.availability.empty.title')}
           description={t('pages.availability.empty.description')}
-          action={
-            <Button disabled>
-              <Plus className="mr-2 h-4 w-4" />
-              {t('pages.availability.action')}
-            </Button>
-          }
         />
       ) : (
         /* Calendar grid skeleton */

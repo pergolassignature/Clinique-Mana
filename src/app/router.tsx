@@ -3,27 +3,74 @@ import {
   createRoute,
   createRootRoute,
   redirect,
+  Outlet,
 } from '@tanstack/react-router'
 import { AppShell } from '@/shared/components/app-shell'
+import { ProtectedRoute } from '@/auth'
+import type { NavigationOrigin, DetailPageSearchParams } from '@/shared/lib/navigation'
+
+// Validate navigation search params for detail pages
+const VALID_ORIGINS: NavigationOrigin[] = ['clients', 'requests', 'client', 'request']
+
+function validateDetailSearchParams(search: Record<string, unknown>): DetailPageSearchParams {
+  const from = VALID_ORIGINS.includes(search.from as NavigationOrigin)
+    ? (search.from as NavigationOrigin)
+    : undefined
+  const fromId = typeof search.fromId === 'string' ? search.fromId : undefined
+  return { from, fromId }
+}
 import { DashboardPage } from '@/pages/dashboard'
 import { ProfessionalsPage } from '@/pages/professionals'
+import { ProfessionalDetailPage } from '@/pages/professional-detail'
+import { InvitePage } from '@/pages/invite'
 import { AvailabilityPage } from '@/pages/availability'
 import { ReasonsPage } from '@/pages/reasons'
 import { ClientsPage } from '@/pages/clients'
+import { ClientDetailPage } from '@/pages/client-detail'
 import { RequestsPage } from '@/pages/requests'
+import { RequestDetailPage } from '@/pages/request-detail'
 import { ReportsPage } from '@/pages/reports'
 import { SettingsPage } from '@/pages/settings'
+import { LoginPage } from '@/pages/login'
 import { NotFoundPage } from '@/pages/not-found'
 
-// Create root route with AppShell layout
+// Create root route (minimal wrapper)
 const rootRoute = createRootRoute({
-  component: AppShell,
+  component: Outlet,
   notFoundComponent: NotFoundPage,
+})
+
+// Login route (public)
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/connexion',
+  component: LoginPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect: typeof search.redirect === 'string' ? search.redirect : undefined,
+  }),
+})
+
+// Public invite route (for professional onboarding)
+const inviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/invitation/$token',
+  component: InvitePage,
+})
+
+// Protected layout route - wraps AppShell with auth check
+const protectedLayoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'protected',
+  component: () => (
+    <ProtectedRoute>
+      <AppShell />
+    </ProtectedRoute>
+  ),
 })
 
 // Index route - redirect to dashboard
 const indexRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => protectedLayoutRoute,
   path: '/',
   beforeLoad: () => {
     throw redirect({ to: '/dashboard' })
@@ -32,71 +79,101 @@ const indexRoute = createRoute({
 
 // Dashboard
 const dashboardRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => protectedLayoutRoute,
   path: '/dashboard',
   component: DashboardPage,
 })
 
 // Professionals
 const professionalsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => protectedLayoutRoute,
   path: '/professionnels',
   component: ProfessionalsPage,
 })
 
+// Professional Detail
+const professionalDetailRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/professionnels/$id',
+  component: ProfessionalDetailPage,
+})
+
 // Availability
 const availabilityRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => protectedLayoutRoute,
   path: '/disponibilites',
   component: AvailabilityPage,
 })
 
 // Reasons
 const reasonsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => protectedLayoutRoute,
   path: '/motifs',
   component: ReasonsPage,
 })
 
 // Clients
 const clientsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => protectedLayoutRoute,
   path: '/clients',
   component: ClientsPage,
 })
 
+// Client Detail
+const clientDetailRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/clients/$id',
+  component: ClientDetailPage,
+  validateSearch: validateDetailSearchParams,
+})
+
 // Requests
 const requestsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => protectedLayoutRoute,
   path: '/demandes',
   component: RequestsPage,
 })
 
+// Request Detail
+const requestDetailRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/demandes/$id',
+  component: RequestDetailPage,
+  validateSearch: validateDetailSearchParams,
+})
+
 // Reports
 const reportsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => protectedLayoutRoute,
   path: '/rapports',
   component: ReportsPage,
 })
 
 // Settings
 const settingsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => protectedLayoutRoute,
   path: '/parametres',
   component: SettingsPage,
 })
 
 // Build route tree
 const routeTree = rootRoute.addChildren([
-  indexRoute,
-  dashboardRoute,
-  professionalsRoute,
-  availabilityRoute,
-  reasonsRoute,
-  clientsRoute,
-  requestsRoute,
-  reportsRoute,
-  settingsRoute,
+  loginRoute,
+  inviteRoute,
+  protectedLayoutRoute.addChildren([
+    indexRoute,
+    dashboardRoute,
+    professionalsRoute,
+    professionalDetailRoute,
+    availabilityRoute,
+    reasonsRoute,
+    clientsRoute,
+    clientDetailRoute,
+    requestsRoute,
+    requestDetailRoute,
+    reportsRoute,
+    settingsRoute,
+  ]),
 ])
 
 // Create router

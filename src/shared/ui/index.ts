@@ -1,5 +1,6 @@
 export * from './button'
 export * from './badge'
+export * from './card'
 export * from './tooltip'
 export * from './avatar'
 export * from './input'

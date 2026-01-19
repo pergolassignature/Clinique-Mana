@@ -3,6 +3,29 @@
     "name": "Clinique MANA",
     "tagline": "Portail de gestion clinique"
   },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "subtitle": "Accédez à votre portail clinique",
+      "email": "Courriel",
+      "emailPlaceholder": "votre.courriel@exemple.com",
+      "password": "Mot de passe",
+      "passwordPlaceholder": "Votre mot de passe",
+      "signIn": "Se connecter",
+      "signingIn": "Connexion en cours...",
+      "helpText": "Problème de connexion? Contactez l'administration."
+    },
+    "errors": {
+      "invalidCredentials": "Courriel ou mot de passe incorrect.",
+      "profileDisabled": "Votre compte a été désactivé. Contactez l'administration.",
+      "unknown": "Une erreur est survenue. Veuillez réessayer."
+    },
+    "profileNotConfigured": {
+      "title": "Compte non configuré",
+      "description": "Votre profil n'a pas encore été créé. Veuillez contacter l'administration pour configurer votre accès.",
+      "retry": "Réessayer"
+    }
+  },
   "nav": {
     "dashboard": "Tableau de bord",
     "professionals": "Professionnels",
@@ -14,7 +37,13 @@
     "settings": "Paramètres",
     "logout": "Déconnexion",
     "collapse": "Réduire le menu",
-    "expand": "Agrandir le menu"
+    "expand": "Agrandir le menu",
+    "backTo": {
+      "clients": "Retour aux clients",
+      "requests": "Retour aux demandes",
+      "client": "Retour au client",
+      "request": "Retour à la demande"
+    }
   },
   "topbar": {
     "search": "Rechercher…",
@@ -27,10 +56,341 @@
     "clinic": "Clinique",
     "professional": "Professionnel"
   },
+  "professionals": {
+    "list": {
+      "title": "Professionnels",
+      "subtitle": "Gérez les professionnels de votre clinique",
+      "addProfessional": "Ajouter un professionnel",
+      "searchPlaceholder": "Rechercher par nom ou courriel...",
+      "filters": {
+        "status": "Statut",
+        "all": "Tous les statuts"
+      },
+      "table": {
+        "name": "Nom",
+        "email": "Courriel",
+        "status": "Statut",
+        "specialties": "Spécialités",
+        "documents": "Documents",
+        "actions": "Actions"
+      },
+      "card": {
+        "specialties": "spécialité(s)",
+        "documents": "document(s)",
+        "pendingInvite": "Invitation en attente",
+        "viewProfile": "Voir le profil"
+      },
+      "empty": {
+        "title": "Aucun professionnel",
+        "description": "Commencez par ajouter les professionnels qui exercent dans votre clinique.",
+        "filteredTitle": "Aucun résultat",
+        "filteredDescription": "Aucun professionnel ne correspond à vos critères de recherche."
+      },
+      "status": {
+        "pending": "En attente",
+        "invited": "Invité",
+        "active": "Actif",
+        "inactive": "Inactif"
+      }
+    },
+    "detail": {
+      "backLink": "Retour aux professionnels",
+      "tabs": {
+        "profil": "Profil",
+        "portrait": "Portrait",
+        "documents": "Documents",
+        "fiche": "Fiche",
+        "historique": "Historique"
+      },
+      "actions": {
+        "sendInvite": "Envoyer une invitation",
+        "resendInvite": "Renvoyer l'invitation",
+        "revokeInvite": "Révoquer l'invitation",
+        "activate": "Activer",
+        "deactivate": "Désactiver",
+        "generateFiche": "Générer la fiche"
+      },
+      "profile": {
+        "title": "Informations du profil",
+        "displayName": "Nom d'affichage",
+        "email": "Courriel",
+        "status": "Statut",
+        "createdAt": "Créé le",
+        "lastUpdated": "Dernière mise à jour"
+      },
+      "invite": {
+        "title": "Invitation",
+        "status": "Statut",
+        "sentAt": "Envoyée le",
+        "openedAt": "Ouverte le",
+        "completedAt": "Complétée le",
+        "expiresAt": "Expire le",
+        "expired": "Expirée",
+        "noInvite": "Aucune invitation envoyée",
+        "sendFirst": "Envoyez une invitation pour permettre au professionnel de compléter son profil.",
+        "pendingCompletion": "En attente de complétion",
+        "waitingResponse": "Le professionnel a été invité mais n'a pas encore complété le questionnaire.",
+        "opened": "Invitation ouverte",
+        "openedMessage": "Le professionnel a ouvert le lien. En attente de soumission."
+      },
+      "questionnaire": {
+        "title": "Questionnaire",
+        "status": "Statut",
+        "submittedAt": "Soumis le",
+        "reviewedAt": "Revu le",
+        "reviewedBy": "Revu par",
+        "reviewNotes": "Notes de révision",
+        "noSubmission": "Aucune soumission",
+        "pendingReview": "En attente de révision",
+        "actions": {
+          "review": "Réviser",
+          "approve": "Approuver",
+          "reject": "Rejeter"
+        }
+      }
+    },
+    "portrait": {
+      "title": "Portrait professionnel",
+      "bio": {
+        "label": "Biographie",
+        "placeholder": "Décrivez votre parcours et votre expérience..."
+      },
+      "approach": {
+        "label": "Approche thérapeutique",
+        "placeholder": "Décrivez votre approche et vos méthodes de travail..."
+      },
+      "contact": {
+        "title": "Coordonnées publiques",
+        "email": "Courriel public",
+        "emailPlaceholder": "courriel@public.com",
+        "phone": "Téléphone public",
+        "phonePlaceholder": "514-555-0123"
+      },
+      "specialties": {
+        "title": "Spécialités",
+        "add": "Ajouter une spécialité",
+        "remove": "Retirer",
+        "categories": {
+          "therapy_type": "Types de thérapie",
+          "population": "Populations",
+          "issue": "Problématiques",
+          "modality": "Modalités"
+        },
+        "proficiency": {
+          "primary": "Principal",
+          "secondary": "Secondaire",
+          "familiar": "Familier"
+        },
+        "empty": "Aucune spécialité sélectionnée"
+      },
+      "empty": {
+        "title": "Portrait non complété",
+        "description": "Le professionnel n'a pas encore complété son portrait. Envoyez une invitation pour lui permettre de remplir le questionnaire."
+      }
+    },
+    "documents": {
+      "title": "Documents",
+      "upload": "Téléverser un document",
+      "types": {
+        "cv": "CV",
+        "diploma": "Diplôme",
+        "license": "Permis de pratique",
+        "insurance": "Assurance professionnelle",
+        "photo": "Photo",
+        "fiche": "Fiche professionnelle",
+        "other": "Autre"
+      },
+      "status": {
+        "pending": "En attente",
+        "verified": "Vérifié",
+        "expired": "Expiré"
+      },
+      "table": {
+        "name": "Document",
+        "type": "Type",
+        "uploadedAt": "Téléversé le",
+        "expiresAt": "Expire le",
+        "status": "Statut",
+        "actions": "Actions"
+      },
+      "actions": {
+        "download": "Télécharger",
+        "verify": "Vérifier",
+        "reject": "Rejeter",
+        "updateExpiry": "Modifier l'expiration",
+        "delete": "Supprimer"
+      },
+      "empty": {
+        "title": "Aucun document",
+        "description": "Les documents téléversés (CV, diplômes, permis) apparaîtront ici."
+      },
+      "upload": {
+        "title": "Téléverser un document",
+        "selectType": "Type de document",
+        "selectFile": "Sélectionner un fichier",
+        "dragDrop": "ou glissez-déposez",
+        "maxSize": "Maximum 10 Mo - PDF, Word, JPEG, PNG",
+        "expiryDate": "Date d'expiration (optionnelle)",
+        "cancel": "Annuler",
+        "submit": "Téléverser"
+      },
+      "expiry": {
+        "title": "Modifier la date d'expiration",
+        "label": "Date d'expiration",
+        "noExpiry": "Aucune expiration",
+        "cancel": "Annuler",
+        "save": "Enregistrer"
+      },
+      "delete": {
+        "title": "Supprimer ce document ?",
+        "description": "Cette action est irréversible. Le fichier sera définitivement supprimé.",
+        "cancel": "Annuler",
+        "confirm": "Supprimer"
+      }
+    },
+    "fiche": {
+      "title": "Fiche professionnelle",
+      "preview": "Aperçu",
+      "download": "Télécharger PDF",
+      "lastGenerated": "Générée le",
+      "version": "Version",
+      "regenerate": "Régénérer",
+      "empty": {
+        "title": "Fiche non générée",
+        "description": "Complétez le portrait et les spécialités pour générer la fiche professionnelle."
+      },
+      "sections": {
+        "header": "En-tête",
+        "bio": "Biographie",
+        "approach": "Approche",
+        "specialties": "Spécialités",
+        "contact": "Contact"
+      }
+    },
+    "history": {
+      "title": "Historique",
+      "empty": {
+        "title": "Aucune activité",
+        "description": "L'historique des modifications apparaîtra ici."
+      },
+      "actions": {
+        "created": "Profil créé",
+        "updated": "Profil mis à jour",
+        "status_changed": "Statut modifié",
+        "portrait_updated": "Portrait mis à jour",
+        "fiche_generated": "Fiche générée",
+        "document_uploaded": "Document téléversé",
+        "document_verified": "Document vérifié",
+        "document_rejected": "Document rejeté",
+        "document_expiry_updated": "Expiration modifiée",
+        "document_deleted": "Document supprimé",
+        "invite_created": "Invitation créée",
+        "invite_sent": "Invitation envoyée",
+        "invite_opened": "Invitation ouverte",
+        "invite_completed": "Invitation complétée",
+        "invite_expired": "Invitation expirée",
+        "invite_revoked": "Invitation révoquée",
+        "questionnaire_started": "Questionnaire commencé",
+        "questionnaire_submitted": "Questionnaire soumis",
+        "questionnaire_reviewed": "Questionnaire revu",
+        "questionnaire_approved": "Questionnaire approuvé",
+        "specialty_added": "Spécialité ajoutée",
+        "specialty_removed": "Spécialité retirée"
+      },
+      "by": "par",
+      "system": "Système"
+    },
+    "invite": {
+      "public": {
+        "title": "Bienvenue chez Clinique MANA",
+        "subtitle": "Complétez votre profil professionnel",
+        "expired": {
+          "title": "Invitation expirée",
+          "description": "Ce lien d'invitation a expiré. Veuillez contacter l'administration de la clinique pour obtenir une nouvelle invitation."
+        },
+        "invalid": {
+          "title": "Invitation invalide",
+          "description": "Ce lien d'invitation n'est pas valide. Veuillez vérifier le lien ou contacter l'administration."
+        },
+        "completed": {
+          "title": "Merci !",
+          "description": "Votre questionnaire a été soumis avec succès. L'équipe de la clinique le révisera sous peu."
+        },
+        "form": {
+          "personalInfo": "Informations personnelles",
+          "fullName": "Nom complet",
+          "fullNamePlaceholder": "Ex: Marie Tremblay",
+          "preferredName": "Nom préféré (optionnel)",
+          "preferredNamePlaceholder": "Comment souhaitez-vous être appelé(e)?",
+          "pronouns": "Pronoms (optionnel)",
+          "pronounsPlaceholder": "Ex: elle/elle, il/lui",
+          "professionalInfo": "Informations professionnelles",
+          "title": "Titre professionnel",
+          "titlePlaceholder": "Ex: Psychologue, Travailleuse sociale",
+          "licenseNumber": "Numéro de permis",
+          "licenseNumberPlaceholder": "Ex: 12345-67",
+          "yearsExperience": "Années d'expérience",
+          "portrait": "Portrait professionnel",
+          "bio": "Biographie",
+          "bioPlaceholder": "Décrivez votre parcours, votre formation et votre expérience...",
+          "approach": "Approche thérapeutique",
+          "approachPlaceholder": "Décrivez votre approche, vos méthodes de travail et votre philosophie...",
+          "contact": "Coordonnées publiques",
+          "publicEmail": "Courriel public",
+          "publicEmailPlaceholder": "courriel@exemple.com",
+          "publicPhone": "Téléphone public",
+          "publicPhonePlaceholder": "514-555-0123",
+          "specialties": "Spécialités",
+          "specialtiesHelper": "Sélectionnez les spécialités qui décrivent votre pratique.",
+          "submit": "Soumettre le questionnaire",
+          "submitting": "Soumission en cours...",
+          "saveDraft": "Enregistrer le brouillon"
+        }
+      }
+    },
+    "createModal": {
+      "title": "Ajouter un professionnel",
+      "subtitle": "Créez un nouveau profil professionnel",
+      "selectProfile": "Profil existant",
+      "selectProfilePlaceholder": "Sélectionner un profil provider...",
+      "noProfiles": "Aucun profil provider disponible",
+      "createProfile": "ou créer un nouveau profil",
+      "email": "Courriel",
+      "emailPlaceholder": "courriel@clinique.com",
+      "displayName": "Nom d'affichage",
+      "displayNamePlaceholder": "Ex: Dr. Marie Tremblay",
+      "cancel": "Annuler",
+      "create": "Créer le professionnel"
+    }
+  },
   "pages": {
     "dashboard": {
       "title": "Tableau de bord",
-      "subtitle": "Vue d'ensemble de votre activité clinique"
+      "subtitle": "Vue d'ensemble de votre activité clinique",
+      "stats": {
+        "pendingRequests": "Demandes à traiter",
+        "activeClients": "Clients actifs",
+        "ongoingAssignments": "Assignations en cours",
+        "avgAssignmentTime": "Temps moyen d'assignation"
+      },
+      "sections": {
+        "recentRequests": "Demandes récentes",
+        "recentActivity": "Activité récente"
+      },
+      "empty": {
+        "requests": "Les nouvelles demandes de clients apparaîtront ici une fois soumises.",
+        "activity": "Vos actions et assignations seront enregistrées ici."
+      },
+      "quickActions": {
+        "title": "Actions rapides",
+        "newClient": "Nouveau client",
+        "processRequest": "Traiter une demande",
+        "viewProfessionals": "Voir les professionnels",
+        "generateReport": "Générer un rapport"
+      },
+      "units": {
+        "days": "jours"
+      }
     },
     "professionals": {
       "title": "Professionnels",
@@ -56,7 +416,7 @@
       "action": "Créer un motif",
       "empty": {
         "title": "Aucun motif défini",
-        "description": "Créez des motifs de consultation pour catégoriser les rendez-vous de vos clients."
+        "description": "Les motifs permettent de catégoriser les demandes de vos clients."
       }
     },
     "clients": {
@@ -68,13 +428,444 @@
         "description": "Les dossiers clients apparaîtront ici au fur et à mesure des inscriptions."
       }
     },
+    "clientDetail": {
+      "backLink": "Retour aux clients",
+      "createRequest": "Créer une demande",
+      "editProfile": "Modifier le profil",
+      "profileHelper": "Profil administratif du client",
+      "status": {
+        "active": "Actif",
+        "inactive": "Inactif"
+      },
+      "sections": {
+        "identity": "Identité du client",
+        "contact": "Coordonnées",
+        "consent": "Consentements",
+        "contacts": "Contacts autorisés",
+        "requests": "Demandes associées"
+      },
+      "identity": {
+        "firstName": "Prénom",
+        "lastName": "Nom",
+        "dateOfBirth": "Date de naissance",
+        "preferredLanguage": "Langue préférée",
+        "gender": "Genre / identité de genre",
+        "createdAt": "Client depuis",
+        "helper": "Ces informations servent uniquement à la coordination."
+      },
+      "languages": {
+        "fr": "Français",
+        "en": "Anglais",
+        "other": "Autre"
+      },
+      "genders": {
+        "male": "Homme",
+        "female": "Femme",
+        "nonBinary": "Non-binaire",
+        "other": "Autre",
+        "preferNotToSay": "Préfère ne pas répondre",
+        "notProvided": "Non renseigné"
+      },
+      "contact": {
+        "email": "Courriel",
+        "emailUnknown": "Non fourni",
+        "emailRequired": "Requis avant assignation",
+        "phonePrimary": "Téléphone principal",
+        "phoneSecondary": "Téléphone secondaire",
+        "preferredContact": "Préférence de contact",
+        "helper": "Utilisées pour coordonner les rendez-vous et communications."
+      },
+      "contactMethods": {
+        "call": "Appel",
+        "text": "Texto",
+        "email": "Courriel",
+        "noPreference": "Sans préférence"
+      },
+      "consent": {
+        "status": {
+          "label": "Statut du consentement",
+          "valid": "Valide",
+          "expired": "Expiré",
+          "missing": "Manquant"
+        },
+        "banner": {
+          "valid": "Le consentement est à jour.",
+          "expired": "Le consentement a expiré. Un renouvellement est requis.",
+          "missing": "Aucun consentement enregistré. L'obtention du consentement est requise."
+        },
+        "explanation": "Le consentement autorise la clinique à traiter la demande et à orienter le client.",
+        "records": {
+          "title": "Historique des consentements",
+          "version": "Version",
+          "signedDate": "Signé le",
+          "signedBy": "Signé par",
+          "signedByOptions": {
+            "client": "Client",
+            "parent": "Parent",
+            "guardian": "Tuteur légal"
+          },
+          "notes": "Notes",
+          "viewDocument": "Voir le document",
+          "empty": "Aucun consentement enregistré."
+        },
+        "actions": {
+          "add": "Ajouter un consentement",
+          "renew": "Renouveler"
+        },
+        "assignmentNotice": "Un consentement valide est requis avant toute assignation à un professionnel."
+      },
+      "contacts": {
+        "title": "Contacts autorisés",
+        "subtitle": "Personnes autorisées à communiquer au sujet du client",
+        "add": "Ajouter un contact",
+        "types": {
+          "parent": "Parent",
+          "legalGuardian": "Tuteur légal",
+          "spouse": "Conjoint / partenaire",
+          "emergencyContact": "Contact d'urgence",
+          "other": "Autre"
+        },
+        "fields": {
+          "name": "Nom complet",
+          "relation": "Type de relation",
+          "phone": "Téléphone",
+          "email": "Courriel"
+        },
+        "authorization": {
+          "canDiscuss": "Autorisé à discuter du dossier",
+          "cannotDiscuss": "Non autorisé à discuter",
+          "primaryContact": "Contact principal"
+        },
+        "clientStatus": {
+          "isClient": "Aussi un client",
+          "viewClient": "Voir le client",
+          "linkExisting": "Associer à un client existant",
+          "createClient": "Créer un dossier client"
+        },
+        "empty": "Aucun contact autorisé pour le moment.",
+        "helper": "Les contacts servent uniquement à la communication. Pour inclure une personne dans une demande, elle doit avoir son propre dossier client.",
+        "relationshipNote": "La relation (conjoint, parent) décrit le lien personnel, pas la participation aux demandes."
+      },
+      "requestHistory": {
+        "title": "Demandes associées",
+        "viewRequest": "Voir la demande",
+        "empty": "Aucune demande associée pour le moment.",
+        "roles": {
+          "principal": "Client principal",
+          "participant": "Participant"
+        }
+      }
+    },
     "requests": {
       "title": "Demandes",
       "subtitle": "Suivez et traitez les demandes entrantes",
       "action": "Nouvelle demande",
       "empty": {
         "title": "Aucune demande en attente",
-        "description": "Les nouvelles demandes de rendez-vous et de consultation s'afficheront ici."
+        "description": "Les nouvelles demandes de clients s'afficheront ici pour assignation."
+      }
+    },
+    "requestDetail": {
+      "title": "Demande de consultation",
+      "titleNew": "Nouvelle demande",
+      "backLink": "Retour aux demandes",
+      "clientNotCreated": "Client non créé",
+      "draft": {
+        "badge": "Brouillon",
+        "noClient": "Aucun client sélectionné",
+        "selectTypeFirst": "Sélectionnez d'abord un type de demande pour commencer."
+      },
+      "status": {
+        "toAnalyze": "À analyser",
+        "assigned": "Assignée",
+        "closed": "Fermée"
+      },
+      "demandType": {
+        "title": "Type de demande",
+        "placeholder": "Sélectionner un type",
+        "helper": "Le type détermine le nombre de clients impliqués.",
+        "types": {
+          "individual": "Individuelle",
+          "couple": "Couple",
+          "family": "Famille",
+          "group": "Groupe"
+        },
+        "descriptions": {
+          "individual": "Suivi pour une seule personne",
+          "couple": "Accompagnement pour deux personnes en relation",
+          "family": "Soutien pour plusieurs membres d'une famille",
+          "group": "Intervention de groupe (à venir)"
+        }
+      },
+      "actions": {
+        "analyze": "Analyser",
+        "assign": "Assigner",
+        "close": "Fermer la demande"
+      },
+      "sections": {
+        "context": "Contexte",
+        "orientation": "Orientation",
+        "activity": "Activité"
+      },
+      "motifs": {
+        "title": "Motifs de consultation",
+        "sectionLabel": "Contexte client",
+        "label": "Motifs exprimés par le client",
+        "placeholder": "Aucun motif sélectionné",
+        "addButton": "Ajouter un motif…",
+        "searchPlaceholder": "Rechercher un motif…",
+        "noResults": "Aucun motif trouvé",
+        "otherInput": {
+          "label": "Précisez (optionnel)",
+          "placeholder": "Décrivez le motif…"
+        },
+        "description": {
+          "label": "Description complémentaire (optionnelle)",
+          "placeholder": "Précisions sur la demande du client...",
+          "helper": "Utilisé pour mieux comprendre la demande du client, sans interprétation clinique."
+        },
+        "guidance": "Les motifs servent à orienter la demande, non à poser un diagnostic.",
+        "list": {
+          "anxiety": {
+            "label": "Anxiété",
+            "description": "Inquiétude, stress persistant, pensées envahissantes"
+          },
+          "stress": {
+            "label": "Stress",
+            "description": "Pression quotidienne, surcharge mentale"
+          },
+          "burnout": {
+            "label": "Épuisement",
+            "description": "Fatigue intense, perte d'énergie, sentiment de vide"
+          },
+          "relationships": {
+            "label": "Difficultés relationnelles",
+            "description": "Tensions familiales, amicales ou amoureuses"
+          },
+          "emotions": {
+            "label": "Gestion des émotions",
+            "description": "Difficulté à réguler ses réactions émotionnelles"
+          },
+          "parenting": {
+            "label": "Soutien parental",
+            "description": "Accompagnement dans le rôle de parent"
+          },
+          "selfExploration": {
+            "label": "Questionnement personnel",
+            "description": "Réflexion sur soi, valeurs, direction de vie"
+          },
+          "lifeTransition": {
+            "label": "Transition de vie",
+            "description": "Changement majeur : déménagement, séparation, retraite"
+          },
+          "workSupport": {
+            "label": "Soutien au travail",
+            "description": "Enjeux professionnels, conflits, orientation"
+          },
+          "grief": {
+            "label": "Deuil ou perte",
+            "description": "Accompagnement face à une perte significative"
+          },
+          "selfEsteem": {
+            "label": "Estime de soi",
+            "description": "Confiance en soi, image de soi"
+          },
+          "other": {
+            "label": "Autre",
+            "description": "Motif non listé ci-dessus"
+          }
+        }
+      },
+      "notes": {
+        "title": "Notes de prise de contact",
+        "placeholder": "Notes de l'appel ou du premier contact avec le client...",
+        "helper": "Visible uniquement par l'équipe Clinique MANA"
+      },
+      "urgency": {
+        "title": "Urgence perçue",
+        "helper": "Évaluation interne, non clinique",
+        "levels": {
+          "low": "Faible",
+          "moderate": "Modérée",
+          "high": "Élevée"
+        },
+        "placeholder": "Sélectionner un niveau"
+      },
+      "recommendations": {
+        "title": "Recommandations",
+        "empty": "Des recommandations de professionnels seront proposées ici selon les motifs et disponibilités."
+      },
+      "timeline": {
+        "title": "Historique",
+        "events": {
+          "created": "Demande créée",
+          "notesAdded": "Notes ajoutées",
+          "assigned": "Assignée à",
+          "closed": "Demande fermée"
+        },
+        "empty": "L'historique des actions apparaîtra ici."
+      },
+      "consent": {
+        "title": "Consentement",
+        "status": {
+          "valid": "Valide",
+          "expired": "Expiré",
+          "missing": "Manquant"
+        },
+        "version": "v",
+        "viewClient": "Voir le dossier client",
+        "tooltip": "Le consentement permet d'assigner un professionnel au client.",
+        "requiredForAssignment": "Consentement requis pour assigner un professionnel.",
+        "updateConsent": "Mettre à jour le consentement"
+      },
+      "assignment": {
+        "title": "Assignation",
+        "placeholder": "Sélectionner un professionnel",
+        "helper": "L'assignation confirme l'orientation, sans gérer le rendez-vous.",
+        "disabledNoConsent": "L'assignation sera disponible une fois le consentement obtenu.",
+        "disabledMissingConsents": "Un ou plusieurs participants n'ont pas de consentement valide.",
+        "disabledNoType": "Sélectionnez d'abord un type de demande.",
+        "disabledParticipantCount": "Le nombre de participants ne correspond pas au type de demande.",
+        "disabledNoUrgency": "Indiquez le niveau d'urgence perçue pour continuer.",
+        "pendingConsent": "L'assignation sera disponible une fois tous les consentements validés.",
+        "viewClientProfile": "Voir la fiche client"
+      },
+      "participants": {
+        "title": "Personnes concernées",
+        "subtitle": "Clients impliqués dans cette demande",
+        "helper": "Chaque personne concernée doit avoir son propre dossier client. Le consentement est validé individuellement.",
+        "roles": {
+          "principal": "Client principal",
+          "participant": "Participant"
+        },
+        "addClient": "Ajouter un client",
+        "addExisting": "Client existant",
+        "createNew": "Nouveau client",
+        "searchPlaceholder": "Rechercher un client…",
+        "noResults": "Aucun client trouvé",
+        "remove": "Retirer",
+        "removeDialog": {
+          "title": "Retirer ce client de la demande ?",
+          "description": "Le dossier client ne sera pas supprimé. Vous pourrez toujours le réassocier ultérieurement.",
+          "cancel": "Annuler",
+          "confirm": "Retirer"
+        },
+        "viewProfile": "Voir la fiche",
+        "empty": "Aucun client lié à cette demande.",
+        "emptyWithType": {
+          "individual": "Ajoutez le client concerné par cette demande.",
+          "couple": "Ajoutez les deux personnes concernées par cette demande.",
+          "family": "Ajoutez les membres de la famille concernés.",
+          "group": "Les demandes de groupe seront disponibles prochainement."
+        },
+        "emptyNoType": "Sélectionnez un type de demande pour commencer.",
+        "consentRequired": "Consentement requis",
+        "consentPending": "Un consentement valide sera requis avant l'assignation.",
+        "consentComplete": "Tous les consentements sont validés.",
+        "allConsentsRequired": "Le consentement de tous les participants est requis avant l'assignation.",
+        "missingConsents": "participant(s) sans consentement valide",
+        "validation": {
+          "individual": {
+            "exact": "Une demande individuelle concerne exactement une personne.",
+            "cannotAdd": "Impossible d'ajouter d'autres personnes à une demande individuelle."
+          },
+          "couple": {
+            "required": "Une demande de couple nécessite exactement deux personnes.",
+            "needsOne": "Ajoutez une deuxième personne pour compléter le couple.",
+            "complete": "Les deux personnes du couple sont identifiées."
+          },
+          "family": {
+            "minimum": "Une demande familiale nécessite au moins deux personnes.",
+            "needsMore": "Ajoutez au moins une autre personne pour cette demande familiale.",
+            "complete": "Les membres de la famille sont identifiés."
+          },
+          "group": {
+            "comingSoon": "Les demandes de groupe seront disponibles prochainement."
+          }
+        }
+      },
+      "clientPicker": {
+        "title": "Ajouter un client",
+        "subtitle": "Recherchez un client existant ou créez-en un nouveau",
+        "searchPlaceholder": "Rechercher par nom, courriel ou téléphone…",
+        "searching": "Recherche en cours…",
+        "results": {
+          "title": "Résultats",
+          "found": "client(s) trouvé(s)",
+          "empty": "Aucun client trouvé",
+          "emptyHint": "Essayez une autre recherche ou créez un nouveau client."
+        },
+        "client": {
+          "age": "ans",
+          "consent": {
+            "valid": "Consentement valide",
+            "expired": "Consentement expiré",
+            "missing": "Consentement manquant"
+          }
+        },
+        "create": {
+          "title": "Nouveau client",
+          "subtitle": "Créez un dossier client avec les informations essentielles",
+          "backToSearch": "Retour à la recherche",
+          "fields": {
+            "firstName": "Prénom",
+            "firstNamePlaceholder": "Ex: Marie",
+            "lastName": "Nom",
+            "lastNamePlaceholder": "Ex: Tremblay",
+            "dateOfBirth": "Date de naissance",
+            "email": "Courriel",
+            "emailPlaceholder": "Ex: marie@exemple.com",
+            "phone": "Téléphone principal",
+            "phonePlaceholder": "Ex: 514-555-0123"
+          },
+          "actions": {
+            "cancel": "Annuler",
+            "create": "Créer le client"
+          },
+          "validation": {
+            "required": "Ce champ est requis",
+            "invalidEmail": "Format de courriel invalide",
+            "invalidPhone": "Numéro de téléphone invalide (10 chiffres requis)",
+            "invalidName": "Le nom doit contenir au moins une lettre",
+            "invalidDateOfBirth": "La date de naissance ne peut pas être dans le futur"
+          }
+        },
+        "actions": {
+          "select": "Sélectionner",
+          "createNew": "Créer un nouveau client"
+        },
+        "alreadyAdded": "Déjà ajouté à cette demande",
+        "duplicates": {
+          "checking": "Vérification des doublons…",
+          "title": "Dossier existant détecté",
+          "titlePlural": "Dossiers existants détectés",
+          "highConfidence": {
+            "title": "Un dossier client existe déjà avec ces informations.",
+            "description": "Pour éviter les doublons, veuillez utiliser le dossier existant.",
+            "blocked": "La création est désactivée pour éviter un doublon."
+          },
+          "mediumConfidence": {
+            "title": "Un client similaire existe déjà",
+            "description": "Vérifiez qu'il ne s'agit pas de la même personne avant de continuer.",
+            "confirmLabel": "Je confirme qu'il ne s'agit pas d'un doublon"
+          },
+          "matchReasons": {
+            "email": "Même courriel",
+            "phone": "Même téléphone",
+            "name+dob": "Même nom et date de naissance",
+            "same_name": "Même nom",
+            "similar_name": "Nom similaire",
+            "partial_email": "Courriel similaire",
+            "partial_phone": "Téléphone similaire"
+          },
+          "actions": {
+            "selectExisting": "Sélectionner ce client",
+            "viewProfile": "Ouvrir le dossier"
+          },
+          "client": {
+            "age": "ans"
+          }
+        }
       }
     },
     "reports": {

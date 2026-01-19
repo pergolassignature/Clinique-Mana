@@ -1,13 +1,13 @@
-import { useRouterState } from '@tanstack/react-router'
+import { useRouterState, useNavigate } from '@tanstack/react-router'
 import { Search, Bell, HelpCircle, Menu, User, Settings, LogOut } from 'lucide-react'
 import { t } from '@/i18n'
 import { Button } from '@/shared/ui/button'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
+import { Skeleton } from '@/shared/ui/skeleton'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu'
@@ -16,6 +16,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/shared/ui/tooltip'
+import { useAuth } from '@/auth'
 
 interface TopBarProps {
   onMenuClick?: () => void
@@ -34,10 +35,47 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/parametres': { title: 'pages.settings.title', subtitle: 'pages.settings.subtitle' },
 }
 
+function getPageInfo(path: string): { title: string; subtitle: string } {
+  // Exact match
+  if (pageTitles[path]) {
+    return pageTitles[path]
+  }
+  // Check for parent route match (e.g., /demandes/123 -> /demandes)
+  const segments = path.split('/')
+  while (segments.length > 1) {
+    segments.pop()
+    const parentPath = segments.join('/') || '/'
+    if (pageTitles[parentPath]) {
+      return pageTitles[parentPath]
+    }
+  }
+  // Fallback to dashboard
+  return pageTitles['/dashboard']!
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+}
+
 export function TopBar({ onMenuClick, onSearchClick, showMenuButton }: TopBarProps) {
   const routerState = useRouterState()
+  const navigate = useNavigate()
+  const { profile, isLoading, signOut } = useAuth()
   const currentPath = routerState.location.pathname
-  const pageInfo = pageTitles[currentPath] ?? pageTitles['/dashboard']!
+  const pageInfo = getPageInfo(currentPath)
+
+  const displayName = profile?.display_name || ''
+  const initials = displayName ? getInitials(displayName) : '?'
+
+  const handleLogout = async () => {
+    await signOut()
+    navigate({ to: '/connexion', search: { redirect: undefined } })
+  }
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-background px-4 lg:px-6">
@@ -63,22 +101,20 @@ export function TopBar({ onMenuClick, onSearchClick, showMenuButton }: TopBarPro
         </div>
       </div>
 
-      {/* Center - Search */}
-      <div className="hidden md:flex flex-1 max-w-md mx-8">
+      {/* Right - Search + Actions */}
+      <div className="flex items-center gap-2">
+        {/* Search bar - desktop */}
         <button
           onClick={onSearchClick}
-          className="flex w-full items-center gap-2 rounded-xl border border-border bg-background-secondary px-4 py-2 text-sm text-foreground-muted transition-colors hover:border-sage-300 hover:bg-background"
+          className="hidden md:flex items-center gap-2 rounded-xl border border-border bg-background-secondary px-3 py-1.5 text-sm text-foreground-muted transition-colors hover:border-sage-300 hover:bg-background"
         >
           <Search className="h-4 w-4" />
-          <span className="flex-1 text-left">{t('topbar.search')}</span>
-          <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded border border-border bg-background px-1.5 font-mono text-xs text-foreground-muted">
+          <span>{t('topbar.search')}</span>
+          <kbd className="hidden lg:inline-flex h-5 items-center gap-1 rounded border border-border bg-background px-1.5 font-mono text-xs text-foreground-muted">
             {t('topbar.searchHint')}
           </kbd>
         </button>
-      </div>
 
-      {/* Right - Actions */}
-      <div className="flex items-center gap-2">
         {/* Mobile search button */}
         <Button
           variant="ghost"
@@ -115,29 +151,29 @@ export function TopBar({ onMenuClick, onSearchClick, showMenuButton }: TopBarPro
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback>AD</AvatarFallback>
-              </Avatar>
+              {isLoading ? (
+                <Skeleton className="h-8 w-8 rounded-full" />
+              ) : (
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>{initials}</AvatarFallback>
+                </Avatar>
+              )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium text-foreground">Admin Demo</p>
-                <p className="text-xs text-foreground-muted">admin@cliniquemana.ca</p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
+          <DropdownMenuContent align="end" sideOffset={8} className="w-48 z-50">
+            <DropdownMenuItem onClick={() => navigate({ to: '/parametres' })}>
               <User className="mr-2 h-4 w-4" />
               {t('topbar.profile')}
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate({ to: '/parametres' })}>
               <Settings className="mr-2 h-4 w-4" />
               {t('nav.settings')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-wine-600">
+            <DropdownMenuItem
+              onClick={handleLogout}
+              className="text-wine-600 focus:text-wine-600 focus:bg-wine-50"
+            >
               <LogOut className="mr-2 h-4 w-4" />
               {t('nav.logout')}
             </DropdownMenuItem>

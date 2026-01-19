@@ -1,7 +1,7 @@
 import { Save, Settings as SettingsIcon, User, Bell, Shield, Palette } from 'lucide-react'
 import { t } from '@/i18n'
-import { PageHeader } from '@/shared/components/page-header'
 import { EmptyState } from '@/shared/components/empty-state'
+import { Button } from '@/shared/ui/button'
 import { cn } from '@/shared/lib/utils'
 
 const settingsSections = [
@@ -16,15 +16,13 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('pages.settings.title')}
-        subtitle={t('pages.settings.subtitle')}
-        action={{
-          label: t('pages.settings.action'),
-          icon: <Save className="h-4 w-4" />,
-          disabled: true,
-        }}
-      />
+      {/* Toolbar: Action button */}
+      <div className="flex justify-end">
+        <Button disabled>
+          <Save className="h-4 w-4" />
+          {t('pages.settings.action')}
+        </Button>
+      </div>
 
       {/* Settings navigation */}
       <div className="flex gap-2 overflow-x-auto pb-2">

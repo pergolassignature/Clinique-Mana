@@ -1,6 +1,6 @@
+import { Link } from '@tanstack/react-router'
 import { Plus, Inbox } from 'lucide-react'
 import { t } from '@/i18n'
-import { PageHeader } from '@/shared/components/page-header'
 import { EmptyState } from '@/shared/components/empty-state'
 import { FilterBarSkeleton } from '@/shared/components/filter-bar-skeleton'
 import { Button } from '@/shared/ui/button'
@@ -11,30 +11,28 @@ export function RequestsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('pages.requests.title')}
-        subtitle={t('pages.requests.subtitle')}
-        action={{
-          label: t('pages.requests.action'),
-          icon: <Plus className="h-4 w-4" />,
-          disabled: true,
-        }}
-      />
-
-      {/* Status chips */}
-      <div className="flex flex-wrap gap-2">
-        <Badge variant="default" className="cursor-pointer">
-          {t('filters.all')}
-        </Badge>
-        <Badge variant="outline" className="cursor-pointer opacity-60">
-          {t('filters.pending')}
-        </Badge>
-        <Badge variant="outline" className="cursor-pointer opacity-60">
-          {t('filters.confirmed')}
-        </Badge>
-        <Badge variant="outline" className="cursor-pointer opacity-60">
-          {t('filters.cancelled')}
-        </Badge>
+      {/* Toolbar: Status chips + Action */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="default" className="cursor-pointer">
+            {t('filters.all')}
+          </Badge>
+          <Badge variant="outline" className="cursor-pointer opacity-60">
+            {t('filters.pending')}
+          </Badge>
+          <Badge variant="outline" className="cursor-pointer opacity-60">
+            {t('filters.confirmed')}
+          </Badge>
+          <Badge variant="outline" className="cursor-pointer opacity-60">
+            {t('filters.cancelled')}
+          </Badge>
+        </div>
+        <Button asChild className="shrink-0">
+          <Link to="/demandes/$id" params={{ id: 'nouvelle' }} search={{ from: 'requests' }}>
+            <Plus className="h-4 w-4" />
+            {t('pages.requests.action')}
+          </Link>
+        </Button>
       </div>
 
       {/* Filter Bar */}
@@ -46,12 +44,6 @@ export function RequestsPage() {
           icon={<Inbox className="h-8 w-8" />}
           title={t('pages.requests.empty.title')}
           description={t('pages.requests.empty.description')}
-          action={
-            <Button disabled>
-              <Plus className="mr-2 h-4 w-4" />
-              {t('pages.requests.action')}
-            </Button>
-          }
         />
       ) : (
         /* Request cards skeleton */

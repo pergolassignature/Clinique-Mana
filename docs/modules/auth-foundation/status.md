@@ -12,9 +12,9 @@ Progress:
 - [x] Gate 3 — Security (RLS)
 - [x] Gate 4 — Audit (Write) (included in schema via trigger)
 - [x] Gate 5 — Local Dev Validation (setup complete)
-- [x] Gate 6 — UI Integration (N/A - foundation module)
+- [x] Gate 6 — UI Integration (complete)
 - [x] Gate 7 — Automated Tests (RLS tests created)
-- [ ] Gate 8 — Staging → Production (in progress)
+- [ ] Gate 8 — Staging → Production
 
 Blockers:
 - None
@@ -26,7 +26,7 @@ Blockers:
 Notes:
 - Foundation module for identity, profiles, and roles
 - Required by all subsequent modules
-- No UI changes in this module
+- UI includes login page and sidebar profile display
 - Refs: docs/standards/security.model.md
 
 ## Gate 1 Deliverables (Complete)
@@ -57,6 +57,32 @@ Notes:
   - 1 staff user (staff@test.cliniquemana.local)
   - 2 provider users (provider1/2@test.cliniquemana.local)
   - All passwords: testpassword123
+
+## Gate 6 Deliverables (Complete)
+- Supabase Client: src/lib/supabaseClient.ts
+- Auth Context: src/auth/AuthContext.tsx
+  - AuthProvider with session management
+  - useAuth hook for components
+  - Sign-in, sign-out, profile fetch
+- Protected Route: src/auth/ProtectedRoute.tsx
+  - Redirects unauthenticated users to /connexion
+  - Shows loading screen during auth resolution
+- Login Page: src/pages/login.tsx (/connexion)
+  - fr-CA localized UI
+  - Email/password authentication
+  - Error handling for invalid credentials
+  - Profile not configured screen
+- Sidebar Integration: src/shared/components/sidebar.tsx
+  - Displays user display_name
+  - Role badge (Clinique/Professionnel)
+  - Logout button wired to signOut
+- Router Updates: src/app/router.tsx
+  - Public /connexion route
+  - Protected layout for all other routes
+- i18n Updates: src/i18n/fr-CA.json
+  - auth.login.* translations
+  - auth.errors.* translations
+  - auth.profileNotConfigured.* translations
 
 ## Gate 7 Deliverables (Complete)
 - RLS Tests: tests/rls/auth-foundation.sql

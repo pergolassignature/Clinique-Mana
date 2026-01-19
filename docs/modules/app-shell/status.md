@@ -2,11 +2,19 @@
 
 Module: app-shell
 Workflow: module.pipeline
-Current Gate: 1 — Data Contract (app-shell is UI-only, proceed to next module)
+Current Gate: LOCKED
 Last Updated: 2026-01-18
+
+## UI Shell Locked
+
+UI shell locked after dashboard and navigation polish.
+Future changes require explicit review.
 
 Progress:
 - [x] Gate 0 — UI Wireframe (COMPLETE)
+- [x] Gate 0.1 — Dashboard KPI cleanup (COMPLETE)
+- [x] Gate 0.2 — Navigation reorder (COMPLETE)
+- [x] Gate 0.3 — User identity cleanup (COMPLETE)
 - [ ] Gate 1 — Data Contract (N/A for app-shell)
 - [ ] Gate 2 — Schema (N/A for app-shell)
 - [ ] Gate 3 — Security (RLS) (N/A for app-shell)
@@ -21,7 +29,7 @@ Blockers:
 
 Notes:
 - Iteration 0: UI shell only (navigation + empty pages)
-- No backend, no DB schema, no Supabase, no auth
+- Auth integration complete (useAuth, ProtectedRoute)
 - All strings in fr-CA
 
 ## Gate 0 Deliverables (Complete)
@@ -38,3 +46,11 @@ Notes:
 - Responsive: sidebar overlay on mobile
 - ESLint + Prettier configured
 - Build passes
+
+## Polish Pass (Complete)
+- Dashboard KPIs: Removed RDV references, added operational metrics
+- Navigation: Reordered to match workflow (Demandes → Clients → Professionnels)
+- User identity: Bottom-left primary (name + role), top-right actions only
+- Empty states: Action-oriented copy, no clinical language
+- Loading states: Skeletons for user card areas
+- Auth: Single source of truth via useAuth()

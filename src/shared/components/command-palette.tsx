@@ -116,7 +116,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             className="flex-1 border-0 bg-transparent py-4 px-3 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-0"
             autoFocus
           />
-          <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded border border-border bg-background-secondary px-1.5 font-mono text-xs text-foreground-muted">
+          <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded border border-border bg-background-secondary px-1.5 font-mono text-xs text-foreground-muted mr-6">
             esc
           </kbd>
         </div>

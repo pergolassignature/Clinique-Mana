@@ -1,6 +1,5 @@
 import { Download, BarChart3 } from 'lucide-react'
 import { t } from '@/i18n'
-import { PageHeader } from '@/shared/components/page-header'
 import { EmptyState } from '@/shared/components/empty-state'
 import { FilterBarSkeleton } from '@/shared/components/filter-bar-skeleton'
 import { Button } from '@/shared/ui/button'
@@ -10,15 +9,13 @@ export function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('pages.reports.title')}
-        subtitle={t('pages.reports.subtitle')}
-        action={{
-          label: t('pages.reports.action'),
-          icon: <Download className="h-4 w-4" />,
-          disabled: true,
-        }}
-      />
+      {/* Toolbar: Action button */}
+      <div className="flex justify-end">
+        <Button disabled>
+          <Download className="h-4 w-4" />
+          {t('pages.reports.action')}
+        </Button>
+      </div>
 
       {/* Date range filter */}
       <FilterBarSkeleton filters={2} showSearch={false} />
@@ -29,12 +26,6 @@ export function ReportsPage() {
           icon={<BarChart3 className="h-8 w-8" />}
           title={t('pages.reports.empty.title')}
           description={t('pages.reports.empty.description')}
-          action={
-            <Button disabled>
-              <Download className="mr-2 h-4 w-4" />
-              {t('pages.reports.action')}
-            </Button>
-          }
         />
       ) : (
         /* Charts skeleton */

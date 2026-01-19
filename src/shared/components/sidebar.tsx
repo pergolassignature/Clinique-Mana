@@ -1,4 +1,4 @@
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useRouterState, useNavigate } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard,
@@ -18,12 +18,15 @@ import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
+import { Skeleton } from '@/shared/ui/skeleton'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/shared/ui/tooltip'
 import { Button } from '@/shared/ui/button'
+import { useAuth } from '@/auth'
+import type { UserRole } from '@/auth'
 
 interface SidebarProps {
   collapsed: boolean
@@ -32,13 +35,26 @@ interface SidebarProps {
   isMobile?: boolean
 }
 
+function getRoleBadgeLabel(role: UserRole): string {
+  return role === 'provider' ? t('roles.professional') : t('roles.clinic')
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+}
+
 const navItems = [
   { path: '/dashboard', label: 'nav.dashboard', icon: LayoutDashboard },
+  { path: '/demandes', label: 'nav.requests', icon: Inbox },
+  { path: '/clients', label: 'nav.clients', icon: UserCircle },
   { path: '/professionnels', label: 'nav.professionals', icon: Users },
   { path: '/disponibilites', label: 'nav.availability', icon: Calendar },
   { path: '/motifs', label: 'nav.reasons', icon: FileText },
-  { path: '/clients', label: 'nav.clients', icon: UserCircle },
-  { path: '/demandes', label: 'nav.requests', icon: Inbox },
   { path: '/rapports', label: 'nav.reports', icon: BarChart3 },
   { path: '/parametres', label: 'nav.settings', icon: Settings },
 ] as const
@@ -50,6 +66,8 @@ export function Sidebar({
   isMobile,
 }: SidebarProps) {
   const routerState = useRouterState()
+  const navigate = useNavigate()
+  const { profile, isLoading, signOut } = useAuth()
   const currentPath = routerState.location.pathname
 
   const sidebarWidth = collapsed ? 'w-[72px]' : 'w-[260px]'
@@ -59,6 +77,15 @@ export function Sidebar({
       onClose()
     }
   }
+
+  const handleLogout = async () => {
+    await signOut()
+    navigate({ to: '/connexion', search: { redirect: undefined } })
+  }
+
+  const displayName = profile?.display_name || ''
+  const initials = displayName ? getInitials(displayName) : '?'
+  const roleBadge = profile?.role ? getRoleBadgeLabel(profile.role) : ''
 
   return (
     <motion.aside
@@ -208,34 +235,54 @@ export function Sidebar({
 
       {/* Footer - User Card */}
       <div className="border-t border-border p-3">
-        <div
-          className={cn(
-            'flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-background-tertiary',
-            collapsed && 'justify-center'
-          )}
-        >
-          <Avatar className="h-9 w-9 shrink-0">
-            <AvatarFallback>AD</AvatarFallback>
-          </Avatar>
-          <AnimatePresence>
-            {!collapsed && (
-              <motion.div
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto' }}
-                exit={{ opacity: 0, width: 0 }}
-                transition={{ duration: 0.15 }}
-                className="flex-1 overflow-hidden"
-              >
-                <p className="text-sm font-medium text-foreground truncate">
-                  Admin Demo
-                </p>
-                <Badge variant="secondary" className="mt-0.5">
-                  {t('roles.clinic')}
-                </Badge>
-              </motion.div>
+        {isLoading ? (
+          // Loading skeleton
+          <div
+            className={cn(
+              'flex items-center gap-3 rounded-xl p-2',
+              collapsed && 'justify-center'
             )}
-          </AnimatePresence>
-        </div>
+          >
+            <Skeleton className="h-9 w-9 rounded-full shrink-0" />
+            {!collapsed && (
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-5 w-16" />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            className={cn(
+              'flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-background-tertiary',
+              collapsed && 'justify-center'
+            )}
+          >
+            <Avatar className="h-9 w-9 shrink-0">
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.div
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex-1 overflow-hidden"
+                >
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {displayName}
+                  </p>
+                  {roleBadge && (
+                    <Badge variant="secondary" className="mt-0.5">
+                      {roleBadge}
+                    </Badge>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         {/* Logout button */}
         {collapsed ? (
@@ -244,6 +291,8 @@ export function Sidebar({
               <Button
                 variant="ghost"
                 size="icon"
+                onClick={handleLogout}
+                disabled={isLoading}
                 className="mt-2 w-full text-foreground-muted hover:text-wine-600"
               >
                 <LogOut className="h-4 w-4" />
@@ -254,6 +303,8 @@ export function Sidebar({
         ) : (
           <Button
             variant="ghost"
+            onClick={handleLogout}
+            disabled={isLoading}
             className="mt-2 w-full justify-start gap-3 text-foreground-muted hover:text-wine-600 hover:bg-wine-50"
           >
             <LogOut className="h-4 w-4" />
