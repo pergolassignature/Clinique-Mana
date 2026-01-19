@@ -82,13 +82,13 @@ export function ProfessionalProfileTab({ professional }: ProfessionalProfileTabP
               <p className="text-xs font-medium text-foreground-muted">
                 {t('professionals.detail.profile.status')}
               </p>
-              <p className="mt-1">
+              <div className="mt-1">
                 <Badge
                   variant={profile?.status === 'active' ? 'default' : 'error'}
                 >
                   {profile?.status === 'active' ? 'Actif' : 'Désactivé'}
                 </Badge>
-              </p>
+              </div>
             </div>
             <div>
               <p className="text-xs font-medium text-foreground-muted">
