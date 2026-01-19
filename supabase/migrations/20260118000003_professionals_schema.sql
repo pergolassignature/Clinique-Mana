@@ -3,6 +3,9 @@
 -- Gate: 2 — Schema
 -- Created: 2026-01-18
 
+-- Enable pgcrypto for gen_random_bytes (used for invite tokens)
+create extension if not exists pgcrypto with schema extensions;
+
 -- =============================================================================
 -- PROFESSIONALS TABLE
 -- Core professional data linked to profiles (providers)
@@ -131,7 +134,7 @@ comment on column public.professional_documents.file_path is 'Storage path in Su
 create table public.professional_onboarding_invites (
   id uuid primary key default gen_random_uuid(),
   professional_id uuid not null references public.professionals(id) on delete cascade,
-  token text unique not null default encode(gen_random_bytes(32), 'hex'),
+  token text unique not null default encode(extensions.gen_random_bytes(32), 'hex'),
   email text not null,
   status text not null default 'pending' check (status in ('pending', 'opened', 'completed', 'expired', 'revoked')),
 
