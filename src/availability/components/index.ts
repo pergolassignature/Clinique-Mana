@@ -2,6 +2,7 @@
 
 export { CalendarGrid } from './calendar-grid'
 export { DayView } from './day-view'
+export { ListView } from './list-view'
 export { AppointmentBlock } from './appointment-block'
 export { WeekNavigation } from './week-navigation'
 export { ProfessionalSelector } from './professional-selector'
