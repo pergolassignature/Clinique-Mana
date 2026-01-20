@@ -5,3 +5,5 @@ export {
   useAppointmentsByProfessional,
   useAppointmentsForWeek,
 } from './use-appointments'
+
+export { useCalendarDrag } from './use-calendar-drag'
