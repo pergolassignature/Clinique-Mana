@@ -45,11 +45,11 @@ export const MOCK_PROFESSIONALS: Professional[] = [
 // =============================================================================
 
 export const MOCK_CLIENTS: Client[] = [
-  { id: 'cli-1', firstName: 'Luc', lastName: 'Côté', email: 'luc.cote@example.com', phone: '514-555-0101' },
-  { id: 'cli-2', firstName: 'Anne', lastName: 'Roy', email: 'anne.roy@example.com', phone: '514-555-0102' },
-  { id: 'cli-3', firstName: 'Michel', lastName: 'Lavoie', email: 'michel.lavoie@example.com', phone: '514-555-0103' },
-  { id: 'cli-4', firstName: 'Julie', lastName: 'Bergeron', email: 'julie.bergeron@example.com' },
-  { id: 'cli-5', firstName: 'Pierre', lastName: 'Morin', phone: '514-555-0105' },
+  { id: 'cli-1', firstName: 'Luc', lastName: 'Côté', dateOfBirth: '1989-06-14', email: 'luc.cote@example.com', phone: '514-555-0101' },
+  { id: 'cli-2', firstName: 'Anne', lastName: 'Roy', dateOfBirth: '1991-11-02', email: 'anne.roy@example.com', phone: '514-555-0102' },
+  { id: 'cli-3', firstName: 'Michel', lastName: 'Lavoie', dateOfBirth: '1984-01-22', email: 'michel.lavoie@example.com', phone: '514-555-0103' },
+  { id: 'cli-4', firstName: 'Julie', lastName: 'Bergeron', dateOfBirth: '1996-03-08', email: 'julie.bergeron@example.com' },
+  { id: 'cli-5', firstName: 'Pierre', lastName: 'Morin', dateOfBirth: '1979-09-30', phone: '514-555-0105' },
 ]
 
 // =============================================================================

@@ -1,16 +1,19 @@
 // src/availability/components/availability-sidebar.tsx
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Plus, Ban, Clock } from 'lucide-react'
+import { Plus, Ban, Clock, History, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import type { AvailabilityBlock } from '../types'
+import { CompactCalendarHistory } from './calendar-history'
+import { useProfessionalCalendarAuditLog } from '../hooks'
 
 interface AvailabilitySidebarProps {
   availabilityBlocks: AvailabilityBlock[]
   weekStartDate: Date
+  professionalId: string | null
   onCreateAvailability: (type: 'available' | 'blocked') => void
   onBlockClick: (block: AvailabilityBlock) => void
 }
@@ -32,9 +35,18 @@ const TYPE_COLORS: Record<string, string> = {
 export function AvailabilitySidebar({
   availabilityBlocks,
   weekStartDate,
+  professionalId,
   onCreateAvailability,
   onBlockClick,
 }: AvailabilitySidebarProps) {
+  const [showHistory, setShowHistory] = useState(false)
+
+  // Fetch audit log for the professional
+  const { data: auditLog, isLoading: auditLoading } = useProfessionalCalendarAuditLog(
+    professionalId || '',
+    20 // Limit to recent 20 events
+  )
+
   // Filter blocks for current week
   const weekBlocks = useMemo(() => {
     const weekEnd = new Date(weekStartDate)
@@ -113,6 +125,36 @@ export function AvailabilitySidebar({
           </div>
         )}
       </div>
+
+      {/* History section */}
+      {professionalId && (
+        <div className="border-t border-border pt-4 mt-4">
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="w-full flex items-center justify-between text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-2 hover:text-foreground transition-colors"
+          >
+            <span className="flex items-center gap-1.5">
+              <History className="h-3.5 w-3.5" />
+              Historique récent
+            </span>
+            {showHistory ? (
+              <ChevronUp className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
+            )}
+          </button>
+
+          {showHistory && (
+            <div className="max-h-64 overflow-y-auto">
+              <CompactCalendarHistory
+                auditLog={auditLog}
+                isLoading={auditLoading}
+                emptyMessage="Aucune modification récente."
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

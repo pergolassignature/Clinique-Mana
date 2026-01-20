@@ -28,11 +28,12 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard': { title: 'pages.dashboard.title', subtitle: 'pages.dashboard.subtitle' },
   '/professionnels': { title: 'pages.professionals.title', subtitle: 'pages.professionals.subtitle' },
   '/disponibilites': { title: 'pages.availability.title', subtitle: 'pages.availability.subtitle' },
-  '/motifs': { title: 'pages.reasons.title', subtitle: 'pages.reasons.subtitle' },
   '/clients': { title: 'pages.clients.title', subtitle: 'pages.clients.subtitle' },
   '/demandes': { title: 'pages.requests.title', subtitle: 'pages.requests.subtitle' },
   '/rapports': { title: 'pages.reports.title', subtitle: 'pages.reports.subtitle' },
   '/parametres': { title: 'pages.settings.title', subtitle: 'pages.settings.subtitle' },
+  '/parametres/motifs': { title: 'pages.settings.title', subtitle: 'pages.settings.motifs.subtitle' },
+  '/parametres/services': { title: 'pages.settings.title', subtitle: 'pages.settings.services.subtitle' },
 }
 
 function getPageInfo(path: string): { title: string; subtitle: string } {

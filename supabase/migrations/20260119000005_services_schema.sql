@@ -139,15 +139,17 @@ comment on column public.service_consent_requirements.consent_document_key is 'R
 -- =============================================================================
 
 create table if not exists public.professional_services (
+  id uuid primary key default gen_random_uuid(),
   professional_id uuid not null references public.professionals(id) on delete cascade,
   service_id uuid not null references public.services(id) on delete cascade,
   variant_id uuid references public.service_variants(id) on delete cascade,  -- NULL = all variants
   is_active boolean not null default true,
-  created_at timestamptz not null default now(),
-
-  -- Prevent duplicates
-  primary key (professional_id, service_id, coalesce(variant_id, '00000000-0000-0000-0000-000000000000'::uuid))
+  created_at timestamptz not null default now()
 );
+
+-- Unique constraint: one entry per professional+service+variant combination
+create unique index professional_services_unique_idx
+  on public.professional_services (professional_id, service_id, coalesce(variant_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 -- Indexes
 create index professional_services_professional_id_idx on public.professional_services(professional_id);

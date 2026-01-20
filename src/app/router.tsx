@@ -32,7 +32,7 @@ import { RequestsPage } from '@/pages/requests'
 import { RequestDetailPage } from '@/pages/request-detail'
 import { RequestAnalysisPage } from '@/pages/request-analysis'
 import { ReportsPage } from '@/pages/reports'
-import { SettingsPage } from '@/pages/settings'
+import { SettingsLayout } from '@/pages/settings-layout'
 import { LoginPage } from '@/pages/login'
 import { NotFoundPage } from '@/pages/not-found'
 
@@ -107,18 +107,21 @@ const availabilityRoute = createRoute({
   component: AvailabilityPage,
 })
 
-// Motifs
-const motifsRoute = createRoute({
+// Legacy routes - redirect to settings
+const legacyMotifsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/motifs',
-  component: MotifsPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/parametres/motifs' })
+  },
 })
 
-// Services
-const servicesRoute = createRoute({
+const legacyServicesRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/services',
-  component: ServicesPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/parametres/services' })
+  },
 })
 
 // Clients
@@ -165,11 +168,34 @@ const reportsRoute = createRoute({
   component: ReportsPage,
 })
 
-// Settings
+// Settings (parent route with layout)
 const settingsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/parametres',
-  component: SettingsPage,
+  component: SettingsLayout,
+})
+
+// Settings index - redirect to motifs
+const settingsIndexRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/',
+  beforeLoad: () => {
+    throw redirect({ to: '/parametres/motifs' })
+  },
+})
+
+// Settings > Motifs
+const settingsMotifsRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/motifs',
+  component: MotifsPage,
+})
+
+// Settings > Services
+const settingsServicesRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/services',
+  component: ServicesPage,
 })
 
 // Build route tree
@@ -182,15 +208,19 @@ const routeTree = rootRoute.addChildren([
     professionalsRoute,
     professionalDetailRoute,
     availabilityRoute,
-    motifsRoute,
-    servicesRoute,
+    legacyMotifsRoute,
+    legacyServicesRoute,
     clientsRoute,
     clientDetailRoute,
     requestsRoute,
     requestDetailRoute,
     requestAnalysisRoute,
     reportsRoute,
-    settingsRoute,
+    settingsRoute.addChildren([
+      settingsIndexRoute,
+      settingsMotifsRoute,
+      settingsServicesRoute,
+    ]),
   ]),
 ])
 

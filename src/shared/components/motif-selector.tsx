@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, Info, X, Plus } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
@@ -7,7 +7,7 @@ import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Textarea } from '@/shared/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/tooltip'
-import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
+import { LockedPopover } from './locked-popover'
 import {
   Command,
   CommandEmpty,
@@ -83,6 +83,7 @@ export function MotifSelector({
   readOnly = false,
 }: MotifSelectorProps) {
   const [popoverOpen, setPopoverOpen] = useState(false)
+  const anchorRef = useRef<HTMLButtonElement>(null)
 
   const toggleMotif = (key: MotifKey) => {
     if (readOnly) return
@@ -159,20 +160,26 @@ export function MotifSelector({
           ))}
         </AnimatePresence>
 
-        {/* Add motif button with popover */}
+        {/* Add motif button with locked popover (position-locked while open) */}
         {!readOnly && (
-          <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 text-sm border-dashed border-sage-300 text-sage-600 hover:bg-sage-50 hover:text-sage-700 hover:border-sage-400"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {t('pages.requestDetail.motifs.addButton')}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="start">
+          <>
+            <Button
+              ref={anchorRef}
+              variant="outline"
+              size="sm"
+              onClick={() => setPopoverOpen(!popoverOpen)}
+              className="h-7 gap-1.5 text-sm border-dashed border-sage-300 text-sage-600 hover:bg-sage-50 hover:text-sage-700 hover:border-sage-400 min-w-[140px]"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t('pages.requestDetail.motifs.addButton')}
+            </Button>
+            <LockedPopover
+              anchorRef={anchorRef}
+              open={popoverOpen}
+              onOpenChange={setPopoverOpen}
+              width={320}
+              offset={8}
+            >
               <Command>
                 <CommandInput
                   placeholder={t('pages.requestDetail.motifs.searchPlaceholder')}
@@ -227,8 +234,8 @@ export function MotifSelector({
                   ))}
                 </CommandList>
               </Command>
-            </PopoverContent>
-          </Popover>
+            </LockedPopover>
+          </>
         )}
 
         {/* Empty state when read-only and no motifs */}

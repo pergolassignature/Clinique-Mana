@@ -83,6 +83,12 @@ This applies all migrations in `supabase/migrations/` that haven't been applied 
 |------|-------------|
 | `20260118000001_auth_foundation_schema.sql` | profiles + audit tables |
 | `20260118000002_auth_foundation_rls.sql` | RLS policies |
+| `20260118000003_professionals_schema.sql` | professionals + specialties + documents |
+| `20260118000004_professionals_rls.sql` | Professional RLS policies |
+| `20260118000005_professionals_storage.sql` | Storage buckets for documents |
+| `20260118000006_professionals_audit_helpers.sql` | Audit logging functions |
+| `20260118000007_motifs_schema.sql` | motifs + junction tables |
+| `20260118000008_motifs_seed.sql` | 72 official motifs (FR-CA) |
 
 ---
 

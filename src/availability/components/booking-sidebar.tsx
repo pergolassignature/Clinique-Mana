@@ -4,14 +4,13 @@ import { useMemo } from 'react'
 import { format, isToday, isTomorrow, startOfDay } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { cn } from '@/shared/lib/utils'
-import type { Appointment, BookableService, Professional } from '../types'
+import type { Appointment, Professional } from '../types'
 import { ServiceDragItem } from './service-drag-item'
 import { MOCK_BOOKABLE_SERVICES, MOCK_CLIENTS } from '../mock'
 
 interface BookingSidebarProps {
   professional: Professional | null
   appointments: Appointment[]
-  onServiceDragStart: (e: React.DragEvent, service: BookableService) => void
   onAppointmentClick: (appointment: Appointment) => void
 }
 
@@ -24,7 +23,6 @@ function getDateLabel(date: Date): string {
 export function BookingSidebar({
   professional,
   appointments,
-  onServiceDragStart,
   onAppointmentClick,
 }: BookingSidebarProps) {
   // Filter services compatible with professional
@@ -86,7 +84,6 @@ export function BookingSidebar({
               <ServiceDragItem
                 key={service.id}
                 service={service}
-                onDragStart={onServiceDragStart}
               />
             ))}
           </div>

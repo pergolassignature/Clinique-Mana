@@ -19,8 +19,9 @@ import type {
   VerifyDocumentInput,
   UpdateDocumentExpiryInput,
   AddSpecialtyInput,
-  SubmitQuestionnaireInput,
   ReviewQuestionnaireInput,
+  ProfessionTitle,
+  ProfessionalProfession,
 } from './types'
 
 // =============================================================================
@@ -101,12 +102,30 @@ export async function fetchProfessional(id: string): Promise<ProfessionalWithRel
         created_at,
         specialty:specialties(*)
       ),
+      motifs:professional_motifs(
+        professional_id,
+        motif_id,
+        created_at,
+        motif:motifs(*)
+      ),
+      professions:professional_professions(
+        id,
+        professional_id,
+        profession_title_key,
+        license_number,
+        is_primary,
+        created_at,
+        profession_title:profession_titles(*)
+      ),
       documents:professional_documents(*),
-      latest_invite:professional_onboarding_invites(*)
+      latest_invite:professional_onboarding_invites(*),
+      latest_submission:professional_questionnaire_submissions(*)
     `)
     .eq('id', id)
     .order('created_at', { referencedTable: 'professional_onboarding_invites', ascending: false })
     .limit(1, { referencedTable: 'professional_onboarding_invites' })
+    .order('created_at', { referencedTable: 'professional_questionnaire_submissions', ascending: false })
+    .limit(1, { referencedTable: 'professional_questionnaire_submissions' })
     .single()
 
   if (error) {
@@ -117,6 +136,7 @@ export async function fetchProfessional(id: string): Promise<ProfessionalWithRel
   return {
     ...data,
     latest_invite: (data.latest_invite as OnboardingInvite[])?.[0] || null,
+    latest_submission: (data.latest_submission as QuestionnaireSubmission[])?.[0] || null,
   } as ProfessionalWithRelations
 }
 
@@ -207,6 +227,101 @@ export async function removeProfessionalSpecialty(
     .eq('specialty_id', specialty_id)
 
   if (error) throw error
+}
+
+// =============================================================================
+// MOTIFS
+// =============================================================================
+
+export interface AddMotifInput {
+  professional_id: string
+  motif_key: string
+}
+
+export async function addProfessionalMotif(input: AddMotifInput): Promise<void> {
+  // First get the motif ID from the key
+  const { data: motif, error: motifError } = await supabase
+    .from('motifs')
+    .select('id')
+    .eq('key', input.motif_key)
+    .single()
+
+  if (motifError) throw motifError
+  if (!motif) throw new Error(`Motif not found: ${input.motif_key}`)
+
+  const { error } = await supabase.from('professional_motifs').insert({
+    professional_id: input.professional_id,
+    motif_id: motif.id,
+  })
+
+  if (error) throw error
+}
+
+export async function removeProfessionalMotif(
+  professional_id: string,
+  motif_key: string
+): Promise<void> {
+  // First get the motif ID from the key
+  const { data: motif, error: motifError } = await supabase
+    .from('motifs')
+    .select('id')
+    .eq('key', motif_key)
+    .single()
+
+  if (motifError) throw motifError
+  if (!motif) throw new Error(`Motif not found: ${motif_key}`)
+
+  const { error } = await supabase
+    .from('professional_motifs')
+    .delete()
+    .eq('professional_id', professional_id)
+    .eq('motif_id', motif.id)
+
+  if (error) throw error
+}
+
+/**
+ * Replace all motifs for a professional (used in apply flow).
+ * Deletes existing motifs and inserts new ones.
+ */
+export async function replaceProfessionalMotifs(
+  professional_id: string,
+  motif_keys: string[]
+): Promise<{ replaced_count: number }> {
+  // Delete all existing motifs for this professional
+  const { error: deleteError } = await supabase
+    .from('professional_motifs')
+    .delete()
+    .eq('professional_id', professional_id)
+
+  if (deleteError) throw deleteError
+
+  // If no new motifs, we're done
+  if (!motif_keys || motif_keys.length === 0) {
+    return { replaced_count: 0 }
+  }
+
+  // Get motif IDs from keys
+  const { data: motifs, error: motifError } = await supabase
+    .from('motifs')
+    .select('id, key')
+    .in('key', motif_keys)
+
+  if (motifError) throw motifError
+
+  // Insert new motifs
+  const insertData = motifs.map((m) => ({
+    professional_id,
+    motif_id: m.id,
+  }))
+
+  const { error: insertError } = await supabase
+    .from('professional_motifs')
+    .insert(insertData)
+
+  if (insertError) throw insertError
+
+  return { replaced_count: motifs.length }
 }
 
 // =============================================================================
@@ -373,6 +488,55 @@ export async function fetchInviteByToken(token: string): Promise<OnboardingInvit
   return data
 }
 
+/**
+ * Fetch invite with associated submission status by token.
+ * Used by public invite page to enforce single-use behavior.
+ */
+export interface InviteWithSubmissionStatus {
+  invite: OnboardingInvite
+  hasExistingSubmission: boolean
+  submissionStatus: 'draft' | 'submitted' | 'reviewed' | 'approved' | null
+}
+
+export async function fetchInviteWithSubmissionByToken(
+  token: string
+): Promise<InviteWithSubmissionStatus | null> {
+  // First fetch the invite
+  const { data: invite, error: inviteError } = await supabase
+    .from('professional_onboarding_invites')
+    .select('*')
+    .eq('token', token)
+    .single()
+
+  if (inviteError) {
+    if (inviteError.code === 'PGRST116') return null // Not found
+    throw inviteError
+  }
+
+  // Then fetch the latest submission for this professional
+  const { data: submission, error: submissionError } = await supabase
+    .from('professional_questionnaire_submissions')
+    .select('status, submitted_at')
+    .eq('professional_id', invite.professional_id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (submissionError) throw submissionError
+
+  // Submission exists and has been submitted (not just a draft) = form is already done
+  const hasExistingSubmission =
+    submission !== null &&
+    submission.submitted_at !== null &&
+    ['submitted', 'reviewed', 'approved'].includes(submission.status)
+
+  return {
+    invite,
+    hasExistingSubmission,
+    submissionStatus: submission?.status as 'draft' | 'submitted' | 'reviewed' | 'approved' | null,
+  }
+}
+
 export async function markInviteOpened(token: string): Promise<void> {
   const { error } = await supabase
     .from('professional_onboarding_invites')
@@ -409,28 +573,47 @@ export async function fetchQuestionnaireSubmission(
   return data
 }
 
-export async function submitQuestionnaire(input: SubmitQuestionnaireInput): Promise<QuestionnaireSubmission> {
-  // Check if there's an existing draft
-  const existing = await fetchQuestionnaireSubmission(input.professional_id)
+export interface SubmitQuestionnaireAnonInput {
+  professional_id: string
+  invite_id?: string
+  responses: Record<string, unknown>
+  /** If provided, upgrade this draft to submitted. Otherwise INSERT new. */
+  existing_submission_id?: string
+}
 
-  if (existing && existing.status === 'draft') {
-    // Update existing draft
+/**
+ * Submit questionnaire (final submission).
+ *
+ * For anon users: pass existing_submission_id if a draft was previously saved.
+ * This upgrades the draft to 'submitted' status.
+ */
+export async function submitQuestionnaire(input: SubmitQuestionnaireAnonInput): Promise<QuestionnaireSubmission> {
+  const now = new Date().toISOString()
+
+  if (input.existing_submission_id) {
+    // Upgrade existing draft to submitted
     const { data, error } = await supabase
       .from('professional_questionnaire_submissions')
       .update({
         responses: input.responses,
         status: 'submitted',
-        submitted_at: new Date().toISOString(),
+        submitted_at: now,
+        updated_at: now,
       })
-      .eq('id', existing.id)
+      .eq('id', input.existing_submission_id)
+      .eq('status', 'draft') // Safety: only upgrade drafts
       .select()
       .single()
 
-    if (error) throw error
-    return data
+    if (error) {
+      // If update failed, fall through to insert
+      console.warn('Draft upgrade failed, creating new submission:', error.message)
+    } else if (data) {
+      return data
+    }
   }
 
-  // Create new submission
+  // Create new submission directly
   const { data, error } = await supabase
     .from('professional_questionnaire_submissions')
     .insert({
@@ -438,7 +621,7 @@ export async function submitQuestionnaire(input: SubmitQuestionnaireInput): Prom
       invite_id: input.invite_id,
       responses: input.responses,
       status: 'submitted',
-      submitted_at: new Date().toISOString(),
+      submitted_at: now,
     })
     .select()
     .single()
@@ -447,28 +630,62 @@ export async function submitQuestionnaire(input: SubmitQuestionnaireInput): Prom
   return data
 }
 
-export async function saveDraftQuestionnaire(
-  input: SubmitQuestionnaireInput
-): Promise<QuestionnaireSubmission> {
-  // Check if there's an existing draft
-  const existing = await fetchQuestionnaireSubmission(input.professional_id)
+export interface SaveDraftInput {
+  professional_id: string
+  invite_id?: string
+  responses: Record<string, unknown>
+  /** If provided, UPDATE this submission. Otherwise INSERT new. */
+  existing_submission_id?: string
+}
 
-  if (existing && existing.status === 'draft') {
-    // Update existing draft
+export interface SaveDraftResult {
+  submission_id: string
+  updated_at: string
+  is_new: boolean
+}
+
+/**
+ * Save questionnaire draft for anon users.
+ *
+ * IMPORTANT: Anon users cannot SELECT from this table (RLS).
+ * So we can't check if a draft exists. Instead:
+ * - Pass existing_submission_id if you have one (from prior save or localStorage)
+ * - If provided: UPDATE by ID
+ * - If not provided: INSERT new draft
+ */
+export async function saveDraftQuestionnaire(
+  input: SaveDraftInput
+): Promise<SaveDraftResult> {
+  const now = new Date().toISOString()
+
+  if (input.existing_submission_id) {
+    // UPDATE existing draft by ID
+    // RLS allows anon UPDATE if status='draft' and valid invite exists
     const { data, error } = await supabase
       .from('professional_questionnaire_submissions')
       .update({
         responses: input.responses,
+        updated_at: now,
       })
-      .eq('id', existing.id)
-      .select()
+      .eq('id', input.existing_submission_id)
+      .eq('status', 'draft') // Safety: only update drafts
+      .select('id, updated_at')
       .single()
 
-    if (error) throw error
-    return data
+    if (error) {
+      // If update failed (maybe row doesn't exist or isn't draft anymore),
+      // fall through to insert
+      console.warn('Draft update failed, attempting insert:', error.message)
+    } else if (data) {
+      return {
+        submission_id: data.id,
+        updated_at: data.updated_at,
+        is_new: false,
+      }
+    }
   }
 
-  // Create new draft
+  // INSERT new draft
   const { data, error } = await supabase
     .from('professional_questionnaire_submissions')
     .insert({
@@ -477,11 +694,15 @@ export async function saveDraftQuestionnaire(
       responses: input.responses,
       status: 'draft',
     })
-    .select()
+    .select('id, updated_at')
     .single()
 
   if (error) throw error
-  return data
+  return {
+    submission_id: data.id,
+    updated_at: data.updated_at,
+    is_new: true,
+  }
 }
 
 export async function reviewQuestionnaire(input: ReviewQuestionnaireInput): Promise<QuestionnaireSubmission> {
@@ -505,6 +726,534 @@ export async function reviewQuestionnaire(input: ReviewQuestionnaireInput): Prom
 
   if (error) throw error
   return data
+}
+
+// =============================================================================
+// QUESTIONNAIRE APPLICATION (Apply questionnaire data to professional)
+// =============================================================================
+
+export interface ApplyQuestionnaireInput {
+  professional_id: string
+  submission_id: string
+  // Professional fields to apply
+  professional_updates: {
+    portrait_bio?: string | null
+    portrait_approach?: string | null
+    public_email?: string | null
+    public_phone?: string | null
+    license_number?: string | null
+    years_experience?: number | null
+  }
+  // Specialty codes to set (will replace existing)
+  specialty_codes?: string[]
+  // Motif keys to set (will replace existing)
+  motif_keys?: string[]
+}
+
+export interface ApplyQuestionnaireResult {
+  applied_at: string
+  fields_updated: string[]
+  specialties_replaced: number
+  previous_specialty_count: number
+  motifs_replaced: number
+  previous_motif_count: number
+}
+
+/**
+ * Apply questionnaire submission data to the professional record.
+ * This is the "overwrite mapping" - it updates the professional and replaces specialties.
+ * Follows the "single source of truth" principle: questionnaire is staging, professional is authoritative.
+ *
+ * Audit logging includes before/after snapshots for traceability.
+ */
+export async function applyQuestionnaireToProfile(input: ApplyQuestionnaireInput): Promise<ApplyQuestionnaireResult> {
+  const appliedAt = new Date().toISOString()
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+    .single()
+
+  // 1. Fetch BEFORE snapshot of professional for audit
+  const { data: beforeProfessional, error: fetchError } = await supabase
+    .from('professionals')
+    .select(`
+      portrait_bio,
+      portrait_approach,
+      public_email,
+      public_phone,
+      license_number,
+      years_experience
+    `)
+    .eq('id', input.professional_id)
+    .single()
+
+  if (fetchError) throw fetchError
+
+  // 2. Fetch existing specialties for BEFORE snapshot
+  const { data: beforeSpecialties, error: beforeSpecError } = await supabase
+    .from('professional_specialties')
+    .select('specialty_id, specialty:specialties(code, name_fr)')
+    .eq('professional_id', input.professional_id)
+
+  if (beforeSpecError) throw beforeSpecError
+
+  const previousSpecialtyCount = beforeSpecialties?.length || 0
+  const beforeSpecialtyCodes = beforeSpecialties?.map((ps) => {
+    // Supabase may return specialty as object or array depending on the join
+    const spec = ps.specialty as unknown
+    if (Array.isArray(spec)) {
+      return (spec[0] as { code: string })?.code
+    }
+    return (spec as { code: string } | null)?.code
+  }).filter((code): code is string => !!code) || []
+
+  // 2b. Fetch existing motifs for BEFORE snapshot
+  const { data: beforeMotifs, error: beforeMotifsError } = await supabase
+    .from('professional_motifs')
+    .select('motif_id, motif:motifs(key, label)')
+    .eq('professional_id', input.professional_id)
+
+  if (beforeMotifsError) throw beforeMotifsError
+
+  const previousMotifCount = beforeMotifs?.length || 0
+  const beforeMotifKeys = beforeMotifs?.map((pm) => {
+    const mot = pm.motif as unknown
+    if (Array.isArray(mot)) {
+      return (mot[0] as { key: string })?.key
+    }
+    return (mot as { key: string } | null)?.key
+  }).filter((key): key is string => !!key) || []
+
+  // 3. Build filtered updates (only include fields that have values in submission)
+  // Do NOT overwrite with null if field is missing from submission
+  const filteredUpdates: Record<string, string | number | null> = {}
+  const fieldsUpdated: string[] = []
+
+  for (const [key, value] of Object.entries(input.professional_updates)) {
+    if (value !== undefined) {
+      filteredUpdates[key] = value
+      fieldsUpdated.push(key)
+    }
+  }
+
+  // 4. Update professional core fields
+  if (Object.keys(filteredUpdates).length > 0) {
+    const { error: updateError } = await supabase
+      .from('professionals')
+      .update(filteredUpdates)
+      .eq('id', input.professional_id)
+
+    if (updateError) throw updateError
+  }
+
+  // 5. Replace specialties if provided
+  let specialtiesReplaced = 0
+  if (input.specialty_codes && input.specialty_codes.length > 0) {
+    // Get specialty IDs from codes
+    const { data: specialties, error: specialtiesError } = await supabase
+      .from('specialties')
+      .select('id, code')
+      .in('code', input.specialty_codes)
+
+    if (specialtiesError) throw specialtiesError
+
+    if (specialties && specialties.length > 0) {
+      // Delete existing specialties for this professional
+      const { error: deleteError } = await supabase
+        .from('professional_specialties')
+        .delete()
+        .eq('professional_id', input.professional_id)
+
+      if (deleteError) throw deleteError
+
+      // Insert new specialties
+      const specialtyInserts = specialties.map((s) => ({
+        professional_id: input.professional_id,
+        specialty_id: s.id,
+      }))
+
+      const { error: insertError } = await supabase
+        .from('professional_specialties')
+        .insert(specialtyInserts)
+
+      if (insertError) throw insertError
+
+      specialtiesReplaced = specialties.length
+    }
+  }
+
+  // 5b. Replace motifs if provided
+  let motifsReplaced = 0
+  if (input.motif_keys && input.motif_keys.length > 0) {
+    // Get motif IDs from keys
+    const { data: motifs, error: motifsError } = await supabase
+      .from('motifs')
+      .select('id, key')
+      .in('key', input.motif_keys)
+
+    if (motifsError) throw motifsError
+
+    if (motifs && motifs.length > 0) {
+      // Delete existing motifs for this professional
+      const { error: deleteError } = await supabase
+        .from('professional_motifs')
+        .delete()
+        .eq('professional_id', input.professional_id)
+
+      if (deleteError) throw deleteError
+
+      // Insert new motifs
+      const motifInserts = motifs.map((m) => ({
+        professional_id: input.professional_id,
+        motif_id: m.id,
+      }))
+
+      const { error: insertError } = await supabase
+        .from('professional_motifs')
+        .insert(motifInserts)
+
+      if (insertError) throw insertError
+
+      motifsReplaced = motifs.length
+    }
+  }
+
+  // 6. Mark submission as approved
+  const { error: reviewError } = await supabase
+    .from('professional_questionnaire_submissions')
+    .update({
+      status: 'approved',
+      reviewed_at: appliedAt,
+      reviewed_by: profile?.id,
+    })
+    .eq('id', input.submission_id)
+
+  if (reviewError) throw reviewError
+
+  // 7. Build AFTER snapshot
+  const afterSnapshot = {
+    ...filteredUpdates,
+    specialty_codes: input.specialty_codes || [],
+    motif_keys: input.motif_keys || [],
+  }
+
+  // 8. Log audit event with before/after snapshots
+  const { error: auditError } = await supabase
+    .from('professional_audit_log')
+    .insert({
+      professional_id: input.professional_id,
+      actor_id: profile?.id,
+      action: 'questionnaire_approved',
+      entity_type: 'questionnaire',
+      entity_id: input.submission_id,
+      old_value: {
+        portrait_bio: beforeProfessional?.portrait_bio,
+        portrait_approach: beforeProfessional?.portrait_approach,
+        public_email: beforeProfessional?.public_email,
+        public_phone: beforeProfessional?.public_phone,
+        license_number: beforeProfessional?.license_number,
+        years_experience: beforeProfessional?.years_experience,
+        specialty_codes: beforeSpecialtyCodes,
+        motif_keys: beforeMotifKeys,
+      },
+      new_value: {
+        ...afterSnapshot,
+        fields_updated: fieldsUpdated,
+        specialties_replaced: specialtiesReplaced,
+        motifs_replaced: motifsReplaced,
+        submission_id: input.submission_id,
+      },
+    })
+
+  if (auditError) {
+    // Don't fail the operation if audit logging fails, just log it
+    console.error('Failed to log audit event:', auditError)
+  }
+
+  return {
+    applied_at: appliedAt,
+    fields_updated: fieldsUpdated,
+    specialties_replaced: specialtiesReplaced,
+    previous_specialty_count: previousSpecialtyCount,
+    motifs_replaced: motifsReplaced,
+    previous_motif_count: previousMotifCount,
+  }
+}
+
+// =============================================================================
+// ANON DOCUMENT UPLOADS (for public onboarding form)
+// =============================================================================
+
+/**
+ * Upload result for anon users.
+ * Contains all info needed to store in questionnaire responses.
+ */
+export interface AnonUploadResult {
+  document_id: string
+  file_path: string
+  file_name: string
+  file_size: number
+  mime_type: string
+  uploaded_at: string
+}
+
+/**
+ * Upload a document file as an anonymous user (via onboarding form).
+ *
+ * IMPORTANT: RLS policies restrict anon uploads to:
+ * - document_type: 'photo' or 'insurance' only
+ * - professional must have a valid (pending/opened, non-expired) invite
+ *
+ * The file is uploaded to Supabase Storage, then a record is inserted
+ * into professional_documents. The result contains all info needed to
+ * store in the questionnaire responses.uploads object.
+ */
+export async function uploadDocumentAnon(
+  professional_id: string,
+  document_type: 'photo' | 'insurance',
+  file: File
+): Promise<AnonUploadResult> {
+  const now = new Date().toISOString()
+  const timestamp = Date.now()
+
+  // Generate unique file path: professionals/{prof_id}/{type}/{timestamp}_{filename}
+  // This path pattern is enforced by storage RLS policy
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const file_path = `professionals/${professional_id}/${document_type}/${timestamp}_${safeName}`
+
+  // 1. Upload file to Supabase Storage
+  const { error: uploadError } = await supabase.storage
+    .from('professional-documents')
+    .upload(file_path, file, {
+      contentType: file.type,
+      upsert: false, // Don't overwrite if exists
+    })
+
+  if (uploadError) {
+    console.error('Storage upload failed:', uploadError)
+    throw new Error(`Échec du téléversement: ${uploadError.message}`)
+  }
+
+  // 2. Insert document record into professional_documents
+  // RLS policy validates: valid invite exists + document_type in (photo, insurance)
+  const { data: doc, error: docError } = await supabase
+    .from('professional_documents')
+    .insert({
+      professional_id,
+      document_type,
+      file_name: file.name,
+      file_path,
+      file_size: file.size,
+      mime_type: file.type,
+    })
+    .select('id')
+    .single()
+
+  if (docError) {
+    // Try to clean up the uploaded file
+    await supabase.storage.from('professional-documents').remove([file_path])
+    console.error('Document insert failed:', docError)
+    throw new Error(`Échec de l'enregistrement: ${docError.message}`)
+  }
+
+  return {
+    document_id: doc.id,
+    file_path,
+    file_name: file.name,
+    file_size: file.size,
+    mime_type: file.type,
+    uploaded_at: now,
+  }
+}
+
+/**
+ * Get a signed URL for an uploaded document (for preview).
+ * Works for anon users since it only requires the file path.
+ */
+export async function getDocumentPreviewUrl(file_path: string): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from('professional-documents')
+    .createSignedUrl(file_path, 3600) // 1 hour
+
+  if (error) throw error
+  return data.signedUrl
+}
+
+// =============================================================================
+// PROFESSION TITLES
+// =============================================================================
+
+export async function fetchProfessionTitles(): Promise<ProfessionTitle[]> {
+  const { data, error } = await supabase
+    .from('profession_titles')
+    .select('*')
+    .order('label_fr')
+
+  if (error) throw error
+  return data || []
+}
+
+// =============================================================================
+// PROFESSIONAL PROFESSIONS (1-2 profession titles with license numbers)
+// =============================================================================
+
+export interface AddProfessionInput {
+  professional_id: string
+  profession_title_key: string
+  license_number: string
+  is_primary: boolean
+}
+
+export async function fetchProfessionalProfessions(
+  professional_id: string
+): Promise<ProfessionalProfession[]> {
+  const { data, error } = await supabase
+    .from('professional_professions')
+    .select(`
+      *,
+      profession_title:profession_titles(*)
+    `)
+    .eq('professional_id', professional_id)
+    .order('is_primary', { ascending: false })
+
+  if (error) throw error
+  return data || []
+}
+
+export async function addProfessionalProfession(
+  input: AddProfessionInput
+): Promise<ProfessionalProfession> {
+  // Check if professional already has 2 professions
+  const existing = await fetchProfessionalProfessions(input.professional_id)
+  if (existing.length >= 2) {
+    throw new Error('Un professionnel ne peut avoir que 2 titres au maximum.')
+  }
+
+  // If this is the first profession, make it primary
+  const isPrimary = existing.length === 0 ? true : input.is_primary
+
+  // If setting this as primary, unset others
+  if (isPrimary && existing.length > 0) {
+    await supabase
+      .from('professional_professions')
+      .update({ is_primary: false })
+      .eq('professional_id', input.professional_id)
+  }
+
+  const { data, error } = await supabase
+    .from('professional_professions')
+    .insert({
+      professional_id: input.professional_id,
+      profession_title_key: input.profession_title_key,
+      license_number: input.license_number,
+      is_primary: isPrimary,
+    })
+    .select(`
+      *,
+      profession_title:profession_titles(*)
+    `)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function updateProfessionalProfession(
+  id: string,
+  updates: { license_number?: string; is_primary?: boolean }
+): Promise<ProfessionalProfession> {
+  // If setting as primary, we need to unset others for this professional
+  if (updates.is_primary) {
+    // First get the profession to find the professional_id
+    const { data: prof } = await supabase
+      .from('professional_professions')
+      .select('professional_id')
+      .eq('id', id)
+      .single()
+
+    if (prof) {
+      await supabase
+        .from('professional_professions')
+        .update({ is_primary: false })
+        .eq('professional_id', prof.professional_id)
+        .neq('id', id)
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('professional_professions')
+    .update(updates)
+    .eq('id', id)
+    .select(`
+      *,
+      profession_title:profession_titles(*)
+    `)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function removeProfessionalProfession(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('professional_professions')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw error
+}
+
+/**
+ * Replace all professions for a professional.
+ * Used when applying questionnaire data or bulk updating.
+ */
+export interface ReplaceProfessionsInput {
+  professional_id: string
+  professions: Array<{
+    profession_title_key: string
+    license_number: string
+    is_primary: boolean
+  }>
+}
+
+export async function replaceProfessionalProfessions(
+  input: ReplaceProfessionsInput
+): Promise<{ replaced_count: number }> {
+  // Validate max 2 professions
+  if (input.professions.length > 2) {
+    throw new Error('Un professionnel ne peut avoir que 2 titres au maximum.')
+  }
+
+  // Delete existing
+  const { error: deleteError } = await supabase
+    .from('professional_professions')
+    .delete()
+    .eq('professional_id', input.professional_id)
+
+  if (deleteError) throw deleteError
+
+  if (input.professions.length === 0) {
+    return { replaced_count: 0 }
+  }
+
+  // Ensure exactly one is primary
+  const hasPrimary = input.professions.some(p => p.is_primary)
+  const professionsToInsert = input.professions.map((p, i) => ({
+    professional_id: input.professional_id,
+    profession_title_key: p.profession_title_key,
+    license_number: p.license_number,
+    is_primary: hasPrimary ? p.is_primary : i === 0,
+  }))
+
+  const { error: insertError } = await supabase
+    .from('professional_professions')
+    .insert(professionsToInsert)
+
+  if (insertError) throw insertError
+
+  return { replaced_count: professionsToInsert.length }
 }
 
 // =============================================================================

@@ -1,5 +1,7 @@
 export { ProfessionalProfileTab } from './profile-tab'
+export { ProfessionalOnboardingTab } from './onboarding-tab'
 export { ProfessionalPortraitTab } from './portrait-tab'
 export { ProfessionalDocumentsTab } from './documents-tab'
 export { ProfessionalFicheTab } from './fiche-tab'
 export { ProfessionalHistoryTab } from './history-tab'
+export { ProfessionEditor } from './profession-editor'

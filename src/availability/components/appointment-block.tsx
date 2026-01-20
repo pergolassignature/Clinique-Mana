@@ -2,16 +2,33 @@
 
 import { format } from 'date-fns'
 import { cn } from '@/shared/lib/utils'
-import type { Appointment, Service, Client } from '../types'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from '@/shared/ui/tooltip'
+import type { Appointment, Service, Client, BookableService } from '../types'
+
+// Density thresholds in pixels
+const DENSITY_PILL = 24 // < 24px: pill only with initials
+const DENSITY_COMPACT = 44 // < 44px: name + time only
 
 interface AppointmentBlockProps {
   appointment: Appointment
-  service?: Service
+  service?: Service | BookableService
   clients?: (Client | undefined)[]
   onClick: () => void
   onDragStart?: (e: React.PointerEvent) => void
   onResizeStart?: (e: React.PointerEvent, edge: 'top' | 'bottom') => void
   isDragging?: boolean
+  /** Pixel height of the block (calculated by parent) */
+  pixelHeight?: number
+}
+
+// Get client initials from first name and last name
+function getInitials(client: Client): string {
+  return `${client.firstName.charAt(0)}${client.lastName.charAt(0)}`.toUpperCase()
 }
 
 export function AppointmentBlock({
@@ -22,28 +39,34 @@ export function AppointmentBlock({
   onDragStart,
   onResizeStart,
   isDragging = false,
+  pixelHeight = 40,
 }: AppointmentBlockProps) {
   const startTime = new Date(appointment.startTime)
   const endTime = new Date(startTime.getTime() + appointment.durationMinutes * 60000)
   const isCancelled = appointment.status === 'cancelled'
+  const isDraft = appointment.status === 'draft'
 
-  // Build client name(s) display
+  // Build client details
   const validClients = clients?.filter((c): c is Client => c !== undefined) || []
   const clientName = validClients.length > 0
     ? validClients.map(c => `${c.firstName} ${c.lastName}`).join(', ')
     : 'Client inconnu'
+  const clientInitials = validClients.length > 0
+    ? validClients.map(getInitials).join(', ')
+    : '??'
 
-  // Calculate if we have enough height for full display
-  const isCompact = appointment.durationMinutes <= 30
+  // Density mode based on pixel height
+  const isPillMode = pixelHeight < DENSITY_PILL
+  const isCompactMode = pixelHeight < DENSITY_COMPACT && !isPillMode
+  const isFullMode = !isPillMode && !isCompactMode
 
-  // Show resize handles for appointments > 30 min and not cancelled
-  const showResizeHandles = appointment.durationMinutes > 30 && !isCancelled
+  // Show resize handles only for full mode and not cancelled
+  const showResizeHandles = isFullMode && !isCancelled
 
   // Allow drag/resize interactions for non-cancelled appointments
   const isInteractive = !isCancelled
 
   const handleClick = () => {
-    // Prevent click when finishing a drag operation
     if (isDragging) return
     onClick()
   }
@@ -53,7 +76,25 @@ export function AppointmentBlock({
     onDragStart(e)
   }
 
-  return (
+  // Tooltip content with full details
+  const tooltipContent = (
+    <div className="space-y-1.5 max-w-[200px]">
+      <div className="font-medium text-sm">{clientName}</div>
+      <div className="text-foreground-muted">{service?.nameFr || 'Service'}</div>
+      <div className="flex items-center gap-2 text-foreground-muted">
+        <span>{format(startTime, 'HH:mm')} – {format(endTime, 'HH:mm')}</span>
+        <span className="text-foreground-muted/60">({appointment.durationMinutes} min)</span>
+      </div>
+      {isCancelled && (
+        <div className="text-wine-500 font-medium">Annulé</div>
+      )}
+      {isDraft && (
+        <div className="text-amber-600 font-medium">Brouillon</div>
+      )}
+    </div>
+  )
+
+  const blockContent = (
     <div
       role="button"
       tabIndex={0}
@@ -66,23 +107,31 @@ export function AppointmentBlock({
         }
       }}
       className={cn(
-        'group relative w-full h-full rounded-lg px-2 py-1 text-left transition-all',
+        'group relative w-full h-full rounded-lg text-left transition-all overflow-hidden',
         'border shadow-sm focus:outline-none focus:ring-2 focus:ring-sage-400 focus:ring-offset-1',
-        // Base styles based on cancelled state
-        isCancelled
-          ? 'bg-background-tertiary/60 border-border-light opacity-60'
-          : 'border-transparent',
-        // Cursor styles for interactive appointments
-        isInteractive && !isDragging && 'cursor-grab hover:shadow-md',
+        // Base styles based on status
+        isCancelled && 'opacity-50',
+        isDraft && 'border-dashed',
+        // Cursor styles
+        isInteractive && !isDragging && 'cursor-grab hover:shadow-md hover:scale-[1.01]',
         isInteractive && isDragging && 'cursor-grabbing',
         // Drag visual feedback
         isDragging && 'shadow-lg ring-2 ring-sage-400 opacity-90'
       )}
       style={{
-        backgroundColor: isCancelled ? undefined : `${service?.colorHex}20`,
-        borderColor: isCancelled ? undefined : `${service?.colorHex}40`,
+        backgroundColor: isCancelled ? 'var(--background-tertiary)' : `${service?.colorHex}15`,
+        borderColor: isCancelled ? 'var(--border-light)' : `${service?.colorHex}50`,
       }}
     >
+      {/* Left color stripe - always visible */}
+      <div
+        className={cn(
+          'absolute left-0 top-0 bottom-0 w-1 rounded-l-lg',
+          isCancelled && 'opacity-40'
+        )}
+        style={{ backgroundColor: service?.colorHex || '#888888' }}
+      />
+
       {/* Top resize handle */}
       {showResizeHandles && (
         <div
@@ -96,40 +145,72 @@ export function AppointmentBlock({
         </div>
       )}
 
-      <div className="flex flex-col h-full overflow-hidden">
-        {/* Client name */}
-        <div
-          className={cn(
-            'text-xs font-medium truncate',
+      {/* Content area with left padding for color stripe */}
+      <div className={cn(
+        'flex h-full overflow-hidden pl-2.5',
+        isPillMode ? 'items-center px-2' : 'flex-col py-1 pr-2'
+      )}>
+        {/* PILL MODE: initials only */}
+        {isPillMode && (
+          <div className={cn(
+            'text-[10px] font-semibold truncate',
             isCancelled ? 'line-through text-foreground-muted' : 'text-foreground'
-          )}
-        >
-          {clientName}
-        </div>
+          )}>
+            {clientInitials}
+          </div>
+        )}
 
-        {!isCompact && (
+        {/* COMPACT MODE: name + time */}
+        {isCompactMode && (
           <>
-            {/* Service name */}
-            <div
-              className={cn(
-                'text-[10px] truncate',
-                isCancelled ? 'text-foreground-muted' : 'text-foreground-secondary'
-              )}
-            >
+            <div className={cn(
+              'text-xs font-medium truncate leading-tight',
+              isCancelled ? 'line-through text-foreground-muted' : 'text-foreground'
+            )}>
+              {clientName}
+            </div>
+            <div className="text-[10px] text-foreground-muted mt-auto">
+              {format(startTime, 'HH:mm')}
+            </div>
+          </>
+        )}
+
+        {/* FULL MODE: name + service + time */}
+        {isFullMode && (
+          <>
+            <div className={cn(
+              'text-xs font-medium truncate',
+              isCancelled ? 'line-through text-foreground-muted' : 'text-foreground'
+            )}>
+              {clientName}
+            </div>
+            <div className={cn(
+              'text-[10px] truncate',
+              isCancelled ? 'text-foreground-muted' : 'text-foreground-secondary'
+            )}>
               {service?.nameFr || 'Service'}
             </div>
-
-            {/* Time range */}
             <div className="text-[10px] text-foreground-muted mt-auto">
               {format(startTime, 'HH:mm')} – {format(endTime, 'HH:mm')}
             </div>
           </>
         )}
 
-        {/* Cancelled badge for compact view */}
-        {isCancelled && isCompact && (
-          <div className="text-[9px] text-wine-600 font-medium">
-            Annulé
+        {/* Status indicator for compact/pill modes */}
+        {(isPillMode || isCompactMode) && isCancelled && (
+          <div className={cn(
+            'text-[8px] text-wine-600 font-medium',
+            isPillMode && 'ml-1'
+          )}>
+            ✕
+          </div>
+        )}
+        {(isPillMode || isCompactMode) && isDraft && (
+          <div className={cn(
+            'text-[8px] text-amber-600 font-medium',
+            isPillMode && 'ml-1'
+          )}>
+            •
           </div>
         )}
       </div>
@@ -148,4 +229,25 @@ export function AppointmentBlock({
       )}
     </div>
   )
+
+  // Wrap in tooltip for pill and compact modes
+  if (isPillMode || isCompactMode) {
+    return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {blockContent}
+          </TooltipTrigger>
+          <TooltipContent
+            side="right"
+            className="bg-background border border-border text-foreground p-3"
+          >
+            {tooltipContent}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  return blockContent
 }

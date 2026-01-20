@@ -79,6 +79,48 @@ export const ProfessionalSpecialtySchema = z.object({
 })
 export type ProfessionalSpecialty = z.infer<typeof ProfessionalSpecialtySchema>
 
+// Motif schema (from motifs table)
+export const MotifSchema = z.object({
+  id: z.string().uuid(),
+  key: z.string(),
+  label: z.string(),
+  is_active: z.boolean(),
+  is_restricted: z.boolean(),
+})
+export type Motif = z.infer<typeof MotifSchema>
+
+export const ProfessionalMotifSchema = z.object({
+  professional_id: z.string().uuid(),
+  motif_id: z.string().uuid(),
+  created_at: z.string().datetime(),
+  // Joined data
+  motif: MotifSchema.optional(),
+})
+export type ProfessionalMotif = z.infer<typeof ProfessionalMotifSchema>
+
+// =============================================================================
+// PROFESSION TITLES (from services v2 schema)
+// =============================================================================
+
+export const ProfessionTitleSchema = z.object({
+  key: z.string(),
+  label_fr: z.string(),
+  profession_category_key: z.string(),
+})
+export type ProfessionTitle = z.infer<typeof ProfessionTitleSchema>
+
+export const ProfessionalProfessionSchema = z.object({
+  id: z.string().uuid(),
+  professional_id: z.string().uuid(),
+  profession_title_key: z.string(),
+  license_number: z.string(),
+  is_primary: z.boolean(),
+  created_at: z.string().datetime(),
+  // Joined data
+  profession_title: ProfessionTitleSchema.optional(),
+})
+export type ProfessionalProfession = z.infer<typeof ProfessionalProfessionSchema>
+
 export const ProfessionalDocumentSchema = z.object({
   id: z.string().uuid(),
   professional_id: z.string().uuid(),
@@ -115,6 +157,29 @@ export type OnboardingInvite = z.infer<typeof OnboardingInviteSchema>
 // Flexible JSONB structure for questionnaire responses
 // =============================================================================
 
+// Upload info stored in responses
+export const UploadInfoSchema = z.object({
+  document_id: z.string().uuid(),
+  file_path: z.string(),
+  file_name: z.string(),
+  file_size: z.number().optional(),
+  mime_type: z.string().optional(),
+  uploaded_at: z.string().datetime(),
+})
+export type UploadInfo = z.infer<typeof UploadInfoSchema>
+
+// Image rights consent stored in responses
+export const ImageRightsConsentSchema = z.object({
+  version: z.string(), // e.g., "v1"
+  signed: z.boolean(),
+  signer_full_name: z.string(),
+  signer_email: z.string().email().optional(),
+  signed_at: z.string().datetime(),
+  renewal_policy: z.literal('12_months_auto_renew'),
+  withdrawal_notice: z.literal('3_months'),
+})
+export type ImageRightsConsent = z.infer<typeof ImageRightsConsentSchema>
+
 export const QuestionnaireResponsesSchema = z.object({
   // Personal info
   full_name: z.string().optional(),
@@ -138,11 +203,23 @@ export const QuestionnaireResponsesSchema = z.object({
   // Specialties (array of specialty codes)
   specialties: z.array(z.string()).optional(),
 
+  // Motifs (array of motif keys)
+  motifs: z.array(z.string()).optional(),
+
   // Languages
   languages: z.array(z.string()).optional(),
 
   // Availability
   availability_notes: z.string().optional(),
+
+  // Document uploads (stored as upload info)
+  uploads: z.object({
+    photo: UploadInfoSchema.optional(),
+    insurance: UploadInfoSchema.optional(),
+  }).optional(),
+
+  // Image rights consent
+  image_rights_consent: ImageRightsConsentSchema.optional(),
 
   // Additional fields can be added as needed
 }).passthrough() // Allow additional fields for flexibility
@@ -199,6 +276,12 @@ export const ProfessionalWithRelationsSchema = ProfessionalSchema.extend({
 
   // Specialties
   specialties: z.array(ProfessionalSpecialtySchema).optional(),
+
+  // Motifs
+  motifs: z.array(ProfessionalMotifSchema).optional(),
+
+  // Professions (1-2 with license numbers)
+  professions: z.array(ProfessionalProfessionSchema).optional(),
 
   // Documents
   documents: z.array(ProfessionalDocumentSchema).optional(),
@@ -342,7 +425,7 @@ export interface ProfessionalListItem {
   created_at: string
 }
 
-export type ProfessionalDetailTab = 'profil' | 'portrait' | 'documents' | 'fiche' | 'historique'
+export type ProfessionalDetailTab = 'profil' | 'onboarding' | 'portrait' | 'documents' | 'fiche' | 'historique'
 
 export interface DocumentUploadProgress {
   file_name: string

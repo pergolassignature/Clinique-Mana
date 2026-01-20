@@ -13,6 +13,11 @@ import {
   X,
   Loader2,
   Eye,
+  Image,
+  Shield,
+  FileCheck,
+  File,
+  Info,
 } from 'lucide-react'
 import { t } from '@/i18n'
 import { supabase } from '@/lib/supabaseClient'
@@ -29,7 +34,11 @@ import {
   useDeleteDocument,
 } from '../hooks'
 import { getDocumentDownloadUrl } from '../api'
-import { EmptyState } from '@/shared/components/empty-state'
+import {
+  REQUIRED_DOCUMENTS,
+  mapRequiredDocumentsState,
+  type RequiredDocumentState,
+} from '../mappers'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Badge } from '@/shared/ui/badge'
@@ -63,16 +72,17 @@ interface ProfessionalDocumentsTabProps {
   professional: ProfessionalWithRelations
 }
 
-const DOCUMENT_TYPES: DocumentType[] = [
+const ALL_DOCUMENT_TYPES: DocumentType[] = [
+  'photo',
+  'insurance',
+  'license',
   'cv',
   'diploma',
-  'license',
-  'insurance',
-  'photo',
+  'fiche',
   'other',
 ]
 
-const ACCEPTED_FILE_TYPES = '.pdf,.doc,.docx,.jpg,.jpeg,.png'
+const ACCEPTED_FILE_TYPES = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.webp'
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -91,40 +101,28 @@ function formatFileSize(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
 }
 
-function getDocumentStatus(doc: ProfessionalDocument): 'verified' | 'pending' | 'expired' {
-  if (doc.expires_at && new Date(doc.expires_at) < new Date()) {
-    return 'expired'
+function getDocumentIcon(type: DocumentType) {
+  switch (type) {
+    case 'photo':
+      return <Image className="h-5 w-5" />
+    case 'insurance':
+      return <Shield className="h-5 w-5" />
+    case 'license':
+      return <FileCheck className="h-5 w-5" />
+    case 'cv':
+      return <FileText className="h-5 w-5" />
+    default:
+      return <File className="h-5 w-5" />
   }
-  if (doc.verified_at) {
-    return 'verified'
-  }
-  return 'pending'
 }
 
-function getStatusBadge(status: 'verified' | 'pending' | 'expired') {
-  switch (status) {
-    case 'verified':
-      return (
-        <Badge variant="success" className="gap-1">
-          <CheckCircle className="h-3 w-3" />
-          {t('professionals.documents.status.verified')}
-        </Badge>
-      )
-    case 'pending':
-      return (
-        <Badge variant="warning" className="gap-1">
-          <Clock className="h-3 w-3" />
-          {t('professionals.documents.status.pending')}
-        </Badge>
-      )
-    case 'expired':
-      return (
-        <Badge variant="error" className="gap-1">
-          <AlertCircle className="h-3 w-3" />
-          {t('professionals.documents.status.expired')}
-        </Badge>
-      )
-  }
+function RequiredBadge() {
+  return (
+    <Badge variant="outline" className="gap-1 text-xs">
+      <AlertCircle className="h-3 w-3" />
+      Requis
+    </Badge>
+  )
 }
 
 // Upload dialog component
@@ -132,13 +130,15 @@ function UploadDialog({
   isOpen,
   onClose,
   professionalId,
+  preselectedType,
 }: {
   isOpen: boolean
   onClose: () => void
   professionalId: string
+  preselectedType?: DocumentType
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [selectedType, setSelectedType] = useState<DocumentType>('cv')
+  const [selectedType, setSelectedType] = useState<DocumentType>(preselectedType || 'cv')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [expiryDate, setExpiryDate] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -147,8 +147,15 @@ function UploadDialog({
   const uploadDocument = useUploadDocument()
   const queryClient = useQueryClient()
 
+  // Update selected type when preselectedType changes
+  useState(() => {
+    if (preselectedType) {
+      setSelectedType(preselectedType)
+    }
+  })
+
   const resetForm = () => {
-    setSelectedType('cv')
+    setSelectedType(preselectedType || 'cv')
     setSelectedFile(null)
     setExpiryDate('')
     setError(null)
@@ -177,12 +184,10 @@ function UploadDialog({
     setError(null)
 
     try {
-      // Generate unique file path
       const ext = selectedFile.name.split('.').pop()?.toLowerCase() || 'bin'
       const uuid = crypto.randomUUID()
       const filePath = `professionals/${professionalId}/${selectedType}/${uuid}.${ext}`
 
-      // Upload to Supabase storage
       const { error: uploadError } = await supabase.storage
         .from('professional-documents')
         .upload(filePath, selectedFile, {
@@ -194,7 +199,6 @@ function UploadDialog({
         throw new Error(uploadError.message)
       }
 
-      // Create database record
       await uploadDocument.mutateAsync({
         professional_id: professionalId,
         document_type: selectedType,
@@ -205,7 +209,6 @@ function UploadDialog({
         expires_at: expiryDate || undefined,
       })
 
-      // Invalidate queries
       queryClient.invalidateQueries({ queryKey: professionalKeys.documents(professionalId) })
       queryClient.invalidateQueries({ queryKey: professionalKeys.detail(professionalId) })
 
@@ -226,13 +229,16 @@ function UploadDialog({
     }
   }
 
+  // Determine if selected type has expiry requirement
+  const requiresExpiry = REQUIRED_DOCUMENTS.find(d => d.type === selectedType)?.hasExpiry
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t('professionals.documents.upload.title')}</DialogTitle>
+          <DialogTitle>Téléverser un document</DialogTitle>
           <DialogDescription>
-            {t('professionals.documents.upload.maxSize')}
+            Formats acceptés: PDF, Word, JPEG, PNG, WebP. Taille max: 10 Mo.
           </DialogDescription>
         </DialogHeader>
 
@@ -240,14 +246,14 @@ function UploadDialog({
           {/* Document type */}
           <div>
             <label className="text-sm font-medium mb-2 block">
-              {t('professionals.documents.upload.selectType')}
+              Type de document
             </label>
             <Select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value as DocumentType)}
-              disabled={isUploading}
+              disabled={isUploading || !!preselectedType}
             >
-              {DOCUMENT_TYPES.map((type) => (
+              {ALL_DOCUMENT_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {t(`professionals.documents.types.${type}` as Parameters<typeof t>[0])}
                 </option>
@@ -258,7 +264,7 @@ function UploadDialog({
           {/* File input */}
           <div>
             <label className="text-sm font-medium mb-2 block">
-              {t('professionals.documents.upload.selectFile')}
+              Fichier
             </label>
             <div
               className={`
@@ -307,25 +313,30 @@ function UploadDialog({
                   <p className="mt-2 text-sm text-foreground-muted">
                     Cliquez pour sélectionner un fichier
                   </p>
-                  <p className="text-xs text-foreground-muted">
-                    {t('professionals.documents.upload.dragDrop')}
-                  </p>
                 </>
               )}
             </div>
           </div>
 
-          {/* Expiry date (optional) */}
+          {/* Expiry date */}
           <div>
-            <label className="text-sm font-medium mb-2 block">
-              {t('professionals.documents.upload.expiryDate')}
-            </label>
+            <div className="flex items-center gap-2 mb-2">
+              <label className="text-sm font-medium">
+                Date d'expiration
+              </label>
+              {requiresExpiry && (
+                <Badge variant="warning" className="text-xs">Recommandé</Badge>
+              )}
+            </div>
             <Input
               type="date"
               value={expiryDate}
               onChange={(e) => setExpiryDate(e.target.value)}
               disabled={isUploading}
             />
+            <p className="mt-1 text-xs text-foreground-muted">
+              Laissez vide si le document n'expire pas
+            </p>
           </div>
 
           {/* Error */}
@@ -338,7 +349,7 @@ function UploadDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose} disabled={isUploading}>
-            {t('professionals.documents.upload.cancel')}
+            Annuler
           </Button>
           <Button
             onClick={handleUpload}
@@ -350,7 +361,7 @@ function UploadDialog({
                 Téléversement...
               </>
             ) : (
-              t('professionals.documents.upload.submit')
+              'Téléverser'
             )}
           </Button>
         </DialogFooter>
@@ -392,12 +403,12 @@ function ExpiryDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('professionals.documents.expiry.title')}</DialogTitle>
+          <DialogTitle>Modifier la date d'expiration</DialogTitle>
         </DialogHeader>
 
         <div className="py-4">
           <label className="text-sm font-medium mb-2 block">
-            {t('professionals.documents.expiry.label')}
+            Date d'expiration
           </label>
           <Input
             type="date"
@@ -405,16 +416,16 @@ function ExpiryDialog({
             onChange={(e) => setExpiryDate(e.target.value)}
           />
           <p className="mt-2 text-xs text-foreground-muted">
-            {t('professionals.documents.expiry.noExpiry')}
+            Laissez vide pour retirer la date d'expiration.
           </p>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            {t('professionals.documents.expiry.cancel')}
+            Annuler
           </Button>
           <Button onClick={handleSave} disabled={updateExpiry.isPending}>
-            {t('professionals.documents.expiry.save')}
+            Enregistrer
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -434,14 +445,14 @@ function DeleteDialog({
   document: ProfessionalDocument | null
   professionalId: string
 }) {
-  const deleteDocument = useDeleteDocument()
+  const deleteDocumentMutation = useDeleteDocument()
   const queryClient = useQueryClient()
 
   const handleDelete = async () => {
     if (!document) return
 
     try {
-      await deleteDocument.mutateAsync(document.id)
+      await deleteDocumentMutation.mutateAsync(document.id)
       queryClient.invalidateQueries({ queryKey: professionalKeys.documents(professionalId) })
       queryClient.invalidateQueries({ queryKey: professionalKeys.detail(professionalId) })
       onClose()
@@ -454,25 +465,25 @@ function DeleteDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('professionals.documents.delete.title')}</DialogTitle>
+          <DialogTitle>Supprimer le document</DialogTitle>
           <DialogDescription>
-            {t('professionals.documents.delete.description')}
+            Cette action est irréversible. Le document sera définitivement supprimé.
           </DialogDescription>
         </DialogHeader>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            {t('professionals.documents.delete.cancel')}
+            Annuler
           </Button>
           <Button
             variant="destructive"
             onClick={handleDelete}
-            disabled={deleteDocument.isPending}
+            disabled={deleteDocumentMutation.isPending}
           >
-            {deleteDocument.isPending ? (
+            {deleteDocumentMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              t('professionals.documents.delete.confirm')
+              'Supprimer'
             )}
           </Button>
         </DialogFooter>
@@ -481,8 +492,278 @@ function DeleteDialog({
   )
 }
 
-// Document card
-function DocumentCard({
+// Required document card - shows even when empty
+function RequiredDocumentCard({
+  state,
+  onUpload,
+  onVerify,
+  onEditExpiry,
+  onDelete,
+}: {
+  state: RequiredDocumentState
+  onUpload: (type: DocumentType) => void
+  onVerify: (doc: ProfessionalDocument, verified: boolean) => void
+  onEditExpiry: (doc: ProfessionalDocument) => void
+  onDelete: (doc: ProfessionalDocument) => void
+}) {
+  const [isDownloading, setIsDownloading] = useState(false)
+  const { config, status, document } = state
+
+  const handleDownload = async () => {
+    if (!document) return
+    setIsDownloading(true)
+    try {
+      const url = await getDocumentDownloadUrl(document.file_path)
+      window.open(url, '_blank')
+    } catch (err) {
+      console.error('Failed to get download URL:', err)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  const getStatusBadge = () => {
+    switch (status) {
+      case 'verified':
+        return (
+          <Badge variant="success" className="gap-1">
+            <CheckCircle className="h-3 w-3" />
+            Vérifié
+          </Badge>
+        )
+      case 'pending':
+        return (
+          <Badge variant="warning" className="gap-1">
+            <Clock className="h-3 w-3" />
+            En attente
+          </Badge>
+        )
+      case 'expired':
+        return (
+          <Badge variant="error" className="gap-1">
+            <AlertCircle className="h-3 w-3" />
+            Expiré
+          </Badge>
+        )
+      case 'missing':
+        return (
+          <Badge variant="outline" className="gap-1 text-wine-600 border-wine-200">
+            <AlertCircle className="h-3 w-3" />
+            Manquant
+          </Badge>
+        )
+    }
+  }
+
+  const cardClass = status === 'missing'
+    ? 'border-dashed border-wine-200 bg-wine-50/30'
+    : status === 'expired'
+      ? 'border-wine-200 bg-wine-50/30'
+      : status === 'verified'
+        ? 'border-sage-200 bg-sage-50/30'
+        : ''
+
+  return (
+    <Card className={cardClass}>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                status === 'missing'
+                  ? 'bg-wine-100 text-wine-600'
+                  : status === 'expired'
+                    ? 'bg-wine-100 text-wine-600'
+                    : status === 'verified'
+                      ? 'bg-sage-100 text-sage-600'
+                      : 'bg-honey-100 text-honey-600'
+              }`}
+            >
+              {getDocumentIcon(config.type)}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base">{config.labelFr}</CardTitle>
+                {config.isRequired && <RequiredBadge />}
+              </div>
+              <CardDescription className="mt-0.5">
+                {config.descriptionFr}
+              </CardDescription>
+            </div>
+          </div>
+          {getStatusBadge()}
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        {/* Document details if present */}
+        {document && (
+          <div className="mb-4 space-y-2 rounded-lg bg-background p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-foreground-muted">Fichier</span>
+              <span className="font-medium truncate max-w-[200px]">{document.file_name}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-foreground-muted">Taille</span>
+              <span>{formatFileSize(document.file_size)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-foreground-muted">Téléversé le</span>
+              <span>{formatDate(document.created_at)}</span>
+            </div>
+            {document.verified_at && (
+              <div className="flex items-center justify-between">
+                <span className="text-foreground-muted">Vérifié le</span>
+                <span>{formatDate(document.verified_at)}</span>
+              </div>
+            )}
+            {document.expires_at && (
+              <div className="flex items-center justify-between">
+                <span className="text-foreground-muted">Expire le</span>
+                <span className={status === 'expired' ? 'text-wine-600 font-medium' : ''}>
+                  {formatDate(document.expires_at)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Electronic consent details (signed via questionnaire, no file) */}
+        {!document && state.consentSource === 'questionnaire' && (
+          <div className="mb-4 space-y-2 rounded-lg bg-sage-50 p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-foreground-muted">Type</span>
+              <Badge variant="outline" className="text-sage-600 border-sage-300">
+                Signature électronique
+              </Badge>
+            </div>
+            {state.consentSignerName && (
+              <div className="flex items-center justify-between">
+                <span className="text-foreground-muted">Signataire</span>
+                <span className="font-medium">{state.consentSignerName}</span>
+              </div>
+            )}
+            {state.consentSignedAt && (
+              <div className="flex items-center justify-between">
+                <span className="text-foreground-muted">Signé le</span>
+                <span>{formatDate(state.consentSignedAt)}</span>
+              </div>
+            )}
+            {state.expiresAt && (
+              <div className="flex items-center justify-between">
+                <span className="text-foreground-muted">Expire le</span>
+                <span className={status === 'expired' ? 'text-wine-600 font-medium' : ''}>
+                  {formatDate(state.expiresAt)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Info banner for consent document */}
+        {config.autoRenew && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg bg-background-secondary/50 p-3 text-sm">
+            <Info className="h-4 w-4 text-foreground-muted mt-0.5 shrink-0" />
+            <div className="text-foreground-muted">
+              <p>Valide {config.expiryMonths} mois avec renouvellement automatique.</p>
+              {config.withdrawalNoticeMonths && (
+                <p className="mt-1">Préavis de retrait : {config.withdrawalNoticeMonths} mois.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex flex-wrap gap-2">
+          {status === 'missing' ? (
+            <Button onClick={() => onUpload(config.type)}>
+              <Upload className="h-4 w-4" />
+              Téléverser
+            </Button>
+          ) : state.consentSource === 'questionnaire' && !document ? (
+            // Electronic consent - no file actions needed, just show status
+            <p className="text-sm text-foreground-muted italic">
+              Consentement signé électroniquement via le questionnaire
+            </p>
+          ) : (
+            <>
+              <Button variant="outline" onClick={handleDownload} disabled={isDownloading}>
+                {isDownloading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+                Aperçu
+              </Button>
+
+              {status === 'pending' && document && (
+                <Button onClick={() => onVerify(document, true)}>
+                  <CheckCircle className="h-4 w-4" />
+                  Vérifier
+                </Button>
+              )}
+
+              {status === 'expired' && (
+                <Button onClick={() => onUpload(config.type)}>
+                  <Upload className="h-4 w-4" />
+                  Remplacer
+                </Button>
+              )}
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleDownload}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Télécharger
+                  </DropdownMenuItem>
+
+                  {status === 'verified' && document && (
+                    <DropdownMenuItem onClick={() => onVerify(document, false)}>
+                      <X className="h-4 w-4 mr-2" />
+                      Retirer la vérification
+                    </DropdownMenuItem>
+                  )}
+
+                  {document && (
+                    <DropdownMenuItem onClick={() => onEditExpiry(document)}>
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Modifier l'expiration
+                    </DropdownMenuItem>
+                  )}
+
+                  <DropdownMenuItem onClick={() => onUpload(config.type)}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Remplacer
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+
+                  {document && (
+                    <DropdownMenuItem
+                      onClick={() => onDelete(document)}
+                      className="text-wine-600"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Supprimer
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Other document card - for non-required documents
+function OtherDocumentCard({
   document,
   onVerify,
   onEditExpiry,
@@ -494,7 +775,12 @@ function DocumentCard({
   onDelete: (doc: ProfessionalDocument) => void
 }) {
   const [isDownloading, setIsDownloading] = useState(false)
-  const status = getDocumentStatus(document)
+
+  const status = document.expires_at && new Date(document.expires_at) < new Date()
+    ? 'expired'
+    : document.verified_at
+      ? 'verified'
+      : 'pending'
 
   const handleDownload = async () => {
     setIsDownloading(true)
@@ -508,6 +794,32 @@ function DocumentCard({
     }
   }
 
+  const getStatusBadge = () => {
+    switch (status) {
+      case 'verified':
+        return (
+          <Badge variant="success" className="gap-1">
+            <CheckCircle className="h-3 w-3" />
+            Vérifié
+          </Badge>
+        )
+      case 'pending':
+        return (
+          <Badge variant="warning" className="gap-1">
+            <Clock className="h-3 w-3" />
+            En attente
+          </Badge>
+        )
+      case 'expired':
+        return (
+          <Badge variant="error" className="gap-1">
+            <AlertCircle className="h-3 w-3" />
+            Expiré
+          </Badge>
+        )
+    }
+  }
+
   return (
     <motion.div
       layout
@@ -517,11 +829,11 @@ function DocumentCard({
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-background-secondary">
-          <FileText className="h-5 w-5 text-foreground-muted" />
+          {getDocumentIcon(document.document_type)}
         </div>
         <div className="min-w-0">
           <p className="font-medium text-sm truncate">{document.file_name}</p>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span className="text-xs text-foreground-muted">
               {t(`professionals.documents.types.${document.document_type}` as Parameters<typeof t>[0])}
             </span>
@@ -532,7 +844,7 @@ function DocumentCard({
             {document.expires_at && (
               <>
                 <span className="text-xs text-foreground-muted">•</span>
-                <span className="text-xs text-foreground-muted flex items-center gap-1">
+                <span className={`text-xs flex items-center gap-1 ${status === 'expired' ? 'text-wine-600' : 'text-foreground-muted'}`}>
                   <Calendar className="h-3 w-3" />
                   {formatDate(document.expires_at)}
                 </span>
@@ -543,7 +855,7 @@ function DocumentCard({
       </div>
 
       <div className="flex items-center gap-2">
-        {getStatusBadge(status)}
+        {getStatusBadge()}
 
         <Button
           variant="ghost"
@@ -567,26 +879,26 @@ function DocumentCard({
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={handleDownload}>
               <Eye className="h-4 w-4 mr-2" />
-              {t('professionals.documents.actions.download')}
+              Aperçu
             </DropdownMenuItem>
 
             {status === 'pending' && (
               <DropdownMenuItem onClick={() => onVerify(document, true)}>
                 <CheckCircle className="h-4 w-4 mr-2" />
-                {t('professionals.documents.actions.verify')}
+                Vérifier
               </DropdownMenuItem>
             )}
 
             {status === 'verified' && (
               <DropdownMenuItem onClick={() => onVerify(document, false)}>
                 <X className="h-4 w-4 mr-2" />
-                {t('professionals.documents.actions.reject')}
+                Retirer la vérification
               </DropdownMenuItem>
             )}
 
             <DropdownMenuItem onClick={() => onEditExpiry(document)}>
               <Calendar className="h-4 w-4 mr-2" />
-              {t('professionals.documents.actions.updateExpiry')}
+              Modifier l'expiration
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
@@ -596,7 +908,7 @@ function DocumentCard({
               className="text-wine-600"
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              {t('professionals.documents.actions.delete')}
+              Supprimer
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -611,108 +923,140 @@ export function ProfessionalDocumentsTab({ professional }: ProfessionalDocuments
   const queryClient = useQueryClient()
 
   const [showUploadDialog, setShowUploadDialog] = useState(false)
+  const [uploadType, setUploadType] = useState<DocumentType | undefined>(undefined)
   const [expiryDocument, setExpiryDocument] = useState<ProfessionalDocument | null>(null)
-  const [deleteDocument, setDeleteDocument] = useState<ProfessionalDocument | null>(null)
+  const [deleteDoc, setDeleteDoc] = useState<ProfessionalDocument | null>(null)
 
   const handleVerify = async (doc: ProfessionalDocument, verified: boolean) => {
     try {
       await verifyDocument.mutateAsync({ id: doc.id, verified })
       queryClient.invalidateQueries({ queryKey: professionalKeys.documents(professional.id) })
+      queryClient.invalidateQueries({ queryKey: professionalKeys.detail(professional.id) })
     } catch (err) {
       console.error('Failed to verify document:', err)
     }
   }
 
-  // Group documents by type
-  const groupedDocuments = (documents || []).reduce(
-    (acc, doc) => {
-      const type = doc.document_type
-      if (!acc[type]) acc[type] = []
-      acc[type].push(doc)
-      return acc
-    },
-    {} as Record<DocumentType, ProfessionalDocument[]>
+  const handleUpload = (type?: DocumentType) => {
+    setUploadType(type)
+    setShowUploadDialog(true)
+  }
+
+  // Get required documents state (pass submission for electronic consent check)
+  const requiredDocsState = mapRequiredDocumentsState(documents || [], professional.latest_submission)
+
+  // Get other documents (not in required list)
+  const requiredTypes = REQUIRED_DOCUMENTS.map(d => d.type)
+  const otherDocuments = (documents || []).filter(
+    d => !requiredTypes.includes(d.document_type)
   )
 
-  const hasDocuments = documents && documents.length > 0
+  // Calculate summary
+  const missingCount = requiredDocsState.filter(d => d.status === 'missing').length
+  const expiredCount = requiredDocsState.filter(d => d.status === 'expired').length
+  const verifiedCount = requiredDocsState.filter(d => d.status === 'verified').length
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">{t('professionals.documents.title')}</h2>
-          {hasDocuments && (
-            <p className="text-sm text-foreground-muted">
-              {documents.length} document(s)
-            </p>
-          )}
-        </div>
-        <Button onClick={() => setShowUploadDialog(true)}>
-          <Upload className="h-4 w-4" />
-          Téléverser
-        </Button>
-      </div>
+      {/* Summary bar */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-foreground">
+                Documents requis
+              </h3>
+              <p className="text-sm text-foreground-muted">
+                {verifiedCount} sur {REQUIRED_DOCUMENTS.length} documents vérifiés
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {missingCount > 0 && (
+                <Badge variant="error" className="gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {missingCount} manquant(s)
+                </Badge>
+              )}
+              {expiredCount > 0 && (
+                <Badge variant="warning" className="gap-1">
+                  <Clock className="h-3 w-3" />
+                  {expiredCount} expiré(s)
+                </Badge>
+              )}
+              {missingCount === 0 && expiredCount === 0 && (
+                <Badge variant="success" className="gap-1">
+                  <CheckCircle className="h-3 w-3" />
+                  Complet
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Content */}
+      {/* Required documents grid */}
       {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
+        <div className="grid gap-4 md:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
-              className="h-20 animate-pulse rounded-xl bg-background-secondary"
+              className="h-48 animate-pulse rounded-2xl bg-background-secondary"
             />
           ))}
         </div>
-      ) : !hasDocuments ? (
-        <EmptyState
-          icon={<FileText className="h-8 w-8" />}
-          title={t('professionals.documents.empty.title')}
-          description={t('professionals.documents.empty.description')}
-          action={
-            <Button onClick={() => setShowUploadDialog(true)}>
-              <Upload className="h-4 w-4" />
-              Téléverser
-            </Button>
-          }
-        />
       ) : (
-        <div className="space-y-6">
-          {DOCUMENT_TYPES.filter((type) => groupedDocuments[type]?.length > 0).map((type) => (
-            <Card key={type}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">
-                  {t(`professionals.documents.types.${type}` as Parameters<typeof t>[0])}
-                </CardTitle>
-                <CardDescription>
-                  {groupedDocuments[type].length} document(s)
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <AnimatePresence>
-                    {groupedDocuments[type].map((doc) => (
-                      <DocumentCard
-                        key={doc.id}
-                        document={doc}
-                        onVerify={handleVerify}
-                        onEditExpiry={setExpiryDocument}
-                        onDelete={setDeleteDocument}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <>
+          <div>
+            <h3 className="text-sm font-medium text-foreground mb-4">
+              Documents requis pour l'intégration
+            </h3>
+            <div className="grid gap-4 md:grid-cols-2">
+              {requiredDocsState.map((state) => (
+                <RequiredDocumentCard
+                  key={state.config.type}
+                  state={state}
+                  onUpload={handleUpload}
+                  onVerify={handleVerify}
+                  onEditExpiry={setExpiryDocument}
+                  onDelete={setDeleteDoc}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Other documents */}
+          {otherDocuments.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-foreground mb-4">
+                Autres documents
+              </h3>
+              <div className="space-y-3">
+                <AnimatePresence>
+                  {otherDocuments.map((doc) => (
+                    <OtherDocumentCard
+                      key={doc.id}
+                      document={doc}
+                      onVerify={handleVerify}
+                      onEditExpiry={setExpiryDocument}
+                      onDelete={setDeleteDoc}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Dialogs */}
       <UploadDialog
         isOpen={showUploadDialog}
-        onClose={() => setShowUploadDialog(false)}
+        onClose={() => {
+          setShowUploadDialog(false)
+          setUploadType(undefined)
+        }}
         professionalId={professional.id}
+        preselectedType={uploadType}
       />
 
       <ExpiryDialog
@@ -722,9 +1066,9 @@ export function ProfessionalDocumentsTab({ professional }: ProfessionalDocuments
       />
 
       <DeleteDialog
-        isOpen={!!deleteDocument}
-        onClose={() => setDeleteDocument(null)}
-        document={deleteDocument}
+        isOpen={!!deleteDoc}
+        onClose={() => setDeleteDoc(null)}
+        document={deleteDoc}
         professionalId={professional.id}
       />
     </div>

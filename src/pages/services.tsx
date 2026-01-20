@@ -1,7 +1,7 @@
 // src/pages/services.tsx
 
 import { useState, useMemo, useCallback } from 'react'
-import { Plus, Search, ArrowUpDown } from 'lucide-react'
+import { Plus, Search, ArrowUpDown, Loader2 } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
@@ -10,13 +10,14 @@ import { Select } from '@/shared/ui/select'
 import { EmptyState } from '@/shared/components/empty-state'
 import { toast } from '@/shared/hooks/use-toast'
 import {
-  MOCK_SERVICES,
   ServiceDisclaimerBanner,
   ServiceTableRow,
-  ServiceEditorDrawer,
   ArchiveServiceDialog,
+  useServices,
+  useServicePrices,
+  useArchiveService,
+  useRestoreService,
   type Service,
-  type ServiceFormData,
   type ServiceStatusFilter,
   type ServiceSortOption,
 } from '@/services-catalog'
@@ -27,12 +28,13 @@ export function ServicesPage() {
   const [statusFilter, setStatusFilter] = useState<ServiceStatusFilter>('active')
   const [sortOption, setSortOption] = useState<ServiceSortOption>('order')
 
-  // Mock services state (in Phase 2, this becomes DB-backed)
-  const [services, setServices] = useState<Service[]>(MOCK_SERVICES)
+  // Fetch services from database
+  const { data: services = [], isLoading, error } = useServices()
+  const { data: allPrices = [] } = useServicePrices()
 
-  // Editor drawer state
-  const [editorOpen, setEditorOpen] = useState(false)
-  const [editingService, setEditingService] = useState<Service | null>(null)
+  // Mutations
+  const archiveMutation = useArchiveService()
+  const restoreMutation = useRestoreService()
 
   // Archive dialog state
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false)
@@ -69,9 +71,14 @@ export function ServicesPage() {
       case 'name':
         return sorted.sort((a, b) => a.name.localeCompare(b.name, 'fr-CA'))
       case 'duration':
-        return sorted.sort((a, b) => a.duration - b.duration)
+        return sorted.sort((a, b) => (a.duration || 0) - (b.duration || 0))
       case 'price':
-        return sorted.sort((a, b) => a.price - b.price)
+        // Sort by whether they have fixed pricing
+        return sorted.sort((a, b) => {
+          const aFixed = a.pricingModel === 'fixed' ? 0 : 1
+          const bFixed = b.pricingModel === 'fixed' ? 0 : 1
+          return aFixed - bFixed
+        })
       case 'order':
       default:
         return sorted.sort((a, b) => a.displayOrder - b.displayOrder)
@@ -85,16 +92,25 @@ export function ServicesPage() {
   const hasServices = services.length > 0
   const hasResults = sortedServices.length > 0
 
-  // Handle create
+  // Get prices for a specific service
+  const getServicePrices = useCallback((serviceId: string) => {
+    return allPrices.filter(p => p.serviceId === serviceId)
+  }, [allPrices])
+
+  // Handle create - for now, show a placeholder
   const handleCreate = useCallback(() => {
-    setEditingService(null)
-    setEditorOpen(true)
+    toast({
+      title: 'Création de service',
+      description: 'L\'éditeur de service sera disponible prochainement.',
+    })
   }, [])
 
-  // Handle edit
-  const handleEdit = useCallback((service: Service) => {
-    setEditingService(service)
-    setEditorOpen(true)
+  // Handle edit - for now, show a placeholder
+  const handleEdit = useCallback((_service: Service) => {
+    toast({
+      title: 'Modification de service',
+      description: 'L\'éditeur de service sera disponible prochainement.',
+    })
   }, [])
 
   // Handle archive click
@@ -103,21 +119,17 @@ export function ServicesPage() {
     setArchiveDialogOpen(true)
   }, [])
 
-  // Handle archive confirm (mock)
+  // Handle archive confirm
   const handleArchiveConfirm = useCallback(async () => {
     if (!serviceToArchive) return { success: false }
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === serviceToArchive.id ? { ...s, isActive: false } : s
-      )
-    )
-
-    return { success: true }
-  }, [serviceToArchive])
+    try {
+      await archiveMutation.mutateAsync(serviceToArchive.id)
+      return { success: true }
+    } catch {
+      return { success: false }
+    }
+  }, [serviceToArchive, archiveMutation])
 
   // Handle archive success
   const handleArchiveSuccess = useCallback(() => {
@@ -125,85 +137,38 @@ export function ServicesPage() {
     setServiceToArchive(null)
   }, [])
 
-  // Handle restore (no confirmation)
+  // Handle restore
   const handleRestore = useCallback(async (service: Service) => {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    try {
+      await restoreMutation.mutateAsync(service.id)
+      toast({ title: t('pages.services.restore.success') })
+    } catch {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de restaurer ce service.',
+        variant: 'error',
+      })
+    }
+  }, [restoreMutation])
 
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === service.id ? { ...s, isActive: true } : s
-      )
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-sage-600" />
+      </div>
     )
+  }
 
-    toast({ title: t('pages.services.restore.success') })
-  }, [])
-
-  // Handle duplicate
-  const handleDuplicate = useCallback((service: Service) => {
-    const newService: Service = {
-      ...service,
-      id: `srv-${Date.now()}`,
-      name: `${service.name} (copie)`,
-      displayOrder: services.length + 1,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-    setServices((prev) => [...prev, newService])
-    toast({ title: 'Service dupliqué' })
-  }, [services.length])
-
-  // Handle form submit (create/edit)
-  const handleFormSubmit = useCallback(async (data: ServiceFormData) => {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    if (editingService) {
-      // Update existing
-      setServices((prev) =>
-        prev.map((s) =>
-          s.id === editingService.id
-            ? {
-                ...s,
-                ...data,
-                variants: data.variants.map((v, i) => ({
-                  ...v,
-                  id: `var-${editingService.id}-${i}`,
-                })),
-                updatedAt: new Date().toISOString(),
-              }
-            : s
-        )
-      )
-    } else {
-      // Create new
-      const newService: Service = {
-        id: `srv-${Date.now()}`,
-        ...data,
-        variants: data.variants.map((v, i) => ({
-          ...v,
-          id: `var-new-${i}`,
-        })),
-        isActive: true,
-        displayOrder: services.length + 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      setServices((prev) => [...prev, newService])
-    }
-
-    return { success: true }
-  }, [editingService, services.length])
-
-  // Handle form success
-  const handleFormSuccess = useCallback(() => {
-    toast({
-      title: editingService
-        ? t('pages.services.edit.success')
-        : t('pages.services.create.success'),
-    })
-    setEditingService(null)
-  }, [editingService])
+  // Error state
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <p className="text-sm text-wine-600">Erreur lors du chargement des services.</p>
+        <p className="text-xs text-foreground-muted mt-1">{error.message}</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -348,10 +313,10 @@ export function ServicesPage() {
                   {t('pages.services.table.price')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-foreground-muted uppercase tracking-wider">
-                  {t('pages.services.table.mode')}
+                  {t('pages.services.table.pricingModel')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-foreground-muted uppercase tracking-wider">
-                  {t('pages.services.table.online')}
+                  {t('pages.services.table.consent')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-foreground-muted uppercase tracking-wider">
                   {t('pages.services.table.status')}
@@ -366,10 +331,10 @@ export function ServicesPage() {
                 <ServiceTableRow
                   key={service.id}
                   service={service}
+                  prices={getServicePrices(service.id)}
                   onEdit={handleEdit}
                   onArchive={handleArchiveClick}
                   onRestore={handleRestore}
-                  onDuplicate={handleDuplicate}
                 />
               ))}
             </tbody>
@@ -398,15 +363,6 @@ export function ServicesPage() {
           onSuccess={handleArchiveSuccess}
         />
       )}
-
-      {/* Service editor drawer */}
-      <ServiceEditorDrawer
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        service={editingService}
-        onSubmit={handleFormSubmit}
-        onSuccess={handleFormSuccess}
-      />
     </div>
   )
 }

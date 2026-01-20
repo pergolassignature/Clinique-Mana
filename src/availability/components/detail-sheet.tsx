@@ -4,6 +4,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from '@/shared/ui/sheet'
 import {
   AlertDialog,
@@ -55,6 +56,9 @@ export function DetailSheet({
         <SheetContent side="right" className="w-[480px] sm:max-w-[480px] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{title}</SheetTitle>
+            <SheetDescription className="sr-only">
+              {`Panneau de détails: ${title}`}
+            </SheetDescription>
           </SheetHeader>
           <div className="mt-6">{children}</div>
         </SheetContent>

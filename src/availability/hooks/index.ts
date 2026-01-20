@@ -6,6 +6,13 @@ export {
   useAppointmentsForWeek,
 } from './use-appointments'
 
-export { useCalendarDrag } from './use-calendar-drag'
+export { useCalendarDnd, type DragContext, type DragPreview, type DragState, type CalendarDndCallbacks } from './use-calendar-dnd'
 
 export { useAvailabilityState } from './use-availability-state'
+
+export {
+  calendarAuditKeys,
+  useCalendarAuditLog,
+  useAppointmentAuditLog,
+  useProfessionalCalendarAuditLog,
+} from './use-calendar-audit'

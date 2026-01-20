@@ -114,18 +114,16 @@ export function DayView({
         onPointerUp={onPointerUp}
       >
         {/* Time labels column */}
-        <div className="border-r border-border">
-          {TIME_SLOTS.map((time, index) => (
+        <div className="border-r border-border/60">
+          {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
             <div
-              key={time}
-              className="flex items-start justify-end pr-2 -mt-2"
-              style={{ height: SLOT_HEIGHT }}
+              key={i}
+              className="flex items-center justify-end pr-2 box-border border-b border-border/60"
+              style={{ height: SLOT_HEIGHT * 2 }}
             >
-              {index % 2 === 0 && (
-                <span className="text-xs text-foreground-muted">
-                  {time}
-                </span>
-              )}
+              <span className="text-[11px] font-medium text-foreground-muted">
+                {(START_HOUR + i).toString().padStart(2, '0')}:00
+              </span>
             </div>
           ))}
         </div>
@@ -147,23 +145,26 @@ export function DayView({
           }}
         >
           {/* Slot lines */}
-          {TIME_SLOTS.map((time, index) => (
-            <div
-              key={time}
-              data-slot
-              onClick={() => onSlotClick(date, time)}
-              onPointerDown={(e) => {
-                if (onCreateDragStart) {
-                  onCreateDragStart(e, 0)
-                }
-              }}
-              className={cn(
-                'border-b border-border-light cursor-pointer transition-colors hover:bg-sage-50/50',
-                index % 2 === 0 && 'border-b-border'
-              )}
-              style={{ height: SLOT_HEIGHT }}
-            />
-          ))}
+          {TIME_SLOTS.map((time, index) => {
+            const isHourBoundary = index % 2 === 1
+            return (
+              <div
+                key={time}
+                data-slot
+                onClick={() => onSlotClick(date, time)}
+                onPointerDown={(e) => {
+                  if (onCreateDragStart) {
+                    onCreateDragStart(e, 0)
+                  }
+                }}
+                className={cn(
+                  'relative border-b cursor-pointer transition-colors hover:bg-sage-50/50',
+                  isHourBoundary ? 'border-border/60' : 'border-transparent'
+                )}
+                style={{ height: SLOT_HEIGHT }}
+              />
+            )
+          })}
 
           {/* Now line */}
           <NowLine

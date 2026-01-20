@@ -1,6 +1,6 @@
 // src/services-catalog/components/service-table-row.tsx
 
-import { MoreHorizontal, Pencil, Archive, RotateCcw, Copy } from 'lucide-react'
+import { MoreHorizontal, Pencil, Archive, RotateCcw, Copy, FileCheck } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
@@ -12,10 +12,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu'
-import type { Service } from '../types'
+import type { Service, ServicePrice } from '../types'
+import { PRICING_MODEL_LABELS } from '../constants/pricing-models'
 
 interface ServiceTableRowProps {
   service: Service
+  prices?: ServicePrice[]  // Optional: prices for this service
   onEdit: (service: Service) => void
   onArchive: (service: Service) => void
   onRestore: (service: Service) => void
@@ -24,19 +26,46 @@ interface ServiceTableRowProps {
 
 export function ServiceTableRow({
   service,
+  prices,
   onEdit,
   onArchive,
   onRestore,
   onDuplicate,
 }: ServiceTableRowProps) {
-  const formatPrice = (price: number) => {
-    if (price === 0) return '0 $'
-    return `${price.toFixed(2).replace('.00', '')} $`
+  const formatDuration = (minutes: number | undefined) => {
+    if (!minutes) return '—'
+    return `${minutes} ${t('pages.services.values.minutes')}`
   }
 
-  const formatDuration = (minutes: number) => {
-    if (minutes === 0) return '—'
-    return `${minutes} ${t('pages.services.values.minutes')}`
+  const formatPrice = (priceCents: number) => {
+    if (priceCents === 0) return '0 $'
+    const dollars = priceCents / 100
+    return `${dollars.toFixed(2).replace('.00', '')} $`
+  }
+
+  // Get display price based on pricing model
+  const getDisplayPrice = () => {
+    if (service.pricingModel === 'fixed' && prices && prices.length > 0) {
+      // Find the global price (no profession category)
+      const globalPrice = prices.find(p => p.professionCategoryKey === null)
+      if (globalPrice) {
+        return formatPrice(globalPrice.priceCents)
+      }
+    }
+
+    if (service.pricingModel === 'by_profession_category') {
+      return 'Variable'
+    }
+
+    if (service.pricingModel === 'rule_cancellation_prorata') {
+      return 'Prorata'
+    }
+
+    if (service.pricingModel === 'by_profession_hourly_prorata') {
+      return 'À la minute'
+    }
+
+    return '—'
   }
 
   return (
@@ -48,15 +77,16 @@ export function ServiceTableRow({
           : 'bg-background-secondary/50 opacity-75'
       )}
     >
-      {/* Name + variants count */}
+      {/* Name + color indicator */}
       <td className="px-4 py-3">
-        <div className="flex flex-col gap-0.5">
-          <span className="font-medium text-foreground">{service.name}</span>
-          {service.variants.length > 0 && (
-            <span className="text-xs text-foreground-muted">
-              {service.variants.length} {t('pages.services.values.variantsCount')}
-            </span>
+        <div className="flex items-center gap-2">
+          {service.colorHex && (
+            <div
+              className="h-3 w-3 rounded-full shrink-0"
+              style={{ backgroundColor: service.colorHex }}
+            />
           )}
+          <span className="font-medium text-foreground">{service.name}</span>
         </div>
       </td>
 
@@ -67,24 +97,21 @@ export function ServiceTableRow({
 
       {/* Price */}
       <td className="px-4 py-3 text-sm text-foreground-secondary">
-        {formatPrice(service.price)}
+        {getDisplayPrice()}
       </td>
 
-      {/* Mode */}
-      <td className="px-4 py-3 text-sm text-foreground-muted">
-        {t('pages.services.values.modeAppointment')}
-      </td>
-
-      {/* Online availability */}
+      {/* Pricing Model */}
       <td className="px-4 py-3">
-        <Badge
-          variant={service.isOnlineAvailable ? 'default' : 'secondary'}
-          className="text-xs"
-        >
-          {service.isOnlineAvailable
-            ? t('pages.services.values.onlineYes')
-            : t('pages.services.values.onlineNo')}
+        <Badge variant="secondary" className="text-xs font-normal">
+          {t(PRICING_MODEL_LABELS[service.pricingModel] as Parameters<typeof t>[0])}
         </Badge>
+      </td>
+
+      {/* Consent */}
+      <td className="px-4 py-3">
+        {service.requiresConsent && (
+          <FileCheck className="h-4 w-4 text-sage-600" />
+        )}
       </td>
 
       {/* Status */}

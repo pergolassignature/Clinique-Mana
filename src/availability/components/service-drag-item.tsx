@@ -1,12 +1,12 @@
 // src/availability/components/service-drag-item.tsx
 
+import { useDraggable } from '@dnd-kit/core'
 import { GripVertical, User, Users } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import type { BookableService } from '../types'
 
 interface ServiceDragItemProps {
   service: BookableService
-  onDragStart: (e: React.DragEvent, service: BookableService) => void
   disabled?: boolean
 }
 
@@ -22,18 +22,29 @@ const CLIENT_TYPE_LABELS = {
   family: 'Famille',
 }
 
-export function ServiceDragItem({ service, onDragStart, disabled }: ServiceDragItemProps) {
+export function ServiceDragItem({ service, disabled }: ServiceDragItemProps) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `service-${service.id}`,
+    disabled,
+    data: {
+      type: 'service',
+      service,
+    },
+  })
+
   const Icon = CLIENT_TYPE_ICONS[service.clientType]
 
   return (
     <div
-      draggable={!disabled}
-      onDragStart={(e) => onDragStart(e, service)}
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
       className={cn(
         'flex items-center gap-2 p-2 rounded-lg border transition-all',
         disabled
           ? 'opacity-50 cursor-not-allowed border-border-light bg-background-tertiary/30'
-          : 'cursor-grab active:cursor-grabbing hover:shadow-md hover:border-sage-300 border-border bg-background'
+          : 'cursor-grab active:cursor-grabbing hover:shadow-md hover:border-sage-300 border-border bg-background',
+        isDragging && 'opacity-50 shadow-lg'
       )}
     >
       <GripVertical className="h-4 w-4 text-foreground-muted flex-shrink-0" />

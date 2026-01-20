@@ -38,6 +38,12 @@ export const specialtyKeys = {
   byCategory: () => [...specialtyKeys.all, 'by-category'] as const,
 }
 
+export const professionKeys = {
+  all: ['profession-titles'] as const,
+  list: () => [...professionKeys.all, 'list'] as const,
+  professional: (professionalId: string) => [...professionKeys.all, 'professional', professionalId] as const,
+}
+
 export const inviteKeys = {
   byToken: (token: string) => ['invite', 'token', token] as const,
 }
@@ -113,6 +119,26 @@ export function useSpecialtiesByCategory() {
     queryKey: specialtyKeys.byCategory(),
     queryFn: api.fetchSpecialtiesByCategory,
     staleTime: 1000 * 60 * 30,
+  })
+}
+
+// =============================================================================
+// PROFESSION TITLES QUERIES
+// =============================================================================
+
+export function useProfessionTitles() {
+  return useQuery({
+    queryKey: professionKeys.list(),
+    queryFn: api.fetchProfessionTitles,
+    staleTime: 1000 * 60 * 30, // 30 minutes - titles rarely change
+  })
+}
+
+export function useProfessionalProfessions(professionalId: string | undefined) {
+  return useQuery({
+    queryKey: professionKeys.professional(professionalId!),
+    queryFn: () => api.fetchProfessionalProfessions(professionalId!),
+    enabled: !!professionalId,
   })
 }
 
@@ -198,6 +224,138 @@ export function useRemoveSpecialty() {
       specialty_id: string
     }) => api.removeProfessionalSpecialty(professional_id, specialty_id),
     onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.detail(variables.professional_id),
+      })
+    },
+  })
+}
+
+// =============================================================================
+// MOTIF MUTATIONS
+// =============================================================================
+
+export function useAddMotif() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: api.AddMotifInput) => api.addProfessionalMotif(input),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.detail(variables.professional_id),
+      })
+    },
+  })
+}
+
+export function useRemoveMotif() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      professional_id,
+      motif_key,
+    }: {
+      professional_id: string
+      motif_key: string
+    }) => api.removeProfessionalMotif(professional_id, motif_key),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.detail(variables.professional_id),
+      })
+    },
+  })
+}
+
+export function useReplaceMotifs() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      professional_id,
+      motif_keys,
+    }: {
+      professional_id: string
+      motif_keys: string[]
+    }) => api.replaceProfessionalMotifs(professional_id, motif_keys),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.detail(variables.professional_id),
+      })
+    },
+  })
+}
+
+// =============================================================================
+// PROFESSION MUTATIONS
+// =============================================================================
+
+export function useAddProfession() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: api.AddProfessionInput) => api.addProfessionalProfession(input),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: professionKeys.professional(variables.professional_id),
+      })
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.detail(variables.professional_id),
+      })
+    },
+  })
+}
+
+export function useUpdateProfession() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      updates,
+    }: {
+      id: string
+      professional_id: string
+      updates: { license_number?: string; is_primary?: boolean }
+    }) => api.updateProfessionalProfession(id, updates),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: professionKeys.professional(variables.professional_id),
+      })
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.detail(variables.professional_id),
+      })
+    },
+  })
+}
+
+export function useRemoveProfession() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id }: { id: string; professional_id: string }) =>
+      api.removeProfessionalProfession(id),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: professionKeys.professional(variables.professional_id),
+      })
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.detail(variables.professional_id),
+      })
+    },
+  })
+}
+
+export function useReplaceProfessions() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: api.ReplaceProfessionsInput) =>
+      api.replaceProfessionalProfessions(input),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: professionKeys.professional(variables.professional_id),
+      })
       queryClient.invalidateQueries({
         queryKey: professionalKeys.detail(variables.professional_id),
       })
@@ -323,7 +481,12 @@ export function useSubmitQuestionnaire() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (input: SubmitQuestionnaireInput) => api.submitQuestionnaire(input),
+    mutationFn: (input: SubmitQuestionnaireInput) =>
+      api.submitQuestionnaire({
+        professional_id: input.professional_id,
+        invite_id: input.invite_id,
+        responses: input.responses,
+      }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({
         queryKey: professionalKeys.questionnaire(data.professional_id),
@@ -339,10 +502,16 @@ export function useSaveDraftQuestionnaire() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (input: SubmitQuestionnaireInput) => api.saveDraftQuestionnaire(input),
-    onSuccess: (data) => {
+    mutationFn: (input: SubmitQuestionnaireInput) =>
+      api.saveDraftQuestionnaire({
+        professional_id: input.professional_id,
+        invite_id: input.invite_id,
+        responses: input.responses,
+      }),
+    onSuccess: (_data, variables) => {
+      // Use professional_id from variables since the new return type doesn't include it
       queryClient.invalidateQueries({
-        queryKey: professionalKeys.questionnaire(data.professional_id),
+        queryKey: professionalKeys.questionnaire(variables.professional_id),
       })
     },
   })
@@ -354,12 +523,49 @@ export function useReviewQuestionnaire() {
   return useMutation({
     mutationFn: (input: ReviewQuestionnaireInput) => api.reviewQuestionnaire(input),
     onSuccess: (data) => {
+      // Invalidate questionnaire-specific query
       queryClient.invalidateQueries({
         queryKey: professionalKeys.questionnaire(data.professional_id),
       })
+      // Invalidate detail to refresh the embedded latest_submission
       queryClient.invalidateQueries({
         queryKey: professionalKeys.detail(data.professional_id),
       })
+      // Invalidate audit log to show the review event
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.auditLog(data.professional_id),
+      })
+      // Invalidate list in case status-based filtering applies
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.lists(),
+      })
+    },
+  })
+}
+
+export function useApplyQuestionnaire() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: api.ApplyQuestionnaireInput) => api.applyQuestionnaireToProfile(input),
+    onSuccess: (result, variables) => {
+      // Invalidate all related queries to refresh the data
+      // This ensures UI reads from the authoritative professional record, not submission
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.detail(variables.professional_id),
+      })
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.questionnaire(variables.professional_id),
+      })
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.auditLog(variables.professional_id),
+      })
+      // Invalidate list in case status-based filtering applies
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.lists(),
+      })
+      // Result contains applied_at, fields_updated, specialties_replaced for UI feedback
+      return result
     },
   })
 }

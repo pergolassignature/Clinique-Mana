@@ -1,14 +1,12 @@
 import { useState } from 'react'
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft,
   Clock,
   User,
   Users,
-  Lightbulb,
   MessageSquare,
-  UserCheck,
   AlertCircle,
   ClipboardList,
   ShieldCheck,
@@ -24,13 +22,13 @@ import {
   ChevronDown,
   Check,
   Info,
+  FileText,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { t } from '@/i18n'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
 import { Textarea } from '@/shared/ui/textarea'
-import { Select } from '@/shared/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
 import {
   Dialog,
@@ -174,25 +172,6 @@ const demandTypeConfig: Record<
   group: { minParticipants: 3, maxParticipants: null, icon: 'users', disabled: true },
 }
 
-const mockTimeline = [
-  {
-    id: 1,
-    type: 'created',
-    timestamp: '2024-01-15T10:30:00',
-    actor: 'Système',
-  },
-]
-
-function formatDate(dateString: string): string {
-  return new Intl.DateTimeFormat('fr-CA', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(dateString))
-}
-
 function formatDateShort(dateString: string): string {
   return new Intl.DateTimeFormat('fr-CA', {
     day: 'numeric',
@@ -204,6 +183,7 @@ function formatDateShort(dateString: string): string {
 export function RequestDetailPage() {
   // Get navigation context from router state
   const routerState = useRouterState()
+  const navigate = useNavigate()
   const searchParams = routerState.location.search as DetailPageSearchParams
   const requestId = (routerState.matches.at(-1)?.params as { id?: string })?.id ?? ''
   const backNav = getBackNavigation(searchParams, 'requests')
@@ -221,12 +201,20 @@ export function RequestDetailPage() {
   )
   const [otherMotifText, setOtherMotifText] = useState(initialRequest.otherMotifText)
 
+  // Intake questions state (client-stated, local state only)
+  const [besoinRaison, setBesoinRaison] = useState('')
+  const [enjeuxDemarche, setEnjeuxDemarche] = useState<string[]>([])
+  const [enjeuxAutreText, setEnjeuxAutreText] = useState('')
+  const [diagnosticStatus, setDiagnosticStatus] = useState<'yes' | 'no' | 'unknown' | ''>('')
+  const [diagnosticDetail, setDiagnosticDetail] = useState('')
+  const [consultationsPrevious, setConsultationsPrevious] = useState<string[]>([])
+  const [consultationsAutreText, setConsultationsAutreText] = useState('')
+  const [legalContext, setLegalContext] = useState<string[]>([])
+  const [legalContextDetail, setLegalContextDetail] = useState('')
+
   // Internal evaluation state
   const [notes, setNotes] = useState('')
   const [urgency, setUrgency] = useState('')
-
-  // Orientation state
-  const [professional, setProfessional] = useState('')
 
   // Participants state
   const [participants, setParticipants] = useState<RequestParticipant[]>(
@@ -239,7 +227,6 @@ export function RequestDetailPage() {
   const [demandType, setDemandType] = useState<DemandType | null>(initialRequest.demandType)
 
   const request = initialRequest
-  const timeline = isDraft ? [] : mockTimeline
   const statusInfo = statusConfig[request.status]
 
   // Get demand type config for validation
@@ -270,11 +257,6 @@ export function RequestDetailPage() {
   const allConsentsValid = participantsWithInvalidConsent.length === 0
 
   const canAnalyze = request.status === 'toAnalyze'
-  const hasCompletedAnalysis =
-    request.status === 'toAnalyze' &&
-    urgency &&
-    notes &&
-    selectedMotifs.length > 0
   const canClose = request.status !== 'closed'
 
   // Get participant validation state - always returns the same rule message, only state changes
@@ -526,16 +508,18 @@ export function RequestDetailPage() {
                 {t('pages.requestDetail.actions.close')}
               </Button>
             )}
-            {/* Show Analyze when analysis not complete */}
-            {canAnalyze && !hasCompletedAnalysis && (
-              <Button size="sm" disabled={!notes || !urgency || selectedMotifs.length === 0}>
+            {/* Analyser button - navigates to analysis page */}
+            {canAnalyze && (
+              <Button
+                size="sm"
+                disabled={isDraft}
+                onClick={() => {
+                  if (!isDraft) {
+                    navigate({ to: '/demandes/$id/analyse', params: { id: requestId } })
+                  }
+                }}
+              >
                 {t('pages.requestDetail.actions.analyze')}
-              </Button>
-            )}
-            {/* Show Assign only when ALL prerequisites are met */}
-            {hasCompletedAnalysis && demandType && participantCountValid && allConsentsValid && (
-              <Button size="sm" disabled={!professional}>
-                {t('pages.requestDetail.actions.assign')}
               </Button>
             )}
           </div>
@@ -577,99 +561,328 @@ export function RequestDetailPage() {
                 readOnly={request.status === 'closed'}
               />
             </div>
-          </motion.section>
 
-          {/* ===== INTERNAL EVALUATION SECTION ===== */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="rounded-xl border border-border bg-background shadow-soft overflow-hidden"
-          >
-            {/* Section header: Évaluation interne */}
-            <div className="bg-honey-50/50 border-b border-honey-100 px-5 py-3">
-              <div className="flex items-center gap-2">
-                <div className="rounded-lg bg-honey-100 p-1.5">
-                  <ClipboardList className="h-3.5 w-3.5 text-honey-600" />
-                </div>
-                <h2 className="text-sm font-semibold text-honey-700">
-                  Évaluation interne
-                </h2>
-              </div>
-            </div>
+            {/* Divider */}
+            <div className="border-t border-sage-100" />
 
+            {/* Intake questions - Client-stated information */}
             <div className="p-5 space-y-6">
-              {/* Notes d'appel / Intake */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <MessageSquare className="h-4 w-4 text-foreground-muted" />
-                  <h3 className="text-sm font-medium text-foreground">
-                    {t('pages.requestDetail.notes.title')}
-                  </h3>
-                </div>
-
+              {/* A) Besoin / raison de la demande (required) */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
+                  {t('pages.requestDetail.motifs.intake.besoin.label')}
+                </label>
                 <Textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder={t('pages.requestDetail.notes.placeholder')}
-                  className="min-h-[120px] mb-2"
+                  value={besoinRaison}
+                  onChange={(e) => setBesoinRaison(e.target.value)}
+                  placeholder={t('pages.requestDetail.motifs.intake.besoin.placeholder')}
+                  disabled={request.status === 'closed'}
+                  className="min-h-[100px]"
                 />
-                <p className="text-xs text-foreground-muted flex items-center gap-1.5">
-                  <AlertCircle className="h-3 w-3" />
-                  {t('pages.requestDetail.notes.helper')}
+                <p className="text-xs text-foreground-muted">
+                  {t('pages.requestDetail.motifs.intake.besoin.helper')}
                 </p>
               </div>
 
-              {/* Divider */}
-              <div className="border-t border-border" />
-
-              {/* Urgence perçue */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Clock className="h-4 w-4 text-foreground-muted" />
-                  <h3 className="text-sm font-medium text-foreground">
-                    {t('pages.requestDetail.urgency.title')}
-                  </h3>
-                </div>
-
-                {/* Urgency selector - styled as segmented control */}
-                <div className="flex gap-2 mb-2">
-                  {(['low', 'moderate', 'high'] as const).map((level) => {
-                    const isSelected = urgency === level
-                    const levelColors = {
-                      low: 'border-sage-300 bg-sage-50 text-sage-700',
-                      moderate: 'border-honey-300 bg-honey-50 text-honey-700',
-                      high: 'border-wine-300 bg-wine-50 text-wine-700',
-                    }
+              {/* B) Enjeux de la démarche (optional, multi-select chips) */}
+              <div className="space-y-3">
+                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
+                  {t('pages.requestDetail.motifs.intake.enjeux.label')}
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(['financial', 'availability', 'coparenting', 'other'] as const).map((option) => {
+                    const isSelected = enjeuxDemarche.includes(option)
                     return (
                       <button
-                        key={level}
-                        onClick={() => setUrgency(level)}
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          if (request.status === 'closed') return
+                          if (isSelected) {
+                            setEnjeuxDemarche(enjeuxDemarche.filter((e) => e !== option))
+                            if (option === 'other') setEnjeuxAutreText('')
+                          } else {
+                            setEnjeuxDemarche([...enjeuxDemarche, option])
+                          }
+                        }}
+                        disabled={request.status === 'closed'}
                         className={cn(
-                          'flex-1 py-2.5 px-4 rounded-xl border text-sm font-medium transition-all',
+                          'px-3 py-1.5 text-sm rounded-full border transition-all',
                           isSelected
-                            ? levelColors[level]
-                            : 'border-border bg-background-secondary text-foreground-secondary hover:bg-background-tertiary'
+                            ? 'bg-sage-100 border-sage-300 text-sage-700'
+                            : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
+                          request.status === 'closed' && 'opacity-50 cursor-not-allowed'
                         )}
                       >
-                        {t(
-                          `pages.requestDetail.urgency.levels.${level}` as Parameters<
-                            typeof t
-                          >[0]
-                        )}
+                        {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
+                        {t(`pages.requestDetail.motifs.intake.enjeux.options.${option}` as Parameters<typeof t>[0])}
                       </button>
                     )
                   })}
                 </div>
+                {/* Progressive disclosure: "Autre" text input */}
+                <AnimatePresence>
+                  {enjeuxDemarche.includes('other') && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-1.5"
+                    >
+                      <label className="text-xs font-medium text-foreground-muted">
+                        {t('pages.requestDetail.motifs.intake.enjeux.otherInput.label')}
+                      </label>
+                      <input
+                        type="text"
+                        value={enjeuxAutreText}
+                        onChange={(e) => setEnjeuxAutreText(e.target.value)}
+                        placeholder={t('pages.requestDetail.motifs.intake.enjeux.otherInput.placeholder')}
+                        disabled={request.status === 'closed'}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-sage-500/30 focus:border-sage-300 disabled:opacity-50"
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <p className="text-xs text-foreground-muted">
-                  {t('pages.requestDetail.urgency.helper')}
+                  {t('pages.requestDetail.motifs.intake.enjeux.helper')}
                 </p>
+              </div>
+
+              {/* C) Diagnostic ou évaluation (declarative, optional) */}
+              <div className="space-y-3">
+                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
+                  {t('pages.requestDetail.motifs.intake.diagnostic.label')}
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(['yes', 'no', 'unknown'] as const).map((option) => {
+                    const isSelected = diagnosticStatus === option
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          if (request.status === 'closed') return
+                          if (isSelected) {
+                            setDiagnosticStatus('')
+                            setDiagnosticDetail('')
+                          } else {
+                            setDiagnosticStatus(option)
+                            if (option !== 'yes') setDiagnosticDetail('')
+                          }
+                        }}
+                        disabled={request.status === 'closed'}
+                        className={cn(
+                          'px-3 py-1.5 text-sm rounded-full border transition-all',
+                          isSelected
+                            ? 'bg-sage-100 border-sage-300 text-sage-700'
+                            : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
+                          request.status === 'closed' && 'opacity-50 cursor-not-allowed'
+                        )}
+                      >
+                        {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
+                        {t(`pages.requestDetail.motifs.intake.diagnostic.options.${option}` as Parameters<typeof t>[0])}
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* Progressive disclosure: Show detail input when "Oui" is selected */}
+                <AnimatePresence>
+                  {diagnosticStatus === 'yes' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-1.5"
+                    >
+                      <label className="text-xs font-medium text-foreground-muted">
+                        {t('pages.requestDetail.motifs.intake.diagnostic.detailInput.label')}
+                      </label>
+                      <input
+                        type="text"
+                        value={diagnosticDetail}
+                        onChange={(e) => setDiagnosticDetail(e.target.value)}
+                        placeholder={t('pages.requestDetail.motifs.intake.diagnostic.detailInput.placeholder')}
+                        disabled={request.status === 'closed'}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-sage-500/30 focus:border-sage-300 disabled:opacity-50"
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <p className="text-xs text-foreground-muted flex items-start gap-1.5">
+                  <Info className="h-3 w-3 mt-0.5 shrink-0" />
+                  {t('pages.requestDetail.motifs.intake.diagnostic.helper')}
+                </p>
+              </div>
+
+              {/* D) Consultations antérieures (optional, multi-select) */}
+              <div className="space-y-3">
+                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
+                  {t('pages.requestDetail.motifs.intake.consultations.label')}
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(['psychologist', 'socialWorker', 'psychoeducator', 'doctor', 'other', 'none'] as const).map((option) => {
+                    const isSelected = consultationsPrevious.includes(option)
+                    const isNoneSelected = consultationsPrevious.includes('none')
+                    const isDisabled = request.status === 'closed' || (option !== 'none' && isNoneSelected)
+
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          if (isDisabled) return
+                          if (isSelected) {
+                            setConsultationsPrevious(consultationsPrevious.filter((c) => c !== option))
+                            if (option === 'other') setConsultationsAutreText('')
+                          } else {
+                            if (option === 'none') {
+                              // Clear all other selections when "Non" is selected
+                              setConsultationsPrevious(['none'])
+                              setConsultationsAutreText('')
+                            } else {
+                              // Remove "none" if selecting another option
+                              setConsultationsPrevious([
+                                ...consultationsPrevious.filter((c) => c !== 'none'),
+                                option,
+                              ])
+                            }
+                          }
+                        }}
+                        disabled={isDisabled}
+                        className={cn(
+                          'px-3 py-1.5 text-sm rounded-full border transition-all',
+                          isSelected
+                            ? 'bg-sage-100 border-sage-300 text-sage-700'
+                            : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
+                          isDisabled && 'opacity-50 cursor-not-allowed'
+                        )}
+                      >
+                        {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
+                        {t(`pages.requestDetail.motifs.intake.consultations.options.${option}` as Parameters<typeof t>[0])}
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* Progressive disclosure: "Autre" text input */}
+                <AnimatePresence>
+                  {consultationsPrevious.includes('other') && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-1.5"
+                    >
+                      <label className="text-xs font-medium text-foreground-muted">
+                        {t('pages.requestDetail.motifs.intake.consultations.otherInput.label')}
+                      </label>
+                      <input
+                        type="text"
+                        value={consultationsAutreText}
+                        onChange={(e) => setConsultationsAutreText(e.target.value)}
+                        placeholder={t('pages.requestDetail.motifs.intake.consultations.otherInput.placeholder')}
+                        disabled={request.status === 'closed'}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-sage-500/30 focus:border-sage-300 disabled:opacity-50"
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* E) Contexte légal / judiciaire (sensitive, optional) */}
+              <div className="space-y-3">
+                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
+                  {t('pages.requestDetail.motifs.intake.legalContext.label')}
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(['courtOrder', 'youthProtection', 'none', 'preferNotToAnswer'] as const).map((option) => {
+                    const isSelected = legalContext.includes(option)
+                    const isNeutralSelected = legalContext.includes('none') || legalContext.includes('preferNotToAnswer')
+                    const isSpecificOption = option === 'courtOrder' || option === 'youthProtection'
+                    const isNeutralOption = option === 'none' || option === 'preferNotToAnswer'
+                    const isDisabled = request.status === 'closed' ||
+                      (isSpecificOption && isNeutralSelected) ||
+                      (isNeutralOption && legalContext.some(c => c === 'courtOrder' || c === 'youthProtection'))
+
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          if (isDisabled) return
+                          if (isSelected) {
+                            setLegalContext(legalContext.filter((c) => c !== option))
+                            if (isNeutralOption) {
+                              // Keep detail when deselecting neutral options
+                            } else {
+                              // Clear detail if no specific options remain
+                              const remaining = legalContext.filter((c) => c !== option)
+                              if (!remaining.includes('courtOrder') && !remaining.includes('youthProtection')) {
+                                setLegalContextDetail('')
+                              }
+                            }
+                          } else {
+                            if (isNeutralOption) {
+                              // Clear all when selecting neutral option
+                              setLegalContext([option])
+                              setLegalContextDetail('')
+                            } else {
+                              // Remove neutral options when selecting specific
+                              setLegalContext([
+                                ...legalContext.filter((c) => c !== 'none' && c !== 'preferNotToAnswer'),
+                                option,
+                              ])
+                            }
+                          }
+                        }}
+                        disabled={isDisabled}
+                        className={cn(
+                          'px-3 py-1.5 text-sm rounded-full border transition-all',
+                          isSelected
+                            ? 'bg-sage-100 border-sage-300 text-sage-700'
+                            : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
+                          isDisabled && 'opacity-50 cursor-not-allowed'
+                        )}
+                      >
+                        {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
+                        {t(`pages.requestDetail.motifs.intake.legalContext.options.${option}` as Parameters<typeof t>[0])}
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* Progressive disclosure: Show detail textarea when legal options selected */}
+                <AnimatePresence>
+                  {(legalContext.includes('courtOrder') || legalContext.includes('youthProtection')) && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-1.5"
+                    >
+                      <label className="text-xs font-medium text-foreground-muted">
+                        {t('pages.requestDetail.motifs.intake.legalContext.detailInput.label')}
+                      </label>
+                      <Textarea
+                        value={legalContextDetail}
+                        onChange={(e) => setLegalContextDetail(e.target.value)}
+                        disabled={request.status === 'closed'}
+                        className="min-h-[80px]"
+                      />
+                      <p className="text-xs text-foreground-muted">
+                        {t('pages.requestDetail.motifs.intake.legalContext.detailInput.helper')}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </motion.section>
         </div>
 
-        {/* Right column - ORIENTATION (secondary, narrower) */}
+        {/* Right column - ORIENTATION & INTERNAL EVALUATION (secondary, narrower) */}
         <div className="lg:col-span-2 space-y-6">
           {/* Section: Personnes concernées */}
           <motion.section
@@ -914,7 +1127,7 @@ export function RequestDetailPage() {
             </div>
           </motion.section>
 
-          {/* Section: Recommandations (placeholder) */}
+          {/* Section: Statut de la demande */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -923,158 +1136,128 @@ export function RequestDetailPage() {
           >
             <div className="flex items-center gap-2 mb-4">
               <div className="rounded-lg bg-sage-100 p-2">
-                <Lightbulb className="h-4 w-4 text-sage-600" />
+                <FileText className="h-4 w-4 text-sage-600" />
               </div>
               <h2 className="font-semibold text-foreground">
-                {t('pages.requestDetail.recommendations.title')}
+                {t('pages.requestStatus.title')}
               </h2>
             </div>
 
-            {/* Empty state */}
-            <div className="rounded-xl border border-dashed border-border bg-background-secondary/50 p-6 text-center">
-              <div className="mx-auto mb-3 h-10 w-10 rounded-full bg-background-tertiary flex items-center justify-center">
-                <Lightbulb className="h-5 w-5 text-foreground-muted" />
+            <div className="space-y-4">
+              {/* Status badge */}
+              <div className="flex items-center gap-2">
+                <Badge variant={isDraft ? 'secondary' : statusInfo.variant}>
+                  {isDraft
+                    ? t('pages.requestDetail.draft.badge')
+                    : t(statusInfo.labelKey as Parameters<typeof t>[0])}
+                </Badge>
               </div>
-              <p className="text-sm text-foreground-muted leading-relaxed">
-                {t('pages.requestDetail.recommendations.empty')}
+
+              {/* Helper text */}
+              <p className="text-sm text-foreground-secondary">
+                {isDraft
+                  ? t('pages.requestStatus.saveFirst')
+                  : t('pages.requestStatus.helper')}
               </p>
+
+              {/* No demand type selected message */}
+              {!demandType && (
+                <div className="rounded-lg border border-border bg-background-secondary/50 p-3">
+                  <p className="text-xs text-foreground-muted">
+                    {t('pages.requestDetail.draft.selectTypeFirst')}
+                  </p>
+                </div>
+              )}
             </div>
           </motion.section>
 
-          {/* Section: Assignation - only show when prerequisites are met */}
-          {demandType && participantCountValid && (
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
-              className="rounded-xl border border-border bg-background p-5 shadow-soft"
-            >
-              <div className="flex items-center gap-2 mb-4">
-                <div className="rounded-lg bg-honey-100 p-2">
-                  <UserCheck className="h-4 w-4 text-honey-600" />
-                </div>
-                <h2 className="font-semibold text-foreground">
-                  {t('pages.requestDetail.assignment.title')}
-                </h2>
-              </div>
-
-              {/* Calm message when consent is pending */}
-              {!allConsentsValid ? (
-                <div className="space-y-3">
-                  <div className="rounded-lg border border-border bg-background-secondary/50 p-4">
-                    <div className="flex items-start gap-3">
-                      <Info className="h-5 w-5 text-foreground-muted shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm text-foreground-secondary">
-                          {t('pages.requestDetail.assignment.pendingConsent')}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Show links to each participant without valid consent */}
-                  <div className="space-y-1">
-                    {participantsWithInvalidConsent.map((p) => (
-                      <Link
-                        key={p.id}
-                        to="/clients/$id"
-                        params={{ id: p.clientId }}
-                        search={{ from: 'request', fromId: requestId }}
-                        className="flex items-center gap-1.5 text-sm text-sage-600 hover:text-sage-700 font-medium transition-colors"
-                      >
-                        <span>{p.name}</span>
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ) : /* Calm message when urgency not set */
-              !urgency ? (
-                <div className="rounded-lg border border-border bg-background-secondary/50 p-4">
-                  <div className="flex items-start gap-3">
-                    <Info className="h-5 w-5 text-foreground-muted shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-foreground-secondary">
-                        {t('pages.requestDetail.assignment.disabledNoUrgency')}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <Select
-                    value={professional}
-                    onChange={(e) => setProfessional(e.target.value)}
-                    placeholder={t('pages.requestDetail.assignment.placeholder')}
-                    disabled={!hasCompletedAnalysis}
-                    className={cn(!hasCompletedAnalysis && 'opacity-60')}
-                  >
-                    {/* Placeholder options - would be populated from data */}
-                    <option value="pro-1">Dr. Sophie Martin</option>
-                    <option value="pro-2">Jean-Philippe Tremblay, M.Ps.</option>
-                    <option value="pro-3">Marie-Eve Gagnon, T.S.</option>
-                  </Select>
-                  <p className="text-xs text-foreground-muted mt-2">
-                    {t('pages.requestDetail.assignment.helper')}
-                  </p>
-                </>
-              )}
-            </motion.section>
-          )}
-
-          {/* Section: Timeline / Activity */}
+          {/* ===== INTERNAL EVALUATION SECTION ===== */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-            className="rounded-xl border border-border bg-background p-5 shadow-soft"
+            transition={{ delay: 0.18 }}
+            className="rounded-xl border border-border bg-background shadow-soft overflow-hidden"
           >
-            <div className="flex items-center gap-2 mb-4">
-              <div className="rounded-lg bg-background-tertiary p-2">
-                <Clock className="h-4 w-4 text-foreground-secondary" />
+            {/* Section header: Évaluation interne */}
+            <div className="bg-honey-50/50 border-b border-honey-100 px-5 py-3">
+              <div className="flex items-center gap-2">
+                <div className="rounded-lg bg-honey-100 p-1.5">
+                  <ClipboardList className="h-3.5 w-3.5 text-honey-600" />
+                </div>
+                <h2 className="text-sm font-semibold text-honey-700">
+                  Évaluation interne
+                </h2>
               </div>
-              <h2 className="font-semibold text-foreground">
-                {t('pages.requestDetail.timeline.title')}
-              </h2>
             </div>
 
-            {timeline.length > 0 ? (
-              <div className="space-y-4">
-                {timeline.map((event, index) => (
-                  <div key={event.id} className="flex gap-3">
-                    {/* Timeline indicator */}
-                    <div className="flex flex-col items-center">
-                      <div
+            <div className="p-5 space-y-6">
+              {/* Notes d'appel / Intake */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <MessageSquare className="h-4 w-4 text-foreground-muted" />
+                  <h3 className="text-sm font-medium text-foreground">
+                    {t('pages.requestDetail.notes.title')}
+                  </h3>
+                </div>
+
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder={t('pages.requestDetail.notes.placeholder')}
+                  className="min-h-[120px] mb-2"
+                />
+                <p className="text-xs text-foreground-muted flex items-center gap-1.5">
+                  <AlertCircle className="h-3 w-3" />
+                  {t('pages.requestDetail.notes.helper')}
+                </p>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-border" />
+
+              {/* Urgence perçue */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="h-4 w-4 text-foreground-muted" />
+                  <h3 className="text-sm font-medium text-foreground">
+                    {t('pages.requestDetail.urgency.title')}
+                  </h3>
+                </div>
+
+                {/* Urgency selector - styled as segmented control */}
+                <div className="flex gap-2 mb-2">
+                  {(['low', 'moderate', 'high'] as const).map((level) => {
+                    const isSelected = urgency === level
+                    const levelColors = {
+                      low: 'border-sage-300 bg-sage-50 text-sage-700',
+                      moderate: 'border-honey-300 bg-honey-50 text-honey-700',
+                      high: 'border-wine-300 bg-wine-50 text-wine-700',
+                    }
+                    return (
+                      <button
+                        key={level}
+                        onClick={() => setUrgency(level)}
                         className={cn(
-                          'h-2 w-2 rounded-full mt-2',
-                          index === 0 ? 'bg-sage-500' : 'bg-border'
+                          'flex-1 py-2.5 px-4 rounded-xl border text-sm font-medium transition-all',
+                          isSelected
+                            ? levelColors[level]
+                            : 'border-border bg-background-secondary text-foreground-secondary hover:bg-background-tertiary'
                         )}
-                      />
-                      {index < timeline.length - 1 && (
-                        <div className="w-px flex-1 bg-border mt-1" />
-                      )}
-                    </div>
-                    {/* Event content */}
-                    <div className="flex-1 pb-4">
-                      <p className="text-sm text-foreground">
+                      >
                         {t(
-                          `pages.requestDetail.timeline.events.${event.type}` as Parameters<
+                          `pages.requestDetail.urgency.levels.${level}` as Parameters<
                             typeof t
                           >[0]
                         )}
-                      </p>
-                      <p className="text-xs text-foreground-muted mt-0.5">
-                        {formatDate(event.timestamp)}
-                        {event.actor && ` · ${event.actor}`}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-foreground-muted">
+                  {t('pages.requestDetail.urgency.helper')}
+                </p>
               </div>
-            ) : (
-              <p className="text-sm text-foreground-muted text-center py-4">
-                {t('pages.requestDetail.timeline.empty')}
-              </p>
-            )}
+            </div>
           </motion.section>
         </div>
       </div>

@@ -2,8 +2,9 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import { startOfWeek, addDays, format } from 'date-fns'
-import { t } from '@/i18n'
+import { DndContext } from '@dnd-kit/core'
 import { toast } from '@/shared/hooks/use-toast'
+import { Button } from '@/shared/ui/button'
 import {
   // Existing components
   CalendarGrid,
@@ -23,21 +24,18 @@ import {
 
   // New v3 hooks
   useAvailabilityState,
-  useCalendarDrag,
+  useCalendarDnd,
 
   // Types
   type Appointment,
   type AvailabilityBlock,
-  type BookableService,
   type CalendarMode,
   type CalendarViewMode,
-  type TimeRange,
 } from '@/availability'
-import { MOCK_PROFESSIONALS, MOCK_BOOKABLE_SERVICES } from '@/availability/mock'
-
-const SLOT_HEIGHT = 40
-const INTERVAL_MINUTES = 30
-const START_HOUR = 6
+import { CalendarDragOverlay } from '@/availability/dnd'
+import { snapToTimeGrid } from '@/availability/dnd/snap-modifier'
+import { isoStringToMinutes, minutesToISOString, DEFAULT_CONFIG } from '@/availability/utils/time-grid'
+import { MOCK_PROFESSIONALS, MOCK_BOOKABLE_SERVICES, MOCK_CLIENTS } from '@/availability/mock'
 
 export function AvailabilityPage() {
   // Professional selection
@@ -49,6 +47,7 @@ export function AvailabilityPage() {
 
   // Mode state (v3)
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('booking')
+  const [showAvailabilityOverlay, setShowAvailabilityOverlay] = useState(false)
 
   // Detail sheet state (v3)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -57,8 +56,6 @@ export function AvailabilityPage() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
-  // Dragging service state (v3)
-  const [draggingService, setDraggingService] = useState<BookableService | null>(null)
 
   // Use new availability state management hook (v3)
   const {
@@ -94,165 +91,274 @@ export function AvailabilityPage() {
     return startOfWeek(viewDate, { weekStartsOn: 1 })
   }, [viewDate])
 
-  // Service drag handlers (v3)
-  const handleServiceDragStart = useCallback((e: React.DragEvent, service: BookableService) => {
-    e.dataTransfer.setData('application/json', JSON.stringify(service))
-    setDraggingService(service)
-  }, [])
+  // Helper: Get target date from dayIndex
+  const getTargetDate = useCallback((dayIndex: number) => {
+    return viewMode === 'day' ? viewDate : addDays(weekStartDate, dayIndex)
+  }, [viewMode, viewDate, weekStartDate])
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-  }, [])
+  // =============================================================================
+  // dnd-kit Callbacks
+  // =============================================================================
 
-  // Note: handleDrop is currently used by onDragOver context but actual drop handling
-  // would require CalendarGrid to expose onDrop - keeping for future use
-  const _handleDrop = useCallback((e: React.DragEvent, date: Date, time: string) => {
-    e.preventDefault()
-    if (!draggingService || !selectedProfessionalId) return
+  const handleAvailabilityCreate = useCallback(
+    (dayIndex: number, startMinutes: number, endMinutes: number) => {
+      const targetDate = getTargetDate(dayIndex)
+      const startTime = minutesToISOString(startMinutes, targetDate)
+      const endTime = minutesToISOString(endMinutes, targetDate)
 
-    const startTime = new Date(`${format(date, 'yyyy-MM-dd')}T${time}:00`)
+      // Create the block silently (no modal during drag)
+      createAvailabilityBlock({
+        professionalId: selectedProfessionalId || '',
+        type: 'available',
+        startTime,
+        endTime,
+        isRecurring: false,
+        visibleToClients: true,
+      })
 
-    // Create draft appointment
-    createAppointment({
-      professionalId: selectedProfessionalId,
-      clientIds: [],
-      serviceId: draggingService.id,
-      startTime: startTime.toISOString(),
-      durationMinutes: draggingService.durationMinutes,
-      status: 'draft',
-    })
+      toast({
+        title: 'Disponibilité créée',
+        description: `${format(new Date(startTime), 'HH:mm')} - ${format(new Date(endTime), 'HH:mm')}`,
+      })
+    },
+    [getTargetDate, selectedProfessionalId, createAvailabilityBlock]
+  )
 
-    setDraggingService(null)
-    toast({ title: 'Brouillon cree', description: 'Assignez un client pour confirmer.' })
-  }, [draggingService, selectedProfessionalId, createAppointment])
+  const handleAvailabilityMove = useCallback(
+    (blockId: string, dayIndex: number, newStartMinutes: number) => {
+      const block = availabilityBlocks.find(b => b.id === blockId)
+      if (!block) return
 
-  // Expose handleDrop for future use - currently CalendarGrid doesn't have onDrop prop
-  void _handleDrop
+      const oldStartMinutes = isoStringToMinutes(block.startTime)
+      const oldEndMinutes = isoStringToMinutes(block.endTime)
+      const duration = oldEndMinutes - oldStartMinutes
 
-  // Drag interaction handlers
-  const handleCreateDrag = useCallback(
-    (dayIndex: number, timeRange: TimeRange) => {
-      const targetDate = viewMode === 'day' ? viewDate : addDays(weekStartDate, dayIndex)
-      const hours = Math.floor(timeRange.startMinutes / 60)
-      const minutes = timeRange.startMinutes % 60
-      const time = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+      const targetDate = getTargetDate(dayIndex)
+      const newStartTime = minutesToISOString(newStartMinutes, targetDate)
+      const newEndTime = minutesToISOString(newStartMinutes + duration, targetDate)
 
-      if (calendarMode === 'availability') {
-        // Create a new availability block
-        const startTime = new Date(`${format(targetDate, 'yyyy-MM-dd')}T${time}:00`)
-        const endHours = Math.floor(timeRange.endMinutes / 60)
-        const endMinutes = timeRange.endMinutes % 60
-        const endTime = new Date(`${format(targetDate, 'yyyy-MM-dd')}T${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`)
+      updateAvailabilityBlock(blockId, {
+        startTime: newStartTime,
+        endTime: newEndTime,
+      })
 
-        const newBlock: AvailabilityBlock = {
-          id: `new-${Date.now()}`,
-          professionalId: selectedProfessionalId || '',
-          type: 'available',
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
-          isRecurring: false,
-          visibleToClients: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+      toast({
+        title: 'Disponibilité déplacée',
+        description: `${format(new Date(newStartTime), 'HH:mm')} - ${format(new Date(newEndTime), 'HH:mm')}`,
+      })
+    },
+    [availabilityBlocks, getTargetDate, updateAvailabilityBlock]
+  )
+
+  const handleAvailabilityResize = useCallback(
+    (blockId: string, dayIndex: number, edge: 'top' | 'bottom', newMinutesAbs: number) => {
+      const block = availabilityBlocks.find(b => b.id === blockId)
+      if (!block) return
+
+      const targetDate = getTargetDate(dayIndex)
+      const currentStartMinutes = isoStringToMinutes(block.startTime)
+      const currentEndMinutes = isoStringToMinutes(block.endTime)
+
+      let newStartMinutes = currentStartMinutes
+      let newEndMinutes = currentEndMinutes
+
+      if (edge === 'top') {
+        newStartMinutes = newMinutesAbs
+        // Ensure minimum 30 minute duration
+        if (newEndMinutes - newStartMinutes < 30) {
+          newStartMinutes = newEndMinutes - 30
         }
-        setSelectedBlock(newBlock)
-        setSheetContent('availability')
-        setSheetOpen(true)
       } else {
-        // In booking mode, open appointment editor with time pre-filled
-        if (!selectedProfessionalId) return
-
-        const startTime = new Date(`${format(targetDate, 'yyyy-MM-dd')}T${time}:00`)
-        const defaultService = MOCK_BOOKABLE_SERVICES[0]
-
-        const newAppointment: Appointment = {
-          id: `new-${Date.now()}`,
-          professionalId: selectedProfessionalId,
-          clientIds: [],
-          serviceId: defaultService?.id || '',
-          startTime: startTime.toISOString(),
-          durationMinutes: defaultService?.durationMinutes || 50,
-          status: 'draft',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+        newEndMinutes = newMinutesAbs
+        // Ensure minimum 30 minute duration
+        if (newEndMinutes - newStartMinutes < 30) {
+          newEndMinutes = newStartMinutes + 30
         }
-        setSelectedAppointment(newAppointment)
-        setSheetContent('appointment')
-        setSheetOpen(true)
+      }
+
+      const newStartTime = minutesToISOString(newStartMinutes, targetDate)
+      const newEndTime = minutesToISOString(newEndMinutes, targetDate)
+
+      updateAvailabilityBlock(blockId, {
+        startTime: newStartTime,
+        endTime: newEndTime,
+      })
+
+      toast({
+        title: 'Disponibilité modifiée',
+        description: `${format(new Date(newStartTime), 'HH:mm')} - ${format(new Date(newEndTime), 'HH:mm')}`,
+      })
+    },
+    [availabilityBlocks, getTargetDate, updateAvailabilityBlock]
+  )
+
+  const handleAppointmentMove = useCallback(
+    (aptId: string, dayIndex: number, newStartMinutes: number) => {
+      const apt = appointments.find(a => a.id === aptId)
+      if (!apt) return
+
+      const targetDate = getTargetDate(dayIndex)
+      const newStartTime = minutesToISOString(newStartMinutes, targetDate)
+
+      updateAppointment(aptId, {
+        startTime: newStartTime,
+      })
+
+      toast({
+        title: 'Rendez-vous déplacé',
+        description: `Déplacé au ${format(new Date(newStartTime), 'dd/MM à HH:mm')}.`,
+      })
+    },
+    [appointments, getTargetDate, updateAppointment]
+  )
+
+  const handleAppointmentResize = useCallback(
+    (aptId: string, dayIndex: number, edge: 'top' | 'bottom', newMinutesAbs: number) => {
+      const apt = appointments.find(a => a.id === aptId)
+      if (!apt) return
+
+      const targetDate = getTargetDate(dayIndex)
+      const currentStartMinutes = isoStringToMinutes(apt.startTime)
+      const currentEndMinutes = currentStartMinutes + apt.durationMinutes
+
+      let newStartMinutes = currentStartMinutes
+      let newEndMinutes = currentEndMinutes
+
+      if (edge === 'top') {
+        newStartMinutes = newMinutesAbs
+        // Ensure minimum 15 minute, maximum 240 minute duration
+        const duration = newEndMinutes - newStartMinutes
+        if (duration < 15) {
+          newStartMinutes = newEndMinutes - 15
+        } else if (duration > 240) {
+          newStartMinutes = newEndMinutes - 240
+        }
+      } else {
+        newEndMinutes = newMinutesAbs
+        // Ensure minimum 15 minute, maximum 240 minute duration
+        const duration = newEndMinutes - newStartMinutes
+        if (duration < 15) {
+          newEndMinutes = newStartMinutes + 15
+        } else if (duration > 240) {
+          newEndMinutes = newStartMinutes + 240
+        }
+      }
+
+      const newStartTime = minutesToISOString(newStartMinutes, targetDate)
+      const newDuration = newEndMinutes - newStartMinutes
+
+      updateAppointment(aptId, {
+        startTime: newStartTime,
+        durationMinutes: newDuration,
+      })
+
+      toast({
+        title: 'Durée modifiée',
+        description: `Nouvelle durée: ${newDuration} minutes.`,
+      })
+    },
+    [appointments, getTargetDate, updateAppointment]
+  )
+
+  const handleServiceDrop = useCallback(
+    (serviceId: string, dayIndex: number, startMinutes: number) => {
+      const service = MOCK_BOOKABLE_SERVICES.find(s => s.id === serviceId)
+      if (!service || !selectedProfessionalId) return
+
+      const targetDate = getTargetDate(dayIndex)
+      const startTime = minutesToISOString(startMinutes, targetDate)
+
+      // Create draft appointment
+      const newAppointment: Appointment = {
+        id: `new-${Date.now()}`,
+        professionalId: selectedProfessionalId,
+        clientIds: [],
+        serviceId: service.id,
+        startTime,
+        durationMinutes: service.durationMinutes,
+        status: 'draft',
+        mode: 'video',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+
+      // Open the appointment editor with the new appointment
+      setSelectedAppointment(newAppointment)
+      setSheetContent('appointment')
+      setSheetOpen(true)
+
+      toast({ title: 'Brouillon créé', description: 'Assignez un client pour confirmer.' })
+    },
+    [getTargetDate, selectedProfessionalId]
+  )
+
+  // =============================================================================
+  // useCalendarDnd Hook Setup
+  // =============================================================================
+
+  const getAvailabilityBlockForDnd = useCallback(
+    (id: string) => {
+      const block = availabilityBlocks.find(b => b.id === id)
+      if (!block) return null
+      return {
+        startMinutes: isoStringToMinutes(block.startTime),
+        endMinutes: isoStringToMinutes(block.endTime),
       }
     },
-    [viewMode, viewDate, weekStartDate, calendarMode, selectedProfessionalId]
+    [availabilityBlocks]
   )
 
-  const handleMoveDrag = useCallback(
-    (appointmentId: string, newStartMinutes: number, dayIndex: number) => {
-      const apt = appointments.find(a => a.id === appointmentId)
-      if (!apt) return
-
-      const targetDate = viewMode === 'day' ? viewDate : addDays(weekStartDate, dayIndex)
-      const hours = Math.floor(newStartMinutes / 60)
-      const minutes = newStartMinutes % 60
-
-      const newStartTime = new Date(targetDate)
-      newStartTime.setHours(hours, minutes, 0, 0)
-
-      updateAppointment(apt.id, {
-        startTime: newStartTime.toISOString(),
-      })
-
-      toast({
-        title: 'Rendez-vous deplace',
-        description: `Deplace au ${format(newStartTime, 'dd/MM a HH:mm')}.`,
-      })
+  const getAppointmentForDnd = useCallback(
+    (id: string) => {
+      const apt = appointments.find(a => a.id === id)
+      if (!apt) return null
+      return {
+        startMinutes: isoStringToMinutes(apt.startTime),
+        durationMinutes: apt.durationMinutes,
+      }
     },
-    [appointments, updateAppointment, viewMode, viewDate, weekStartDate]
-  )
-
-  const handleResizeDrag = useCallback(
-    (appointmentId: string, newDuration: number) => {
-      const apt = appointments.find(a => a.id === appointmentId)
-      if (!apt) return
-
-      const finalDuration = Math.max(30, Math.min(newDuration, 240))
-
-      updateAppointment(apt.id, {
-        durationMinutes: finalDuration,
-      })
-
-      toast({
-        title: 'Duree modifiee',
-        description: `Nouvelle duree: ${finalDuration} minutes.`,
-      })
-    },
-    [appointments, updateAppointment]
+    [appointments]
   )
 
   const {
-    startCreateDrag,
-    startMoveDrag,
-    startResizeDrag,
-    handlePointerMove,
-    handlePointerUp,
-    getCreatePreview,
+    dragState,
     isDragging,
-  } = useCalendarDrag({
-    slotHeight: SLOT_HEIGHT,
-    intervalMinutes: INTERVAL_MINUTES,
-    startHour: START_HOUR,
-    onCreateDrag: handleCreateDrag,
-    onMoveDrag: handleMoveDrag,
-    onResizeDrag: handleResizeDrag,
+    sensors,
+    onDragStart,
+    onDragMove,
+    onDragEnd,
+    onDragCancel,
+    registerDayColumn,
+    preview,
+  } = useCalendarDnd({
+    callbacks: {
+      onAvailabilityCreate: handleAvailabilityCreate,
+      onAvailabilityMove: handleAvailabilityMove,
+      onAvailabilityResize: handleAvailabilityResize,
+      onAppointmentMove: handleAppointmentMove,
+      onAppointmentResize: handleAppointmentResize,
+      onServiceDrop: handleServiceDrop,
+    },
+    config: DEFAULT_CONFIG,
+    getAvailabilityBlock: getAvailabilityBlockForDnd,
+    getAppointment: getAppointmentForDnd,
   })
 
-  const createPreview = getCreatePreview()
 
-  // Click handlers
+
+  // =============================================================================
+  // Click Handlers
+  // =============================================================================
+
   const handleSlotClick = useCallback((date: Date, time: string) => {
+    // Don't open modal if we were just dragging
+    if (isDragging) return
+
     if (calendarMode === 'availability') {
       // Create new availability block
       const startTime = new Date(`${format(date, 'yyyy-MM-dd')}T${time}:00`)
       const endTime = new Date(startTime)
-      endTime.setHours(endTime.getHours() + 1) // Default 1 hour block
+      endTime.setMinutes(endTime.getMinutes() + 30) // Default 30 minute block
 
       const newBlock: AvailabilityBlock = {
         id: `new-${Date.now()}`,
@@ -283,6 +389,7 @@ export function AvailabilityPage() {
         startTime: startTime.toISOString(),
         durationMinutes: defaultService?.durationMinutes || 50,
         status: 'draft',
+        mode: 'video',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
@@ -290,19 +397,21 @@ export function AvailabilityPage() {
       setSheetContent('appointment')
       setSheetOpen(true)
     }
-  }, [calendarMode, selectedProfessionalId])
+  }, [calendarMode, selectedProfessionalId, isDragging])
 
   const handleAppointmentClick = useCallback((appointment: Appointment) => {
+    if (isDragging) return
     setSelectedAppointment(appointment)
     setSheetContent('appointment')
     setSheetOpen(true)
-  }, [])
+  }, [isDragging])
 
   const handleAvailabilityBlockClick = useCallback((block: AvailabilityBlock) => {
+    if (isDragging) return
     setSelectedBlock(block)
     setSheetContent('availability')
     setSheetOpen(true)
-  }, [])
+  }, [isDragging])
 
   const handleWeekChange = useCallback((newWeekStart: Date) => {
     setViewDate(newWeekStart)
@@ -328,141 +437,176 @@ export function AvailabilityPage() {
     updatedAt: new Date().toISOString(),
   }), [selectedProfessionalId])
 
+  // =============================================================================
+  // Helpers for DragOverlay
+  // =============================================================================
+
+  const getAvailabilityBlockForOverlay = useCallback(
+    (id: string) => availabilityBlocks.find(b => b.id === id) || null,
+    [availabilityBlocks]
+  )
+
+  const getAppointmentForOverlay = useCallback(
+    (id: string) => appointments.find(a => a.id === id) || null,
+    [appointments]
+  )
+
+  const getServiceForOverlay = useCallback(
+    (id: string) => MOCK_BOOKABLE_SERVICES.find(s => s.id === id) || null,
+    []
+  )
+
+  const getClientsForOverlay = useCallback(
+    (ids: string[]) => ids.map(id => MOCK_CLIENTS.find(c => c.id === id)),
+    []
+  )
+
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col">
       {/* Header with ModeToggle */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-background">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">
-            {t('pages.availability.title')}
-          </h1>
-          <p className="text-sm text-foreground-secondary mt-0.5">
-            {calendarMode === 'availability'
-              ? 'Gerez les disponibilites'
-              : 'Planifiez les rendez-vous'}
-          </p>
-        </div>
+      <div className="flex items-center justify-end px-6 py-3 border-b border-border bg-background">
         <div className="flex items-center gap-4">
           <ProfessionalSelector
             selectedId={selectedProfessionalId}
             onSelect={setSelectedProfessionalId}
           />
+          {calendarMode === 'booking' && (
+            <Button
+              variant={showAvailabilityOverlay ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setShowAvailabilityOverlay(prev => !prev)}
+            >
+              {showAvailabilityOverlay ? 'Masquer disponibilités' : 'Afficher disponibilités'}
+            </Button>
+          )}
           <ModeToggle mode={calendarMode} onModeChange={setCalendarMode} />
         </div>
       </div>
 
-      {/* Main content with sidebar */}
-      <div className="flex-1 flex overflow-hidden" onDragOver={handleDragOver}>
-        {/* Collapsible Sidebar with mode-specific content */}
-        <CollapsibleSidebar>
-          {calendarMode === 'availability' ? (
-            <AvailabilitySidebar
-              availabilityBlocks={professionalBlocks}
-              weekStartDate={weekStartDate}
-              onCreateAvailability={(type) => {
-                const now = new Date()
-                const startTime = new Date(now)
-                startTime.setHours(9, 0, 0, 0)
-                const endTime = new Date(now)
-                endTime.setHours(17, 0, 0, 0)
-
-                setSelectedBlock({
-                  ...defaultBlock,
-                  type,
-                  startTime: startTime.toISOString(),
-                  endTime: endTime.toISOString(),
-                })
-                setSheetContent('availability')
-                setSheetOpen(true)
-              }}
-              onBlockClick={(block) => {
-                setSelectedBlock(block)
-                setSheetContent('availability')
-                setSheetOpen(true)
-              }}
-            />
-          ) : (
-            <BookingSidebar
-              professional={selectedProfessional}
-              appointments={professionalAppointments}
-              onServiceDragStart={handleServiceDragStart}
-              onAppointmentClick={(apt) => {
-                setSelectedAppointment(apt)
-                setSheetContent('appointment')
-                setSheetOpen(true)
-              }}
-            />
-          )}
-        </CollapsibleSidebar>
-
-        {/* Calendar area */}
-        <div className="flex-1 flex flex-col p-4 overflow-hidden">
-          {/* Week navigation (for week/day views) */}
-          {viewMode !== 'list' && (
-            <div className="mb-4">
-              <WeekNavigation
+      {/* Main content with sidebar - wrapped in DndContext */}
+      <DndContext
+        sensors={sensors}
+        modifiers={[snapToTimeGrid]}
+        onDragStart={onDragStart}
+        onDragMove={onDragMove}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
+      >
+        <div className="flex-1 flex overflow-hidden">
+          {/* Collapsible Sidebar with mode-specific content */}
+          <CollapsibleSidebar>
+            {calendarMode === 'availability' ? (
+              <AvailabilitySidebar
+                availabilityBlocks={professionalBlocks}
                 weekStartDate={weekStartDate}
-                onWeekChange={handleWeekChange}
+                professionalId={selectedProfessionalId}
+                onCreateAvailability={(type) => {
+                  const now = new Date()
+                  const startTime = new Date(now)
+                  startTime.setHours(9, 0, 0, 0)
+                  const endTime = new Date(now)
+                  endTime.setHours(17, 0, 0, 0)
+
+                  setSelectedBlock({
+                    ...defaultBlock,
+                    type,
+                    startTime: startTime.toISOString(),
+                    endTime: endTime.toISOString(),
+                  })
+                  setSheetContent('availability')
+                  setSheetOpen(true)
+                }}
+                onBlockClick={(block) => {
+                  setSelectedBlock(block)
+                  setSheetContent('availability')
+                  setSheetOpen(true)
+                }}
               />
-            </div>
-          )}
+            ) : (
+              <BookingSidebar
+                professional={selectedProfessional}
+                appointments={professionalAppointments}
+                onAppointmentClick={(apt) => {
+                  setSelectedAppointment(apt)
+                  setSheetContent('appointment')
+                  setSheetOpen(true)
+                }}
+              />
+            )}
+          </CollapsibleSidebar>
 
-          {/* View content */}
-          {viewMode === 'week' && (
-            <CalendarGrid
-              weekStartDate={weekStartDate}
-              appointments={professionalAppointments}
-              availabilityBlocks={professionalBlocks}
-              calendarMode={calendarMode}
-              onSlotClick={handleSlotClick}
-              onAppointmentClick={handleAppointmentClick}
-              onAvailabilityBlockClick={handleAvailabilityBlockClick}
-              onCreateDragStart={startCreateDrag}
-              onAppointmentDragStart={startMoveDrag}
-              onAppointmentResizeStart={startResizeDrag}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              createPreview={createPreview}
-              isDragging={isDragging}
-            />
-          )}
+          {/* Calendar area */}
+          <div className="flex-1 flex flex-col p-4 overflow-hidden">
+            {/* Week navigation (for week/day views) */}
+            {viewMode !== 'list' && (
+              <div className="mb-4">
+                <WeekNavigation
+                  weekStartDate={weekStartDate}
+                  onWeekChange={handleWeekChange}
+                />
+              </div>
+            )}
 
-          {viewMode === 'day' && (
-            <DayView
-              date={viewDate}
-              appointments={professionalAppointments}
-              onSlotClick={handleSlotClick}
-              onAppointmentClick={handleAppointmentClick}
-              onCreateDragStart={startCreateDrag}
-              onAppointmentDragStart={startMoveDrag}
-              onAppointmentResizeStart={startResizeDrag}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              createPreview={createPreview}
-              isDragging={isDragging}
-            />
-          )}
+            {/* View content */}
+            {viewMode === 'week' && (
+              <CalendarGrid
+                weekStartDate={weekStartDate}
+                appointments={professionalAppointments}
+                availabilityBlocks={professionalBlocks}
+                calendarMode={calendarMode}
+                onSlotClick={handleSlotClick}
+                onAppointmentClick={handleAppointmentClick}
+                onAvailabilityBlockClick={handleAvailabilityBlockClick}
+                showAvailabilityOverlay={showAvailabilityOverlay}
+                onDayColumnRegister={registerDayColumn}
+                dragPreview={preview}
+                activeDragId={dragState.activeId}
+                isDraggingService={dragState.context === 'service-drop'}
+                draggingServiceId={dragState.context === 'service-drop' ? dragState.activeId : null}
+              />
+            )}
 
-          {viewMode === 'list' && (
-            <ListView
-              viewDate={viewDate}
-              appointments={professionalAppointments}
-              onAppointmentClick={handleAppointmentClick}
-            />
-          )}
+            {viewMode === 'day' && (
+              <DayView
+                date={viewDate}
+                appointments={professionalAppointments}
+                onSlotClick={handleSlotClick}
+                onAppointmentClick={handleAppointmentClick}
+              />
+            )}
+
+            {viewMode === 'list' && (
+              <ListView
+                viewDate={viewDate}
+                appointments={professionalAppointments}
+                onAppointmentClick={handleAppointmentClick}
+              />
+            )}
+          </div>
         </div>
-      </div>
+
+        {/* Drag overlay */}
+        <CalendarDragOverlay
+          dragState={dragState}
+          config={DEFAULT_CONFIG}
+          getAvailabilityBlock={getAvailabilityBlockForOverlay}
+          getAppointment={getAppointmentForOverlay}
+          getService={getServiceForOverlay}
+          getClients={getClientsForOverlay}
+        />
+      </DndContext>
 
       {/* DetailSheet for editing */}
       <DetailSheet
         open={sheetOpen}
         onOpenChange={setSheetOpen}
-        title={sheetContent === 'availability' ? 'Disponibilite' : 'Rendez-vous'}
+        title={sheetContent === 'availability' ? 'Disponibilité' : 'Rendez-vous'}
         hasUnsavedChanges={hasUnsavedChanges}
       >
         {sheetContent === 'availability' && selectedBlock && (
           <AvailabilityEditor
             block={selectedBlock}
+            appointments={professionalAppointments}
             onSave={(data) => {
               if (selectedBlock.id.startsWith('new-')) {
                 createAvailabilityBlock({
@@ -476,8 +620,8 @@ export function AvailabilityPage() {
               setSheetOpen(false)
               setHasUnsavedChanges(false)
               toast({
-                title: selectedBlock.id.startsWith('new-') ? 'Disponibilite creee' : 'Disponibilite modifiee',
-                description: 'Les modifications ont ete enregistrees.',
+                title: selectedBlock.id.startsWith('new-') ? 'Disponibilité créée' : 'Disponibilité modifiée',
+                description: 'Les modifications ont été enregistrées.',
               })
             }}
             onDelete={() => {
@@ -485,8 +629,8 @@ export function AvailabilityPage() {
               setSheetOpen(false)
               setHasUnsavedChanges(false)
               toast({
-                title: 'Disponibilite supprimee',
-                description: 'La disponibilite a ete supprimee.',
+                title: 'Disponibilité supprimée',
+                description: 'La disponibilité a été supprimée.',
               })
             }}
             onCancel={() => setSheetOpen(false)}
@@ -508,24 +652,24 @@ export function AvailabilityPage() {
               setSheetOpen(false)
               setHasUnsavedChanges(false)
               toast({
-                title: selectedAppointment.id.startsWith('new-') ? 'Rendez-vous cree' : 'Rendez-vous modifie',
-                description: 'Les modifications ont ete enregistrees.',
+                title: selectedAppointment.id.startsWith('new-') ? 'Rendez-vous créé' : 'Rendez-vous modifié',
+                description: 'Les modifications ont été enregistrées.',
               })
             }}
             onCancel={() => setSheetOpen(false)}
-            onCancelAppointment={() => {
-              cancelAppointment(selectedAppointment.id)
+            onCancelAppointment={(info) => {
+              cancelAppointment(selectedAppointment.id, info)
               setSheetOpen(false)
               toast({
-                title: 'Rendez-vous annule',
-                description: 'Le rendez-vous a ete annule.',
+                title: 'Rendez-vous annulé',
+                description: 'Le rendez-vous a été annulé.',
               })
             }}
             onRestoreAppointment={() => {
               restoreAppointment(selectedAppointment.id)
               toast({
-                title: 'Rendez-vous restaure',
-                description: 'Le rendez-vous a ete restaure.',
+                title: 'Rendez-vous restauré',
+                description: 'Le rendez-vous a été restauré.',
               })
             }}
             onDirtyChange={setHasUnsavedChanges}

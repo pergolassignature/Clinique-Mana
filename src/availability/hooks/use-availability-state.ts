@@ -56,7 +56,7 @@ export function useAvailabilityState() {
     )
   }, [])
 
-  const cancelAppointment = useCallback((id: string, reason?: string) => {
+  const cancelAppointment = useCallback((id: string, info?: { reason?: string; feeApplied?: boolean; feePercent?: number }) => {
     setAppointments(prev =>
       prev.map(apt =>
         apt.id === id
@@ -64,7 +64,9 @@ export function useAvailabilityState() {
               ...apt,
               status: 'cancelled' as const,
               cancelledAt: new Date().toISOString(),
-              cancellationReason: reason,
+              cancellationReason: info?.reason,
+              cancellationFeeApplied: info?.feeApplied,
+              cancellationFeePercent: info?.feePercent,
               updatedAt: new Date().toISOString(),
             }
           : apt

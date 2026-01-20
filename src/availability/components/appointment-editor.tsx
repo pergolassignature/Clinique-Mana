@@ -1,34 +1,48 @@
 // src/availability/components/appointment-editor.tsx
 
 import { useState, useEffect, useMemo } from 'react'
-import { format } from 'date-fns'
-import { User, Trash2 } from 'lucide-react'
+import { format, differenceInHours } from 'date-fns'
+import { fr } from 'date-fns/locale'
+import { Trash2, Plus, ChevronDown, ChevronUp, Clock, Calendar, MapPin, Video, Phone, History } from 'lucide-react'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Textarea } from '@/shared/ui/textarea'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/alert-dialog'
 import { cn } from '@/shared/lib/utils'
 import type { Appointment, AppointmentStatus, AppointmentMode } from '../types'
 import { MOCK_BOOKABLE_SERVICES, MOCK_CLIENTS } from '../mock'
+import { ClientCard, ClientPickerItem } from './client-card'
+import { CompactCalendarHistory } from './calendar-history'
+import { useAppointmentAuditLog } from '../hooks'
 
 interface AppointmentEditorProps {
   appointment: Appointment | null
   onSave: (data: Partial<Appointment>) => void
   onCancel: () => void
-  onCancelAppointment?: () => void
+  onCancelAppointment?: (info?: { reason?: string; feeApplied?: boolean; feePercent?: number }) => void
   onRestoreAppointment?: () => void
   onDirtyChange: (dirty: boolean) => void
 }
 
 const STATUS_OPTIONS: { value: AppointmentStatus; label: string }[] = [
-  { value: 'draft', label: 'Brouillon' },
-  { value: 'confirmed', label: 'Confirme' },
+  { value: 'draft', label: 'Planifié' },
+  { value: 'confirmed', label: 'Confirmé' },
 ]
 
-const MODE_OPTIONS: { value: AppointmentMode; label: string }[] = [
-  { value: 'in_person', label: 'En personne' },
-  { value: 'video', label: 'Video' },
-  { value: 'phone', label: 'Telephone' },
+const MODE_OPTIONS: { value: AppointmentMode; label: string; icon: typeof MapPin }[] = [
+  { value: 'in_person', label: 'En personne', icon: MapPin },
+  { value: 'video', label: 'Vidéo', icon: Video },
+  { value: 'phone', label: 'Téléphone', icon: Phone },
 ]
 
 export function AppointmentEditor({
@@ -41,13 +55,9 @@ export function AppointmentEditor({
 }: AppointmentEditorProps) {
   const isNew = !appointment?.id || appointment.id.startsWith('new-')
   const isCancelled = appointment?.status === 'cancelled'
+  const initialTab = isNew ? 'participants' : 'details'
 
-  const service = useMemo(
-    () => MOCK_BOOKABLE_SERVICES.find(s => s.id === appointment?.serviceId),
-    [appointment?.serviceId]
-  )
-
-  const [serviceId] = useState(appointment?.serviceId || '')
+  const [serviceId, setServiceId] = useState(appointment?.serviceId || '')
   const [clientIds, setClientIds] = useState<string[]>(appointment?.clientIds || [])
   const [date, setDate] = useState(
     appointment ? format(new Date(appointment.startTime), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
@@ -55,14 +65,33 @@ export function AppointmentEditor({
   const [startTime, setStartTime] = useState(
     appointment ? format(new Date(appointment.startTime), 'HH:mm') : '09:00'
   )
-  const [durationMinutes, setDurationMinutes] = useState(appointment?.durationMinutes || service?.durationMinutes || 50)
+  const [durationMinutes, setDurationMinutes] = useState(appointment?.durationMinutes || 50)
   const [status, setStatus] = useState<AppointmentStatus>(appointment?.status === 'cancelled' ? 'confirmed' : (appointment?.status || 'draft'))
-  const [mode, setMode] = useState<AppointmentMode>(appointment?.mode || 'in_person')
+  const [mode, setMode] = useState<AppointmentMode>(appointment?.mode || 'video')
   const [notes, setNotes] = useState(appointment?.notesInternal || '')
+  const [showClientPicker, setShowClientPicker] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelFeeApplied, setCancelFeeApplied] = useState<boolean>(appointment?.cancellationFeeApplied ?? false)
+  const [cancelFeePercent, setCancelFeePercent] = useState<number>(appointment?.cancellationFeePercent ?? 50)
+  const [editingCancelFee, setEditingCancelFee] = useState(false)
+  const [activeTab, setActiveTab] = useState<'participants' | 'details' | 'billing' | 'history'>(initialTab)
+
+  // Fetch audit log for existing appointments
+  const { data: auditLog, isLoading: auditLoading } = useAppointmentAuditLog(
+    !isNew && appointment?.id ? appointment.id : ''
+  )
 
   const selectedService = useMemo(
     () => MOCK_BOOKABLE_SERVICES.find(s => s.id === serviceId),
     [serviceId]
+  )
+
+  // Get selected client objects
+  const selectedClients = useMemo(
+    () => clientIds.map(id => MOCK_CLIENTS.find(c => c.id === id)).filter(Boolean),
+    [clientIds]
   )
 
   // Track dirty state
@@ -79,13 +108,46 @@ export function AppointmentEditor({
       startTime !== format(new Date(appointment.startTime), 'HH:mm') ||
       durationMinutes !== appointment.durationMinutes ||
       (appointment.status !== 'cancelled' && status !== appointment.status) ||
-      mode !== (appointment.mode || 'in_person') ||
+      mode !== (appointment.mode || 'video') ||
       notes !== (appointment.notesInternal || '')
 
     onDirtyChange(isDirty)
   }, [serviceId, clientIds, date, startTime, durationMinutes, status, mode, notes, appointment, onDirtyChange])
 
+  useEffect(() => {
+    setActiveTab(initialTab)
+    setShowClientPicker(false)
+    setShowDetails(false)
+    setCancelReason('')
+    setEditingCancelFee(false)
+    setCancelFeeApplied(appointment?.cancellationFeeApplied ?? false)
+    setCancelFeePercent(appointment?.cancellationFeePercent ?? 50)
+  }, [
+    initialTab,
+    appointment?.id,
+    appointment?.cancellationFeeApplied,
+    appointment?.cancellationFeePercent,
+  ])
+
+  useEffect(() => {
+    if (!appointment) return
+    const nextServiceId = appointment.serviceId || ''
+    const nextService = MOCK_BOOKABLE_SERVICES.find(s => s.id === nextServiceId)
+
+    setServiceId(nextServiceId)
+    setClientIds(appointment.clientIds || [])
+    setDate(format(new Date(appointment.startTime), 'yyyy-MM-dd'))
+    setStartTime(format(new Date(appointment.startTime), 'HH:mm'))
+    setDurationMinutes(appointment.durationMinutes || nextService?.durationMinutes || 50)
+    setStatus(appointment.status === 'cancelled' ? 'confirmed' : (appointment.status || 'draft'))
+    setMode(appointment.mode || 'video')
+    setNotes(appointment.notesInternal || '')
+  }, [appointment?.id])
+
+  const canEditClients = isNew && !isCancelled
+
   const handleClientToggle = (clientId: string) => {
+    if (!canEditClients) return
     if (!selectedService) return
 
     if (clientIds.includes(clientId)) {
@@ -93,6 +155,11 @@ export function AppointmentEditor({
     } else if (clientIds.length < selectedService.maxClients) {
       setClientIds([...clientIds, clientId])
     }
+  }
+
+  const handleRemoveClient = (clientId: string) => {
+    if (!canEditClients) return
+    setClientIds(clientIds.filter(id => id !== clientId))
   }
 
   const handleSave = () => {
@@ -113,15 +180,39 @@ export function AppointmentEditor({
     ? clientIds.length >= selectedService.minClients && clientIds.length <= selectedService.maxClients
     : true
 
+  const canAddMoreClients = selectedService && clientIds.length < selectedService.maxClients
+  const canConfirm = !isCancelled && status === 'draft'
+  const canCancelAppointment = !!appointment && !isNew && !isCancelled
+  const hoursUntilAppointment = appointment
+    ? differenceInHours(new Date(appointment.startTime), new Date())
+    : null
+  const isLateCancel = canCancelAppointment && hoursUntilAppointment !== null && hoursUntilAppointment < 24
+  const normalizedCancelFeePercent = Math.max(0, Math.min(100, Math.round(cancelFeePercent || 0)))
+
+  // Calculate end time for display
+  const endTimeDisplay = useMemo(() => {
+    const start = new Date(`${date}T${startTime}:00`)
+    const end = new Date(start.getTime() + durationMinutes * 60000)
+    return format(end, 'HH:mm')
+  }, [date, startTime, durationMinutes])
+
+  const ModeIcon = MODE_OPTIONS.find(m => m.value === mode)?.icon || MapPin
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Cancelled banner */}
       {isCancelled && (
         <div className="p-3 rounded-lg bg-wine-50 border border-wine-200">
-          <div className="text-sm font-medium text-wine-700">Rendez-vous annule</div>
+          <div className="text-sm font-medium text-wine-700">Rendez-vous annulé</div>
           {appointment?.cancellationReason && (
             <div className="text-sm text-wine-600 mt-1">{appointment.cancellationReason}</div>
           )}
+          <div className="mt-2 text-xs text-foreground-muted">
+            Frais d'annulation :{' '}
+            {appointment?.cancellationFeeApplied
+              ? `${appointment.cancellationFeePercent ?? 0}%`
+              : 'Aucun frais'}
+          </div>
           {onRestoreAppointment && (
             <Button
               variant="outline"
@@ -132,177 +223,416 @@ export function AppointmentEditor({
               Restaurer
             </Button>
           )}
+          {onSave && (
+            <div className="mt-3 rounded-lg border border-border/60 bg-background p-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium text-foreground">Frais d'annulation</div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditingCancelFee(prev => !prev)}
+                >
+                  {editingCancelFee ? 'Fermer' : 'Modifier'}
+                </Button>
+              </div>
+              {editingCancelFee && (
+                <div className="mt-2 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCancelFeeApplied(false)}
+                      className={cn(
+                        'rounded-lg border px-3 py-2 text-xs font-medium transition-all',
+                        !cancelFeeApplied
+                          ? 'border-sage-400 bg-sage-50 text-sage-700'
+                          : 'border-border hover:border-sage-300'
+                      )}
+                    >
+                      Aucun frais
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCancelFeeApplied(true)}
+                      className={cn(
+                        'rounded-lg border px-3 py-2 text-xs font-medium transition-all',
+                        cancelFeeApplied
+                          ? 'border-sage-400 bg-sage-50 text-sage-700'
+                          : 'border-border hover:border-sage-300'
+                      )}
+                    >
+                      Appliquer des frais
+                    </button>
+                  </div>
+                  {cancelFeeApplied && (
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="cancelFeePercent" className="text-xs">
+                        Pourcentage
+                      </Label>
+                      <Input
+                        id="cancelFeePercent"
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={cancelFeePercent}
+                        onChange={(e) => setCancelFeePercent(Number(e.target.value))}
+                        className="h-8 w-20 text-xs"
+                      />
+                      <span className="text-xs text-foreground-muted">%</span>
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      onSave({
+                        cancellationFeeApplied: cancelFeeApplied,
+                        cancellationFeePercent: cancelFeeApplied ? normalizedCancelFeePercent : undefined,
+                      })
+                      setEditingCancelFee(false)
+                    }}
+                  >
+                    Enregistrer les frais
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Service display */}
-      <div className="space-y-2">
-        <Label>Service</Label>
+      {/* Service header - compact display */}
+      <div
+        className="flex items-center gap-3 p-3 rounded-xl border border-border"
+        style={{ backgroundColor: `${selectedService?.colorHex}10` }}
+      >
         <div
-          className="flex items-center gap-3 p-3 rounded-lg border border-border"
-          style={{ backgroundColor: `${selectedService?.colorHex}15` }}
-        >
-          <div
-            className="w-2 h-10 rounded-full"
-            style={{ backgroundColor: selectedService?.colorHex }}
-          />
-          <div>
-            <div className="font-medium">{selectedService?.nameFr || 'Service'}</div>
-            <div className="text-sm text-foreground-muted">
-              {selectedService?.durationMinutes} min · {selectedService?.clientType === 'individual' ? 'Individuel' : selectedService?.clientType === 'couple' ? 'Couple' : 'Famille'}
-            </div>
+          className="w-1.5 h-12 rounded-full flex-shrink-0"
+          style={{ backgroundColor: selectedService?.colorHex }}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-foreground truncate">{selectedService?.nameFr || 'Service'}</div>
+          <div className="text-sm text-foreground-muted">
+            {selectedService?.durationMinutes} min · {selectedService?.clientType === 'individual' ? 'Individuel' : selectedService?.clientType === 'couple' ? 'Couple' : 'Famille'}
           </div>
         </div>
       </div>
 
-      {/* Client selection */}
-      <div className="space-y-2">
-        <Label>
-          Client(s)
-          {selectedService && (
-            <span className="text-foreground-muted font-normal ml-2">
-              ({clientIds.length}/{selectedService.maxClients} selectionne{clientIds.length > 1 ? 's' : ''})
-            </span>
-          )}
-        </Label>
-        <div className="space-y-1 max-h-48 overflow-y-auto border border-border rounded-lg p-2">
-          {MOCK_CLIENTS.map(client => {
-            const isSelected = clientIds.includes(client.id)
-            const canSelect = isSelected || (selectedService && clientIds.length < selectedService.maxClients)
+      <div className="flex items-center gap-1 rounded-lg bg-background-tertiary/40 p-1">
+        {[
+          { id: 'participants', label: 'Participants' },
+          { id: 'details', label: 'Rendez-vous' },
+          { id: 'billing', label: 'Facturation' },
+          ...(!isNew ? [{ id: 'history', label: 'Historique', icon: History }] : []),
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as typeof activeTab)}
+            className={cn(
+              'flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1',
+              activeTab === tab.id
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-foreground-muted hover:text-foreground'
+            )}
+          >
+            {'icon' in tab && tab.icon && <tab.icon className="h-3 w-3" />}
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-            return (
-              <button
-                key={client.id}
-                onClick={() => handleClientToggle(client.id)}
-                disabled={!canSelect && !isSelected}
-                className={cn(
-                  'w-full flex items-center gap-2 p-2 rounded-md transition-colors text-left',
-                  isSelected
-                    ? 'bg-sage-100 text-sage-800'
-                    : canSelect
-                    ? 'hover:bg-background-tertiary'
-                    : 'opacity-50 cursor-not-allowed'
-                )}
-              >
-                <User className="h-4 w-4" />
-                <span className="text-sm">{client.firstName} {client.lastName}</span>
-              </button>
-            )
-          })}
+      {activeTab === 'participants' && (
+        <div className="space-y-3">
+          {selectedClients.length > 0 && (
+            <div className="space-y-2">
+              {selectedClients.map(client => client && (
+                <ClientCard
+                  key={client.id}
+                  client={client}
+                  onRemove={canEditClients ? () => handleRemoveClient(client.id) : undefined}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Add client button */}
+          {canAddMoreClients && canEditClients && (
+            <button
+              onClick={() => setShowClientPicker(!showClientPicker)}
+              className={cn(
+                'w-full flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed transition-colors',
+                showClientPicker
+                  ? 'border-sage-400 bg-sage-50 text-sage-700'
+                  : 'border-border-light text-foreground-muted hover:border-sage-300 hover:text-sage-600'
+              )}
+            >
+              <Plus className="h-4 w-4" />
+              <span className="text-sm font-medium">
+                {clientIds.length === 0 ? 'Ajouter un client' : 'Ajouter un autre client'}
+              </span>
+            </button>
+          )}
+
+          {/* Client picker */}
+          {showClientPicker && canEditClients && (
+            <div className="space-y-2 p-3 rounded-lg bg-background-secondary border border-border">
+              <div className="text-xs font-medium text-foreground-muted uppercase tracking-wide mb-2">
+                Sélectionner un client
+              </div>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {MOCK_CLIENTS.filter(c => !clientIds.includes(c.id)).map(client => (
+                  <ClientPickerItem
+                    key={client.id}
+                    client={client}
+                    isSelected={false}
+                    canSelect={canAddMoreClients || false}
+                    onToggle={() => {
+                      handleClientToggle(client.id)
+                      if (clientIds.length + 1 >= (selectedService?.maxClients || 1)) {
+                        setShowClientPicker(false)
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Client count validation */}
+          {!clientCountValid && selectedService && (
+            <p className="text-xs text-wine-600 bg-wine-50 p-2 rounded-lg">
+              {selectedService.clientType === 'couple'
+                ? 'Sélectionnez 2 clients pour une consultation couple'
+                : `Sélectionnez entre ${selectedService.minClients} et ${selectedService.maxClients} clients`}
+            </p>
+          )}
+
+          {!canEditClients && (
+            <p className="text-xs text-foreground-muted bg-background-secondary p-2 rounded-lg">
+              Les clients sont verrouillés pour les rendez-vous existants. Supprimez et recréez le rendez-vous pour modifier les participants.
+            </p>
+          )}
         </div>
-        {!clientCountValid && selectedService && (
-          <p className="text-xs text-wine-600">
-            {selectedService.clientType === 'couple'
-              ? 'Selectionnez 2 clients pour une consultation couple'
-              : `Selectionnez entre ${selectedService.minClients} et ${selectedService.maxClients} clients`}
-          </p>
+      )}
+
+      {activeTab === 'details' && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-background-secondary">
+            <Calendar className="h-4 w-4 text-foreground-muted flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">
+                {format(new Date(date), 'EEEE d MMMM yyyy', { locale: fr })}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-background-secondary">
+            <Clock className="h-4 w-4 text-foreground-muted flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">
+                {startTime} – {endTimeDisplay}
+              </div>
+              <div className="text-xs text-foreground-muted">{durationMinutes} minutes</div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-background-secondary">
+            <ModeIcon className="h-4 w-4 text-foreground-muted flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">
+                {MODE_OPTIONS.find(m => m.value === mode)?.label}
+              </div>
+            </div>
+          </div>
+
+          {!isCancelled && (
+            <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-background-secondary">
+              <div>
+                <div className="text-xs text-foreground-muted uppercase tracking-wide">Statut</div>
+                <div className="text-sm font-medium">
+                  {status === 'draft' ? 'Planifié' : 'Confirmé'}
+                </div>
+              </div>
+              {canConfirm && (
+                <Button variant="secondary" size="sm" onClick={() => setStatus('confirmed')}>
+                  Confirmer
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'billing' && (
+        <div className="space-y-3 p-3 rounded-lg bg-background-secondary border border-border">
+          <div className="text-sm font-medium text-foreground">Facturation</div>
+          <div className="text-sm text-foreground-muted">
+            Ajoutez ici les informations de facturation du service (à venir).
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'history' && !isNew && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <History className="h-4 w-4 text-foreground-muted" />
+            Historique des modifications
+          </div>
+          <div className="rounded-lg border border-border bg-background-secondary/30 p-3">
+            <CompactCalendarHistory
+              auditLog={auditLog}
+              isLoading={auditLoading}
+              emptyMessage="L'historique apparaîtra ici après la première modification."
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Expandable details section */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <button
+          onClick={() => setShowDetails(!showDetails)}
+          className="w-full flex items-center justify-between p-3 bg-background-secondary hover:bg-background-tertiary transition-colors"
+        >
+          <span className="text-sm font-medium text-foreground-muted">Modifier les détails</span>
+          {showDetails ? (
+            <ChevronUp className="h-4 w-4 text-foreground-muted" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-foreground-muted" />
+          )}
+        </button>
+
+        {showDetails && (
+          <div className="p-4 space-y-4 border-t border-border">
+            {/* Date & Time inputs */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="date" className="text-xs">Date</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  disabled={isCancelled}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="startTime" className="text-xs">Heure</Label>
+                <Input
+                  id="startTime"
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  disabled={isCancelled}
+                  step={1800}
+                  className="h-9"
+                />
+              </div>
+            </div>
+
+            {/* Duration */}
+            <div className="space-y-1.5">
+              <Label htmlFor="duration" className="text-xs">Durée (minutes)</Label>
+              <Input
+                id="duration"
+                type="number"
+                min={15}
+                max={240}
+                step={5}
+                value={durationMinutes}
+                onChange={(e) => setDurationMinutes(parseInt(e.target.value) || 50)}
+                disabled={isCancelled}
+                className="h-9"
+              />
+            </div>
+
+            {/* Mode selector */}
+            {!isCancelled && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Modalité</Label>
+                <div className="flex gap-2">
+                  {MODE_OPTIONS.map(opt => {
+                    const Icon = opt.icon
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => setMode(opt.value)}
+                        className={cn(
+                          'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border transition-all',
+                          mode === opt.value
+                            ? 'border-sage-400 bg-sage-50 text-sage-700'
+                            : 'border-border hover:border-sage-300'
+                        )}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Status selector */}
+            {!isCancelled && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Statut</Label>
+                <div className="flex gap-2">
+                  {STATUS_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setStatus(opt.value)}
+                      className={cn(
+                        'flex-1 px-3 py-2 text-xs font-medium rounded-lg border transition-all',
+                        status === opt.value
+                          ? opt.value === 'draft'
+                            ? 'border-amber-400 bg-amber-50 text-amber-700'
+                            : 'border-sage-400 bg-sage-50 text-sage-700'
+                          : 'border-border hover:border-sage-300'
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <Label htmlFor="notes" className="text-xs">Notes internes</Label>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Notes visibles uniquement par l'équipe..."
+                rows={2}
+                disabled={isCancelled}
+                className="text-sm"
+              />
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Date & Time */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="date">Date</Label>
-          <Input
-            id="date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            disabled={isCancelled}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="startTime">Heure</Label>
-          <Input
-            id="startTime"
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            disabled={isCancelled}
-          />
-        </div>
-      </div>
-
-      {/* Duration */}
-      <div className="space-y-2">
-        <Label htmlFor="duration">Duree (minutes)</Label>
-        <Input
-          id="duration"
-          type="number"
-          min={15}
-          max={240}
-          step={5}
-          value={durationMinutes}
-          onChange={(e) => setDurationMinutes(parseInt(e.target.value) || 50)}
-          disabled={isCancelled}
-        />
-      </div>
-
-      {/* Status & Mode */}
-      {!isCancelled && (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Statut</Label>
-            <div className="flex gap-2">
-              {STATUS_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => setStatus(opt.value)}
-                  className={cn(
-                    'flex-1 px-3 py-2 text-sm font-medium rounded-lg border transition-all',
-                    status === opt.value
-                      ? 'border-sage-400 bg-sage-50 text-sage-700'
-                      : 'border-border hover:border-sage-300'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Modalite</Label>
-            <select
-              value={mode}
-              onChange={(e) => setMode(e.target.value as AppointmentMode)}
-              className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm"
-            >
-              {MODE_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
-
-      {/* Notes */}
-      <div className="space-y-2">
-        <Label htmlFor="notes">Notes internes</Label>
-        <Textarea
-          id="notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Notes visibles uniquement par l'equipe..."
-          rows={3}
-          disabled={isCancelled}
-        />
-      </div>
-
       {/* Actions */}
-      <div className="flex gap-2 pt-4 border-t border-border">
+      <div className="flex gap-2 pt-2">
         {!isCancelled && (
           <>
             <Button
               onClick={handleSave}
               className="flex-1"
-              disabled={!clientCountValid && status === 'confirmed'}
+              disabled={!clientCountValid}
             >
-              {isNew ? 'Creer' : 'Enregistrer'}
+              {isNew ? 'Créer' : 'Enregistrer'}
             </Button>
             {!isNew && onCancelAppointment && (
-              <Button variant="outline" onClick={onCancelAppointment} className="text-wine-600">
-                <Trash2 className="h-4 w-4 mr-1" />
-                Annuler RDV
+              <Button
+                variant="outline"
+                onClick={() => setShowCancelDialog(true)}
+                className="text-wine-600 hover:bg-wine-50"
+              >
+                <Trash2 className="h-4 w-4" />
               </Button>
             )}
           </>
@@ -311,6 +641,98 @@ export function AppointmentEditor({
           Fermer
         </Button>
       </div>
+      {canCancelAppointment && (
+        <p className="text-xs text-foreground-muted">
+          Annulation gérée par la clinique ou le professionnel.{' '}
+          {isLateCancel ? 'Moins de 24 h : décider des frais d\'annulation.' : 'Annulation standard (≥ 24 h).'}
+        </p>
+      )}
+
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Annuler ce rendez-vous ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action annule le rendez-vous. Si le rendez-vous est à moins de 24 h, choisissez si des frais s'appliquent.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="cancelReason" className="text-xs">Raison (optionnelle)</Label>
+            <Textarea
+              id="cancelReason"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Ex: Client indisponible..."
+              rows={3}
+            />
+          </div>
+          {isLateCancel && (
+            <div className="space-y-2 rounded-lg border border-border/60 bg-background-secondary/30 p-3">
+              <div className="text-xs font-medium text-foreground">Frais d'annulation</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCancelFeeApplied(false)}
+                  className={cn(
+                    'rounded-lg border px-3 py-2 text-xs font-medium transition-all',
+                    !cancelFeeApplied
+                      ? 'border-sage-400 bg-sage-50 text-sage-700'
+                      : 'border-border hover:border-sage-300'
+                  )}
+                >
+                  Aucun frais
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCancelFeeApplied(true)}
+                  className={cn(
+                    'rounded-lg border px-3 py-2 text-xs font-medium transition-all',
+                    cancelFeeApplied
+                      ? 'border-sage-400 bg-sage-50 text-sage-700'
+                      : 'border-border hover:border-sage-300'
+                  )}
+                >
+                  Appliquer des frais
+                </button>
+              </div>
+              {cancelFeeApplied && (
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="cancelFeePercentDialog" className="text-xs">
+                    Pourcentage
+                  </Label>
+                  <Input
+                    id="cancelFeePercentDialog"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={cancelFeePercent}
+                    onChange={(e) => setCancelFeePercent(Number(e.target.value))}
+                    className="h-8 w-20 text-xs"
+                  />
+                  <span className="text-xs text-foreground-muted">%</span>
+                </div>
+              )}
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Retour</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                onCancelAppointment?.({
+                  reason: cancelReason.trim() || undefined,
+                  feeApplied: isLateCancel ? cancelFeeApplied : undefined,
+                  feePercent: isLateCancel && cancelFeeApplied ? normalizedCancelFeePercent : undefined,
+                })
+                setCancelReason('')
+                setShowCancelDialog(false)
+              }}
+            >
+              Confirmer l'annulation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
