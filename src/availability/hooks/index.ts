@@ -7,3 +7,5 @@ export {
 } from './use-appointments'
 
 export { useCalendarDrag } from './use-calendar-drag'
+
+export { useAvailabilityState } from './use-availability-state'
