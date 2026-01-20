@@ -1512,6 +1512,12 @@
       "title": "Paramètres",
       "subtitle": "Configurez les préférences de votre portail",
       "action": "Enregistrer",
+      "motifs": {
+        "subtitle": "Gérez les motifs de consultation"
+      },
+      "services": {
+        "subtitle": "Gérez le catalogue de services"
+      },
       "empty": {
         "title": "Configuration en cours",
         "description": "Les options de paramétrage seront disponibles prochainement."
@@ -1530,6 +1536,7 @@
     "search": "Rechercher",
     "filter": "Filtrer",
     "export": "Exporter",
+    "clearFilters": "Effacer les filtres",
     "all": "Tous",
     "none": "Aucun",
     "status": "Statut",
@@ -1551,6 +1558,103 @@
     "thisWeek": "Cette semaine",
     "thisMonth": "Ce mois"
   },
+  "clients": {
+    "list": {
+      "title": "Clients",
+      "subtitle": "Gérez les dossiers de vos clients",
+      "searchPlaceholder": "Rechercher par nom, courriel ou ID...",
+      "addClient": "Nouveau client",
+      "filters": {
+        "status": "Statut",
+        "all": "Tous les statuts",
+        "active": "Actifs",
+        "archived": "Archivés",
+        "tags": "Étiquettes",
+        "dateRange": "Période",
+        "allProfessionals": "Tous les professionnels"
+      },
+      "columns": {
+        "id": "ID",
+        "name": "Nom",
+        "dob": "DDN",
+        "email": "Courriel",
+        "phone": "Téléphone",
+        "lastAppointment": "Dernier RDV",
+        "status": "Statut",
+        "tags": "Étiquettes",
+        "primaryProfessional": "Professionnel principal",
+        "referredBy": "Référé par",
+        "createdAt": "Date de création"
+      },
+      "columnPicker": {
+        "title": "Colonnes",
+        "reset": "Réinitialiser"
+      },
+      "empty": {
+        "title": "Aucun client",
+        "description": "Les dossiers clients apparaîtront ici au fur et à mesure des inscriptions.",
+        "filteredTitle": "Aucun résultat",
+        "filteredDescription": "Aucun client ne correspond à vos critères de recherche."
+      }
+    },
+    "drawer": {
+      "sections": {
+        "info": "Informations du client",
+        "visits": "Visites & Paiements",
+        "notes": "Notes",
+        "consents": "Consentements"
+      },
+      "info": {
+        "identity": "Identité",
+        "contact": "Coordonnées",
+        "address": "Adresse",
+        "professional": "Professionnel principal",
+        "birthFirstName": "Prénom de naissance",
+        "pronouns": "Pronoms",
+        "sex": "Sexe",
+        "language": "Langue",
+        "birthday": "Date de naissance"
+      },
+      "visits": {
+        "title": "Historique des visites",
+        "noVisits": "Aucune visite enregistrée",
+        "viewAll": "Voir tout",
+        "balance": "Solde du compte"
+      },
+      "notes": {
+        "title": "Notes",
+        "noNotes": "Aucune note",
+        "addNote": "Ajouter une note",
+        "by": "par"
+      },
+      "consents": {
+        "title": "Consentements",
+        "noConsents": "Aucun consentement enregistré",
+        "addConsent": "Ajouter un consentement"
+      },
+      "actions": {
+        "archive": "Archiver",
+        "unarchive": "Désarchiver",
+        "delete": "Supprimer",
+        "deleteConfirm": {
+          "title": "Supprimer ce client ?",
+          "description": "Cette action est irréversible. Le dossier et toutes les données associées seront supprimés.",
+          "cancel": "Annuler",
+          "confirm": "Supprimer"
+        }
+      }
+    },
+    "status": {
+      "active": "Actif",
+      "archived": "Archivé"
+    },
+    "sex": {
+      "male": "Homme",
+      "female": "Femme",
+      "other": "Autre",
+      "unknown": "Non spécifié"
+    }
+  },
   "commandPalette": {
     "placeholder": "Rechercher une page ou une action...",
     "noResults": "Aucun résultat trouvé",
@@ -1562,5 +1666,30 @@
     "goHome": "Retour à l'accueil",
     "somethingWrong": "Quelque chose s'est mal passé",
     "tryAgain": "Veuillez réessayer ou contacter le support si le problème persiste."
+  },
+  "audit": {
+    "availability": {
+      "availability_created": "Bloc de disponibilité créé",
+      "availability_updated": "Bloc de disponibilité modifié",
+      "availability_deleted": "Bloc de disponibilité supprimé",
+      "availability_type_changed": "Type de bloc modifié"
+    },
+    "appointment": {
+      "appointment_created": "Rendez-vous créé",
+      "appointment_confirmed": "Rendez-vous confirmé",
+      "appointment_rescheduled": "Rendez-vous reporté",
+      "appointment_cancelled": "Rendez-vous annulé",
+      "appointment_completed": "Rendez-vous complété",
+      "appointment_no_show": "Client absent (no-show)",
+      "appointment_restored": "Rendez-vous restauré",
+      "appointment_client_added": "Client ajouté au rendez-vous",
+      "appointment_client_removed": "Client retiré du rendez-vous",
+      "appointment_attendance_updated": "Présence mise à jour",
+      "appointment_notes_updated": "Notes internes modifiées",
+      "appointment_updated": "Rendez-vous modifié"
+    },
+    "system": "Système",
+    "byActor": "par {actor}",
+    "noActor": "Action automatique"
   }
 }
