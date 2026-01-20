@@ -4,16 +4,20 @@ import { useMemo } from 'react'
 import { format, addDays, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { cn } from '@/shared/lib/utils'
-import type { Appointment } from '../types'
+import type { Appointment, AvailabilityBlock, CalendarMode } from '../types'
 import { AppointmentBlock } from './appointment-block'
+import { AvailabilityBlockVisual } from './availability-block-visual'
 import { NowLine } from './now-line'
-import { MOCK_SERVICES, MOCK_CLIENTS } from '../mock'
+import { MOCK_BOOKABLE_SERVICES, MOCK_CLIENTS } from '../mock'
 
 interface CalendarGridProps {
   weekStartDate: Date
   appointments: Appointment[]
+  availabilityBlocks: AvailabilityBlock[]
+  calendarMode: CalendarMode
   onSlotClick: (date: Date, time: string) => void
   onAppointmentClick: (appointment: Appointment) => void
+  onAvailabilityBlockClick?: (block: AvailabilityBlock) => void
   // Drag interaction props
   onCreateDragStart?: (e: React.PointerEvent, dayIndex: number) => void
   onAppointmentDragStart?: (e: React.PointerEvent, appointmentId: string, dayIndex: number) => void
@@ -44,8 +48,11 @@ const SLOT_HEIGHT = 40 // pixels per 30-min slot
 export function CalendarGrid({
   weekStartDate,
   appointments,
+  availabilityBlocks,
+  calendarMode,
   onSlotClick,
   onAppointmentClick,
+  onAvailabilityBlockClick,
   onCreateDragStart,
   onAppointmentDragStart,
   onAppointmentResizeStart,
@@ -80,6 +87,27 @@ export function CalendarGrid({
     return map
   }, [appointments, days])
 
+  // Group availability blocks by day
+  const availabilityBlocksByDay = useMemo(() => {
+    const map = new Map<string, AvailabilityBlock[]>()
+
+    days.forEach(day => {
+      const dayKey = format(day, 'yyyy-MM-dd')
+      map.set(dayKey, [])
+    })
+
+    availabilityBlocks.forEach(block => {
+      const blockDate = new Date(block.startTime)
+      const dayKey = format(blockDate, 'yyyy-MM-dd')
+      const existing = map.get(dayKey)
+      if (existing) {
+        existing.push(block)
+      }
+    })
+
+    return map
+  }, [availabilityBlocks, days])
+
   // Calculate position for an appointment
   const getAppointmentPosition = (apt: Appointment) => {
     const startDate = new Date(apt.startTime)
@@ -89,11 +117,24 @@ export function CalendarGrid({
     return { top, height }
   }
 
-  // Get service and client for an appointment
+  // Calculate position for an availability block
+  const getAvailabilityBlockPosition = (block: AvailabilityBlock) => {
+    const startDate = new Date(block.startTime)
+    const endDate = new Date(block.endTime)
+    const startMinutes = startDate.getHours() * 60 + startDate.getMinutes() - START_HOUR * 60
+    const endMinutes = endDate.getHours() * 60 + endDate.getMinutes() - START_HOUR * 60
+    const top = (startMinutes / INTERVAL_MINUTES) * SLOT_HEIGHT
+    const height = ((endMinutes - startMinutes) / INTERVAL_MINUTES) * SLOT_HEIGHT
+    return { top, height }
+  }
+
+  // Get service and clients for an appointment
   const getAppointmentDetails = (apt: Appointment) => {
-    const service = MOCK_SERVICES.find(s => s.id === apt.serviceId)
-    const client = MOCK_CLIENTS.find(c => c.id === apt.clientId)
-    return { service, client }
+    const service = MOCK_BOOKABLE_SERVICES.find(s => s.id === apt.serviceId)
+    const clients = apt.clientIds
+      .map(id => MOCK_CLIENTS.find(c => c.id === id))
+      .filter(Boolean)
+    return { service, clients }
   }
 
   return (
@@ -153,6 +194,7 @@ export function CalendarGrid({
         {days.map((day, dayIndex) => {
           const dayKey = format(day, 'yyyy-MM-dd')
           const dayAppointments = appointmentsByDay.get(dayKey) || []
+          const dayAvailabilityBlocks = availabilityBlocksByDay.get(dayKey) || []
 
           return (
             <div
@@ -192,11 +234,34 @@ export function CalendarGrid({
                 />
               )}
 
+              {/* Availability blocks layer (background) */}
+              <div className="absolute inset-x-1 top-0 pointer-events-none">
+                {dayAvailabilityBlocks.map((block) => {
+                  const { top, height } = getAvailabilityBlockPosition(block)
+                  return (
+                    <div
+                      key={block.id}
+                      className={cn(
+                        'absolute left-0 right-0',
+                        calendarMode === 'availability' && 'pointer-events-auto'
+                      )}
+                      style={{ top: `${top}px`, height: `${height}px` }}
+                    >
+                      <AvailabilityBlockVisual
+                        block={block}
+                        onClick={() => onAvailabilityBlockClick?.(block)}
+                        isAvailabilityMode={calendarMode === 'availability'}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+
               {/* Appointments overlay */}
               <div className="absolute inset-x-1 top-0 pointer-events-none">
                 {dayAppointments.map((apt) => {
                   const { top, height } = getAppointmentPosition(apt)
-                  const { service, client } = getAppointmentDetails(apt)
+                  const { service, clients } = getAppointmentDetails(apt)
 
                   return (
                     <div
@@ -207,7 +272,7 @@ export function CalendarGrid({
                       <AppointmentBlock
                         appointment={apt}
                         service={service}
-                        client={client}
+                        clients={clients}
                         onClick={() => onAppointmentClick(apt)}
                         onDragStart={(e) => onAppointmentDragStart?.(e, apt.id, dayIndex)}
                         onResizeStart={(e, edge) => onAppointmentResizeStart?.(e, apt.id, dayIndex, edge)}

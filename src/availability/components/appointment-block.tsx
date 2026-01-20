@@ -7,7 +7,7 @@ import type { Appointment, Service, Client } from '../types'
 interface AppointmentBlockProps {
   appointment: Appointment
   service?: Service
-  client?: Client
+  clients?: (Client | undefined)[]
   onClick: () => void
   onDragStart?: (e: React.PointerEvent) => void
   onResizeStart?: (e: React.PointerEvent, edge: 'top' | 'bottom') => void
@@ -17,7 +17,7 @@ interface AppointmentBlockProps {
 export function AppointmentBlock({
   appointment,
   service,
-  client,
+  clients,
   onClick,
   onDragStart,
   onResizeStart,
@@ -27,8 +27,10 @@ export function AppointmentBlock({
   const endTime = new Date(startTime.getTime() + appointment.durationMinutes * 60000)
   const isCancelled = appointment.status === 'cancelled'
 
-  const clientName = client
-    ? `${client.firstName} ${client.lastName}`
+  // Build client name(s) display
+  const validClients = clients?.filter((c): c is Client => c !== undefined) || []
+  const clientName = validClients.length > 0
+    ? validClients.map(c => `${c.firstName} ${c.lastName}`).join(', ')
     : 'Client inconnu'
 
   // Calculate if we have enough height for full display
