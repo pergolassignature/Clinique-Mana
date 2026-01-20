@@ -620,7 +620,98 @@
         "resized": "Durée modifiée",
         "cancelled": "Rendez-vous annulé",
         "restored": "Rendez-vous restauré",
-        "modified": "Rendez-vous modifié"
+        "modified": "Rendez-vous modifié",
+        "draftCreated": "Brouillon créé",
+        "draftDescription": "Assignez un client pour confirmer.",
+        "availabilityCreated": "Disponibilité créée",
+        "availabilityUpdated": "Disponibilité mise à jour",
+        "availabilityDeleted": "Disponibilité supprimée"
+      },
+      "modes": {
+        "availability": "Disponibilités",
+        "booking": "Rendez-vous",
+        "availabilitySubtitle": "Gérez les disponibilités",
+        "bookingSubtitle": "Planifiez les rendez-vous"
+      },
+      "availabilityTypes": {
+        "available": "Disponible",
+        "blocked": "Bloqué",
+        "vacation": "Vacances",
+        "break": "Pause"
+      },
+      "availabilityEditor": {
+        "title": "Disponibilité",
+        "type": "Type",
+        "label": "Libellé (optionnel)",
+        "labelPlaceholder": "Ex: Pause dîner, Formation...",
+        "date": "Date",
+        "startTime": "Début",
+        "endTime": "Fin",
+        "visibleToClients": "Visible aux clients",
+        "create": "Créer",
+        "save": "Enregistrer",
+        "delete": "Supprimer",
+        "cancel": "Annuler"
+      },
+      "appointmentEditor": {
+        "title": "Rendez-vous",
+        "service": "Service",
+        "clients": "Client(s)",
+        "clientsCount": "{{count}}/{{max}} sélectionné{{s}}",
+        "date": "Date",
+        "time": "Heure",
+        "duration": "Durée (minutes)",
+        "status": "Statut",
+        "mode": "Modalité",
+        "notes": "Notes internes",
+        "notesPlaceholder": "Notes visibles uniquement par l'équipe...",
+        "create": "Créer",
+        "save": "Enregistrer",
+        "cancelAppointment": "Annuler RDV",
+        "close": "Fermer",
+        "restore": "Restaurer"
+      },
+      "appointmentStatus": {
+        "draft": "Brouillon",
+        "confirmed": "Confirmé",
+        "cancelled": "Annulé"
+      },
+      "appointmentMode": {
+        "in_person": "En personne",
+        "video": "Vidéo",
+        "phone": "Téléphone"
+      },
+      "clientType": {
+        "individual": "Individuel",
+        "couple": "Couple",
+        "family": "Famille"
+      },
+      "quickActions": {
+        "title": "Actions rapides",
+        "addAvailable": "Disponible",
+        "addBlocked": "Bloquer temps"
+      },
+      "blocksThisWeek": "Blocs cette semaine",
+      "noBlocks": "Aucun bloc défini",
+      "servicesAvailable": "Services disponibles",
+      "noServicesCompatible": "Aucun service compatible",
+      "clientToAssign": "Client à assigner",
+      "unknownClient": "Client inconnu",
+      "validation": {
+        "outsideAvailability": "En dehors des disponibilités",
+        "serviceNotAllowed": "Service non autorisé dans ce créneau",
+        "conflict": "Conflit avec un autre rendez-vous",
+        "selectClients": "Sélectionnez {{min}} à {{max}} clients",
+        "selectTwoClients": "Sélectionnez 2 clients pour une consultation couple"
+      },
+      "unsavedChanges": {
+        "title": "Quitter sans enregistrer ?",
+        "description": "Vous avez des modifications non enregistrées. Voulez-vous vraiment quitter ?",
+        "continueEditing": "Continuer l'édition",
+        "discard": "Quitter"
+      },
+      "cancelledBanner": {
+        "title": "Rendez-vous annulé"
       }
     },
     "motifs": {
