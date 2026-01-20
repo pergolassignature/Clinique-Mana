@@ -49,8 +49,28 @@ export interface AppointmentFormData {
   notesInternal?: string
 }
 
+// View mode for the calendar
+export type CalendarViewMode = 'day' | 'week' | 'list'
+
+// Drag state for create/move/resize interactions
+export interface DragState {
+  type: 'create' | 'move' | 'resize'
+  startY: number
+  currentY: number
+  dayIndex: number
+  appointmentId?: string
+  resizeEdge?: 'top' | 'bottom'
+}
+
+// Time range in minutes from midnight
+export interface TimeRange {
+  startMinutes: number // minutes from midnight
+  endMinutes: number
+}
+
 // Calendar view state
 export interface CalendarViewState {
   selectedProfessionalId: string | null
-  weekStartDate: Date // Monday of the current view week
+  viewDate: Date // anchor date for current view
+  viewMode: CalendarViewMode
 }
