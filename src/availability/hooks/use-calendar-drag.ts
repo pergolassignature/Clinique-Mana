@@ -113,7 +113,7 @@ export function useCalendarDrag({
 
       ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
 
-      const { type, startY, currentY, dayIndex, appointmentId, resizeEdge: _resizeEdge } = dragState
+      const { type, startY, currentY, dayIndex, appointmentId } = dragState
 
       if (type === 'create') {
         const startMinutes = yToMinutes(Math.min(startY, currentY))
