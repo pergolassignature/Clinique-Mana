@@ -1,6 +1,7 @@
 // src/availability/components/index.ts
 
 export { CalendarGrid } from './calendar-grid'
+export { DayView } from './day-view'
 export { AppointmentBlock } from './appointment-block'
 export { WeekNavigation } from './week-navigation'
 export { ProfessionalSelector } from './professional-selector'
