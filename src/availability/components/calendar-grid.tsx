@@ -6,6 +6,7 @@ import { fr } from 'date-fns/locale'
 import { cn } from '@/shared/lib/utils'
 import type { Appointment } from '../types'
 import { AppointmentBlock } from './appointment-block'
+import { NowLine } from './now-line'
 import { MOCK_SERVICES, MOCK_CLIENTS } from '../mock'
 
 interface CalendarGridProps {
@@ -13,6 +14,14 @@ interface CalendarGridProps {
   appointments: Appointment[]
   onSlotClick: (date: Date, time: string) => void
   onAppointmentClick: (appointment: Appointment) => void
+  // Drag interaction props
+  onCreateDragStart?: (e: React.PointerEvent, dayIndex: number) => void
+  onAppointmentDragStart?: (e: React.PointerEvent, appointmentId: string, dayIndex: number) => void
+  onAppointmentResizeStart?: (e: React.PointerEvent, appointmentId: string, dayIndex: number, edge: 'top' | 'bottom') => void
+  onPointerMove?: (e: React.PointerEvent) => void
+  onPointerUp?: (e: React.PointerEvent) => void
+  createPreview?: { top: number; height: number; dayIndex: number } | null
+  isDragging?: boolean
 }
 
 // Time range: 06:00 to 22:00 in 30-minute intervals
@@ -37,6 +46,13 @@ export function CalendarGrid({
   appointments,
   onSlotClick,
   onAppointmentClick,
+  onCreateDragStart,
+  onAppointmentDragStart,
+  onAppointmentResizeStart,
+  onPointerMove,
+  onPointerUp,
+  createPreview,
+  isDragging,
 }: CalendarGridProps) {
   // Generate 7 days starting from weekStartDate
   const days = useMemo(() => {
@@ -111,7 +127,11 @@ export function CalendarGrid({
       </div>
 
       {/* Time grid */}
-      <div className="grid grid-cols-[60px_repeat(7,1fr)] overflow-y-auto max-h-[calc(100vh-300px)]">
+      <div
+        className="grid grid-cols-[60px_repeat(7,1fr)] overflow-y-auto max-h-[calc(100vh-300px)]"
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
         {/* Time labels column */}
         <div className="border-r border-border">
           {TIME_SLOTS.map((time, index) => (
@@ -130,7 +150,7 @@ export function CalendarGrid({
         </div>
 
         {/* Day columns */}
-        {days.map((day) => {
+        {days.map((day, dayIndex) => {
           const dayKey = format(day, 'yyyy-MM-dd')
           const dayAppointments = appointmentsByDay.get(dayKey) || []
 
@@ -141,6 +161,7 @@ export function CalendarGrid({
                 'relative border-r border-border last:border-r-0',
                 isToday(day) && 'bg-sage-50/30'
               )}
+              onPointerDown={(e) => onCreateDragStart?.(e, dayIndex)}
             >
               {/* Slot lines */}
               {TIME_SLOTS.map((time, index) => (
@@ -154,6 +175,22 @@ export function CalendarGrid({
                   style={{ height: SLOT_HEIGHT }}
                 />
               ))}
+
+              {/* Now line indicator */}
+              <NowLine
+                dayDate={day}
+                startHour={START_HOUR}
+                slotHeight={SLOT_HEIGHT}
+                intervalMinutes={INTERVAL_MINUTES}
+              />
+
+              {/* Create preview rectangle */}
+              {createPreview && createPreview.dayIndex === dayIndex && (
+                <div
+                  className="absolute left-1 right-1 rounded-lg bg-sage-200/50 border-2 border-dashed border-sage-400 pointer-events-none z-10"
+                  style={{ top: createPreview.top, height: Math.max(createPreview.height, SLOT_HEIGHT) }}
+                />
+              )}
 
               {/* Appointments overlay */}
               <div className="absolute inset-x-1 top-0 pointer-events-none">
@@ -172,6 +209,9 @@ export function CalendarGrid({
                         service={service}
                         client={client}
                         onClick={() => onAppointmentClick(apt)}
+                        onDragStart={(e) => onAppointmentDragStart?.(e, apt.id, dayIndex)}
+                        onResizeStart={(e, edge) => onAppointmentResizeStart?.(e, apt.id, dayIndex, edge)}
+                        isDragging={isDragging}
                       />
                     </div>
                   )
