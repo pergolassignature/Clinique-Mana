@@ -600,7 +600,28 @@
       },
       "selectProfessional": "Sélectionnez un professionnel pour voir son calendrier",
       "weekView": "Vue 7 jours",
-      "noAppointments": "Aucun rendez-vous cette semaine"
+      "noAppointments": "Aucun rendez-vous cette semaine",
+      "views": {
+        "day": "Jour",
+        "week": "Semaine",
+        "list": "Liste"
+      },
+      "sidebar": {
+        "upcoming": "À venir",
+        "noUpcoming": "Aucun rendez-vous à venir",
+        "appointmentsCount": "{{count}} rendez-vous à venir"
+      },
+      "today": "Aujourd'hui",
+      "tomorrow": "Demain",
+      "toast": {
+        "created": "Rendez-vous créé",
+        "createdDescription": "Le rendez-vous a été planifié.",
+        "moved": "Rendez-vous déplacé",
+        "resized": "Durée modifiée",
+        "cancelled": "Rendez-vous annulé",
+        "restored": "Rendez-vous restauré",
+        "modified": "Rendez-vous modifié"
+      }
     },
     "motifs": {
       "page": {
