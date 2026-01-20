@@ -592,12 +592,15 @@
     },
     "availability": {
       "title": "Disponibilités",
-      "subtitle": "Consultez et gérez les plages horaires disponibles",
-      "action": "Nouvelle disponibilité",
+      "subtitle": "Gérez les rendez-vous et disponibilités des professionnels",
+      "action": "Nouveau rendez-vous",
       "empty": {
-        "title": "Aucune disponibilité configurée",
-        "description": "Les disponibilités seront affichées ici une fois que les professionnels auront configuré leurs horaires."
-      }
+        "title": "Aucun rendez-vous cette semaine",
+        "description": "Les rendez-vous apparaîtront ici une fois créés."
+      },
+      "selectProfessional": "Sélectionnez un professionnel pour voir son calendrier",
+      "weekView": "Vue 7 jours",
+      "noAppointments": "Aucun rendez-vous cette semaine"
     },
     "motifs": {
       "page": {
@@ -731,6 +734,8 @@
         "price": "Tarif",
         "mode": "Mode",
         "online": "En ligne",
+        "pricingModel": "Modèle de tarification",
+        "consent": "Consentement",
         "status": "Statut",
         "actions": "Actions"
       },
@@ -810,6 +815,16 @@
         "appelDecouverte": "Appel découverte",
         "annulationFrais": "Annulation / frais",
         "autre": "Autre"
+      },
+      "pricing": {
+        "fixed": "Fixe",
+        "byCategory": "Par catégorie",
+        "cancellation": "Annulation",
+        "hourlyProrata": "Au prorata horaire",
+        "fixedDesc": "Prix unique pour tous",
+        "byCategoryDesc": "Prix selon la catégorie professionnelle",
+        "cancellationDesc": "Pourcentage du service annulé",
+        "hourlyProrataDesc": "Facturation à la minute"
       },
       "empty": {
         "title": "Aucun service défini",
