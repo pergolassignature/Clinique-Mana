@@ -33,7 +33,7 @@ export function CalendarSidebar({
     return appointments
       .filter(apt => {
         const aptDate = new Date(apt.startTime)
-        return aptDate >= today && apt.status === 'scheduled'
+        return aptDate >= today && apt.status === 'confirmed'
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
       .slice(0, 10)
@@ -51,7 +51,7 @@ export function CalendarSidebar({
   }, [upcomingAppointments])
 
   const getService = (id: string) => MOCK_SERVICES.find(s => s.id === id)
-  const getClient = (id: string) => MOCK_CLIENTS.find(c => c.id === id)
+  const getClient = (id: string | undefined) => id ? MOCK_CLIENTS.find(c => c.id === id) : undefined
 
   return (
     <aside className="w-72 border-r border-border bg-background-secondary/30 flex flex-col h-full">
@@ -95,7 +95,7 @@ export function CalendarSidebar({
                 <div className="space-y-1.5">
                   {dayApts.map(apt => {
                     const service = getService(apt.serviceId)
-                    const client = getClient(apt.clientId)
+                    const client = getClient(apt.clientIds[0])
                     return (
                       <button
                         key={apt.id}

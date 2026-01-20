@@ -18,11 +18,11 @@ export function useAppointments() {
     const newAppointment: Appointment = {
       id: generateId(),
       professionalId: data.professionalId,
-      clientId: data.clientId,
+      clientIds: data.clientIds,
       serviceId: data.serviceId,
       startTime: startDateTime.toISOString(),
       durationMinutes: data.durationMinutes || service?.durationMinutes || 50,
-      status: 'scheduled',
+      status: 'confirmed',
       notesInternal: data.notesInternal,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -42,7 +42,7 @@ export function useAppointments() {
         }
 
         if (data.professionalId) updates.professionalId = data.professionalId
-        if (data.clientId) updates.clientId = data.clientId
+        if (data.clientIds) updates.clientIds = data.clientIds
         if (data.serviceId) updates.serviceId = data.serviceId
         if (data.durationMinutes) updates.durationMinutes = data.durationMinutes
         if (data.notesInternal !== undefined) updates.notesInternal = data.notesInternal
@@ -71,7 +71,7 @@ export function useAppointments() {
     setAppointments(prev =>
       prev.map(apt =>
         apt.id === id
-          ? { ...apt, status: 'scheduled' as const, updatedAt: new Date().toISOString() }
+          ? { ...apt, status: 'confirmed' as const, updatedAt: new Date().toISOString() }
           : apt
       )
     )

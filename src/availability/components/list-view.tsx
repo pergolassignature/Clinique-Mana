@@ -39,7 +39,7 @@ export function ListView({ viewDate, appointments, onAppointmentClick }: ListVie
   }, [appointments, weekStart, weekEnd])
 
   const getService = (id: string) => MOCK_SERVICES.find(s => s.id === id)
-  const getClient = (id: string) => MOCK_CLIENTS.find(c => c.id === id)
+  const getClient = (id: string | undefined) => id ? MOCK_CLIENTS.find(c => c.id === id) : undefined
 
   if (groupedAppointments.size === 0) {
     return (
@@ -91,7 +91,7 @@ export function ListView({ viewDate, appointments, onAppointmentClick }: ListVie
             <div className="space-y-2 ml-2">
               {dayApts.map(apt => {
                 const service = getService(apt.serviceId)
-                const client = getClient(apt.clientId)
+                const client = getClient(apt.clientIds[0])
                 const startTime = new Date(apt.startTime)
                 const endTime = new Date(startTime.getTime() + apt.durationMinutes * 60000)
                 const isCancelled = apt.status === 'cancelled'

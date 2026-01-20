@@ -71,11 +71,11 @@ export function DayView({
     return { top, height }
   }
 
-  // Get service and client for an appointment
+  // Get service and clients for an appointment
   const getAppointmentDetails = (apt: Appointment) => {
     const service = MOCK_SERVICES.find(s => s.id === apt.serviceId)
-    const client = MOCK_CLIENTS.find(c => c.id === apt.clientId)
-    return { service, client }
+    const clients = apt.clientIds.map(id => MOCK_CLIENTS.find(c => c.id === id))
+    return { service, clients }
   }
 
   const isTodayDate = isToday(date)
@@ -188,7 +188,7 @@ export function DayView({
           <div className="absolute inset-x-2 top-0 pointer-events-none">
             {dayAppointments.map((apt) => {
               const { top, height } = getAppointmentPosition(apt)
-              const { service, client } = getAppointmentDetails(apt)
+              const { service, clients } = getAppointmentDetails(apt)
 
               return (
                 <div
@@ -199,7 +199,7 @@ export function DayView({
                   <AppointmentBlock
                     appointment={apt}
                     service={service}
-                    client={client}
+                    clients={clients}
                     onClick={() => onAppointmentClick(apt)}
                     onDragStart={
                       onAppointmentDragStart

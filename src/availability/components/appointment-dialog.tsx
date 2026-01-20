@@ -32,7 +32,7 @@ interface AppointmentDialogProps {
 
 interface FormErrors {
   professionalId?: string
-  clientId?: string
+  clientIds?: string
   serviceId?: string
   startDate?: string
   startTime?: string
@@ -64,7 +64,7 @@ export function AppointmentDialog({
 }: AppointmentDialogProps) {
   // Form state
   const [professionalId, setProfessionalId] = useState('')
-  const [clientId, setClientId] = useState('')
+  const [clientIds, setClientIds] = useState<string[]>([])
   const [serviceId, setServiceId] = useState('')
   const [startDate, setStartDate] = useState('')
   const [startTime, setStartTime] = useState('')
@@ -82,7 +82,7 @@ export function AppointmentDialog({
         const aptDate = new Date(apt.startTime)
 
         setProfessionalId(apt.professionalId)
-        setClientId(apt.clientId)
+        setClientIds(apt.clientIds)
         setServiceId(apt.serviceId)
         setStartDate(format(aptDate, 'yyyy-MM-dd'))
         setStartTime(format(aptDate, 'HH:mm'))
@@ -91,7 +91,7 @@ export function AppointmentDialog({
       } else {
         // Create mode - prefill from initialData
         setProfessionalId(initialData?.professionalId || '')
-        setClientId('')
+        setClientIds([])
         setServiceId('')
         setStartDate(initialData?.date ? format(initialData.date, 'yyyy-MM-dd') : '')
         setStartTime(initialData?.time || '')
@@ -117,8 +117,8 @@ export function AppointmentDialog({
     if (!professionalId) {
       newErrors.professionalId = 'Veuillez sélectionner un professionnel'
     }
-    if (!clientId) {
-      newErrors.clientId = 'Veuillez sélectionner un client'
+    if (clientIds.length === 0) {
+      newErrors.clientIds = 'Veuillez sélectionner un client'
     }
     if (!serviceId) {
       newErrors.serviceId = 'Veuillez sélectionner un service'
@@ -144,7 +144,7 @@ export function AppointmentDialog({
 
     const formData: AppointmentFormData = {
       professionalId,
-      clientId,
+      clientIds,
       serviceId,
       startDate,
       startTime,
@@ -204,8 +204,8 @@ export function AppointmentDialog({
             </label>
             <Select
               id="client"
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
+              value={clientIds[0] || ''}
+              onChange={(e) => setClientIds(e.target.value ? [e.target.value] : [])}
               placeholder="Sélectionner un client"
             >
               {MOCK_CLIENTS.map((client) => (
@@ -214,8 +214,8 @@ export function AppointmentDialog({
                 </option>
               ))}
             </Select>
-            {errors.clientId && (
-              <p className="text-xs text-wine-500">{errors.clientId}</p>
+            {errors.clientIds && (
+              <p className="text-xs text-wine-500">{errors.clientIds}</p>
             )}
           </div>
 

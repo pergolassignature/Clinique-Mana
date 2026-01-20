@@ -49,7 +49,7 @@ export function AppointmentDetailDrawer({
   const professional = MOCK_PROFESSIONALS.find(
     (p) => p.id === appointment.professionalId
   )
-  const client = MOCK_CLIENTS.find((c) => c.id === appointment.clientId)
+  const client = MOCK_CLIENTS.find((c) => c.id === appointment.clientIds[0])
   const service = MOCK_SERVICES.find((s) => s.id === appointment.serviceId)
 
   // Calculate times
