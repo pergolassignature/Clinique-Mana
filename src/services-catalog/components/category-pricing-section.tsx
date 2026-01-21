@@ -18,6 +18,7 @@ import {
   useCategoryPrices,
   useUpsertCategoryPrices,
   useUpdateCategoryTaxIncluded,
+  useProfessionCategoryRates,
 } from '../hooks'
 import type { Service, ProfessionCategory, ProfessionTitle } from '../types'
 import { parsePriceToCents, formatCentsToDisplay } from '../utils/pricing'
@@ -123,9 +124,14 @@ function CategoryServiceRow({
 interface HourlyServiceRowProps {
   service: Service
   taxIncluded: boolean
+  hourlyRateCents: number | null
 }
 
-function HourlyServiceRow({ service, taxIncluded }: HourlyServiceRowProps) {
+function HourlyServiceRow({ service, taxIncluded, hourlyRateCents }: HourlyServiceRowProps) {
+  const formattedRate = hourlyRateCents !== null
+    ? `${(hourlyRateCents / 100).toFixed(2)} $/h`
+    : t('pages.services.pricing.rateNotSet')
+
   return (
     <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
@@ -152,9 +158,9 @@ function HourlyServiceRow({ service, taxIncluded }: HourlyServiceRowProps) {
           </Badge>
         </div>
       </div>
-      <div className="flex items-center justify-end">
-        <span className="text-xs text-foreground-muted italic">
-          {t('pages.services.pricing.hourlyRateHelper')}
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-foreground">
+          {formattedRate}
         </span>
       </div>
     </div>
@@ -183,6 +189,7 @@ export function CategoryPricingSection() {
   const { data: categories = [], isLoading: isLoadingCategories } = useProfessionCategories()
   const { data: titles = [], isLoading: isLoadingTitles } = useProfessionTitles()
   const { data: prices = [], isLoading: isLoadingPrices } = useCategoryPrices()
+  const { data: hourlyRates = [] } = useProfessionCategoryRates()
 
   const upsertMutation = useUpsertCategoryPrices()
   const taxMutation = useUpdateCategoryTaxIncluded()
@@ -230,6 +237,14 @@ export function CategoryPricingSection() {
     }
     return lookup
   }, [prices, selectedCategoryKey])
+
+  const hourlyRateLookup = useMemo(() => {
+    const lookup = new Map<string, number>()
+    for (const rate of hourlyRates) {
+      lookup.set(rate.professionCategoryKey, rate.hourlyRateCents)
+    }
+    return lookup
+  }, [hourlyRates])
 
   useEffect(() => {
     if (!selectedCategoryKey) return
@@ -473,6 +488,7 @@ export function CategoryPricingSection() {
                   key={service.id}
                   service={service}
                   taxIncluded={localTaxIncluded ?? categoryInfo?.category?.taxIncluded ?? false}
+                  hourlyRateCents={hourlyRateLookup.get(selectedCategoryKey) ?? null}
                 />
               ))}
             </div>
