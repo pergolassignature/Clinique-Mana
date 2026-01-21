@@ -173,14 +173,23 @@ export async function fetchRecommendations(
 export async function logRecommendationView(
   recommendationId: string
 ): Promise<void> {
-  // Get current user ID if available
+  // Get current user's profile ID (not auth user ID - profiles.id != auth.users.id)
   const { data: { user } } = await supabase.auth.getUser()
+  let profileId: string | null = null
+  if (user?.id) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .single()
+    profileId = profile?.id || null
+  }
 
   const { error } = await supabase
     .from('recommendation_audit_log')
     .insert({
       recommendation_id: recommendationId,
-      actor_id: user?.id || null,
+      actor_id: profileId,
       action: 'viewed',
       context: {
         timestamp: new Date().toISOString(),
