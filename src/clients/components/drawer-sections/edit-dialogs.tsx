@@ -34,8 +34,6 @@ interface EditIdentityDialogProps {
 export interface IdentityFormData {
   firstName: string
   lastName: string
-  birthFirstName: string | null
-  pronouns: string | null
   sex: Sex | null
   language: Language
   birthday: string | null
@@ -45,8 +43,6 @@ export function EditIdentityDialog({ client, open, onOpenChange, onSave }: EditI
   const [form, setForm] = useState<IdentityFormData>({
     firstName: client.firstName,
     lastName: client.lastName,
-    birthFirstName: client.birthFirstName,
-    pronouns: client.pronouns,
     sex: client.sex,
     language: client.language,
     birthday: client.birthday,
@@ -57,8 +53,6 @@ export function EditIdentityDialog({ client, open, onOpenChange, onSave }: EditI
       setForm({
         firstName: client.firstName,
         lastName: client.lastName,
-        birthFirstName: client.birthFirstName,
-        pronouns: client.pronouns,
         sex: client.sex,
         language: client.language,
         birthday: client.birthday,
@@ -97,26 +91,6 @@ export function EditIdentityDialog({ client, open, onOpenChange, onSave }: EditI
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })}
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="birthFirstName">{t('clients.edit.identity.birthFirstName')}</Label>
-            <Input
-              id="birthFirstName"
-              value={form.birthFirstName || ''}
-              onChange={(e) => setForm({ ...form, birthFirstName: e.target.value || null })}
-              placeholder="Optionnel"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="pronouns">{t('clients.edit.identity.pronouns')}</Label>
-            <Input
-              id="pronouns"
-              value={form.pronouns || ''}
-              onChange={(e) => setForm({ ...form, pronouns: e.target.value || null })}
-              placeholder="ex: elle/elle, il/lui"
-            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

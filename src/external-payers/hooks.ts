@@ -56,11 +56,15 @@ export function useUpdateClinicSettings() {
 // PROFESSIONAL IVAC NUMBER QUERIES & MUTATIONS
 // =============================================================================
 
+// UUID regex for validation
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export function useProfessionalIvacNumber(professionalId: string | undefined) {
+  const isValidUuid = professionalId && UUID_REGEX.test(professionalId)
   return useQuery({
     queryKey: professionalIvacKeys.byProfessional(professionalId!),
     queryFn: () => api.fetchProfessionalIvacNumber(professionalId!),
-    enabled: !!professionalId,
+    enabled: !!isValidUuid,
   })
 }
 
@@ -100,18 +104,20 @@ export function useDeleteProfessionalIvacNumber() {
 // =============================================================================
 
 export function useClientExternalPayers(clientId: string | undefined) {
+  const isValidUuid = clientId && UUID_REGEX.test(clientId)
   return useQuery({
     queryKey: externalPayerKeys.byClient(clientId!),
     queryFn: () => api.fetchClientExternalPayers(clientId!),
-    enabled: !!clientId,
+    enabled: !!isValidUuid,
   })
 }
 
 export function useActiveClientExternalPayers(clientId: string | undefined) {
+  const isValidUuid = clientId && UUID_REGEX.test(clientId)
   return useQuery({
     queryKey: externalPayerKeys.activeByClient(clientId!),
     queryFn: () => api.fetchActiveClientExternalPayers(clientId!),
-    enabled: !!clientId,
+    enabled: !!isValidUuid,
   })
 }
 

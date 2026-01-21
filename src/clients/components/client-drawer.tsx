@@ -11,7 +11,9 @@ import { NotesSection } from './drawer-sections/notes-section'
 import { ConsentsSection } from './drawer-sections/consents-section'
 import { RelationsSection } from './drawer-sections/relations-section'
 import { HistorySection } from './drawer-sections/history-section'
-import { useClient } from '../hooks'
+import { useClient, useUpdateClient } from '../hooks'
+import { useToast } from '@/shared/hooks/use-toast'
+import type { ClientWithRelations } from '../types'
 
 interface ClientDrawerProps {
   clientId: string | null
@@ -29,6 +31,30 @@ export function ClientDrawer({
   onDelete,
 }: ClientDrawerProps) {
   const { data: client, isLoading } = useClient(clientId || undefined)
+  const updateClient = useUpdateClient()
+  const { toast } = useToast()
+
+  const handleUpdate = async (updates: Partial<ClientWithRelations>) => {
+    if (!client?.clientId) return
+
+    try {
+      await updateClient.mutateAsync({
+        clientId: client.clientId,
+        updates,
+      })
+      toast({
+        title: 'Client mis a jour',
+        description: 'Les modifications ont ete enregistrees.',
+      })
+    } catch (error) {
+      console.error('Failed to update client:', error)
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de mettre a jour le client.',
+        variant: 'error',
+      })
+    }
+  }
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -60,7 +86,7 @@ export function ClientDrawer({
                 defaultValue={['info']}
                 className="space-y-2"
               >
-                <InfoSection client={client} />
+                <InfoSection client={client} onUpdate={handleUpdate} />
                 <ExternalPayersSection client={client} />
                 <RelationsSection client={client} />
                 <VisitsSection client={client} />

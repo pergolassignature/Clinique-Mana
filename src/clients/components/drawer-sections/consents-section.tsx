@@ -113,13 +113,13 @@ export function ConsentsSection({ client, onAddConsent }: ConsentsSectionProps) 
                           </p>
                           {consent.signedAt && (
                             <p className="text-xs text-foreground-secondary mt-1">
-                              Signe le {formatDate(consent.signedAt)}
+                              Signé le {formatDate(consent.signedAt)}
                               {consent.signedBy && ` par ${consent.signedBy}`}
                             </p>
                           )}
                           {consent.expiresAt && consent.status !== 'missing' && (
                             <p className="text-xs text-foreground-muted mt-1">
-                              {consent.status === 'expired' ? 'Expire' : 'Expire'} le {formatDate(consent.expiresAt)}
+                              {consent.status === 'expired' ? 'Expiré' : 'Expire'} le {formatDate(consent.expiresAt)}
                             </p>
                           )}
                         </div>

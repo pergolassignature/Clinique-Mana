@@ -12,12 +12,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu'
-import type { Service, ServicePrice } from '../types'
+import type { Service, ServicePrice, ServiceTaxProfile } from '../types'
 import { PRICING_MODEL_LABELS } from '../constants/pricing-models'
 
 interface ServiceTableRowProps {
   service: Service
   prices?: ServicePrice[]  // Optional: prices for this service
+  taxProfile?: ServiceTaxProfile  // Tax profile for this service
   onEdit: (service: Service) => void
   onArchive: (service: Service) => void
   onRestore: (service: Service) => void
@@ -27,6 +28,7 @@ interface ServiceTableRowProps {
 export function ServiceTableRow({
   service,
   prices,
+  taxProfile,
   onEdit,
   onArchive,
   onRestore,
@@ -45,9 +47,11 @@ export function ServiceTableRow({
 
   // Get display price based on pricing model
   const getDisplayPrice = () => {
-    if (service.pricingModel === 'fixed' && prices && prices.length > 0) {
+    const activePrices = prices?.filter((price) => price.isActive) || []
+
+    if (service.pricingModel === 'fixed' && activePrices.length > 0) {
       // Find the global price (no profession category)
-      const globalPrice = prices.find(p => p.professionCategoryKey === null)
+      const globalPrice = activePrices.find((p) => p.professionCategoryKey === null)
       if (globalPrice) {
         return formatPrice(globalPrice.priceCents)
       }
@@ -62,6 +66,10 @@ export function ServiceTableRow({
     }
 
     if (service.pricingModel === 'by_profession_hourly_prorata') {
+      const hourlyPrice = activePrices.find((p) => p.professionCategoryKey === null)
+      if (hourlyPrice) {
+        return `${formatPrice(hourlyPrice.priceCents)} / h`
+      }
       return 'À la minute'
     }
 
@@ -86,23 +94,23 @@ export function ServiceTableRow({
               style={{ backgroundColor: service.colorHex }}
             />
           )}
-          <span className="font-medium text-foreground">{service.name}</span>
+          <span className="text-[13px] font-medium text-foreground">{service.name}</span>
         </div>
       </td>
 
       {/* Duration */}
-      <td className="px-4 py-3 text-sm text-foreground-secondary">
+      <td className="px-4 py-3 text-xs text-foreground-secondary">
         {formatDuration(service.duration)}
       </td>
 
       {/* Price */}
-      <td className="px-4 py-3 text-sm text-foreground-secondary">
+      <td className="px-4 py-3 text-xs text-foreground-secondary">
         {getDisplayPrice()}
       </td>
 
       {/* Pricing Model */}
       <td className="px-4 py-3">
-        <Badge variant="secondary" className="text-xs font-normal">
+        <Badge variant="secondary" className="text-[11px] font-normal">
           {t(PRICING_MODEL_LABELS[service.pricingModel] as Parameters<typeof t>[0])}
         </Badge>
       </td>
@@ -114,11 +122,29 @@ export function ServiceTableRow({
         )}
       </td>
 
+      {/* Tax Status */}
+      <td className="px-4 py-3">
+        {service.pricingModel === 'by_profession_category' ? (
+          <Badge variant="secondary" className="text-[11px]">
+            {t('pages.services.taxes.byCategoryBadge')}
+          </Badge>
+        ) : (
+          <Badge
+            variant={taxProfile === 'tps_tvq' ? 'outline' : 'secondary'}
+            className="text-[11px]"
+          >
+            {taxProfile === 'tps_tvq'
+              ? t('pages.services.taxes.taxableBadge')
+              : t('pages.services.taxes.exemptBadge')}
+          </Badge>
+        )}
+      </td>
+
       {/* Status */}
       <td className="px-4 py-3">
         <Badge
           variant={service.isActive ? 'success' : 'secondary'}
-          className="text-xs"
+          className="text-[11px]"
         >
           {service.isActive
             ? t('pages.services.values.active')

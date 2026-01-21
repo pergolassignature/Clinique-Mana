@@ -29,8 +29,8 @@ interface ExternalPayersSectionProps {
 }
 
 export function ExternalPayersSection({ client, onUpdate }: ExternalPayersSectionProps) {
-  // Fetch external payers for this client
-  const { data: payers = [], isLoading } = useClientExternalPayers(client.clientId)
+  // Fetch external payers for this client (use UUID id, not display clientId)
+  const { data: payers = [], isLoading } = useClientExternalPayers(client.id)
   const { data: clinicSettings } = useClinicSettings()
   const { data: professionalIvac } = useProfessionalIvacNumber(client.primaryProfessionalId || undefined)
 
@@ -168,7 +168,7 @@ export function ExternalPayersSection({ client, onUpdate }: ExternalPayersSectio
 
       {/* Dialogs */}
       <AddExternalPayerDialog
-        clientId={client.clientId}
+        clientId={client.id}
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
         onSuccess={handleDialogClose}
@@ -179,7 +179,7 @@ export function ExternalPayersSection({ client, onUpdate }: ExternalPayersSectio
       {selectedPayer?.payer_type === 'ivac' && (
         <EditIvacPayerDialog
           payer={selectedPayer as ClientExternalPayerIvac}
-          clientId={client.clientId}
+          clientId={client.id}
           open={editIvacOpen}
           onOpenChange={setEditIvacOpen}
           onSuccess={handleDialogClose}
@@ -189,7 +189,7 @@ export function ExternalPayersSection({ client, onUpdate }: ExternalPayersSectio
       {selectedPayer?.payer_type === 'pae' && (
         <EditPaePayerDialog
           payer={selectedPayer as ClientExternalPayerPae}
-          clientId={client.clientId}
+          clientId={client.id}
           open={editPaeOpen}
           onOpenChange={setEditPaeOpen}
           onSuccess={handleDialogClose}

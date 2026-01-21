@@ -1,104 +1,284 @@
 // src/availability/hooks/use-availability-state.ts
 
-import { useState, useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabaseClient'
 import type { AvailabilityBlock, Appointment } from '../types'
-import { MOCK_AVAILABILITY_BLOCKS, MOCK_APPOINTMENTS } from '../mock'
 
-export function useAvailabilityState() {
-  const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>(MOCK_AVAILABILITY_BLOCKS)
-  const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS)
+// =============================================================================
+// QUERY KEYS
+// =============================================================================
 
-  // Availability CRUD
-  const createAvailabilityBlock = useCallback((block: Omit<AvailabilityBlock, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newBlock: AvailabilityBlock = {
-      ...block,
-      id: `avail-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-    setAvailabilityBlocks(prev => [...prev, newBlock])
-    return newBlock
-  }, [])
+export const availabilityKeys = {
+  all: ['availability'] as const,
+  lists: () => [...availabilityKeys.all, 'list'] as const,
+  list: (filters?: { professionalId?: string }) =>
+    [...availabilityKeys.lists(), filters] as const,
+}
 
-  const updateAvailabilityBlock = useCallback((id: string, updates: Partial<AvailabilityBlock>) => {
-    setAvailabilityBlocks(prev =>
-      prev.map(block =>
-        block.id === id
-          ? { ...block, ...updates, updatedAt: new Date().toISOString() }
-          : block
-      )
-    )
-  }, [])
+export const appointmentStateKeys = {
+  all: ['appointments-state'] as const,
+  lists: () => [...appointmentStateKeys.all, 'list'] as const,
+  list: (filters?: { professionalId?: string }) =>
+    [...appointmentStateKeys.lists(), filters] as const,
+}
 
-  const deleteAvailabilityBlock = useCallback((id: string) => {
-    setAvailabilityBlocks(prev => prev.filter(block => block.id !== id))
-  }, [])
+// =============================================================================
+// HOOKS
+// =============================================================================
 
-  // Appointment CRUD
-  const createAppointment = useCallback((appointment: Omit<Appointment, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newAppointment: Appointment = {
-      ...appointment,
-      id: `apt-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-    setAppointments(prev => [...prev, newAppointment])
-    return newAppointment
-  }, [])
+export function useAvailabilityState(professionalId?: string | null) {
+  const queryClient = useQueryClient()
 
-  const updateAppointment = useCallback((id: string, updates: Partial<Appointment>) => {
-    setAppointments(prev =>
-      prev.map(apt =>
-        apt.id === id
-          ? { ...apt, ...updates, updatedAt: new Date().toISOString() }
-          : apt
-      )
-    )
-  }, [])
+  // Fetch availability blocks
+  const { data: availabilityBlocks = [], isLoading: isLoadingBlocks } = useQuery({
+    queryKey: availabilityKeys.list({ professionalId: professionalId || undefined }),
+    queryFn: async (): Promise<AvailabilityBlock[]> => {
+      let query = supabase
+        .from('availability_blocks')
+        .select('*')
 
-  const cancelAppointment = useCallback((id: string, info?: { reason?: string; feeApplied?: boolean; feePercent?: number }) => {
-    setAppointments(prev =>
-      prev.map(apt =>
-        apt.id === id
-          ? {
-              ...apt,
-              status: 'cancelled' as const,
-              cancelledAt: new Date().toISOString(),
-              cancellationReason: info?.reason,
-              cancellationFeeApplied: info?.feeApplied,
-              cancellationFeePercent: info?.feePercent,
-              updatedAt: new Date().toISOString(),
-            }
-          : apt
-      )
-    )
-  }, [])
+      if (professionalId) {
+        query = query.eq('professional_id', professionalId)
+      }
 
-  const restoreAppointment = useCallback((id: string) => {
-    setAppointments(prev =>
-      prev.map(apt =>
-        apt.id === id
-          ? {
-              ...apt,
-              status: 'confirmed' as const,
-              cancelledAt: undefined,
-              cancellationReason: undefined,
-              updatedAt: new Date().toISOString(),
-            }
-          : apt
-      )
-    )
-  }, [])
+      const { data, error } = await query.order('start_time', { ascending: true })
+
+      if (error) throw error
+
+      return (data || []).map((row): AvailabilityBlock => ({
+        id: row.id,
+        professionalId: row.professional_id,
+        type: row.type,
+        label: row.label,
+        startTime: row.start_time,
+        endTime: row.end_time,
+        isRecurring: false, // Not stored in DB yet
+        allowedServiceIds: row.allowed_service_ids,
+        visibleToClients: row.visible_to_clients,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }))
+    },
+  })
+
+  // Fetch appointments
+  const { data: appointments = [], isLoading: isLoadingAppointments } = useQuery({
+    queryKey: appointmentStateKeys.list({ professionalId: professionalId || undefined }),
+    queryFn: async (): Promise<Appointment[]> => {
+      let query = supabase
+        .from('appointments')
+        .select(`
+          *,
+          appointment_clients (
+            client_id
+          )
+        `)
+
+      if (professionalId) {
+        query = query.eq('professional_id', professionalId)
+      }
+
+      const { data, error } = await query.order('start_time', { ascending: true })
+
+      if (error) throw error
+
+      return (data || []).map((row): Appointment => {
+        const clients = row.appointment_clients as unknown as Array<{ client_id: string }> || []
+        return {
+          id: row.id,
+          professionalId: row.professional_id,
+          clientIds: clients.map(c => c.client_id),
+          serviceId: row.service_id,
+          startTime: row.start_time,
+          durationMinutes: row.duration_minutes,
+          status: row.status,
+          mode: row.mode,
+          notesInternal: row.notes_internal,
+          cancelledAt: row.cancelled_at,
+          cancellationReason: row.cancellation_reason,
+          cancellationFeeApplied: row.cancellation_fee_applied,
+          cancellationFeePercent: row.cancellation_fee_percent,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }
+      })
+    },
+  })
+
+  // Availability mutations
+  const createBlockMutation = useMutation({
+    mutationFn: async (block: Omit<AvailabilityBlock, 'id' | 'createdAt' | 'updatedAt'>) => {
+      const { data, error } = await supabase
+        .from('availability_blocks')
+        .insert({
+          professional_id: block.professionalId,
+          type: block.type,
+          label: block.label,
+          start_time: block.startTime,
+          end_time: block.endTime,
+          allowed_service_ids: block.allowedServiceIds,
+          visible_to_clients: block.visibleToClients,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: availabilityKeys.lists() })
+    },
+  })
+
+  const updateBlockMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<AvailabilityBlock> }) => {
+      const dbUpdates: Record<string, unknown> = {}
+      if (updates.type) dbUpdates.type = updates.type
+      if (updates.label !== undefined) dbUpdates.label = updates.label
+      if (updates.startTime) dbUpdates.start_time = updates.startTime
+      if (updates.endTime) dbUpdates.end_time = updates.endTime
+      if (updates.allowedServiceIds !== undefined) dbUpdates.allowed_service_ids = updates.allowedServiceIds
+      if (updates.visibleToClients !== undefined) dbUpdates.visible_to_clients = updates.visibleToClients
+
+      const { error } = await supabase
+        .from('availability_blocks')
+        .update(dbUpdates)
+        .eq('id', id)
+
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: availabilityKeys.lists() })
+    },
+  })
+
+  const deleteBlockMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('availability_blocks')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: availabilityKeys.lists() })
+    },
+  })
+
+  // Appointment mutations
+  const createAppointmentMutation = useMutation({
+    mutationFn: async (appointment: Omit<Appointment, 'id' | 'createdAt' | 'updatedAt'>) => {
+      const { data, error } = await supabase
+        .from('appointments')
+        .insert({
+          professional_id: appointment.professionalId,
+          service_id: appointment.serviceId,
+          start_time: appointment.startTime,
+          duration_minutes: appointment.durationMinutes,
+          status: appointment.status,
+          mode: appointment.mode,
+          notes_internal: appointment.notesInternal,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Add clients if any
+      if (appointment.clientIds.length > 0) {
+        const clientRecords = appointment.clientIds.map((clientId, index) => ({
+          appointment_id: data.id,
+          client_id: clientId,
+          role: index === 0 ? 'primary' : 'other',
+        }))
+
+        await supabase.from('appointment_clients').insert(clientRecords)
+      }
+
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: appointmentStateKeys.lists() })
+    },
+  })
+
+  const updateAppointmentMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Appointment> }) => {
+      const dbUpdates: Record<string, unknown> = {}
+      if (updates.professionalId) dbUpdates.professional_id = updates.professionalId
+      if (updates.serviceId) dbUpdates.service_id = updates.serviceId
+      if (updates.startTime) dbUpdates.start_time = updates.startTime
+      if (updates.durationMinutes) dbUpdates.duration_minutes = updates.durationMinutes
+      if (updates.status) dbUpdates.status = updates.status
+      if (updates.mode !== undefined) dbUpdates.mode = updates.mode
+      if (updates.notesInternal !== undefined) dbUpdates.notes_internal = updates.notesInternal
+
+      const { error } = await supabase
+        .from('appointments')
+        .update(dbUpdates)
+        .eq('id', id)
+
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: appointmentStateKeys.lists() })
+    },
+  })
+
+  const cancelAppointmentMutation = useMutation({
+    mutationFn: async ({ id, info }: { id: string; info?: { reason?: string; feeApplied?: boolean; feePercent?: number } }) => {
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          cancellation_reason: info?.reason,
+          cancellation_fee_applied: info?.feeApplied,
+          cancellation_fee_percent: info?.feePercent,
+        })
+        .eq('id', id)
+
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: appointmentStateKeys.lists() })
+    },
+  })
+
+  const restoreAppointmentMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          status: 'confirmed',
+          cancelled_at: null,
+          cancellation_reason: null,
+        })
+        .eq('id', id)
+
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: appointmentStateKeys.lists() })
+    },
+  })
 
   return {
     availabilityBlocks,
     appointments,
-    createAvailabilityBlock,
-    updateAvailabilityBlock,
-    deleteAvailabilityBlock,
-    createAppointment,
-    updateAppointment,
-    cancelAppointment,
-    restoreAppointment,
+    isLoading: isLoadingBlocks || isLoadingAppointments,
+    createAvailabilityBlock: (block: Omit<AvailabilityBlock, 'id' | 'createdAt' | 'updatedAt'>) =>
+      createBlockMutation.mutateAsync(block),
+    updateAvailabilityBlock: (id: string, updates: Partial<AvailabilityBlock>) =>
+      updateBlockMutation.mutate({ id, updates }),
+    deleteAvailabilityBlock: deleteBlockMutation.mutate,
+    createAppointment: (appointment: Omit<Appointment, 'id' | 'createdAt' | 'updatedAt'>) =>
+      createAppointmentMutation.mutateAsync(appointment),
+    updateAppointment: (id: string, updates: Partial<Appointment>) =>
+      updateAppointmentMutation.mutate({ id, updates }),
+    cancelAppointment: (id: string, info?: { reason?: string; feeApplied?: boolean; feePercent?: number }) =>
+      cancelAppointmentMutation.mutate({ id, info }),
+    restoreAppointment: restoreAppointmentMutation.mutate,
   }
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   History,
   User,
@@ -16,6 +17,7 @@ import {
 import { t } from '@/i18n'
 import { AccordionItem, AccordionTrigger, AccordionContent } from '@/shared/ui/accordion'
 import { Badge } from '@/shared/ui/badge'
+import { supabase } from '@/lib/supabaseClient'
 import type { ClientWithRelations } from '../../types'
 
 // =============================================================================
@@ -25,108 +27,62 @@ import type { ClientWithRelations } from '../../types'
 export interface ClientAuditEntry {
   id: string
   clientId: string
-  action: 'create' | 'update' | 'delete' | 'add' | 'remove'
+  action: 'create' | 'update' | 'delete' | 'add' | 'remove' | 'created' | 'updated' | 'archived' | 'unarchived' | 'deleted'
   entity: 'client' | 'note' | 'consent' | 'tag' | 'professional'
   field?: string
-  oldValue?: string | null
-  newValue?: string | null
+  oldValue?: Record<string, unknown> | null
+  newValue?: Record<string, unknown> | null
   actorId: string | null
   actorName: string | null
   isSystem: boolean
   createdAt: string
-  details?: Record<string, unknown>
 }
 
 // =============================================================================
-// MOCK AUDIT DATA
+// FETCH AUDIT LOG
 // =============================================================================
 
-export function generateMockAuditLog(clientId: string): ClientAuditEntry[] {
-  const now = new Date()
+async function fetchClientAuditLog(clientUuid: string): Promise<ClientAuditEntry[]> {
+  const { data, error } = await supabase
+    .from('client_audit_log')
+    .select(`
+      id,
+      client_id,
+      actor_id,
+      action,
+      entity_type,
+      old_value,
+      new_value,
+      created_at,
+      profiles:actor_id (
+        display_name
+      )
+    `)
+    .eq('client_id', clientUuid)
+    .order('created_at', { ascending: false })
+    .limit(50)
 
-  return [
-    {
-      id: 'audit-1',
-      clientId,
-      action: 'update',
-      entity: 'client',
-      field: 'cellPhone',
-      oldValue: '+1 514-555-0100',
-      newValue: '+1 514-555-0109',
-      actorId: 'pro-2',
-      actorName: 'Jean-Philippe Bouchard',
-      isSystem: false,
-      createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-    },
-    {
-      id: 'audit-2',
-      clientId,
-      action: 'add',
-      entity: 'note',
-      newValue: 'Client a confirme son prochain rendez-vous.',
-      actorId: 'pro-1',
-      actorName: 'Dre Marie Tremblay',
-      isSystem: false,
-      createdAt: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-    },
-    {
-      id: 'audit-3',
-      clientId,
-      action: 'update',
-      entity: 'professional',
-      oldValue: null,
-      newValue: 'Jean-Philippe Bouchard',
-      actorId: 'admin-1',
-      actorName: 'Admin Clinique',
-      isSystem: false,
-      createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
-    },
-    {
-      id: 'audit-4',
-      clientId,
-      action: 'add',
-      entity: 'consent',
-      newValue: 'Consentement aux soins',
-      actorId: 'pro-1',
-      actorName: 'Dre Marie Tremblay',
-      isSystem: false,
-      createdAt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week ago
-    },
-    {
-      id: 'audit-5',
-      clientId,
-      action: 'add',
-      entity: 'tag',
-      newValue: 'Regulier',
-      actorId: null,
-      actorName: null,
-      isSystem: true,
-      createdAt: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString(), // 2 weeks ago
-    },
-    {
-      id: 'audit-6',
-      clientId,
-      action: 'update',
-      entity: 'client',
-      field: 'email',
-      oldValue: null,
-      newValue: 'client@example.com',
-      actorId: 'pro-2',
-      actorName: 'Jean-Philippe Bouchard',
-      isSystem: false,
-      createdAt: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 1 month ago
-    },
-    {
-      id: 'audit-7',
-      clientId,
-      action: 'create',
-      entity: 'client',
-      actorId: 'admin-1',
-      actorName: 'Admin Clinique',
-      isSystem: false,
-      createdAt: new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString(), // 2 months ago
-    },
-  ]
+  if (error) {
+    console.error('Error fetching audit log:', error)
+    return []
+  }
+
+  return (data || []).map((row): ClientAuditEntry => {
+    const profile = row.profiles as { display_name: string }[] | null
+    const profileData = Array.isArray(profile) ? profile[0] : profile
+    return {
+      id: row.id,
+      clientId: row.client_id,
+      action: row.action as ClientAuditEntry['action'],
+      entity: row.entity_type as ClientAuditEntry['entity'],
+      oldValue: row.old_value,
+      newValue: row.new_value,
+      actorId: row.actor_id,
+      actorName: profileData?.display_name || null,
+      isSystem: !row.actor_id,
+      createdAt: row.created_at,
+    }
+  })
 }
 
 // =============================================================================
@@ -174,8 +130,8 @@ function getActionIcon(entry: ClientAuditEntry) {
     case 'professional':
       return <Briefcase className="h-3.5 w-3.5" />
     default:
-      if (entry.action === 'create') return <Plus className="h-3.5 w-3.5" />
-      if (entry.action === 'delete') return <Trash2 className="h-3.5 w-3.5" />
+      if (entry.action === 'create' || entry.action === 'created') return <Plus className="h-3.5 w-3.5" />
+      if (entry.action === 'delete' || entry.action === 'deleted') return <Trash2 className="h-3.5 w-3.5" />
       return <Pencil className="h-3.5 w-3.5" />
   }
 }
@@ -183,12 +139,16 @@ function getActionIcon(entry: ClientAuditEntry) {
 function getActionColor(entry: ClientAuditEntry): string {
   switch (entry.action) {
     case 'create':
-      return 'bg-sage-100 text-sage-600'
+    case 'created':
     case 'add':
       return 'bg-sage-100 text-sage-600'
     case 'delete':
+    case 'deleted':
     case 'remove':
+    case 'archived':
       return 'bg-wine-100 text-wine-600'
+    case 'unarchived':
+      return 'bg-sage-100 text-sage-600'
     default:
       return 'bg-background-secondary text-foreground-muted'
   }
@@ -196,55 +156,90 @@ function getActionColor(entry: ClientAuditEntry): string {
 
 function getActionLabel(entry: ClientAuditEntry): string {
   const fieldLabels: Record<string, string> = {
-    firstName: 'prenom',
-    lastName: 'nom',
-    birthFirstName: 'prenom de naissance',
-    pronouns: 'pronoms',
+    first_name: 'prénom',
+    last_name: 'nom',
     sex: 'sexe',
     language: 'langue',
     birthday: 'date de naissance',
     email: 'courriel',
-    cellPhone: 'cellulaire',
-    homePhone: 'telephone domicile',
-    workPhone: 'telephone travail',
-    streetNumber: 'numero civique',
-    streetName: 'rue',
+    cell_phone: 'cellulaire',
+    home_phone: 'téléphone domicile',
+    work_phone: 'téléphone travail',
+    street_number: 'numéro civique',
+    street_name: 'rue',
     apartment: 'appartement',
     city: 'ville',
     province: 'province',
     country: 'pays',
-    postalCode: 'code postal',
+    postal_code: 'code postal',
+    primary_professional_id: 'professionnel assigné',
   }
 
-  switch (entry.entity) {
-    case 'client':
-      if (entry.action === 'create') return 'Fiche client creee'
-      if (entry.field) {
-        const fieldLabel = fieldLabels[entry.field] || entry.field
-        return `${fieldLabel.charAt(0).toUpperCase() + fieldLabel.slice(1)} modifie`
+  switch (entry.action) {
+    case 'created':
+    case 'create':
+      return 'Fiche client créée'
+    case 'archived':
+      return 'Client archivé'
+    case 'unarchived':
+      return 'Client désarchivé'
+    case 'deleted':
+    case 'delete':
+      return 'Client supprimé'
+    case 'updated':
+    case 'update':
+      // Try to find which field changed
+      if (entry.oldValue && entry.newValue) {
+        const oldKeys = Object.keys(entry.oldValue)
+        for (const key of oldKeys) {
+          if (entry.oldValue[key] !== entry.newValue[key]) {
+            const fieldLabel = fieldLabels[key] || key
+            return `${fieldLabel.charAt(0).toUpperCase() + fieldLabel.slice(1)} modifié`
+          }
+        }
       }
-      return 'Informations modifiees'
-    case 'note':
-      return entry.action === 'add' ? 'Note ajoutee' : 'Note supprimee'
-    case 'consent':
-      return entry.action === 'add' ? 'Consentement ajoute' : 'Consentement retire'
-    case 'tag':
-      return entry.action === 'add' ? 'Tag ajoute' : 'Tag retire'
-    case 'professional':
-      return 'Professionnel assigne'
+      return 'Informations modifiées'
+    case 'add':
+      switch (entry.entity) {
+        case 'note': return 'Note ajoutée'
+        case 'consent': return 'Consentement ajouté'
+        case 'tag': return 'Tag ajouté'
+        default: return 'Élément ajouté'
+      }
+    case 'remove':
+      switch (entry.entity) {
+        case 'note': return 'Note supprimée'
+        case 'consent': return 'Consentement retiré'
+        case 'tag': return 'Tag retiré'
+        default: return 'Élément supprimé'
+      }
     default:
       return 'Modification'
   }
 }
 
 function getChangeDescription(entry: ClientAuditEntry): string | null {
-  if (entry.entity === 'client' && entry.field && entry.oldValue !== undefined) {
-    const old = entry.oldValue || 'vide'
-    const newVal = entry.newValue || 'vide'
-    return `${old} → ${newVal}`
+  if (entry.oldValue && entry.newValue && typeof entry.oldValue === 'object') {
+    // Find changed fields and show old -> new
+    const changes: string[] = []
+    const keys = Object.keys(entry.newValue)
+    for (const key of keys) {
+      const oldVal = entry.oldValue[key]
+      const newVal = entry.newValue[key]
+      if (oldVal !== newVal) {
+        const oldDisplay = oldVal ?? 'vide'
+        const newDisplay = newVal ?? 'vide'
+        changes.push(`${oldDisplay} → ${newDisplay}`)
+      }
+    }
+    return changes.length > 0 ? changes.join(', ') : null
   }
-  if (entry.newValue && entry.entity !== 'client') {
-    return entry.newValue
+  if (entry.newValue && typeof entry.newValue === 'object') {
+    // For create actions, show key info
+    const nv = entry.newValue as Record<string, unknown>
+    if (nv.first_name && nv.last_name) {
+      return `${nv.first_name} ${nv.last_name}`
+    }
   }
   return null
 }
@@ -319,8 +314,12 @@ interface HistorySectionProps {
 export function HistorySection({ client }: HistorySectionProps) {
   const [expanded, setExpanded] = useState(false)
 
-  // Generate mock audit log for this client
-  const auditLog = generateMockAuditLog(client.clientId)
+  // Fetch real audit log from database
+  const { data: auditLog = [], isLoading } = useQuery({
+    queryKey: ['client-audit-log', client.id],
+    queryFn: () => fetchClientAuditLog(client.id),
+    enabled: !!client.id,
+  })
 
   // Show first 3 entries by default, all when expanded
   const visibleEntries = expanded ? auditLog : auditLog.slice(0, 3)
@@ -339,31 +338,39 @@ export function HistorySection({ client }: HistorySectionProps) {
       </AccordionTrigger>
       <AccordionContent>
         <div className="space-y-1">
-          {/* Timeline */}
-          <div className="divide-y divide-border">
-            {visibleEntries.map((entry) => (
-              <TimelineEntry key={entry.id} entry={entry} />
-            ))}
-          </div>
+          {isLoading ? (
+            <p className="text-sm text-foreground-muted py-4">Chargement...</p>
+          ) : auditLog.length === 0 ? (
+            <p className="text-sm text-foreground-muted italic py-4">Aucun historique disponible</p>
+          ) : (
+            <>
+              {/* Timeline */}
+              <div className="divide-y divide-border">
+                {visibleEntries.map((entry) => (
+                  <TimelineEntry key={entry.id} entry={entry} />
+                ))}
+              </div>
 
-          {/* Show more/less button */}
-          {hasMore && (
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="flex items-center gap-1 text-xs text-sage-600 hover:text-sage-700 transition-colors pt-2"
-            >
-              {expanded ? (
-                <>
-                  <ChevronUp className="h-3 w-3" />
-                  Voir moins
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="h-3 w-3" />
-                  Voir tout l'historique ({auditLog.length - 3} autres)
-                </>
+              {/* Show more/less button */}
+              {hasMore && (
+                <button
+                  onClick={() => setExpanded(!expanded)}
+                  className="flex items-center gap-1 text-xs text-sage-600 hover:text-sage-700 transition-colors pt-2"
+                >
+                  {expanded ? (
+                    <>
+                      <ChevronUp className="h-3 w-3" />
+                      Voir moins
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-3 w-3" />
+                      Voir tout l'historique ({auditLog.length - 3} autres)
+                    </>
+                  )}
+                </button>
               )}
-            </button>
+            </>
           )}
 
           {/* Footer note */}

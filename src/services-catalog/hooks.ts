@@ -11,9 +11,18 @@ import {
   restoreService,
   fetchProfessionCategories,
   fetchProfessionTitles,
+  updateCategoryTaxIncluded,
   fetchAllServicePrices,
+  fetchCategoryPrices,
+  upsertCategoryPrices,
+  upsertServiceBasePrice,
+  fetchTaxRates,
+  fetchServiceTaxRules,
+  fetchAllServiceTaxProfiles,
+  setServiceTaxProfile,
 } from './api'
-import type { ServiceFormData } from './types'
+import type { CategoryPriceInput } from './api'
+import type { ServiceFormData, ServiceTaxProfile } from './types'
 
 // =============================================================================
 // QUERY KEYS
@@ -26,6 +35,14 @@ export const serviceKeys = {
   details: () => [...serviceKeys.all, 'detail'] as const,
   detail: (id: string) => [...serviceKeys.details(), id] as const,
   prices: () => [...serviceKeys.all, 'prices'] as const,
+  categoryPrices: () => [...serviceKeys.all, 'category-prices'] as const,
+  taxProfiles: () => [...serviceKeys.all, 'tax-profiles'] as const,
+  taxRules: (serviceId: string) => [...serviceKeys.detail(serviceId), 'tax-rules'] as const,
+}
+
+export const taxKeys = {
+  all: ['tax'] as const,
+  rates: () => [...taxKeys.all, 'rates'] as const,
 }
 
 export const professionKeys = {
@@ -70,6 +87,14 @@ export function useServicePrices() {
   })
 }
 
+export function useCategoryPrices() {
+  return useQuery({
+    queryKey: serviceKeys.categoryPrices(),
+    queryFn: fetchCategoryPrices,
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
 // =============================================================================
 // PROFESSION QUERIES
 // =============================================================================
@@ -87,6 +112,23 @@ export function useProfessionTitles() {
     queryKey: professionKeys.titles(),
     queryFn: fetchProfessionTitles,
     staleTime: 1000 * 60 * 30,
+  })
+}
+
+export function useUpdateCategoryTaxIncluded() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      categoryKey,
+      taxIncluded,
+    }: {
+      categoryKey: string
+      taxIncluded: boolean
+    }) => updateCategoryTaxIncluded(categoryKey, taxIncluded),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: professionKeys.categories() })
+    },
   })
 }
 
@@ -138,6 +180,86 @@ export function useRestoreService() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: serviceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: serviceKeys.detail(data.id) })
+    },
+  })
+}
+
+// =============================================================================
+// TAX QUERIES & MUTATIONS
+// =============================================================================
+
+export function useTaxRates() {
+  return useQuery({
+    queryKey: taxKeys.rates(),
+    queryFn: fetchTaxRates,
+    staleTime: 1000 * 60 * 30, // 30 minutes - tax rates rarely change
+  })
+}
+
+export function useServiceTaxRules(serviceId: string | undefined) {
+  return useQuery({
+    queryKey: serviceKeys.taxRules(serviceId!),
+    queryFn: () => fetchServiceTaxRules(serviceId!),
+    enabled: !!serviceId,
+  })
+}
+
+export function useAllServiceTaxProfiles() {
+  return useQuery({
+    queryKey: serviceKeys.taxProfiles(),
+    queryFn: fetchAllServiceTaxProfiles,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  })
+}
+
+export function useSetServiceTaxProfile() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      serviceId,
+      profile,
+    }: {
+      serviceId: string
+      profile: ServiceTaxProfile
+    }) => setServiceTaxProfile(serviceId, profile),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: serviceKeys.taxRules(variables.serviceId) })
+      queryClient.invalidateQueries({ queryKey: serviceKeys.taxProfiles() })
+    },
+  })
+}
+
+// =============================================================================
+// CATEGORY PRICING MUTATIONS
+// =============================================================================
+
+export function useUpsertCategoryPrices() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      categoryKey,
+      prices,
+    }: {
+      categoryKey: string
+      prices: CategoryPriceInput[]
+    }) => upsertCategoryPrices(categoryKey, prices),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: serviceKeys.categoryPrices() })
+      queryClient.invalidateQueries({ queryKey: serviceKeys.prices() })
+    },
+  })
+}
+
+export function useUpsertServiceBasePrice() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ serviceId, priceCents }: { serviceId: string; priceCents: number | null }) =>
+      upsertServiceBasePrice(serviceId, priceCents),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: serviceKeys.prices() })
     },
   })
 }

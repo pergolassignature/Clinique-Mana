@@ -1,6 +1,24 @@
-import { useQuery } from '@tanstack/react-query'
-import type { DemandesListFilters, DemandesListSort, DemandeListItem } from './types'
-import { MOCK_DEMANDE_LIST_ITEMS, getStatusCounts } from './constants'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabaseClient'
+import type { DemandesListFilters, DemandesListSort, DemandeListItem, DemandeStatus } from './types'
+import * as api from './api'
+import type { CreateDemandeInput, UpdateDemandeInput } from './api'
+
+// Motif labels for display
+const MOTIF_LABELS: Record<string, string> = {
+  anxiety: 'Anxiété',
+  stress: 'Stress',
+  burnout: 'Épuisement',
+  relationships: 'Relations',
+  emotions: 'Émotions',
+  parenting: 'Soutien parental',
+  selfExploration: 'Questionnement',
+  lifeTransition: 'Transition',
+  workSupport: 'Travail',
+  grief: 'Deuil',
+  selfEsteem: 'Estime de soi',
+  other: 'Autre',
+}
 
 // =============================================================================
 // QUERY KEYS
@@ -17,76 +35,96 @@ export const demandeKeys = {
 }
 
 // =============================================================================
-// FILTER HELPERS
-// =============================================================================
-
-function filterDemandes(
-  demandes: DemandeListItem[],
-  filters?: DemandesListFilters,
-  sort?: DemandesListSort
-): DemandeListItem[] {
-  let result = [...demandes]
-
-  if (filters) {
-    // Status filter
-    if (filters.status) {
-      result = result.filter(d => d.status === filters.status)
-    }
-
-    // Search filter (client name, ID)
-    if (filters.search) {
-      const search = filters.search.toLowerCase()
-      result = result.filter(
-        d =>
-          d.primaryClientName?.toLowerCase().includes(search) ||
-          d.id.toLowerCase().includes(search)
-      )
-    }
-  }
-
-  // Sort (default: createdAt desc)
-  if (sort) {
-    result.sort((a, b) => {
-      let comparison = 0
-      switch (sort.field) {
-        case 'id':
-          comparison = a.id.localeCompare(b.id)
-          break
-        case 'createdAt':
-          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          break
-        case 'status':
-          comparison = a.status.localeCompare(b.status)
-          break
-        case 'urgency': {
-          const urgencyOrder: Record<string, number> = { high: 0, moderate: 1, low: 2 }
-          const aOrder = a.urgency ? (urgencyOrder[a.urgency] ?? 3) : 3
-          const bOrder = b.urgency ? (urgencyOrder[b.urgency] ?? 3) : 3
-          comparison = aOrder - bOrder
-          break
-        }
-      }
-      return sort.direction === 'desc' ? -comparison : comparison
-    })
-  } else {
-    // Default sort: newest first
-    result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  }
-
-  return result
-}
-
-// =============================================================================
 // HOOKS
 // =============================================================================
 
 export function useDemandes(filters?: DemandesListFilters, sort?: DemandesListSort) {
   return useQuery({
     queryKey: demandeKeys.list(filters, sort),
-    queryFn: async () => {
-      // Simulate API delay
-      await new Promise(r => setTimeout(r, 300))
-      return filterDemandes(MOCK_DEMANDE_LIST_ITEMS, filters, sort)
+    queryFn: async (): Promise<DemandeListItem[]> => {
+      let query = supabase
+        .from('demandes')
+        .select(`
+          id,
+          demande_id,
+          status,
+          demand_type,
+          urgency,
+          selected_motifs,
+          created_at,
+          demande_participants (
+            id,
+            role,
+            clients:client_id (
+              id,
+              first_name,
+              last_name
+            )
+          )
+        `)
+
+      // Status filter
+      if (filters?.status) {
+        query = query.eq('status', filters.status)
+      }
+
+      // Search filter (by demande_id or participant name)
+      if (filters?.search) {
+        const search = `%${filters.search}%`
+        query = query.ilike('demande_id', search)
+      }
+
+      // Sorting
+      if (sort) {
+        const ascending = sort.direction === 'asc'
+        switch (sort.field) {
+          case 'id':
+            query = query.order('demande_id', { ascending })
+            break
+          case 'createdAt':
+            query = query.order('created_at', { ascending })
+            break
+          case 'status':
+            query = query.order('status', { ascending })
+            break
+          case 'urgency':
+            query = query.order('urgency', { ascending, nullsFirst: false })
+            break
+        }
+      } else {
+        // Default: newest first
+        query = query.order('created_at', { ascending: false })
+      }
+
+      const { data, error } = await query
+
+      if (error) throw error
+
+      // Transform to DemandeListItem format
+      return (data || []).map((row): DemandeListItem => {
+        const participants = row.demande_participants as unknown as Array<{
+          id: string
+          role: string
+          clients: { id: string; first_name: string; last_name: string } | null
+        }> || []
+
+        const primaryParticipant = participants.find(p => p.role === 'principal')
+        const motifs = row.selected_motifs || []
+
+        return {
+          id: row.demande_id,
+          status: row.status as DemandeStatus,
+          demandType: row.demand_type,
+          urgency: row.urgency,
+          createdAt: row.created_at,
+          primaryClientName: primaryParticipant?.clients
+            ? `${primaryParticipant.clients.first_name} ${primaryParticipant.clients.last_name}`
+            : null,
+          participantCount: participants.length,
+          motifLabels: motifs.slice(0, 2).map((m: string) => MOTIF_LABELS[m] || m),
+          motifCount: motifs.length,
+        }
+      })
     },
   })
 }
@@ -94,9 +132,78 @@ export function useDemandes(filters?: DemandesListFilters, sort?: DemandesListSo
 export function useDemandeStatusCounts() {
   return useQuery({
     queryKey: demandeKeys.statusCounts(),
-    queryFn: async () => {
-      await new Promise(r => setTimeout(r, 100))
-      return getStatusCounts()
+    queryFn: async (): Promise<Record<DemandeStatus | 'all', number>> => {
+      const { data, error } = await supabase
+        .from('demandes')
+        .select('status')
+
+      if (error) throw error
+
+      const counts: Record<DemandeStatus | 'all', number> = {
+        toAnalyze: 0,
+        assigned: 0,
+        closed: 0,
+        all: 0,
+      }
+
+      data?.forEach(row => {
+        counts.all++
+        const status = row.status as DemandeStatus
+        if (status in counts) {
+          counts[status]++
+        }
+      })
+
+      return counts
+    },
+  })
+}
+
+// =============================================================================
+// FETCH SINGLE DEMANDE
+// =============================================================================
+
+export function useDemande(demandeId: string | undefined) {
+  return useQuery({
+    queryKey: demandeKeys.detail(demandeId!),
+    queryFn: () => api.fetchDemande(demandeId!),
+    enabled: !!demandeId && demandeId !== 'nouvelle',
+  })
+}
+
+// =============================================================================
+// MUTATIONS
+// =============================================================================
+
+/**
+ * Create a new demande
+ */
+export function useCreateDemande() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: CreateDemandeInput) => api.createDemande(input),
+    onSuccess: () => {
+      // Invalidate all demande queries to refetch lists
+      queryClient.invalidateQueries({ queryKey: demandeKeys.all })
+    },
+  })
+}
+
+/**
+ * Update an existing demande
+ */
+export function useUpdateDemande() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ demandeId, updates }: { demandeId: string; updates: UpdateDemandeInput }) =>
+      api.updateDemande(demandeId, updates),
+    onSuccess: (data) => {
+      // Invalidate specific demande query and lists
+      queryClient.invalidateQueries({ queryKey: demandeKeys.detail(data.demandeId) })
+      queryClient.invalidateQueries({ queryKey: demandeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: demandeKeys.statusCounts() })
     },
   })
 }

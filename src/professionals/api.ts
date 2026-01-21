@@ -22,6 +22,7 @@ import type {
   ReviewQuestionnaireInput,
   ProfessionTitle,
   ProfessionalProfession,
+  ProfessionalServiceWithDetails,
 } from './types'
 
 // =============================================================================
@@ -1272,4 +1273,80 @@ export async function fetchProfessionalAuditLog(professional_id: string): Promis
 
   if (error) throw error
   return data || []
+}
+
+// =============================================================================
+// PROFESSIONAL SERVICES (Junction: professionals ↔ services)
+// =============================================================================
+
+/**
+ * Fetch services assigned to a professional with service details.
+ */
+export async function fetchProfessionalServices(
+  professional_id: string
+): Promise<ProfessionalServiceWithDetails[]> {
+  const { data, error } = await supabase
+    .from('professional_services')
+    .select(`
+      id,
+      professional_id,
+      service_id,
+      is_active,
+      created_at,
+      updated_at,
+      service:services(id, name_fr, default_duration_minutes)
+    `)
+    .eq('professional_id', professional_id)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+
+  // Transform the joined data
+  return (data || []).map((row) => ({
+    ...row,
+    service: row.service as unknown as {
+      id: string
+      name_fr: string
+      default_duration_minutes: number | null
+    },
+  }))
+}
+
+/**
+ * Replace all services for a professional (bulk replace pattern).
+ * Deletes existing active services and inserts new ones.
+ * This is atomic at the application level - both operations must succeed.
+ */
+export async function replaceProfessionalServices(
+  professional_id: string,
+  service_ids: string[]
+): Promise<{ replaced_count: number }> {
+  // 1. Delete all existing services for this professional
+  const { error: deleteError } = await supabase
+    .from('professional_services')
+    .delete()
+    .eq('professional_id', professional_id)
+
+  if (deleteError) throw deleteError
+
+  // 2. If no new services, we're done
+  if (!service_ids || service_ids.length === 0) {
+    return { replaced_count: 0 }
+  }
+
+  // 3. Insert new services
+  const insertData = service_ids.map((service_id) => ({
+    professional_id,
+    service_id,
+    is_active: true,
+  }))
+
+  const { error: insertError } = await supabase
+    .from('professional_services')
+    .insert(insertData)
+
+  if (insertError) throw insertError
+
+  return { replaced_count: service_ids.length }
 }

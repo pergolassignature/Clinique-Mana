@@ -7,7 +7,7 @@ import { z } from 'zod'
 export const ClientStatus = z.enum(['active', 'archived'])
 export type ClientStatus = z.infer<typeof ClientStatus>
 
-export const Sex = z.enum(['male', 'female', 'other', 'unknown'])
+export const Sex = z.enum(['male', 'female', 'other'])
 export type Sex = z.infer<typeof Sex>
 
 export const Language = z.enum(['fr', 'en', 'other'])
@@ -24,12 +24,12 @@ export type ConsentStatus = z.infer<typeof ConsentStatus>
 // =============================================================================
 
 export const ClientSchema = z.object({
-  // Identity (8 fields)
+  // Primary key
+  id: z.string().uuid(), // UUID from database
+  // Identity (6 fields)
   clientId: z.string(), // 7-digit format: CLI-0000001
   firstName: z.string(),
   lastName: z.string(),
-  birthFirstName: z.string().nullable(),
-  pronouns: z.string().nullable(),
   sex: Sex.nullable(),
   language: Language,
   birthday: z.string().nullable(), // ISO date
@@ -178,20 +178,40 @@ export interface ClientWithRelations extends Client {
 // =============================================================================
 
 export const CreateClientInput = z.object({
+  // Identity (required)
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  birthday: z.string().nullable(),
-  email: z.string().email().nullable(),
-  cellPhone: z.string().nullable(),
-  language: Language,
+  // Identity (optional)
+  sex: Sex.nullable().optional(),
+  language: Language.optional(),
+  birthday: z.string().nullable().optional(),
+  // Contact
+  email: z.string().email().nullable().optional(),
+  cellPhoneCountryCode: z.string().optional(),
+  cellPhone: z.string().nullable().optional(),
+  homePhoneCountryCode: z.string().optional(),
+  homePhone: z.string().nullable().optional(),
+  workPhoneCountryCode: z.string().optional(),
+  workPhone: z.string().nullable().optional(),
+  workPhoneExtension: z.string().nullable().optional(),
+  // Address
+  streetNumber: z.string().nullable().optional(),
+  streetName: z.string().nullable().optional(),
+  apartment: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  province: Province.nullable().optional(),
+  country: z.string().optional(),
+  postalCode: z.string().nullable().optional(),
+  // Admin
+  referredBy: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional(),
+  primaryProfessionalId: z.string().uuid().nullable().optional(),
 })
 export type CreateClientInput = z.infer<typeof CreateClientInput>
 
 export const UpdateClientInput = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
-  birthFirstName: z.string().nullable().optional(),
-  pronouns: z.string().nullable().optional(),
   sex: Sex.nullable().optional(),
   language: Language.optional(),
   birthday: z.string().nullable().optional(),

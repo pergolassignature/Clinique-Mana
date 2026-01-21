@@ -12,6 +12,7 @@ import {
   History,
   ClipboardList,
   Loader2,
+  Package,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import {
@@ -41,6 +42,7 @@ import { ProfessionalPortraitTab } from '@/professionals/components/portrait-tab
 import { ProfessionalDocumentsTab } from '@/professionals/components/documents-tab'
 import { ProfessionalFicheTab } from '@/professionals/components/fiche-tab'
 import { ProfessionalHistoryTab } from '@/professionals/components/history-tab'
+import { ProfessionalServicesTab } from '@/professionals/components/services-tab'
 
 const tabs: Array<{
   id: ProfessionalDetailTab
@@ -50,6 +52,7 @@ const tabs: Array<{
   { id: 'profil', label: 'Profil', icon: User },
   { id: 'onboarding', label: 'Intégration', icon: ClipboardList },
   { id: 'portrait', label: 'Portrait', icon: Briefcase },
+  { id: 'services', label: 'Services', icon: Package },
   { id: 'documents', label: 'Documents', icon: FileText },
   { id: 'fiche', label: 'Fiche', icon: FileText },
   { id: 'historique', label: 'Historique', icon: History },
@@ -360,6 +363,9 @@ export function ProfessionalDetailPage() {
               )}
               {activeTab === 'portrait' && (
                 <ProfessionalPortraitTab professional={professional} />
+              )}
+              {activeTab === 'services' && (
+                <ProfessionalServicesTab professional={professional} />
               )}
               {activeTab === 'documents' && (
                 <ProfessionalDocumentsTab professional={professional} />

@@ -33,6 +33,7 @@ import { RequestDetailPage } from '@/pages/request-detail'
 import { RequestAnalysisPage } from '@/pages/request-analysis'
 import { ReportsPage } from '@/pages/reports'
 import { SettingsLayout } from '@/pages/settings-layout'
+import { ClinicSettingsPage } from '@/pages/clinic-settings'
 import { LoginPage } from '@/pages/login'
 import { NotFoundPage } from '@/pages/not-found'
 
@@ -198,6 +199,13 @@ const settingsServicesRoute = createRoute({
   component: ServicesPage,
 })
 
+// Settings > Clinique (IVAC settings)
+const settingsCliniqueRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/clinique',
+  component: ClinicSettingsPage,
+})
+
 // Build route tree
 const routeTree = rootRoute.addChildren([
   loginRoute,
@@ -220,6 +228,7 @@ const routeTree = rootRoute.addChildren([
       settingsIndexRoute,
       settingsMotifsRoute,
       settingsServicesRoute,
+      settingsCliniqueRoute,
     ]),
   ]),
 ])

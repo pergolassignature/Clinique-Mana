@@ -425,7 +425,7 @@ export interface ProfessionalListItem {
   created_at: string
 }
 
-export type ProfessionalDetailTab = 'profil' | 'onboarding' | 'portrait' | 'documents' | 'fiche' | 'historique'
+export type ProfessionalDetailTab = 'profil' | 'onboarding' | 'portrait' | 'documents' | 'fiche' | 'historique' | 'services'
 
 export interface DocumentUploadProgress {
   file_name: string
@@ -433,3 +433,26 @@ export interface DocumentUploadProgress {
   status: 'uploading' | 'success' | 'error'
   error?: string
 }
+
+// =============================================================================
+// PROFESSIONAL SERVICES (Junction: professionals ↔ services)
+// =============================================================================
+
+export const ProfessionalServiceSchema = z.object({
+  id: z.string().uuid(),
+  professional_id: z.string().uuid(),
+  service_id: z.string().uuid(),
+  is_active: z.boolean(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+})
+export type ProfessionalService = z.infer<typeof ProfessionalServiceSchema>
+
+export const ProfessionalServiceWithDetailsSchema = ProfessionalServiceSchema.extend({
+  service: z.object({
+    id: z.string().uuid(),
+    name_fr: z.string(),
+    default_duration_minutes: z.number().nullable(),
+  }),
+})
+export type ProfessionalServiceWithDetails = z.infer<typeof ProfessionalServiceWithDetailsSchema>

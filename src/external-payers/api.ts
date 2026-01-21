@@ -19,15 +19,19 @@ import type {
 
 const CLINIC_SETTINGS_ID = '00000000-0000-0000-0000-000000000001'
 
-export async function fetchClinicSettings(): Promise<ClinicSettings> {
+export async function fetchClinicSettings(): Promise<ClinicSettings | null> {
   const { data, error } = await supabase
     .from('clinic_settings')
     .select('*')
     .eq('id', CLINIC_SETTINGS_ID)
-    .single()
+    .maybeSingle()
 
-  if (error) throw error
-  return data as ClinicSettings
+  // Handle case where table doesn't exist or RLS blocks access
+  if (error) {
+    console.warn('[fetchClinicSettings] Error fetching clinic settings:', error.message)
+    return null
+  }
+  return data as ClinicSettings | null
 }
 
 export async function updateClinicSettings(
@@ -59,7 +63,11 @@ export async function fetchProfessionalIvacNumber(
     .eq('professional_id', professional_id)
     .maybeSingle()
 
-  if (error) throw error
+  // Handle case where table doesn't exist or RLS blocks access
+  if (error) {
+    console.warn('[fetchProfessionalIvacNumber] Error:', error.message)
+    return null
+  }
   return data as ProfessionalIvacNumber | null
 }
 
@@ -69,7 +77,10 @@ export async function fetchAllProfessionalIvacNumbers(): Promise<ProfessionalIva
     .select('*')
     .order('created_at', { ascending: false })
 
-  if (error) throw error
+  if (error) {
+    console.warn('[fetchAllProfessionalIvacNumbers] Error:', error.message)
+    return []
+  }
   return (data || []) as ProfessionalIvacNumber[]
 }
 
@@ -119,7 +130,10 @@ export async function fetchClientExternalPayers(
     .eq('client_id', client_id)
     .order('payer_type')
 
-  if (error) throw error
+  if (error) {
+    console.warn('[fetchClientExternalPayers] Error:', error.message)
+    return []
+  }
 
   // Transform to typed objects
   return (data || []).map((row) => {

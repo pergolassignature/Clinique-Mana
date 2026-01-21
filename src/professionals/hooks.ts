@@ -30,6 +30,7 @@ export const professionalKeys = {
   invites: (id: string) => [...professionalKeys.detail(id), 'invites'] as const,
   questionnaire: (id: string) => [...professionalKeys.detail(id), 'questionnaire'] as const,
   auditLog: (id: string) => [...professionalKeys.detail(id), 'audit'] as const,
+  services: (id: string) => [...professionalKeys.detail(id), 'services'] as const,
 }
 
 export const specialtyKeys = {
@@ -566,6 +567,40 @@ export function useApplyQuestionnaire() {
       })
       // Result contains applied_at, fields_updated, specialties_replaced for UI feedback
       return result
+    },
+  })
+}
+
+// =============================================================================
+// PROFESSIONAL SERVICES (Junction: professionals ↔ services)
+// =============================================================================
+
+export function useProfessionalServices(professionalId: string | undefined) {
+  return useQuery({
+    queryKey: professionalKeys.services(professionalId!),
+    queryFn: () => api.fetchProfessionalServices(professionalId!),
+    enabled: !!professionalId,
+  })
+}
+
+export function useReplaceProfessionalServices() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      professional_id,
+      service_ids,
+    }: {
+      professional_id: string
+      service_ids: string[]
+    }) => api.replaceProfessionalServices(professional_id, service_ids),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.services(variables.professional_id),
+      })
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.detail(variables.professional_id),
+      })
     },
   })
 }

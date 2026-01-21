@@ -76,9 +76,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Fetch profile
+      console.log('[Auth] Fetching profile for user:', data.user.id)
       const userProfile = await fetchProfile(data.user.id)
+      console.log('[Auth] Profile result:', userProfile)
 
       if (!userProfile) {
+        console.error('[Auth] No profile found for user:', data.user.id, '- user needs to be added to profiles table')
         await supabase.auth.signOut()
         setIsLoading(false)
         setError('profile_not_found')

@@ -1,7 +1,7 @@
 // src/pages/settings-layout.tsx
 
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { FileText, Briefcase, User, Bell, Shield, Palette } from 'lucide-react'
+import { FileText, Briefcase, User, Bell, Shield, Palette, Building2 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 
 interface SettingsSection {
@@ -15,6 +15,7 @@ interface SettingsSection {
 const settingsSections: SettingsSection[] = [
   { id: 'motifs', path: '/parametres/motifs', label: 'Motifs de consultation', icon: FileText, enabled: true },
   { id: 'services', path: '/parametres/services', label: 'Catalogue de services', icon: Briefcase, enabled: true },
+  { id: 'clinique', path: '/parametres/clinique', label: 'Configuration clinique', icon: Building2, enabled: true },
   { id: 'profile', path: '/parametres/profil', label: 'Profil', icon: User, enabled: false },
   { id: 'notifications', path: '/parametres/notifications', label: 'Notifications', icon: Bell, enabled: false },
   { id: 'security', path: '/parametres/securite', label: 'Sécurité', icon: Shield, enabled: false },
@@ -25,49 +26,55 @@ export function SettingsLayout() {
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
 
+  // Split sections into enabled and disabled for better UX
+  const enabledSections = settingsSections.filter(s => s.enabled)
+  const disabledSections = settingsSections.filter(s => !s.enabled)
+
   return (
-    <div className="flex gap-6 h-full">
-      {/* Settings sidebar */}
-      <aside className="w-64 flex-shrink-0">
-        <nav className="space-y-1">
-          {settingsSections.map((section) => {
+    <div className="flex flex-col h-full">
+      {/* Top navigation */}
+      <nav className="border-b border-border-default bg-background-secondary/50">
+        <div className="flex items-center gap-1 px-2 overflow-x-auto">
+          {enabledSections.map((section) => {
             const Icon = section.icon
             const isActive = currentPath === section.path || currentPath.startsWith(section.path + '/')
-
-            if (!section.enabled) {
-              return (
-                <div
-                  key={section.id}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground-muted opacity-50 cursor-not-allowed"
-                >
-                  <Icon className="h-5 w-5" />
-                  <span>{section.label}</span>
-                  <span className="ml-auto text-xs bg-background-tertiary px-2 py-0.5 rounded">Bientôt</span>
-                </div>
-              )
-            }
 
             return (
               <Link
                 key={section.id}
                 to={section.path}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                  'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap border-b-2 -mb-px',
                   isActive
-                    ? 'bg-sage-100 text-sage-700'
-                    : 'text-foreground-secondary hover:bg-background-tertiary hover:text-foreground'
+                    ? 'border-sage-600 text-sage-700 bg-background'
+                    : 'border-transparent text-foreground-secondary hover:text-foreground hover:border-border-default'
                 )}
               >
-                <Icon className={cn('h-5 w-5', isActive ? 'text-sage-600' : 'text-foreground-muted')} />
+                <Icon className={cn('h-4 w-4', isActive ? 'text-sage-600' : 'text-foreground-muted')} />
                 <span>{section.label}</span>
               </Link>
             )
           })}
-        </nav>
-      </aside>
 
-      {/* Main content area */}
-      <main className="flex-1 min-w-0">
+          {/* Disabled sections shown as muted */}
+          {disabledSections.map((section) => {
+            const Icon = section.icon
+            return (
+              <div
+                key={section.id}
+                className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-foreground-muted opacity-50 cursor-not-allowed whitespace-nowrap border-b-2 border-transparent -mb-px"
+              >
+                <Icon className="h-4 w-4" />
+                <span>{section.label}</span>
+                <span className="text-xs bg-background-tertiary px-1.5 py-0.5 rounded">Bientôt</span>
+              </div>
+            )
+          })}
+        </div>
+      </nav>
+
+      {/* Main content area - now full width */}
+      <main className="flex-1 min-w-0 overflow-auto">
         <Outlet />
       </main>
     </div>

@@ -37,8 +37,6 @@ export interface NewClientFormData {
   // Identity
   firstName: string
   lastName: string
-  birthFirstName: string | null
-  pronouns: string | null
   sex: Sex | null
   language: Language
   birthday: string | null
@@ -68,8 +66,6 @@ export interface NewClientFormData {
 const defaultForm: NewClientFormData = {
   firstName: '',
   lastName: '',
-  birthFirstName: null,
-  pronouns: null,
   sex: null,
   language: 'fr',
   birthday: null,
@@ -109,7 +105,7 @@ function getValidationErrorMessage(errorKey: string): string {
   const errorMap: Record<string, string> = {
     required: 'Ce champ est requis',
     invalidEmail: 'Adresse courriel invalide',
-    invalidPhone: 'Numero de telephone invalide',
+    invalidPhone: 'Numéro de téléphone invalide',
     invalidName: 'Nom invalide',
     invalidDateOfBirth: 'Date de naissance invalide',
   }
@@ -381,26 +377,6 @@ export function NewClientDrawer({ open, onOpenChange, onSave }: NewClientDrawerP
                     <p className="text-xs text-wine-600">{getValidationErrorMessage(formErrors.lastName)}</p>
                   )}
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="birthFirstName">{t('clients.new.fields.birthFirstName')}</Label>
-                <Input
-                  id="birthFirstName"
-                  value={form.birthFirstName || ''}
-                  onChange={(e) => handleFieldChange('birthFirstName', e.target.value || null)}
-                  placeholder="Optionnel"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="pronouns">{t('clients.new.fields.pronouns')}</Label>
-                <Input
-                  id="pronouns"
-                  value={form.pronouns || ''}
-                  onChange={(e) => handleFieldChange('pronouns', e.target.value || null)}
-                  placeholder="ex: elle/elle, il/lui"
-                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">

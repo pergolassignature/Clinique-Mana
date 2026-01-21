@@ -100,6 +100,7 @@
         "profil": "Profil",
         "onboarding": "Intégration",
         "portrait": "Portrait",
+        "services": "Services",
         "documents": "Documents",
         "fiche": "Fiche",
         "historique": "Historique"
@@ -247,6 +248,16 @@
         "title": "Portrait non complété",
         "description": "Le professionnel n'a pas encore complété son portrait. Envoyez une invitation pour lui permettre de remplir le questionnaire."
       }
+    },
+    "services": {
+      "title": "Services offerts",
+      "empty": "Aucun service assigné",
+      "edit": "Modifier",
+      "dialog": {
+        "title": "Sélectionner les services",
+        "description": "Cochez les services que ce professionnel peut offrir."
+      },
+      "success": "Services mis à jour"
     },
     "documents": {
       "title": "Documents",
@@ -556,6 +567,16 @@
       "displayNamePlaceholder": "Ex: Dr. Marie Tremblay",
       "cancel": "Annuler",
       "create": "Créer le professionnel"
+    },
+    "services": {
+      "title": "Services offerts",
+      "empty": "Aucun service assigné",
+      "edit": "Modifier",
+      "dialog": {
+        "title": "Sélectionner les services",
+        "description": "Cochez les services que ce professionnel peut offrir."
+      },
+      "success": "Services mis à jour"
     }
   },
   "pages": {
@@ -841,6 +862,10 @@
           "name": "Nom (A–Z)",
           "duration": "Durée",
           "price": "Tarif"
+        },
+        "tabs": {
+          "services": "Services",
+          "pricing": "Tarification par catégorie"
         }
       },
       "disclaimer": {
@@ -854,8 +879,10 @@
         "online": "En ligne",
         "pricingModel": "Modèle de tarification",
         "consent": "Consentement",
+        "taxes": "Taxes",
         "status": "Statut",
-        "actions": "Actions"
+        "actions": "Actions",
+        "groupLabelPrefix": "Modèle:"
       },
       "values": {
         "minutes": "min",
@@ -899,6 +926,7 @@
           "duration": "Durée (minutes)",
           "durationPlaceholder": "50",
           "price": "Tarif ($)",
+          "hourlyRate": "Taux horaire ($/h)",
           "pricePlaceholder": "130",
           "priceHelper": "0 $ pour les services gratuits.",
           "isOnlineAvailable": "Disponible en ligne",
@@ -942,7 +970,31 @@
         "fixedDesc": "Prix unique pour tous",
         "byCategoryDesc": "Prix selon la catégorie professionnelle",
         "cancellationDesc": "Pourcentage du service annulé",
-        "hourlyProrataDesc": "Facturation à la minute"
+        "hourlyProrataDesc": "Facturation à la minute",
+        "title": "Tarification par catégorie professionnelle",
+        "subtitle": "Choisissez une catégorie et définissez les tarifs par service. Désactivez un service s'il n'est pas offert.",
+        "categoryLabel": "Catégorie professionnelle",
+        "offered": "Offert",
+        "taxIncluded": "Taxes incluses",
+        "taxExempt": "Exempt de taxes",
+        "missingPrices": "Ajoutez un tarif pour chaque service actif.",
+        "categoryHint": "Les tarifs et taxes pour ce service se gèrent par catégorie.",
+        "hourlyRateHelper": "Utilisé pour facturer les services au prorata horaire.",
+        "basePriceSaveError": "Impossible d'enregistrer le tarif de base.",
+        "save": "Enregistrer",
+        "saveSuccess": "Tarifs enregistrés",
+        "saveError": "Erreur lors de l'enregistrement des tarifs",
+        "taxToggleLabel": "Taxes applicables",
+        "taxToggleHint": "Les tarifs incluent TPS (5%) + TVQ (9,975%)"
+      },
+      "taxes": {
+        "title": "Taxes",
+        "exempt": "Exempt (aucune taxe)",
+        "taxable": "TPS + TVQ (taxable au Québec)",
+        "exemptBadge": "Exempt",
+        "taxableBadge": "TPS+TVQ",
+        "byCategoryBadge": "Par catégorie",
+        "saveError": "Service enregistré mais erreur de configuration des taxes"
       },
       "empty": {
         "title": "Aucun service défini",
@@ -1143,7 +1195,9 @@
       "actions": {
         "analyze": "Analyser",
         "assign": "Assigner",
-        "close": "Fermer la demande"
+        "close": "Fermer la demande",
+        "saveDraft": "Sauvegarder",
+        "saving": "Sauvegarde..."
       },
       "sections": {
         "context": "Contexte",
@@ -1360,8 +1414,9 @@
         },
         "emptyNoType": "Sélectionnez un type de demande pour commencer.",
         "consentRequired": "Consentement requis",
-        "consentPending": "Un consentement valide sera requis avant l'assignation.",
+        "consentPending": "Consentement à obtenir avant le premier rendez-vous.",
         "consentComplete": "Tous les consentements sont validés.",
+        "consentWarning": "Attention: consentement manquant ou expiré. À régulariser avant le premier rendez-vous.",
         "allConsentsRequired": "Le consentement de tous les participants est requis avant l'assignation.",
         "missingConsents": "participant(s) sans consentement valide",
         "validation": {
@@ -1682,34 +1737,34 @@
       "male": "Homme",
       "female": "Femme",
       "other": "Autre",
-      "unknown": "Non specifie"
+      "unknown": "Non spécifié"
     },
     "edit": {
       "identity": {
-        "title": "Modifier l'identite",
-        "description": "Modifiez les informations d'identite du client",
-        "firstName": "Prenom",
+        "title": "Modifier l'identité",
+        "description": "Modifiez les informations d'identité du client",
+        "firstName": "Prénom",
         "lastName": "Nom",
-        "birthFirstName": "Prenom de naissance",
+        "birthFirstName": "Prénom de naissance",
         "pronouns": "Pronoms",
         "sex": "Sexe",
-        "sexNotSpecified": "Non specifie",
+        "sexNotSpecified": "Non spécifié",
         "language": "Langue",
         "birthday": "Date de naissance"
       },
       "contact": {
-        "title": "Modifier les coordonnees",
+        "title": "Modifier les coordonnées",
         "description": "Modifiez les informations de contact du client",
         "email": "Courriel",
         "cellPhone": "Cellulaire",
-        "homePhone": "Telephone domicile",
-        "workPhone": "Telephone travail"
+        "homePhone": "Téléphone domicile",
+        "workPhone": "Téléphone travail"
       },
       "address": {
         "title": "Modifier l'adresse",
         "description": "Modifiez l'adresse du client",
         "search": "Recherche d'adresse",
-        "streetNumber": "Numero",
+        "streetNumber": "Numéro",
         "streetName": "Rue",
         "apartment": "Appartement",
         "city": "Ville",
@@ -1719,15 +1774,15 @@
       },
       "professional": {
         "title": "Assigner un professionnel",
-        "description": "Selectionnez le professionnel principal pour ce client",
+        "description": "Sélectionnez le professionnel principal pour ce client",
         "select": "Professionnel"
       },
       "tags": {
-        "title": "Gerer les etiquettes",
-        "description": "Ajoutez ou retirez des etiquettes pour ce client",
-        "available": "Etiquettes disponibles",
-        "selected": "Etiquettes selectionnees",
-        "addNew": "Ajouter une nouvelle etiquette"
+        "title": "Gérer les étiquettes",
+        "description": "Ajoutez ou retirez des étiquettes pour ce client",
+        "available": "Étiquettes disponibles",
+        "selected": "Étiquettes sélectionnées",
+        "addNew": "Ajouter une nouvelle étiquette"
       },
       "note": {
         "title": "Ajouter une note",
@@ -1740,7 +1795,7 @@
         "type": "Type de consentement",
         "signedAt": "Date de signature",
         "expiresAt": "Date d'expiration",
-        "signedBy": "Signe par"
+        "signedBy": "Signé par"
       },
       "relation": {
         "addTitle": "Ajouter une relation",

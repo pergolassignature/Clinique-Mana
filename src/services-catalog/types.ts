@@ -47,6 +47,7 @@ export interface ServiceFormData {
 export interface ProfessionCategory {
   key: string
   labelFr: string
+  taxIncluded: boolean  // true = prices already include TPS+TVQ
 }
 
 export interface ProfessionTitle {
@@ -66,7 +67,30 @@ export interface ServicePrice {
   durationMinutes: number | null        // null = default duration
   priceCents: number
   currency: string
+  isActive: boolean
 }
+
+// =============================================================================
+// TAX TYPES
+// =============================================================================
+
+export interface TaxRate {
+  id: string
+  key: string        // 'qc_gst' | 'qc_qst'
+  label: string      // 'TPS' | 'TVQ'
+  rateBps: number    // Basis points: 500 = 5%, 9975 = 9.975%
+  region: string | null
+  isActive: boolean
+}
+
+export interface ServiceTaxRule {
+  id: string
+  serviceId: string
+  taxRateId: string
+}
+
+// Simplified tax profile for UI (single source of truth at service level)
+export type ServiceTaxProfile = 'exempt' | 'tps_tvq'
 
 // =============================================================================
 // UI STATE TYPES

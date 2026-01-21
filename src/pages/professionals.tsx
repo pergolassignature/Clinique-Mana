@@ -50,30 +50,30 @@ function ProfessionalCard({ professional }: { professional: ProfessionalListItem
       className="group relative flex flex-col rounded-2xl border border-border bg-background p-5 text-left transition-all hover:border-sage-300 hover:shadow-medium"
     >
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sage-100 text-sage-600">
-            <span className="text-sm font-semibold">
-              {professional.display_name
-                .split(' ')
-                .map((n) => n[0])
-                .slice(0, 2)
-                .join('')
-                .toUpperCase()}
-            </span>
-          </div>
-          <div className="min-w-0">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sage-100 text-sage-600">
+          <span className="text-sm font-semibold">
+            {professional.display_name
+              .split(' ')
+              .map((n) => n[0])
+              .slice(0, 2)
+              .join('')
+              .toUpperCase()}
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
             <h3 className="truncate font-medium text-foreground">
               {professional.display_name}
             </h3>
-            <p className="truncate text-sm text-foreground-muted">
-              {professional.email}
-            </p>
+            <Badge variant={getStatusBadgeVariant(professional.status)} className="shrink-0">
+              {t(`professionals.list.status.${professional.status}` as Parameters<typeof t>[0])}
+            </Badge>
           </div>
+          <p className="truncate text-sm text-foreground-muted">
+            {professional.email}
+          </p>
         </div>
-        <Badge variant={getStatusBadgeVariant(professional.status)}>
-          {t(`professionals.list.status.${professional.status}` as Parameters<typeof t>[0])}
-        </Badge>
       </div>
 
       {/* Stats */}

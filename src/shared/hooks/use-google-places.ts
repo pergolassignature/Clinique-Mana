@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
+import { supabase } from '@/lib/supabaseClient'
 
 // =============================================================================
 // TYPES
@@ -25,94 +25,6 @@ interface UseGooglePlacesOptions {
   onPlaceSelect?: (place: ParsedAddress, fullAddress: string) => void
 }
 
-// Province code mapping
-const PROVINCE_CODES: Record<string, string> = {
-  'Quebec': 'QC',
-  'Québec': 'QC',
-  'Ontario': 'ON',
-  'British Columbia': 'BC',
-  'Alberta': 'AB',
-  'Manitoba': 'MB',
-  'Saskatchewan': 'SK',
-  'Nova Scotia': 'NS',
-  'New Brunswick': 'NB',
-  'Newfoundland and Labrador': 'NL',
-  'Prince Edward Island': 'PE',
-  'Northwest Territories': 'NT',
-  'Yukon': 'YT',
-  'Nunavut': 'NU',
-}
-
-// =============================================================================
-// GOOGLE MAPS LOADER (singleton)
-// =============================================================================
-
-let loadPromise: Promise<google.maps.PlacesLibrary> | null = null
-let optionsSet = false
-
-async function loadPlacesLibrary(): Promise<google.maps.PlacesLibrary> {
-  if (loadPromise) return loadPromise
-
-  const apiKey = import.meta.env.VITE_GOOGLE_PLACES_API_KEY
-
-  if (!apiKey) {
-    throw new Error('Google Places API key not found. Set VITE_GOOGLE_PLACES_API_KEY in your .env file.')
-  }
-
-  // Set options only once
-  if (!optionsSet) {
-    setOptions({
-      key: apiKey,
-      v: 'weekly',
-      language: 'fr',
-      region: 'CA',
-    })
-    optionsSet = true
-  }
-
-  loadPromise = importLibrary('places') as Promise<google.maps.PlacesLibrary>
-
-  return loadPromise
-}
-
-// =============================================================================
-// PARSE ADDRESS COMPONENTS (New API format)
-// =============================================================================
-
-function parseAddressComponents(
-  components: google.maps.places.AddressComponent[]
-): ParsedAddress {
-  const result: ParsedAddress = {
-    streetNumber: null,
-    streetName: null,
-    city: null,
-    province: null,
-    country: 'Canada',
-    postalCode: null,
-  }
-
-  for (const component of components) {
-    const types = component.types
-
-    if (types.includes('street_number')) {
-      result.streetNumber = component.longText || component.shortText || null
-    } else if (types.includes('route')) {
-      result.streetName = component.longText || component.shortText || null
-    } else if (types.includes('locality') || types.includes('sublocality')) {
-      result.city = component.longText || component.shortText || null
-    } else if (types.includes('administrative_area_level_1')) {
-      const provinceName = component.longText || ''
-      result.province = PROVINCE_CODES[provinceName] || component.shortText || null
-    } else if (types.includes('country')) {
-      result.country = component.longText || 'Canada'
-    } else if (types.includes('postal_code')) {
-      result.postalCode = component.longText || component.shortText || null
-    }
-  }
-
-  return result
-}
-
 // =============================================================================
 // HOOK
 // =============================================================================
@@ -121,7 +33,7 @@ export function useGooglePlaces(options: UseGooglePlacesOptions = {}) {
   const { onPlaceSelect } = options
 
   const inputRef = useRef<HTMLInputElement>(null)
-  const [isLoaded, setIsLoaded] = useState(false)
+  const [isLoaded] = useState(true) // Always ready with Edge Functions
   const [error, setError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -136,37 +48,18 @@ export function useGooglePlaces(options: UseGooglePlacesOptions = {}) {
     onPlaceSelectRef.current = onPlaceSelect
   }, [onPlaceSelect])
 
-  // Load Google Places Library
+  // Cleanup on unmount
   useEffect(() => {
-    let mounted = true
-
-    async function init() {
-      try {
-        await loadPlacesLibrary()
-        if (mounted) {
-          setIsLoaded(true)
-        }
-      } catch (err) {
-        if (mounted) {
-          console.error('Failed to load Google Places:', err)
-          setError(err instanceof Error ? err.message : 'Failed to load')
-        }
-      }
-    }
-
-    init()
-
     return () => {
-      mounted = false
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)
       }
     }
   }, [])
 
-  // Fetch suggestions using new AutocompleteSuggestion API
+  // Fetch suggestions via Supabase Edge Function
   const fetchSuggestions = useCallback(async (input: string) => {
-    if (!isLoaded || !input.trim() || input.length < 3) {
+    if (!input.trim() || input.length < 3) {
       setSuggestions([])
       setShowSuggestions(false)
       return
@@ -175,30 +68,20 @@ export function useGooglePlaces(options: UseGooglePlacesOptions = {}) {
     setIsLoading(true)
 
     try {
-      // Use the new AutocompleteSuggestion.fetchAutocompleteSuggestions API
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { suggestions: results } = await (google.maps.places.AutocompleteSuggestion as any).fetchAutocompleteSuggestions({
-        input,
-        includedRegionCodes: ['ca'],
-        // Bias toward Quebec (Montreal area)
-        locationBias: new google.maps.LatLngBounds(
-          new google.maps.LatLng(44.5, -75.5), // SW corner
-          new google.maps.LatLng(47.5, -71.0)  // NE corner
-        ),
+      const { data, error: fnError } = await supabase.functions.invoke('google-places-autocomplete', {
+        body: { input },
       })
 
-      if (results && results.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mapped: PlaceSuggestion[] = results.map((suggestion: any) => {
-          const prediction = suggestion.placePrediction
-          return {
-            placeId: prediction?.placeId || '',
-            description: prediction?.text?.text || '',
-            mainText: prediction?.mainText?.text || '',
-            secondaryText: prediction?.secondaryText?.text || '',
-          }
-        })
-        setSuggestions(mapped)
+      if (fnError) {
+        console.error('Edge function error:', fnError)
+        setError(fnError.message)
+        setSuggestions([])
+        setShowSuggestions(false)
+        return
+      }
+
+      if (data?.suggestions && data.suggestions.length > 0) {
+        setSuggestions(data.suggestions)
         setShowSuggestions(true)
       } else {
         setSuggestions([])
@@ -211,7 +94,7 @@ export function useGooglePlaces(options: UseGooglePlacesOptions = {}) {
     } finally {
       setIsLoading(false)
     }
-  }, [isLoaded])
+  }, [])
 
   // Handle input change with debounce
   const handleInputChange = useCallback((value: string) => {
@@ -226,7 +109,7 @@ export function useGooglePlaces(options: UseGooglePlacesOptions = {}) {
     }, 300)
   }, [fetchSuggestions])
 
-  // Handle suggestion selection using new Place API
+  // Handle suggestion selection via Supabase Edge Function
   const handleSuggestionSelect = useCallback(async (suggestion: PlaceSuggestion) => {
     if (!suggestion.placeId) return
 
@@ -234,19 +117,17 @@ export function useGooglePlaces(options: UseGooglePlacesOptions = {}) {
     setInputValue(suggestion.description)
 
     try {
-      // Use the new Place class
-      const place = new google.maps.places.Place({
-        id: suggestion.placeId,
+      const { data, error: fnError } = await supabase.functions.invoke('google-places-details', {
+        body: { placeId: suggestion.placeId },
       })
 
-      // Fetch the required fields
-      await place.fetchFields({
-        fields: ['addressComponents', 'formattedAddress'],
-      })
+      if (fnError) {
+        console.error('Edge function error:', fnError)
+        return
+      }
 
-      if (place.addressComponents) {
-        const parsed = parseAddressComponents(place.addressComponents)
-        onPlaceSelectRef.current?.(parsed, place.formattedAddress || suggestion.description)
+      if (data?.address) {
+        onPlaceSelectRef.current?.(data.address, data.formattedAddress || suggestion.description)
       }
     } catch (err) {
       console.error('Error fetching place details:', err)

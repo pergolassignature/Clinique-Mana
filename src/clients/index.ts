@@ -4,9 +4,6 @@ export * from './types'
 // Hooks
 export * from './hooks'
 
-// Constants
-export * from './constants'
-
 // Components (selective exports for external use)
 export { ClientDrawer } from './components/client-drawer'
 export { ClientTable } from './components/client-table'

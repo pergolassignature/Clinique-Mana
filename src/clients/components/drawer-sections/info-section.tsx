@@ -15,7 +15,7 @@ import {
   type ContactFormData,
   type AddressFormData,
 } from './edit-dialogs'
-import { MOCK_PROFESSIONALS } from '../../constants'
+import { useProfessionals } from '../../hooks'
 
 interface InfoSectionProps {
   client: ClientWithRelations
@@ -29,6 +29,8 @@ export function InfoSection({ client, onUpdate }: InfoSectionProps) {
   const [editAddressOpen, setEditAddressOpen] = useState(false)
   const [editProfessionalOpen, setEditProfessionalOpen] = useState(false)
 
+  const { data: professionals = [] } = useProfessionals()
+
   const formatDate = (date: string | null) => {
     if (!date) return '—'
     return format(new Date(date), 'dd MMMM yyyy', { locale: fr })
@@ -41,7 +43,34 @@ export function InfoSection({ client, onUpdate }: InfoSectionProps) {
 
   const formatPhone = (countryCode: string, phone: string | null, extension?: string | null) => {
     if (!phone) return null
-    let formatted = `${countryCode} ${phone}`
+
+    let formatted: string
+
+    // If phone is already in E.164 format (starts with +), format it nicely
+    if (phone.startsWith('+')) {
+      // Format E.164 number: +14185551234 -> +1 (418) 555-1234
+      const digits = phone.slice(1) // Remove the +
+      if (digits.length === 11 && digits.startsWith('1')) {
+        // North American number
+        const area = digits.slice(1, 4)
+        const first = digits.slice(4, 7)
+        const last = digits.slice(7, 11)
+        formatted = `+1 (${area}) ${first}-${last}`
+      } else if (digits.length === 10) {
+        // 10 digit number without country code stored
+        const area = digits.slice(0, 3)
+        const first = digits.slice(3, 6)
+        const last = digits.slice(6, 10)
+        formatted = `${countryCode} (${area}) ${first}-${last}`
+      } else {
+        // Other format, just display as-is
+        formatted = phone
+      }
+    } else {
+      // Legacy format: prepend country code
+      formatted = `${countryCode} ${phone}`
+    }
+
     if (extension) formatted += ` ext. ${extension}`
     return formatted
   }
@@ -93,7 +122,7 @@ export function InfoSection({ client, onUpdate }: InfoSectionProps) {
   const handleSaveProfessional = (professionalId: string | null) => {
     console.log('Save professional:', professionalId)
     const professional = professionalId
-      ? MOCK_PROFESSIONALS.find(p => p.id === professionalId) || null
+      ? professionals.find((p: { id: string; displayName: string }) => p.id === professionalId) || null
       : null
     onUpdate?.({
       primaryProfessionalId: professionalId,
@@ -126,18 +155,6 @@ export function InfoSection({ client, onUpdate }: InfoSectionProps) {
                 <EditButton onClick={() => setEditIdentityOpen(true)} />
               </div>
               <dl className="grid grid-cols-2 gap-3 text-sm">
-                {client.birthFirstName && (
-                  <>
-                    <dt className="text-foreground-secondary">{t('clients.drawer.info.birthFirstName')}</dt>
-                    <dd className="text-foreground">{client.birthFirstName}</dd>
-                  </>
-                )}
-                {client.pronouns && (
-                  <>
-                    <dt className="text-foreground-secondary">{t('clients.drawer.info.pronouns')}</dt>
-                    <dd className="text-foreground">{client.pronouns}</dd>
-                  </>
-                )}
                 {client.sex && (
                   <>
                     <dt className="text-foreground-secondary">{t('clients.drawer.info.sex')}</dt>
@@ -289,7 +306,7 @@ export function InfoSection({ client, onUpdate }: InfoSectionProps) {
         open={editProfessionalOpen}
         onOpenChange={setEditProfessionalOpen}
         onSave={handleSaveProfessional}
-        professionals={MOCK_PROFESSIONALS}
+        professionals={professionals}
       />
     </>
   )

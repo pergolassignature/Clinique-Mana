@@ -75,7 +75,7 @@ export function BookingSidebar({
         </h3>
 
         {!professional ? (
-          <p className="text-sm text-foreground-muted">Selectionnez un professionnel</p>
+          <p className="text-sm text-foreground-muted">Sélectionnez un professionnel</p>
         ) : availableServices.length === 0 ? (
           <p className="text-sm text-foreground-muted">Aucun service compatible</p>
         ) : (

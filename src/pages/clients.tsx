@@ -7,7 +7,8 @@ import { ClientTable } from '@/clients/components/client-table'
 import { ClientFilters } from '@/clients/components/client-filters'
 import { ClientDrawer } from '@/clients/components/client-drawer'
 import { NewClientDrawer, type NewClientFormData } from '@/clients/components/new-client-drawer'
-import { useClients } from '@/clients/hooks'
+import { useClients, useCreateClient } from '@/clients/hooks'
+import { useToast } from '@/shared/hooks/use-toast'
 import type { ClientsListFilters, ClientsListSort } from '@/clients/types'
 
 export function ClientsPage() {
@@ -22,6 +23,8 @@ export function ClientsPage() {
 
   // Fetch clients
   const { data: clients = [], isLoading } = useClients(filters, sort)
+  const createClient = useCreateClient()
+  const { toast } = useToast()
 
   const handleRowClick = (clientId: string) => {
     setSelectedClientId(clientId)
@@ -46,10 +49,50 @@ export function ClientsPage() {
     handleCloseDrawer()
   }
 
-  const handleCreateClient = (data: NewClientFormData) => {
-    // TODO: Implement create mutation
-    console.log('Create client:', data)
-    // After creating, could open the new client's drawer
+  const handleCreateClient = async (data: NewClientFormData) => {
+    try {
+      const result = await createClient.mutateAsync({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        sex: data.sex,
+        language: data.language,
+        birthday: data.birthday,
+        email: data.email,
+        cellPhoneCountryCode: data.cellPhoneCountryCode,
+        cellPhone: data.cellPhone,
+        homePhoneCountryCode: data.homePhoneCountryCode,
+        homePhone: data.homePhone,
+        workPhoneCountryCode: data.workPhoneCountryCode,
+        workPhone: data.workPhone,
+        workPhoneExtension: data.workPhoneExtension,
+        streetNumber: data.streetNumber,
+        streetName: data.streetName,
+        apartment: data.apartment,
+        city: data.city,
+        province: data.province,
+        country: data.country,
+        postalCode: data.postalCode,
+        referredBy: data.referredBy,
+        tags: data.tags,
+        primaryProfessionalId: data.primaryProfessionalId,
+      })
+
+      toast({
+        title: 'Client créé',
+        description: `${data.firstName} ${data.lastName} (${result.clientId}) a été créé avec succès.`,
+      })
+
+      // Optionally open the new client's drawer
+      setSelectedClientId(result.clientId)
+      setIsDrawerOpen(true)
+    } catch (error) {
+      console.error('Failed to create client:', error)
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de créer le client. Veuillez réessayer.',
+        variant: 'error',
+      })
+    }
   }
 
   const isEmpty = !isLoading && clients.length === 0 && !filters.search && !filters.status && !filters.tags?.length

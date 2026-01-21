@@ -23,6 +23,7 @@ import {
   Check,
   Info,
   FileText,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { t } from '@/i18n'
@@ -30,6 +31,7 @@ import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
 import { Textarea } from '@/shared/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
+import { toast } from '@/shared/hooks/use-toast'
 import {
   Dialog,
   DialogContent,
@@ -44,6 +46,8 @@ import {
   getBackNavigation,
   type DetailPageSearchParams,
 } from '@/shared/lib/navigation'
+import { useCreateDemande, useUpdateDemande } from '@/demandes'
+import type { CreateDemandeInput } from '@/demandes'
 
 type RequestStatus = 'toAnalyze' | 'assigned' | 'closed'
 type ConsentStatus = 'valid' | 'expired' | 'missing'
@@ -233,6 +237,10 @@ export function RequestDetailPage() {
   // Demand type state
   const [demandType, setDemandType] = useState<DemandType | null>(initialRequest.demandType)
 
+  // Mutations
+  const createDemande = useCreateDemande()
+  const updateDemande = useUpdateDemande()
+
   const request = initialRequest
   const statusInfo = statusConfig[request.status]
 
@@ -327,24 +335,23 @@ export function RequestDetailPage() {
   }
 
   // Handle creating a new client (from drawer)
-  const handleCreateClient = (clientData: {
+  // The client is now already created in the database by ClientPickerDrawer
+  const handleCreateClient = (client: {
+    id: string // Real UUID from database
     firstName: string
     lastName: string
-    dateOfBirth: string
-    email: string
-    phone: string
+    dateOfBirth?: string
+    email?: string
+    phone?: string
+    consent: { status: 'valid' | 'expired' | 'missing' }
   }) => {
-    // Create a new client with a generated ID
-    const newClientId = `CLI-${Date.now()}`
     const isFirstParticipant = participants.length === 0
     const newParticipant: RequestParticipant = {
       id: `part-${Date.now()}`,
-      clientId: newClientId,
-      name: `${clientData.firstName} ${clientData.lastName}`,
+      clientId: client.id, // Use real UUID from database
+      name: `${client.firstName} ${client.lastName}`,
       role: isFirstParticipant ? 'principal' : 'participant',
-      consent: {
-        status: 'missing', // New clients need consent
-      },
+      consent: client.consent,
     }
     setParticipants([...participants, newParticipant])
     setClientPickerOpen(false)
@@ -515,15 +522,92 @@ export function RequestDetailPage() {
                 {t('pages.requestDetail.actions.close')}
               </Button>
             )}
+            {/* Save Draft button - always visible for drafts and editable requests */}
+            {(isDraft || canAnalyze) && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={createDemande.isPending || updateDemande.isPending}
+                onClick={async () => {
+                  const demandeInput: CreateDemandeInput = {
+                    demandType,
+                    selectedMotifs,
+                    motifDescription,
+                    otherMotifText,
+                    urgency: urgency as 'low' | 'moderate' | 'high' | null || null,
+                    notes,
+                    besoinRaison,
+                    enjeuxHasIssues: enjeuxHasIssues as 'yes' | 'no' | '',
+                    enjeuxDemarche,
+                    enjeuxComment,
+                    diagnosticStatus: diagnosticStatus as 'yes' | 'no' | '',
+                    diagnosticDetail,
+                    hasConsulted: hasConsulted as 'yes' | 'no' | '',
+                    consultationsPrevious,
+                    consultationsComment,
+                    hasLegalContext: hasLegalContext as 'yes' | 'no' | '',
+                    legalContext,
+                    legalContextDetail,
+                    participants: participants.map(p => ({
+                      clientId: p.clientId,
+                      role: p.role,
+                      consentStatus: p.consent.status,
+                      consentVersion: p.consent.version,
+                      consentSignedAt: p.consent.signedDate,
+                    })),
+                  }
+
+                  try {
+                    if (isDraft) {
+                      // Create new demande
+                      const result = await createDemande.mutateAsync(demandeInput)
+                      toast({
+                        title: 'Demande créée',
+                        description: `La demande ${result.demandeId} a été créée.`,
+                      })
+                      // Navigate to the new demande
+                      navigate({ to: '/demandes/$id', params: { id: result.demandeId } })
+                    } else {
+                      // Update existing demande
+                      await updateDemande.mutateAsync({
+                        demandeId: requestId,
+                        updates: demandeInput,
+                      })
+                      toast({
+                        title: 'Demande sauvegardée',
+                        description: 'Les modifications ont été enregistrées.',
+                      })
+                    }
+                  } catch (error) {
+                    console.error('Error saving demande:', error)
+                    toast({
+                      title: 'Erreur',
+                      description: 'Impossible de sauvegarder la demande.',
+                      variant: 'error',
+                    })
+                  }
+                }}
+              >
+                {(createDemande.isPending || updateDemande.isPending) ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    {t('pages.requestDetail.actions.saving')}
+                  </>
+                ) : (
+                  t('pages.requestDetail.actions.saveDraft')
+                )}
+              </Button>
+            )}
             {/* Analyser button - navigates to analysis page */}
             {canAnalyze && (
               <Button
                 size="sm"
-                disabled={isDraft}
                 onClick={() => {
-                  if (!isDraft) {
-                    navigate({ to: '/demandes/$id/analyse', params: { id: requestId } })
+                  if (isDraft) {
+                    // TODO: Save draft first, then navigate
+                    console.log('Saving draft before analysis...')
                   }
+                  navigate({ to: '/demandes/$id/analyse', params: { id: isDraft ? 'nouvelle' : requestId } })
                 }}
               >
                 {t('pages.requestDetail.actions.analyze')}
@@ -1162,24 +1246,24 @@ export function RequestDetailPage() {
                     'mt-2 rounded-lg border p-3 transition-colors duration-200',
                     allConsentsValid
                       ? 'border-sage-200 bg-sage-50/50'
-                      : 'border-border bg-background-secondary/50'
+                      : 'border-wine-200 bg-wine-50/30'
                   )}
                 >
                   <div className="flex items-start gap-2">
                     {allConsentsValid ? (
                       <Check className="h-4 w-4 shrink-0 mt-0.5 text-sage-600" />
                     ) : (
-                      <Info className="h-4 w-4 shrink-0 mt-0.5 text-foreground-muted" />
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-wine-600" />
                     )}
                     <p
                       className={cn(
                         'text-sm transition-colors duration-200',
-                        allConsentsValid ? 'text-sage-700' : 'text-foreground-secondary'
+                        allConsentsValid ? 'text-sage-700' : 'text-wine-700'
                       )}
                     >
                       {allConsentsValid
                         ? t('pages.requestDetail.participants.consentComplete')
-                        : t('pages.requestDetail.participants.consentPending')}
+                        : t('pages.requestDetail.participants.consentWarning')}
                     </p>
                   </div>
                 </div>

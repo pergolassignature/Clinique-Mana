@@ -12,11 +12,18 @@ export type {
   DemandesListSort,
 } from './types'
 
+// API types
+export type { CreateDemandeInput, UpdateDemandeInput, DemandeWithParticipants } from './api'
+
 // Hooks
-export { useDemandes, useDemandeStatusCounts, demandeKeys } from './hooks'
+export {
+  useDemandes,
+  useDemande,
+  useDemandeStatusCounts,
+  useCreateDemande,
+  useUpdateDemande,
+  demandeKeys,
+} from './hooks'
 
 // Components
 export { DemandesTable, DemandesFilters } from './components'
-
-// Constants (for direct access if needed)
-export { MOCK_DEMANDES, MOCK_DEMANDE_LIST_ITEMS, getStatusCounts } from './constants'

@@ -474,17 +474,17 @@ export function ProfessionalProfileTab({ professional, onNavigateToTab }: Profes
               <CardTitle className="text-base">IVAC</CardTitle>
             </div>
             <CardDescription>
-              Numero d'identification pour les dossiers IVAC
+              Numéro d'identification pour les dossiers IVAC
             </CardDescription>
           </CardHeader>
           <CardContent>
             <EditableField
-              label="Numero IVAC du professionnel"
+              label="Numéro IVAC du professionnel"
               value={ivacNumber?.ivac_number || null}
               onSave={handleIvacNumberUpdate}
               isSaving={upsertIvacNumber.isPending || deleteIvacNumber.isPending}
               placeholder="Ex: IVAC-PRO-123456"
-              hint="Ce numero sera affiche dans les dossiers clients IVAC"
+              hint="Ce numéro sera affiché dans les dossiers clients IVAC"
             />
           </CardContent>
         </Card>

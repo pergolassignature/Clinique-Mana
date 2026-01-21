@@ -7,7 +7,7 @@ import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import type { ClientWithRelations } from '../types'
 import { EditTagsDialog } from './drawer-sections/edit-dialogs'
-import { AVAILABLE_TAGS } from '../constants'
+import { useClientTags } from '../hooks'
 
 interface DrawerHeaderProps {
   client: ClientWithRelations
@@ -16,6 +16,7 @@ interface DrawerHeaderProps {
 
 export function DrawerHeader({ client, onUpdateTags }: DrawerHeaderProps) {
   const [editTagsOpen, setEditTagsOpen] = useState(false)
+  const { data: availableTags = [] } = useClientTags()
   const initials = `${client.firstName[0]}${client.lastName[0]}`.toUpperCase()
 
   const formatBalance = (balance: number | undefined) => {
@@ -47,14 +48,8 @@ export function DrawerHeader({ client, onUpdateTags }: DrawerHeaderProps) {
               {client.firstName} {client.lastName}
             </h2>
 
-            {/* Pronouns + ID */}
+            {/* Client ID */}
             <div className="flex items-center gap-2 text-sm text-foreground-secondary">
-              {client.pronouns && (
-                <>
-                  <span>{client.pronouns}</span>
-                  <span>•</span>
-                </>
-              )}
               <span className="font-mono">{client.clientId}</span>
             </div>
 
@@ -128,7 +123,7 @@ export function DrawerHeader({ client, onUpdateTags }: DrawerHeaderProps) {
         open={editTagsOpen}
         onOpenChange={setEditTagsOpen}
         onSave={handleSaveTags}
-        availableTags={AVAILABLE_TAGS}
+        availableTags={availableTags}
       />
     </>
   )

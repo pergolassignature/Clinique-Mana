@@ -1,6 +1,8 @@
-import { useQuery } from '@tanstack/react-query'
-import type { ClientsListFilters, ClientsListSort, ClientListItem, ClientWithRelations } from './types'
-import { MOCK_CLIENT_LIST_ITEMS, MOCK_PROFESSIONALS, getClientWithRelations } from './constants'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabaseClient'
+import type { ClientsListFilters, ClientsListSort, ClientListItem, ClientWithRelations, CreateClientInput } from './types'
+import * as api from './api'
+import type { CreateClientMinimalInput, UpdateClientInput } from './api'
 
 // =============================================================================
 // QUERY KEYS
@@ -16,86 +18,6 @@ export const clientKeys = {
 }
 
 // =============================================================================
-// FILTER HELPERS
-// =============================================================================
-
-function filterClients(
-  clients: ClientListItem[],
-  filters?: ClientsListFilters,
-  sort?: ClientsListSort
-): ClientListItem[] {
-  let result = [...clients]
-
-  if (filters) {
-    // Status filter
-    if (filters.status) {
-      result = result.filter(c => c.status === filters.status)
-    }
-
-    // Search filter (name, email, ID)
-    if (filters.search) {
-      const search = filters.search.toLowerCase()
-      result = result.filter(c =>
-        c.firstName.toLowerCase().includes(search) ||
-        c.lastName.toLowerCase().includes(search) ||
-        c.clientId.toLowerCase().includes(search) ||
-        c.email?.toLowerCase().includes(search)
-      )
-    }
-
-    // Tags filter
-    if (filters.tags && filters.tags.length > 0) {
-      result = result.filter(c =>
-        filters.tags!.some(tag => c.tags.includes(tag))
-      )
-    }
-
-    // Primary professional filter (for role-based filtering)
-    if (filters.primaryProfessionalId) {
-      result = result.filter(c => c.primaryProfessionalId === filters.primaryProfessionalId)
-    }
-
-    // Date range filter
-    if (filters.dateRange) {
-      const { from, to } = filters.dateRange
-      result = result.filter(c => {
-        if (!c.lastAppointmentDateTime) return false
-        const date = new Date(c.lastAppointmentDateTime)
-        return date >= new Date(from) && date <= new Date(to)
-      })
-    }
-  }
-
-  // Sort
-  if (sort) {
-    result.sort((a, b) => {
-      let comparison = 0
-      switch (sort.field) {
-        case 'name':
-          comparison = `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)
-          break
-        case 'clientId':
-          comparison = a.clientId.localeCompare(b.clientId)
-          break
-        case 'birthday':
-          comparison = (a.birthday || '').localeCompare(b.birthday || '')
-          break
-        case 'lastAppointment':
-          comparison = (a.lastAppointmentDateTime || '').localeCompare(b.lastAppointmentDateTime || '')
-          break
-        case 'createdAt':
-          // For list items, we don't have createdAt, so default to ID
-          comparison = a.clientId.localeCompare(b.clientId)
-          break
-      }
-      return sort.direction === 'desc' ? -comparison : comparison
-    })
-  }
-
-  return result
-}
-
-// =============================================================================
 // HOOKS
 // =============================================================================
 
@@ -105,12 +27,107 @@ function filterClients(
 export function useClients(filters?: ClientsListFilters, sort?: ClientsListSort) {
   return useQuery({
     queryKey: clientKeys.list(filters, sort),
-    queryFn: async () => {
-      // Simulate API delay
-      await new Promise(r => setTimeout(r, 300))
+    queryFn: async (): Promise<ClientListItem[]> => {
+      let query = supabase
+        .from('clients')
+        .select(`
+          id,
+          client_id,
+          first_name,
+          last_name,
+          birthday,
+          email,
+          cell_phone,
+          last_appointment_at,
+          is_archived,
+          tags,
+          primary_professional_id,
+          professionals:primary_professional_id (
+            id,
+            profiles:profile_id (
+              display_name
+            )
+          )
+        `)
 
-      // Filter and sort mock data
-      return filterClients(MOCK_CLIENT_LIST_ITEMS, filters, sort)
+      // Status filter
+      if (filters?.status === 'active') {
+        query = query.eq('is_archived', false)
+      } else if (filters?.status === 'archived') {
+        query = query.eq('is_archived', true)
+      }
+
+      // Search filter
+      if (filters?.search) {
+        const search = `%${filters.search}%`
+        query = query.or(`first_name.ilike.${search},last_name.ilike.${search},client_id.ilike.${search},email.ilike.${search}`)
+      }
+
+      // Tags filter
+      if (filters?.tags && filters.tags.length > 0) {
+        query = query.overlaps('tags', filters.tags)
+      }
+
+      // Primary professional filter
+      if (filters?.primaryProfessionalId) {
+        query = query.eq('primary_professional_id', filters.primaryProfessionalId)
+      }
+
+      // Date range filter
+      if (filters?.dateRange) {
+        query = query
+          .gte('last_appointment_at', filters.dateRange.from)
+          .lte('last_appointment_at', filters.dateRange.to)
+      }
+
+      // Sorting
+      if (sort) {
+        const ascending = sort.direction === 'asc'
+        switch (sort.field) {
+          case 'name':
+            query = query.order('last_name', { ascending }).order('first_name', { ascending })
+            break
+          case 'clientId':
+            query = query.order('client_id', { ascending })
+            break
+          case 'birthday':
+            query = query.order('birthday', { ascending, nullsFirst: false })
+            break
+          case 'lastAppointment':
+            query = query.order('last_appointment_at', { ascending, nullsFirst: false })
+            break
+          case 'createdAt':
+            query = query.order('created_at', { ascending })
+            break
+        }
+      } else {
+        // Default sort: newest first
+        query = query.order('created_at', { ascending: false })
+      }
+
+      const { data, error } = await query
+
+      if (error) throw error
+
+      // Transform to ClientListItem format
+      return (data || []).map((row): ClientListItem => {
+        // Supabase returns nested objects for single relations
+        const professional = row.professionals as unknown as { id: string; profiles: { display_name: string } | null } | null
+        return {
+          id: row.id,
+          clientId: row.client_id,
+          firstName: row.first_name,
+          lastName: row.last_name,
+          birthday: row.birthday,
+          email: row.email,
+          cellPhone: row.cell_phone,
+          lastAppointmentDateTime: row.last_appointment_at,
+          status: row.is_archived ? 'archived' : 'active',
+          tags: row.tags || [],
+          primaryProfessionalId: row.primary_professional_id,
+          primaryProfessionalName: professional?.profiles?.display_name || null,
+        }
+      })
     },
   })
 }
@@ -122,11 +139,79 @@ export function useClient(id: string | undefined) {
   return useQuery({
     queryKey: clientKeys.detail(id!),
     queryFn: async (): Promise<ClientWithRelations | undefined> => {
-      // Simulate API delay
-      await new Promise(r => setTimeout(r, 200))
-
       if (!id) return undefined
-      return getClientWithRelations(id)
+
+      const { data, error } = await supabase
+        .from('clients')
+        .select(`
+          *,
+          professionals:primary_professional_id (
+            id,
+            profiles:profile_id (
+              display_name
+            )
+          ),
+          responsible:responsible_client_id (
+            id,
+            client_id,
+            first_name,
+            last_name
+          )
+        `)
+        .eq('client_id', id)
+        .single()
+
+      if (error) throw error
+      if (!data) return undefined
+
+      const professional = data.professionals as { id: string; profiles: { display_name: string } } | null
+      const responsible = data.responsible as { id: string; client_id: string; first_name: string; last_name: string } | null
+
+      // Transform to ClientWithRelations
+      return {
+        id: data.id,
+        clientId: data.client_id,
+        firstName: data.first_name,
+        lastName: data.last_name,
+        sex: data.sex,
+        language: data.language,
+        birthday: data.birthday,
+        email: data.email,
+        cellPhoneCountryCode: data.cell_phone_country_code || '+1',
+        cellPhone: data.cell_phone,
+        homePhoneCountryCode: data.home_phone_country_code || '+1',
+        homePhone: data.home_phone,
+        workPhoneCountryCode: data.work_phone_country_code || '+1',
+        workPhone: data.work_phone,
+        workPhoneExtension: data.work_phone_extension,
+        streetNumber: data.street_number,
+        streetName: data.street_name,
+        apartment: data.apartment,
+        city: data.city,
+        province: data.province,
+        country: data.country || 'Canada',
+        postalCode: data.postal_code,
+        lastAppointmentDateTime: data.last_appointment_at,
+        lastAppointmentService: data.last_appointment_service,
+        lastAppointmentProfessional: data.last_appointment_professional,
+        primaryProfessionalId: data.primary_professional_id,
+        referredBy: data.referred_by,
+        customField: data.custom_field,
+        tags: data.tags || [],
+        createdAt: data.created_at,
+        isArchived: data.is_archived,
+        responsibleClientId: data.responsible_client_id,
+        balance: 0, // TODO: Calculate from invoices
+        primaryProfessional: professional ? {
+          id: professional.id,
+          displayName: professional.profiles?.display_name || '',
+        } : null,
+        responsibleClient: responsible ? {
+          clientId: responsible.client_id,
+          firstName: responsible.first_name,
+          lastName: responsible.last_name,
+        } : null,
+      }
     },
     enabled: !!id,
   })
@@ -139,12 +224,16 @@ export function useClientTags() {
   return useQuery({
     queryKey: [...clientKeys.all, 'tags'],
     queryFn: async () => {
-      await new Promise(r => setTimeout(r, 100))
+      const { data, error } = await supabase
+        .from('clients')
+        .select('tags')
 
-      // Extract unique tags from all clients
+      if (error) throw error
+
+      // Extract unique tags
       const tags = new Set<string>()
-      MOCK_CLIENT_LIST_ITEMS.forEach(client => {
-        client.tags.forEach(tag => tags.add(tag))
+      data?.forEach(row => {
+        row.tags?.forEach((tag: string) => tags.add(tag))
       })
       return Array.from(tags).sort()
     },
@@ -158,19 +247,76 @@ export function useProfessionals() {
   return useQuery({
     queryKey: [...clientKeys.all, 'professionals'],
     queryFn: async () => {
-      await new Promise(r => setTimeout(r, 100))
-      return MOCK_PROFESSIONALS
+      const { data, error } = await supabase
+        .from('professionals')
+        .select(`
+          id,
+          profiles:profile_id (
+            display_name
+          )
+        `)
+        .eq('status', 'active')
+
+      if (error) throw error
+
+      return (data || []).map(row => {
+        const profile = row.profiles as unknown as { display_name: string } | null
+        return {
+          id: row.id,
+          displayName: profile?.display_name || 'Unknown',
+        }
+      })
     },
   })
 }
 
 // =============================================================================
-// FUTURE MUTATION HOOKS (placeholders)
+// MUTATIONS
 // =============================================================================
 
-// TODO: useCreateClient
-// TODO: useUpdateClient
-// TODO: useArchiveClient
-// TODO: useDeleteClient
-// TODO: useAddClientNote
-// TODO: useAddClientConsent
+/**
+ * Create a new client (full form - from NewClientDrawer)
+ */
+export function useCreateClient() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: CreateClientInput) => api.createClient(input),
+    onSuccess: () => {
+      // Invalidate all client queries to refetch lists
+      queryClient.invalidateQueries({ queryKey: clientKeys.all })
+    },
+  })
+}
+
+/**
+ * Create a new client with minimal fields (from ClientPickerDrawer)
+ */
+export function useCreateClientMinimal() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: CreateClientMinimalInput) => api.createClientMinimal(input),
+    onSuccess: () => {
+      // Invalidate all client queries to refetch lists
+      queryClient.invalidateQueries({ queryKey: clientKeys.all })
+    },
+  })
+}
+
+/**
+ * Update an existing client
+ */
+export function useUpdateClient() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ clientId, updates }: { clientId: string; updates: UpdateClientInput }) =>
+      api.updateClient(clientId, updates),
+    onSuccess: (_, { clientId }) => {
+      // Invalidate specific client query and lists
+      queryClient.invalidateQueries({ queryKey: clientKeys.detail(clientId) })
+      queryClient.invalidateQueries({ queryKey: clientKeys.lists() })
+    },
+  })
+}

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search,
@@ -36,6 +37,9 @@ import {
   type DuplicateMatch,
 } from '@/shared/hooks/use-duplicate-detection'
 import { DuplicateWarning } from './duplicate-warning'
+import { useCreateClientMinimal } from '@/clients/hooks'
+import { useToast } from '@/shared/hooks/use-toast'
+import { supabase } from '@/lib/supabaseClient'
 
 type ConsentStatus = 'valid' | 'expired' | 'missing'
 
@@ -55,11 +59,11 @@ interface ClientPickerDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSelectClient: (client: Client) => void
-  onCreateClient?: (clientData: NewClientData) => void
+  onCreateClient?: (client: Client) => void
   excludeClientIds?: string[]
 }
 
-interface NewClientData {
+interface NewClientFormData {
   firstName: string
   lastName: string
   dateOfBirth: string
@@ -67,54 +71,91 @@ interface NewClientData {
   phone: string
 }
 
-// Mock clients for demonstration
-const mockClients: Client[] = [
-  {
-    id: 'CLI-2024-0020',
-    firstName: 'Jean',
-    lastName: 'Tremblay',
-    dateOfBirth: '1985-03-15',
-    email: 'jean.tremblay@email.com',
-    phone: '514-555-0101',
-    consent: { status: 'valid' },
-  },
-  {
-    id: 'CLI-2024-0021',
-    firstName: 'Sophie',
-    lastName: 'Gagnon',
-    dateOfBirth: '1992-07-22',
-    email: 'sophie.gagnon@email.com',
-    phone: '514-555-0102',
-    consent: { status: 'expired' },
-  },
-  {
-    id: 'CLI-2024-0022',
-    firstName: 'Pierre',
-    lastName: 'Lavoie',
-    dateOfBirth: '1978-11-08',
-    email: 'pierre.lavoie@email.com',
-    phone: '514-555-0103',
-    consent: { status: 'missing' },
-  },
-  {
-    id: 'CLI-2024-0023',
-    firstName: 'Marie',
-    lastName: 'Bouchard',
-    dateOfBirth: '2010-05-20',
-    email: '',
-    phone: '514-555-0104',
-    consent: { status: 'valid' },
-  },
-  {
-    id: 'CLI-2024-0024',
-    firstName: 'Luc',
-    lastName: 'Bergeron',
-    dateOfBirth: '1965-01-30',
-    email: 'luc.bergeron@email.com',
-    phone: '514-555-0105',
-    consent: { status: 'valid' },
-  },
-]
+// =============================================================================
+// SEARCH CLIENTS HOOK
+// =============================================================================
+
+interface SearchClientsResult {
+  clients: Client[]
+  isLoading: boolean
+}
+
+function useSearchClients(searchQuery: string, enabled: boolean): SearchClientsResult {
+  const { data: clients = [], isLoading } = useQuery({
+    queryKey: ['client-picker-search', searchQuery],
+    queryFn: async (): Promise<Client[]> => {
+      if (!searchQuery.trim() || searchQuery.length < 1) return []
+
+      const search = `%${searchQuery}%`
+
+      // Fetch clients matching the search
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('clients')
+        .select(`
+          id,
+          client_id,
+          first_name,
+          last_name,
+          birthday,
+          email,
+          cell_phone,
+          is_archived
+        `)
+        .eq('is_archived', false)
+        .or(`first_name.ilike.${search},last_name.ilike.${search},client_id.ilike.${search},email.ilike.${search},cell_phone.ilike.${search}`)
+        .limit(20)
+
+      if (clientsError) {
+        console.error('Error searching clients:', clientsError)
+        return []
+      }
+
+      if (!clientsData || clientsData.length === 0) return []
+
+      // Fetch consent status for these clients
+      const clientIds = clientsData.map(c => c.id)
+      const { data: consentsData } = await supabase
+        .from('client_consents')
+        .select('client_id, status, expires_at')
+        .in('client_id', clientIds)
+
+      // Build a map of client_id -> consent status
+      const consentMap = new Map<string, ConsentStatus>()
+      for (const consent of consentsData || []) {
+        const currentStatus = consentMap.get(consent.client_id)
+        // If we already have a valid consent, keep it
+        if (currentStatus === 'valid') continue
+
+        if (consent.status === 'valid') {
+          // Check if expired
+          if (consent.expires_at && new Date(consent.expires_at) < new Date()) {
+            consentMap.set(consent.client_id, 'expired')
+          } else {
+            consentMap.set(consent.client_id, 'valid')
+          }
+        } else if (consent.status === 'expired') {
+          consentMap.set(consent.client_id, 'expired')
+        }
+        // 'missing' is the default, so we don't need to set it
+      }
+
+      // Transform to Client format
+      return clientsData.map((row): Client => ({
+        id: row.client_id, // Use client_id as the ID (CLI-0000001 format)
+        firstName: row.first_name,
+        lastName: row.last_name,
+        dateOfBirth: row.birthday || '',
+        email: row.email || undefined,
+        phone: row.cell_phone || undefined,
+        consent: { status: consentMap.get(row.id) || 'missing' },
+      }))
+    },
+    enabled: enabled && searchQuery.trim().length >= 1,
+    staleTime: 30000, // 30 seconds
+  })
+
+  return { clients, isLoading }
+}
 
 const consentConfig: Record<
   ConsentStatus,
@@ -168,11 +209,14 @@ export function ClientPickerDrawer({
   excludeClientIds = [],
 }: ClientPickerDrawerProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [isSearching, setIsSearching] = useState(false)
   const [showCreateForm, setShowCreateForm] = useState(false)
 
+  // Mutations and toast
+  const createClientMutation = useCreateClientMinimal()
+  const { toast } = useToast()
+
   // Form state for new client
-  const [newClient, setNewClient] = useState<NewClientData>({
+  const [newClient, setNewClient] = useState<NewClientFormData>({
     firstName: '',
     lastName: '',
     dateOfBirth: '',
@@ -181,7 +225,7 @@ export function ClientPickerDrawer({
   })
 
   // Track which fields have been touched (for live validation)
-  const [touchedFields, setTouchedFields] = useState<Set<keyof NewClientData>>(new Set())
+  const [touchedFields, setTouchedFields] = useState<Set<keyof NewClientFormData>>(new Set())
 
   // Live validation errors
   const [formErrors, setFormErrors] = useState<FormValidationErrors>({})
@@ -198,91 +242,8 @@ export function ClientPickerDrawer({
   // Use duplicate detection hook (Supabase)
   const {
     isChecking: isDuplicateChecking,
-    matches: supabaseMatches,
+    matches: duplicateMatches,
   } = useDuplicateDetection(duplicatePayload, { enabled: showCreateForm })
-
-  // Local mock duplicate check for demo/testing
-  // TODO: Remove once real Supabase data is available
-  const localDuplicateMatches = useMemo(() => {
-    if (!showCreateForm || !duplicatePayload) return []
-
-    const { normalizedEmail, normalizedPhone, normalizedFirstName, normalizedLastName, dateOfBirth } = duplicatePayload
-    const matches: Array<{
-      id: string
-      firstName: string
-      lastName: string
-      email: string | null
-      phone: string | null
-      dateOfBirth: string | null
-      confidence: 'high' | 'medium' | 'none'
-      matchReasons: string[]
-    }> = []
-
-    for (const client of mockClients) {
-      const matchReasons: string[] = []
-      let confidence: 'high' | 'medium' | 'none' = 'none'
-
-      const clientEmail = client.email?.toLowerCase().trim() || ''
-      const clientPhone = client.phone?.replace(/\D/g, '') || ''
-      const clientFirstName = client.firstName.toLowerCase().trim()
-      const clientLastName = client.lastName.toLowerCase().trim()
-
-      // LEVEL 1: CERTAIN DUPLICATE
-      // Exact email match
-      if (normalizedEmail && clientEmail && clientEmail === normalizedEmail) {
-        matchReasons.push('email')
-        confidence = 'high'
-      }
-
-      // Exact phone match
-      if (normalizedPhone.length >= 10 && clientPhone) {
-        const payloadPhoneLast10 = normalizedPhone.slice(-10)
-        const clientPhoneLast10 = clientPhone.slice(-10)
-        if (payloadPhoneLast10.length === 10 && payloadPhoneLast10 === clientPhoneLast10) {
-          matchReasons.push('phone')
-          confidence = 'high'
-        }
-      }
-
-      // Exact name + DOB
-      if (
-        dateOfBirth &&
-        client.dateOfBirth === dateOfBirth &&
-        clientFirstName === normalizedFirstName &&
-        clientLastName === normalizedLastName
-      ) {
-        matchReasons.push('name+dob')
-        confidence = 'high'
-      }
-
-      // LEVEL 2: POSSIBLE DUPLICATE (only if not already high)
-      if (confidence === 'none' && normalizedFirstName && normalizedLastName) {
-        if (clientFirstName === normalizedFirstName && clientLastName === normalizedLastName) {
-          matchReasons.push('same_name')
-          confidence = 'medium'
-        }
-      }
-
-      if (confidence !== 'none') {
-        matches.push({
-          id: client.id,
-          firstName: client.firstName,
-          lastName: client.lastName,
-          email: client.email || null,
-          phone: client.phone || null,
-          dateOfBirth: client.dateOfBirth,
-          confidence,
-          matchReasons,
-        })
-      }
-    }
-
-    // Sort by confidence (high first)
-    return matches.sort((a, b) => (a.confidence === 'high' ? -1 : b.confidence === 'high' ? 1 : 0))
-  }, [showCreateForm, duplicatePayload])
-
-  // Combine Supabase and local matches (use local for demo, Supabase when available)
-  const duplicateMatches = supabaseMatches.length > 0 ? supabaseMatches : localDuplicateMatches
   const firstMatch = duplicateMatches[0]
   const highestConfidence = firstMatch ? firstMatch.confidence : 'none'
   const hasHighConfidenceDuplicate = duplicateMatches.some((m) => m.confidence === 'high')
@@ -290,7 +251,7 @@ export function ClientPickerDrawer({
 
   // Handle field change with live validation
   const handleFieldChange = useCallback(
-    (field: keyof NewClientData, value: string) => {
+    (field: keyof NewClientFormData, value: string) => {
       setNewClient((prev) => ({ ...prev, [field]: value }))
 
       // Reset duplicate confirmation when relevant fields change
@@ -314,7 +275,7 @@ export function ClientPickerDrawer({
   )
 
   // Handle field blur (mark as touched and validate)
-  const handleFieldBlur = useCallback((field: keyof NewClientData) => {
+  const handleFieldBlur = useCallback((field: keyof NewClientFormData) => {
     setTouchedFields((prev) => new Set(prev).add(field))
     const result = validateField(field, newClient[field])
     setFormErrors((prev) => {
@@ -326,27 +287,26 @@ export function ClientPickerDrawer({
     })
   }, [newClient])
 
-  // Filter clients based on search query
-  const filteredClients = useMemo(() => {
-    if (!searchQuery.trim()) return []
+  // Debounced search query state
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
 
-    const query = searchQuery.toLowerCase()
-    return mockClients.filter((client) => {
-      const fullName = `${client.firstName} ${client.lastName}`.toLowerCase()
-      const email = client.email?.toLowerCase() || ''
-      const phone = client.phone || ''
-
-      return fullName.includes(query) || email.includes(query) || phone.includes(query)
-    })
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300)
+    return () => clearTimeout(timer)
   }, [searchQuery])
 
-  // Simulate search delay
+  // Search clients from database
+  const { clients: filteredClients, isLoading: isSearching } = useSearchClients(
+    debouncedSearchQuery,
+    open && !showCreateForm
+  )
+
+  // Handle search input change
   const handleSearchChange = (value: string) => {
     setSearchQuery(value)
-    if (value.trim()) {
-      setIsSearching(true)
-      setTimeout(() => setIsSearching(false), 300)
-    }
   }
 
   // Handle client selection
@@ -375,7 +335,7 @@ export function ClientPickerDrawer({
 
   // Validate all fields on submit
   const validateAllFieldsOnSubmit = (): boolean => {
-    const fields: (keyof NewClientData)[] = [
+    const fields: (keyof NewClientFormData)[] = [
       'firstName',
       'lastName',
       'dateOfBirth',
@@ -429,16 +389,52 @@ export function ClientPickerDrawer({
     duplicateConfirmed,
   ])
 
-  // Handle form submission
-  const handleCreateClient = () => {
+  // Handle form submission - creates client in database
+  const handleCreateClient = async () => {
     if (!validateAllFieldsOnSubmit()) return
     if (!canSubmit) return
 
-    if (onCreateClient) {
-      onCreateClient(newClient)
+    try {
+      // Create client in database
+      const result = await createClientMutation.mutateAsync({
+        firstName: newClient.firstName,
+        lastName: newClient.lastName,
+        dateOfBirth: newClient.dateOfBirth || null,
+        email: newClient.email || null,
+        phone: newClient.phone || null,
+      })
+
+      // Build client object with real ID from database
+      const createdClient: Client = {
+        id: result.id, // Real UUID from database
+        firstName: newClient.firstName,
+        lastName: newClient.lastName,
+        dateOfBirth: newClient.dateOfBirth,
+        email: newClient.email || undefined,
+        phone: newClient.phone || undefined,
+        consent: { status: 'missing' }, // New clients need consent
+      }
+
+      toast({
+        title: 'Client créé',
+        description: `${newClient.firstName} ${newClient.lastName} (${result.clientId}) a été créé avec succès.`,
+      })
+
+      // Call onCreateClient with the real client data including database ID
+      if (onCreateClient) {
+        onCreateClient(createdClient)
+      }
+
+      onOpenChange(false)
+      resetState()
+    } catch (error) {
+      console.error('Failed to create client:', error)
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de créer le client. Veuillez réessayer.',
+        variant: 'error',
+      })
     }
-    onOpenChange(false)
-    resetState()
   }
 
   // Reset state when drawer closes
@@ -680,15 +676,16 @@ export function ClientPickerDrawer({
                   variant="outline"
                   className="flex-1"
                   onClick={() => setShowCreateForm(false)}
+                  disabled={createClientMutation.isPending}
                 >
                   {t('pages.requestDetail.clientPicker.create.actions.cancel')}
                 </Button>
                 <Button
                   className="flex-1"
                   onClick={handleCreateClient}
-                  disabled={!canSubmit || isDuplicateChecking}
+                  disabled={!canSubmit || isDuplicateChecking || createClientMutation.isPending}
                 >
-                  {isDuplicateChecking ? (
+                  {isDuplicateChecking || createClientMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     t('pages.requestDetail.clientPicker.create.actions.create')

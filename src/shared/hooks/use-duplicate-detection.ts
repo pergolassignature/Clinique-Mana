@@ -157,7 +157,7 @@ export function useDuplicateDetection(
         // We use .or() to search multiple conditions
         let query = supabase
           .from('clients')
-          .select('id, first_name, last_name, email, phone_primary, date_of_birth')
+          .select('id, first_name, last_name, email, cell_phone, birthday')
           .limit(10)
 
         // Build OR conditions
@@ -170,7 +170,7 @@ export function useDuplicateDetection(
         if (hasPhone) {
           // Search for phone with or without country code
           // We'll filter in JS after for better normalization
-          orConditions.push(`phone_primary.ilike.%${normalizedPhone.slice(-10)}%`)
+          orConditions.push(`cell_phone.ilike.%${normalizedPhone.slice(-10)}%`)
         }
 
         if (hasNameAndDob) {
@@ -201,10 +201,10 @@ export function useDuplicateDetection(
         if (hasNameAndDob) {
           const { data: nameData } = await supabase
             .from('clients')
-            .select('id, first_name, last_name, email, phone_primary, date_of_birth')
+            .select('id, first_name, last_name, email, cell_phone, birthday')
             .ilike('first_name', `%${normalizedFirstName}%`)
             .ilike('last_name', `%${normalizedLastName}%`)
-            .eq('date_of_birth', dateOfBirth)
+            .eq('birthday', dateOfBirth)
             .limit(10)
 
           if (nameData && requestId === requestIdRef.current) {
@@ -234,7 +234,7 @@ export function useDuplicateDetection(
           let confidence: DuplicateConfidence = 'none'
 
           const clientEmail = client.email ? normalizeEmail(client.email) : ''
-          const clientPhone = client.phone_primary ? normalizePhone(client.phone_primary) : ''
+          const clientPhone = client.cell_phone ? normalizePhone(client.cell_phone) : ''
           const clientFirstName = normalizeName(client.first_name || '')
           const clientLastName = normalizeName(client.last_name || '')
 
@@ -260,7 +260,7 @@ export function useDuplicateDetection(
           // 3. Exact first name + last name + date of birth
           if (
             hasNameAndDob &&
-            client.date_of_birth === dateOfBirth &&
+            client.birthday === dateOfBirth &&
             clientFirstName === normalizedFirstName &&
             clientLastName === normalizedLastName
           ) {
@@ -321,8 +321,8 @@ export function useDuplicateDetection(
             firstName: client.first_name || '',
             lastName: client.last_name || '',
             email: client.email,
-            phone: client.phone_primary,
-            dateOfBirth: client.date_of_birth,
+            phone: client.cell_phone,
+            dateOfBirth: client.birthday,
             confidence,
             matchReasons,
           }
