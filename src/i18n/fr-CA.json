@@ -118,7 +118,13 @@
         "email": "Courriel",
         "status": "Statut",
         "createdAt": "Créé le",
-        "lastUpdated": "Dernière mise à jour"
+        "lastUpdated": "Dernière mise à jour",
+        "ivac": {
+          "title": "IVAC",
+          "number": "Numéro IVAC",
+          "numberPlaceholder": "Ex: 12345",
+          "numberHelper": "Votre numéro d'inscription auprès de l'IVAC"
+        }
       },
       "invite": {
         "title": "Invitation",
@@ -1163,6 +1169,10 @@
         },
         "guidance": "Les motifs servent à orienter la demande, non à poser un diagnostic.",
         "intake": {
+          "yesNo": {
+            "yes": "Oui",
+            "no": "Non"
+          },
           "besoin": {
             "label": "Quel est le besoin?",
             "helper": "En quelques mots, décrivez ce qui vous amène à consulter (tel que vous le percevez).",
@@ -1172,12 +1182,11 @@
             "label": "Y a-t-il des enjeux dans la réalisation de la démarche?",
             "helper": "Ces informations nous aident à mieux orienter la demande.",
             "options": {
-              "financial": "Contraintes financières",
               "availability": "Disponibilités / horaire",
               "coparenting": "Parents séparés / coparentalité",
               "other": "Autre"
             },
-            "otherInput": {
+            "commentInput": {
               "label": "Précisez (optionnel)",
               "placeholder": "Décrivez brièvement…"
             }
@@ -1185,11 +1194,6 @@
           "diagnostic": {
             "label": "Avez-vous déjà reçu un diagnostic ou une évaluation?",
             "helper": "Information déclarative — utilisée pour orienter la demande, sans interprétation clinique.",
-            "options": {
-              "yes": "Oui",
-              "no": "Non",
-              "unknown": "Je ne sais pas / préfère ne pas répondre"
-            },
             "detailInput": {
               "label": "Si oui, lequel? (tel que mentionné par le professionnel)",
               "placeholder": "Ex.: …"
@@ -1202,10 +1206,9 @@
               "socialWorker": "Travailleur social",
               "psychoeducator": "Psychoéducateur",
               "doctor": "Médecin",
-              "other": "Autre",
-              "none": "Non"
+              "other": "Autre"
             },
-            "otherInput": {
+            "commentInput": {
               "label": "Précisez (optionnel)",
               "placeholder": "Décrivez brièvement…"
             }
@@ -1214,9 +1217,7 @@
             "label": "Y a-t-il un contexte légal ou judiciaire à considérer?",
             "options": {
               "courtOrder": "Ordonnance de la Cour",
-              "youthProtection": "Signalement (DPJ ou autre)",
-              "none": "Aucun",
-              "preferNotToAnswer": "Je préfère ne pas répondre"
+              "youthProtection": "Signalement (DPJ ou autre)"
             },
             "detailInput": {
               "label": "Précisions utiles (optionnel)",
@@ -1530,6 +1531,7 @@
     "retry": "Réessayer",
     "cancel": "Annuler",
     "save": "Enregistrer",
+    "saving": "Enregistrement...",
     "delete": "Supprimer",
     "edit": "Modifier",
     "add": "Ajouter",
@@ -1539,6 +1541,12 @@
     "clearFilters": "Effacer les filtres",
     "all": "Tous",
     "none": "Aucun",
+    "yes": "Oui",
+    "no": "Non",
+    "back": "Retour",
+    "next": "Suivant",
+    "close": "Fermer",
+    "deactivate": "Désactiver",
     "status": "Statut",
     "date": "Date",
     "name": "Nom",
@@ -1600,9 +1608,12 @@
     "drawer": {
       "sections": {
         "info": "Informations du client",
+        "externalPayers": "Payeurs externes",
+        "relations": "Relations",
         "visits": "Visites & Paiements",
         "notes": "Notes",
-        "consents": "Consentements"
+        "consents": "Consentements",
+        "history": "Historique"
       },
       "info": {
         "identity": "Identité",
@@ -1632,6 +1643,25 @@
         "noConsents": "Aucun consentement enregistré",
         "addConsent": "Ajouter un consentement"
       },
+      "relations": {
+        "title": "Relations",
+        "noRelations": "Aucune relation enregistrée",
+        "addRelation": "Ajouter",
+        "viewClient": "Voir le dossier",
+        "removeRelation": "Retirer",
+        "types": {
+          "parent": "Parent",
+          "child": "Enfant",
+          "spouse": "Conjoint(e)",
+          "sibling": "Frère/Sœur",
+          "guardian": "Tuteur/Tutrice",
+          "other": "Autre"
+        },
+        "deleteDialog": {
+          "title": "Retirer cette relation ?",
+          "description": "La relation sera supprimée, mais les deux dossiers clients seront conservés."
+        }
+      },
       "actions": {
         "archive": "Archiver",
         "unarchive": "Désarchiver",
@@ -1652,7 +1682,342 @@
       "male": "Homme",
       "female": "Femme",
       "other": "Autre",
-      "unknown": "Non spécifié"
+      "unknown": "Non specifie"
+    },
+    "edit": {
+      "identity": {
+        "title": "Modifier l'identite",
+        "description": "Modifiez les informations d'identite du client",
+        "firstName": "Prenom",
+        "lastName": "Nom",
+        "birthFirstName": "Prenom de naissance",
+        "pronouns": "Pronoms",
+        "sex": "Sexe",
+        "sexNotSpecified": "Non specifie",
+        "language": "Langue",
+        "birthday": "Date de naissance"
+      },
+      "contact": {
+        "title": "Modifier les coordonnees",
+        "description": "Modifiez les informations de contact du client",
+        "email": "Courriel",
+        "cellPhone": "Cellulaire",
+        "homePhone": "Telephone domicile",
+        "workPhone": "Telephone travail"
+      },
+      "address": {
+        "title": "Modifier l'adresse",
+        "description": "Modifiez l'adresse du client",
+        "search": "Recherche d'adresse",
+        "streetNumber": "Numero",
+        "streetName": "Rue",
+        "apartment": "Appartement",
+        "city": "Ville",
+        "province": "Province",
+        "postalCode": "Code postal",
+        "country": "Pays"
+      },
+      "professional": {
+        "title": "Assigner un professionnel",
+        "description": "Selectionnez le professionnel principal pour ce client",
+        "select": "Professionnel"
+      },
+      "tags": {
+        "title": "Gerer les etiquettes",
+        "description": "Ajoutez ou retirez des etiquettes pour ce client",
+        "available": "Etiquettes disponibles",
+        "selected": "Etiquettes selectionnees",
+        "addNew": "Ajouter une nouvelle etiquette"
+      },
+      "note": {
+        "title": "Ajouter une note",
+        "description": "Ajoutez une note au dossier du client",
+        "content": "Contenu de la note"
+      },
+      "consent": {
+        "title": "Ajouter un consentement",
+        "description": "Enregistrez un nouveau consentement pour ce client",
+        "type": "Type de consentement",
+        "signedAt": "Date de signature",
+        "expiresAt": "Date d'expiration",
+        "signedBy": "Signe par"
+      },
+      "relation": {
+        "addTitle": "Ajouter une relation",
+        "addDescription": "Associez ce client à un autre client du système",
+        "editTitle": "Modifier la relation",
+        "editDescription": "Modifier les détails de cette relation",
+        "selectClient": "Client",
+        "selectClientPlaceholder": "Sélectionnez un client...",
+        "relatedClient": "Client lié",
+        "type": "Type de relation",
+        "typePlaceholder": "Sélectionnez un type...",
+        "notes": "Notes (optionnel)",
+        "notesPlaceholder": "Informations supplémentaires sur la relation...",
+        "createNewClient": "Créer un nouveau contact"
+      }
+    },
+    "new": {
+      "title": "Nouveau client",
+      "description": "Créez un nouveau dossier client",
+      "save": "Créer le client",
+      "sections": {
+        "identity": "Identité",
+        "contact": "Coordonnées",
+        "address": "Adresse",
+        "admin": "Administration"
+      },
+      "fields": {
+        "firstName": "Prénom",
+        "lastName": "Nom de famille",
+        "birthFirstName": "Prénom de naissance",
+        "pronouns": "Pronoms",
+        "sex": "Sexe",
+        "language": "Langue",
+        "birthday": "Date de naissance",
+        "email": "Courriel",
+        "cellPhone": "Téléphone cellulaire",
+        "homePhone": "Téléphone domicile",
+        "workPhone": "Téléphone travail",
+        "addressSearch": "Rechercher une adresse",
+        "streetNumber": "No",
+        "streetName": "Rue",
+        "apartment": "Appartement",
+        "city": "Ville",
+        "province": "Province",
+        "postalCode": "Code postal",
+        "country": "Pays",
+        "primaryProfessional": "Professionnel principal",
+        "referredBy": "Référé par",
+        "tags": "Étiquettes"
+      }
+    }
+  },
+  "demandes": {
+    "list": {
+      "title": "Demandes",
+      "subtitle": "Suivez et traitez les demandes entrantes",
+      "searchPlaceholder": "Rechercher par nom ou ID...",
+      "filters": {
+        "all": "Toutes",
+        "toAnalyze": "À analyser",
+        "assigned": "Assignées",
+        "closed": "Fermées"
+      },
+      "columns": {
+        "id": "ID",
+        "status": "Statut",
+        "type": "Type",
+        "clients": "Client(s)",
+        "motifs": "Motifs",
+        "createdAt": "Date",
+        "urgency": "Urgence"
+      },
+      "columnPicker": {
+        "title": "Colonnes",
+        "reset": "Réinitialiser"
+      },
+      "empty": {
+        "title": "Aucune demande",
+        "description": "Les nouvelles demandes de clients s'afficheront ici.",
+        "filteredTitle": "Aucun résultat",
+        "filteredDescription": "Aucune demande ne correspond à vos critères."
+      },
+      "status": {
+        "toAnalyze": "À analyser",
+        "assigned": "Assignée",
+        "closed": "Fermée"
+      },
+      "type": {
+        "individual": "Individuelle",
+        "couple": "Couple",
+        "family": "Famille",
+        "group": "Groupe"
+      },
+      "urgency": {
+        "low": "Faible",
+        "moderate": "Modérée",
+        "high": "Élevée"
+      }
+    }
+  },
+  "externalPayers": {
+    "title": "Payeurs externes",
+    "noPayersMessage": "Aucun payeur externe enregistré",
+    "addPayer": "Ajouter un payeur",
+    "add": "Ajouter un payeur",
+    "empty": "Aucun payeur externe enregistré pour ce client",
+    "selectType": "Sélectionnez le type de payeur",
+    "alreadyExists": "Un payeur de ce type existe déjà pour ce client",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "deactivate": "Désactiver",
+    "types": {
+      "ivac": "IVAC",
+      "pae": "PAE"
+    },
+    "status": {
+      "active": "Actif",
+      "inactive": "Inactif",
+      "expired": "Expiré",
+      "budgetLow": "Budget faible"
+    },
+    "validation": {
+      "fileNumberRequired": "Le numéro de dossier est requis",
+      "paeProviderRequired": "Le fournisseur PAE est requis",
+      "expiryDateRequired": "La date d'expiration est requise"
+    },
+    "deactivateConfirm": {
+      "title": "Désactiver ce payeur?",
+      "description": "Le payeur sera marqué comme inactif. Les données seront conservées pour l'historique."
+    },
+    "ivac": {
+      "title": "IVAC",
+      "fullName": "Indemnisation des victimes d'actes criminels",
+      "description": "Indemnisation des victimes d'actes criminels",
+      "addTitle": "Ajouter IVAC",
+      "addDescription": "Configurez les informations du dossier IVAC",
+      "editTitle": "Modifier IVAC",
+      "editDescription": "Modifiez les informations du dossier IVAC",
+      "fileNumber": "Numéro de dossier",
+      "eventDate": "Date de l'événement",
+      "expiryDate": "Date limite",
+      "rate": "Tarif fixe",
+      "clinicProvider": "Fournisseur clinique",
+      "clinicProviderNumber": "Numéro de fournisseur clinique",
+      "professionalNumber": "Numéro professionnel IVAC",
+      "noProvider": "Non configuré",
+      "noProfessional": "Non assigné"
+    },
+    "pae": {
+      "title": "PAE",
+      "fullName": "Programme d'aide aux employés",
+      "description": "Programme d'aide aux employés",
+      "addTitle": "Ajouter PAE",
+      "addDescription": "Configurez les informations du programme d'aide aux employés",
+      "editTitle": "Modifier PAE",
+      "editDescription": "Modifiez les informations du programme d'aide aux employés",
+      "fileNumber": "Numéro de dossier",
+      "employer": "Employeur",
+      "employerName": "Nom de l'employeur",
+      "provider": "Fournisseur PAE",
+      "providerName": "Nom du fournisseur PAE",
+      "fileOpeningFee": "Frais d'ouverture inclus",
+      "fileOpeningFeeIncluded": "Frais d'ouverture de dossier inclus",
+      "reimbursementPercentage": "Pourcentage de remboursement",
+      "maximumAmount": "Montant maximum",
+      "expiryDate": "Date limite",
+      "appointmentsUsed": "Rendez-vous utilisés",
+      "amountUsed": "Montant utilisé",
+      "budgetRemaining": "Budget restant",
+      "budgetUsage": "Utilisation du budget",
+      "budgetNote": "Le budget est mis à jour lors de la facturation",
+      "coverageRules": "Règles de couverture"
+    },
+    "addDialog": {
+      "title": "Ajouter un payeur externe",
+      "description": "Sélectionnez le type de payeur à ajouter pour ce client.",
+      "selectType": "Type de payeur",
+      "next": "Suivant"
+    },
+    "editIvac": {
+      "title": "Ajouter IVAC",
+      "editTitle": "Modifier IVAC",
+      "description": "Configurez les informations du dossier IVAC",
+      "fileNumberPlaceholder": "Ex: 12345678",
+      "fileNumberHelper": "Le numéro de dossier attribué par l'IVAC"
+    },
+    "editPae": {
+      "title": "Ajouter PAE",
+      "editTitle": "Modifier PAE",
+      "description": "Configurez les informations du programme d'aide aux employés",
+      "fileNumberPlaceholder": "Ex: PAE-2024-001",
+      "employerNamePlaceholder": "Ex: Société ABC inc.",
+      "providerNamePlaceholder": "Ex: Morneau Shepell",
+      "fileOpeningFeeHelper": "Cochez si les frais d'ouverture de dossier sont inclus dans la couverture",
+      "reimbursementHelper": "Pourcentage du tarif remboursé par le PAE",
+      "maximumAmountHelper": "Montant maximum couvert par le programme",
+      "expiryDateHelper": "Date à laquelle la couverture prend fin"
+    },
+    "coverageRules": {
+      "title": "Règles de couverture",
+      "description": "Définissez comment la couverture s'applique aux rendez-vous",
+      "addRule": "Ajouter une règle",
+      "noRules": "Aucune règle définie",
+      "empty": "Aucune règle de couverture définie",
+      "templates": "Modèles",
+      "selectTemplate": "Sélectionnez un modèle",
+      "preview": "Aperçu",
+      "rule": "Règle",
+      "types": {
+        "free_appointments": "Rendez-vous gratuits",
+        "shared_cost": "Coût partagé",
+        "fixed_client_amount": "Montant fixe client",
+        "included_services": "Services inclus"
+      },
+      "templateOptions": {
+        "title": "Modèles de couverture",
+        "description": "Sélectionnez un modèle pour remplir automatiquement les règles",
+        "apply": "Appliquer",
+        "threeFreesThenFiftyFifty": "3 RDV gratuits puis 50/50",
+        "threeFreesThenFiftyFiftyDesc": "Les 3 premiers rendez-vous sont couverts à 100%, puis 50% par la suite",
+        "fourFreesPlusServices": "4 RDV + frais + évaluation + suivi",
+        "fourFreesPlusServicesDesc": "4 rendez-vous gratuits avec frais d'ouverture et services inclus",
+        "threeFreesClientPays50": "3 RDV gratuits puis client paie 50$",
+        "threeFreesClientPays50Desc": "Les 3 premiers rendez-vous gratuits, puis le client paie 50$ par RDV",
+        "fiveFullyCovered": "5 RDV couverts à 100%",
+        "fiveFullyCoveredDesc": "Les 5 premiers rendez-vous sont entièrement couverts",
+        "fullyPercentage": "Remboursement à pourcentage fixe",
+        "fullyPercentageDesc": "Tous les rendez-vous remboursés selon le pourcentage défini"
+      },
+      "ruleTypes": {
+        "freeAppointments": "Rendez-vous gratuits",
+        "freeAppointmentsDesc": "Les N premiers rendez-vous sont entièrement couverts",
+        "sharedCost": "Coût partagé",
+        "sharedCostDesc": "Le coût est partagé entre le PAE et le client",
+        "fixedClientAmount": "Montant fixe client",
+        "fixedClientAmountDesc": "Le client paie un montant fixe par rendez-vous",
+        "includedServices": "Services inclus",
+        "includedServicesDesc": "Certains services spécifiques sont inclus"
+      },
+      "fields": {
+        "appointmentCount": "Nombre de rendez-vous",
+        "fromAppointment": "À partir du rendez-vous",
+        "paePercentage": "Pourcentage PAE",
+        "clientPercentage": "Pourcentage client",
+        "clientAmount": "Montant client",
+        "services": "Services",
+        "evaluation": "Évaluation",
+        "followUp": "Suivi",
+        "fileOpening": "Ouverture de dossier"
+      },
+      "previewText": {
+        "title": "Aperçu",
+        "firstNFree": "Rendez-vous 1 à {{count}}: Gratuits",
+        "thenShared": "À partir du {{from}}e: {{pae}}% PAE / {{client}}% client",
+        "thenFixedClient": "À partir du {{from}}e: Client paie {{amount}}",
+        "servicesIncluded": "Services inclus: {{services}}"
+      },
+      "validation": {
+        "atLeastOneRule": "Au moins une règle est requise",
+        "appointmentCountRequired": "Le nombre de rendez-vous est requis",
+        "percentageRequired": "Le pourcentage est requis",
+        "amountRequired": "Le montant est requis"
+      }
+    },
+    "toast": {
+      "addSuccess": "Payeur externe ajouté",
+      "updateSuccess": "Payeur externe mis à jour",
+      "deactivateSuccess": "Payeur externe désactivé",
+      "error": "Une erreur est survenue"
+    }
+  },
+  "settings": {
+    "clinic": {
+      "ivacTitle": "IVAC - Numéro de fournisseur",
+      "ivacDescription": "Configurez le numéro de fournisseur IVAC de la clinique. Ce numéro sera affiché dans les dossiers IVAC des clients.",
+      "ivacProviderNumber": "Numéro de fournisseur IVAC",
+      "ivacProviderHint": "Ce numéro est fourni par l'IVAC lors de l'inscription de la clinique comme fournisseur de services."
     }
   },
   "commandPalette": {

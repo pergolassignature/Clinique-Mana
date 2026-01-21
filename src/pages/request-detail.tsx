@@ -203,12 +203,19 @@ export function RequestDetailPage() {
 
   // Intake questions state (client-stated, local state only)
   const [besoinRaison, setBesoinRaison] = useState('')
+  // Enjeux: Oui/Non then options
+  const [enjeuxHasIssues, setEnjeuxHasIssues] = useState<'yes' | 'no' | ''>('')
   const [enjeuxDemarche, setEnjeuxDemarche] = useState<string[]>([])
-  const [enjeuxAutreText, setEnjeuxAutreText] = useState('')
-  const [diagnosticStatus, setDiagnosticStatus] = useState<'yes' | 'no' | 'unknown' | ''>('')
+  const [enjeuxComment, setEnjeuxComment] = useState('')
+  // Diagnostic: just Oui/Non
+  const [diagnosticStatus, setDiagnosticStatus] = useState<'yes' | 'no' | ''>('')
   const [diagnosticDetail, setDiagnosticDetail] = useState('')
+  // Consultations: Oui/Non then options
+  const [hasConsulted, setHasConsulted] = useState<'yes' | 'no' | ''>('')
   const [consultationsPrevious, setConsultationsPrevious] = useState<string[]>([])
-  const [consultationsAutreText, setConsultationsAutreText] = useState('')
+  const [consultationsComment, setConsultationsComment] = useState('')
+  // Legal: Oui/Non then options
+  const [hasLegalContext, setHasLegalContext] = useState<'yes' | 'no' | ''>('')
   const [legalContext, setLegalContext] = useState<string[]>([])
   const [legalContextDetail, setLegalContextDetail] = useState('')
 
@@ -584,25 +591,25 @@ export function RequestDetailPage() {
                 </p>
               </div>
 
-              {/* B) Enjeux de la démarche (optional, multi-select chips) */}
+              {/* B) Enjeux de la démarche (Oui/Non first, then options) */}
               <div className="space-y-3">
                 <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
                   {t('pages.requestDetail.motifs.intake.enjeux.label')}
                 </label>
+                {/* Oui/Non toggle */}
                 <div className="flex flex-wrap gap-2">
-                  {(['financial', 'availability', 'coparenting', 'other'] as const).map((option) => {
-                    const isSelected = enjeuxDemarche.includes(option)
+                  {(['yes', 'no'] as const).map((option) => {
+                    const isSelected = enjeuxHasIssues === option
                     return (
                       <button
                         key={option}
                         type="button"
                         onClick={() => {
                           if (request.status === 'closed') return
-                          if (isSelected) {
-                            setEnjeuxDemarche(enjeuxDemarche.filter((e) => e !== option))
-                            if (option === 'other') setEnjeuxAutreText('')
-                          } else {
-                            setEnjeuxDemarche([...enjeuxDemarche, option])
+                          setEnjeuxHasIssues(option)
+                          if (option === 'no') {
+                            setEnjeuxDemarche([])
+                            setEnjeuxComment('')
                           }
                         }}
                         disabled={request.status === 'closed'}
@@ -615,32 +622,67 @@ export function RequestDetailPage() {
                         )}
                       >
                         {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
-                        {t(`pages.requestDetail.motifs.intake.enjeux.options.${option}` as Parameters<typeof t>[0])}
+                        {t(`pages.requestDetail.motifs.intake.yesNo.${option}` as Parameters<typeof t>[0])}
                       </button>
                     )
                   })}
                 </div>
-                {/* Progressive disclosure: "Autre" text input */}
+                {/* Options shown when Oui is selected */}
                 <AnimatePresence>
-                  {enjeuxDemarche.includes('other') && (
+                  {enjeuxHasIssues === 'yes' && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="space-y-1.5"
+                      className="space-y-3"
                     >
-                      <label className="text-xs font-medium text-foreground-muted">
-                        {t('pages.requestDetail.motifs.intake.enjeux.otherInput.label')}
-                      </label>
-                      <input
-                        type="text"
-                        value={enjeuxAutreText}
-                        onChange={(e) => setEnjeuxAutreText(e.target.value)}
-                        placeholder={t('pages.requestDetail.motifs.intake.enjeux.otherInput.placeholder')}
-                        disabled={request.status === 'closed'}
-                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-sage-500/30 focus:border-sage-300 disabled:opacity-50"
-                      />
+                      <div className="flex flex-wrap gap-2">
+                        {(['availability', 'coparenting', 'other'] as const).map((option) => {
+                          const isSelected = enjeuxDemarche.includes(option)
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => {
+                                if (request.status === 'closed') return
+                                if (isSelected) {
+                                  setEnjeuxDemarche(enjeuxDemarche.filter((e) => e !== option))
+                                } else {
+                                  setEnjeuxDemarche([...enjeuxDemarche, option])
+                                }
+                              }}
+                              disabled={request.status === 'closed'}
+                              className={cn(
+                                'px-3 py-1.5 text-sm rounded-full border transition-all',
+                                isSelected
+                                  ? 'bg-sage-100 border-sage-300 text-sage-700'
+                                  : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
+                                request.status === 'closed' && 'opacity-50 cursor-not-allowed'
+                              )}
+                            >
+                              {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
+                              {t(`pages.requestDetail.motifs.intake.enjeux.options.${option}` as Parameters<typeof t>[0])}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {/* Comment input - always shown when any option is selected */}
+                      {enjeuxDemarche.length > 0 && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-foreground-muted">
+                            {t('pages.requestDetail.motifs.intake.enjeux.commentInput.label')}
+                          </label>
+                          <input
+                            type="text"
+                            value={enjeuxComment}
+                            onChange={(e) => setEnjeuxComment(e.target.value)}
+                            placeholder={t('pages.requestDetail.motifs.intake.enjeux.commentInput.placeholder')}
+                            disabled={request.status === 'closed'}
+                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-sage-500/30 focus:border-sage-300 disabled:opacity-50"
+                          />
+                        </div>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -649,13 +691,13 @@ export function RequestDetailPage() {
                 </p>
               </div>
 
-              {/* C) Diagnostic ou évaluation (declarative, optional) */}
+              {/* C) Diagnostic ou évaluation (just Oui/Non) */}
               <div className="space-y-3">
                 <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
                   {t('pages.requestDetail.motifs.intake.diagnostic.label')}
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {(['yes', 'no', 'unknown'] as const).map((option) => {
+                  {(['yes', 'no'] as const).map((option) => {
                     const isSelected = diagnosticStatus === option
                     return (
                       <button
@@ -663,13 +705,8 @@ export function RequestDetailPage() {
                         type="button"
                         onClick={() => {
                           if (request.status === 'closed') return
-                          if (isSelected) {
-                            setDiagnosticStatus('')
-                            setDiagnosticDetail('')
-                          } else {
-                            setDiagnosticStatus(option)
-                            if (option !== 'yes') setDiagnosticDetail('')
-                          }
+                          setDiagnosticStatus(option)
+                          if (option === 'no') setDiagnosticDetail('')
                         }}
                         disabled={request.status === 'closed'}
                         className={cn(
@@ -681,7 +718,7 @@ export function RequestDetailPage() {
                         )}
                       >
                         {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
-                        {t(`pages.requestDetail.motifs.intake.diagnostic.options.${option}` as Parameters<typeof t>[0])}
+                        {t(`pages.requestDetail.motifs.intake.yesNo.${option}` as Parameters<typeof t>[0])}
                       </button>
                     )
                   })}
@@ -716,164 +753,196 @@ export function RequestDetailPage() {
                 </p>
               </div>
 
-              {/* D) Consultations antérieures (optional, multi-select) */}
+              {/* D) Consultations antérieures (Oui/Non first, then options) */}
               <div className="space-y-3">
                 <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
                   {t('pages.requestDetail.motifs.intake.consultations.label')}
                 </label>
+                {/* Oui/Non toggle */}
                 <div className="flex flex-wrap gap-2">
-                  {(['psychologist', 'socialWorker', 'psychoeducator', 'doctor', 'other', 'none'] as const).map((option) => {
-                    const isSelected = consultationsPrevious.includes(option)
-                    const isNoneSelected = consultationsPrevious.includes('none')
-                    const isDisabled = request.status === 'closed' || (option !== 'none' && isNoneSelected)
-
+                  {(['yes', 'no'] as const).map((option) => {
+                    const isSelected = hasConsulted === option
                     return (
                       <button
                         key={option}
                         type="button"
                         onClick={() => {
-                          if (isDisabled) return
-                          if (isSelected) {
-                            setConsultationsPrevious(consultationsPrevious.filter((c) => c !== option))
-                            if (option === 'other') setConsultationsAutreText('')
-                          } else {
-                            if (option === 'none') {
-                              // Clear all other selections when "Non" is selected
-                              setConsultationsPrevious(['none'])
-                              setConsultationsAutreText('')
-                            } else {
-                              // Remove "none" if selecting another option
-                              setConsultationsPrevious([
-                                ...consultationsPrevious.filter((c) => c !== 'none'),
-                                option,
-                              ])
-                            }
+                          if (request.status === 'closed') return
+                          setHasConsulted(option)
+                          if (option === 'no') {
+                            setConsultationsPrevious([])
+                            setConsultationsComment('')
                           }
                         }}
-                        disabled={isDisabled}
+                        disabled={request.status === 'closed'}
                         className={cn(
                           'px-3 py-1.5 text-sm rounded-full border transition-all',
                           isSelected
                             ? 'bg-sage-100 border-sage-300 text-sage-700'
                             : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
-                          isDisabled && 'opacity-50 cursor-not-allowed'
+                          request.status === 'closed' && 'opacity-50 cursor-not-allowed'
                         )}
                       >
                         {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
-                        {t(`pages.requestDetail.motifs.intake.consultations.options.${option}` as Parameters<typeof t>[0])}
+                        {t(`pages.requestDetail.motifs.intake.yesNo.${option}` as Parameters<typeof t>[0])}
                       </button>
                     )
                   })}
                 </div>
-                {/* Progressive disclosure: "Autre" text input */}
+                {/* Options shown when Oui is selected */}
                 <AnimatePresence>
-                  {consultationsPrevious.includes('other') && (
+                  {hasConsulted === 'yes' && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="space-y-1.5"
+                      className="space-y-3"
                     >
-                      <label className="text-xs font-medium text-foreground-muted">
-                        {t('pages.requestDetail.motifs.intake.consultations.otherInput.label')}
-                      </label>
-                      <input
-                        type="text"
-                        value={consultationsAutreText}
-                        onChange={(e) => setConsultationsAutreText(e.target.value)}
-                        placeholder={t('pages.requestDetail.motifs.intake.consultations.otherInput.placeholder')}
-                        disabled={request.status === 'closed'}
-                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-sage-500/30 focus:border-sage-300 disabled:opacity-50"
-                      />
+                      <div className="flex flex-wrap gap-2">
+                        {(['psychologist', 'socialWorker', 'psychoeducator', 'doctor', 'other'] as const).map((option) => {
+                          const isSelected = consultationsPrevious.includes(option)
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => {
+                                if (request.status === 'closed') return
+                                if (isSelected) {
+                                  setConsultationsPrevious(consultationsPrevious.filter((c) => c !== option))
+                                } else {
+                                  setConsultationsPrevious([...consultationsPrevious, option])
+                                }
+                              }}
+                              disabled={request.status === 'closed'}
+                              className={cn(
+                                'px-3 py-1.5 text-sm rounded-full border transition-all',
+                                isSelected
+                                  ? 'bg-sage-100 border-sage-300 text-sage-700'
+                                  : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
+                                request.status === 'closed' && 'opacity-50 cursor-not-allowed'
+                              )}
+                            >
+                              {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
+                              {t(`pages.requestDetail.motifs.intake.consultations.options.${option}` as Parameters<typeof t>[0])}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {/* Comment input - shown when any option is selected */}
+                      {consultationsPrevious.length > 0 && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-foreground-muted">
+                            {t('pages.requestDetail.motifs.intake.consultations.commentInput.label')}
+                          </label>
+                          <input
+                            type="text"
+                            value={consultationsComment}
+                            onChange={(e) => setConsultationsComment(e.target.value)}
+                            placeholder={t('pages.requestDetail.motifs.intake.consultations.commentInput.placeholder')}
+                            disabled={request.status === 'closed'}
+                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-sage-500/30 focus:border-sage-300 disabled:opacity-50"
+                          />
+                        </div>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
 
-              {/* E) Contexte légal / judiciaire (sensitive, optional) */}
+              {/* E) Contexte légal / judiciaire (Oui/Non first, then options) */}
               <div className="space-y-3">
                 <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
                   {t('pages.requestDetail.motifs.intake.legalContext.label')}
                 </label>
+                {/* Oui/Non toggle */}
                 <div className="flex flex-wrap gap-2">
-                  {(['courtOrder', 'youthProtection', 'none', 'preferNotToAnswer'] as const).map((option) => {
-                    const isSelected = legalContext.includes(option)
-                    const isNeutralSelected = legalContext.includes('none') || legalContext.includes('preferNotToAnswer')
-                    const isSpecificOption = option === 'courtOrder' || option === 'youthProtection'
-                    const isNeutralOption = option === 'none' || option === 'preferNotToAnswer'
-                    const isDisabled = request.status === 'closed' ||
-                      (isSpecificOption && isNeutralSelected) ||
-                      (isNeutralOption && legalContext.some(c => c === 'courtOrder' || c === 'youthProtection'))
-
+                  {(['yes', 'no'] as const).map((option) => {
+                    const isSelected = hasLegalContext === option
                     return (
                       <button
                         key={option}
                         type="button"
                         onClick={() => {
-                          if (isDisabled) return
-                          if (isSelected) {
-                            setLegalContext(legalContext.filter((c) => c !== option))
-                            if (isNeutralOption) {
-                              // Keep detail when deselecting neutral options
-                            } else {
-                              // Clear detail if no specific options remain
-                              const remaining = legalContext.filter((c) => c !== option)
-                              if (!remaining.includes('courtOrder') && !remaining.includes('youthProtection')) {
-                                setLegalContextDetail('')
-                              }
-                            }
-                          } else {
-                            if (isNeutralOption) {
-                              // Clear all when selecting neutral option
-                              setLegalContext([option])
-                              setLegalContextDetail('')
-                            } else {
-                              // Remove neutral options when selecting specific
-                              setLegalContext([
-                                ...legalContext.filter((c) => c !== 'none' && c !== 'preferNotToAnswer'),
-                                option,
-                              ])
-                            }
+                          if (request.status === 'closed') return
+                          setHasLegalContext(option)
+                          if (option === 'no') {
+                            setLegalContext([])
+                            setLegalContextDetail('')
                           }
                         }}
-                        disabled={isDisabled}
+                        disabled={request.status === 'closed'}
                         className={cn(
                           'px-3 py-1.5 text-sm rounded-full border transition-all',
                           isSelected
                             ? 'bg-sage-100 border-sage-300 text-sage-700'
                             : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
-                          isDisabled && 'opacity-50 cursor-not-allowed'
+                          request.status === 'closed' && 'opacity-50 cursor-not-allowed'
                         )}
                       >
                         {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
-                        {t(`pages.requestDetail.motifs.intake.legalContext.options.${option}` as Parameters<typeof t>[0])}
+                        {t(`pages.requestDetail.motifs.intake.yesNo.${option}` as Parameters<typeof t>[0])}
                       </button>
                     )
                   })}
                 </div>
-                {/* Progressive disclosure: Show detail textarea when legal options selected */}
+                {/* Options shown when Oui is selected */}
                 <AnimatePresence>
-                  {(legalContext.includes('courtOrder') || legalContext.includes('youthProtection')) && (
+                  {hasLegalContext === 'yes' && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="space-y-1.5"
+                      className="space-y-3"
                     >
-                      <label className="text-xs font-medium text-foreground-muted">
-                        {t('pages.requestDetail.motifs.intake.legalContext.detailInput.label')}
-                      </label>
-                      <Textarea
-                        value={legalContextDetail}
-                        onChange={(e) => setLegalContextDetail(e.target.value)}
-                        disabled={request.status === 'closed'}
-                        className="min-h-[80px]"
-                      />
-                      <p className="text-xs text-foreground-muted">
-                        {t('pages.requestDetail.motifs.intake.legalContext.detailInput.helper')}
-                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {(['courtOrder', 'youthProtection'] as const).map((option) => {
+                          const isSelected = legalContext.includes(option)
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => {
+                                if (request.status === 'closed') return
+                                if (isSelected) {
+                                  setLegalContext(legalContext.filter((c) => c !== option))
+                                } else {
+                                  setLegalContext([...legalContext, option])
+                                }
+                              }}
+                              disabled={request.status === 'closed'}
+                              className={cn(
+                                'px-3 py-1.5 text-sm rounded-full border transition-all',
+                                isSelected
+                                  ? 'bg-sage-100 border-sage-300 text-sage-700'
+                                  : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
+                                request.status === 'closed' && 'opacity-50 cursor-not-allowed'
+                              )}
+                            >
+                              {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
+                              {t(`pages.requestDetail.motifs.intake.legalContext.options.${option}` as Parameters<typeof t>[0])}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {/* Detail textarea - shown when any option is selected */}
+                      {legalContext.length > 0 && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-foreground-muted">
+                            {t('pages.requestDetail.motifs.intake.legalContext.detailInput.label')}
+                          </label>
+                          <Textarea
+                            value={legalContextDetail}
+                            onChange={(e) => setLegalContextDetail(e.target.value)}
+                            disabled={request.status === 'closed'}
+                            className="min-h-[80px]"
+                          />
+                          <p className="text-xs text-foreground-muted">
+                            {t('pages.requestDetail.motifs.intake.legalContext.detailInput.helper')}
+                          </p>
+                        </div>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>

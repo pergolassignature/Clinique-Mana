@@ -5,9 +5,12 @@ import { Skeleton } from '@/shared/ui/skeleton'
 import { DrawerHeader } from './drawer-header'
 import { DrawerFooter } from './drawer-footer'
 import { InfoSection } from './drawer-sections/info-section'
+import { ExternalPayersSection } from './drawer-sections/external-payers-section'
 import { VisitsSection } from './drawer-sections/visits-section'
 import { NotesSection } from './drawer-sections/notes-section'
 import { ConsentsSection } from './drawer-sections/consents-section'
+import { RelationsSection } from './drawer-sections/relations-section'
+import { HistorySection } from './drawer-sections/history-section'
 import { useClient } from '../hooks'
 
 interface ClientDrawerProps {
@@ -35,10 +38,10 @@ export function ClientDrawer({
       >
         <VisuallyHidden>
           <SheetTitle>
-            {client ? `${client.firstName} ${client.lastName}` : 'Détails du client'}
+            {client ? `${client.firstName} ${client.lastName}` : 'Details du client'}
           </SheetTitle>
           <SheetDescription>
-            Fiche détaillée du client
+            Fiche detaillee du client
           </SheetDescription>
         </VisuallyHidden>
         {isLoading ? (
@@ -58,9 +61,12 @@ export function ClientDrawer({
                 className="space-y-2"
               >
                 <InfoSection client={client} />
+                <ExternalPayersSection client={client} />
+                <RelationsSection client={client} />
                 <VisitsSection client={client} />
                 <NotesSection client={client} />
                 <ConsentsSection client={client} />
+                <HistorySection client={client} />
               </Accordion>
             </div>
 
@@ -75,7 +81,7 @@ export function ClientDrawer({
           </div>
         ) : (
           <div className="p-6 text-center text-foreground-secondary">
-            Client non trouvé
+            Client non trouve
           </div>
         )}
       </SheetContent>
@@ -101,7 +107,7 @@ function DrawerSkeleton() {
 
       {/* Content skeleton */}
       <div className="space-y-4">
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="space-y-2">
             <Skeleton className="h-10 w-full" />
           </div>

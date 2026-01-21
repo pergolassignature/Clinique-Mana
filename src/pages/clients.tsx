@@ -6,6 +6,7 @@ import { Button } from '@/shared/ui/button'
 import { ClientTable } from '@/clients/components/client-table'
 import { ClientFilters } from '@/clients/components/client-filters'
 import { ClientDrawer } from '@/clients/components/client-drawer'
+import { NewClientDrawer, type NewClientFormData } from '@/clients/components/new-client-drawer'
 import { useClients } from '@/clients/hooks'
 import type { ClientsListFilters, ClientsListSort } from '@/clients/types'
 
@@ -17,6 +18,7 @@ export function ClientsPage() {
   // Drawer state
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [isNewClientDrawerOpen, setIsNewClientDrawerOpen] = useState(false)
 
   // Fetch clients
   const { data: clients = [], isLoading } = useClients(filters, sort)
@@ -44,6 +46,12 @@ export function ClientsPage() {
     handleCloseDrawer()
   }
 
+  const handleCreateClient = (data: NewClientFormData) => {
+    // TODO: Implement create mutation
+    console.log('Create client:', data)
+    // After creating, could open the new client's drawer
+  }
+
   const isEmpty = !isLoading && clients.length === 0 && !filters.search && !filters.status && !filters.tags?.length
 
   return (
@@ -53,7 +61,7 @@ export function ClientsPage() {
         <div className="flex-1">
           <ClientFilters filters={filters} onFiltersChange={setFilters} />
         </div>
-        <Button disabled>
+        <Button onClick={() => setIsNewClientDrawerOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           {t('clients.list.addClient')}
         </Button>
@@ -83,6 +91,13 @@ export function ClientsPage() {
         onClose={handleCloseDrawer}
         onArchive={handleArchive}
         onDelete={handleDelete}
+      />
+
+      {/* New Client Drawer */}
+      <NewClientDrawer
+        open={isNewClientDrawerOpen}
+        onOpenChange={setIsNewClientDrawerOpen}
+        onSave={handleCreateClient}
       />
     </div>
   )

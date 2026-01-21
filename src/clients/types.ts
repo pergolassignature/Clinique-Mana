@@ -138,6 +138,21 @@ export interface ClientConsent {
 }
 
 // =============================================================================
+// CLIENT RELATION
+// =============================================================================
+
+export const RelationType = z.enum(['parent', 'child', 'spouse', 'sibling', 'guardian', 'other'])
+export type RelationType = z.infer<typeof RelationType>
+
+export interface ClientRelation {
+  id: string
+  relatedClientId: string
+  relatedClientName: string // For display
+  relationType: RelationType
+  notes?: string // Optional notes about the relationship
+}
+
+// =============================================================================
 // CLIENT WITH RELATIONS (for drawer)
 // =============================================================================
 
@@ -145,6 +160,7 @@ export interface ClientWithRelations extends Client {
   visits?: ClientVisit[]
   notes?: ClientNote[]
   consents?: ClientConsent[]
+  relations?: ClientRelation[]
   balance?: number
   responsibleClient?: {
     clientId: string

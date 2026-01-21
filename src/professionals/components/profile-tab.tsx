@@ -16,9 +16,15 @@ import {
   Loader2,
   ArrowRight,
   GraduationCap,
+  Building2,
 } from 'lucide-react'
 import type { ProfessionalWithRelations, ProfessionalDocument, ProfessionalDetailTab } from '../types'
 import { useUpdateProfessional } from '../hooks'
+import {
+  useProfessionalIvacNumber,
+  useUpsertProfessionalIvacNumber,
+  useDeleteProfessionalIvacNumber,
+} from '@/external-payers'
 import { ProfessionEditor } from './profession-editor'
 import { mapProfessionalToViewModel, SPECIALTY_CATEGORY_LABELS } from '../mappers'
 import { getDocumentDownloadUrl } from '../api'
@@ -279,6 +285,11 @@ export function ProfessionalProfileTab({ professional, onNavigateToTab }: Profes
   // Get profile photo URL
   const { data: photoUrl, isLoading: isLoadingPhoto } = useProfilePhotoUrl(professional.documents)
 
+  // IVAC number management
+  const { data: ivacNumber } = useProfessionalIvacNumber(professional.id)
+  const upsertIvacNumber = useUpsertProfessionalIvacNumber()
+  const deleteIvacNumber = useDeleteProfessionalIvacNumber()
+
   const handleFieldUpdate = async (field: string, value: string) => {
     await updateProfessional.mutateAsync({
       id: professional.id,
@@ -292,6 +303,17 @@ export function ProfessionalProfileTab({ professional, onNavigateToTab }: Profes
       id: professional.id,
       input: { years_experience: numValue },
     })
+  }
+
+  const handleIvacNumberUpdate = async (value: string) => {
+    if (value.trim()) {
+      await upsertIvacNumber.mutateAsync({
+        professional_id: professional.id,
+        ivac_number: value.trim(),
+      })
+    } else if (ivacNumber) {
+      await deleteIvacNumber.mutateAsync(professional.id)
+    }
   }
 
   // Determine indicator statuses
@@ -441,6 +463,29 @@ export function ProfessionalProfileTab({ professional, onNavigateToTab }: Profes
                 type="tel"
               />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* IVAC Card */}
+        <Card>
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-sage-600" />
+              <CardTitle className="text-base">IVAC</CardTitle>
+            </div>
+            <CardDescription>
+              Numero d'identification pour les dossiers IVAC
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <EditableField
+              label="Numero IVAC du professionnel"
+              value={ivacNumber?.ivac_number || null}
+              onSave={handleIvacNumberUpdate}
+              isSaving={upsertIvacNumber.isPending || deleteIvacNumber.isPending}
+              placeholder="Ex: IVAC-PRO-123456"
+              hint="Ce numero sera affiche dans les dossiers clients IVAC"
+            />
           </CardContent>
         </Card>
 

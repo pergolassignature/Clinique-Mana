@@ -1,4 +1,4 @@
-import type { Client, ClientWithRelations, ClientListItem, ClientVisit, ClientNote, ClientConsent } from '../types'
+import type { Client, ClientWithRelations, ClientListItem, ClientVisit, ClientNote, ClientConsent, ClientRelation } from '../types'
 
 // =============================================================================
 // ID Generator
@@ -591,6 +591,25 @@ export const MOCK_CONSENTS: Record<string, ClientConsent[]> = {
 }
 
 // =============================================================================
+// Mock Relations
+// =============================================================================
+
+export const MOCK_RELATIONS: Record<string, ClientRelation[]> = {
+  [generateClientId(1234567)]: [
+    { id: 'rel-1', relatedClientId: generateClientId(1234568), relatedClientName: 'Jean-Philippe Tremblay', relationType: 'spouse' },
+  ],
+  [generateClientId(1234568)]: [
+    { id: 'rel-2', relatedClientId: generateClientId(1234567), relatedClientName: 'Marie-Claire Dubois', relationType: 'spouse' },
+  ],
+  [generateClientId(1234576)]: [
+    { id: 'rel-3', relatedClientId: generateClientId(1234577), relatedClientName: 'Émile Pelletier', relationType: 'child', notes: 'Fils' },
+  ],
+  [generateClientId(1234577)]: [
+    { id: 'rel-4', relatedClientId: generateClientId(1234576), relatedClientName: 'Pierre-Luc Pelletier', relationType: 'parent', notes: 'Père' },
+  ],
+}
+
+// =============================================================================
 // Mock Professionals (for filtering)
 // =============================================================================
 
@@ -642,6 +661,7 @@ export function getClientWithRelations(clientId: string): ClientWithRelations | 
   const visits = MOCK_VISITS[clientId] || []
   const notes = MOCK_NOTES[clientId] || []
   const consents = MOCK_CONSENTS[clientId] || []
+  const relations = MOCK_RELATIONS[clientId] || []
 
   // Mock balance (assume fully paid)
   const balance = 0
@@ -674,6 +694,7 @@ export function getClientWithRelations(clientId: string): ClientWithRelations | 
     visits,
     notes,
     consents,
+    relations,
     balance,
     responsibleClient,
     primaryProfessional,
