@@ -132,16 +132,22 @@ export const DeterministicScoresSchema = z.object({
  */
 export interface NearEligible {
   professionalId: string
+  displayName: string  // Professional's display name
   missingConstraint: ExclusionReasonCode
+  reasonFr: string  // Human-readable explanation in French
   scores: DeterministicScores
   nextAvailableDate?: string  // ISO date if excluded for availability
+  details?: Record<string, unknown>  // Additional context (e.g., missing motifs)
 }
 
 export const NearEligibleSchema = z.object({
   professionalId: z.string().uuid(),
+  displayName: z.string(),
   missingConstraint: ExclusionReasonCode,
+  reasonFr: z.string(),
   scores: DeterministicScoresSchema,
   nextAvailableDate: z.string().optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
 })
 
 // =============================================================================

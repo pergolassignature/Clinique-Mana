@@ -14,13 +14,10 @@ interface NearEligibleListProps {
   nearEligible: NearEligible[]
   /** Initially expanded state */
   defaultExpanded?: boolean
-  /** Callback to fetch professional display names */
-  getProfessionalName?: (id: string) => string | undefined
 }
 
 interface NearEligibleItemProps {
   item: NearEligible
-  getName?: (id: string) => string | undefined
 }
 
 const CONSTRAINT_LABELS: Record<ExclusionReasonCode, string> = {
@@ -45,39 +42,70 @@ function formatNextAvailable(isoDate?: string): string | null {
 }
 
 /**
+ * Format missing motifs for display.
+ */
+function formatMissingMotifs(details?: Record<string, unknown>): string[] {
+  if (!details) return []
+  const missingMotifs = details.missingMotifs as string[] | undefined
+  return missingMotifs || []
+}
+
+/**
  * Single near-eligible professional item.
  */
-function NearEligibleItem({ item, getName }: NearEligibleItemProps) {
-  const name = getName?.(item.professionalId)
+function NearEligibleItem({ item }: NearEligibleItemProps) {
   const nextAvailable = formatNextAvailable(item.nextAvailableDate)
+  const missingMotifs = formatMissingMotifs(item.details)
 
   return (
-    <div className="flex items-center gap-3 py-3 border-b border-border/30 last:border-0">
+    <div className="py-3 border-b border-border/30 last:border-0">
       {/* Professional info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">
-          {name || t('recommendations.nearEligible.unknownProfessional')}
-        </p>
-        <div className="flex items-center gap-2 mt-1">
-          <Badge variant="warning" className="text-xs">
-            {t(CONSTRAINT_LABELS[item.missingConstraint] as Parameters<typeof t>[0])}
-          </Badge>
-          {item.missingConstraint === 'no_availability' && nextAvailable && (
-            <span className="flex items-center gap-1 text-xs text-foreground-muted">
-              <Calendar className="h-3 w-3" />
-              {t('recommendations.nearEligible.nextAvailable').replace('{{date}}', nextAvailable)}
-            </span>
-          )}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">
+            {item.displayName || t('recommendations.nearEligible.unknownProfessional')}
+          </p>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <Badge variant="warning" className="text-xs">
+              {t(CONSTRAINT_LABELS[item.missingConstraint] as Parameters<typeof t>[0])}
+            </Badge>
+            {item.missingConstraint === 'no_availability' && nextAvailable && (
+              <span className="flex items-center gap-1 text-xs text-foreground-muted">
+                <Calendar className="h-3 w-3" />
+                {t('recommendations.nearEligible.nextAvailable').replace('{{date}}', nextAvailable)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Would-be score */}
+        <div className="shrink-0 text-right">
+          <span className="text-xs text-foreground-muted block mb-0.5">
+            {t('recommendations.nearEligible.wouldBeScore')}
+          </span>
+          <ScoreBadge score={item.scores.totalScore} />
         </div>
       </div>
 
-      {/* Would-be score */}
-      <div className="shrink-0 text-right">
-        <span className="text-xs text-foreground-muted block mb-0.5">
-          {t('recommendations.nearEligible.wouldBeScore')}
-        </span>
-        <ScoreBadge score={item.scores.totalScore} />
-      </div>
+      {/* Detailed reason */}
+      <p className="text-xs text-foreground-secondary mt-2 pl-0">
+        {item.reasonFr}
+      </p>
+
+      {/* Missing motifs list if applicable */}
+      {missingMotifs.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          <span className="text-xs text-foreground-muted">{t('recommendations.nearEligible.missingMotifs')}:</span>
+          {missingMotifs.map((motif) => (
+            <span
+              key={motif}
+              className="text-xs bg-wine-50 text-wine-700 px-1.5 py-0.5 rounded border border-wine-200"
+            >
+              {motif}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -89,7 +117,6 @@ function NearEligibleItem({ item, getName }: NearEligibleItemProps) {
 export function NearEligibleList({
   nearEligible,
   defaultExpanded = false,
-  getProfessionalName,
 }: NearEligibleListProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
@@ -142,7 +169,6 @@ export function NearEligibleList({
                   <NearEligibleItem
                     key={item.professionalId}
                     item={item}
-                    getName={getProfessionalName}
                   />
                 ))}
                 {nearEligible.length > 5 && (

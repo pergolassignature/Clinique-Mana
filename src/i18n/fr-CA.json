@@ -2145,6 +2145,110 @@
     "byActor": "par {actor}",
     "noActor": "Action automatique"
   },
+  "facturation": {
+    "title": "Facturation",
+    "invoice": "Facture",
+    "invoices": "Factures",
+    "createInvoice": "Créer la facture",
+    "viewInvoice": "Voir la facture",
+    "noInvoice": "Aucune facture",
+    "saveFirst": "Enregistrez le rendez-vous pour accéder à la facturation.",
+    "loading": "Chargement...",
+    "status": {
+      "draft": "Brouillon",
+      "pending": "En attente",
+      "partial": "Partiellement payé",
+      "paid": "Payé",
+      "void": "Annulé"
+    },
+    "lineItem": {
+      "service": "Service",
+      "cancellation_fee": "Frais d'annulation",
+      "file_opening_fee": "Ouverture de dossier",
+      "adjustment": "Ajustement",
+      "discount": "Rabais"
+    },
+    "payment": {
+      "title": "Paiement",
+      "payments": "Paiements",
+      "noPayments": "Aucun paiement",
+      "recordPayment": "Enregistrer un paiement",
+      "amount": "Montant",
+      "date": "Date du paiement",
+      "method": "Mode de paiement",
+      "reference": "Numéro de référence",
+      "payFullBalance": "Payer le solde complet",
+      "methods": {
+        "cash": "Comptant",
+        "debit": "Débit",
+        "credit": "Crédit",
+        "etransfer": "Virement Interac",
+        "cheque": "Chèque",
+        "other": "Autre"
+      }
+    },
+    "totals": {
+      "subtotal": "Sous-total",
+      "discount": "Rabais",
+      "tps": "TPS (5%)",
+      "tvq": "TVQ (9,975%)",
+      "total": "Total",
+      "paid": "Payé",
+      "balance": "Solde",
+      "externalPayer": "Couvert par tiers payeur"
+    },
+    "client": {
+      "selectClient": "Facturer à",
+      "selectPlaceholder": "Sélectionner un client",
+      "balance": "Solde client",
+      "owes": "Doit",
+      "credit": "Crédit",
+      "noBalance": "Aucun solde"
+    },
+    "newClient": {
+      "title": "Nouveau client",
+      "message": "Les frais d'ouverture de dossier seront ajoutés à la facture.",
+      "existingRelation": "Relation existante",
+      "existingRelationMessage": "Ce client a un membre de la famille déjà dans notre système."
+    },
+    "externalPayer": {
+      "ivac": "IVAC",
+      "pae": "PAE",
+      "fileNumber": "Dossier",
+      "status": {
+        "pending": "En attente",
+        "reported": "Déclaré",
+        "paid": "Payé"
+      }
+    },
+    "actions": {
+      "print": "Imprimer",
+      "void": "Annuler la facture",
+      "confirmVoid": "Confirmer l'annulation ?",
+      "finalize": "Finaliser",
+      "addLineItem": "Ajouter",
+      "addPayment": "Paiement"
+    },
+    "table": {
+      "description": "Description",
+      "quantity": "Qté",
+      "unitPrice": "Prix unit.",
+      "discountHeader": "Rabais",
+      "amount": "Total"
+    },
+    "notes": {
+      "title": "Notes",
+      "client": "Note client",
+      "internal": "Note interne"
+    },
+    "errors": {
+      "loadError": "Erreur lors du chargement de la facture",
+      "createError": "Erreur lors de la création de la facture",
+      "paymentError": "Erreur lors de l'enregistrement du paiement",
+      "amountRequired": "Le montant doit être supérieur à 0",
+      "amountExceedsBalance": "Le montant ne peut pas dépasser le solde"
+    }
+  },
   "recommendations": {
     "empty": {
       "title": "Aucune recommandation",
@@ -2202,6 +2306,7 @@
       "wouldBeScore": "Score potentiel",
       "nextAvailable": "Prochaine dispo: {{date}}",
       "andMore": "+{{count}} autre(s)",
+      "missingMotifs": "Motifs manquants",
       "constraints": {
         "noAvailability": "Pas de disponibilité",
         "noMotifOverlap": "Motifs manquants",

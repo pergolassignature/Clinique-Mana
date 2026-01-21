@@ -478,7 +478,9 @@ export function preFilterProfessionals(
 
       nearEligible.push({
         professionalId: candidate.professional.id,
+        displayName: candidate.professional.displayName,
         missingConstraint: failed.reasonCode,
+        reasonFr: failed.reasonFr,
         scores: {
           motifMatchScore: scores.motifMatchScore,
           specialtyMatchScore: scores.specialtyMatchScore,
@@ -491,6 +493,8 @@ export function preFilterProfessionals(
         nextAvailableDate: failed.reasonCode === 'no_availability'
           ? candidate.availability.nextSlotDatetime ?? undefined
           : undefined,
+        // Include details for context (e.g., missing motifs)
+        details: failed.details,
       })
 
       // Still record the exclusion
