@@ -21,5 +21,8 @@ export { NearEligibleList } from './near-eligible-list'
 // Analysis input summary
 export { AnalysisInputSummary } from './analysis-input-summary'
 
+// Professional profile dialog
+export { ProfessionalProfileDialog } from './professional-profile-dialog'
+
 // Loading states
 export { LoadingSkeleton, RecommendationCardSkeleton } from './loading-skeleton'

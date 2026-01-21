@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
 import {
@@ -13,7 +14,7 @@ import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
 import type { MotifKey } from '@/shared/components/motif-selector'
 import { useDemande } from '@/demandes'
-import { RecommendationsPanel } from '@/recommendations/components'
+import { RecommendationsPanel, ProfessionalProfileDialog } from '@/recommendations/components'
 
 const urgencyConfig = {
   low: { variant: 'success' as const, label: 'pages.requestDetail.urgency.levels.low' },
@@ -41,6 +42,24 @@ export function RequestAnalysisPage() {
   // Get legal context label from translation
   const getLegalContextLabel = (key: string) =>
     t(`pages.requestDetail.motifs.intake.legalContext.options.${key}` as Parameters<typeof t>[0])
+
+  // Professional profile dialog state
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false)
+  const [selectedProfessionalId, setSelectedProfessionalId] = useState<string | null>(null)
+
+  // Handle viewing a professional's profile
+  const handleViewProfile = (professionalId: string) => {
+    setSelectedProfessionalId(professionalId)
+    setProfileDialogOpen(true)
+  }
+
+  // Handle selecting a professional for assignment
+  const handleSelectProfessional = (professionalId: string) => {
+    // TODO: Implement professional assignment flow
+    // For now, just log and show a message
+    console.log('Selected professional for assignment:', professionalId)
+    // This will be connected to the assignment system later
+  }
 
   // Show loading state
   if (!isDraft && isLoading) {
@@ -224,7 +243,11 @@ export function RequestAnalysisPage() {
 
           <div className="p-5">
             {!isDraft && requestId ? (
-              <RecommendationsPanel demandeId={requestId} />
+              <RecommendationsPanel
+                demandeId={requestId}
+                onViewProfile={handleViewProfile}
+                onSelectProfessional={handleSelectProfessional}
+              />
             ) : (
               /* Empty state for drafts */
               <div className="rounded-xl border border-dashed border-border bg-background-secondary/30 p-8 text-center">
@@ -297,6 +320,14 @@ export function RequestAnalysisPage() {
           </div>
         </motion.section>
       </div>
+
+      {/* Professional Profile Dialog */}
+      <ProfessionalProfileDialog
+        professionalId={selectedProfessionalId}
+        open={profileDialogOpen}
+        onOpenChange={setProfileDialogOpen}
+        onSelect={handleSelectProfessional}
+      />
     </div>
   )
 }

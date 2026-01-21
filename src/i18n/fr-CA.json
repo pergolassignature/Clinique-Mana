@@ -2337,6 +2337,32 @@
       "totalProfessionals": "Professionnels analysés",
       "eligible": "Admissibles",
       "excluded": "Exclus"
+    },
+    "profileDialog": {
+      "title": "Profil du professionnel",
+      "notFound": "Professionnel non trouvé",
+      "unknownName": "Nom inconnu",
+      "bio": "Biographie",
+      "motifs": "Motifs de consultation",
+      "specialties": "Spécialités",
+      "clientele": "Clientèle",
+      "approach": "Approche thérapeutique",
+      "consultationModes": "Modes de consultation",
+      "yearsExperience": "ans d'expérience",
+      "selectProfessional": "Sélectionner ce professionnel",
+      "clienteleTypes": {
+        "children": "Enfants",
+        "adolescents": "Adolescents",
+        "adults": "Adultes",
+        "seniors": "Aînés",
+        "couples": "Couples",
+        "families": "Familles"
+      },
+      "modes": {
+        "in_person": "En personne",
+        "video": "Vidéoconférence",
+        "phone": "Téléphone"
+      }
     }
   }
 }
