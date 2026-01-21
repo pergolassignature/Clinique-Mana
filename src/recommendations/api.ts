@@ -417,8 +417,17 @@ async function storeRecommendations(
 
   const demandeUuid = demandeRow.id
 
-  // Get current user ID if available
+  // Get current user's profile ID (not auth user ID - profiles.id != auth.users.id)
   const { data: { user } } = await supabase.auth.getUser()
+  let profileId: string | null = null
+  if (user?.id) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .single()
+    profileId = profile?.id || null
+  }
 
   // Mark previous recommendations as superseded
   const { error: supersedError } = await supabase
@@ -459,7 +468,7 @@ async function storeRecommendations(
       ai_extracted_preferences: aiOutput?.extractedPreferences || null,
       exclusions: exclusions,
       near_eligible: nearEligible,
-      generated_by: user?.id || null,
+      generated_by: profileId,
       model_version: getAIModelIdentifier(),
       processing_time_ms: processingTimeMs,
       is_current: true,
