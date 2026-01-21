@@ -6,31 +6,14 @@ import {
   Lightbulb,
   UserCheck,
   AlertCircle,
+  Loader2,
 } from 'lucide-react'
 import { t } from '@/i18n'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
 import type { MotifKey } from '@/shared/components/motif-selector'
-
-// Mock data for demonstration - would come from the actual request
-const mockAnalysisData = {
-  id: 'DEM-2024-0042',
-  selectedMotifs: ['relationships'] as MotifKey[],
-  besoinRaison: 'Difficultés de communication dans le couple, tensions récurrentes.',
-  enjeuxDemarche: ['availability', 'coparenting'] as string[],
-  legalContext: [] as string[],
-  urgency: 'moderate' as 'low' | 'moderate' | 'high' | '',
-}
-
-// For new/draft requests
-const emptyAnalysisData = {
-  id: '',
-  selectedMotifs: [] as MotifKey[],
-  besoinRaison: '',
-  enjeuxDemarche: [] as string[],
-  legalContext: [] as string[],
-  urgency: '' as 'low' | 'moderate' | 'high' | '',
-}
+import { useDemande } from '@/demandes'
+import { RecommendationsPanel } from '@/recommendations/components'
 
 const urgencyConfig = {
   low: { variant: 'success' as const, label: 'pages.requestDetail.urgency.levels.low' },
@@ -44,8 +27,8 @@ export function RequestAnalysisPage() {
   const requestId = (routerState.matches.at(-1)?.params as { id?: string })?.id ?? ''
   const isDraft = requestId === 'nouvelle'
 
-  // Use mock data for existing requests, empty for drafts
-  const data = isDraft ? emptyAnalysisData : mockAnalysisData
+  // Fetch demande data
+  const { data: demandeData, isLoading } = useDemande(isDraft ? undefined : requestId)
 
   // Get motif label from translation
   const getMotifLabel = (key: MotifKey) =>
@@ -58,6 +41,26 @@ export function RequestAnalysisPage() {
   // Get legal context label from translation
   const getLegalContextLabel = (key: string) =>
     t(`pages.requestDetail.motifs.intake.legalContext.options.${key}` as Parameters<typeof t>[0])
+
+  // Show loading state
+  if (!isDraft && isLoading) {
+    return (
+      <div className="min-h-full flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-sage-500" />
+          <p className="text-sm text-foreground-muted">Chargement de l'analyse...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Extract data from fetched demande or use empty values
+  const selectedMotifs = (demandeData?.selectedMotifs || []) as MotifKey[]
+  const besoinRaison = demandeData?.besoinRaison || ''
+  const enjeuxDemarche = demandeData?.enjeuxDemarche || []
+  const legalContext = demandeData?.legalContext || []
+  const urgency = (demandeData?.urgency || '') as 'low' | 'moderate' | 'high' | ''
+  const demandeId = demandeData?.demandeId || ''
 
   return (
     <div className="min-h-full">
@@ -81,8 +84,8 @@ export function RequestAnalysisPage() {
           <h1 className="text-2xl font-semibold text-foreground">
             {t('pages.requestAnalysis.title')}
           </h1>
-          {!isDraft && (
-            <p className="text-xs text-foreground-muted font-mono">{data.id}</p>
+          {!isDraft && demandeId && (
+            <p className="text-xs text-foreground-muted font-mono">{demandeId}</p>
           )}
         </div>
       </motion.header>
@@ -114,9 +117,9 @@ export function RequestAnalysisPage() {
               <p className="text-xs font-medium text-foreground-muted uppercase tracking-wide mb-2">
                 {t('pages.requestAnalysis.summary.motifs')}
               </p>
-              {data.selectedMotifs.length > 0 ? (
+              {selectedMotifs.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
-                  {data.selectedMotifs.map((motif) => (
+                  {selectedMotifs.map((motif) => (
                     <Badge key={motif} variant="default" className="text-xs">
                       {getMotifLabel(motif)}
                     </Badge>
@@ -134,9 +137,9 @@ export function RequestAnalysisPage() {
               <p className="text-xs font-medium text-foreground-muted uppercase tracking-wide mb-2">
                 {t('pages.requestAnalysis.summary.besoin')}
               </p>
-              {data.besoinRaison ? (
+              {besoinRaison ? (
                 <p className="text-sm text-foreground leading-relaxed">
-                  {data.besoinRaison}
+                  {besoinRaison}
                 </p>
               ) : (
                 <p className="text-sm text-foreground-muted italic">
@@ -150,9 +153,9 @@ export function RequestAnalysisPage() {
               <p className="text-xs font-medium text-foreground-muted uppercase tracking-wide mb-2">
                 {t('pages.requestAnalysis.summary.enjeux')}
               </p>
-              {data.enjeuxDemarche.length > 0 ? (
+              {enjeuxDemarche.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
-                  {data.enjeuxDemarche.map((enjeu) => (
+                  {enjeuxDemarche.map((enjeu) => (
                     <Badge key={enjeu} variant="secondary" className="text-xs">
                       {getEnjeuxLabel(enjeu)}
                     </Badge>
@@ -166,13 +169,13 @@ export function RequestAnalysisPage() {
             </div>
 
             {/* Contexte légal */}
-            {data.legalContext.length > 0 && (
+            {legalContext.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-foreground-muted uppercase tracking-wide mb-2">
                   {t('pages.requestAnalysis.summary.legalContext')}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {data.legalContext.map((context) => (
+                  {legalContext.map((context) => (
                     <Badge key={context} variant="warning" className="text-xs">
                       {getLegalContextLabel(context)}
                     </Badge>
@@ -186,12 +189,12 @@ export function RequestAnalysisPage() {
               <p className="text-xs font-medium text-foreground-muted uppercase tracking-wide mb-2">
                 {t('pages.requestAnalysis.summary.urgency')}
               </p>
-              {data.urgency ? (
+              {urgency ? (
                 <Badge
-                  variant={urgencyConfig[data.urgency].variant}
+                  variant={urgencyConfig[urgency].variant}
                   className="text-xs"
                 >
-                  {t(urgencyConfig[data.urgency].label as Parameters<typeof t>[0])}
+                  {t(urgencyConfig[urgency].label as Parameters<typeof t>[0])}
                 </Badge>
               ) : (
                 <p className="text-sm text-foreground-muted italic">—</p>
@@ -200,7 +203,7 @@ export function RequestAnalysisPage() {
           </div>
         </motion.section>
 
-        {/* Main zone: Recommandations (placeholder) */}
+        {/* Main zone: Recommandations */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -219,19 +222,23 @@ export function RequestAnalysisPage() {
             </div>
           </div>
 
-          <div className="p-8">
-            {/* Empty state */}
-            <div className="rounded-xl border border-dashed border-border bg-background-secondary/30 p-8 text-center">
-              <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-honey-50 flex items-center justify-center">
-                <Lightbulb className="h-6 w-6 text-honey-400" />
+          <div className="p-5">
+            {!isDraft && requestId ? (
+              <RecommendationsPanel demandeId={requestId} />
+            ) : (
+              /* Empty state for drafts */
+              <div className="rounded-xl border border-dashed border-border bg-background-secondary/30 p-8 text-center">
+                <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-honey-50 flex items-center justify-center">
+                  <Lightbulb className="h-6 w-6 text-honey-400" />
+                </div>
+                <p className="text-sm text-foreground-secondary leading-relaxed mb-2">
+                  {t('pages.requestAnalysis.recommendations.empty')}
+                </p>
+                <p className="text-xs text-foreground-muted">
+                  {t('pages.requestAnalysis.recommendations.helper')}
+                </p>
               </div>
-              <p className="text-sm text-foreground-secondary leading-relaxed mb-2">
-                {t('pages.requestAnalysis.recommendations.empty')}
-              </p>
-              <p className="text-xs text-foreground-muted">
-                {t('pages.requestAnalysis.recommendations.helper')}
-              </p>
-            </div>
+            )}
           </div>
         </motion.section>
 
