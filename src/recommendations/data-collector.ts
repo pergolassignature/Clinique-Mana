@@ -8,6 +8,7 @@ import type {
   CandidateData,
   DemandeData,
 } from './types'
+import { classifyHolisticIntent } from './holistic-classifier'
 
 // =============================================================================
 // POPULATION CATEGORY HELPERS
@@ -557,10 +558,21 @@ export async function collectRecommendationData(
     return mapProfessionalToCandidate(professional, availability)
   })
 
+  // Classify holistic intent from client text
+  // Combines: motifDescription, otherMotifText, notes, besoinRaison
+  const clientTextForHolistic = [
+    demande.motifDescription,
+    demande.otherMotifText,
+    demande.notes,
+  ].filter(Boolean).join(' ')
+
+  const holisticSignal = classifyHolisticIntent(clientTextForHolistic)
+
   return {
     demande,
     candidates,
     config,
+    holisticSignal,
     collectedAt: new Date().toISOString(),
   }
 }

@@ -7,6 +7,7 @@ import { useProfessional } from '@/professionals/hooks'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/dialog'
@@ -20,7 +21,7 @@ interface ProfessionalProfileDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Optional callback when selecting this professional */
-  onSelect?: (professionalId: string) => void
+  onSelect?: (professionalId: string, displayName: string) => void
 }
 
 /**
@@ -122,12 +123,21 @@ export function ProfessionalProfileDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-lg max-h-[85vh] overflow-y-auto"
+        onOpenAutoFocus={(e) => {
+          // Prevent auto-focus which can trigger click events
+          e.preventDefault()
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
             {t('recommendations.profileDialog.title')}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('recommendations.profileDialog.title')}
+          </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
@@ -220,14 +230,16 @@ export function ProfessionalProfileDialog({
             {onSelect && (
               <div className="flex justify-end gap-2 pt-4 border-t border-border">
                 <Button
+                  type="button"
                   variant="outline"
                   onClick={() => onOpenChange(false)}
                 >
                   {t('common.close')}
                 </Button>
                 <Button
+                  type="button"
                   onClick={() => {
-                    onSelect(professional.id)
+                    onSelect(professional.id, displayName || 'Professionnel')
                     onOpenChange(false)
                   }}
                 >

@@ -182,7 +182,7 @@ function sanitizeCandidate(
  * @returns Sanitized input safe for AI processing
  */
 export function sanitizeForAI(bundle: RecommendationDataBundle): AIAdvisoryInput {
-  const { demande, candidates } = bundle
+  const { demande, candidates, holisticSignal } = bundle
 
   // Sanitize and transform candidates
   const sanitizedCandidates = candidates.map((c) => sanitizeCandidate(c, demande))
@@ -197,6 +197,13 @@ export function sanitizeForAI(bundle: RecommendationDataBundle): AIAdvisoryInput
     clientText: combineClientText(demande),
     hasLegalContext: demande.hasLegalContext,
     populationCategories: demande.populationCategories,
+    holisticSignal: {
+      score: holisticSignal.score,
+      category: holisticSignal.category,
+      matchedKeywords: holisticSignal.matchedKeywords,
+      recommendNaturopath: holisticSignal.recommendNaturopath,
+      hasClinicalOverride: holisticSignal.hasClinicalOverride,
+    },
     candidates: sanitizedCandidates,
   }
 }

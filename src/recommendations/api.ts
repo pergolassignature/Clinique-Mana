@@ -14,6 +14,7 @@ import type {
   DemandeData,
   RecommendationConfig,
   DeterministicScores,
+  HolisticSignal,
 } from './types'
 import {
   collectRecommendationData,
@@ -247,7 +248,7 @@ export async function generateRecommendations(
 
     // Step 1: Collect all data
     const dataBundle = await collectRecommendationData(demandeId, configKey)
-    const { demande, candidates, config } = dataBundle
+    const { demande, candidates, config, holisticSignal } = dataBundle
 
     // Step 2: Pre-filter by hard constraints
     const filterResult = preFilterProfessionals(candidates, demande, config)
@@ -259,6 +260,7 @@ export async function generateRecommendations(
         demandeId,
         demande,
         config,
+        holisticSignal,
         recommendations: [],
         exclusions,
         nearEligible,
@@ -349,6 +351,7 @@ export async function generateRecommendations(
       demandeId,
       demande,
       config,
+      holisticSignal,
       recommendations,
       exclusions,
       nearEligible,
@@ -381,6 +384,280 @@ export async function generateRecommendations(
 }
 
 // =============================================================================
+// PROFESSION ELIGIBILITY RULES
+// =============================================================================
+
+interface ProfessionEligibilityRule {
+  professionKey: string
+  labelFr: string
+  isEligible: boolean
+  reason: string
+  priority: 'preferred' | 'eligible' | 'not_recommended'
+}
+
+/**
+ * Build profession eligibility rules based on demand type, context, and holistic signal.
+ * Explains which professions are appropriate and why.
+ *
+ * @param demande - The demand data
+ * @param holisticSignal - Optional holistic signal for naturopath preference
+ */
+function buildProfessionEligibilityRules(
+  demande: DemandeData,
+  holisticSignal?: HolisticSignal
+): ProfessionEligibilityRule[] {
+  const rules: ProfessionEligibilityRule[] = []
+
+  // Define all profession types with French labels
+  const professionTypes = [
+    { key: 'psychologue', labelFr: 'Psychologue' },
+    { key: 'travailleur_social', labelFr: 'Travailleur social' },
+    { key: 'psychotherapeute', labelFr: 'Psychothérapeute' },
+    { key: 'conseiller_orientation', labelFr: 'Conseiller d\'orientation' },
+    { key: 'sexologue', labelFr: 'Sexologue' },
+    { key: 'neuropsychologue', labelFr: 'Neuropsychologue' },
+    { key: 'naturopathe', labelFr: 'Naturopathe' },
+  ]
+
+  for (const profession of professionTypes) {
+    const rule = evaluateProfessionEligibility(profession.key, profession.labelFr, demande, holisticSignal)
+    rules.push(rule)
+  }
+
+  // Sort by priority: preferred first, then eligible, then not recommended
+  const priorityOrder = { preferred: 0, eligible: 1, not_recommended: 2 }
+  rules.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority])
+
+  return rules
+}
+
+/**
+ * Evaluate eligibility for a specific profession type.
+ *
+ * @param professionKey - The profession key (e.g., 'psychologue', 'naturopathe')
+ * @param labelFr - French label for the profession
+ * @param demande - The demand data
+ * @param holisticSignal - Optional holistic signal for naturopath preference
+ */
+function evaluateProfessionEligibility(
+  professionKey: string,
+  labelFr: string,
+  demande: DemandeData,
+  holisticSignal?: HolisticSignal
+): ProfessionEligibilityRule {
+  // ==========================================================================
+  // HOLISTIC/GLOBAL SIGNAL - Naturopath preference
+  // When client text indicates body/wellness/global approach and no clinical crisis
+  // ==========================================================================
+  if (holisticSignal?.recommendNaturopath) {
+    if (professionKey === 'naturopathe') {
+      return {
+        professionKey,
+        labelFr,
+        isEligible: true,
+        reason: `Recommandé pour l'approche globale corps/énergie/équilibre de vie (mots-clés: ${holisticSignal.matchedKeywords.slice(0, 3).join(', ')})`,
+        priority: 'preferred',
+      }
+    }
+    // When holistic signal is present, psychologue/psychotherapeute are still eligible
+    // but not preferred (naturopathe is)
+    if (['psychologue', 'psychotherapeute'].includes(professionKey)) {
+      return {
+        professionKey,
+        labelFr,
+        isEligible: true,
+        reason: 'Peut intervenir si un besoin clinique est identifié, mais approche globale suggère naturopathe',
+        priority: 'eligible',
+      }
+    }
+  }
+
+  // Clinical override - when crisis keywords present, psychologue/psychotherapeute preferred
+  if (holisticSignal?.hasClinicalOverride) {
+    if (['psychologue', 'psychotherapeute'].includes(professionKey)) {
+      return {
+        professionKey,
+        labelFr,
+        isEligible: true,
+        reason: `Recommandé pour la détresse clinique identifiée (mots-clés: ${holisticSignal.clinicalKeywordsFound.slice(0, 2).join(', ')})`,
+        priority: 'preferred',
+      }
+    }
+    // Naturopath not recommended when clinical crisis detected
+    if (professionKey === 'naturopathe') {
+      return {
+        professionKey,
+        labelFr,
+        isEligible: false,
+        reason: 'Non recommandé en présence d\'indicateurs de détresse clinique aiguë',
+        priority: 'not_recommended',
+      }
+    }
+  }
+
+  // ==========================================================================
+  // LEGAL CONTEXT - Social worker preference
+  // ==========================================================================
+  // Legal context strongly favors social workers
+  if (demande.hasLegalContext) {
+    if (professionKey === 'travailleur_social') {
+      return {
+        professionKey,
+        labelFr,
+        isEligible: true,
+        reason: 'Recommandé pour les dossiers avec contexte légal (médiation, garde, etc.)',
+        priority: 'preferred',
+      }
+    }
+    if (professionKey === 'psychologue') {
+      return {
+        professionKey,
+        labelFr,
+        isEligible: true,
+        reason: 'Peut intervenir dans un contexte légal, mais le travailleur social est préféré',
+        priority: 'eligible',
+      }
+    }
+  }
+
+  // Couple demands
+  if (demande.demandType === 'couple') {
+    if (['psychologue', 'travailleur_social', 'psychotherapeute', 'sexologue'].includes(professionKey)) {
+      return {
+        professionKey,
+        labelFr,
+        isEligible: true,
+        reason: 'Qualifié pour la thérapie de couple',
+        priority: professionKey === 'sexologue' ? 'preferred' : 'eligible',
+      }
+    }
+    return {
+      professionKey,
+      labelFr,
+      isEligible: false,
+      reason: 'Non spécialisé pour les consultations de couple',
+      priority: 'not_recommended',
+    }
+  }
+
+  // Family demands
+  if (demande.demandType === 'family') {
+    if (['psychologue', 'travailleur_social', 'psychotherapeute'].includes(professionKey)) {
+      return {
+        professionKey,
+        labelFr,
+        isEligible: true,
+        reason: 'Qualifié pour la thérapie familiale',
+        priority: professionKey === 'travailleur_social' ? 'preferred' : 'eligible',
+      }
+    }
+    return {
+      professionKey,
+      labelFr,
+      isEligible: false,
+      reason: 'Non spécialisé pour les consultations familiales',
+      priority: 'not_recommended',
+    }
+  }
+
+  // Individual demands - most professions are eligible
+  if (demande.demandType === 'individual' || !demande.demandType) {
+    // Check for specific motifs that might prefer certain professions
+    const motifKeys = demande.motifKeys || []
+
+    // Neuropsychological concerns
+    if (motifKeys.some(m => ['troubles_apprentissage', 'trouble_attention', 'evaluation_neuropsychologique'].includes(m))) {
+      if (professionKey === 'neuropsychologue') {
+        return {
+          professionKey,
+          labelFr,
+          isEligible: true,
+          reason: 'Spécialiste pour les évaluations neuropsychologiques et troubles cognitifs',
+          priority: 'preferred',
+        }
+      }
+    }
+
+    // Career/orientation concerns
+    if (motifKeys.some(m => ['orientation_carriere', 'choix_professionnel', 'epuisement_professionnel'].includes(m))) {
+      if (professionKey === 'conseiller_orientation') {
+        return {
+          professionKey,
+          labelFr,
+          isEligible: true,
+          reason: 'Spécialiste pour les questions de carrière et d\'orientation',
+          priority: 'preferred',
+        }
+      }
+    }
+
+    // Sexual health concerns
+    if (motifKeys.some(m => ['sexualite', 'intimite', 'dysfonction_sexuelle'].includes(m))) {
+      if (professionKey === 'sexologue') {
+        return {
+          professionKey,
+          labelFr,
+          isEligible: true,
+          reason: 'Spécialiste pour les questions de santé sexuelle',
+          priority: 'preferred',
+        }
+      }
+    }
+
+    // Default: psychologue and psychotherapeute are preferred for general mental health
+    if (['psychologue', 'psychotherapeute'].includes(professionKey)) {
+      return {
+        professionKey,
+        labelFr,
+        isEligible: true,
+        reason: 'Adapté pour la plupart des consultations individuelles',
+        priority: 'preferred',
+      }
+    }
+
+    // Social workers are eligible
+    if (professionKey === 'travailleur_social') {
+      return {
+        professionKey,
+        labelFr,
+        isEligible: true,
+        reason: 'Peut accompagner pour les enjeux psychosociaux',
+        priority: 'eligible',
+      }
+    }
+
+    // Naturopathe is eligible for individual demands (but not preferred unless holistic signal)
+    if (professionKey === 'naturopathe') {
+      return {
+        professionKey,
+        labelFr,
+        isEligible: true,
+        reason: 'Peut accompagner pour les besoins de bien-être et équilibre de vie',
+        priority: 'eligible',
+      }
+    }
+
+    // Other professions eligible but not prioritized
+    return {
+      professionKey,
+      labelFr,
+      isEligible: true,
+      reason: 'Peut intervenir selon la nature spécifique de la demande',
+      priority: 'eligible',
+    }
+  }
+
+  // Default fallback
+  return {
+    professionKey,
+    labelFr,
+    isEligible: true,
+    reason: 'Disponible pour cette consultation',
+    priority: 'eligible',
+  }
+}
+
+// =============================================================================
 // DATABASE STORAGE
 // =============================================================================
 
@@ -388,6 +665,7 @@ interface StoreRecommendationsInput {
   demandeId: string
   demande: DemandeData
   config: RecommendationConfig
+  holisticSignal: HolisticSignal
   recommendations: RecommendationProfessionalDetail[]
   exclusions: ExclusionRecord[]
   nearEligible: NearEligible[]
@@ -406,6 +684,7 @@ async function storeRecommendations(
     demandeId,
     demande,
     config,
+    holisticSignal,
     recommendations,
     exclusions,
     nearEligible,
@@ -453,6 +732,9 @@ async function storeRecommendations(
     // Continue anyway - this is not critical
   }
 
+  // Build profession eligibility rules based on demand type and holistic signal
+  const professionRules = buildProfessionEligibilityRules(demande, holisticSignal)
+
   // Build input snapshot (sanitized, no client PII)
   const inputSnapshot = {
     demandType: demande.demandType,
@@ -460,8 +742,17 @@ async function storeRecommendations(
     motifKeys: demande.motifKeys,
     populationCategories: demande.populationCategories,
     hasLegalContext: demande.hasLegalContext,
+    holisticSignal: {
+      score: holisticSignal.score,
+      category: holisticSignal.category,
+      matchedKeywords: holisticSignal.matchedKeywords,
+      recommendNaturopath: holisticSignal.recommendNaturopath,
+      hasClinicalOverride: holisticSignal.hasClinicalOverride,
+    },
     configKey: config.key,
     candidateCount: recommendations.length,
+    totalProfessionalsAnalyzed: exclusions.length + recommendations.length,
+    professionRules,
     timestamp: new Date().toISOString(),
   }
 

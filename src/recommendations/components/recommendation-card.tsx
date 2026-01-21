@@ -15,7 +15,7 @@ import type { MotifKey } from '@/shared/components/motif-selector'
 export interface RecommendationCardProps {
   recommendation: RecommendationProfessionalDetail
   rank: number
-  onSelect?: (professionalId: string) => void
+  onSelect?: (professionalId: string, displayName: string) => void
   onViewProfile?: (professionalId: string) => void
 }
 
@@ -203,7 +203,7 @@ export function RecommendationCard({
                 variant="default"
                 size="sm"
                 className="text-xs h-8"
-                onClick={() => onSelect?.(professionalId)}
+                onClick={() => onSelect?.(professionalId, displayName || 'Professionnel')}
               >
                 {t('recommendations.card.select')}
                 <ChevronRight className="h-3.5 w-3.5 ml-1" />

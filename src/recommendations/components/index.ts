@@ -24,5 +24,9 @@ export { AnalysisInputSummary } from './analysis-input-summary'
 // Professional profile dialog
 export { ProfessionalProfileDialog } from './professional-profile-dialog'
 
+// Slot selection drawer
+export { SlotSelectionDrawer } from './slot-selection-drawer'
+export type { AvailableSlot } from './slot-selection-drawer'
+
 // Loading states
 export { LoadingSkeleton, RecommendationCardSkeleton } from './loading-skeleton'

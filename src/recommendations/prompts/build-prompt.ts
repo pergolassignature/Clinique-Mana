@@ -20,6 +20,12 @@ export const PLACEHOLDERS = {
   POPULATION_CATEGORIES: '{{populationCategories}}',
   CANDIDATES_JSON: '{{candidatesJson}}',
   CANDIDATES_COUNT: '{{candidatesCount}}',
+  // Holistic signal placeholders
+  HOLISTIC_SCORE: '{{holisticScore}}',
+  HOLISTIC_CATEGORY: '{{holisticCategory}}',
+  HOLISTIC_KEYWORDS: '{{holisticKeywords}}',
+  RECOMMEND_NATUROPATH: '{{recommendNaturopath}}',
+  HAS_CLINICAL_OVERRIDE: '{{hasClinicalOverride}}',
 } as const
 
 // =============================================================================
@@ -129,6 +135,32 @@ export function buildUserPrompt(
     String(input.candidates.length)
   )
 
+  // Holistic signal placeholders
+  prompt = prompt.replace(
+    new RegExp(escapeRegex(PLACEHOLDERS.HOLISTIC_SCORE), 'g'),
+    String(Math.round(input.holisticSignal.score * 100) / 100)
+  )
+
+  prompt = prompt.replace(
+    new RegExp(escapeRegex(PLACEHOLDERS.HOLISTIC_CATEGORY), 'g'),
+    input.holisticSignal.category
+  )
+
+  prompt = prompt.replace(
+    new RegExp(escapeRegex(PLACEHOLDERS.HOLISTIC_KEYWORDS), 'g'),
+    formatStringArray(input.holisticSignal.matchedKeywords)
+  )
+
+  prompt = prompt.replace(
+    new RegExp(escapeRegex(PLACEHOLDERS.RECOMMEND_NATUROPATH), 'g'),
+    input.holisticSignal.recommendNaturopath ? 'oui' : 'non'
+  )
+
+  prompt = prompt.replace(
+    new RegExp(escapeRegex(PLACEHOLDERS.HAS_CLINICAL_OVERRIDE), 'g'),
+    input.holisticSignal.hasClinicalOverride ? 'oui (détresse clinique détectée)' : 'non'
+  )
+
   return prompt
 }
 
@@ -167,7 +199,7 @@ export function validatePromptTemplate(template: string): string[] {
  * Default system prompt for the AI advisory layer.
  * Used when no custom system prompt is configured.
  */
-export const DEFAULT_SYSTEM_PROMPT = `Tu es un assistant spécialisé dans l'orientation vers des professionnels de santé mentale pour la Clinique MANA.
+export const DEFAULT_SYSTEM_PROMPT = `Tu es un assistant spécialisé dans l'orientation vers des professionnels de santé mentale et bien-être pour la Clinique MANA.
 
 Ton rôle est d'analyser les demandes de consultation et de fournir des recommandations structurées pour aider le personnel à jumeler les clients avec les professionnels appropriés.
 
@@ -176,6 +208,11 @@ IMPORTANT:
 - Tu ne recommandes PAS de traitement
 - Tu analyses uniquement la correspondance entre les besoins exprimés et les profils professionnels disponibles
 - Toutes tes réponses doivent être en français canadien
+
+RÈGLE APPROCHE GLOBALE (NATUROPATHE):
+- Si le client mentionne des besoins liés au corps, à l'énergie, à la digestion, au sommeil, à l'alimentation, à l'équilibre de vie, ou demande explicitement une "approche globale" ou "holistique", et qu'il n'y a PAS de détresse clinique aiguë détectée, le Naturopathe doit être fortement favorisé dans ton classement.
+- Les Psychologues/Psychothérapeutes restent admissibles pour ces cas, mais ne sont pas le premier choix pour les besoins corps/énergie/bien-être.
+- EXCEPTION: Si des indicateurs de crise sont présents (idées noires, trauma, violence, etc.), le Psychologue/Psychothérapeute doit être recommandé en priorité, même si des besoins holistiques sont également présents.
 
 Tu dois répondre UNIQUEMENT avec un objet JSON valide, sans texte supplémentaire avant ou après.`
 
@@ -192,6 +229,13 @@ export const DEFAULT_USER_PROMPT_TEMPLATE = `Analyse cette demande de consultati
 - **Motifs identifiés**: {{motifKeys}}
 - **Catégories de population**: {{populationCategories}}
 - **Contexte juridique**: {{hasLegalContext}}
+
+### Signal d'approche globale (corps/énergie/bien-être)
+- **Score holistique**: {{holisticScore}} (0 = aucun signal, 1 = très fort signal)
+- **Catégorie détectée**: {{holisticCategory}}
+- **Mots-clés trouvés**: {{holisticKeywords}}
+- **Recommander Naturopathe en priorité**: {{recommendNaturopath}}
+- **Indicateurs de crise détectés**: {{hasClinicalOverride}}
 
 ### Description du client
 {{clientText}}

@@ -2,6 +2,9 @@
 // TypeScript types for the Professional Recommendation System
 
 import { z } from 'zod'
+import type { HolisticSignal, HolisticCategory } from './holistic-classifier'
+
+export type { HolisticSignal, HolisticCategory }
 
 // =============================================================================
 // EXCLUSION REASON CODES
@@ -167,6 +170,14 @@ export interface AIAdvisoryInput {
   clientText: string           // Combined motif description + notes
   hasLegalContext: boolean     // Flag for legal/mediation cases
   populationCategories: string[]
+  // Holistic signal for naturopath preference
+  holisticSignal: {
+    score: number              // 0-1, higher = more holistic intent
+    category: string           // 'body' | 'energy' | 'lifestyle' | 'global' | 'none'
+    matchedKeywords: string[]  // Keywords found in client text
+    recommendNaturopath: boolean  // true if score > 0.5 AND no clinical override
+    hasClinicalOverride: boolean  // true if crisis keywords detected
+  }
   candidates: Array<{
     id: string
     professionType: string
@@ -184,6 +195,13 @@ export const AIAdvisoryInputSchema = z.object({
   clientText: z.string(),
   hasLegalContext: z.boolean(),
   populationCategories: z.array(z.string()),
+  holisticSignal: z.object({
+    score: z.number().min(0).max(1),
+    category: z.string(),
+    matchedKeywords: z.array(z.string()),
+    recommendNaturopath: z.boolean(),
+    hasClinicalOverride: z.boolean(),
+  }),
   candidates: z.array(z.object({
     id: z.string().uuid(),
     professionType: z.string(),
@@ -436,5 +454,6 @@ export interface RecommendationDataBundle {
   demande: DemandeData
   candidates: CandidateData[]
   config: RecommendationConfig
+  holisticSignal: HolisticSignal
   collectedAt: string
 }

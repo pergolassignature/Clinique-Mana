@@ -16,7 +16,7 @@ import { AnalysisInputSummary } from './analysis-input-summary'
 export interface RecommendationsPanelProps {
   demandeId: string
   /** Callback when a professional is selected for assignment */
-  onSelectProfessional?: (professionalId: string) => void
+  onSelectProfessional?: (professionalId: string, displayName: string) => void
   /** Callback to view a professional's profile */
   onViewProfile?: (professionalId: string) => void
 }

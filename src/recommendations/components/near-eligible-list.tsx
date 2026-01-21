@@ -16,14 +16,14 @@ interface NearEligibleListProps {
   /** Initially expanded state */
   defaultExpanded?: boolean
   /** Callback when a professional is selected for assignment */
-  onSelectProfessional?: (professionalId: string) => void
+  onSelectProfessional?: (professionalId: string, displayName: string) => void
   /** Callback to view a professional's profile */
   onViewProfile?: (professionalId: string) => void
 }
 
 interface NearEligibleItemProps {
   item: NearEligible
-  onSelect?: (professionalId: string) => void
+  onSelect?: (professionalId: string, displayName: string) => void
   onViewProfile?: (professionalId: string) => void
 }
 
@@ -122,21 +122,23 @@ function NearEligibleItem({ item, onSelect, onViewProfile }: NearEligibleItemPro
       )}
 
       {/* Action buttons */}
-      <div className="mt-3 flex items-center justify-end gap-2">
+      <div className="mt-3 flex items-center justify-end gap-3">
         <Button
+          type="button"
           variant="ghost"
           size="sm"
-          className="text-xs h-8"
+          className="text-xs h-8 px-3"
           onClick={() => onViewProfile?.(item.professionalId)}
         >
           <User className="h-3.5 w-3.5 mr-1" />
           {t('recommendations.card.viewProfile')}
         </Button>
         <Button
+          type="button"
           variant="outline"
           size="sm"
-          className="text-xs h-8"
-          onClick={() => onSelect?.(item.professionalId)}
+          className="text-xs h-8 px-3"
+          onClick={() => onSelect?.(item.professionalId, item.displayName || 'Professionnel')}
         >
           {t('recommendations.nearEligible.selectAnyway')}
           <ChevronRight className="h-3.5 w-3.5 ml-1" />
