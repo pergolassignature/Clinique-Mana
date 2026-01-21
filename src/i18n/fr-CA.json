@@ -1742,6 +1742,7 @@
           "spouse": "Conjoint(e)",
           "sibling": "Frère/Sœur",
           "guardian": "Tuteur/Tutrice",
+          "ward": "Sous tutelle",
           "other": "Autre"
         },
         "deleteDialog": {
@@ -2143,5 +2144,71 @@
     "system": "Système",
     "byActor": "par {actor}",
     "noActor": "Action automatique"
+  },
+  "recommendations": {
+    "empty": {
+      "title": "Aucune recommandation",
+      "description": "Cliquez sur le bouton pour analyser cette demande et obtenir des recommandations de professionnels."
+    },
+    "actions": {
+      "generate": "Analyser et recommander",
+      "generating": "Analyse en cours...",
+      "refresh": "Actualiser",
+      "refreshing": "Actualisation...",
+      "retry": "Réessayer"
+    },
+    "error": {
+      "title": "Erreur lors de l'analyse",
+      "generic": "Une erreur est survenue lors de la génération des recommandations."
+    },
+    "scores": {
+      "title": "Détail du score",
+      "motifMatchScore": "Correspondance motifs",
+      "specialtyMatchScore": "Spécialités",
+      "availabilityScore": "Disponibilité",
+      "professionFitScore": "Profil professionnel",
+      "experienceScore": "Expérience",
+      "aiAdjustment": "Ajustement IA"
+    },
+    "card": {
+      "unknownProfessional": "Professionnel",
+      "viewProfile": "Voir le profil",
+      "select": "Sélectionner",
+      "noAvailability": "Aucune disponibilité",
+      "availableToday": "Disponible aujourd'hui",
+      "availableTomorrow": "Disponible demain",
+      "availableInDays": "Disponible dans {{days}} jours",
+      "slotsAvailable": "créneaux"
+    },
+    "exclusions": {
+      "title": "{{count}} professionnel(s) exclu(s)",
+      "helper": "Ces professionnels ne répondent pas aux critères requis pour cette demande.",
+      "reasons": {
+        "no_availability": "Aucune disponibilité dans la période",
+        "no_motif_overlap": "Motifs non couverts",
+        "no_population_match": "Population non desservie",
+        "no_demand_type_specialty": "Spécialité non offerte",
+        "inactive_status": "Profil inactif"
+      }
+    },
+    "nearEligible": {
+      "title": "{{count}} professionnel(s) presque admissible(s)",
+      "description": "Ces professionnels auraient pu correspondre mais échouent sur un critère.",
+      "unknownProfessional": "Professionnel",
+      "wouldBeScore": "Score potentiel",
+      "nextAvailable": "Prochaine dispo: {{date}}",
+      "andMore": "+{{count}} autre(s)",
+      "constraints": {
+        "noAvailability": "Pas de disponibilité",
+        "noMotifOverlap": "Motifs manquants",
+        "noPopulationMatch": "Population",
+        "noDemandTypeSpecialty": "Spécialité",
+        "inactiveStatus": "Inactif"
+      }
+    },
+    "metadata": {
+      "generatedAt": "Généré le {{date}}",
+      "processingTime": "{{time}}"
+    }
   }
 }

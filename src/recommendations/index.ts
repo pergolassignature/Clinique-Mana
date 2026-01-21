@@ -111,3 +111,20 @@ export {
 } from './hooks'
 
 export type { UseDemandeRecommendationsResult } from './hooks'
+
+// UI Components
+export {
+  RecommendationsPanel,
+  RecommendationCard,
+  ScoreBreakdown,
+  ScoreBadge,
+  ExclusionsSummary,
+  NearEligibleList,
+  LoadingSkeleton,
+  RecommendationCardSkeleton,
+} from './components'
+
+export type {
+  RecommendationsPanelProps,
+  RecommendationCardProps,
+} from './components'
