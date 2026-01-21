@@ -90,3 +90,24 @@ export {
   DEFAULT_SYSTEM_PROMPT,
   DEFAULT_USER_PROMPT_TEMPLATE,
 } from './prompts'
+
+// API functions
+export {
+  generateRecommendations,
+  fetchRecommendations,
+  logRecommendationView,
+} from './api'
+
+export type { GenerateRecommendationsOptions } from './api'
+
+// React Query hooks
+export {
+  useDemandeRecommendations,
+  useRecommendations,
+  useGenerateRecommendations,
+  useLogRecommendationView,
+  useLogRecommendationViewMutation,
+  recommendationKeys,
+} from './hooks'
+
+export type { UseDemandeRecommendationsResult } from './hooks'
