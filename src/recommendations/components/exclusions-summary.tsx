@@ -99,6 +99,7 @@ export function ExclusionsSummary({
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
+        aria-expanded={isExpanded}
         className="w-full flex items-center justify-between p-4 hover:bg-background-secondary/50 transition-colors"
       >
         <div className="flex items-center gap-2">

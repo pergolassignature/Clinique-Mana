@@ -125,6 +125,7 @@ export function ScoreBreakdown({ recommendation, mode = 'inline' }: ScoreBreakdo
         <TooltipTrigger asChild>
           <button
             type="button"
+            aria-label={t('recommendations.scores.title')}
             className="inline-flex items-center gap-1.5 rounded-full bg-sage-100 px-2.5 py-1 text-sm font-semibold text-sage-700 hover:bg-sage-200 transition-colors cursor-help"
           >
             <span className="tabular-nums">{totalPercentage}%</span>
