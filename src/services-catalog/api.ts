@@ -7,6 +7,7 @@ import type {
   ProfessionCategory,
   ProfessionTitle,
   ServicePrice,
+  ProfessionCategoryRate,
   PricingModel,
   TaxRate,
   ServiceTaxRule,
@@ -187,6 +188,48 @@ export async function fetchProfessionTitles(): Promise<ProfessionTitle[]> {
     labelFr: row.label_fr,
     professionCategoryKey: row.profession_category_key,
   }))
+}
+
+// =============================================================================
+// PROFESSION CATEGORY RATES (Hourly billing)
+// =============================================================================
+
+export async function fetchProfessionCategoryRates(): Promise<ProfessionCategoryRate[]> {
+  const { data, error } = await supabase
+    .from('profession_category_rates')
+    .select('*')
+    .eq('is_active', true)
+
+  if (error) throw error
+
+  return (data || []).map((row) => ({
+    id: row.id,
+    professionCategoryKey: row.profession_category_key,
+    hourlyRateCents: row.hourly_rate_cents,
+    currency: row.currency,
+    isActive: row.is_active,
+  }))
+}
+
+/**
+ * Update the hourly rate for a profession category.
+ */
+export async function updateProfessionCategoryRate(
+  categoryKey: string,
+  hourlyRateCents: number
+): Promise<void> {
+  const { error } = await supabase
+    .from('profession_category_rates')
+    .upsert({
+      profession_category_key: categoryKey,
+      hourly_rate_cents: hourlyRateCents,
+      currency: 'CAD',
+      is_active: true,
+    }, {
+      onConflict: 'profession_category_key',
+    })
+
+  if (error) throw error
 }
 
 // =============================================================================
