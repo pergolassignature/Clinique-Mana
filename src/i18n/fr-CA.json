@@ -58,6 +58,30 @@
     "professional": "Professionnel"
   },
   "professionals": {
+    "create": {
+      "title": "Ajouter un professionnel",
+      "description": "Créez un nouveau profil professionnel",
+      "displayName": "Nom complet",
+      "displayNamePlaceholder": "Ex: Marie Tremblay",
+      "email": "Courriel",
+      "emailPlaceholder": "Ex: marie@exemple.com",
+      "sendInvite": "Envoyer une invitation d'intégration",
+      "sendInviteHelp": "Le professionnel recevra un courriel pour compléter son profil",
+      "submit": "Créer",
+      "submitting": "Création...",
+      "cancel": "Annuler",
+      "success": "Professionnel créé avec succès",
+      "successWithInvite": "Professionnel créé et invitation envoyée",
+      "validation": {
+        "nameRequired": "Le nom est requis",
+        "emailRequired": "Le courriel est requis",
+        "emailInvalid": "Le courriel n'est pas valide"
+      },
+      "errors": {
+        "createFailed": "Erreur lors de la création",
+        "emailExists": "Ce courriel est déjà utilisé"
+      }
+    },
     "list": {
       "title": "Professionnels",
       "subtitle": "Gérez les professionnels de votre clinique",
@@ -985,7 +1009,9 @@
         "saveSuccess": "Tarifs enregistrés",
         "saveError": "Erreur lors de l'enregistrement des tarifs",
         "taxToggleLabel": "Taxes applicables",
-        "taxToggleHint": "Les tarifs incluent TPS (5%) + TVQ (9,975%)"
+        "taxToggleHint": "Les tarifs incluent TPS (5%) + TVQ (9,975%)",
+        "rateNotSet": "Taux non défini",
+        "hourlyRate": "Taux horaire"
       },
       "taxes": {
         "title": "Taxes",
