@@ -11,7 +11,6 @@ import {
   restoreService,
   fetchProfessionCategories,
   fetchProfessionTitles,
-  updateCategoryTaxIncluded,
   fetchAllServicePrices,
   fetchCategoryPrices,
   upsertCategoryPrices,
@@ -20,6 +19,9 @@ import {
   fetchServiceTaxRules,
   fetchAllServiceTaxProfiles,
   setServiceTaxProfile,
+  updateCategoryTaxIncluded,
+  fetchProfessionCategoryRates,
+  updateProfessionCategoryRate,
 } from './api'
 import type { CategoryPriceInput } from './api'
 import type { ServiceFormData, ServiceTaxProfile } from './types'
@@ -49,6 +51,7 @@ export const professionKeys = {
   all: ['professions'] as const,
   categories: () => [...professionKeys.all, 'categories'] as const,
   titles: () => [...professionKeys.all, 'titles'] as const,
+  rates: () => [...professionKeys.all, 'rates'] as const,
 }
 
 // =============================================================================
@@ -128,6 +131,37 @@ export function useUpdateCategoryTaxIncluded() {
     }) => updateCategoryTaxIncluded(categoryKey, taxIncluded),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: professionKeys.categories() })
+    },
+  })
+}
+
+/**
+ * Fetch all profession category hourly rates.
+ */
+export function useProfessionCategoryRates() {
+  return useQuery({
+    queryKey: professionKeys.rates(),
+    queryFn: fetchProfessionCategoryRates,
+    staleTime: 1000 * 60 * 10, // 10 minutes
+  })
+}
+
+/**
+ * Update hourly rate for a profession category.
+ */
+export function useUpdateProfessionCategoryRate() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      categoryKey,
+      hourlyRateCents,
+    }: {
+      categoryKey: string
+      hourlyRateCents: number
+    }) => updateProfessionCategoryRate(categoryKey, hourlyRateCents),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: professionKeys.rates() })
     },
   })
 }
