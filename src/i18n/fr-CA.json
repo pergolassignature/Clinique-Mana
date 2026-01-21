@@ -2213,6 +2213,20 @@
     "metadata": {
       "generatedAt": "Généré le {{date}}",
       "processingTime": "{{time}}"
+    },
+    "analysisInput": {
+      "title": "Critères d'analyse",
+      "requestDetails": "Détails de la demande",
+      "demandType": "Type",
+      "urgency": "Urgence",
+      "legalContext": "Contexte légal",
+      "motifs": "Motifs recherchés",
+      "population": "Population",
+      "aiExtracted": "Préférences détectées par l'IA",
+      "searchStats": "Résultats de recherche",
+      "totalProfessionals": "Professionnels analysés",
+      "eligible": "Admissibles",
+      "excluded": "Exclus"
     }
   }
 }

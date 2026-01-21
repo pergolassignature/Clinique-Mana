@@ -11,6 +11,7 @@ import { RecommendationCard } from './recommendation-card'
 import { LoadingSkeleton } from './loading-skeleton'
 import { ExclusionsSummary } from './exclusions-summary'
 import { NearEligibleList } from './near-eligible-list'
+import { AnalysisInputSummary } from './analysis-input-summary'
 
 export interface RecommendationsPanelProps {
   demandeId: string
@@ -231,7 +232,7 @@ export function RecommendationsPanel({
   }
 
   // Has data (even if 0 recommendations - show exclusions/near-eligible)
-  const { recommendations, aiSummaryFr, aiExtractedPreferences, exclusions, nearEligible } = data
+  const { recommendations, aiSummaryFr, aiExtractedPreferences, exclusions, nearEligible, inputSnapshot } = data
   const hasNoRecommendations = recommendations.length === 0
 
   return (
@@ -253,6 +254,14 @@ export function RecommendationsPanel({
             : t('recommendations.actions.refresh')}
         </Button>
       </div>
+
+      {/* Analysis Input Summary - what was analyzed */}
+      <AnalysisInputSummary
+        inputSnapshot={inputSnapshot}
+        aiExtractedPreferences={aiExtractedPreferences}
+        candidateCount={recommendations.length}
+        exclusionCount={exclusions.length}
+      />
 
       {/* AI Summary */}
       <AISummarySection summary={aiSummaryFr} preferences={aiExtractedPreferences} />

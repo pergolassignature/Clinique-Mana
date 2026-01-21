@@ -18,5 +18,8 @@ export { ExclusionsSummary } from './exclusions-summary'
 // Near-eligible list
 export { NearEligibleList } from './near-eligible-list'
 
+// Analysis input summary
+export { AnalysisInputSummary } from './analysis-input-summary'
+
 // Loading states
 export { LoadingSkeleton, RecommendationCardSkeleton } from './loading-skeleton'
