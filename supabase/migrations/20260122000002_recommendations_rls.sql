@@ -217,9 +217,9 @@ create policy "recommendation_professional_details_delete_staff"
 
 -- =============================================================================
 -- RECOMMENDATION_AUDIT_LOG POLICIES
--- Admin/Staff: read-only (select only)
+-- Admin/Staff: read-only + insert for audit logging
 -- Provider: no access
--- Inserts handled by triggers/functions only (SECURITY DEFINER)
+-- No updates or deletes allowed (append-only audit log)
 -- =============================================================================
 
 -- Admin can read audit logs
@@ -238,8 +238,23 @@ create policy "recommendation_audit_log_select_staff"
     (select public.get_my_role()) = 'staff'
   );
 
--- No INSERT/UPDATE/DELETE policies for audit log
--- Writes happen via SECURITY DEFINER triggers or functions only
+-- Admin can create audit log entries
+create policy "recommendation_audit_log_insert_admin"
+  on public.recommendation_audit_log for insert
+  to authenticated
+  with check (
+    (select public.get_my_role()) = 'admin'
+  );
+
+-- Staff can create audit log entries
+create policy "recommendation_audit_log_insert_staff"
+  on public.recommendation_audit_log for insert
+  to authenticated
+  with check (
+    (select public.get_my_role()) = 'staff'
+  );
+
+-- No UPDATE/DELETE policies for audit log (append-only)
 
 -- =============================================================================
 -- REVOKE ANON ACCESS

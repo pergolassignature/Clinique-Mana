@@ -26,7 +26,7 @@ export type ExclusionReasonCode = z.infer<typeof ExclusionReasonCode>
 
 /**
  * Algorithm configuration for generating recommendations.
- * Stored in demande_recommendation_configs table.
+ * Stored in recommendation_configs table.
  * Allows fine-tuning of scoring weights and hard constraints.
  */
 export interface RecommendationConfig {

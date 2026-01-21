@@ -386,7 +386,7 @@ async function fetchRecommendationConfig(
   configKey: string = 'default'
 ): Promise<RecommendationConfig> {
   const { data, error } = await supabase
-    .from('demande_recommendation_configs')
+    .from('recommendation_configs')
     .select('*')
     .eq('key', configKey)
     .eq('is_active', true)
@@ -424,6 +424,7 @@ interface DbConfigRow {
 }
 
 function mapDbConfigToConfig(row: DbConfigRow): RecommendationConfig {
+  // Database stores weights as integers (0-100), convert to decimals (0-1)
   return {
     id: row.id,
     key: row.key,
@@ -431,11 +432,11 @@ function mapDbConfigToConfig(row: DbConfigRow): RecommendationConfig {
     descriptionFr: row.description_fr,
     systemPrompt: row.system_prompt,
     userPromptTemplate: row.user_prompt_template,
-    weightMotifMatch: row.weight_motif_match,
-    weightSpecialtyMatch: row.weight_specialty_match,
-    weightAvailability: row.weight_availability,
-    weightProfessionFit: row.weight_profession_fit,
-    weightExperience: row.weight_experience,
+    weightMotifMatch: row.weight_motif_match / 100,
+    weightSpecialtyMatch: row.weight_specialty_match / 100,
+    weightAvailability: row.weight_availability / 100,
+    weightProfessionFit: row.weight_profession_fit / 100,
+    weightExperience: row.weight_experience / 100,
     requireAvailabilityWithinDays: row.require_availability_within_days,
     requireMotifOverlap: row.require_motif_overlap,
     requirePopulationMatch: row.require_population_match,

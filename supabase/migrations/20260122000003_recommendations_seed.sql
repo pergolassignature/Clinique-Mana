@@ -77,14 +77,14 @@ Réponds uniquement avec un objet JSON valide:
   -- ==========================================================================
   -- USER PROMPT TEMPLATE
   -- Placeholders: {{demandType}}, {{urgencyLevel}}, {{motifKeys}}, {{clientText}},
-  --               {{hasLegalContext}}, {{populationType}}, {{candidates}}
+  --               {{hasLegalContext}}, {{populationCategories}}, {{candidatesJson}}, {{candidatesCount}}
   -- ==========================================================================
   E'## Contexte de la demande
 
 **Type de demande:** {{demandType}}
 **Niveau d''urgence:** {{urgencyLevel}}
 **Motifs identifiés:** {{motifKeys}}
-**Population:** {{populationType}}
+**Catégories de population:** {{populationCategories}}
 **Contexte légal:** {{hasLegalContext}}
 
 ### Message du client (texte anonymisé)
@@ -92,9 +92,11 @@ Réponds uniquement avec un objet JSON valide:
 
 ---
 
-## Candidats avec scores pré-calculés
+## Candidats avec scores pré-calculés ({{candidatesCount}} professionnels)
 
-{{candidates}}
+```json
+{{candidatesJson}}
+```
 
 ---
 
