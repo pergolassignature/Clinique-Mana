@@ -58,3 +58,15 @@ export {
   sanitizeCandidate,
   calculatePreliminaryScore,
 } from './sanitizer'
+
+// Deterministic scorer
+export {
+  preFilterProfessionals,
+  calculateDeterministicScores,
+  sortByScore,
+  countMatchedMotifs,
+  hasAnySpecialty,
+  getSpecialtyProficiency,
+} from './deterministic-scorer'
+
+export type { PreFilterResult } from './deterministic-scorer'
