@@ -16,15 +16,12 @@ import {
   upsertCategoryPrices,
   upsertServiceBasePrice,
   fetchTaxRates,
-  fetchServiceTaxRules,
-  fetchAllServiceTaxProfiles,
-  setServiceTaxProfile,
   updateCategoryTaxIncluded,
   fetchProfessionCategoryRates,
   updateProfessionCategoryRate,
 } from './api'
 import type { CategoryPriceInput } from './api'
-import type { ServiceFormData, ServiceTaxProfile } from './types'
+import type { ServiceFormData } from './types'
 
 // =============================================================================
 // QUERY KEYS
@@ -38,8 +35,6 @@ export const serviceKeys = {
   detail: (id: string) => [...serviceKeys.details(), id] as const,
   prices: () => [...serviceKeys.all, 'prices'] as const,
   categoryPrices: () => [...serviceKeys.all, 'category-prices'] as const,
-  taxProfiles: () => [...serviceKeys.all, 'tax-profiles'] as const,
-  taxRules: (serviceId: string) => [...serviceKeys.detail(serviceId), 'tax-rules'] as const,
 }
 
 export const taxKeys = {
@@ -219,7 +214,7 @@ export function useRestoreService() {
 }
 
 // =============================================================================
-// TAX QUERIES & MUTATIONS
+// TAX QUERIES (kept for reference data)
 // =============================================================================
 
 export function useTaxRates() {
@@ -227,40 +222,6 @@ export function useTaxRates() {
     queryKey: taxKeys.rates(),
     queryFn: fetchTaxRates,
     staleTime: 1000 * 60 * 30, // 30 minutes - tax rates rarely change
-  })
-}
-
-export function useServiceTaxRules(serviceId: string | undefined) {
-  return useQuery({
-    queryKey: serviceKeys.taxRules(serviceId!),
-    queryFn: () => fetchServiceTaxRules(serviceId!),
-    enabled: !!serviceId,
-  })
-}
-
-export function useAllServiceTaxProfiles() {
-  return useQuery({
-    queryKey: serviceKeys.taxProfiles(),
-    queryFn: fetchAllServiceTaxProfiles,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  })
-}
-
-export function useSetServiceTaxProfile() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({
-      serviceId,
-      profile,
-    }: {
-      serviceId: string
-      profile: ServiceTaxProfile
-    }) => setServiceTaxProfile(serviceId, profile),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: serviceKeys.taxRules(variables.serviceId) })
-      queryClient.invalidateQueries({ queryKey: serviceKeys.taxProfiles() })
-    },
   })
 }
 

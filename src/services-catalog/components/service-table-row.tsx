@@ -12,13 +12,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu'
-import type { Service, ServicePrice, ServiceTaxProfile } from '../types'
+import type { Service, ServicePrice } from '../types'
 import { PRICING_MODEL_LABELS } from '../constants/pricing-models'
 
 interface ServiceTableRowProps {
   service: Service
   prices?: ServicePrice[]  // Optional: prices for this service
-  taxProfile?: ServiceTaxProfile  // Tax profile for this service
   onEdit: (service: Service) => void
   onArchive: (service: Service) => void
   onRestore: (service: Service) => void
@@ -28,7 +27,6 @@ interface ServiceTableRowProps {
 export function ServiceTableRow({
   service,
   prices,
-  taxProfile,
   onEdit,
   onArchive,
   onRestore,
@@ -130,22 +128,11 @@ export function ServiceTableRow({
         )}
       </td>
 
-      {/* Tax Status */}
+      {/* Tax Status - now managed at profession category level */}
       <td className="px-4 py-3">
-        {service.pricingModel === 'by_profession_category' ? (
-          <Badge variant="secondary" className="text-[11px]">
-            {t('pages.services.taxes.byCategoryBadge')}
-          </Badge>
-        ) : (
-          <Badge
-            variant={taxProfile === 'tps_tvq' ? 'outline' : 'secondary'}
-            className="text-[11px]"
-          >
-            {taxProfile === 'tps_tvq'
-              ? t('pages.services.taxes.taxableBadge')
-              : t('pages.services.taxes.exemptBadge')}
-          </Badge>
-        )}
+        <Badge variant="secondary" className="text-[11px]">
+          {t('pages.services.taxes.byCategoryBadge')}
+        </Badge>
       </td>
 
       {/* Status */}

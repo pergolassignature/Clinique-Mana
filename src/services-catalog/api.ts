@@ -10,8 +10,6 @@ import type {
   ProfessionCategoryRate,
   PricingModel,
   TaxRate,
-  ServiceTaxRule,
-  ServiceTaxProfile,
 } from './types'
 
 // =============================================================================
@@ -426,12 +424,14 @@ function generateServiceKey(name: string): string {
 }
 
 // =============================================================================
-// TAX RATES & RULES
+// TAX RATES (kept for reference, tax logic now uses profession_categories.tax_included)
 // =============================================================================
 
 /**
  * Fetch all active tax rates.
  * Cached at frontend - rarely changes.
+ * Note: Tax application is now determined by profession_categories.tax_included,
+ * not by service_tax_rules.
  */
 export async function fetchTaxRates(): Promise<TaxRate[]> {
   const { data, error } = await supabase
@@ -450,123 +450,4 @@ export async function fetchTaxRates(): Promise<TaxRate[]> {
     region: row.region,
     isActive: row.is_active,
   }))
-}
-
-/**
- * Fetch tax rules for a specific service.
- */
-export async function fetchServiceTaxRules(serviceId: string): Promise<ServiceTaxRule[]> {
-  const { data, error } = await supabase
-    .from('service_tax_rules')
-    .select('id, service_id, tax_rate_id')
-    .eq('service_id', serviceId)
-    .eq('applies', true) // Only rules that apply
-
-  if (error) throw error
-
-  return (data || []).map((row) => ({
-    id: row.id,
-    serviceId: row.service_id,
-    taxRateId: row.tax_rate_id,
-  }))
-}
-
-/**
- * Fetch tax rules for all services (for table display).
- * Returns a map of serviceId -> tax profile.
- */
-export async function fetchAllServiceTaxProfiles(): Promise<Map<string, ServiceTaxProfile>> {
-  // Get all tax rules that apply
-  const { data: rules, error: rulesError } = await supabase
-    .from('service_tax_rules')
-    .select('service_id, tax_rate_id')
-    .eq('applies', true)
-
-  if (rulesError) throw rulesError
-
-  // Get tax rates to identify TPS and TVQ
-  const { data: rates, error: ratesError } = await supabase
-    .from('tax_rates')
-    .select('id, key')
-    .eq('is_active', true)
-
-  if (ratesError) throw ratesError
-
-  const tpsRate = rates?.find((r) => r.key === 'qc_gst')
-  const tvqRate = rates?.find((r) => r.key === 'qc_qst')
-
-  // Group rules by service
-  const serviceRules = new Map<string, Set<string>>()
-  for (const rule of rules || []) {
-    if (!serviceRules.has(rule.service_id)) {
-      serviceRules.set(rule.service_id, new Set())
-    }
-    serviceRules.get(rule.service_id)!.add(rule.tax_rate_id)
-  }
-
-  // Convert to profiles
-  const profiles = new Map<string, ServiceTaxProfile>()
-  for (const [serviceId, taxRateIds] of serviceRules) {
-    const hasTps = tpsRate && taxRateIds.has(tpsRate.id)
-    const hasTvq = tvqRate && taxRateIds.has(tvqRate.id)
-
-    if (hasTps && hasTvq) {
-      profiles.set(serviceId, 'tps_tvq')
-    }
-    // If only one or neither, consider exempt for now
-    // (For QC, services are either both TPS+TVQ or exempt)
-  }
-
-  return profiles
-}
-
-/**
- * Set the tax profile for a service (atomic replace).
- *
- * - 'exempt': Deletes all tax rules for this service
- * - 'tps_tvq': Deletes existing rules, inserts TPS and TVQ rules
- */
-export async function setServiceTaxProfile(
-  serviceId: string,
-  profile: ServiceTaxProfile
-): Promise<void> {
-  // 1. Delete existing tax rules for this service
-  const { error: deleteError } = await supabase
-    .from('service_tax_rules')
-    .delete()
-    .eq('service_id', serviceId)
-
-  if (deleteError) throw deleteError
-
-  // 2. If exempt, we're done
-  if (profile === 'exempt') {
-    return
-  }
-
-  // 3. For tps_tvq, get the tax rate IDs and insert rules
-  const { data: rates, error: ratesError } = await supabase
-    .from('tax_rates')
-    .select('id, key')
-    .in('key', ['qc_gst', 'qc_qst'])
-    .eq('is_active', true)
-
-  if (ratesError) throw ratesError
-
-  if (!rates || rates.length < 2) {
-    throw new Error('Tax rates not found. Please ensure TPS and TVQ rates are seeded.')
-  }
-
-  // 4. Insert tax rules for both TPS and TVQ
-  const insertData = rates.map((rate) => ({
-    service_id: serviceId,
-    tax_rate_id: rate.id,
-    applies: true,
-    priority: rate.key === 'qc_gst' ? 1 : 2, // TPS first, then TVQ
-  }))
-
-  const { error: insertError } = await supabase
-    .from('service_tax_rules')
-    .insert(insertData)
-
-  if (insertError) throw insertError
 }

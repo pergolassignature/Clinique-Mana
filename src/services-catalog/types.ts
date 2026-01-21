@@ -47,7 +47,7 @@ export interface ServiceFormData {
 export interface ProfessionCategory {
   key: string
   labelFr: string
-  taxIncluded: boolean  // true = prices already include TPS+TVQ
+  taxIncluded: boolean  // true = category is taxable (TPS+TVQ added to pre-tax price)
 }
 
 export interface ProfessionTitle {
@@ -95,14 +95,8 @@ export interface TaxRate {
   isActive: boolean
 }
 
-export interface ServiceTaxRule {
-  id: string
-  serviceId: string
-  taxRateId: string
-}
-
-// Simplified tax profile for UI (single source of truth at service level)
-export type ServiceTaxProfile = 'exempt' | 'tps_tvq'
+// Note: service_tax_rules table is deprecated. Tax logic now uses
+// profession_categories.tax_included to determine if a category is taxable.
 
 // =============================================================================
 // UI STATE TYPES

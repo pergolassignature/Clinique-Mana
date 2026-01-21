@@ -21,7 +21,6 @@ import {
   useRestoreService,
   useCreateService,
   useUpdateService,
-  useAllServiceTaxProfiles,
   type Service,
   type ServiceStatusFilter,
   type ServiceSortOption,
@@ -40,7 +39,6 @@ export function ServicesPage() {
   // Fetch services from database
   const { data: services = [], isLoading, error } = useServices()
   const { data: allPrices = [] } = useServicePrices()
-  const { data: taxProfiles } = useAllServiceTaxProfiles()
 
   // Mutations
   const archiveMutation = useArchiveService()
@@ -440,7 +438,6 @@ export function ServicesPage() {
                             key={service.id}
                             service={service}
                             prices={getServicePrices(service.id)}
-                            taxProfile={taxProfiles?.get(service.id)}
                             onEdit={handleEdit}
                             onArchive={handleArchiveClick}
                             onRestore={handleRestore}

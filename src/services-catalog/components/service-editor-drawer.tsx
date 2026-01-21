@@ -15,9 +15,9 @@ import {
 } from '@/shared/ui/dialog'
 import { Select } from '@/shared/ui/select'
 import { useToast } from '@/shared/hooks/use-toast'
-import type { Service, ServiceFormData, PricingModel, ServiceTaxProfile } from '../types'
+import type { Service, ServiceFormData, PricingModel } from '../types'
 import { PRICING_MODELS, PRICING_MODEL_LABELS } from '../constants/pricing-models'
-import { useServiceTaxRules, useSetServiceTaxProfile, useTaxRates, useUpsertServiceBasePrice } from '../hooks'
+import { useUpsertServiceBasePrice } from '../hooks'
 import { parsePriceToCents, formatCentsToDisplay } from '../utils/pricing'
 
 interface ServiceEditorDrawerProps {
@@ -54,7 +54,6 @@ export function ServiceEditorDrawer({
   const [price, setPrice] = useState('')
   const [colorHex, setColorHex] = useState('')
   const [requiresConsent, setRequiresConsent] = useState(false)
-  const [taxProfile, setTaxProfile] = useState<ServiceTaxProfile>('exempt')
 
   const isCategoryPricing = pricingModel === 'by_profession_category'
   const usesBasePrice =
@@ -64,29 +63,8 @@ export function ServiceEditorDrawer({
   const [errors, setErrors] = useState<FormErrors>({})
   const [isLoading, setIsLoading] = useState(false)
 
-  // Tax-related queries and mutations
-  const { data: taxRates = [] } = useTaxRates()
-  const { data: taxRules = [] } = useServiceTaxRules(service?.id)
-  const setTaxProfileMutation = useSetServiceTaxProfile()
+  // Mutations
   const setBasePriceMutation = useUpsertServiceBasePrice()
-
-  // Derive tax profile from existing rules when editing
-  useEffect(() => {
-    if (!service || taxRules.length === 0 || taxRates.length === 0) {
-      setTaxProfile('exempt')
-      return
-    }
-
-    // Find TPS and TVQ rates
-    const tpsRate = taxRates.find((r) => r.key === 'qc_gst')
-    const tvqRate = taxRates.find((r) => r.key === 'qc_qst')
-
-    // Check if both taxes apply
-    const hasTps = tpsRate && taxRules.some((rule) => rule.taxRateId === tpsRate.id)
-    const hasTvq = tvqRate && taxRules.some((rule) => rule.taxRateId === tvqRate.id)
-
-    setTaxProfile(hasTps && hasTvq ? 'tps_tvq' : 'exempt')
-  }, [service, taxRules, taxRates])
 
   // Initialize form when service changes
   useEffect(() => {
@@ -111,7 +89,6 @@ export function ServiceEditorDrawer({
     setPrice('')
     setColorHex('')
     setRequiresConsent(false)
-    setTaxProfile('exempt')
     setErrors({})
   }
 
@@ -188,22 +165,8 @@ export function ServiceEditorDrawer({
       }
     }
 
-    // Step 3: Save the tax profile (only for non-category pricing)
-    if (!isCategoryPricing) {
-      try {
-        await setTaxProfileMutation.mutateAsync({
-          serviceId,
-          profile: taxProfile,
-        })
-      } catch {
-        toast({
-          title: t('pages.services.taxes.saveError'),
-          variant: 'error',
-        })
-        setIsLoading(false)
-        return
-      }
-    }
+    // Note: Tax logic is now handled at the profession category level
+    // (profession_categories.tax_included), not per-service.
 
     setIsLoading(false)
     onOpenChange(false)
@@ -410,58 +373,10 @@ export function ServiceEditorDrawer({
               </button>
             </div>
 
-            {/* Tax Profile (only for non-category pricing) */}
+            {/* Note: Tax logic is now handled at the profession category level */}
             {!isCategoryPricing && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  {t('pages.services.taxes.title')}
-                </label>
-                <div className="space-y-2">
-                  <label
-                    className={cn(
-                      'flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition-colors',
-                      taxProfile === 'exempt'
-                        ? 'border-sage-300 bg-sage-50'
-                        : 'border-border hover:border-sage-200'
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="taxProfile"
-                      value="exempt"
-                      checked={taxProfile === 'exempt'}
-                      onChange={() => setTaxProfile('exempt')}
-                      className="h-4 w-4 border-border text-sage-600 focus:ring-sage-500"
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {t('pages.services.taxes.exempt')}
-                      </p>
-                    </div>
-                  </label>
-                  <label
-                    className={cn(
-                      'flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition-colors',
-                      taxProfile === 'tps_tvq'
-                        ? 'border-sage-300 bg-sage-50'
-                        : 'border-border hover:border-sage-200'
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="taxProfile"
-                      value="tps_tvq"
-                      checked={taxProfile === 'tps_tvq'}
-                      onChange={() => setTaxProfile('tps_tvq')}
-                      className="h-4 w-4 border-border text-sage-600 focus:ring-sage-500"
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {t('pages.services.taxes.taxable')}
-                      </p>
-                    </div>
-                  </label>
-                </div>
+              <div className="rounded-xl border border-border bg-background-secondary/60 px-4 py-3 text-xs text-foreground-muted">
+                Les taxes sont gérées par catégorie professionnelle dans la section Tarification.
               </div>
             )}
           </div>
