@@ -198,7 +198,7 @@ export interface AIAdvisoryOutput {
   }
   rankings: Array<{
     professionalId: string
-    rankingAdjustment: number     // -1 to +1 adjustment to final ranking
+    rankingAdjustment: number     // -5 to +5 adjustment to final ranking
     reasoningBullets: string[]    // French explanation bullets
   }>
   summaryFr: string               // French summary for staff
@@ -212,7 +212,7 @@ export const AIAdvisoryOutputSchema = z.object({
   }),
   rankings: z.array(z.object({
     professionalId: z.string().uuid(),
-    rankingAdjustment: z.number().min(-1).max(1),
+    rankingAdjustment: z.number().min(-5).max(5),
     reasoningBullets: z.array(z.string()),
   })),
   summaryFr: z.string(),
@@ -264,7 +264,7 @@ export const RecommendationProfessionalDetailSchema = z.object({
   availabilityScore: z.number().min(0).max(1),
   professionFitScore: z.number().min(0).max(1),
   experienceScore: z.number().min(0).max(1),
-  aiRankingAdjustment: z.number().min(-1).max(1).nullable(),
+  aiRankingAdjustment: z.number().min(-5).max(5).nullable(),
   aiReasoningBullets: z.array(z.string()),
   matchedMotifs: z.array(z.string()),
   matchedSpecialties: z.array(z.string()),

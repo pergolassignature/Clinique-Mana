@@ -212,7 +212,7 @@ Les candidats suivants ont déjà passé les filtres de base (disponibilité, co
    - Autres contraintes mentionnées
 
 2. **Ajuster le classement** de chaque candidat:
-   - Ajustement entre -1 et +1 basé sur des facteurs qualitatifs non capturés par le score déterministe
+   - Ajustement entre -5 et +5 basé sur des facteurs qualitatifs non capturés par le score déterministe
    - Exemples: meilleure correspondance avec les contraintes de temps exprimées, expertise particulière pertinente
 
 3. **Générer des explications** en français pour chaque candidat:

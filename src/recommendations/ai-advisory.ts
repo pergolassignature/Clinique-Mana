@@ -4,7 +4,7 @@
 // This module handles the AI-assisted portion of recommendation generation.
 // AI is used ONLY for:
 // 1. Text analysis: Extract timing preferences from client text
-// 2. Contextual ranking: Minor adjustments (-1 to +1) based on nuanced fit
+// 2. Contextual ranking: Minor adjustments (-5 to +5) based on nuanced fit
 // 3. Explanation generation: Structured bullet points explaining the match
 //
 // AI does NOT:
@@ -146,7 +146,7 @@ function parseAIResponse(
 
   // Clamp ranking adjustments to valid range
   for (const ranking of validatedOutput.rankings) {
-    ranking.rankingAdjustment = Math.max(-1, Math.min(1, ranking.rankingAdjustment))
+    ranking.rankingAdjustment = Math.max(-5, Math.min(5, ranking.rankingAdjustment))
   }
 
   return validatedOutput
