@@ -120,6 +120,47 @@ function CategoryServiceRow({
   )
 }
 
+interface HourlyServiceRowProps {
+  service: Service
+  taxIncluded: boolean
+}
+
+function HourlyServiceRow({ service, taxIncluded }: HourlyServiceRowProps) {
+  return (
+    <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        {service.colorHex && (
+          <div
+            className="h-2.5 w-2.5 rounded-full shrink-0"
+            style={{ backgroundColor: service.colorHex }}
+          />
+        )}
+        <div className="flex items-center gap-2">
+          <div>
+            <p className="text-sm font-medium text-foreground">{service.name}</p>
+            <p className="text-xs text-foreground-muted">
+              {t('pages.services.pricing.hourlyProrata')}
+            </p>
+          </div>
+          <Badge
+            variant={taxIncluded ? 'warning' : 'secondary'}
+            className="text-[10px] px-1.5 py-0 h-4"
+          >
+            {taxIncluded
+              ? t('pages.services.pricing.taxIncluded')
+              : t('pages.services.pricing.taxExempt')}
+          </Badge>
+        </div>
+      </div>
+      <div className="flex items-center justify-end">
+        <span className="text-xs text-foreground-muted italic">
+          {t('pages.services.pricing.hourlyRateHelper')}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function buildCategoryTitle(categories: ProfessionCategory[], titles: ProfessionTitle[], key: string) {
   const category = categories.find((item) => item.key === key)
   if (!category) return null
@@ -155,6 +196,13 @@ export function CategoryPricingSection() {
   const categoryBasedServices = useMemo(() => {
     return services
       .filter((service) => service.pricingModel === 'by_profession_category' && service.isActive)
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+  }, [services])
+
+  // Hourly prorata services also follow category tax rules but don't have per-service prices
+  const hourlyProrataServices = useMemo(() => {
+    return services
+      .filter((service) => service.pricingModel === 'by_profession_hourly_prorata' && service.isActive)
       .sort((a, b) => a.displayOrder - b.displayOrder)
   }, [services])
 
@@ -324,7 +372,7 @@ export function CategoryPricingSection() {
     )
   }
 
-  if (categoryBasedServices.length === 0) {
+  if (categoryBasedServices.length === 0 && hourlyProrataServices.length === 0) {
     return null
   }
 
@@ -411,6 +459,25 @@ export function CategoryPricingSection() {
             />
           ))}
         </div>
+
+        {hourlyProrataServices.length > 0 && (
+          <>
+            <div className="border-t border-border pt-4 mt-2">
+              <p className="text-xs font-medium text-foreground-muted mb-2">
+                {t('pages.services.pricing.hourlyProrata')}
+              </p>
+            </div>
+            <div className="divide-y divide-border">
+              {hourlyProrataServices.map((service) => (
+                <HourlyServiceRow
+                  key={service.id}
+                  service={service}
+                  taxIncluded={localTaxIncluded ?? categoryInfo?.category?.taxIncluded ?? false}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <p className="text-xs text-foreground-muted text-center">
