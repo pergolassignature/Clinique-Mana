@@ -10,6 +10,7 @@ import type {
   ExclusionRecord,
   NearEligible,
   ExclusionReasonCode,
+  HolisticSignal,
 } from './types'
 
 // =============================================================================
@@ -338,13 +339,21 @@ function calculateAvailabilityScore(
 /**
  * Calculate profession fit score.
  * Rule-based scoring:
+ * - Holistic signal: favor naturopathe when body/wellness/global approach detected
+ * - Clinical override: favor psychologue/psychotherapeute when crisis detected
  * - Legal context: favor travailleur_social (higher base score)
  * - Default: equal base score for all profession types
+ *
+ * @param candidate - The professional candidate
+ * @param demande - The demand data
+ * @param config - Scoring configuration
+ * @param holisticSignal - Optional holistic signal for naturopath preference
  */
 function calculateProfessionFitScore(
   candidate: CandidateData,
   demande: DemandeData,
-  config: RecommendationConfig
+  config: RecommendationConfig,
+  holisticSignal?: HolisticSignal
 ): number {
   const primaryProfession = candidate.professions.find((p) => p.isPrimary)
     || candidate.professions[0]
@@ -358,14 +367,44 @@ function calculateProfessionFitScore(
   // Base score for all professions
   let score = config.weightProfessionFit * 0.7
 
-  // Legal context bonus for social workers
+  // ==========================================================================
+  // HOLISTIC SIGNAL - Naturopath preference for body/wellness/global approach
+  // ==========================================================================
+  if (holisticSignal?.recommendNaturopath) {
+    // Naturopath gets full score when holistic signal recommends it
+    if (professionCategory === 'naturopathie' || professionCategory === 'naturopathe') {
+      score = config.weightProfessionFit * 1.0
+    }
+    // Psychologue/psychotherapeute get reduced score (not their strength)
+    else if (['psychologie', 'psychotherapie', 'psychologue', 'psychotherapeute'].includes(professionCategory)) {
+      score = config.weightProfessionFit * 0.5
+    }
+  }
+
+  // ==========================================================================
+  // CLINICAL OVERRIDE - Crisis keywords override holistic signal
+  // ==========================================================================
+  if (holisticSignal?.hasClinicalOverride) {
+    // Psychologue/psychotherapeute get full score for clinical crisis
+    if (['psychologie', 'psychotherapie', 'psychologue', 'psychotherapeute'].includes(professionCategory)) {
+      score = config.weightProfessionFit * 1.0
+    }
+    // Naturopath gets reduced score (not appropriate for clinical crisis)
+    else if (professionCategory === 'naturopathie' || professionCategory === 'naturopathe') {
+      score = config.weightProfessionFit * 0.3
+    }
+  }
+
+  // ==========================================================================
+  // LEGAL CONTEXT - Social worker preference
+  // ==========================================================================
   if (demande.hasLegalContext) {
     if (professionCategory === 'travailleur_social') {
       score = config.weightProfessionFit * 1.0
-    } else if (professionCategory === 'psychologue') {
+    } else if (professionCategory === 'psychologue' || professionCategory === 'psychologie') {
       score = config.weightProfessionFit * 0.8
     }
-    // Other professions keep base score
+    // Other professions keep their current score
   }
 
   return score
@@ -404,17 +443,23 @@ function calculateExperienceScore(
  * Score ranges:
  * - Each component: 0 to its weight value
  * - Total: 0 to 1.0 (if weights sum to 1.0)
+ *
+ * @param candidate - The professional candidate
+ * @param demande - The demand data
+ * @param config - Scoring configuration
+ * @param holisticSignal - Optional holistic signal for naturopath preference in profession fit
  */
 export function calculateDeterministicScores(
   candidate: CandidateData,
   demande: DemandeData,
-  config: RecommendationConfig
+  config: RecommendationConfig,
+  holisticSignal?: HolisticSignal
 ): DeterministicScores & { matchedMotifs: string[]; matchedSpecialties: string[] } {
   // Calculate each component
   const motifResult = calculateMotifMatchScore(candidate, demande, config)
   const specialtyResult = calculateSpecialtyMatchScore(candidate, demande, config)
   const availabilityScore = calculateAvailabilityScore(candidate, config)
-  const professionFitScore = calculateProfessionFitScore(candidate, demande, config)
+  const professionFitScore = calculateProfessionFitScore(candidate, demande, config, holisticSignal)
   const experienceScore = calculateExperienceScore(candidate, config)
 
   // Calculate total

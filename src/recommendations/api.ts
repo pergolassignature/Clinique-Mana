@@ -280,7 +280,7 @@ export async function generateRecommendations(
 
     // Step 3: Calculate deterministic scores for eligible candidates
     const scoredCandidates: ScoredCandidate[] = eligible.map((candidate) => {
-      const scores = calculateDeterministicScores(candidate, demande, config)
+      const scores = calculateDeterministicScores(candidate, demande, config, holisticSignal)
       return {
         candidate,
         professionalId: candidate.professional.id,
