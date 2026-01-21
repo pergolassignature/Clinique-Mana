@@ -71,6 +71,18 @@ export interface ServicePrice {
 }
 
 // =============================================================================
+// PROFESSION CATEGORY RATES (Hourly billing)
+// =============================================================================
+
+export interface ProfessionCategoryRate {
+  id: string
+  professionCategoryKey: string
+  hourlyRateCents: number
+  currency: string
+  isActive: boolean
+}
+
+// =============================================================================
 // TAX TYPES
 // =============================================================================
 
