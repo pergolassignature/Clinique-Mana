@@ -225,13 +225,14 @@ export function RecommendationsPanel({
     return <ErrorState error={error || generateError} onRetry={handleGenerate} />
   }
 
-  // Empty state - no recommendations yet
-  if (!data || data.recommendations.length === 0) {
+  // Empty state - no recommendations have ever been generated
+  if (!data) {
     return <EmptyState onGenerate={handleGenerate} isGenerating={isGenerating} />
   }
 
-  // Has recommendations
+  // Has data (even if 0 recommendations - show exclusions/near-eligible)
   const { recommendations, aiSummaryFr, aiExtractedPreferences, exclusions, nearEligible } = data
+  const hasNoRecommendations = recommendations.length === 0
 
   return (
     <div className="space-y-4">
@@ -256,18 +257,37 @@ export function RecommendationsPanel({
       {/* AI Summary */}
       <AISummarySection summary={aiSummaryFr} preferences={aiExtractedPreferences} />
 
+      {/* No eligible professionals message */}
+      {hasNoRecommendations && (
+        <div className="rounded-lg border border-honey-200 bg-honey-50/50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-honey-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-honey-800">
+                {t('recommendations.noEligible.title')}
+              </p>
+              <p className="text-xs text-honey-700">
+                {t('recommendations.noEligible.description')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Recommendation cards */}
-      <div className="space-y-3">
-        {recommendations.slice(0, 3).map((rec, index) => (
-          <RecommendationCard
-            key={rec.id}
-            recommendation={rec}
-            rank={index + 1}
-            onSelect={onSelectProfessional}
-            onViewProfile={onViewProfile}
-          />
-        ))}
-      </div>
+      {recommendations.length > 0 && (
+        <div className="space-y-3">
+          {recommendations.slice(0, 3).map((rec, index) => (
+            <RecommendationCard
+              key={rec.id}
+              recommendation={rec}
+              rank={index + 1}
+              onSelect={onSelectProfessional}
+              onViewProfile={onViewProfile}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Near-eligible section */}
       <NearEligibleList nearEligible={nearEligible} />

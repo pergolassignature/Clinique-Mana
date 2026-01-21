@@ -2161,6 +2161,10 @@
       "title": "Erreur lors de l'analyse",
       "generic": "Une erreur est survenue lors de la génération des recommandations."
     },
+    "noEligible": {
+      "title": "Aucun professionnel admissible",
+      "description": "Aucun professionnel ne répond actuellement aux critères de cette demande. Consultez les exclusions ci-dessous pour comprendre pourquoi."
+    },
     "scores": {
       "title": "Détail du score",
       "motifMatchScore": "Correspondance motifs",
