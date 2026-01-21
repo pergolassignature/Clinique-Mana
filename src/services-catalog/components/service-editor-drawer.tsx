@@ -54,6 +54,7 @@ export function ServiceEditorDrawer({
   const [price, setPrice] = useState('')
   const [colorHex, setColorHex] = useState('')
   const [requiresConsent, setRequiresConsent] = useState(false)
+  const [isTaxableOverride, setIsTaxableOverride] = useState(false)
 
   const isCategoryPricing = pricingModel === 'by_profession_category'
   const usesBasePrice =
@@ -76,6 +77,7 @@ export function ServiceEditorDrawer({
       setPrice(formatCentsToDisplay(basePriceCents ?? null))
       setColorHex(service.colorHex || '')
       setRequiresConsent(service.requiresConsent)
+      setIsTaxableOverride(service.isTaxableOverride === true)
     } else {
       resetForm()
     }
@@ -89,6 +91,7 @@ export function ServiceEditorDrawer({
     setPrice('')
     setColorHex('')
     setRequiresConsent(false)
+    setIsTaxableOverride(false)
     setErrors({})
   }
 
@@ -130,6 +133,7 @@ export function ServiceEditorDrawer({
       displayOrder: service?.displayOrder || 0,
       colorHex: colorHex || null,
       requiresConsent,
+      isTaxableOverride: isTaxableOverride || null,
     }
 
     // Step 1: Save the service
@@ -373,12 +377,34 @@ export function ServiceEditorDrawer({
               </button>
             </div>
 
-            {/* Note: Tax logic is now handled at the profession category level */}
-            {!isCategoryPricing && (
-              <div className="rounded-xl border border-border bg-background-secondary/60 px-4 py-3 text-xs text-foreground-muted">
-                Les taxes sont gérées par catégorie professionnelle dans la section Tarification.
+            {/* Tax override toggle */}
+            <div className="flex items-center justify-between rounded-xl border border-border p-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {t('pages.services.taxes.alwaysTaxable')}
+                </p>
+                <p className="text-xs text-foreground-muted mt-0.5">
+                  {t('pages.services.taxes.alwaysTaxableHint')}
+                </p>
               </div>
-            )}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isTaxableOverride}
+                onClick={() => setIsTaxableOverride(!isTaxableOverride)}
+                className={cn(
+                  'relative h-6 w-11 rounded-full transition-colors',
+                  isTaxableOverride ? 'bg-wine-500' : 'bg-background-tertiary'
+                )}
+              >
+                <span
+                  className={cn(
+                    'absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+                    isTaxableOverride && 'translate-x-5'
+                  )}
+                />
+              </button>
+            </div>
           </div>
 
           {/* Footer */}

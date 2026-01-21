@@ -25,6 +25,7 @@ export interface Service {
   colorHex?: string
   isActive: boolean
   requiresConsent: boolean
+  isTaxableOverride: boolean | null  // true = always taxable, null/false = use category setting
   createdAt: string
   updatedAt: string
 }
@@ -38,6 +39,7 @@ export interface ServiceFormData {
   displayOrder: number
   colorHex: string | null
   requiresConsent: boolean
+  isTaxableOverride: boolean | null  // true = always taxable (admin fees), null/false = use category
 }
 
 // =============================================================================

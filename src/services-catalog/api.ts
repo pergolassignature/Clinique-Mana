@@ -27,6 +27,7 @@ interface DbService {
   color_hex: string | null
   is_active: boolean
   requires_consent: boolean
+  is_taxable_override: boolean | null
   created_at: string
   updated_at: string
 }
@@ -81,6 +82,7 @@ export async function createService(input: ServiceFormData): Promise<Service> {
       display_order: input.displayOrder,
       color_hex: input.colorHex || null,
       requires_consent: input.requiresConsent,
+      is_taxable_override: input.isTaxableOverride ?? null,
     })
     .select()
     .single()
@@ -102,6 +104,7 @@ export async function updateService(
   if (input.displayOrder !== undefined) updateData.display_order = input.displayOrder
   if (input.colorHex !== undefined) updateData.color_hex = input.colorHex || null
   if (input.requiresConsent !== undefined) updateData.requires_consent = input.requiresConsent
+  if (input.isTaxableOverride !== undefined) updateData.is_taxable_override = input.isTaxableOverride
 
   const { data, error } = await supabase
     .from('services')
@@ -409,6 +412,7 @@ function mapDbServiceToService(row: DbService): Service {
     colorHex: row.color_hex || undefined,
     isActive: row.is_active,
     requiresConsent: row.requires_consent,
+    isTaxableOverride: row.is_taxable_override,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

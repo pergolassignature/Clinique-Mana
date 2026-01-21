@@ -128,11 +128,17 @@ export function ServiceTableRow({
         )}
       </td>
 
-      {/* Tax Status - now managed at profession category level */}
+      {/* Tax Status */}
       <td className="px-4 py-3">
-        <Badge variant="secondary" className="text-[11px]">
-          {t('pages.services.taxes.byCategoryBadge')}
-        </Badge>
+        {service.isTaxableOverride ? (
+          <Badge variant="warning" className="text-[11px]">
+            {t('pages.services.taxes.alwaysTaxableBadge')}
+          </Badge>
+        ) : (
+          <Badge variant="secondary" className="text-[11px]">
+            {t('pages.services.taxes.byCategoryBadge')}
+          </Badge>
+        )}
       </td>
 
       {/* Status */}

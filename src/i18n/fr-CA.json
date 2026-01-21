@@ -459,8 +459,11 @@
           "fullNamePlaceholder": "Ex: Marie Tremblay",
           "email": "Courriel",
           "professionalInfo": "Informations professionnelles",
+          "professionsHelper": "Vous pouvez ajouter jusqu'à 2 titres professionnels.",
+          "addFirstTitle": "Ajouter votre titre professionnel",
+          "addSecondTitle": "Ajouter un second titre (optionnel)",
           "title": "Titre professionnel",
-          "titlePlaceholder": "Ex: Psychologue, Travailleuse sociale",
+          "titlePlaceholder": "Sélectionnez votre titre",
           "licenseNumber": "Numéro de permis",
           "licenseNumberPlaceholder": "Ex: 12345-67",
           "yearsExperience": "Années d'expérience",
@@ -1020,6 +1023,9 @@
         "exemptBadge": "Exempt",
         "taxableBadge": "TPS+TVQ",
         "byCategoryBadge": "Par catégorie",
+        "alwaysTaxableBadge": "Toujours taxable",
+        "alwaysTaxable": "Toujours taxable",
+        "alwaysTaxableHint": "Ce service est taxé peu importe la catégorie du professionnel (frais administratifs).",
         "saveError": "Service enregistré mais erreur de configuration des taxes"
       },
       "empty": {
