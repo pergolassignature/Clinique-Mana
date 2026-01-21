@@ -76,13 +76,21 @@ export function ServiceTableRow({
     return '—'
   }
 
+  const handleRowClick = (e: React.MouseEvent) => {
+    // Don't trigger if clicking on the actions dropdown
+    const target = e.target as HTMLElement
+    if (target.closest('[data-actions-menu]')) return
+    onEdit(service)
+  }
+
   return (
     <tr
+      onClick={handleRowClick}
       className={cn(
-        'border-b border-border last:border-b-0 transition-colors',
+        'border-b border-border last:border-b-0 transition-colors cursor-pointer',
         service.isActive
-          ? 'hover:bg-sage-50/30'
-          : 'bg-background-secondary/50 opacity-75'
+          ? 'hover:bg-sage-50/50'
+          : 'bg-background-secondary/50 opacity-75 hover:bg-background-secondary/70'
       )}
     >
       {/* Name + color indicator */}
@@ -153,7 +161,7 @@ export function ServiceTableRow({
       </td>
 
       {/* Actions */}
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 text-right" data-actions-menu>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8">

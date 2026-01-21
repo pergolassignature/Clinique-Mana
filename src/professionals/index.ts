@@ -9,3 +9,6 @@ export * from './hooks'
 
 // Mappers and view models
 export * from './mappers'
+
+// Components
+export { CreateProfessionalDialog } from './components/create-professional-dialog'

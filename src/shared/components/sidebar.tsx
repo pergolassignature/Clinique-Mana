@@ -164,7 +164,7 @@ export function Sidebar({
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 scrollbar-hide">
+      <nav className="flex-1 overflow-y-auto py-4 px-3 scrollbar-hide overscroll-contain">
         <ul className="flex flex-col gap-1">
           {navItems.map((item) => {
             const isActive = currentPath === item.path

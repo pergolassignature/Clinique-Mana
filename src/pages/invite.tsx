@@ -180,6 +180,7 @@ export function InvitePage() {
 
   const [state, setState] = useState<InviteState>('loading')
   const [invite, setInvite] = useState<OnboardingInvite | null>(null)
+  const [displayName, setDisplayName] = useState<string>('')
   const [specialtiesByCategory, setSpecialtiesByCategory] = useState<Record<string, Specialty[]>>({})
   const [currentStep, setCurrentStep] = useState<FormStep>('personal')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -213,8 +214,6 @@ export function InvitePage() {
     // Default empty form
     return {
       full_name: '',
-      preferred_name: '',
-      pronouns: '',
       title: '',
       license_number: '',
       years_experience: undefined,
@@ -297,7 +296,16 @@ export function InvitePage() {
         }
 
         setInvite(inviteData)
+        setDisplayName(inviteResult.displayName)
         setSpecialtiesByCategory(specialties)
+
+        // Pre-populate full_name from profile if not already saved in draft
+        if (!savedDraft) {
+          setFormData((prev) => ({
+            ...prev,
+            full_name: inviteResult.displayName,
+          }))
+        }
 
         // Mark as opened if pending
         if (inviteData.status === 'pending') {
@@ -583,9 +591,16 @@ export function InvitePage() {
   const isFirstStep = currentStepIndex === 0
   const isLastStep = currentStepIndex === STEPS.length - 1
 
-  const goNext = () => {
+  const goNext = async () => {
     const nextStep = STEPS[currentStepIndex + 1]
     if (!isLastStep && nextStep) {
+      // Cancel any pending auto-save and save immediately
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current)
+        autoSaveTimerRef.current = null
+      }
+      // Save draft before navigating
+      await saveToServer(formData)
       setCurrentStep(nextStep)
     }
   }
@@ -828,34 +843,23 @@ export function InvitePage() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">
-                        {t('professionals.invite.public.form.fullName')} *
+                        {t('professionals.invite.public.form.fullName')}
                       </label>
                       <Input
-                        value={formData.full_name || ''}
-                        onChange={(e) => updateFormData({ full_name: e.target.value })}
-                        placeholder={t('professionals.invite.public.form.fullNamePlaceholder')}
+                        value={displayName}
+                        disabled
+                        className="bg-muted cursor-not-allowed"
                       />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">
-                        {t('professionals.invite.public.form.preferredName')}
+                        {t('professionals.invite.public.form.email')}
                       </label>
                       <Input
-                        value={formData.preferred_name || ''}
-                        onChange={(e) => updateFormData({ preferred_name: e.target.value })}
-                        placeholder={t('professionals.invite.public.form.preferredNamePlaceholder')}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">
-                        {t('professionals.invite.public.form.pronouns')}
-                      </label>
-                      <Input
-                        value={formData.pronouns || ''}
-                        onChange={(e) => updateFormData({ pronouns: e.target.value })}
-                        placeholder={t('professionals.invite.public.form.pronounsPlaceholder')}
+                        value={invite?.email || ''}
+                        disabled
+                        className="bg-muted cursor-not-allowed"
                       />
                     </div>
                   </div>
@@ -1399,17 +1403,8 @@ export function InvitePage() {
                         {t('professionals.invite.public.form.personalInfo')}
                       </h3>
                       <div className="space-y-1">
-                        <p className="text-foreground">{formData.full_name}</p>
-                        {formData.preferred_name && (
-                          <p className="text-sm text-foreground-muted">
-                            Nom préféré : {formData.preferred_name}
-                          </p>
-                        )}
-                        {formData.pronouns && (
-                          <p className="text-sm text-foreground-muted">
-                            Pronoms : {formData.pronouns}
-                          </p>
-                        )}
+                        <p className="text-foreground">{displayName}</p>
+                        <p className="text-sm text-foreground-muted">{invite?.email}</p>
                       </div>
                     </div>
 

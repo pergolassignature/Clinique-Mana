@@ -400,56 +400,56 @@ export function ServicesPage() {
             <div className="rounded-xl border border-border overflow-hidden">
               <table className="w-full">
                 <thead className="bg-background-secondary/50">
-                  <tr className="border-b border-border">
-                    <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
-                      {t('pages.services.table.name')}
-                    </th>
-                    <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
-                      {t('pages.services.table.duration')}
-                    </th>
-                    <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
-                      {t('pages.services.table.price')}
-                    </th>
-                    <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
-                      {t('pages.services.table.pricingModel')}
-                    </th>
-                    <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
-                      {t('pages.services.table.consent')}
-                    </th>
-                    <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
-                      {t('pages.services.table.taxes')}
-                    </th>
-                    <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
-                      {t('pages.services.table.status')}
-                    </th>
-                    <th className="px-4 py-3 text-right text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
-                      {t('pages.services.table.actions')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupedServices.map((group) => (
-                    <Fragment key={group.model}>
-                      <tr className="bg-background-secondary/40">
-                        <td colSpan={8} className="px-4 py-2 text-[11px] font-medium text-foreground-secondary">
-                          {t('pages.services.table.groupLabelPrefix')} {group.label}
-                        </td>
-                      </tr>
-                      {group.services.map((service) => (
-                        <ServiceTableRow
-                          key={service.id}
-                          service={service}
-                          prices={getServicePrices(service.id)}
-                          taxProfile={taxProfiles?.get(service.id)}
-                          onEdit={handleEdit}
-                          onArchive={handleArchiveClick}
-                          onRestore={handleRestore}
-                        />
-                      ))}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
+                    <tr className="border-b border-border">
+                      <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
+                        {t('pages.services.table.name')}
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
+                        {t('pages.services.table.duration')}
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
+                        {t('pages.services.table.price')}
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
+                        {t('pages.services.table.pricingModel')}
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
+                        {t('pages.services.table.consent')}
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
+                        {t('pages.services.table.taxes')}
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
+                        {t('pages.services.table.status')}
+                      </th>
+                      <th className="px-4 py-3 text-right text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
+                        {t('pages.services.table.actions')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedServices.map((group) => (
+                      <Fragment key={group.model}>
+                        <tr className="bg-background-secondary/40">
+                          <td colSpan={8} className="px-4 py-2 text-[11px] font-medium text-foreground-secondary">
+                            {t('pages.services.table.groupLabelPrefix')} {group.label}
+                          </td>
+                        </tr>
+                        {group.services.map((service) => (
+                          <ServiceTableRow
+                            key={service.id}
+                            service={service}
+                            prices={getServicePrices(service.id)}
+                            taxProfile={taxProfiles?.get(service.id)}
+                            onEdit={handleEdit}
+                            onArchive={handleArchiveClick}
+                            onRestore={handleRestore}
+                          />
+                        ))}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
             </div>
           )}
 

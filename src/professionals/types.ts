@@ -181,10 +181,8 @@ export const ImageRightsConsentSchema = z.object({
 export type ImageRightsConsent = z.infer<typeof ImageRightsConsentSchema>
 
 export const QuestionnaireResponsesSchema = z.object({
-  // Personal info
+  // Personal info (full_name is pre-populated from profile and read-only)
   full_name: z.string().optional(),
-  preferred_name: z.string().optional(),
-  pronouns: z.string().optional(),
 
   // Professional info
   title: z.string().optional(),

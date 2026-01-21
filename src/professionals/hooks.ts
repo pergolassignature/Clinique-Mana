@@ -170,6 +170,18 @@ export function useCreateProfessional() {
   })
 }
 
+export function useCreateProfessionalWithProfile() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: api.CreateProfessionalWithProfileInput) =>
+      api.createProfessionalWithProfile(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: professionalKeys.lists() })
+    },
+  })
+}
+
 export function useUpdateProfessional() {
   const queryClient = useQueryClient()
 

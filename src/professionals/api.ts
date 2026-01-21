@@ -152,6 +152,62 @@ export async function createProfessional(input: CreateProfessionalInput): Promis
   return data
 }
 
+/**
+ * Create a new professional with their profile in a single operation.
+ * This uses an Edge Function that creates:
+ * 1. An auth.users record
+ * 2. A profiles record (provider role)
+ * 3. A professionals record
+ * 4. Optionally an onboarding invite
+ *
+ * @param input - Display name, email, and whether to send an invite
+ * @returns The created professional record with profile_id
+ */
+export interface CreateProfessionalWithProfileInput {
+  displayName: string
+  email: string
+  sendInvite?: boolean
+}
+
+export interface CreateProfessionalWithProfileResult {
+  profileId: string
+  professionalId: string
+  inviteId?: string
+}
+
+export async function createProfessionalWithProfile(
+  input: CreateProfessionalWithProfileInput
+): Promise<CreateProfessionalWithProfileResult> {
+  // Get the current session for authorization
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    throw new Error('Not authenticated')
+  }
+
+  // Call the Edge Function
+  const { data, error } = await supabase.functions.invoke('create-professional', {
+    body: {
+      displayName: input.displayName,
+      email: input.email,
+      sendInvite: input.sendInvite ?? false,
+    },
+  })
+
+  if (error) {
+    throw new Error(error.message || 'Failed to create professional')
+  }
+
+  if (!data.success) {
+    throw new Error(data.error || 'Failed to create professional')
+  }
+
+  return {
+    profileId: data.profileId,
+    professionalId: data.professionalId,
+    inviteId: data.inviteId,
+  }
+}
+
 export async function updateProfessional(id: string, input: UpdateProfessionalInput): Promise<Professional> {
   const { data, error } = await supabase
     .from('professionals')
@@ -495,6 +551,8 @@ export async function fetchInviteByToken(token: string): Promise<OnboardingInvit
  */
 export interface InviteWithSubmissionStatus {
   invite: OnboardingInvite
+  /** Display name from the professional's profile (set when professional was created) */
+  displayName: string
   hasExistingSubmission: boolean
   submissionStatus: 'draft' | 'submitted' | 'reviewed' | 'approved' | null
 }
@@ -502,10 +560,17 @@ export interface InviteWithSubmissionStatus {
 export async function fetchInviteWithSubmissionByToken(
   token: string
 ): Promise<InviteWithSubmissionStatus | null> {
-  // First fetch the invite
+  // First fetch the invite with professional's profile info
   const { data: invite, error: inviteError } = await supabase
     .from('professional_onboarding_invites')
-    .select('*')
+    .select(`
+      *,
+      professionals!inner (
+        profiles!inner (
+          display_name
+        )
+      )
+    `)
     .eq('token', token)
     .single()
 
@@ -513,6 +578,10 @@ export async function fetchInviteWithSubmissionByToken(
     if (inviteError.code === 'PGRST116') return null // Not found
     throw inviteError
   }
+
+  // Extract display_name from the nested join
+  const displayName = (invite as { professionals?: { profiles?: { display_name?: string } } })
+    ?.professionals?.profiles?.display_name || ''
 
   // Then fetch the latest submission for this professional
   const { data: submission, error: submissionError } = await supabase
@@ -533,6 +602,7 @@ export async function fetchInviteWithSubmissionByToken(
 
   return {
     invite,
+    displayName,
     hasExistingSubmission,
     submissionStatus: submission?.status as 'draft' | 'submitted' | 'reviewed' | 'approved' | null,
   }

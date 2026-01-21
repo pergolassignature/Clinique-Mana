@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Plus,
@@ -9,8 +9,13 @@ import {
   Clock,
 } from 'lucide-react'
 import { t } from '@/i18n'
-import { useProfessionals } from '@/professionals'
+import {
+  useProfessionals,
+  useCreateProfessionalWithProfile,
+  CreateProfessionalDialog,
+} from '@/professionals'
 import type { ProfessionalStatus, ProfessionalListItem } from '@/professionals'
+import { useToast } from '@/shared/hooks/use-toast'
 import { EmptyState } from '@/shared/components/empty-state'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -127,8 +132,11 @@ function ProfessionalCardSkeleton() {
 }
 
 export function ProfessionalsPage() {
+  const navigate = useNavigate()
+  const { toast } = useToast()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProfessionalStatus | 'all'>('all')
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
 
   const filters = useMemo(
     () => ({
@@ -139,9 +147,49 @@ export function ProfessionalsPage() {
   )
 
   const { data: professionals, isLoading, error } = useProfessionals(filters)
+  const createProfessionalMutation = useCreateProfessionalWithProfile()
 
   const hasFilters = search || statusFilter !== 'all'
   const isEmpty = !isLoading && (!professionals || professionals.length === 0)
+
+  const handleCreateSubmit = useCallback(
+    async (input: { displayName: string; email: string; sendInvite: boolean }) => {
+      try {
+        // Create the professional with profile (Edge Function handles auth user + invite)
+        const result = await createProfessionalMutation.mutateAsync({
+          displayName: input.displayName,
+          email: input.email,
+          sendInvite: input.sendInvite,
+        })
+
+        // Show success message
+        toast({
+          title: input.sendInvite
+            ? t('professionals.create.successWithInvite')
+            : t('professionals.create.success'),
+        })
+
+        return { success: true, professionalId: result.professionalId }
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error('Unknown error')
+        toast({
+          title: t('professionals.create.errors.createFailed'),
+          description: error.message,
+          variant: 'error',
+        })
+        return { success: false, error }
+      }
+    },
+    [createProfessionalMutation, toast]
+  )
+
+  const handleCreateSuccess = useCallback(
+    (professionalId: string) => {
+      // Navigate to the newly created professional's detail page
+      navigate({ to: '/professionnels/$id', params: { id: professionalId } })
+    },
+    [navigate]
+  )
 
   return (
     <div className="space-y-6">
@@ -175,8 +223,8 @@ export function ProfessionalsPage() {
           </Select>
         </div>
 
-        {/* Action button - TODO: Add route for /professionnels/nouveau */}
-        <Button disabled>
+        {/* Action button */}
+        <Button onClick={() => setIsCreateDialogOpen(true)}>
           <Plus className="h-4 w-4" />
           {t('professionals.list.addProfessional')}
         </Button>
@@ -225,7 +273,7 @@ export function ProfessionalsPage() {
                 {t('common.retry')}
               </Button>
             ) : (
-              <Button disabled>
+              <Button onClick={() => setIsCreateDialogOpen(true)}>
                 <Plus className="h-4 w-4" />
                 {t('professionals.list.addProfessional')}
               </Button>
@@ -239,6 +287,14 @@ export function ProfessionalsPage() {
           ))}
         </div>
       )}
+
+      {/* Create Professional Dialog */}
+      <CreateProfessionalDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onSubmit={handleCreateSubmit}
+        onSuccess={handleCreateSuccess}
+      />
     </div>
   )
 }

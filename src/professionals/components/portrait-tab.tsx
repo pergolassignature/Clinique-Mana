@@ -190,30 +190,16 @@ function OriginalSubmissionModal({
 
         <div className="mt-4 space-y-6">
           {/* Personal Info */}
-          {(responses.full_name || responses.preferred_name || responses.pronouns) && (
+          {responses.full_name && (
             <section>
               <h3 className="text-xs font-semibold text-foreground-muted uppercase tracking-wide mb-3">
                 Identité
               </h3>
               <div className="rounded-xl bg-background-secondary/50 p-4 space-y-2 text-sm">
-                {responses.full_name && (
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Nom complet</span>
-                    <span>{responses.full_name}</span>
-                  </div>
-                )}
-                {responses.preferred_name && (
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Nom préféré</span>
-                    <span>{responses.preferred_name}</span>
-                  </div>
-                )}
-                {responses.pronouns && (
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Pronoms</span>
-                    <span>{responses.pronouns}</span>
-                  </div>
-                )}
+                <div className="flex justify-between">
+                  <span className="text-foreground-muted">Nom complet</span>
+                  <span>{responses.full_name}</span>
+                </div>
               </div>
             </section>
           )}
@@ -841,32 +827,15 @@ function QuestionnaireReview({
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Personal Info - display only, not mapped to professionals table */}
-          {(responses.full_name || responses.preferred_name || responses.pronouns) && (
+          {responses.full_name && (
             <div className="rounded-xl bg-background p-4">
               <h4 className="text-sm font-medium mb-3">Informations personnelles</h4>
               <div className="grid gap-2 text-sm">
-                {responses.full_name && (
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Nom complet</span>
-                    <span>{responses.full_name}</span>
-                  </div>
-                )}
-                {responses.preferred_name && (
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Nom préféré</span>
-                    <span>{responses.preferred_name}</span>
-                  </div>
-                )}
-                {responses.pronouns && (
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Pronoms</span>
-                    <span>{responses.pronouns}</span>
-                  </div>
-                )}
+                <div className="flex justify-between">
+                  <span className="text-foreground-muted">Nom complet</span>
+                  <span>{responses.full_name}</span>
+                </div>
               </div>
-              <p className="mt-2 text-xs text-foreground-muted italic">
-                Ces informations sont conservées dans la soumission originale.
-              </p>
             </div>
           )}
 

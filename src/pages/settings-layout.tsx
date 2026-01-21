@@ -31,7 +31,7 @@ export function SettingsLayout() {
   const disabledSections = settingsSections.filter(s => !s.enabled)
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="space-y-0">
       {/* Top navigation */}
       <nav className="border-b border-border-default bg-background-secondary/50">
         <div className="flex items-center gap-1 px-2 overflow-x-auto">
@@ -73,10 +73,8 @@ export function SettingsLayout() {
         </div>
       </nav>
 
-      {/* Main content area - now full width */}
-      <main className="flex-1 min-w-0 overflow-auto">
-        <Outlet />
-      </main>
+      {/* Main content area */}
+      <Outlet />
     </div>
   )
 }
