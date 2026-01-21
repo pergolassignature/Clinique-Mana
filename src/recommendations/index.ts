@@ -70,3 +70,23 @@ export {
 } from './deterministic-scorer'
 
 export type { PreFilterResult } from './deterministic-scorer'
+
+// AI Advisory
+export {
+  getAIAdvisory,
+  isAIAdvisoryAvailable,
+  getAIModelIdentifier,
+  applyAIAdjustments,
+  getReasoningForProfessional,
+} from './ai-advisory'
+
+export type { AIAdvisoryOptions, AIAdvisoryResult } from './ai-advisory'
+
+// Prompt building utilities
+export {
+  buildUserPrompt,
+  validatePromptTemplate,
+  PLACEHOLDERS,
+  DEFAULT_SYSTEM_PROMPT,
+  DEFAULT_USER_PROMPT_TEMPLATE,
+} from './prompts'
