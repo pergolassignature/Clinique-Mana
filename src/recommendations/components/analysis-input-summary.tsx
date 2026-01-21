@@ -3,9 +3,17 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, FileSearch, Tag, Users, Calendar, Scale, Clock, Video } from 'lucide-react'
+import { ChevronDown, FileSearch, Tag, Users, Calendar, Scale, Clock, Video, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
+
+interface ProfessionEligibilityRule {
+  professionKey: string
+  labelFr: string
+  isEligible: boolean
+  reason: string
+  priority: 'preferred' | 'eligible' | 'not_recommended'
+}
 
 interface AnalysisInputSummaryProps {
   inputSnapshot: Record<string, unknown>
@@ -73,9 +81,11 @@ export function AnalysisInputSummary({
   const motifKeys = (inputSnapshot.motifKeys as string[]) || []
   const populationCategories = (inputSnapshot.populationCategories as string[]) || []
   const hasLegalContext = inputSnapshot.hasLegalContext as boolean
+  const professionRules = (inputSnapshot.professionRules as ProfessionEligibilityRule[]) || []
   const urgencyInfo = getUrgencyInfo(urgencyLevel)
 
-  const totalProfessionals = candidateCount + exclusionCount
+  // Use totalProfessionalsAnalyzed if available (more accurate), otherwise fall back to sum
+  const totalProfessionals = (inputSnapshot.totalProfessionalsAnalyzed as number) || (candidateCount + exclusionCount)
 
   return (
     <div className="rounded-lg border border-border bg-background">
@@ -219,6 +229,77 @@ export function AnalysisInputSummary({
                         {constraint}
                       </span>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Profession Eligibility Rules */}
+              {professionRules.length > 0 && (
+                <div className="space-y-3 pt-3 border-t border-border">
+                  <p className="text-xs font-medium text-foreground-secondary uppercase tracking-wider">
+                    {t('recommendations.analysisInput.professionEligibility')}
+                  </p>
+
+                  <div className="space-y-2">
+                    {/* Preferred professions */}
+                    {professionRules.filter(r => r.priority === 'preferred').length > 0 && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-xs text-sage-700">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span className="font-medium">{t('recommendations.analysisInput.professionPreferred')}</span>
+                        </div>
+                        <div className="pl-5 space-y-1">
+                          {professionRules.filter(r => r.priority === 'preferred').map((rule) => (
+                            <div key={rule.professionKey} className="flex items-start gap-2">
+                              <span className="text-sm font-medium text-foreground bg-sage-50 px-2 py-0.5 rounded border border-sage-200">
+                                {rule.labelFr}
+                              </span>
+                              <span className="text-xs text-foreground-secondary pt-0.5">{rule.reason}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Eligible professions */}
+                    {professionRules.filter(r => r.priority === 'eligible').length > 0 && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-xs text-sky-700">
+                          <AlertCircle className="h-3.5 w-3.5" />
+                          <span className="font-medium">{t('recommendations.analysisInput.professionEligibleLabel')}</span>
+                        </div>
+                        <div className="pl-5 space-y-1">
+                          {professionRules.filter(r => r.priority === 'eligible').map((rule) => (
+                            <div key={rule.professionKey} className="flex items-start gap-2">
+                              <span className="text-sm font-medium text-foreground bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                                {rule.labelFr}
+                              </span>
+                              <span className="text-xs text-foreground-secondary pt-0.5">{rule.reason}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Not recommended professions */}
+                    {professionRules.filter(r => r.priority === 'not_recommended').length > 0 && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-xs text-foreground-muted">
+                          <XCircle className="h-3.5 w-3.5" />
+                          <span className="font-medium">{t('recommendations.analysisInput.professionNotRecommended')}</span>
+                        </div>
+                        <div className="pl-5 space-y-1">
+                          {professionRules.filter(r => r.priority === 'not_recommended').map((rule) => (
+                            <div key={rule.professionKey} className="flex items-start gap-2">
+                              <span className="text-sm text-foreground-muted bg-background-secondary px-2 py-0.5 rounded border border-border">
+                                {rule.labelFr}
+                              </span>
+                              <span className="text-xs text-foreground-muted pt-0.5">{rule.reason}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
