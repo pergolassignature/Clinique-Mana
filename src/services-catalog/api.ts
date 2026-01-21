@@ -160,8 +160,9 @@ export async function fetchProfessionCategories(): Promise<ProfessionCategory[]>
 }
 
 /**
- * Update the tax_included flag for a profession category.
- * When true, prices for this category include TPS+TVQ (14.975% combined).
+ * Update the tax_included (taxable) flag for a profession category.
+ * When true, services for this category are taxable (TPS+TVQ will be added to pre-tax price).
+ * All prices are stored as pre-tax amounts.
  */
 export async function updateCategoryTaxIncluded(
   categoryKey: string,

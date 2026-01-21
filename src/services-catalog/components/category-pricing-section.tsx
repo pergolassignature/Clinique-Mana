@@ -22,6 +22,7 @@ import {
 } from '../hooks'
 import type { Service, ProfessionCategory, ProfessionTitle } from '../types'
 import { parsePriceToCents, formatCentsToDisplay } from '../utils/pricing'
+import { formatPriceWithTax, calculateTotal, formatCents } from '@/utils/tax'
 
 interface PriceInputCellProps {
   value: string
@@ -74,6 +75,13 @@ function CategoryServiceRow({
   onChange,
   onBlur,
 }: CategoryServiceRowProps) {
+  // Calculate display price with tax breakdown
+  const priceCents = parsePriceToCents(value)
+  const displayPrice = useMemo(() => {
+    if (!isEnabled || priceCents === null) return null
+    return formatPriceWithTax(priceCents, taxIncluded)
+  }, [isEnabled, priceCents, taxIncluded])
+
   return (
     <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
@@ -97,7 +105,7 @@ function CategoryServiceRow({
             className="text-[10px] px-1.5 py-0 h-4"
           >
             {taxIncluded
-              ? t('pages.services.pricing.taxIncluded')
+              ? t('pages.services.pricing.taxable')
               : t('pages.services.pricing.taxExempt')}
           </Badge>
         </div>
@@ -110,12 +118,19 @@ function CategoryServiceRow({
           />
           {t('pages.services.pricing.offered')}
         </label>
-        <PriceInputCell
-          value={value}
-          disabled={!isEnabled}
-          onChange={(nextValue) => onChange(service.id, nextValue)}
-          onBlur={() => onBlur(service.id)}
-        />
+        <div className="flex items-center gap-2">
+          <PriceInputCell
+            value={value}
+            disabled={!isEnabled}
+            onChange={(nextValue) => onChange(service.id, nextValue)}
+            onBlur={() => onBlur(service.id)}
+          />
+          {displayPrice && taxIncluded && (
+            <span className="text-xs text-foreground-muted whitespace-nowrap">
+              = {formatCents(calculateTotal(priceCents!))} $
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -129,8 +144,12 @@ interface HourlyServiceRowProps {
 
 function HourlyServiceRow({ service, taxIncluded, hourlyRateCents }: HourlyServiceRowProps) {
   const formattedRate = hourlyRateCents !== null
-    ? `${(hourlyRateCents / 100).toFixed(2)} $/h`
+    ? `${formatCents(hourlyRateCents)} $/h`
     : t('pages.services.pricing.rateNotSet')
+
+  const formattedWithTax = hourlyRateCents !== null && taxIncluded
+    ? `= ${formatCents(calculateTotal(hourlyRateCents))} $/h`
+    : null
 
   return (
     <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -153,7 +172,7 @@ function HourlyServiceRow({ service, taxIncluded, hourlyRateCents }: HourlyServi
             className="text-[10px] px-1.5 py-0 h-4"
           >
             {taxIncluded
-              ? t('pages.services.pricing.taxIncluded')
+              ? t('pages.services.pricing.taxable')
               : t('pages.services.pricing.taxExempt')}
           </Badge>
         </div>
@@ -162,6 +181,11 @@ function HourlyServiceRow({ service, taxIncluded, hourlyRateCents }: HourlyServi
         <span className="text-sm font-medium text-foreground">
           {formattedRate}
         </span>
+        {formattedWithTax && (
+          <span className="text-xs text-foreground-muted whitespace-nowrap">
+            {formattedWithTax}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -450,7 +474,7 @@ export function CategoryPricingSection() {
               </label>
               <Badge variant={(localTaxIncluded ?? categoryInfo.category.taxIncluded) ? 'warning' : 'secondary'}>
                 {(localTaxIncluded ?? categoryInfo.category.taxIncluded)
-                  ? t('pages.services.pricing.taxIncluded')
+                  ? t('pages.services.pricing.taxable')
                   : t('pages.services.pricing.taxExempt')}
               </Badge>
               {categoryInfo.titleLabel && (
