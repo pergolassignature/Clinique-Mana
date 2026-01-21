@@ -1,9 +1,14 @@
 // src/availability/components/appointment-editor.tsx
 
 import { useState, useEffect, useMemo } from 'react'
-import { format, differenceInHours } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { differenceInHours } from 'date-fns'
 import { Trash2, Plus, ChevronDown, ChevronUp, Clock, Calendar, MapPin, Video, Phone, History } from 'lucide-react'
+import {
+  getClinicDateString,
+  getClinicTimeString,
+  clinicTimeToUTC,
+  formatInClinicTimezone,
+} from '@/shared/lib/timezone'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
@@ -19,8 +24,7 @@ import {
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
 import { cn } from '@/shared/lib/utils'
-import type { Appointment, AppointmentStatus, AppointmentMode } from '../types'
-import { MOCK_BOOKABLE_SERVICES, MOCK_CLIENTS } from '../mock'
+import type { Appointment, AppointmentStatus, AppointmentMode, BookableService, Client } from '../types'
 import { ClientCard, ClientPickerItem } from './client-card'
 import { CompactCalendarHistory } from './calendar-history'
 import { useAppointmentAuditLog } from '../hooks'
@@ -32,6 +36,11 @@ interface AppointmentEditorProps {
   onCancelAppointment?: (info?: { reason?: string; feeApplied?: boolean; feePercent?: number }) => void
   onRestoreAppointment?: () => void
   onDirtyChange: (dirty: boolean) => void
+  /** Real data from database */
+  bookableServices: BookableService[]
+  clients: Client[]
+  /** Selected professional ID to filter clients */
+  selectedProfessionalId?: string | null
 }
 
 const STATUS_OPTIONS: { value: AppointmentStatus; label: string }[] = [
@@ -52,6 +61,9 @@ export function AppointmentEditor({
   onCancelAppointment,
   onRestoreAppointment,
   onDirtyChange,
+  bookableServices,
+  clients,
+  selectedProfessionalId,
 }: AppointmentEditorProps) {
   const isNew = !appointment?.id || appointment.id.startsWith('new-')
   const isCancelled = appointment?.status === 'cancelled'
@@ -60,10 +72,10 @@ export function AppointmentEditor({
   const [serviceId, setServiceId] = useState(appointment?.serviceId || '')
   const [clientIds, setClientIds] = useState<string[]>(appointment?.clientIds || [])
   const [date, setDate] = useState(
-    appointment ? format(new Date(appointment.startTime), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
+    appointment ? getClinicDateString(appointment.startTime) : getClinicDateString(new Date())
   )
   const [startTime, setStartTime] = useState(
-    appointment ? format(new Date(appointment.startTime), 'HH:mm') : '09:00'
+    appointment ? getClinicTimeString(appointment.startTime) : '09:00'
   )
   const [durationMinutes, setDurationMinutes] = useState(appointment?.durationMinutes || 50)
   const [status, setStatus] = useState<AppointmentStatus>(appointment?.status === 'cancelled' ? 'confirmed' : (appointment?.status || 'draft'))
@@ -84,14 +96,23 @@ export function AppointmentEditor({
   )
 
   const selectedService = useMemo(
-    () => MOCK_BOOKABLE_SERVICES.find(s => s.id === serviceId),
-    [serviceId]
+    () => bookableServices.find(s => s.id === serviceId),
+    [bookableServices, serviceId]
   )
 
   // Get selected client objects
   const selectedClients = useMemo(
-    () => clientIds.map(id => MOCK_CLIENTS.find(c => c.id === id)).filter(Boolean),
-    [clientIds]
+    () => clientIds.map(id => clients.find(c => c.id === id)).filter(Boolean),
+    [clients, clientIds]
+  )
+
+  // Filter clients to only show those assigned to the selected professional
+  const filteredClients = useMemo(
+    () => {
+      if (!selectedProfessionalId) return clients
+      return clients.filter(c => c.primaryProfessionalId === selectedProfessionalId)
+    },
+    [clients, selectedProfessionalId]
   )
 
   // Track dirty state
@@ -104,8 +125,8 @@ export function AppointmentEditor({
     const isDirty =
       serviceId !== appointment.serviceId ||
       JSON.stringify(clientIds) !== JSON.stringify(appointment.clientIds) ||
-      date !== format(new Date(appointment.startTime), 'yyyy-MM-dd') ||
-      startTime !== format(new Date(appointment.startTime), 'HH:mm') ||
+      date !== getClinicDateString(appointment.startTime) ||
+      startTime !== getClinicTimeString(appointment.startTime) ||
       durationMinutes !== appointment.durationMinutes ||
       (appointment.status !== 'cancelled' && status !== appointment.status) ||
       mode !== (appointment.mode || 'video') ||
@@ -132,17 +153,17 @@ export function AppointmentEditor({
   useEffect(() => {
     if (!appointment) return
     const nextServiceId = appointment.serviceId || ''
-    const nextService = MOCK_BOOKABLE_SERVICES.find(s => s.id === nextServiceId)
+    const nextService = bookableServices.find(s => s.id === nextServiceId)
 
     setServiceId(nextServiceId)
     setClientIds(appointment.clientIds || [])
-    setDate(format(new Date(appointment.startTime), 'yyyy-MM-dd'))
-    setStartTime(format(new Date(appointment.startTime), 'HH:mm'))
+    setDate(getClinicDateString(appointment.startTime))
+    setStartTime(getClinicTimeString(appointment.startTime))
     setDurationMinutes(appointment.durationMinutes || nextService?.durationMinutes || 50)
     setStatus(appointment.status === 'cancelled' ? 'confirmed' : (appointment.status || 'draft'))
     setMode(appointment.mode || 'video')
     setNotes(appointment.notesInternal || '')
-  }, [appointment?.id])
+  }, [appointment?.id, bookableServices])
 
   const canEditClients = isNew && !isCancelled
 
@@ -163,12 +184,13 @@ export function AppointmentEditor({
   }
 
   const handleSave = () => {
-    const startDateTime = new Date(`${date}T${startTime}:00`)
+    // Convert clinic local time to UTC for storage
+    const startTimeUTC = clinicTimeToUTC(date, startTime)
 
     onSave({
       serviceId,
       clientIds,
-      startTime: startDateTime.toISOString(),
+      startTime: startTimeUTC,
       durationMinutes,
       status,
       mode,
@@ -189,12 +211,16 @@ export function AppointmentEditor({
   const isLateCancel = canCancelAppointment && hoursUntilAppointment !== null && hoursUntilAppointment < 24
   const normalizedCancelFeePercent = Math.max(0, Math.min(100, Math.round(cancelFeePercent || 0)))
 
-  // Calculate end time for display
+  // Calculate end time for display (add duration to start time)
   const endTimeDisplay = useMemo(() => {
-    const start = new Date(`${date}T${startTime}:00`)
-    const end = new Date(start.getTime() + durationMinutes * 60000)
-    return format(end, 'HH:mm')
-  }, [date, startTime, durationMinutes])
+    const parts = startTime.split(':').map(Number)
+    const hours = parts[0] ?? 0
+    const minutes = parts[1] ?? 0
+    const totalMinutes = hours * 60 + minutes + durationMinutes
+    const endHours = Math.floor(totalMinutes / 60) % 24
+    const endMins = totalMinutes % 60
+    return `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`
+  }, [startTime, durationMinutes])
 
   const ModeIcon = MODE_OPTIONS.find(m => m.value === mode)?.icon || MapPin
 
@@ -379,20 +405,26 @@ export function AppointmentEditor({
                 Sélectionner un client
               </div>
               <div className="space-y-1 max-h-48 overflow-y-auto">
-                {MOCK_CLIENTS.filter(c => !clientIds.includes(c.id)).map(client => (
-                  <ClientPickerItem
-                    key={client.id}
-                    client={client}
-                    isSelected={false}
-                    canSelect={canAddMoreClients || false}
-                    onToggle={() => {
-                      handleClientToggle(client.id)
-                      if (clientIds.length + 1 >= (selectedService?.maxClients || 1)) {
-                        setShowClientPicker(false)
-                      }
-                    }}
-                  />
-                ))}
+                {filteredClients.filter(c => !clientIds.includes(c.id)).length === 0 ? (
+                  <p className="text-xs text-foreground-muted py-2">
+                    Aucun client assigné à ce professionnel
+                  </p>
+                ) : (
+                  filteredClients.filter(c => !clientIds.includes(c.id)).map(client => (
+                    <ClientPickerItem
+                      key={client.id}
+                      client={client}
+                      isSelected={false}
+                      canSelect={canAddMoreClients || false}
+                      onToggle={() => {
+                        handleClientToggle(client.id)
+                        if (clientIds.length + 1 >= (selectedService?.maxClients || 1)) {
+                          setShowClientPicker(false)
+                        }
+                      }}
+                    />
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -420,7 +452,7 @@ export function AppointmentEditor({
             <Calendar className="h-4 w-4 text-foreground-muted flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium">
-                {format(new Date(date), 'EEEE d MMMM yyyy', { locale: fr })}
+                {formatInClinicTimezone(`${date}T12:00:00`, 'EEEE d MMMM yyyy')}
               </div>
             </div>
           </div>

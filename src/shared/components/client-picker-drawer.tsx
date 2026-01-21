@@ -141,7 +141,7 @@ function useSearchClients(searchQuery: string, enabled: boolean): SearchClientsR
 
       // Transform to Client format
       return clientsData.map((row): Client => ({
-        id: row.client_id, // Use client_id as the ID (CLI-0000001 format)
+        id: row.id, // Use the actual UUID for database references
         firstName: row.first_name,
         lastName: row.last_name,
         dateOfBirth: row.birthday || '',

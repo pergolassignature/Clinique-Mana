@@ -1,6 +1,9 @@
 // src/availability/utils/time-grid.ts
 // Single source of truth for all time/pixel conversions in the calendar
 
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
+import { CLINIC_TIMEZONE } from '@/shared/lib/timezone'
+
 export interface TimeGridConfig {
   slotHeight: number        // pixels per slot (40px)
   intervalMinutes: number   // minutes per slot (30min)
@@ -112,18 +115,34 @@ export function getMaxAppointmentDuration(): number {
 }
 
 /**
- * Convert minutes from midnight to ISO datetime string for a given date
+ * Convert minutes from midnight (in clinic timezone) to ISO datetime string (UTC)
+ * The baseDate provides the date context (year, month, day) in clinic timezone
  */
 export function minutesToISOString(minutes: number, baseDate: Date): string {
-  const date = new Date(baseDate)
-  date.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0)
-  return date.toISOString()
+  // Convert baseDate to clinic timezone to extract the correct calendar date
+  const zonedDate = toZonedTime(baseDate, CLINIC_TIMEZONE)
+
+  // Build a new date in clinic timezone with the specified time
+  const year = zonedDate.getFullYear()
+  const month = zonedDate.getMonth()
+  const day = zonedDate.getDate()
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+
+  // Create a date representing "this time on this day in clinic timezone"
+  const clinicLocalDate = new Date(year, month, day, hours, mins, 0, 0)
+
+  // Convert from clinic timezone to UTC
+  const utcDate = fromZonedTime(clinicLocalDate, CLINIC_TIMEZONE)
+  return utcDate.toISOString()
 }
 
 /**
  * Extract minutes from midnight from an ISO datetime string
+ * The ISO string is UTC, we convert to clinic timezone to get local time
  */
 export function isoStringToMinutes(isoString: string): number {
-  const date = new Date(isoString)
-  return date.getHours() * 60 + date.getMinutes()
+  // Convert UTC ISO string to clinic timezone
+  const zonedDate = toZonedTime(new Date(isoString), CLINIC_TIMEZONE)
+  return zonedDate.getHours() * 60 + zonedDate.getMinutes()
 }

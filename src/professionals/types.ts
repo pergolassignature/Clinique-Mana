@@ -180,14 +180,27 @@ export const ImageRightsConsentSchema = z.object({
 })
 export type ImageRightsConsent = z.infer<typeof ImageRightsConsentSchema>
 
+// Schema for profession entry in questionnaire (supports up to 2)
+export const QuestionnaireProfessionSchema = z.object({
+  profession_title_key: z.string(),
+  license_number: z.string(),
+  is_primary: z.boolean(),
+})
+export type QuestionnaireProfession = z.infer<typeof QuestionnaireProfessionSchema>
+
 export const QuestionnaireResponsesSchema = z.object({
   // Personal info (full_name is pre-populated from profile and read-only)
   full_name: z.string().optional(),
 
-  // Professional info
-  title: z.string().optional(),
-  license_number: z.string().optional(),
+  // Professional info - supports up to 2 profession titles
+  professions: z.array(QuestionnaireProfessionSchema).max(2).optional(),
   years_experience: z.number().optional(),
+
+  // Legacy fields (kept for backwards compatibility during migration)
+  /** @deprecated Use professions array instead */
+  profession_title_key: z.string().optional(),
+  /** @deprecated Use professions array instead */
+  license_number: z.string().optional(),
 
   // Bio/Portrait
   bio: z.string().optional(),

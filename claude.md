@@ -80,6 +80,65 @@ supabase db push
 3. **Display-only groupings**: Motif categories ("spheres of life") are UI-only, not stored
 4. **Soft-delete pattern**: Use `is_active` flags, never hard delete reference data
 5. **FR-CA first**: All user-facing labels in French-Canadian
+6. **Timezone consistency**: All dates must use clinic timezone utilities (see below)
+
+## Timezone Handling (IMPORTANT)
+
+All dates in the database are stored as UTC (`timestamptz`). The clinic operates in a configurable timezone (default: `America/Toronto` for EST/EDT).
+
+### Rules
+
+1. **NEVER use `new Date().toLocaleDateString()` or `format()` from date-fns directly** for user-facing dates
+2. **ALWAYS use the centralized timezone utilities** from `@/shared/lib/timezone`
+3. **Database storage**: Always store as UTC ISO strings
+4. **Display**: Always convert to clinic timezone before display
+
+### Timezone Utilities (`src/shared/lib/timezone.ts`)
+
+```typescript
+import {
+  formatInClinicTimezone,    // Generic: formatInClinicTimezone(date, 'EEEE d MMMM')
+  toClinicTime,              // Convert UTC to clinic time for comparisons
+  getClinicDateString,       // Get 'yyyy-MM-dd' in clinic timezone
+  getClinicTimeString,       // Get 'HH:mm' in clinic timezone
+  formatClinicDateFull,      // 'mercredi 21 janvier 2026'
+  formatClinicDateShort,     // '21 janv. 2026'
+  formatClinicTime,          // '14:30'
+  formatClinicDateTime,      // '21 janv. 2026 à 14:30'
+  clinicTimeToUTC,           // Convert form inputs to UTC for storage
+} from '@/shared/lib/timezone'
+```
+
+### Examples
+
+```typescript
+// ❌ WRONG - will show browser's local timezone
+format(new Date(apt.startTime), 'dd MMM yyyy', { locale: fr })
+new Date(dateStr).toLocaleDateString('fr-CA', {...})
+
+// ✅ CORRECT - uses clinic timezone
+formatClinicDateShort(apt.startTime)
+formatInClinicTimezone(apt.startTime, 'dd MMM yyyy')
+
+// ❌ WRONG - date comparisons in wrong timezone
+const aptDate = new Date(apt.startTime)
+if (isToday(aptDate)) { ... }
+
+// ✅ CORRECT - convert to clinic time first
+const aptDate = toClinicTime(apt.startTime)
+if (isToday(aptDate)) { ... }
+
+// ❌ WRONG - saving form input without timezone conversion
+const startTime = `${date}T${time}:00`
+
+// ✅ CORRECT - convert clinic time to UTC before saving
+const startTimeUTC = clinicTimeToUTC(date, time)
+```
+
+### Configuration
+
+The clinic timezone is stored in `clinic_settings.timezone` and can be configured in:
+**Settings → Configuration clinique → Fuseau horaire**
 
 ## File Structure
 

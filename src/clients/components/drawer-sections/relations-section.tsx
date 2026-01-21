@@ -1,10 +1,14 @@
 import { useState } from 'react'
-import { Users, Plus, ExternalLink, Trash2 } from 'lucide-react'
+import { Users, Plus, Trash2 } from 'lucide-react'
 import { t } from '@/i18n'
+import { cn } from '@/shared/lib/utils'
 import { AccordionItem, AccordionTrigger, AccordionContent } from '@/shared/ui/accordion'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
-import type { ClientWithRelations, ClientRelation, RelationType } from '../../types'
+import { Skeleton } from '@/shared/ui/skeleton'
+import { useToast } from '@/shared/hooks/use-toast'
+import type { ClientWithRelations, RelationType } from '../../types'
+import { useClientRelations, useCreateClientRelation, useDeleteClientRelation } from '../../hooks'
 import { AddRelationDialog } from './edit-dialogs'
 import {
   AlertDialog,
@@ -19,8 +23,6 @@ import {
 
 interface RelationsSectionProps {
   client: ClientWithRelations
-  onAddRelation?: (data: { relatedClientId: string; relationType: RelationType; notes?: string }) => void
-  onRemoveRelation?: (relationId: string) => void
   onViewClient?: (clientId: string) => void
 }
 
@@ -30,37 +32,80 @@ const relationTypeLabels: Record<RelationType, string> = {
   spouse: 'clients.drawer.relations.types.spouse',
   sibling: 'clients.drawer.relations.types.sibling',
   guardian: 'clients.drawer.relations.types.guardian',
+  ward: 'clients.drawer.relations.types.ward',
   other: 'clients.drawer.relations.types.other',
 }
 
 export function RelationsSection({
   client,
-  onAddRelation,
-  onRemoveRelation,
   onViewClient,
 }: RelationsSectionProps) {
+  const { toast } = useToast()
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [selectedRelation, setSelectedRelation] = useState<ClientRelation | null>(null)
+  const [selectedRelation, setSelectedRelation] = useState<{ id: string; relatedClientId: string } | null>(null)
 
-  const relations = client.relations || []
+  // Fetch relations from database
+  const { data: relations = [], isLoading } = useClientRelations(client.id)
+  const createRelation = useCreateClientRelation()
+  const deleteRelation = useDeleteClientRelation()
 
-  const handleAddRelation = (data: { relatedClientId: string; relatedClientName: string; relationType: RelationType; notes?: string }) => {
-    console.log('Add relation:', data)
-    onAddRelation?.(data)
-  }
-
-  const handleDeleteRelation = () => {
-    if (selectedRelation) {
-      console.log('Delete relation:', selectedRelation.id)
-      onRemoveRelation?.(selectedRelation.id)
+  const handleAddRelation = async (data: {
+    relatedClientId: string
+    relatedClientName: string
+    relationType: RelationType
+    notes?: string
+  }) => {
+    try {
+      await createRelation.mutateAsync({
+        clientId: client.id,
+        relatedClientId: data.relatedClientId,
+        relationType: data.relationType,
+        notes: data.notes,
+      })
+      setAddDialogOpen(false)
+      toast({
+        title: 'Relation ajoutée',
+        description: `${data.relatedClientName} a été ajouté comme ${t(relationTypeLabels[data.relationType] as Parameters<typeof t>[0])}.`,
+      })
+    } catch (error) {
+      console.error('Failed to create relation:', error)
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de créer la relation.',
+        variant: 'error',
+      })
     }
-    setSelectedRelation(null)
-    setDeleteDialogOpen(false)
   }
 
-  const openDeleteDialog = (relation: ClientRelation) => {
-    setSelectedRelation(relation)
+  const handleDeleteRelation = async () => {
+    if (!selectedRelation) return
+
+    try {
+      await deleteRelation.mutateAsync({
+        relationId: selectedRelation.id,
+        clientId: client.id,
+        relatedClientId: selectedRelation.relatedClientId,
+      })
+      toast({
+        title: 'Relation supprimée',
+        description: 'La relation a été supprimée des deux dossiers.',
+      })
+    } catch (error) {
+      console.error('Failed to delete relation:', error)
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de supprimer la relation.',
+        variant: 'error',
+      })
+    } finally {
+      setSelectedRelation(null)
+      setDeleteDialogOpen(false)
+    }
+  }
+
+  const openDeleteDialog = (relationId: string, relatedClientId: string) => {
+    setSelectedRelation({ id: relationId, relatedClientId })
     setDeleteDialogOpen(true)
   }
 
@@ -91,13 +136,22 @@ export function RelationsSection({
               {t('clients.drawer.relations.addRelation')}
             </Button>
 
-            {/* Relations list */}
-            {relations.length > 0 ? (
+            {/* Loading state */}
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+              </div>
+            ) : relations.length > 0 ? (
               <ul className="space-y-2">
                 {relations.map((relation) => (
                   <li
                     key={relation.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-background-secondary"
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg bg-background-secondary",
+                      onViewClient && "cursor-pointer hover:bg-background-tertiary transition-colors"
+                    )}
+                    onClick={() => onViewClient?.(relation.relatedClientId)}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -117,23 +171,16 @@ export function RelationsSection({
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 shrink-0 ml-2">
-                      {onViewClient && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => onViewClient(relation.relatedClientId)}
-                          title={t('clients.drawer.relations.viewClient')}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      )}
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 text-wine-600 hover:text-wine-700 hover:bg-wine-50"
-                        onClick={() => openDeleteDialog(relation)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openDeleteDialog(relation.id, relation.relatedClientId)
+                        }}
                         title={t('clients.drawer.relations.removeRelation')}
+                        disabled={deleteRelation.isPending}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -155,7 +202,7 @@ export function RelationsSection({
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
         onSave={handleAddRelation}
-        excludeClientIds={[client.clientId, ...relations.map((r) => r.relatedClientId)]}
+        excludeClientIds={[client.id, ...relations.map((r) => r.relatedClientId)]}
       />
 
       {/* Delete Confirmation Dialog */}

@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { CreditCard, Building2, Plus, Pencil } from 'lucide-react'
-import { format } from 'date-fns'
-import { fr } from 'date-fns/locale'
 import { t } from '@/i18n'
+import { formatInClinicTimezone } from '@/shared/lib/timezone'
 import { AccordionItem, AccordionTrigger, AccordionContent } from '@/shared/ui/accordion'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
@@ -66,7 +65,7 @@ export function ExternalPayersSection({ client, onUpdate }: ExternalPayersSectio
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '—'
-    return format(new Date(date), 'dd MMMM yyyy', { locale: fr })
+    return formatInClinicTimezone(date, 'dd MMMM yyyy')
   }
 
   const formatCurrency = (cents: number) => {

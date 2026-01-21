@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { FileCheck, Plus, AlertCircle, CheckCircle, Clock } from 'lucide-react'
-import { format } from 'date-fns'
-import { fr } from 'date-fns/locale'
 import { t } from '@/i18n'
+import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import { AccordionItem, AccordionTrigger, AccordionContent } from '@/shared/ui/accordion'
 import { Badge } from '@/shared/ui/badge'
@@ -21,7 +20,7 @@ export function ConsentsSection({ client, onAddConsent }: ConsentsSectionProps) 
 
   const formatDate = (date: string | null) => {
     if (!date) return '—'
-    return format(new Date(date), 'dd MMM yyyy', { locale: fr })
+    return formatClinicDateShort(date)
   }
 
   const getStatusIcon = (status: ConsentStatus) => {

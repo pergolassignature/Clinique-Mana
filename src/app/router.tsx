@@ -101,11 +101,25 @@ const professionalDetailRoute = createRoute({
   component: ProfessionalDetailPage,
 })
 
+// Availability search params
+interface AvailabilitySearchParams {
+  appointmentId?: string
+  date?: string
+}
+
+function validateAvailabilitySearchParams(search: Record<string, unknown>): AvailabilitySearchParams {
+  return {
+    appointmentId: typeof search.appointmentId === 'string' ? search.appointmentId : undefined,
+    date: typeof search.date === 'string' ? search.date : undefined,
+  }
+}
+
 // Availability
 const availabilityRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/disponibilites',
   component: AvailabilityPage,
+  validateSearch: validateAvailabilitySearchParams,
 })
 
 // Legacy routes - redirect to settings

@@ -18,6 +18,7 @@ import {
   GraduationCap,
   Building2,
 } from 'lucide-react'
+import { formatClinicDateFull } from '@/shared/lib/timezone'
 import type { ProfessionalWithRelations, ProfessionalDocument, ProfessionalDetailTab } from '../types'
 import { useUpdateProfessional } from '../hooks'
 import {
@@ -47,11 +48,7 @@ interface ProfessionalProfileTabProps {
 
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('fr-CA', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  return formatClinicDateFull(dateStr)
 }
 
 interface EditableFieldProps {

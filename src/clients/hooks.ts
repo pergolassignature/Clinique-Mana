@@ -15,6 +15,7 @@ export const clientKeys = {
     [...clientKeys.lists(), { filters, sort }] as const,
   details: () => [...clientKeys.all, 'detail'] as const,
   detail: (id: string) => [...clientKeys.details(), id] as const,
+  batch: (ids: string[]) => [...clientKeys.all, 'batch', ids.sort().join(',')] as const,
 }
 
 // =============================================================================
@@ -134,12 +135,19 @@ export function useClients(filters?: ClientsListFilters, sort?: ClientsListSort)
 
 /**
  * Fetch single client with all relations
+ * Supports both UUID and client_id (CLI-XXXXX) formats
  */
 export function useClient(id: string | undefined) {
   return useQuery({
     queryKey: clientKeys.detail(id!),
     queryFn: async (): Promise<ClientWithRelations | undefined> => {
       if (!id) return undefined
+
+      // Detect if id is UUID or client_id format
+      // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+      // Client ID format: CLI-XXXXXXX
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+      const filterColumn = isUUID ? 'id' : 'client_id'
 
       const { data, error } = await supabase
         .from('clients')
@@ -158,7 +166,7 @@ export function useClient(id: string | undefined) {
             last_name
           )
         `)
-        .eq('client_id', id)
+        .eq(filterColumn, id)
         .single()
 
       if (error) throw error
@@ -214,6 +222,17 @@ export function useClient(id: string | undefined) {
       }
     },
     enabled: !!id,
+  })
+}
+
+/**
+ * Fetch multiple clients by their UUIDs
+ */
+export function useClientsByIds(ids: string[]) {
+  return useQuery({
+    queryKey: clientKeys.batch(ids),
+    queryFn: () => api.fetchClientsByIds(ids),
+    enabled: ids.length > 0,
   })
 }
 
@@ -317,6 +336,59 @@ export function useUpdateClient() {
       // Invalidate specific client query and lists
       queryClient.invalidateQueries({ queryKey: clientKeys.detail(clientId) })
       queryClient.invalidateQueries({ queryKey: clientKeys.lists() })
+    },
+  })
+}
+
+// =============================================================================
+// CLIENT RELATIONS
+// =============================================================================
+
+export const clientRelationKeys = {
+  all: ['client-relations'] as const,
+  client: (clientId: string) => [...clientRelationKeys.all, clientId] as const,
+}
+
+/**
+ * Fetch relations for a client
+ */
+export function useClientRelations(clientId: string | undefined) {
+  return useQuery({
+    queryKey: clientRelationKeys.client(clientId!),
+    queryFn: () => api.fetchClientRelations(clientId!),
+    enabled: !!clientId,
+  })
+}
+
+/**
+ * Create a new client relation
+ */
+export function useCreateClientRelation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: api.createClientRelation,
+    onSuccess: (_, input) => {
+      // Invalidate relations for both clients involved
+      queryClient.invalidateQueries({ queryKey: clientRelationKeys.client(input.clientId) })
+      queryClient.invalidateQueries({ queryKey: clientRelationKeys.client(input.relatedClientId) })
+    },
+  })
+}
+
+/**
+ * Delete a client relation (and its inverse)
+ */
+export function useDeleteClientRelation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (params: { relationId: string; clientId: string; relatedClientId: string }) =>
+      api.deleteClientRelation(params.relationId),
+    onSuccess: (_, { clientId, relatedClientId }) => {
+      // Invalidate both clients' relations since we delete bidirectionally
+      queryClient.invalidateQueries({ queryKey: clientRelationKeys.client(clientId) })
+      queryClient.invalidateQueries({ queryKey: clientRelationKeys.client(relatedClientId) })
     },
   })
 }

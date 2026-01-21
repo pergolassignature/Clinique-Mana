@@ -21,8 +21,7 @@ import {
 } from '@/shared/ui/dialog'
 import { Button } from '@/shared/ui/button'
 import { cn } from '@/shared/lib/utils'
-import { MOCK_PROFESSIONALS, MOCK_CLIENTS, MOCK_SERVICES } from '../mock'
-import type { Appointment } from '../types'
+import type { Appointment, Professional, BookableService, Client } from '../types'
 
 interface AppointmentDetailDrawerProps {
   open: boolean
@@ -31,6 +30,10 @@ interface AppointmentDetailDrawerProps {
   onEdit: (appointment: Appointment) => void
   onCancel: (id: string) => void
   onRestore: (id: string) => void
+  /** Real data from database */
+  professionals: Professional[]
+  bookableServices: BookableService[]
+  clients: Client[]
 }
 
 export function AppointmentDetailDrawer({
@@ -40,17 +43,20 @@ export function AppointmentDetailDrawer({
   onEdit,
   onCancel,
   onRestore,
+  professionals,
+  bookableServices,
+  clients,
 }: AppointmentDetailDrawerProps) {
   if (!appointment) {
     return null
   }
 
   // Lookup related data
-  const professional = MOCK_PROFESSIONALS.find(
+  const professional = professionals.find(
     (p) => p.id === appointment.professionalId
   )
-  const client = MOCK_CLIENTS.find((c) => c.id === appointment.clientIds[0])
-  const service = MOCK_SERVICES.find((s) => s.id === appointment.serviceId)
+  const client = clients.find((c) => c.id === appointment.clientIds[0])
+  const service = bookableServices.find((s) => s.id === appointment.serviceId)
 
   // Calculate times
   const startDate = new Date(appointment.startTime)

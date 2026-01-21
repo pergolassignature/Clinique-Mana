@@ -524,7 +524,7 @@ async function storeRecommendations(
     .from('recommendation_audit_log')
     .insert({
       recommendation_id: newRec.id,
-      actor_id: user?.id || null,
+      actor_id: profileId,
       action: 'generated',
       context: {
         configKey: config.key,

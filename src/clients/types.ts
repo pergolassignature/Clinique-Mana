@@ -141,8 +141,22 @@ export interface ClientConsent {
 // CLIENT RELATION
 // =============================================================================
 
-export const RelationType = z.enum(['parent', 'child', 'spouse', 'sibling', 'guardian', 'other'])
+export const RelationType = z.enum(['parent', 'child', 'spouse', 'sibling', 'guardian', 'ward', 'other'])
 export type RelationType = z.infer<typeof RelationType>
+
+/**
+ * Maps a relation type to its inverse.
+ * Used for bidirectional relations: if A is parent of B, then B is child of A.
+ */
+export const INVERSE_RELATION_TYPES: Record<RelationType, RelationType> = {
+  parent: 'child',
+  child: 'parent',
+  spouse: 'spouse',
+  sibling: 'sibling',
+  guardian: 'ward',
+  ward: 'guardian',
+  other: 'other',
+}
 
 export interface ClientRelation {
   id: string

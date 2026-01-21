@@ -1,7 +1,8 @@
 // src/pages/availability.tsx
 
-import { useState, useCallback, useMemo } from 'react'
-import { startOfWeek, addDays, format } from 'date-fns'
+import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useRouterState, useNavigate } from '@tanstack/react-router'
+import { startOfWeek, addDays, format, parseISO } from 'date-fns'
 import { DndContext } from '@dnd-kit/core'
 import { toast } from '@/shared/hooks/use-toast'
 import { Button } from '@/shared/ui/button'
@@ -35,11 +36,38 @@ import {
 import { CalendarDragOverlay } from '@/availability/dnd'
 import { snapToTimeGrid } from '@/availability/dnd/snap-modifier'
 import { isoStringToMinutes, minutesToISOString, DEFAULT_CONFIG } from '@/availability/utils/time-grid'
-import { MOCK_PROFESSIONALS, MOCK_BOOKABLE_SERVICES, MOCK_CLIENTS } from '@/availability/mock'
+import { useAvailabilityData } from '@/availability/hooks'
+import { useProfessionalServices } from '@/professionals/hooks'
+
+interface AvailabilitySearchParams {
+  appointmentId?: string
+  date?: string
+}
 
 export function AvailabilityPage() {
-  // Professional selection
-  const [selectedProfessionalId, setSelectedProfessionalId] = useState<string | null>('pro-1')
+  // Get search params from router
+  const routerState = useRouterState()
+  const navigate = useNavigate()
+  const searchParams = routerState.location.search as AvailabilitySearchParams
+
+  // Load real data from database
+  const { professionals, bookableServices, clients } = useAvailabilityData()
+
+  // Professional selection state (defined here so we can use it in hooks below)
+  const [selectedProfessionalId, setSelectedProfessionalId] = useState<string | null>(null)
+
+  // Fetch services assigned to the selected professional
+  const { data: professionalServices = [] } = useProfessionalServices(selectedProfessionalId ?? undefined)
+
+  // Filter bookable services to only those assigned to the selected professional
+  const professionalBookableServices = useMemo(() => {
+    // If professional has no services assigned, show all services (fallback)
+    if (professionalServices.length === 0) return bookableServices
+
+    // Only show services that are assigned to this professional
+    const assignedServiceIds = new Set(professionalServices.map(ps => ps.service_id))
+    return bookableServices.filter(service => assignedServiceIds.has(service.id))
+  }, [bookableServices, professionalServices])
 
   // View state
   const [viewDate, setViewDate] = useState<Date>(() => new Date())
@@ -83,13 +111,49 @@ export function AvailabilityPage() {
 
   // Get selected professional object
   const selectedProfessional = useMemo(() => {
-    return MOCK_PROFESSIONALS.find(p => p.id === selectedProfessionalId) || null
-  }, [selectedProfessionalId])
+    return professionals.find(p => p.id === selectedProfessionalId) || null
+  }, [professionals, selectedProfessionalId])
+
+  // Auto-select first professional when data loads
+  useMemo(() => {
+    const firstProfessional = professionals[0]
+    if (!selectedProfessionalId && firstProfessional) {
+      setSelectedProfessionalId(firstProfessional.id)
+    }
+  }, [professionals, selectedProfessionalId])
 
   // Week start for navigation
   const weekStartDate = useMemo(() => {
     return startOfWeek(viewDate, { weekStartsOn: 1 })
   }, [viewDate])
+
+  // Handle search params to auto-open appointment and navigate to date
+  useEffect(() => {
+    // Handle date param - navigate to that week
+    if (searchParams.date) {
+      const targetDate = parseISO(searchParams.date)
+      if (!isNaN(targetDate.getTime())) {
+        setViewDate(targetDate)
+      }
+    }
+
+    // Handle appointmentId param - find and open the appointment
+    if (searchParams.appointmentId && appointments.length > 0) {
+      const appointment = appointments.find(apt => apt.id === searchParams.appointmentId)
+      if (appointment) {
+        // Select the professional for this appointment
+        setSelectedProfessionalId(appointment.professionalId)
+        // Navigate to the appointment's date
+        setViewDate(parseISO(appointment.startTime))
+        // Open the appointment detail sheet
+        setSelectedAppointment(appointment)
+        setSheetContent('appointment')
+        setSheetOpen(true)
+        // Clear the search params to avoid re-opening on re-render
+        navigate({ to: '/disponibilites', search: {}, replace: true })
+      }
+    }
+  }, [searchParams.appointmentId, searchParams.date, appointments, navigate])
 
   // Helper: Get target date from dayIndex
   const getTargetDate = useCallback((dayIndex: number) => {
@@ -262,7 +326,7 @@ export function AvailabilityPage() {
 
   const handleServiceDrop = useCallback(
     (serviceId: string, dayIndex: number, startMinutes: number) => {
-      const service = MOCK_BOOKABLE_SERVICES.find(s => s.id === serviceId)
+      const service = bookableServices.find(s => s.id === serviceId)
       if (!service || !selectedProfessionalId) return
 
       const targetDate = getTargetDate(dayIndex)
@@ -289,7 +353,7 @@ export function AvailabilityPage() {
 
       toast({ title: 'Brouillon créé', description: 'Assignez un client pour confirmer.' })
     },
-    [getTargetDate, selectedProfessionalId]
+    [bookableServices, getTargetDate, selectedProfessionalId]
   )
 
   // =============================================================================
@@ -379,7 +443,7 @@ export function AvailabilityPage() {
       if (!selectedProfessionalId) return
 
       const startTime = new Date(`${format(date, 'yyyy-MM-dd')}T${time}:00`)
-      const defaultService = MOCK_BOOKABLE_SERVICES[0]
+      const defaultService = bookableServices[0]
 
       const newAppointment: Appointment = {
         id: `new-${Date.now()}`,
@@ -397,7 +461,7 @@ export function AvailabilityPage() {
       setSheetContent('appointment')
       setSheetOpen(true)
     }
-  }, [calendarMode, selectedProfessionalId, isDragging])
+  }, [bookableServices, calendarMode, selectedProfessionalId, isDragging])
 
   const handleAppointmentClick = useCallback((appointment: Appointment) => {
     if (isDragging) return
@@ -452,13 +516,13 @@ export function AvailabilityPage() {
   )
 
   const getServiceForOverlay = useCallback(
-    (id: string) => MOCK_BOOKABLE_SERVICES.find(s => s.id === id) || null,
-    []
+    (id: string) => bookableServices.find(s => s.id === id) || null,
+    [bookableServices]
   )
 
   const getClientsForOverlay = useCallback(
-    (ids: string[]) => ids.map(id => MOCK_CLIENTS.find(c => c.id === id)),
-    []
+    (ids: string[]) => ids.map(id => clients.find(c => c.id === id)),
+    [clients]
   )
 
   return (
@@ -469,6 +533,7 @@ export function AvailabilityPage() {
           <ProfessionalSelector
             selectedId={selectedProfessionalId}
             onSelect={setSelectedProfessionalId}
+            professionals={professionals}
           />
           {calendarMode === 'booking' && (
             <Button
@@ -531,6 +596,8 @@ export function AvailabilityPage() {
                   setSheetContent('appointment')
                   setSheetOpen(true)
                 }}
+                bookableServices={professionalBookableServices}
+                clients={clients}
               />
             )}
           </CollapsibleSidebar>
@@ -563,6 +630,8 @@ export function AvailabilityPage() {
                 activeDragId={dragState.activeId}
                 isDraggingService={dragState.context === 'service-drop'}
                 draggingServiceId={dragState.context === 'service-drop' ? dragState.activeId : null}
+                bookableServices={bookableServices}
+                clients={clients}
               />
             )}
 
@@ -572,6 +641,8 @@ export function AvailabilityPage() {
                 appointments={professionalAppointments}
                 onSlotClick={handleSlotClick}
                 onAppointmentClick={handleAppointmentClick}
+                bookableServices={bookableServices}
+                clients={clients}
               />
             )}
 
@@ -580,6 +651,8 @@ export function AvailabilityPage() {
                 viewDate={viewDate}
                 appointments={professionalAppointments}
                 onAppointmentClick={handleAppointmentClick}
+                bookableServices={bookableServices}
+                clients={clients}
               />
             )}
           </div>
@@ -673,6 +746,9 @@ export function AvailabilityPage() {
               })
             }}
             onDirtyChange={setHasUnsavedChanges}
+            bookableServices={bookableServices}
+            clients={clients}
+            selectedProfessionalId={selectedProfessionalId}
           />
         )}
       </DetailSheet>

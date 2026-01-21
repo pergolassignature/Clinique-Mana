@@ -1,36 +1,42 @@
 // src/availability/components/list-view.tsx
 
 import { useMemo } from 'react'
-import { format, startOfWeek, endOfWeek, isToday } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { startOfWeek, endOfWeek, isToday } from 'date-fns'
 import { Clock, FileText } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
-import type { Appointment } from '../types'
-import { MOCK_SERVICES, MOCK_CLIENTS } from '../mock'
+import {
+  formatInClinicTimezone,
+  toClinicTime,
+  getClinicDateString,
+} from '@/shared/lib/timezone'
+import type { Appointment, BookableService, Client } from '../types'
 
 interface ListViewProps {
   viewDate: Date
   appointments: Appointment[]
   onAppointmentClick: (appointment: Appointment) => void
+  /** Real data from database */
+  bookableServices: BookableService[]
+  clients: Client[]
 }
 
-export function ListView({ viewDate, appointments, onAppointmentClick }: ListViewProps) {
+export function ListView({ viewDate, appointments, onAppointmentClick, bookableServices, clients }: ListViewProps) {
   // Get week range
   const weekStart = startOfWeek(viewDate, { weekStartsOn: 1 })
   const weekEnd = endOfWeek(viewDate, { weekStartsOn: 1 })
 
-  // Filter and group appointments by day
+  // Filter and group appointments by day using clinic timezone
   const groupedAppointments = useMemo(() => {
     const filtered = appointments
       .filter(apt => {
-        const aptDate = new Date(apt.startTime)
+        const aptDate = toClinicTime(apt.startTime)
         return aptDate >= weekStart && aptDate <= weekEnd
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
 
     const groups = new Map<string, Appointment[]>()
     filtered.forEach(apt => {
-      const dayKey = format(new Date(apt.startTime), 'yyyy-MM-dd')
+      const dayKey = getClinicDateString(apt.startTime)
       if (!groups.has(dayKey)) groups.set(dayKey, [])
       groups.get(dayKey)!.push(apt)
     })
@@ -38,8 +44,8 @@ export function ListView({ viewDate, appointments, onAppointmentClick }: ListVie
     return groups
   }, [appointments, weekStart, weekEnd])
 
-  const getService = (id: string) => MOCK_SERVICES.find(s => s.id === id)
-  const getClient = (id: string | undefined) => id ? MOCK_CLIENTS.find(c => c.id === id) : undefined
+  const getService = (id: string) => bookableServices.find(s => s.id === id)
+  const getClient = (id: string | undefined) => id ? clients.find(c => c.id === id) : undefined
 
   if (groupedAppointments.size === 0) {
     return (
@@ -68,10 +74,10 @@ export function ListView({ viewDate, appointments, onAppointmentClick }: ListVie
                 today ? 'bg-sage-100 text-sage-700' : 'bg-background-secondary text-foreground'
               )}>
                 <span className="text-xs font-medium uppercase">
-                  {format(dayDate, 'EEE', { locale: fr })}
+                  {formatInClinicTimezone(dayDate, 'EEE')}
                 </span>
                 <span className="text-lg font-semibold">
-                  {format(dayDate, 'd')}
+                  {formatInClinicTimezone(dayDate, 'd')}
                 </span>
               </div>
               <div>
@@ -79,7 +85,7 @@ export function ListView({ viewDate, appointments, onAppointmentClick }: ListVie
                   'text-sm font-medium',
                   today ? 'text-sage-700' : 'text-foreground'
                 )}>
-                  {today ? "Aujourd'hui" : format(dayDate, 'EEEE', { locale: fr })}
+                  {today ? "Aujourd'hui" : formatInClinicTimezone(dayDate, 'EEEE')}
                 </div>
                 <div className="text-xs text-foreground-muted">
                   {dayApts.length} rendez-vous
@@ -133,7 +139,7 @@ export function ListView({ viewDate, appointments, onAppointmentClick }: ListVie
                         {/* Time */}
                         <div className="flex items-center gap-1.5 text-sm text-foreground-muted mt-1">
                           <Clock className="h-3.5 w-3.5" />
-                          {format(startTime, 'HH:mm')} – {format(endTime, 'HH:mm')}
+                          {formatInClinicTimezone(startTime, 'HH:mm')} – {formatInClinicTimezone(endTime, 'HH:mm')}
                           <span className="text-xs">({apt.durationMinutes} min)</span>
                         </div>
                       </div>

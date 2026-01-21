@@ -1,8 +1,12 @@
 // src/availability/components/availability-editor.tsx
 
 import { useState, useEffect, useMemo } from 'react'
-import { format } from 'date-fns'
 import { AlertTriangle } from 'lucide-react'
+import {
+  getClinicDateString,
+  getClinicTimeString,
+  clinicTimeToUTC,
+} from '@/shared/lib/timezone'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
@@ -50,13 +54,13 @@ export function AvailabilityEditor({
   const [type, setType] = useState<AvailabilityType>(block?.type || 'available')
   const [label, setLabel] = useState(block?.label || '')
   const [date, setDate] = useState(
-    block ? format(new Date(block.startTime), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
+    block ? getClinicDateString(block.startTime) : getClinicDateString(new Date())
   )
   const [startTime, setStartTime] = useState(
-    block ? format(new Date(block.startTime), 'HH:mm') : '09:00'
+    block ? getClinicTimeString(block.startTime) : '09:00'
   )
   const [endTime, setEndTime] = useState(
-    block ? format(new Date(block.endTime), 'HH:mm') : '17:00'
+    block ? getClinicTimeString(block.endTime) : '17:00'
   )
   const [visibleToClients, setVisibleToClients] = useState(block?.visibleToClients ?? true)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -86,23 +90,24 @@ export function AvailabilityEditor({
     const isDirty =
       type !== block.type ||
       label !== (block.label || '') ||
-      date !== format(new Date(block.startTime), 'yyyy-MM-dd') ||
-      startTime !== format(new Date(block.startTime), 'HH:mm') ||
-      endTime !== format(new Date(block.endTime), 'HH:mm') ||
+      date !== getClinicDateString(block.startTime) ||
+      startTime !== getClinicTimeString(block.startTime) ||
+      endTime !== getClinicTimeString(block.endTime) ||
       visibleToClients !== block.visibleToClients
 
     onDirtyChange(isDirty)
   }, [type, label, date, startTime, endTime, visibleToClients, block, onDirtyChange])
 
   const handleSave = () => {
-    const startDateTime = new Date(`${date}T${startTime}:00`)
-    const endDateTime = new Date(`${date}T${endTime}:00`)
+    // Convert clinic time to UTC for storage
+    const startTimeUTC = clinicTimeToUTC(date, startTime)
+    const endTimeUTC = clinicTimeToUTC(date, endTime)
 
     onSave({
       type,
       label: label || undefined,
-      startTime: startDateTime.toISOString(),
-      endTime: endDateTime.toISOString(),
+      startTime: startTimeUTC,
+      endTime: endTimeUTC,
       visibleToClients,
     })
   }

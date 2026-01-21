@@ -394,10 +394,10 @@ export function ServicesPage() {
               )}
             </div>
           ) : (
-            // Table view
-            <div className="rounded-xl border border-border overflow-hidden">
+            // Table view - max height allows internal scroll while keeping header fixed
+            <div className="rounded-xl border border-border overflow-auto max-h-[calc(100vh-380px)] overscroll-contain">
               <table className="w-full">
-                <thead className="bg-background-secondary/50">
+                <thead className="bg-background-secondary/50 sticky top-0 z-10">
                     <tr className="border-b border-border">
                       <th className="px-4 py-3 text-left text-[10px] font-medium text-foreground-muted uppercase tracking-wider">
                         {t('pages.services.table.name')}

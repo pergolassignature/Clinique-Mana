@@ -21,6 +21,7 @@ import {
   isValidName,
 } from '@/shared/lib/client-validation'
 import { DuplicateWarning } from '@/shared/components/duplicate-warning'
+import { useProfessionals } from '@/professionals/hooks'
 import type { Sex, Language, Province } from '../types'
 import type { ParsedAddress } from '@/shared/hooks/use-google-places'
 
@@ -89,13 +90,6 @@ const defaultForm: NewClientFormData = {
   primaryProfessionalId: null,
 }
 
-// Mock professionals for selector
-const MOCK_PROFESSIONALS = [
-  { id: 'prof-1', displayName: 'Dr. Marie-Claire Tremblay' },
-  { id: 'prof-2', displayName: 'Jean-Philippe Gagnon, Psy.' },
-  { id: 'prof-3', displayName: 'Sophie Lavoie, T.S.' },
-]
-
 // Available tags
 const AVAILABLE_TAGS = ['VIP', 'Nouveau', 'Famille', 'Urgent', 'Assurance']
 
@@ -139,6 +133,9 @@ export function NewClientDrawer({ open, onOpenChange, onSave }: NewClientDrawerP
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set())
   const [formErrors, setFormErrors] = useState<FormErrors>({})
   const [duplicateConfirmed, setDuplicateConfirmed] = useState(false)
+
+  // Fetch active professionals from database
+  const { data: professionals = [] } = useProfessionals({ status: 'active' })
 
   // Reset form when drawer opens
   useEffect(() => {
@@ -283,9 +280,9 @@ export function NewClientDrawer({ open, onOpenChange, onSave }: NewClientDrawerP
   // Professional options for SearchableSelect
   const professionalOptions: SearchableSelectOption[] = [
     { value: '', label: 'Aucun professionnel' },
-    ...MOCK_PROFESSIONALS.map((pro) => ({
+    ...professionals.map((pro) => ({
       value: pro.id,
-      label: pro.displayName,
+      label: pro.display_name,
     })),
   ]
 

@@ -15,8 +15,10 @@ import {
   FileText,
   Code,
   Heart,
+  Star,
 } from 'lucide-react'
 import { t } from '@/i18n'
+import { formatClinicDateFull } from '@/shared/lib/timezone'
 import type { ProfessionalWithRelations, Specialty, QuestionnaireResponses, QuestionnaireSubmission } from '../types'
 import {
   useSpecialtiesByCategory,
@@ -26,6 +28,7 @@ import {
   useProfessionalQuestionnaire,
   useApplyQuestionnaire,
   useReplaceMotifs,
+  useProfessionTitles,
 } from '../hooks'
 import { MotifPicker } from '@/shared/components/motif-picker'
 import { MotifDisclaimerBanner } from '@/motifs'
@@ -57,11 +60,7 @@ interface ProfessionalPortraitTabProps {
 
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('fr-CA', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  return formatClinicDateFull(dateStr)
 }
 
 // Provenance banner showing data source and apply success
@@ -161,11 +160,18 @@ function OriginalSubmissionModal({
   specialtiesByCategory: Record<string, Specialty[]>
 }) {
   const [showJson, setShowJson] = useState(false)
+  const { data: professionTitles = [] } = useProfessionTitles()
 
   if (!submission?.responses) return null
 
   const responses = submission.responses
   const allSpecialties = Object.values(specialtiesByCategory).flat()
+
+  // Get profession title label from key
+  const getProfessionLabel = (key: string | undefined) => {
+    if (!key) return null
+    return professionTitles.find(t => t.key === key)?.label_fr || key
+  }
   const selectedSpecialties = (responses.specialties || [])
     .map((code) => allSpecialties.find((s) => s.code === code))
     .filter(Boolean) as Specialty[]
@@ -205,22 +211,29 @@ function OriginalSubmissionModal({
           )}
 
           {/* Professional Info */}
-          {(responses.title || responses.license_number || responses.years_experience !== undefined) && (
+          {((responses.professions && responses.professions.length > 0) || responses.years_experience !== undefined) && (
             <section>
               <h3 className="text-xs font-semibold text-foreground-muted uppercase tracking-wide mb-3">
                 Informations professionnelles
               </h3>
-              <div className="rounded-xl bg-background-secondary/50 p-4 space-y-2 text-sm">
-                {responses.title && (
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Titre</span>
-                    <span>{responses.title}</span>
-                  </div>
-                )}
-                {responses.license_number && (
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Numéro de permis</span>
-                    <span>{responses.license_number}</span>
+              <div className="rounded-xl bg-background-secondary/50 p-4 space-y-3 text-sm">
+                {responses.professions && responses.professions.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-foreground-muted">Titres professionnels</span>
+                    {responses.professions.map((profession, index) => (
+                      <div key={index} className="flex items-center justify-between py-1 pl-2 border-l-2 border-sage-200">
+                        <div className="flex items-center gap-2">
+                          <span>{getProfessionLabel(profession.profession_title_key)}</span>
+                          {profession.is_primary && responses.professions && responses.professions.length > 1 && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sage-100 text-[10px] font-medium text-sage-700">
+                              <Star className="h-2.5 w-2.5" />
+                              Principal
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-foreground-muted">Permis: {profession.license_number}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
                 {responses.years_experience !== undefined && (
@@ -712,10 +725,17 @@ function QuestionnaireReview({
 }) {
   const { toast } = useToast()
   const applyQuestionnaire = useApplyQuestionnaire()
+  const { data: professionTitles = [] } = useProfessionTitles()
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   // Find specialty names from codes
   const allSpecialties = Object.values(specialtiesByCategory).flat()
+
+  // Get profession title label from key
+  const getProfessionLabel = (key: string | undefined) => {
+    if (!key) return null
+    return professionTitles.find(t => t.key === key)?.label_fr || key
+  }
   const selectedSpecialties = (responses.specialties || [])
     .map((code) => allSpecialties.find((s) => s.code === code))
     .filter(Boolean) as Specialty[]
@@ -729,7 +749,9 @@ function QuestionnaireReview({
   if (responses.approach !== undefined) fieldsToReplace.push('Approche thérapeutique')
   if (responses.public_email !== undefined) fieldsToReplace.push('Courriel public')
   if (responses.public_phone !== undefined) fieldsToReplace.push('Téléphone public')
-  if (responses.license_number !== undefined) fieldsToReplace.push('Numéro de permis')
+  if (responses.professions && responses.professions.length > 0) {
+    fieldsToReplace.push(`${responses.professions.length} titre(s) professionnel(s)`)
+  }
   if (responses.years_experience !== undefined) fieldsToReplace.push("Années d'expérience")
   if (selectedSpecialties.length > 0) fieldsToReplace.push(`${selectedSpecialties.length} spécialité(s)`)
   if (selectedMotifKeys.length > 0) fieldsToReplace.push(`${selectedMotifKeys.length} motif(s)`)
@@ -742,7 +764,6 @@ function QuestionnaireReview({
         portrait_approach?: string | null
         public_email?: string | null
         public_phone?: string | null
-        license_number?: string | null
         years_experience?: number | null
       } = {}
 
@@ -758,17 +779,24 @@ function QuestionnaireReview({
       if (responses.public_phone !== undefined) {
         professionalUpdates.public_phone = responses.public_phone || null
       }
-      if (responses.license_number !== undefined) {
-        professionalUpdates.license_number = responses.license_number || null
-      }
       if (responses.years_experience !== undefined) {
         professionalUpdates.years_experience = responses.years_experience || null
       }
+
+      // Build professions data if provided
+      const professions = responses.professions && responses.professions.length > 0
+        ? responses.professions.map(p => ({
+            profession_title_key: p.profession_title_key,
+            license_number: p.license_number,
+            is_primary: p.is_primary,
+          }))
+        : undefined
 
       const result = await applyQuestionnaire.mutateAsync({
         professional_id: professionalId,
         submission_id: submissionId,
         professional_updates: professionalUpdates,
+        professions,
         specialty_codes: responses.specialties,
         motif_keys: responses.motifs,
       })
@@ -807,7 +835,7 @@ function QuestionnaireReview({
     responses.approach,
     responses.public_email,
     responses.public_phone,
-    responses.license_number,
+    responses.professions && responses.professions.length > 0 ? 'professions' : undefined,
     responses.years_experience,
   ].filter((v) => v !== undefined).length
 
@@ -840,24 +868,30 @@ function QuestionnaireReview({
           )}
 
           {/* Professional Info */}
-          {(responses.title || responses.license_number || responses.years_experience !== undefined) && (
+          {((responses.professions && responses.professions.length > 0) || responses.years_experience !== undefined) && (
             <div className="rounded-xl bg-background p-4">
               <h4 className="text-sm font-medium mb-3">Informations professionnelles</h4>
               <div className="grid gap-2 text-sm">
-                {responses.title && (
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Titre</span>
-                    <span>{responses.title}</span>
-                  </div>
-                )}
-                {responses.license_number && (
-                  <div className="flex justify-between">
-                    <span className="text-foreground-muted">Numéro de permis</span>
-                    <span>{responses.license_number}</span>
+                {responses.professions && responses.professions.length > 0 && (
+                  <div className="space-y-2">
+                    {responses.professions.map((profession, index) => (
+                      <div key={index} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-background-secondary/50">
+                        <div className="flex items-center gap-2">
+                          <span>{getProfessionLabel(profession.profession_title_key)}</span>
+                          {profession.is_primary && responses.professions && responses.professions.length > 1 && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sage-100 text-[10px] font-medium text-sage-700">
+                              <Star className="h-2.5 w-2.5" />
+                              Principal
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-foreground-muted">Permis: {profession.license_number}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
                 {responses.years_experience !== undefined && (
-                  <div className="flex justify-between">
+                  <div className="flex justify-between pt-2">
                     <span className="text-foreground-muted">Années d'expérience</span>
                     <span>{responses.years_experience}</span>
                   </div>

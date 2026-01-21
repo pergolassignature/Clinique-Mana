@@ -13,11 +13,16 @@ import {
   Link as LinkIcon,
   Shield,
 } from 'lucide-react'
+import {
+  formatClinicDateFull,
+  formatClinicDateTime,
+} from '@/shared/lib/timezone'
 import type { ProfessionalWithRelations } from '../types'
 import {
   useCreateInvite,
   useRevokeInvite,
   useMarkInviteSent,
+  useUpdateProfessionalStatus,
 } from '../hooks'
 import {
   mapProfessionalToViewModel,
@@ -50,22 +55,12 @@ interface ProfessionalOnboardingTabProps {
 
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('fr-CA', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  return formatClinicDateFull(dateStr)
 }
 
 function formatDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('fr-CA', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return formatClinicDateTime(dateStr)
 }
 
 /**
@@ -534,15 +529,29 @@ interface ActivationStepCardProps {
   viewModel: ReturnType<typeof mapProfessionalToViewModel>
 }
 
-function ActivationStepCard({ step, viewModel }: ActivationStepCardProps) {
+function ActivationStepCard({ professional, step, viewModel }: ActivationStepCardProps) {
   const { toast } = useToast()
+  const updateStatus = useUpdateProfessionalStatus()
 
   const handleActivate = () => {
-    // TODO: Wire to updateProfessionalStatus mutation
-    toast({
-      title: 'Bientôt disponible',
-      description: 'L\'activation automatique sera disponible prochainement.',
-    })
+    updateStatus.mutate(
+      { id: professional.id, input: { status: 'active' } },
+      {
+        onSuccess: () => {
+          toast({
+            title: 'Professionnel activé',
+            description: 'Le professionnel est maintenant actif sur la plateforme.',
+          })
+        },
+        onError: () => {
+          toast({
+            title: 'Erreur',
+            description: "Une erreur est survenue lors de l'activation.",
+            variant: 'error',
+          })
+        },
+      }
+    )
   }
 
   const canActivate = viewModel.onboarding.canActivate
@@ -616,9 +625,13 @@ function ActivationStepCard({ step, viewModel }: ActivationStepCardProps) {
             Le professionnel est activé et visible sur la plateforme.
           </div>
         ) : canActivate ? (
-          <Button onClick={handleActivate}>
-            <CheckCircle className="h-4 w-4" />
-            Activer le professionnel
+          <Button onClick={handleActivate} disabled={updateStatus.isPending}>
+            {updateStatus.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle className="h-4 w-4" />
+            )}
+            {updateStatus.isPending ? 'Activation...' : 'Activer le professionnel'}
           </Button>
         ) : (
           <p className="text-sm text-foreground-muted">

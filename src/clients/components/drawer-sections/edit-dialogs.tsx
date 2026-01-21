@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Pencil } from 'lucide-react'
 import { t } from '@/i18n'
 import { Button } from '@/shared/ui/button'
@@ -19,6 +19,7 @@ import { AddressAutocomplete } from '@/shared/components/address-autocomplete'
 import { SearchableSelect, type SearchableSelectOption } from '@/shared/components/searchable-select'
 import { ClientPickerDrawer } from '@/shared/components/client-picker-drawer'
 import type { ParsedAddress } from '@/shared/hooks/use-google-places'
+import { useClients } from '../../hooks'
 
 // =============================================================================
 // EDIT IDENTITY DIALOG
@@ -903,18 +904,7 @@ interface AddRelationDialogProps {
   excludeClientIds?: string[]
 }
 
-const RELATION_TYPES: RelationType[] = ['parent', 'child', 'spouse', 'sibling', 'guardian', 'other']
-
-// Mock clients for relation picker (in real app, this would be fetched)
-const MOCK_CLIENTS_FOR_PICKER = [
-  { clientId: 'CLI-0000001', firstName: 'Marie-Claire', lastName: 'Tremblay' },
-  { clientId: 'CLI-0000002', firstName: 'Jean-Philippe', lastName: 'Gagnon' },
-  { clientId: 'CLI-0000003', firstName: 'Sophie', lastName: 'Lavoie' },
-  { clientId: 'CLI-0000004', firstName: 'Pierre-Luc', lastName: 'Pelletier' },
-  { clientId: 'CLI-0000005', firstName: 'Isabelle', lastName: 'Côté' },
-  { clientId: 'CLI-0000006', firstName: 'François', lastName: 'Dubois' },
-  { clientId: 'CLI-0000007', firstName: 'Stéphane', lastName: 'Belanger' },
-]
+const RELATION_TYPES: RelationType[] = ['parent', 'child', 'spouse', 'sibling', 'guardian', 'ward', 'other']
 
 export function AddRelationDialog({ open, onOpenChange, onSave, excludeClientIds = [] }: AddRelationDialogProps) {
   const [selectedClientId, setSelectedClientId] = useState('')
@@ -923,16 +913,26 @@ export function AddRelationDialog({ open, onOpenChange, onSave, excludeClientIds
   const [notes, setNotes] = useState('')
   const [clientPickerOpen, setClientPickerOpen] = useState(false)
 
-  const availableClients = MOCK_CLIENTS_FOR_PICKER.filter(
-    (c) => !excludeClientIds.includes(c.clientId)
+  // Fetch clients from database
+  const { data: allClients = [] } = useClients({ status: 'active' })
+
+  // Filter out excluded clients and convert to options
+  // Note: excludeClientIds contains UUIDs (client.id), not client IDs (CLI-XXXXX)
+  const availableClients = useMemo(() =>
+    allClients.filter((c) => !excludeClientIds.includes(c.id)),
+    [allClients, excludeClientIds]
   )
 
   // Convert clients to SearchableSelect options
-  const clientOptions: SearchableSelectOption[] = availableClients.map((client) => ({
-    value: client.clientId,
-    label: `${client.firstName} ${client.lastName}`,
-    description: client.clientId,
-  }))
+  // Use UUID (client.id) as value since the API expects UUIDs
+  const clientOptions: SearchableSelectOption[] = useMemo(() =>
+    availableClients.map((client) => ({
+      value: client.id,
+      label: `${client.firstName} ${client.lastName}`,
+      description: client.clientId,
+    })),
+    [availableClients]
+  )
 
   // Convert relation types to SearchableSelect options
   const relationTypeOptions: SearchableSelectOption[] = RELATION_TYPES.map((type) => ({
@@ -949,10 +949,11 @@ export function AddRelationDialog({ open, onOpenChange, onSave, excludeClientIds
     }
   }, [open])
 
-  const handleClientSelect = (clientId: string) => {
-    const selectedClient = availableClients.find((c) => c.clientId === clientId)
+  const handleClientSelect = (id: string) => {
+    // id is the UUID (client.id), not the client ID (CLI-XXXXX)
+    const selectedClient = availableClients.find((c) => c.id === id)
     if (selectedClient) {
-      setSelectedClientId(clientId)
+      setSelectedClientId(id)
       setSelectedClientName(`${selectedClient.firstName} ${selectedClient.lastName}`)
     }
   }

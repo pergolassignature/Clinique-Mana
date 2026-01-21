@@ -14,8 +14,7 @@ import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Textarea } from '@/shared/ui/textarea'
-import { MOCK_PROFESSIONALS, MOCK_CLIENTS, MOCK_SERVICES } from '../mock'
-import type { Appointment, AppointmentFormData } from '../types'
+import type { Appointment, AppointmentFormData, Professional, BookableService, Client } from '../types'
 
 interface AppointmentDialogProps {
   open: boolean
@@ -28,6 +27,10 @@ interface AppointmentDialogProps {
     appointment?: Appointment
   }
   onSubmit: (data: AppointmentFormData) => void
+  /** Real data from database */
+  professionals: Professional[]
+  bookableServices: BookableService[]
+  clients: Client[]
 }
 
 interface FormErrors {
@@ -61,6 +64,9 @@ export function AppointmentDialog({
   mode,
   initialData,
   onSubmit,
+  professionals,
+  bookableServices,
+  clients,
 }: AppointmentDialogProps) {
   // Form state
   const [professionalId, setProfessionalId] = useState('')
@@ -104,7 +110,7 @@ export function AppointmentDialog({
   // Update duration when service changes
   const handleServiceChange = (newServiceId: string) => {
     setServiceId(newServiceId)
-    const service = MOCK_SERVICES.find((s) => s.id === newServiceId)
+    const service = bookableServices.find((s) => s.id === newServiceId)
     if (service) {
       setDurationMinutes(service.durationMinutes)
     }
@@ -186,7 +192,7 @@ export function AppointmentDialog({
               onChange={(e) => setProfessionalId(e.target.value)}
               placeholder="Sélectionner un professionnel"
             >
-              {MOCK_PROFESSIONALS.map((pro) => (
+              {professionals.map((pro) => (
                 <option key={pro.id} value={pro.id}>
                   {pro.displayName}
                 </option>
@@ -208,7 +214,7 @@ export function AppointmentDialog({
               onChange={(e) => setClientIds(e.target.value ? [e.target.value] : [])}
               placeholder="Sélectionner un client"
             >
-              {MOCK_CLIENTS.map((client) => (
+              {clients.map((client) => (
                 <option key={client.id} value={client.id}>
                   {client.firstName} {client.lastName}
                 </option>
@@ -230,7 +236,7 @@ export function AppointmentDialog({
               onChange={(e) => handleServiceChange(e.target.value)}
               placeholder="Sélectionner un service"
             >
-              {MOCK_SERVICES.map((service) => (
+              {bookableServices.map((service) => (
                 <option key={service.id} value={service.id}>
                   {service.nameFr} ({service.durationMinutes} min)
                 </option>

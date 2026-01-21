@@ -93,8 +93,8 @@ function ProfessionalCard({ professional }: { professional: ProfessionalListItem
         </span>
       </div>
 
-      {/* Pending invite indicator */}
-      {professional.has_pending_invite && (
+      {/* Pending invite indicator - only show if not already active */}
+      {professional.has_pending_invite && professional.status !== 'active' && (
         <div className="mt-3 flex items-center gap-1.5 text-xs text-honey-600">
           <Clock className="h-3.5 w-3.5" />
           {t('professionals.list.card.pendingInvite')}

@@ -17,21 +17,21 @@ import {
   CommandGroup,
   CommandItem,
 } from '@/shared/ui/command'
-import { MOCK_PROFESSIONALS } from '../mock'
+import type { Professional } from '../types'
 
 interface ProfessionalSelectorProps {
   selectedId: string | null
   onSelect: (id: string) => void
+  professionals: Professional[]
 }
 
 export function ProfessionalSelector({
   selectedId,
   onSelect,
+  professionals,
 }: ProfessionalSelectorProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-
-  const professionals = MOCK_PROFESSIONALS
 
   const selectedProfessional = useMemo(
     () => professionals.find((p) => p.id === selectedId),

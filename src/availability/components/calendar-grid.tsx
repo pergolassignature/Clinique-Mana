@@ -4,14 +4,13 @@ import { useMemo, useState, useCallback, type PointerEvent } from 'react'
 import { format, addDays, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { cn } from '@/shared/lib/utils'
-import type { Appointment, AvailabilityBlock, CalendarMode } from '../types'
+import type { Appointment, AvailabilityBlock, CalendarMode, BookableService, Client } from '../types'
 import type { DragPreview } from '../hooks/use-calendar-dnd'
 import { DroppableDayColumn } from '../dnd/droppable-day-column'
 import { DraggableCreateSlot } from '../dnd/draggable-create-slot'
 import { DraggableAvailability } from '../dnd/draggable-availability'
 import { DraggableAppointment } from '../dnd/draggable-appointment'
 import { NowLine } from './now-line'
-import { MOCK_BOOKABLE_SERVICES, MOCK_CLIENTS } from '../mock'
 import { minutesToPixel, DEFAULT_CONFIG, getMinutesFromPointer } from '../utils/time-grid'
 
 interface CalendarGridProps {
@@ -33,6 +32,9 @@ interface CalendarGridProps {
   /** Service drag highlighting - is a service being dragged from sidebar */
   isDraggingService?: boolean
   draggingServiceId?: string | null
+  /** Real data from database */
+  bookableServices: BookableService[]
+  clients: Client[]
 }
 
 const {
@@ -71,6 +73,8 @@ export function CalendarGrid({
   activeDragId,
   isDraggingService = false,
   draggingServiceId,
+  bookableServices,
+  clients,
 }: CalendarGridProps) {
   const [hoveredSlot, setHoveredSlot] = useState<{ dayIndex: number; minutes: number } | null>(null)
 
@@ -143,11 +147,11 @@ export function CalendarGrid({
 
   // Get service and clients for an appointment
   const getAppointmentDetails = (apt: Appointment) => {
-    const service = MOCK_BOOKABLE_SERVICES.find(s => s.id === apt.serviceId)
-    const clients = apt.clientIds
-      .map(id => MOCK_CLIENTS.find(c => c.id === id))
+    const service = bookableServices.find(s => s.id === apt.serviceId)
+    const aptClients = apt.clientIds
+      .map(id => clients.find(c => c.id === id))
       .filter(Boolean)
-    return { service, clients }
+    return { service, clients: aptClients }
   }
 
   const shouldShowAvailability =

@@ -55,6 +55,79 @@ export async function fetchActiveServices(): Promise<Service[]> {
   return (data || []).map(mapDbServiceToService)
 }
 
+/**
+ * Fetch active services that have prices for the specified profession categories.
+ * A service is available for a profession category if there's an active price entry for it.
+ *
+ * @param categoryKeys - Array of profession_category_key values
+ * @returns Services grouped by category key, plus a "common" array for services available to all categories
+ */
+export interface ServicesByCategory {
+  /** Services available for each category */
+  byCategory: Record<string, Service[]>
+  /** All unique services available across all provided categories */
+  all: Service[]
+}
+
+export async function fetchServicesForCategories(
+  categoryKeys: string[]
+): Promise<ServicesByCategory> {
+  if (categoryKeys.length === 0) {
+    return { byCategory: {}, all: [] }
+  }
+
+  // Fetch all active prices for these categories
+  const { data: prices, error: pricesError } = await supabase
+    .from('service_prices')
+    .select('service_id, profession_category_key')
+    .in('profession_category_key', categoryKeys)
+    .eq('is_active', true)
+
+  if (pricesError) throw pricesError
+
+  // Get unique service IDs
+  const serviceIds = [...new Set((prices || []).map((p) => p.service_id))]
+
+  if (serviceIds.length === 0) {
+    return { byCategory: {}, all: [] }
+  }
+
+  // Fetch the services
+  const { data: servicesData, error: servicesError } = await supabase
+    .from('services')
+    .select('*')
+    .in('id', serviceIds)
+    .eq('is_active', true)
+    .order('display_order')
+
+  if (servicesError) throw servicesError
+
+  const services = (servicesData || []).map(mapDbServiceToService)
+  const servicesById = new Map(services.map((s) => [s.id, s]))
+
+  // Group by category
+  const byCategory: Record<string, Service[]> = {}
+  for (const categoryKey of categoryKeys) {
+    byCategory[categoryKey] = []
+  }
+
+  for (const price of prices || []) {
+    const service = servicesById.get(price.service_id)
+    if (service && price.profession_category_key) {
+      if (!byCategory[price.profession_category_key]) {
+        byCategory[price.profession_category_key] = []
+      }
+      // Avoid duplicates
+      const categoryServices = byCategory[price.profession_category_key]
+      if (categoryServices && !categoryServices.some((s) => s.id === service.id)) {
+        categoryServices.push(service)
+      }
+    }
+  }
+
+  return { byCategory, all: services }
+}
+
 export async function fetchServiceById(id: string): Promise<Service | null> {
   const { data, error } = await supabase
     .from('services')

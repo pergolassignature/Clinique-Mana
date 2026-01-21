@@ -19,6 +19,7 @@ import {
   updateCategoryTaxIncluded,
   fetchProfessionCategoryRates,
   updateProfessionCategoryRate,
+  fetchServicesForCategories,
 } from './api'
 import type { CategoryPriceInput } from './api'
 import type { ServiceFormData } from './types'
@@ -65,6 +66,19 @@ export function useActiveServices() {
   return useQuery({
     queryKey: serviceKeys.list({ active: true }),
     queryFn: fetchActiveServices,
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
+/**
+ * Fetch active services available for specific profession categories.
+ * Returns services grouped by category key.
+ */
+export function useServicesForCategories(categoryKeys: string[]) {
+  return useQuery({
+    queryKey: [...serviceKeys.lists(), 'by-categories', categoryKeys.sort().join(',')] as const,
+    queryFn: () => fetchServicesForCategories(categoryKeys),
+    enabled: categoryKeys.length > 0,
     staleTime: 1000 * 60 * 5,
   })
 }

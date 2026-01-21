@@ -134,6 +134,7 @@ export function ClientsPage() {
         onClose={handleCloseDrawer}
         onArchive={handleArchive}
         onDelete={handleDelete}
+        onViewClient={handleRowClick}
       />
 
       {/* New Client Drawer */}

@@ -1,11 +1,14 @@
 // src/availability/components/calendar-sidebar.tsx
 
 import { useMemo } from 'react'
-import { format, isToday, isTomorrow, startOfDay } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { isToday, isTomorrow, startOfDay } from 'date-fns'
 import { cn } from '@/shared/lib/utils'
-import type { Appointment, CalendarViewMode } from '../types'
-import { MOCK_SERVICES, MOCK_CLIENTS } from '../mock'
+import {
+  formatInClinicTimezone,
+  toClinicTime,
+  getClinicDateString,
+} from '@/shared/lib/timezone'
+import type { Appointment, CalendarViewMode, BookableService, Client } from '../types'
 
 interface CalendarSidebarProps {
   appointments: Appointment[]
@@ -13,12 +16,15 @@ interface CalendarSidebarProps {
   viewMode: CalendarViewMode
   onViewModeChange: (mode: CalendarViewMode) => void
   onAppointmentClick: (appointment: Appointment) => void
+  /** Real data from database */
+  bookableServices: BookableService[]
+  clients: Client[]
 }
 
 function getDateLabel(date: Date): string {
   if (isToday(date)) return "Aujourd'hui"
   if (isTomorrow(date)) return 'Demain'
-  return format(date, 'EEEE d MMMM', { locale: fr })
+  return formatInClinicTimezone(date, 'EEEE d MMMM')
 }
 
 export function CalendarSidebar({
@@ -26,32 +32,34 @@ export function CalendarSidebar({
   viewMode,
   onViewModeChange,
   onAppointmentClick,
+  bookableServices,
+  clients,
 }: CalendarSidebarProps) {
   // Get upcoming appointments (today + next 7 days)
   const upcomingAppointments = useMemo(() => {
     const today = startOfDay(new Date())
     return appointments
       .filter(apt => {
-        const aptDate = new Date(apt.startTime)
+        const aptDate = toClinicTime(apt.startTime)
         return aptDate >= today && apt.status === 'confirmed'
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
       .slice(0, 10)
   }, [appointments])
 
-  // Group by day
+  // Group by day using clinic timezone
   const groupedByDay = useMemo(() => {
     const groups = new Map<string, Appointment[]>()
     upcomingAppointments.forEach(apt => {
-      const dayKey = format(new Date(apt.startTime), 'yyyy-MM-dd')
+      const dayKey = getClinicDateString(apt.startTime)
       if (!groups.has(dayKey)) groups.set(dayKey, [])
       groups.get(dayKey)!.push(apt)
     })
     return groups
   }, [upcomingAppointments])
 
-  const getService = (id: string) => MOCK_SERVICES.find(s => s.id === id)
-  const getClient = (id: string | undefined) => id ? MOCK_CLIENTS.find(c => c.id === id) : undefined
+  const getService = (id: string) => bookableServices.find(s => s.id === id)
+  const getClient = (id: string | undefined) => id ? clients.find(c => c.id === id) : undefined
 
   return (
     <aside className="w-72 border-r border-border bg-background-secondary/30 flex flex-col h-full">
@@ -112,7 +120,7 @@ export function CalendarSidebar({
                               {client ? `${client.firstName} ${client.lastName}` : 'Client'}
                             </div>
                             <div className="text-xs text-foreground-muted">
-                              {format(new Date(apt.startTime), 'HH:mm')} · {service?.nameFr}
+                              {formatInClinicTimezone(apt.startTime, 'HH:mm')} · {service?.nameFr}
                             </div>
                           </div>
                         </div>

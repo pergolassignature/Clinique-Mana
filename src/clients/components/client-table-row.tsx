@@ -1,6 +1,7 @@
-import { format, formatDistanceToNow } from 'date-fns'
+import { formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { t } from '@/i18n'
+import { formatClinicDateShort, toClinicTime } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
 import type { ClientListItem } from '../types'
@@ -14,12 +15,12 @@ interface ClientTableRowProps {
 export function ClientTableRow({ client, visibleColumns, onClick }: ClientTableRowProps) {
   const formatDate = (date: string | null) => {
     if (!date) return '—'
-    return format(new Date(date), 'dd MMM yyyy', { locale: fr })
+    return formatClinicDateShort(date)
   }
 
   const formatRelativeDate = (date: string | null) => {
     if (!date) return '—'
-    return formatDistanceToNow(new Date(date), { addSuffix: true, locale: fr })
+    return formatDistanceToNow(toClinicTime(date), { addSuffix: true, locale: fr })
   }
 
   const formatPhone = (phone: string | null) => {

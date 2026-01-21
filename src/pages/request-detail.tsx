@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -46,7 +46,7 @@ import {
   getBackNavigation,
   type DetailPageSearchParams,
 } from '@/shared/lib/navigation'
-import { useCreateDemande, useUpdateDemande } from '@/demandes'
+import { useCreateDemande, useUpdateDemande, useDemande } from '@/demandes'
 import type { CreateDemandeInput } from '@/demandes'
 
 type RequestStatus = 'toAnalyze' | 'assigned' | 'closed'
@@ -66,64 +66,6 @@ interface RequestParticipant {
   name: string
   role: ParticipantRole
   consent: ClientConsent
-}
-
-interface Request {
-  id: string
-  status: RequestStatus
-  demandType: DemandType | null
-  selectedMotifs: MotifKey[]
-  motifDescription: string
-  otherMotifText: string
-  createdAt: string
-  participants: RequestParticipant[]
-}
-
-// Empty draft request for new demandes
-const draftRequest: Request = {
-  id: 'nouvelle',
-  status: 'toAnalyze',
-  demandType: null,
-  selectedMotifs: [],
-  motifDescription: '',
-  otherMotifText: '',
-  createdAt: new Date().toISOString(),
-  participants: [],
-}
-
-// Mock data for demonstration - couple therapy scenario
-const mockRequest: Request = {
-  id: 'DEM-2024-0042',
-  status: 'toAnalyze',
-  demandType: 'couple',
-  selectedMotifs: ['relationships'],
-  motifDescription: '',
-  otherMotifText: '',
-  createdAt: '2024-01-15T10:30:00',
-  participants: [
-    {
-      id: 'part-1',
-      clientId: 'CLI-2024-0018',
-      name: 'Marie-Claire Dubois',
-      role: 'principal',
-      consent: {
-        status: 'valid',
-        version: '2.1',
-        signedDate: '2024-01-10',
-      },
-    },
-    {
-      id: 'part-2',
-      clientId: 'CLI-2024-0019',
-      name: 'François Dubois',
-      role: 'participant',
-      consent: {
-        status: 'expired',
-        version: '2.0',
-        signedDate: '2023-01-15',
-      },
-    },
-  ],
 }
 
 const consentStatusConfig: Record<
@@ -194,16 +136,14 @@ export function RequestDetailPage() {
 
   // Determine if this is a new/draft request
   const isDraft = requestId === 'nouvelle'
-  const initialRequest = isDraft ? draftRequest : mockRequest
+
+  // Fetch existing demande data
+  const { data: demandeData, isLoading: isLoadingDemande } = useDemande(isDraft ? undefined : requestId)
 
   // Client context state (motifs)
-  const [selectedMotifs, setSelectedMotifs] = useState<MotifKey[]>(
-    initialRequest.selectedMotifs
-  )
-  const [motifDescription, setMotifDescription] = useState(
-    initialRequest.motifDescription
-  )
-  const [otherMotifText, setOtherMotifText] = useState(initialRequest.otherMotifText)
+  const [selectedMotifs, setSelectedMotifs] = useState<MotifKey[]>([])
+  const [motifDescription, setMotifDescription] = useState('')
+  const [otherMotifText, setOtherMotifText] = useState('')
 
   // Intake questions state (client-stated, local state only)
   const [besoinRaison, setBesoinRaison] = useState('')
@@ -228,21 +168,69 @@ export function RequestDetailPage() {
   const [urgency, setUrgency] = useState('')
 
   // Participants state
-  const [participants, setParticipants] = useState<RequestParticipant[]>(
-    initialRequest.participants
-  )
+  const [participants, setParticipants] = useState<RequestParticipant[]>([])
   const [clientPickerOpen, setClientPickerOpen] = useState(false)
   const [participantToRemove, setParticipantToRemove] = useState<RequestParticipant | null>(null)
 
   // Demand type state
-  const [demandType, setDemandType] = useState<DemandType | null>(initialRequest.demandType)
+  const [demandType, setDemandType] = useState<DemandType | null>(null)
+
+  // Track if we've initialized from fetched data
+  const [hasInitialized, setHasInitialized] = useState(false)
 
   // Mutations
   const createDemande = useCreateDemande()
   const updateDemande = useUpdateDemande()
 
-  const request = initialRequest
-  const statusInfo = statusConfig[request.status]
+  // Populate form state when demande data loads
+  useEffect(() => {
+    if (demandeData && !hasInitialized) {
+      // Motifs
+      setSelectedMotifs(demandeData.selectedMotifs as MotifKey[])
+      setMotifDescription(demandeData.motifDescription)
+      setOtherMotifText(demandeData.otherMotifText)
+
+      // Demand type
+      setDemandType(demandeData.demandType)
+
+      // Intake fields
+      setBesoinRaison(demandeData.besoinRaison)
+      setEnjeuxHasIssues(demandeData.enjeuxHasIssues || '')
+      setEnjeuxDemarche(demandeData.enjeuxDemarche)
+      setEnjeuxComment(demandeData.enjeuxComment)
+      setDiagnosticStatus(demandeData.diagnosticStatus || '')
+      setDiagnosticDetail(demandeData.diagnosticDetail)
+      setHasConsulted(demandeData.hasConsulted || '')
+      setConsultationsPrevious(demandeData.consultationsPrevious)
+      setConsultationsComment(demandeData.consultationsComment)
+      setHasLegalContext(demandeData.hasLegalContext || '')
+      setLegalContext(demandeData.legalContext)
+      setLegalContextDetail(demandeData.legalContextDetail)
+
+      // Internal evaluation
+      setNotes(demandeData.notes)
+      setUrgency(demandeData.urgency || '')
+
+      // Participants - map from API format to component format
+      setParticipants(demandeData.participants.map(p => ({
+        id: p.id,
+        clientId: p.clientId,
+        name: p.clientName,
+        role: p.role,
+        consent: {
+          status: p.consentStatus,
+          version: p.consentVersion || undefined,
+          signedDate: p.consentSignedAt || undefined,
+        },
+      })))
+
+      setHasInitialized(true)
+    }
+  }, [demandeData, hasInitialized])
+
+  // Compute request status info
+  const requestStatus: RequestStatus = demandeData?.status || 'toAnalyze'
+  const statusInfo = statusConfig[requestStatus]
 
   // Get demand type config for validation
   const typeConfig = demandType ? demandTypeConfig[demandType] : null
@@ -256,7 +244,7 @@ export function RequestDetailPage() {
   // Check if can add more participants based on type
   const canAddMoreParticipants =
     demandType !== null &&
-    request.status !== 'closed' &&
+    requestStatus !== 'closed' &&
     demandType !== 'group' &&
     typeConfig !== null &&
     (typeConfig.maxParticipants === null || participants.length < typeConfig.maxParticipants)
@@ -271,8 +259,8 @@ export function RequestDetailPage() {
   )
   const allConsentsValid = participantsWithInvalidConsent.length === 0
 
-  const canAnalyze = request.status === 'toAnalyze'
-  const canClose = request.status !== 'closed'
+  const canAnalyze = requestStatus === 'toAnalyze'
+  const canClose = requestStatus !== 'closed'
 
   // Get participant validation state - always returns the same rule message, only state changes
   const getParticipantValidationState = (): { message: string; state: 'info' | 'warning' | 'valid' } | null => {
@@ -379,6 +367,18 @@ export function RequestDetailPage() {
     setParticipantToRemove(null)
   }
 
+  // Show loading state while fetching existing demande
+  if (!isDraft && isLoadingDemande) {
+    return (
+      <div className="min-h-full flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-sage-500" />
+          <p className="text-sm text-foreground-muted">Chargement de la demande...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-full">
       {/* Sticky Header */}
@@ -426,7 +426,7 @@ export function RequestDetailPage() {
                         ? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100'
                         : 'border-honey-300 bg-honey-50 text-honey-700 hover:bg-honey-100'
                     )}
-                    disabled={request.status === 'closed'}
+                    disabled={requestStatus === 'closed'}
                   >
                     {demandType === 'individual' && <User className="h-3.5 w-3.5" />}
                     {demandType === 'couple' && <Heart className="h-3.5 w-3.5" />}
@@ -509,8 +509,8 @@ export function RequestDetailPage() {
               )}
             </p>
             {/* Request ID - only show for existing requests */}
-            {!isDraft && (
-              <p className="text-xs text-foreground-muted font-mono">{request.id}</p>
+            {!isDraft && demandeData && (
+              <p className="text-xs text-foreground-muted font-mono">{demandeData.demandeId}</p>
             )}
           </div>
 
@@ -649,7 +649,7 @@ export function RequestDetailPage() {
                 onDescriptionChange={setMotifDescription}
                 otherText={otherMotifText}
                 onOtherTextChange={setOtherMotifText}
-                readOnly={request.status === 'closed'}
+                readOnly={requestStatus === 'closed'}
               />
             </div>
 
@@ -667,7 +667,7 @@ export function RequestDetailPage() {
                   value={besoinRaison}
                   onChange={(e) => setBesoinRaison(e.target.value)}
                   placeholder={t('pages.requestDetail.motifs.intake.besoin.placeholder')}
-                  disabled={request.status === 'closed'}
+                  disabled={requestStatus === 'closed'}
                   className="min-h-[100px]"
                 />
                 <p className="text-xs text-foreground-muted">
@@ -689,20 +689,20 @@ export function RequestDetailPage() {
                         key={option}
                         type="button"
                         onClick={() => {
-                          if (request.status === 'closed') return
+                          if (requestStatus === 'closed') return
                           setEnjeuxHasIssues(option)
                           if (option === 'no') {
                             setEnjeuxDemarche([])
                             setEnjeuxComment('')
                           }
                         }}
-                        disabled={request.status === 'closed'}
+                        disabled={requestStatus === 'closed'}
                         className={cn(
                           'px-3 py-1.5 text-sm rounded-full border transition-all',
                           isSelected
                             ? 'bg-sage-100 border-sage-300 text-sage-700'
                             : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
-                          request.status === 'closed' && 'opacity-50 cursor-not-allowed'
+                          requestStatus === 'closed' && 'opacity-50 cursor-not-allowed'
                         )}
                       >
                         {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
@@ -729,20 +729,20 @@ export function RequestDetailPage() {
                               key={option}
                               type="button"
                               onClick={() => {
-                                if (request.status === 'closed') return
+                                if (requestStatus === 'closed') return
                                 if (isSelected) {
                                   setEnjeuxDemarche(enjeuxDemarche.filter((e) => e !== option))
                                 } else {
                                   setEnjeuxDemarche([...enjeuxDemarche, option])
                                 }
                               }}
-                              disabled={request.status === 'closed'}
+                              disabled={requestStatus === 'closed'}
                               className={cn(
                                 'px-3 py-1.5 text-sm rounded-full border transition-all',
                                 isSelected
                                   ? 'bg-sage-100 border-sage-300 text-sage-700'
                                   : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
-                                request.status === 'closed' && 'opacity-50 cursor-not-allowed'
+                                requestStatus === 'closed' && 'opacity-50 cursor-not-allowed'
                               )}
                             >
                               {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
@@ -762,7 +762,7 @@ export function RequestDetailPage() {
                             value={enjeuxComment}
                             onChange={(e) => setEnjeuxComment(e.target.value)}
                             placeholder={t('pages.requestDetail.motifs.intake.enjeux.commentInput.placeholder')}
-                            disabled={request.status === 'closed'}
+                            disabled={requestStatus === 'closed'}
                             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-sage-500/30 focus:border-sage-300 disabled:opacity-50"
                           />
                         </div>
@@ -788,17 +788,17 @@ export function RequestDetailPage() {
                         key={option}
                         type="button"
                         onClick={() => {
-                          if (request.status === 'closed') return
+                          if (requestStatus === 'closed') return
                           setDiagnosticStatus(option)
                           if (option === 'no') setDiagnosticDetail('')
                         }}
-                        disabled={request.status === 'closed'}
+                        disabled={requestStatus === 'closed'}
                         className={cn(
                           'px-3 py-1.5 text-sm rounded-full border transition-all',
                           isSelected
                             ? 'bg-sage-100 border-sage-300 text-sage-700'
                             : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
-                          request.status === 'closed' && 'opacity-50 cursor-not-allowed'
+                          requestStatus === 'closed' && 'opacity-50 cursor-not-allowed'
                         )}
                       >
                         {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
@@ -825,7 +825,7 @@ export function RequestDetailPage() {
                         value={diagnosticDetail}
                         onChange={(e) => setDiagnosticDetail(e.target.value)}
                         placeholder={t('pages.requestDetail.motifs.intake.diagnostic.detailInput.placeholder')}
-                        disabled={request.status === 'closed'}
+                        disabled={requestStatus === 'closed'}
                         className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-sage-500/30 focus:border-sage-300 disabled:opacity-50"
                       />
                     </motion.div>
@@ -851,20 +851,20 @@ export function RequestDetailPage() {
                         key={option}
                         type="button"
                         onClick={() => {
-                          if (request.status === 'closed') return
+                          if (requestStatus === 'closed') return
                           setHasConsulted(option)
                           if (option === 'no') {
                             setConsultationsPrevious([])
                             setConsultationsComment('')
                           }
                         }}
-                        disabled={request.status === 'closed'}
+                        disabled={requestStatus === 'closed'}
                         className={cn(
                           'px-3 py-1.5 text-sm rounded-full border transition-all',
                           isSelected
                             ? 'bg-sage-100 border-sage-300 text-sage-700'
                             : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
-                          request.status === 'closed' && 'opacity-50 cursor-not-allowed'
+                          requestStatus === 'closed' && 'opacity-50 cursor-not-allowed'
                         )}
                       >
                         {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
@@ -891,20 +891,20 @@ export function RequestDetailPage() {
                               key={option}
                               type="button"
                               onClick={() => {
-                                if (request.status === 'closed') return
+                                if (requestStatus === 'closed') return
                                 if (isSelected) {
                                   setConsultationsPrevious(consultationsPrevious.filter((c) => c !== option))
                                 } else {
                                   setConsultationsPrevious([...consultationsPrevious, option])
                                 }
                               }}
-                              disabled={request.status === 'closed'}
+                              disabled={requestStatus === 'closed'}
                               className={cn(
                                 'px-3 py-1.5 text-sm rounded-full border transition-all',
                                 isSelected
                                   ? 'bg-sage-100 border-sage-300 text-sage-700'
                                   : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
-                                request.status === 'closed' && 'opacity-50 cursor-not-allowed'
+                                requestStatus === 'closed' && 'opacity-50 cursor-not-allowed'
                               )}
                             >
                               {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
@@ -924,7 +924,7 @@ export function RequestDetailPage() {
                             value={consultationsComment}
                             onChange={(e) => setConsultationsComment(e.target.value)}
                             placeholder={t('pages.requestDetail.motifs.intake.consultations.commentInput.placeholder')}
-                            disabled={request.status === 'closed'}
+                            disabled={requestStatus === 'closed'}
                             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-sage-500/30 focus:border-sage-300 disabled:opacity-50"
                           />
                         </div>
@@ -948,20 +948,20 @@ export function RequestDetailPage() {
                         key={option}
                         type="button"
                         onClick={() => {
-                          if (request.status === 'closed') return
+                          if (requestStatus === 'closed') return
                           setHasLegalContext(option)
                           if (option === 'no') {
                             setLegalContext([])
                             setLegalContextDetail('')
                           }
                         }}
-                        disabled={request.status === 'closed'}
+                        disabled={requestStatus === 'closed'}
                         className={cn(
                           'px-3 py-1.5 text-sm rounded-full border transition-all',
                           isSelected
                             ? 'bg-sage-100 border-sage-300 text-sage-700'
                             : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
-                          request.status === 'closed' && 'opacity-50 cursor-not-allowed'
+                          requestStatus === 'closed' && 'opacity-50 cursor-not-allowed'
                         )}
                       >
                         {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
@@ -988,20 +988,20 @@ export function RequestDetailPage() {
                               key={option}
                               type="button"
                               onClick={() => {
-                                if (request.status === 'closed') return
+                                if (requestStatus === 'closed') return
                                 if (isSelected) {
                                   setLegalContext(legalContext.filter((c) => c !== option))
                                 } else {
                                   setLegalContext([...legalContext, option])
                                 }
                               }}
-                              disabled={request.status === 'closed'}
+                              disabled={requestStatus === 'closed'}
                               className={cn(
                                 'px-3 py-1.5 text-sm rounded-full border transition-all',
                                 isSelected
                                   ? 'bg-sage-100 border-sage-300 text-sage-700'
                                   : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
-                                request.status === 'closed' && 'opacity-50 cursor-not-allowed'
+                                requestStatus === 'closed' && 'opacity-50 cursor-not-allowed'
                               )}
                             >
                               {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
@@ -1019,7 +1019,7 @@ export function RequestDetailPage() {
                           <Textarea
                             value={legalContextDetail}
                             onChange={(e) => setLegalContextDetail(e.target.value)}
-                            disabled={request.status === 'closed'}
+                            disabled={requestStatus === 'closed'}
                             className="min-h-[80px]"
                           />
                           <p className="text-xs text-foreground-muted">
@@ -1187,7 +1187,7 @@ export function RequestDetailPage() {
                           >
                             <ExternalLink className="h-4 w-4" />
                           </Link>
-                          {request.status === 'toAnalyze' && (
+                          {requestStatus === 'toAnalyze' && (
                             <button
                               onClick={() => handleRemoveParticipant(participant)}
                               className="p-1.5 rounded-lg text-foreground-muted hover:text-foreground-secondary hover:bg-background-tertiary transition-colors"

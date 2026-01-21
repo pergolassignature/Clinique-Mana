@@ -4,10 +4,9 @@ import { useMemo } from 'react'
 import { format, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { cn } from '@/shared/lib/utils'
-import type { Appointment } from '../types'
+import type { Appointment, BookableService, Client } from '../types'
 import { AppointmentBlock } from './appointment-block'
 import { NowLine } from './now-line'
-import { MOCK_SERVICES, MOCK_CLIENTS } from '../mock'
 
 interface DayViewProps {
   date: Date
@@ -21,6 +20,9 @@ interface DayViewProps {
   onPointerUp?: (e: React.PointerEvent) => void
   createPreview?: { top: number; height: number; dayIndex: number } | null
   isDragging?: boolean
+  /** Real data from database */
+  bookableServices: BookableService[]
+  clients: Client[]
 }
 
 // Time range: 06:00 to 22:00 in 30-minute intervals
@@ -52,6 +54,8 @@ export function DayView({
   onPointerUp,
   createPreview,
   isDragging = false,
+  bookableServices,
+  clients,
 }: DayViewProps) {
   // Filter appointments for the given date only
   const dayAppointments = useMemo(() => {
@@ -73,9 +77,9 @@ export function DayView({
 
   // Get service and clients for an appointment
   const getAppointmentDetails = (apt: Appointment) => {
-    const service = MOCK_SERVICES.find(s => s.id === apt.serviceId)
-    const clients = apt.clientIds.map(id => MOCK_CLIENTS.find(c => c.id === id))
-    return { service, clients }
+    const service = bookableServices.find(s => s.id === apt.serviceId)
+    const aptClients = apt.clientIds.map(id => clients.find(c => c.id === id))
+    return { service, clients: aptClients }
   }
 
   const isTodayDate = isToday(date)

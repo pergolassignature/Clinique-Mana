@@ -37,11 +37,17 @@ export async function fetchClinicSettings(): Promise<ClinicSettings | null> {
 export async function updateClinicSettings(
   input: UpdateClinicSettingsInput
 ): Promise<ClinicSettings> {
+  const updates: Record<string, unknown> = {}
+  if (input.ivac_provider_number !== undefined) {
+    updates.ivac_provider_number = input.ivac_provider_number
+  }
+  if (input.timezone !== undefined) {
+    updates.timezone = input.timezone
+  }
+
   const { data, error } = await supabase
     .from('clinic_settings')
-    .update({
-      ivac_provider_number: input.ivac_provider_number,
-    })
+    .update(updates)
     .eq('id', CLINIC_SETTINGS_ID)
     .select()
     .single()

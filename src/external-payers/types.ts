@@ -32,6 +32,7 @@ export type PAECoverageRuleType = z.infer<typeof PAECoverageRuleType>
 export const ClinicSettingsSchema = z.object({
   id: z.string().uuid(),
   ivac_provider_number: z.string().nullable(),
+  timezone: z.string().default('America/Toronto'),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 })
@@ -209,6 +210,7 @@ export type UpdatePaePayerInput = z.infer<typeof UpdatePaePayerInputSchema>
 
 export const UpdateClinicSettingsInputSchema = z.object({
   ivac_provider_number: z.string().nullable().optional(),
+  timezone: z.string().optional(),
 })
 export type UpdateClinicSettingsInput = z.infer<typeof UpdateClinicSettingsInputSchema>
 

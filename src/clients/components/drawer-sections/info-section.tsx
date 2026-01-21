@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { User, Phone, MapPin, Briefcase } from 'lucide-react'
-import { format, differenceInYears } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { differenceInYears } from 'date-fns'
 import { t } from '@/i18n'
+import { formatInClinicTimezone, toClinicTime } from '@/shared/lib/timezone'
 import { AccordionItem, AccordionTrigger, AccordionContent } from '@/shared/ui/accordion'
 import type { ClientWithRelations } from '../../types'
 import {
@@ -33,12 +33,13 @@ export function InfoSection({ client, onUpdate }: InfoSectionProps) {
 
   const formatDate = (date: string | null) => {
     if (!date) return '—'
-    return format(new Date(date), 'dd MMMM yyyy', { locale: fr })
+    return formatInClinicTimezone(date, 'dd MMMM yyyy')
   }
 
   const calculateAge = (birthDate: string | null) => {
     if (!birthDate) return null
-    return differenceInYears(new Date(), new Date(birthDate))
+    // Use clinic timezone for consistent age calculation
+    return differenceInYears(new Date(), toClinicTime(birthDate))
   }
 
   const formatPhone = (countryCode: string, phone: string | null, extension?: string | null) => {

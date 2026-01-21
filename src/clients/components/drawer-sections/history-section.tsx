@@ -13,6 +13,7 @@ import {
   StickyNote,
   Tag,
   Briefcase,
+  Users,
 } from 'lucide-react'
 import { t } from '@/i18n'
 import { AccordionItem, AccordionTrigger, AccordionContent } from '@/shared/ui/accordion'
@@ -27,8 +28,8 @@ import type { ClientWithRelations } from '../../types'
 export interface ClientAuditEntry {
   id: string
   clientId: string
-  action: 'create' | 'update' | 'delete' | 'add' | 'remove' | 'created' | 'updated' | 'archived' | 'unarchived' | 'deleted'
-  entity: 'client' | 'note' | 'consent' | 'tag' | 'professional'
+  action: 'create' | 'update' | 'delete' | 'add' | 'remove' | 'created' | 'updated' | 'archived' | 'unarchived' | 'deleted' | 'relation_added' | 'relation_updated' | 'relation_removed'
+  entity: 'client' | 'note' | 'consent' | 'tag' | 'professional' | 'relation'
   field?: string
   oldValue?: Record<string, unknown> | null
   newValue?: Record<string, unknown> | null
@@ -129,6 +130,8 @@ function getActionIcon(entry: ClientAuditEntry) {
       return <Tag className="h-3.5 w-3.5" />
     case 'professional':
       return <Briefcase className="h-3.5 w-3.5" />
+    case 'relation':
+      return <Users className="h-3.5 w-3.5" />
     default:
       if (entry.action === 'create' || entry.action === 'created') return <Plus className="h-3.5 w-3.5" />
       if (entry.action === 'delete' || entry.action === 'deleted') return <Trash2 className="h-3.5 w-3.5" />
@@ -141,14 +144,18 @@ function getActionColor(entry: ClientAuditEntry): string {
     case 'create':
     case 'created':
     case 'add':
+    case 'relation_added':
       return 'bg-sage-100 text-sage-600'
     case 'delete':
     case 'deleted':
     case 'remove':
     case 'archived':
+    case 'relation_removed':
       return 'bg-wine-100 text-wine-600'
     case 'unarchived':
       return 'bg-sage-100 text-sage-600'
+    case 'relation_updated':
+      return 'bg-background-secondary text-foreground-muted'
     default:
       return 'bg-background-secondary text-foreground-muted'
   }
@@ -213,12 +220,40 @@ function getActionLabel(entry: ClientAuditEntry): string {
         case 'tag': return 'Tag retiré'
         default: return 'Élément supprimé'
       }
+    case 'relation_added':
+      return 'Relation ajoutée'
+    case 'relation_updated':
+      return 'Relation modifiée'
+    case 'relation_removed':
+      return 'Relation retirée'
     default:
       return 'Modification'
   }
 }
 
+const relationTypeLabels: Record<string, string> = {
+  parent: 'Parent',
+  child: 'Enfant',
+  spouse: 'Conjoint(e)',
+  sibling: 'Frère/Sœur',
+  guardian: 'Tuteur/Tutrice',
+  ward: 'Sous tutelle',
+  other: 'Autre',
+}
+
 function getChangeDescription(entry: ClientAuditEntry): string | null {
+  // Handle relation changes specially
+  if (entry.entity === 'relation') {
+    const data = entry.newValue || entry.oldValue
+    if (data && typeof data === 'object') {
+      const relatedName = data.related_client_name as string
+      const relationType = data.relation_type as string
+      const typeLabel = relationTypeLabels[relationType] || relationType
+      return `${relatedName} (${typeLabel})`
+    }
+    return null
+  }
+
   if (entry.oldValue && entry.newValue && typeof entry.oldValue === 'object') {
     // Find changed fields and show old -> new
     const changes: string[] = []

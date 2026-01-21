@@ -22,6 +22,7 @@ export interface Client {
   dateOfBirth?: string
   email?: string
   phone?: string
+  primaryProfessionalId?: string
 }
 
 // =============================================================================

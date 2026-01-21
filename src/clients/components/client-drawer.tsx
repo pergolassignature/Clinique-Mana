@@ -21,6 +21,7 @@ interface ClientDrawerProps {
   onClose: () => void
   onArchive?: (clientId: string) => void
   onDelete?: (clientId: string) => void
+  onViewClient?: (clientId: string) => void
 }
 
 export function ClientDrawer({
@@ -29,6 +30,7 @@ export function ClientDrawer({
   onClose,
   onArchive,
   onDelete,
+  onViewClient,
 }: ClientDrawerProps) {
   const { data: client, isLoading } = useClient(clientId || undefined)
   const updateClient = useUpdateClient()
@@ -88,7 +90,7 @@ export function ClientDrawer({
               >
                 <InfoSection client={client} onUpdate={handleUpdate} />
                 <ExternalPayersSection client={client} />
-                <RelationsSection client={client} />
+                <RelationsSection client={client} onViewClient={onViewClient} />
                 <VisitsSection client={client} />
                 <NotesSection client={client} />
                 <ConsentsSection client={client} />

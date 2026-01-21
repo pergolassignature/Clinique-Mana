@@ -657,9 +657,23 @@ export interface SubmitQuestionnaireAnonInput {
  *
  * For anon users: pass existing_submission_id if a draft was previously saved.
  * This upgrades the draft to 'submitted' status.
+ * Also marks the associated invite as 'completed'.
  */
 export async function submitQuestionnaire(input: SubmitQuestionnaireAnonInput): Promise<QuestionnaireSubmission> {
   const now = new Date().toISOString()
+
+  // Helper to mark invite as completed
+  const markInviteCompleted = async () => {
+    if (input.invite_id) {
+      await supabase
+        .from('professional_onboarding_invites')
+        .update({
+          status: 'completed',
+          completed_at: now,
+        })
+        .eq('id', input.invite_id)
+    }
+  }
 
   if (input.existing_submission_id) {
     // Upgrade existing draft to submitted
@@ -680,6 +694,7 @@ export async function submitQuestionnaire(input: SubmitQuestionnaireAnonInput): 
       // If update failed, fall through to insert
       console.warn('Draft upgrade failed, creating new submission:', error.message)
     } else if (data) {
+      await markInviteCompleted()
       return data
     }
   }
@@ -698,6 +713,8 @@ export async function submitQuestionnaire(input: SubmitQuestionnaireAnonInput): 
     .single()
 
   if (error) throw error
+
+  await markInviteCompleted()
   return data
 }
 
@@ -812,9 +829,14 @@ export interface ApplyQuestionnaireInput {
     portrait_approach?: string | null
     public_email?: string | null
     public_phone?: string | null
-    license_number?: string | null
     years_experience?: number | null
   }
+  // Professions info (creates professional_professions records, max 2)
+  professions?: Array<{
+    profession_title_key: string
+    license_number: string
+    is_primary: boolean
+  }>
   // Specialty codes to set (will replace existing)
   specialty_codes?: string[]
   // Motif keys to set (will replace existing)
@@ -854,13 +876,18 @@ export async function applyQuestionnaireToProfile(input: ApplyQuestionnaireInput
       portrait_approach,
       public_email,
       public_phone,
-      license_number,
       years_experience
     `)
     .eq('id', input.professional_id)
     .single()
 
   if (fetchError) throw fetchError
+
+  // 1b. Fetch existing professions for BEFORE snapshot
+  const { data: beforeProfessions } = await supabase
+    .from('professional_professions')
+    .select('profession_title_key, license_number, is_primary')
+    .eq('professional_id', input.professional_id)
 
   // 2. Fetch existing specialties for BEFORE snapshot
   const { data: beforeSpecialties, error: beforeSpecError } = await supabase
@@ -917,6 +944,34 @@ export async function applyQuestionnaireToProfile(input: ApplyQuestionnaireInput
       .eq('id', input.professional_id)
 
     if (updateError) throw updateError
+  }
+
+  // 4b. Replace professions if provided (supports up to 2)
+  if (input.professions && input.professions.length > 0) {
+    // Delete existing professions for this professional (replace strategy)
+    const { error: deleteProfError } = await supabase
+      .from('professional_professions')
+      .delete()
+      .eq('professional_id', input.professional_id)
+
+    if (deleteProfError) throw deleteProfError
+
+    // Ensure exactly one is primary
+    const hasPrimary = input.professions.some(p => p.is_primary)
+    const professionsToInsert = input.professions.map((p, i) => ({
+      professional_id: input.professional_id,
+      profession_title_key: p.profession_title_key,
+      license_number: p.license_number,
+      is_primary: hasPrimary ? p.is_primary : i === 0,
+    }))
+
+    // Insert new professions
+    const { error: insertProfError } = await supabase
+      .from('professional_professions')
+      .insert(professionsToInsert)
+
+    if (insertProfError) throw insertProfError
+    fieldsUpdated.push('professions')
   }
 
   // 5. Replace specialties if provided
@@ -1006,6 +1061,7 @@ export async function applyQuestionnaireToProfile(input: ApplyQuestionnaireInput
   // 7. Build AFTER snapshot
   const afterSnapshot = {
     ...filteredUpdates,
+    professions: input.professions || [],
     specialty_codes: input.specialty_codes || [],
     motif_keys: input.motif_keys || [],
   }
@@ -1024,8 +1080,8 @@ export async function applyQuestionnaireToProfile(input: ApplyQuestionnaireInput
         portrait_approach: beforeProfessional?.portrait_approach,
         public_email: beforeProfessional?.public_email,
         public_phone: beforeProfessional?.public_phone,
-        license_number: beforeProfessional?.license_number,
         years_experience: beforeProfessional?.years_experience,
+        professions: beforeProfessions || [],
         specialty_codes: beforeSpecialtyCodes,
         motif_keys: beforeMotifKeys,
       },

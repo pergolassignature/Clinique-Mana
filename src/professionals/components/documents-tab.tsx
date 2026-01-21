@@ -20,6 +20,7 @@ import {
   Info,
 } from 'lucide-react'
 import { t } from '@/i18n'
+import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { supabase } from '@/lib/supabaseClient'
 import type {
   ProfessionalWithRelations,
@@ -87,11 +88,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('fr-CA', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
+  return formatClinicDateShort(dateStr)
 }
 
 function formatFileSize(bytes: number | null | undefined): string {

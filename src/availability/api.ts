@@ -593,6 +593,69 @@ export async function updateClientAttendance(
 }
 
 // =============================================================================
+// CLIENT APPOINTMENTS (for client drawer visits section)
+// =============================================================================
+
+export interface ClientAppointmentInfo {
+  id: string
+  startTime: string
+  durationMinutes: number
+  status: AppointmentStatus
+  serviceName: string
+  professionalName: string
+}
+
+export async function fetchClientAppointments(
+  clientId: string
+): Promise<ClientAppointmentInfo[]> {
+  // Find all appointments that include this client
+  const { data: appointmentClients, error: acError } = await supabase
+    .from('appointment_clients')
+    .select('appointment_id')
+    .eq('client_id', clientId)
+
+  if (acError) throw acError
+  if (!appointmentClients || appointmentClients.length === 0) return []
+
+  const appointmentIds = appointmentClients.map(ac => ac.appointment_id)
+
+  // Fetch appointment details with service and professional info
+  const { data: appointments, error: aptError } = await supabase
+    .from('appointments')
+    .select(`
+      id,
+      start_time,
+      duration_minutes,
+      status,
+      services:service_id (
+        name_fr
+      ),
+      professionals:professional_id (
+        profiles:profile_id (
+          display_name
+        )
+      )
+    `)
+    .in('id', appointmentIds)
+    .order('start_time', { ascending: false })
+
+  if (aptError) throw aptError
+
+  return (appointments || []).map(apt => {
+    const service = apt.services as unknown as { name_fr: string } | null
+    const professional = apt.professionals as unknown as { profiles: { display_name: string } | null } | null
+    return {
+      id: apt.id,
+      startTime: apt.start_time,
+      durationMinutes: apt.duration_minutes,
+      status: apt.status as AppointmentStatus,
+      serviceName: service?.name_fr || 'Service inconnu',
+      professionalName: professional?.profiles?.display_name || 'Professionnel inconnu',
+    }
+  })
+}
+
+// =============================================================================
 // AUDIT LOG
 // =============================================================================
 

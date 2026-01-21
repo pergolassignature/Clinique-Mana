@@ -19,9 +19,13 @@ import {
   FileSignature,
   Upload,
   Eye,
+  Plus,
+  Trash2,
+  Star,
 } from 'lucide-react'
 import { Logo } from '@/assets/logo'
 import { t } from '@/i18n'
+import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Badge } from '@/shared/ui/badge'
@@ -32,10 +36,11 @@ import {
   submitQuestionnaire,
   saveDraftQuestionnaire,
   fetchSpecialtiesByCategory,
+  fetchProfessionTitles,
   uploadDocumentAnon,
   getDocumentPreviewUrl,
 } from '@/professionals/api'
-import type { OnboardingInvite, Specialty, QuestionnaireResponses, UploadInfo, ImageRightsConsent } from '@/professionals'
+import type { OnboardingInvite, Specialty, QuestionnaireResponses, UploadInfo, ImageRightsConsent, ProfessionTitle, QuestionnaireProfession } from '@/professionals'
 import { MotifPicker } from '@/shared/components/motif-picker'
 import { MotifDisclaimerBanner } from '@/motifs'
 
@@ -182,6 +187,7 @@ export function InvitePage() {
   const [invite, setInvite] = useState<OnboardingInvite | null>(null)
   const [displayName, setDisplayName] = useState<string>('')
   const [specialtiesByCategory, setSpecialtiesByCategory] = useState<Record<string, Specialty[]>>({})
+  const [professionTitles, setProfessionTitles] = useState<ProfessionTitle[]>([])
   const [currentStep, setCurrentStep] = useState<FormStep>('personal')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -205,6 +211,10 @@ export function InvitePage() {
   const [consentRead, setConsentRead] = useState(false)
   const [consentSignature, setConsentSignature] = useState('')
 
+  // New profession form state (for adding professions in Step 2)
+  const [newProfessionTitle, setNewProfessionTitle] = useState('')
+  const [newProfessionLicense, setNewProfessionLicense] = useState('')
+
   // File input refs
   const photoInputRef = useRef<HTMLInputElement>(null)
   const insuranceInputRef = useRef<HTMLInputElement>(null)
@@ -214,8 +224,7 @@ export function InvitePage() {
     // Default empty form
     return {
       full_name: '',
-      title: '',
-      license_number: '',
+      professions: [],
       years_experience: undefined,
       bio: '',
       approach: '',
@@ -237,9 +246,10 @@ export function InvitePage() {
       }
 
       try {
-        const [inviteResult, specialties] = await Promise.all([
+        const [inviteResult, specialties, titles] = await Promise.all([
           fetchInviteWithSubmissionByToken(token),
           fetchSpecialtiesByCategory(),
+          fetchProfessionTitles(),
         ])
 
         if (!inviteResult) {
@@ -298,6 +308,7 @@ export function InvitePage() {
         setInvite(inviteData)
         setDisplayName(inviteResult.displayName)
         setSpecialtiesByCategory(specialties)
+        setProfessionTitles(titles)
 
         // Pre-populate full_name from profile if not already saved in draft
         if (!savedDraft) {
@@ -664,9 +675,13 @@ export function InvitePage() {
 
   // Validation per step
   const stepValidation = useMemo(() => {
+    // At least one profession with both title and license is required
+    const hasValidProfession = (formData.professions?.length || 0) > 0 &&
+      formData.professions?.every(p => p.profession_title_key && p.license_number?.trim())
+
     return {
       personal: Boolean(formData.full_name?.trim()),
-      professional: Boolean(formData.title?.trim()),
+      professional: Boolean(hasValidProfession),
       portrait: Boolean(formData.bio?.trim()),
       specialties: true, // Optional
       motifs: true, // Optional
@@ -679,9 +694,12 @@ export function InvitePage() {
 
   // Check if all required fields are complete for final submission
   const canSubmit = useMemo(() => {
+    const hasValidProfession = (formData.professions?.length || 0) > 0 &&
+      formData.professions?.every(p => p.profession_title_key && p.license_number?.trim())
+
     return (
       Boolean(formData.full_name?.trim()) &&
-      Boolean(formData.title?.trim()) &&
+      Boolean(hasValidProfession) &&
       Boolean(formData.bio?.trim()) &&
       Boolean(formData.uploads?.photo) &&
       Boolean(formData.uploads?.insurance) &&
@@ -877,33 +895,156 @@ export function InvitePage() {
                       <h2 className="font-semibold text-foreground">
                         {t('professionals.invite.public.form.professionalInfo')}
                       </h2>
+                      <p className="text-sm text-foreground-muted">
+                        {t('professionals.invite.public.form.professionsHelper')}
+                      </p>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">
-                        {t('professionals.invite.public.form.title')} *
-                      </label>
-                      <Input
-                        value={formData.title || ''}
-                        onChange={(e) => updateFormData({ title: e.target.value })}
-                        placeholder={t('professionals.invite.public.form.titlePlaceholder')}
-                      />
-                    </div>
+                    {/* Existing professions */}
+                    {(formData.professions || []).map((profession, index) => {
+                      const title = professionTitles.find(t => t.key === profession.profession_title_key)
+                      return (
+                        <div
+                          key={index}
+                          className="rounded-xl border border-border bg-background-secondary/30 p-4 space-y-3"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-foreground">
+                                {title?.label_fr || profession.profession_title_key}
+                              </span>
+                              {profession.is_primary && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sage-100 text-xs font-medium text-sage-700">
+                                  <Star className="h-3 w-3" />
+                                  Principal
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {/* Set as primary (only if not primary and there are 2 professions) */}
+                              {!profession.is_primary && (formData.professions?.length || 0) > 1 && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    const updated = formData.professions?.map((p, i) => ({
+                                      ...p,
+                                      is_primary: i === index,
+                                    }))
+                                    updateFormData({ professions: updated })
+                                  }}
+                                  className="h-8 px-2 text-foreground-muted hover:text-honey-600"
+                                  title="Définir comme titre principal"
+                                >
+                                  <Star className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {/* Remove button */}
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  const updated = formData.professions?.filter((_, i) => i !== index) || []
+                                  // If removing the primary and there's another, make it primary
+                                  if (profession.is_primary && updated.length > 0 && updated[0]) {
+                                    updated[0].is_primary = true
+                                  }
+                                  updateFormData({ professions: updated })
+                                }}
+                                className="h-8 px-2 text-foreground-muted hover:text-wine-600"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="text-sm text-foreground-muted">
+                            Permis : {profession.license_number}
+                          </div>
+                        </div>
+                      )
+                    })}
 
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">
-                        {t('professionals.invite.public.form.licenseNumber')}
-                      </label>
-                      <Input
-                        value={formData.license_number || ''}
-                        onChange={(e) => updateFormData({ license_number: e.target.value })}
-                        placeholder={t('professionals.invite.public.form.licenseNumberPlaceholder')}
-                      />
-                    </div>
+                    {/* Add profession form */}
+                    {(formData.professions?.length || 0) < 2 && (
+                      <div className="rounded-xl border border-dashed border-border p-4 space-y-3">
+                        <p className="text-sm font-medium text-foreground">
+                          {(formData.professions?.length || 0) === 0
+                            ? t('professionals.invite.public.form.addFirstTitle')
+                            : t('professionals.invite.public.form.addSecondTitle')}
+                        </p>
 
-                    <div>
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-1.5">
+                            {t('professionals.invite.public.form.title')} *
+                          </label>
+                          <select
+                            value={newProfessionTitle}
+                            onChange={(e) => setNewProfessionTitle(e.target.value)}
+                            className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-sage-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <option value="">{t('professionals.invite.public.form.titlePlaceholder')}</option>
+                            {professionTitles
+                              .filter(title => !formData.professions?.some(p => p.profession_title_key === title.key))
+                              .map((title) => (
+                                <option key={title.key} value={title.key}>
+                                  {title.label_fr}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-1.5">
+                            {t('professionals.invite.public.form.licenseNumber')} *
+                          </label>
+                          <Input
+                            value={newProfessionLicense}
+                            onChange={(e) => setNewProfessionLicense(e.target.value)}
+                            placeholder={t('professionals.invite.public.form.licenseNumberPlaceholder')}
+                          />
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          disabled={!newProfessionTitle || !newProfessionLicense.trim()}
+                          onClick={() => {
+                            if (!newProfessionTitle || !newProfessionLicense.trim()) return
+
+                            const newProfession: QuestionnaireProfession = {
+                              profession_title_key: newProfessionTitle,
+                              license_number: newProfessionLicense.trim(),
+                              is_primary: (formData.professions?.length || 0) === 0,
+                            }
+
+                            updateFormData({
+                              professions: [...(formData.professions || []), newProfession],
+                            })
+
+                            // Reset the form
+                            setNewProfessionTitle('')
+                            setNewProfessionLicense('')
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-1.5" />
+                          Ajouter
+                        </Button>
+                      </div>
+                    )}
+
+                    {(formData.professions?.length || 0) >= 2 && (
+                      <p className="text-xs text-foreground-muted text-center">
+                        Maximum de 2 titres atteint
+                      </p>
+                    )}
+
+                    <div className="pt-2 border-t border-border">
                       <label className="block text-sm font-medium text-foreground mb-1.5">
                         {t('professionals.invite.public.form.yearsExperience')}
                       </label>
@@ -1371,7 +1512,7 @@ export function InvitePage() {
                               {t('professionals.invite.public.form.consent.signed')}
                             </p>
                             <p className="text-sm text-sage-600">
-                              {t('professionals.invite.public.form.consent.signature.date')}: {new Date(formData.image_rights_consent.signed_at).toLocaleDateString('fr-CA')}
+                              {t('professionals.invite.public.form.consent.signature.date')}: {formatClinicDateShort(formData.image_rights_consent.signed_at)}
                             </p>
                           </div>
                         </div>
@@ -1413,15 +1554,26 @@ export function InvitePage() {
                       <h3 className="text-sm font-medium text-foreground-secondary mb-2">
                         {t('professionals.invite.public.form.professionalInfo')}
                       </h3>
-                      <div className="space-y-1">
-                        <p className="text-foreground">{formData.title}</p>
-                        {formData.license_number && (
-                          <p className="text-sm text-foreground-muted">
-                            Permis : {formData.license_number}
-                          </p>
-                        )}
+                      <div className="space-y-2">
+                        {formData.professions?.map((profession, index) => {
+                          const title = professionTitles.find(t => t.key === profession.profession_title_key)
+                          return (
+                            <div key={index} className="flex items-center gap-2">
+                              <span className="text-foreground">{title?.label_fr || profession.profession_title_key}</span>
+                              {profession.is_primary && (formData.professions?.length || 0) > 1 && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sage-100 text-[10px] font-medium text-sage-700">
+                                  <Star className="h-2.5 w-2.5" />
+                                  Principal
+                                </span>
+                              )}
+                              <span className="text-sm text-foreground-muted">
+                                — Permis : {profession.license_number}
+                              </span>
+                            </div>
+                          )
+                        })}
                         {formData.years_experience !== undefined && (
-                          <p className="text-sm text-foreground-muted">
+                          <p className="text-sm text-foreground-muted pt-1">
                             {formData.years_experience} années d'expérience
                           </p>
                         )}
@@ -1596,8 +1748,8 @@ export function InvitePage() {
                           {!formData.full_name?.trim() && (
                             <li>• {t('professionals.invite.public.form.fullName')}</li>
                           )}
-                          {!formData.title?.trim() && (
-                            <li>• {t('professionals.invite.public.form.title')}</li>
+                          {(!(formData.professions?.length) || !formData.professions?.every(p => p.profession_title_key && p.license_number?.trim())) && (
+                            <li>• {t('professionals.invite.public.form.title')} / {t('professionals.invite.public.form.licenseNumber')}</li>
                           )}
                           {!formData.bio?.trim() && (
                             <li>• {t('professionals.invite.public.form.bio')}</li>

@@ -544,6 +544,7 @@ export function mapProfessionalToViewModel(professional: ProfessionalWithRelatio
   const documents = professional.documents || []
   const specialties = professional.specialties || []
   const submission = professional.latest_submission
+  const professions = professional.professions || []
 
   // Calculate initials
   const displayName = profile?.display_name || 'Inconnu'
@@ -574,14 +575,25 @@ export function mapProfessionalToViewModel(professional: ProfessionalWithRelatio
   // Determine submission source
   const questionnaireSubmittedVia = submission?.invite_id ? 'invitation' : submission ? 'manual' : undefined
 
+  // Build profession title(s) for display - use human-readable labels, show all professions
+  const professionTitles = professions
+    .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0)) // Primary first
+    .map(p => p.profession_title?.label_fr || p.profession_title_key)
+    .filter(Boolean)
+  const title = professionTitles.length > 0 ? professionTitles.join(' • ') : undefined
+
+  // Get license number from primary profession
+  const primaryProfession = professions.find(p => p.is_primary) || professions[0]
+  const licenseNumber = primaryProfession?.license_number
+
   return {
     id: professional.id,
     displayName,
     email: profile?.email || '',
     initials,
 
-    title: submission?.responses?.title,
-    licenseNumber: professional.license_number || submission?.responses?.license_number,
+    title,
+    licenseNumber,
     yearsExperience: professional.years_experience || submission?.responses?.years_experience,
 
     publicEmail: professional.public_email || undefined,

@@ -1,34 +1,59 @@
+import { useNavigate } from '@tanstack/react-router'
 import { Calendar, DollarSign } from 'lucide-react'
-import { format } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { isPast, isFuture, isToday } from 'date-fns'
 import { t } from '@/i18n'
+import {
+  formatClinicDateShort,
+  formatClinicTime,
+  toClinicTime,
+} from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import { AccordionItem, AccordionTrigger, AccordionContent } from '@/shared/ui/accordion'
 import { Badge } from '@/shared/ui/badge'
-import type { ClientWithRelations, ClientVisit } from '../../types'
+import { Skeleton } from '@/shared/ui/skeleton'
+import { useClientAppointments, type ClientAppointmentInfo } from '@/availability/hooks'
+import type { ClientWithRelations } from '../../types'
 
 interface VisitsSectionProps {
   client: ClientWithRelations
 }
 
+type VisitStatus = 'upcoming' | 'completed' | 'cancelled' | 'no_show'
+
+function mapAppointmentStatus(apt: ClientAppointmentInfo): VisitStatus {
+  if (apt.status === 'cancelled') return 'cancelled'
+  if (apt.status === 'no_show') return 'no_show'
+  if (apt.status === 'completed') return 'completed'
+  // For draft/confirmed, check if it's in the past or future
+  // Use clinic timezone for consistent date comparison
+  const aptDate = toClinicTime(apt.startTime)
+  if (isPast(aptDate) && !isToday(aptDate)) return 'completed'
+  return 'upcoming'
+}
+
 export function VisitsSection({ client }: VisitsSectionProps) {
-  const visits = client.visits || []
+  const navigate = useNavigate()
+
+  // Fetch appointments from database using client UUID
+  const { data: appointments = [], isLoading } = useClientAppointments(client.id)
 
   const formatDate = (date: string) => {
-    return format(new Date(date), 'dd MMM yyyy', { locale: fr })
+    return formatClinicDateShort(date)
   }
 
   const formatTime = (date: string) => {
-    return format(new Date(date), 'HH:mm', { locale: fr })
+    return formatClinicTime(date)
   }
 
-  const getStatusBadge = (status: ClientVisit['status']) => {
+  const getStatusBadge = (status: VisitStatus) => {
     switch (status) {
+      case 'upcoming':
+        return <Badge className="bg-sage-100 text-sage-700 text-xs">À venir</Badge>
       case 'completed':
-        return <Badge className="bg-sage-100 text-sage-700 text-xs">Complété</Badge>
+        return <Badge className="bg-background-tertiary text-foreground-secondary text-xs">Complété</Badge>
       case 'cancelled':
-        return <Badge className="bg-background-tertiary text-foreground-secondary text-xs">Annulé</Badge>
-      case 'no-show':
+        return <Badge className="bg-wine-100/50 text-wine-600 text-xs">Annulé</Badge>
+      case 'no_show':
         return <Badge className="bg-wine-100 text-wine-700 text-xs">Absent</Badge>
     }
   }
@@ -37,15 +62,35 @@ export function VisitsSection({ client }: VisitsSectionProps) {
     return `${amount.toFixed(2).replace('.', ',')} $`
   }
 
+  // Navigate to availability page with appointment selected
+  const handleAppointmentClick = (apt: ClientAppointmentInfo) => {
+    navigate({
+      to: '/disponibilites',
+      search: { appointmentId: apt.id },
+    })
+  }
+
+  // Separate upcoming and past appointments
+  // Use clinic timezone for consistent date comparisons
+  const upcomingAppointments = appointments.filter(apt => {
+    const aptDate = toClinicTime(apt.startTime)
+    return (isFuture(aptDate) || isToday(aptDate)) && apt.status !== 'cancelled' && apt.status !== 'no_show'
+  })
+
+  const pastAppointments = appointments.filter(apt => {
+    const aptDate = toClinicTime(apt.startTime)
+    return (isPast(aptDate) && !isToday(aptDate)) || apt.status === 'cancelled' || apt.status === 'no_show' || apt.status === 'completed'
+  })
+
   return (
     <AccordionItem value="visits" className="border rounded-lg px-4">
       <AccordionTrigger className="hover:no-underline">
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-sage-500" />
           <span>{t('clients.drawer.sections.visits')}</span>
-          {visits.length > 0 && (
+          {appointments.length > 0 && (
             <Badge variant="secondary" className="ml-2 text-xs">
-              {visits.length}
+              {appointments.length}
             </Badge>
           )}
         </div>
@@ -65,49 +110,90 @@ export function VisitsSection({ client }: VisitsSectionProps) {
             </span>
           </div>
 
-          {/* Visits list */}
-          {visits.length > 0 ? (
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium text-foreground-secondary">
-                {t('clients.drawer.visits.title')}
-              </h4>
-              <ul className="space-y-2">
-                {visits.slice(0, 5).map(visit => (
-                  <li
-                    key={visit.id}
-                    className={cn(
-                      'p-3 rounded-lg border border-border',
-                      visit.status === 'cancelled' && 'opacity-60'
-                    )}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-foreground">
-                            {visit.serviceName}
-                          </span>
-                          {getStatusBadge(visit.status)}
+          {/* Loading state */}
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ) : appointments.length > 0 ? (
+            <div className="space-y-4">
+              {/* Upcoming appointments */}
+              {upcomingAppointments.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-foreground-secondary">
+                    Rendez-vous à venir
+                  </h4>
+                  <ul className="space-y-2">
+                    {upcomingAppointments.slice(0, 3).map(apt => (
+                      <li
+                        key={apt.id}
+                        className="p-3 rounded-lg border border-sage-200 bg-sage-50/50 cursor-pointer hover:bg-sage-100/50 transition-colors"
+                        onClick={() => handleAppointmentClick(apt)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-foreground">
+                                {apt.serviceName}
+                              </span>
+                              {getStatusBadge(mapAppointmentStatus(apt))}
+                            </div>
+                            <p className="text-xs text-foreground-secondary">
+                              {formatDate(apt.startTime)} à {formatTime(apt.startTime)} • {apt.professionalName}
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-xs text-foreground-secondary">
-                          {formatDate(visit.date)} à {formatTime(visit.date)} • {visit.professionalName}
-                        </p>
-                      </div>
-                      {visit.status === 'completed' && (
-                        <span className="text-sm text-foreground-secondary">
-                          {formatAmount(visit.amount)}
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              {visits.length > 5 && (
-                <button
-                  className="text-sm text-sage-600 hover:text-sage-700 hover:underline"
-                  disabled
-                >
-                  {t('clients.drawer.visits.viewAll')} ({visits.length})
-                </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Past appointments / history */}
+              {pastAppointments.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-foreground-secondary">
+                    {t('clients.drawer.visits.title')}
+                  </h4>
+                  <ul className="space-y-2">
+                    {pastAppointments.slice(0, 5).map(apt => {
+                      const status = mapAppointmentStatus(apt)
+                      return (
+                        <li
+                          key={apt.id}
+                          className={cn(
+                            'p-3 rounded-lg border border-border cursor-pointer hover:bg-background-secondary/50 transition-colors',
+                            status === 'cancelled' && 'opacity-60'
+                          )}
+                          onClick={() => handleAppointmentClick(apt)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-foreground">
+                                  {apt.serviceName}
+                                </span>
+                                {getStatusBadge(status)}
+                              </div>
+                              <p className="text-xs text-foreground-secondary">
+                                {formatDate(apt.startTime)} à {formatTime(apt.startTime)} • {apt.professionalName}
+                              </p>
+                            </div>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                  {pastAppointments.length > 5 && (
+                    <button
+                      className="text-sm text-sage-600 hover:text-sage-700 hover:underline"
+                      disabled
+                    >
+                      {t('clients.drawer.visits.viewAll')} ({pastAppointments.length})
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           ) : (
