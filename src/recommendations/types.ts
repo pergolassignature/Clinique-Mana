@@ -133,6 +133,7 @@ export const DeterministicScoresSchema = z.object({
 export interface NearEligible {
   professionalId: string
   displayName: string  // Professional's display name
+  professionTitles: string[]  // Profession titles (e.g., ["Psychologue"])
   missingConstraint: ExclusionReasonCode
   reasonFr: string  // Human-readable explanation in French
   scores: DeterministicScores
@@ -143,6 +144,7 @@ export interface NearEligible {
 export const NearEligibleSchema = z.object({
   professionalId: z.string().uuid(),
   displayName: z.string(),
+  professionTitles: z.array(z.string()),
   missingConstraint: ExclusionReasonCode,
   reasonFr: z.string(),
   scores: DeterministicScoresSchema,

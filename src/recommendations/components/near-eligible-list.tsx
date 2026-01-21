@@ -3,10 +3,11 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, AlertTriangle, Calendar } from 'lucide-react'
+import { ChevronDown, AlertTriangle, Calendar, User, ChevronRight } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
+import { Button } from '@/shared/ui/button'
 import type { NearEligible, ExclusionReasonCode } from '../types'
 import { ScoreBadge } from './score-breakdown'
 
@@ -14,10 +15,16 @@ interface NearEligibleListProps {
   nearEligible: NearEligible[]
   /** Initially expanded state */
   defaultExpanded?: boolean
+  /** Callback when a professional is selected for assignment */
+  onSelectProfessional?: (professionalId: string) => void
+  /** Callback to view a professional's profile */
+  onViewProfile?: (professionalId: string) => void
 }
 
 interface NearEligibleItemProps {
   item: NearEligible
+  onSelect?: (professionalId: string) => void
+  onViewProfile?: (professionalId: string) => void
 }
 
 const CONSTRAINT_LABELS: Record<ExclusionReasonCode, string> = {
@@ -53,29 +60,23 @@ function formatMissingMotifs(details?: Record<string, unknown>): string[] {
 /**
  * Single near-eligible professional item.
  */
-function NearEligibleItem({ item }: NearEligibleItemProps) {
+function NearEligibleItem({ item, onSelect, onViewProfile }: NearEligibleItemProps) {
   const nextAvailable = formatNextAvailable(item.nextAvailableDate)
   const missingMotifs = formatMissingMotifs(item.details)
 
   return (
-    <div className="py-3 border-b border-border/30 last:border-0">
-      {/* Professional info */}
-      <div className="flex items-center gap-3">
+    <div className="py-4 border-b border-border/30 last:border-0">
+      {/* Header: Name, profession, and score */}
+      <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground truncate">
             {item.displayName || t('recommendations.nearEligible.unknownProfessional')}
           </p>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <Badge variant="warning" className="text-xs">
-              {t(CONSTRAINT_LABELS[item.missingConstraint] as Parameters<typeof t>[0])}
-            </Badge>
-            {item.missingConstraint === 'no_availability' && nextAvailable && (
-              <span className="flex items-center gap-1 text-xs text-foreground-muted">
-                <Calendar className="h-3 w-3" />
-                {t('recommendations.nearEligible.nextAvailable').replace('{{date}}', nextAvailable)}
-              </span>
-            )}
-          </div>
+          {item.professionTitles && item.professionTitles.length > 0 && (
+            <p className="text-xs text-foreground-muted truncate mt-0.5">
+              {item.professionTitles.join(' / ')}
+            </p>
+          )}
         </div>
 
         {/* Would-be score */}
@@ -87,8 +88,21 @@ function NearEligibleItem({ item }: NearEligibleItemProps) {
         </div>
       </div>
 
+      {/* Constraint badge and availability */}
+      <div className="flex items-center gap-2 mt-2 flex-wrap">
+        <Badge variant="warning" className="text-xs">
+          {t(CONSTRAINT_LABELS[item.missingConstraint] as Parameters<typeof t>[0])}
+        </Badge>
+        {item.missingConstraint === 'no_availability' && nextAvailable && (
+          <span className="flex items-center gap-1 text-xs text-foreground-muted">
+            <Calendar className="h-3 w-3" />
+            {t('recommendations.nearEligible.nextAvailable').replace('{{date}}', nextAvailable)}
+          </span>
+        )}
+      </div>
+
       {/* Detailed reason */}
-      <p className="text-xs text-foreground-secondary mt-2 pl-0">
+      <p className="text-xs text-foreground-secondary mt-2">
         {item.reasonFr}
       </p>
 
@@ -106,6 +120,28 @@ function NearEligibleItem({ item }: NearEligibleItemProps) {
           ))}
         </div>
       )}
+
+      {/* Action buttons */}
+      <div className="mt-3 flex items-center justify-end gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs h-8"
+          onClick={() => onViewProfile?.(item.professionalId)}
+        >
+          <User className="h-3.5 w-3.5 mr-1" />
+          {t('recommendations.card.viewProfile')}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-8"
+          onClick={() => onSelect?.(item.professionalId)}
+        >
+          {t('recommendations.nearEligible.selectAnyway')}
+          <ChevronRight className="h-3.5 w-3.5 ml-1" />
+        </Button>
+      </div>
     </div>
   )
 }
@@ -117,6 +153,8 @@ function NearEligibleItem({ item }: NearEligibleItemProps) {
 export function NearEligibleList({
   nearEligible,
   defaultExpanded = false,
+  onSelectProfessional,
+  onViewProfile,
 }: NearEligibleListProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
@@ -169,6 +207,8 @@ export function NearEligibleList({
                   <NearEligibleItem
                     key={item.professionalId}
                     item={item}
+                    onSelect={onSelectProfessional}
+                    onViewProfile={onViewProfile}
                   />
                 ))}
                 {nearEligible.length > 5 && (

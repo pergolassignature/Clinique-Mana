@@ -479,6 +479,7 @@ export function preFilterProfessionals(
       nearEligible.push({
         professionalId: candidate.professional.id,
         displayName: candidate.professional.displayName,
+        professionTitles: candidate.professions.map((p) => p.labelFr),
         missingConstraint: failed.reasonCode,
         reasonFr: failed.reasonFr,
         scores: {

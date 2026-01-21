@@ -299,7 +299,11 @@ export function RecommendationsPanel({
       )}
 
       {/* Near-eligible section */}
-      <NearEligibleList nearEligible={nearEligible} />
+      <NearEligibleList
+        nearEligible={nearEligible}
+        onSelectProfessional={onSelectProfessional}
+        onViewProfile={onViewProfile}
+      />
 
       {/* Exclusions summary */}
       <ExclusionsSummary exclusions={exclusions} />

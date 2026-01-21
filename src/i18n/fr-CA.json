@@ -2307,6 +2307,7 @@
       "nextAvailable": "Prochaine dispo: {{date}}",
       "andMore": "+{{count}} autre(s)",
       "missingMotifs": "Motifs manquants",
+      "selectAnyway": "Sélectionner quand même",
       "constraints": {
         "noAvailability": "Pas de disponibilité",
         "noMotifOverlap": "Motifs manquants",
