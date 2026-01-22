@@ -33,7 +33,9 @@ export function LoginPage() {
     }
 
     // Redirect to original destination or dashboard
-    const redirectTo = (search as { redirect?: string }).redirect || '/dashboard'
+    // Filter out /connexion to prevent redirect loops
+    const rawRedirect = (search as { redirect?: string }).redirect
+    const redirectTo = rawRedirect && rawRedirect !== '/connexion' ? rawRedirect : '/dashboard'
     navigate({ to: redirectTo })
   }
 

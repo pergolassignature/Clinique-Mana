@@ -40,9 +40,10 @@ export interface InvoiceRow {
   tax_tps_cents: number
   tax_tvq_cents: number
   total_cents: number
+  external_payer_amount_cents: number
+  client_amount_cents: number
   amount_paid_cents: number
   balance_cents: number
-  external_payer_amount_cents: number
   qbo_invoice_id: string | null
   qbo_invoice_number: string | null
   qbo_sync_status: string | null
@@ -144,9 +145,10 @@ export function mapInvoiceFromDb(row: InvoiceRow): Invoice {
     taxTpsCents: row.tax_tps_cents,
     taxTvqCents: row.tax_tvq_cents,
     totalCents: row.total_cents,
+    externalPayerAmountCents: row.external_payer_amount_cents,
+    clientAmountCents: row.client_amount_cents,
     amountPaidCents: row.amount_paid_cents,
     balanceCents: row.balance_cents,
-    externalPayerAmountCents: row.external_payer_amount_cents,
     qboInvoiceId: row.qbo_invoice_id,
     qboInvoiceNumber: row.qbo_invoice_number,
     qboSyncStatus: (row.qbo_sync_status || 'pending') as QboSyncStatus,
@@ -380,8 +382,7 @@ export function mapInvoiceClientFromDb(row: ClientJoinRow): InvoiceClient {
 export interface ProfessionalJoinRow {
   id: string
   profiles: {
-    first_name: string
-    last_name: string
+    display_name: string
   }
   professional_professions?: Array<{
     profession_title_key: string
@@ -394,7 +395,7 @@ export function mapInvoiceProfessionalFromDb(row: ProfessionalJoinRow): InvoiceP
 
   return {
     id: row.id,
-    displayName: `${row.profiles.first_name} ${row.profiles.last_name}`,
+    displayName: row.profiles.display_name,
     professionTitleKey: primaryProfession?.profession_title_key || null,
   }
 }

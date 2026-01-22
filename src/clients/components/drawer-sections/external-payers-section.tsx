@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CreditCard, Building2, Plus, Pencil } from 'lucide-react'
 import { t } from '@/i18n'
-import { formatInClinicTimezone } from '@/shared/lib/timezone'
+import { formatDateOnly } from '@/shared/lib/timezone'
 import { AccordionItem, AccordionTrigger, AccordionContent } from '@/shared/ui/accordion'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
@@ -64,8 +64,9 @@ export function ExternalPayersSection({ client, onUpdate }: ExternalPayersSectio
   }
 
   const formatDate = (date: string | null | undefined) => {
-    if (!date) return '—'
-    return formatInClinicTimezone(date, 'dd MMMM yyyy')
+    // Use formatDateOnly for date-only fields (not timestamptz)
+    // This prevents timezone shift (e.g., 2020-01-01 showing as 2019-12-31)
+    return formatDateOnly(date, 'd MMMM yyyy')
   }
 
   const formatCurrency = (cents: number) => {

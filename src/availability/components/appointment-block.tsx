@@ -44,7 +44,7 @@ export function AppointmentBlock({
   const startTime = new Date(appointment.startTime)
   const endTime = new Date(startTime.getTime() + appointment.durationMinutes * 60000)
   const isCancelled = appointment.status === 'cancelled'
-  const isDraft = appointment.status === 'draft'
+  const isCreated = appointment.status === 'created'
 
   // Build client details
   const validClients = clients?.filter((c): c is Client => c !== undefined) || []
@@ -88,7 +88,7 @@ export function AppointmentBlock({
       {isCancelled && (
         <div className="text-wine-500 font-medium">Annulé</div>
       )}
-      {isDraft && (
+      {isCreated && (
         <div className="text-amber-600 font-medium">Brouillon</div>
       )}
     </div>
@@ -111,7 +111,7 @@ export function AppointmentBlock({
         'border shadow-sm focus:outline-none focus:ring-2 focus:ring-sage-400 focus:ring-offset-1',
         // Base styles based on status
         isCancelled && 'opacity-50',
-        isDraft && 'border-dashed',
+        isCreated && 'border-dashed',
         // Cursor styles
         isInteractive && !isDragging && 'cursor-grab hover:shadow-md hover:scale-[1.01]',
         isInteractive && isDragging && 'cursor-grabbing',
@@ -205,7 +205,7 @@ export function AppointmentBlock({
             ✕
           </div>
         )}
-        {(isPillMode || isCompactMode) && isDraft && (
+        {(isPillMode || isCompactMode) && isCreated && (
           <div className={cn(
             'text-[8px] text-amber-600 font-medium',
             isPillMode && 'ml-1'

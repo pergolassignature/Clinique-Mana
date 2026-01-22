@@ -7,7 +7,7 @@ import { z } from 'zod'
 export const ProfessionalStatus = z.enum(['pending', 'invited', 'active', 'inactive'])
 export type ProfessionalStatus = z.infer<typeof ProfessionalStatus>
 
-export const SpecialtyCategory = z.enum(['therapy_type', 'population', 'issue', 'modality'])
+export const SpecialtyCategory = z.enum(['therapy_type', 'clientele', 'issue', 'modality'])
 export type SpecialtyCategory = z.infer<typeof SpecialtyCategory>
 
 export const ProficiencyLevel = z.enum(['primary', 'secondary', 'familiar'])
@@ -462,6 +462,7 @@ export type ProfessionalService = z.infer<typeof ProfessionalServiceSchema>
 export const ProfessionalServiceWithDetailsSchema = ProfessionalServiceSchema.extend({
   service: z.object({
     id: z.string().uuid(),
+    key: z.string(),
     name_fr: z.string(),
     default_duration_minutes: z.number().nullable(),
   }),

@@ -28,6 +28,10 @@ import type { Appointment, AppointmentStatus, AppointmentMode, BookableService, 
 import { ClientCard, ClientPickerItem } from './client-card'
 import { CompactCalendarHistory } from './calendar-history'
 import { useAppointmentAuditLog } from '../hooks'
+import { InvoiceBillingTab, InvoiceDrawer } from '@/facturation/components'
+import { ClientDrawer } from '@/clients/components/client-drawer'
+import { useProfessionTitles } from '@/services-catalog/hooks'
+import { useProfessional } from '@/professionals/hooks'
 
 interface AppointmentEditorProps {
   appointment: Appointment | null
@@ -39,12 +43,12 @@ interface AppointmentEditorProps {
   /** Real data from database */
   bookableServices: BookableService[]
   clients: Client[]
-  /** Selected professional ID to filter clients */
+  /** Selected professional ID to filter clients and load profession data */
   selectedProfessionalId?: string | null
 }
 
 const STATUS_OPTIONS: { value: AppointmentStatus; label: string }[] = [
-  { value: 'draft', label: 'Planifié' },
+  { value: 'created', label: 'Créé' },
   { value: 'confirmed', label: 'Confirmé' },
 ]
 
@@ -78,7 +82,7 @@ export function AppointmentEditor({
     appointment ? getClinicTimeString(appointment.startTime) : '09:00'
   )
   const [durationMinutes, setDurationMinutes] = useState(appointment?.durationMinutes || 50)
-  const [status, setStatus] = useState<AppointmentStatus>(appointment?.status === 'cancelled' ? 'confirmed' : (appointment?.status || 'draft'))
+  const [status, setStatus] = useState<AppointmentStatus>(appointment?.status === 'cancelled' ? 'confirmed' : (appointment?.status || 'created'))
   const [mode, setMode] = useState<AppointmentMode>(appointment?.mode || 'video')
   const [notes, setNotes] = useState(appointment?.notesInternal || '')
   const [showClientPicker, setShowClientPicker] = useState(false)
@@ -89,11 +93,54 @@ export function AppointmentEditor({
   const [cancelFeePercent, setCancelFeePercent] = useState<number>(appointment?.cancellationFeePercent ?? 50)
   const [editingCancelFee, setEditingCancelFee] = useState(false)
   const [activeTab, setActiveTab] = useState<'participants' | 'details' | 'billing' | 'history'>(initialTab)
+  const [showInvoiceDrawer, setShowInvoiceDrawer] = useState(false)
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null)
+  const [showClientDrawer, setShowClientDrawer] = useState(false)
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+  const [professionCategoryKey, setProfessionCategoryKey] = useState<string | undefined>(
+    appointment?.professionCategoryKey
+  )
+
+  // Fetch professional data with professions
+  const { data: professionalData } = useProfessional(selectedProfessionalId ?? undefined)
+
+  // Fetch profession titles for display
+  const { data: professionTitles = [] } = useProfessionTitles()
 
   // Fetch audit log for existing appointments
   const { data: auditLog, isLoading: auditLoading } = useAppointmentAuditLog(
     !isNew && appointment?.id ? appointment.id : ''
   )
+
+  // Get available professions for this professional
+  const availableProfessions = useMemo(() => {
+    if (!professionalData?.professions?.length) return []
+    return professionalData.professions.map(prof => {
+      const title = professionTitles.find(t => t.key === prof.profession_title_key)
+      return {
+        professionTitleKey: prof.profession_title_key,
+        professionCategoryKey: title?.professionCategoryKey ?? prof.profession_title?.profession_category_key ?? '',
+        labelFr: title?.labelFr ?? prof.profession_title?.label_fr ?? prof.profession_title_key,
+        isPrimary: prof.is_primary,
+      }
+    })
+  }, [professionalData, professionTitles])
+
+  // Auto-select profession if not set and professional has professions
+  useEffect(() => {
+    if (!professionCategoryKey && availableProfessions.length > 0) {
+      // Prefer primary profession, fallback to first
+      const primary = availableProfessions.find(p => p.isPrimary)
+      setProfessionCategoryKey(primary?.professionCategoryKey || availableProfessions[0]?.professionCategoryKey)
+    }
+  }, [professionCategoryKey, availableProfessions])
+
+  // Get selected profession label for display
+  const selectedProfessionLabel = useMemo(() => {
+    if (!professionCategoryKey) return null
+    const profession = availableProfessions.find(p => p.professionCategoryKey === professionCategoryKey)
+    return profession?.labelFr || null
+  }, [professionCategoryKey, availableProfessions])
 
   const selectedService = useMemo(
     () => bookableServices.find(s => s.id === serviceId),
@@ -160,7 +207,7 @@ export function AppointmentEditor({
     setDate(getClinicDateString(appointment.startTime))
     setStartTime(getClinicTimeString(appointment.startTime))
     setDurationMinutes(appointment.durationMinutes || nextService?.durationMinutes || 50)
-    setStatus(appointment.status === 'cancelled' ? 'confirmed' : (appointment.status || 'draft'))
+    setStatus(appointment.status === 'cancelled' ? 'confirmed' : (appointment.status || 'created'))
     setMode(appointment.mode || 'video')
     setNotes(appointment.notesInternal || '')
   }, [appointment?.id, bookableServices])
@@ -195,6 +242,7 @@ export function AppointmentEditor({
       status,
       mode,
       notesInternal: notes || undefined,
+      professionCategoryKey,
     })
   }
 
@@ -203,7 +251,7 @@ export function AppointmentEditor({
     : true
 
   const canAddMoreClients = selectedService && clientIds.length < selectedService.maxClients
-  const canConfirm = !isCancelled && status === 'draft'
+  const canConfirm = !isCancelled && status === 'created'
   const canCancelAppointment = !!appointment && !isNew && !isCancelled
   const hoursUntilAppointment = appointment
     ? differenceInHours(new Date(appointment.startTime), new Date())
@@ -340,6 +388,22 @@ export function AppointmentEditor({
           <div className="text-sm text-foreground-muted">
             {selectedService?.durationMinutes} min · {selectedService?.clientType === 'individual' ? 'Individuel' : selectedService?.clientType === 'couple' ? 'Couple' : 'Famille'}
           </div>
+          {/* Show profession - selector if multiple, label if single */}
+          {availableProfessions.length > 1 ? (
+            <select
+              value={professionCategoryKey || ''}
+              onChange={(e) => setProfessionCategoryKey(e.target.value)}
+              className="mt-1 text-xs bg-transparent border border-sage-200 rounded px-2 py-0.5 text-sage-700 focus:outline-none focus:ring-1 focus:ring-sage-400"
+            >
+              {availableProfessions.map(prof => (
+                <option key={prof.professionCategoryKey} value={prof.professionCategoryKey}>
+                  {prof.labelFr}{prof.isPrimary ? ' (principal)' : ''}
+                </option>
+              ))}
+            </select>
+          ) : selectedProfessionLabel ? (
+            <div className="text-xs text-sage-600 mt-0.5">{selectedProfessionLabel}</div>
+          ) : null}
         </div>
       </div>
 
@@ -375,6 +439,10 @@ export function AppointmentEditor({
                   key={client.id}
                   client={client}
                   onRemove={canEditClients ? () => handleRemoveClient(client.id) : undefined}
+                  onClick={() => {
+                    setSelectedClientId(client.id)
+                    setShowClientDrawer(true)
+                  }}
                 />
               ))}
             </div>
@@ -481,7 +549,7 @@ export function AppointmentEditor({
               <div>
                 <div className="text-xs text-foreground-muted uppercase tracking-wide">Statut</div>
                 <div className="text-sm font-medium">
-                  {status === 'draft' ? 'Planifié' : 'Confirmé'}
+                  {status === 'created' ? 'Créé' : 'Confirmé'}
                 </div>
               </div>
               {canConfirm && (
@@ -495,12 +563,21 @@ export function AppointmentEditor({
       )}
 
       {activeTab === 'billing' && (
-        <div className="space-y-3 p-3 rounded-lg bg-background-secondary border border-border">
-          <div className="text-sm font-medium text-foreground">Facturation</div>
-          <div className="text-sm text-foreground-muted">
-            Ajoutez ici les informations de facturation du service (à venir).
-          </div>
-        </div>
+        <InvoiceBillingTab
+          appointment={appointment}
+          clients={clients}
+          selectedClients={selectedClients as Client[]}
+          service={selectedService}
+          professionalId={selectedProfessionalId ?? null}
+          onInvoiceCreated={(invoiceId) => {
+            setSelectedInvoiceId(invoiceId)
+            setShowInvoiceDrawer(true)
+          }}
+          onViewInvoice={(invoiceId) => {
+            setSelectedInvoiceId(invoiceId)
+            setShowInvoiceDrawer(true)
+          }}
+        />
       )}
 
       {activeTab === 'history' && !isNew && (
@@ -617,7 +694,7 @@ export function AppointmentEditor({
                       className={cn(
                         'flex-1 px-3 py-2 text-xs font-medium rounded-lg border transition-all',
                         status === opt.value
-                          ? opt.value === 'draft'
+                          ? opt.value === 'created'
                             ? 'border-amber-400 bg-amber-50 text-amber-700'
                             : 'border-sage-400 bg-sage-50 text-sage-700'
                           : 'border-border hover:border-sage-300'
@@ -765,6 +842,29 @@ export function AppointmentEditor({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Invoice Drawer */}
+      <InvoiceDrawer
+        invoiceId={selectedInvoiceId}
+        open={showInvoiceDrawer}
+        onClose={() => {
+          setShowInvoiceDrawer(false)
+          setSelectedInvoiceId(null)
+        }}
+      />
+
+      {/* Client Drawer */}
+      <ClientDrawer
+        clientId={selectedClientId}
+        isOpen={showClientDrawer}
+        onClose={() => {
+          setShowClientDrawer(false)
+          setSelectedClientId(null)
+        }}
+        onViewClient={(clientId) => {
+          setSelectedClientId(clientId)
+        }}
+      />
     </div>
   )
 }

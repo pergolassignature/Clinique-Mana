@@ -141,7 +141,7 @@ function SpecialtySelector({
 }) {
   const categoryLabels: Record<string, string> = {
     therapy_type: t('professionals.portrait.specialties.categories.therapy_type'),
-    population: t('professionals.portrait.specialties.categories.population'),
+    clientele: t('professionals.portrait.specialties.categories.clientele'),
     issue: t('professionals.portrait.specialties.categories.issue'),
     modality: t('professionals.portrait.specialties.categories.modality'),
   }

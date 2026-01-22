@@ -1700,6 +1700,7 @@
         "visits": "Visites & Paiements",
         "notes": "Notes",
         "consents": "Consentements",
+        "consultationRequests": "Demandes de consultation",
         "history": "Historique"
       },
       "info": {
@@ -1729,6 +1730,16 @@
         "title": "Consentements",
         "noConsents": "Aucun consentement enregistré",
         "addConsent": "Ajouter un consentement"
+      },
+      "consultationRequests": {
+        "pendingInfo": "Une ou plusieurs demandes sont en attente d'analyse.",
+        "noRequests": "Aucune demande de consultation",
+        "participants": "participant(s)",
+        "createdOn": "Créée le",
+        "role": {
+          "principal": "Client principal",
+          "participant": "Participant"
+        }
       },
       "relations": {
         "title": "Relations",

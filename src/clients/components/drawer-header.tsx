@@ -19,9 +19,10 @@ export function DrawerHeader({ client, onUpdateTags }: DrawerHeaderProps) {
   const { data: availableTags = [] } = useClientTags()
   const initials = `${client.firstName[0]}${client.lastName[0]}`.toUpperCase()
 
-  const formatBalance = (balance: number | undefined) => {
-    if (balance === undefined) return '0,00 $'
-    return `${balance.toFixed(2).replace('.', ',')} $`
+  const formatBalance = (balanceCents: number | undefined) => {
+    if (balanceCents === undefined) return '0,00 $'
+    const dollars = balanceCents / 100
+    return `${dollars.toFixed(2).replace('.', ',')} $`
   }
 
   const handleSaveTags = (tags: string[]) => {
@@ -71,7 +72,7 @@ export function DrawerHeader({ client, onUpdateTags }: DrawerHeaderProps) {
                   {t('clients.drawer.visits.balance')}:
                 </span>
                 <span className="font-medium text-foreground">
-                  {formatBalance(client.balance)}
+                  {formatBalance(client.balanceCents)}
                 </span>
               </div>
             </div>

@@ -1,11 +1,9 @@
 import { useNavigate } from '@tanstack/react-router'
 import { Calendar, DollarSign } from 'lucide-react'
-import { isPast, isFuture, isToday } from 'date-fns'
 import { t } from '@/i18n'
 import {
   formatClinicDateShort,
   formatClinicTime,
-  toClinicTime,
 } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import { AccordionItem, AccordionTrigger, AccordionContent } from '@/shared/ui/accordion'
@@ -18,16 +16,33 @@ interface VisitsSectionProps {
   client: ClientWithRelations
 }
 
-type VisitStatus = 'upcoming' | 'completed' | 'cancelled' | 'no_show'
+type VisitStatus = 'upcoming' | 'completed' | 'cancelled'
+
+/**
+ * Check if an appointment has already passed (start time is in the past).
+ * Compares full timestamps (date + time) for accurate determination.
+ */
+function isAppointmentPast(aptStartTime: string): boolean {
+  const aptTime = new Date(aptStartTime).getTime()
+  const now = Date.now()
+  return aptTime < now
+}
+
+/**
+ * Check if an appointment is still upcoming (start time is now or in the future).
+ */
+function isAppointmentUpcoming(aptStartTime: string): boolean {
+  const aptTime = new Date(aptStartTime).getTime()
+  const now = Date.now()
+  return aptTime >= now
+}
 
 function mapAppointmentStatus(apt: ClientAppointmentInfo): VisitStatus {
   if (apt.status === 'cancelled') return 'cancelled'
-  if (apt.status === 'no_show') return 'no_show'
   if (apt.status === 'completed') return 'completed'
-  // For draft/confirmed, check if it's in the past or future
-  // Use clinic timezone for consistent date comparison
-  const aptDate = toClinicTime(apt.startTime)
-  if (isPast(aptDate) && !isToday(aptDate)) return 'completed'
+  // For created/confirmed, check if it's in the past or future
+  // Use clinic timezone date strings for consistent comparison
+  if (isAppointmentPast(apt.startTime)) return 'completed'
   return 'upcoming'
 }
 
@@ -53,8 +68,19 @@ export function VisitsSection({ client }: VisitsSectionProps) {
         return <Badge className="bg-background-tertiary text-foreground-secondary text-xs">Complété</Badge>
       case 'cancelled':
         return <Badge className="bg-wine-100/50 text-wine-600 text-xs">Annulé</Badge>
-      case 'no_show':
-        return <Badge className="bg-wine-100 text-wine-700 text-xs">Absent</Badge>
+    }
+  }
+
+  const getPaymentBadge = (paymentStatus: ClientAppointmentInfo['paymentStatus']) => {
+    switch (paymentStatus) {
+      case 'paid':
+        return <Badge className="bg-sage-100 text-sage-700 text-xs">Payé</Badge>
+      case 'partial':
+        return <Badge className="bg-amber-100 text-amber-700 text-xs">Partiel</Badge>
+      case 'unpaid':
+        return <Badge className="bg-wine-100/50 text-wine-600 text-xs">Non payé</Badge>
+      case 'no_invoice':
+        return null // No badge if no invoice exists
     }
   }
 
@@ -71,15 +97,13 @@ export function VisitsSection({ client }: VisitsSectionProps) {
   }
 
   // Separate upcoming and past appointments
-  // Use clinic timezone for consistent date comparisons
+  // Compare full timestamps (date + time) for accurate determination
   const upcomingAppointments = appointments.filter(apt => {
-    const aptDate = toClinicTime(apt.startTime)
-    return (isFuture(aptDate) || isToday(aptDate)) && apt.status !== 'cancelled' && apt.status !== 'no_show'
+    return isAppointmentUpcoming(apt.startTime) && apt.status !== 'cancelled' && apt.status !== 'completed'
   })
 
   const pastAppointments = appointments.filter(apt => {
-    const aptDate = toClinicTime(apt.startTime)
-    return (isPast(aptDate) && !isToday(aptDate)) || apt.status === 'cancelled' || apt.status === 'no_show' || apt.status === 'completed'
+    return isAppointmentPast(apt.startTime) || apt.status === 'cancelled' || apt.status === 'completed'
   })
 
   return (
@@ -106,7 +130,7 @@ export function VisitsSection({ client }: VisitsSectionProps) {
               </span>
             </div>
             <span className="font-semibold text-foreground">
-              {formatAmount(client.balance || 0)}
+              {formatAmount((client.balanceCents || 0) / 100)}
             </span>
           </div>
 
@@ -175,6 +199,7 @@ export function VisitsSection({ client }: VisitsSectionProps) {
                                   {apt.serviceName}
                                 </span>
                                 {getStatusBadge(status)}
+                                {status === 'completed' && getPaymentBadge(apt.paymentStatus)}
                               </div>
                               <p className="text-xs text-foreground-secondary">
                                 {formatDate(apt.startTime)} à {formatTime(apt.startTime)} • {apt.professionalName}

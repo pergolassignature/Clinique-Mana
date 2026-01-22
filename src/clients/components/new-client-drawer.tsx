@@ -297,6 +297,7 @@ export function NewClientDrawer({ open, onOpenChange, onSave }: NewClientDrawerP
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
+        hideClose
         className="w-full sm:max-w-2xl overflow-hidden p-0 flex flex-col"
       >
         <VisuallyHidden>
@@ -310,7 +311,7 @@ export function NewClientDrawer({ open, onOpenChange, onSave }: NewClientDrawerP
             <h2 className="text-lg font-semibold">{t('clients.new.title')}</h2>
             <p className="text-sm text-foreground-muted">{t('clients.new.description')}</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} tabIndex={-1}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -323,6 +324,7 @@ export function NewClientDrawer({ open, onOpenChange, onSave }: NewClientDrawerP
               <button
                 key={section.id}
                 type="button"
+                tabIndex={-1}
                 onClick={() => setActiveSection(section.id)}
                 className={cn(
                   'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px',

@@ -162,6 +162,9 @@ export function RequestDetailPage() {
   const [hasLegalContext, setHasLegalContext] = useState<'yes' | 'no' | ''>('')
   const [legalContext, setLegalContext] = useState<string[]>([])
   const [legalContextDetail, setLegalContextDetail] = useState('')
+  // Schedule preferences (multi-select)
+  const [schedulePreferences, setSchedulePreferences] = useState<Array<'am' | 'pm' | 'evening' | 'weekend' | 'other'>>([])
+  const [schedulePreferenceDetail, setSchedulePreferenceDetail] = useState('')
 
   // Internal evaluation state
   const [notes, setNotes] = useState('')
@@ -206,6 +209,8 @@ export function RequestDetailPage() {
       setHasLegalContext(demandeData.hasLegalContext || '')
       setLegalContext(demandeData.legalContext)
       setLegalContextDetail(demandeData.legalContextDetail)
+      setSchedulePreferences(demandeData.schedulePreferences || [])
+      setSchedulePreferenceDetail(demandeData.schedulePreferenceDetail || '')
 
       // Internal evaluation
       setNotes(demandeData.notes)
@@ -548,6 +553,8 @@ export function RequestDetailPage() {
                     hasLegalContext: hasLegalContext as 'yes' | 'no' | '',
                     legalContext,
                     legalContextDetail,
+                    schedulePreferences,
+                    schedulePreferenceDetail,
                     participants: participants.map(p => ({
                       clientId: p.clientId,
                       role: p.role,
@@ -722,7 +729,7 @@ export function RequestDetailPage() {
                       className="space-y-3"
                     >
                       <div className="flex flex-wrap gap-2">
-                        {(['availability', 'coparenting', 'other'] as const).map((option) => {
+                        {(['coparenting', 'other'] as const).map((option) => {
                           const isSelected = enjeuxDemarche.includes(option)
                           return (
                             <button
@@ -1030,6 +1037,71 @@ export function RequestDetailPage() {
                     </motion.div>
                   )}
                 </AnimatePresence>
+              </div>
+
+              {/* F) Préférence horaire */}
+              <div className="space-y-3">
+                <label className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
+                  {t('demandes.schedulePreference.label')}
+                </label>
+                {/* Schedule preferences options (multi-select) */}
+                <div className="flex flex-wrap gap-2">
+                  {(['am', 'pm', 'evening', 'weekend', 'other'] as const).map((option) => {
+                    const isSelected = schedulePreferences.includes(option)
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          if (requestStatus === 'closed') return
+                          if (isSelected) {
+                            setSchedulePreferences(schedulePreferences.filter(p => p !== option))
+                            if (option === 'other') setSchedulePreferenceDetail('')
+                          } else {
+                            setSchedulePreferences([...schedulePreferences, option])
+                          }
+                        }}
+                        disabled={requestStatus === 'closed'}
+                        className={cn(
+                          'px-3 py-1.5 text-sm rounded-full border transition-all',
+                          isSelected
+                            ? 'bg-sage-100 border-sage-300 text-sage-700'
+                            : 'bg-background border-border text-foreground-secondary hover:bg-background-secondary',
+                          requestStatus === 'closed' && 'opacity-50 cursor-not-allowed'
+                        )}
+                      >
+                        {isSelected && <Check className="inline h-3 w-3 mr-1.5" />}
+                        {t(`demandes.schedulePreference.options.${option}` as Parameters<typeof t>[0])}
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* Detail textarea - shown when "Autre" is selected */}
+                <AnimatePresence>
+                  {schedulePreferences.includes('other') && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-1.5"
+                    >
+                      <label className="text-xs font-medium text-foreground-muted">
+                        {t('demandes.schedulePreference.detail.label')}
+                      </label>
+                      <Textarea
+                        value={schedulePreferenceDetail}
+                        onChange={(e) => setSchedulePreferenceDetail(e.target.value)}
+                        placeholder={t('demandes.schedulePreference.detail.placeholder')}
+                        disabled={requestStatus === 'closed'}
+                        className="min-h-[80px]"
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <p className="text-xs text-foreground-muted">
+                  Aide à filtrer les créneaux proposés
+                </p>
               </div>
             </div>
           </motion.section>

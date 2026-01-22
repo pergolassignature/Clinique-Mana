@@ -469,6 +469,7 @@ export function InvoiceBillingTab({
         cancellationFeePercent={cancellationFeePercent}
         suggestFileOpeningFee={!isCancelled && (newClientStatus?.shouldAddFileOpeningFee || false)}
         fileOpeningFeeCents={3500}
+        appointmentProfessionCategoryKey={appointment?.professionCategoryKey}
         onConfirm={handleConfirmCreate}
         isCreating={isCreating}
       />

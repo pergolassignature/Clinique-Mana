@@ -76,11 +76,12 @@ export async function fetchServicesForCategories(
     return { byCategory: {}, all: [] }
   }
 
-  // Fetch all active prices for these categories
+  // Fetch all active prices for these categories OR global prices (profession_category_key = NULL)
+  // Global prices are used for fixed-price services like file opening fees, cancellation fees, etc.
   const { data: prices, error: pricesError } = await supabase
     .from('service_prices')
     .select('service_id, profession_category_key')
-    .in('profession_category_key', categoryKeys)
+    .or(`profession_category_key.in.(${categoryKeys.join(',')}),profession_category_key.is.null`)
     .eq('is_active', true)
 
   if (pricesError) throw pricesError
@@ -133,6 +134,21 @@ export async function fetchServiceById(id: string): Promise<Service | null> {
     .from('services')
     .select('*')
     .eq('id', id)
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') return null
+    throw error
+  }
+
+  return mapDbServiceToService(data)
+}
+
+export async function fetchServiceByKey(key: string): Promise<Service | null> {
+  const { data, error } = await supabase
+    .from('services')
+    .select('*')
+    .eq('key', key)
     .single()
 
   if (error) {

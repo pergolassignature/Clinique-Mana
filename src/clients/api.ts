@@ -371,6 +371,7 @@ export async function fetchClientById(id: string): Promise<ClientWithRelations |
     createdAt: data.created_at,
     isArchived: data.is_archived || false,
     responsibleClientId: data.responsible_client_id,
+    balanceCents: data.balance_cents || 0,
   }
 }
 
@@ -569,4 +570,93 @@ export async function deleteClientRelation(relationId: string): Promise<void> {
     console.error('[deleteClientRelation] Error:', error)
     throw new Error(`Failed to delete client relation: ${error.message}`)
   }
+}
+
+// =============================================================================
+// CONSULTATION REQUESTS
+// =============================================================================
+
+/**
+ * Fetch consultation requests (demandes) for a specific client
+ * Includes demandes where the client is either principal or participant
+ */
+export async function fetchClientConsultationRequests(clientId: string) {
+  const { data, error } = await supabase
+    .from('demande_participants')
+    .select(`
+      id,
+      demande_id,
+      role,
+      consent_status,
+      consent_version,
+      consent_signed_at,
+      demandes!inner(
+        demande_id,
+        status,
+        demand_type,
+        urgency,
+        selected_motifs,
+        created_at,
+        assigned_professional_id,
+        professionals:assigned_professional_id(
+          id,
+          profiles:profile_id(
+            display_name
+          ),
+          professional_professions!inner(
+            is_primary,
+            profession_titles:profession_title_key(
+              label_fr
+            )
+          )
+        )
+      )
+    `)
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false, foreignTable: 'demandes' })
+
+  if (error) {
+    console.error('[fetchClientConsultationRequests] Error:', error)
+    throw new Error(`Failed to fetch consultation requests: ${error.message}`)
+  }
+
+  if (!data) return []
+
+  // Get participant counts for each demande
+  const demandeIds = data.map(d => d.demande_id)
+  const { data: participantCounts } = await supabase
+    .from('demande_participants')
+    .select('demande_id')
+    .in('demande_id', demandeIds)
+
+  const countsByDemande = participantCounts?.reduce((acc, p) => {
+    acc[p.demande_id] = (acc[p.demande_id] || 0) + 1
+    return acc
+  }, {} as Record<string, number>) || {}
+
+  // Transform to ClientConsultationRequest format
+  return data.map(row => {
+    const demande = Array.isArray(row.demandes) ? row.demandes[0] : row.demandes
+    const professional = demande.professionals
+    const profile = professional ? (Array.isArray(professional.profiles) ? professional.profiles[0] : professional.profiles) : null
+
+    // Get primary profession title
+    const professions = professional?.professional_professions || []
+    const primaryProfession = professions.find(p => p.is_primary) || professions[0]
+    const professionTitle = primaryProfession?.profession_titles
+    const titleLabel = professionTitle ? (Array.isArray(professionTitle) ? professionTitle[0]?.label_fr : professionTitle?.label_fr) : null
+
+    return {
+      id: row.id,
+      demandeId: demande.demande_id,
+      status: demande.status as 'toAnalyze' | 'assigned' | 'closed',
+      demandType: demande.demand_type as 'individual' | 'couple' | 'family' | 'group' | null,
+      urgency: demande.urgency as 'low' | 'moderate' | 'high' | null,
+      role: row.role as 'principal' | 'participant',
+      participantCount: countsByDemande[row.demande_id] || 1,
+      assignedProfessionalName: profile?.display_name || null,
+      assignedProfessionalTitle: titleLabel || null,
+      createdAt: demande.created_at,
+    }
+  })
 }

@@ -38,7 +38,7 @@ export {
 export {
   collectRecommendationData,
   calculateAge,
-  calculatePopulationCategory,
+  calculateClienteleCategory,
   fetchDemandeData,
   fetchActiveProfessionals,
   fetchProfessionalAvailability,
@@ -47,17 +47,7 @@ export {
   getDefaultConfig,
 } from './data-collector'
 
-export type { PopulationCategory } from './data-collector'
-
-// Sanitizer
-export {
-  sanitizeForAI,
-  validateSanitizedInput,
-  sanitizeText,
-  combineClientText,
-  sanitizeCandidate,
-  calculatePreliminaryScore,
-} from './sanitizer'
+export type { ClienteleCategory } from './data-collector'
 
 // Deterministic scorer
 export {
@@ -70,26 +60,6 @@ export {
 } from './deterministic-scorer'
 
 export type { PreFilterResult } from './deterministic-scorer'
-
-// AI Advisory
-export {
-  getAIAdvisory,
-  isAIAdvisoryAvailable,
-  getAIModelIdentifier,
-  applyAIAdjustments,
-  getReasoningForProfessional,
-} from './ai-advisory'
-
-export type { AIAdvisoryOptions, AIAdvisoryResult } from './ai-advisory'
-
-// Prompt building utilities
-export {
-  buildUserPrompt,
-  validatePromptTemplate,
-  PLACEHOLDERS,
-  DEFAULT_SYSTEM_PROMPT,
-  DEFAULT_USER_PROMPT_TEMPLATE,
-} from './prompts'
 
 // API functions
 export {

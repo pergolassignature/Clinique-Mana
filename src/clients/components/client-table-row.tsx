@@ -1,7 +1,7 @@
-import { formatDistanceToNow } from 'date-fns'
+import { formatDistanceToNow, parseISO, format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { t } from '@/i18n'
-import { formatClinicDateShort, toClinicTime } from '@/shared/lib/timezone'
+import { toClinicTime } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
 import type { ClientListItem } from '../types'
@@ -13,9 +13,12 @@ interface ClientTableRowProps {
 }
 
 export function ClientTableRow({ client, visibleColumns, onClick }: ClientTableRowProps) {
-  const formatDate = (date: string | null) => {
+  // For date-only fields (like birthday), parse as local date without timezone conversion
+  // This prevents the date from shifting due to UTC interpretation
+  const formatDateOnly = (date: string | null) => {
     if (!date) return '—'
-    return formatClinicDateShort(date)
+    // parseISO treats date-only strings (yyyy-MM-dd) as local dates, not UTC
+    return format(parseISO(date), 'd MMM yyyy', { locale: fr })
   }
 
   const formatRelativeDate = (date: string | null) => {
@@ -56,7 +59,7 @@ export function ClientTableRow({ client, visibleColumns, onClick }: ClientTableR
       {/* Birthday (DOB) */}
       {visibleColumns.has('birthday') && (
         <td className="px-4 py-4 text-sm text-foreground">
-          {formatDate(client.birthday)}
+          {formatDateOnly(client.birthday)}
         </td>
       )}
 

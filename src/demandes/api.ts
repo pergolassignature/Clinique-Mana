@@ -25,6 +25,9 @@ export interface CreateDemandeInput {
   hasLegalContext: 'yes' | 'no' | ''
   legalContext: string[]
   legalContextDetail: string
+  // Schedule preferences (multi-select)
+  schedulePreferences: Array<'am' | 'pm' | 'evening' | 'weekend' | 'other'>
+  schedulePreferenceDetail: string
   // Participants
   participants: Array<{
     clientId: string
@@ -37,6 +40,11 @@ export interface CreateDemandeInput {
 
 export interface UpdateDemandeInput extends Partial<CreateDemandeInput> {
   status?: 'toAnalyze' | 'assigned' | 'closed'
+}
+
+export interface AssignDemandeInput {
+  professionalId: string
+  assignedBy: string // profile ID of the person assigning
 }
 
 export interface DemandeWithParticipants {
@@ -61,6 +69,8 @@ export interface DemandeWithParticipants {
   hasLegalContext: 'yes' | 'no' | null
   legalContext: string[]
   legalContextDetail: string
+  schedulePreferences: Array<'am' | 'pm' | 'evening' | 'weekend' | 'other'>
+  schedulePreferenceDetail: string
   createdAt: string
   updatedAt: string
   participants: Array<{
@@ -101,6 +111,8 @@ export async function createDemande(input: CreateDemandeInput): Promise<DemandeW
       has_legal_context: input.hasLegalContext || null,
       legal_context: input.legalContext,
       legal_context_detail: input.legalContextDetail,
+      schedule_preferences: input.schedulePreferences || [],
+      schedule_preference_detail: input.schedulePreferenceDetail || '',
     })
     .select()
     .single()
@@ -165,6 +177,8 @@ export async function updateDemande(demandeId: string, input: UpdateDemandeInput
   if (input.hasLegalContext !== undefined) updateData.has_legal_context = input.hasLegalContext || null
   if (input.legalContext !== undefined) updateData.legal_context = input.legalContext
   if (input.legalContextDetail !== undefined) updateData.legal_context_detail = input.legalContextDetail
+  if (input.schedulePreferences !== undefined) updateData.schedule_preferences = input.schedulePreferences || []
+  if (input.schedulePreferenceDetail !== undefined) updateData.schedule_preference_detail = input.schedulePreferenceDetail
 
   // Update the demande
   if (Object.keys(updateData).length > 0) {
@@ -238,6 +252,8 @@ export async function fetchDemande(demandeId: string): Promise<DemandeWithPartic
       has_legal_context,
       legal_context,
       legal_context_detail,
+      schedule_preferences,
+      schedule_preference_detail,
       created_at,
       updated_at,
       demande_participants (
@@ -290,6 +306,8 @@ export async function fetchDemande(demandeId: string): Promise<DemandeWithPartic
     hasLegalContext: data.has_legal_context,
     legalContext: data.legal_context || [],
     legalContextDetail: data.legal_context_detail || '',
+    schedulePreferences: data.schedule_preferences || [],
+    schedulePreferenceDetail: data.schedule_preference_detail || '',
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     participants: participants.map(p => ({
@@ -302,4 +320,70 @@ export async function fetchDemande(demandeId: string): Promise<DemandeWithPartic
       consentSignedAt: p.consent_signed_at,
     })),
   }
+}
+
+// =============================================================================
+// ASSIGN PROFESSIONAL TO DEMANDE
+// =============================================================================
+
+export async function assignDemande(
+  demandeId: string,
+  input: AssignDemandeInput
+): Promise<DemandeWithParticipants> {
+  // First get the demande UUID and participants from the display ID
+  const { data: existingDemande, error: fetchError } = await supabase
+    .from('demandes')
+    .select(`
+      id,
+      demande_participants (
+        client_id,
+        role
+      )
+    `)
+    .eq('demande_id', demandeId)
+    .single()
+
+  if (fetchError) throw fetchError
+
+  // Update the demande with assignment info
+  const { error: updateError } = await supabase
+    .from('demandes')
+    .update({
+      status: 'assigned',
+      assigned_professional_id: input.professionalId,
+      assigned_at: new Date().toISOString(),
+      assigned_by: input.assignedBy,
+    })
+    .eq('id', existingDemande.id)
+
+  if (updateError) throw updateError
+
+  // Find all participants and update their primary_professional_id
+  // For 'primary' role, this is the main client
+  // For 'secondary' roles, they might also need the professional assigned
+  const participants = (existingDemande.demande_participants as Array<{
+    client_id: string
+    role: ParticipantRole
+  }>) || []
+
+  // Update primary_professional_id for all participants who don't have one yet
+  // This ensures the assigned professional becomes the primary for clients in this demande
+  if (participants.length > 0) {
+    const clientIds = participants.map(p => p.client_id)
+
+    // Only update clients who don't already have a primary professional
+    const { error: clientUpdateError } = await supabase
+      .from('clients')
+      .update({ primary_professional_id: input.professionalId })
+      .in('id', clientIds)
+      .is('primary_professional_id', null)
+
+    if (clientUpdateError) {
+      console.error('Failed to update client primary_professional_id:', clientUpdateError)
+      // Don't throw - the demande assignment succeeded, this is a secondary operation
+    }
+  }
+
+  // Fetch and return the updated demande
+  return fetchDemande(demandeId)
 }

@@ -19,6 +19,9 @@ export type ConsentStatus = z.infer<typeof ConsentStatus>
 export const ParticipantRole = z.enum(['principal', 'participant'])
 export type ParticipantRole = z.infer<typeof ParticipantRole>
 
+export const SchedulePreference = z.enum(['am', 'pm', 'evening', 'weekend', 'other'])
+export type SchedulePreference = z.infer<typeof SchedulePreference>
+
 // =============================================================================
 // PARTICIPANT SCHEMAS
 // =============================================================================
@@ -54,6 +57,8 @@ export const DemandeSchema = z.object({
   notes: z.string(),
   createdAt: z.string(),
   participants: z.array(DemandeParticipantSchema),
+  schedulePreference: SchedulePreference.nullable(),
+  schedulePreferenceDetail: z.string().nullable(),
 })
 export type Demande = z.infer<typeof DemandeSchema>
 
@@ -72,6 +77,7 @@ export interface DemandeListItem {
   participantCount: number
   motifLabels: string[] // First 2 motif labels for preview
   motifCount: number // Total motif count
+  schedulePreferences: string[] // Multi-select schedule preferences
 }
 
 // =============================================================================

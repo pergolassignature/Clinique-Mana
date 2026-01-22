@@ -380,7 +380,7 @@ function OriginalSubmissionModal({
 
 const categoryLabels: Record<string, string> = {
   therapy_type: 'professionals.portrait.specialties.categories.therapy_type',
-  population: 'professionals.portrait.specialties.categories.population',
+  clientele: 'professionals.portrait.specialties.categories.clientele',
   issue: 'professionals.portrait.specialties.categories.issue',
   modality: 'professionals.portrait.specialties.categories.modality',
 }

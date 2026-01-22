@@ -137,6 +137,19 @@ export interface ClientConsent {
   signedBy: string | null
 }
 
+export interface ClientConsultationRequest {
+  id: string // UUID
+  demandeId: string // DEM-2026-0009
+  status: 'toAnalyze' | 'assigned' | 'closed'
+  demandType: 'individual' | 'couple' | 'family' | 'group' | null
+  urgency: 'low' | 'moderate' | 'high' | null
+  role: 'principal' | 'participant'
+  participantCount: number
+  assignedProfessionalName: string | null
+  assignedProfessionalTitle: string | null
+  createdAt: string
+}
+
 // =============================================================================
 // CLIENT RELATION
 // =============================================================================
@@ -174,6 +187,7 @@ export interface ClientWithRelations extends Client {
   visits?: ClientVisit[]
   notes?: ClientNote[]
   consents?: ClientConsent[]
+  consultationRequests?: ClientConsultationRequest[]
   relations?: ClientRelation[]
   balance?: number
   responsibleClient?: {

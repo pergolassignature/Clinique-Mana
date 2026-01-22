@@ -11,10 +11,10 @@ import type {
 import { classifyHolisticIntent } from './holistic-classifier'
 
 // =============================================================================
-// POPULATION CATEGORY HELPERS
+// CLIENTELE CATEGORY HELPERS
 // =============================================================================
 
-export type PopulationCategory = 'children' | 'adolescents' | 'adults' | 'seniors'
+export type ClienteleCategory = 'children' | 'adolescents' | 'adults' | 'seniors'
 
 /**
  * Calculate age from a birthday string.
@@ -40,7 +40,7 @@ export function calculateAge(birthday: string | null): number | null {
 }
 
 /**
- * Derive population category from age.
+ * Derive clientele category from age.
  * Categories:
  * - 0-12 years: 'children'
  * - 13-17 years: 'adolescents'
@@ -48,9 +48,9 @@ export function calculateAge(birthday: string | null): number | null {
  * - 65+ years: 'seniors'
  *
  * @param birthday - ISO date string (YYYY-MM-DD) or null
- * @returns Population category or null if birthday is invalid
+ * @returns Clientele category or null if birthday is invalid
  */
-export function calculatePopulationCategory(birthday: string | null): PopulationCategory | null {
+export function calculateClienteleCategory(birthday: string | null): ClienteleCategory | null {
   const age = calculateAge(birthday)
   if (age === null) return null
 
@@ -86,7 +86,7 @@ interface DbDemandeRow {
 }
 
 /**
- * Fetch demande data with participant birthdays for population category calculation.
+ * Fetch demande data with participant birthdays for clientele category calculation.
  */
 async function fetchDemandeData(demandeId: string): Promise<DemandeData> {
   const { data, error } = await supabase
@@ -121,15 +121,15 @@ async function fetchDemandeData(demandeId: string): Promise<DemandeData> {
   // Cast through unknown to handle Supabase's dynamic return types
   const dbRow = data as unknown as DbDemandeRow
 
-  // Extract population categories from participant birthdays
-  const populationCategories: string[] = []
+  // Extract clientele categories from participant birthdays
+  const clienteleCategories: string[] = []
   const participants = dbRow.demande_participants || []
 
   for (const participant of participants) {
     if (participant.clients?.birthday) {
-      const category = calculatePopulationCategory(participant.clients.birthday)
-      if (category && !populationCategories.includes(category)) {
-        populationCategories.push(category)
+      const category = calculateClienteleCategory(participant.clients.birthday)
+      if (category && !clienteleCategories.includes(category)) {
+        clienteleCategories.push(category)
       }
     }
   }
@@ -142,7 +142,7 @@ async function fetchDemandeData(demandeId: string): Promise<DemandeData> {
     motifDescription: dbRow.motif_description || '',
     otherMotifText: dbRow.other_motif_text || '',
     notes: dbRow.notes || '',
-    populationCategories,
+    clienteleCategories,
     hasLegalContext: dbRow.has_legal_context === 'yes',
   }
 }
@@ -274,7 +274,7 @@ async function fetchProfessionalAvailability(
     .from('appointments')
     .select('id, start_time, duration_minutes, status')
     .eq('professional_id', professionalId)
-    .in('status', ['draft', 'confirmed'])
+    .in('status', ['created', 'confirmed'])
     .gte('start_time', `${startDate}T00:00:00`)
     .lte('start_time', `${endDate}T23:59:59`)
 
@@ -440,7 +440,7 @@ function mapDbConfigToConfig(row: DbConfigRow): RecommendationConfig {
     weightExperience: row.weight_experience / 100,
     requireAvailabilityWithinDays: row.require_availability_within_days,
     requireMotifOverlap: row.require_motif_overlap,
-    requirePopulationMatch: row.require_population_match,
+    requireClienteleMatch: row.require_population_match,
     availabilityMaxHours: row.availability_max_hours,
     experienceMaxYears: row.experience_max_years,
     isActive: row.is_active,
@@ -465,7 +465,7 @@ function getDefaultConfig(): RecommendationConfig {
     weightExperience: 0.15,
     requireAvailabilityWithinDays: 14,
     requireMotifOverlap: true,
-    requirePopulationMatch: false,
+    requireClienteleMatch: false,
     availabilityMaxHours: 40,
     experienceMaxYears: 20,
     isActive: true,

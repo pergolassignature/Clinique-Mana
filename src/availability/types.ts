@@ -74,7 +74,7 @@ export interface AvailabilityBlock {
 // Appointments
 // =============================================================================
 
-export type AppointmentStatus = 'draft' | 'confirmed' | 'completed' | 'cancelled' | 'no_show'
+export type AppointmentStatus = 'created' | 'confirmed' | 'completed' | 'cancelled'
 export type AppointmentMode = 'in_person' | 'video' | 'phone'
 
 export interface Appointment {
@@ -93,6 +93,8 @@ export interface Appointment {
   cancellationReason?: string
   cancellationFeeApplied?: boolean
   cancellationFeePercent?: number
+  /** Profession category used for this appointment (determines pricing) */
+  professionCategoryKey?: string
   createdAt: string
   updatedAt: string
 }
@@ -107,6 +109,8 @@ export interface AppointmentFormData {
   durationMinutes: number
   mode?: AppointmentMode
   notesInternal?: string
+  /** Profession category used for this appointment (determines pricing) */
+  professionCategoryKey?: string
 }
 
 // =============================================================================
@@ -162,7 +166,6 @@ export type AppointmentAuditAction =
   | 'appointment_rescheduled'
   | 'appointment_cancelled'
   | 'appointment_completed'
-  | 'appointment_no_show'
   | 'appointment_restored'
   | 'appointment_client_added'
   | 'appointment_client_removed'

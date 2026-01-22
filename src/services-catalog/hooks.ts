@@ -5,6 +5,7 @@ import {
   fetchServices,
   fetchActiveServices,
   fetchServiceById,
+  fetchServiceByKey,
   createService,
   updateService,
   archiveService,
@@ -88,6 +89,15 @@ export function useService(id: string) {
     queryKey: serviceKeys.detail(id),
     queryFn: () => fetchServiceById(id),
     enabled: !!id,
+  })
+}
+
+export function useServiceByKey(key: string) {
+  return useQuery({
+    queryKey: [...serviceKeys.details(), 'byKey', key] as const,
+    queryFn: () => fetchServiceByKey(key),
+    enabled: !!key,
+    staleTime: 1000 * 60 * 30, // 30 minutes - service keys don't change often
   })
 }
 

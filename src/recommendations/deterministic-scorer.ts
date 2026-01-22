@@ -104,44 +104,47 @@ function checkMotifOverlapConstraint(
 }
 
 /**
- * Check population match constraint: professional must have specialty for client's age group.
- * Population specialties: 'children', 'adolescents', 'adults', 'seniors'
+ * Check clientele match constraint: professional must have specialty for client's age group.
+ * Clientele specialties: 'children', 'adolescents', 'adults', 'seniors'
+ *
+ * Rule: Professional MUST have the exact specialty to serve a client.
+ * If the demand requires 'adults', the professional must have the 'adults' specialty.
  */
-function checkPopulationMatchConstraint(
+function checkClienteleMatchConstraint(
   candidate: CandidateData,
   demande: DemandeData,
   config: RecommendationConfig
 ): ConstraintResult {
   // If not required, always pass
-  if (!config.requirePopulationMatch) {
-    return { passed: true, reasonCode: 'no_population_match', reasonFr: '' }
+  if (!config.requireClienteleMatch) {
+    return { passed: true, reasonCode: 'no_clientele_match', reasonFr: '' }
   }
 
-  // If no population categories identified (e.g., birthdays not provided), pass
-  if (demande.populationCategories.length === 0) {
-    return { passed: true, reasonCode: 'no_population_match', reasonFr: '' }
+  // If no clientele categories identified (e.g., birthdays not provided), pass
+  if (demande.clienteleCategories.length === 0) {
+    return { passed: true, reasonCode: 'no_clientele_match', reasonFr: '' }
   }
 
-  // Population specialty codes map to population categories
-  const populationSpecialtyCodes = new Set(['children', 'adolescents', 'adults', 'seniors'])
-  const candidatePopulationSpecialties = candidate.specialties
-    .filter((s) => populationSpecialtyCodes.has(s.code))
+  // Clientele specialty codes map to clientele categories
+  const clienteleSpecialtyCodes = new Set(['children', 'adolescents', 'adults', 'seniors'])
+  const candidateClienteleSpecialties = candidate.specialties
+    .filter((s) => clienteleSpecialtyCodes.has(s.code))
     .map((s) => s.code)
 
-  // Check if any of the demande's population categories are covered
-  const matchedPopulations = demande.populationCategories.filter((pop) =>
-    candidatePopulationSpecialties.includes(pop)
+  // Check if any of the demande's clientele categories are covered
+  const matchedClientele = demande.clienteleCategories.filter((cat: string) =>
+    candidateClienteleSpecialties.includes(cat)
   )
-  const hasMatch = matchedPopulations.length > 0
+  const hasMatch = matchedClientele.length > 0
 
   return {
     passed: hasMatch,
-    reasonCode: 'no_population_match',
-    reasonFr: `Spécialité requise pour la population demandée (${demande.populationCategories.join(', ')})`,
+    reasonCode: 'no_clientele_match',
+    reasonFr: `Spécialité requise pour la clientèle demandée (${demande.clienteleCategories.join(', ')})`,
     details: {
-      requiredPopulations: demande.populationCategories,
-      candidatePopulationSpecialties,
-      matchedPopulations,
+      requiredClientele: demande.clienteleCategories,
+      candidateClienteleSpecialties,
+      matchedClientele,
     },
   }
 }
@@ -206,10 +209,10 @@ function checkAllConstraints(
     results.push(motifResult)
   }
 
-  // 3. Population match check
-  const populationResult = checkPopulationMatchConstraint(candidate, demande, config)
-  if (!populationResult.passed) {
-    results.push(populationResult)
+  // 3. Clientele match check
+  const clienteleResult = checkClienteleMatchConstraint(candidate, demande, config)
+  if (!clienteleResult.passed) {
+    results.push(clienteleResult)
   }
 
   // 4. Demand type specialty check
@@ -276,9 +279,9 @@ function calculateSpecialtyMatchScore(
   // Build set of relevant specialty codes based on demande
   const relevantSpecialties = new Set<string>()
 
-  // Add population specialties
-  for (const pop of demande.populationCategories) {
-    relevantSpecialties.add(pop)
+  // Add clientele specialties
+  for (const cat of demande.clienteleCategories) {
+    relevantSpecialties.add(cat)
   }
 
   // Add demand type specialty

@@ -3,7 +3,7 @@
 // All dates in the database are stored as UTC (timestamptz)
 // The clinic operates in a specific timezone (default: America/Toronto for EST/EDT)
 
-import { parse as dateFnsParse } from 'date-fns'
+import { parse as dateFnsParse, parseISO, format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz'
 
@@ -123,4 +123,65 @@ export function formatClinicTime(date: Date | string): string {
  */
 export function formatClinicDateTime(date: Date | string): string {
   return formatInClinicTimezone(date, "dd MMM yyyy 'à' HH:mm")
+}
+
+// =============================================================================
+// DATE-ONLY FORMATTING (for database `date` type fields, NOT timestamptz)
+// =============================================================================
+// IMPORTANT: Use these functions for date-only fields like birthdays, expiry
+// dates, event dates, etc. These fields are stored as `date` type in the
+// database (not `timestamptz`) and should NOT have timezone conversion applied.
+//
+// If you use formatInClinicTimezone() on a date-only field, it will shift the
+// date by the timezone offset (e.g., 2020-01-01 becomes 2019-12-31 at 19:00 EST).
+// =============================================================================
+
+/**
+ * Format a date-only field (database `date` type) for display.
+ * DO NOT use for timestamptz fields - use formatInClinicTimezone instead.
+ *
+ * @param dateStr - Date string in yyyy-MM-dd or ISO format (e.g., "2020-01-01")
+ * @param formatStr - date-fns format string (default: 'd MMMM yyyy')
+ * @returns Formatted date string without timezone conversion
+ *
+ * @example
+ * // For birthdays, expiry dates, event dates stored as `date` type:
+ * formatDateOnly('2020-01-01') // "1 janvier 2020"
+ * formatDateOnly('2020-01-01', 'dd/MM/yyyy') // "01/01/2020"
+ */
+export function formatDateOnly(
+  dateStr: string | null | undefined,
+  formatStr: string = 'd MMMM yyyy'
+): string {
+  if (!dateStr) return '—'
+
+  // Extract just the date part if it's a full ISO string
+  const datePart = dateStr.includes('T') ? dateStr.split('T')[0]! : dateStr
+
+  // Parse as local date (no timezone conversion)
+  const date = parseISO(datePart)
+
+  return format(date, formatStr, { locale: fr })
+}
+
+/**
+ * Format a date-only field with full day name.
+ * Example: "mercredi 1 janvier 2020"
+ *
+ * @param dateStr - Date string in yyyy-MM-dd format
+ * @returns Formatted date string
+ */
+export function formatDateOnlyFull(dateStr: string | null | undefined): string {
+  return formatDateOnly(dateStr, 'EEEE d MMMM yyyy')
+}
+
+/**
+ * Format a date-only field in short format.
+ * Example: "1 janv. 2020"
+ *
+ * @param dateStr - Date string in yyyy-MM-dd format
+ * @returns Formatted date string
+ */
+export function formatDateOnlyShort(dateStr: string | null | undefined): string {
+  return formatDateOnly(dateStr, 'd MMM yyyy')
 }

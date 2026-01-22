@@ -209,7 +209,7 @@ export function useClient(id: string | undefined) {
         createdAt: data.created_at,
         isArchived: data.is_archived,
         responsibleClientId: data.responsible_client_id,
-        balance: 0, // TODO: Calculate from invoices
+        balanceCents: data.balance_cents || 0,
         primaryProfessional: professional ? {
           id: professional.id,
           displayName: professional.profiles?.display_name || '',
@@ -390,5 +390,25 @@ export function useDeleteClientRelation() {
       queryClient.invalidateQueries({ queryKey: clientRelationKeys.client(clientId) })
       queryClient.invalidateQueries({ queryKey: clientRelationKeys.client(relatedClientId) })
     },
+  })
+}
+
+// =============================================================================
+// CONSULTATION REQUESTS
+// =============================================================================
+
+export const consultationRequestKeys = {
+  all: ['consultationRequests'] as const,
+  client: (clientId: string) => [...consultationRequestKeys.all, 'client', clientId] as const,
+}
+
+/**
+ * Fetch consultation requests (demandes) for a specific client
+ */
+export function useClientConsultationRequests(clientId: string | undefined) {
+  return useQuery({
+    queryKey: consultationRequestKeys.client(clientId || ''),
+    queryFn: () => api.fetchClientConsultationRequests(clientId!),
+    enabled: !!clientId,
   })
 }

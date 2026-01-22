@@ -15,7 +15,9 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!user || !profile) {
-    return <Navigate to="/connexion" search={{ redirect: location.pathname }} />
+    // Don't set redirect if already on login page to prevent loops
+    const redirect = location.pathname !== '/connexion' ? location.pathname : undefined
+    return <Navigate to="/connexion" search={{ redirect }} />
   }
 
   return <>{children}</>

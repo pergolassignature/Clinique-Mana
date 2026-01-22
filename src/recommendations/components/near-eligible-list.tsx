@@ -30,7 +30,7 @@ interface NearEligibleItemProps {
 const CONSTRAINT_LABELS: Record<ExclusionReasonCode, string> = {
   no_availability: 'recommendations.nearEligible.constraints.noAvailability',
   no_motif_overlap: 'recommendations.nearEligible.constraints.noMotifOverlap',
-  no_population_match: 'recommendations.nearEligible.constraints.noPopulationMatch',
+  no_clientele_match: 'recommendations.nearEligible.constraints.noClienteleMatch',
   no_demand_type_specialty: 'recommendations.nearEligible.constraints.noDemandTypeSpecialty',
   inactive_status: 'recommendations.nearEligible.constraints.inactiveStatus',
 }

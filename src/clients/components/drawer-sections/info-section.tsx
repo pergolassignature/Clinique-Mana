@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { User, Phone, MapPin, Briefcase } from 'lucide-react'
-import { differenceInYears } from 'date-fns'
+import { differenceInYears, parseISO, format } from 'date-fns'
+import { fr } from 'date-fns/locale'
 import { t } from '@/i18n'
-import { formatInClinicTimezone, toClinicTime } from '@/shared/lib/timezone'
 import { AccordionItem, AccordionTrigger, AccordionContent } from '@/shared/ui/accordion'
 import type { ClientWithRelations } from '../../types'
 import {
@@ -31,15 +31,18 @@ export function InfoSection({ client, onUpdate }: InfoSectionProps) {
 
   const { data: professionals = [] } = useProfessionals()
 
-  const formatDate = (date: string | null) => {
+  // For date-only fields (like birthday), parse as local date without timezone conversion
+  // This prevents the date from shifting due to UTC interpretation
+  const formatDateOnly = (date: string | null) => {
     if (!date) return '—'
-    return formatInClinicTimezone(date, 'dd MMMM yyyy')
+    // parseISO treats date-only strings (yyyy-MM-dd) as local dates, not UTC
+    return format(parseISO(date), 'dd MMMM yyyy', { locale: fr })
   }
 
   const calculateAge = (birthDate: string | null) => {
     if (!birthDate) return null
-    // Use clinic timezone for consistent age calculation
-    return differenceInYears(new Date(), toClinicTime(birthDate))
+    // parseISO handles date-only strings correctly as local dates
+    return differenceInYears(new Date(), parseISO(birthDate))
   }
 
   const formatPhone = (countryCode: string, phone: string | null, extension?: string | null) => {
@@ -168,7 +171,7 @@ export function InfoSection({ client, onUpdate }: InfoSectionProps) {
                 </dd>
                 <dt className="text-foreground-secondary">{t('clients.drawer.info.birthday')}</dt>
                 <dd className="text-foreground font-medium">
-                  {formatDate(client.birthday)}
+                  {formatDateOnly(client.birthday)}
                   {calculateAge(client.birthday) !== null && (
                     <span className="text-foreground-secondary font-normal ml-1">
                       ({calculateAge(client.birthday)} ans)

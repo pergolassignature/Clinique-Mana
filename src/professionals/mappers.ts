@@ -782,7 +782,7 @@ export function isUUID(id: string): boolean {
 
 export const SPECIALTY_CATEGORY_LABELS: Record<string, string> = {
   therapy_type: 'Types de thérapie',
-  population: 'Clientèles',
+  clientele: 'Clientèles',
   issue: 'Motifs de consultation',
   modality: 'Modalités',
 }

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearch, useNavigate } from '@tanstack/react-router'
 import { Plus, UserCircle } from 'lucide-react'
 import { t } from '@/i18n'
 import { EmptyState } from '@/shared/components/empty-state'
@@ -12,6 +13,11 @@ import { useToast } from '@/shared/hooks/use-toast'
 import type { ClientsListFilters, ClientsListSort } from '@/clients/types'
 
 export function ClientsPage() {
+  // Get clientId from URL search params (for deep linking)
+  const search = useSearch({ strict: false }) as { clientId?: string }
+  const urlClientId = search.clientId
+  const navigate = useNavigate()
+
   // Filter and sort state
   const [filters, setFilters] = useState<ClientsListFilters>({})
   const [sort, setSort] = useState<ClientsListSort>({ field: 'name', direction: 'asc' })
@@ -20,6 +26,14 @@ export function ClientsPage() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isNewClientDrawerOpen, setIsNewClientDrawerOpen] = useState(false)
+
+  // Open drawer automatically if clientId is in URL
+  useEffect(() => {
+    if (urlClientId) {
+      setSelectedClientId(urlClientId)
+      setIsDrawerOpen(true)
+    }
+  }, [urlClientId])
 
   // Fetch clients
   const { data: clients = [], isLoading } = useClients(filters, sort)
@@ -33,6 +47,10 @@ export function ClientsPage() {
 
   const handleCloseDrawer = () => {
     setIsDrawerOpen(false)
+    // Clear URL param if present
+    if (urlClientId) {
+      navigate({ to: '/clients', search: {}, replace: true })
+    }
     // Delay clearing the ID to prevent flicker during close animation
     setTimeout(() => setSelectedClientId(null), 200)
   }

@@ -97,6 +97,7 @@ All dates in the database are stored as UTC (`timestamptz`). The clinic operates
 
 ```typescript
 import {
+  // For timestamptz fields (appointments, created_at, etc.)
   formatInClinicTimezone,    // Generic: formatInClinicTimezone(date, 'EEEE d MMMM')
   toClinicTime,              // Convert UTC to clinic time for comparisons
   getClinicDateString,       // Get 'yyyy-MM-dd' in clinic timezone
@@ -106,6 +107,11 @@ import {
   formatClinicTime,          // '14:30'
   formatClinicDateTime,      // '21 janv. 2026 à 14:30'
   clinicTimeToUTC,           // Convert form inputs to UTC for storage
+
+  // For date-only fields (birthday, expiry_date, event_date, etc.)
+  formatDateOnly,            // '1 janvier 2020' - NO timezone conversion
+  formatDateOnlyFull,        // 'mercredi 1 janvier 2020'
+  formatDateOnlyShort,       // '1 janv. 2020'
 } from '@/shared/lib/timezone'
 ```
 
@@ -135,6 +141,32 @@ const startTime = `${date}T${time}:00`
 const startTimeUTC = clinicTimeToUTC(date, time)
 ```
 
+### Date-Only Fields (Birthday, Expiry Dates, etc.) - CRITICAL
+
+For **date-only fields** stored as `date` type (not `timestamptz`), do NOT apply timezone conversion. These are calendar dates without time components.
+
+**Common date-only fields:**
+- `birthday` / `date_of_birth`
+- `expiry_date` (licenses, external payers)
+- `event_date` (IVAC)
+- Any field storing just a calendar date without time
+
+```typescript
+// ❌ WRONG - will shift date by timezone offset (e.g., 2020-01-01 → 2019-12-31)
+formatInClinicTimezone(client.birthday, 'dd MMMM yyyy')
+formatInClinicTimezone(payer.expiry_date, 'dd MMMM yyyy')
+
+// ✅ CORRECT - use formatDateOnly utility (no timezone conversion)
+import { formatDateOnly, formatDateOnlyFull, formatDateOnlyShort } from '@/shared/lib/timezone'
+
+formatDateOnly(client.birthday)           // "1 janvier 2020"
+formatDateOnly(client.birthday, 'dd/MM/yyyy')  // "01/01/2020"
+formatDateOnlyFull(payer.event_date)      // "mercredi 1 janvier 2020"
+formatDateOnlyShort(payer.expiry_date)    // "1 janv. 2020"
+```
+
+**Why this bug happens:** When you pass a date-only string like `"2020-01-01"` to `formatInClinicTimezone()`, JavaScript interprets it as UTC midnight. Converting to EST/EDT shifts it back 4-5 hours, resulting in December 31, 2019 at 19:00.
+
 ### Configuration
 
 The clinic timezone is stored in `clinic_settings.timezone` and can be configured in:
@@ -161,6 +193,93 @@ docs/
 ├── deploy/         # Deployment guides
 ├── modules/        # Module status docs
 └── standards/      # Design standards
+```
+
+## Form Accessibility & Tab Order (IMPORTANT)
+
+All forms must follow proper keyboard navigation patterns for professional SaaS UX.
+
+### Tab Order Rules
+
+1. **Close buttons (X) should NOT be in the tab order** - Users expect Tab to navigate form fields, not UI chrome
+2. **Section navigation tabs should NOT be in the tab order** - These are clicked with mouse, not keyboard-navigated
+3. **Form fields should flow naturally** - Prénom → Nom → Sexe → Langue → etc.
+
+### Implementation
+
+#### Sheet/Dialog Close Buttons
+
+Both `Sheet` and `Dialog` components have `tabIndex={-1}` on their default close buttons. This is automatic.
+
+```tsx
+// If you add a CUSTOM close button in your header, use hideClose:
+<SheetContent hideClose>
+  <header>
+    <h2>Title</h2>
+    <Button onClick={onClose} tabIndex={-1}>  {/* Custom close also needs tabIndex={-1} */}
+      <X />
+    </Button>
+  </header>
+</SheetContent>
+
+// If using the DEFAULT close button, nothing special needed:
+<SheetContent>
+  {/* Default X button already has tabIndex={-1} */}
+</SheetContent>
+```
+
+#### Section Navigation Tabs
+
+For form section tabs (Identité, Coordonnées, Adresse, etc.), use `NavTabs` component:
+
+```tsx
+import { NavTabs, NavTab } from '@/shared/ui/nav-tabs'
+
+<NavTabs className="border-b border-border px-6">
+  {sections.map((section) => (
+    <NavTab
+      key={section.id}
+      active={activeSection === section.id}
+      icon={<section.icon className="h-4 w-4" />}
+      onClick={() => setActiveSection(section.id)}
+    >
+      {section.label}
+    </NavTab>
+  ))}
+</NavTabs>
+```
+
+Or manually with `tabIndex={-1}`:
+
+```tsx
+<button
+  type="button"
+  tabIndex={-1}  // Exclude from tab order
+  onClick={() => setActiveSection(section.id)}
+>
+  {section.label}
+</button>
+```
+
+### hideClose Prop
+
+Both `SheetContent` and `DialogContent` support `hideClose` prop to prevent double X buttons:
+
+```tsx
+// ❌ WRONG - will show TWO close buttons
+<SheetContent>
+  <header>
+    <Button onClick={onClose}><X /></Button>  {/* Custom X */}
+  </header>
+  {/* PLUS the default X from SheetContent */}
+</SheetContent>
+
+// ✅ CORRECT - hide default X when using custom
+<SheetContent hideClose>
+  <header>
+    <Button onClick={onClose} tabIndex={-1}><X /></Button>
+  </header>
+</SheetContent>
 ```
 
 ## Common Commands

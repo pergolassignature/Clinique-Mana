@@ -17,7 +17,7 @@ export type { HolisticSignal, HolisticCategory }
 export const ExclusionReasonCode = z.enum([
   'no_availability',         // No slots within configured time window
   'no_motif_overlap',        // Required motifs not matched
-  'no_population_match',     // Population specialty not matched
+  'no_clientele_match',      // Clientele specialty not matched
   'no_demand_type_specialty', // Demand type (couple, family) specialty missing
   'inactive_status',         // Professional not active
 ])
@@ -52,7 +52,7 @@ export interface RecommendationConfig {
   // Hard constraints
   requireAvailabilityWithinDays: number
   requireMotifOverlap: boolean
-  requirePopulationMatch: boolean
+  requireClienteleMatch: boolean
 
   // Normalization parameters
   availabilityMaxHours: number  // Max hours for availability scoring (beyond this = max score)
@@ -75,7 +75,7 @@ export const RecommendationConfigSchema = z.object({
   weightExperience: z.number().min(0).max(1),
   requireAvailabilityWithinDays: z.number().int().positive(),
   requireMotifOverlap: z.boolean(),
-  requirePopulationMatch: z.boolean(),
+  requireClienteleMatch: z.boolean(),
   availabilityMaxHours: z.number().positive(),
   experienceMaxYears: z.number().positive(),
   isActive: z.boolean(),
@@ -169,7 +169,7 @@ export interface AIAdvisoryInput {
   motifKeys: string[]
   clientText: string           // Combined motif description + notes
   hasLegalContext: boolean     // Flag for legal/mediation cases
-  populationCategories: string[]
+  clienteleCategories: string[]
   // Holistic signal for naturopath preference
   holisticSignal: {
     score: number              // 0-1, higher = more holistic intent
@@ -194,7 +194,7 @@ export const AIAdvisoryInputSchema = z.object({
   motifKeys: z.array(z.string()),
   clientText: z.string(),
   hasLegalContext: z.boolean(),
-  populationCategories: z.array(z.string()),
+  clienteleCategories: z.array(z.string()),
   holisticSignal: z.object({
     score: z.number().min(0).max(1),
     category: z.string(),
@@ -271,6 +271,7 @@ export interface RecommendationProfessionalDetail {
 
   // Match details
   matchedMotifs: string[]         // Motif keys that matched
+  unmatchedMotifs: string[]       // Motif keys from demande that professional doesn't cover
   matchedSpecialties: string[]    // Specialty codes that matched
   availableSlotsCount: number
   nextAvailableSlot: string | null  // ISO datetime
@@ -293,6 +294,7 @@ export const RecommendationProfessionalDetailSchema = z.object({
   aiRankingAdjustment: z.number().min(-5).max(5).nullable(),
   aiReasoningBullets: z.array(z.string()),
   matchedMotifs: z.array(z.string()),
+  unmatchedMotifs: z.array(z.string()),
   matchedSpecialties: z.array(z.string()),
   availableSlotsCount: z.number().int().min(0),
   nextAvailableSlot: z.string().nullable(),
@@ -443,7 +445,7 @@ export interface DemandeData {
   motifDescription: string
   otherMotifText: string
   notes: string
-  populationCategories: string[]  // Extracted from participant data
+  clienteleCategories: string[]  // Extracted from participant data
   hasLegalContext: boolean
 }
 

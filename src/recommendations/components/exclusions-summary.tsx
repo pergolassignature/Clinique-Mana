@@ -23,7 +23,7 @@ interface ExclusionGroup {
 const EXCLUSION_ICONS: Record<ExclusionReasonCode, typeof AlertCircle> = {
   no_availability: Calendar,
   no_motif_overlap: Target,
-  no_population_match: Users,
+  no_clientele_match: Users,
   no_demand_type_specialty: Users,
   inactive_status: UserX,
 }
@@ -31,7 +31,7 @@ const EXCLUSION_ICONS: Record<ExclusionReasonCode, typeof AlertCircle> = {
 const EXCLUSION_COLORS: Record<ExclusionReasonCode, string> = {
   no_availability: 'text-honey-600',
   no_motif_overlap: 'text-wine-600',
-  no_population_match: 'text-violet-600',
+  no_clientele_match: 'text-violet-600',
   no_demand_type_specialty: 'text-violet-600',
   inactive_status: 'text-foreground-muted',
 }

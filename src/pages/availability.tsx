@@ -340,7 +340,7 @@ export function AvailabilityPage() {
         serviceId: service.id,
         startTime,
         durationMinutes: service.durationMinutes,
-        status: 'draft',
+        status: 'created',
         mode: 'video',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -351,7 +351,7 @@ export function AvailabilityPage() {
       setSheetContent('appointment')
       setSheetOpen(true)
 
-      toast({ title: 'Brouillon créé', description: 'Assignez un client pour confirmer.' })
+      toast({ title: 'Rendez-vous créé', description: 'Assignez un client pour confirmer.' })
     },
     [bookableServices, getTargetDate, selectedProfessionalId]
   )
@@ -452,7 +452,7 @@ export function AvailabilityPage() {
         serviceId: defaultService?.id || '',
         startTime: startTime.toISOString(),
         durationMinutes: defaultService?.durationMinutes || 50,
-        status: 'draft',
+        status: 'created',
         mode: 'video',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -714,20 +714,36 @@ export function AvailabilityPage() {
           <AppointmentEditor
             appointment={selectedAppointment}
             onSave={(data) => {
+              // Check if this is only a cancellation fee update
+              const isCancellationFeeOnly =
+                Object.keys(data).length <= 2 &&
+                ('cancellationFeeApplied' in data || 'cancellationFeePercent' in data)
+
               if (selectedAppointment.id.startsWith('new-')) {
                 createAppointment({
                   ...selectedAppointment,
                   ...data,
                 })
+                setSheetOpen(false)
+                setHasUnsavedChanges(false)
+                toast({
+                  title: 'Rendez-vous créé',
+                  description: 'Le rendez-vous a été créé.',
+                })
               } else {
                 updateAppointment(selectedAppointment.id, data)
+                // Update local state immediately for cancellation fee changes
+                if (isCancellationFeeOnly) {
+                  setSelectedAppointment(prev => prev ? { ...prev, ...data } : null)
+                } else {
+                  setSheetOpen(false)
+                  setHasUnsavedChanges(false)
+                }
+                toast({
+                  title: isCancellationFeeOnly ? 'Frais d\'annulation enregistrés' : 'Rendez-vous modifié',
+                  description: 'Les modifications ont été enregistrées.',
+                })
               }
-              setSheetOpen(false)
-              setHasUnsavedChanges(false)
-              toast({
-                title: selectedAppointment.id.startsWith('new-') ? 'Rendez-vous créé' : 'Rendez-vous modifié',
-                description: 'Les modifications ont été enregistrées.',
-              })
             }}
             onCancel={() => setSheetOpen(false)}
             onCancelAppointment={(info) => {

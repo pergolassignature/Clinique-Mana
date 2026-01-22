@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router'
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/shared/ui/sheet'
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { Accordion } from '@/shared/ui/accordion'
@@ -9,6 +10,7 @@ import { ExternalPayersSection } from './drawer-sections/external-payers-section
 import { VisitsSection } from './drawer-sections/visits-section'
 import { NotesSection } from './drawer-sections/notes-section'
 import { ConsentsSection } from './drawer-sections/consents-section'
+import { ConsultationRequestsSection } from './drawer-sections/consultation-requests-section'
 import { RelationsSection } from './drawer-sections/relations-section'
 import { HistorySection } from './drawer-sections/history-section'
 import { useClient, useUpdateClient } from '../hooks'
@@ -35,6 +37,11 @@ export function ClientDrawer({
   const { data: client, isLoading } = useClient(clientId || undefined)
   const updateClient = useUpdateClient()
   const { toast } = useToast()
+  const navigate = useNavigate()
+
+  const handleViewDemande = (demandeId: string) => {
+    navigate({ to: '/demandes/$demandeId', params: { demandeId } })
+  }
 
   const handleUpdate = async (updates: Partial<ClientWithRelations>) => {
     if (!client?.clientId) return
@@ -94,6 +101,7 @@ export function ClientDrawer({
                 <VisitsSection client={client} />
                 <NotesSection client={client} />
                 <ConsentsSection client={client} />
+                <ConsultationRequestsSection client={client} onViewDemande={handleViewDemande} />
                 <HistorySection client={client} />
               </Accordion>
             </div>

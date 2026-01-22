@@ -13,7 +13,7 @@ export type {
 } from './types'
 
 // API types
-export type { CreateDemandeInput, UpdateDemandeInput, DemandeWithParticipants } from './api'
+export type { CreateDemandeInput, UpdateDemandeInput, AssignDemandeInput, DemandeWithParticipants } from './api'
 
 // Hooks
 export {
@@ -22,6 +22,7 @@ export {
   useDemandeStatusCounts,
   useCreateDemande,
   useUpdateDemande,
+  useAssignDemande,
   demandeKeys,
 } from './hooks'
 

@@ -6,13 +6,14 @@ import {
   FileText,
   Calendar,
   User,
+  UserCircle,
   Clock,
   Printer,
   Plus,
   Trash2,
   AlertCircle,
   Check,
-  X,
+  Building2,
 } from 'lucide-react'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
@@ -20,7 +21,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { cn } from '@/shared/lib/utils'
 import { formatClinicDateShort, formatClinicTime } from '@/shared/lib/timezone'
 import { formatCentsCurrency } from '../utils/pricing'
-import { useInvoice, useVoidInvoice, useUpdateInvoiceStatus, useRemoveLineItem, useRemovePayment } from '../hooks'
+import {
+  useInvoice,
+  useVoidInvoice,
+  useUpdateInvoiceStatus,
+  useRemoveLineItem,
+  useRemovePayment,
+  useClientActivePayers,
+  useAllocateToExternalPayer,
+  useRemovePayerAllocation,
+} from '../hooks'
+import { useProfessionTitles } from '@/services-catalog/hooks'
 import {
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_COLORS,
@@ -28,14 +39,16 @@ import {
   PAYMENT_METHOD_LABELS,
   PAYER_ALLOCATION_STATUS_LABELS,
 } from '../constants'
+import { calculateIvacAllocation } from '../utils/payer-allocation'
+import { IVAC_RATE_CENTS, IVAC_RATE_DISPLAY } from '@/external-payers/types'
 import type { Invoice, InvoiceLineItem, InvoicePayment, InvoicePayerAllocation } from '../types'
+import type { ClientExternalPayer, ClientExternalPayerIvac } from '@/external-payers/types'
 
 interface InvoiceDetailViewProps {
   invoiceId: string
   onAddLineItem?: () => void
   onRecordPayment?: () => void
   onPrint?: () => void
-  onClose?: () => void
 }
 
 export function InvoiceDetailView({
@@ -43,9 +56,9 @@ export function InvoiceDetailView({
   onAddLineItem,
   onRecordPayment,
   onPrint,
-  onClose,
 }: InvoiceDetailViewProps) {
   const { data: invoice, isLoading, error } = useInvoice(invoiceId)
+  const { data: professionTitles = [] } = useProfessionTitles()
   const voidInvoice = useVoidInvoice()
   const updateStatus = useUpdateInvoiceStatus()
   const removeLineItem = useRemoveLineItem()
@@ -53,6 +66,12 @@ export function InvoiceDetailView({
 
   const [confirmVoid, setConfirmVoid] = useState(false)
   const [isFinalizingInvoice, setIsFinalizingInvoice] = useState(false)
+
+  // Get profession label from key
+  const getProfessionLabel = (key: string | null | undefined) => {
+    if (!key) return null
+    return professionTitles.find(t => t.key === key)?.labelFr || key
+  }
 
   if (isLoading) {
     return (
@@ -117,19 +136,12 @@ export function InvoiceDetailView({
             {formatClinicDateShort(invoice.invoiceDate)}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {onPrint && (
-            <Button variant="outline" size="sm" onClick={onPrint}>
-              <Printer className="h-4 w-4 mr-2" />
-              Imprimer
-            </Button>
-          )}
-          {onClose && (
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
+        {onPrint && (
+          <Button variant="outline" size="sm" onClick={onPrint}>
+            <Printer className="h-4 w-4 mr-2" />
+            Imprimer
+          </Button>
+        )}
       </div>
 
       {/* QuickBooks sync warning */}
@@ -144,7 +156,7 @@ export function InvoiceDetailView({
         </div>
       )}
 
-      {/* Client & Appointment Info */}
+      {/* Client, Professional & Appointment Info */}
       <div className="grid grid-cols-2 gap-4">
         {invoice.client && (
           <Card>
@@ -179,6 +191,24 @@ export function InvoiceDetailView({
             </CardContent>
           </Card>
         )}
+        {invoice.professional && (
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-sm font-medium mb-2">
+                <UserCircle className="h-4 w-4 text-foreground-muted" />
+                Professionnel
+              </div>
+              <div className="text-sm">
+                {invoice.professional.displayName}
+              </div>
+              {invoice.professional.professionTitleKey && (
+                <div className="text-xs text-foreground-muted">
+                  {getProfessionLabel(invoice.professional.professionTitleKey)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Line Items */}
@@ -206,9 +236,21 @@ export function InvoiceDetailView({
       {/* Totals */}
       <TotalsCard invoice={invoice} />
 
+      {/* Available Payers (before allocations) */}
+      {canEdit && invoice.clientId && (
+        <AvailablePayersSection
+          invoice={invoice}
+          existingAllocations={invoice.payerAllocations || []}
+        />
+      )}
+
       {/* Payer Allocations */}
       {invoice.payerAllocations && invoice.payerAllocations.length > 0 && (
-        <PayerAllocationsCard allocations={invoice.payerAllocations} />
+        <PayerAllocationsCard
+          allocations={invoice.payerAllocations}
+          invoiceId={invoiceId}
+          canEdit={canEdit}
+        />
       )}
 
       {/* Payments */}
@@ -396,47 +438,64 @@ interface TotalsCardProps {
 }
 
 function TotalsCard({ invoice }: TotalsCardProps) {
+  const hasExternalPayer = invoice.externalPayerAmountCents > 0
+
   return (
     <Card className="bg-muted/30">
       <CardContent className="p-4 space-y-2">
+        {/* Subtotal */}
         <div className="flex justify-between text-sm">
           <span>Sous-total</span>
           <span>{formatCentsCurrency(invoice.subtotalCents)}</span>
         </div>
+
+        {/* Discount if applicable */}
         {invoice.discountCents > 0 && (
           <div className="flex justify-between text-sm text-emerald-600">
             <span>Rabais</span>
             <span>-{formatCentsCurrency(invoice.discountCents)}</span>
           </div>
         )}
-        {invoice.taxTpsCents > 0 && (
-          <div className="flex justify-between text-sm text-foreground-muted">
-            <span>TPS (5%)</span>
-            <span>{formatCentsCurrency(invoice.taxTpsCents)}</span>
-          </div>
-        )}
-        {invoice.taxTvqCents > 0 && (
-          <div className="flex justify-between text-sm text-foreground-muted">
-            <span>TVQ (9,975%)</span>
-            <span>{formatCentsCurrency(invoice.taxTvqCents)}</span>
-          </div>
-        )}
+
+        {/* Taxes */}
+        <div className="flex justify-between text-sm text-foreground-muted">
+          <span>TPS (5%)</span>
+          <span>{formatCentsCurrency(invoice.taxTpsCents)}</span>
+        </div>
+        <div className="flex justify-between text-sm text-foreground-muted">
+          <span>TVQ (9,975%)</span>
+          <span>{formatCentsCurrency(invoice.taxTvqCents)}</span>
+        </div>
+
+        {/* Total facture (services rendered) */}
         <div className="flex justify-between font-medium pt-2 border-t">
-          <span>Total</span>
+          <span>Total facture</span>
           <span>{formatCentsCurrency(invoice.totalCents)}</span>
         </div>
-        {invoice.externalPayerAmountCents > 0 && (
-          <div className="flex justify-between text-sm text-sky-600">
-            <span>Couvert par tiers payeur</span>
-            <span>-{formatCentsCurrency(invoice.externalPayerAmountCents)}</span>
-          </div>
+
+        {/* External payer coverage section */}
+        {hasExternalPayer && (
+          <>
+            <div className="flex justify-between text-sm text-sky-600">
+              <span>Couvert par tiers payeur</span>
+              <span>-{formatCentsCurrency(invoice.externalPayerAmountCents)}</span>
+            </div>
+            <div className="flex justify-between font-medium text-sm">
+              <span>Total client</span>
+              <span>{formatCentsCurrency(invoice.clientAmountCents)}</span>
+            </div>
+          </>
         )}
+
+        {/* Payments received */}
         {invoice.amountPaidCents > 0 && (
           <div className="flex justify-between text-sm text-emerald-600">
             <span>Payé</span>
             <span>-{formatCentsCurrency(invoice.amountPaidCents)}</span>
           </div>
         )}
+
+        {/* Balance (what client still owes) */}
         <div className="flex justify-between font-semibold text-lg pt-2 border-t">
           <span>Solde</span>
           <span className={invoice.balanceCents > 0 ? 'text-amber-600' : 'text-emerald-600'}>
@@ -450,13 +509,21 @@ function TotalsCard({ invoice }: TotalsCardProps) {
 
 interface PayerAllocationsCardProps {
   allocations: InvoicePayerAllocation[]
+  invoiceId: string
+  canEdit: boolean
 }
 
-function PayerAllocationsCard({ allocations }: PayerAllocationsCardProps) {
+function PayerAllocationsCard({ allocations, invoiceId, canEdit }: PayerAllocationsCardProps) {
+  const removeAllocation = useRemovePayerAllocation()
+
+  const handleRemove = async (allocationId: string) => {
+    await removeAllocation.mutateAsync({ allocationId, invoiceId })
+  }
+
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium">Tiers payeurs</CardTitle>
+        <CardTitle className="text-sm font-medium">Tiers payeurs appliqués</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {allocations.map((allocation) => (
@@ -472,20 +539,172 @@ function PayerAllocationsCard({ allocations }: PayerAllocationsCardProps) {
                 {PAYER_ALLOCATION_STATUS_LABELS[allocation.status]}
               </div>
             </div>
-            <div className="text-right">
-              <div className="font-medium">
-                {formatCentsCurrency(allocation.amountCents)}
-              </div>
-              {allocation.ivacRateAppliedCents && (
-                <div className="text-xs text-foreground-muted">
-                  Taux: {formatCentsCurrency(allocation.ivacRateAppliedCents)}
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <div className="font-medium">
+                  {formatCentsCurrency(allocation.amountCents)}
                 </div>
+                {allocation.ivacRateAppliedCents && (
+                  <div className="text-xs text-foreground-muted">
+                    Taux: {formatCentsCurrency(allocation.ivacRateAppliedCents)}
+                  </div>
+                )}
+              </div>
+              {canEdit && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-destructive"
+                  onClick={() => handleRemove(allocation.id)}
+                  disabled={removeAllocation.isPending}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               )}
             </div>
           </div>
         ))}
       </CardContent>
     </Card>
+  )
+}
+
+// =============================================================================
+// AVAILABLE PAYERS SECTION
+// =============================================================================
+
+interface AvailablePayersCardProps {
+  invoice: Invoice
+  activePayers: ClientExternalPayer[]
+  existingAllocations: InvoicePayerAllocation[]
+}
+
+function AvailablePayersCard({ invoice, activePayers, existingAllocations }: AvailablePayersCardProps) {
+  const allocatePayer = useAllocateToExternalPayer()
+
+  // Filter payers that haven't been allocated yet
+  const availablePayers = activePayers.filter((payer) => {
+    // Check if payer is already allocated to this invoice
+    const alreadyAllocated = existingAllocations.some(
+      (alloc) => alloc.clientExternalPayerId === payer.id
+    )
+    if (alreadyAllocated) return false
+
+    // Check expiry for IVAC
+    if (payer.payer_type === 'ivac') {
+      const ivacPayer = payer as ClientExternalPayerIvac
+      if (ivacPayer.ivac_details.expiry_date) {
+        const expiry = new Date(ivacPayer.ivac_details.expiry_date)
+        if (expiry < new Date()) return false
+      }
+    }
+
+    return true
+  })
+
+  if (availablePayers.length === 0) return null
+
+  const handleApplyIvac = async (payer: ClientExternalPayerIvac) => {
+    // Calculate allocation based on invoice subtotal
+    const allocation = calculateIvacAllocation(invoice.subtotalCents)
+
+    await allocatePayer.mutateAsync({
+      invoiceId: invoice.id,
+      clientExternalPayerId: payer.id,
+      payerType: 'ivac',
+      amountCents: allocation.payerCoversCents,
+      ivacRateAppliedCents: IVAC_RATE_CENTS,
+    })
+  }
+
+  return (
+    <Card className="border-sage-200 bg-sage-50/50">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-sage-600" />
+          <CardTitle className="text-sm font-medium text-sage-800">
+            Payeur externe disponible
+          </CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {availablePayers.map((payer) => {
+          if (payer.payer_type === 'ivac') {
+            const ivacPayer = payer as ClientExternalPayerIvac
+            const allocation = calculateIvacAllocation(invoice.subtotalCents)
+            const clientBalance = invoice.balanceCents - allocation.payerCoversCents
+
+            return (
+              <div key={payer.id} className="space-y-3">
+                <div>
+                  <div className="font-medium text-sm">
+                    IVAC — Dossier #{ivacPayer.ivac_details.file_number}
+                  </div>
+                  <div className="text-xs text-foreground-muted">
+                    Taux : {IVAC_RATE_DISPLAY} par rendez-vous
+                  </div>
+                </div>
+
+                <div className="text-sm space-y-1 p-3 rounded bg-white/50">
+                  <div className="flex justify-between">
+                    <span className="text-foreground-muted">Après application :</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>IVAC couvre</span>
+                    <span className="font-medium text-sage-700">
+                      {formatCentsCurrency(allocation.payerCoversCents)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Solde client</span>
+                    <span className="font-medium">
+                      {formatCentsCurrency(clientBalance)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    onClick={() => handleApplyIvac(ivacPayer)}
+                    disabled={allocatePayer.isPending}
+                  >
+                    {allocatePayer.isPending ? 'Application...' : 'Appliquer IVAC'}
+                  </Button>
+                </div>
+              </div>
+            )
+          }
+
+          // TODO: PAE support can be added here
+          return null
+        })}
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Wrapper component that fetches active payers and renders AvailablePayersCard
+ */
+interface AvailablePayersSectionProps {
+  invoice: Invoice
+  existingAllocations: InvoicePayerAllocation[]
+}
+
+function AvailablePayersSection({ invoice, existingAllocations }: AvailablePayersSectionProps) {
+  const { data: activePayers, isLoading } = useClientActivePayers(invoice.clientId)
+
+  if (isLoading || !activePayers || activePayers.length === 0) {
+    return null
+  }
+
+  return (
+    <AvailablePayersCard
+      invoice={invoice}
+      activePayers={activePayers}
+      existingAllocations={existingAllocations}
+    />
   )
 }
 

@@ -43,6 +43,7 @@ export function useAppointments(professionalId?: string | null) {
           cancellation_reason,
           cancellation_fee_applied,
           cancellation_fee_percent,
+          profession_category_key,
           created_at,
           updated_at,
           appointment_clients (
@@ -74,6 +75,7 @@ export function useAppointments(professionalId?: string | null) {
           cancellationReason: row.cancellation_reason,
           cancellationFeeApplied: row.cancellation_fee_applied,
           cancellationFeePercent: row.cancellation_fee_percent,
+          professionCategoryKey: row.profession_category_key,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
         }
@@ -96,6 +98,7 @@ export function useAppointments(professionalId?: string | null) {
           status: 'confirmed',
           mode: data.mode,
           notes_internal: data.notesInternal,
+          profession_category_key: data.professionCategoryKey,
         })
         .select()
         .single()
@@ -127,6 +130,7 @@ export function useAppointments(professionalId?: string | null) {
         status: appointment.status,
         mode: appointment.mode,
         notesInternal: appointment.notes_internal,
+        professionCategoryKey: appointment.profession_category_key,
         createdAt: appointment.created_at,
         updatedAt: appointment.updated_at,
       }
@@ -145,6 +149,7 @@ export function useAppointments(professionalId?: string | null) {
       if (data.durationMinutes) updates.duration_minutes = data.durationMinutes
       if (data.notesInternal !== undefined) updates.notes_internal = data.notesInternal
       if (data.mode) updates.mode = data.mode
+      if (data.professionCategoryKey !== undefined) updates.profession_category_key = data.professionCategoryKey
 
       if (data.startDate && data.startTime) {
         const startDateTime = new Date(`${data.startDate}T${data.startTime}:00`)
@@ -254,9 +259,11 @@ export interface ClientAppointmentInfo {
   id: string
   startTime: string
   durationMinutes: number
-  status: 'draft' | 'confirmed' | 'completed' | 'cancelled' | 'no_show'
+  status: 'created' | 'confirmed' | 'completed' | 'cancelled'
   serviceName: string
   professionalName: string
+  /** Payment status based on linked invoice */
+  paymentStatus: 'no_invoice' | 'unpaid' | 'partial' | 'paid'
 }
 
 export function useClientAppointments(clientId: string | undefined) {
@@ -276,7 +283,7 @@ export function useClientAppointments(clientId: string | undefined) {
 
       const appointmentIds = appointmentClients.map(ac => ac.appointment_id)
 
-      // Fetch appointment details with service and professional info
+      // Fetch appointment details with service, professional, and invoice info
       const { data: appointments, error: aptError } = await supabase
         .from('appointments')
         .select(`
@@ -291,6 +298,10 @@ export function useClientAppointments(clientId: string | undefined) {
             profiles:profile_id (
               display_name
             )
+          ),
+          invoices (
+            status,
+            balance_cents
           )
         `)
         .in('id', appointmentIds)
@@ -301,6 +312,24 @@ export function useClientAppointments(clientId: string | undefined) {
       return (appointments || []).map(apt => {
         const service = apt.services as unknown as { name_fr: string } | null
         const professional = apt.professionals as unknown as { profiles: { display_name: string } | null } | null
+        const invoices = apt.invoices as unknown as Array<{ status: string; balance_cents: number }> | null
+
+        // Determine payment status from linked invoice(s)
+        let paymentStatus: ClientAppointmentInfo['paymentStatus'] = 'no_invoice'
+        if (invoices && invoices.length > 0) {
+          // Use the first non-void invoice
+          const activeInvoice = invoices.find(inv => inv.status !== 'void')
+          if (activeInvoice) {
+            if (activeInvoice.status === 'paid' || activeInvoice.balance_cents === 0) {
+              paymentStatus = 'paid'
+            } else if (activeInvoice.status === 'partial') {
+              paymentStatus = 'partial'
+            } else {
+              paymentStatus = 'unpaid'
+            }
+          }
+        }
+
         return {
           id: apt.id,
           startTime: apt.start_time,
@@ -308,6 +337,7 @@ export function useClientAppointments(clientId: string | undefined) {
           status: apt.status as ClientAppointmentInfo['status'],
           serviceName: service?.name_fr || 'Service inconnu',
           professionalName: professional?.profiles?.display_name || 'Professionnel inconnu',
+          paymentStatus,
         }
       })
     },

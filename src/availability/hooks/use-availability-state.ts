@@ -213,6 +213,9 @@ export function useAvailabilityState(professionalId?: string | null) {
       if (updates.status) dbUpdates.status = updates.status
       if (updates.mode !== undefined) dbUpdates.mode = updates.mode
       if (updates.notesInternal !== undefined) dbUpdates.notes_internal = updates.notesInternal
+      // Cancellation fee fields
+      if (updates.cancellationFeeApplied !== undefined) dbUpdates.cancellation_fee_applied = updates.cancellationFeeApplied
+      if (updates.cancellationFeePercent !== undefined) dbUpdates.cancellation_fee_percent = updates.cancellationFeePercent
 
       const { error } = await supabase
         .from('appointments')

@@ -22,7 +22,6 @@ const ACTION_LABELS: Record<CalendarAuditAction, string> = {
   appointment_rescheduled: 'Rendez-vous reporté',
   appointment_cancelled: 'Rendez-vous annulé',
   appointment_completed: 'Rendez-vous complété',
-  appointment_no_show: 'Client absent (no-show)',
   appointment_restored: 'Rendez-vous restauré',
   appointment_client_added: 'Client ajouté au rendez-vous',
   appointment_client_removed: 'Client retiré du rendez-vous',
@@ -40,7 +39,6 @@ function getIconType(action: CalendarAuditAction): HumanizedCalendarAuditEntry['
   if (
     action === 'availability_deleted' ||
     action === 'appointment_cancelled' ||
-    action === 'appointment_no_show' ||
     action === 'appointment_client_removed'
   ) {
     return 'error'

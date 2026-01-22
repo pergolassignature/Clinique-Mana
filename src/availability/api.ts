@@ -347,7 +347,7 @@ export async function createAppointment(
       duration_minutes: input.durationMinutes,
       mode: input.mode ?? null,
       notes_internal: input.notesInternal ?? null,
-      status: input.status ?? 'draft',
+      status: input.status ?? 'created',
     })
     .select()
     .single()
@@ -481,29 +481,11 @@ export async function completeAppointment(id: string): Promise<Appointment> {
   return mapDbToAppointment(data, clientIds)
 }
 
-export async function markNoShow(id: string): Promise<Appointment> {
-  const { data, error } = await supabase
-    .from('appointments')
-    .update({ status: 'no_show' })
-    .eq('id', id)
-    .select(`
-      *,
-      clients:appointment_clients(client_id)
-    `)
-    .single()
-
-  if (error) throw error
-
-  const clients = (data.clients as { client_id: string }[]) || []
-  const clientIds = clients.map((c) => c.client_id)
-  return mapDbToAppointment(data, clientIds)
-}
-
 export async function restoreAppointment(id: string): Promise<Appointment> {
   const { data, error } = await supabase
     .from('appointments')
     .update({
-      status: 'draft',
+      status: 'created',
       cancelled_at: null,
       cancellation_reason: null,
       cancellation_fee_applied: null,

@@ -51,6 +51,7 @@ export function useDemandes(filters?: DemandesListFilters, sort?: DemandesListSo
           demand_type,
           urgency,
           selected_motifs,
+          schedule_preferences,
           created_at,
           demande_participants (
             id,
@@ -123,6 +124,7 @@ export function useDemandes(filters?: DemandesListFilters, sort?: DemandesListSo
           participantCount: participants.length,
           motifLabels: motifs.slice(0, 2).map((m: string) => MOTIF_LABELS[m] || m),
           motifCount: motifs.length,
+          schedulePreferences: (row.schedule_preferences as string[]) ?? [],
         }
       })
     },
@@ -199,6 +201,27 @@ export function useUpdateDemande() {
   return useMutation({
     mutationFn: ({ demandeId, updates }: { demandeId: string; updates: UpdateDemandeInput }) =>
       api.updateDemande(demandeId, updates),
+    onSuccess: (data) => {
+      // Invalidate specific demande query and lists
+      queryClient.invalidateQueries({ queryKey: demandeKeys.detail(data.demandeId) })
+      queryClient.invalidateQueries({ queryKey: demandeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: demandeKeys.statusCounts() })
+    },
+  })
+}
+
+/**
+ * Assign a professional to a demande
+ */
+export function useAssignDemande() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ demandeId, professionalId, assignedBy }: {
+      demandeId: string
+      professionalId: string
+      assignedBy: string
+    }) => api.assignDemande(demandeId, { professionalId, assignedBy }),
     onSuccess: (data) => {
       // Invalidate specific demande query and lists
       queryClient.invalidateQueries({ queryKey: demandeKeys.detail(data.demandeId) })

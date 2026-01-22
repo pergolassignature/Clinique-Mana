@@ -32,7 +32,7 @@ import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { formatCentsCurrency, parseCurrencyToCents } from '../utils/pricing'
 import { TPS_RATE, TVQ_RATE } from '../constants'
 import { useProfessionTitles } from '@/professionals/hooks'
-import { useServicesForCategories, useServicePrices } from '@/services-catalog/hooks'
+import { useServicesForCategories, useServicePrices, useProfessionCategories } from '@/services-catalog/hooks'
 import type { LineItemType, QuantityUnit } from '../types'
 import type { Client } from '@/availability/types'
 import type { ProfessionalWithRelations } from '@/professionals/types'
@@ -74,6 +74,8 @@ interface InvoiceCreationDialogProps {
   suggestFileOpeningFee: boolean
   /** File opening fee price in cents */
   fileOpeningFeeCents?: number
+  /** Profession category from the appointment (determines pricing) */
+  appointmentProfessionCategoryKey?: string
   /** Callback when confirmed */
   onConfirm: (lineItems: InvoiceLineItem[], options: {
     addFileOpeningFee: boolean
@@ -220,6 +222,7 @@ export function InvoiceCreationDialog({
   cancellationFeePercent,
   suggestFileOpeningFee,
   fileOpeningFeeCents = 3500,
+  appointmentProfessionCategoryKey,
   onConfirm,
   isCreating,
 }: InvoiceCreationDialogProps) {
@@ -233,9 +236,16 @@ export function InvoiceCreationDialog({
   // Get profession titles to map profession_title_key to category_key
   const { data: professionTitles = [] } = useProfessionTitles()
 
-  // Get professional's profession category keys
+  // Get profession category keys for fetching services
+  // Priority: 1) appointmentProfessionCategoryKey (from stored appointment)
+  //           2) All professional's profession categories (fallback)
   const professionalProfessions = professional?.professions || []
   const professionCategoryKeys = useMemo(() => {
+    // If we have the category from the appointment, use it exclusively for price resolution
+    if (appointmentProfessionCategoryKey) {
+      return [appointmentProfessionCategoryKey]
+    }
+    // Fallback: use all professional's categories (legacy behavior)
     const keys: string[] = []
     for (const prof of professionalProfessions) {
       const title = professionTitles.find((t) => t.key === prof.profession_title_key)
@@ -244,14 +254,39 @@ export function InvoiceCreationDialog({
       }
     }
     return keys
-  }, [professionalProfessions, professionTitles])
+  }, [appointmentProfessionCategoryKey, professionalProfessions, professionTitles])
 
   // Fetch services available for this professional's profession categories
   const { data: servicesByCategory } = useServicesForCategories(professionCategoryKeys)
   const availableServices = servicesByCategory?.all || []
 
-  // Fetch service prices
+  // Fetch service prices and profession categories (for tax info)
   const { data: servicePrices = [] } = useServicePrices()
+  const { data: professionCategories = [] } = useProfessionCategories()
+
+  // Get profession label for display
+  const selectedProfessionLabel = useMemo(() => {
+    // If we have a specific category from appointment, find its label
+    if (appointmentProfessionCategoryKey) {
+      // Find which profession has this category
+      for (const prof of professionalProfessions) {
+        const title = professionTitles.find(t => t.key === prof.profession_title_key)
+        if (title?.profession_category_key === appointmentProfessionCategoryKey) {
+          return title.label_fr
+        }
+      }
+    }
+    // Fallback: use primary profession
+    const primaryProf = professionalProfessions.find(p => p.is_primary) || professionalProfessions[0]
+    if (primaryProf) {
+      const title = professionTitles.find(t => t.key === primaryProf.profession_title_key)
+      return title?.label_fr || null
+    }
+    return null
+  }, [appointmentProfessionCategoryKey, professionalProfessions, professionTitles])
+
+  // Get the active profession category key for price resolution
+  const activeProfessionCategoryKey = appointmentProfessionCategoryKey || professionCategoryKeys[0] || null
 
   const isCancelled = appointmentStatus === 'cancelled'
 
@@ -318,9 +353,46 @@ export function InvoiceCreationDialog({
     const service = availableServices.find(s => s.id === serviceId)
     if (!service) return
 
-    // Find the price for this service
-    const price = servicePrices.find(p => p.serviceId === serviceId && p.isActive)
-    const priceCents = price?.priceCents ?? 0
+    // Find the price for this service using the same priority as RPC:
+    // 1. Category-specific price (if activeProfessionCategoryKey is set)
+    // 2. Global price (profession_category_key = null)
+    let priceCents = 0
+
+    if (activeProfessionCategoryKey) {
+      // Try category-specific price first
+      const categoryPrice = servicePrices.find(
+        p => p.serviceId === serviceId &&
+             p.professionCategoryKey === activeProfessionCategoryKey &&
+             p.isActive
+      )
+      if (categoryPrice) {
+        priceCents = categoryPrice.priceCents
+      } else {
+        // Fallback to global price
+        const globalPrice = servicePrices.find(
+          p => p.serviceId === serviceId && !p.professionCategoryKey && p.isActive
+        )
+        if (globalPrice) {
+          priceCents = globalPrice.priceCents
+        }
+      }
+    } else {
+      // No category - use global price
+      const globalPrice = servicePrices.find(
+        p => p.serviceId === serviceId && !p.professionCategoryKey && p.isActive
+      )
+      if (globalPrice) {
+        priceCents = globalPrice.priceCents
+      }
+    }
+
+    // Determine taxability:
+    // 1. If service has isTaxableOverride = true, it's always taxable (e.g., file opening fee)
+    // 2. Otherwise, use profession category's taxIncluded setting
+    const category = activeProfessionCategoryKey
+      ? professionCategories.find(c => c.key === activeProfessionCategoryKey)
+      : null
+    const isTaxable = service.isTaxableOverride === true || (category?.taxIncluded ?? false)
 
     const newItem: InvoiceLineItem = {
       id: `service-${Date.now()}`,
@@ -332,7 +404,7 @@ export function InvoiceCreationDialog({
       quantity: 1,
       billableMinutes: service.duration ?? null,
       unitPriceCents: priceCents,
-      isTaxable: service.isTaxableOverride ?? false,
+      isTaxable,
       displayOrder: lineItems.length,
       description: null,
     }
@@ -380,8 +452,8 @@ export function InvoiceCreationDialog({
             </div>
           )}
 
-          {/* Client and Invoice info */}
-          <div className="grid grid-cols-2 gap-6">
+          {/* Client, Professional and Invoice info */}
+          <div className="grid grid-cols-3 gap-6">
             {/* Client info */}
             <div>
               <div className="text-sm font-medium text-sage-600 mb-2">Client</div>
@@ -397,6 +469,21 @@ export function InvoiceCreationDialog({
                 </div>
               ) : (
                 <div className="text-sm text-foreground-muted">Aucun client sélectionné</div>
+              )}
+            </div>
+
+            {/* Professional info */}
+            <div>
+              <div className="text-sm font-medium text-sage-600 mb-2">Professionnel</div>
+              {professional ? (
+                <div className="text-sm">
+                  <div className="font-medium">{professional.profile?.display_name || 'Professionnel'}</div>
+                  {selectedProfessionLabel && (
+                    <div className="text-foreground-muted">{selectedProfessionLabel}</div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-sm text-foreground-muted">Aucun professionnel</div>
               )}
             </div>
 
@@ -505,7 +592,7 @@ export function InvoiceCreationDialog({
                       className="rounded border-amber-400"
                     />
                     <span className="text-sm">
-                      Ajouter frais d'ouverture de dossier ({formatCentsCurrency(fileOpeningFeeCents)})
+                      Ajouter frais d'ouverture de dossier
                     </span>
                   </label>
                   <div className="text-xs text-amber-700 mt-1 ml-5">
@@ -518,22 +605,22 @@ export function InvoiceCreationDialog({
               <div className="flex justify-end">
                 <div className="w-64 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>Total</span>
-                    <span className="font-semibold text-lg">{formatCentsCurrency(totals.subtotalCents)}</span>
+                    <span>Sous-total</span>
+                    <span>{formatCentsCurrency(totals.subtotalCents)}</span>
                   </div>
-                  {totals.taxTpsCents > 0 && (
-                    <div className="flex justify-between text-sm text-foreground-muted">
-                      <span>TPS (5%)</span>
-                      <span>{formatCentsCurrency(totals.taxTpsCents)}</span>
-                    </div>
-                  )}
-                  {totals.taxTvqCents > 0 && (
-                    <div className="flex justify-between text-sm text-foreground-muted">
-                      <span>TVQ (9,975%)</span>
-                      <span>{formatCentsCurrency(totals.taxTvqCents)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm border-t border-border pt-2">
+                  <div className="flex justify-between text-sm text-foreground-muted">
+                    <span>TPS (5%)</span>
+                    <span>{formatCentsCurrency(totals.taxTpsCents)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-foreground-muted">
+                    <span>TVQ (9,975%)</span>
+                    <span>{formatCentsCurrency(totals.taxTvqCents)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-semibold border-t border-border pt-2">
+                    <span>Total</span>
+                    <span>{formatCentsCurrency(totals.totalCents)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-foreground-muted">
                     <span>Payé</span>
                     <span>{formatCentsCurrency(0)}</span>
                   </div>

@@ -9,7 +9,6 @@ import { Badge } from '@/shared/ui/badge'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import { cn } from '@/shared/lib/utils'
 import type { RecommendationProfessionalDetail } from '../types'
-import { ScoreBreakdown } from './score-breakdown'
 import type { MotifKey } from '@/shared/components/motif-selector'
 
 export interface RecommendationCardProps {
@@ -89,7 +88,7 @@ function RankBadge({ rank }: { rank: number }) {
 
 /**
  * Individual recommendation card component.
- * Displays professional details, scores, AI reasoning, and actions.
+ * Displays professional details, matched/unmatched motifs, and actions.
  */
 export function RecommendationCard({
   recommendation,
@@ -101,11 +100,16 @@ export function RecommendationCard({
     professionalId,
     displayName,
     professionTitles,
-    aiReasoningBullets,
     matchedMotifs,
+    unmatchedMotifs,
     nextAvailableSlot,
     availableSlotsCount,
   } = recommendation
+
+  // Total motifs count for display logic
+  const totalMatchedMotifs = matchedMotifs?.length || 0
+  const totalUnmatchedMotifs = unmatchedMotifs?.length || 0
+  const hasMotifs = totalMatchedMotifs > 0 || totalUnmatchedMotifs > 0
 
   return (
     <motion.div
@@ -127,57 +131,51 @@ export function RecommendationCard({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          {/* Header: Name, titles, and score */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h4 className="font-semibold text-foreground truncate">
-                {displayName || t('recommendations.card.unknownProfessional')}
-              </h4>
-              {professionTitles && professionTitles.length > 0 && (
-                <p className="text-xs text-foreground-muted truncate">
-                  {professionTitles.join(' / ')}
-                </p>
-              )}
-            </div>
-            <ScoreBreakdown recommendation={recommendation} mode="inline" />
+          {/* Header: Name and profession titles */}
+          <div className="min-w-0">
+            <h4 className="font-semibold text-foreground truncate">
+              {displayName || t('recommendations.card.unknownProfessional')}
+            </h4>
+            {professionTitles && professionTitles.length > 0 && (
+              <p className="text-xs text-foreground-muted truncate">
+                {professionTitles.join(' / ')}
+              </p>
+            )}
           </div>
 
-          {/* AI reasoning bullets */}
-          {aiReasoningBullets && aiReasoningBullets.length > 0 && (
-            <ul className="mt-2 space-y-1">
-              {aiReasoningBullets.slice(0, 3).map((bullet, index) => (
-                <li
-                  key={index}
-                  className="text-xs text-foreground-secondary leading-relaxed flex items-start gap-1.5"
-                >
-                  <span className="text-sage-400 shrink-0">-</span>
-                  <span>{bullet}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {/* Matched motifs */}
-          {matchedMotifs && matchedMotifs.length > 0 && (
+          {/* Motifs section: matched (green) and unmatched (red) */}
+          {hasMotifs && (
             <div className="mt-3 flex flex-wrap gap-1.5">
-              {matchedMotifs.slice(0, 4).map((motif) => (
-                <Badge key={motif} variant="default" className="text-xs">
+              {/* Matched motifs (green) */}
+              {matchedMotifs?.slice(0, 3).map((motif) => (
+                <Badge key={motif} variant="success" className="text-xs">
                   {getMotifLabel(motif)}
                 </Badge>
               ))}
-              {matchedMotifs.length > 4 && (
-                <Badge variant="secondary" className="text-xs">
-                  +{matchedMotifs.length - 4}
+              {totalMatchedMotifs > 3 && (
+                <Badge variant="success" className="text-xs opacity-75">
+                  +{totalMatchedMotifs - 3}
+                </Badge>
+              )}
+              {/* Unmatched motifs (red) */}
+              {unmatchedMotifs?.slice(0, 2).map((motif) => (
+                <Badge key={motif} variant="error" className="text-xs">
+                  {getMotifLabel(motif)}
+                </Badge>
+              ))}
+              {totalUnmatchedMotifs > 2 && (
+                <Badge variant="error" className="text-xs opacity-75">
+                  +{totalUnmatchedMotifs - 2}
                 </Badge>
               )}
             </div>
           )}
 
           {/* Availability and actions */}
-          <div className="mt-3 flex items-center justify-between pt-2 border-t border-border/50">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/50">
             {/* Availability info */}
             <div className="flex items-center gap-2 text-xs text-foreground-secondary">
-              <Calendar className="h-3.5 w-3.5" />
+              <Calendar className="h-3.5 w-3.5 shrink-0" />
               <span>
                 {formatNextSlot(nextAvailableSlot)}
                 {availableSlotsCount > 0 && (

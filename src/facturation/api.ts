@@ -17,6 +17,8 @@ import type {
   InvoiceFilters,
   PayerAllocationFilters,
   PayerAllocationStatus,
+  IvacReportEntry,
+  IvacReportFilters,
 } from './types'
 import { getClinicDateString } from '@/shared/lib/timezone'
 import {
@@ -137,18 +139,31 @@ export async function fetchInvoice(id: string): Promise<Invoice | null> {
           .select('display_name')
           .eq('id', profData.profile_id)
           .single()
+
+        // Get primary profession title
+        let professionTitleKey: string | null = null
+        const { data: professionData } = await supabase
+          .from('professional_professions')
+          .select('profession_title_key')
+          .eq('professional_id', data.professional_id)
+          .eq('is_primary', true)
+          .maybeSingle()
+        if (professionData) {
+          professionTitleKey = professionData.profession_title_key
+        }
+
         if (profileData) {
           invoice.professional = {
             id: profData.id,
             displayName: profileData.display_name,
-            professionTitleKey: null,
+            professionTitleKey,
           }
         } else {
           // RLS blocked access - use a placeholder
           invoice.professional = {
             id: profData.id,
             displayName: 'Professionnel',
-            professionTitleKey: null,
+            professionTitleKey,
           }
         }
       }
@@ -678,6 +693,141 @@ export async function fetchPayerAllocations(
   return mapPayerAllocationsFromDb((data || []) as InvoicePayerAllocationRow[])
 }
 
+// =============================================================================
+// IVAC REPORT
+// =============================================================================
+
+/**
+ * Fetch IVAC report data with all related information for billing/reporting.
+ * Joins allocations with invoices, clients, professionals, appointments, and IVAC details.
+ */
+export async function fetchIvacReport(
+  filters?: IvacReportFilters
+): Promise<IvacReportEntry[]> {
+  // Build the query with all necessary joins
+  let query = supabase
+    .from('invoice_payer_allocations')
+    .select(`
+      id,
+      invoice_id,
+      amount_cents,
+      ivac_rate_applied_cents,
+      status,
+      reported_at,
+      paid_at,
+      created_at,
+      client_external_payer_id,
+      invoices!inner (
+        id,
+        invoice_number,
+        invoice_date,
+        total_cents,
+        appointment_id,
+        client_id,
+        professional_id,
+        appointments!inner (
+          id,
+          start_time,
+          services!inner (
+            name_fr
+          )
+        ),
+        clients!inner (
+          id,
+          client_id,
+          first_name,
+          last_name
+        ),
+        professionals!inner (
+          id,
+          profiles!inner (
+            display_name
+          )
+        )
+      ),
+      client_external_payers!inner (
+        id,
+        client_payer_ivac (
+          file_number
+        )
+      )
+    `)
+    .eq('payer_type', 'ivac')
+    .order('created_at', { ascending: false })
+
+  // Apply filters
+  if (filters?.status) {
+    query = query.eq('status', filters.status)
+  }
+
+  if (filters?.dateFrom) {
+    query = query.gte('created_at', filters.dateFrom)
+  }
+
+  if (filters?.dateTo) {
+    query = query.lte('created_at', filters.dateTo)
+  }
+
+  if (filters?.professionalId) {
+    query = query.eq('invoices.professional_id', filters.professionalId)
+  }
+
+  const { data, error } = await query
+
+  if (error) throw error
+
+  if (!data || data.length === 0) return []
+
+  // Fetch professional IVAC numbers separately (many-to-one relationship)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const professionalIds = [...new Set(data.map((d: any) => d.invoices.professional_id))]
+
+  const { data: ivacNumbers } = await supabase
+    .from('professional_ivac_numbers')
+    .select('professional_id, ivac_number')
+    .in('professional_id', professionalIds)
+
+  const ivacNumberMap = new Map(
+    (ivacNumbers || []).map((n: { professional_id: string; ivac_number: string }) => [n.professional_id, n.ivac_number])
+  )
+
+  // Map to report entries
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return data.map((row: any): IvacReportEntry => ({
+    // Allocation info
+    allocationId: row.id,
+    allocationDate: row.created_at,
+    amountCents: row.amount_cents,
+    ivacRateAppliedCents: row.ivac_rate_applied_cents,
+    status: row.status as PayerAllocationStatus,
+    reportedAt: row.reported_at,
+    paidAt: row.paid_at,
+
+    // Invoice info
+    invoiceId: row.invoices.id,
+    invoiceNumber: row.invoices.invoice_number,
+    invoiceDate: row.invoices.invoice_date,
+    invoiceTotalCents: row.invoices.total_cents,
+
+    // Client info
+    clientId: row.invoices.clients.id,
+    clientDisplayId: row.invoices.clients.client_id,
+    clientFirstName: row.invoices.clients.first_name,
+    clientLastName: row.invoices.clients.last_name,
+    ivacFileNumber: row.client_external_payers.client_payer_ivac?.file_number || '',
+
+    // Appointment info
+    appointmentId: row.invoices.appointments.id,
+    appointmentDate: row.invoices.appointments.start_time,
+    serviceName: row.invoices.appointments.services.name_fr,
+
+    // Professional info
+    professionalId: row.invoices.professional_id,
+    professionalDisplayName: row.invoices.professionals.profiles.display_name,
+    professionalIvacNumber: ivacNumberMap.get(row.invoices.professional_id) || null,
+  }))
+}
+
 /**
  * Allocate an amount to an external payer.
  */
@@ -742,6 +892,33 @@ export async function updatePayerAllocationStatus(
   await logInvoiceAudit(data.invoice_id, action, null, { status })
 
   return mapPayerAllocationFromDb(data as InvoicePayerAllocationRow)
+}
+
+/**
+ * Remove a payer allocation.
+ * The trigger will automatically update the invoice's external_payer_amount_cents.
+ */
+export async function removePayerAllocation(allocationId: string): Promise<void> {
+  // Get allocation details for audit log
+  const { data: allocation, error: fetchError } = await supabase
+    .from('invoice_payer_allocations')
+    .select('invoice_id, payer_type, amount_cents')
+    .eq('id', allocationId)
+    .single()
+
+  if (fetchError) throw fetchError
+
+  const { error } = await supabase
+    .from('invoice_payer_allocations')
+    .delete()
+    .eq('id', allocationId)
+
+  if (error) throw error
+
+  await logInvoiceAudit(allocation.invoice_id, 'payer_removed', {
+    payerType: allocation.payer_type,
+    amountCents: allocation.amount_cents,
+  }, null)
 }
 
 // =============================================================================

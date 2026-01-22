@@ -1420,7 +1420,7 @@ export async function fetchProfessionalServices(
       is_active,
       created_at,
       updated_at,
-      service:services(id, name_fr, default_duration_minutes)
+      service:services(id, key, name_fr, default_duration_minutes)
     `)
     .eq('professional_id', professional_id)
     .eq('is_active', true)
@@ -1433,6 +1433,7 @@ export async function fetchProfessionalServices(
     ...row,
     service: row.service as unknown as {
       id: string
+      key: string
       name_fr: string
       default_duration_minutes: number | null
     },

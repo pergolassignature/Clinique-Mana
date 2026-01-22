@@ -51,6 +51,7 @@ export type InvoiceAuditAction =
   | 'sync_failed'
   | 'voided'
   | 'payer_allocated'
+  | 'payer_removed'
   | 'payer_reported'
   | 'payer_paid'
   | 'updated'
@@ -75,10 +76,11 @@ export interface Invoice {
   discountCents: number
   taxTpsCents: number
   taxTvqCents: number
-  totalCents: number
-  amountPaidCents: number
-  balanceCents: number
-  externalPayerAmountCents: number
+  totalCents: number              // Full invoice amount (services rendered)
+  externalPayerAmountCents: number // Amount covered by IVAC/PAE
+  clientAmountCents: number       // What client is responsible for (total - payer)
+  amountPaidCents: number         // Payments received from client
+  balanceCents: number            // What client still owes (clientAmount - paid)
 
   // QuickBooks sync (Phase B)
   qboInvoiceId: string | null
@@ -271,6 +273,7 @@ export interface CreateInvoiceInput {
   clientId: string    // Which client to bill (for multi-client appointments)
   notesClient?: string
   notesInternal?: string
+  addFileOpeningFee?: boolean  // Whether to add ouverture de dossier fee
 }
 
 export interface AddLineItemInput {
@@ -374,6 +377,54 @@ export interface PayerAllocationFilters {
   status?: PayerAllocationStatus
   dateFrom?: string
   dateTo?: string
+}
+
+// =============================================================================
+// IVAC REPORT TYPES
+// =============================================================================
+
+/**
+ * Entry for the IVAC report - contains all data needed for IVAC billing/reporting.
+ */
+export interface IvacReportEntry {
+  // Allocation info
+  allocationId: string
+  allocationDate: string           // When the IVAC was applied
+  amountCents: number              // Amount allocated to IVAC (usually 9450)
+  ivacRateAppliedCents: number | null
+  status: PayerAllocationStatus    // pending, reported, paid
+  reportedAt: string | null
+  paidAt: string | null
+
+  // Invoice info
+  invoiceId: string
+  invoiceNumber: string
+  invoiceDate: string
+  invoiceTotalCents: number
+
+  // Client info
+  clientId: string
+  clientDisplayId: string          // CLI-0000001
+  clientFirstName: string
+  clientLastName: string
+  ivacFileNumber: string           // IVAC dossier number
+
+  // Appointment info
+  appointmentId: string
+  appointmentDate: string          // When the service was rendered
+  serviceName: string
+
+  // Professional info
+  professionalId: string
+  professionalDisplayName: string
+  professionalIvacNumber: string | null  // Professional's IVAC number
+}
+
+export interface IvacReportFilters {
+  status?: PayerAllocationStatus
+  dateFrom?: string                // Filter by allocation date
+  dateTo?: string
+  professionalId?: string
 }
 
 // =============================================================================

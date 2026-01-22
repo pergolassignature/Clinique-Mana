@@ -240,7 +240,7 @@ export function BookingSidebar({
                 <div className="space-y-1.5">
                   {dayApts.map(apt => {
                     const service = getService(apt.serviceId)
-                    const isDraft = apt.status === 'draft'
+                    const isCreated = apt.status === 'created'
                     return (
                       <button
                         key={apt.id}
@@ -255,13 +255,13 @@ export function BookingSidebar({
                           <div className="flex-1 min-w-0">
                             <div className={cn(
                               'text-sm font-medium truncate',
-                              isDraft ? 'text-foreground-muted italic' : 'text-foreground'
+                              isCreated ? 'text-foreground-muted italic' : 'text-foreground'
                             )}>
                               {getClientNames(apt.clientIds)}
                             </div>
                             <div className="text-xs text-foreground-muted">
                               {formatInClinicTimezone(apt.startTime, 'HH:mm')} · {service?.nameFr}
-                              {isDraft && ' · Brouillon'}
+                              {isCreated && ' · En attente'}
                             </div>
                           </div>
                         </div>

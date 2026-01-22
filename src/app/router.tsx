@@ -25,13 +25,14 @@ import { ProfessionalDetailPage } from '@/pages/professional-detail'
 import { InvitePage } from '@/pages/invite'
 import { AvailabilityPage } from '@/pages/availability'
 import { MotifsPage } from '@/pages/motifs'
+import { SpecialtiesPage } from '@/pages/specialties'
 import { ServicesPage } from '@/pages/services'
 import { ClientsPage } from '@/pages/clients'
-import { ClientDetailPage } from '@/pages/client-detail'
 import { RequestsPage } from '@/pages/requests'
 import { RequestDetailPage } from '@/pages/request-detail'
 import { RequestAnalysisPage } from '@/pages/request-analysis'
 import { ReportsPage } from '@/pages/reports'
+import { IvacReportPage } from '@/facturation/components/ivac-report-page'
 import { SettingsLayout } from '@/pages/settings-layout'
 import { ClinicSettingsPage } from '@/pages/clinic-settings'
 import { LoginPage } from '@/pages/login'
@@ -139,19 +140,32 @@ const legacyServicesRoute = createRoute({
   },
 })
 
+// Clients search params
+interface ClientsSearchParams {
+  clientId?: string
+}
+
+function validateClientsSearchParams(search: Record<string, unknown>): ClientsSearchParams {
+  return {
+    clientId: typeof search.clientId === 'string' ? search.clientId : undefined,
+  }
+}
+
 // Clients
 const clientsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/clients',
   component: ClientsPage,
+  validateSearch: validateClientsSearchParams,
 })
 
-// Client Detail
+// Client Detail - redirect to /clients with drawer open
 const clientDetailRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/clients/$id',
-  component: ClientDetailPage,
-  validateSearch: validateDetailSearchParams,
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/clients', search: { clientId: params.id } })
+  },
 })
 
 // Requests
@@ -176,11 +190,18 @@ const requestAnalysisRoute = createRoute({
   component: RequestAnalysisPage,
 })
 
-// Reports
+// Reports (parent route)
 const reportsRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '/rapports',
   component: ReportsPage,
+})
+
+// Reports > IVAC
+const ivacReportRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/rapports/ivac',
+  component: IvacReportPage,
 })
 
 // Settings (parent route with layout)
@@ -204,6 +225,13 @@ const settingsMotifsRoute = createRoute({
   getParentRoute: () => settingsRoute,
   path: '/motifs',
   component: MotifsPage,
+})
+
+// Settings > Specialties
+const settingsSpecialtiesRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/specialites',
+  component: SpecialtiesPage,
 })
 
 // Settings > Services
@@ -238,9 +266,11 @@ const routeTree = rootRoute.addChildren([
     requestDetailRoute,
     requestAnalysisRoute,
     reportsRoute,
+    ivacReportRoute,
     settingsRoute.addChildren([
       settingsIndexRoute,
       settingsMotifsRoute,
+      settingsSpecialtiesRoute,
       settingsServicesRoute,
       settingsCliniqueRoute,
     ]),

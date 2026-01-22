@@ -1,79 +1,44 @@
-import { Download, BarChart3 } from 'lucide-react'
-import { t } from '@/i18n'
-import { EmptyState } from '@/shared/components/empty-state'
-import { FilterBarSkeleton } from '@/shared/components/filter-bar-skeleton'
-import { Button } from '@/shared/ui/button'
+import { Link } from '@tanstack/react-router'
+import { Building2, ChevronRight } from 'lucide-react'
+import { Card, CardContent } from '@/shared/ui/card'
+
+const REPORTS = [
+  {
+    id: 'ivac',
+    title: 'Rapport IVAC',
+    description: 'Suivi des allocations IVAC pour la facturation aux tiers payeurs',
+    href: '/rapports/ivac',
+    icon: Building2,
+  },
+]
 
 export function ReportsPage() {
-  const isEmpty = true
-
   return (
     <div className="space-y-6">
-      {/* Toolbar: Action button */}
-      <div className="flex justify-end">
-        <Button disabled>
-          <Download className="h-4 w-4" />
-          {t('pages.reports.action')}
-        </Button>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {REPORTS.map((report) => (
+          <Link key={report.id} to={report.href}>
+            <Card className="hover:border-sage-300 hover:shadow-sm transition-all cursor-pointer h-full">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-sage-100 rounded-lg">
+                      <report.icon className="h-5 w-5 text-sage-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">{report.title}</h3>
+                      <p className="text-sm text-foreground-muted mt-1">
+                        {report.description}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-foreground-muted flex-shrink-0" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
       </div>
-
-      {/* Date range filter */}
-      <FilterBarSkeleton filters={2} showSearch={false} />
-
-      {/* Content */}
-      {isEmpty ? (
-        <EmptyState
-          icon={<BarChart3 className="h-8 w-8" />}
-          title={t('pages.reports.empty.title')}
-          description={t('pages.reports.empty.description')}
-        />
-      ) : (
-        /* Charts skeleton */
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Bar chart placeholder */}
-          <div className="rounded-xl border border-border bg-background p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="shimmer h-5 w-40 rounded" />
-              <div className="shimmer h-8 w-24 rounded-lg" />
-            </div>
-            <div className="flex items-end justify-between gap-2 h-48">
-              {Array.from({ length: 7 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex-1 shimmer rounded-t-lg"
-                  style={{
-                    height: `${30 + Math.random() * 70}%`,
-                    animationDelay: `${i * 100}ms`,
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Line chart placeholder */}
-          <div className="rounded-xl border border-border bg-background p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="shimmer h-5 w-40 rounded" />
-              <div className="shimmer h-8 w-24 rounded-lg" />
-            </div>
-            <div className="relative h-48">
-              <div className="shimmer absolute inset-0 rounded-lg" />
-            </div>
-          </div>
-
-          {/* Stats cards */}
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="rounded-xl border border-border bg-background p-5"
-            >
-              <div className="shimmer h-4 w-24 rounded mb-2" />
-              <div className="shimmer h-8 w-16 rounded mb-3" />
-              <div className="shimmer h-3 w-32 rounded" />
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

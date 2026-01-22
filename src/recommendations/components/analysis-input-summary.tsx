@@ -52,9 +52,9 @@ function getUrgencyInfo(level: string | null | undefined): { label: string; colo
 }
 
 /**
- * Map population category to French label.
+ * Map clientele category to French label.
  */
-function getPopulationLabel(category: string): string {
+function getClienteleLabel(category: string): string {
   const labels: Record<string, string> = {
     children: 'Enfants',
     adolescents: 'Adolescents',
@@ -79,13 +79,29 @@ export function AnalysisInputSummary({
   const demandType = inputSnapshot.demandType as string | null
   const urgencyLevel = inputSnapshot.urgencyLevel as string | null
   const motifKeys = (inputSnapshot.motifKeys as string[]) || []
-  const populationCategories = (inputSnapshot.populationCategories as string[]) || []
+  const clienteleCategories = (inputSnapshot.clienteleCategories as string[]) || []
   const hasLegalContext = inputSnapshot.hasLegalContext as boolean
   const professionRules = (inputSnapshot.professionRules as ProfessionEligibilityRule[]) || []
   const urgencyInfo = getUrgencyInfo(urgencyLevel)
 
-  // Use totalProfessionalsAnalyzed if available (more accurate), otherwise fall back to sum
-  const totalProfessionals = (inputSnapshot.totalProfessionalsAnalyzed as number) || (candidateCount + exclusionCount)
+  // Extract match result statistics from inputSnapshot
+  const matchResult = inputSnapshot.matchResult as {
+    totalEvaluated?: number
+    filteredByClientele?: number
+    filteredByAvailability?: number
+  } | undefined
+
+  // Total professionals analyzed (before any filters)
+  const totalProfessionals = (inputSnapshot.totalProfessionalsAnalyzed as number)
+    || matchResult?.totalEvaluated
+    || (candidateCount + exclusionCount)
+
+  // Eligible = total - filtered by clientele - filtered by availability
+  const filteredByClientele = matchResult?.filteredByClientele || 0
+  const filteredByAvailability = matchResult?.filteredByAvailability || 0
+  const eligibleCount = matchResult?.totalEvaluated
+    ? matchResult.totalEvaluated - filteredByClientele - filteredByAvailability
+    : candidateCount
 
   return (
     <div className="rounded-lg border border-border bg-background">
@@ -182,19 +198,19 @@ export function AnalysisInputSummary({
                   </div>
                 )}
 
-                {/* Population Categories */}
-                {populationCategories.length > 0 && (
+                {/* Clientele Categories */}
+                {clienteleCategories.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap">
                     <Users className="h-3.5 w-3.5 text-foreground-muted" />
                     <span className="text-sm text-foreground-secondary">
-                      {t('recommendations.analysisInput.population')}:
+                      {t('recommendations.analysisInput.clientele')}:
                     </span>
-                    {populationCategories.map((cat) => (
+                    {clienteleCategories.map((cat) => (
                       <span
                         key={cat}
                         className="text-xs bg-violet-50 text-violet-700 px-2 py-0.5 rounded border border-violet-200"
                       >
-                        {getPopulationLabel(cat)}
+                        {getClienteleLabel(cat)}
                       </span>
                     ))}
                   </div>
@@ -309,19 +325,28 @@ export function AnalysisInputSummary({
                 <p className="text-xs font-medium text-foreground-secondary uppercase tracking-wider mb-2">
                   {t('recommendations.analysisInput.searchStats')}
                 </p>
-                <div className="flex gap-4 text-sm">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                   <div>
                     <span className="text-foreground-secondary">{t('recommendations.analysisInput.totalProfessionals')}: </span>
                     <span className="font-medium text-foreground">{totalProfessionals}</span>
                   </div>
                   <div>
                     <span className="text-foreground-secondary">{t('recommendations.analysisInput.eligible')}: </span>
-                    <span className="font-medium text-sage-600">{candidateCount}</span>
+                    <span className="font-medium text-sage-600">{eligibleCount}</span>
                   </div>
-                  <div>
-                    <span className="text-foreground-secondary">{t('recommendations.analysisInput.excluded')}: </span>
-                    <span className="font-medium text-wine-600">{exclusionCount}</span>
-                  </div>
+                  {filteredByClientele > 0 && (
+                    <div>
+                      <span className="text-foreground-muted text-xs">
+                        ({filteredByClientele} filtrés par clientèle)
+                      </span>
+                    </div>
+                  )}
+                  {exclusionCount > 0 && (
+                    <div>
+                      <span className="text-foreground-secondary">{t('recommendations.analysisInput.excluded')}: </span>
+                      <span className="font-medium text-wine-600">{exclusionCount}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

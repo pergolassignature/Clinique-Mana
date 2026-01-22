@@ -9,6 +9,7 @@ import type { Client } from '../types'
 interface ClientCardProps {
   client: Client
   onRemove?: () => void
+  onClick?: () => void
   compact?: boolean
   className?: string
 }
@@ -18,7 +19,7 @@ function getInitials(client: Client): string {
   return `${client.firstName.charAt(0)}${client.lastName.charAt(0)}`.toUpperCase()
 }
 
-export function ClientCard({ client, onRemove, compact = false, className }: ClientCardProps) {
+export function ClientCard({ client, onRemove, onClick, compact = false, className }: ClientCardProps) {
   const birthDate = client.dateOfBirth ? new Date(client.dateOfBirth) : null
   const age = birthDate ? differenceInYears(new Date(), birthDate) : null
   const birthDateLabel = birthDate ? format(birthDate, 'd MMMM yyyy', { locale: fr }) : null
@@ -46,45 +47,58 @@ export function ClientCard({ client, onRemove, compact = false, className }: Cli
   return (
     <div className={cn(
       'flex items-start gap-3 p-3 rounded-lg bg-background-secondary border border-border',
+      onClick && 'cursor-pointer hover:border-sage-300 transition-colors',
       className
     )}>
-      {/* Avatar */}
-      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-sage-100 flex items-center justify-center">
-        <span className="text-sm font-semibold text-sage-700">
-          {getInitials(client)}
-        </span>
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="font-medium text-foreground truncate">
-          {client.firstName} {client.lastName}
+      {/* Clickable area: Avatar + Info */}
+      <div
+        className="flex items-start gap-3 flex-1 min-w-0"
+        onClick={onClick}
+        role={onClick ? 'button' : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
+      >
+        {/* Avatar */}
+        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-sage-100 flex items-center justify-center">
+          <span className="text-sm font-semibold text-sage-700">
+            {getInitials(client)}
+          </span>
         </div>
-        {(age !== null || birthDateLabel) && (
-          <div className="text-xs text-foreground-muted mt-0.5">
-            {age !== null ? `${age} ans` : ''}
-            {age !== null && birthDateLabel ? ' · ' : ''}
-            {birthDateLabel ? `Né(e) le ${birthDateLabel}` : ''}
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-foreground truncate">
+            {client.firstName} {client.lastName}
           </div>
-        )}
-        {client.email && (
-          <div className="flex items-center gap-1.5 text-sm text-foreground-muted mt-0.5">
-            <Mail className="h-3.5 w-3.5" />
-            <span className="truncate">{client.email}</span>
-          </div>
-        )}
-        {client.phone && (
-          <div className="flex items-center gap-1.5 text-sm text-foreground-muted mt-0.5">
-            <Phone className="h-3.5 w-3.5" />
-            <span>{client.phone}</span>
-          </div>
-        )}
+          {(age !== null || birthDateLabel) && (
+            <div className="text-xs text-foreground-muted mt-0.5">
+              {age !== null ? `${age} ans` : ''}
+              {age !== null && birthDateLabel ? ' · ' : ''}
+              {birthDateLabel ? `Né(e) le ${birthDateLabel}` : ''}
+            </div>
+          )}
+          {client.email && (
+            <div className="flex items-center gap-1.5 text-sm text-foreground-muted mt-0.5">
+              <Mail className="h-3.5 w-3.5" />
+              <span className="truncate">{client.email}</span>
+            </div>
+          )}
+          {client.phone && (
+            <div className="flex items-center gap-1.5 text-sm text-foreground-muted mt-0.5">
+              <Phone className="h-3.5 w-3.5" />
+              <span>{client.phone}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Remove button */}
       {onRemove && (
         <button
-          onClick={onRemove}
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove()
+          }}
           className="flex-shrink-0 p-1.5 rounded-md text-foreground-muted hover:text-wine-600 hover:bg-wine-50 transition-colors"
           aria-label={`Retirer ${client.firstName}`}
         >

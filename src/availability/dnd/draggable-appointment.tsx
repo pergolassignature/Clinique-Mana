@@ -81,7 +81,7 @@ export function DraggableAppointment({
   isBeingDragged = false,
 }: DraggableAppointmentProps) {
   const isCancelled = appointment.status === 'cancelled'
-  const isDraft = appointment.status === 'draft'
+  const isCreated = appointment.status === 'created'
   const isInteractive = !isCancelled
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -132,7 +132,7 @@ export function DraggableAppointment({
       {isCancelled && (
         <div className="text-wine-500 font-medium">Annulé</div>
       )}
-      {isDraft && (
+      {isCreated && (
         <div className="text-amber-600 font-medium">Brouillon</div>
       )}
     </div>
@@ -153,7 +153,7 @@ export function DraggableAppointment({
         'border shadow-sm focus:outline-none focus:ring-2 focus:ring-sage-400 focus:ring-offset-1',
         // Base styles based on status
         isCancelled && 'opacity-50',
-        isDraft && 'border-dashed',
+        isCreated && 'border-dashed',
         // Cursor styles
         isInteractive && !isDragging && 'cursor-grab hover:shadow-md',
         isInteractive && isDragging && 'cursor-grabbing',
@@ -239,7 +239,7 @@ export function DraggableAppointment({
             ✕
           </div>
         )}
-        {(isPillMode || isCompactMode) && isDraft && (
+        {(isPillMode || isCompactMode) && isCreated && (
           <div className={cn(
             'text-[8px] text-amber-600 font-medium',
             isPillMode && 'ml-1'
@@ -329,7 +329,7 @@ export function AppointmentDragOverlay({
   const startTime = new Date(appointment.startTime)
   const endTime = new Date(startTime.getTime() + appointment.durationMinutes * 60000)
   const isCancelled = appointment.status === 'cancelled'
-  const isDraft = appointment.status === 'draft'
+  const isCreated = appointment.status === 'created'
 
   // Build client details
   const validClients = clients?.filter((c): c is Client => c !== undefined) || []
@@ -348,7 +348,7 @@ export function AppointmentDragOverlay({
       className={cn(
         'rounded-lg border overflow-hidden relative shadow-xl',
         'ring-2 ring-sage-400 ring-offset-2',
-        isDraft && 'border-dashed'
+        isCreated && 'border-dashed'
       )}
     >
       {/* Left color stripe */}
