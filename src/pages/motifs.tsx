@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Plus, Search, LayoutGrid, List, Loader2 } from 'lucide-react'
+import { Plus, Search, LayoutGrid, List, Loader2, ChevronDown } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
@@ -7,14 +7,23 @@ import { Input } from '@/shared/ui/input'
 import { EmptyState } from '@/shared/components/empty-state'
 import { toast } from '@/shared/hooks/use-toast'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/shared/ui/dropdown-menu'
+import {
   MOTIF_DISPLAY_GROUPS,
   MotifDisclaimerBanner,
   MotifCard,
   MotifCategoryGroup,
   ArchiveMotifDialog,
   CreateMotifDialog,
+  ChangeCategoryDialog,
   useMotifs,
   useMotifMutations,
+  useMotifCategories,
   type Motif,
 } from '@/motifs'
 
@@ -24,15 +33,21 @@ type ViewMode = 'grouped' | 'flat'
 // Status filter modes
 type StatusFilter = 'active' | 'archived' | 'all'
 
-// Extended motif type with id for mutations
+// Category filter modes (null = all, 'uncategorized' = no category, string = specific category id)
+type CategoryFilter = string | null | 'uncategorized'
+
+// Extended motif type with id and category for mutations
 interface MotifWithId extends Motif {
   id: string
+  categoryId: string | null
+  categoryLabel: string | null
 }
 
 export function MotifsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('grouped')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(null)
 
   // Archive dialog state
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false)
@@ -41,13 +56,20 @@ export function MotifsPage() {
   // Create dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
 
+  // Change category dialog state
+  const [changeCategoryDialogOpen, setChangeCategoryDialogOpen] = useState(false)
+  const [motifToChangeCategory, setMotifToChangeCategory] = useState<MotifWithId | null>(null)
+
   // Fetch all motifs from database (including inactive for management view)
   const { motifs: dbMotifs, isLoading, error, refetch } = useMotifs({ includeInactive: true })
 
-  // Mutations
-  const { archiveMotif, unarchiveMotif, createMotif, validateKey } = useMotifMutations()
+  // Fetch categories
+  const { data: categories = [], isLoading: categoriesLoading } = useMotifCategories({ includeInactive: false })
 
-  // Transform database motifs to UI motifs with ID
+  // Mutations
+  const { archiveMotif, unarchiveMotif, createMotif, setMotifCategory, validateKey } = useMotifMutations()
+
+  // Transform database motifs to UI motifs with ID and category
   const allMotifs: MotifWithId[] = useMemo(() => {
     return dbMotifs.map((dbMotif) => ({
       id: dbMotif.id,
@@ -55,6 +77,8 @@ export function MotifsPage() {
       label: dbMotif.label,
       isRestricted: dbMotif.is_restricted,
       isActive: dbMotif.is_active,
+      categoryId: dbMotif.category_id,
+      categoryLabel: dbMotif.motif_categories?.label_fr ?? null,
     }))
   }, [dbMotifs])
 
@@ -71,15 +95,24 @@ export function MotifsPage() {
     }
   }, [allMotifs, statusFilter])
 
+  // Filter by category
+  const categoryFilteredMotifs = useMemo(() => {
+    if (categoryFilter === null) return statusFilteredMotifs
+    if (categoryFilter === 'uncategorized') {
+      return statusFilteredMotifs.filter((m) => m.categoryId === null)
+    }
+    return statusFilteredMotifs.filter((m) => m.categoryId === categoryFilter)
+  }, [statusFilteredMotifs, categoryFilter])
+
   // Filter motifs based on search query (label only)
   const filteredMotifs = useMemo(() => {
-    if (!searchQuery.trim()) return statusFilteredMotifs
+    if (!searchQuery.trim()) return categoryFilteredMotifs
 
     const query = searchQuery.toLowerCase().trim()
-    return statusFilteredMotifs.filter((motif) =>
+    return categoryFilteredMotifs.filter((motif) =>
       motif.label.toLowerCase().includes(query)
     )
-  }, [statusFilteredMotifs, searchQuery])
+  }, [categoryFilteredMotifs, searchQuery])
 
   // Sort motifs alphabetically for flat view
   const sortedMotifs = useMemo(() => {
@@ -216,6 +249,53 @@ export function MotifsPage() {
     refetch()
   }, [refetch])
 
+  // Handle change category action
+  const handleChangeCategoryClick = useCallback((motif: MotifWithId) => {
+    setMotifToChangeCategory(motif)
+    setChangeCategoryDialogOpen(true)
+  }, [])
+
+  // Handle change category confirmation
+  const handleChangeCategoryConfirm = useCallback(async (categoryId: string | null) => {
+    if (!motifToChangeCategory) return { success: false }
+
+    const result = await setMotifCategory(motifToChangeCategory.id, categoryId)
+
+    if (!result.success) {
+      const isPermissionError = result.error?.message?.toLowerCase().includes('permission') ||
+        result.error?.message?.toLowerCase().includes('policy')
+
+      toast({
+        title: isPermissionError
+          ? t('pages.motifs.errors.permissionTitle')
+          : t('pages.motifs.errors.changeCategoryFailed'),
+        description: isPermissionError
+          ? t('pages.motifs.errors.permissionDescription')
+          : result.error?.message,
+        variant: 'error',
+      })
+    }
+
+    return result
+  }, [motifToChangeCategory, setMotifCategory])
+
+  // Handle change category success
+  const handleChangeCategorySuccess = useCallback(() => {
+    toast({
+      title: t('pages.motifs.changeCategory.success'),
+    })
+    refetch()
+    setMotifToChangeCategory(null)
+  }, [refetch])
+
+  // Get label for category filter dropdown
+  const getCategoryFilterLabel = useCallback(() => {
+    if (categoryFilter === null) return t('pages.motifs.categoryFilter.all')
+    if (categoryFilter === 'uncategorized') return t('pages.motifs.categoryFilter.uncategorized')
+    const category = categories.find((c) => c.id === categoryFilter)
+    return category?.label ?? t('pages.motifs.categoryFilter.all')
+  }, [categoryFilter, categories])
+
   // Render motif card with actions
   const renderMotifCard = useCallback((motif: MotifWithId) => (
     <MotifCard
@@ -224,14 +304,16 @@ export function MotifsPage() {
       label={motif.label}
       isRestricted={motif.isRestricted}
       isActive={motif.isActive}
+      categoryLabel={motif.categoryLabel}
       showActions
       onArchive={() => handleArchiveClick(motif)}
       onRestore={() => handleRestore(motif)}
+      onChangeCategory={() => handleChangeCategoryClick(motif)}
     />
-  ), [handleArchiveClick, handleRestore])
+  ), [handleArchiveClick, handleRestore, handleChangeCategoryClick])
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || categoriesLoading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin text-sage-500" />
@@ -312,6 +394,48 @@ export function MotifsPage() {
             {t('pages.motifs.page.filters.all')}
           </button>
         </div>
+
+        {/* Category filter dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                'flex items-center gap-1.5 h-10 px-3 rounded-xl border text-xs font-medium transition-colors',
+                categoryFilter !== null
+                  ? 'bg-sage-100/70 border-sage-200/60 text-sage-700'
+                  : 'border-border-light bg-background-tertiary/40 text-foreground-secondary hover:text-foreground hover:bg-sage-50/50'
+              )}
+            >
+              {getCategoryFilterLabel()}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[180px]">
+            <DropdownMenuItem
+              onClick={() => setCategoryFilter(null)}
+              className={categoryFilter === null ? 'bg-sage-50' : ''}
+            >
+              {t('pages.motifs.categoryFilter.all')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => setCategoryFilter('uncategorized')}
+              className={categoryFilter === 'uncategorized' ? 'bg-sage-50' : ''}
+            >
+              {t('pages.motifs.categoryFilter.uncategorized')}
+            </DropdownMenuItem>
+            {categories.length > 0 && <DropdownMenuSeparator />}
+            {categories.map((category) => (
+              <DropdownMenuItem
+                key={category.id}
+                onClick={() => setCategoryFilter(category.id)}
+                className={categoryFilter === category.id ? 'bg-sage-50' : ''}
+              >
+                {category.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* View mode toggle */}
         <div className="flex items-center gap-0.5 h-10 rounded-xl border border-border-light bg-background-tertiary/40 p-1">
@@ -415,9 +539,9 @@ export function MotifsPage() {
       {hasResults && (
         <div className="pt-4 border-t border-border">
           <p className="text-xs text-foreground-muted text-center">
-            {filteredMotifs.length === statusFilteredMotifs.length
-              ? `${statusFilteredMotifs.length} motifs ${statusFilter === 'archived' ? 'archivés' : statusFilter === 'active' ? 'actifs' : 'au total'}`
-              : `${filteredMotifs.length} sur ${statusFilteredMotifs.length} motifs`}
+            {filteredMotifs.length === categoryFilteredMotifs.length
+              ? `${categoryFilteredMotifs.length} motifs ${statusFilter === 'archived' ? 'archivés' : statusFilter === 'active' ? 'actifs' : 'au total'}`
+              : `${filteredMotifs.length} sur ${categoryFilteredMotifs.length} motifs`}
           </p>
         </div>
       )}
@@ -441,6 +565,19 @@ export function MotifsPage() {
         validateKey={validateKey}
         onSuccess={handleCreateSuccess}
       />
+
+      {/* Change category dialog */}
+      {motifToChangeCategory && (
+        <ChangeCategoryDialog
+          open={changeCategoryDialogOpen}
+          onOpenChange={setChangeCategoryDialogOpen}
+          motifLabel={motifToChangeCategory.label}
+          currentCategoryId={motifToChangeCategory.categoryId}
+          categories={categories}
+          onConfirm={handleChangeCategoryConfirm}
+          onSuccess={handleChangeCategorySuccess}
+        />
+      )}
     </div>
   )
 }

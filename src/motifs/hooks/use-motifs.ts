@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import type { DbMotif } from '../types'
+import type { DbMotif, DbMotifCategory } from '../types'
+
+// Raw type from Supabase (array from join)
+interface DbMotifWithCategoryRaw extends DbMotif {
+  motif_categories: Pick<DbMotifCategory, 'id' | 'key' | 'label_fr'>[] | null
+}
+
+// Extended DbMotif with optional category relation (normalized to single object)
+export interface DbMotifWithCategory extends DbMotif {
+  motif_categories: Pick<DbMotifCategory, 'id' | 'key' | 'label_fr'> | null
+}
 
 interface UseMotifOptions {
   /** Include inactive (archived) motifs. Default: false */
@@ -8,7 +18,7 @@ interface UseMotifOptions {
 }
 
 interface UseMotifs {
-  motifs: DbMotif[]
+  motifs: DbMotifWithCategory[]
   isLoading: boolean
   error: Error | null
   refetch: () => Promise<void>
@@ -17,7 +27,7 @@ interface UseMotifs {
 export function useMotifs(options?: UseMotifOptions): UseMotifs {
   const includeInactive = options?.includeInactive ?? false
 
-  const [motifs, setMotifs] = useState<DbMotif[]>([])
+  const [motifs, setMotifs] = useState<DbMotifWithCategory[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
@@ -27,7 +37,7 @@ export function useMotifs(options?: UseMotifOptions): UseMotifs {
 
     let query = supabase
       .from('motifs')
-      .select('id, key, label, is_active, is_restricted, category_id')
+      .select('id, key, label, is_active, is_restricted, category_id, motif_categories(id, key, label_fr)')
       .order('label', { ascending: true })
 
     // By default, only return active motifs
@@ -41,7 +51,24 @@ export function useMotifs(options?: UseMotifOptions): UseMotifs {
       setError(new Error(fetchError.message))
       setMotifs([])
     } else {
-      setMotifs(data || [])
+      // Normalize the category data from array (Supabase join) to single object
+      const rawData = (data || []) as DbMotifWithCategoryRaw[]
+      const normalizedData: DbMotifWithCategory[] = rawData.map((motif) => {
+        const categoryArray = motif.motif_categories
+        const category = Array.isArray(categoryArray) && categoryArray.length > 0
+          ? categoryArray[0]
+          : null
+        return {
+          id: motif.id,
+          key: motif.key,
+          label: motif.label,
+          is_active: motif.is_active,
+          is_restricted: motif.is_restricted,
+          category_id: motif.category_id,
+          motif_categories: category ?? null,
+        }
+      })
+      setMotifs(normalizedData)
     }
 
     setIsLoading(false)

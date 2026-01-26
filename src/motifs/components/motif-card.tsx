@@ -1,4 +1,4 @@
-import { Lock, Archive, MoreHorizontal, RotateCcw } from 'lucide-react'
+import { Lock, Archive, MoreHorizontal, RotateCcw, FolderOpen } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { t } from '@/i18n'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/tooltip'
@@ -23,6 +23,10 @@ interface MotifCardProps {
   onArchive?: () => void
   /** Called when restore action is triggered */
   onRestore?: () => void
+  /** Called when change category action is triggered */
+  onChangeCategory?: () => void
+  /** Category label to display */
+  categoryLabel?: string | null
   /** Show action menu for management */
   showActions?: boolean
   className?: string
@@ -39,6 +43,8 @@ export function MotifCard({
   isSelected = false,
   onArchive,
   onRestore,
+  onChangeCategory,
+  categoryLabel,
   showActions = false,
   className,
 }: MotifCardProps) {
@@ -93,7 +99,7 @@ export function MotifCard({
           <Lock className="h-3.5 w-3.5 text-foreground-muted" />
         )}
         {/* Actions menu */}
-        {showActions && (onArchive || onRestore) && (
+        {showActions && (onArchive || onRestore || onChangeCategory) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -106,7 +112,13 @@ export function MotifCard({
                 <span className="sr-only">Actions</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[140px]">
+            <DropdownMenuContent align="end" className="min-w-[160px]">
+              {onChangeCategory && (
+                <DropdownMenuItem onClick={onChangeCategory}>
+                  <FolderOpen className="h-3.5 w-3.5" />
+                  {t('pages.motifs.actions.changeCategory')}
+                </DropdownMenuItem>
+              )}
               {isArchived && onRestore && (
                 <DropdownMenuItem onClick={onRestore}>
                   <RotateCcw className="h-3.5 w-3.5" />
@@ -134,6 +146,19 @@ export function MotifCard({
       >
         {label}
       </h3>
+
+      {/* Category badge */}
+      {categoryLabel && (
+        <span
+          className={cn(
+            'inline-flex items-center mt-1.5 px-1.5 py-0.5 text-[10px] font-medium rounded',
+            'bg-sage-100/60 text-sage-600',
+            (isRestricted || isArchived) && 'opacity-60'
+          )}
+        >
+          {categoryLabel}
+        </span>
+      )}
 
       {/* Description (optional) */}
       {description && (

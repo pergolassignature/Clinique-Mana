@@ -228,7 +228,228 @@
           "manageDocuments": "Gérer les documents",
           "activate": "Activer le professionnel"
         },
-        "processExplanation": "L'intégration d'un professionnel se fait en trois étapes: envoi et complétion du formulaire, téléversement des documents requis, et activation finale."
+        "processExplanation": "L'intégration d'un professionnel se fait en trois étapes: envoi et complétion du formulaire, téléversement des documents requis, et activation finale.",
+        "toast": {
+          "linkCreated": {
+            "title": "Lien créé",
+            "description": "Le lien du formulaire a été généré avec succès."
+          },
+          "linkCopied": {
+            "title": "Lien copié",
+            "description": "Le lien du formulaire a été copié dans le presse-papiers."
+          },
+          "markedSent": {
+            "title": "Marqué comme envoyé",
+            "description": "Le formulaire a été marqué comme envoyé."
+          },
+          "linkRevoked": {
+            "title": "Lien révoqué",
+            "description": "Le lien a été révoqué avec succès."
+          },
+          "professionalActivated": {
+            "title": "Professionnel activé",
+            "description": "Le professionnel est maintenant actif sur la plateforme."
+          },
+          "professionalDeactivated": {
+            "title": "Professionnel désactivé",
+            "description": "Le professionnel n'est plus visible sur la plateforme."
+          },
+          "error": {
+            "createLink": "Impossible de créer le lien.",
+            "updateStatus": "Impossible de mettre à jour le statut.",
+            "revokeLink": "Impossible de révoquer le lien.",
+            "activateError": "Une erreur est survenue lors de l'activation.",
+            "statusError": "Impossible de modifier le statut."
+          }
+        },
+        "linkDialog": {
+          "title": "Lien du formulaire",
+          "description": "Partagez ce lien avec le professionnel pour qu'il puisse compléter son formulaire.",
+          "expiresNote": "Ce lien expire le {date}. Après cette date, un nouveau lien devra être créé."
+        },
+        "revokeDialog": {
+          "title": "Révoquer le lien ?",
+          "description": "Le lien actuel sera désactivé et le professionnel ne pourra plus l'utiliser. Vous pourrez créer un nouveau lien par la suite.",
+          "cancel": "Annuler",
+          "confirm": "Révoquer"
+        },
+        "timeline": {
+          "sentAt": "Envoyé le",
+          "openedAt": "Consulté le",
+          "submittedAt": "Soumis le",
+          "reviewedAt": "Révisé le",
+          "expiresAt": "Expire le"
+        },
+        "documents": {
+          "missingAlert": "document(s) requis manquant(s) ou expiré(s).",
+          "requiredInfo": "Les documents requis incluent: photo, assurance, consentement droit à l'image et contrat de service."
+        },
+        "activation": {
+          "beforeActivation": "À compléter avant activation :",
+          "activatedMessage": "Le professionnel est activé et visible sur la plateforme.",
+          "activating": "Activation...",
+          "activateButton": "Activer le professionnel",
+          "waitingMessage": "Une fois les étapes ci-dessus complétées, vous pourrez activer ce professionnel.",
+          "readyToActivate": "Prêt à activer",
+          "activated": "Activé"
+        },
+        "progress": {
+          "title": "Progression de l'intégration",
+          "allComplete": "Toutes les étapes sont complétées",
+          "stepsComplete": "{completed} sur {total} étapes complétées"
+        },
+        "emptyState": "Créez un lien pour permettre au professionnel de compléter son formulaire d'intégration."
+      },
+      "apercu": {
+        "title": "Aperçu",
+        "toComplete": "À compléter",
+        "alerts": {
+          "missingPortrait": {
+            "title": "Portrait incomplet",
+            "description": "La biographie et l'approche thérapeutique sont manquantes.",
+            "action": "Compléter le portrait"
+          },
+          "missingSpecialties": {
+            "title": "Aucune spécialité",
+            "description": "Aucune spécialité n'est sélectionnée pour ce professionnel.",
+            "action": "Ajouter des spécialités"
+          },
+          "missingDocuments": {
+            "title": "{count} document(s) manquant(s)",
+            "description": "Des documents requis sont manquants ou expirés.",
+            "action": "Gérer les documents"
+          }
+        },
+        "indicators": {
+          "title": "Indicateurs",
+          "description": "Vue d'ensemble de la complétude du profil",
+          "portrait": {
+            "label": "Portrait",
+            "complete": "Biographie et approche complétées",
+            "pending": "Biographie ou approche manquante"
+          },
+          "documents": {
+            "label": "Documents",
+            "complete": "Tous les documents requis sont vérifiés",
+            "pending": "{count} document(s) manquant(s) ou expiré(s)"
+          },
+          "fiche": {
+            "label": "Fiche",
+            "complete": "Version {version}",
+            "pending": "Fiche non générée"
+          }
+        },
+        "quickActions": {
+          "title": "Actions rapides",
+          "sendForm": "Envoyer le formulaire",
+          "copyLink": "Copier le lien",
+          "viewSubmission": "Voir la soumission",
+          "manageDocuments": "Gérer les documents",
+          "activate": "Activer",
+          "deactivate": "Désactiver"
+        },
+        "toast": {
+          "linkCreated": {
+            "title": "Lien créé",
+            "description": "Le lien du formulaire a été généré avec succès."
+          },
+          "linkCopied": {
+            "title": "Lien copié",
+            "description": "Le lien du formulaire a été copié dans le presse-papiers."
+          },
+          "statusUpdated": {
+            "activated": {
+              "title": "Professionnel activé",
+              "description": "Le professionnel est maintenant visible sur la plateforme."
+            },
+            "deactivated": {
+              "title": "Professionnel désactivé",
+              "description": "Le professionnel n'est plus visible sur la plateforme."
+            }
+          },
+          "error": {
+            "createLink": "Impossible de créer le lien.",
+            "statusUpdate": "Impossible de modifier le statut."
+          }
+        }
+      },
+      "profile": {
+        "identity": {
+          "title": "Identité",
+          "description": "Informations de base du professionnel",
+          "photo": "Photo de profil"
+        },
+        "professionTitles": {
+          "title": "Titres professionnels",
+          "description": "Chaque titre nécessite son propre numéro de permis (max 2)"
+        },
+        "accreditation": {
+          "title": "Accréditation",
+          "description": "Expérience professionnelle",
+          "yearsExperience": "Années d'expérience"
+        },
+        "ivac": {
+          "title": "IVAC",
+          "description": "Numéro d'identification pour les dossiers IVAC",
+          "fieldLabel": "Numéro IVAC du professionnel",
+          "fieldHint": "Ce numéro sera affiché dans les dossiers clients IVAC",
+          "placeholder": "Ex: IVAC-PRO-123456"
+        },
+        "dates": {
+          "title": "Dates importantes",
+          "createdAt": "Création du profil",
+          "updatedAt": "Dernière modification",
+          "questionnaireSubmitted": "Questionnaire soumis",
+          "viaInvitation": "via invitation",
+          "ficheGenerated": "Dernière fiche générée"
+        },
+        "status": {
+          "label": "Statut",
+          "active": "Actif",
+          "inactive": "Inactif",
+          "invited": "Invité",
+          "pending": "En attente"
+        },
+        "toast": {
+          "updated": {
+            "title": "Mise à jour effectuée",
+            "description": "{field} a été modifié."
+          },
+          "error": {
+            "title": "Erreur",
+            "description": "Impossible de mettre à jour ce champ."
+          }
+        },
+        "editLabel": "Modifier {label}"
+      },
+      "professionEditor": {
+        "primaryBadge": "Principal",
+        "licensePrefix": "Permis:",
+        "licensePlaceholder": "Numéro de permis",
+        "selectTitle": "Sélectionner un titre...",
+        "setPrimaryTitle": "Définir comme titre principal",
+        "addButton": "Ajouter",
+        "cancelButton": "Annuler",
+        "addFirstTitle": "Ajouter un titre professionnel",
+        "addSecondTitle": "Ajouter un second titre",
+        "maxReached": "Maximum de 2 titres atteint",
+        "toast": {
+          "titleAdded": "Titre ajouté",
+          "licenseUpdated": "Numéro de permis mis à jour",
+          "primaryUpdated": "Titre principal mis à jour",
+          "titleRemoved": "Titre retiré",
+          "fieldsRequired": {
+            "title": "Champs requis",
+            "description": "Veuillez sélectionner un titre et entrer un numéro de permis."
+          },
+          "licenseRequired": "Numéro de permis requis",
+          "error": {
+            "addTitle": "Impossible d'ajouter le titre.",
+            "updateLicense": "Impossible de mettre à jour le numéro de permis.",
+            "setPrimary": "Impossible de définir comme titre principal.",
+            "removeTitle": "Impossible de retirer le titre."
+          }
+        }
       }
     },
     "portrait": {
@@ -254,19 +475,113 @@
         "remove": "Retirer",
         "categories": {
           "therapy_type": "Types de thérapie",
-          "population": "Populations",
+          "clientele": "Clientèle",
           "issue": "Problématiques",
           "modality": "Modalités"
         },
-        "proficiency": {
-          "primary": "Principal",
-          "secondary": "Secondaire",
-          "familiar": "Familier"
-        },
         "empty": "Aucune spécialité sélectionnée"
+      },
+      "specialization": {
+        "mark": "Marquer comme spécialisé",
+        "unmark": "Retirer la spécialisation",
+        "label": "Spécialisé"
       },
       "motifs": {
         "title": "Motifs de consultation"
+      },
+      "questionnaire": {
+        "pendingTitle": "Questionnaire en attente de révision",
+        "pendingDescription": "Le professionnel a soumis son questionnaire. Révisez les informations ci-dessous et approuvez pour les transférer au profil.",
+        "applyButton": "Appliquer au profil",
+        "applyingButton": "Application...",
+        "whatWillBeApplied": "Ce qui sera appliqué au profil",
+        "profileFields": "champ(s) du profil",
+        "specialtiesWillReplace": "spécialité(s) (remplacera les existantes)",
+        "motifsWillReplace": "motif(s) (remplacera les existants)",
+        "warningText": "Cette action remplace les informations actuelles du profil par celles du questionnaire. Vous pourrez ensuite ajuster le portrait au besoin.",
+        "confirmTitle": "Appliquer le questionnaire au profil ?",
+        "confirmDescription": "Les informations suivantes seront remplacées sur le profil :",
+        "confirmWarning": "Les informations actuelles seront remplacées. Cette action est enregistrée dans l'historique.",
+        "sections": {
+          "personalInfo": "Informations personnelles",
+          "professionalInfo": "Informations professionnelles",
+          "portrait": "Portrait",
+          "publicContact": "Contact public",
+          "selectedSpecialties": "Spécialités sélectionnées",
+          "consultationMotifs": "Motifs de consultation"
+        },
+        "fieldLabels": {
+          "fullName": "Nom complet",
+          "professionTitles": "Titres professionnels",
+          "license": "Permis",
+          "yearsExperience": "Années d'expérience",
+          "bio": "Biographie",
+          "approach": "Approche",
+          "email": "Courriel",
+          "phone": "Téléphone"
+        },
+        "fieldsToReplace": {
+          "bio": "Biographie",
+          "approach": "Approche thérapeutique",
+          "publicEmail": "Courriel public",
+          "publicPhone": "Téléphone public",
+          "professions": "titre(s) professionnel(s)",
+          "yearsExperience": "Années d'expérience"
+        }
+      },
+      "provenance": {
+        "submittedViaInvite": "Soumis via invitation le",
+        "approved": "Approuvé",
+        "lastModifiedByTeam": "Dernière modification par l'équipe :",
+        "profileCreatedOn": "Profil créé le",
+        "modifiedOn": "Modifié le",
+        "viewOriginalSubmission": "Voir la soumission originale",
+        "dataApplied": "Données appliquées au profil le",
+        "dataAppliedMessage": "Le profil affiche maintenant les informations du questionnaire approuvé."
+      },
+      "originalSubmission": {
+        "title": "Soumission originale",
+        "submittedOn": "Questionnaire soumis le",
+        "approvedOn": "Approuvé le",
+        "showJson": "Voir JSON",
+        "hideJson": "Masquer le JSON"
+      },
+      "fiche": {
+        "title": "Fiche professionnelle",
+        "description": "Aperçu de la fiche publique",
+        "preview": "Aperçu",
+        "downloadPdf": "Télécharger PDF",
+        "previewTitle": "Aperçu de la fiche",
+        "previewDescription": "Prévisualisation de la fiche professionnelle",
+        "close": "Fermer"
+      },
+      "toast": {
+        "motifsUpdated": {
+          "title": "Motifs mis à jour",
+          "description": "motif(s) configuré(s)."
+        },
+        "motifsUpdateError": {
+          "title": "Impossible de mettre à jour les motifs",
+          "description": "Veuillez réessayer plus tard."
+        },
+        "dataApplied": {
+          "title": "Données appliquées au profil",
+          "fieldsUpdated": "champ(s) mis à jour",
+          "specialtiesConfigured": "spécialité(s) configurées",
+          "motifsConfigured": "motif(s) configurés"
+        },
+        "applyError": {
+          "title": "Impossible d'appliquer le questionnaire pour le moment",
+          "description": "Veuillez réessayer plus tard ou contacter le support."
+        },
+        "dataUnavailable": {
+          "title": "Données non disponibles",
+          "description": "Les données de la soumission originale ne sont pas disponibles."
+        },
+        "comingSoon": {
+          "title": "Bientôt disponible",
+          "description": "Le téléchargement PDF sera disponible prochainement."
+        }
       },
       "empty": {
         "title": "Portrait non complété",
@@ -281,7 +596,14 @@
         "title": "Sélectionner les services",
         "description": "Cochez les services que ce professionnel peut offrir."
       },
-      "success": "Services mis à jour"
+      "success": "Services mis à jour",
+      "emptyProfession": {
+        "title": "Aucun titre professionnel",
+        "description": "Ajoutez un titre professionnel dans l'onglet Profil pour voir les services disponibles."
+      },
+      "error": {
+        "updateFailed": "Impossible de mettre à jour les services."
+      }
     },
     "documents": {
       "title": "Documents",
@@ -600,7 +922,14 @@
         "title": "Sélectionner les services",
         "description": "Cochez les services que ce professionnel peut offrir."
       },
-      "success": "Services mis à jour"
+      "success": "Services mis à jour",
+      "emptyProfession": {
+        "title": "Aucun titre professionnel",
+        "description": "Ajoutez un titre professionnel dans l'onglet Profil pour voir les services disponibles."
+      },
+      "error": {
+        "updateFailed": "Impossible de mettre à jour les services."
+      }
     }
   },
   "pages": {
@@ -782,7 +1111,8 @@
       },
       "actions": {
         "archive": "Archiver",
-        "restore": "Restaurer"
+        "restore": "Restaurer",
+        "changeCategory": "Changer la catégorie"
       },
       "archive": {
         "title": "Archiver ce motif?",
@@ -819,7 +1149,19 @@
         "permissionDescription": "Votre compte ne permet pas encore de modifier les motifs.",
         "archiveFailed": "Impossible d'archiver ce motif.",
         "restoreFailed": "Impossible de restaurer ce motif.",
-        "createFailed": "Impossible de créer ce motif."
+        "createFailed": "Impossible de créer ce motif.",
+        "changeCategoryFailed": "Impossible de changer la catégorie."
+      },
+      "changeCategory": {
+        "title": "Changer la catégorie",
+        "description": "Sélectionnez une catégorie pour le motif: {{label}}",
+        "selectPlaceholder": "Sélectionner une catégorie...",
+        "noCategory": "Aucune catégorie",
+        "success": "Catégorie mise à jour"
+      },
+      "categoryFilter": {
+        "all": "Toutes les catégories",
+        "uncategorized": "Sans catégorie"
       },
       "disclaimer": {
         "text": "Les motifs servent à orienter la demande. Ils ne constituent pas un diagnostic.",

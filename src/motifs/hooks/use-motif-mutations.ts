@@ -26,6 +26,11 @@ interface CreateResult {
   }
 }
 
+interface SetCategoryResult {
+  success: boolean
+  error?: Error
+}
+
 interface KeyValidationResult {
   isValid: boolean
   isUnique: boolean
@@ -41,6 +46,10 @@ export function useMotifMutations() {
     error: null,
   })
   const [createState, setCreateState] = useState<MutationState>({
+    isLoading: false,
+    error: null,
+  })
+  const [setCategoryState, setSetCategoryState] = useState<MutationState>({
     isLoading: false,
     error: null,
   })
@@ -115,6 +124,30 @@ export function useMotifMutations() {
   }
 
   /**
+   * Set or update a motif's category
+   */
+  const setMotifCategory = async (
+    motifId: string,
+    categoryId: string | null
+  ): Promise<SetCategoryResult> => {
+    setSetCategoryState({ isLoading: true, error: null })
+
+    const { error } = await supabase
+      .from('motifs')
+      .update({ category_id: categoryId })
+      .eq('id', motifId)
+
+    if (error) {
+      const err = new Error(error.message)
+      setSetCategoryState({ isLoading: false, error: err })
+      return { success: false, error: err }
+    }
+
+    setSetCategoryState({ isLoading: false, error: null })
+    return { success: true }
+  }
+
+  /**
    * Validate a key for uniqueness
    */
   const validateKey = async (key: string): Promise<KeyValidationResult> => {
@@ -158,9 +191,11 @@ export function useMotifMutations() {
     archiveMotif,
     unarchiveMotif,
     createMotif,
+    setMotifCategory,
     validateKey,
     archiveState,
     createState,
+    setCategoryState,
   }
 }
 

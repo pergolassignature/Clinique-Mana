@@ -1,5 +1,5 @@
 // Types
-export type { DbMotif, MotifDisplayGroup, Motif } from './types'
+export type { DbMotif, MotifDisplayGroup, Motif, MotifCategory } from './types'
 
 // Constants and helpers
 export {
@@ -10,7 +10,13 @@ export {
 } from './constants'
 
 // Hooks
-export { useMotifs, useMotifMutations, generateKeyFromLabel } from './hooks'
+export {
+  useMotifs,
+  useMotifMutations,
+  generateKeyFromLabel,
+  useMotifCategories,
+  type DbMotifWithCategory,
+} from './hooks'
 
 // Components
 export {
@@ -20,4 +26,5 @@ export {
   MotifRestrictionNotice,
   ArchiveMotifDialog,
   CreateMotifDialog,
+  ChangeCategoryDialog,
 } from './components'
