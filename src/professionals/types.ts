@@ -7,17 +7,31 @@ import { z } from 'zod'
 export const ProfessionalStatus = z.enum(['pending', 'invited', 'active', 'inactive'])
 export type ProfessionalStatus = z.infer<typeof ProfessionalStatus>
 
-export const SpecialtyCategory = z.enum(['therapy_type', 'clientele', 'issue', 'modality'])
+export const SpecialtyCategory = z.enum(['therapy_type', 'clientele'])
 export type SpecialtyCategory = z.infer<typeof SpecialtyCategory>
 
-export const ProficiencyLevel = z.enum(['primary', 'secondary', 'familiar'])
-export type ProficiencyLevel = z.infer<typeof ProficiencyLevel>
 
 export const DocumentType = z.enum(['cv', 'diploma', 'license', 'insurance', 'photo', 'fiche', 'other'])
 export type DocumentType = z.infer<typeof DocumentType>
 
 export const InviteStatus = z.enum(['pending', 'opened', 'completed', 'expired', 'revoked'])
 export type InviteStatus = z.infer<typeof InviteStatus>
+
+export const InviteType = z.enum(['onboarding', 'update_request'])
+export type InviteType = z.infer<typeof InviteType>
+
+// Questionnaire sections (excludes 'review' which is always accessible)
+export const QUESTIONNAIRE_SECTIONS = [
+  'personal',
+  'professional',
+  'portrait',
+  'specialties',
+  'motifs',
+  'photo',
+  'insurance',
+  'consent',
+] as const
+export type QuestionnaireSection = (typeof QUESTIONNAIRE_SECTIONS)[number]
 
 export const QuestionnaireStatus = z.enum(['draft', 'submitted', 'reviewed', 'approved'])
 export type QuestionnaireStatus = z.infer<typeof QuestionnaireStatus>
@@ -72,7 +86,7 @@ export const ProfessionalSpecialtySchema = z.object({
   id: z.string().uuid(),
   professional_id: z.string().uuid(),
   specialty_id: z.string().uuid(),
-  proficiency_level: ProficiencyLevel.nullable(),
+  is_specialized: z.boolean(),
   created_at: z.string().datetime(),
   // Joined data
   specialty: SpecialtySchema.optional(),
@@ -86,12 +100,14 @@ export const MotifSchema = z.object({
   label: z.string(),
   is_active: z.boolean(),
   is_restricted: z.boolean(),
+  category_id: z.string().uuid().nullable().optional(),
 })
 export type Motif = z.infer<typeof MotifSchema>
 
 export const ProfessionalMotifSchema = z.object({
   professional_id: z.string().uuid(),
   motif_id: z.string().uuid(),
+  is_specialized: z.boolean(),
   created_at: z.string().datetime(),
   // Joined data
   motif: MotifSchema.optional(),
@@ -143,6 +159,10 @@ export const OnboardingInviteSchema = z.object({
   token: z.string(),
   email: z.string().email(),
   status: InviteStatus,
+  invite_type: InviteType.optional().default('onboarding'),
+  requested_sections: z.array(z.enum(QUESTIONNAIRE_SECTIONS)).nullable().optional(),
+  parent_invite_id: z.string().uuid().nullable().optional(),
+  pre_populated_data: z.unknown().nullable().optional(), // Typed as PrePopulatedData at runtime
   sent_at: z.string().datetime().nullable(),
   opened_at: z.string().datetime().nullable(),
   completed_at: z.string().datetime().nullable(),
@@ -187,6 +207,32 @@ export const QuestionnaireProfessionSchema = z.object({
   is_primary: z.boolean(),
 })
 export type QuestionnaireProfession = z.infer<typeof QuestionnaireProfessionSchema>
+
+// Pre-populated data structure for update request invites
+export const PrePopulatedDataSchema = z.object({
+  // From professionals table
+  portrait_bio: z.string().nullable().optional(),
+  portrait_approach: z.string().nullable().optional(),
+  public_email: z.string().nullable().optional(),
+  public_phone: z.string().nullable().optional(),
+  years_experience: z.number().nullable().optional(),
+  // From professional_professions
+  professions: z.array(QuestionnaireProfessionSchema).optional(),
+  // From professional_specialties (codes only)
+  specialties: z.array(z.string()).optional(),
+  // From professional_motifs (keys only)
+  motifs: z.array(z.string()).optional(),
+  // From professional_documents (paths for preview)
+  uploads: z
+    .object({
+      photo: UploadInfoSchema.optional(),
+      insurance: UploadInfoSchema.optional(),
+    })
+    .optional(),
+  // From existing submission (consent info)
+  image_rights_consent: ImageRightsConsentSchema.optional(),
+})
+export type PrePopulatedData = z.infer<typeof PrePopulatedDataSchema>
 
 export const QuestionnaireResponsesSchema = z.object({
   // Personal info (full_name is pre-populated from profile and read-only)
@@ -260,6 +306,7 @@ export const ProfessionalSchema = z.object({
   id: z.string().uuid(),
   profile_id: z.string().uuid(),
   status: ProfessionalStatus,
+  deactivation_reason: z.enum(['manual', 'insurance_expired']).nullable(),
   portrait_bio: z.string().nullable(),
   portrait_approach: z.string().nullable(),
   public_email: z.string().email().nullable(),
@@ -359,6 +406,13 @@ export const CreateInviteInput = z.object({
 })
 export type CreateInviteInput = z.infer<typeof CreateInviteInput>
 
+export const CreateUpdateRequestInput = z.object({
+  professional_id: z.string().uuid(),
+  email: z.string().email(),
+  requested_sections: z.array(z.enum(QUESTIONNAIRE_SECTIONS)).min(1),
+})
+export type CreateUpdateRequestInput = z.infer<typeof CreateUpdateRequestInput>
+
 export const UploadDocumentInput = z.object({
   professional_id: z.string().uuid(),
   document_type: DocumentType,
@@ -385,7 +439,7 @@ export type UpdateDocumentExpiryInput = z.infer<typeof UpdateDocumentExpiryInput
 export const AddSpecialtyInput = z.object({
   professional_id: z.string().uuid(),
   specialty_id: z.string().uuid(),
-  proficiency_level: ProficiencyLevel.optional(),
+  is_specialized: z.boolean().optional(),
 })
 export type AddSpecialtyInput = z.infer<typeof AddSpecialtyInput>
 
@@ -436,7 +490,7 @@ export interface ProfessionalListItem {
   created_at: string
 }
 
-export type ProfessionalDetailTab = 'profil' | 'onboarding' | 'portrait' | 'documents' | 'fiche' | 'historique' | 'services'
+export type ProfessionalDetailTab = 'apercu' | 'profil' | 'profil-public' | 'services' | 'documents' | 'historique'
 
 export interface DocumentUploadProgress {
   file_name: string
@@ -452,6 +506,7 @@ export interface DocumentUploadProgress {
 export const ProfessionalServiceSchema = z.object({
   id: z.string().uuid(),
   professional_id: z.string().uuid(),
+  profession_title_key: z.string(),
   service_id: z.string().uuid(),
   is_active: z.boolean(),
   created_at: z.string().datetime(),
