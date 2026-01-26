@@ -14,6 +14,7 @@ interface ArchiveResult {
 interface CreateMotifInput {
   key: string
   label: string
+  categoryId?: string | null
 }
 
 interface CreateResult {
@@ -109,6 +110,7 @@ export function useMotifMutations() {
         label: input.label,
         is_active: true,
         is_restricted: false,
+        category_id: input.categoryId ?? null,
       })
       .select('id, key, label')
       .single()

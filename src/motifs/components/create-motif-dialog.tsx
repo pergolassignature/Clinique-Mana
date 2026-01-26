@@ -3,6 +3,8 @@ import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import { t } from '@/i18n'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
+import { Select } from '@/shared/ui/select'
+import { Label } from '@/shared/ui/label'
 import {
   Dialog,
   DialogContent,
@@ -12,11 +14,12 @@ import {
   DialogTitle,
 } from '@/shared/ui/dialog'
 import { generateKeyFromLabel } from '../hooks/use-motif-mutations'
+import type { MotifCategory } from '../types'
 
 interface CreateMotifDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (input: { key: string; label: string }) => Promise<{
+  onSubmit: (input: { key: string; label: string; categoryId?: string | null }) => Promise<{
     success: boolean
     error?: Error
     motif?: { id: string; key: string; label: string }
@@ -26,6 +29,7 @@ interface CreateMotifDialogProps {
     isUnique: boolean
     error?: string
   }>
+  categories?: MotifCategory[]
   onSuccess?: () => void
 }
 
@@ -34,10 +38,12 @@ export function CreateMotifDialog({
   onOpenChange,
   onSubmit,
   validateKey,
+  categories = [],
   onSuccess,
 }: CreateMotifDialogProps) {
   const [label, setLabel] = useState('')
   const [key, setKey] = useState('')
+  const [categoryId, setCategoryId] = useState<string>('')
   const [showKeyField, setShowKeyField] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<{ label?: string; key?: string }>({})
@@ -47,6 +53,7 @@ export function CreateMotifDialog({
     if (open) {
       setLabel('')
       setKey('')
+      setCategoryId('')
       setShowKeyField(false)
       setErrors({})
     }
@@ -90,7 +97,11 @@ export function CreateMotifDialog({
     if (!isValid) return
 
     setIsSubmitting(true)
-    const result = await onSubmit({ key: key.trim(), label: label.trim() })
+    const result = await onSubmit({
+      key: key.trim(),
+      label: label.trim(),
+      categoryId: categoryId || null,
+    })
     setIsSubmitting(false)
 
     if (result.success) {
@@ -183,6 +194,31 @@ export function CreateMotifDialog({
               </p>
             )}
           </div>
+
+          {/* Category field */}
+          {categories.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="motif-category">
+                {t('pages.motifs.create.categoryField')}
+              </Label>
+              <Select
+                id="motif-category"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                disabled={isSubmitting}
+              >
+                <option value="">{t('pages.motifs.create.categoryPlaceholder')}</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.label}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-foreground-muted">
+                {t('pages.motifs.create.categoryHelper')}
+              </p>
+            </div>
+          )}
 
           <DialogFooter className="gap-2 sm:gap-0 pt-2">
             <Button

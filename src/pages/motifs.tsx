@@ -584,6 +584,7 @@ export function MotifsPage() {
         onOpenChange={setCreateDialogOpen}
         onSubmit={handleCreateSubmit}
         validateKey={validateKey}
+        categories={categories}
         onSuccess={handleCreateSuccess}
       />
 
