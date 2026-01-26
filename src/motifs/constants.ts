@@ -1,9 +1,15 @@
 import type { MotifDisplayGroup } from './types'
 
-// Visual groupings for display purposes only
-// Groups represent neutral "spheres of life", not clinical categories
-// These are NOT stored in database and can change without migration
-// Keys must match database motifs.key values
+/**
+ * @deprecated MOTIF_DISPLAY_GROUPS is deprecated and will be removed in a future version.
+ * Use database-driven categories instead via the `useMotifCategories()` hook.
+ *
+ * Categories are now stored in the `motif_categories` table and assigned to motifs
+ * via the `motifs.category_id` foreign key.
+ *
+ * Migration: Use `useMotifCategories()` hook to fetch categories and group motifs
+ * by their `category_id` field instead of using this hardcoded mapping.
+ */
 export const MOTIF_DISPLAY_GROUPS: MotifDisplayGroup[] = [
   {
     labelKey: 'pages.motifs.groups.innerLife',
@@ -129,7 +135,10 @@ export function isMotifRestricted(isRestricted: boolean): boolean {
   return isRestricted
 }
 
-// Get all motif keys from display groups (for validation)
+/**
+ * @deprecated This function uses MOTIF_DISPLAY_GROUPS which is deprecated.
+ * Motif categories are now database-driven via `motif_categories` table.
+ */
 export function getGroupedMotifKeys(): string[] {
   return MOTIF_DISPLAY_GROUPS.flatMap((group) => group.motifKeys)
 }

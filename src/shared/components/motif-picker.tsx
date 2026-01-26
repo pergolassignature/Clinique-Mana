@@ -17,9 +17,9 @@ import {
   CommandList,
 } from '@/shared/ui/command'
 import {
-  MOTIF_DISPLAY_GROUPS,
   isOtherMotif,
   useMotifs,
+  useMotifCategories,
   type Motif,
 } from '@/motifs'
 
@@ -57,15 +57,26 @@ export function MotifPicker({
   const [popoverOpen, setPopoverOpen] = useState(false)
   const anchorRef = useRef<HTMLButtonElement>(null)
 
-  // Fetch motifs from database
-  const { motifs: dbMotifs, isLoading } = useMotifs()
+  // Fetch motifs from database (includes category info)
+  const { motifs: dbMotifs, isLoading: motifsLoading } = useMotifs()
 
-  // Transform database motifs to UI motifs
-  const allMotifs: Motif[] = useMemo(() => {
+  // Fetch categories from database
+  const { data: categories = [], isLoading: categoriesLoading } = useMotifCategories({ includeInactive: false })
+
+  const isLoading = motifsLoading || categoriesLoading
+
+  // Extended Motif type with categoryId for grouping
+  interface MotifWithCategory extends Motif {
+    categoryId: string | null
+  }
+
+  // Transform database motifs to UI motifs with category info
+  const allMotifs: MotifWithCategory[] = useMemo(() => {
     return dbMotifs.map((dbMotif) => ({
       key: dbMotif.key,
       label: dbMotif.label,
       isRestricted: dbMotif.is_restricted,
+      categoryId: dbMotif.category_id,
     }))
   }, [dbMotifs])
 
@@ -74,29 +85,52 @@ export function MotifPicker({
     return new Map(allMotifs.map((m) => [m.key, m]))
   }, [allMotifs])
 
-  // Build grouped structure for picker display
+  // Build grouped structure for picker display using database categories
   const groupedMotifs = useMemo(() => {
-    const groups = MOTIF_DISPLAY_GROUPS.map((group) => ({
-      ...group,
-      motifs: group.motifKeys
-        .map((key) => motifMap.get(key))
-        .filter((m): m is Motif => m !== undefined),
-    })).filter((group) => group.motifs.length > 0)
+    // Group motifs by their categoryId
+    const categoryMotifMap = new Map<string | null, MotifWithCategory[]>()
 
-    // Find ungrouped motifs
-    const groupedKeys = new Set(MOTIF_DISPLAY_GROUPS.flatMap((g) => g.motifKeys))
-    const ungroupedMotifs = allMotifs.filter((m) => !groupedKeys.has(m.key))
+    // Initialize with all active categories (to preserve order)
+    for (const cat of categories) {
+      categoryMotifMap.set(cat.id, [])
+    }
+    // Add null for uncategorized
+    categoryMotifMap.set(null, [])
 
-    if (ungroupedMotifs.length > 0) {
+    // Distribute motifs to their categories
+    for (const motif of allMotifs) {
+      const existing = categoryMotifMap.get(motif.categoryId) ?? []
+      existing.push(motif)
+      categoryMotifMap.set(motif.categoryId, existing)
+    }
+
+    // Build grouped structure from categories
+    const groups: { categoryLabel: string; categoryId: string | null; motifs: MotifWithCategory[] }[] = []
+
+    // Add groups for each category that has motifs
+    for (const cat of categories) {
+      const motifs = categoryMotifMap.get(cat.id) ?? []
+      if (motifs.length > 0) {
+        groups.push({
+          categoryLabel: cat.label,
+          categoryId: cat.id,
+          motifs,
+        })
+      }
+    }
+
+    // Add uncategorized motifs if any
+    const uncategorizedMotifs = categoryMotifMap.get(null) ?? []
+    if (uncategorizedMotifs.length > 0) {
       groups.push({
-        labelKey: 'pages.motifs.groups.other',
-        motifKeys: ungroupedMotifs.map((m) => m.key),
-        motifs: ungroupedMotifs,
+        categoryLabel: t('pages.motifs.groups.other'),
+        categoryId: null,
+        motifs: uncategorizedMotifs,
       })
     }
 
     return groups
-  }, [allMotifs, motifMap])
+  }, [allMotifs, categories])
 
   // Check if "other" motif is selected
   const hasOtherSelected = selected.some(isOtherMotif)
@@ -226,8 +260,8 @@ export function MotifPicker({
                       <CommandEmpty>{t('pages.motifs.picker.noResults')}</CommandEmpty>
                       {groupedMotifs.map((group) => (
                         <CommandGroup
-                          key={group.labelKey}
-                          heading={t(group.labelKey as Parameters<typeof t>[0])}
+                          key={group.categoryId ?? 'uncategorized'}
+                          heading={group.categoryLabel}
                         >
                           {group.motifs.map((motif) => {
                             const isSelected = selected.includes(motif.key)

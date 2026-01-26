@@ -14,7 +14,6 @@ import {
   DropdownMenuSeparator,
 } from '@/shared/ui/dropdown-menu'
 import {
-  MOTIF_DISPLAY_GROUPS,
   MotifDisclaimerBanner,
   MotifCard,
   MotifCategoryGroup,
@@ -121,34 +120,52 @@ export function MotifsPage() {
     )
   }, [filteredMotifs])
 
-  // Group motifs by display groups for grouped view
+  // Group motifs by database categories for grouped view
   const groupedMotifs = useMemo(() => {
-    // Create a map of motif key -> motif for quick lookup
-    const motifMap = new Map(filteredMotifs.map((m) => [m.key, m]))
+    // Group motifs by their categoryId
+    const categoryMotifMap = new Map<string | null, MotifWithId[]>()
 
-    // Build grouped structure
-    const groups = MOTIF_DISPLAY_GROUPS.map((group) => ({
-      ...group,
-      motifs: group.motifKeys
-        .map((key) => motifMap.get(key))
-        .filter((m): m is MotifWithId => m !== undefined),
-    })).filter((group) => group.motifs.length > 0)
+    // Initialize with all active categories (to preserve order)
+    for (const cat of categories) {
+      categoryMotifMap.set(cat.id, [])
+    }
+    // Add null for uncategorized
+    categoryMotifMap.set(null, [])
 
-    // Find ungrouped motifs (not in any display group)
-    const groupedKeys = new Set(MOTIF_DISPLAY_GROUPS.flatMap((g) => g.motifKeys))
-    const ungroupedMotifs = filteredMotifs.filter((m) => !groupedKeys.has(m.key))
+    // Distribute motifs to their categories
+    for (const motif of filteredMotifs) {
+      const existing = categoryMotifMap.get(motif.categoryId) ?? []
+      existing.push(motif)
+      categoryMotifMap.set(motif.categoryId, existing)
+    }
 
-    // Add "Other" group if there are ungrouped motifs
-    if (ungroupedMotifs.length > 0) {
+    // Build grouped structure from categories
+    const groups: { categoryLabel: string; categoryId: string | null; motifs: MotifWithId[] }[] = []
+
+    // Add groups for each category that has motifs
+    for (const cat of categories) {
+      const motifs = categoryMotifMap.get(cat.id) ?? []
+      if (motifs.length > 0) {
+        groups.push({
+          categoryLabel: cat.label,
+          categoryId: cat.id,
+          motifs,
+        })
+      }
+    }
+
+    // Add uncategorized motifs if any
+    const uncategorizedMotifs = categoryMotifMap.get(null) ?? []
+    if (uncategorizedMotifs.length > 0) {
       groups.push({
-        labelKey: 'pages.motifs.groups.other',
-        motifKeys: ungroupedMotifs.map((m) => m.key),
-        motifs: ungroupedMotifs,
+        categoryLabel: t('pages.motifs.groups.other'),
+        categoryId: null,
+        motifs: uncategorizedMotifs,
       })
     }
 
     return groups
-  }, [filteredMotifs])
+  }, [filteredMotifs, categories])
 
   // Counts for filter badges
   const activeCount = useMemo(() => allMotifs.filter((m) => m.isActive).length, [allMotifs])
@@ -326,11 +343,11 @@ export function MotifsPage() {
     return (
       <div className="space-y-6">
         <EmptyState
-          title="Erreur de chargement"
-          description={`Impossible de charger les motifs: ${error.message}`}
+          title={t('pages.motifs.page.loadingError')}
+          description={`${t('pages.motifs.page.loadingErrorDescription')}: ${error.message}`}
           action={
             <Button onClick={() => window.location.reload()}>
-              Réessayer
+              {t('pages.motifs.page.retry')}
             </Button>
           }
         />
@@ -500,8 +517,8 @@ export function MotifsPage() {
             {searchQuery.trim()
               ? t('pages.motifs.page.noResults')
               : statusFilter === 'archived'
-                ? 'Aucun motif archivé'
-                : 'Aucun motif actif'}
+                ? t('pages.motifs.page.noArchivedMotifs')
+                : t('pages.motifs.page.noActiveMotifs')}
           </p>
           {searchQuery.trim() && (
             <Button
@@ -510,7 +527,7 @@ export function MotifsPage() {
               onClick={() => setSearchQuery('')}
               className="mt-2 text-sage-600"
             >
-              Effacer la recherche
+              {t('pages.motifs.page.clearSearch')}
             </Button>
           )}
         </div>
@@ -519,8 +536,8 @@ export function MotifsPage() {
         <div className="space-y-8">
           {groupedMotifs.map((group) => (
             <MotifCategoryGroup
-              key={group.labelKey}
-              categoryLabel={t(group.labelKey as Parameters<typeof t>[0])}
+              key={group.categoryId ?? 'uncategorized'}
+              categoryLabel={group.categoryLabel}
               motifs={group.motifs}
               collapsible
               defaultExpanded
@@ -540,8 +557,12 @@ export function MotifsPage() {
         <div className="pt-4 border-t border-border">
           <p className="text-xs text-foreground-muted text-center">
             {filteredMotifs.length === categoryFilteredMotifs.length
-              ? `${categoryFilteredMotifs.length} motifs ${statusFilter === 'archived' ? 'archivés' : statusFilter === 'active' ? 'actifs' : 'au total'}`
-              : `${filteredMotifs.length} sur ${categoryFilteredMotifs.length} motifs`}
+              ? statusFilter === 'archived'
+                ? `${categoryFilteredMotifs.length} ${t('pages.motifs.page.count.archived')}`
+                : statusFilter === 'active'
+                  ? `${categoryFilteredMotifs.length} ${t('pages.motifs.page.count.active')}`
+                  : `${categoryFilteredMotifs.length} ${t('pages.motifs.page.count.total')}`
+              : `${filteredMotifs.length} ${t('pages.motifs.page.count.filtered')} ${categoryFilteredMotifs.length} motifs`}
           </p>
         </div>
       )}

@@ -1101,12 +1101,24 @@
         "action": "Créer un motif",
         "searchPlaceholder": "Rechercher un motif...",
         "noResults": "Aucun motif ne correspond à votre recherche.",
+        "noArchivedMotifs": "Aucun motif archivé",
+        "noActiveMotifs": "Aucun motif actif",
+        "clearSearch": "Effacer la recherche",
+        "loadingError": "Erreur de chargement",
+        "loadingErrorDescription": "Impossible de charger les motifs",
+        "retry": "Réessayer",
         "viewFlat": "Vue simple (A–Z)",
         "viewGrouped": "Par sphère",
         "filters": {
           "active": "Actifs",
           "archived": "Archivés",
           "all": "Tous"
+        },
+        "count": {
+          "archived": "motifs archivés",
+          "active": "motifs actifs",
+          "total": "motifs au total",
+          "filtered": "sur"
         }
       },
       "actions": {

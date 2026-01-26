@@ -2,11 +2,10 @@
 export type { DbMotif, MotifDisplayGroup, Motif, MotifCategory } from './types'
 
 // Constants and helpers
+// NOTE: MOTIF_DISPLAY_GROUPS is deprecated - use useMotifCategories() hook instead
 export {
-  MOTIF_DISPLAY_GROUPS,
   isOtherMotif,
   isMotifRestricted,
-  getGroupedMotifKeys,
 } from './constants'
 
 // Hooks
