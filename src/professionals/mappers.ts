@@ -22,6 +22,7 @@ export interface RequiredDocumentConfig {
   expiryMonths?: number
   autoRenew?: boolean
   withdrawalNoticeMonths?: number
+  autoExpiryMarch31?: boolean
 }
 
 export const REQUIRED_DOCUMENTS: RequiredDocumentConfig[] = [
@@ -35,10 +36,10 @@ export const REQUIRED_DOCUMENTS: RequiredDocumentConfig[] = [
   {
     type: 'insurance',
     labelFr: 'Preuve d\'assurance',
-    descriptionFr: 'Certificat d\'assurance responsabilité professionnelle',
+    descriptionFr: 'Certificat d\'assurance responsabilité professionnelle (expire le 31 mars)',
     isRequired: true,
     hasExpiry: true,
-    expiryMonths: 12,
+    autoExpiryMarch31: true,
   },
   {
     type: 'license',
@@ -531,7 +532,8 @@ export interface ProfessionalViewModel {
   onboarding: OnboardingState
   requiredDocuments: RequiredDocumentState[]
   documentCompleteness: number
-  specialtiesByCategory: Record<string, Specialty[]>
+  specialtiesByCategory: Record<string, Array<Specialty & { is_specialized: boolean }>>
+  motifs: Array<{ id: string; key: string; label: string; is_specialized: boolean }>
 
   // Submission tracking
   questionnaireSubmittedAt?: string
@@ -555,17 +557,49 @@ export function mapProfessionalToViewModel(professional: ProfessionalWithRelatio
     .join('')
     .toUpperCase()
 
-  // Group specialties by category
-  const specialtiesByCategory: Record<string, Specialty[]> = {}
+  // Group specialties by category, with is_specialized flag
+  const specialtiesByCategory: Record<string, Array<Specialty & { is_specialized: boolean }>> = {}
   specialties.forEach(ps => {
     if (ps.specialty) {
       const category = ps.specialty.category
       if (!specialtiesByCategory[category]) {
         specialtiesByCategory[category] = []
       }
-      specialtiesByCategory[category].push(ps.specialty)
+      specialtiesByCategory[category].push({
+        ...ps.specialty,
+        is_specialized: ps.is_specialized,
+      })
     }
   })
+
+  // Sort each category: specialized first, then alphabetically
+  Object.keys(specialtiesByCategory).forEach(category => {
+    const categorySpecialties = specialtiesByCategory[category]
+    if (categorySpecialties) {
+      categorySpecialties.sort((a, b) => {
+        if (a.is_specialized !== b.is_specialized) {
+          return b.is_specialized ? 1 : -1
+        }
+        return a.name_fr.localeCompare(b.name_fr, 'fr-CA')
+      })
+    }
+  })
+
+  // Map and sort motifs: specialized first, then alphabetically
+  const motifs = (professional.motifs || [])
+    .filter(pm => pm.motif)
+    .map(pm => ({
+      id: pm.motif!.id,
+      key: pm.motif!.key,
+      label: pm.motif!.label,
+      is_specialized: pm.is_specialized,
+    }))
+    .sort((a, b) => {
+      if (a.is_specialized !== b.is_specialized) {
+        return b.is_specialized ? 1 : -1
+      }
+      return a.label.localeCompare(b.label, 'fr-CA')
+    })
 
   // Calculate document completeness (pass submission for electronic consent check)
   const requiredDocs = mapRequiredDocumentsState(documents, submission)
@@ -612,6 +646,7 @@ export function mapProfessionalToViewModel(professional: ProfessionalWithRelatio
     requiredDocuments: requiredDocs,
     documentCompleteness,
     specialtiesByCategory,
+    motifs,
 
     questionnaireSubmittedAt: submission?.submitted_at || undefined,
     questionnaireSubmittedVia,
@@ -783,7 +818,7 @@ export function isUUID(id: string): boolean {
 export const SPECIALTY_CATEGORY_LABELS: Record<string, string> = {
   therapy_type: 'Types de thérapie',
   clientele: 'Clientèles',
-  issue: 'Motifs de consultation',
+  issue: 'Problématiques',
   modality: 'Modalités',
 }
 
