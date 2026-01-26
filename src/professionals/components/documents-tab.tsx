@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileText,
@@ -98,6 +98,21 @@ function formatFileSize(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
 }
 
+/**
+ * Calculates the next March 31st date for insurance expiry
+ * If today is after March 31, returns next year's March 31
+ */
+function getNextMarch31(): string {
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const march31ThisYear = new Date(currentYear, 2, 31) // Month is 0-indexed
+
+  if (now > march31ThisYear) {
+    return `${currentYear + 1}-03-31`
+  }
+  return `${currentYear}-03-31`
+}
+
 function getDocumentIcon(type: DocumentType) {
   switch (type) {
     case 'photo':
@@ -145,11 +160,18 @@ function UploadDialog({
   const queryClient = useQueryClient()
 
   // Update selected type when preselectedType changes
-  useState(() => {
+  useEffect(() => {
     if (preselectedType) {
       setSelectedType(preselectedType)
     }
-  })
+  }, [preselectedType])
+
+  // Auto-set expiry date for insurance documents
+  useEffect(() => {
+    if (selectedType === 'insurance') {
+      setExpiryDate(getNextMarch31())
+    }
+  }, [selectedType])
 
   const resetForm = () => {
     setSelectedType(preselectedType || 'cv')
@@ -321,19 +343,35 @@ function UploadDialog({
               <label className="text-sm font-medium">
                 Date d'expiration
               </label>
-              {requiresExpiry && (
+              {requiresExpiry && selectedType !== 'insurance' && (
                 <Badge variant="warning" className="text-xs">Recommandé</Badge>
               )}
             </div>
-            <Input
-              type="date"
-              value={expiryDate}
-              onChange={(e) => setExpiryDate(e.target.value)}
-              disabled={isUploading}
-            />
-            <p className="mt-1 text-xs text-foreground-muted">
-              Laissez vide si le document n'expire pas
-            </p>
+            {selectedType === 'insurance' ? (
+              <div className="space-y-2">
+                <Input
+                  type="date"
+                  value={expiryDate}
+                  disabled
+                  className="bg-background-secondary"
+                />
+                <p className="text-xs text-foreground-muted">
+                  L'assurance expire toujours le 31 mars de chaque année.
+                </p>
+              </div>
+            ) : (
+              <>
+                <Input
+                  type="date"
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(e.target.value)}
+                  disabled={isUploading}
+                />
+                <p className="mt-1 text-xs text-foreground-muted">
+                  Laissez vide si le document n'expire pas
+                </p>
+              </>
+            )}
           </div>
 
           {/* Error */}
