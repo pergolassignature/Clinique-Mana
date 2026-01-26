@@ -27,7 +27,7 @@ export function useMotifs(options?: UseMotifOptions): UseMotifs {
 
     let query = supabase
       .from('motifs')
-      .select('id, key, label, is_active, is_restricted')
+      .select('id, key, label, is_active, is_restricted, category_id')
       .order('label', { ascending: true })
 
     // By default, only return active motifs
