@@ -25,6 +25,7 @@ import { ProfessionalDetailPage } from '@/pages/professional-detail'
 import { InvitePage } from '@/pages/invite'
 import { AvailabilityPage } from '@/pages/availability'
 import { MotifsPage } from '@/pages/motifs'
+import { MotifCategoriesPage } from '@/pages/motif-categories'
 import { SpecialtiesPage } from '@/pages/specialties'
 import { ServicesPage } from '@/pages/services'
 import { ClientsPage } from '@/pages/clients'
@@ -227,6 +228,13 @@ const settingsMotifsRoute = createRoute({
   component: MotifsPage,
 })
 
+// Settings > Motif Categories
+const settingsMotifCategoriesRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/categories-motifs',
+  component: MotifCategoriesPage,
+})
+
 // Settings > Specialties
 const settingsSpecialtiesRoute = createRoute({
   getParentRoute: () => settingsRoute,
@@ -270,6 +278,7 @@ const routeTree = rootRoute.addChildren([
     settingsRoute.addChildren([
       settingsIndexRoute,
       settingsMotifsRoute,
+      settingsMotifCategoriesRoute,
       settingsSpecialtiesRoute,
       settingsServicesRoute,
       settingsCliniqueRoute,

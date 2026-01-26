@@ -1,7 +1,7 @@
 // src/pages/settings-layout.tsx
 
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { FileText, Briefcase, User, Bell, Shield, Palette, Building2, Tags } from 'lucide-react'
+import { FileText, Briefcase, User, Bell, Shield, Palette, Building2, Tags, FolderTree } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 
 interface SettingsSection {
@@ -14,6 +14,7 @@ interface SettingsSection {
 
 const settingsSections: SettingsSection[] = [
   { id: 'motifs', path: '/parametres/motifs', label: 'Motifs de consultation', icon: FileText, enabled: true },
+  { id: 'motif-categories', path: '/parametres/categories-motifs', label: 'Catégories de motifs', icon: FolderTree, enabled: true },
   { id: 'specialties', path: '/parametres/specialites', label: 'Spécialités', icon: Tags, enabled: true },
   { id: 'services', path: '/parametres/services', label: 'Catalogue de services', icon: Briefcase, enabled: true },
   { id: 'clinique', path: '/parametres/clinique', label: 'Configuration clinique', icon: Building2, enabled: true },
