@@ -9,8 +9,6 @@ import type { SpecialtyCategory } from './types'
 export const SPECIALTY_CATEGORY_LABELS: Record<SpecialtyCategory, string> = {
   clientele: 'Clientèle',
   therapy_type: 'Types de thérapie',
-  issue: 'Enjeux',
-  modality: 'Modalités',
 }
 
 /**
@@ -19,8 +17,6 @@ export const SPECIALTY_CATEGORY_LABELS: Record<SpecialtyCategory, string> = {
 export const SPECIALTY_CATEGORY_ORDER: SpecialtyCategory[] = [
   'clientele',
   'therapy_type',
-  'issue',
-  'modality',
 ]
 
 /**
@@ -29,6 +25,4 @@ export const SPECIALTY_CATEGORY_ORDER: SpecialtyCategory[] = [
 export const SPECIALTY_CATEGORY_DESCRIPTIONS: Record<SpecialtyCategory, string> = {
   clientele: 'Groupes d\'âge et types de clientèle desservis',
   therapy_type: 'Approches thérapeutiques utilisées',
-  issue: 'Problématiques et enjeux traités',
-  modality: 'Formats de consultation offerts',
 }

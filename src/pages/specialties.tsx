@@ -100,8 +100,6 @@ export function SpecialtiesPage() {
     const groups: Record<SpecialtyCategory, Specialty[]> = {
       clientele: [],
       therapy_type: [],
-      issue: [],
-      modality: [],
     }
 
     for (const specialty of filteredSpecialties) {

@@ -56,6 +56,14 @@ const TYPE_STYLES = {
     text: 'text-slate-700',
     stripe: 'bg-slate-500',
   },
+  imported: {
+    bg: 'bg-purple-50/60',
+    bgActive: 'bg-purple-100',
+    border: 'border-purple-300 border-dashed',
+    borderActive: 'border-purple-400 border-dashed',
+    text: 'text-purple-700',
+    stripe: 'bg-purple-400',
+  },
 }
 
 const TYPE_LABELS = {
@@ -63,6 +71,7 @@ const TYPE_LABELS = {
   blocked: 'Bloqué',
   vacation: 'Vacances',
   break: 'Pause',
+  imported: 'Occupé',
 }
 
 /**

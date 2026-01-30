@@ -51,13 +51,6 @@ export const REQUIRED_DOCUMENTS: RequiredDocumentConfig[] = [
     autoRenew: true,
     withdrawalNoticeMonths: 3,
   },
-  {
-    type: 'cv',
-    labelFr: 'Contrat de service',
-    descriptionFr: 'Contrat de collaboration avec la Clinique MANA',
-    isRequired: true,
-    hasExpiry: false,
-  },
 ]
 
 // =============================================================================
@@ -223,15 +216,26 @@ export function deriveFormulaireDisplayStatus(
   return 'a_envoyer'
 }
 
-export function mapOnboardingState(professional: ProfessionalWithRelations): OnboardingState {
+export type ContractStatus = 'signed' | 'pending' | 'missing'
+
+export interface OnboardingOptions {
+  /** Contract status: 'signed' = complete, 'pending' = sent but not signed, 'missing' = not generated */
+  contractStatus?: ContractStatus
+}
+
+export function mapOnboardingState(
+  professional: ProfessionalWithRelations,
+  options?: OnboardingOptions
+): OnboardingState {
   const invite = professional.latest_invite
   const submission = professional.latest_submission
   const documents = professional.documents || []
+  const contractStatus = options?.contractStatus ?? 'missing'
 
   // Calculate required docs status (pass submission for electronic consent check)
   const requiredDocsStatus = mapRequiredDocumentsState(documents, submission)
   const missingRequiredDocs = requiredDocsStatus.filter(d => d.status === 'missing' || d.status === 'expired')
-  const hasAllRequiredDocs = missingRequiredDocs.length === 0
+  const hasAllRequiredDocs = missingRequiredDocs.length === 0 && contractStatus === 'signed'
 
   // Derive combined formulaire display status
   const formulaireDisplayKey = deriveFormulaireDisplayStatus(invite, submission)
@@ -266,11 +270,13 @@ export function mapOnboardingState(professional: ProfessionalWithRelations): Onb
     },
     {
       step: 'documents',
-      status: documentsStatus,
+      status: hasAllRequiredDocs ? 'completed' : documentsStatus,
       labelFr: 'Documents requis',
-      descriptionFr: documentsStatus === 'completed'
+      descriptionFr: hasAllRequiredDocs
         ? 'Tous les documents sont vérifiés'
-        : `${missingRequiredDocs.length} document(s) manquant(s) ou expiré(s)`,
+        : contractStatus !== 'signed' && missingRequiredDocs.length === 0
+          ? 'Contrat de service à signer'
+          : `${missingRequiredDocs.length + (contractStatus !== 'signed' ? 1 : 0)} document(s) manquant(s) ou en attente`,
       canProceed: true,
     },
     {
@@ -303,7 +309,8 @@ export function mapOnboardingState(professional: ProfessionalWithRelations): Onb
   if (formulaireDisplayKey !== 'approuve') {
     activationBlockers.push('Formulaire à compléter')
   }
-  if (!hasAllRequiredDocs) {
+  // Check document files (not including contract which is separate)
+  if (missingRequiredDocs.length > 0) {
     missingRequiredDocs.forEach(d => {
       if (d.status === 'missing') {
         activationBlockers.push(`À téléverser : ${d.config.labelFr}`)
@@ -311,6 +318,14 @@ export function mapOnboardingState(professional: ProfessionalWithRelations): Onb
         activationBlockers.push(`À renouveler : ${d.config.labelFr}`)
       }
     })
+  }
+  // Check contract status
+  if (contractStatus !== 'signed') {
+    if (contractStatus === 'pending') {
+      activationBlockers.push('À signer : Contrat de service')
+    } else {
+      activationBlockers.push('À envoyer : Contrat de service')
+    }
   }
 
   return {
@@ -513,8 +528,20 @@ export interface ProfessionalViewModel {
   yearsExperience?: number
 
   // Contact
+  phoneNumber?: string // Personal/internal phone
   publicEmail?: string
   publicPhone?: string
+
+  // Address
+  streetNumber?: string
+  streetName?: string
+  apartment?: string
+  city?: string
+  province?: string
+  country?: string
+  postalCode?: string
+  hasAddress: boolean
+  formattedAddress?: string
 
   // Portrait
   bio?: string
@@ -620,6 +647,41 @@ export function mapProfessionalToViewModel(professional: ProfessionalWithRelatio
   const primaryProfession = professions.find(p => p.is_primary) || professions[0]
   const licenseNumber = primaryProfession?.license_number
 
+  // Address fields
+  const streetNumber = professional.street_number || undefined
+  const streetName = professional.street_name || undefined
+  const apartment = professional.apartment || undefined
+  const city = professional.city || undefined
+  const province = professional.province || undefined
+  const country = professional.country || undefined
+  const postalCode = professional.postal_code || undefined
+
+  // Check if any address field is populated
+  const hasAddress = !!(streetNumber || streetName || city || province || postalCode)
+
+  // Build formatted address for display
+  let formattedAddress: string | undefined
+  if (hasAddress) {
+    const parts: string[] = []
+    if (streetNumber && streetName) {
+      parts.push(`${streetNumber} ${streetName}`)
+    } else if (streetName) {
+      parts.push(streetName)
+    }
+    if (apartment) {
+      parts[0] = parts[0] ? `${parts[0]}, app. ${apartment}` : `app. ${apartment}`
+    }
+    if (city && province) {
+      parts.push(`${city}, ${province}`)
+    } else if (city) {
+      parts.push(city)
+    }
+    if (postalCode) {
+      parts.push(postalCode)
+    }
+    formattedAddress = parts.join('\n')
+  }
+
   return {
     id: professional.id,
     displayName,
@@ -630,8 +692,20 @@ export function mapProfessionalToViewModel(professional: ProfessionalWithRelatio
     licenseNumber,
     yearsExperience: professional.years_experience || submission?.responses?.years_experience,
 
+    phoneNumber: professional.phone_number || undefined,
     publicEmail: professional.public_email || undefined,
     publicPhone: professional.public_phone || undefined,
+
+    // Address
+    streetNumber,
+    streetName,
+    apartment,
+    city,
+    province,
+    country,
+    postalCode,
+    hasAddress,
+    formattedAddress,
 
     bio: professional.portrait_bio || undefined,
     approach: professional.portrait_approach || undefined,

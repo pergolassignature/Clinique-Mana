@@ -26,4 +26,5 @@ export {
   ArchiveMotifDialog,
   CreateMotifDialog,
   ChangeCategoryDialog,
+  CategoriesManagerDrawer,
 } from './components'

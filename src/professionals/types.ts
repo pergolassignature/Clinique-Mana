@@ -311,8 +311,18 @@ export const ProfessionalSchema = z.object({
   portrait_approach: z.string().nullable(),
   public_email: z.string().email().nullable(),
   public_phone: z.string().nullable(),
+  phone_number: z.string().nullable(), // Personal/internal phone (distinct from public_phone)
   license_number: z.string().nullable(),
   years_experience: z.number().nullable(),
+  // Address fields
+  street_number: z.string().nullable(),
+  street_name: z.string().nullable(),
+  apartment: z.string().nullable(),
+  city: z.string().nullable(),
+  province: z.string().nullable(),
+  country: z.string().nullable(),
+  postal_code: z.string().nullable(),
+  // Timestamps
   fiche_generated_at: z.string().datetime().nullable(),
   fiche_version: z.number(),
   created_at: z.string().datetime(),
@@ -390,8 +400,17 @@ export const UpdateProfessionalInput = z.object({
   portrait_approach: z.string().optional(),
   public_email: z.string().email().nullable().optional(),
   public_phone: z.string().nullable().optional(),
+  phone_number: z.string().nullable().optional(),
   license_number: z.string().nullable().optional(),
   years_experience: z.number().nullable().optional(),
+  // Address fields
+  street_number: z.string().nullable().optional(),
+  street_name: z.string().nullable().optional(),
+  apartment: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  province: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+  postal_code: z.string().nullable().optional(),
 })
 export type UpdateProfessionalInput = z.infer<typeof UpdateProfessionalInput>
 
@@ -490,7 +509,7 @@ export interface ProfessionalListItem {
   created_at: string
 }
 
-export type ProfessionalDetailTab = 'apercu' | 'profil' | 'profil-public' | 'services' | 'documents' | 'historique'
+export type ProfessionalDetailTab = 'apercu' | 'profil' | 'profil-public' | 'services' | 'documents' | 'calendrier' | 'historique'
 
 export interface DocumentUploadProgress {
   file_name: string

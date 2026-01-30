@@ -86,24 +86,59 @@ export async function fetchServicesForCategories(
 
   if (pricesError) throw pricesError
 
-  // Get unique service IDs
-  const serviceIds = [...new Set((prices || []).map((p) => p.service_id))]
+  // Fetch hourly rates to see which categories support hourly prorata services
+  const { data: hourlyRates, error: ratesError } = await supabase
+    .from('profession_category_rates')
+    .select('profession_category_key')
+    .in('profession_category_key', categoryKeys)
+    .eq('is_active', true)
 
-  if (serviceIds.length === 0) {
+  if (ratesError) throw ratesError
+
+  const categoriesWithHourlyRates = new Set(
+    (hourlyRates || []).map((r) => r.profession_category_key)
+  )
+
+  // Fetch hourly prorata services (they don't have service_prices entries)
+  const { data: hourlyProrataServices, error: hourlyError } = await supabase
+    .from('services')
+    .select('*')
+    .eq('pricing_model', 'by_profession_hourly_prorata')
+    .eq('is_active', true)
+
+  if (hourlyError) throw hourlyError
+
+  // Get unique service IDs from prices
+  const priceServiceIds = [...new Set((prices || []).map((p) => p.service_id))]
+  const hourlyServiceIds = (hourlyProrataServices || []).map((s) => s.id)
+
+  // Combine all service IDs (only add hourly if at least one category has hourly rates)
+  const allServiceIds = categoriesWithHourlyRates.size > 0
+    ? [...new Set([...priceServiceIds, ...hourlyServiceIds])]
+    : priceServiceIds
+
+  if (allServiceIds.length === 0) {
     return { byCategory: {}, all: [] }
   }
 
-  // Fetch the services
+  // Fetch the services (for price-based ones; we already have hourly prorata services)
   const { data: servicesData, error: servicesError } = await supabase
     .from('services')
     .select('*')
-    .in('id', serviceIds)
+    .in('id', priceServiceIds)
     .eq('is_active', true)
     .order('display_order')
 
   if (servicesError) throw servicesError
 
-  const services = (servicesData || []).map(mapDbServiceToService)
+  // Combine price-based services with hourly prorata services
+  const allServicesData = categoriesWithHourlyRates.size > 0
+    ? [...(servicesData || []), ...(hourlyProrataServices || [])]
+    : servicesData || []
+
+  const services = allServicesData.map(mapDbServiceToService)
+  // Sort all services by display_order
+  services.sort((a, b) => a.displayOrder - b.displayOrder)
   const servicesById = new Map(services.map((s) => [s.id, s]))
 
   // Group by category
@@ -112,6 +147,7 @@ export async function fetchServicesForCategories(
     byCategory[categoryKey] = []
   }
 
+  // Add price-based services to their categories
   for (const price of prices || []) {
     const service = servicesById.get(price.service_id)
     if (service && price.profession_category_key) {
@@ -124,6 +160,24 @@ export async function fetchServicesForCategories(
         categoryServices.push(service)
       }
     }
+  }
+
+  // Add hourly prorata services to categories that have hourly rates
+  for (const categoryKey of categoriesWithHourlyRates) {
+    if (!byCategory[categoryKey]) {
+      byCategory[categoryKey] = []
+    }
+    for (const service of hourlyProrataServices || []) {
+      const mappedService = servicesById.get(service.id)
+      if (mappedService) {
+        const categoryServices = byCategory[categoryKey]
+        if (categoryServices && !categoryServices.some((s) => s.id === mappedService.id)) {
+          categoryServices.push(mappedService)
+        }
+      }
+    }
+    // Sort the category services by display_order
+    byCategory[categoryKey]?.sort((a, b) => a.displayOrder - b.displayOrder)
   }
 
   return { byCategory, all: services }

@@ -10,9 +10,10 @@ import {
   User,
   Briefcase,
   History,
-  ClipboardList,
   Loader2,
   Package,
+  LayoutDashboard,
+  Calendar,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import {
@@ -36,25 +37,25 @@ import {
 } from '@/shared/ui/dialog'
 
 // Tab components
+import { ProfessionalApercuTab } from '@/professionals/components/apercu-tab'
 import { ProfessionalProfileTab } from '@/professionals/components/profile-tab'
-import { ProfessionalOnboardingTab } from '@/professionals/components/onboarding-tab'
-import { ProfessionalPortraitTab } from '@/professionals/components/portrait-tab'
+import { ProfessionalProfilPublicTab } from '@/professionals/components/profil-public-tab'
 import { ProfessionalDocumentsTab } from '@/professionals/components/documents-tab'
-import { ProfessionalFicheTab } from '@/professionals/components/fiche-tab'
 import { ProfessionalHistoryTab } from '@/professionals/components/history-tab'
 import { ProfessionalServicesTab } from '@/professionals/components/services-tab'
+import { ProfessionalCalendarTab } from '@/professionals/components/calendar-tab'
 
 const tabs: Array<{
   id: ProfessionalDetailTab
   label: string
   icon: typeof User
 }> = [
+  { id: 'apercu', label: 'Aperçu', icon: LayoutDashboard },
   { id: 'profil', label: 'Profil', icon: User },
-  { id: 'onboarding', label: 'Intégration', icon: ClipboardList },
-  { id: 'portrait', label: 'Portrait', icon: Briefcase },
+  { id: 'profil-public', label: 'Profil public', icon: Briefcase },
   { id: 'services', label: 'Services', icon: Package },
   { id: 'documents', label: 'Documents', icon: FileText },
-  { id: 'fiche', label: 'Fiche', icon: FileText },
+  { id: 'calendrier', label: 'Calendrier', icon: Calendar },
   { id: 'historique', label: 'Historique', icon: History },
 ]
 
@@ -160,7 +161,7 @@ function HeaderSkeleton() {
 export function ProfessionalDetailPage() {
   const { id } = useParams({ strict: false }) as { id: string }
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<ProfessionalDetailTab>('profil')
+  const [activeTab, setActiveTab] = useState<ProfessionalDetailTab>('apercu')
   const [showStatusDialog, setShowStatusDialog] = useState(false)
 
   const { data: professional, isLoading, error } = useProfessional(id)
@@ -273,41 +274,6 @@ export function ProfessionalDetailPage() {
         </div>
       ) : null}
 
-      {/* Onboarding progress bar (compact, when not on onboarding tab) */}
-      {professional && viewModel && activeTab !== 'onboarding' && viewModel.onboarding.completionPercentage < 100 && (
-        <div
-          className="rounded-xl bg-background-secondary/50 p-3 cursor-pointer hover:bg-background-secondary transition-colors"
-          onClick={() => setActiveTab('onboarding')}
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-honey-100 text-honey-600">
-                <ClipboardList className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  Intégration en cours
-                </p>
-                <p className="text-xs text-foreground-muted">
-                  {viewModel.onboarding.steps.filter(s => s.status === 'completed').length} sur {viewModel.onboarding.steps.length} étapes complétées
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="h-2 w-24 overflow-hidden rounded-full bg-background-tertiary">
-                <div
-                  className="h-full rounded-full bg-sage-500 transition-all duration-500"
-                  style={{ width: `${viewModel.onboarding.completionPercentage}%` }}
-                />
-              </div>
-              <span className="text-sm font-medium text-foreground">
-                {viewModel.onboarding.completionPercentage}%
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Tabs */}
       <div className="border-b border-border">
         <nav className="-mb-px flex space-x-4 overflow-x-auto sm:space-x-6">
@@ -349,20 +315,17 @@ export function ProfessionalDetailPage() {
             </div>
           ) : professional ? (
             <>
+              {activeTab === 'apercu' && (
+                <ProfessionalApercuTab
+                  professional={professional}
+                  onNavigateToTab={handleNavigateToTab}
+                />
+              )}
               {activeTab === 'profil' && (
-                <ProfessionalProfileTab
-                  professional={professional}
-                  onNavigateToTab={handleNavigateToTab}
-                />
+                <ProfessionalProfileTab professional={professional} />
               )}
-              {activeTab === 'onboarding' && (
-                <ProfessionalOnboardingTab
-                  professional={professional}
-                  onNavigateToTab={handleNavigateToTab}
-                />
-              )}
-              {activeTab === 'portrait' && (
-                <ProfessionalPortraitTab professional={professional} />
+              {activeTab === 'profil-public' && (
+                <ProfessionalProfilPublicTab professional={professional} />
               )}
               {activeTab === 'services' && (
                 <ProfessionalServicesTab professional={professional} />
@@ -370,8 +333,8 @@ export function ProfessionalDetailPage() {
               {activeTab === 'documents' && (
                 <ProfessionalDocumentsTab professional={professional} />
               )}
-              {activeTab === 'fiche' && (
-                <ProfessionalFicheTab professional={professional} />
+              {activeTab === 'calendrier' && (
+                <ProfessionalCalendarTab professional={professional} />
               )}
               {activeTab === 'historique' && (
                 <ProfessionalHistoryTab professional={professional} />

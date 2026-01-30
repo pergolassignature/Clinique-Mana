@@ -23,6 +23,82 @@ export function normalizePhone(phone: string): string {
 }
 
 /**
+ * Normalize phone number to E.164 format for database storage.
+ * E.164 format: +[country code][digits] (e.g., +15145551234)
+ *
+ * @param phone - Input phone number in any format
+ * @param countryCode - Country code to prepend (default: +1 for North America)
+ * @returns E.164 formatted phone number or null if invalid
+ */
+export function normalizePhoneToE164(
+  phone: string | null | undefined,
+  countryCode: string = '+1'
+): string | null {
+  if (!phone) return null
+
+  // Remove all non-digit characters
+  const digits = phone.replace(/\D/g, '')
+
+  if (digits.length === 0) return null
+
+  // Handle different input formats
+  // If already has country code (11+ digits starting with country code digit)
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `+${digits}`
+  }
+
+  // Standard 10-digit North American number
+  if (digits.length === 10) {
+    const cleanCountryCode = countryCode.startsWith('+') ? countryCode : `+${countryCode}`
+    const codeDigits = cleanCountryCode.replace(/\D/g, '')
+    return `+${codeDigits}${digits}`
+  }
+
+  // If it's a shorter or longer number, just store digits with country code
+  // This handles international numbers and partial numbers
+  if (digits.length >= 7) {
+    const cleanCountryCode = countryCode.startsWith('+') ? countryCode : `+${countryCode}`
+    const codeDigits = cleanCountryCode.replace(/\D/g, '')
+    return `+${codeDigits}${digits}`
+  }
+
+  // Too short to be valid, store as-is (might be extension or partial)
+  return digits.length > 0 ? digits : null
+}
+
+/**
+ * Format E.164 phone number for display.
+ * Converts +15145551234 to +1 (514) 555-1234
+ *
+ * @param phone - Phone number in E.164 format
+ * @returns Formatted phone number for display
+ */
+export function formatPhoneForDisplay(phone: string | null | undefined): string {
+  if (!phone) return ''
+
+  // If phone is already in E.164 format (starts with +), format it nicely
+  if (phone.startsWith('+')) {
+    const digits = phone.slice(1) // Remove the +
+    if (digits.length === 11 && digits.startsWith('1')) {
+      // North American number: +1 (XXX) XXX-XXXX
+      const area = digits.slice(1, 4)
+      const first = digits.slice(4, 7)
+      const last = digits.slice(7, 11)
+      return `+1 (${area}) ${first}-${last}`
+    } else if (digits.length === 10) {
+      // 10 digit number without country code stored
+      const area = digits.slice(0, 3)
+      const first = digits.slice(3, 6)
+      const last = digits.slice(6, 10)
+      return `(${area}) ${first}-${last}`
+    }
+  }
+
+  // Return as-is if format not recognized
+  return phone
+}
+
+/**
  * Normalize name for comparison (lowercase, trimmed, collapse whitespace)
  */
 export function normalizeName(name: string): string {

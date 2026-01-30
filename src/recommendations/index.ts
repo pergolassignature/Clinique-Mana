@@ -56,7 +56,7 @@ export {
   sortByScore,
   countMatchedMotifs,
   hasAnySpecialty,
-  getSpecialtyProficiency,
+  isSpecialtySpecialized,
 } from './deterministic-scorer'
 
 export type { PreFilterResult } from './deterministic-scorer'

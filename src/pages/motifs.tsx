@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Plus, Search, LayoutGrid, List, Loader2, ChevronDown } from 'lucide-react'
+import { Plus, Search, LayoutGrid, List, Loader2, ChevronDown, FolderTree } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
@@ -20,6 +20,7 @@ import {
   ArchiveMotifDialog,
   CreateMotifDialog,
   ChangeCategoryDialog,
+  CategoriesManagerDrawer,
   useMotifs,
   useMotifMutations,
   useMotifCategories,
@@ -59,6 +60,9 @@ export function MotifsPage() {
   const [changeCategoryDialogOpen, setChangeCategoryDialogOpen] = useState(false)
   const [motifToChangeCategory, setMotifToChangeCategory] = useState<MotifWithId | null>(null)
 
+  // Categories manager drawer state
+  const [categoriesDrawerOpen, setCategoriesDrawerOpen] = useState(false)
+
   // Fetch all motifs from database (including inactive for management view)
   const { motifs: dbMotifs, isLoading, error, refetch } = useMotifs({ includeInactive: true })
 
@@ -80,6 +84,17 @@ export function MotifsPage() {
       categoryLabel: dbMotif.motif_categories?.label_fr ?? null,
     }))
   }, [dbMotifs])
+
+  // Calculate motif count per category (for the categories drawer)
+  const motifCountByCategory = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const motif of allMotifs) {
+      if (motif.categoryId) {
+        counts[motif.categoryId] = (counts[motif.categoryId] ?? 0) + 1
+      }
+    }
+    return counts
+  }, [allMotifs])
 
   // Filter by status
   const statusFilteredMotifs = useMemo(() => {
@@ -357,8 +372,12 @@ export function MotifsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Action button */}
-      <div className="flex justify-end">
+      {/* Action buttons */}
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={() => setCategoriesDrawerOpen(true)}>
+          <FolderTree className="h-4 w-4" />
+          Catégories
+        </Button>
         <Button onClick={() => setCreateDialogOpen(true)}>
           <Plus className="h-4 w-4" />
           {t('pages.motifs.page.action')}
@@ -600,6 +619,13 @@ export function MotifsPage() {
           onSuccess={handleChangeCategorySuccess}
         />
       )}
+
+      {/* Categories manager drawer */}
+      <CategoriesManagerDrawer
+        open={categoriesDrawerOpen}
+        onOpenChange={setCategoriesDrawerOpen}
+        motifCountByCategory={motifCountByCategory}
+      />
     </div>
   )
 }

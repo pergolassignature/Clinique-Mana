@@ -48,13 +48,18 @@ export interface BookableService {
   minClients: number
   maxClients: number
   compatibleProfessionKeys: string[]
+  /** Pricing model for billing calculation */
+  pricingModel: 'fixed' | 'by_profession_category' | 'rule_cancellation_prorata' | 'by_profession_hourly_prorata'
 }
 
 // =============================================================================
 // Availability Blocks
 // =============================================================================
 
-export type AvailabilityType = 'available' | 'blocked' | 'vacation' | 'break'
+export type AvailabilityType = 'available' | 'blocked' | 'vacation' | 'break' | 'imported'
+
+/** Source of availability block (manual = created in app, others = synced from external calendar) */
+export type AvailabilitySource = 'manual' | 'google' | 'microsoft' | 'calendly'
 
 export interface AvailabilityBlock {
   id: string
@@ -68,6 +73,12 @@ export interface AvailabilityBlock {
   visibleToClients: boolean
   createdAt: string
   updatedAt: string
+  /** Source of this block (default: manual) */
+  source?: AvailabilitySource
+  /** External calendar event ID for synced blocks */
+  externalEventId?: string
+  /** Whether this is an all-day event (for imported blocks) */
+  isAllDay?: boolean
 }
 
 // =============================================================================

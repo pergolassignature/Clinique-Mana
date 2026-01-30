@@ -57,7 +57,29 @@ sql_paths = ["./seed.sql"]
 enabled = false
 
 # Edge Functions configuration
-# Skip gateway JWT verification for create-professional since we handle auth internally
+# Skip gateway JWT verification since we handle auth internally
 # This is needed because the project uses ES256 signing keys
+
 [functions.create-professional]
+verify_jwt = false
+
+[functions.google-calendar-auth-url]
+verify_jwt = false
+
+[functions.google-calendar-callback]
+verify_jwt = false
+
+[functions.google-calendar-sync]
+verify_jwt = false
+
+[functions.google-calendar-disconnect]
+verify_jwt = false
+
+[functions.docuseal-create-submission]
+verify_jwt = false
+
+[functions.docuseal-get-submission]
+verify_jwt = false
+
+[functions.docuseal-webhook]
 verify_jwt = false

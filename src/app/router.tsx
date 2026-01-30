@@ -25,7 +25,7 @@ import { ProfessionalDetailPage } from '@/pages/professional-detail'
 import { InvitePage } from '@/pages/invite'
 import { AvailabilityPage } from '@/pages/availability'
 import { MotifsPage } from '@/pages/motifs'
-import { MotifCategoriesPage } from '@/pages/motif-categories'
+// MotifCategoriesPage removed - now managed via drawer in MotifsPage
 import { SpecialtiesPage } from '@/pages/specialties'
 import { ServicesPage } from '@/pages/services'
 import { ClientsPage } from '@/pages/clients'
@@ -34,8 +34,11 @@ import { RequestDetailPage } from '@/pages/request-detail'
 import { RequestAnalysisPage } from '@/pages/request-analysis'
 import { ReportsPage } from '@/pages/reports'
 import { IvacReportPage } from '@/facturation/components/ivac-report-page'
+import { CalendarCallbackPage } from '@/pages/calendar-callback'
 import { SettingsLayout } from '@/pages/settings-layout'
 import { ClinicSettingsPage } from '@/pages/clinic-settings'
+import { ScheduledTasksPage } from '@/pages/scheduled-tasks'
+import { TemplatesPage } from '@/pages/templates'
 import { LoginPage } from '@/pages/login'
 import { NotFoundPage } from '@/pages/not-found'
 
@@ -60,6 +63,13 @@ const inviteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/invitation/$token',
   component: InvitePage,
+})
+
+// Calendar OAuth callback route (protected - user must be logged in)
+const calendarCallbackRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/calendar/callback',
+  component: CalendarCallbackPage,
 })
 
 // Protected layout route - wraps AppShell with auth check
@@ -228,13 +238,6 @@ const settingsMotifsRoute = createRoute({
   component: MotifsPage,
 })
 
-// Settings > Motif Categories
-const settingsMotifCategoriesRoute = createRoute({
-  getParentRoute: () => settingsRoute,
-  path: '/categories-motifs',
-  component: MotifCategoriesPage,
-})
-
 // Settings > Specialties
 const settingsSpecialtiesRoute = createRoute({
   getParentRoute: () => settingsRoute,
@@ -256,6 +259,20 @@ const settingsCliniqueRoute = createRoute({
   component: ClinicSettingsPage,
 })
 
+// Settings > Scheduled Tasks (cron jobs)
+const settingsScheduledTasksRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/taches-planifiees',
+  component: ScheduledTasksPage,
+})
+
+// Settings > Templates (document templates)
+const settingsTemplatesRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/gabarits',
+  component: TemplatesPage,
+})
+
 // Build route tree
 const routeTree = rootRoute.addChildren([
   loginRoute,
@@ -265,6 +282,7 @@ const routeTree = rootRoute.addChildren([
     dashboardRoute,
     professionalsRoute,
     professionalDetailRoute,
+    calendarCallbackRoute,
     availabilityRoute,
     legacyMotifsRoute,
     legacyServicesRoute,
@@ -278,10 +296,11 @@ const routeTree = rootRoute.addChildren([
     settingsRoute.addChildren([
       settingsIndexRoute,
       settingsMotifsRoute,
-      settingsMotifCategoriesRoute,
       settingsSpecialtiesRoute,
       settingsServicesRoute,
       settingsCliniqueRoute,
+      settingsScheduledTasksRoute,
+      settingsTemplatesRoute,
     ]),
   ]),
 ])

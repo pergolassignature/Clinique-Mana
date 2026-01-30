@@ -270,11 +270,9 @@ function calculateSpecialtyMatchScore(
   demande: DemandeData,
   config: RecommendationConfig
 ): { score: number; matchedSpecialties: string[] } {
-  const proficiencyWeights: Record<string, number> = {
-    primary: 1.0,
-    secondary: 0.7,
-    familiar: 0.4,
-  }
+  // Weight specialties by specialization status
+  const SPECIALIZED_WEIGHT = 1.0
+  const BASE_WEIGHT = 0.6
 
   // Build set of relevant specialty codes based on demande
   const relevantSpecialties = new Set<string>()
@@ -308,8 +306,7 @@ function calculateSpecialtyMatchScore(
 
   for (const specialty of candidate.specialties) {
     if (relevantSpecialties.has(specialty.code)) {
-      const proficiency = specialty.proficiencyLevel || 'familiar'
-      const weight = proficiencyWeights[proficiency] ?? 0.4
+      const weight = specialty.isSpecialized ? SPECIALIZED_WEIGHT : BASE_WEIGHT
       totalWeight += weight
       matchedSpecialties.push(specialty.code)
     }
@@ -615,10 +612,10 @@ export function hasAnySpecialty(
 /**
  * Get proficiency level for a specific specialty.
  */
-export function getSpecialtyProficiency(
+export function isSpecialtySpecialized(
   candidate: CandidateData,
   specialtyCode: string
-): string | null {
+): boolean {
   const specialty = candidate.specialties.find((s) => s.code === specialtyCode)
-  return specialty?.proficiencyLevel ?? null
+  return specialty?.isSpecialized ?? false
 }

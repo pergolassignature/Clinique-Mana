@@ -290,22 +290,25 @@ insert into public.profiles (
 -- =============================================================================
 
 insert into public.specialties (id, code, name_fr, category, is_active, sort_order) values
+  -- Therapy types
   ('11111111-0001-4001-8001-111111111111', 'individual_therapy', 'Thérapie individuelle', 'therapy_type', true, 1),
   ('22222222-0002-4002-8002-222222222222', 'couple_therapy', 'Thérapie de couple', 'therapy_type', true, 2),
   ('33333333-0003-4003-8003-333333333333', 'family_therapy', 'Thérapie familiale', 'therapy_type', true, 3),
   ('44444444-0004-4004-8004-444444444444', 'group_therapy', 'Thérapie de groupe', 'therapy_type', true, 4),
-  ('55555555-0005-4005-8005-555555555555', 'adults', 'Adultes', 'population', true, 1),
-  ('66666666-0006-4006-8006-666666666666', 'adolescents', 'Adolescents', 'population', true, 2),
-  ('77777777-0007-4007-8007-777777777777', 'children', 'Enfants', 'population', true, 3),
-  ('88888888-0008-4008-8008-888888888888', 'seniors', 'Aînés', 'population', true, 4),
-  ('99999999-0009-4009-8009-999999999999', 'anxiety', 'Anxiété', 'issue', true, 1),
-  ('aaaaaaaa-000a-400a-800a-aaaaaaaaaaaa', 'depression', 'Dépression', 'issue', true, 2),
-  ('bbbbbbbb-000b-400b-800b-bbbbbbbbbbbb', 'trauma', 'Trauma', 'issue', true, 3),
-  ('cccccccc-000c-400c-800c-cccccccccccc', 'relationships', 'Relations', 'issue', true, 4),
-  ('dddddddd-000d-400d-800d-dddddddddddd', 'grief', 'Deuil', 'issue', true, 5),
-  ('eeeeeeee-000e-400e-800e-eeeeeeeeeeee', 'in_person', 'En personne', 'modality', true, 1),
-  ('ffffffff-000f-400f-800f-ffffffffffff', 'video', 'Vidéoconférence', 'modality', true, 2),
-  ('11112222-0010-4010-8010-111122221111', 'phone', 'Téléphone', 'modality', true, 3)
+  -- Clientele (age-based progression: children → teens → adults → seniors → groups)
+  ('77777777-0007-4007-8007-777777777777', 'children', 'Enfants', 'clientele', true, 1),
+  ('66666666-0006-4006-8006-666666666666', 'adolescents', 'Adolescents', 'clientele', true, 2),
+  ('55555555-0005-4005-8005-555555555555', 'adults', 'Adultes', 'clientele', true, 3),
+  ('88888888-0008-4008-8008-888888888888', 'seniors', 'Aînés', 'clientele', true, 4),
+  -- Deprecated categories (issue/modality) - kept for historical reference
+  ('99999999-0009-4009-8009-999999999999', 'anxiety', 'Anxiété', 'issue', false, 1),
+  ('aaaaaaaa-000a-400a-800a-aaaaaaaaaaaa', 'depression', 'Dépression', 'issue', false, 2),
+  ('bbbbbbbb-000b-400b-800b-bbbbbbbbbbbb', 'trauma', 'Trauma', 'issue', false, 3),
+  ('cccccccc-000c-400c-800c-cccccccccccc', 'relationships', 'Relations', 'issue', false, 4),
+  ('dddddddd-000d-400d-800d-dddddddddddd', 'grief', 'Deuil', 'issue', false, 5),
+  ('eeeeeeee-000e-400e-800e-eeeeeeeeeeee', 'in_person', 'En personne', 'modality', false, 1),
+  ('ffffffff-000f-400f-800f-ffffffffffff', 'video', 'Vidéoconférence', 'modality', false, 2),
+  ('11112222-0010-4010-8010-111122221111', 'phone', 'Téléphone', 'modality', false, 3)
 on conflict (code) do nothing;
 
 -- =============================================================================

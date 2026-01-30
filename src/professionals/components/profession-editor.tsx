@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Plus, Trash2, Loader2, Check, X, Star, StarOff } from 'lucide-react'
+import { t } from '@/i18n'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
@@ -44,8 +45,8 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
   const handleAdd = async () => {
     if (!newTitleKey || !newLicenseNumber.trim()) {
       toast({
-        title: 'Champs requis',
-        description: 'Veuillez sélectionner un titre et entrer un numéro de permis.',
+        title: t('professionals.detail.professionEditor.toast.fieldsRequired.title'),
+        description: t('professionals.detail.professionEditor.toast.fieldsRequired.description'),
         variant: 'error',
       })
       return
@@ -58,14 +59,14 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
         license_number: newLicenseNumber.trim(),
         is_primary: professions.length === 0,
       })
-      toast({ title: 'Titre ajouté' })
+      toast({ title: t('professionals.detail.professionEditor.toast.titleAdded') })
       setIsAdding(false)
       setNewTitleKey('')
       setNewLicenseNumber('')
     } catch (err) {
       toast({
-        title: 'Erreur',
-        description: err instanceof Error ? err.message : 'Impossible d\'ajouter le titre.',
+        title: t('common.error'),
+        description: err instanceof Error ? err.message : t('professionals.detail.professionEditor.toast.error.addTitle'),
         variant: 'error',
       })
     }
@@ -74,7 +75,7 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
   const handleUpdateLicense = async (profession: ProfessionalProfession) => {
     if (!editLicenseNumber.trim()) {
       toast({
-        title: 'Numéro de permis requis',
+        title: t('professionals.detail.professionEditor.toast.licenseRequired'),
         variant: 'error',
       })
       return
@@ -86,13 +87,13 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
         professional_id: professionalId,
         updates: { license_number: editLicenseNumber.trim() },
       })
-      toast({ title: 'Numéro de permis mis à jour' })
+      toast({ title: t('professionals.detail.professionEditor.toast.licenseUpdated') })
       setEditingId(null)
       setEditLicenseNumber('')
     } catch {
       toast({
-        title: 'Erreur',
-        description: 'Impossible de mettre à jour le numéro de permis.',
+        title: t('common.error'),
+        description: t('professionals.detail.professionEditor.toast.error.updateLicense'),
         variant: 'error',
       })
     }
@@ -107,11 +108,11 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
         professional_id: professionalId,
         updates: { is_primary: true },
       })
-      toast({ title: 'Titre principal mis à jour' })
+      toast({ title: t('professionals.detail.professionEditor.toast.primaryUpdated') })
     } catch {
       toast({
-        title: 'Erreur',
-        description: 'Impossible de définir comme titre principal.',
+        title: t('common.error'),
+        description: t('professionals.detail.professionEditor.toast.error.setPrimary'),
         variant: 'error',
       })
     }
@@ -123,11 +124,11 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
         id: profession.id,
         professional_id: professionalId,
       })
-      toast({ title: 'Titre retiré' })
+      toast({ title: t('professionals.detail.professionEditor.toast.titleRemoved') })
     } catch {
       toast({
-        title: 'Erreur',
-        description: 'Impossible de retirer le titre.',
+        title: t('common.error'),
+        description: t('professionals.detail.professionEditor.toast.error.removeTitle'),
         variant: 'error',
       })
     }
@@ -162,7 +163,7 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
                 </span>
                 {profession.is_primary && (
                   <Badge variant="default" className="text-xs">
-                    Principal
+                    {t('professionals.detail.professionEditor.primaryBadge')}
                   </Badge>
                 )}
               </div>
@@ -172,7 +173,7 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
                   <Input
                     value={editLicenseNumber}
                     onChange={(e) => setEditLicenseNumber(e.target.value)}
-                    placeholder="Numéro de permis"
+                    placeholder={t('professionals.detail.professionEditor.licensePlaceholder')}
                     className="h-8 text-sm"
                     autoFocus
                     onKeyDown={(e) => {
@@ -207,7 +208,7 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
                   onClick={() => startEdit(profession)}
                   className="text-xs text-foreground-muted hover:text-foreground transition-colors"
                 >
-                  Permis: {profession.license_number}
+                  {t('professionals.detail.professionEditor.licensePrefix')} {profession.license_number}
                 </button>
               )}
             </div>
@@ -221,7 +222,7 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
                   onClick={() => handleSetPrimary(profession)}
                   disabled={updateProfession.isPending}
                   className="h-8 w-8 p-0 text-foreground-muted hover:text-honey-600"
-                  title="Définir comme titre principal"
+                  title={t('professionals.detail.professionEditor.setPrimaryTitle')}
                 >
                   <StarOff className="h-4 w-4" />
                 </Button>
@@ -259,7 +260,7 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
             onChange={(e) => setNewTitleKey(e.target.value)}
             className="h-9"
           >
-            <option value="">Sélectionner un titre...</option>
+            <option value="">{t('professionals.detail.professionEditor.selectTitle')}</option>
             {availableTitles.map((title) => (
               <option key={title.key} value={title.key}>
                 {title.label_fr}
@@ -270,7 +271,7 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
           <Input
             value={newLicenseNumber}
             onChange={(e) => setNewLicenseNumber(e.target.value)}
-            placeholder="Numéro de permis"
+            placeholder={t('professionals.detail.professionEditor.licensePlaceholder')}
             className="h-9"
           />
 
@@ -282,7 +283,7 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
               className="flex-1"
             >
               {addProfession.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Ajouter
+              {t('professionals.detail.professionEditor.addButton')}
             </Button>
             <Button
               size="sm"
@@ -293,7 +294,7 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
                 setNewLicenseNumber('')
               }}
             >
-              Annuler
+              {t('professionals.detail.professionEditor.cancelButton')}
             </Button>
           </div>
         </div>
@@ -307,12 +308,12 @@ export function ProfessionEditor({ professionalId, professions }: ProfessionEdit
         >
           <Plus className="h-4 w-4 mr-1.5" />
           {professions.length === 0
-            ? 'Ajouter un titre professionnel'
-            : 'Ajouter un second titre'}
+            ? t('professionals.detail.professionEditor.addFirstTitle')
+            : t('professionals.detail.professionEditor.addSecondTitle')}
         </Button>
       ) : (
         <p className="text-xs text-foreground-muted text-center">
-          Maximum de 2 titres atteint
+          {t('professionals.detail.professionEditor.maxReached')}
         </p>
       )}
     </div>

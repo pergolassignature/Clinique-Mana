@@ -48,6 +48,14 @@ const TYPE_STYLES = {
     text: 'text-slate-700',
     stripe: 'bg-slate-500',
   },
+  imported: {
+    bg: 'bg-purple-50/60',
+    bgActive: 'bg-purple-100',
+    border: 'border-purple-300 border-dashed',
+    borderActive: 'border-purple-400 border-dashed',
+    text: 'text-purple-700',
+    stripe: 'bg-purple-400',
+  },
 }
 
 const TYPE_LABELS = {
@@ -55,6 +63,7 @@ const TYPE_LABELS = {
   blocked: 'Bloqué',
   vacation: 'Vacances',
   break: 'Pause',
+  imported: 'Occupé',
 }
 
 export function AvailabilityBlockVisual({
@@ -70,7 +79,9 @@ export function AvailabilityBlockVisual({
 
   // Calculate duration in minutes for display
   const durationMinutes = (endTime.getTime() - startTime.getTime()) / 60000
-  const showResizeHandles = isAvailabilityMode && durationMinutes >= 30
+  // Imported blocks are read-only - no resize handles
+  const isImported = block.type === 'imported'
+  const showResizeHandles = isAvailabilityMode && durationMinutes >= 30 && !isImported
 
   return (
     <div
@@ -89,9 +100,12 @@ export function AvailabilityBlockVisual({
         isAvailabilityMode ? styles.bgActive : styles.bg,
         isAvailabilityMode ? styles.borderActive : styles.border,
         // Interactive states
-        isAvailabilityMode
-          ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-sage-400 focus:ring-offset-1'
-          : 'opacity-50 cursor-default',
+        isImported
+          // Imported blocks: clickable to show info, but cursor indicates read-only
+          ? 'cursor-help hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-1'
+          : isAvailabilityMode
+            ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-sage-400 focus:ring-offset-1'
+            : 'opacity-50 cursor-default',
         // Highlighted state when dragging service
         isHighlighted && 'opacity-100 bg-sage-200 border-sage-500 shadow-lg animate-pulse scale-[1.02]'
       )}

@@ -17,7 +17,7 @@ import {
 } from '../hooks'
 import { useProfessional } from '@/professionals/hooks'
 import { useClientRelations } from '@/clients/hooks'
-import { useServicePrices, useProfessionTitles, useProfessionCategories } from '@/services-catalog/hooks'
+import { useServicePrices, useProfessionTitles, useProfessionCategories, useProfessionCategoryRates } from '@/services-catalog/hooks'
 import { calculateCancellationFee } from '../utils/pricing'
 import {
   INVOICE_STATUS_LABELS,
@@ -58,6 +58,7 @@ export function InvoiceBillingTab({
   const { data: servicePrices = [] } = useServicePrices()
   const { data: professionTitles = [] } = useProfessionTitles()
   const { data: professionCategories = [] } = useProfessionCategories()
+  const { data: categoryRates = [] } = useProfessionCategoryRates()
 
   // Check if invoice exists for this appointment
   const { data: existingInvoice, isLoading: invoiceLoading } = useInvoiceByAppointment(
@@ -120,15 +121,31 @@ export function InvoiceBillingTab({
   const resolvedServicePrice = useMemo(() => {
     if (!service) return null
 
+    const durationMinutes = appointment?.durationMinutes ?? service.durationMinutes
+    const category = professionCategoryKey ? professionCategories.find(c => c.key === professionCategoryKey) : null
+    const isTaxable = category?.taxIncluded ?? false
+
+    // Handle hourly prorata pricing (minute-based billing)
+    if (service.pricingModel === 'by_profession_hourly_prorata' && professionCategoryKey) {
+      const rate = categoryRates.find(
+        r => r.professionCategoryKey === professionCategoryKey && r.isActive
+      )
+      if (rate) {
+        // Unit price is per minute (hourly rate / 60), total = perMinute * duration
+        const perMinuteCents = Math.round(rate.hourlyRateCents / 60)
+        const totalCents = perMinuteCents * durationMinutes
+        return { priceCents: totalCents, isTaxable, missingPrice: false, isHourlyProrata: true, perMinuteCents }
+      }
+      // No hourly rate configured for this category
+      return { priceCents: 0, isTaxable: false, missingPrice: true, isHourlyProrata: true }
+    }
+
     // Priority 1: Category-specific price
     if (professionCategoryKey) {
       const categoryPrice = servicePrices.find(
         p => p.serviceId === service.id && p.professionCategoryKey === professionCategoryKey && p.isActive
       )
       if (categoryPrice) {
-        // For BookableService we don't have isTaxableOverride, check category tax status
-        const category = professionCategories.find(c => c.key === professionCategoryKey)
-        const isTaxable = category?.taxIncluded ?? false
         return { priceCents: categoryPrice.priceCents, isTaxable, missingPrice: false }
       }
     }
@@ -138,15 +155,12 @@ export function InvoiceBillingTab({
       p => p.serviceId === service.id && !p.professionCategoryKey && p.isActive
     )
     if (globalPrice) {
-      // Use category tax status if available
-      const category = professionCategoryKey ? professionCategories.find(c => c.key === professionCategoryKey) : null
-      const isTaxable = category?.taxIncluded ?? false
       return { priceCents: globalPrice.priceCents, isTaxable, missingPrice: false }
     }
 
     // No price found - return 0 with warning flag
     return { priceCents: 0, isTaxable: false, missingPrice: true }
-  }, [service, professionCategoryKey, servicePrices, professionCategories])
+  }, [service, professionCategoryKey, servicePrices, professionCategories, categoryRates, appointment?.durationMinutes])
 
   // Check if appointment is cancelled
   const isCancelled = appointment?.status === 'cancelled'
@@ -185,16 +199,23 @@ export function InvoiceBillingTab({
     }
 
     // For normal appointments - bill full service
+    const durationMinutes = appointment?.durationMinutes ?? service.durationMinutes
+    const isHourlyProrata = service.pricingModel === 'by_profession_hourly_prorata'
+
     return [{
       id: 'service',
       lineType: 'service' as const,
       serviceId: service.id,
       serviceName: service.nameFr,
       serviceKey: null,
-      quantityUnit: 'unit' as const,
-      quantity: 1,
-      billableMinutes: appointment?.durationMinutes ?? service.durationMinutes,
-      unitPriceCents: resolvedServicePrice?.priceCents ?? 0,
+      // For hourly prorata: bill per minute; for others: bill per unit
+      quantityUnit: isHourlyProrata ? 'minute' as const : 'unit' as const,
+      quantity: isHourlyProrata ? durationMinutes : 1,
+      billableMinutes: durationMinutes,
+      // For hourly prorata: use per-minute rate; for others: use total price
+      unitPriceCents: isHourlyProrata && resolvedServicePrice?.perMinuteCents
+        ? resolvedServicePrice.perMinuteCents
+        : resolvedServicePrice?.priceCents ?? 0,
       isTaxable: resolvedServicePrice?.isTaxable ?? false,
       displayOrder: 0,
       description: null,

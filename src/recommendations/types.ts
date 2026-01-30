@@ -425,7 +425,7 @@ export interface CandidateData {
   specialties: Array<{
     code: string
     category: string
-    proficiencyLevel: string | null
+    isSpecialized: boolean
   }>
   availability: {
     slotsInWindow: number

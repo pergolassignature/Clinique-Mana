@@ -24,7 +24,7 @@ import {
   Star,
 } from 'lucide-react'
 import { Logo } from '@/assets/logo'
-import { t } from '@/i18n'
+import { t, useTranslation } from '@/i18n'
 import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -40,8 +40,9 @@ import {
   uploadDocumentAnon,
   getDocumentPreviewUrl,
 } from '@/professionals/api'
-import type { OnboardingInvite, Specialty, QuestionnaireResponses, UploadInfo, ImageRightsConsent, ProfessionTitle, QuestionnaireProfession } from '@/professionals'
-import { MotifPicker } from '@/shared/components/motif-picker'
+import type { OnboardingInvite, Specialty, QuestionnaireResponses, UploadInfo, ImageRightsConsent, ProfessionTitle, QuestionnaireProfession, QuestionnaireSection, PrePopulatedData } from '@/professionals'
+import { SpecialtyAccordionPicker } from '@/shared/components/specialty-accordion-picker'
+import { MotifAccordionPicker } from '@/shared/components/motif-accordion-picker'
 import { MotifDisclaimerBanner } from '@/motifs'
 
 type InviteState = 'loading' | 'valid' | 'expired' | 'invalid' | 'completed' | 'already_submitted' | 'error'
@@ -87,17 +88,28 @@ function formatSaveTime(date: Date): string {
 function StepIndicator({
   currentStep,
   steps,
+  isUpdateRequest,
+  requestedSections,
 }: {
   currentStep: FormStep
   steps: FormStep[]
+  isUpdateRequest: boolean
+  requestedSections: QuestionnaireSection[] | null
 }) {
   const currentIndex = steps.indexOf(currentStep)
+
+  const isSectionEditable = (step: FormStep): boolean => {
+    if (!isUpdateRequest) return true
+    if (step === 'review') return true
+    return requestedSections?.includes(step as QuestionnaireSection) ?? false
+  }
 
   return (
     <div className="flex items-center justify-center gap-2 mb-8">
       {steps.map((step, index) => {
         const isActive = index === currentIndex
         const isCompleted = index < currentIndex
+        const isEditable = isSectionEditable(step)
 
         return (
           <div key={step} className="flex items-center">
@@ -107,6 +119,7 @@ function StepIndicator({
                 ${isActive ? 'bg-sage-500 text-white scale-110' : ''}
                 ${isCompleted ? 'bg-sage-100 text-sage-600' : ''}
                 ${!isActive && !isCompleted ? 'bg-background-tertiary text-foreground-muted' : ''}
+                ${isUpdateRequest && !isEditable && !isActive ? 'opacity-50' : ''}
               `}
             >
               {isCompleted ? (
@@ -130,53 +143,14 @@ function StepIndicator({
   )
 }
 
-function SpecialtySelector({
-  selectedSpecialties,
-  onToggle,
-  specialtiesByCategory,
-}: {
-  selectedSpecialties: string[]
-  onToggle: (code: string) => void
-  specialtiesByCategory: Record<string, Specialty[]>
-}) {
-  const categoryLabels: Record<string, string> = {
-    therapy_type: t('professionals.portrait.specialties.categories.therapy_type'),
-    clientele: t('professionals.portrait.specialties.categories.clientele'),
-    issue: t('professionals.portrait.specialties.categories.issue'),
-    modality: t('professionals.portrait.specialties.categories.modality'),
-  }
-
+// Read-only badge component for update requests
+function ReadOnlyBadge() {
+  const { t } = useTranslation()
   return (
-    <div className="space-y-6">
-      {Object.entries(specialtiesByCategory).map(([category, specialties]) => (
-        <div key={category}>
-          <h4 className="text-sm font-medium text-foreground-secondary mb-3">
-            {categoryLabels[category] || category}
-          </h4>
-          <div className="flex flex-wrap gap-2">
-            {specialties.map((specialty) => {
-              const isSelected = selectedSpecialties.includes(specialty.code)
-              return (
-                <button
-                  key={specialty.id}
-                  type="button"
-                  onClick={() => onToggle(specialty.code)}
-                  className={`
-                    px-3 py-1.5 rounded-lg text-sm transition-all duration-200
-                    ${isSelected
-                      ? 'bg-sage-100 text-sage-700 border-2 border-sage-300'
-                      : 'bg-background-tertiary text-foreground-secondary border-2 border-transparent hover:border-border'
-                    }
-                  `}
-                >
-                  {specialty.name_fr}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-xs font-medium text-gray-600">
+      <Eye className="h-3 w-3" />
+      {t('professionals.invite.public.updateRequest.readOnly')}
+    </span>
   )
 }
 
@@ -214,6 +188,10 @@ export function InvitePage() {
   // New profession form state (for adding professions in Step 2)
   const [newProfessionTitle, setNewProfessionTitle] = useState('')
   const [newProfessionLicense, setNewProfessionLicense] = useState('')
+
+  // Update request state
+  const [isUpdateRequest, setIsUpdateRequest] = useState(false)
+  const [requestedSections, setRequestedSections] = useState<QuestionnaireSection[] | null>(null)
 
   // File input refs
   const photoInputRef = useRef<HTMLInputElement>(null)
@@ -310,12 +288,57 @@ export function InvitePage() {
         setSpecialtiesByCategory(specialties)
         setProfessionTitles(titles)
 
-        // Pre-populate full_name from profile if not already saved in draft
+        // Handle update request invites
+        const isUpdate = inviteResult.isUpdateRequest
+        setIsUpdateRequest(isUpdate)
+        setRequestedSections(inviteResult.requestedSections)
+
+        // Pre-populate form data
         if (!savedDraft) {
-          setFormData((prev) => ({
-            ...prev,
-            full_name: inviteResult.displayName,
-          }))
+          if (isUpdate && inviteResult.prePopulatedData) {
+            // For update requests, pre-fill with current professional data
+            const prePopData = inviteResult.prePopulatedData as PrePopulatedData
+            setFormData({
+              full_name: inviteResult.displayName,
+              professions: prePopData.professions || [],
+              years_experience: prePopData.years_experience ?? undefined,
+              bio: prePopData.portrait_bio || '',
+              approach: prePopData.portrait_approach || '',
+              public_email: prePopData.public_email || '',
+              public_phone: prePopData.public_phone || '',
+              specialties: prePopData.specialties || [],
+              motifs: prePopData.motifs || [],
+              uploads: prePopData.uploads,
+              image_rights_consent: prePopData.image_rights_consent,
+            })
+
+            // If photo exists in pre-populated data, set upload status
+            if (prePopData.uploads?.photo) {
+              setPhotoUploadStatus('success')
+            }
+            if (prePopData.uploads?.insurance) {
+              setInsuranceUploadStatus('success')
+            }
+            // If consent already exists, restore consent state
+            if (prePopData.image_rights_consent?.signed) {
+              setConsentRead(true)
+              setConsentSignature(prePopData.image_rights_consent.signer_full_name)
+            }
+          } else {
+            // For initial onboarding, only pre-fill name
+            setFormData((prev) => ({
+              ...prev,
+              full_name: inviteResult.displayName,
+            }))
+          }
+        }
+
+        // For update requests, start on the first editable section
+        if (isUpdate && inviteResult.requestedSections && inviteResult.requestedSections.length > 0) {
+          const firstEditableSection = inviteResult.requestedSections[0] as FormStep
+          if (STEPS.includes(firstEditableSection)) {
+            setCurrentStep(firstEditableSection)
+          }
         }
 
         // Mark as opened if pending
@@ -428,6 +451,19 @@ export function InvitePage() {
         ? current.filter((c) => c !== code)
         : [...current, code]
       const newData = { ...prev, specialties: updated }
+      persistToLocalStorage(newData)
+      scheduleAutoSave(newData)
+      return newData
+    })
+  }, [persistToLocalStorage, scheduleAutoSave])
+
+  const toggleMotif = useCallback((key: string) => {
+    setFormData((prev) => {
+      const current = prev.motifs || []
+      const updated = current.includes(key)
+        ? current.filter((k) => k !== key)
+        : [...current, key]
+      const newData = { ...prev, motifs: updated }
       persistToLocalStorage(newData)
       scheduleAutoSave(newData)
       return newData
@@ -599,27 +635,68 @@ export function InvitePage() {
   }, [formData.uploads?.insurance, insuranceUploadStatus])
 
   const currentStepIndex = STEPS.indexOf(currentStep)
-  const isFirstStep = currentStepIndex === 0
   const isLastStep = currentStepIndex === STEPS.length - 1
 
+  // For update requests, check if current step is the first editable section
+  const isFirstStep = useMemo(() => {
+    if (!isUpdateRequest || !requestedSections) {
+      return currentStepIndex === 0
+    }
+    // Find the first editable section
+    const firstEditableIndex = STEPS.findIndex(
+      (step) => requestedSections.includes(step as QuestionnaireSection)
+    )
+    return currentStepIndex === firstEditableIndex
+  }, [currentStepIndex, isUpdateRequest, requestedSections])
+
   const goNext = async () => {
-    const nextStep = STEPS[currentStepIndex + 1]
-    if (!isLastStep && nextStep) {
-      // Cancel any pending auto-save and save immediately
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current)
-        autoSaveTimerRef.current = null
+    if (isLastStep) return
+
+    // Cancel any pending auto-save and save immediately
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current)
+      autoSaveTimerRef.current = null
+    }
+    // Save draft before navigating
+    await saveToServer(formData)
+
+    // For update requests, skip to next editable section
+    if (isUpdateRequest) {
+      for (let i = currentStepIndex + 1; i < STEPS.length; i++) {
+        const step = STEPS[i]
+        if (step === 'review' || requestedSections?.includes(step as QuestionnaireSection)) {
+          setCurrentStep(step)
+          return
+        }
       }
-      // Save draft before navigating
-      await saveToServer(formData)
-      setCurrentStep(nextStep)
+      // If no more editable sections, go to review
+      setCurrentStep('review')
+    } else {
+      const nextStep = STEPS[currentStepIndex + 1]
+      if (nextStep) {
+        setCurrentStep(nextStep)
+      }
     }
   }
 
   const goBack = () => {
-    const prevStep = STEPS[currentStepIndex - 1]
-    if (!isFirstStep && prevStep) {
-      setCurrentStep(prevStep)
+    if (isFirstStep) return
+
+    // For update requests, skip to previous editable section
+    if (isUpdateRequest) {
+      for (let i = currentStepIndex - 1; i >= 0; i--) {
+        const step = STEPS[i]
+        if (requestedSections?.includes(step as QuestionnaireSection)) {
+          setCurrentStep(step)
+          return
+        }
+      }
+      // If no previous editable section, stay on current (shouldn't happen)
+    } else {
+      const prevStep = STEPS[currentStepIndex - 1]
+      if (prevStep) {
+        setCurrentStep(prevStep)
+      }
     }
   }
 
@@ -708,6 +785,13 @@ export function InvitePage() {
   }, [formData])
 
   const canProceed = stepValidation[currentStep]
+
+  // Helper to check if a section is editable (for update requests)
+  const isSectionEditable = useCallback((step: FormStep): boolean => {
+    if (!isUpdateRequest) return true // All sections editable for initial onboarding
+    if (step === 'review') return true // Review is always accessible
+    return requestedSections?.includes(step as QuestionnaireSection) ?? false
+  }, [isUpdateRequest, requestedSections])
 
   // Render states
   if (state === 'loading') {
@@ -824,15 +908,30 @@ export function InvitePage() {
             <Logo />
           </div>
           <h1 className="text-2xl font-semibold text-foreground">
-            {t('professionals.invite.public.title')}
+            {isUpdateRequest
+              ? t('professionals.invite.public.updateRequest.title')
+              : t('professionals.invite.public.title')}
           </h1>
           <p className="mt-2 text-foreground-secondary">
-            {t('professionals.invite.public.subtitle')}
+            {isUpdateRequest
+              ? t('professionals.invite.public.updateRequest.subtitle')
+              : t('professionals.invite.public.subtitle')}
           </p>
+          {isUpdateRequest && (
+            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-honey-100 text-honey-700 text-sm">
+              <RefreshCw className="h-4 w-4" />
+              {t('professionals.invite.public.updateRequest.badge')}
+            </div>
+          )}
         </div>
 
         {/* Progress */}
-        <StepIndicator currentStep={currentStep} steps={STEPS} />
+        <StepIndicator
+          currentStep={currentStep}
+          steps={STEPS}
+          isUpdateRequest={isUpdateRequest}
+          requestedSections={requestedSections}
+        />
 
         {/* Form card */}
         <div className="rounded-2xl border border-border bg-background p-6 shadow-soft">
@@ -891,12 +990,17 @@ export function InvitePage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage-100">
                       <Briefcase className="h-5 w-5 text-sage-600" />
                     </div>
-                    <div>
-                      <h2 className="font-semibold text-foreground">
-                        {t('professionals.invite.public.form.professionalInfo')}
-                      </h2>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-semibold text-foreground">
+                          {t('professionals.invite.public.form.professionalInfo')}
+                        </h2>
+                        {!isSectionEditable('professional') && <ReadOnlyBadge />}
+                      </div>
                       <p className="text-sm text-foreground-muted">
-                        {t('professionals.invite.public.form.professionsHelper')}
+                        {!isSectionEditable('professional')
+                          ? t('professionals.invite.public.updateRequest.sectionReadOnly')
+                          : t('professionals.invite.public.form.professionsHelper')}
                       </p>
                     </div>
                   </div>
@@ -1071,10 +1175,18 @@ export function InvitePage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage-100">
                       <FileText className="h-5 w-5 text-sage-600" />
                     </div>
-                    <div>
-                      <h2 className="font-semibold text-foreground">
-                        {t('professionals.invite.public.form.portrait')}
-                      </h2>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-semibold text-foreground">
+                          {t('professionals.invite.public.form.portrait')}
+                        </h2>
+                        {!isSectionEditable('portrait') && <ReadOnlyBadge />}
+                      </div>
+                      {!isSectionEditable('portrait') && (
+                        <p className="text-sm text-foreground-muted">
+                          {t('professionals.invite.public.updateRequest.sectionReadOnly')}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1141,34 +1253,27 @@ export function InvitePage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage-100">
                       <Briefcase className="h-5 w-5 text-sage-600" />
                     </div>
-                    <div>
-                      <h2 className="font-semibold text-foreground">
-                        {t('professionals.invite.public.form.specialties')}
-                      </h2>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-semibold text-foreground">
+                          {t('professionals.invite.public.form.specialties')}
+                        </h2>
+                        {!isSectionEditable('specialties') && <ReadOnlyBadge />}
+                      </div>
                       <p className="text-sm text-foreground-muted">
-                        {t('professionals.invite.public.form.specialtiesHelper')}
+                        {!isSectionEditable('specialties')
+                          ? t('professionals.invite.public.updateRequest.sectionReadOnly')
+                          : t('professionals.invite.public.form.specialtiesHelper')}
                       </p>
                     </div>
                   </div>
 
-                  <SpecialtySelector
-                    selectedSpecialties={formData.specialties || []}
-                    onToggle={toggleSpecialty}
+                  <SpecialtyAccordionPicker
                     specialtiesByCategory={specialtiesByCategory}
+                    selectedCodes={formData.specialties || []}
+                    onToggle={toggleSpecialty}
+                    disabled={!isSectionEditable('specialties')}
                   />
-
-                  {(formData.specialties?.length || 0) > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-4 border-t border-border">
-                      <span className="text-sm text-foreground-muted mr-2">Sélectionnées :</span>
-                      {formData.specialties?.map((code) => (
-                        <Badge key={code} variant="default">
-                          {Object.values(specialtiesByCategory)
-                            .flat()
-                            .find((s) => s.code === code)?.name_fr || code}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1179,22 +1284,27 @@ export function InvitePage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage-100">
                       <Heart className="h-5 w-5 text-sage-600" />
                     </div>
-                    <div>
-                      <h2 className="font-semibold text-foreground">
-                        {t('professionals.invite.public.form.motifs')}
-                      </h2>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-semibold text-foreground">
+                          {t('professionals.invite.public.form.motifs')}
+                        </h2>
+                        {!isSectionEditable('motifs') && <ReadOnlyBadge />}
+                      </div>
                       <p className="text-sm text-foreground-muted">
-                        {t('professionals.invite.public.form.motifsHelper')}
+                        {!isSectionEditable('motifs')
+                          ? t('professionals.invite.public.updateRequest.sectionReadOnly')
+                          : t('professionals.invite.public.form.motifsHelper')}
                       </p>
                     </div>
                   </div>
 
                   <MotifDisclaimerBanner />
 
-                  <MotifPicker
-                    selected={formData.motifs || []}
-                    onChange={(motifs) => updateFormData({ motifs })}
-                    showGuidance={false}
+                  <MotifAccordionPicker
+                    selectedKeys={formData.motifs || []}
+                    onToggle={toggleMotif}
+                    disabled={!isSectionEditable('motifs')}
                   />
                 </div>
               )}
@@ -1206,12 +1316,17 @@ export function InvitePage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage-100">
                       <Camera className="h-5 w-5 text-sage-600" />
                     </div>
-                    <div>
-                      <h2 className="font-semibold text-foreground">
-                        {t('professionals.invite.public.form.photo.title')}
-                      </h2>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-semibold text-foreground">
+                          {t('professionals.invite.public.form.photo.title')}
+                        </h2>
+                        {!isSectionEditable('photo') && <ReadOnlyBadge />}
+                      </div>
                       <p className="text-sm text-foreground-muted">
-                        {t('professionals.invite.public.form.photo.description')}
+                        {!isSectionEditable('photo')
+                          ? t('professionals.invite.public.updateRequest.sectionReadOnly')
+                          : t('professionals.invite.public.form.photo.description')}
                       </p>
                     </div>
                   </div>
@@ -1306,12 +1421,17 @@ export function InvitePage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage-100">
                       <Shield className="h-5 w-5 text-sage-600" />
                     </div>
-                    <div>
-                      <h2 className="font-semibold text-foreground">
-                        {t('professionals.invite.public.form.insurance.title')}
-                      </h2>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-semibold text-foreground">
+                          {t('professionals.invite.public.form.insurance.title')}
+                        </h2>
+                        {!isSectionEditable('insurance') && <ReadOnlyBadge />}
+                      </div>
                       <p className="text-sm text-foreground-muted">
-                        {t('professionals.invite.public.form.insurance.description')}
+                        {!isSectionEditable('insurance')
+                          ? t('professionals.invite.public.updateRequest.sectionReadOnly')
+                          : t('professionals.invite.public.form.insurance.description')}
                       </p>
                     </div>
                   </div>
@@ -1409,12 +1529,17 @@ export function InvitePage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage-100">
                       <FileSignature className="h-5 w-5 text-sage-600" />
                     </div>
-                    <div>
-                      <h2 className="font-semibold text-foreground">
-                        {t('professionals.invite.public.form.consent.title')}
-                      </h2>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-semibold text-foreground">
+                          {t('professionals.invite.public.form.consent.title')}
+                        </h2>
+                        {!isSectionEditable('consent') && <ReadOnlyBadge />}
+                      </div>
                       <p className="text-sm text-foreground-muted">
-                        {t('professionals.invite.public.form.consent.description')}
+                        {!isSectionEditable('consent')
+                          ? t('professionals.invite.public.updateRequest.sectionReadOnly')
+                          : t('professionals.invite.public.form.consent.description')}
                       </p>
                     </div>
                   </div>

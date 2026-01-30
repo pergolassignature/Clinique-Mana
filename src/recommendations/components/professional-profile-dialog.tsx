@@ -1,7 +1,7 @@
 // src/recommendations/components/professional-profile-dialog.tsx
 // Dialog to view a professional's profile summary for recommendation context
 
-import { Briefcase, Tag, Award, User, Clock } from 'lucide-react'
+import { Briefcase, Tag, Award, User, Clock, Star } from 'lucide-react'
 import { t } from '@/i18n'
 import { useProfessional } from '@/professionals/hooks'
 import {
@@ -117,9 +117,9 @@ export function ProfessionalProfileDialog({
     ?.map((s) => ({
       code: s.specialty?.code,
       name: s.specialty?.name_fr,
-      proficiencyLevel: s.proficiency_level,
+      isSpecialized: s.is_specialized,
     }))
-    .filter((s) => s.code && s.name) as { code: string; name: string; proficiencyLevel: string | null }[] | undefined
+    .filter((s) => s.code && s.name) as { code: string; name: string; isSpecialized: boolean }[] | undefined
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -203,14 +203,12 @@ export function ProfessionalProfileDialog({
                     <Badge
                       key={specialty.code}
                       variant="outline"
-                      className="text-xs"
+                      className="text-xs gap-1"
                     >
-                      {specialty.name}
-                      {specialty.proficiencyLevel && (
-                        <span className="ml-1 text-foreground-muted">
-                          ({specialty.proficiencyLevel})
-                        </span>
+                      {specialty.isSpecialized && (
+                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
                       )}
+                      {specialty.name}
                     </Badge>
                   ))}
                 </div>

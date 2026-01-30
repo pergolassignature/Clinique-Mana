@@ -127,7 +127,53 @@
         "services": "Services",
         "documents": "Documents",
         "fiche": "Fiche",
-        "historique": "Historique"
+        "historique": "Historique",
+        "calendrier": "Calendrier"
+      },
+      "calendar": {
+        "title": "Calendrier externe",
+        "description": "Synchronisez un calendrier pour afficher vos indisponibilités",
+        "empty": {
+          "title": "Aucun calendrier connecté",
+          "description": "Connectez votre calendrier Google pour synchroniser automatiquement vos périodes d'occupation."
+        },
+        "connect": {
+          "google": "Connecter Google Calendar"
+        },
+        "status": {
+          "synced": "Synchronisé",
+          "error": "Erreur de synchronisation",
+          "reconnect": "Reconnexion requise"
+        },
+        "lastSync": "Dernière synchronisation : {date}",
+        "actions": {
+          "syncNow": "Synchroniser maintenant",
+          "disconnect": "Déconnecter"
+        },
+        "privacy": "Seules les périodes d'occupation seront importées. Le contenu des événements reste privé.",
+        "viewCalendar": "Voir dans le calendrier",
+        "disconnect": {
+          "title": "Déconnecter le calendrier ?",
+          "description": "Cette action supprimera tous les blocs importés. Vos événements Google ne seront pas affectés."
+        },
+        "toast": {
+          "connected": {
+            "title": "Calendrier connecté",
+            "description": "Votre Google Calendar a été connecté avec succès."
+          },
+          "synced": {
+            "title": "Calendrier synchronisé",
+            "description": "{count} blocs importés."
+          },
+          "disconnected": {
+            "title": "Calendrier déconnecté",
+            "description": "Votre calendrier a été déconnecté."
+          },
+          "error": {
+            "title": "Erreur",
+            "description": "Une erreur est survenue. Veuillez réessayer."
+          }
+        }
       },
       "actions": {
         "sendInvite": "Envoyer une invitation",
@@ -346,7 +392,8 @@
           "viewSubmission": "Voir la soumission",
           "manageDocuments": "Gérer les documents",
           "activate": "Activer",
-          "deactivate": "Désactiver"
+          "deactivate": "Désactiver",
+          "requestUpdate": "Demander une mise à jour"
         },
         "toast": {
           "linkCreated": {
@@ -377,7 +424,14 @@
         "identity": {
           "title": "Identité",
           "description": "Informations de base du professionnel",
-          "photo": "Photo de profil"
+          "photo": "Photo de profil",
+          "email": "Courriel",
+          "phone": "Téléphone",
+          "phonePlaceholder": "(514) 555-1234"
+        },
+        "contact": {
+          "title": "Coordonnées",
+          "description": "Informations de contact du professionnel"
         },
         "professionTitles": {
           "title": "Titres professionnels",
@@ -394,6 +448,29 @@
           "fieldLabel": "Numéro IVAC du professionnel",
           "fieldHint": "Ce numéro sera affiché dans les dossiers clients IVAC",
           "placeholder": "Ex: IVAC-PRO-123456"
+        },
+        "address": {
+          "title": "Adresse",
+          "description": "Adresse du professionnel",
+          "empty": "Aucune adresse enregistrée",
+          "search": "Recherche d'adresse",
+          "searchPlaceholder": "Rechercher une adresse...",
+          "manualEntry": "ou saisir manuellement",
+          "fields": {
+            "streetNumber": "No",
+            "streetName": "Rue",
+            "apartment": "Appartement",
+            "city": "Ville",
+            "province": "Province",
+            "postalCode": "Code postal",
+            "country": "Pays"
+          },
+          "toast": {
+            "updated": {
+              "title": "Adresse mise à jour",
+              "description": "L'adresse a été enregistrée avec succès."
+            }
+          }
         },
         "dates": {
           "title": "Dates importantes",
@@ -763,6 +840,13 @@
       "public": {
         "title": "Bienvenue chez Clinique MANA",
         "subtitle": "Complétez votre profil professionnel",
+        "updateRequest": {
+          "title": "Mise à jour de votre profil",
+          "subtitle": "Mettez à jour les informations demandées par la clinique",
+          "badge": "Demande de mise à jour",
+          "readOnly": "Lecture seule",
+          "sectionReadOnly": "Cette section est affichée à titre informatif et ne peut pas être modifiée."
+        },
         "expired": {
           "title": "Invitation expirée",
           "description": "Ce lien d'invitation a expiré. Veuillez contacter l'administration de la clinique pour obtenir une nouvelle invitation."
@@ -897,6 +981,36 @@
             "consentNotRead": "Veuillez confirmer avoir lu le formulaire de consentement",
             "signatureRequired": "Veuillez signer le formulaire de consentement"
           }
+        }
+      }
+    },
+    "updateRequest": {
+      "title": "Demander une mise à jour",
+      "description": "Sélectionnez les sections que le professionnel doit mettre à jour.",
+      "selectSections": "Sections à mettre à jour",
+      "selectAll": "Tout sélectionner",
+      "deselectAll": "Tout désélectionner",
+      "createLink": "Créer le lien",
+      "linkReady": "Le lien de mise à jour est prêt",
+      "linkInstructions": "Envoyez ce lien au professionnel. Les informations actuelles seront pré-remplies et il pourra modifier uniquement les sections demandées.",
+      "sections": {
+        "personal": "Informations personnelles",
+        "professional": "Informations professionnelles",
+        "portrait": "Portrait / Biographie",
+        "specialties": "Spécialités",
+        "motifs": "Motifs de consultation",
+        "photo": "Photo professionnelle",
+        "insurance": "Assurance professionnelle",
+        "consent": "Consentement droit à l'image"
+      },
+      "toast": {
+        "created": {
+          "title": "Demande créée",
+          "description": "Le lien de mise à jour a été généré avec succès."
+        },
+        "copied": {
+          "title": "Lien copié",
+          "description": "Le lien a été copié dans le presse-papiers."
         }
       }
     },
@@ -1966,6 +2080,111 @@
       "empty": {
         "title": "Configuration en cours",
         "description": "Les options de paramétrage seront disponibles prochainement."
+      }
+    },
+    "templates": {
+      "page": {
+        "title": "Gabarits de documents",
+        "description": "G\u00e9rez les gabarits utilis\u00e9s pour g\u00e9n\u00e9rer les documents de la clinique.",
+        "action": "Nouveau gabarit",
+        "searchPlaceholder": "Rechercher un gabarit...",
+        "filters": {
+          "all": "Tous",
+          "published": "Publi\u00e9s",
+          "draft": "Brouillons",
+          "archived": "Archiv\u00e9s"
+        },
+        "empty": {
+          "title": "Aucun gabarit",
+          "description": "Cr\u00e9ez votre premier gabarit de document pour commencer."
+        },
+        "noResults": "Aucun gabarit trouv\u00e9 pour cette recherche.",
+        "count": {
+          "total": "gabarits au total",
+          "filtered": "gabarits trouv\u00e9s sur"
+        }
+      },
+      "status": {
+        "draft": "Brouillon",
+        "published": "Publi\u00e9",
+        "archived": "Archiv\u00e9"
+      },
+      "editor": {
+        "title": "Modifier le gabarit",
+        "createTitle": "Nouveau gabarit",
+        "tabs": {
+          "content": "Contenu",
+          "preview": "Aper\u00e7u",
+          "variables": "Variables"
+        },
+        "fields": {
+          "key": "Cl\u00e9",
+          "keyPlaceholder": "ex: contrat_service",
+          "title": "Titre",
+          "titlePlaceholder": "Titre du gabarit",
+          "description": "Description",
+          "descriptionPlaceholder": "Notes internes (optionnel)",
+          "content": "Contenu HTML",
+          "contentPlaceholder": "Saisissez le HTML du gabarit..."
+        },
+        "actions": {
+          "save": "Enregistrer le brouillon",
+          "saving": "Enregistrement...",
+          "publish": "Publier",
+          "publishing": "Publication...",
+          "cancel": "Annuler"
+        },
+        "preview": {
+          "title": "Aper\u00e7u du gabarit",
+          "description": "Les variables sont remplac\u00e9es par des donn\u00e9es exemples.",
+          "empty": "Saisissez du contenu HTML pour voir l'aper\u00e7u."
+        },
+        "variables": {
+          "title": "Variables disponibles",
+          "description": "Utilisez ces variables dans votre gabarit HTML avec la syntaxe {{variable}}.",
+          "copy": "Copi\u00e9!",
+          "example": "Exemple"
+        }
+      },
+      "publish": {
+        "title": "Publier le gabarit",
+        "description": "La publication rendra ce gabarit disponible pour la g\u00e9n\u00e9ration de documents. L'ancienne version publi\u00e9e sera automatiquement archiv\u00e9e.",
+        "confirm": "Publier",
+        "success": "Gabarit publi\u00e9 avec succ\u00e8s.",
+        "error": "Erreur lors de la publication du gabarit."
+      },
+      "newVersion": {
+        "title": "Nouvelle version",
+        "description": "Cr\u00e9er une nouvelle version brouillon \u00e0 partir de la version publi\u00e9e actuelle.",
+        "confirm": "Cr\u00e9er la version",
+        "success": "Nouvelle version cr\u00e9\u00e9e avec succ\u00e8s.",
+        "error": "Erreur lors de la cr\u00e9ation de la nouvelle version.",
+        "draftExists": "Un brouillon existe d\u00e9j\u00e0 pour ce gabarit."
+      },
+      "archive": {
+        "title": "Archiver le gabarit",
+        "description": "Le gabarit archiv\u00e9 ne sera plus disponible pour la g\u00e9n\u00e9ration de documents.",
+        "confirm": "Archiver",
+        "success": "Gabarit archiv\u00e9 avec succ\u00e8s.",
+        "error": "Erreur lors de l'archivage du gabarit."
+      },
+      "list": {
+        "version": "v{version}",
+        "createdAt": "Cr\u00e9\u00e9 le {date}",
+        "publishedAt": "Publi\u00e9 le {date}",
+        "actions": {
+          "edit": "Modifier",
+          "newVersion": "Nouvelle version",
+          "publish": "Publier",
+          "archive": "Archiver",
+          "preview": "Aper\u00e7u"
+        }
+      },
+      "errors": {
+        "loadFailed": "Erreur lors du chargement des gabarits.",
+        "saveFailed": "Erreur lors de l'enregistrement du gabarit.",
+        "permissionTitle": "Acc\u00e8s refus\u00e9",
+        "permissionDescription": "Vous n'avez pas les droits n\u00e9cessaires pour cette action."
       }
     }
   },

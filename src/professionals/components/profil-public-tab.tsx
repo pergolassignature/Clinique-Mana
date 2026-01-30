@@ -1,23 +1,18 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { pdf } from '@react-pdf/renderer'
 import {
   Briefcase,
   Edit3,
   Check,
   X,
-  Plus,
   Clock,
   CheckCircle,
-  ChevronDown,
   Eye,
   Info,
   AlertTriangle,
   FileText,
   Code,
   Star,
-  Download,
-  Loader2,
 } from 'lucide-react'
 import { t } from '@/i18n'
 import { formatClinicDateFull } from '@/shared/lib/timezone'
@@ -35,9 +30,9 @@ import {
   useUpdateMotifSpecialization,
   useProfessionTitles,
 } from '../hooks'
-import { StarToggle } from '@/shared/ui/star-toggle'
-import { MotifDisclaimerBanner } from '@/motifs'
-import { MotifAccordionSelector } from './motif-accordion-selector'
+import { useMotifCategories } from '@/motifs'
+import { MotifSelectorDrawer } from './motif-selector-drawer'
+import { SpecialtySelectorDrawer } from './specialty-selector-drawer'
 import { EmptyState } from '@/shared/components/empty-state'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -59,9 +54,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/dialog'
-import { FichePreview } from './fiche-preview'
-import { FichePdfDocument } from './fiche-pdf-document'
-import { prepareFicheData, loadLogoAsBase64 } from '../utils/fiche-data'
 
 interface ProfessionalProfilPublicTabProps {
   professional: ProfessionalWithRelations
@@ -499,7 +491,7 @@ function EditableField({
   )
 }
 
-// Specialty selector component
+// Specialty manager component - displays selected specialties with edit drawer
 function SpecialtyManager({
   professional,
   specialtiesByCategory,
@@ -509,14 +501,10 @@ function SpecialtyManager({
   specialtiesByCategory: Record<string, Specialty[]>
   isEditable: boolean
 }) {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const addSpecialty = useAddSpecialty()
   const removeSpecialty = useRemoveSpecialty()
   const updateSpecialization = useUpdateSpecialtySpecialization()
-
-  const currentSpecialtyIds = new Set(
-    professional.specialties?.map((ps) => ps.specialty_id) || []
-  )
 
   // Group professional specialties by category, preserving is_specialized flag
   const professionalSpecialtiesByCategory = professional.specialties?.reduce(
@@ -543,6 +531,17 @@ function SpecialtyManager({
       })
     }
   })
+
+  // Sort categories by display order
+  const categoryOrder: Record<string, number> = {
+    therapy_type: 1,
+    clientele: 2,
+    issue: 3,
+    modality: 4,
+  }
+  const sortedCategories = Object.keys(professionalSpecialtiesByCategory).sort(
+    (a, b) => (categoryOrder[a] || 99) - (categoryOrder[b] || 99)
+  )
 
   const handleAddSpecialty = async (specialty: Specialty) => {
     try {
@@ -582,46 +581,35 @@ function SpecialtyManager({
 
   return (
     <div className="space-y-4">
-      {/* Current specialties grouped by category */}
+      {/* Display selected specialties grouped by category */}
       {hasSpecialties ? (
         <div className="space-y-4">
-          {Object.entries(professionalSpecialtiesByCategory).map(([category, profSpecialties]) => (
-            <div key={category}>
-              <p className="text-xs font-medium text-foreground-muted">
-                {t(categoryLabels[category] as Parameters<typeof t>[0])}
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {profSpecialties.map((ps) => (
-                  <Badge
-                    key={ps.specialty_id}
-                    variant="secondary"
-                    className="group/badge pr-1 gap-1"
-                  >
-                    {isEditable && (
-                      <StarToggle
-                        isSpecialized={ps.is_specialized}
-                        onToggle={() => handleToggleSpecialization(ps.specialty_id, ps.is_specialized)}
-                        disabled={updateSpecialization.isPending}
-                      />
-                    )}
-                    {!isEditable && ps.is_specialized && (
-                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                    )}
-                    {ps.specialty?.name_fr}
-                    {isEditable && (
-                      <button
-                        onClick={() => handleRemoveSpecialty(ps.specialty_id)}
-                        className="ml-1 rounded-full p-0.5 opacity-0 group-hover/badge:opacity-100 hover:bg-background-tertiary transition-opacity"
-                        disabled={removeSpecialty.isPending}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                  </Badge>
-                ))}
+          {sortedCategories.map(category => {
+            const profSpecialties = professionalSpecialtiesByCategory[category]
+            if (!profSpecialties || profSpecialties.length === 0) return null
+
+            return (
+              <div key={category}>
+                <p className="text-xs font-medium text-foreground-muted mb-2">
+                  {t(categoryLabels[category] as Parameters<typeof t>[0])}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {profSpecialties.map((ps) => (
+                    <Badge
+                      key={ps.specialty_id}
+                      variant="secondary"
+                      className="gap-1"
+                    >
+                      {ps.is_specialized && (
+                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                      )}
+                      {ps.specialty?.name_fr}
+                    </Badge>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       ) : (
         <p className="text-sm text-foreground-muted italic">
@@ -629,72 +617,36 @@ function SpecialtyManager({
         </p>
       )}
 
-      {/* Add specialty button and picker */}
+      {/* Edit button */}
       {isEditable && (
-        <div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
-            {isExpanded ? (
-              <>
-                <ChevronDown className="h-4 w-4 rotate-180" />
-                {t('professionals.portrait.fiche.close')}
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4" />
-                {t('professionals.portrait.specialties.add')}
-              </>
-            )}
-          </Button>
-
-          <AnimatePresence>
-            {isExpanded && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="mt-4 space-y-4 rounded-xl border border-border bg-background-secondary p-4">
-                  {Object.entries(specialtiesByCategory).map(([category, specialties]) => {
-                    const available = specialties.filter((s) => !currentSpecialtyIds.has(s.id))
-                    if (available.length === 0) return null
-
-                    return (
-                      <div key={category}>
-                        <p className="text-xs font-medium text-foreground-muted mb-2">
-                          {t(categoryLabels[category] as Parameters<typeof t>[0])}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {available.map((specialty) => (
-                            <button
-                              key={specialty.id}
-                              onClick={() => handleAddSpecialty(specialty)}
-                              disabled={addSpecialty.isPending}
-                              className="px-3 py-1.5 rounded-lg text-sm bg-background hover:bg-sage-50 border border-transparent hover:border-sage-200 transition-all"
-                            >
-                              <Plus className="inline h-3 w-3 mr-1" />
-                              {specialty.name_fr}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setDrawerOpen(true)}
+        >
+          <Edit3 className="h-4 w-4" />
+          Modifier
+        </Button>
       )}
+
+      {/* Selector drawer */}
+      <SpecialtySelectorDrawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        specialtiesByCategory={specialtiesByCategory}
+        selectedSpecialties={professional.specialties || []}
+        onAdd={handleAddSpecialty}
+        onRemove={handleRemoveSpecialty}
+        onToggleSpecialization={handleToggleSpecialization}
+        isAdding={addSpecialty.isPending}
+        isRemoving={removeSpecialty.isPending}
+        isUpdating={updateSpecialization.isPending}
+      />
     </div>
   )
 }
 
-// Motif manager component using the new accordion-based selector
+// Motif manager component - displays selected motifs with edit drawer
 function MotifManager({
   professionalId,
   professionalMotifs,
@@ -705,6 +657,8 @@ function MotifManager({
   isEditable: boolean
 }) {
   const { toast } = useToast()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const { data: categories = [] } = useMotifCategories()
   const addMotif = useAddMotif()
   const removeMotif = useRemoveMotif()
   const updateSpecialization = useUpdateMotifSpecialization()
@@ -716,6 +670,45 @@ function MotifManager({
   const specializedMotifIds = professionalMotifs
     .filter((pm) => pm.is_specialized)
     .map((pm) => pm.motif_id)
+
+  // Group motifs by category for display
+  const motifsByCategory = professionalMotifs.reduce((acc, pm) => {
+    if (pm.motif) {
+      const categoryId = pm.motif.category_id || 'uncategorized'
+      if (!acc[categoryId]) acc[categoryId] = []
+      acc[categoryId].push(pm)
+    }
+    return acc
+  }, {} as Record<string, ProfessionalMotif[]>)
+
+  // Sort motifs within each category: specialized first, then alphabetically
+  Object.keys(motifsByCategory).forEach(categoryId => {
+    const categoryMotifs = motifsByCategory[categoryId]
+    if (categoryMotifs) {
+      categoryMotifs.sort((a, b) => {
+        if (a.is_specialized !== b.is_specialized) {
+          return b.is_specialized ? 1 : -1
+        }
+        return (a.motif?.label || '').localeCompare(b.motif?.label || '', 'fr-CA')
+      })
+    }
+  })
+
+  // Get category label by ID
+  const getCategoryLabel = (categoryId: string) => {
+    if (categoryId === 'uncategorized') return 'Autres'
+    const category = categories.find(c => c.id === categoryId)
+    return category?.label || 'Autres'
+  }
+
+  // Sort category IDs by display order
+  const sortedCategoryIds = Object.keys(motifsByCategory).sort((a, b) => {
+    if (a === 'uncategorized') return 1
+    if (b === 'uncategorized') return -1
+    const catA = categories.find(c => c.id === a)
+    const catB = categories.find(c => c.id === b)
+    return (catA?.displayOrder || 999) - (catB?.displayOrder || 999)
+  })
 
   const handleMotifAdd = async (motif: { id: string; key: string }) => {
     if (!isEditable) return
@@ -762,11 +755,62 @@ function MotifManager({
     }
   }
 
+  const hasMotifs = professionalMotifs.length > 0
+
   return (
     <div className="space-y-4">
-      <MotifDisclaimerBanner />
+      {/* Display selected motifs grouped by category */}
+      {hasMotifs ? (
+        <div className="space-y-4">
+          {sortedCategoryIds.map(categoryId => {
+            const categoryMotifs = motifsByCategory[categoryId]
+            if (!categoryMotifs || categoryMotifs.length === 0) return null
 
-      <MotifAccordionSelector
+            return (
+              <div key={categoryId}>
+                <p className="text-xs font-medium text-foreground-muted mb-2">
+                  {getCategoryLabel(categoryId)}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {categoryMotifs.map((pm) => (
+                    <Badge
+                      key={pm.motif_id}
+                      variant="secondary"
+                      className="gap-1"
+                    >
+                      {pm.is_specialized && (
+                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                      )}
+                      {pm.motif?.label}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="text-sm text-foreground-muted italic">
+          Aucun motif de consultation sélectionné
+        </p>
+      )}
+
+      {/* Edit button */}
+      {isEditable && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setDrawerOpen(true)}
+        >
+          <Edit3 className="h-4 w-4" />
+          Modifier
+        </Button>
+      )}
+
+      {/* Selector drawer */}
+      <MotifSelectorDrawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
         selectedMotifIds={selectedMotifIds}
         specializedMotifIds={specializedMotifIds}
         onMotifAdd={handleMotifAdd}
@@ -1142,13 +1186,6 @@ export function ProfessionalProfilPublicTab({ professional }: ProfessionalProfil
   const [appliedAt, setAppliedAt] = useState<string | null>(null)
   // Track if original submission sheet is open
   const [showSubmissionSheet, setShowSubmissionSheet] = useState(false)
-  // Track if fiche preview modal is open
-  const [showFichePreviewModal, setShowFichePreviewModal] = useState(false)
-  // Track if fiche section is expanded (collapsed by default)
-  const [isFicheExpanded, setIsFicheExpanded] = useState(false)
-  // PDF generation state
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
-  const [showProfessionSelector, setShowProfessionSelector] = useState(false)
 
   const hasPortrait = professional.portrait_bio || professional.portrait_approach
   const hasSpecialties = professional.specialties && professional.specialties.length > 0
@@ -1187,82 +1224,6 @@ export function ProfessionalProfilPublicTab({ professional }: ProfessionalProfil
   const handleApplied = (timestamp: string) => {
     setAppliedAt(timestamp)
   }
-
-  // Generate and download PDF for a specific profession
-  const generateAndDownloadPdf = useCallback(async (professionTitleKey: string) => {
-    setIsGeneratingPdf(true)
-    setShowProfessionSelector(false)
-
-    try {
-      // Prepare the data for the PDF
-      const ficheData = await prepareFicheData({
-        professional,
-        professionTitleKey,
-      })
-
-      // Load the logo
-      const logoBase64 = await loadLogoAsBase64()
-
-      // Generate the PDF blob
-      const pdfBlob = await pdf(
-        <FichePdfDocument data={ficheData} logoBase64={logoBase64} />
-      ).toBlob()
-
-      // Create download link
-      const url = URL.createObjectURL(pdfBlob)
-      const link = document.createElement('a')
-      link.href = url
-
-      // Generate filename: Name_Profession.pdf
-      const sanitizedName = professional.profile?.display_name
-        ?.replace(/[^a-zA-ZÀ-ÿ]/g, '')
-        || 'Professionnel'
-      const sanitizedProfession = ficheData.professionTitle
-        .replace(/[^a-zA-ZÀ-ÿ]/g, '')
-      link.download = `${sanitizedName}_${sanitizedProfession}.pdf`
-
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-
-      toast({
-        title: 'PDF généré',
-        description: `La fiche de ${ficheData.professionTitle} a été téléchargée.`,
-      })
-    } catch (error) {
-      console.error('Failed to generate PDF:', error)
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de générer le PDF. Veuillez réessayer.',
-        variant: 'error',
-      })
-    } finally {
-      setIsGeneratingPdf(false)
-    }
-  }, [professional, toast])
-
-  // Handle download button click
-  const handleDownloadPdf = useCallback(() => {
-    const professions = professional.professions || []
-
-    if (professions.length === 0) {
-      toast({
-        title: 'Aucun titre professionnel',
-        description: 'Ce professionnel n\'a pas de titre professionnel configuré.',
-        variant: 'error',
-      })
-      return
-    }
-
-    if (professions.length === 1 && professions[0]) {
-      // Single profession - generate directly
-      generateAndDownloadPdf(professions[0].profession_title_key)
-    } else if (professions.length > 1) {
-      // Multiple professions - show selector
-      setShowProfessionSelector(true)
-    }
-  }, [professional.professions, generateAndDownloadPdf, toast])
 
   // Empty state - only show if nothing to display AND no pending submission
   if (!hasPortrait && !hasSpecialties && !hasContact && !hasPendingSubmission) {
@@ -1426,136 +1387,7 @@ export function ProfessionalProfilPublicTab({ professional }: ProfessionalProfil
             />
           </CardContent>
         </Card>
-
-        {/* Fiche Preview & Actions - Collapsible */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setIsFicheExpanded(!isFicheExpanded)}
-                className="flex items-center gap-2 text-left"
-              >
-                <ChevronDown
-                  className={`h-4 w-4 text-foreground-muted transition-transform ${
-                    isFicheExpanded ? 'rotate-180' : ''
-                  }`}
-                />
-                <div>
-                  <CardTitle className="text-base">{t('professionals.portrait.fiche.title')}</CardTitle>
-                  <CardDescription>{t('professionals.portrait.fiche.description')}</CardDescription>
-                </div>
-              </button>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowFichePreviewModal(true)}
-                >
-                  <Eye className="h-4 w-4" />
-                  {t('professionals.portrait.fiche.preview')}
-                </Button>
-                <Button size="sm" onClick={handleDownloadPdf} disabled={isGeneratingPdf}>
-                  {isGeneratingPdf ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  {t('professionals.portrait.fiche.downloadPdf')}
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <AnimatePresence>
-            {isFicheExpanded && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <CardContent>
-                  <div
-                    className="rounded-xl border border-border overflow-hidden opacity-75 hover:opacity-100 transition-opacity cursor-pointer"
-                    onClick={() => setShowFichePreviewModal(true)}
-                  >
-                    <div className="scale-[0.5] origin-top-left w-[200%]">
-                      <FichePreview professional={professional} />
-                    </div>
-                  </div>
-                </CardContent>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </Card>
       </div>
-
-      {/* Fiche Preview Modal */}
-      <Dialog open={showFichePreviewModal} onOpenChange={setShowFichePreviewModal}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('professionals.portrait.fiche.previewTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('professionals.portrait.fiche.previewDescription')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mt-4">
-            <FichePreview professional={professional} />
-          </div>
-          <div className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowFichePreviewModal(false)}>
-              {t('professionals.portrait.fiche.close')}
-            </Button>
-            <Button onClick={handleDownloadPdf} disabled={isGeneratingPdf}>
-              {isGeneratingPdf ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-              {t('professionals.portrait.fiche.downloadPdf')}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Profession Selector Dialog (for professionals with multiple professions) */}
-      <Dialog open={showProfessionSelector} onOpenChange={setShowProfessionSelector}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Choisir le titre professionnel</DialogTitle>
-            <DialogDescription>
-              Ce professionnel a plusieurs titres. Sélectionnez celui pour lequel vous souhaitez générer la fiche.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-4">
-            {(professional.professions || []).map((profession) => (
-              <Button
-                key={profession.profession_title_key}
-                variant="outline"
-                className="w-full justify-start h-auto py-3 px-4"
-                onClick={() => generateAndDownloadPdf(profession.profession_title_key)}
-                disabled={isGeneratingPdf}
-              >
-                <div className="flex flex-col items-start">
-                  <span className="font-medium">
-                    {profession.profession_title?.label_fr || profession.profession_title_key}
-                  </span>
-                  {profession.license_number && (
-                    <span className="text-xs text-foreground-muted">
-                      Permis: {profession.license_number}
-                    </span>
-                  )}
-                </div>
-              </Button>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowProfessionSelector(false)}>
-              Annuler
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

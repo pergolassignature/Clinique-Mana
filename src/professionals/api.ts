@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient'
+import { normalizePhoneToE164 } from '@/shared/lib/client-validation'
 import type {
   Professional,
   ProfessionalStatus,
@@ -15,6 +16,7 @@ import type {
   UpdateProfessionalInput,
   UpdateProfessionalStatusInput,
   CreateInviteInput,
+  CreateUpdateRequestInput,
   UploadDocumentInput,
   VerifyDocumentInput,
   UpdateDocumentExpiryInput,
@@ -23,6 +25,8 @@ import type {
   ProfessionTitle,
   ProfessionalProfession,
   ProfessionalServiceWithDetails,
+  PrePopulatedData,
+  QuestionnaireSection,
 } from './types'
 
 // =============================================================================
@@ -98,14 +102,16 @@ export async function fetchProfessional(id: string): Promise<ProfessionalWithRel
       profile:profiles!inner(id, user_id, display_name, email, role, status),
       specialties:professional_specialties(
         id,
+        professional_id,
         specialty_id,
-        proficiency_level,
+        is_specialized,
         created_at,
         specialty:specialties(*)
       ),
       motifs:professional_motifs(
         professional_id,
         motif_id,
+        is_specialized,
         created_at,
         motif:motifs(*)
       ),
@@ -209,9 +215,15 @@ export async function createProfessionalWithProfile(
 }
 
 export async function updateProfessional(id: string, input: UpdateProfessionalInput): Promise<Professional> {
+  // Normalize phone_number to E.164 format if provided
+  const normalizedInput = { ...input }
+  if ('phone_number' in normalizedInput && normalizedInput.phone_number !== undefined) {
+    normalizedInput.phone_number = normalizePhoneToE164(normalizedInput.phone_number)
+  }
+
   const { data, error } = await supabase
     .from('professionals')
-    .update(input)
+    .update(normalizedInput)
     .eq('id', id)
     .select()
     .single()
@@ -286,6 +298,20 @@ export async function removeProfessionalSpecialty(
   if (error) throw error
 }
 
+export async function updateSpecialtySpecialization(
+  professional_id: string,
+  specialty_id: string,
+  is_specialized: boolean
+): Promise<void> {
+  const { error } = await supabase
+    .from('professional_specialties')
+    .update({ is_specialized })
+    .eq('professional_id', professional_id)
+    .eq('specialty_id', specialty_id)
+
+  if (error) throw error
+}
+
 // =============================================================================
 // MOTIFS
 // =============================================================================
@@ -333,6 +359,20 @@ export async function removeProfessionalMotif(
     .delete()
     .eq('professional_id', professional_id)
     .eq('motif_id', motif.id)
+
+  if (error) throw error
+}
+
+export async function updateMotifSpecialization(
+  professional_id: string,
+  motif_id: string,
+  is_specialized: boolean
+): Promise<void> {
+  const { error } = await supabase
+    .from('professional_motifs')
+    .update({ is_specialized })
+    .eq('professional_id', professional_id)
+    .eq('motif_id', motif_id)
 
   if (error) throw error
 }
@@ -529,6 +569,168 @@ export async function revokeInvite(id: string): Promise<OnboardingInvite> {
   return data
 }
 
+// =============================================================================
+// UPDATE REQUEST INVITES
+// =============================================================================
+
+/**
+ * Fetch current professional data for pre-population in update request form.
+ * This creates a snapshot of all data that can be edited in the questionnaire.
+ */
+export async function fetchProfessionalPrePopulatedData(
+  professional_id: string
+): Promise<PrePopulatedData> {
+  // Fetch professional with all relations
+  const { data: professional, error } = await supabase
+    .from('professionals')
+    .select(`
+      portrait_bio,
+      portrait_approach,
+      public_email,
+      public_phone,
+      years_experience,
+      professions:professional_professions(
+        profession_title_key,
+        license_number,
+        is_primary
+      ),
+      specialties:professional_specialties(
+        specialty:specialties(code)
+      ),
+      motifs:professional_motifs(
+        motif:motifs(key)
+      ),
+      documents:professional_documents(
+        id,
+        document_type,
+        file_path,
+        file_name,
+        file_size,
+        mime_type,
+        created_at
+      )
+    `)
+    .eq('id', professional_id)
+    .single()
+
+  if (error) throw error
+
+  // Extract specialty codes
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const specialtyCodes = (professional.specialties || [])
+    .map((ps: any) => ps.specialty?.code)
+    .filter((code: unknown): code is string => typeof code === 'string')
+
+  // Extract motif keys
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const motifKeys = (professional.motifs || [])
+    .map((pm: any) => pm.motif?.key)
+    .filter((key: unknown): key is string => typeof key === 'string')
+
+  // Find photo and insurance documents (most recent of each type)
+  const docs = professional.documents || []
+  const photoDoc = docs
+    .filter((d: { document_type: string }) => d.document_type === 'photo')
+    .sort((a: { created_at: string }, b: { created_at: string }) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )[0]
+  const insuranceDoc = docs
+    .filter((d: { document_type: string }) => d.document_type === 'insurance')
+    .sort((a: { created_at: string }, b: { created_at: string }) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )[0]
+
+  // Fetch latest approved submission for consent info
+  const { data: latestSubmission } = await supabase
+    .from('professional_questionnaire_submissions')
+    .select('responses')
+    .eq('professional_id', professional_id)
+    .eq('status', 'approved')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const imageRightsConsent = latestSubmission?.responses?.image_rights_consent
+
+  return {
+    portrait_bio: professional.portrait_bio,
+    portrait_approach: professional.portrait_approach,
+    public_email: professional.public_email,
+    public_phone: professional.public_phone,
+    years_experience: professional.years_experience,
+    professions: professional.professions || [],
+    specialties: specialtyCodes,
+    motifs: motifKeys,
+    uploads: {
+      photo: photoDoc
+        ? {
+            document_id: photoDoc.id,
+            file_path: photoDoc.file_path,
+            file_name: photoDoc.file_name,
+            file_size: photoDoc.file_size,
+            mime_type: photoDoc.mime_type,
+            uploaded_at: photoDoc.created_at,
+          }
+        : undefined,
+      insurance: insuranceDoc
+        ? {
+            document_id: insuranceDoc.id,
+            file_path: insuranceDoc.file_path,
+            file_name: insuranceDoc.file_name,
+            file_size: insuranceDoc.file_size,
+            mime_type: insuranceDoc.mime_type,
+            uploaded_at: insuranceDoc.created_at,
+          }
+        : undefined,
+    },
+    image_rights_consent: imageRightsConsent,
+  }
+}
+
+/**
+ * Create an update request invite.
+ * Fetches current professional data and creates a pre-populated snapshot.
+ */
+export async function createUpdateRequestInvite(
+  input: CreateUpdateRequestInput
+): Promise<OnboardingInvite> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+    .single()
+
+  // Fetch current professional data for pre-population
+  const prePopulatedData = await fetchProfessionalPrePopulatedData(input.professional_id)
+
+  // Find the most recent completed invite to reference as parent
+  const { data: latestInvite } = await supabase
+    .from('professional_onboarding_invites')
+    .select('id')
+    .eq('professional_id', input.professional_id)
+    .eq('status', 'completed')
+    .order('completed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { data, error } = await supabase
+    .from('professional_onboarding_invites')
+    .insert({
+      professional_id: input.professional_id,
+      email: input.email,
+      invite_type: 'update_request',
+      requested_sections: input.requested_sections,
+      parent_invite_id: latestInvite?.id || null,
+      pre_populated_data: prePopulatedData,
+      sent_by: profile?.id,
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
 // Public functions (for invite page - uses anon key)
 export async function fetchInviteByToken(token: string): Promise<OnboardingInvite | null> {
   const { data, error } = await supabase
@@ -555,6 +757,12 @@ export interface InviteWithSubmissionStatus {
   displayName: string
   hasExistingSubmission: boolean
   submissionStatus: 'draft' | 'submitted' | 'reviewed' | 'approved' | null
+  /** Whether this is an update request (vs initial onboarding) */
+  isUpdateRequest: boolean
+  /** Sections that can be edited (for update requests) */
+  requestedSections: QuestionnaireSection[] | null
+  /** Pre-populated data from current professional record (for update requests) */
+  prePopulatedData: PrePopulatedData | null
 }
 
 export async function fetchInviteWithSubmissionByToken(
@@ -595,7 +803,10 @@ export async function fetchInviteWithSubmissionByToken(
   if (submissionError) throw submissionError
 
   // Submission exists and has been submitted (not just a draft) = form is already done
+  // For update_request invites, we don't block based on existing submission
+  const isUpdateRequest = invite.invite_type === 'update_request'
   const hasExistingSubmission =
+    !isUpdateRequest &&
     submission !== null &&
     submission.submitted_at !== null &&
     ['submitted', 'reviewed', 'approved'].includes(submission.status)
@@ -605,6 +816,9 @@ export async function fetchInviteWithSubmissionByToken(
     displayName,
     hasExistingSubmission,
     submissionStatus: submission?.status as 'draft' | 'submitted' | 'reviewed' | 'approved' | null,
+    isUpdateRequest,
+    requestedSections: (invite.requested_sections as QuestionnaireSection[]) || null,
+    prePopulatedData: (invite.pre_populated_data as PrePopulatedData) || null,
   }
 }
 
@@ -1407,6 +1621,7 @@ export async function fetchProfessionalAuditLog(professional_id: string): Promis
 
 /**
  * Fetch services assigned to a professional with service details.
+ * Now includes profession_title_key to distinguish services per title.
  */
 export async function fetchProfessionalServices(
   professional_id: string
@@ -1416,6 +1631,7 @@ export async function fetchProfessionalServices(
     .select(`
       id,
       professional_id,
+      profession_title_key,
       service_id,
       is_active,
       created_at,
@@ -1442,12 +1658,13 @@ export async function fetchProfessionalServices(
 
 /**
  * Replace all services for a professional (bulk replace pattern).
+ * Accepts services grouped by profession title.
  * Deletes existing active services and inserts new ones.
  * This is atomic at the application level - both operations must succeed.
  */
 export async function replaceProfessionalServices(
   professional_id: string,
-  service_ids: string[]
+  servicesByTitle: Record<string, string[]>
 ): Promise<{ replaced_count: number }> {
   // 1. Delete all existing services for this professional
   const { error: deleteError } = await supabase
@@ -1457,23 +1674,36 @@ export async function replaceProfessionalServices(
 
   if (deleteError) throw deleteError
 
-  // 2. If no new services, we're done
-  if (!service_ids || service_ids.length === 0) {
+  // 2. Build insert data from servicesByTitle
+  const insertData: Array<{
+    professional_id: string
+    profession_title_key: string
+    service_id: string
+    is_active: boolean
+  }> = []
+
+  for (const [profession_title_key, service_ids] of Object.entries(servicesByTitle)) {
+    for (const service_id of service_ids) {
+      insertData.push({
+        professional_id,
+        profession_title_key,
+        service_id,
+        is_active: true,
+      })
+    }
+  }
+
+  // 3. If no new services, we're done
+  if (insertData.length === 0) {
     return { replaced_count: 0 }
   }
 
-  // 3. Insert new services
-  const insertData = service_ids.map((service_id) => ({
-    professional_id,
-    service_id,
-    is_active: true,
-  }))
-
+  // 4. Insert new services
   const { error: insertError } = await supabase
     .from('professional_services')
     .insert(insertData)
 
   if (insertError) throw insertError
 
-  return { replaced_count: service_ids.length }
+  return { replaced_count: insertData.length }
 }

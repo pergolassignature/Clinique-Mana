@@ -169,13 +169,14 @@ interface DbProfessionalRow {
     } | null
   }> | null
   specialties: Array<{
-    proficiency_level: string | null
+    is_specialized: boolean
     specialty: {
       code: string
       category: string
     } | null
   }> | null
   motifs: Array<{
+    is_specialized: boolean
     motif: {
       key: string
     } | null
@@ -205,10 +206,11 @@ async function fetchActiveProfessionals(): Promise<DbProfessionalRow[]> {
         profession_title:profession_titles(key, label_fr, profession_category_key)
       ),
       specialties:professional_specialties(
-        proficiency_level,
+        is_specialized,
         specialty:specialties(code, category)
       ),
       motifs:professional_motifs(
+        is_specialized,
         motif:motifs(key)
       ),
       services:professional_services(
@@ -504,7 +506,7 @@ function mapProfessionalToCandidate(
     .map((s) => ({
       code: s.specialty!.code,
       category: s.specialty!.category,
-      proficiencyLevel: s.proficiency_level,
+      isSpecialized: s.is_specialized,
     }))
 
   return {

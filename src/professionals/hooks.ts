@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabaseClient'
 import * as api from './api'
 import type {
   ProfessionalsListFilters,
@@ -7,6 +8,7 @@ import type {
   UpdateProfessionalInput,
   UpdateProfessionalStatusInput,
   CreateInviteInput,
+  CreateUpdateRequestInput,
   UploadDocumentInput,
   VerifyDocumentInput,
   UpdateDocumentExpiryInput,
@@ -31,6 +33,7 @@ export const professionalKeys = {
   questionnaire: (id: string) => [...professionalKeys.detail(id), 'questionnaire'] as const,
   auditLog: (id: string) => [...professionalKeys.detail(id), 'audit'] as const,
   services: (id: string) => [...professionalKeys.detail(id), 'services'] as const,
+  calendarConnection: (id: string) => [...professionalKeys.detail(id), 'calendar'] as const,
 }
 
 export const specialtyKeys = {
@@ -244,6 +247,27 @@ export function useRemoveSpecialty() {
   })
 }
 
+export function useUpdateSpecialtySpecialization() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      professional_id,
+      specialty_id,
+      is_specialized,
+    }: {
+      professional_id: string
+      specialty_id: string
+      is_specialized: boolean
+    }) => api.updateSpecialtySpecialization(professional_id, specialty_id, is_specialized),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.detail(variables.professional_id),
+      })
+    },
+  })
+}
+
 // =============================================================================
 // MOTIF MUTATIONS
 // =============================================================================
@@ -272,6 +296,27 @@ export function useRemoveMotif() {
       professional_id: string
       motif_key: string
     }) => api.removeProfessionalMotif(professional_id, motif_key),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.detail(variables.professional_id),
+      })
+    },
+  })
+}
+
+export function useUpdateMotifSpecialization() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      professional_id,
+      motif_id,
+      is_specialized,
+    }: {
+      professional_id: string
+      motif_id: string
+      is_specialized: boolean
+    }) => api.updateMotifSpecialization(professional_id, motif_id, is_specialized),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: professionalKeys.detail(variables.professional_id),
@@ -479,6 +524,22 @@ export function useRevokeInvite() {
   })
 }
 
+export function useCreateUpdateRequest() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: CreateUpdateRequestInput) => api.createUpdateRequestInvite(input),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.invites(data.professional_id),
+      })
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.detail(data.professional_id),
+      })
+    },
+  })
+}
+
 // Public mutation for marking invite as opened
 export function useMarkInviteOpened() {
   return useMutation({
@@ -601,11 +662,11 @@ export function useReplaceProfessionalServices() {
   return useMutation({
     mutationFn: ({
       professional_id,
-      service_ids,
+      servicesByTitle,
     }: {
       professional_id: string
-      service_ids: string[]
-    }) => api.replaceProfessionalServices(professional_id, service_ids),
+      servicesByTitle: Record<string, string[]>
+    }) => api.replaceProfessionalServices(professional_id, servicesByTitle),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: professionalKeys.services(variables.professional_id),
@@ -613,6 +674,132 @@ export function useReplaceProfessionalServices() {
       queryClient.invalidateQueries({
         queryKey: professionalKeys.detail(variables.professional_id),
       })
+    },
+  })
+}
+
+// =============================================================================
+// FICHE PDF GENERATION
+// =============================================================================
+
+export const ficheKeys = {
+  all: ['fiche'] as const,
+  data: (professionalId: string, professionTitleKey: string) =>
+    [...ficheKeys.all, 'data', professionalId, professionTitleKey] as const,
+}
+
+// =============================================================================
+// CALENDAR CONNECTION HOOKS
+// =============================================================================
+
+export interface CalendarConnection {
+  id: string
+  professional_id: string
+  provider: 'google' | 'microsoft' | 'calendly'
+  provider_email: string
+  status: 'active' | 'expired' | 'revoked' | 'error'
+  last_synced_at: string | null
+  last_error: string | null
+  created_at: string
+}
+
+export function useCalendarConnection(professionalId: string) {
+  return useQuery({
+    queryKey: professionalKeys.calendarConnection(professionalId),
+    queryFn: async (): Promise<CalendarConnection | null> => {
+      const { data, error } = await supabase
+        .from('professional_calendar_connections')
+        .select('id, professional_id, provider, provider_email, status, last_synced_at, last_error, created_at')
+        .eq('professional_id', professionalId)
+        .maybeSingle()
+
+      if (error) throw error
+      return data
+    },
+    enabled: !!professionalId,
+  })
+}
+
+export function useConnectGoogleCalendar() {
+  return useMutation({
+    mutationFn: async (professionalId: string) => {
+      // Ensure we have a valid session before calling the function
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        throw new Error('Session expirée. Veuillez vous reconnecter.')
+      }
+
+      const { data, error } = await supabase.functions.invoke('google-calendar-auth-url', {
+        body: { professionalId },
+      })
+      if (error) throw error
+      return { ...data, professionalId } as { authUrl: string; state: string; professionalId: string }
+    },
+    onSuccess: (data) => {
+      // Store state and professional ID in sessionStorage for callback validation
+      sessionStorage.setItem('gcal_oauth_state', data.state)
+      sessionStorage.setItem('gcal_oauth_professional_id', data.professionalId)
+      // Redirect to Google OAuth
+      window.location.href = data.authUrl
+    },
+  })
+}
+
+export function useCompleteGoogleCalendarConnection() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ code, state }: { code: string; state: string }) => {
+      const { data, error } = await supabase.functions.invoke('google-calendar-callback', {
+        body: { code, state },
+      })
+      if (error) throw error
+      return data as { success: boolean; provider: string; email: string }
+    },
+    onSuccess: () => {
+      // Invalidate all calendar connection queries
+      queryClient.invalidateQueries({ queryKey: professionalKeys.all })
+    },
+  })
+}
+
+export function useSyncCalendar() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (professionalId: string) => {
+      const { data, error } = await supabase.functions.invoke('google-calendar-sync', {
+        body: { professionalId },
+      })
+      if (error) throw error
+      return data as { success: boolean; busyBlocksCount: number; syncedAt: string }
+    },
+    onSuccess: (_, professionalId) => {
+      queryClient.invalidateQueries({
+        queryKey: professionalKeys.calendarConnection(professionalId),
+      })
+      // Also invalidate availability queries to refresh busy blocks
+      queryClient.invalidateQueries({ queryKey: ['availability'] })
+    },
+  })
+}
+
+export function useDisconnectCalendar() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (professionalId: string) => {
+      const { data, error } = await supabase.functions.invoke('google-calendar-disconnect', {
+        body: { professionalId },
+      })
+      if (error) throw error
+      return data as { success: boolean }
+    },
+    onSuccess: () => {
+      // Invalidate all calendar connection queries
+      queryClient.invalidateQueries({ queryKey: professionalKeys.all })
+      // Also invalidate availability queries to remove busy blocks
+      queryClient.invalidateQueries({ queryKey: ['availability'] })
     },
   })
 }

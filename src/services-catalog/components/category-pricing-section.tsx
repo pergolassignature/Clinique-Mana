@@ -19,6 +19,7 @@ import {
   useUpsertCategoryPrices,
   useUpdateCategoryTaxIncluded,
   useProfessionCategoryRates,
+  useUpdateProfessionCategoryRate,
 } from '../hooks'
 import type { Service, ProfessionCategory, ProfessionTitle } from '../types'
 import { parsePriceToCents, formatCentsToDisplay } from '../utils/pricing'
@@ -139,16 +140,15 @@ function CategoryServiceRow({
 interface HourlyServiceRowProps {
   service: Service
   taxIncluded: boolean
-  hourlyRateCents: number | null
+  value: string
+  onChange: (value: string) => void
+  onBlur: () => void
 }
 
-function HourlyServiceRow({ service, taxIncluded, hourlyRateCents }: HourlyServiceRowProps) {
-  const formattedRate = hourlyRateCents !== null
-    ? `${formatCents(hourlyRateCents)} $/h`
-    : t('pages.services.pricing.rateNotSet')
-
-  const formattedWithTax = hourlyRateCents !== null && taxIncluded
-    ? `= ${formatCents(calculateTotal(hourlyRateCents))} $/h`
+function HourlyServiceRow({ service, taxIncluded, value, onChange, onBlur }: HourlyServiceRowProps) {
+  const priceCents = parsePriceToCents(value)
+  const formattedWithTax = priceCents !== null && taxIncluded
+    ? `= ${formatCents(calculateTotal(priceCents))} $/h`
     : null
 
   return (
@@ -178,9 +178,12 @@ function HourlyServiceRow({ service, taxIncluded, hourlyRateCents }: HourlyServi
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-foreground">
-          {formattedRate}
-        </span>
+        <PriceInputCell
+          value={value}
+          onChange={onChange}
+          onBlur={onBlur}
+        />
+        <span className="text-sm text-foreground-muted">/h</span>
         {formattedWithTax && (
           <span className="text-xs text-foreground-muted whitespace-nowrap">
             {formattedWithTax}
@@ -217,12 +220,14 @@ export function CategoryPricingSection() {
 
   const upsertMutation = useUpsertCategoryPrices()
   const taxMutation = useUpdateCategoryTaxIncluded()
+  const rateMutation = useUpdateProfessionCategoryRate()
   const isLoading = isLoadingServices || isLoadingCategories || isLoadingTitles || isLoadingPrices
 
   const [selectedCategoryKey, setSelectedCategoryKey] = useState('')
   const [formValues, setFormValues] = useState<Map<string, string>>(new Map())
   const [enabledServices, setEnabledServices] = useState<Set<string>>(new Set())
   const [localTaxIncluded, setLocalTaxIncluded] = useState<boolean | null>(null)
+  const [hourlyRateValue, setHourlyRateValue] = useState<string>('')
 
   const categoryBasedServices = useMemo(() => {
     return services
@@ -286,7 +291,11 @@ export function CategoryPricingSection() {
     setFormValues(initialValues)
     setEnabledServices(initialEnabled)
     setLocalTaxIncluded(null) // Reset tax toggle when category changes
-  }, [selectedCategoryKey, categoryBasedServices, priceLookup])
+
+    // Initialize hourly rate value for the selected category
+    const savedRate = hourlyRateLookup.get(selectedCategoryKey)
+    setHourlyRateValue(formatCentsToDisplay(savedRate ?? null))
+  }, [selectedCategoryKey, categoryBasedServices, priceLookup, hourlyRateLookup])
 
   const handleToggle = useCallback((serviceId: string, enabled: boolean) => {
     setEnabledServices((prev) => {
@@ -318,11 +327,25 @@ export function CategoryPricingSection() {
     })
   }, [])
 
+  const handleHourlyRateChange = useCallback((value: string) => {
+    setHourlyRateValue(value)
+  }, [])
+
+  const handleHourlyRateBlur = useCallback(() => {
+    const cents = parsePriceToCents(hourlyRateValue)
+    setHourlyRateValue(formatCentsToDisplay(cents))
+  }, [hourlyRateValue])
+
   const hasChanges = useMemo(() => {
     // Check if tax status changed
     const originalTaxIncluded = categoryInfo?.category?.taxIncluded ?? false
     const currentTaxIncluded = localTaxIncluded ?? originalTaxIncluded
     if (originalTaxIncluded !== currentTaxIncluded) return true
+
+    // Check hourly rate changes
+    const savedRate = hourlyRateLookup.get(selectedCategoryKey) ?? null
+    const currentRate = parsePriceToCents(hourlyRateValue)
+    if (savedRate !== currentRate) return true
 
     // Check price changes
     for (const service of categoryBasedServices) {
@@ -339,7 +362,7 @@ export function CategoryPricingSection() {
       if (savedCents !== targetCents) return true
     }
     return false
-  }, [categoryBasedServices, priceLookup, formValues, enabledServices, categoryInfo, localTaxIncluded])
+  }, [categoryBasedServices, priceLookup, formValues, enabledServices, categoryInfo, localTaxIncluded, hourlyRateLookup, selectedCategoryKey, hourlyRateValue])
 
   const handleSave = async () => {
     if (!selectedCategoryKey) return
@@ -379,6 +402,16 @@ export function CategoryPricingSection() {
         await taxMutation.mutateAsync({
           categoryKey: selectedCategoryKey,
           taxIncluded: currentTaxIncluded,
+        })
+      }
+
+      // Save hourly rate if changed
+      const savedRate = hourlyRateLookup.get(selectedCategoryKey) ?? null
+      const currentRate = parsePriceToCents(hourlyRateValue)
+      if (savedRate !== currentRate && currentRate !== null) {
+        await rateMutation.mutateAsync({
+          categoryKey: selectedCategoryKey,
+          hourlyRateCents: currentRate,
         })
       }
 
@@ -432,9 +465,9 @@ export function CategoryPricingSection() {
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={!selectedCategoryKey || !hasChanges || upsertMutation.isPending || taxMutation.isPending}
+          disabled={!selectedCategoryKey || !hasChanges || upsertMutation.isPending || taxMutation.isPending || rateMutation.isPending}
         >
-          {(upsertMutation.isPending || taxMutation.isPending) ? (
+          {(upsertMutation.isPending || taxMutation.isPending || rateMutation.isPending) ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <Check className="h-4 w-4" />
@@ -512,7 +545,9 @@ export function CategoryPricingSection() {
                   key={service.id}
                   service={service}
                   taxIncluded={localTaxIncluded ?? categoryInfo?.category?.taxIncluded ?? false}
-                  hourlyRateCents={hourlyRateLookup.get(selectedCategoryKey) ?? null}
+                  value={hourlyRateValue}
+                  onChange={handleHourlyRateChange}
+                  onBlur={handleHourlyRateBlur}
                 />
               ))}
             </div>

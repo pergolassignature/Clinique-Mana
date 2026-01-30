@@ -22,6 +22,13 @@ export const appointmentStateKeys = {
     [...appointmentStateKeys.lists(), filters] as const,
 }
 
+export const calendarBusyBlocksKeys = {
+  all: ['calendar-busy-blocks'] as const,
+  lists: () => [...calendarBusyBlocksKeys.all, 'list'] as const,
+  list: (filters?: { professionalId?: string }) =>
+    [...calendarBusyBlocksKeys.lists(), filters] as const,
+}
+
 // =============================================================================
 // HOOKS
 // =============================================================================
@@ -57,6 +64,45 @@ export function useAvailabilityState(professionalId?: string | null) {
         visibleToClients: row.visible_to_clients,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
+        source: 'manual',
+      }))
+    },
+  })
+
+  // Fetch imported calendar busy blocks (from external calendars)
+  const { data: calendarBusyBlocks = [], isLoading: isLoadingCalendarBlocks } = useQuery({
+    queryKey: calendarBusyBlocksKeys.list({ professionalId: professionalId || undefined }),
+    queryFn: async (): Promise<AvailabilityBlock[]> => {
+      let query = supabase
+        .from('calendar_busy_blocks')
+        .select('*')
+
+      if (professionalId) {
+        query = query.eq('professional_id', professionalId)
+      }
+
+      const { data, error } = await query.order('start_time', { ascending: true })
+
+      if (error) {
+        // Table might not exist yet - return empty array
+        console.warn('calendar_busy_blocks query failed:', error)
+        return []
+      }
+
+      return (data || []).map((row): AvailabilityBlock => ({
+        id: row.id,
+        professionalId: row.professional_id,
+        type: 'imported',
+        label: 'Occupé',
+        startTime: row.start_time,
+        endTime: row.end_time,
+        isRecurring: false,
+        visibleToClients: false,
+        createdAt: row.synced_at,
+        updatedAt: row.synced_at,
+        source: row.source === 'google_calendar' ? 'google' : 'manual',
+        externalEventId: row.external_event_id,
+        isAllDay: row.is_all_day,
       }))
     },
   })
@@ -267,10 +313,15 @@ export function useAvailabilityState(professionalId?: string | null) {
     },
   })
 
+  // Merge manual availability blocks with imported calendar busy blocks
+  const allAvailabilityBlocks = [...availabilityBlocks, ...calendarBusyBlocks].sort(
+    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+  )
+
   return {
-    availabilityBlocks,
+    availabilityBlocks: allAvailabilityBlocks,
     appointments,
-    isLoading: isLoadingBlocks || isLoadingAppointments,
+    isLoading: isLoadingBlocks || isLoadingAppointments || isLoadingCalendarBlocks,
     createAvailabilityBlock: (block: Omit<AvailabilityBlock, 'id' | 'createdAt' | 'updatedAt'>) =>
       createBlockMutation.mutateAsync(block),
     updateAvailabilityBlock: (id: string, updates: Partial<AvailabilityBlock>) =>

@@ -1,7 +1,7 @@
 // src/pages/settings-layout.tsx
 
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { FileText, Briefcase, User, Bell, Shield, Palette, Building2, Tags, FolderTree } from 'lucide-react'
+import { FileText, Briefcase, User, Bell, Shield, Palette, Building2, Tags, Clock, FileCode } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 
 interface SettingsSection {
@@ -14,10 +14,11 @@ interface SettingsSection {
 
 const settingsSections: SettingsSection[] = [
   { id: 'motifs', path: '/parametres/motifs', label: 'Motifs de consultation', icon: FileText, enabled: true },
-  { id: 'motif-categories', path: '/parametres/categories-motifs', label: 'Catégories de motifs', icon: FolderTree, enabled: true },
   { id: 'specialties', path: '/parametres/specialites', label: 'Spécialités', icon: Tags, enabled: true },
   { id: 'services', path: '/parametres/services', label: 'Catalogue de services', icon: Briefcase, enabled: true },
   { id: 'clinique', path: '/parametres/clinique', label: 'Configuration clinique', icon: Building2, enabled: true },
+  { id: 'scheduled-tasks', path: '/parametres/taches-planifiees', label: 'Tâches planifiées', icon: Clock, enabled: true },
+  { id: 'templates', path: '/parametres/gabarits', label: 'Gabarits de documents', icon: FileCode, enabled: true },
   { id: 'profile', path: '/parametres/profil', label: 'Profil', icon: User, enabled: false },
   { id: 'notifications', path: '/parametres/notifications', label: 'Notifications', icon: Bell, enabled: false },
   { id: 'security', path: '/parametres/securite', label: 'Sécurité', icon: Shield, enabled: false },

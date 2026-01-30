@@ -87,15 +87,19 @@ export function mapServiceForAvailability(
   const clientType = deriveClientType(service.key)
   const limits = deriveClientLimits(clientType)
 
+  // Default duration: 50 min for standard services, 30 min for hourly prorata (adjustable)
+  const defaultDuration = service.pricingModel === 'by_profession_hourly_prorata' ? 30 : 50
+
   return {
     id: service.id,
     nameFr: service.name,
-    durationMinutes: service.duration || 50,
+    durationMinutes: service.duration || defaultDuration,
     colorHex: service.colorHex || '#7FAE9D', // Default sage color
     clientType,
     minClients: limits.min,
     maxClients: limits.max,
     compatibleProfessionKeys,
+    pricingModel: service.pricingModel,
   }
 }
 
@@ -123,12 +127,21 @@ export function mapClientsForAvailability(
 
 /**
  * Map array of services to bookable services
- * Filters to only include services with a duration (bookable services)
+ * Filters to only include:
+ * - Active services with a duration (standard bookable services)
+ * - Active services with hourly prorata pricing (billed by minute, default 30 min duration)
  */
 export function mapServicesForAvailability(
   services: Service[]
 ): BookableService[] {
   return services
-    .filter(s => s.isActive && s.duration && s.duration > 0)
+    .filter(s => {
+      if (!s.isActive) return false
+      // Include services with a duration
+      if (s.duration && s.duration > 0) return true
+      // Include hourly prorata services (they don't have fixed duration but are bookable)
+      if (s.pricingModel === 'by_profession_hourly_prorata') return true
+      return false
+    })
     .map(s => mapServiceForAvailability(s))
 }

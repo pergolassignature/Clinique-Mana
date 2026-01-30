@@ -20,7 +20,7 @@ import {
   Info,
 } from 'lucide-react'
 import { t } from '@/i18n'
-import { formatClinicDateShort } from '@/shared/lib/timezone'
+import { formatClinicDateShort, formatDateOnlyShort } from '@/shared/lib/timezone'
 import { supabase } from '@/lib/supabaseClient'
 import type {
   ProfessionalWithRelations,
@@ -68,6 +68,9 @@ import {
 import { Select } from '@/shared/ui/select'
 import { useQueryClient } from '@tanstack/react-query'
 import { professionalKeys } from '../hooks'
+import { useAuth } from '@/auth'
+import { ServiceContractSection } from '@/contracts/components'
+import { useServiceContractStatus } from '@/document-templates/hooks'
 
 interface ProfessionalDocumentsTabProps {
   professional: ProfessionalWithRelations
@@ -101,8 +104,9 @@ function formatFileSize(bytes: number | null | undefined): string {
 /**
  * Calculates the next March 31st date for insurance expiry
  * If today is after March 31, returns next year's March 31
+ * Returns date in YYYY-MM-DD format for input field
  */
-function getNextMarch31(): string {
+function getNextMarch31ForInput(): string {
   const now = new Date()
   const currentYear = now.getFullYear()
   const march31ThisYear = new Date(currentYear, 2, 31) // Month is 0-indexed
@@ -111,6 +115,15 @@ function getNextMarch31(): string {
     return `${currentYear + 1}-03-31`
   }
   return `${currentYear}-03-31`
+}
+
+/**
+ * Converts a date string (YYYY-MM-DD) to ISO datetime string for database storage
+ */
+function dateToISOString(dateStr: string): string {
+  if (!dateStr) return ''
+  // Create date at end of day in UTC to ensure the full day is covered
+  return `${dateStr}T23:59:59.999Z`
 }
 
 function getDocumentIcon(type: DocumentType) {
@@ -169,7 +182,7 @@ function UploadDialog({
   // Auto-set expiry date for insurance documents
   useEffect(() => {
     if (selectedType === 'insurance') {
-      setExpiryDate(getNextMarch31())
+      setExpiryDate(getNextMarch31ForInput())
     }
   }, [selectedType])
 
@@ -225,7 +238,7 @@ function UploadDialog({
         file_path: filePath,
         file_size: selectedFile.size,
         mime_type: selectedFile.type,
-        expires_at: expiryDate || undefined,
+        expires_at: expiryDate ? dateToISOString(expiryDate) : undefined,
       })
 
       queryClient.invalidateQueries({ queryKey: professionalKeys.documents(professionalId) })
@@ -415,10 +428,25 @@ function ExpiryDialog({
   onClose: () => void
   document: ProfessionalDocument | null
 }) {
-  const [expiryDate, setExpiryDate] = useState(
-    document?.expires_at ? document.expires_at.split('T')[0] : ''
-  )
+  // For insurance documents without expiry, default to next March 31
+  const getInitialExpiryDate = () => {
+    if (document?.expires_at) {
+      return document.expires_at.split('T')[0]
+    }
+    // Auto-fill March 31 for insurance documents
+    if (document?.document_type === 'insurance') {
+      return getNextMarch31ForInput()
+    }
+    return ''
+  }
+
+  const [expiryDate, setExpiryDate] = useState(getInitialExpiryDate())
   const updateExpiry = useUpdateDocumentExpiry()
+
+  // Update state when document changes
+  useEffect(() => {
+    setExpiryDate(getInitialExpiryDate())
+  }, [document?.id, document?.expires_at, document?.document_type])
 
   const handleSave = async () => {
     if (!document) return
@@ -426,7 +454,7 @@ function ExpiryDialog({
     try {
       await updateExpiry.mutateAsync({
         id: document.id,
-        expires_at: expiryDate ? new Date(expiryDate).toISOString() : null,
+        expires_at: expiryDate ? dateToISOString(expiryDate) : null,
       })
       onClose()
     } catch (err) {
@@ -656,7 +684,7 @@ function RequiredDocumentCard({
               <div className="flex items-center justify-between">
                 <span className="text-foreground-muted">Expire le</span>
                 <span className={status === 'expired' ? 'text-wine-600 font-medium' : ''}>
-                  {formatDate(document.expires_at)}
+                  {formatDateOnlyShort(document.expires_at)}
                 </span>
               </div>
             )}
@@ -688,7 +716,7 @@ function RequiredDocumentCard({
               <div className="flex items-center justify-between">
                 <span className="text-foreground-muted">Expire le</span>
                 <span className={status === 'expired' ? 'text-wine-600 font-medium' : ''}>
-                  {formatDate(state.expiresAt)}
+                  {formatDateOnlyShort(state.expiresAt)}
                 </span>
               </div>
             )}
@@ -881,7 +909,7 @@ function OtherDocumentCard({
                 <span className="text-xs text-foreground-muted">•</span>
                 <span className={`text-xs flex items-center gap-1 ${status === 'expired' ? 'text-wine-600' : 'text-foreground-muted'}`}>
                   <Calendar className="h-3 w-3" />
-                  {formatDate(document.expires_at)}
+                  {formatDateOnlyShort(document.expires_at)}
                 </span>
               </>
             )}
@@ -953,6 +981,7 @@ function OtherDocumentCard({
 }
 
 export function ProfessionalDocumentsTab({ professional }: ProfessionalDocumentsTabProps) {
+  const { profile } = useAuth()
   const { data: documents, isLoading } = useProfessionalDocuments(professional.id)
   const verifyDocument = useVerifyDocument()
   const queryClient = useQueryClient()
@@ -980,16 +1009,29 @@ export function ProfessionalDocumentsTab({ professional }: ProfessionalDocuments
   // Get required documents state (pass submission for electronic consent check)
   const requiredDocsState = mapRequiredDocumentsState(documents || [], professional.latest_submission)
 
+  // Get service contract status for summary
+  const { isSigned: isContractSigned, instance: contractInstance } = useServiceContractStatus(professional.id)
+
   // Get other documents (not in required list)
   const requiredTypes = REQUIRED_DOCUMENTS.map(d => d.type)
   const otherDocuments = (documents || []).filter(
     d => !requiredTypes.includes(d.document_type)
   )
 
-  // Calculate summary
-  const missingCount = requiredDocsState.filter(d => d.status === 'missing').length
-  const expiredCount = requiredDocsState.filter(d => d.status === 'expired').length
-  const verifiedCount = requiredDocsState.filter(d => d.status === 'verified').length
+  // Calculate summary (including service contract as 4th required document)
+  const totalRequired = REQUIRED_DOCUMENTS.length + 1 // +1 for service contract
+  const docsMissingCount = requiredDocsState.filter(d => d.status === 'missing').length
+  const docsExpiredCount = requiredDocsState.filter(d => d.status === 'expired').length
+  const docsVerifiedCount = requiredDocsState.filter(d => d.status === 'verified').length
+
+  // Contract counts as missing if no instance, verified if signed
+  const contractMissing = !contractInstance ? 1 : 0
+  const contractPending = contractInstance && !isContractSigned ? 1 : 0
+  const contractVerified = isContractSigned ? 1 : 0
+
+  const missingCount = docsMissingCount + contractMissing + contractPending
+  const expiredCount = docsExpiredCount
+  const verifiedCount = docsVerifiedCount + contractVerified
 
   return (
     <div className="space-y-6">
@@ -1002,7 +1044,7 @@ export function ProfessionalDocumentsTab({ professional }: ProfessionalDocuments
                 Documents requis
               </h3>
               <p className="text-sm text-foreground-muted">
-                {verifiedCount} sur {REQUIRED_DOCUMENTS.length} documents vérifiés
+                {verifiedCount} sur {totalRequired} documents vérifiés
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -1056,6 +1098,15 @@ export function ProfessionalDocumentsTab({ professional }: ProfessionalDocuments
                   onDelete={setDeleteDoc}
                 />
               ))}
+              {/* Service Contract - in grid with other required docs */}
+              {profile && professional.profile?.email && (
+                <ServiceContractSection
+                  professionalId={professional.id}
+                  professionalName={professional.profile?.display_name || 'Professionnel'}
+                  professionalEmail={professional.profile.email}
+                  generatedByProfileId={profile.id}
+                />
+              )}
             </div>
           </div>
 

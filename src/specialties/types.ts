@@ -7,14 +7,9 @@ import { z } from 'zod'
 export const SpecialtyCategorySchema = z.enum([
   'therapy_type',
   'clientele',
-  'issue',
-  'modality',
 ])
 export type SpecialtyCategory = z.infer<typeof SpecialtyCategorySchema>
 
-// Proficiency level for professional_specialties
-export const ProficiencyLevelSchema = z.enum(['primary', 'secondary', 'familiar'])
-export type ProficiencyLevel = z.infer<typeof ProficiencyLevelSchema>
 
 // Specialty from database
 export const SpecialtySchema = z.object({
