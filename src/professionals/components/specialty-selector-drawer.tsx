@@ -17,16 +17,12 @@ import type { Specialty, ProfessionalSpecialty } from '../types'
 const categoryLabels: Record<string, string> = {
   therapy_type: 'professionals.portrait.specialties.categories.therapy_type',
   clientele: 'professionals.portrait.specialties.categories.clientele',
-  issue: 'professionals.portrait.specialties.categories.issue',
-  modality: 'professionals.portrait.specialties.categories.modality',
 }
 
 // Category display order
 const categoryOrder: Record<string, number> = {
   therapy_type: 1,
   clientele: 2,
-  issue: 3,
-  modality: 4,
 }
 
 interface SpecialtySelectorDrawerProps {

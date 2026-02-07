@@ -5,6 +5,7 @@ import type {
   OnboardingInvite,
   QuestionnaireSubmission,
   Specialty,
+  SpecialtyCategory,
   AuditAction,
 } from './types'
 
@@ -889,11 +890,9 @@ export function isUUID(id: string): boolean {
 // CATEGORY LABELS
 // =============================================================================
 
-export const SPECIALTY_CATEGORY_LABELS: Record<string, string> = {
+export const SPECIALTY_CATEGORY_LABELS: Record<SpecialtyCategory, string> = {
   therapy_type: 'Types de thérapie',
   clientele: 'Clientèles',
-  issue: 'Problématiques',
-  modality: 'Modalités',
 }
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {

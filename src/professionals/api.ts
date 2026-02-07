@@ -542,6 +542,14 @@ export async function createInvite(input: CreateInviteInput): Promise<Onboarding
     .single()
 
   if (error) throw error
+
+  // Auto-transition status from pending → invited when first invite is created
+  await supabase
+    .from('professionals')
+    .update({ status: 'invited' })
+    .eq('id', input.professional_id)
+    .eq('status', 'pending')
+
   return data
 }
 
@@ -728,6 +736,14 @@ export async function createUpdateRequestInvite(
     .single()
 
   if (error) throw error
+
+  // Auto-transition status from pending → invited when first invite is created
+  await supabase
+    .from('professionals')
+    .update({ status: 'invited' })
+    .eq('id', input.professional_id)
+    .eq('status', 'pending')
+
   return data
 }
 

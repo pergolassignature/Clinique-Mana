@@ -217,6 +217,12 @@ serve(async (req) => {
         // Don't fail the whole operation, just log it
       } else if (invite) {
         inviteId = invite.id
+        // Auto-transition status from pending → invited
+        await supabaseAdmin
+          .from('professionals')
+          .update({ status: 'invited' })
+          .eq('id', professional.id)
+          .eq('status', 'pending')
       }
     }
 

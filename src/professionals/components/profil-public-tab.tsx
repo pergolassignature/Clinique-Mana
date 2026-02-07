@@ -382,8 +382,6 @@ function OriginalSubmissionModal({
 const categoryLabels: Record<string, string> = {
   therapy_type: 'professionals.portrait.specialties.categories.therapy_type',
   clientele: 'professionals.portrait.specialties.categories.clientele',
-  issue: 'professionals.portrait.specialties.categories.issue',
-  modality: 'professionals.portrait.specialties.categories.modality',
 }
 
 // Editable text field with inline editing
@@ -536,8 +534,6 @@ function SpecialtyManager({
   const categoryOrder: Record<string, number> = {
     therapy_type: 1,
     clientele: 2,
-    issue: 3,
-    modality: 4,
   }
   const sortedCategories = Object.keys(professionalSpecialtiesByCategory).sort(
     (a, b) => (categoryOrder[a] || 99) - (categoryOrder[b] || 99)
