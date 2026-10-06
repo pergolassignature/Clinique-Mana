@@ -1,0 +1,290 @@
+# Clinique MANA — Foundation Rebuild Design
+
+**Date:** 2026-10-06
+**Status:** Approved (brainstorming session with Jonathan)
+**Supersedes:** the current `src/` and `supabase/migrations/` (moved to `_legacy/`)
+
+---
+
+## 1. Context
+
+Clinique MANA was built fast. The concepts are right (professionals, motifs, services, clients, demandes, availability, billing, contracts), but the foundation is not:
+
+- Build is red (32 TS errors, 16 ESLint errors), no CI, ~1 test file.
+- 106 migrations, ~30 of them fixes/rewrites/renames; RLS recursion workarounds; no generated DB types.
+- Roles only exist in the DB: no route guards, no menu filtering, no permission helper.
+- No identity lifecycle: providers get a random password, invites are copy-pasted links, no reset.
+- Security holes in staging: anon can list all active invite tokens + emails; `docuseal-create-submission` callable by any logged-in user; several edge functions without auth.
+- Clinic identity, signer, address and tax rates (TPS 5 % / TVQ 9.975 % in `src/facturation/api.ts`) are hardcoded. Clinic TPS/TVQ registration numbers exist nowhere.
+
+**PS Hub** (`pergolassignature/new-ps-hub`) is an unrelated but mature app on the same stack. We rebuild Clinique MANA on PS Hub's proven foundations, module by module, and fix the things PS Hub itself lacks (module registry, settings registry, shared UI kit, secrets in Vault).
+
+### Decisions taken
+
+| # | Decision | Choice |
+|---|----------|--------|
+| D1 | Starting point | Same repo, same staging Supabase project (`vnmbjbdsjxmpijyjmmkh`). Staging holds no real data → wipe and re-baseline. Old code kept read-only in `_legacy/` + git tag `legacy-v1`. |
+| D2 | Email scope | The clinic sends transactional emails (invites, profile-update links, contracts) from a clinic address via **Resend**. No Gmail/Outlook connection for professionals. |
+| D3 | Tenancy | Single clinic, **`org_id` on every business table from day one**. |
+| D4 | E-signature | **Documenso**, separate self-hosted instance for the clinic (e.g. `sign.cliniquemana.com`) — Loi 25 separation from Pergolas Signature, clinic branding. Replaces DocuSeal. |
+| D5 | Code organisation | **Module manifests + shared core** (`src/core`, `src/modules/<x>/manifest.ts`, `src/shared/ui`). Backend conventions copied from PS Hub verbatim. |
+| D6 | Router | **React Router v6** (match PS Hub), replacing TanStack Router. |
+| D7 | Professionals' status | **Independent contractors** → profile stores tax numbers, bank details, SIN/BN (encrypted) and compensation terms. |
+
+---
+
+## 2. Identity, roles and permissions
+
+Follows Supabase's official *Custom Claims & RBAC* pattern and PS Hub's helpers, with one deliberate deviation (role read from table, not JWT — instant revocation).
+
+### Tables
+
+- `organizations` — the clinic (identity, tax, region… see §3).
+- `profiles` — `user_id` → `auth.users`, `org_id`, display name, email, `status` (`active` | `disabled`).
+- `user_roles` — one row per user, `role app_role` ∈ `admin`, `staff`, `provider`.
+- `permissions` — catalogue of permission keys (`key text pk`, `module_key`, `description`). Modules add their keys in their own migration. A table (not an enum) so new keys are usable in the same migration.
+- `role_permissions` — `(role, permission_key)`; seeded defaults.
+- `user_permission_overrides` — `(user_id, permission_key, granted boolean)`; per-user grant/revoke.
+
+### SQL helpers
+
+All `SECURITY DEFINER`, `STABLE`, `set search_path = ''`, called wrapped in `(select …)` in policies:
+
+- `current_user_org_id()`
+- `has_role(app_role)`
+- `has_permission(text)` — role defaults ∪ grants − revokes; disabled profiles → false.
+- `current_professional_id()`
+- `get_my_access()` — RPC returning role + effective permission list for the frontend.
+
+**Hard rule:** no policy queries `profiles`/`user_roles` inline — only through helpers (prevents the recursion bugs seen twice in legacy).
+
+Canonical policy shape:
+
+```sql
+using (org_id = (select current_user_org_id()) and (select has_permission('professionals.view')))
+```
+
+### Authentication
+
+- Email + password, password reset, optional magic link (Supabase Auth). Auth emails sent through Resend SMTP with clinic branding.
+- Accounts are created **only when the invitee accepts** (`accept-invite` function) — never random passwords.
+
+### Frontend
+
+- `AuthProvider` (session + profile), `AccessProvider` (`can(key)`, `hasRole(role)`, `accessStatus`, `reload()`), both ported from PS Hub.
+- `<RequireAccess permission="…">` route guard; menu built from manifests filtered by `can()`.
+- Access load failure → "Réessayer" screen, never a silent downgrade (PS Hub rule).
+
+### Edge functions
+
+- `_shared/auth.ts` ported from PS Hub: `verifyAuth(req, { permission?, role? })`, `verifyServiceRoleAuth`, `getServiceRoleClient`, `getUserClient`, `jsonResponse`, `errorResponse`.
+- `verify_jwt = false` in `config.toml` is allowed only when the function calls `verifyAuth` or verifies a webhook signature. Checked in review.
+- `_shared/modules.ts`: `requireModule(client, 'professionals')`.
+
+---
+
+## 3. Settings and module activation
+
+### Settings registry
+
+Each module manifest declares `settingsSections: { id, labelKey, icon, permission, group, component: lazy(() => …) }[]`. The settings page (`/parametres/:section`) builds its left menu from core sections + enabled modules' sections. No hardcoded admin list (PS Hub's weakness).
+
+**Rule:** every value printed on a document or used in a calculation comes from Settings — never hardcoded.
+
+### Groups and sections
+
+**Clinique (core)**
+
+| Section | Content | Storage |
+|---|---|---|
+| Identité légale | Raison sociale, nom commercial, NEQ, siège social, téléphone, courriel, site web, logo | `organizations` columns, logo in storage |
+| Fiscalité | No TPS (RT…), no TVQ (TQ…), statut d'inscription; **tax rates with `effective_from`** | `organizations` + `tax_rates(org_id, code, rate, effective_from, effective_to)` |
+| Signataire | Nom, titre, image de signature du représentant | `organizations` + storage |
+| Coordonnées bancaires | Institution, transit, compte, Interac — admin only | `organization_private` (encrypted) |
+| Lieux de consultation | Addresses + "en ligne" | `locations(org_id, name, address…, is_virtual, is_active)` |
+| Région | Fuseau horaire, langue par défaut, devise | `organizations` |
+| Confidentialité (Loi 25) | Responsable de la protection des renseignements personnels (nom, courriel), URL politique, durée de conservation des dossiers | `organizations` |
+
+**Plateforme (core)**
+
+| Section | Content |
+|---|---|
+| Utilisateurs et accès | Users list, invite staff, role, per-user overrides, read-only role × permission matrix |
+| Modules | Enable/disable modules (respecting `dependsOn`) |
+| Courriels | Sender name/address, reply-to, Resend domain status, templates (FR, preview, test send), footer |
+| Signature électronique | Documenso URL, API key (write-only), webhook status, test connection |
+| Intégrations | Google Places (and later Calendar) status/keys |
+| Tâches planifiées | Cron jobs: view, enable/disable, last run — schedules live in migrations, not dashboard |
+| Journal d'audit | Read-only, filterable |
+
+**Mon compte:** profile, password.
+
+**Module sections** (registered by each module — see §5 and §7).
+
+### Storage of settings
+
+- Core identity → typed columns on `organizations` (validated, queryable).
+- Per-module settings → `org_module_settings(org_id, module_key, settings jsonb)`, validated by a Zod schema exported by the module (client + edge function).
+- **Secrets → Supabase Vault.** `org_secrets(org_id, key, vault_secret_id)`; readable only by service role in edge functions via `get_org_secret(org_id, key)`. UI is write-only ("Configurée ✓ / Remplacer").
+- Sensitive non-secret data (bank, SIN…) → `*_private` tables with pgcrypto-encrypted columns, key from Vault, read via audited RPC only.
+
+### Module activation
+
+- `modules(key, name, depends_on text[])`, `org_modules(org_id, module_key, enabled, enabled_at, enabled_by)`.
+- Disabled module → no routes, no menu entry, no settings sections in the frontend.
+- Edge functions call `requireModule()`.
+- At launch only **core + Professionnels** are enabled. Everything else stays in `_legacy/` until rebuilt.
+
+---
+
+## 4. Shared core services
+
+### 4.1 Email (`core/email`, `send-email`)
+
+- Resend from a verified clinic domain; `_shared/email.ts` adapted from PS Hub's `email-router.ts` (Resend path only).
+- `email_templates(org_id, key, subject, body_html, variables, updated_by)` — keys like `professional.invite`, `professional.profile_update`, `professional.document_rejected`, `professional.document_expiring`, `contract.sent`. Editable in Settings with preview + test send. Defaults seeded.
+- `email_log(org_id, template_key, to_email, subject_type, subject_id, resend_id, status, error, sent_by, created_at)`; status `queued → sent → delivered → opened | bounced | complained` updated by `resend-webhook` (Svix-verified, ported from PS Hub `_shared/svix-webhook.ts`).
+- Every subject (e.g. a professional) can render its email timeline from `email_log`.
+
+### 4.2 Secure links (`core/links`)
+
+- `secure_links(org_id, purpose, subject_type, subject_id, token_hash, scope jsonb, expires_at, used_at, revoked_at, created_by)`.
+- Token generated server-side (32 random bytes, base64url), only the SHA-256 hash stored. Purposes: `professional_invite`, `profile_update`.
+- Anon has **no** access to the table; links are resolved by `resolve-link` / `accept-invite` edge functions. Fixes the legacy invite-listing hole.
+
+### 4.3 E-signature (`core/signing`)
+
+- Keep legacy's good abstraction: `document_templates` (versioned, publish RPC) + `signature_requests(org_id, template_version_id, subject_type, subject_id, documenso_document_id, status, signers jsonb, signed_pdf_path, certificate_path, idempotency_key, …)`.
+- Edge functions: `signing-create` (render variables + PDF **server-side**, permission-checked), `signing-send` (Documenso v2 create → distribute), `signing-resend`, `signing-webhook`.
+- Webhook (ported from PS Hub `documenso-webhook`): secret compared with `timingSafeEqual` (fail closed if unset), events claimed once via `claim_signing_webhook_event` RPC, signed PDF + audit certificate downloaded to private storage.
+- Status: `draft → sent → viewed → signed | rejected | cancelled`. Realtime subscription in UI.
+- Documenso URL + API key come from Settings/Vault, not code.
+
+### 4.4 Audit (`core/audit`)
+
+- One `audit_log(org_id, table_name, record_id, action, changed_fields jsonb, actor_id, actor_role, source, created_at)`, append-only, written by a generic trigger ported from PS Hub `fn_production_audit_trigger`. Replaces legacy's 8 per-table audit tables.
+- Trigger attached to every business table. Reads of `*_private` data are logged by their RPCs.
+
+### 4.5 Storage (`core/storage`)
+
+- Private buckets; paths `{org_id}/{module}/{record_id}/{uuid}-{safe_name}`; access via short-lived signed URLs; size/MIME validated in storage policies + server.
+
+### 4.6 Errors & observability
+
+- Sentry (frontend + `_shared/sentry.ts`), per-module error boundaries, `ChunkLoadErrorBoundary` (ported), Sonner toasts, uniform `errorResponse` from edge functions.
+
+---
+
+## 5. Module 1 — Professionnels
+
+### 5.1 Lifecycle
+
+`draft → invited → in_review → active → inactive`
+
+Plus a **derived** readiness checklist « Prêt à activer »: compte créé · profil complet · documents requis valides · contrat signé. Activation requires a complete checklist; admin override requires a reason (audited).
+
+### 5.2 Data
+
+| Table | Purpose |
+|---|---|
+| `professionals` | Identity, contact, address, languages, photo, bio, status, `deactivation_reason_id`, `profile_id` (null until account accepted) |
+| `professional_professions` | ≤ 2: `profession_title_id`, ordre, `license_number`, `is_primary` (single source of licence number) |
+| `professional_specialties`, `professional_motifs` | Junctions to shared taxonomies |
+| `professional_documents` | `document_type_id`, file path, `status` (pending/approved/rejected/expired), `expires_at`, `metadata jsonb` (per-type, Zod-validated — e.g. insurer, policy no.), reviewer |
+| `professional_private` | Encrypted: SIN/BN, TPS no., TVQ no., bank institution/transit/account. Read via `get_professional_private()` (requires `professionals.private.view`, logged) |
+| `professional_compensation` | `type` (percentage / fixed_per_session), `value`, `effective_from`; history kept; feeds contract variables |
+| `professional_submissions` | Onboarding / update submissions as pending field diffs, `status` (draft/submitted/reviewed), reviewer |
+
+Reference tables owned by the module (settings): `profession_titles`, `professional_orders`, `specialties`, `motifs` (+ display-only categories), `document_types` (`required`, `expiry_rule`, `reminder_days`), `deactivation_reasons`.
+
+Deferred to later modules: `professional_services` (Services), availability/calendar (Rendez-vous), public profile page.
+
+### 5.3 Permissions
+
+`professionals.view`, `professionals.manage`, `professionals.invite`, `professionals.documents.review`, `professionals.contracts.send`, `professionals.private.view`, `professionals.private.manage`, `professionals.settings.manage`. Providers access only their own row via `current_professional_id()`.
+
+### 5.4 Flows
+
+1. **Create & invite** — staff create a `draft` (name, email, profession) → « Envoyer l'invitation » creates a `secure_link` and sends `professional.invite` → `invited`. Resend / revoke; automatic reminders per settings.
+2. **Onboarding (public)** — link → `accept-invite` creates the auth user with the chosen password and links `profile_id` → step-by-step questionnaire (identité, professions & permis, spécialités & motifs, fiscalité & banque, documents) with autosave → submit → `in_review`, staff notified.
+3. **Review** — field-by-field diff (submitted vs current), apply or reject; documents approved/rejected individually with optional reason emailed.
+4. **Contract** — « Préparer le contrat » → variables from clinic + professional + compensation → preview → send via Documenso (clinic signer second if configured) → webhook stores signed PDF and ticks the checklist.
+5. **Activation** — « Activer » when the checklist is complete → `active`.
+6. **Profile update** — staff send « Mettre à jour votre profil » (choose sections) → link to the authenticated profile (login or magic link) → same review flow. Professional can also start an update from « Mon profil ».
+7. **Expiry** — daily cron: reminder email X days before `expires_at`; on expiry → document `expired` + configurable action (alert only / auto-deactivate). Insurance default expiry: March 31.
+
+### 5.5 Screens
+
+- **List** — search, filters (statut, profession, « documents expirant bientôt »), checklist badges.
+- **Detail tabs** — Aperçu (checklist + next action) · Profil · Professions et permis · Spécialités et motifs · Documents · Contrats · Rémunération et fiscalité (admin) · Courriels · Historique.
+- **Provider** — « Mon profil », « Mes documents ».
+- **Module settings** — Professions et ordres · Spécialités et motifs · Documents requis · Invitations · Contrats (templates, default signer) · Raisons de désactivation.
+
+---
+
+## 6. Project foundation
+
+### 6.1 Structure
+
+```
+src/
+  app/          router, providers, AppShell, module registry
+  core/         auth · access · settings · email · links · signing · audit · storage
+  modules/
+    professionnels/  manifest.ts · api/ · hooks/ · components/ · pages/ · schemas.ts
+  shared/       ui/ (shadcn + DataTable, PageHeader, EmptyState, FormSheet, ConfirmDialog) · lib/ (timezone, format, cn)
+  i18n/         fr-CA (keys structured so EN can be added)
+_legacy/        old src + migrations + functions, read-only, excluded from tsconfig/eslint/vite
+supabase/
+  migrations/   00000000000001_baseline.sql, then one+ migration per module
+  functions/    _shared/ (ported from PS Hub) + functions
+  tests/        pgTAP RLS tests
+  seed.sql      org, test users (admin/staff/provider), reference data
+```
+
+Module-internal layering: `api/` (Supabase calls, typed) → `hooks/` (React Query, `*Keys` factory) → `components/`/`pages/`. Components never call Supabase directly (`lint:supabase` guard ported from PS Hub). Keep legacy's timezone utilities (`shared/lib/timezone`) and the CLAUDE.md timezone + tab-order rules.
+
+### 6.2 Stack
+
+React 18 · Vite · TypeScript (strict) · React Router v6 · TanStack Query · Tailwind + shadcn/ui · Zod + react-hook-form · Sonner · Framer Motion · i18next (fr-CA) · Sentry · typed Supabase client (`npm run db:types`).
+
+### 6.3 Quality gates
+
+- **CI on PR** (GitHub Actions): `typecheck`, `lint`, `lint:supabase`, `test` (Vitest), `supabase test db` (pgTAP), migration timestamp lint.
+- **CD on merge to `main`** (ported from PS Hub): apply migrations, deploy changed edge functions, Vercel frontend.
+- **Module Definition of Done**: 0 TS/lint errors · pgTAP tests for every table's RLS · unit tests for business logic · one Playwright happy path · `docs/modules/<module>.md` · ADRs for decisions · enabled via `org_modules`.
+
+### 6.4 Docs
+
+- `CLAUDE.md` rewritten using PS Hub's structure (deploy surfaces, RLS rules, do-not list).
+- `docs/adr/`: 0001 Foundation rebuild · 0002 Permissions model · 0003 Module & settings registry · 0004 Secrets in Vault & encrypted private tables · 0005 Documenso replaces DocuSeal.
+
+---
+
+## 7. Roadmap
+
+| Phase | Scope |
+|---|---|
+| **0. Preparation** | Push pending commit `7d5d48c`; tag `legacy-v1`; move old code to `_legacy/`. **Owner actions:** rotate PS Hub secrets exposed in `docs/CONTRACT_SIGNATURE_MODULE.md`; provision clinic Documenso instance; verify clinic domain in Resend. |
+| **1. Base** | Scaffold, CI/CD, baseline migration (organizations, profiles, roles/permissions, modules, settings, secrets, audit), auth (login, reset, magic link), AppShell + module registry, shared UI kit. **Staging DB wipe — requires explicit go-ahead.** |
+| **2. Core Settings** | All Clinique + Plateforme sections (§3). |
+| **3. Shared services** | Email + templates + log, secure links, Documenso signing, storage. |
+| **4. Professionnels** | 4a data + list + detail → 4b invite + onboarding → 4c review + documents + expiry → 4d contract + activation. |
+| **Next modules** | One at a time, each with its own design doc. Suggested: Services et tarifs → Clients → Demandes → Rendez-vous → Facturation (+ Payeurs externes). |
+
+### Later-module settings (captured so nothing is lost)
+
+- **Services et tarifs** — catalogue, durations, price per profession category, tax-exempt rules.
+- **Facturation** — invoice numbering/prefix, file-opening fee, cancellation policy (delay, % fee), payment terms, legal mentions, payment methods.
+- **Payeurs externes** — clinic IVAC provider number, IVAC rates, PAE providers.
+- **Rendez-vous** — opening hours, holidays/closures, rooms, reminders.
+- **Clients** — consent versions, file numbering.
+- **Demandes** — recommendation weights.
+
+---
+
+## 8. Open items
+
+- Confirm with the accountant which slips are required for contractors (T4A box 048; Quebec equivalent if any) — affects whether SIN or BN is mandatory.
+- Check the Supabase plan for the clinic org supports Branching (PR preview DBs); otherwise CI runs migrations + pgTAP against a local Supabase in Actions.
+- Production Supabase project to be created before go-live (staging-only today).
