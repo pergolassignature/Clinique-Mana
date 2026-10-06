@@ -177,48 +177,60 @@ Each module manifest declares `settingsSections: { id, labelKey, icon, permissio
 
 ## 5. Module 1 — Professionnels
 
+> Parity: every item in [inventory §A](2026-10-06-legacy-feature-inventory.md#a-professionnels-incl-onboarding-documents-contrats-spécialités-motifs) must be marked Keep / Change / Drop in the module's own design doc before build (Phase 4).
+
 ### 5.1 Lifecycle
 
 `draft → invited → in_review → active → inactive`
 
-Plus a **derived** readiness checklist « Prêt à activer »: compte créé · profil complet · documents requis valides · contrat signé. Activation requires a complete checklist; admin override requires a reason (audited).
+Plus a **derived** readiness checklist « Prêt à activer » (legacy "Formulaire → Documents requis → Activation", generalised): compte créé · formulaire approuvé · documents requis valides · contrat signé. Activation requires a complete checklist from **any** non-active status (fixes legacy bug where `invited` could not be activated and reactivation skipped blockers); admin override requires a reason (audited). Completion % shown.
+
+Deactivation always records a reason: `manual` (with free text) or `insurance_expired` (automatic). Automatic reactivation only undoes automatic deactivation.
 
 ### 5.2 Data
 
 | Table | Purpose |
 |---|---|
-| `professionals` | Identity, contact, address, languages, photo, bio, status, `deactivation_reason_id`, `profile_id` (null until account accepted) |
-| `professional_professions` | ≤ 2: `profession_title_id`, ordre, `license_number`, `is_primary` (single source of licence number) |
-| `professional_specialties`, `professional_motifs` | Junctions to shared taxonomies |
-| `professional_documents` | `document_type_id`, file path, `status` (pending/approved/rejected/expired), `expires_at`, `metadata jsonb` (per-type, Zod-validated — e.g. insurer, policy no.), reviewer |
+| `professionals` | Identity, login email, personal phone (E.164), address (Google Places + manual, 13 provinces, Canada), **languages**, years of experience, status, deactivation reason + note, `profile_id` (null until account accepted) |
+| `professional_public_profiles` | Public portrait: bio, approche, courriel public, téléphone public, photo document — used by the fiche PDF and later by matching/website |
+| `professional_professions` | ≤ 2 (enforced in DB): `profession_title_id`, ordre, `license_number`, `is_primary` (exactly one; removing primary promotes the other). Single source of licence number |
+| `professional_specialties` | Junction + `is_specialized` (star) |
+| `professional_motifs` | Junction |
+| `professional_payer_numbers` | IVAC number (unique globally, one per pro); extensible to other payers |
+| `professional_documents` | `document_type_id`, file path, `status` (pending/verified/rejected/expired), `expires_at`, `metadata jsonb` (per-type, Zod-validated — e.g. insurer, policy no.), reviewer, rejection reason |
+| `professional_consents` | E-signed consents captured in onboarding — first: **droit à l'image** (version, signer name, signed_at, 12-month auto-renew, 3-month withdrawal notice). Counts as a verified required document until signed_at + 12 months |
 | `professional_private` | Encrypted: SIN/BN, TPS no., TVQ no., bank institution/transit/account. Read via `get_professional_private()` (requires `professionals.private.view`, logged) |
-| `professional_compensation` | `type` (percentage / fixed_per_session), `value`, `effective_from`; history kept; feeds contract variables |
-| `professional_submissions` | Onboarding / update submissions as pending field diffs, `status` (draft/submitted/reviewed), reviewer |
+| `professional_compensation` | **Clinic margin by service type**, as in the legacy contract: consultation (range, e.g. 25–30 %), ateliers/conférences (25 %), annulation tardive (30 %), autres frais (15 %); `effective_from`, history kept. Defaults come from module settings; per-professional overrides allowed. Feeds the contract's Annexe A (professional's portion = price × (1 − margin)) |
+| `professional_submissions` | Onboarding / update submissions as pending field diffs, `status` (draft/submitted/reviewed/approved), requested sections, prefilled snapshot, reviewer |
 
-Reference tables owned by the module (settings): `profession_titles`, `professional_orders`, `specialties`, `motifs` (+ display-only categories), `document_types` (`required`, `expiry_rule`, `reminder_days`), `deactivation_reasons`.
+Reference tables owned by the module (settings): `profession_titles` (→ profession category), `professional_orders`, `specialties` (categories `therapy_type`, `clientele`; **clientèle codes `children`, `adolescents`, `adults`, `seniors`, `couples`, `families`, `groups` are stable keys used by matching**), `motifs` + `motif_categories` (icon, display order, `is_restricted` flag), `document_types` (`required`, `expiry_rule` e.g. `next_march_31` / `months:12` / none, `reminder_days`, accepted types, max size), `deactivation_reasons`, `compensation_defaults`.
 
-Deferred to later modules: `professional_services` (Services), availability/calendar (Rendez-vous), public profile page.
+**Integration points with later modules** (module isolation §6.2 — optional, never required for Professionnels to work):
+- **Services et tarifs** adds `professional_services` (services per profession title) and a « Services » tab. Until it is enabled, the fiche PDF shows "Honoraires : À confirmer" and Annexe A shows margins only.
+- **Rendez-vous** adds the Google Calendar connection (« Calendrier » tab) and availability.
+- **Demandes** reads the published `professionals_directory` view (active pros + professions + specialties + motifs + languages) for matching.
 
 ### 5.3 Permissions
 
-`professionals.view`, `professionals.manage`, `professionals.invite`, `professionals.documents.review`, `professionals.contracts.send`, `professionals.private.view`, `professionals.private.manage`, `professionals.settings.manage`. Providers access only their own row via `current_professional_id()`.
+`professionals.view`, `professionals.manage`, `professionals.invite`, `professionals.documents.review`, `professionals.documents.delete`, `professionals.contracts.send`, `professionals.private.view`, `professionals.private.manage`, `professionals.settings.manage`. Providers access only their own row via `current_professional_id()`. UI hides actions the user can't perform (fixes legacy "delete shown but denied").
 
 ### 5.4 Flows
 
-1. **Create & invite** — staff create a `draft` (name, email, profession) → « Envoyer l'invitation » creates a `secure_link` and sends `professional.invite` → `invited`. Resend / revoke; automatic reminders per settings.
-2. **Onboarding (public)** — link → `accept-invite` creates the auth user with the chosen password and links `profile_id` → step-by-step questionnaire (identité, professions & permis, spécialités & motifs, fiscalité & banque, documents) with autosave → submit → `in_review`, staff notified.
-3. **Review** — field-by-field diff (submitted vs current), apply or reject; documents approved/rejected individually with optional reason emailed.
-4. **Contract** — « Préparer le contrat » → variables from clinic + professional + compensation → preview → send via Documenso (clinic signer second if configured) → webhook stores signed PDF and ticks the checklist.
+1. **Create & invite** — staff create a `draft` (name, email, profession; email trimmed + lowercased, duplicate check against profiles + auth). « Envoyer l'invitation » (default on) creates a `secure_link` (default 7 days, configurable) and **actually emails** `professional.invite` → `invited`. Resend / revoke / new link; automatic reminders per settings; every send in the « Courriels » timeline.
+2. **Onboarding (public)** — link → `accept-invite` creates the auth user with the chosen password and links `profile_id` → step-by-step questionnaire with autosave (local + server draft every few seconds, on "Continuer", manual save, retry): identité · professions et permis (≤ 2, licence required) · années d'expérience (0–50) · langues · portrait public (bio required, approche, contact public) · spécialités (with star) · motifs · fiscalité et banque · photo (required, JPEG/PNG ≤ 5 MB) · assurance responsabilité (required, PDF/JPEG/PNG ≤ 10 MB) · consentement droit à l'image (e-signed: checkbox + typed name) · révision → submit → `in_review`, staff notified. Uploads are attached to the submission and only become profile documents when approved.
+3. **Review** — field-by-field diff (submitted vs current) with "ce qui sera remplacé" summary; apply all or per field, **in one transaction** (RPC); documents verified/rejected individually with reason emailed; provenance kept ("voir la soumission originale").
+4. **Contract** — « Préparer le contrat » → variables from clinic settings (name, address, legal form, representative + title) + professional (name, login/public email, phone, address, professions joined " et ", licence) + compensation (Annexe A) + date → preview → send via Documenso (clinic signer second if configured) → webhook stores signed PDF + certificate and ticks the checklist. Declined/expired events handled. Regenerate = cancel previous + new request.
 5. **Activation** — « Activer » when the checklist is complete → `active`.
-6. **Profile update** — staff send « Mettre à jour votre profil » (choose sections) → link to the authenticated profile (login or magic link) → same review flow. Professional can also start an update from « Mon profil ».
-7. **Expiry** — daily cron: reminder email X days before `expires_at`; on expiry → document `expired` + configurable action (alert only / auto-deactivate). Insurance default expiry: March 31.
+6. **Profile update** — staff send « Mettre à jour votre profil » choosing any sections (select-all available), data prefilled → link to the authenticated profile (login or magic link) → same review flow. Professional can also start an update from « Mon profil ».
+7. **Expiry** — daily cron (schedule in a migration, visible in Tâches planifiées): reminder email X days before `expires_at`; on expiry → document `expired` + configurable action (alert only / auto-deactivate with reason `insurance_expired`). Insurance expiry auto-set to the next **March 31** (`next_march_31` rule). Verifying a new valid insurance reactivates a professional deactivated for `insurance_expired` (never one deactivated manually).
+8. **Fiche PDF** — one per profession title, generated server-side from the public profile, motifs by category, clientèle specialties, honoraires (from Services module when enabled) and clinic identity from Settings (no hardcoded phone/URL); `fiche_generated_at` recorded.
 
 ### 5.5 Screens
 
-- **List** — search, filters (statut, profession, « documents expirant bientôt »), checklist badges.
-- **Detail tabs** — Aperçu (checklist + next action) · Profil · Professions et permis · Spécialités et motifs · Documents · Contrats · Rémunération et fiscalité (admin) · Courriels · Historique.
+- **List** — search (name, email), filters (statut, profession, « documents expirant bientôt », « invitation en attente »), sort, checklist badges, counts.
+- **Detail tabs** — Aperçu (checklist, "À compléter" alerts with jump links, next action, quick actions incl. fiche PDF) · Profil (identity, address, professions et permis, IVAC) · Profil public (portrait, spécialités, motifs) · Documents (required cards + « Autres documents » with general upload for CV, diplôme…) · Contrats · Rémunération et fiscalité (admin) · Courriels · Historique (timeline grouped by date, actor or « Système », expandable details).
 - **Provider** — « Mon profil », « Mes documents ».
-- **Module settings** — Professions et ordres · Spécialités et motifs · Documents requis · Invitations · Contrats (templates, default signer) · Raisons de désactivation.
+- **Module settings** — Professions et ordres · Spécialités · Motifs et catégories · Documents requis · Consentements · Invitations · Contrats (templates with versioning: draft → published → archived, one published per key, preview with sample data, variables cheat-sheet; default signer) · Rémunération (default margins) · Raisons de désactivation.
 
 ---
 
@@ -244,17 +256,40 @@ supabase/
 
 Module-internal layering: `api/` (Supabase calls, typed) → `hooks/` (React Query, `*Keys` factory) → `components/`/`pages/`. Components never call Supabase directly (`lint:supabase` guard ported from PS Hub). Keep legacy's timezone utilities (`shared/lib/timezone`) and the CLAUDE.md timezone + tab-order rules.
 
-### 6.2 Stack
+### 6.2 Module isolation rules (build module by module without breaking the rest)
 
-React 18 · Vite · TypeScript (strict) · React Router v6 · TanStack Query · Tailwind + shadcn/ui · Zod + react-hook-form · Sonner · Framer Motion · i18next (fr-CA) · Sentry · typed Supabase client (`npm run db:types`).
+The goal: adding, changing or disabling one module never breaks another. Enforced by tooling, not discipline.
 
-### 6.3 Quality gates
+1. **Import boundaries (ESLint `no-restricted-imports`, CI-blocking).**
+   - `src/core/**` and `src/shared/**` never import from `src/modules/**`.
+   - A module imports another module **only** through its public entry `src/modules/<x>/index.ts` — never deep paths. The public entry exports only types, read hooks and small components meant for reuse (e.g. `ProfessionalPicker`).
+   - A module may only import modules listed in its manifest `dependsOn`.
+2. **Database ownership.**
+   - Each module owns its tables (prefix-free names, but listed in `docs/modules/<x>.md`). Only the owning module's migrations alter them.
+   - Cross-module reads go through a **view or RPC the owner publishes** (e.g. `professionals_directory` view used by Rendez-vous), never through the other module's raw tables. Changing internals then doesn't break consumers.
+   - Foreign keys across modules point only at the owner's stable primary keys.
+   - Migrations are additive within a release; destructive changes need an ADR and a two-step (deprecate → remove) migration.
+3. **Runtime isolation.**
+   - Each module route tree is wrapped in its own error boundary + lazy chunk: a crash or failed chunk in one module shows a local error, the rest of the app keeps working.
+   - A disabled module (`org_modules.enabled = false`) contributes nothing: no routes, no menu, no settings, its edge functions refuse calls (`requireModule`).
+4. **Core is a stable contract.**
+   - `core/` APIs (access, settings, email, links, signing, audit, storage) are versioned by ADR. A breaking change to core requires updating every enabled module in the same PR, verified by CI.
+5. **Tests per module + whole-app smoke.**
+   - Each module ships its own pgTAP, unit and Playwright tests. CI always runs **all** modules' tests, so a change in one module that breaks another goes red before merge.
+6. **Legacy parity checklist.**
+   - `docs/plans/2026-10-06-legacy-feature-inventory.md` lists every legacy feature, rule, calculation and automation per module. A module's design doc must mark each item **Keep / Change / Drop** (drop requires Jonathan's OK). Visual design and layout are free to change completely; behaviour is not lost silently.
+
+### 6.3 Stack
+
+React 19 · Vite · TypeScript (strict) · React Router v6 · TanStack Query · Tailwind + shadcn/ui · Zod + react-hook-form · Sonner · Framer Motion · typed `t()` i18n helper kept from legacy (fr-CA; structure allows EN later) · Sentry · typed Supabase client (`npm run db:types`).
+
+### 6.4 Quality gates
 
 - **CI on PR** (GitHub Actions): `typecheck`, `lint`, `lint:supabase`, `test` (Vitest), `supabase test db` (pgTAP), migration timestamp lint.
 - **CD on merge to `main`** (ported from PS Hub): apply migrations, deploy changed edge functions, Vercel frontend.
 - **Module Definition of Done**: 0 TS/lint errors · pgTAP tests for every table's RLS · unit tests for business logic · one Playwright happy path · `docs/modules/<module>.md` · ADRs for decisions · enabled via `org_modules`.
 
-### 6.4 Docs
+### 6.5 Docs
 
 - `CLAUDE.md` rewritten using PS Hub's structure (deploy surfaces, RLS rules, do-not list).
 - `docs/adr/`: 0001 Foundation rebuild · 0002 Permissions model · 0003 Module & settings registry · 0004 Secrets in Vault & encrypted private tables · 0005 Documenso replaces DocuSeal.
@@ -265,12 +300,12 @@ React 18 · Vite · TypeScript (strict) · React Router v6 · TanStack Query · 
 
 | Phase | Scope |
 |---|---|
-| **0. Preparation** | Push pending commit `7d5d48c`; tag `legacy-v1`; move old code to `_legacy/`. **Owner actions:** rotate PS Hub secrets exposed in `docs/CONTRACT_SIGNATURE_MODULE.md`; provision clinic Documenso instance; verify clinic domain in Resend. |
+| **0. Preparation** | Push pending commit `7d5d48c`; tag `legacy-v1`; **back up staging (schema + data dump) and record its live grants/cron jobs**; move old code to `_legacy/`. **Owner actions:** rotate PS Hub secrets exposed in `docs/CONTRACT_SIGNATURE_MODULE.md`; provision clinic Documenso instance; verify clinic domain in Resend. |
 | **1. Base** | Scaffold, CI/CD, baseline migration (organizations, profiles, roles/permissions, modules, settings, secrets, audit), auth (login, reset, magic link), AppShell + module registry, shared UI kit. **Staging DB wipe — requires explicit go-ahead.** |
 | **2. Core Settings** | All Clinique + Plateforme sections (§3). |
 | **3. Shared services** | Email + templates + log, secure links, Documenso signing, storage. |
 | **4. Professionnels** | 4a data + list + detail → 4b invite + onboarding → 4c review + documents + expiry → 4d contract + activation. |
-| **Next modules** | One at a time, each with its own design doc. Suggested: Services et tarifs → Clients → Demandes → Rendez-vous → Facturation (+ Payeurs externes). |
+| **Next modules** | One at a time, each with its own design doc and inventory Keep/Change/Drop pass. Order: **Services et tarifs** (feeds fiche honoraires + contract Annexe A) → Clients → Demandes (+ matching) → Rendez-vous (+ Google Calendar) → Facturation (+ Payeurs externes IVAC/PAE). |
 
 ### Later-module settings (captured so nothing is lost)
 
@@ -284,6 +319,9 @@ React 18 · Vite · TypeScript (strict) · React Router v6 · TanStack Query · 
 ---
 
 ## 8. Open items
+
+- Legacy bugs to decide per module (examples): taxable categories not taxed server-side, free invoices auto-voided, PAE never applicable, no booking conflict check — see inventory "Half-built / broken" lists.
+- Annexe A wording: legacy says "taxes incluses" while prices are stored pre-tax — confirm intended wording.
 
 - Confirm with the accountant which slips are required for contractors (T4A box 048; Quebec equivalent if any) — affects whether SIN or BN is mandatory.
 - Check the Supabase plan for the clinic org supports Branching (PR preview DBs); otherwise CI runs migrations + pgTAP against a local Supabase in Actions.
