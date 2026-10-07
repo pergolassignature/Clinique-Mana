@@ -166,6 +166,7 @@
         "city": "Ville",
         "province": "Province",
         "provincePlaceholder": "Choisir une province…",
+        "provinceNone": "Aucune",
         "postalCode": "Code postal",
         "phone": "Téléphone",
         "email": "Courriel",

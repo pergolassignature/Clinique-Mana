@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useForm, type UseFormReturn } from 'react-hook-form'
@@ -88,6 +88,23 @@ describe('Select, clearable', () => {
     expect(screen.getByRole('option', { name: 'Choisir une province…' })).toBeEnabled()
     await userEvent.selectOptions(select, '')
     expect(select).toHaveValue('')
+  })
+
+  it('words the empty option « Aucune » (clearLabel) while a value is chosen, and the placeholder once cleared', () => {
+    const { rerender } = render(
+      <Select aria-label="Province" placeholder="Choisir une province…" clearable clearLabel="Aucune" value="QC" onChange={() => {}}>
+        <option value="QC">Québec</option>
+      </Select>,
+    )
+    expect(screen.getByRole('option', { name: 'Aucune' })).toHaveValue('')
+    expect(screen.queryByRole('option', { name: 'Choisir une province…' })).not.toBeInTheDocument()
+    rerender(
+      <Select aria-label="Province" placeholder="Choisir une province…" clearable clearLabel="Aucune" value="" onChange={() => {}}>
+        <option value="QC">Québec</option>
+      </Select>,
+    )
+    expect(screen.getByRole('option', { name: 'Choisir une province…' })).toHaveValue('')
+    expect(screen.queryByRole('option', { name: 'Aucune' })).not.toBeInTheDocument()
   })
 
   it('without clearable, the placeholder stays disabled', () => {
@@ -182,6 +199,37 @@ describe('Select, read-only', () => {
       </Select>,
     )
     expect(screen.getByRole('textbox', { name: 'Province' })).toHaveValue('')
+  })
+
+  it('never carries the name, so a form can never submit the label', () => {
+    render(
+      <Select aria-label="Province" name="province" readOnly value="QC" onChange={() => {}}>
+        {provinces}
+      </Select>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Province' })).not.toHaveAttribute('name')
+  })
+
+  it('warns in development when it cannot know its value (a register()ed select keeps it in the DOM)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    render(
+      <Select aria-label="Province" name="province" readOnly>
+        {provinces}
+      </Select>,
+    )
+    expect(warn).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('"province"'))
+    warn.mockRestore()
+  })
+
+  it('does not warn when given its value', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    render(
+      <Select aria-label="Province" name="province" readOnly value="QC" onChange={() => {}}>
+        {provinces}
+      </Select>,
+    )
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
   })
 
   it('shows an unknown value as is', () => {

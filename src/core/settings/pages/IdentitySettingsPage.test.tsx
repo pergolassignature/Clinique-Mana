@@ -35,6 +35,14 @@ const cardNamed = (key: 'clinic' | 'address' | 'contact') => screen.getByRole('f
 const field = (key: keyof typeof FIELDS) => screen.getByRole('textbox', { name: FIELDS[key] })
 const provinceSelect = () => screen.getByRole('combobox', { name: FIELDS.province })
 
+/** The control of every field label in the cards, in document (reading) order. */
+function labelledControls(): HTMLElement[] {
+  return screen
+    .getAllByRole('form')
+    .flatMap((form) => [...form.querySelectorAll('label')])
+    .map((label) => document.getElementById(label.htmlFor) as HTMLElement)
+}
+
 async function edit(element: HTMLElement, value: string) {
   await userEvent.clear(element)
   if (value) await userEvent.type(element, value)
@@ -104,7 +112,6 @@ describe('IdentitySettingsPage', () => {
     it('without one stored, shows the placeholder (never a value that is not stored) and saves null', async () => {
       saveEchoes()
       await renderPage({ organization: { ...testOrganization, province: null } })
-      expect(PLACEHOLDER).toBe('Choisir une province…')
       expect(provinceSelect()).toHaveValue('')
       expect(within(provinceSelect()).getByRole('option', { selected: true })).toHaveTextContent(PLACEHOLDER)
       await edit(field('city'), 'Laval')
@@ -120,10 +127,11 @@ describe('IdentitySettingsPage', () => {
       await waitFor(() => expect(mocks.api.updateOrganization).toHaveBeenCalledWith('o1', expect.objectContaining({ province: 'QC' })))
     })
 
-    it('can be cleared back to null with the placeholder', async () => {
+    it('can be cleared back to null with the empty option, worded « Aucune » while a province is chosen', async () => {
       saveEchoes()
       await renderPage()
-      expect(within(provinceSelect()).getByRole('option', { name: PLACEHOLDER })).toBeEnabled()
+      expect(within(provinceSelect()).getByRole('option', { name: t('settings.identity.fields.provinceNone') })).toBeEnabled()
+      expect(t('settings.identity.fields.provinceNone')).toBe('Aucune')
       await userEvent.selectOptions(provinceSelect(), '')
       await saveAddress()
       await waitFor(() => expect(mocks.api.updateOrganization).toHaveBeenCalledWith('o1', expect.objectContaining({ province: null })))
@@ -248,16 +256,17 @@ describe('IdentitySettingsPage', () => {
     expect(await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })).toBeInTheDocument()
   })
 
-  it('follows the reading order with Tab: Nom affiché → Raison sociale → NEQ → Annuler/Enregistrer skipped while clean → Adresse…', async () => {
+  it("follows the reading order with Tab, card by card (the clean cards' disabled buttons are skipped)", async () => {
     await renderPage()
-    field('name').focus()
-    const order: string[] = []
-    for (let i = 0; i < 10; i++) {
-      order.push(document.activeElement?.getAttribute('name') ?? '')
+    // Every labelled control, in the order the cards and fields are read.
+    const controls = labelledControls()
+    expect(controls.map((c) => c.getAttribute('name'))).toEqual(['name', 'legal_name', 'neq', 'address_line1', 'address_line2', 'city', 'province', 'postal_code', 'phone', 'email', 'website'])
+    const [first, ...rest] = controls
+    first?.focus()
+    for (const control of rest) {
       await userEvent.tab()
+      expect(document.activeElement).toBe(control)
     }
-    // Disabled buttons are not tabbable: a clean page tabs from field to field.
-    expect(order).toEqual(['name', 'legal_name', 'neq', 'address_line1', 'address_line2', 'city', 'province', 'postal_code', 'phone', 'email'])
   })
 
   describe('read-only (settings.view without settings.manage)', () => {
@@ -269,12 +278,15 @@ describe('IdentitySettingsPage', () => {
 
     it('renders every field read-only (focusable, not disabled), the province as its name, and no buttons', async () => {
       await renderPage({ readOnly: true })
-      const textboxes = screen.getAllByRole('textbox')
-      expect(textboxes).toHaveLength(11)
-      for (const box of textboxes) {
-        expect(box).toHaveAttribute('readonly')
-        expect(box).toBeEnabled()
+      // Every labelled control is a read-only, enabled text field, and there is no other textbox.
+      const controls = labelledControls()
+      expect(controls.length).toBeGreaterThan(0)
+      for (const control of controls) {
+        expect(control).toHaveRole('textbox')
+        expect(control).toHaveAttribute('readonly')
+        expect(control).toBeEnabled()
       }
+      expect(screen.getAllByRole('textbox')).toEqual(controls)
       expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
       expect(field('province')).toHaveValue('Québec')
       expect(field('neq')).toHaveValue('1234567890')

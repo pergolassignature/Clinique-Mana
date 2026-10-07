@@ -12,6 +12,11 @@ export interface SelectProps
   /** The placeholder option can be chosen again, to clear an optional value (stored as null). */
   clearable?: boolean
   /**
+   * With `clearable` and a controlled `value`: the empty option's wording while a value is chosen
+   * (« Aucune »), so it reads as clearing rather than as a prompt. The placeholder shows once cleared.
+   */
+  clearLabel?: string
+  /**
    * Shows the chosen option's label in a read-only text input (a `<select>` has no read-only
    * state, and disabled text is hard to read and cannot be tabbed to). Pass `value` (e.g. through
    * react-hook-form's `Controller`) or `defaultValue`: a `register()`ed select keeps its value in
@@ -37,7 +42,8 @@ function optionLabel(children: React.ReactNode, value: string): string | undefin
 
 /** The attributes a read-only stand-in keeps from the select: identity and accessibility. */
 function readOnlyAttributes(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  const kept: Record<string, unknown> = { id: props.id, name: props.name, title: props.title }
+  // No `name`: the stand-in shows a label, which a form must never submit as the value.
+  const kept: Record<string, unknown> = { id: props.id, title: props.title }
   for (const [key, value] of Object.entries(props)) {
     if (key.startsWith('aria-') || key.startsWith('data-')) kept[key] = value
   }
@@ -53,9 +59,14 @@ function readOnlyAttributes(props: React.SelectHTMLAttributes<HTMLSelectElement>
  * otherwise the browser would silently select the first real option.
  */
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, children, placeholder, clearable = false, readOnly: readOnlyProp, ...props }, ref) => {
+  ({ className, children, placeholder, clearable = false, clearLabel, readOnly: readOnlyProp, ...props }, ref) => {
     const readOnly = useFieldReadOnly(readOnlyProp)
     if (readOnly) {
+      if (import.meta.env.DEV && props.value === undefined && props.defaultValue === undefined && props.name) {
+        console.warn(
+          `Select "${props.name}" is read-only without \`value\`: a register()ed select keeps its value in the DOM, so the read-only field shows nothing. Use react-hook-form's Controller.`,
+        )
+      }
       const raw = props.value ?? props.defaultValue
       const value = raw === undefined || raw === null ? '' : String(raw)
       const label = value === '' ? '' : (optionLabel(children, value) ?? value)
@@ -77,7 +88,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         >
           {placeholder && (
             <option value="" disabled={!clearable}>
-              {placeholder}
+              {clearable && clearLabel && props.value !== undefined && props.value !== '' ? clearLabel : placeholder}
             </option>
           )}
           {children}

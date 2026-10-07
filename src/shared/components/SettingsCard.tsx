@@ -1,4 +1,4 @@
-import { useId, type FormEventHandler, type ReactNode } from 'react'
+import { useContext, useId, type FormEventHandler, type ReactNode } from 'react'
 import { FieldsReadOnlyContext } from '@/shared/ui/read-only-context'
 
 interface SettingsCardProps {
@@ -23,8 +23,11 @@ interface SettingsCardProps {
  * permission. Design system Card: hairline border, radius 6, padding 16, no shadow; title 14/600,
  * description 12px; actions aligned right under the fields.
  */
-export function SettingsCard({ title, description, readOnly = false, pending, onSubmit, footer, children }: SettingsCardProps) {
+export function SettingsCard({ title, description, readOnly: readOnlyProp = false, pending, onSubmit, footer, children }: SettingsCardProps) {
   const titleId = useId()
+  // Inside a read-only area the card is read-only too: a card can never make fields editable again.
+  const inherited = useContext(FieldsReadOnlyContext)
+  const readOnly = readOnlyProp || inherited
   // Read-only: Enter in a field would still submit the form implicitly; nothing may be saved.
   const handleSubmit: FormEventHandler<HTMLFormElement> | undefined = readOnly ? (event) => event.preventDefault() : onSubmit
   return (

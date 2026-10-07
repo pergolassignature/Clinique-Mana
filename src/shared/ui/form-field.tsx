@@ -3,7 +3,13 @@ import { t } from '@/i18n'
 import { Label } from './label'
 import { useFieldReadOnly } from './read-only-context'
 
-/** What FormField hands its control: spread it on the input, select trigger or textarea. */
+/**
+ * What FormField hands its control. Spread it whole only on the design-system controls that
+ * accept every prop here: `Input`, `Select`, `Textarea`, `Checkbox`, `Switch`. A custom control
+ * (a Radix trigger, a group of buttons, a `div`) picks what it supports (`id`, `aria-*`) and must
+ * honour `readOnly` itself: show the value, change nothing. `readOnly` is not a valid attribute on
+ * a `div` or `button`, so do not spread it there.
+ */
 export interface FieldControlProps {
   id: string
   'aria-describedby'?: string

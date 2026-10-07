@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
+import { FieldsReadOnlyContext } from '@/shared/ui/read-only-context'
 import { SaveButton } from './SaveButton'
 import { SettingsCard } from './SettingsCard'
 
@@ -81,6 +82,19 @@ describe('SettingsCard', () => {
       </SettingsCard>,
     )
     expect(screen.getByRole('textbox', { name: 'Ville' })).toHaveAttribute('readonly')
+  })
+
+  it('inside a read-only area, stays read-only even without its own readOnly (no footer, fields read-only)', () => {
+    // E.g. a card rendered inside a read-only panel: the inherited state wins over the default.
+    render(
+      <FieldsReadOnlyContext.Provider value={true}>
+        <SettingsCard title="Adresse" footer={<SaveButton />}>
+          <FormField label="Ville">{(field) => <Input {...field} defaultValue="Laval" />}</FormField>
+        </SettingsCard>
+      </FieldsReadOnlyContext.Provider>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Ville' })).toHaveAttribute('readonly')
+    expect(screen.queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
   })
 
   it('editable: the fields are not read-only', () => {

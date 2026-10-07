@@ -89,6 +89,7 @@ export function IdentitySettingsPage() {
                           {...province}
                           placeholder={t('settings.identity.fields.provincePlaceholder')}
                           clearable
+                          clearLabel={t('settings.identity.fields.provinceNone')}
                           autoComplete="address-level1"
                         >
                           {PROVINCE_OPTIONS.map((option) => (
