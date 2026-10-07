@@ -206,9 +206,9 @@ describe('password recovery across reloads and tabs', () => {
 describe('sendMagicLink', () => {
   it('never creates an account and returns to /accueil by default', async () => {
     auth.signInWithOtp.mockResolvedValue({ data: {}, error: null })
-    await expect(renderReady().sendMagicLink('staff@mana.test')).resolves.toBeNull()
+    await expect(renderReady().sendMagicLink('adjointe@mana.test')).resolves.toBeNull()
     expect(auth.signInWithOtp).toHaveBeenCalledWith({
-      email: 'staff@mana.test',
+      email: 'adjointe@mana.test',
       options: { shouldCreateUser: false, emailRedirectTo: `${origin}/accueil` },
     })
   })
@@ -218,7 +218,7 @@ describe('sendMagicLink', () => {
     ['//evil.test', `${origin}/accueil`],
   ])('keeps a safe redirect target (%s)', async (target, expected) => {
     auth.signInWithOtp.mockResolvedValue({ data: {}, error: null })
-    await renderReady().sendMagicLink('staff@mana.test', target)
+    await renderReady().sendMagicLink('adjointe@mana.test', target)
     expect(auth.signInWithOtp).toHaveBeenCalledWith(
       expect.objectContaining({ options: expect.objectContaining({ emailRedirectTo: expected }) }),
     )
@@ -235,8 +235,8 @@ describe('sendMagicLink', () => {
 
 describe('email rate limits (no account enumeration)', () => {
   const send = {
-    sendMagicLink: (value: AuthContextValue) => value.sendMagicLink('staff@mana.test'),
-    sendPasswordReset: (value: AuthContextValue) => value.sendPasswordReset('staff@mana.test'),
+    sendMagicLink: (value: AuthContextValue) => value.sendMagicLink('adjointe@mana.test'),
+    sendPasswordReset: (value: AuthContextValue) => value.sendPasswordReset('adjointe@mana.test'),
   }
   const mockFor = { sendMagicLink: auth.signInWithOtp, sendPasswordReset: auth.resetPasswordForEmail }
   const fns = ['sendMagicLink', 'sendPasswordReset'] as const

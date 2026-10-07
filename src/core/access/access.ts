@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-/** Roles live in the `roles` table (admin, staff, provider, and any custom role). */
+/** Roles live in the `roles` table (admin, counselor, admin_assistant, provider, and any custom role). */
 export type AppRole = string
 
 // Ids are plain strings: seeded/test UUIDs are not RFC-versioned.

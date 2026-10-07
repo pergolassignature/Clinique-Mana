@@ -14,7 +14,7 @@ vi.mock('@/shared/ui/sonner', () => ({ toast }))
 
 afterEach(() => toast.success.mockReset())
 
-const recoverySession = { user: { id: 'u1', email: 'staff@mana.test' } } as Session
+const recoverySession = { user: { id: 'u1', email: 'adjointe@mana.test' } } as Session
 
 const resetAt = (auth: Partial<AuthContextValue>, path = '/') =>
   renderWithContexts(
@@ -92,7 +92,7 @@ describe('ResetPasswordPage', () => {
 
   it('tells password managers which account the new password belongs to', () => {
     const { container } = render(resetAt({}))
-    expect(container.querySelector('input[autocomplete="username"]')).toHaveValue('staff@mana.test')
+    expect(container.querySelector('input[autocomplete="username"]')).toHaveValue('adjointe@mana.test')
   })
 
   it('announces loading through the same live region', () => {

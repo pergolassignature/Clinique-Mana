@@ -11,7 +11,7 @@ select plan(121);
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
   ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@a.test',    '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'staff@a.test',    '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'adjointe@a.test', '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'provider@a.test', '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'disabled@a.test', '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',    '', now(), '{}', '{}', now(), now()),
@@ -25,7 +25,7 @@ insert into public.organizations (id, name) values
 
 insert into public.profiles (user_id, org_id, display_name, email, status) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',    'admin@a.test',    'active'),
-  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Staff A',    'staff@a.test',    'active'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe A', 'adjointe@a.test', 'active'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Provider A', 'provider@a.test', 'active'),
   ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Disabled A', 'disabled@a.test', 'disabled'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',    'admin@b.test',    'active'),
@@ -33,14 +33,17 @@ insert into public.profiles (user_id, org_id, display_name, email, status) value
 
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
-  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'staff'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'provider'),
   ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin');
 
--- Staff: extra grant users.manage, revoke users.view.
+-- Adjointe: extra grant users.manage, revoke users.view. users.view is not an
+-- admin_assistant default since core_roles_split, so the fixture re-adds it as a
+-- role default: the revoke must remove a real role default.
 -- No-role user: a grant that must be ignored (no role = no permissions).
 -- Admin B: revoke audit.view.
+insert into public.role_permissions (role, permission_key) values ('admin_assistant', 'users.view');
 insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'users.manage',  true),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'users.view',    false),
@@ -114,7 +117,7 @@ select function_privs_are('public', 'zz_probe_fn', array[]::text[], 'authenticat
 -- Constraints and triggers (as postgres)
 -- =============================================================================
 select results_eq($$ select key, is_system from public.roles order by key $$,
-  $$ values ('admin'::text, true), ('provider'::text, true), ('staff'::text, true) $$,
+  $$ values ('admin'::text, true), ('admin_assistant'::text, true), ('counselor'::text, true), ('provider'::text, true) $$,
   'system roles are seeded');
 select throws_ok($$ update public.organizations set timezone = 'Mars/Olympus' where id = 'b0000000-0000-0000-0000-00000000000b' $$,
   '22023', null, 'unknown timezone is rejected');
@@ -135,7 +138,7 @@ select is((select email from public.profiles where user_id = 'a0000000-0000-0000
 delete from public.profiles where user_id = 'a0000000-0000-0000-0000-000000000007';
 select throws_ok($$ insert into public.profiles (user_id, org_id, display_name, email) values ('a0000000-0000-0000-0000-000000000008', 'b0000000-0000-0000-0000-00000000000a', 'No mail', 'x@a.test') $$,
   '22023', null, 'a user without an auth email cannot get a profile');
-select throws_ok($$ update auth.users set email = 'STAFF@a.test' where id = 'a0000000-0000-0000-0000-000000000003' $$,
+select throws_ok($$ update auth.users set email = 'ADJOINTE@a.test' where id = 'a0000000-0000-0000-0000-000000000003' $$,
   '23505', null, 'an auth email clashing case-insensitively with another profile is refused');
 
 -- Module dependency graph stays acyclic and never mentions core.
@@ -166,7 +169,7 @@ select throws_ok($$ insert into public.module_dependencies (module_key, depends_
   '23514', null, 'a module cannot depend on itself');
 select throws_ok($$ insert into public.user_roles (user_id, org_id, role) values ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'owner') $$,
   '23503', null, 'role must exist in roles');
-select throws_ok($$ insert into public.user_roles (user_id, org_id, role) values ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000b', 'staff') $$,
+select throws_ok($$ insert into public.user_roles (user_id, org_id, role) values ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000b', 'admin_assistant') $$,
   '23503', null, 'user_roles.org_id must match the profile org');
 
 update auth.users set email = 'provider.new@a.test' where id = 'a0000000-0000-0000-0000-000000000003';
@@ -190,29 +193,29 @@ select results_eq('select count(*)::int from public.user_roles', array[4], 'admi
 select results_eq('select count(*)::int from public.user_permission_overrides', array[3], 'admin sees the overrides of their own org only');
 update public.profiles set display_name = 'Renamed by admin' where user_id = 'a0000000-0000-0000-0000-000000000002';
 select is((select display_name from public.profiles where user_id = 'a0000000-0000-0000-0000-000000000002'),
-  'Staff A', 'profile self-update policy does not let admins rename others');
+  'Adjointe A', 'profile self-update policy does not let admins rename others');
 update public.organizations set name = 'Org A renamed' where id = 'b0000000-0000-0000-0000-00000000000a';
 select is((select name from public.organizations where id = 'b0000000-0000-0000-0000-00000000000a'),
   'Org A renamed', 'admin with settings.manage can rename the org');
 
--- Staff A (override grant users.manage, override revoke users.view) -----------
+-- Adjointe A (override grant users.manage, override revoke users.view) --------
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select ok(private.has_permission('settings.view'), 'staff has settings.view by role default');
-select ok(not private.has_permission('settings.manage'), 'staff lacks settings.manage');
+select ok(private.has_permission('settings.view'), 'adjointe has settings.view by role default');
+select ok(not private.has_permission('settings.manage'), 'adjointe lacks settings.manage');
 select ok(private.has_permission('users.manage'), 'override grant adds users.manage');
 select ok(not private.has_permission('users.view'), 'override revoke removes users.view');
 select is(private.current_user_org_id(), 'b0000000-0000-0000-0000-00000000000a'::uuid, 'current_user_org_id returns own org');
-select is(public.get_my_access() ->> 'role', 'staff', 'get_my_access returns the role');
+select is(public.get_my_access() ->> 'role', 'admin_assistant', 'get_my_access returns the role');
 select ok((public.get_my_access() -> 'permissions') ? 'users.manage', 'get_my_access includes granted override');
 select ok(not ((public.get_my_access() -> 'permissions') ? 'users.view'), 'get_my_access excludes revoked permission');
 select is(public.get_my_access() ->> 'org_timezone', 'America/Toronto', 'get_my_access returns the org timezone');
 select is(public.get_my_access() ->> 'org_name', 'Org A renamed', 'get_my_access returns the org name');
 select is(public.get_my_access() -> 'modules', '["test_mod"]'::jsonb, 'get_my_access returns enabled module keys');
-select results_eq('select count(*)::int from public.profiles', array[1], 'staff without users.view sees only own profile');
-select results_eq('select count(*)::int from public.user_roles', array[1], 'staff without users.view sees only own role');
+select results_eq('select count(*)::int from public.profiles', array[1], 'adjointe without users.view sees only own profile');
+select results_eq('select count(*)::int from public.user_roles', array[1], 'adjointe without users.view sees only own role');
 update public.organizations set name = 'Hacked' where id = 'b0000000-0000-0000-0000-00000000000a';
 select is((select name from public.organizations where id = 'b0000000-0000-0000-0000-00000000000a'),
-  'Org A renamed', 'staff cannot rename the org');
+  'Org A renamed', 'adjointe cannot rename the org');
 
 -- Provider A ------------------------------------------------------------------
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);

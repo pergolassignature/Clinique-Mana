@@ -12,7 +12,7 @@ select plan(83);
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
   ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@a.test',    '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'staff@a.test',    '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'adjointe@a.test', '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'provider@a.test', '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',    '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name) values
@@ -20,12 +20,12 @@ insert into public.organizations (id, name) values
   ('b0000000-0000-0000-0000-00000000000b', 'Org B');
 insert into public.profiles (user_id, org_id, display_name, email) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',    'admin@a.test'),
-  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Staff A',    'staff@a.test'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe A', 'adjointe@a.test'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Provider A', 'provider@a.test'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',    'admin@b.test');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
-  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'staff'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'provider'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin');
 
@@ -123,14 +123,14 @@ select is((select changed_fields -> 'vault_secret_id' from public.audit_log wher
   '"[redacted]"'::jsonb, 'vault ids are redacted from the log');
 
 -- =============================================================================
--- Staff A (settings.view, no settings.manage / modules.manage)
+-- Adjointe A (settings.view, no settings.manage / modules.manage)
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select throws_ok($$ select public.set_module_enabled('test_child', true) $$, '42501', null, 'staff cannot toggle modules');
-select throws_ok($$ select public.set_org_secret('documenso_api_key', 'x') $$, '42501', null, 'staff cannot write secrets');
-select throws_ok($$ select public.delete_org_secret('documenso_api_key') $$, '42501', null, 'staff cannot delete secrets');
-select results_eq($$ select key from public.list_org_secret_keys() $$, array['documenso_api_key'], 'staff with settings.view sees secret keys');
-select results_eq('select count(*)::int from public.org_module_settings', array[1], 'staff with settings.view reads module settings');
+select throws_ok($$ select public.set_module_enabled('test_child', true) $$, '42501', null, 'adjointe cannot toggle modules');
+select throws_ok($$ select public.set_org_secret('documenso_api_key', 'x') $$, '42501', null, 'adjointe cannot write secrets');
+select throws_ok($$ select public.delete_org_secret('documenso_api_key') $$, '42501', null, 'adjointe cannot delete secrets');
+select results_eq($$ select key from public.list_org_secret_keys() $$, array['documenso_api_key'], 'adjointe with settings.view sees secret keys');
+select results_eq('select count(*)::int from public.org_module_settings', array[1], 'adjointe with settings.view reads module settings');
 
 -- =============================================================================
 -- Provider A (no settings access)

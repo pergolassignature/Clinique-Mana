@@ -22,7 +22,7 @@ const accessFor = (userId: string, org_timezone = 'America/Edmonton'): Access =>
   display_name: `User ${userId}`,
   email: `${userId}@mana.test`,
   status: 'active',
-  role: 'staff',
+  role: 'admin_assistant',
   permissions: ['settings.view'],
   modules: ['professionals'],
 })

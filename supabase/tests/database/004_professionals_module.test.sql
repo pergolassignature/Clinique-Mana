@@ -9,7 +9,7 @@ select results_eq($$ select name from public.modules where key = 'professionals'
 select results_eq($$ select module_key from public.permissions where key = 'professionals.view' $$,
   array['professionals'], 'professionals.view belongs to the professionals module');
 select results_eq($$ select role from public.role_permissions where permission_key = 'professionals.view' order by role $$,
-  array['admin', 'staff'], 'admin and staff get professionals.view by default, provider does not');
+  array['admin', 'admin_assistant', 'counselor'], 'admin, adjointe and conseillère get professionals.view by default, provider does not');
 select is((select count(*)::int from public.module_dependencies where module_key = 'professionals'), 0, 'professionals has no dependencies');
 
 -- Behaviour in a fresh org.

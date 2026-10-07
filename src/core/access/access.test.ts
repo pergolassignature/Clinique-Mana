@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { can, parseAccess, type Access } from './access'
 
 const base = {
-  user_id: '22222222-2222-2222-2222-222222222222',
+  user_id: '44444444-4444-4444-4444-444444444444',
   org_id: '00000000-0000-0000-0000-000000000001',
   org_name: 'Clinique MANA',
   org_timezone: 'America/Toronto',
   display_name: 'Adjointe',
-  email: 'staff@mana.test',
+  email: 'adjointe@mana.test',
   status: 'active',
-  role: 'staff',
+  role: 'admin_assistant',
   permissions: ['settings.view', 'professionals.view'],
   modules: ['core', 'professionals'],
 }
@@ -29,7 +29,7 @@ describe('parseAccess', () => {
 
   it('returns access for an active profile with a role', () => {
     const result = parseAccess(base)
-    expect('access' in result && result.access.role).toBe('staff')
+    expect('access' in result && result.access.role).toBe('admin_assistant')
   })
 
   it('accepts a custom role and keeps the enabled modules', () => {

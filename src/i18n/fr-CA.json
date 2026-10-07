@@ -93,5 +93,11 @@
   },
   "modules": {
     "professionals": { "name": "Professionnels", "placeholder": "Le module Professionnels est en préparation. Il sera disponible ici sous peu." }
+  },
+  "roles": {
+    "admin": "Administrateur",
+    "counselor": "Conseillère",
+    "admin_assistant": "Adjointe administrative",
+    "provider": "Professionnel"
   }
 }

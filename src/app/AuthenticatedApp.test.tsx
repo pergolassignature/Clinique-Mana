@@ -37,16 +37,16 @@ describe('AuthenticatedApp', () => {
     expect(screen.getByRole('link', { name: t('modules.professionals.name') })).toHaveAttribute('href', '/professionnels')
   })
 
-  // Real role defaults: staff has settings.view but no section permission (modules.manage is admin-only).
-  const staffLike: Access = { ...adminLike, role: 'staff', permissions: ['settings.view', 'professionals.view'] }
+  // Real role defaults: the adjointe has settings.view but no section permission (modules.manage is admin-only).
+  const assistantLike: Access = { ...adminLike, role: 'admin_assistant', permissions: ['settings.view', 'professionals.view'] }
 
   it('hides Paramètres when no settings section is accessible, even with settings.view', () => {
-    render(appAt('/accueil', staffLike))
+    render(appAt('/accueil', assistantLike))
     expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.name')])
   })
 
   it('refuses the settings route when no settings section is accessible', () => {
-    render(appAt('/parametres', staffLike))
+    render(appAt('/parametres', assistantLike))
     expect(screen.getByText(t('access.forbidden.title'))).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: t('settings.title') })).not.toBeInTheDocument()
   })

@@ -15,7 +15,7 @@ export const testAccess: Access = {
   display_name: 'Test',
   email: 't@mana.test',
   status: 'active',
-  role: 'staff',
+  role: 'admin_assistant',
   permissions: ['settings.view'],
   // Matches the real payload: enabled module keys, never 'core'.
   modules: ['professionals'],

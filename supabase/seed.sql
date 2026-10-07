@@ -7,10 +7,11 @@
 -- ##                                                                         ##
 -- #############################################################################
 --
--- Test logins (same password for all three: ManaLocal-2026)
---   admin@mana.test     role admin
---   staff@mana.test     role staff
---   provider@mana.test  role provider
+-- Test logins (same password for all four: ManaLocal-2026)
+--   admin@mana.test        role admin
+--   conseillere@mana.test  role counselor
+--   adjointe@mana.test     role admin_assistant
+--   provider@mana.test     role provider
 --
 -- Organization: « Clinique MANA (local) », module `professionals` enabled.
 
@@ -40,8 +41,9 @@ select
   '', '', '', ''
 from (values
   ('11111111-1111-1111-1111-111111111111'::uuid, 'admin@mana.test'),
-  ('22222222-2222-2222-2222-222222222222'::uuid, 'staff@mana.test'),
-  ('33333333-3333-3333-3333-333333333333'::uuid, 'provider@mana.test')
+  ('22222222-2222-2222-2222-222222222222'::uuid, 'conseillere@mana.test'),
+  ('33333333-3333-3333-3333-333333333333'::uuid, 'provider@mana.test'),
+  ('44444444-4444-4444-4444-444444444444'::uuid, 'adjointe@mana.test')
 ) as u(id, email);
 
 insert into auth.identities (id, user_id, provider_id, provider, identity_data, last_sign_in_at, created_at, updated_at)
@@ -53,14 +55,16 @@ from auth.users u
 where u.email like '%@mana.test';
 
 insert into public.profiles (user_id, org_id, display_name, email) values
-  ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000001', 'Admin Local',     'admin@mana.test'),
-  ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000001', 'Adjointe Locale', 'staff@mana.test'),
-  ('33333333-3333-3333-3333-333333333333', '00000000-0000-0000-0000-000000000001', 'Pro Local',       'provider@mana.test');
+  ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000001', 'Admin Local',        'admin@mana.test'),
+  ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000001', 'Conseillère Locale', 'conseillere@mana.test'),
+  ('33333333-3333-3333-3333-333333333333', '00000000-0000-0000-0000-000000000001', 'Pro Local',          'provider@mana.test'),
+  ('44444444-4444-4444-4444-444444444444', '00000000-0000-0000-0000-000000000001', 'Adjointe Locale',    'adjointe@mana.test');
 
 insert into public.user_roles (user_id, org_id, role) values
   ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000001', 'admin'),
-  ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000001', 'staff'),
-  ('33333333-3333-3333-3333-333333333333', '00000000-0000-0000-0000-000000000001', 'provider');
+  ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000001', 'counselor'),
+  ('33333333-3333-3333-3333-333333333333', '00000000-0000-0000-0000-000000000001', 'provider'),
+  ('44444444-4444-4444-4444-444444444444', '00000000-0000-0000-0000-000000000001', 'admin_assistant');
 
 insert into public.org_modules (org_id, module_key, enabled, updated_by) values
   ('00000000-0000-0000-0000-000000000001', 'professionals', true, '11111111-1111-1111-1111-111111111111');
