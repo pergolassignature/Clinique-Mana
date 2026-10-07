@@ -17,9 +17,11 @@ const auth = vi.hoisted(() => ({
   resetPasswordForEmail: vi.fn(),
   updateUser: vi.fn(),
   signOut: vi.fn(),
+  getSession: vi.fn(),
 }))
 
-vi.mock('@/core/supabase/client', () => ({ supabase: { auth } }))
+const AUTH_STORAGE_KEY = vi.hoisted(() => 'test-auth-key')
+vi.mock('@/core/supabase/client', () => ({ supabase: { auth }, AUTH_STORAGE_KEY }))
 
 auth.onAuthStateChange.mockImplementation((callback: Listener) => {
   auth.listener = callback as typeof auth.listener
@@ -62,7 +64,7 @@ function renderReady() {
 }
 
 afterEach(() => {
-  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.signOut]) {
+  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.signOut, auth.getSession]) {
     fn.mockReset()
   }
   auth.listener = undefined
@@ -190,18 +192,71 @@ describe('error codes', () => {
   })
 })
 
-describe('signOut', () => {
-  it('falls back to a local sign-out when the server call fails', async () => {
-    auth.signOut.mockResolvedValueOnce(apiError('server down', 500)).mockResolvedValueOnce({ error: null })
-    await renderReady().signOut()
-    expect(auth.signOut).toHaveBeenCalledTimes(2)
-    expect(auth.signOut).toHaveBeenLastCalledWith({ scope: 'local' })
+describe('signOut (this device only)', () => {
+  /** Renders signed in as t1 and returns the latest-value getter. */
+  function renderSignedIn() {
+    const { latest } = renderAuth()
+    emit('INITIAL_SESSION', session('t1'))
+    return latest
+  }
+
+  async function signOut(latest: () => AuthContextValue) {
+    await act(async () => {
+      await latest().signOut()
+    })
+  }
+
+  afterEach(() => localStorage.clear())
+
+  it('makes exactly one local sign-out call when it succeeds', async () => {
+    auth.signOut.mockResolvedValue({ error: null })
+    const latest = renderSignedIn()
+    await signOut(latest)
+    expect(auth.signOut).toHaveBeenCalledOnce()
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
+    expect(latest().session).toBeNull()
   })
 
-  it('signs out once when the server call succeeds', async () => {
+  it.each([
+    ['returns an error (e.g. offline)', () => auth.signOut.mockResolvedValueOnce(apiError('Failed to fetch', 0))],
+    ['throws (e.g. a lock timeout)', () => auth.signOut.mockRejectedValueOnce(new Error('lock timeout'))],
+  ])('forgets the stored session before retrying locally when the first call %s', async (_label, failFirst) => {
+    localStorage.setItem(AUTH_STORAGE_KEY, '{"access_token":"t1"}')
+    const storedAtRetry: (string | null)[] = []
+    failFirst()
+    auth.signOut.mockImplementation(async () => {
+      storedAtRetry.push(localStorage.getItem(AUTH_STORAGE_KEY))
+      return { error: null }
+    })
+    auth.getSession.mockResolvedValue({ data: { session: null }, error: null })
+    const latest = renderSignedIn()
+
+    await signOut(latest)
+
+    expect(auth.signOut).toHaveBeenCalledTimes(2)
+    expect(auth.signOut).toHaveBeenNthCalledWith(1, { scope: 'local' })
+    expect(auth.signOut).toHaveBeenNthCalledWith(2, { scope: 'local' })
+    expect(storedAtRetry).toEqual([null])
+    expect(latest().session).toBeNull()
+  })
+
+  it('forgets again if a concurrent refresh re-saved the session', async () => {
+    auth.signOut.mockResolvedValueOnce(apiError('Failed to fetch', 0)).mockResolvedValue({ error: null })
+    auth.getSession.mockResolvedValue({ data: { session: session('t2') }, error: null })
+    const latest = renderSignedIn()
+
+    await signOut(latest)
+
+    expect(auth.signOut).toHaveBeenCalledTimes(3)
+    expect(latest().session).toBeNull()
+  })
+
+  it('leaves recovery mode', async () => {
     auth.signOut.mockResolvedValue({ error: null })
-    await renderReady().signOut()
-    expect(auth.signOut).toHaveBeenCalledOnce()
+    const latest = renderSignedIn()
+    emit('PASSWORD_RECOVERY', session('t1'))
+    await signOut(latest)
+    expect(latest().isRecovery).toBe(false)
   })
 })
 

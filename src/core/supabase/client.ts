@@ -8,4 +8,7 @@ if (!url || !anonKey) {
   throw new Error('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — copy .env.example to .env.local')
 }
 
-export const supabase = createClient<Database>(url, anonKey)
+/** Where auth-js stores the session (localStorage key, also its cross-tab BroadcastChannel name). */
+export const AUTH_STORAGE_KEY = 'clinique-mana-auth'
+
+export const supabase = createClient<Database>(url, anonKey, { auth: { storageKey: AUTH_STORAGE_KEY } })

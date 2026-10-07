@@ -1,7 +1,7 @@
 // SUPABASE_ALLOWED: the auth provider owns the Supabase auth session.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { AuthError, Session } from '@supabase/supabase-js'
-import { supabase } from '@/core/supabase/client'
+import { AUTH_STORAGE_KEY, supabase } from '@/core/supabase/client'
 import { AuthContext, type AuthContextValue, type AuthErrorCode } from './auth-context'
 import { safeRedirect } from './redirect'
 
@@ -36,6 +36,23 @@ function toNeutralCode(error: AuthError | null): AuthErrorCode | null {
 }
 
 const absolute = (path: string) => `${window.location.origin}${path}`
+
+/**
+ * Forgets this browser's session without any network call: with no stored token, auth-js skips
+ * /logout, clears its keys and emits SIGNED_OUT (other tabs get it through its BroadcastChannel).
+ */
+async function forgetLocalSession(): Promise<void> {
+  try {
+    window.localStorage.removeItem(AUTH_STORAGE_KEY)
+  } catch {
+    // Storage blocked: the local sign-out below still clears what auth-js can reach.
+  }
+  try {
+    await supabase.auth.signOut({ scope: 'local' })
+  } catch {
+    // The stored token is already gone; nothing more can be done offline.
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
@@ -88,10 +105,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           (await supabase.auth.resetPasswordForEmail(email, { redirectTo: absolute('/reinitialiser-mot-de-passe') })).error,
         ),
       updatePassword: async (password) => toCode((await supabase.auth.updateUser({ password })).error),
-      // A failed global sign-out (server error) must not leave this browser signed in.
+      // "Se déconnecter" signs out THIS device only, and must always work — reception PCs are shared,
+      // so a failed call (offline, server error, lock timeout) must never leave the next person
+      // signed in as the previous one. When the server can't be reached, the local session is
+      // forgotten anyway; its refresh token stays valid server-side until it expires.
       signOut: async () => {
-        const { error } = await supabase.auth.signOut()
-        if (error) await supabase.auth.signOut({ scope: 'local' })
+        try {
+          try {
+            const { error } = await supabase.auth.signOut({ scope: 'local' })
+            if (!error) return
+          } catch {
+            // Fall through to forgetting the local session.
+          }
+          await forgetLocalSession()
+          // A concurrent token refresh may have re-saved the session in the meantime.
+          const stillStored = await supabase.auth.getSession().then(
+            ({ data }) => Boolean(data.session),
+            () => true,
+          )
+          if (stillStored) await forgetLocalSession()
+        } finally {
+          sessionRef.current = null
+          setSession(null)
+          setIsRecovery(false)
+        }
       },
     }),
     [session, isLoading, isRecovery],
