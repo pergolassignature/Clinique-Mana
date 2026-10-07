@@ -371,7 +371,7 @@ interface SettingsCardProps {
 /** One block of a settings page: its own form, its own save button, read-only without the edit permission. */
 export function SettingsCard({ title, description, readOnly, onSubmit, footer, children }: SettingsCardProps) {
   return (
-    <form onSubmit={onSubmit} noValidate className="rounded-xl border border-border bg-card shadow-sm">
+    <form onSubmit={onSubmit} noValidate className="rounded-xl border border-border bg-card shadow-soft">
       <div className="flex items-start justify-between gap-4 p-6 pb-4">
         <div>
           <h3 className="text-base font-semibold">{title}</h3>
