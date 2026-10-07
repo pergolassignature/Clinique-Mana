@@ -785,7 +785,7 @@ git commit -m "feat(shared): port UI primitives, styles and typed i18n; add sonn
 **Step 1:** In `supabase/config.toml`:
 - Delete everything from the line `# Edge Functions configuration` to the end of the file (the 8 legacy `[functions.*]` blocks).
 - In `[auth]`: set `enable_signup = false` (accounts are only created by invitation) and
-  `additional_redirect_urls = ["http://127.0.0.1:5173/**", "http://localhost:5173/**"]`.
+  `site_url = "http://localhost:5173"` and `additional_redirect_urls = ["http://localhost:5173/**"]` (one local origin: Vite listens on `localhost` only; amended in Batch F).
 - In `[auth.email]`: keep `enable_signup = true`. In the CLI this flag enables the email **provider** (password and magic-link login); sign-ups stay closed through `[auth] enable_signup = false` (verified: `/auth/v1/signup` returns `signup_disabled`).
 - Replace the header comment `# Module: auth-foundation` with `# Foundation rebuild — see docs/plans/2026-10-06-foundation-rebuild-design.md`.
 
@@ -3034,7 +3034,7 @@ npm run typecheck && npm run lint && npm run lint:supabase && npm run test:run &
 
 Expected: all green; `vite build` writes `dist/`.
 
-**Step 8: Manual check** (local Supabase running, `.env.local` set): `npm run dev`, open http://127.0.0.1:5173 and sign in with each seed user (password in `supabase/seed.sql`):
+**Step 8: Manual check** (local Supabase running, `.env.local` set): `npm run dev`, open http://localhost:5173 and sign in with each seed user (password in `supabase/seed.sql`):
 
 | User | Expected menu | Expected behaviour |
 |---|---|---|

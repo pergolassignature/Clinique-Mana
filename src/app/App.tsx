@@ -9,7 +9,7 @@ import { ResetPasswordPage } from '@/core/auth/pages/ResetPasswordPage'
 import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { Toaster } from '@/shared/ui/sonner'
 import { AuthenticatedApp } from './AuthenticatedApp'
-import { ROUTER_FUTURE } from './router-future'
+import { ROUTER_FUTURE } from '@/shared/lib/router-future'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 2 * 60_000, gcTime: 5 * 60_000, retry: 1 } },

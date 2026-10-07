@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { AuthContext, type AuthContextValue } from '@/core/auth/auth-context'
 import { AccessContext, type AccessContextValue } from '@/core/access/access-context'
 import type { Access } from '@/core/access/access'
-import { ROUTER_FUTURE } from '@/app/router-future'
+import { ROUTER_FUTURE } from '@/shared/lib/router-future'
 import { LoginRouteProbe } from './LoginRouteProbe'
 
 export const testAccess: Access = {
