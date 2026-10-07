@@ -1,0 +1,71 @@
+{
+  "app": { "name": "Clinique MANA" },
+  "nav": { "home": "Accueil", "settings": "Paramètres", "logout": "Se déconnecter" },
+  "common": {
+    "loading": "Chargement…",
+    "retry": "Réessayer",
+    "notFound": { "title": "Page introuvable", "body": "Cette page n'existe pas ou a été déplacée." },
+    "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." }
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "email": "Courriel",
+      "password": "Mot de passe",
+      "submit": "Se connecter",
+      "magicLink": "Recevoir un lien de connexion par courriel",
+      "magicLinkSent": "Si un compte existe pour ce courriel, un lien de connexion vient d'être envoyé.",
+      "forgot": "Mot de passe oublié ?"
+    },
+    "forgot": {
+      "title": "Réinitialiser le mot de passe",
+      "submit": "Envoyer le lien",
+      "sent": "Si un compte existe pour ce courriel, un lien de réinitialisation vient d'être envoyé.",
+      "back": "Retour à la connexion"
+    },
+    "reset": {
+      "title": "Choisir un nouveau mot de passe",
+      "password": "Nouveau mot de passe",
+      "confirm": "Confirmer le mot de passe",
+      "submit": "Enregistrer",
+      "tooShort": "Au moins 10 caractères.",
+      "mismatch": "Les mots de passe ne correspondent pas.",
+      "invalidLink": "Ce lien est invalide ou expiré. Demandez-en un nouveau.",
+      "success": "Mot de passe mis à jour."
+    },
+    "errors": {
+      "invalidEmail": "Courriel invalide.",
+      "required": "Champ requis.",
+      "invalid_credentials": "Courriel ou mot de passe incorrect.",
+      "rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
+      "unknown": "Une erreur est survenue. Réessayez."
+    }
+  },
+  "access": {
+    "error": { "title": "Erreur de connexion", "body": "Impossible de vérifier vos accès. Vérifiez votre connexion internet." },
+    "denied": {
+      "profile_not_found": "Votre compte n'est pas encore configuré. Contactez la clinique.",
+      "profile_disabled": "Votre compte est désactivé. Contactez la clinique.",
+      "no_role": "Aucun rôle n'est attribué à votre compte. Contactez la clinique.",
+      "signOut": "Se déconnecter"
+    },
+    "forbidden": { "title": "Accès refusé", "body": "Vous n'avez pas la permission d'ouvrir cette page." }
+  },
+  "home": { "title": "Bienvenue", "body": "Les modules s'ajoutent ici au fur et à mesure qu'ils sont activés." },
+  "settings": {
+    "title": "Paramètres",
+    "empty": "Aucune section de paramètres n'est disponible pour votre rôle.",
+    "groups": { "clinique": "Clinique", "plateforme": "Plateforme", "modules": "Modules", "compte": "Mon compte" },
+    "sections": { "modules": "Modules" },
+    "modules": {
+      "title": "Modules",
+      "description": "Activez un module lorsqu'il est prêt. Un module désactivé disparaît du menu et de l'application.",
+      "dependsOn": "Requiert :",
+      "saved": "Modules mis à jour.",
+      "error": "Impossible de modifier ce module."
+    }
+  },
+  "modules": {
+    "professionnels": { "name": "Professionnels", "placeholder": "Le module Professionnels est en construction." }
+  }
+}
