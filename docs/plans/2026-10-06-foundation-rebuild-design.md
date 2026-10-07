@@ -4,6 +4,18 @@
 **Status:** Approved (brainstorming session with Jonathan)
 **Supersedes:** the current `src/` and `supabase/migrations/` (moved to `_legacy/`)
 
+> **As built (2026-10-07).** Phase 1 changed some details below; where they differ, the code and these documents win: [plan amendments A1–A5](2026-10-06-foundation-phase-0-1-plan.md#amendments-2026-10-07--read-before-tasks-17-onward), [core schema review](../audit/2026-10-07-core-schema-design-review.md), [decisions log](2026-10-07-decisions-log.md), [database conventions](../standards/database-conventions.md), [core module](../modules/core.md).
+>
+> - **Code identifiers are English:** module key `professionals`, folder `src/modules/professionals/`, permissions `professionals.*`. URLs and labels stay French (`/professionnels`, « Professionnels »). §6.1's `professionnels/` folder is now `professionals/`.
+> - **Roles are a table** (`roles`: `admin`, `staff`, `provider`); `user_roles.role` is text referencing it, not an `app_role` enum (§2). `user_roles` and `user_permission_overrides` carry `org_id`.
+> - **RLS helpers live in schema `private`** (not exposed over the API): `private.current_user_org_id()`, `private.current_user_role()`, `private.has_role(text)`, `private.has_permission(text)`. Policies call `(select private.…)`. `current_professional_id()` arrives with the Professionnels tables (Phase 4).
+> - **A disabled module grants nothing in the database:** `has_permission` and `get_my_access()` drop its permissions. `get_my_access()` also returns `modules`, `org_name` and `org_timezone`, and is empty unless the profile is active.
+> - **Module activation (§3):** dependencies are rows in `module_dependencies` (not `modules.depends_on text[]`); `org_modules` has `enabled, updated_at, updated_by` (not `enabled_at, enabled_by`); `core` is registered as a module and is always on.
+> - **Frontend (§2):** the access context exposes `status`, `access`, `problem`, `can()`, `reload()`, `isReloading` (no `hasRole`); `useReadyAccess()` returns the verified access under `RequireAuth`. `RouteBoundary` lives in `src/shared/components/`, not `src/app/`.
+> - **Edge functions (§2):** `verifyAuth(req, { permission })` (no `role` option) reads `get_my_access()` and requires an active profile; `requireModule()` uses `module_enabled()`.
+> - **Migrations (§6.1):** four files (`core_access`, `core_audit`, `core_module_settings_secrets`, `professionals_module`) instead of one `00000000000001_baseline.sql`; pgTAP tests in `supabase/tests/database/`.
+> - **Local stack** runs on ports 553xx and `http://localhost:5173` (decisions log #1, #18).
+
 ---
 
 ## 1. Context
