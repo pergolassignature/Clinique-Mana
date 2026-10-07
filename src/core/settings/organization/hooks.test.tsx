@@ -66,6 +66,11 @@ describe('useUpdateOrganization', () => {
     ['older than the cached row (an earlier save answering last): keeps the cached row', '2026-10-07T12:00:01.5+00:00', '2026-10-07T12:00:01.25+00:00', 'cached'],
     ['newer than the cached row: replaces it', '2026-10-07T12:00:01.25+00:00', '2026-10-07T12:00:01.5+00:00', 'saved'],
     ['as recent as the cached row: replaces it', '2026-10-07T12:00:01.5+00:00', '2026-10-07T12:00:01.5+00:00', 'saved'],
+    // Different offsets: the instants decide, where comparing the strings would pick the other row.
+    ['an earlier instant written with a later local time (-04:00 vs -05:00): keeps the cached row', '2026-10-07T07:59:00-05:00', '2026-10-07T08:30:00-04:00', 'cached'],
+    ['a later instant written with an earlier local time (-05:00 vs -04:00): replaces it', '2026-10-07T08:30:00-04:00', '2026-10-07T07:59:00-05:00', 'saved'],
+    // Unparsable values fall back to comparing the strings.
+    ['unparsable, older as a string: keeps the cached row', 'version-b', 'version-a', 'cached'],
   ])('saved row %s', async (_case, cachedAt, savedAt, kept) => {
     const { queryClient, wrapper } = setup()
     const cached = { ...SAVED, city: 'Laval', updated_at: cachedAt }

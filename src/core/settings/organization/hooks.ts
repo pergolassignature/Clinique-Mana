@@ -10,6 +10,16 @@ export const organizationKeys = {
   current: () => [...organizationKeys.all, 'current'] as const,
 }
 
+/**
+ * Whether timestamp `a` is a later instant than `b`. Parsed, so differing UTC offsets compare by
+ * instant (millisecond precision); the strings are compared only when either does not parse.
+ */
+function newer(a: string, b: string): boolean {
+  const ta = Date.parse(a)
+  const tb = Date.parse(b)
+  return Number.isNaN(ta) || Number.isNaN(tb) ? a > b : ta > tb
+}
+
 export function useOrganization() {
   // Fresh for a minute: a background refetch (window focus, another card mounting) must not
   // re-sync the cards' `values` while someone is typing.
@@ -29,12 +39,10 @@ export function useUpdateOrganization(successMessage: string) {
     mutationFn: ({ id, patch }: { id: string; patch: OrganizationUpdate }) => updateOrganization(id, patch),
     onSuccess: async (saved, { patch }) => {
       // The saved row is the truth: cache it at once, unless a later save already answered (two
-      // cards saved in turn, the first answering last). `updated_at` comes from PostgREST in one
-      // format (UTC, `+00:00`, trailing zeros trimmed), so the strings compare in time order.
-      // The organization queries are only marked stale (no second request); the access payload
-      // derived from name/timezone is refetched.
+      // cards saved in turn, the first answering last). The organization queries are only marked
+      // stale (no second request); the access payload derived from name/timezone is refetched.
       queryClient.setQueryData<Organization>(organizationKeys.current(), (cached) =>
-        cached && cached.updated_at > saved.updated_at ? cached : saved,
+        cached && newer(cached.updated_at, saved.updated_at) ? cached : saved,
       )
       const invalidations = [queryClient.invalidateQueries({ queryKey: organizationKeys.all, refetchType: 'none' })]
       if (patch.name !== undefined || patch.timezone !== undefined) {
