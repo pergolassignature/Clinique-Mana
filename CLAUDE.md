@@ -2,11 +2,12 @@
 
 ## 1. Project
 
-Clinique MANA is the management platform of a **dispatch clinic**: conseillères receive every request and match the client with one of ~50 independent professionals, 100 % online ([business context](docs/standards/business-context.md)). It is non-clinical: motifs are orientation tags, never diagnoses, and clinical notes stay out of the app ([do-not list](docs/standards/do-not-do.md)).
+Clinique MANA is the management platform of a **dispatch clinic**: conseillères receive every request and match the client with one of ~50 independent professionals, 100 % online ([business context](docs/standards/business-context.md)). It is non-clinical: motifs are orientation tags, never diagnoses, and clinical notes stay out of the app (design D8). Tone and brand: [business context §6](docs/standards/business-context.md#6-brand--tone), which supersedes `docs/standards/brand.tokens.md` (legacy app tokens) for the redesign.
 
 **The app is being rebuilt from its foundations** ([design](docs/plans/2026-10-06-foundation-rebuild-design.md), [plan](docs/plans/2026-10-06-foundation-phase-0-1-plan.md), [decisions log](docs/plans/2026-10-07-decisions-log.md), [ADRs](docs/adr/README.md)).
 
 - The old app lives in `_legacy/` (tag `legacy-v1`). It is **read-only**: never edit or import it; it is excluded from TypeScript, ESLint, Vite and CI.
+- **Legacy guidance lives in `_legacy/` too and must not be followed**: the old `claude.md`, the `.claude/workflows/` module pipeline and `.claude/skills/`, the old module status files, data contracts, deploy/testing guides and standards (listed in `_legacy/README.md`). Current rules: this file, `docs/standards/`, `docs/adr/`.
 - Nothing the legacy app does may be lost silently: the parity checklist is [`docs/plans/2026-10-06-legacy-feature-inventory.md`](docs/plans/2026-10-06-legacy-feature-inventory.md).
 - Built so far: the core (auth, access, modules, settings shell, audit, secrets) and module `professionals` as an empty placeholder.
 
