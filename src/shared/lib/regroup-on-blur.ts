@@ -18,7 +18,7 @@ export function regroupOnBlur<T extends FieldValues>(form: RegroupForm<T>, name:
     onBlur: (event: FocusEvent<HTMLInputElement>) => {
       const formatted = format(event.target.value)
       if (formatted !== event.target.value) {
-        // Read at blur time (formState is a live proxy), not when the field rendered.
+        // `isSubmitted` as of the last render: the form re-renders once submitted, so it is current.
         form.setValue(name, formatted as PathValue<T, Path<T>>, { shouldDirty: true, shouldValidate: form.formState.isSubmitted })
       }
     },

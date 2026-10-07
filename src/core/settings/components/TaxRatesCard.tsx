@@ -31,6 +31,10 @@ import { NewTaxRateDialog } from './NewTaxRateDialog'
 /** Phone: 8 px cell padding, none at the edges (the columns line up with the card title). */
 const PHONE_TABLE = 'max-sm:[&_td]:px-2 max-sm:[&_th]:px-2 max-sm:[&_td:first-child]:pl-0 max-sm:[&_th:first-child]:pl-0 max-sm:[&_td:last-child]:pr-0 max-sm:[&_th:last-child]:pr-0'
 
+/** Phone trash button: see the row's « Supprimer ». */
+const PHONE_TRASH =
+  "max-sm:relative max-sm:w-7 max-sm:px-0 max-sm:after:absolute max-sm:after:-inset-y-2 max-sm:after:-left-4 max-sm:after:right-0 max-sm:after:content-['']"
+
 const STATUS_BADGE: Record<TaxRateStatus, BadgeProps['variant']> = {
   current: 'success',
   upcoming: 'info',
@@ -129,8 +133,10 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        // Phone: a 28 px icon with a 44 px hit area (an invisible ::after 8 px around it).
-                        className="max-sm:relative max-sm:w-7 max-sm:px-0 max-sm:after:absolute max-sm:after:-inset-2 max-sm:after:content-['']"
+                        // Phone: a 28 px icon with a 44×44 hit area (an invisible ::after, 8 px above and
+                        // below, 16 px to the left). Never past the right edge: it is the last column, and
+                        // an overlay there would make the table's scroll box scroll sideways.
+                        className={PHONE_TRASH}
                         aria-label={t('settings.tax.rates.deleteLabel', {
                           rate: formatRate(rate.rate),
                           date: formatDateOnlyShort(rate.effective_from),

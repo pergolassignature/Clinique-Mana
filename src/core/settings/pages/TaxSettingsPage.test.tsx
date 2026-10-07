@@ -182,10 +182,14 @@ describe('TaxSettingsPage', () => {
     expect(mocks.tax.deleteTaxRate).toHaveBeenCalledTimes(1)
   })
 
-  it('gives the phone trash button a 44 px hit area without enlarging it', async () => {
+  it('gives the phone trash button a 44 px hit area that grows to the left only', async () => {
     await renderPage()
     const rowDelete = within(card('qst')).getByRole('button', { name: /supprimer/i })
-    expect(rowDelete).toHaveClass('max-sm:w-7', 'max-sm:relative', 'max-sm:after:absolute', 'max-sm:after:-inset-2')
+    // 28 px button: 8 + 28 + 8 high, 16 + 28 wide.
+    expect(rowDelete).toHaveClass('max-sm:w-7', 'max-sm:relative', 'max-sm:after:absolute', 'max-sm:after:-inset-y-2', 'max-sm:after:-left-4', 'max-sm:after:right-0')
+    // Nothing past the right edge (it would make the table scroll sideways): no negative right or x inset.
+    const overflowing = [...rowDelete.classList].filter((name) => /after:-(inset-(?!y-)|right-)/.test(name))
+    expect(overflowing).toEqual([])
   })
 
   it("computes the statuses against the clinic's date, not the browser's", async () => {
@@ -282,13 +286,14 @@ describe('TaxSettingsPage', () => {
     })
 
     it('shows a refused rate (P0001) in the dialog and keeps it open', async () => {
-      mocks.tax.addTaxRate.mockRejectedValue({ code: 'P0001', message: 'Le nouveau taux doit commencer après le 2027-01-01.' })
+      // Another admin added a QST rate from 2027-03-01 since the page loaded.
+      mocks.tax.addTaxRate.mockRejectedValue({ code: 'P0001', message: 'Le nouveau taux doit commencer après le 2027-03-01.' })
       await renderPage()
       await openAddDialog('qst')
       await userEvent.type(rateField(), '11')
       setDate('2027-02-01')
       await userEvent.click(within(dialog()).getByRole('button', { name: t('settings.tax.dialog.submit') }))
-      expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Le nouveau taux doit commencer après le 2027-01-01.')
+      expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Le nouveau taux doit commencer après le 2027-03-01.')
       expect(rateField()).toHaveValue('11')
       expect(mocks.toast.error).not.toHaveBeenCalled()
     })
@@ -321,6 +326,15 @@ describe('TaxSettingsPage', () => {
       expect(await within(dialog()).findByText(t('settings.tax.validation.afterOpen', { date: '1 janv. 2027' }))).toBeInTheDocument()
       expect(dateField()).toHaveAttribute('aria-invalid', 'true')
       expect(mocks.tax.addTaxRate).not.toHaveBeenCalled()
+    })
+
+    it("accepts the earliest date allowed, the day after the open rate's start", async () => {
+      mocks.tax.addTaxRate.mockResolvedValue('new-id')
+      await renderPage()
+      await openAddDialog('qst')
+      setDate('2027-01-02')
+      await userEvent.type(rateField(), '11{Enter}')
+      await waitFor(() => expect(mocks.tax.addTaxRate).toHaveBeenCalledWith('qst', 0.11, '2027-01-02'))
     })
 
     it('starts empty again once closed', async () => {
