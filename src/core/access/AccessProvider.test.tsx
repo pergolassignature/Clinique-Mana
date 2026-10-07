@@ -118,6 +118,9 @@ describe('AccessProvider', () => {
     await waitFor(() => expect(state()).toBe('ready:A:settled'))
 
     rerender(tree(sessionFor('B')))
+    // The cache clear must run before useQuery's effect re-points the observer at B's query;
+    // in the wrong order it destroys B's query and the tree stays loading.
+    expect(queryClient.getQueryCache().find({ queryKey: accessKeys.me('B') })).toBeDefined()
     await waitFor(() => expect(state()).toBe('ready:B:settled'))
     expect(fetchMyAccess).toHaveBeenCalledTimes(2)
     expect(log.filter((entry) => entry.sessionUser === 'B' && entry.accessUser === 'A')).toEqual([])

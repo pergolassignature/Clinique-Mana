@@ -1,5 +1,6 @@
 // SUPABASE_ALLOWED: the auth provider owns the Supabase auth session.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import * as Sentry from '@sentry/react'
 import type { AuthError, Session } from '@supabase/supabase-js'
 import { AUTH_STORAGE_KEY, supabase } from '@/core/supabase/client'
 import { AuthContext, type AuthContextValue, type AuthErrorCode } from './auth-context'
@@ -31,11 +32,20 @@ function toCode(error: AuthError | null): AuthErrorCode | null {
  * throttle (over_email_send_rate_limit) to existing accounts only.
  */
 function toNeutralCode(error: AuthError | null): AuthErrorCode | null {
-  if (error?.code === 'over_email_send_rate_limit') return null
+  if (error?.code === 'over_email_send_rate_limit') {
+    // Same code when the project-wide email quota is spent: nobody receives emails any more.
+    // Still neutral for the user, but visible to us.
+    if (/email rate limit exceeded/i.test(error.message)) Sentry.captureMessage('Auth email quota exceeded', 'warning')
+    return null
+  }
   return toCode(error)
 }
 
 const absolute = (path: string) => `${window.location.origin}${path}`
+
+// auth-js emits PASSWORD_RECOVERY once, possibly before our listener is registered, so the
+// recovery link's URL hash (implicit flow) is read when this module is evaluated.
+const OPENED_FROM_RECOVERY_LINK = typeof window !== 'undefined' && /[#&]type=recovery/.test(window.location.hash)
 
 /**
  * Forgets this browser's session without any network call: with no stored token, auth-js skips
@@ -57,7 +67,7 @@ async function forgetLocalSession(): Promise<void> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isRecovery, setIsRecovery] = useState(false)
+  const [isRecovery, setIsRecovery] = useState(OPENED_FROM_RECOVERY_LINK)
   const sessionRef = useRef<Session | null>(null)
 
   useEffect(() => {

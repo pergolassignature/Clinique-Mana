@@ -20,6 +20,9 @@ const auth = vi.hoisted(() => ({
   getSession: vi.fn(),
 }))
 
+const sentry = vi.hoisted(() => ({ captureMessage: vi.fn() }))
+vi.mock('@sentry/react', () => sentry)
+
 const AUTH_STORAGE_KEY = vi.hoisted(() => 'test-auth-key')
 vi.mock('@/core/supabase/client', () => ({ supabase: { auth }, AUTH_STORAGE_KEY }))
 
@@ -64,7 +67,7 @@ function renderReady() {
 }
 
 afterEach(() => {
-  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.signOut, auth.getSession]) {
+  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.signOut, auth.getSession, sentry.captureMessage]) {
     fn.mockReset()
   }
   auth.listener = undefined
@@ -117,6 +120,32 @@ describe('session lifecycle', () => {
   })
 })
 
+describe('password recovery link', () => {
+  afterEach(() => window.history.replaceState(null, '', '/'))
+
+  // auth-js emits PASSWORD_RECOVERY once, possibly before the provider subscribes: the URL is the
+  // reliable signal, read when the module is evaluated.
+  it('starts in recovery mode when the URL carries a recovery token', async () => {
+    window.history.replaceState(null, '', '/#access_token=x&refresh_token=y&type=recovery')
+    vi.resetModules()
+    const { AuthProvider: FreshAuthProvider } = await import('./AuthProvider')
+    const { useAuth: freshUseAuth } = await import('./auth-context')
+    const values: AuthContextValue[] = []
+    function Probe() {
+      values.push(freshUseAuth())
+      return null
+    }
+    render(
+      <FreshAuthProvider>
+        <Probe />
+      </FreshAuthProvider>,
+    )
+    expect(values[0]?.isRecovery).toBe(true)
+    emit('INITIAL_SESSION', session('t1'))
+    expect(values[values.length - 1]?.isRecovery).toBe(true)
+  })
+})
+
 describe('sendMagicLink', () => {
   it('never creates an account and returns to /accueil by default', async () => {
     auth.signInWithOtp.mockResolvedValue({ data: {}, error: null })
@@ -159,6 +188,15 @@ describe('email rate limits (no account enumeration)', () => {
   it.each(fns)('%s treats the per-email throttle as success', async (fn) => {
     mockFor[fn].mockResolvedValue(apiError('For security purposes, you can only request this after 60 seconds.', 429, 'over_email_send_rate_limit'))
     await expect(send[fn](renderReady())).resolves.toBeNull()
+    expect(sentry.captureMessage).not.toHaveBeenCalled()
+  })
+
+  // Same code, project-wide: the SMTP quota is spent and nobody receives emails. Still neutral for
+  // the user, but it must be visible to us.
+  it.each(fns)('%s reports an exhausted email quota to Sentry, still as success', async (fn) => {
+    mockFor[fn].mockResolvedValue(apiError('Email rate limit exceeded', 429, 'over_email_send_rate_limit'))
+    await expect(send[fn](renderReady())).resolves.toBeNull()
+    expect(sentry.captureMessage).toHaveBeenCalledWith('Auth email quota exceeded', 'warning')
   })
 
   it.each(fns)('%s reports IP-level throttling as rate_limited', async (fn) => {
