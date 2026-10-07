@@ -3108,7 +3108,7 @@ EOF
 **Files:**
 - Create: `scripts/bootstrap-admin.sql`
 
-**Step 1: Ask Jonathan** — "Task 0.2 backups exist in `clinique-mana-backups/`. OK to wipe the staging database `vnmbjbdsjxmpijyjmmkh`, delete its 13 legacy edge functions and legacy storage buckets, and apply the new migrations?" Wait for an explicit yes. Do not proceed on anything less.
+**Step 1: Ask Jonathan** — "Task 0.2 backups exist in `clinique-mana-backups/`. OK to wipe the staging database `vnmbjbdsjxmpijyjmmkh`, delete its 13 legacy edge functions (list in docs/audit/2026-10-07-staging-snapshot.md) and legacy storage buckets, and apply the new migrations?" Wait for an explicit yes. Do not proceed on anything less.
 
 **Step 2: Reset the database (no seed — test passwords never go to staging)**
 
@@ -3125,7 +3125,7 @@ Expected: the 4 new migrations are listed as applied both locally and remotely.
 ```bash
 for fn in create-professional docuseal-create-submission docuseal-create-template docuseal-get-submission docuseal-webhook \
   google-calendar-auth-url google-calendar-callback google-calendar-disconnect google-calendar-sync \
-  google-places-autocomplete google-places-details send-contract-email; do
+  google-places-autocomplete google-places-details sign-contract get-contract; do
   supabase functions delete "$fn" --project-ref vnmbjbdsjxmpijyjmmkh
 done
 ```
