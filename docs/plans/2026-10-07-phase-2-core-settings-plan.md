@@ -292,6 +292,62 @@ git add -A && git commit -m "feat(ui): brand tokens and self-hosted Raleway"
 
 ---
 
+## Task 2.2b: Apply the Clinique MANA design system
+
+*(Added 2026-10-07 after Jonathan shared the design system; decisions #29–30. Runs after Task 2.3 and before Task 2.4. It supersedes Task 2.2's colours and font. The rest of Task 2.2 stays: the no-Google-request rule, the `--input` idea and the destructive-variant reasoning.)*
+
+**Source of truth:** `docs/design-system/`.
+- `README.md`: the handoff. Its rules, tokens, component values and screens are final, at high fidelity.
+- `design_system/tokens/*.css`: the tokens.
+- `design_system/components/SOURCE.md` and `components/<group>/*.prompt.md`: exact values and props per component.
+- `ui_kit/screen-*.jsx`: reference screens. These are references only: never import or copy the JSX, and never load `_ds_bundle.js` in the app.
+
+**Files:**
+- `package.json`: remove `@fontsource-variable/raleway`, add `@fontsource-variable/inter`.
+- `src/main.tsx`, `src/styles/globals.css`, `tailwind.config.js`.
+- Every primitive in `src/shared/ui/`, plus `src/shared/components/` (SettingsCard, PageHeader, EmptyState, FullPageMessage, SaveButton), and `src/core/auth/pages/AuthCard.tsx`.
+- Create: `src/shared/ui/status-dot.tsx` (Badge « statut » = 6 px dot + word) and `src/shared/components/StatusIndicator.tsx`, if not covered by Badge.
+- Create: `src/assets/logo-header.svg` (copied from `docs/design-system/assets/`), used by AuthCard (26 px) and, in Task 2.4, by the sidebar (22 px).
+- Rewrite: `docs/standards/brand.tokens.md` as the short « how the design system maps to Tailwind » page.
+
+**Steps**
+1. **Tokens.**
+   - Port `tokens/colors.css`, `typography.css`, `spacing.css` and `effects.css` into `globals.css` as CSS variables. Use RGB triplets for colours, so Tailwind's `<alpha-value>` works. Keep the token names of the design system.
+   - Map them in `tailwind.config.js` to the shadcn semantic names:
+     - `background` = bg, `foreground` = text-body, `muted` = bg-secondary (`muted-foreground` = text-secondary), `border` = border;
+     - `input` = border; hover uses border-strong;
+     - `primary` = teal-600 (with `hover` / `active`) and `primary-soft`;
+     - `ink`;
+     - `destructive` = danger;
+     - `success` / `warning` / `info` dots;
+     - `sidebar` = surface-sidebar.
+   - Font sizes `2xs`–`3xl` with their line heights. Radii: `sm` 3, `md` 4, `lg` 6, `xl` 6, `2xl` 8. Shadows: `soft` none, `medium` and `large` as in `effects.css`. Durations and easing as given.
+   - Remove the Task 2.2 tokens (offwhite, mint surfaces, wine as an action colour).
+2. **Font.** Inter via `@fontsource-variable/inter`, with no Google request (check `dist/` as in Task 2.2). Body: `font-feature-settings: "cv02","cv03","cv04","cv11","ss01"`, 13/18, antialiased. Keep `font-variant-numeric: inherit` on form controls and `.tabular` for figures.
+3. **Primitives.** Port the exact values from the handoff « Composants » section and `SOURCE.md`:
+   - Button: 32 px, radius 4, the variants including `ink`, and the sizes.
+   - Input, Select and Textarea; Label; Checkbox; Switch.
+   - Badge (status dot + word; `filled` only for « Urgent »); Avatar; Card; Alert (white with a coloured icon); Tooltip (ink); Skeleton.
+   - NavTabs (ink underline); DropdownMenu, Popover and Command; Dialog, AlertDialog and Sheet.
+   - Toast (ink background; restyle sonner through its CSS variables, as Task 2.2 did); AuthCard; PageHeader (20/28 600).
+   - EmptyState: two lines of text, no icon, no box. Remove the `icon` prop.
+   - SettingsCard: Card values (border, radius 6, padding 16, title 14/600, description 12) and no shadow.
+4. **Accessibility adjustments (decision #30):**
+   - informative secondary text uses `text-secondary` (#6B6B6E), never `text-muted` (#8E8E92);
+   - the focus ring is solid teal: `0 0 0 2px #fff, 0 0 0 4px #1E837C` for buttons and controls; fields use a teal border plus a 1 px teal ring, as designed;
+   - `FormField` `required`: a teal `*` (`aria-hidden`) plus an `sr-only` « (requis) ». This replaces the visible « (requis) » from the Task 2.3 review.
+5. **Tests.** Update the tests whose expectations change (EmptyState without icon, the required marker, toast styling). Never weaken a behavioural assertion.
+6. **Browser check.** Login page and Paramètres → Modules at desktop and mobile widths, compared side by side with `docs/design-system/ui_kit` (open `ui_kit/index.html` in the browser pane). Take screenshots.
+7. **Commit.** `feat(ui): apply the Clinique MANA design system`.
+
+**Also applies to the later tasks.** Tasks 2.4 and later follow the handoff's screens:
+- Task 2.4 shell: SidebarNav 220/56 collapsible, collapsed state persisted, footer with avatar, name, role and sign-out; a 48 px Topbar with breadcrumb and title; ⌘K palette with navigation only (this restores the legacy palette, inventory §D « Shared »). No bell and no help icon until they do something.
+- Task 2.5: SettingsNav 200 px with overline groups and a lock icon on read-only sections; read-only sections show the Alert « Lecture seule — Seule l'administration peut modifier ces informations. »
+- Forms: max 640, two-column grid with gap 12, Annuler / Enregistrer aligned right.
+- Tables: header overline 11 px, rows 40 px, footer with count and pagination.
+
+---
+
 ## Task 2.3: Shared UI kit, error mapping, unsaved-changes guard
 
 **Files:**
