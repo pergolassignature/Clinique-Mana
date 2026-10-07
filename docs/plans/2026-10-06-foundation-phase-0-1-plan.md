@@ -3253,3 +3253,5 @@ Expected: everything passes. Paste the summary lines (test counts) into the PR d
 - **Phase 3 — Shared services:** Resend email + templates + log + webhook, secure links, Documenso signing, storage helpers.
 - **Phase 4 — Professionnels:** starts with the module design doc marking inventory §A items Keep / Change / Drop.
 - Visual redesign of the shell (mobile nav, branding) — a dedicated design task.
+- **Before the 2nd module:** replace the text-pattern module boundary with a path-resolving rule (`eslint-plugin-boundaries` or `import-x/no-restricted-paths`): only `index.ts` entry points, only modules listed in `dependsOn`, cover dynamic `import()`, restrict `src/app` to module entries (Batch A quality review).
+- Use `mergeConfig(viteConfig, …)` in `vitest.config.ts` once `vite.config.ts` gains plugins/defines; add happy-dom polyfills (ResizeObserver, pointer capture) when Radix dialogs get tests.
