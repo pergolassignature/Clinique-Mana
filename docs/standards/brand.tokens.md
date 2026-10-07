@@ -46,7 +46,7 @@ Rules:
 - Focus: `focus-visible:ring-2 focus-visible:ring-ring` at full strength (8.0:1 on white, 7.6:1 on off-white), with `ring-offset-2` where the control itself is wine (button, checkbox). No `ring-offset-background`: it draws an off-white halo on white surfaces. Text fields keep their wine border as the cue, plus a soft `ring-ring/30` halo. The `.focus-ring` utility applies the full ring.
 - Hover: neutral hovers use `bg-muted` (ghost/outline buttons, nav items, menu items). Mint (`accent`) is for calm, success and selected surfaces, not generic hover. A control already filled with `bg-muted` (secondary button) hovers one step darker, `bg-muted-hover`.
 - Highlighted menu and command items: `bg-muted` plus an inset 2px wine bar on the left (7.0:1 on muted), so the highlight does not rely on a faint fill.
-- Shadows: the custom scale only (`shadow-soft` cards, `shadow-medium` menus/popovers/toasts, `shadow-large` dialogs/sheets).
+- Shadows: the custom scale only (`shadow-soft` cards, `shadow-medium` menus/popovers, `shadow-large` dialogs/sheets; toasts keep sonner's own shadow).
 - Toasts (`sonner.tsx`): styled through sonner's CSS variables, no class overrides. Every toast is a white card with a line border and Raleway; default text charcoal, success text and icon dark teal (5.2:1), error text and icon danger (6.6:1). Keyboard focus on a toast, its close or action button shows the wine ring (rule in `globals.css`).
 - Search fields inside menus (`CommandInput`): the bottom border turns wine on focus.
 - Font: Raleway Variable, self-hosted through `@fontsource-variable/raleway` (no Google request, Loi 25). Figures are lining everywhere (`body`); use `.tabular` for tables, amounts and inputs.
