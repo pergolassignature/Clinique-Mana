@@ -3,6 +3,7 @@ import { cn } from './utils'
 
 describe('cn', () => {
   it('merges classes and lets later Tailwind classes win', () => {
-    expect(cn('px-2 py-1', false && 'hidden', 'px-4')).toBe('py-1 px-4')
+    const isHidden = false
+    expect(cn('px-2 py-1', isHidden && 'hidden', 'px-4')).toBe('py-1 px-4')
   })
 })
