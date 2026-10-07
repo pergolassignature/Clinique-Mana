@@ -69,8 +69,6 @@ const DASHES = /[-\u2013\u2014]/g
 /** `12 34-5 rt` → `12345RT`: tax and enterprise numbers are typed or pasted with spaces and dashes. */
 const compactUpper = (v: string) => v.replace(/\s/g, '').replace(DASHES, '').toUpperCase()
 
-/** `h2x-1y4` → `H2X 1Y4`. */
-const normalizePostalCode = (v: string) => formatPostalCode(v.replace(DASHES, ''))
 
 /** Lowercases the scheme, and adds `https://` when there is none (`www.x.ca` → `https://www.x.ca`). */
 function normalizeUrl(v: string): string {
@@ -139,7 +137,7 @@ export const addressSchema = z.object({
     .trim()
     .refine((v): v is Province | '' => v === '' || (PROVINCES as readonly string[]).includes(v), { error: MESSAGES.province })
     .transform(emptyToNull),
-  postal_code: optionalPattern(POSTAL_CODE, MESSAGES.postalCode, normalizePostalCode),
+  postal_code: optionalPattern(POSTAL_CODE, MESSAGES.postalCode, formatPostalCode),
 })
 
 export function toAddressFormValues(org: Organization): z.input<typeof addressSchema> {

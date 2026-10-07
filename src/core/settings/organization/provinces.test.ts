@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { DEFAULT_PROVINCE, PROVINCE_OPTIONS } from './provinces'
+import { PROVINCE_OPTIONS } from './provinces'
 import { PROVINCES } from './schemas'
 
 describe('PROVINCE_OPTIONS', () => {
@@ -15,9 +15,5 @@ describe('PROVINCE_OPTIONS', () => {
     expect(t(PROVINCE_OPTIONS.find((p) => p.value === 'QC')!.labelKey)).toBe('Québec')
     expect(t(PROVINCE_OPTIONS.find((p) => p.value === 'ON')!.labelKey)).toBe('Ontario')
     expect(t(PROVINCE_OPTIONS.find((p) => p.value === 'PE')!.labelKey)).toBe('Île-du-Prince-Édouard')
-  })
-
-  it('defaults to Québec', () => {
-    expect(DEFAULT_PROVINCE).toBe('QC')
   })
 })

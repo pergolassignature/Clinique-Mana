@@ -35,10 +35,16 @@ export function parsePhone(input: string): string | null {
   return null
 }
 
-/** `h2x1y4` → `H2X 1Y4`. A value that is not 6 characters is only uppercased (validation is the schema's job). */
+/** Spaces, hyphens and en/em dashes, typed or pasted inside a postal code (`H2X-1Y4`). */
+const POSTAL_CODE_SEPARATORS = /[\s\-\u2013\u2014]/g
+
+/**
+ * `h2x1y4`, `h2x-1y4` → `H2X 1Y4`. A value that is not 6 characters once its separators are removed
+ * is only compacted and uppercased (validation is the schema's job).
+ */
 export function formatPostalCode(value: string | null | undefined): string {
   if (!value) return ''
-  const compact = value.replace(/\s/g, '').toUpperCase()
+  const compact = value.replace(POSTAL_CODE_SEPARATORS, '').toUpperCase()
   return compact.length === 6 ? `${compact.slice(0, 3)} ${compact.slice(3)}` : compact
 }
 

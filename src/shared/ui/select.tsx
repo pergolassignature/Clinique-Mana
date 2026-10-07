@@ -9,6 +9,8 @@ export interface SelectProps
   extends React.SelectHTMLAttributes<HTMLSelectElement> {
   /** A disabled empty first option (« Choisir… »), shown muted while it is selected. */
   placeholder?: string
+  /** The placeholder option can be chosen again, to clear an optional value (stored as null). */
+  clearable?: boolean
   /**
    * Shows the chosen option's label in a read-only text input (a `<select>` has no read-only
    * state, and disabled text is hard to read and cannot be tabbed to). Pass `value` (e.g. through
@@ -51,7 +53,7 @@ function readOnlyAttributes(props: React.SelectHTMLAttributes<HTMLSelectElement>
  * otherwise the browser would silently select the first real option.
  */
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, children, placeholder, readOnly: readOnlyProp, ...props }, ref) => {
+  ({ className, children, placeholder, clearable = false, readOnly: readOnlyProp, ...props }, ref) => {
     const readOnly = useFieldReadOnly(readOnlyProp)
     if (readOnly) {
       const raw = props.value ?? props.defaultValue
@@ -74,7 +76,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           {...props}
         >
           {placeholder && (
-            <option value="" disabled>
+            <option value="" disabled={!clearable}>
               {placeholder}
             </option>
           )}

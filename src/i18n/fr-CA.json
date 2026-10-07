@@ -165,6 +165,7 @@
         "addressLine2": "Complément",
         "city": "Ville",
         "province": "Province",
+        "provincePlaceholder": "Choisir une province…",
         "postalCode": "Code postal",
         "phone": "Téléphone",
         "email": "Courriel",

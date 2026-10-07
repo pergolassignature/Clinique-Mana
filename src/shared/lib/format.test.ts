@@ -52,7 +52,10 @@ describe('formatPostalCode', () => {
     ['h2x1y4', 'H2X 1Y4'],
     [' h2x 1y4 ', 'H2X 1Y4'],
     ['H2X1Y4', 'H2X 1Y4'],
-  ])('formats %j', (input, expected) => {
+    ['h2x-1y4', 'H2X 1Y4'],
+    ['h2x\u20131y4', 'H2X 1Y4'],
+    ['H2X \u2014 1Y4', 'H2X 1Y4'],
+  ])('formats %j (spaces, hyphens and en/em dashes removed, as the schema does)', (input, expected) => {
     expect(formatPostalCode(input)).toBe(expected)
   })
 

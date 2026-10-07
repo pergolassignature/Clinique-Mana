@@ -93,17 +93,48 @@ describe('IdentitySettingsPage', () => {
   it('lists the 13 provinces by French name', async () => {
     await renderPage()
     const options = within(provinceSelect()).getAllByRole('option')
-    expect(options).toHaveLength(13)
+    expect(options.filter((o) => o.getAttribute('value') !== '')).toHaveLength(13)
     expect(options.map((o) => o.textContent)).toContain('Ontario')
   })
 
-  it('shows Québec for a clinic without a province yet, and saves it with the address', async () => {
-    saveEchoes()
-    await renderPage({ organization: { ...testOrganization, province: null, city: null } })
-    expect(provinceSelect()).toHaveValue('QC')
-    await userEvent.type(field('city'), 'Laval')
-    await userEvent.click(within(cardNamed('address')).getByRole('button', { name: t('common.save') }))
-    await waitFor(() => expect(mocks.api.updateOrganization).toHaveBeenCalledWith('o1', expect.objectContaining({ city: 'Laval', province: 'QC' })))
+  describe('province', () => {
+    const PLACEHOLDER = t('settings.identity.fields.provincePlaceholder')
+    const saveAddress = () => userEvent.click(within(cardNamed('address')).getByRole('button', { name: t('common.save') }))
+
+    it('without one stored, shows the placeholder (never a value that is not stored) and saves null', async () => {
+      saveEchoes()
+      await renderPage({ organization: { ...testOrganization, province: null } })
+      expect(PLACEHOLDER).toBe('Choisir une province…')
+      expect(provinceSelect()).toHaveValue('')
+      expect(within(provinceSelect()).getByRole('option', { selected: true })).toHaveTextContent(PLACEHOLDER)
+      await edit(field('city'), 'Laval')
+      await saveAddress()
+      await waitFor(() => expect(mocks.api.updateOrganization).toHaveBeenCalledWith('o1', expect.objectContaining({ city: 'Laval', province: null })))
+    })
+
+    it('saves the province chosen', async () => {
+      saveEchoes()
+      await renderPage({ organization: { ...testOrganization, province: null } })
+      await userEvent.selectOptions(provinceSelect(), 'QC')
+      await saveAddress()
+      await waitFor(() => expect(mocks.api.updateOrganization).toHaveBeenCalledWith('o1', expect.objectContaining({ province: 'QC' })))
+    })
+
+    it('can be cleared back to null with the placeholder', async () => {
+      saveEchoes()
+      await renderPage()
+      expect(within(provinceSelect()).getByRole('option', { name: PLACEHOLDER })).toBeEnabled()
+      await userEvent.selectOptions(provinceSelect(), '')
+      await saveAddress()
+      await waitFor(() => expect(mocks.api.updateOrganization).toHaveBeenCalledWith('o1', expect.objectContaining({ province: null })))
+    })
+
+    it('read-only without one stored: an empty read-only field', async () => {
+      await renderPage({ organization: { ...testOrganization, province: null }, readOnly: true })
+      expect(field('province')).toHaveValue('')
+      expect(field('province')).toHaveAttribute('readonly')
+      expect(field('province')).not.toHaveAttribute('placeholder')
+    })
   })
 
   it('shows a load error with a retry', async () => {

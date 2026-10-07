@@ -77,6 +77,29 @@ describe('Select', () => {
   })
 })
 
+describe('Select, clearable', () => {
+  it('lets the placeholder be chosen again, to clear the value', async () => {
+    render(
+      <Select aria-label="Province" placeholder="Choisir une province…" clearable defaultValue="QC">
+        <option value="QC">Québec</option>
+      </Select>,
+    )
+    const select = screen.getByRole('combobox')
+    expect(screen.getByRole('option', { name: 'Choisir une province…' })).toBeEnabled()
+    await userEvent.selectOptions(select, '')
+    expect(select).toHaveValue('')
+  })
+
+  it('without clearable, the placeholder stays disabled', () => {
+    render(
+      <Select aria-label="Province" placeholder="Choisir une province…">
+        <option value="QC">Québec</option>
+      </Select>,
+    )
+    expect(screen.getByRole('option', { name: 'Choisir une province…' })).toBeDisabled()
+  })
+})
+
 describe('Select with react-hook-form register()', () => {
   type Values = { timezone: string }
   let form: UseFormReturn<Values>

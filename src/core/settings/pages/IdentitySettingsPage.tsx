@@ -1,8 +1,7 @@
 import type { FocusEvent } from 'react'
 import { Controller } from 'react-hook-form'
 import { t } from '@/i18n'
-import type { Organization } from '@/core/settings/organization/api'
-import { DEFAULT_PROVINCE, PROVINCE_OPTIONS } from '@/core/settings/organization/provinces'
+import { PROVINCE_OPTIONS } from '@/core/settings/organization/provinces'
 import {
   addressSchema,
   clinicSchema,
@@ -17,12 +16,6 @@ import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { OrganizationCard } from '../components/OrganizationCard'
 import { OrganizationSettingsPage } from '../components/OrganizationSettingsPage'
-
-/** A clinic without a province yet shows (and saves) Québec. */
-function toAddressFormValuesWithDefault(org: Organization) {
-  const values = toAddressFormValues(org)
-  return { ...values, province: values.province || DEFAULT_PROVINCE }
-}
 
 /** Full width in the card's two-column grid (long values); the others share a row from `md` up. */
 const WIDE = 'md:col-span-2'
@@ -67,7 +60,7 @@ export function IdentitySettingsPage() {
             organization={organization}
             title={t('settings.identity.address.title')}
             schema={addressSchema}
-            toFormValues={toAddressFormValuesWithDefault}
+            toFormValues={toAddressFormValues}
             successMessage={t('settings.identity.address.saved')}
           >
             {({ register, control, setValue, formState: { errors, isSubmitted } }) => (
@@ -85,12 +78,19 @@ export function IdentitySettingsPage() {
                 </FormField>
                 <FormField label={t('settings.identity.fields.province')} error={errors.province?.message}>
                   {(field) => (
-                    // Controlled, so the read-only Select can show the chosen province's name.
+                    // Controlled, so the read-only Select can show the chosen province's name. No default:
+                    // the clinic chooses (null shows the placeholder, which also clears the choice).
                     <Controller
                       control={control}
                       name="province"
                       render={({ field: province }) => (
-                        <Select {...field} {...province} autoComplete="address-level1">
+                        <Select
+                          {...field}
+                          {...province}
+                          placeholder={t('settings.identity.fields.provincePlaceholder')}
+                          clearable
+                          autoComplete="address-level1"
+                        >
                           {PROVINCE_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>
                               {t(option.labelKey)}

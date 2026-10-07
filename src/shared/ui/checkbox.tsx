@@ -3,6 +3,7 @@ import * as CheckboxPrimitive from '@radix-ui/react-checkbox'
 import { Check } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { focusRing } from './field-classes'
+import { useFieldReadOnly } from './read-only-context'
 
 /**
  * 16px, radius 3; the unchecked border is #8E8E92 (3.3:1, decision #30) rather than the design
@@ -12,23 +13,41 @@ import { focusRing } from './field-classes'
  */
 const Checkbox = React.forwardRef<
   React.ElementRef<typeof CheckboxPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
->(({ className, ...props }, ref) => (
-  <CheckboxPrimitive.Root
-    ref={ref}
-    className={cn(
-      `peer relative h-4 w-4 shrink-0 rounded-sm border border-subtle bg-card after:absolute after:-inset-[9px] after:content-[''] text-primary-foreground transition-colors duration-120 ${focusRing} disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-primary data-[state=checked]:bg-primary`,
-      className
-    )}
-    {...props}
-  >
-    <CheckboxPrimitive.Indicator
-      className={cn('flex items-center justify-center text-current')}
-    >
-      <Check className="h-3 w-3" strokeWidth={2.5} />
-    </CheckboxPrimitive.Indicator>
-  </CheckboxPrimitive.Root>
-))
+  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root> & {
+    /** Shows the state without letting it change (inside a read-only SettingsCard by default). */
+    readOnly?: boolean
+  }
+>(
+  (
+    { className, readOnly: readOnlyProp, onCheckedChange, onClick, ...props },
+    ref
+  ) => {
+    const readOnly = useFieldReadOnly(readOnlyProp)
+    return (
+      <CheckboxPrimitive.Root
+        ref={ref}
+        aria-readonly={readOnly || undefined}
+        onCheckedChange={readOnly ? undefined : onCheckedChange}
+        // Click, Space and Enter all reach the button as a click: preventing it skips Radix's toggle.
+        onClick={(event) => {
+          onClick?.(event)
+          if (readOnly) event.preventDefault()
+        }}
+        className={cn(
+          `peer relative h-4 w-4 shrink-0 rounded-sm border border-subtle bg-card text-primary-foreground transition-colors duration-120 after:absolute after:-inset-[9px] after:content-[''] ${focusRing} disabled:cursor-not-allowed disabled:opacity-50 aria-readonly:cursor-default data-[state=checked]:border-primary data-[state=checked]:bg-primary`,
+          className
+        )}
+        {...props}
+      >
+        <CheckboxPrimitive.Indicator
+          className={cn('flex items-center justify-center text-current')}
+        >
+          <Check className="h-3 w-3" strokeWidth={2.5} />
+        </CheckboxPrimitive.Indicator>
+      </CheckboxPrimitive.Root>
+    )
+  }
+)
 Checkbox.displayName = CheckboxPrimitive.Root.displayName
 
 export { Checkbox }
