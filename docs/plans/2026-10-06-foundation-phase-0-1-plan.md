@@ -115,6 +115,25 @@ These amendments come from the reviews of Batches A/B and the core schema design
 - **Task 1.19:** `has_permission` is no longer callable over the API. `verifyAuth(req, { permission })` calls `client.rpc('get_my_access')` and checks `permissions.includes(permission)`. `requireModule` keeps using `module_enabled`.
 - **Task 1.21:** `scripts/bootstrap-admin.sql` inserts `org_id` into `user_roles` and enables module `professionals`.
 
+### A4. Changes from the Batch D quality review (Tasks 1.11–1.13 as built)
+
+- **Tasks 1.14 / 1.16 / 1.18 — import paths:**
+  - `useAuth`, `AuthContext`, `AuthContextValue` and `AuthErrorCode` come from `@/core/auth/auth-context`.
+  - `useAccess`, `useReadyAccess`, `AccessContext`, `AccessContextValue`, `AccessStatus` and `accessKeys` come from `@/core/access/access-context`.
+  - `AuthProvider.tsx` and `AccessProvider.tsx` export only the provider components.
+  - `AuthenticatedApp` (Task 1.18) uses `useReadyAccess()`. It renders under `RequireAuth`, and the hook throws unless access is ready.
+- **Task 1.16 — auth API as built:**
+  - `sendMagicLink(email, redirectPath?)`: the login page passes the `?redirect=` target, which is sanitised with `safeRedirect`.
+  - `AuthErrorCode` adds `weak_password`, `same_password` and `reauthentication_needed`, each with a message under `auth.errors.*`. The reset page shows ``t(`auth.errors.${code}`)``.
+  - The magic link and the password reset report the per-email throttle as success, so no account enumeration is possible. Only IP-level throttling gives `rate_limited`.
+  - `isRecovery` is true after a `PASSWORD_RECOVERY` event. While it is true, `RequireAuth` redirects to `/reinitialiser-mot-de-passe`, so that route must **not** sit under `RequireAuth`.
+  - The access context exposes `isReloading`; the retry button is disabled while it is true.
+- **Task 1.19 — `verifyAuth`:**
+  - a `get_my_access` result of `null` gives 403;
+  - an RPC error 42501 gives 401;
+  - it checks `status === 'active'` defensively before checking `permissions`.
+- **Task 1.21 — staging Auth → URL configuration** must allow `https://<staging-domain>/reinitialiser-mot-de-passe` and `https://<staging-domain>/**`. Otherwise recovery links fall back to `site_url`. The `isRecovery` redirect mitigates that, but it should still be configured.
+
 ---
 
 ## Phase 0 — Preparation
