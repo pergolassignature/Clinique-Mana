@@ -1,6 +1,6 @@
 import { lazy } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { Blocks, Building2, Bug } from 'lucide-react'
@@ -195,20 +195,26 @@ describe('SettingsLayout', () => {
       permission: 'settings.view', editPermission: 'settings.manage', group: 'clinique',
       component: lazy(async () => ({ default: ReadOnlyProbe })),
     }
-    const lockedName = `${t('settings.sections.identity')} ${t('settings.readOnly.navHint')}`
+    const lockedName = `${t('settings.sections.identity')} ${t('settings.navReadOnlyHint')}`
+    // Icons are decorative; the words carry the meaning.
+    const decorativeIcons = (el: HTMLElement) => {
+      const icons = Array.from(el.querySelectorAll('svg'))
+      expect(icons.every((icon) => icon.getAttribute('aria-hidden') === 'true')).toBe(true)
+      return icons.length
+    }
 
-    it('shows a lock, and tells the section, when the user can see it but not change it', async () => {
+    it('shows a lock, named « (lecture seule) », and tells the section, when the user can see it but not change it', async () => {
       render(settingsAt('/parametres/identite', { access: { can: (p) => p === 'settings.view' } }, [editable]))
       expect(await screen.findByText('identity:read-only')).toBeInTheDocument()
       const link = screen.getByRole('link', { name: lockedName })
-      expect(link.querySelector('svg.lucide-lock')).not.toBeNull()
+      expect(decorativeIcons(link)).toBe(2) // section icon + lock
     })
 
     it('shows no lock to a user who can change it', async () => {
       render(settingsAt('/parametres/identite', { access: canEverything }, [editable]))
       expect(await screen.findByText('identity:editable')).toBeInTheDocument()
       const link = screen.getByRole('link', { name: t('settings.sections.identity') })
-      expect(link.querySelector('svg.lucide-lock')).toBeNull()
+      expect(decorativeIcons(link)).toBe(1) // section icon only
     })
 
     it('treats a section without an edit permission as editable by whoever sees it', async () => {
@@ -216,6 +222,78 @@ describe('SettingsLayout', () => {
       render(settingsAt('/parametres/identite', { access: { can: (p) => p === 'settings.view' } }, [plain]))
       expect(await screen.findByText('identity:editable')).toBeInTheDocument()
       expect(screen.getByRole('link', { name: t('settings.sections.identity') })).toBeInTheDocument()
+    })
+  })
+
+  describe('browser tab title', () => {
+    it('names the open section under Paramètres', async () => {
+      render(settingsAt('/parametres/visible-fr'))
+      expect(await screen.findByText('VISIBLE PAGE')).toBeInTheDocument()
+      await waitFor(() => expect(document.title).toBe(`${t('settings.title')} · ${t('pageTitles.settings')} · ${t('app.name')}`))
+    })
+
+    it('falls back to Paramètres for an unknown section', async () => {
+      render(settingsAt('/parametres/nope'))
+      expect(await screen.findByText(t('common.notFound.title'))).toBeInTheDocument()
+      await waitFor(() => expect(document.title).toBe(`${t('pageTitles.settings')} · ${t('app.name')}`))
+    })
+  })
+
+  // Below md the menu is a disclosure. jsdom applies no CSS: the open state is read from
+  // aria-expanded and the nav's data-state, which drives `max-md:data-[state=closed]:hidden`.
+  describe('phone menu', () => {
+    const headingPage = (title: string) => lazy(async () => ({ default: () => <h2 tabIndex={-1}>{title}</h2> }))
+    const clinic: SettingsSection = { ...visibleSection, component: headingPage('VISIBLE HEADING') }
+    const platform: SettingsSection = { ...modulesSection, component: headingPage('MODULES HEADING') }
+    const menuButton = () => screen.getByRole('button', { name: `${t('settings.menuButtonPrefix')} ${t('settings.title')}` })
+    const nav = () => screen.getByRole('navigation', { name: t('settings.navLabel') })
+
+    it('names the current section and controls the collapsed menu', async () => {
+      render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
+      expect(await screen.findByRole('heading', { name: 'VISIBLE HEADING' })).toBeInTheDocument()
+      expect(menuButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(menuButton()).toHaveAttribute('aria-controls', nav().id)
+      expect(nav()).toHaveAttribute('data-state', 'closed')
+    })
+
+    it('opens and closes with the button', async () => {
+      render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
+      await userEvent.click(menuButton())
+      expect(menuButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(nav()).toHaveAttribute('data-state', 'open')
+      await userEvent.click(menuButton())
+      expect(menuButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(nav()).toHaveAttribute('data-state', 'closed')
+    })
+
+    it('closes after a section is chosen, focuses its heading and marks it current', async () => {
+      render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
+      await userEvent.click(menuButton())
+      await userEvent.click(within(nav()).getByRole('link', { name: t('settings.sections.modules') }))
+
+      const heading = await screen.findByRole('heading', { name: 'MODULES HEADING' })
+      await waitFor(() => expect(heading).toHaveFocus())
+      expect(nav()).toHaveAttribute('data-state', 'closed')
+      expect(within(nav()).getByRole('link', { name: t('settings.sections.modules') })).toHaveAttribute('aria-current', 'page')
+      expect(
+        screen.getByRole('button', { name: `${t('settings.menuButtonPrefix')} ${t('settings.sections.modules')}` }),
+      ).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('also closes when the open section is chosen again', async () => {
+      render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
+      const heading = await screen.findByRole('heading', { name: 'VISIBLE HEADING' })
+      await userEvent.click(menuButton())
+      await userEvent.click(within(nav()).getByRole('link', { name: t('settings.title') }))
+      expect(nav()).toHaveAttribute('data-state', 'closed')
+      await waitFor(() => expect(screen.getByRole('heading', { name: 'VISIBLE HEADING' })).toHaveFocus())
+      expect(heading).toBeInTheDocument()
+    })
+
+    it('does not move focus when the desktop menu is used', async () => {
+      render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
+      await userEvent.click(within(nav()).getByRole('link', { name: t('settings.sections.modules') }))
+      expect(await screen.findByRole('heading', { name: 'MODULES HEADING' })).not.toHaveFocus()
     })
   })
 })

@@ -28,6 +28,10 @@
     "retry": "Réessayer",
     "close": "Fermer",
     "readOnly": "Lecture seule",
+    "readOnlyNotice": {
+      "title": "Lecture seule",
+      "body": "Seule l'administration peut modifier ces informations."
+    },
     "save": "Enregistrer",
     "saving": "Enregistrement…",
     "cancel": "Annuler",
@@ -132,12 +136,9 @@
       "modules": "Modules",
       "audit": "Journal d'audit"
     },
-    "readOnly": {
-      "title": "Lecture seule",
-      "body": "Seule l'administration peut modifier ces informations.",
-      "navHint": "(lecture seule)"
-    },
-    "comingSoon": "Cette section arrive dans une prochaine phase.",
+    "navReadOnlyHint": "(lecture seule)",
+    "menuButtonPrefix": "Section des paramètres :",
+    "comingSoon": "Bientôt disponible",
     "modules": {
       "title": "Modules",
       "description": "Activez un module lorsqu'il est prêt. Un module désactivé disparaît du menu et de l'application.",

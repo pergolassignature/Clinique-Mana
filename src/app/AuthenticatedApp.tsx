@@ -8,6 +8,7 @@ import { resolveEnabledModules } from '@/core/modules/resolve'
 import { SettingsLayout } from '@/core/settings/SettingsLayout'
 import { SETTINGS_BASE_PATH, settingsSectionPath } from '@/core/settings/paths'
 import { coreSettingsSections } from '@/core/settings/sections'
+import { visibleSettingsSections } from '@/core/settings/visible-sections'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
@@ -35,10 +36,14 @@ export function AuthenticatedApp() {
 
   const modules = useMemo(() => resolveEnabledModules(ALL_MODULES, new Set(enabledKeys)), [enabledKeys])
 
-  const settingsSections = useMemo(() => [...coreSettingsSections, ...modules.flatMap((m) => m.settingsSections)], [modules])
-  const visibleSettingsSections = useMemo(() => settingsSections.filter((s) => can(s.permission)), [settingsSections, can])
+  // Each module section carries its module's key, for its error scope (`settings:<moduleKey>:<id>`).
+  const settingsSections = useMemo(
+    () => [...coreSettingsSections, ...modules.flatMap((m) => m.settingsSections.map((s) => ({ ...s, moduleKey: m.key })))],
+    [modules],
+  )
+  const visibleSections = useMemo(() => visibleSettingsSections(settingsSections, can), [settingsSections, can])
   // Decision #19: « Paramètres » exists only when it would show at least one section.
-  const canOpenSettings = visibleSettingsSections.length > 0
+  const canOpenSettings = visibleSections.length > 0
 
   const navItems = useMemo<ShellNavItem[]>(() => {
     const moduleItems = modules
@@ -54,12 +59,12 @@ export function AuthenticatedApp() {
               labelKey: 'nav.settings' as const,
               icon: Settings,
               // Named in the topbar as « Paramètres / <section> ».
-              subPages: visibleSettingsSections.map((s) => ({ path: settingsSectionPath(s), labelKey: s.labelKey })),
+              subPages: visibleSections.map((s) => ({ path: settingsSectionPath(s), labelKey: s.labelKey })),
             },
           ]
         : []),
     ]
-  }, [modules, can, canOpenSettings, visibleSettingsSections])
+  }, [modules, can, canOpenSettings, visibleSections])
 
   return (
     <UnsavedChangesProvider>

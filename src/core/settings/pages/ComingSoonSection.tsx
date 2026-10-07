@@ -8,7 +8,10 @@ export function ComingSoonSection() {
   const { section, readOnly } = useSettingsSection()
   return (
     <div className="max-w-form">
-      <h2 className="text-lg font-semibold">{t(section.labelKey)}</h2>
+      {/* Focusable so the mobile settings menu can move focus here after choosing a section. */}
+      <h2 tabIndex={-1} className="text-lg font-semibold outline-none">
+        {t(section.labelKey)}
+      </h2>
       {readOnly && <ReadOnlyNotice className="mt-4" />}
       <EmptyState title={t('settings.comingSoon')} />
     </div>

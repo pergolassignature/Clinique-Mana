@@ -3,6 +3,18 @@ import { t } from '@/i18n'
 import { coreSettingsSections } from './sections'
 
 // Uniqueness across core and modules is checked in src/app/settings-sections.test.ts (core may not import app).
+
+// The core permission keys, mirroring public.permissions (module 'core') in the migrations
+// (20261007140517_core_access, 20261007192359_core_roles_split). A typo in the registry fails here.
+const CORE_PERMISSION_KEYS = [
+  'settings.view',
+  'settings.manage',
+  'settings.bank_manage',
+  'users.view',
+  'users.manage',
+  'modules.manage',
+  'audit.view',
+]
 describe('coreSettingsSections', () => {
   it('registers the Phase 2 sections in menu order, with English ids and French paths', () => {
     expect(coreSettingsSections.map((s) => [s.id, s.path, s.group])).toEqual([
@@ -44,5 +56,12 @@ describe('coreSettingsSections', () => {
       modules: ['modules.manage', undefined],
       audit: ['audit.view', undefined],
     })
+  })
+
+  it('uses only known core permission keys', () => {
+    for (const s of coreSettingsSections) {
+      expect(CORE_PERMISSION_KEYS).toContain(s.permission)
+      if (s.editPermission !== undefined) expect(CORE_PERMISSION_KEYS).toContain(s.editPermission)
+    }
   })
 })

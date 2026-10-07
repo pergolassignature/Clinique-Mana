@@ -12,7 +12,7 @@ export function ModulesSettingsPage() {
 
   return (
     <div className="max-w-form">
-      <h2 className="text-lg font-semibold">{t('settings.modules.title')}</h2>
+      <h2 tabIndex={-1} className="text-lg font-semibold outline-none">{t('settings.modules.title')}</h2>
       <p className="mt-0.5 text-sm text-muted-foreground">{t('settings.modules.description')}</p>
       {isPending ? (
         <p role="status" className="mt-4 text-sm text-muted-foreground">{t('common.loading')}</p>

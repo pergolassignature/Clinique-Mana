@@ -37,7 +37,10 @@ export interface SettingsSection {
   editPermission?: string
   group: SettingsGroup
   component: LazyExoticComponent<ComponentType>
-  /** The owning module, if any; used for the error-reporting scope (`settings:<moduleKey>:<id>`). */
+  /**
+   * The owning module, if any; used for the error-reporting scope (`settings:<moduleKey>:<id>`).
+   * Stamped by the app shell from the manifest's key: manifests never set it.
+   */
   moduleKey?: string
 }
 
@@ -49,5 +52,6 @@ export interface ModuleManifest {
   dependsOn: string[]
   nav?: ModuleNavItem
   routes: ModuleRoute[]
-  settingsSections: SettingsSection[]
+  /** The shell adds `moduleKey: key` to each (AuthenticatedApp). */
+  settingsSections: Omit<SettingsSection, 'moduleKey'>[]
 }
