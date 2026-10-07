@@ -156,7 +156,7 @@ insert into public.permissions (key, module_key, description) values
   ('trainings.manage', 'trainings', 'Gérer les formations')
 on conflict do nothing;                                          -- key prefix must equal module_key
 insert into public.role_permissions (role, permission_key) values
-  ('admin', 'trainings.view'), ('admin', 'trainings.manage'), ('staff', 'trainings.view')
+  ('admin', 'trainings.view'), ('admin', 'trainings.manage'), ('counselor', 'trainings.view')
 on conflict do nothing;
 ```
 
