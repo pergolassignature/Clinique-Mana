@@ -11,6 +11,7 @@
     "cancel": "Annuler",
     "edit": "Modifier",
     "form": { "required": "(requis)" },
+    "status": { "complete": "(terminé)", "pending": "(en attente)", "warning": "(à vérifier)" },
     "errors": {
       "forbidden": "Vous n'avez pas la permission de faire cette modification.",
       "invalidValue": "Une des valeurs saisies n'est pas valide. Vérifiez le formulaire.",

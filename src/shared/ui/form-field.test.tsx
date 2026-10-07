@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { t } from '@/i18n'
 import { FormField } from './form-field'
 import { Input } from './input'
@@ -36,17 +36,25 @@ describe('FormField', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('shows « (requis) » in the label, for everyone, instead of a bare asterisk', () => {
+  it('marks a required field with a teal asterisk for sight and « (requis) » for screen readers', () => {
     render(
       <FormField label="Nom" required>
         {(field) => <Input {...field} />}
       </FormField>,
     )
-    const input = screen.getByLabelText(`Nom ${t('common.form.required')}`)
+    // The accessible name skips the aria-hidden asterisk and reads the sr-only « (requis) ».
+    const input = screen.getByRole('textbox', { name: `Nom ${t('common.form.required')}` })
     const label = document.querySelector(`label[for="${input.id}"]`)
-    expect(label).not.toHaveTextContent('*')
-    const marker = screen.getByText(t('common.form.required'))
-    expect(marker).not.toHaveClass('sr-only')
-    expect(marker).toHaveClass('font-normal', 'text-muted-foreground')
+    const asterisk = within(label as HTMLElement).getByText('*')
+    expect(asterisk).toHaveAttribute('aria-hidden', 'true')
+    expect(asterisk).toHaveClass('text-primary')
+    expect(within(label as HTMLElement).getByText(t('common.form.required'))).toHaveClass('sr-only')
+  })
+
+  it('adds no marker to an optional field', () => {
+    render(<FormField label="Ville">{(field) => <Input {...field} />}</FormField>)
+    expect(screen.getByRole('textbox', { name: 'Ville' })).toBeInTheDocument()
+    expect(screen.queryByText('*')).not.toBeInTheDocument()
+    expect(screen.queryByText(t('common.form.required'))).not.toBeInTheDocument()
   })
 })

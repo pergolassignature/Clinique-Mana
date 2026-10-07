@@ -46,11 +46,11 @@ export function ResetPasswordPage() {
       <AuthCard title={t('auth.reset.title')}>
         <p className="text-sm text-muted-foreground">{t('auth.reset.invalidLink')}</p>
         <div className="mt-4 flex flex-col items-center gap-2 text-sm">
-          <Link to="/mot-de-passe-oublie" className="text-primary hover:underline">
+          <Link to="/mot-de-passe-oublie" className="text-link underline-offset-[3px] hover:underline">
             {t('auth.reset.requestNew')}
           </Link>
           {session && (
-            <Link to="/accueil" className="text-primary hover:underline">
+            <Link to="/accueil" className="text-link underline-offset-[3px] hover:underline">
               {t('auth.reset.backHome')}
             </Link>
           )}
@@ -89,7 +89,7 @@ export function ResetPasswordPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         {/* Tells password managers which account the new password belongs to. */}
         <input type="text" name="username" autoComplete="username" value={session.user.email ?? ''} readOnly hidden />
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <Label htmlFor="password">{t('auth.reset.password')}</Label>
           <Input
             id="password"
@@ -101,7 +101,7 @@ export function ResetPasswordPage() {
           />
           {formState.errors.password && <p id="password-error" className="text-xs text-destructive">{formState.errors.password.message}</p>}
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <Label htmlFor="confirm">{t('auth.reset.confirm')}</Label>
           <Input
             id="confirm"

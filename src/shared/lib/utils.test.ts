@@ -13,7 +13,24 @@ describe('cn', () => {
     expect(cn('hover:shadow-soft', 'hover:shadow-medium')).toBe('hover:shadow-medium')
   })
 
+  it('knows the focus shadows are shadow sizes too', () => {
+    expect(cn('focus-visible:shadow-focus', 'focus-visible:shadow-focus-inset')).toBe('focus-visible:shadow-focus-inset')
+    expect(cn('shadow-medium', 'shadow-focus')).toBe('shadow-focus')
+  })
+
   it('keeps a shadow colour next to a custom shadow size', () => {
     expect(cn('shadow-soft', 'shadow-black/5')).toBe('shadow-soft shadow-black/5')
+  })
+
+  it('knows text-2xs is a font size, not a colour', () => {
+    expect(cn('text-2xs', 'text-sm')).toBe('text-sm')
+    expect(cn('text-sm', 'text-2xs')).toBe('text-2xs')
+    expect(cn('text-2xs', 'text-muted-foreground')).toBe('text-2xs text-muted-foreground')
+  })
+
+  it('treats the design-system colours as colours', () => {
+    expect(cn('text-muted-foreground', 'text-subtle')).toBe('text-subtle')
+    expect(cn('bg-primary', 'bg-ink')).toBe('bg-ink')
+    expect(cn('border-input', 'border-border-strong')).toBe('border-border-strong')
   })
 })

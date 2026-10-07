@@ -15,7 +15,11 @@ interface SettingsCardProps {
   children: ReactNode
 }
 
-/** One block of a settings page: its own form, its own save button, read-only without the edit permission. */
+/**
+ * One block of a settings page: its own form, its own save button, read-only without the edit
+ * permission. Design system Card: hairline border, radius 6, padding 16, no shadow; title 14/600,
+ * description 12px; actions aligned right under the fields.
+ */
 export function SettingsCard({ title, description, readOnly, pending, onSubmit, footer, children }: SettingsCardProps) {
   const titleId = useId()
   return (
@@ -24,24 +28,22 @@ export function SettingsCard({ title, description, readOnly, pending, onSubmit, 
       noValidate
       aria-labelledby={titleId}
       aria-busy={pending || undefined}
-      className="rounded-2xl border border-border bg-card text-card-foreground shadow-soft"
+      className="rounded-lg border border-border bg-card p-4 text-card-foreground"
     >
-      <div className="flex items-start justify-between gap-4 p-6 pb-4">
-        <div>
-          <h3 id={titleId} className="text-base font-semibold">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 id={titleId} className="text-base font-semibold tracking-tight">
             {title}
           </h3>
-          {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+          {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
         </div>
         {readOnly && <Badge variant="secondary">{t('common.readOnly')}</Badge>}
       </div>
       {/* min-w-0: a fieldset defaults to min-width: min-content, which lets wide content overflow the card. */}
-      <fieldset disabled={readOnly} className="min-w-0 space-y-4 px-6 pb-6">
+      <fieldset disabled={readOnly} className="min-w-0 space-y-3">
         {children}
       </fieldset>
-      {!readOnly && footer && (
-        <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-3">{footer}</div>
-      )}
+      {!readOnly && footer && <div className="mt-4 flex items-center justify-end gap-1.5">{footer}</div>}
     </form>
   )
 }

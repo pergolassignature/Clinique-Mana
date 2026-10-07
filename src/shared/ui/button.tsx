@@ -3,29 +3,33 @@ import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/shared/lib/utils'
 
+/**
+ * Design system Button: 32px, radius 4, 13px medium, no shadow. One `default` (teal) per view;
+ * `outline` for secondary actions; `ink` for a main action when teal is already used;
+ * `destructive` only inside a confirmation.
+ */
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent text-sm font-medium transition-colors focus-visible:shadow-focus focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default:
-          'bg-primary text-primary-foreground shadow-soft hover:bg-primary-hover',
-        secondary:
-          'bg-muted text-foreground hover:bg-muted-hover',
-        outline:
-          'border border-border bg-transparent text-foreground hover:bg-muted',
-        ghost: 'text-foreground hover:bg-muted',
-        destructive:
-          'border border-destructive bg-destructive/10 text-destructive hover:bg-destructive/15',
-        link: 'text-primary underline-offset-4 hover:underline',
+        default: 'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-active',
+        ink: 'bg-ink text-ink-foreground hover:bg-ink-hover',
+        secondary: 'bg-muted text-foreground hover:bg-muted-strong',
+        outline: 'border-border bg-card text-foreground hover:border-border-strong hover:bg-gray-50',
+        ghost: 'text-muted-foreground hover:bg-muted hover:text-foreground',
+        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive-hover',
+        link: 'text-link underline-offset-[3px] hover:underline',
       },
       size: {
-        default: 'h-10 px-4 py-2',
-        sm: 'h-9 px-3 text-xs',
-        lg: 'h-11 px-6 text-base',
-        icon: 'h-10 w-10',
+        default: 'h-8 px-3',
+        sm: 'h-7 px-2 text-xs',
+        lg: 'h-9 px-4 text-base',
+        icon: 'h-8 w-8',
+        'icon-sm': 'h-7 w-7',
       },
     },
+    compoundVariants: [{ variant: 'link', className: 'h-auto px-0' }],
     defaultVariants: {
       variant: 'default',
       size: 'default',

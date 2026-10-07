@@ -28,7 +28,7 @@ export function SettingsLayout({ sections, basePath = '/parametres' }: SettingsL
   const visible = sections.filter((s) => can(s.permission))
   const first = visible[0]
 
-  const title = <h1 className="mb-6 text-xl font-semibold">{t('settings.title')}</h1>
+  const title = <h1 className="mb-5 text-xl font-semibold tracking-tight">{t('settings.title')}</h1>
 
   if (!first) {
     return (
@@ -42,15 +42,15 @@ export function SettingsLayout({ sections, basePath = '/parametres' }: SettingsL
   return (
     <div>
       {title}
-      <div className="flex flex-col gap-6 md:flex-row">
+      <div className="flex flex-col gap-6 md:flex-row md:items-start">
         <nav aria-label={t('settings.navLabel')} className="md:w-56 md:shrink-0">
           {GROUP_ORDER.map((group) => {
             const items = visible.filter((s) => s.group === group)
             if (items.length === 0) return null
             const headingId = `settings-group-${group}`
             return (
-              <div key={group} role="group" aria-labelledby={headingId} className="mb-4">
-                <p id={headingId} className="mb-1 px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <div key={group} role="group" aria-labelledby={headingId} className="mb-3">
+                <p id={headingId} className="mb-0.5 px-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                   {t(`settings.groups.${group}`)}
                 </p>
                 {items.map((s) => (
@@ -58,10 +58,13 @@ export function SettingsLayout({ sections, basePath = '/parametres' }: SettingsL
                     key={s.id}
                     to={`${basePath}/${s.id}`}
                     className={({ isActive }) =>
-                      cn('flex items-center gap-2 rounded-md px-3 py-2 text-sm', isActive ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-muted')
+                      cn(
+                        'flex items-center gap-2 rounded-md px-2 py-[5px] text-sm transition-colors duration-120 focus-visible:shadow-focus focus-visible:outline-none',
+                        isActive ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                      )
                     }
                   >
-                    <s.icon className="h-4 w-4" aria-hidden />
+                    <s.icon className="h-3.5 w-3.5 text-subtle" aria-hidden />
                     {t(s.labelKey)}
                   </NavLink>
                 ))}

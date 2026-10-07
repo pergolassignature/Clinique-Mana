@@ -1,20 +1,23 @@
 import * as React from 'react'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
+import { fieldClasses } from './field-classes'
 
 export interface SelectProps
   extends React.SelectHTMLAttributes<HTMLSelectElement> {
   placeholder?: string
 }
 
+/** Native select styled like Input, with a 14px chevron 8px from the right. */
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, children, placeholder, ...props }, ref) => {
     return (
       <div className="relative">
         <select
           className={cn(
-            'flex h-10 w-full appearance-none rounded-xl border border-input bg-card px-3 py-2 pr-10 text-sm text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50',
-            !props.value && placeholder && 'text-muted-foreground',
+            fieldClasses,
+            'flex h-8 cursor-pointer appearance-none pl-2.5 pr-7',
+            !props.value && placeholder && 'text-subtle',
             className
           )}
           ref={ref}
@@ -27,7 +30,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           )}
           {children}
         </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" aria-hidden />
       </div>
     )
   }

@@ -51,7 +51,7 @@ export function ForgotPasswordPage() {
       {expired && !sent && <p className="mb-4 text-sm text-foreground">{t('auth.reset.invalidLink')}</p>}
       {!sent && (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <Label htmlFor="email">{t('auth.login.email')}</Label>
             <Input
               id="email"
@@ -72,7 +72,7 @@ export function ForgotPasswordPage() {
         </form>
       )}
       <p className="mt-4 text-center text-sm">
-        <Link to="/connexion" className="text-primary hover:underline">
+        <Link to="/connexion" className="text-link underline-offset-[3px] hover:underline">
           {t('auth.forgot.back')}
         </Link>
       </p>

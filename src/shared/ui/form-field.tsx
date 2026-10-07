@@ -13,7 +13,10 @@ interface FormFieldProps {
   label: string
   help?: string
   error?: string
-  /** Adds a visible « (requis) » to the label (one text for everyone); validation itself stays in the schema. */
+  /**
+   * Marks the label: a teal `*` for sighted users (hidden from screen readers) and « (requis) »
+   * for screen readers (decision #30). Validation itself stays in the schema.
+   */
   required?: boolean
   children: (props: FieldControlProps) => ReactNode
 }
@@ -29,10 +32,17 @@ export function FormField({ label, help, error, required, children }: FormFieldP
   const errorId = error ? `${id}-error` : undefined
   const describedBy = [helpId, errorId].filter(Boolean).join(' ') || undefined
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       <Label htmlFor={id}>
         {label}
-        {required && <span className="font-normal text-muted-foreground"> {t('common.form.required')}</span>}
+        {required && (
+          <>
+            <span aria-hidden="true" className="ml-0.5 text-primary">
+              *
+            </span>
+            <span className="sr-only"> {t('common.form.required')}</span>
+          </>
+        )}
       </Label>
       {children({ id, 'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined })}
       {help && (

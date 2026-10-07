@@ -1,4 +1,4 @@
-import '@fontsource-variable/raleway'
+import '@fontsource-variable/inter'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as Sentry from '@sentry/react'

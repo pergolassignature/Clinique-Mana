@@ -17,8 +17,8 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-[8rem] overflow-hidden rounded-xl border border-border bg-card p-1 shadow-medium',
-        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+        'z-50 min-w-[180px] overflow-hidden rounded-lg border border-border bg-card p-1 text-foreground shadow-medium',
+        'animate-zoom-in motion-reduce:animate-none',
         className
       )}
       {...props}
@@ -31,12 +31,15 @@ const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
     inset?: boolean
+    /** `destructive`: red text, for « Désactiver »-type items (after a separator). */
+    variant?: 'default' | 'destructive'
   }
->(({ className, inset, ...props }, ref) => (
+>(({ className, inset, variant = 'default', ...props }, ref) => (
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-foreground outline-none transition-colors data-[highlighted]:bg-muted data-[highlighted]:shadow-[inset_2px_0_0_theme(colors.ring.DEFAULT)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0',
+      'relative flex cursor-pointer select-none items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-foreground outline-none transition-colors duration-120 data-[highlighted]:bg-muted data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0',
+      variant === 'destructive' && 'text-destructive',
       inset && 'pl-8',
       className
     )}
@@ -54,7 +57,7 @@ const DropdownMenuLabel = React.forwardRef<
   <DropdownMenuPrimitive.Label
     ref={ref}
     className={cn(
-      'px-2 py-1.5 text-xs font-medium text-muted-foreground',
+      'px-2 py-1.5 text-2xs font-medium text-muted-foreground',
       inset && 'pl-8',
       className
     )}

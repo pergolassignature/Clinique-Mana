@@ -39,45 +39,47 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
       <a
         href={`#${MAIN_ID}`}
         onClick={skipToContent}
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary focus:shadow-medium"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-link focus:shadow-focus"
       >
         {t('nav.skipToContent')}
       </a>
-      <header className="flex shrink-0 flex-col border-b border-border bg-card md:sticky md:top-0 md:h-screen md:w-60 md:border-b-0 md:border-r">
-        <div className="px-5 py-4 text-lg font-semibold text-foreground">{org_name || t('app.name')}</div>
-        <nav aria-label={t('nav.label')} className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-1 md:flex-col md:overflow-y-auto">
+      <header className="flex shrink-0 flex-col border-b border-border bg-sidebar md:sticky md:top-0 md:h-screen md:w-60 md:border-b-0">
+        <div className="px-4 py-3 text-sm font-semibold text-foreground">{org_name || t('app.name')}</div>
+        <nav aria-label={t('nav.label')} className="flex gap-px overflow-x-auto px-2 pb-2 md:flex-1 md:flex-col md:overflow-y-auto">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-sm',
-                  isActive ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-muted',
+                  'group flex items-center gap-2.5 whitespace-nowrap rounded-md px-2 py-1.5 text-sm transition-colors duration-120 focus-visible:shadow-focus focus-visible:outline-none',
+                  isActive
+                    ? 'bg-card font-medium text-foreground ring-1 ring-border'
+                    : 'text-muted-foreground hover:bg-ink/5 hover:text-foreground',
                 )
               }
             >
-              <item.icon className="h-4 w-4" aria-hidden />
+              <item.icon className="h-4 w-4 text-subtle group-aria-[current=page]:text-foreground" aria-hidden />
               {t(item.labelKey)}
             </NavLink>
           ))}
         </nav>
-        <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 md:block md:p-3">
-          <p className="truncate px-3 text-sm font-medium text-foreground" title={display_name}>
+        <div className="flex items-center justify-between gap-2 border-t border-border px-2 py-2 md:block md:border-t-0">
+          <p className="truncate px-2 text-sm font-medium text-foreground" title={display_name}>
             {display_name}
           </p>
           <button
             type="button"
             onClick={handleSignOut}
             disabled={signingOut}
-            className="flex shrink-0 items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50 md:mt-2 md:w-full"
+            className="flex shrink-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors duration-120 hover:bg-ink/5 hover:text-foreground focus-visible:shadow-focus focus-visible:outline-none disabled:opacity-50 md:mt-1 md:w-full"
           >
-            <LogOut className="h-4 w-4" aria-hidden />
+            <LogOut className="h-4 w-4 text-subtle" aria-hidden />
             {t('nav.logout')}
           </button>
         </div>
       </header>
-      <main id={MAIN_ID} tabIndex={-1} className="min-w-0 flex-1 p-4 outline-none md:p-8">
+      <main id={MAIN_ID} tabIndex={-1} className="min-w-0 flex-1 p-4 outline-none md:p-6">
         {children}
       </main>
     </div>

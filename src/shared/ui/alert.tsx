@@ -2,18 +2,19 @@ import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/shared/lib/utils'
 
+/**
+ * White, hairline border, radius 6, padding 10×12; only the 15px icon carries the tone.
+ * Usage: <Alert variant="warning"><TriangleAlert /><AlertTitle>…</AlertTitle><AlertDescription>…</AlertDescription></Alert>
+ */
 const alertVariants = cva(
-  'relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground',
+  'relative grid w-full grid-cols-[1fr] items-start gap-x-2.5 gap-y-px rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground has-[>svg]:grid-cols-[15px_1fr] [&>svg~*]:col-start-2 [&>svg]:mt-0.5 [&>svg]:size-[15px] [&>svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: 'bg-card text-foreground',
-        destructive:
-          'border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive',
-        warning:
-          'border-amber-500/50 bg-amber-50 text-amber-900 [&>svg]:text-amber-600',
-        success:
-          'border-success/30 bg-accent text-accent-foreground [&>svg]:text-success',
+        default: '[&>svg]:text-muted-foreground',
+        destructive: '[&>svg]:text-destructive',
+        warning: '[&>svg]:text-warning',
+        success: '[&>svg]:text-success',
       },
     },
     defaultVariants: {
@@ -41,7 +42,7 @@ const AlertTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <h5
     ref={ref}
-    className={cn('mb-1 font-medium leading-none tracking-tight', className)}
+    className={cn('text-sm font-medium text-foreground', className)}
     {...props}
   />
 ))
@@ -53,7 +54,7 @@ const AlertDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('text-sm [&_p]:leading-relaxed', className)}
+    className={cn('text-sm text-muted-foreground', className)}
     {...props}
   />
 ))

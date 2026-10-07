@@ -41,9 +41,9 @@ export function StarToggle({
           }}
           disabled={disabled}
           className={cn(
-            'inline-flex items-center justify-center rounded-sm transition-colors',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:scale-110',
+            'inline-flex items-center justify-center rounded-md p-0.5 transition-colors',
+            'focus-visible:shadow-focus focus-visible:outline-none',
+            disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
             className
           )}
           aria-label={tooltipText}
@@ -54,8 +54,8 @@ export function StarToggle({
               sizeClasses[size],
               'transition-colors',
               isSpecialized
-                ? 'fill-amber-600 text-amber-600'
-                : 'fill-transparent text-muted-foreground hover:text-amber-600'
+                ? 'fill-warning text-warning'
+                : 'fill-transparent text-subtle hover:text-warning'
             )}
           />
         </button>
