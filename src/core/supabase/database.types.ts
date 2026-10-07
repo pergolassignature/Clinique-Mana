@@ -622,6 +622,10 @@ export type Database = {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
         Returns: string
       }
+      clear_permission_override: {
+        Args: { p_permission_key: string; p_user_id: string }
+        Returns: undefined
+      }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
       get_bank_details: {
@@ -656,6 +660,19 @@ export type Database = {
           updated_at: string
         }[]
       }
+      list_org_users: {
+        Args: never
+        Returns: {
+          display_name: string
+          email: string
+          last_sign_in_at: string
+          override_count: number
+          role: string
+          role_name: string
+          status: string
+          user_id: string
+        }[]
+      }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
@@ -677,6 +694,22 @@ export type Database = {
       }
       set_org_secret: {
         Args: { p_key: string; p_value: string }
+        Returns: undefined
+      }
+      set_permission_override: {
+        Args: {
+          p_granted: boolean
+          p_permission_key: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      set_user_role: {
+        Args: { p_role: string; p_user_id: string }
+        Returns: undefined
+      }
+      set_user_status: {
+        Args: { p_status: string; p_user_id: string }
         Returns: undefined
       }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
