@@ -113,7 +113,7 @@ These amendments come from the reviews of Batches A/B and the core schema design
   - `useSetModuleEnabled` invalidates both `moduleKeys.all` and `accessKeys.all`.
 - **Task 1.18:** `AuthenticatedApp` reads enabled keys from `access.modules`, so there is no extra query and no `enabledKeys.isPending` branch.
 - **Task 1.19:** `has_permission` is no longer callable over the API. `verifyAuth(req, { permission })` calls `client.rpc('get_my_access')` and checks `permissions.includes(permission)`. `requireModule` keeps using `module_enabled`.
-- **Task 1.21:** `scripts/bootstrap-admin.sql` inserts `org_id` into `user_roles` and enables module `professionals`.
+- **Task 1.21:** `scripts/bootstrap-admin.sql` inserts `org_id` into `user_roles` and enables module `professionals` (the script as built is in the repo; Task 1.21 below is up to date).
 
 ### A4. Changes from the Batch D quality review (Tasks 1.11–1.13 as built)
 
@@ -3281,11 +3281,18 @@ EOF
 ### Task 1.21: Reset staging to the new baseline — **requires explicit go-ahead**
 
 **Files:**
-- Create: `scripts/bootstrap-admin.sql`
+- Already written: `scripts/bootstrap-admin.sql` (committed with the final review fixes; sanity-checked locally inside rolled-back transactions).
 
-**Step 1: Ask Jonathan** — "Task 0.2 backups exist in `clinique-mana-backups/`. OK to wipe the staging database `vnmbjbdsjxmpijyjmmkh`, delete its 13 legacy edge functions (list in docs/audit/2026-10-07-staging-snapshot.md) and legacy storage buckets, and apply the new migrations?" Wait for an explicit yes. Do not proceed on anything less.
+**Step 1: Ask Jonathan** — "Task 0.2 backups exist in `clinique-mana-backups/`. OK to, on staging `vnmbjbdsjxmpijyjmmkh`: unschedule the hand-made cron job, wipe the database, delete its 13 legacy edge functions (list in docs/audit/2026-10-07-staging-snapshot.md), the legacy storage buckets, the legacy Vault secrets and the legacy function secrets, and apply the new migrations?" Wait for an explicit yes. Do not proceed on anything less.
 
-**Step 2: Reset the database (no seed — test passwords never go to staging)**
+**Step 2: Unschedule the hand-made cron job** — it is not in any migration, and `supabase db reset` does not touch schema `cron`: left alone, it would call a function that no longer exists every day at 06:00.
+
+```sql
+select cron.unschedule('check-insurance-expiry-daily');
+select jobid, jobname, schedule from cron.job;  -- expect no legacy job
+```
+
+**Step 3: Reset the database (no seed — test passwords never go to staging)**
 
 ```bash
 supabase link --project-ref vnmbjbdsjxmpijyjmmkh
@@ -3295,7 +3302,7 @@ supabase migration list --linked
 
 Expected: the 4 new migrations are listed as applied both locally and remotely.
 
-**Step 3: Remove legacy edge functions**
+**Step 4: Remove legacy edge functions**
 
 ```bash
 for fn in create-professional docuseal-create-submission docuseal-create-template docuseal-get-submission docuseal-webhook \
@@ -3307,39 +3314,40 @@ done
 
 Then compare against the list recorded in Task 0.2 and delete anything left over.
 
-**Step 4: Verify the remote state** (Supabase MCP, read-only): `list_tables` (expect only the core tables), `select id from storage.buckets` (empty legacy buckets via the dashboard if any remain), `select count(*) from auth.users` (legacy test users: delete them in Dashboard → Authentication), and `get_advisors` (security) — expect no errors.
+**Step 5: Remove legacy secrets** — `db reset` does not empty schema `vault`, and function secrets live outside the database. Never print a secret value.
 
-**Step 5: Write `scripts/bootstrap-admin.sql`**
+- **Vault:** list names only, then delete the legacy ones (DocuSeal, Google, anything the new code does not use). After the reset `public.org_secrets` is empty, so no Vault secret belongs to the new app yet.
 
-```sql
--- Run ONCE in the Supabase SQL editor after inviting the first admin from
--- Dashboard → Authentication → Invite user. Replace the email below.
-do $$
-declare
-  v_email text := 'REPLACE_WITH_ADMIN_EMAIL';
-  v_user uuid;
-  v_org uuid;
-begin
-  select id into v_user from auth.users where email = v_email;
-  if v_user is null then raise exception 'Invite % first', v_email; end if;
+  ```sql
+  select id, name, description, created_at from vault.secrets order by name;
+  delete from vault.secrets where name in (/* the legacy names listed above */);
+  ```
 
-  insert into public.organizations (name) values ('Clinique MANA') returning id into v_org;
-  insert into public.profiles (user_id, org_id, display_name, email) values (v_user, v_org, split_part(v_email, '@', 1), v_email);
-  insert into public.user_roles (user_id, role) values (v_user, 'admin');
-  insert into public.org_modules (org_id, module_key, enabled, enabled_at, enabled_by)
-    values (v_org, 'professionnels', true, now(), v_user);
-end $$;
-```
+- **Function secrets:** `supabase secrets list --project-ref vnmbjbdsjxmpijyjmmkh` (names and digests only), then `supabase secrets unset <NAME> … --project-ref vnmbjbdsjxmpijyjmmkh` for every legacy name (DocuSeal, Google Calendar/Places, …). The built-in `SUPABASE_*` secrets stay.
 
-**Step 6: Hand off to Jonathan** — invite his admin account from the dashboard, then run the script with his email. Also: set **Auth → URL configuration** site URL and redirect URLs to the Vercel staging URL (`/**`), and disable "Allow new users to sign up".
-In **Auth → Providers → Email**, keep the Email provider **enabled** (password and magic-link login need it) and turn on **Secure email change** (`double_confirm_changes = true` in `supabase/config.toml`): the same settings as local.
-**Verify Secure email change on staging:** change a test user's email and click only the link sent to the new address. The change must NOT complete until the old-address link is also clicked. If the new-address link alone completes it, report it before go-live.
+**Step 6: Verify the remote state** (Supabase MCP, read-only): `list_tables` (expect only the core tables), `select id from storage.buckets` (empty legacy buckets via the dashboard if any remain), `select count(*) from auth.users` (legacy test users: delete them in Dashboard → Authentication), `select jobname from cron.job` (no legacy job), and `get_advisors` (security) — expect no errors.
 
-**Step 7: Commit**
+**Step 7: Auth settings — match `supabase/config.toml`** (Jonathan, in the dashboard; staging must behave like local):
+
+- **Sign In / Providers:** "Allow new users to sign up" **off** (`enable_signup = false`); Email provider **on** (password and magic-link login need it); **Secure email change** on (`double_confirm_changes = true`); **Secure password change** on (`secure_password_change = true`); minimum password length **10** (`minimum_password_length = 10`); anonymous sign-ins off.
+- **Sessions:** refresh-token rotation **on** (`enable_refresh_token_rotation = true`), reuse interval **10 s** (`refresh_token_reuse_interval = 10`).
+- **URL configuration:** site URL = the Vercel production URL. Redirect URLs: `https://<production-domain>/**` and `https://<production-domain>/reinitialiser-mot-de-passe` (A4), plus the Vercel preview pattern `https://<project>-*-<team-slug>.vercel.app/**` so preview deployments can receive magic and recovery links.
+
+**Step 8: SMTP — Resend, before anyone other than Jonathan tests.** The built-in Supabase mailer only sends to project team members and a few emails per hour. Authentication → Emails → SMTP settings: host `smtp.resend.com`, port `465`, user `resend`, password = a Resend API key that Jonathan pastes himself, sender `no-reply@<verified domain>`, sender name « Clinique MANA ». Then raise Authentication → Rate limits → emails per hour to a sensible value (e.g. 30).
+
+**Step 9: Create the admin, then bootstrap BEFORE the first sign-in**
+
+1. Dashboard → Authentication → **Add user → Create new user**: Jonathan's email, a password of at least 10 characters, "Auto Confirm User" on. Do not sign in yet: without a profile the app shows « profil introuvable ».
+2. In the SQL editor, run `scripts/bootstrap-admin.sql` with `v_email` / `v_display_name` replaced (do not commit the replaced values). It sets `app.audit_source = 'bootstrap'`, creates the organization « Clinique MANA », the profile (email copied from `auth.users` by trigger), `user_roles (user_id, org_id, 'admin')`, and `org_modules (org_id, 'professionals', enabled = true, updated_by)`. It raises a clear error if the auth user does not exist, and it is safe to run twice. Expected: `NOTICE: bootstrap-admin: … is admin of organization …`.
+3. Sign in on the Vercel preview: Accueil, Professionnels and Paramètres → Modules are visible.
+
+**Step 10: Verify Secure email change on staging** (needs Step 8): change a test user's email and click only the link sent to the new address. The change must NOT complete until the old-address link is also clicked. If the new-address link alone completes it, report it before go-live.
+
+**Step 11: Record** the date, the deleted functions/secrets (names only) and the advisor result at the end of `docs/audit/2026-10-07-staging-snapshot.md`, and commit:
 
 ```bash
-git add scripts/bootstrap-admin.sql
-git commit -m "chore(supabase): first-admin bootstrap script for a fresh environment"
+git add docs/audit/2026-10-07-staging-snapshot.md
+git commit -m "docs(audit): staging reset to the foundation baseline"
 ```
 
 ### Task 1.22: Continuous deployment to staging
@@ -3421,6 +3429,20 @@ Expected: everything passes. Paste the summary lines (test counts) into the PR d
 **Step 2:** Repeat the manual role check from Task 1.18 Step 8.
 
 **Step 3:** `gh pr checks` → all green. Mark the PR ready for review only when Jonathan asks; merging is his call (merge = staging deploy).
+
+### Recommended release sequence
+
+Final whole-branch review (2026-10-07). Every step marked *go-ahead* needs Jonathan's explicit "yes" in chat, at that moment.
+
+1. Commit `vercel.json` (SPA rewrites, so deep links such as `/accueil` and `/reinitialiser-mot-de-passe` do not 404) — done on `feat/foundation-base`.
+2. Push and open the draft PR (*go-ahead*); CI green; Vercel builds the preview. Switch the Vercel project's Node.js version to 22.x first (decision #20).
+3. Staging reset — Task 1.21 Steps 1–6 (*go-ahead*).
+4. Staging Auth settings and Resend SMTP — Task 1.21 Steps 7–8.
+5. Bootstrap the admin — Task 1.21 Step 9 (Add user, script, then first sign-in).
+6. Vercel environment check: `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` point at staging for Preview and Production, no service-role key in any `VITE_` variable; add `VITE_SENTRY_DSN`.
+7. Smoke-test the preview: password login, magic link, forgotten password round trip, deep-link reload, admin / staff / provider menus, Paramètres → Modules toggle, sign-out; then Task 1.21 Step 10 (secure email change).
+8. Merge — Jonathan's call.
+9. Follow-up PR: continuous deployment (Task 1.22) and the GitHub secrets `SUPABASE_ACCESS_TOKEN` / `SUPABASE_DB_PASSWORD` (Jonathan sets them).
 
 ---
 
