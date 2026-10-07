@@ -7,11 +7,11 @@ import { t } from '@/i18n'
  * Convention (docs/standards/database-conventions.md §6): a message written for users is raised
  * with `raise exception '…' using errcode = 'P0001'` and is in French. Every other code (invalid
  * argument, timeout, deadlock, PostgREST/JWT errors, network failures) carries a technical message,
- * so the user gets the fallback and the error goes to Sentry. Two expected codes get a generic text
- * and are not reported:
+ * so the user gets the fallback and the error goes to Sentry. Two expected codes get a generic text:
  * - `42501` (permission refused): the UI hides what the user cannot do, so it only follows a
- *   permission change or a bypass;
- * - `23514` (check violation): the client validates first, so it only follows a bypassed form.
+ *   permission change or a bypass. Not reported;
+ * - `23514` (check violation): the Zod schemas mirror the SQL checks, so it only follows a bypassed
+ *   form or a Zod/SQL parity bug. Reported, since we want to hear about either.
  *
  * `area` tags the Sentry report (e.g. `'settings'`).
  */
@@ -21,8 +21,7 @@ export function moduleErrorMessage(error: unknown, fallback: string, area = 'mod
 
   if (code === 'P0001' && typeof message === 'string' && message !== '') return message
   if (code === '42501') return t('common.errors.forbidden')
-  if (code === '23514') return t('common.errors.invalidValue')
 
   Sentry.captureException(error, { tags: { area } })
-  return fallback
+  return code === '23514' ? t('common.errors.invalidValue') : fallback
 }
