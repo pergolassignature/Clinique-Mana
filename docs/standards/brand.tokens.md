@@ -17,7 +17,7 @@ The visual reference is the **Clinique MANA design system** in [`docs/design-sys
 |---|---|---|---|---|
 | `background` | `--bg` | #FFFFFF | page | |
 | `foreground` | `--text-body` | #1F1F20 | text | |
-| `muted-foreground` | `--text-secondary` | #6B6B6E | **all** informative secondary text (captions, hints, descriptions, table headers) | `text-secondary` → `text-muted-foreground`; `text-muted` → `text-muted-foreground` |
+| `muted-foreground` | `--text-secondary` | #6B6B6E | **all** informative secondary text (captions, hints, descriptions, table headers) | `text-secondary` → `text-muted-foreground`; `text-muted` / `text-muted-strong` (they render the #F4F4F5 / #E9E9EB fills: invisible text) → `text-muted-foreground` |
 | `subtle` | `--text-muted` | #8E8E92 | placeholders, disabled text, separators, icons only (3.3:1); also the switch's off track | `text-muted` → `text-subtle` (decoration only); `fill-muted` / `stroke-muted` → `fill-subtle` / `stroke-subtle` |
 | `link` | `--text-link` | #1A6B66 | text links | |
 | `border` / `border-light` / `border-strong` | `--border*` | #E4E4E7 / #EFEFF1 / #CFCFD4 | hairlines; strong = control hover | `border-secondary` → `border-border` |

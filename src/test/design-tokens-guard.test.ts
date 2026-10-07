@@ -1,5 +1,4 @@
 // @vitest-environment node
-// DESIGN_TOKENS_ALLOWED: this file holds the guard's fixtures.
 import { afterEach, describe, expect, it } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -27,6 +26,8 @@ describe('scripts/check-design-tokens.sh', () => {
     'hover:text-muted',
     'placeholder:text-muted',
     'text-muted/60',
+    'text-muted-strong',
+    'hover:text-muted-strong',
     'fill-muted',
     'stroke-muted',
     'text-secondary',
@@ -42,7 +43,7 @@ describe('scripts/check-design-tokens.sh', () => {
   it('passes on the real tokens and on CSS variable names', () => {
     const { status, out } = check(
       [
-        "export const a = 'text-muted-foreground bg-muted bg-muted-strong text-subtle placeholder:text-subtle'",
+        "export const a = 'text-muted-foreground bg-muted bg-muted-strong text-subtle placeholder:text-subtle text-muted-foreground/80'",
         "export const b = 'text-[rgb(var(--text-muted))] shadow-[0_0_0_1px_var(--text-secondary)]'",
         "export const c = { variant: 'secondary' }",
       ].join('\n'),
@@ -51,7 +52,7 @@ describe('scripts/check-design-tokens.sh', () => {
     expect(status).toBe(0)
   })
 
-  it('passes on the app sources', () => {
+  it('passes on the app sources (its own fixtures in this file are skipped by path)', () => {
     const run = spawnSync('bash', [script, path.resolve(__dirname, '..')], { encoding: 'utf8' })
     expect(run.stdout).toContain('OK')
     expect(run.status).toBe(0)
