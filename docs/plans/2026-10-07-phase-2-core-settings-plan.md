@@ -2080,6 +2080,12 @@ to authenticated;
 - the expanded update shows before → after with French labels and « (masqué) »;
 - the empty state.
 
+**Notes from the Task 2.17 implementation:**
+- `p_from` and `p_to` are instants, not dates: convert day boundaries with `clinicTimeToUTC`.
+- Rows written by the system or the seed have no actor name: show their source label instead.
+- `read` rows store `{"fields": [...]}` rather than before/after values.
+- The actor name is shown only when the actor belongs to the row's org.
+
 **Commit:** `feat(settings): Journal d'audit section`.
 
 ---
