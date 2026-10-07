@@ -27,6 +27,8 @@ export interface SettingsSection {
   permission: string
   group: SettingsGroup
   component: LazyExoticComponent<ComponentType>
+  /** The owning module, if any; used for the error-reporting scope (`settings:<moduleKey>:<id>`). */
+  moduleKey?: string
 }
 
 export interface ModuleManifest {
