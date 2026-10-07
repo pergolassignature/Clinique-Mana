@@ -746,7 +746,7 @@ git commit -m "feat(shared): port UI primitives, styles and typed i18n; add sonn
 - Delete everything from the line `# Edge Functions configuration` to the end of the file (the 8 legacy `[functions.*]` blocks).
 - In `[auth]`: set `enable_signup = false` (accounts are only created by invitation) and
   `additional_redirect_urls = ["http://127.0.0.1:5173/**", "http://localhost:5173/**"]`.
-- In `[auth.email]`: set `enable_signup = false`.
+- In `[auth.email]`: keep `enable_signup = true`. In the CLI this flag enables the email **provider** (password and magic-link login); sign-ups stay closed through `[auth] enable_signup = false` (verified: `/auth/v1/signup` returns `signup_disabled`).
 - Replace the header comment `# Module: auth-foundation` with `# Foundation rebuild — see docs/plans/2026-10-06-foundation-rebuild-design.md`.
 
 **Step 2: Verify** — `supabase start` (Docker running). Expected: services start, prints API URL and anon key. Then `supabase stop`.
