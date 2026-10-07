@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { AuthContext, type AuthContextValue } from '@/core/auth/AuthProvider'
 import { AccessContext, type AccessContextValue } from '@/core/access/AccessProvider'
 import type { Access } from '@/core/access/access'
+import { LoginRouteProbe } from './LoginRouteProbe'
 
 export const testAccess: Access = {
   user_id: 'u1',
@@ -15,7 +16,8 @@ export const testAccess: Access = {
   status: 'active',
   role: 'staff',
   permissions: ['settings.view'],
-  modules: ['core'],
+  // Matches the real payload: enabled module keys, never 'core'.
+  modules: ['professionals'],
 }
 
 export function renderWithContexts(
@@ -33,12 +35,15 @@ export function renderWithContexts(
     signOut: async () => {},
     ...auth,
   }
+  // `can` follows the effective access (an overridden one, or testAccess), unless overridden itself.
+  const effectiveAccess = access.access !== undefined ? access.access : testAccess
   const accessValue: AccessContextValue = {
     status: 'ready',
-    access: testAccess,
+    access: effectiveAccess,
     problem: null,
-    can: (p) => testAccess.permissions.includes(p),
+    can: (p) => effectiveAccess?.permissions.includes(p) ?? false,
     reload: () => {},
+    isReloading: false,
     ...access,
   }
   return (
@@ -46,7 +51,7 @@ export function renderWithContexts(
       <AccessContext.Provider value={accessValue}>
         <MemoryRouter initialEntries={[path]}>
           <Routes>
-            <Route path="/connexion" element={<p>LOGIN PAGE</p>} />
+            <Route path="/connexion" element={<LoginRouteProbe />} />
             <Route path="/reinitialiser-mot-de-passe" element={<p>RESET PAGE</p>} />
             <Route path="*" element={ui} />
           </Routes>

@@ -12,6 +12,8 @@ const DEFAULT_CLINIC_TIMEZONE = 'America/Toronto'
 
 // Set at sign-in from organizations.timezone (see core/access/AccessProvider).
 let clinicTimezone = DEFAULT_CLINIC_TIMEZONE
+// Last value passed to setClinicTimezone (valid or not), so repeated calls are no-ops.
+let lastRequestedTimezone: string | null = null
 
 /** Placeholder shown for missing or invalid dates. */
 const EMPTY_DATE = '—'
@@ -21,6 +23,9 @@ const EMPTY_DATE = '—'
  * An invalid value is ignored: the current timezone is kept and a warning logged.
  */
 export function setClinicTimezone(timezone: string): void {
+  // Called on every render by the access provider: a repeated value (even an invalid one) is a no-op.
+  if (timezone === lastRequestedTimezone) return
+  lastRequestedTimezone = timezone
   try {
     new Intl.DateTimeFormat('en', { timeZone: timezone })
   } catch {
@@ -37,6 +42,7 @@ export function getClinicTimezone(): string {
 /** Restore the default clinic timezone (e.g. on sign-out). */
 export function resetClinicTimezone(): void {
   clinicTimezone = DEFAULT_CLINIC_TIMEZONE
+  lastRequestedTimezone = null
 }
 
 type DateInput = Date | string | null | undefined

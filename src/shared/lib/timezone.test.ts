@@ -43,6 +43,22 @@ describe('clinic timezone', () => {
     expect(warn).toHaveBeenCalledOnce()
   })
 
+  it('warns only once when the same invalid timezone is requested repeatedly', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setClinicTimezone('Not/AZone')
+    setClinicTimezone('Not/AZone')
+    setClinicTimezone('Not/AZone')
+    expect(warn).toHaveBeenCalledOnce()
+    expect(getClinicTimezone()).toBe('America/Toronto')
+  })
+
+  it('applies a timezone again after a reset', () => {
+    setClinicTimezone('America/Vancouver')
+    resetClinicTimezone()
+    setClinicTimezone('America/Vancouver')
+    expect(getClinicTimezone()).toBe('America/Vancouver')
+  })
+
   it('resets to America/Toronto', () => {
     setClinicTimezone('America/Vancouver')
     resetClinicTimezone()

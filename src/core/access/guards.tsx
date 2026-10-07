@@ -12,7 +12,7 @@ function Loading() {
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { session, isLoading, isRecovery, signOut } = useAuth()
-  const { status, problem, reload } = useAccess()
+  const { status, problem, reload, isReloading } = useAccess()
   const location = useLocation()
 
   if (isLoading) return <Loading />
@@ -27,7 +27,11 @@ export function RequireAuth({ children }: { children: ReactNode }) {
       <FullPageMessage
         title={t('access.error.title')}
         body={t('access.error.body')}
-        action={<Button onClick={reload}>{t('common.retry')}</Button>}
+        action={
+          <Button onClick={reload} disabled={isReloading}>
+            {t('common.retry')}
+          </Button>
+        }
       />
     )
   }

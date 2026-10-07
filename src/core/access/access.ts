@@ -11,6 +11,7 @@ const accessSchema = z.object({
   org_timezone: z.string(),
   display_name: z.string(),
   email: z.string(),
+  // Must stay in sync with the profiles.status check constraint.
   status: z.enum(['active', 'disabled']),
   role: z.string().nullable(),
   permissions: z.array(z.string()),
