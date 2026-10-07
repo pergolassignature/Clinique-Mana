@@ -2,6 +2,8 @@
 # Foundation rebuild — see docs/plans/2026-10-06-foundation-rebuild-design.md
 # See: https://supabase.com/docs/guides/cli/config
 
+project_id = "clinique-mana"
+
 [api]
 enabled = true
 port = 55321
@@ -38,10 +40,12 @@ enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 enable_signup = false
 enable_anonymous_sign_ins = false
+minimum_password_length = 10
 
 [auth.email]
 enable_signup = false
 double_confirm_changes = false
+secure_password_change = true
 enable_confirmations = false
 
 [auth.sms]
