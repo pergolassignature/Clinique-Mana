@@ -54,7 +54,7 @@ describe('RegionSettingsPage', () => {
     expect(screen.getByText(t('settings.region.description'))).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(t('common.loading'))
 
-    expect(await screen.findByRole('form', { name: t('settings.region.timezone.title') })).toBeInTheDocument()
+    expect(await screen.findByRole('form', { name: 'Heure de la clinique' })).toBeInTheDocument()
     expect(timezoneSelect()).toHaveValue('America/Toronto')
     expect(selectedLabel()).toBe(EASTERN)
     expect(otherButton()).toHaveAttribute('type', 'button')
@@ -63,7 +63,7 @@ describe('RegionSettingsPage', () => {
     expect(within(locale).getByText('Devise :').closest('div')).toHaveTextContent('Devise : dollar canadien (CAD)')
   })
 
-  it('offers the seven Canadian zones by French name', async () => {
+  it('offers the eight Canadian zones by French name', async () => {
     await renderPage()
     const options = within(timezoneSelect()).getAllByRole('option')
     expect(options.map((o) => o.getAttribute('value'))).toEqual([
@@ -74,6 +74,7 @@ describe('RegionSettingsPage', () => {
       'America/Regina',
       'America/Edmonton',
       'America/Vancouver',
+      'America/Whitehorse',
     ])
     expect(options.map((o) => o.textContent)).toContain('Heure du Pacifique (Vancouver)')
   })
@@ -82,7 +83,7 @@ describe('RegionSettingsPage', () => {
     await renderPage({ organization: PARIS })
     expect(timezoneSelect()).toHaveValue('Europe/Paris')
     expect(selectedLabel()).toBe('Europe/Paris')
-    expect(within(timezoneSelect()).getAllByRole('option')).toHaveLength(8)
+    expect(within(timezoneSelect()).getAllByRole('option')).toHaveLength(9)
   })
 
   it('saves the zone only, confirms « Fuseau horaire enregistré. » and refreshes the access payload (clinic timezone)', async () => {
@@ -95,6 +96,12 @@ describe('RegionSettingsPage', () => {
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith('Fuseau horaire enregistré.'))
     expect(mocks.api.updateOrganization).toHaveBeenCalledExactlyOnceWith('o1', { timezone: 'America/Vancouver' })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: accessKeys.all })
+    // Clean again: « Enregistrer » is inactive and back to outline (decision #34).
+    const saveButton = within(card()).getByRole('button', { name: t('common.save') })
+    await waitFor(() => expect(saveButton).toHaveAttribute('aria-disabled', 'true'))
+    expect(saveButton).toHaveClass('bg-card')
+    expect(saveButton).not.toHaveClass('bg-primary')
+    expect(within(card()).getByRole('button', { name: t('common.cancel') })).toHaveAttribute('aria-disabled', 'true')
   })
 
   describe('« Autre fuseau… »', () => {
@@ -113,9 +120,29 @@ describe('RegionSettingsPage', () => {
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       expect(timezoneSelect()).toHaveValue('Europe/Paris')
       expect(selectedLabel()).toBe('Europe/Paris')
-      await waitFor(() => expect(otherButton()).toHaveFocus())
+      // Focus goes to the select, so the new zone is announced.
+      await waitFor(() => expect(timezoneSelect()).toHaveFocus())
       await save()
       await waitFor(() => expect(mocks.api.updateOrganization).toHaveBeenCalledExactlyOnceWith('o1', { timezone: 'Europe/Paris' }))
+    })
+
+    it('announces the current zone when it opens', async () => {
+      await renderPage({ organization: PARIS })
+      const dialog = await openPicker()
+      expect(dialog).toHaveAccessibleDescription('Fuseau actuel : Europe/Paris')
+    })
+
+    it('« Annuler » removes the zone added through the picker', async () => {
+      await renderPage()
+      const dialog = await openPicker()
+      await userEvent.type(within(dialog).getByRole('combobox'), 'paris')
+      await userEvent.click(within(dialog).getByRole('option', { name: 'Europe/Paris' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(within(timezoneSelect()).getByRole('option', { name: 'Europe/Paris' })).toBeInTheDocument()
+      await userEvent.click(within(card()).getByRole('button', { name: t('common.cancel') }))
+      expect(timezoneSelect()).toHaveValue('America/Toronto')
+      expect(within(timezoneSelect()).queryByRole('option', { name: 'Europe/Paris' })).not.toBeInTheDocument()
+      expect(within(timezoneSelect()).getAllByRole('option')).toHaveLength(8)
     })
 
     it('finds a Canadian zone by city, accents ignored', async () => {
@@ -139,6 +166,7 @@ describe('RegionSettingsPage', () => {
       expect(within(dialog).getByText(t('settings.region.picker.empty'))).toBeInTheDocument()
       await userEvent.keyboard('{Escape}')
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(otherButton()).toHaveFocus())
       expect(timezoneSelect()).toHaveValue('America/Toronto')
       expect(within(card()).getByRole('button', { name: t('common.save') })).toHaveAttribute('aria-disabled', 'true')
     })

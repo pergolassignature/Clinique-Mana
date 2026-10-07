@@ -239,7 +239,7 @@
     "region": {
       "description": "Le fuseau horaire, la langue et la devise de la clinique.",
       "timezone": {
-        "title": "Fuseau horaire",
+        "title": "Heure de la clinique",
         "description": "Les dates et les heures de l'application suivent ce fuseau.",
         "saved": "Fuseau horaire enregistré."
       },
@@ -252,6 +252,7 @@
         "placeholder": "Rechercher un fuseau (ex. : Paris)",
         "empty": "Aucun fuseau trouvé.",
         "current": "(fuseau actuel)",
+        "currentDescription": "Fuseau actuel : {zone}",
         "canada": "Canada",
         "others": "Autres fuseaux"
       },
@@ -262,7 +263,8 @@
         "winnipeg": "Heure du Centre (Winnipeg)",
         "regina": "Heure du Centre, sans heure avancée (Regina)",
         "edmonton": "Heure des Rocheuses (Edmonton)",
-        "vancouver": "Heure du Pacifique (Vancouver)"
+        "vancouver": "Heure du Pacifique (Vancouver)",
+        "whitehorse": "Heure du Yukon (Whitehorse)"
       },
       "locale": {
         "title": "Langue et devise",

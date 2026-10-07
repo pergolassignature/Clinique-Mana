@@ -9,6 +9,7 @@ export const CANADIAN_TIMEZONES: readonly { value: string; labelKey: Translation
   { value: 'America/Regina', labelKey: 'settings.region.zones.regina' },
   { value: 'America/Edmonton', labelKey: 'settings.region.zones.edmonton' },
   { value: 'America/Vancouver', labelKey: 'settings.region.zones.vancouver' },
+  { value: 'America/Whitehorse', labelKey: 'settings.region.zones.whitehorse' },
 ]
 
 export function isCanadianTimezone(zone: string): boolean {
@@ -39,11 +40,15 @@ export function listTimezones(list: (() => string[]) | null = browserTimezones):
   return [...new Set([...zones, ...CANADIAN_TIMEZONES.map((option) => option.value)])].sort()
 }
 
-/** Lower case, without accents, underscores as spaces: « Montréal », « montreal » and « MONTREAL » match. */
+/**
+ * Lower case, without accents, underscores as spaces, curly apostrophes as straight ones (phones
+ * type ’): « Montréal », « montreal » and « MONTREAL » match, and so do « St. John’s » and « St. John's ».
+ */
 const fold = (text: string) =>
   text
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
+    .replace(/[\u2018\u2019\u02bc]/g, "'")
     .replace(/_/g, ' ')
     .toLowerCase()
 

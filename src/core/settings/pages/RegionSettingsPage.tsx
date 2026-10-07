@@ -67,7 +67,7 @@ export function RegionSettingsPage() {
             firstField="timezone"
             successMessage={t('settings.region.timezone.saved')}
           >
-            {({ control, formState: { errors } }) => (
+            {({ control, setFocus, formState: { errors } }) => (
               <FormField label={t('settings.region.fields.timezone')} error={errors.timezone?.message}>
                 {(field) => (
                   // Controlled, so the read-only Select can show the zone's name.
@@ -86,7 +86,9 @@ export function RegionSettingsPage() {
                           </Select>
                         </div>
                         {/* A button does not inherit read-only: hidden, since it would change the zone. */}
-                        {!field.readOnly && <TimezonePicker value={timezone.value} onSelect={(zone) => timezone.onChange(zone)} />}
+                        {!field.readOnly && (
+                          <TimezonePicker value={timezone.value} onSelect={(zone) => timezone.onChange(zone)} onChosen={() => setFocus('timezone')} />
+                        )}
                       </div>
                     )}
                   />
