@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/react'
 import type { AuthError, Session } from '@supabase/supabase-js'
 import { AUTH_STORAGE_KEY, supabase } from '@/core/supabase/client'
 import { AuthContext, type AuthContextValue, type AuthErrorCode } from './auth-context'
+import { isRecoverySession, RECOVERY_STORAGE_KEY, sessionIdOf, setRecoveryMarker } from './recovery'
 import { safeRedirect } from './redirect'
 
 /** Maps a GoTrue error to a UI code, by error code (the message is only a fallback for old servers). */
@@ -44,8 +45,14 @@ function toNeutralCode(error: AuthError | null): AuthErrorCode | null {
 const absolute = (path: string) => `${window.location.origin}${path}`
 
 // auth-js emits PASSWORD_RECOVERY once, possibly before our listener is registered, so the
-// recovery link's URL hash (implicit flow) is read when this module is evaluated.
-const OPENED_FROM_RECOVERY_LINK = typeof window !== 'undefined' && /[#&]type=recovery/.test(window.location.hash)
+// recovery link's URL hash (implicit flow) is read when this module is evaluated. That is always
+// before auth-js strips it: auth-js clears the hash only after awaiting the server (auth-js 2.90).
+// The marker binds recovery mode to that session (see recovery.ts). An expired or already used
+// link lands with `#error=…&error_code=…` and no `type=recovery`, so it marks nothing.
+if (typeof window !== 'undefined') {
+  const hash = new URLSearchParams(window.location.hash.slice(1))
+  if (hash.get('type') === 'recovery') setRecoveryMarker(sessionIdOf(hash.get('access_token')))
+}
 
 /**
  * Forgets this browser's session without any network call: with no stored token, auth-js skips
@@ -67,14 +74,16 @@ async function forgetLocalSession(): Promise<void> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isRecovery, setIsRecovery] = useState(OPENED_FROM_RECOVERY_LINK)
+  const [isRecovery, setIsRecovery] = useState(false)
   const sessionRef = useRef<Session | null>(null)
 
   useEffect(() => {
     // auth-js always emits INITIAL_SESSION on subscribe (with null on error), so no getSession() call.
     const { data } = supabase.auth.onAuthStateChange((event, next) => {
-      if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
-      else if (event === 'USER_UPDATED' || event === 'SIGNED_OUT') setIsRecovery(false)
+      if (event === 'PASSWORD_RECOVERY') setRecoveryMarker(sessionIdOf(next?.access_token))
+      else if (event === 'USER_UPDATED' || event === 'SIGNED_OUT') setRecoveryMarker(null)
+      // Derived on every event, so a reload or another tab of the recovery session stays in recovery.
+      setIsRecovery(isRecoverySession(next))
 
       // Skip no-op updates (e.g. focus-triggered refresh events re-sending the same session) so
       // consumers don't re-render. USER_UPDATED always passes: the token stays but the user changed.
@@ -88,6 +97,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
     })
     return () => data.subscription.unsubscribe()
+  }, [])
+
+  // Another tab set or cleared the marker (or cleared all storage: key null).
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === RECOVERY_STORAGE_KEY || e.key === null) setIsRecovery(isRecoverySession(sessionRef.current))
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [])
 
   const value = useMemo<AuthContextValue>(
@@ -135,6 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           )
           if (stillStored) await forgetLocalSession()
         } finally {
+          setRecoveryMarker(null)
           sessionRef.current = null
           setSession(null)
           setIsRecovery(false)

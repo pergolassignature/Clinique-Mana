@@ -5,6 +5,8 @@ import { AuthApiError, type AuthChangeEvent, type Session } from '@supabase/supa
 import { t } from '@/i18n'
 import { AuthProvider } from './AuthProvider'
 import { useAuth, type AuthContextValue, type AuthErrorCode } from './auth-context'
+import { RECOVERY_STORAGE_KEY, setRecoveryMarker } from './recovery'
+import { fakeAccessToken } from '@/test/jwt'
 
 type Listener = (event: AuthChangeEvent, session: Session | null) => void
 
@@ -20,7 +22,7 @@ const auth = vi.hoisted(() => ({
   getSession: vi.fn(),
 }))
 
-const sentry = vi.hoisted(() => ({ captureMessage: vi.fn() }))
+const sentry = vi.hoisted(() => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('@sentry/react', () => sentry)
 
 const AUTH_STORAGE_KEY = vi.hoisted(() => 'test-auth-key')
@@ -32,6 +34,8 @@ auth.onAuthStateChange.mockImplementation((callback: Listener) => {
 })
 
 const session = (token: string, userId = 'u1') => ({ access_token: token, user: { id: userId } }) as Session
+/** A session whose access token carries a JWT session_id, like GoTrue's. */
+const sessionWithId = (sessionId: string, userId = 'u1') => session(fakeAccessToken(sessionId), userId)
 const apiError = (message: string, status: number, code?: string) => ({ data: {}, error: new AuthApiError(message, status, code) })
 const origin = window.location.origin
 
@@ -67,10 +71,12 @@ function renderReady() {
 }
 
 afterEach(() => {
-  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.signOut, auth.getSession, sentry.captureMessage]) {
+  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.signOut, auth.getSession, sentry.captureMessage, sentry.captureException]) {
     fn.mockReset()
   }
   auth.listener = undefined
+  setRecoveryMarker(null)
+  localStorage.clear()
 })
 
 describe('session lifecycle', () => {
@@ -106,27 +112,61 @@ describe('session lifecycle', () => {
     expect(auth.unsubscribe).toHaveBeenCalledOnce()
   })
 
-  it('tracks password recovery from the auth events', () => {
+  it('tracks password recovery from the auth events, in a marker bound to the session', () => {
     const { latest } = renderAuth()
     emit('INITIAL_SESSION', null)
     expect(latest().isRecovery).toBe(false)
-    emit('PASSWORD_RECOVERY', session('t1'))
+    emit('PASSWORD_RECOVERY', sessionWithId('s1'))
     expect(latest().isRecovery).toBe(true)
-    emit('USER_UPDATED', session('t1'))
+    expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBe('s1')
+    emit('USER_UPDATED', sessionWithId('s1'))
     expect(latest().isRecovery).toBe(false)
-    emit('PASSWORD_RECOVERY', session('t1'))
+    expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull()
+    emit('PASSWORD_RECOVERY', sessionWithId('s1'))
     emit('SIGNED_OUT', null)
     expect(latest().isRecovery).toBe(false)
+    expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull()
   })
 })
 
-describe('password recovery link', () => {
+describe('password recovery across reloads and tabs', () => {
   afterEach(() => window.history.replaceState(null, '', '/'))
 
-  // auth-js emits PASSWORD_RECOVERY once, possibly before the provider subscribes: the URL is the
-  // reliable signal, read when the module is evaluated.
-  it('starts in recovery mode when the URL carries a recovery token', async () => {
-    window.history.replaceState(null, '', '/#access_token=x&refresh_token=y&type=recovery')
+  it('stays in recovery mode after a reload (marker in storage, same session)', () => {
+    localStorage.setItem(RECOVERY_STORAGE_KEY, 's1')
+    const { latest } = renderAuth()
+    emit('INITIAL_SESSION', sessionWithId('s1'))
+    expect(latest().isRecovery).toBe(true)
+  })
+
+  it('keeps recovery mode across token refreshes (same session_id)', () => {
+    const { latest } = renderAuth()
+    emit('PASSWORD_RECOVERY', session(fakeAccessToken('s1', { iat: 1 })))
+    emit('TOKEN_REFRESHED', session(fakeAccessToken('s1', { iat: 2 })))
+    expect(latest().isRecovery).toBe(true)
+  })
+
+  it('ignores a stale marker for another session', () => {
+    localStorage.setItem(RECOVERY_STORAGE_KEY, 's1')
+    const { latest } = renderAuth()
+    emit('INITIAL_SESSION', sessionWithId('s2'))
+    expect(latest().isRecovery).toBe(false)
+  })
+
+  it('follows a marker set or cleared in another tab', () => {
+    const { latest } = renderAuth()
+    emit('INITIAL_SESSION', sessionWithId('s1'))
+    expect(latest().isRecovery).toBe(false)
+    localStorage.setItem(RECOVERY_STORAGE_KEY, 's1')
+    act(() => void window.dispatchEvent(new StorageEvent('storage', { key: RECOVERY_STORAGE_KEY })))
+    expect(latest().isRecovery).toBe(true)
+    localStorage.clear()
+    act(() => void window.dispatchEvent(new StorageEvent('storage', { key: null })))
+    expect(latest().isRecovery).toBe(false)
+  })
+
+  /** Re-evaluates AuthProvider with the current URL (the hash is read at module evaluation). */
+  async function renderFresh() {
     vi.resetModules()
     const { AuthProvider: FreshAuthProvider } = await import('./AuthProvider')
     const { useAuth: freshUseAuth } = await import('./auth-context')
@@ -140,9 +180,26 @@ describe('password recovery link', () => {
         <Probe />
       </FreshAuthProvider>,
     )
-    expect(values[0]?.isRecovery).toBe(true)
-    emit('INITIAL_SESSION', session('t1'))
-    expect(values[values.length - 1]?.isRecovery).toBe(true)
+    return () => values[values.length - 1]
+  }
+
+  // auth-js emits PASSWORD_RECOVERY once, possibly before the provider subscribes: the URL is read
+  // when the module is evaluated, before auth-js strips the hash.
+  it('marks the session from a recovery link URL', async () => {
+    const token = fakeAccessToken('s1')
+    window.history.replaceState(null, '', `/reinitialiser-mot-de-passe#access_token=${token}&refresh_token=y&type=recovery`)
+    const latest = await renderFresh()
+    expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBe('s1')
+    emit('INITIAL_SESSION', session(token))
+    expect(latest()?.isRecovery).toBe(true)
+  })
+
+  it('does not mark anything for an expired link (no type=recovery)', async () => {
+    window.history.replaceState(null, '', '/reinitialiser-mot-de-passe#error=access_denied&error_code=otp_expired')
+    const latest = await renderFresh()
+    expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull()
+    emit('INITIAL_SESSION', sessionWithId('s1'))
+    expect(latest()?.isRecovery).toBe(false)
   })
 })
 
@@ -289,12 +346,14 @@ describe('signOut (this device only)', () => {
     expect(latest().session).toBeNull()
   })
 
-  it('leaves recovery mode', async () => {
+  it('leaves recovery mode and clears the marker', async () => {
     auth.signOut.mockResolvedValue({ error: null })
     const latest = renderSignedIn()
-    emit('PASSWORD_RECOVERY', session('t1'))
+    emit('PASSWORD_RECOVERY', sessionWithId('s1'))
+    expect(latest().isRecovery).toBe(true)
     await signOut(latest)
     expect(latest().isRecovery).toBe(false)
+    expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull()
   })
 })
 
