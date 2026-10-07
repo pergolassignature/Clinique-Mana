@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAuth, type AuthErrorCode } from '@/core/auth/auth-context'
 import { Button } from '@/shared/ui/button'
@@ -20,12 +20,15 @@ const schema = z
 type Values = z.infer<typeof schema>
 
 /**
- * Lands here from the recovery email (not under RequireAuth: a recovery session is sent here by
- * the guard, and must be able to stay). Also usable by a signed-in user to change their password.
+ * Lands here from the recovery email. Not under RequireAuth: the guard sends recovery sessions
+ * here, and they must be able to stay. Serves only a real recovery session.
  */
 export function ResetPasswordPage() {
-  const { session, isLoading, updatePassword } = useAuth()
+  const { session, isLoading, isRecovery, updatePassword, signOut } = useAuth()
+  const { hash } = useLocation()
   const navigate = useNavigate()
+  // An expired or already used link lands with #error_code=… (auth-js keeps any existing session).
+  const linkFailed = new URLSearchParams(hash.slice(1)).has('error_code')
   const [error, setError] = useState<AuthErrorCode | null>(null)
   const { register, handleSubmit, formState } = useForm<Values>({ resolver: zodResolver(schema) })
 
@@ -38,28 +41,47 @@ export function ResetPasswordPage() {
   }
 
   // The recovery link signs the user in; without a session the link was invalid or expired.
-  if (!session) {
+  if (linkFailed || !session) {
     return (
       <AuthCard title={t('auth.reset.title')}>
         <p className="text-sm text-muted-foreground">{t('auth.reset.invalidLink')}</p>
-        <p className="mt-4 text-center text-sm">
+        <div className="mt-4 flex flex-col items-center gap-2 text-sm">
           <Link to="/mot-de-passe-oublie" className="text-primary hover:underline">
             {t('auth.reset.requestNew')}
           </Link>
-        </p>
+          {session && (
+            <Link to="/accueil" className="text-primary hover:underline">
+              {t('auth.reset.backHome')}
+            </Link>
+          )}
+        </div>
       </AuthCard>
     )
   }
 
+  // An ordinary session has nothing to do here.
+  if (!isRecovery) return <Navigate to="/accueil" replace />
+
   const onSubmit = async ({ password }: Values) => {
     setError(null)
     const code = await updatePassword(password)
+    if (code === 'reauthentication_needed') {
+      // No trap: this recovery session can no longer change the password. Start over.
+      await signOut()
+      navigate('/mot-de-passe-oublie', { replace: true, state: { expired: true } })
+      return
+    }
     if (code) {
       setError(code)
       return
     }
     toast.success(t('auth.reset.success'))
     navigate('/accueil', { replace: true })
+  }
+
+  const onCancel = async () => {
+    await signOut()
+    navigate('/connexion', { replace: true })
   }
 
   return (
@@ -92,6 +114,9 @@ export function ResetPasswordPage() {
         {error && <p role="alert" className="text-sm text-destructive">{t(`auth.errors.${error}`)}</p>}
         <Button type="submit" className="w-full" disabled={formState.isSubmitting}>
           {t('auth.reset.submit')}
+        </Button>
+        <Button type="button" variant="ghost" className="w-full" onClick={onCancel} disabled={formState.isSubmitting}>
+          {t('auth.reset.cancel')}
         </Button>
       </form>
     </AuthCard>

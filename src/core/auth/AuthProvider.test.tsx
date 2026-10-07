@@ -287,6 +287,45 @@ describe('error codes', () => {
   })
 })
 
+describe('updatePassword after a recovery link', () => {
+  it('signs out the other sessions once the password is changed', async () => {
+    auth.updateUser.mockResolvedValue({ data: {}, error: null })
+    auth.signOut.mockResolvedValue({ error: null })
+    const { latest } = renderAuth()
+    emit('PASSWORD_RECOVERY', sessionWithId('s1'))
+    await expect(latest().updatePassword('un-long-mot-de-passe')).resolves.toBeNull()
+    expect(auth.signOut).toHaveBeenCalledExactlyOnceWith({ scope: 'others' })
+  })
+
+  it('keeps the other sessions for an ordinary password change', async () => {
+    auth.updateUser.mockResolvedValue({ data: {}, error: null })
+    const { latest } = renderAuth()
+    emit('INITIAL_SESSION', sessionWithId('s1'))
+    await latest().updatePassword('un-long-mot-de-passe')
+    expect(auth.signOut).not.toHaveBeenCalled()
+  })
+
+  it('keeps the other sessions when the update fails', async () => {
+    auth.updateUser.mockResolvedValue(apiError('same', 422, 'same_password'))
+    const { latest } = renderAuth()
+    emit('PASSWORD_RECOVERY', sessionWithId('s1'))
+    await expect(latest().updatePassword('x')).resolves.toBe('same_password')
+    expect(auth.signOut).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['returns an error', () => auth.signOut.mockResolvedValue(apiError('Failed to fetch', 0))],
+    ['throws', () => auth.signOut.mockRejectedValue(new Error('network'))],
+  ])('still succeeds, and reports to Sentry, when signing out the others %s', async (_label, fail) => {
+    auth.updateUser.mockResolvedValue({ data: {}, error: null })
+    fail()
+    const { latest } = renderAuth()
+    emit('PASSWORD_RECOVERY', sessionWithId('s1'))
+    await expect(latest().updatePassword('un-long-mot-de-passe')).resolves.toBeNull()
+    expect(sentry.captureException).toHaveBeenCalledOnce()
+  })
+})
+
 describe('signOut (this device only)', () => {
   /** Renders signed in as t1 and returns the latest-value getter. */
   function renderSignedIn() {

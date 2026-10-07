@@ -35,6 +35,8 @@
       "mismatch": "Les mots de passe ne correspondent pas.",
       "invalidLink": "Ce lien est invalide ou expiré. Demandez-en un nouveau.",
       "requestNew": "Demander un nouveau lien",
+      "backHome": "Retour à l'accueil",
+      "cancel": "Annuler et se déconnecter",
       "success": "Mot de passe mis à jour."
     },
     "errors": {

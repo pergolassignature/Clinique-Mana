@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAuth } from '@/core/auth/auth-context'
 import { Button } from '@/shared/ui/button'
@@ -15,6 +15,8 @@ type Values = z.infer<typeof schema>
 
 export function ForgotPasswordPage() {
   const { sendPasswordReset } = useAuth()
+  // Sent here by the reset page when the recovery session could no longer be used.
+  const expired = (useLocation().state as { expired?: boolean } | null)?.expired === true
   const [sent, setSent] = useState(false)
   const { register, handleSubmit, formState } = useForm<Values>({ resolver: zodResolver(schema) })
 
@@ -26,6 +28,7 @@ export function ForgotPasswordPage() {
 
   return (
     <AuthCard title={t('auth.forgot.title')} subtitle={sent ? undefined : t('auth.forgot.subtitle')}>
+      {expired && !sent && <p className="mb-4 text-sm text-foreground">{t('auth.reset.invalidLink')}</p>}
       {sent ? (
         <p role="status" className="rounded-md bg-primary/10 px-3 py-2 text-sm text-foreground">
           {t('auth.forgot.sent')}

@@ -132,7 +132,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         toNeutralCode(
           (await supabase.auth.resetPasswordForEmail(email, { redirectTo: absolute('/reinitialiser-mot-de-passe') })).error,
         ),
-      updatePassword: async (password) => toCode((await supabase.auth.updateUser({ password })).error),
+      updatePassword: async (password) => {
+        // Read before the update: its USER_UPDATED event clears the recovery marker.
+        const wasRecovery = isRecoverySession(sessionRef.current)
+        const code = toCode((await supabase.auth.updateUser({ password })).error)
+        // A recovery link means the password may be known to someone else: end every other session.
+        // Best effort — the new password is already saved, so a failure here is only reported.
+        if (!code && wasRecovery) {
+          try {
+            const { error } = await supabase.auth.signOut({ scope: 'others' })
+            if (error) Sentry.captureException(error, { tags: { area: 'auth' } })
+          } catch (error) {
+            Sentry.captureException(error, { tags: { area: 'auth' } })
+          }
+        }
+        return code
+      },
       // "Se déconnecter" signs out THIS device only, and must always work — reception PCs are shared,
       // so a failed call (offline, server error, lock timeout) must never leave the next person
       // signed in as the previous one. When the server can't be reached, the local session is
