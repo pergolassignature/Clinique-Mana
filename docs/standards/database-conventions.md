@@ -33,7 +33,7 @@ grant update (title, starts_on) on public.trainings to authenticated;   -- colum
 ```
 
 - Clients never get `TRUNCATE`, `REFERENCES` or `TRIGGER` (TRUNCATE bypasses RLS).
-- Prefer RPCs for writes that touch several rows or need checks; grant `insert`/`delete` only when a plain RLS policy fully describes the rule.
+- Clients never get `INSERT` or `DELETE` either: inserts and deletes go through RPCs (enforced by `000_invariants`). Updates use column grants plus an RLS policy, or an RPC when they need checks.
 - `service_role` keeps Supabase's defaults (it bypasses RLS and is server-only). Revoke from it explicitly when a table must be protected from server code too (`audit_log`).
 
 ## 4. Table shape
@@ -45,6 +45,7 @@ grant update (title, starts_on) on public.trainings to authenticated;   -- colum
 | `created_at` / `updated_at timestamptz not null default now()` + the shared trigger | `for each row execute function private.set_updated_at()` |
 | Actor columns point at **profiles**, never at `auth.users` | `updated_by uuid references public.profiles(user_id) on delete set null` |
 | Only `public.profiles` references `auth.users` | — |
+| `auth.users` is the only source of `profiles.email` (a trigger copies it on insert/update and on auth email change) | — |
 | Index every FK column that is not a prefix of the PK | `create index trainings_updated_by_idx on public.trainings (updated_by);` |
 | Reference data is soft-deleted (`is_active`), never hard-deleted | — |
 | Enumerations that may grow are lookup tables with text keys, not Postgres enums | `roles(key)`, `user_roles.role references roles(key)` |
@@ -59,7 +60,7 @@ Enable RLS on every table. Policies call the helpers in schema `private` (not ex
 | `private.current_user_org_id()` | caller's org, or `null` if no active profile |
 | `private.current_user_role()` | role key (text), or `null` if inactive / no role |
 | `private.has_role(text)` | boolean |
-| `private.has_permission(text)` | role defaults ∪ override grants − override revokes; `false` when disabled or role-less |
+| `private.has_permission(text)` | role defaults ∪ override grants − override revokes, **only for modules enabled in the caller's org** (`core` always is); `false` when disabled, role-less or unknown key |
 
 Canonical shape:
 
@@ -72,9 +73,21 @@ create policy trainings_select on public.trainings
   );
 ```
 
+- **Every module policy includes a `has_permission` term.** It is the module gate: when an org disables a module, `has_permission('<module>.*')` turns false and the module's rows disappear. An ownership-only policy (`user_id = (select auth.uid())`) skips the gate, so combine it: `… and (select private.has_permission('trainings.view'))`.
 - **Never query `profiles` or `user_roles` inline in a policy** (legacy hit RLS recursion twice). Add a helper instead.
 - Write `with check` for every `update`/`insert` policy; it usually repeats the org condition.
-- Edge functions cannot call `private.*`. They use `get_my_access()` (permissions) and `module_enabled()` (module gate).
+- Edge functions cannot call `private.*`. They use `get_my_access()` (permissions, already module-filtered) and `module_enabled()`. A function that works with the **service role** bypasses RLS and therefore the gate: it must still call `requireModule()`.
+
+## 5b. Views
+
+Cross-module reads go through views published by the owning module (design §6.2). A plain view runs as its **owner**, which bypasses RLS and leaks across orgs. Views are always `security_invoker = true` (enforced by `000_invariants`), and like tables they start with no client grants:
+
+```sql
+create view public.professionals_directory with (security_invoker = true) as
+  select p.id, p.org_id, p.display_name from public.professionals p where p.is_active;
+revoke all on public.professionals_directory from anon, authenticated;
+grant select on public.professionals_directory to authenticated;
+```
 
 ## 6. Functions
 
@@ -118,6 +131,7 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 ```
 
 - The trigger records `org_id` from the row (`id` for `organizations`), so audited tables need `org_id`.
+- Redaction covers `changed_fields`, **not `record_id`**: a primary-key column must never be a redacted value (no SIN or email as a key).
 - `record_id` is the PK columns joined with `:` (`<org_id>:<module_key>`). `updated_at`-only updates are skipped.
 - `source` defaults to `app.audit_source` if set, else `app` (authenticated), `service` (service role) or `system`. RPCs that log explicitly use `rpc:<function_name>`; seeds set `seed`.
 - Changes invisible to the row diff (e.g. a Vault value) get an explicit row from the RPC — see `set_org_secret`. Reads of `*_private` data are logged by their RPCs.
@@ -125,7 +139,7 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 
 ## 8. Secrets and sensitive data
 
-- API keys and tokens live in **Vault**, referenced by `org_secrets`. Clients write with `set_org_secret`, list names with `list_org_secret_keys`, and never read values. Edge functions read with `get_org_secret(org_id, key)` under the service role.
+- API keys and tokens live in **Vault**, referenced by `org_secrets`. Clients write with `set_org_secret`, list names with `list_org_secret_keys`, and never read values. Edge functions read with `get_org_secret(org_id, key)` under the service role. Deleting an `org_secrets` row (directly or by cascade from its organization) removes the Vault entry through a trigger.
 - Sensitive non-secret data (SIN, bank details) goes in `*_private` tables, read through audited RPCs only, with the sensitive columns redacted from the audit trigger.
 
 ## 9. Adding a module (recipe)
@@ -145,11 +159,15 @@ insert into public.role_permissions (role, permission_key) values
 on conflict do nothing;
 ```
 
+- Module keys never equal a core permission prefix (`settings`, `users`, `modules`, `audit`): a check constraint refuses them.
+- Dependencies never mention `core` (it is implicit) and must stay acyclic: a trigger rejects any edge that closes a cycle (`23514`).
+- A disabled module grants nothing: its permissions vanish from `has_permission` and `get_my_access` until an admin enables it.
+
 Then, for each table: shape (§4) → `revoke all` + grants (§3) → RLS policies (§5) → `set_updated_at` and audit triggers (§7) → FK indexes. A new module starts **disabled** in every org; enable it with `set_module_enabled` (or in `seed.sql` locally). List the module's tables in `docs/modules/<module>.md`. Other modules read them only through a view or RPC the owner publishes.
 
 ## 10. Tests (pgTAP)
 
-One file per migration in `supabase/tests/database/NNN_<name>.test.sql`, written **before** the migration. Each file runs in `begin; … rollback;` and creates its own fixtures (orgs A and B, one user per role).
+One file per migration in `supabase/tests/database/NNN_<name>.test.sql`, written **before** the migration. `000_invariants.test.sql` checks the whole catalog (§12) and needs no change when you add a module: it just has to stay green. Each file runs in `begin; … rollback;` and creates its own fixtures (orgs A and B, one user per role).
 
 ```sql
 -- Privileges: exact lists, for every table
@@ -171,9 +189,28 @@ Traps:
 - `throws_ok` on a function the role cannot EXECUTE segfaults Postgres image `.106`: use `function_privs_are`.
 - A table the role has no privilege on raises `42501`; it does not return 0 rows. RLS-filtered tables return 0 rows.
 - OrbStack may lack macOS access to `~/Documents`, so `supabase test db` finds no files. Grant OrbStack the Documents folder, or mirror the tests elsewhere and pass the path: `supabase test db /tmp/pgtap`.
+- The local seed writes rows (including audit rows): filter assertions by fixture ids, never count a whole table.
 
-Run `supabase db reset && supabase test db` (the full suite) after every migration.
+Run the full suite after every migration, with and without the seed: `supabase db reset && supabase test db`, then `supabase db reset --no-seed && supabase test db`.
 
 ## 11. Seeds
 
 `supabase/seed.sql` is **local only** (remote resets always use `--no-seed`). It starts with `select set_config('app.audit_source', 'seed', false);`, refuses to run if real users exist, inserts `org_id` on per-user tables and enables the modules under development. Test users share one documented password.
+
+## 12. Catalog invariants (`000_invariants.test.sql`)
+
+These hold for every current and future object; a violation fails CI.
+
+| Invariant | Fix when it fails |
+|---|---|
+| Every `public` table has RLS enabled | `alter table … enable row level security` |
+| Policies call `private.*` / `auth.*` only inside `(select …)` | wrap the call (§5) |
+| No client `INSERT`, `DELETE`, `TRUNCATE`, `REFERENCES` or `TRIGGER` on `public` tables | writes go through RPCs; updates are column grants (§3) |
+| `anon` has no table privilege in `public` | `revoke all … from anon` |
+| No `public` / `private` function is executable by `anon` or `PUBLIC` | `revoke all on function … from public, anon` |
+| Every function in `public` / `private` has `set search_path = ''` | add it, qualify names (§6) |
+| Every foreign key has an index whose first column is the FK's first column | add the index (§4) |
+| Every table with an `org_id` column (except `audit_log`) has an `audit_trigger` | attach it (§7) |
+| Every view is `security_invoker = true` | §5b |
+
+If a legitimate design needs an exception, change the invariant query explicitly (with a comment saying why) in the same PR; never disable the test.
