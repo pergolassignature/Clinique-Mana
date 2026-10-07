@@ -2027,6 +2027,7 @@ to authenticated;
   - §1 « Built so far ».
 - `docs/plans/2026-10-07-status.md`: rewrite for Phase 2 (what's done, how to test locally with the four accounts, what deploys on merge).
 - `docs/plans/2026-10-06-legacy-feature-inventory.md` §I: tick the items built here and point the others to their new home (design §1 table).
+- Remove the remaining `staff` role mentions (found during Task 2.1): `CLAUDE.md` §5 (« staff have it but no section yet »), `docs/modules/core.md` (roles and permission tables), `docs/modules/professionals.md`, `docs/standards/business-context.md` §2 (map conseillères → `counselor`, adjointe → `admin_assistant`), `docs/standards/database-conventions.md` (example SQL).
 
 **Step 2: Full checks.**
 ```bash
