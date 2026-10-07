@@ -251,7 +251,9 @@
         "title": "Choisir un fuseau horaire",
         "placeholder": "Rechercher un fuseau (ex. : Paris)",
         "empty": "Aucun fuseau trouvé.",
-        "current": "(fuseau actuel)"
+        "current": "(fuseau actuel)",
+        "canada": "Canada",
+        "others": "Autres fuseaux"
       },
       "zones": {
         "toronto": "Heure de l'Est (Montréal, Toronto)",
