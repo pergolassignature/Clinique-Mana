@@ -59,7 +59,8 @@ Whether *conseillère* and *adjointe administrative* need distinct default permi
 - **Callback SLA (24–48 business hours)** — a demandes inbox with age/urgency is valuable; website forms could feed it later.
 - **Receipts** must carry what insurers need: professional name, profession, **order and licence number**, session date and duration, amount. This lands in Facturation, but the data comes from Professionnels, so licence and order must be reliable from module 1.
 - **Recognition program** — compensation must support **tiers that change over time** (history by `effective_from`), not one fixed percentage.
-- **Recruitment** may start before `draft`, as a candidate with a CV from the website. Decide in the Professionnels design.
+- **Recruitment** stays outside the app (decided 2026-10-07). Professionals are created manually once retained.
+- **Fiche PDF** is client-facing: sent to the client after the discovery call (download or email from the app).
 - **B2B** (ateliers / conférences, MANA's own PAE offer to employers, schools) is a separate future area. It is not in the legacy app.
 - **Loi 25:** the privacy officer is Christine Sirois (ext. 222). Clients can request a copy or destruction of their data, so retention and export must be planned per module.
 
