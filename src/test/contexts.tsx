@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { AuthContext, type AuthContextValue } from '@/core/auth/auth-context'
 import { AccessContext, type AccessContextValue } from '@/core/access/access-context'
 import type { Access } from '@/core/access/access'
+import { ROUTER_FUTURE } from '@/app/router-future'
 import { LoginRouteProbe } from './LoginRouteProbe'
 
 export const testAccess: Access = {
@@ -49,7 +50,7 @@ export function renderWithContexts(
   return (
     <AuthContext.Provider value={authValue}>
       <AccessContext.Provider value={accessValue}>
-        <MemoryRouter initialEntries={[path]}>
+        <MemoryRouter initialEntries={[path]} future={ROUTER_FUTURE}>
           <Routes>
             <Route path="/connexion" element={<LoginRouteProbe />} />
             <Route path="/reinitialiser-mot-de-passe" element={<p>RESET PAGE</p>} />
