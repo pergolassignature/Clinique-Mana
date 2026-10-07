@@ -906,7 +906,7 @@ Behaviour:
 - **Dirty guard:** `useUnsavedChanges(form.formState.isDirty)`.
 - **Submit:** `useUpdateOrganization(successMessage).mutate({ id, patch: parsedValues })`.
 - **Footer:** `SaveButton pending={mutation.isPending} disabled={!isDirty}` (Task 2.3), and pass `pending` to `SettingsCard` as well. *(Amended after the Task 2.3 review.)*
-- **Read-only indicator (amended after Task 2.5):** a read-only page shows the shared `ReadOnlyNotice` once, at the top (from `useSettingsSection().readOnly`). `SettingsCard`'s own « Lecture seule » badge is removed, so the state is never shown twice. The fields stay disabled through the fieldset.
+- **Read-only indicator (amended after Task 2.5):** a read-only page shows the shared `ReadOnlyNotice` once, at the top (from `useSettingsSection().readOnly`). `SettingsCard`'s own « Lecture seule » badge is removed, so the state is never shown twice. In read-only mode the fields are rendered **`readOnly`, not `disabled`**: they stay focusable, readable at normal contrast and copyable (NEQ, tax numbers). `SettingsCard` passes `readOnly` down: the fieldset is no longer `disabled` for read-only, and `FormField` / inputs accept `readOnly`. Read-only selects render as a read-only text input showing the chosen label. *(Amended after the Task 2.5 review: disabled text is only 3.3:1 and can't be tabbed to.)*
 - **Guard:** call `useUnsavedChanges(isDirty && !readOnly)`. After a successful save, call `form.reset(toFormValues(saved))`, so the guard disarms even when the saved values normalise to what was already stored.
 
 **Step 3: The page.**
