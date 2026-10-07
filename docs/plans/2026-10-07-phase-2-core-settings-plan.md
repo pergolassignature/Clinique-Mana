@@ -1901,6 +1901,8 @@ Unit-test both, including a revoke of a role default and a grant outside the rol
 
 **Browser check:** as `admin@mana.test`, give `conseillere@mana.test` an `audit.view` grant. Sign in as the conseillère in a private window: « Paramètres → Journal d'audit » appears. Remove the grant, reload: it is gone.
 
+**Notes from the Task 2.15 review:** the generated types mark `role`, `role_name` and `last_sign_in_at` as non-null, but each can be null (a profile without a role, a user who never signed in), so type them as nullable in `api.ts`. Re-enabling an account is admin-only. A non-admin manager can only assign roles and clear revokes for permissions they hold: hide or disable those controls to match, and still show the database message if it refuses.
+
 **Commit:** `feat(settings): Utilisateurs et accès section`.
 
 ---
@@ -2122,7 +2124,7 @@ Expected: all green. Also check that `git diff --stat src/core/supabase/database
 **Step 4: Final review.** Dispatch the `superpowers:code-reviewer` agent on the whole branch diff against `origin/main`, with the design and this plan. Fix the findings and have them re-reviewed.
 
 **Follow-ups to record in the status doc (not built in Phase 2):**
-- **Lock convention:** the RPCs serialise per org with `for update` on `organizations`. `for no key update` would avoid blocking FK inserts into child tables. Change the convention and the three RPCs (`set_module_enabled`, `add_tax_rate`, `delete_tax_rate`) together in one migration.
+- ~~Lock convention~~: done in Task 2.15 (`for no key update` everywhere, conventions updated).
 - **Service-role variants for Facturation:** `tax_rate_on_for_org(org, tax, date)` and `clinic_today_for_org(org)`, granted to `service_role` only, because the user-scoped versions return null without a user. Also add « no invoice uses this rate » to the `delete_tax_rate` conditions: today the 24 h correction window can delete a rate that is already in force.
 - **Before Phase 4 stores any SIN (blocking):** the key management in ADR 0004's « Before Phase 4 » checklist: escrow runbook, known-ciphertext health check, key versioning and re-encryption.
 - **Local Postgres image quirk:** `supabase/postgres:17.6.1.106` crashed when `authenticated` called a function it has no EXECUTE on. Never write such a test; use `function_privs_are`. Re-check after a CLI upgrade.
