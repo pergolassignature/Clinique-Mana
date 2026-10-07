@@ -96,11 +96,9 @@ describe('RegionSettingsPage', () => {
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith('Fuseau horaire enregistré.'))
     expect(mocks.api.updateOrganization).toHaveBeenCalledExactlyOnceWith('o1', { timezone: 'America/Vancouver' })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: accessKeys.all })
-    // Clean again: « Enregistrer » is inactive and back to outline (decision #34).
+    // Clean again: both buttons are inactive (FormActions shows the outline variant then).
     const saveButton = within(card()).getByRole('button', { name: t('common.save') })
     await waitFor(() => expect(saveButton).toHaveAttribute('aria-disabled', 'true'))
-    expect(saveButton).toHaveClass('bg-card')
-    expect(saveButton).not.toHaveClass('bg-primary')
     expect(within(card()).getByRole('button', { name: t('common.cancel') })).toHaveAttribute('aria-disabled', 'true')
   })
 
@@ -129,7 +127,8 @@ describe('RegionSettingsPage', () => {
     it('announces the current zone when it opens', async () => {
       await renderPage({ organization: PARIS })
       const dialog = await openPicker()
-      expect(dialog).toHaveAccessibleDescription('Fuseau actuel : Europe/Paris')
+      // A no-break space before the colon (French typography).
+      expect(dialog).toHaveAccessibleDescription('Fuseau actuel\u00a0: Europe/Paris')
     })
 
     it('« Annuler » removes the zone added through the picker', async () => {

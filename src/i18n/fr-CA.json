@@ -252,7 +252,7 @@
         "placeholder": "Rechercher un fuseau (ex. : Paris)",
         "empty": "Aucun fuseau trouvé.",
         "current": "(fuseau actuel)",
-        "currentDescription": "Fuseau actuel : {zone}",
+        "currentDescription": "Fuseau actuel : {zone}",
         "canada": "Canada",
         "others": "Autres fuseaux"
       },
