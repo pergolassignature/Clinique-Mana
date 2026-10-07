@@ -13,12 +13,16 @@ interface FormFieldProps {
   label: string
   help?: string
   error?: string
-  /** Adds a visually hidden « (requis) » to the label; validation itself stays in the schema. */
+  /** Adds a visible « (requis) » to the label (one text for everyone); validation itself stays in the schema. */
   required?: boolean
   children: (props: FieldControlProps) => ReactNode
 }
 
-/** Label + control + help + error, wired for screen readers. The control is a render prop. */
+/**
+ * Label + control + help + error, wired for screen readers. The control is a render prop.
+ * The error is read through `aria-describedby`, not announced as an alert: react-hook-form focuses
+ * the first invalid field, and an alert per field would announce every error at once.
+ */
 export function FormField({ label, help, error, required, children }: FormFieldProps) {
   const id = useId()
   const helpId = help ? `${id}-help` : undefined
@@ -28,7 +32,7 @@ export function FormField({ label, help, error, required, children }: FormFieldP
     <div className="space-y-1.5">
       <Label htmlFor={id}>
         {label}
-        {required && <span className="sr-only"> {t('common.form.required')}</span>}
+        {required && <span className="font-normal text-muted-foreground"> {t('common.form.required')}</span>}
       </Label>
       {children({ id, 'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined })}
       {help && (
@@ -37,7 +41,7 @@ export function FormField({ label, help, error, required, children }: FormFieldP
         </p>
       )}
       {error && (
-        <p id={errorId} role="alert" className="text-xs text-destructive">
+        <p id={errorId} className="text-xs text-destructive">
           {error}
         </p>
       )}
