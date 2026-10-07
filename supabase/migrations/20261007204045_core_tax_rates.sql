@@ -121,6 +121,9 @@ declare
   v_org uuid := private.current_user_org_id();
   v_open public.tax_rates;
   v_id uuid;
+  -- Rounded first, so the check below sees the value the numeric(7,6) column stores
+  -- (0.9999995 would otherwise pass and fail the table check as 23514).
+  v_rate numeric := round(p_rate, 6);
 begin
   if not private.has_permission('settings.manage') then
     raise exception 'Permission refusée : settings.manage' using errcode = '42501';
@@ -128,8 +131,8 @@ begin
   if p_tax is null or p_tax not in ('gst', 'qst') then
     raise exception 'Taxe inconnue : %', p_tax using errcode = '22023';
   end if;
-  if p_rate is null or p_rate < 0 or p_rate >= 1 then
-    raise exception 'Le taux doit être compris entre 0 et 100 %%.' using errcode = 'P0001';
+  if v_rate is null or v_rate < 0 or v_rate >= 1 then
+    raise exception 'Le taux doit être d''au moins 0 %% et de moins de 100 %%.' using errcode = 'P0001';
   end if;
   if p_effective_from is null then
     raise exception 'La date d''entrée en vigueur est requise.' using errcode = 'P0001';
@@ -151,13 +154,15 @@ begin
   end if;
 
   insert into public.tax_rates (org_id, tax, rate, effective_from, created_by)
-  values (v_org, p_tax, round(p_rate, 6), p_effective_from, auth.uid())
+  values (v_org, p_tax, v_rate, p_effective_from, auth.uid())
   returning id into v_id;
   return v_id;
 end;
 $$;
 
--- Removes the last rate if it is not in force yet, and reopens the previous one.
+-- Removes the last (open) rate and reopens the previous one. Allowed when the rate
+-- is not in force yet, or was created less than 24 hours ago: the window to fix a
+-- typo, including on a back-dated rate (in force as soon as it is added).
 create function public.delete_tax_rate(p_id uuid)
 returns void
 language plpgsql
@@ -167,6 +172,7 @@ as $$
 declare
   v_org uuid := private.current_user_org_id();
   v_row public.tax_rates;
+  v_reopened int;
 begin
   if not private.has_permission('settings.manage') then
     raise exception 'Permission refusée : settings.manage' using errcode = '42501';
@@ -181,7 +187,9 @@ begin
   if v_row.effective_to is not null then
     raise exception 'Seul le dernier taux peut être supprimé.' using errcode = 'P0001';
   end if;
-  if v_row.effective_from <= private.clinic_today() then
+  -- coalesce(…, false): a null (no clinic date) never lets a delete through.
+  if not coalesce(v_row.effective_from > private.clinic_today(), false)
+     and not coalesce(v_row.created_at > pg_catalog.now() - interval '24 hours', false) then
     raise exception 'Un taux déjà en vigueur ne peut pas être supprimé.' using errcode = 'P0001';
   end if;
 
@@ -189,6 +197,15 @@ begin
   update public.tax_rates t
      set effective_to = null
    where t.org_id = v_org and t.tax = v_row.tax and t.effective_to = v_row.effective_from;
+  get diagnostics v_reopened = row_count;
+  -- A closed row exists but none ends where the deleted one started: a gap in the
+  -- history. Refuse rather than leave the tax with no open rate.
+  if v_reopened = 0 and exists (
+    select 1 from public.tax_rates t
+     where t.org_id = v_org and t.tax = v_row.tax and t.effective_to is not null
+  ) then
+    raise exception 'L''historique des taux est incohérent ; contactez le soutien technique.' using errcode = 'P0001';
+  end if;
 end;
 $$;
 

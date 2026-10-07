@@ -2,11 +2,11 @@
 -- tax_rate_on / add_tax_rate / delete_tax_rate.
 -- Covers: seeding of new orgs, privileges, rate lookup by date, appending and
 -- deleting rates, the no-overlap exclusion constraint, role access, org isolation, audit.
--- « Clinic today » is computed like the RPCs do: (now() at time zone 'America/Toronto')::date,
--- the fixture orgs' default timezone. now() is fixed for the whole transaction.
+-- « Clinic today » (test.today) is computed like private.clinic_today(): now() in org A's
+-- time zone, read from the org. now() is fixed for the whole transaction.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(55);
+select plan(65);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe and a provider; org B with an admin.
@@ -81,6 +81,14 @@ select throws_ok($$ insert into public.tax_rates (org_id, tax, rate, effective_f
 -- Undo the adjacent row so org B keeps its two seeded rates.
 delete from public.tax_rates where org_id = 'b0000000-0000-0000-0000-00000000000b' and effective_from = '2000-01-01';
 
+-- Clinic today, from org A's time zone (org B has the same default).
+select set_config('test.today',
+  ((now() at time zone (select timezone from public.organizations where id = 'b0000000-0000-0000-0000-00000000000a'))::date)::text, true);
+-- The seeded rows were created in this transaction: move them out of the
+-- 24-hour correction window so « in force » rules apply to them.
+update public.tax_rates set created_at = now() - interval '1 year'
+ where org_id in ('b0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b');
+
 -- =============================================================================
 -- Admin A: lookups
 -- =============================================================================
@@ -94,34 +102,35 @@ select is(public.tax_rate_on('gst', '2007-12-31'), null::numeric, 'no GST before
 -- =============================================================================
 -- Admin A: add_tax_rate
 -- =============================================================================
-select isnt(
-  public.add_tax_rate('qst', 0.1, (now() at time zone 'America/Toronto')::date + 30),
-  null::uuid, 'admin adds a future QST rate');
+select isnt(public.add_tax_rate('qst', 0.1, current_setting('test.today')::date + 30), null::uuid, 'admin adds a future QST rate');
 select results_eq(
   $$ select rate, effective_from, effective_to from public.tax_rates
       where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'qst' order by effective_from $$,
-  $$ values (0.09975::numeric, '2013-01-01'::date, (now() at time zone 'America/Toronto')::date + 30),
-            (0.1::numeric, (now() at time zone 'America/Toronto')::date + 30, null::date) $$,
+  $$ values (0.09975::numeric, '2013-01-01'::date, current_setting('test.today')::date + 30),
+            (0.1::numeric, current_setting('test.today')::date + 30, null::date) $$,
   'the open QST rate is closed on the new start date');
-select is(public.tax_rate_on('qst', (now() at time zone 'America/Toronto')::date + 29), 0.09975::numeric,
-  'the old rate applies the day before');
-select is(public.tax_rate_on('qst', (now() at time zone 'America/Toronto')::date + 30), 0.1::numeric,
-  'the new rate applies from its start date');
-select is((select created_by from public.tax_rates
-            where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'qst' and effective_to is null),
+select is(public.tax_rate_on('qst', current_setting('test.today')::date + 29), 0.09975::numeric, 'the old rate applies the day before');
+select is(public.tax_rate_on('qst', current_setting('test.today')::date + 30), 0.1::numeric, 'the new rate applies from its start date');
+select is((select created_by from public.tax_rates where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'qst' and effective_to is null),
   'a0000000-0000-0000-0000-000000000001'::uuid, 'the new rate records who added it');
 
 select throws_ok($$ select public.add_tax_rate('qst', 0.11, '2013-01-01') $$,
-  'P0001', 'Le nouveau taux doit commencer après le ' || to_char((now() at time zone 'America/Toronto')::date + 30, 'YYYY-MM-DD') || '.',
+  'P0001', 'Le nouveau taux doit commencer après le ' || to_char(current_setting('test.today')::date + 30, 'YYYY-MM-DD') || '.',
   'a new rate must start after the open one');
 select throws_ok($$ select public.add_tax_rate('hst', 0.13, '2030-01-01') $$,
   '22023', null, 'unknown tax is a technical error');
 select throws_ok($$ select public.add_tax_rate('gst', 1.2, '2030-01-01') $$,
-  'P0001', 'Le taux doit être compris entre 0 et 100 %.', 'a rate of 120 % is refused');
+  'P0001', 'Le taux doit être d''au moins 0 % et de moins de 100 %.', 'a rate of 120 % is refused');
 select throws_ok($$ select public.add_tax_rate('gst', -0.01, '2030-01-01') $$,
-  'P0001', 'Le taux doit être compris entre 0 et 100 %.', 'a negative rate is refused');
+  'P0001', 'Le taux doit être d''au moins 0 % et de moins de 100 %.', 'a negative rate is refused');
+select throws_ok($$ select public.add_tax_rate('gst', 0.9999995, '2030-01-01') $$,
+  'P0001', 'Le taux doit être d''au moins 0 % et de moins de 100 %.', 'a rate rounding to 100 % is refused before the table check');
 select throws_ok($$ select public.add_tax_rate('gst', 0.05, null) $$,
   'P0001', 'La date d''entrée en vigueur est requise.', 'a start date is required');
+
+select isnt(public.add_tax_rate('qst', 0.09975000000000001, current_setting('test.today')::date + 60), null::uuid, 'admin adds a rate with extra decimals');
+select is((select rate::text from public.tax_rates where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'qst' and effective_from = current_setting('test.today')::date + 60),
+  '0.099750', 'the rate is stored rounded to 6 decimals');
 
 -- =============================================================================
 -- Admin A: delete_tax_rate
@@ -131,26 +140,46 @@ select throws_ok($$ select public.delete_tax_rate((select id from public.tax_rat
   'P0001', 'Seul le dernier taux peut être supprimé.', 'a closed rate cannot be deleted');
 select throws_ok($$ select public.delete_tax_rate((select id from public.tax_rates
                       where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'gst')) $$,
-  'P0001', 'Un taux déjà en vigueur ne peut pas être supprimé.', 'the GST rate in force cannot be deleted');
+  'P0001', 'Un taux déjà en vigueur ne peut pas être supprimé.', 'the GST rate in force (created long ago) cannot be deleted');
 select throws_ok($$ select public.delete_tax_rate('00000000-0000-0000-0000-000000000000') $$,
   'P0001', 'Taux introuvable.', 'an unknown id is reported');
 select lives_ok($$ select public.delete_tax_rate((select id from public.tax_rates
+                     where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'qst' and effective_from = current_setting('test.today')::date + 60)) $$,
+  'admin deletes the last future QST rate');
+select lives_ok($$ select public.delete_tax_rate((select id from public.tax_rates
                      where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'qst' and effective_to is null)) $$,
-  'admin deletes the future QST rate');
+  'admin deletes the next future QST rate');
 select results_eq(
-  $$ select rate, effective_from, effective_to from public.tax_rates
-      where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'qst' $$,
+  $$ select rate, effective_from, effective_to from public.tax_rates where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'qst' $$,
   $$ values (0.09975::numeric, '2013-01-01'::date, null::date) $$,
   'the previous QST rate is open again');
-select is(public.tax_rate_on('qst', (now() at time zone 'America/Toronto')::date + 30), 0.09975::numeric,
-  'the old rate applies again after the deletion');
+select is(public.tax_rate_on('qst', current_setting('test.today')::date + 30), 0.09975::numeric, 'the old rate applies again after the deletion');
 
--- A rate starting today is already in force.
-select isnt(public.add_tax_rate('gst', 0.06, (now() at time zone 'America/Toronto')::date), null::uuid,
-  'admin adds a GST rate starting today');
+-- =============================================================================
+-- Admin A: back-dated rate and the 24-hour correction window
+-- =============================================================================
+select isnt(public.add_tax_rate('gst', 0.06, current_setting('test.today')::date - 10), null::uuid, 'a back-dated rate is accepted');
+select results_eq(
+  $$ select rate, effective_from, effective_to from public.tax_rates
+      where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'gst' order by effective_from $$,
+  $$ values (0.05::numeric, '2008-01-01'::date, current_setting('test.today')::date - 10), (0.06::numeric, current_setting('test.today')::date - 10, null::date) $$,
+  'the back-dated rate closes the open rate on its start date');
+select lives_ok($$ select public.delete_tax_rate((select id from public.tax_rates
+                     where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'gst' and effective_to is null)) $$,
+  'a back-dated rate created just now can be deleted (correction window)');
+select results_eq(
+  $$ select rate, effective_from, effective_to from public.tax_rates where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'gst' $$,
+  $$ values (0.05::numeric, '2008-01-01'::date, null::date) $$,
+  'the previous GST rate is open again');
+
+select isnt(public.add_tax_rate('gst', 0.06, current_setting('test.today')::date - 10), null::uuid, 'admin adds the back-dated rate again');
+reset role;
+update public.tax_rates set created_at = now() - interval '25 hours'
+ where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'gst' and effective_to is null;
+set local role authenticated;
 select throws_ok($$ select public.delete_tax_rate((select id from public.tax_rates
                       where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'gst' and effective_to is null)) $$,
-  'P0001', 'Un taux déjà en vigueur ne peut pas être supprimé.', 'a rate starting today cannot be deleted');
+  'P0001', 'Un taux déjà en vigueur ne peut pas être supprimé.', 'a back-dated rate created 25 hours ago cannot be deleted');
 
 -- =============================================================================
 -- Adjointe A (settings.view): reads, cannot write
@@ -163,7 +192,7 @@ select throws_ok($$ select public.delete_tax_rate((select id from public.tax_rat
                       where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'gst' and effective_to is null)) $$,
   '42501', null, 'adjointe cannot delete a rate');
 select is((select count(*)::int from public.tax_rates where tax = 'qst'), 1, 'adjointe reads the QST history');
-select is((select count(*)::int from public.tax_rates), 3, 'adjointe reads every rate of her org (GST 2008, GST today, QST 2013)');
+select is((select count(*)::int from public.tax_rates), 3, 'adjointe reads every rate of her org (GST 2008, GST back-dated, QST 2013)');
 select is(public.tax_rate_on('qst', '2020-06-01'), 0.09975::numeric, 'adjointe looks up a rate');
 
 -- =============================================================================
@@ -186,8 +215,7 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select results_eq($$ select distinct org_id from public.tax_rates $$,
   array['b0000000-0000-0000-0000-00000000000b'::uuid], 'org B admin sees only org B rates');
 select is((select count(*)::int from public.tax_rates), 2, 'org B still has exactly its two seeded rates');
-select is(public.tax_rate_on('gst', (now() at time zone 'America/Toronto')::date), 0.05::numeric,
-  'org B lookups ignore org A rates');
+select is(public.tax_rate_on('gst', current_setting('test.today')::date), 0.05::numeric, 'org B lookups ignore org A rates');
 -- Org A's open GST id, stashed while org A was visible: admin A would get
 -- « déjà en vigueur », so « introuvable » proves the row is out of reach.
 select throws_ok($$ select public.delete_tax_rate(current_setting('test.org_a_gst_id')::uuid) $$,
@@ -203,21 +231,37 @@ select is((select count(*)::int from public.tax_rates where org_id = 'b0000000-0
   'org A has its 3 rates after org B''s writes');
 select is((select count(*)::int from public.audit_log
             where table_name = 'tax_rates' and action = 'insert' and org_id = 'b0000000-0000-0000-0000-00000000000a'),
-  4, 'org A: 2 seeded + 2 added rates are audited as inserts');
+  6, 'org A: 2 seeded + 4 added rates are audited as inserts');
 select ok(exists (
   select 1 from public.audit_log
    where table_name = 'tax_rates' and action = 'update' and org_id = 'b0000000-0000-0000-0000-00000000000a'
      and actor_id = 'a0000000-0000-0000-0000-000000000001'
-     and changed_fields -> 'effective_to' = jsonb_build_object('before', null, 'after', (now() at time zone 'America/Toronto')::date + 30)
+     and changed_fields -> 'effective_to' = jsonb_build_object('before', null, 'after', current_setting('test.today')::date + 30)
 ), 'closing the open rate is audited');
 select ok(exists (
   select 1 from public.audit_log
    where table_name = 'tax_rates' and action = 'update' and org_id = 'b0000000-0000-0000-0000-00000000000a'
-     and changed_fields -> 'effective_to' = jsonb_build_object('before', (now() at time zone 'America/Toronto')::date + 30, 'after', null)
+     and changed_fields -> 'effective_to' = jsonb_build_object('before', current_setting('test.today')::date + 30, 'after', null)
 ), 'reopening the previous rate is audited');
 select is((select count(*)::int from public.audit_log
             where table_name = 'tax_rates' and action = 'delete' and org_id = 'b0000000-0000-0000-0000-00000000000a'),
-  1, 'the deleted rate is audited');
+  3, 'the 3 deleted rates are audited');
+
+-- =============================================================================
+-- Inconsistent history: a gap before the open rate. Deleting it must not leave
+-- QST with no open rate.
+-- =============================================================================
+update public.tax_rates set effective_to = '2020-01-01'
+ where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'qst' and effective_from = '2013-01-01';
+insert into public.tax_rates (org_id, tax, rate, effective_from) values ('b0000000-0000-0000-0000-00000000000a', 'qst', 0.1, current_setting('test.today')::date + 90);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok($$ select public.delete_tax_rate((select id from public.tax_rates
+                      where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'qst' and effective_to is null)) $$,
+  'P0001', 'L''historique des taux est incohérent ; contactez le soutien technique.',
+  'a delete that cannot reopen the previous rate is refused');
+select is((select count(*)::int from public.tax_rates where tax = 'qst' and effective_to is null), 1,
+  'the refused delete left the open QST rate in place');
 
 select * from finish();
 rollback;
