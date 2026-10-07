@@ -29,6 +29,7 @@ export function renderWithContexts(
     session: { user: { id: 'u1' } } as Session,
     isLoading: false,
     isRecovery: false,
+    signedOutHere: false,
     signInWithPassword: async () => null,
     sendMagicLink: async () => null,
     sendPasswordReset: async () => null,

@@ -385,6 +385,33 @@ describe('signOut (this device only)', () => {
     expect(latest().session).toBeNull()
   })
 
+  // RequireAuth sends an explicit sign-out to plain /connexion (no ?redirect= back to the last page).
+  it('remembers that this tab signed out, from the click until the next session', async () => {
+    let finish: (value: { error: null }) => void = () => {}
+    auth.signOut.mockReturnValue(new Promise((resolve) => (finish = resolve)))
+    const latest = renderSignedIn()
+    expect(latest().signedOutHere).toBe(false)
+    let pending: Promise<void> = Promise.resolve()
+    act(() => {
+      pending = latest().signOut()
+    })
+    expect(latest().signedOutHere).toBe(true) // set first, before the server answers
+    await act(async () => {
+      finish({ error: null })
+      await pending
+    })
+    expect(latest().signedOutHere).toBe(true)
+    expect(latest().session).toBeNull()
+    emit('SIGNED_IN', session('t2'))
+    expect(latest().signedOutHere).toBe(false)
+  })
+
+  it('does not flag a sign-out that happened elsewhere (another tab, expiry)', () => {
+    const latest = renderSignedIn()
+    emit('SIGNED_OUT', null)
+    expect(latest().signedOutHere).toBe(false)
+  })
+
   it('leaves recovery mode and clears the marker', async () => {
     auth.signOut.mockResolvedValue({ error: null })
     const latest = renderSignedIn()

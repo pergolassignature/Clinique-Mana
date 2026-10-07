@@ -14,6 +14,8 @@ export interface AuthContextValue {
   isLoading: boolean
   /** True between a PASSWORD_RECOVERY event and the password update (or sign-out). */
   isRecovery: boolean
+  /** True after THIS tab's own signOut(), until the next session: the guard then skips ?redirect=. */
+  signedOutHere: boolean
   signInWithPassword: (email: string, password: string) => Promise<AuthErrorCode | null>
   /** `redirectPath` is where the link lands after sign-in (sanitised; defaults to /accueil). */
   sendMagicLink: (email: string, redirectPath?: string | null) => Promise<AuthErrorCode | null>

@@ -75,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRecovery, setIsRecovery] = useState(false)
+  const [signedOutHere, setSignedOutHere] = useState(false)
   const sessionRef = useRef<Session | null>(null)
 
   useEffect(() => {
@@ -84,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       else if (event === 'USER_UPDATED' || event === 'SIGNED_OUT') setRecoveryMarker(null)
       // Derived on every event, so a reload or another tab of the recovery session stays in recovery.
       setIsRecovery(isRecoverySession(next))
+      if (next) setSignedOutHere(false)
 
       // Skip no-op updates (e.g. focus-triggered refresh events re-sending the same session) so
       // consumers don't re-render. USER_UPDATED always passes: the token stays but the user changed.
@@ -113,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       isLoading,
       isRecovery,
+      signedOutHere,
       signInWithPassword: async (email, password) =>
         toCode((await supabase.auth.signInWithPassword({ email, password })).error),
       // shouldCreateUser: false — accounts only exist through invitations.
@@ -153,6 +156,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // signed in as the previous one. When the server can't be reached, the local session is
       // forgotten anyway; its refresh token stays valid server-side until it expires.
       signOut: async () => {
+        // First, so whichever render sees the session gone already knows the sign-out was explicit.
+        setSignedOutHere(true)
         try {
           try {
             const { error } = await supabase.auth.signOut({ scope: 'local' })
@@ -175,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
-    [session, isLoading, isRecovery],
+    [session, isLoading, isRecovery, signedOutHere],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

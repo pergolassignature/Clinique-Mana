@@ -11,7 +11,7 @@ function Loading() {
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { session, isLoading, isRecovery, signOut } = useAuth()
+  const { session, isLoading, isRecovery, signedOutHere, signOut } = useAuth()
   const { status, problem, reload, isReloading } = useAccess()
   const location = useLocation()
 
@@ -19,6 +19,8 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   // A recovery link signs the user in: they must choose a new password before using the app.
   if (isRecovery) return <Navigate to="/reinitialiser-mot-de-passe" replace />
   if (!session) {
+    // An explicit sign-out must not offer the next person a way back to the last page (shared PCs).
+    if (signedOutHere) return <Navigate to="/connexion" replace />
     const redirect = encodeURIComponent(location.pathname + location.search)
     return <Navigate to={`/connexion?redirect=${redirect}`} replace />
   }

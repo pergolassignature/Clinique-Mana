@@ -13,6 +13,12 @@ describe('RequireAuth', () => {
     expect(screen.queryByText('SECRET')).not.toBeInTheDocument()
   })
 
+  it('sends an explicit sign-out to the plain login page (no way back to the last page)', () => {
+    render(renderWithContexts(<RequireAuth><p>SECRET</p></RequireAuth>, { auth: { session: null, signedOutHere: true }, path: '/parametres' }))
+    expect(screen.getByText('LOGIN PAGE')).toBeInTheDocument()
+    expect(screen.getByTestId('login-search')).toHaveTextContent('')
+  })
+
   it.each([
     ['auth is loading', { auth: { isLoading: true } }],
     ['access is loading', { access: { status: 'loading' as const, access: null } }],

@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { useState, type ReactNode } from 'react'
+import { NavLink } from 'react-router-dom'
 import { LogOut, type LucideIcon } from 'lucide-react'
 import { t, type TranslationKey } from '@/i18n'
 import { useAuth } from '@/core/auth/auth-context'
@@ -17,12 +17,13 @@ export interface ShellNavItem {
 export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; children: ReactNode }) {
   const { signOut } = useAuth()
   const { org_name, display_name } = useReadyAccess()
-  const navigate = useNavigate()
+  const [signingOut, setSigningOut] = useState(false)
 
-  // signOut() always forgets this device's session; AccessProvider then clears the query cache.
-  const handleSignOut = async () => {
-    await signOut()
-    navigate('/connexion', { replace: true })
+  // signOut() always forgets this device's session. RequireAuth then sends this tab to plain
+  // /connexion, and AccessProvider clears the query cache: no navigation here.
+  const handleSignOut = () => {
+    setSigningOut(true)
+    void signOut()
   }
 
   return (
@@ -51,7 +52,8 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
           <button
             type="button"
             onClick={handleSignOut}
-            className="flex shrink-0 items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted md:mt-2 md:w-full"
+            disabled={signingOut}
+            className="flex shrink-0 items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50 md:mt-2 md:w-full"
           >
             <LogOut className="h-4 w-4" aria-hidden />
             {t('nav.logout')}

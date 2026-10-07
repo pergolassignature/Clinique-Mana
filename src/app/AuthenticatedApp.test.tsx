@@ -80,12 +80,13 @@ describe('AuthenticatedApp', () => {
     expect(screen.getByText(adminLike.org_name)).toBeInTheDocument()
   })
 
-  it('signs out and returns to the login page', async () => {
-    const signOut = vi.fn().mockResolvedValue(undefined)
+  // The redirect itself is RequireAuth's job (covered at App level): the shell only signs out.
+  it('signs out once, and disables the button meanwhile', async () => {
+    const signOut = vi.fn(() => new Promise<void>(() => {}))
     render(appAt('/accueil', adminLike, { auth: { signOut } }))
-    await userEvent.click(screen.getByRole('button', { name: t('nav.logout') }))
+    const button = screen.getByRole('button', { name: t('nav.logout') })
+    await userEvent.click(button)
     expect(signOut).toHaveBeenCalledTimes(1)
-    expect(await screen.findByText('LOGIN PAGE')).toBeInTheDocument()
-    expect(screen.getByTestId('login-search')).toHaveTextContent('')
+    expect(button).toBeDisabled()
   })
 })
