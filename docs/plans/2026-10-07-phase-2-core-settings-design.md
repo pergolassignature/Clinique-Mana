@@ -110,7 +110,7 @@ exclude using gist (org_id with =, tax with =, daterange(effective_from, effecti
   - `set_bank_details(institution, transit, account, etransfer_email)` validates `^\d{3}$`, `^\d{5}$`, `^\d{7,12}$`.
 - **Audit change:** `audit_log.action` gains the value `read`. Widening a check constraint is additive.
 
-Phase 4 reuses the same helpers for professionals' SIN and bank accounts.
+Phase 4 reuses the same helpers for professionals' SIN and bank accounts. Holders of `audit.view` see the bank row's non-sensitive fields in the audit log (institution, transit, last 4 digits, Interac email), never the account number. That is accepted: none of these is personal data.
 
 ### 3.5 `core_user_admin`
 
