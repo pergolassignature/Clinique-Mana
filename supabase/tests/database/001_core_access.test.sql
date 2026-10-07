@@ -3,7 +3,7 @@
 -- RLS per role, cross-org isolation, get_my_access() for every profile state.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(102);
+select plan(118);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -86,12 +86,19 @@ select column_privs_are('public', 'profiles',      'status',       'authenticate
 
 select function_privs_are('private', 'has_permission', array['text'], 'authenticated', array['EXECUTE'], 'authenticated can execute private.has_permission');
 select function_privs_are('private', 'has_permission', array['text'], 'anon', array[]::text[], 'anon cannot execute private.has_permission');
+select function_privs_are('private', 'current_user_org_id', array[]::text[], 'authenticated', array['EXECUTE'], 'authenticated can execute private.current_user_org_id');
+select function_privs_are('private', 'current_user_org_id', array[]::text[], 'anon', array[]::text[], 'anon cannot execute private.current_user_org_id');
+select function_privs_are('private', 'current_user_role', array[]::text[], 'authenticated', array['EXECUTE'], 'authenticated can execute private.current_user_role');
+select function_privs_are('private', 'current_user_role', array[]::text[], 'anon', array[]::text[], 'anon cannot execute private.current_user_role');
+select function_privs_are('private', 'has_role', array['text'], 'authenticated', array['EXECUTE'], 'authenticated can execute private.has_role');
+select function_privs_are('private', 'has_role', array['text'], 'anon', array[]::text[], 'anon cannot execute private.has_role');
 select function_privs_are('public', 'get_my_access', array[]::text[], 'authenticated', array['EXECUTE'], 'authenticated can call get_my_access');
 select function_privs_are('public', 'get_my_access', array[]::text[], 'anon', array[]::text[], 'anon cannot call get_my_access');
 -- service_role is a member of PUBLIC: no EXECUTE here proves PUBLIC has none either.
 select function_privs_are('private', 'sync_profile_email', array[]::text[], 'service_role', array[]::text[], 'nobody can execute the email-sync trigger function');
 select function_privs_are('private', 'validate_org_timezone', array[]::text[], 'authenticated', array[]::text[], 'clients cannot execute the timezone trigger function');
 select function_privs_are('private', 'set_updated_at', array[]::text[], 'authenticated', array[]::text[], 'clients cannot execute set_updated_at');
+select function_privs_are('private', 'module_dependencies_no_cycle', array[]::text[], 'service_role', array[]::text[], 'nobody can execute the cycle-check trigger function');
 
 -- Default privileges: a table/function created later by a migration starts closed.
 create table public.zz_probe (id int primary key);
@@ -113,8 +120,34 @@ select lives_ok($$ update public.organizations set timezone = 'America/Vancouver
   'valid timezone is accepted');
 select throws_ok($$ update public.organizations set currency = 'cad' where id = 'b0000000-0000-0000-0000-00000000000b' $$,
   '23514', null, 'currency must be an ISO code');
+select throws_ok($$ update public.organizations set default_locale = 'fr_CA' where id = 'b0000000-0000-0000-0000-00000000000b' $$,
+  '23514', null, 'default_locale must be a supported locale');
+select throws_ok($$ insert into public.modules (key, name) values ('settings', 'x') $$,
+  '23514', null, 'core permission prefixes are reserved module keys');
+
 select throws_ok($$ insert into public.profiles (user_id, org_id, display_name, email) values ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'Dup', 'ADMIN@a.test') $$,
   '23505', null, 'profile email is unique case-insensitively');
+
+-- Module dependency graph stays acyclic and never mentions core.
+insert into public.modules (key, name) values
+  ('cyc_a', 'A'), ('cyc_b', 'B'), ('cyc_c', 'C'), ('cyc_d', 'D'),
+  ('dia_top', 'Top'), ('dia_left', 'Left'), ('dia_right', 'Right'), ('dia_base', 'Base');
+insert into public.module_dependencies (module_key, depends_on) values ('cyc_a', 'cyc_b');
+select throws_ok($$ insert into public.module_dependencies (module_key, depends_on) values ('cyc_b', 'cyc_a') $$,
+  '23514', null, 'a 2-module cycle is rejected');
+insert into public.module_dependencies (module_key, depends_on) values ('cyc_b', 'cyc_c');
+select throws_ok($$ insert into public.module_dependencies (module_key, depends_on) values ('cyc_c', 'cyc_a') $$,
+  '23514', null, 'a 3-module cycle is rejected');
+insert into public.module_dependencies (module_key, depends_on) values ('cyc_c', 'cyc_d');
+select throws_ok($$ update public.module_dependencies set depends_on = 'cyc_a' where module_key = 'cyc_c' and depends_on = 'cyc_d' $$,
+  '23514', null, 'a cycle created by an update is rejected');
+select lives_ok($$ insert into public.module_dependencies (module_key, depends_on) values
+    ('dia_top', 'dia_left'), ('dia_top', 'dia_right'), ('dia_left', 'dia_base'), ('dia_right', 'dia_base') $$,
+  'a diamond (shared dependency) is allowed');
+select throws_ok($$ insert into public.module_dependencies (module_key, depends_on) values ('cyc_d', 'core') $$,
+  '23514', null, 'a dependency on core is rejected');
+select throws_ok($$ insert into public.module_dependencies (module_key, depends_on) values ('core', 'cyc_d') $$,
+  '23514', null, 'core cannot have dependencies');
 select throws_ok($$ insert into public.permissions (key, module_key, description) values ('other.view', 'test_mod', 'x') $$,
   '23514', null, 'permission key prefix must match its module');
 select throws_ok($$ insert into public.permissions (key, module_key, description) values ('nope.view', 'nope', 'x') $$,
@@ -139,6 +172,7 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select ok(private.has_permission('settings.manage'), 'admin has settings.manage by role default');
 select ok(private.has_role('admin'), 'has_role recognises the admin');
+select ok(not private.has_permission('nope.view'), 'an unknown permission key returns false');
 select is(private.current_user_role(), 'admin', 'current_user_role returns text');
 select results_eq('select count(*)::int from public.profiles', array[5], 'admin sees the 5 profiles of their own org only');
 select results_eq('select id from public.organizations', array['b0000000-0000-0000-0000-00000000000a'::uuid], 'admin sees only their own organization');

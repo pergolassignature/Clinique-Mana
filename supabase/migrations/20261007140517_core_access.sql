@@ -58,16 +58,49 @@ $$;
 create table public.modules (
   key text primary key check (key ~ '^[a-z][a-z_]*$'),
   name text not null check (length(trim(name)) > 0),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Core permission prefixes (settings.*, users.*, …) can never be module keys.
+  constraint modules_key_not_core_prefix check (key not in ('settings', 'users', 'modules', 'audit'))
 );
 
+-- `core` is implicit for every module, so it never appears here.
 create table public.module_dependencies (
   module_key text not null references public.modules(key) on delete cascade,
   depends_on text not null references public.modules(key),
   primary key (module_key, depends_on),
-  check (module_key <> depends_on)
+  check (module_key <> depends_on),
+  constraint module_dependencies_no_core check (module_key <> 'core' and depends_on <> 'core')
 );
 create index module_dependencies_depends_on_idx on public.module_dependencies (depends_on);
+
+-- Reject any edge that closes a cycle (A → B → … → A). The table lock
+-- serializes concurrent inserts so two halves of a cycle cannot both pass.
+create function private.module_dependencies_no_cycle()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  lock table public.module_dependencies in share row exclusive mode;
+  if exists (
+    with recursive reach(key) as (
+      select new.depends_on
+      union
+      select d.depends_on
+        from public.module_dependencies d
+        join reach on d.module_key = reach.key
+    )
+    select 1 from reach where reach.key = new.module_key
+  ) then
+    raise exception 'Dépendance circulaire : % → %', new.module_key, new.depends_on using errcode = '23514';
+  end if;
+  return null;
+end;
+$$;
+
+create trigger module_dependencies_no_cycle
+  after insert or update on public.module_dependencies
+  for each row execute function private.module_dependencies_no_cycle();
 
 insert into public.modules (key, name) values ('core', 'Noyau')
 on conflict do nothing;
@@ -81,6 +114,7 @@ create table public.organizations (
   timezone text not null default 'America/Toronto',
   default_locale text not null default 'fr-CA',
   currency text not null default 'CAD' check (currency ~ '^[A-Z]{3}$'),
+  constraint organizations_default_locale_check check (default_locale in ('fr-CA', 'en-CA')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -278,8 +312,10 @@ as $$
   select coalesce(private.current_user_role() = p_role, false)
 $$;
 
--- Role defaults ∪ override grants − override revokes. False when the caller is
--- disabled or has no role (overrides alone never grant anything).
+-- Role defaults ∪ override grants − override revokes, restricted to modules
+-- enabled for the caller's org (`core` always is). False when the caller is
+-- disabled, has no role (overrides alone never grant anything), or the key is
+-- unknown. This is the module gate for RLS: a disabled module grants nothing.
 create function private.has_permission(p_key text)
 returns boolean
 language sql
@@ -288,21 +324,33 @@ security definer
 set search_path = ''
 as $$
   with me as (
-    select r.user_id, r.role
+    select r.user_id, r.role, p.org_id
       from public.user_roles r
       join public.profiles p on p.user_id = r.user_id
      where r.user_id = auth.uid()
        and p.status = 'active'
+  ),
+  -- The permission, only if its module is on for the caller's org.
+  perm as (
+    select pm.key
+      from public.permissions pm
+     cross join me
+     where pm.key = p_key
+       and (pm.module_key = 'core' or exists (
+             select 1 from public.org_modules om
+              where om.org_id = me.org_id
+                and om.module_key = pm.module_key
+                and om.enabled))
   )
   select coalesce(
     (select o.granted
        from public.user_permission_overrides o
        join me on me.user_id = o.user_id
-      where o.permission_key = p_key),
+       join perm on perm.key = o.permission_key),
     exists (select 1
               from public.role_permissions rp
               join me on me.role = rp.role
-             where rp.permission_key = p_key),
+              join perm on perm.key = rp.permission_key),
     false
   )
 $$;
@@ -323,6 +371,7 @@ to authenticated, service_role;
 -- Trigger functions are never called directly.
 revoke all on function
   private.set_updated_at(),
+  private.module_dependencies_no_cycle(),
   private.validate_org_timezone(),
   private.sync_profile_email()
 from public, anon, authenticated, service_role;
@@ -334,8 +383,9 @@ from public, anon, authenticated, service_role;
 -- * null when the caller has no profile;
 -- * disabled profiles are returned (status = 'disabled') so the UI can explain
 --   the refusal, but with empty permissions and modules;
--- * permissions are empty unless the profile is active AND has a role, which
---   mirrors private.has_permission() exactly (I5).
+-- * permissions are empty unless the profile is active AND has a role, and
+--   only include modules enabled for the org (core always): this mirrors
+--   private.has_permission() exactly (I5).
 create function public.get_my_access()
 returns jsonb
 language sql
@@ -369,6 +419,13 @@ as $$
              where x.user_id = p.user_id
                and x.granted
           ) e
+          join public.permissions pm on pm.key = e.k
+         where pm.module_key = 'core'
+            or exists (
+              select 1 from public.org_modules om
+               where om.org_id = p.org_id
+                 and om.module_key = pm.module_key
+                 and om.enabled)
       ), '[]'::jsonb) else '[]'::jsonb end,
     'modules', case when p.status = 'active' then coalesce((
         select jsonb_agg(om.module_key order by om.module_key)
