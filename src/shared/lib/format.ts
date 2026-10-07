@@ -4,7 +4,8 @@
  * Storage formats (matching the database checks):
  * - phone: E.164, North American numbers only (`+15145551234`);
  * - postal code: `H2X 1Y4`;
- * - rate: a fraction with up to 6 decimals (`0.09975` for 9,975 %).
+ * - rate: a fraction with up to 6 decimals (`0.09975` for 9,975 %);
+ * - GST / QST number: compact (`123456789RT0001`).
  */
 
 const PHONE_E164 = /^\+1(\d{3})(\d{3})(\d{4})$/
@@ -46,6 +47,22 @@ export function formatPostalCode(value: string | null | undefined): string {
   if (!value) return ''
   const compact = value.replace(POSTAL_CODE_SEPARATORS, '').toUpperCase()
   return compact.length === 6 ? `${compact.slice(0, 3)} ${compact.slice(3)}` : compact
+}
+
+/** Spaces, hyphens and en/em dashes typed or pasted inside a GST or QST number. */
+const TAX_NUMBER_SEPARATORS = /[\s\-\u2013\u2014]/g
+/** The digits, the program identifier (RT for the GST, TQ for the QST) and the 4-digit reference. */
+const TAX_NUMBER = /^([0-9]{9,10})(RT|TQ)([0-9]{4})$/
+
+/**
+ * A GST or QST number as the clinic reads it: `123456789RT0001` → `123456789 RT 0001`. Typed with
+ * spaces, dashes or in lower case it is regrouped too; anything else is returned as typed (the
+ * schema reports it). The stored value is compact (see `taxNumbersSchema`).
+ */
+export function formatTaxNumber(value: string | null | undefined): string {
+  if (!value) return ''
+  const match = TAX_NUMBER.exec(value.replace(TAX_NUMBER_SEPARATORS, '').toUpperCase())
+  return match ? `${match[1]} ${match[2]} ${match[3]}` : value
 }
 
 // 4 decimals in percent = the 6 a stored rate can have (numeric(7, 6)), so every stored rate round-trips.

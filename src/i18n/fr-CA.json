@@ -223,6 +223,51 @@
         "website": "Site web"
       }
     },
+    "tax": {
+      "description": "Les numéros d'inscription de la clinique et les taux de TPS et de TVQ appliqués aux factures.",
+      "numbers": { "title": "Numéros d'inscription", "saved": "Numéros d'inscription enregistrés." },
+      "fields": {
+        "gst": "Numéro de TPS",
+        "gstHelp": "9 chiffres + RT + 4 chiffres",
+        "qst": "Numéro de TVQ",
+        "qstHelp": "10 chiffres + TQ + 4 chiffres"
+      },
+      "taxes": {
+        "gst": { "title": "TPS", "description": "Taxe sur les produits et services." },
+        "qst": { "title": "TVQ", "description": "Taxe de vente du Québec." }
+      },
+      "rates": {
+        "rate": "Taux",
+        "from": "En vigueur du",
+        "to": "Jusqu'au",
+        "status": "Statut",
+        "actions": "Actions",
+        "scrollLabel": "Historique des taux de {tax}",
+        "until": "au {date}",
+        "statuses": { "current": "En vigueur", "upcoming": "À venir", "ended": "Terminé" },
+        "loadError": "Impossible de charger les taux.",
+        "empty": "Aucun taux enregistré.",
+        "add": "Nouveau taux",
+        "delete": "Supprimer",
+        "deleteLabel": "Supprimer le taux de {rate} à partir du {date}",
+        "deleting": "Suppression…",
+        "deleted": "Taux supprimé.",
+        "confirmTitle": "Supprimer ce taux ?",
+        "confirmBody": "Le taux de {rate} à partir du {date} sera supprimé. Le taux précédent s'appliquera de nouveau."
+      },
+      "dialog": {
+        "title": "Nouveau taux de {tax}",
+        "description": "Le nouveau taux s'appliquera à partir de la date choisie.",
+        "rate": "Taux (%)",
+        "from": "À partir du",
+        "fromHelp": "Le taux actuel se terminera la veille de cette date.",
+        "backdated": "Cette date est passée : le nouveau taux s'appliquera aussi aux calculs faits depuis cette date. Les factures déjà émises gardent leur taux.",
+        "submit": "Ajouter",
+        "submitting": "Ajout…",
+        "added": "Nouveau taux enregistré."
+      },
+      "validation": { "rate": "Taux invalide.", "date": "Date requise." }
+    },
     "provinces": {
       "AB": "Alberta",
       "BC": "Colombie-Britannique",

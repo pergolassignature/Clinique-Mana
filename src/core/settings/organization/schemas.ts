@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
-import { formatPhone, formatPostalCode, parsePhone } from '@/shared/lib/format'
+import { formatPhone, formatPostalCode, formatTaxNumber, parsePhone } from '@/shared/lib/format'
 import type { Organization } from './api'
 
 /**
@@ -179,7 +179,8 @@ export const taxNumbersSchema = z.object({
 })
 
 export function toTaxNumbersFormValues(org: Organization): z.input<typeof taxNumbersSchema> {
-  return { gst_number: str(org.gst_number), qst_number: str(org.qst_number) }
+  // Shown grouped (123456789 RT 0001); the schema compacts them back.
+  return { gst_number: formatTaxNumber(org.gst_number), qst_number: formatTaxNumber(org.qst_number) }
 }
 
 // --- Signataire ----------------------------------------------------------------------------------
