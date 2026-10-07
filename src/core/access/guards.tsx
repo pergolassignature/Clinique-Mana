@@ -7,7 +7,7 @@ import { Button } from '@/shared/ui/button'
 import { useAccess } from './access-context'
 
 function Loading() {
-  return <FullPageMessage title={t('common.loading')} />
+  return <FullPageMessage role="status" title={t('common.loading')} />
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {

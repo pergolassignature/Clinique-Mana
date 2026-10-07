@@ -9,7 +9,7 @@ import { safeRedirect } from '@/core/auth/redirect'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
-import { AuthCard } from './AuthCard'
+import { AuthCard, StatusNotice } from './AuthCard'
 
 const schema = z.object({
   email: z.email({ error: t('auth.errors.invalidEmail') }),
@@ -24,34 +24,38 @@ export function LoginPage() {
   const [error, setError] = useState<AuthErrorCode | null>(null)
   const [magicSent, setMagicSent] = useState(false)
   const [magicPending, setMagicPending] = useState(false)
-  const { register, handleSubmit, getValues, trigger, formState } = useForm<Values>({ resolver: zodResolver(schema) })
+  const { register, handleSubmit, getValues, trigger, resetField, setFocus, formState } = useForm<Values>({
+    resolver: zodResolver(schema),
+  })
   // Where to go after sign-in; also where the magic link lands. Never an external URL.
   const target = safeRedirect(params.get('redirect'))
 
   if (session) return <Navigate to={target} replace />
 
-  if (isLoading) {
-    return (
-      <AuthCard title={t('auth.login.title')}>
-        <p role="status" className="text-sm text-muted-foreground">{t('common.loading')}</p>
-      </AuthCard>
-    )
-  }
+  if (isLoading) return <AuthCard title={t('auth.login.title')} status={<StatusNotice muted>{t('common.loading')}</StatusNotice>} />
 
   const onSubmit = async ({ email, password }: Values) => {
     setError(null)
     setMagicSent(false)
     const code = await signInWithPassword(email, password)
-    if (code) setError(code)
-    else navigate(target, { replace: true })
+    if (!code) {
+      navigate(target, { replace: true })
+      return
+    }
+    setError(code)
+    if (code === 'invalid_credentials') {
+      resetField('password')
+      setFocus('password')
+    }
   }
 
   const onMagicLink = async () => {
-    if (!(await trigger('email'))) return
-    setError(null)
-    setMagicSent(false)
+    // Pending first (the button disables on this click), so a double click sends one link.
     setMagicPending(true)
     try {
+      if (!(await trigger('email'))) return
+      setError(null)
+      setMagicSent(false)
       const code = await sendMagicLink(getValues('email'), target)
       if (code) setError(code)
       else setMagicSent(true)
@@ -63,14 +67,20 @@ export function LoginPage() {
   const busy = formState.isSubmitting || magicPending
 
   return (
-    <AuthCard title={t('auth.login.title')} subtitle={t('auth.login.subtitle')}>
+    <AuthCard
+      title={t('auth.login.title')}
+      subtitle={t('auth.login.subtitle')}
+      status={magicSent ? <StatusNotice>{t('auth.login.magicLinkSent')}</StatusNotice> : null}
+    >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <div className="space-y-1.5">
           <Label htmlFor="email">{t('auth.login.email')}</Label>
           <Input
             id="email"
             type="email"
-            autoComplete="email"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
             aria-invalid={Boolean(formState.errors.email)}
             aria-describedby={formState.errors.email ? 'email-error' : undefined}
             {...register('email')}
@@ -101,7 +111,6 @@ export function LoginPage() {
         <Button type="button" variant="outline" className="w-full whitespace-normal" onClick={onMagicLink} disabled={busy}>
           {t('auth.login.magicLink')}
         </Button>
-        {magicSent && <p role="status" className="rounded-md bg-primary/10 px-3 py-2 text-sm text-foreground">{t('auth.login.magicLinkSent')}</p>}
         <p className="text-center text-sm">
           <Link to="/mot-de-passe-oublie" className="text-primary hover:underline">
             {t('auth.login.forgot')}

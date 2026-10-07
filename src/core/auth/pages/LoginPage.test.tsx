@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
@@ -47,6 +47,41 @@ describe('LoginPage', () => {
     await userEvent.click(screen.getByRole('button', { name: t('auth.login.submit') }))
     expect(await screen.findByRole('alert')).toHaveTextContent(t('auth.errors.invalid_credentials'))
     expect(screen.queryByText('HOME PAGE')).not.toBeInTheDocument()
+    // Ready for another try: the password is cleared and focused.
+    expect(screen.getByLabelText(t('auth.login.password'))).toHaveValue('')
+    expect(screen.getByLabelText(t('auth.login.password'))).toHaveFocus()
+  })
+
+  it('lets password managers and mobile keyboards treat the email as a username', () => {
+    render(loginAt('/', {}))
+    const email = screen.getByLabelText(t('auth.login.email'))
+    expect(email).toHaveAttribute('autocomplete', 'username')
+    expect(email).toHaveAttribute('autocapitalize', 'none')
+    expect(email).toHaveAttribute('spellcheck', 'false')
+  })
+
+  it('sends one magic link for a double click', async () => {
+    const sendMagicLink = vi.fn(() => new Promise<null>(() => {}))
+    render(loginAt('/', { sendMagicLink }))
+    await userEvent.type(screen.getByLabelText(t('auth.login.email')), 'admin@mana.test')
+    const button = screen.getByRole('button', { name: t('auth.login.magicLink') })
+    fireEvent.click(button)
+    fireEvent.click(button)
+    await waitFor(() => expect(sendMagicLink).toHaveBeenCalled())
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(sendMagicLink).toHaveBeenCalledTimes(1)
+  })
+
+  it('announces the magic link through a live region that is always mounted', async () => {
+    const sendMagicLink = vi.fn().mockResolvedValue(null)
+    render(loginAt('/', { sendMagicLink }))
+    const region = screen.getByRole('status')
+    expect(region).toHaveAttribute('aria-live', 'polite')
+    expect(region).toBeEmptyDOMElement()
+    await userEvent.type(screen.getByLabelText(t('auth.login.email')), 'admin@mana.test')
+    await userEvent.click(screen.getByRole('button', { name: t('auth.login.magicLink') }))
+    await waitFor(() => expect(screen.getByRole('status')).toBe(region))
+    expect(region).toHaveTextContent(t('auth.login.magicLinkSent'))
   })
 
   it('validates the email before calling the server', async () => {

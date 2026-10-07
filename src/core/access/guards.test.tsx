@@ -25,7 +25,7 @@ describe('RequireAuth', () => {
     ['access is idle', { access: { status: 'idle' as const, access: null } }],
   ])('never renders children while %s', (_label, options) => {
     render(renderWithContexts(<RequireAuth><p>SECRET</p></RequireAuth>, options))
-    expect(screen.getByText(t('common.loading'))).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(t('common.loading'))
     expect(screen.queryByText('SECRET')).not.toBeInTheDocument()
   })
 

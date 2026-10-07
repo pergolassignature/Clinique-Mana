@@ -76,6 +76,25 @@ describe('ResetPasswordPage', () => {
     expect(updatePassword).not.toHaveBeenCalled()
   })
 
+  it('accepts at most 72 bytes (the bcrypt limit)', async () => {
+    const updatePassword = vi.fn().mockResolvedValue(null)
+    render(resetAt({ updatePassword }))
+    const long = 'é'.repeat(37) // 37 characters, 74 bytes
+    await fill(long, long)
+    expect(await screen.findByText(t('auth.reset.tooLong'))).toBeInTheDocument()
+    expect(updatePassword).not.toHaveBeenCalled()
+  })
+
+  it('tells password managers which account the new password belongs to', () => {
+    const { container } = render(resetAt({}))
+    expect(container.querySelector('input[autocomplete="username"]')).toHaveValue('staff@mana.test')
+  })
+
+  it('announces loading through the same live region', () => {
+    render(resetAt({ session: null, isLoading: true }))
+    expect(screen.getByRole('status')).toHaveTextContent(t('common.loading'))
+  })
+
   it('updates the password, confirms and opens the app', async () => {
     const updatePassword = vi.fn().mockResolvedValue(null)
     render(resetAt({ updatePassword }))

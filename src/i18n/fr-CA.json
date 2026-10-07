@@ -32,6 +32,7 @@
       "confirm": "Confirmer le mot de passe",
       "submit": "Enregistrer",
       "tooShort": "Au moins 10 caractères.",
+      "tooLong": "72 caractères au maximum.",
       "mismatch": "Les mots de passe ne correspondent pas.",
       "invalidLink": "Ce lien est invalide ou expiré. Demandez-en un nouveau.",
       "requestNew": "Demander un nouveau lien",

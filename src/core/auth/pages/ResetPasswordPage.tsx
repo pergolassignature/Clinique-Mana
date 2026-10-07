@@ -9,11 +9,15 @@ import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { toast } from '@/shared/ui/sonner'
-import { AuthCard } from './AuthCard'
+import { AuthCard, StatusNotice } from './AuthCard'
 
 const schema = z
   .object({
-    password: z.string().min(10, { error: t('auth.reset.tooShort') }),
+    password: z
+      .string()
+      .min(10, { error: t('auth.reset.tooShort') })
+      // bcrypt (GoTrue) only uses the first 72 bytes; accented letters take two.
+      .refine((v) => new TextEncoder().encode(v).length <= 72, { error: t('auth.reset.tooLong') }),
     confirm: z.string(),
   })
   .refine((v) => v.password === v.confirm, { path: ['confirm'], error: t('auth.reset.mismatch') })
@@ -32,13 +36,7 @@ export function ResetPasswordPage() {
   const [error, setError] = useState<AuthErrorCode | null>(null)
   const { register, handleSubmit, formState } = useForm<Values>({ resolver: zodResolver(schema) })
 
-  if (isLoading) {
-    return (
-      <AuthCard title={t('auth.reset.title')}>
-        <p role="status" className="text-sm text-muted-foreground">{t('common.loading')}</p>
-      </AuthCard>
-    )
-  }
+  if (isLoading) return <AuthCard title={t('auth.reset.title')} status={<StatusNotice muted>{t('common.loading')}</StatusNotice>} />
 
   // The recovery link signs the user in; without a session the link was invalid or expired.
   if (linkFailed || !session) {
@@ -87,6 +85,8 @@ export function ResetPasswordPage() {
   return (
     <AuthCard title={t('auth.reset.title')}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+        {/* Tells password managers which account the new password belongs to. */}
+        <input type="text" name="username" autoComplete="username" value={session.user.email ?? ''} readOnly hidden />
         <div className="space-y-1.5">
           <Label htmlFor="password">{t('auth.reset.password')}</Label>
           <Input
