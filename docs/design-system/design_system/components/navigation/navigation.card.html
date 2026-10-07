@@ -1,0 +1,30 @@
+<!doctype html><html lang="fr-CA"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css"><style>body{padding:20px;box-sizing:border-box}*{box-sizing:border-box}.g{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.col{display:flex;flex-direction:column;gap:12px}.cap{font:var(--type-caption);color:var(--text-muted);margin:0 0 6px}</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script src="../../_ds_bundle.js"></script></head><body><div id="root"></div>
+<script type="text/babel">
+const DS = window.CliniqueMANADesignSystem_d475f9;
+const { Button, Input, Textarea, Select, Label, Checkbox, Switch, Badge, Avatar, Card, Skeleton, Alert, Tooltip, StarToggle, EmptyState, StatusIndicator, Icon, NavTabs, SidebarNav, Topbar, SettingsNav, DropdownMenu, CommandPalette, Accordion, PageHeader, Dialog, AlertDialog, Sheet, Popover, Toast, AuthCard, FullPageMessage } = DS;
+function App(){ 
+const [tab,setTab]=React.useState('documents');const [active,setActive]=React.useState('professionnels');const [sec,setSec]=React.useState('modules');
+const items=[{id:'accueil',label:'Accueil',icon:'house'},{id:'demandes',label:'Demandes',icon:'inbox',badge:4},{id:'clients',label:'Clients',icon:'circle-user'},{id:'professionnels',label:'Professionnels',icon:'users'},{id:'rendez-vous',label:'Rendez-vous',icon:'calendar-days'},{id:'facturation',label:'Facturation',icon:'receipt'},{id:'parametres',label:'Paramètres',icon:'settings'}];
+return <div className="col" style={{gap:16}}>
+  <div style={{display:'flex',gap:16,height:300}}>
+    <SidebarNav logoSrc="../../assets/logo-header.svg" items={items} active={active} onNavigate={setActive} user="Christine Sirois" roleLabel="Admin" style={{borderRadius:'var(--radius-lg)',width:200,minWidth:200}} />
+    <SidebarNav logoSrc="../../assets/favicon-legacy.svg" collapsed items={items} active={active} onNavigate={setActive} user="Christine Sirois" style={{borderRadius:'var(--radius-lg)'}} />
+    <div className="col" style={{flex:1,gap:12}}>
+      <div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-lg)',overflow:'hidden'}}><Topbar title="Justin Mantha" crumbs={['Professionnels']} onSearch={()=>{}} notifications={2} user="Christine Sirois" style={{padding:'0 12px'}} /></div>
+      <SettingsNav active={sec} onNavigate={setSec} style={{width:'100%'}} groups={[{label:'Clinique',items:[{id:'identite',label:'Identité légale',icon:'building-2'},{id:'fiscalite',label:'Fiscalité',icon:'percent'}]},{label:'Plateforme',items:[{id:'modules',label:'Modules',icon:'blocks'},{id:'audit',label:"Journal d'audit",icon:'scroll-text',readOnly:true}]}]} />
+    </div>
+  </div>
+  <PageHeader title="Justin Mantha" subtitle="Psychologue · OPQ 12345-67" breadcrumb={<><span>Professionnels</span><span>/</span></>} actions={<><DropdownMenu open trigger={<Button variant="outline" size="icon" aria-label="Actions"><Icon name="ellipsis" /></Button>} items={[{label:'Modifier',icon:'pencil'},{label:'Envoyer la fiche PDF',icon:'file-text',shortcut:'⌘P'},'-',{label:'Désactiver',icon:'user-x',tone:'danger'}]} /><Button><Icon name="send" /> Inviter</Button></>} />
+  <NavTabs value={tab} onChange={setTab} tabs={[{id:'apercu',label:'Aperçu',icon:'layout-dashboard'},{id:'profil',label:'Profil',icon:'id-card'},{id:'public',label:'Profil public',icon:'globe'},{id:'documents',label:'Documents',icon:'files',count:3},{id:'contrats',label:'Contrats',icon:'pen-line'},{id:'historique',label:'Historique',icon:'history'}]} />
+  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:24}}>
+    <Accordion defaultOpen={['anx']} items={[{id:'anx',title:'Anxiété et stress',count:6,content:<div className="g" style={{gap:6}}><Badge variant="secondary">Anxiété généralisée</Badge><Badge variant="secondary">Stress au travail</Badge><Badge variant="secondary">Crises de panique</Badge></div>},{id:'couple',title:'Couple et famille',count:4,content:'…'}]} />
+    <CommandPalette style={{boxShadow:'var(--shadow-medium)'}} groups={[{label:'Clients',items:[{label:'Marie Tremblay',icon:'circle-user',hint:'Cliente'},{label:'Marc-André Côté',icon:'circle-user',hint:'Client'}]},{label:'Pages',items:[{label:'Paramètres › Modules',icon:'settings'}]}]} />
+  </div>
+</div>; }
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script></body></html>

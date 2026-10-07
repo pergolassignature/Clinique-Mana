@@ -1,3 +1,5 @@
+> **Superseded (2026-10-07, decision #29):** the visual reference is now the design system in [`docs/design-system/`](../design-system/README.md) (Inter, teal primary, hairline borders, radii 4/6/8). The token mapping below is rewritten when the design system is applied (plan Task 2.2b).
+
 # Clinique MANA — Brand Tokens
 
 > **Status:** the sage/honey/Inter tokens at the bottom of this page are **legacy**. Since Phase 2 (Task 2.2) the app follows the website identity described in [business context §6](business-context.md#6-brand--tone): Raleway, charcoal text, wine for primary actions, mint/teal for calm surfaces and states. Principle unchanged: calm, human, low contrast — while text still meets WCAG AA.

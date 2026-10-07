@@ -1,0 +1,31 @@
+<!doctype html><html lang="fr-CA"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css"><style>body{padding:0;box-sizing:border-box}*{box-sizing:border-box}.kv{display:grid;grid-template-columns:140px 1fr;gap:0 16px;font:var(--type-body)}.kv>dt{color:var(--text-muted);padding:5px 0;border-bottom:1px solid var(--border-light)}.kv>dd{margin:0;padding:5px 0;border-bottom:1px solid var(--border-light);color:var(--text-body)}.tbl{width:100%;border-collapse:collapse;font:var(--type-body)}.tbl th{text-align:left;font:var(--type-caption);font-weight:500;color:var(--text-muted);padding:6px 12px;border-bottom:1px solid var(--border)}.tbl td{padding:7px 12px;border-bottom:1px solid var(--border-light);white-space:nowrap}.tbl tr:last-child td{border-bottom:0}.tbl tr:hover td{background:var(--surface-panel-hover)}.num{font-variant-numeric:tabular-nums}.sec{font:var(--type-caption);font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px}</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script src="../../_ds_bundle.js"></script></head><body><div id="root"></div>
+<script type="text/babel">
+const { Button, Badge, Avatar, Card, Skeleton, Alert, Tooltip, StarToggle, EmptyState, StatusIndicator, Icon } = window.CliniqueMANADesignSystem_d475f9;
+function App(){
+const [star,setStar]=React.useState(true);
+return <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:16}}>
+  <div style={{display:'flex',alignItems:'center',gap:12,paddingBottom:12,borderBottom:'1px solid var(--border)'}}>
+    <Avatar name="Justin Mantha" />
+    <div style={{flex:1,minWidth:0}}><div style={{display:'flex',alignItems:'center',gap:10}}><span style={{font:'var(--type-section-title)'}}>Justin Mantha</span><Badge variant="success">Actif</Badge><Tooltip content="Spécialisé : anxiété, deuil"><span style={{display:'inline-flex'}}><StarToggle isSpecialized={star} onToggle={()=>setStar(!star)} /></span></Tooltip></div><div style={{font:'var(--type-caption)',color:'var(--text-muted)'}}>Psychologue · OPQ 12345-67 · j.mantha@exemple.com · depuis le 12 janv. 2026</div></div>
+    <Button variant="outline" size="sm"><Icon name="file-text" size={14} /> Fiche PDF</Button><Button size="sm">Modifier</Button>
+  </div>
+  <Alert variant="warning" title="Assurance responsabilité expire le 19 oct. 2026" action={<Button variant="outline" size="sm">Envoyer un rappel</Button>}>Sans renouvellement, le profil est désactivé automatiquement et retiré du jumelage.</Alert>
+  <div style={{display:'grid',gridTemplateColumns:'1fr 1.4fr',gap:24,alignItems:'start'}}>
+    <div><p className="sec">Profil</p><dl className="kv" style={{margin:0}}><dt>Statut</dt><dd><Badge variant="success">Actif</Badge></dd><dt>Profession</dt><dd>Psychologue</dd><dt>Ordre · permis</dt><dd>OPQ · 12345-67</dd><dt>Tarif individuel</dt><dd className="num">160,00 $ / 50 min</dd><dt>Tarif couple</dt><dd className="num">180,00 $ / 60 min</dd><dt>Invitation</dt><dd><Badge variant="secondary">Acceptée le 12 déc.</Badge></dd><dt>Contrat</dt><dd><Badge variant="warning">En attente de signature</Badge></dd></dl>
+      <p className="sec" style={{marginTop:16}}>Liste de vérification</p><StatusIndicator status="complete" label="Questionnaire complété" /><StatusIndicator status="pending" label="Contrat à signer" description="envoyé le 3 oct." /><StatusIndicator status="warning" label="Assurance" description="expire dans 12 jours" /></div>
+    <div><p className="sec">Documents · 3</p><Card padding={0}><table className="tbl"><thead><tr><th>Document</th><th>Expiration</th><th>Statut</th><th></th></tr></thead><tbody>
+      <tr><td>Assurance responsabilité</td><td className="num">19 oct. 2026</td><td><Badge variant="warning">Expire bientôt</Badge></td><td style={{textAlign:'right'}}><Button variant="ghost" size="icon-sm" aria-label="Télécharger"><Icon name="download" size={14} /></Button></td></tr>
+      <tr><td>Permis OPQ</td><td className="num">31 mars 2027</td><td><Badge variant="success">Valide</Badge></td><td style={{textAlign:'right'}}><Button variant="ghost" size="icon-sm" aria-label="Télécharger"><Icon name="download" size={14} /></Button></td></tr>
+      <tr><td>Contrat de services</td><td className="num">—</td><td><Badge variant="secondary">Non signé</Badge></td><td style={{textAlign:'right'}}><Button variant="ghost" size="icon-sm" aria-label="Télécharger" disabled><Icon name="download" size={14} /></Button></td></tr>
+      <tr><td colSpan="4"><div style={{display:'flex',gap:12,alignItems:'center'}}><Skeleton width={160} height={12} /><Skeleton width={80} height={12} /><span style={{font:'var(--type-caption)',color:'var(--text-muted)',marginLeft:'auto'}}>chargement…</span></div></td></tr>
+    </tbody></table></Card>
+      <p className="sec" style={{marginTop:16}}>Courriels</p><EmptyState title="Aucun courriel envoyé" description="Les invitations et rappels envoyés à ce professionnel apparaîtront ici." style={{padding:'4px 0 0'}} /></div>
+  </div>
+</div>; }
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script></body></html>
