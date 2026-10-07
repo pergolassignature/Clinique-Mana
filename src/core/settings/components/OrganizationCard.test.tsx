@@ -172,6 +172,53 @@ describe('OrganizationCard', () => {
     expect(saveButton()).toBeEnabled()
   })
 
+  it('keeps what was typed while the save was in flight: still there, dirty, guard armed', async () => {
+    let resolve: (saved: Organization) => void = () => {}
+    mocks.api.updateOrganization.mockReturnValue(new Promise((r) => (resolve = r)))
+    renderOrganizationPage(card())
+    await edit(neq(), '9876543210')
+    await userEvent.click(saveButton())
+    await screen.findByRole('button', { name: t('common.saving') })
+
+    // The fields stay enabled while saving: the user goes on typing.
+    const name = screen.getByRole('textbox', { name: `Nom ${t('common.form.required')}` })
+    await userEvent.type(name, ' Laval')
+    resolve({ ...testOrganization, neq: '9876543210' })
+
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalled())
+    await waitFor(() => expect(saveButton()).toBeEnabled())
+    expect(name).toHaveValue('Clinique MANA Laval')
+    expect(neq()).toHaveValue('9876543210')
+    await leave()
+    expect(await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })).toBeInTheDocument()
+  })
+
+  it('a field typed back to its submitted value during the save takes the saved (normalised) value', async () => {
+    let resolve: (saved: Organization) => void = () => {}
+    mocks.api.updateOrganization.mockReturnValue(new Promise((r) => (resolve = r)))
+    renderOrganizationPage(card())
+    await edit(neq(), '9876-543-210')
+    await userEvent.click(saveButton())
+    await screen.findByRole('button', { name: t('common.saving') })
+    resolve({ ...testOrganization, neq: '9876543210' })
+
+    await waitFor(() => expect(neq()).toHaveValue('9876543210'))
+    expect(saveButton()).toBeDisabled()
+  })
+
+  it('keeps its validation errors when the organization changes underneath (another card saved, a refetch)', async () => {
+    const { rerender } = renderOrganizationPage(card())
+    await edit(neq(), '123')
+    await userEvent.click(saveButton())
+    await screen.findByText(t('settings.validation.neq'))
+
+    rerender(card({ ...testOrganization, name: 'Clinique MANA Laval' }))
+    await waitFor(() => expect(screen.getByRole('textbox', { name: `Nom ${t('common.form.required')}` })).toHaveValue('Clinique MANA Laval'))
+    expect(screen.getByText(t('settings.validation.neq'))).toBeInTheDocument()
+    expect(neq()).toHaveAttribute('aria-invalid', 'true')
+    expect(neq()).toHaveValue('123')
+  })
+
   describe('read-only', () => {
     it('renders the values read-only and focusable, without Annuler or Enregistrer', async () => {
       renderOrganizationPage(card(), { readOnly: true })
