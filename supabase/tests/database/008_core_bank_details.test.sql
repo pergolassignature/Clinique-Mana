@@ -5,7 +5,7 @@
 -- audited reveal, redaction, validation, settings.manage is not enough, org isolation.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(62);
+select plan(72);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin and an adjointe who is granted
@@ -35,13 +35,14 @@ insert into public.user_permission_overrides (user_id, org_id, permission_key, g
 -- =============================================================================
 select table_privs_are('public', 'organization_bank_details', 'anon', array[]::text[], 'anon: no privileges on organization_bank_details');
 select table_privs_are('public', 'organization_bank_details', 'authenticated', array[]::text[], 'authenticated: no privileges on organization_bank_details');
+select table_privs_are('public', 'organization_bank_details', 'service_role', array[]::text[], 'service_role: no privileges on organization_bank_details');
 
-select function_privs_are('private', 'pii_key',     array[]::text[], 'authenticated', array[]::text[], 'clients cannot read the encryption key');
-select function_privs_are('private', 'pii_key',     array[]::text[], 'service_role',  array[]::text[], 'service_role cannot read the encryption key');
-select function_privs_are('private', 'encrypt_pii', array['text'],   'authenticated', array[]::text[], 'clients cannot call encrypt_pii');
-select function_privs_are('private', 'encrypt_pii', array['text'],   'service_role',  array[]::text[], 'service_role cannot call encrypt_pii');
-select function_privs_are('private', 'decrypt_pii', array['bytea'],  'authenticated', array[]::text[], 'clients cannot call decrypt_pii');
-select function_privs_are('private', 'decrypt_pii', array['bytea'],  'service_role',  array[]::text[], 'service_role cannot call decrypt_pii');
+select function_privs_are('private', 'pii_key',     array[]::text[], 'authenticated', array[]::text[], 'authenticated has no EXECUTE on pii_key');
+select function_privs_are('private', 'pii_key',     array[]::text[], 'service_role',  array[]::text[], 'service_role has no EXECUTE on pii_key');
+select function_privs_are('private', 'encrypt_pii', array['text'],   'authenticated', array[]::text[], 'authenticated has no EXECUTE on encrypt_pii');
+select function_privs_are('private', 'encrypt_pii', array['text'],   'service_role',  array[]::text[], 'service_role has no EXECUTE on encrypt_pii');
+select function_privs_are('private', 'decrypt_pii', array['bytea'],  'authenticated', array[]::text[], 'authenticated has no EXECUTE on decrypt_pii');
+select function_privs_are('private', 'decrypt_pii', array['bytea'],  'service_role',  array[]::text[], 'service_role has no EXECUTE on decrypt_pii');
 
 select function_privs_are('public', 'get_bank_details',           array[]::text[], 'anon', array[]::text[], 'anon cannot call get_bank_details');
 select function_privs_are('public', 'reveal_bank_account_number', array[]::text[], 'anon', array[]::text[], 'anon cannot call reveal_bank_account_number');
@@ -106,6 +107,16 @@ select results_eq(
   'the new account is masked and the email trimmed');
 select is(public.reveal_bank_account_number(), '7654321', 'the new account is stored as digits only');
 
+select lives_ok($$ select public.set_bank_details(' 815 ', E'\t30001\n', '   ', '  PAIEMENT@Clinique.TEST ') $$,
+  'admin saves with padded numbers, a blank account and a mixed-case email');
+select results_eq(
+  $$ select institution_number, transit_number, account_last4, etransfer_email from public.get_bank_details() $$,
+  $$ values ('815'::text, '30001'::text, '4321'::text, 'paiement@clinique.test'::text) $$,
+  'numbers are trimmed, a blank account keeps the stored one, the email is lowercased');
+select lives_ok($$ select public.set_bank_details('815', '30001', null, E' \t ') $$,
+  'admin saves a whitespace-only Interac email');
+select is((select etransfer_email from public.get_bank_details()), null, 'a whitespace-only email is stored as null');
+
 select throws_ok($$ select public.set_bank_details('81', '30000', '1234567', null) $$,
   'P0001', 'Le numéro d''institution compte 3 chiffres.', 'institution number has 3 digits');
 select throws_ok($$ select public.set_bank_details('815', '3000', '1234567', null) $$,
@@ -164,6 +175,15 @@ select is((select position('7654321' in encode(account_number, 'escape'))
 select is((select get_byte(account_number, 3) from public.organization_bank_details
             where org_id = 'b0000000-0000-0000-0000-00000000000a'),
   9, 'the account number is encrypted with AES-256');
+-- Then the S2K specifier: type 3 (iterated and salted), then the digest id (8 = SHA-256).
+select is((select get_byte(account_number, 5) from public.organization_bank_details
+            where org_id = 'b0000000-0000-0000-0000-00000000000a'),
+  8, 'the key derivation uses SHA-256');
+select is((select extensions.pgp_sym_decrypt(account_number, private.pii_key()) from public.organization_bank_details
+            where org_id = 'b0000000-0000-0000-0000-00000000000a'),
+  '7654321', 'the ciphertext decrypts with the Vault key');
+select is(private.decrypt_pii(extensions.pgp_sym_encrypt('7654321', private.pii_key(), 'cipher-algo=aes256')),
+  '7654321', 'values written with the earlier options (SHA-1 S2K) still decrypt');
 select results_eq(
   $$ select transit_number, account_last4 from public.organization_bank_details
       where org_id = 'b0000000-0000-0000-0000-00000000000a' $$,
@@ -187,8 +207,23 @@ select is((select changed_fields -> 'transit_number' from public.audit_log
   '{"before": "30000", "after": "30001"}'::jsonb, 'non-sensitive changes stay readable in the log');
 select is((select count(*)::int from public.audit_log
             where changed_fields::text like '%1234567%' or changed_fields::text like '%7654321%'
-               or changed_fields::text like '%11112222%' or changed_fields::text like '%\\x%'),
-  0, 'no account number or ciphertext reaches the audit log');
+               or changed_fields::text like '%11112222%'
+               or changed_fields::text ~* '[0-9a-f]{32,}'),
+  0, 'no account number or ciphertext (long hex run) reaches the audit log');
+
+-- =============================================================================
+-- Org secrets cannot reach the PII key through a forged row (as postgres)
+-- =============================================================================
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values ('b0000000-0000-0000-0000-00000000000a', 'forged',
+        (select id from vault.secrets where name = 'pii_encryption_key'));
+set local role service_role;
+select is(public.get_org_secret('b0000000-0000-0000-0000-00000000000a', 'forged'), null,
+  'get_org_secret does not return a secret that is not named after the row');
+reset role;
+delete from public.org_secrets where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'forged';
+select is((select count(*)::int from vault.secrets where name = 'pii_encryption_key'), 1,
+  'deleting a forged org_secrets row leaves the PII key in place');
 
 select * from finish();
 rollback;

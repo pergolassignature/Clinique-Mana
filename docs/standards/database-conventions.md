@@ -144,12 +144,13 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 - Sensitive non-secret data (SIN, bank details) goes in `*_private` tables, read through audited RPCs only, with the sensitive columns redacted from the audit trigger.
 
 **Encrypted columns** (reference: `organization_bank_details`, migration `…_core_bank_details.sql`):
-- Store the value in a `bytea` column, on a table with no client privilege (RLS on, no policy).
-- Encrypt with `private.encrypt_pii(text)` inside a SECURITY DEFINER RPC that checks its permission first (key: Vault secret `pii_encryption_key`, AES-256 via pgcrypto).
+- Store the value in a `bytea` column, on a table with no client privilege (RLS on, no policy), revoked from `service_role` too: `revoke all on public.<table> from anon, authenticated, service_role;`.
+- Encrypt with `private.encrypt_pii(text)` inside a SECURITY DEFINER RPC (owned by `postgres`) that checks its permission first. Key: Vault secret `pii_encryption_key`; AES-256 with a SHA-256 key derivation, via pgcrypto.
 - Keep a `*_last4` (or otherwise masked) column for display; the « get » RPC returns only that.
-- A reveal RPC decrypts with `private.decrypt_pii(bytea)` and writes an `audit_log` row with action `read` and `source = 'rpc:<function>'`.
+- A reveal RPC decrypts with `private.decrypt_pii(bytea)` and writes an `audit_log` row: action `read`, `source = 'rpc:<function>'`, `changed_fields = {"fields": ["<column>", …]}` (the names of the revealed columns, never values). No stored value → return null, no audit row.
 - Attach the audit trigger with the column redacted: `private.audit_trigger('<column>')`.
-- Never grant `private.pii_key`, `encrypt_pii` or `decrypt_pii` to any role (`service_role` included), and never log or select the key.
+- `private.pii_key`, `encrypt_pii` and `decrypt_pii` are SECURITY INVOKER and granted to no role (`service_role` included): never grant them, never log or select the key.
+- Only pass bytes read from an encrypted column to `decrypt_pii`, never caller-supplied bytes.
 
 ## 9. Adding a module (recipe)
 

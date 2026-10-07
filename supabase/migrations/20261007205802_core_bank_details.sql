@@ -4,8 +4,13 @@
 -- Design:  docs/plans/2026-10-07-phase-2-core-settings-design.md §3.4
 -- * The data key is a Vault secret (pii_encryption_key). Vault encrypts it with
 --   a root key kept outside the database, so a dump alone does not reveal it.
--- * private.encrypt_pii / decrypt_pii (pgcrypto, AES-256) are callable only by
---   SECURITY DEFINER functions (their owner); no client role can execute them.
+-- * private.pii_key / encrypt_pii / decrypt_pii (pgcrypto, AES-256, S2K SHA-256)
+--   are SECURITY INVOKER and granted to no role: they work only inside the
+--   SECURITY DEFINER RPCs owned by postgres, so even a stray future grant
+--   would give a client nothing (clients cannot read vault.decrypted_secrets).
+-- * The table is revoked from service_role too.
+-- * org_secrets functions (get_org_secret, the vault-delete trigger) are
+--   tightened here so a forged org_secrets row can never reach this key.
 -- * Clients have no privilege on the table: they use get_bank_details (masked),
 --   reveal_bank_account_number (audited read) and set_bank_details.
 -- * Phase 4 reuses the helpers for professionals' SIN and bank accounts.
@@ -36,7 +41,7 @@ create function private.pii_key()
 returns text
 language sql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
   select ds.decrypted_secret from vault.decrypted_secrets ds where ds.name = 'pii_encryption_key'
@@ -45,7 +50,7 @@ $$;
 create function private.encrypt_pii(p_value text)
 returns bytea
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
@@ -58,15 +63,18 @@ begin
   if v_key is null then
     raise exception 'Clé de chiffrement introuvable' using errcode = '55000';
   end if;
-  return extensions.pgp_sym_encrypt(p_value, v_key, 'cipher-algo=aes256');
+  return extensions.pgp_sym_encrypt(p_value, v_key, 'cipher-algo=aes256, s2k-digest-algo=sha256');
 end;
 $$;
 
+-- Only ever pass bytes read from an encrypted column, never caller-supplied bytes.
+-- pgp_sym_decrypt reads the cipher and S2K options from the message, so rows
+-- written with older options still decrypt.
 create function private.decrypt_pii(p_value bytea)
 returns text
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
@@ -85,6 +93,42 @@ $$;
 
 revoke all on function private.pii_key(), private.encrypt_pii(text), private.decrypt_pii(bytea)
   from public, anon, authenticated, service_role;
+
+-- -----------------------------------------------------------------------------
+-- Org secrets: only touch the Vault secret named after the row
+-- -----------------------------------------------------------------------------
+-- set_org_secret names each secret 'org:<org_id>:<key>'. Matching that exact name
+-- means a forged org_secrets row pointing at another secret (pii_encryption_key,
+-- or another org's) can neither read nor delete it. Same signatures; grants kept.
+create or replace function public.get_org_secret(p_org_id uuid, p_key text)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select ds.decrypted_secret
+    from public.org_secrets s
+    join vault.decrypted_secrets ds
+      on ds.id = s.vault_secret_id
+     and ds.name = pg_catalog.format('org:%s:%s', s.org_id, s.key)
+   where s.org_id = p_org_id
+     and s.key = p_key
+$$;
+
+create or replace function private.org_secrets_delete_vault()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from vault.secrets vs
+   where vs.id = old.vault_secret_id
+     and vs.name = pg_catalog.format('org:%s:%s', old.org_id, old.key);
+  return null;
+end;
+$$;
 
 -- -----------------------------------------------------------------------------
 -- Table
@@ -114,6 +158,8 @@ create trigger organization_bank_details_audit
   for each row execute function private.audit_trigger('account_number');
 
 revoke all on public.organization_bank_details from anon, authenticated;
+-- Server code does not need the ciphertext either (conventions §3: revoke explicitly).
+revoke all on public.organization_bank_details from service_role;
 alter table public.organization_bank_details enable row level security;
 -- No policy and no grant on purpose: only the SECURITY DEFINER RPCs below touch it.
 
@@ -162,6 +208,7 @@ begin
   end if;
 
   select b.account_number into v_value from public.organization_bank_details b where b.org_id = v_org;
+  -- No bank details yet: nothing is revealed, so no audit row is written.
   if v_value is null then
     return null;
   end if;
@@ -179,6 +226,8 @@ $$;
 -- p_account_number null or blank keeps the stored account (editing the transit alone).
 -- Spaces and hyphens are stripped (« 765-4321 »); any other character is refused,
 -- never stripped, so « abc » is an error and not a silent « keep ».
+-- Institution and transit are trimmed; the Interac email is trimmed and lowercased
+-- (blank → null).
 create function public.set_bank_details(
   p_institution_number text,
   p_transit_number text,
@@ -193,15 +242,17 @@ as $$
 declare
   v_org uuid := private.current_user_org_id();
   v_account text := nullif(pg_catalog.regexp_replace(coalesce(p_account_number, ''), '[ \t\r\n-]', '', 'g'), '');
-  v_email text := nullif(pg_catalog.btrim(coalesce(p_etransfer_email, ''), E' \t\r\n'), '');
+  v_institution text := pg_catalog.btrim(p_institution_number, E' \t\r\n');
+  v_transit text := pg_catalog.btrim(p_transit_number, E' \t\r\n');
+  v_email text := pg_catalog.lower(nullif(pg_catalog.btrim(coalesce(p_etransfer_email, ''), E' \t\r\n'), ''));
 begin
   if not private.has_permission('settings.bank_manage') then
     raise exception 'Permission refusée : settings.bank_manage' using errcode = '42501';
   end if;
-  if p_institution_number is null or p_institution_number !~ '^[0-9]{3}$' then
+  if v_institution is null or v_institution !~ '^[0-9]{3}$' then
     raise exception 'Le numéro d''institution compte 3 chiffres.' using errcode = 'P0001';
   end if;
-  if p_transit_number is null or p_transit_number !~ '^[0-9]{5}$' then
+  if v_transit is null or v_transit !~ '^[0-9]{5}$' then
     raise exception 'Le numéro de transit compte 5 chiffres.' using errcode = 'P0001';
   end if;
   if v_account is not null and v_account !~ '^[0-9]{7,12}$' then
@@ -213,8 +264,8 @@ begin
 
   if v_account is null then
     update public.organization_bank_details b
-       set institution_number = p_institution_number,
-           transit_number = p_transit_number,
+       set institution_number = v_institution,
+           transit_number = v_transit,
            etransfer_email = v_email,
            updated_by = auth.uid()
      where b.org_id = v_org;
@@ -225,7 +276,7 @@ begin
     insert into public.organization_bank_details
       (org_id, institution_number, transit_number, account_number, account_last4, etransfer_email, updated_by)
     values
-      (v_org, p_institution_number, p_transit_number, private.encrypt_pii(v_account), right(v_account, 4), v_email, auth.uid())
+      (v_org, v_institution, v_transit, private.encrypt_pii(v_account), right(v_account, 4), v_email, auth.uid())
     on conflict (org_id) do update
       set institution_number = excluded.institution_number,
           transit_number = excluded.transit_number,
