@@ -21,12 +21,13 @@ export function ForgotPasswordPage() {
   const expired = (useLocation().state as { expired?: boolean } | null)?.expired === true
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<AuthErrorCode | null>(null)
-  const sentRef = useRef<HTMLParagraphElement>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
   const { register, handleSubmit, formState } = useForm<Values>({ resolver: zodResolver(schema) })
 
-  // The form disappears on success: move focus to the message instead of losing it.
+  // The form disappears on success: move focus to the heading instead of losing it. Not to the
+  // message itself — the live region already announces it, and focusing it would read it twice.
   useEffect(() => {
-    if (sent) sentRef.current?.focus()
+    if (sent) headingRef.current?.focus()
   }, [sent])
 
   // Success is always the same neutral message: never reveal whether an account exists. Errors
@@ -41,13 +42,10 @@ export function ForgotPasswordPage() {
   return (
     <AuthCard
       title={t('auth.forgot.title')}
+      headingRef={headingRef}
       subtitle={sent ? undefined : t('auth.forgot.subtitle')}
       status={
-        sent ? (
-          <StatusNotice ref={sentRef} tabIndex={-1}>
-            {t('auth.forgot.sent')}
-          </StatusNotice>
-        ) : null
+        sent ? <StatusNotice>{t('auth.forgot.sent')}</StatusNotice> : null
       }
     >
       {expired && !sent && <p className="mb-4 text-sm text-foreground">{t('auth.reset.invalidLink')}</p>}

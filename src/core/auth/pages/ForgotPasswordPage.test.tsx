@@ -7,7 +7,7 @@ import { renderWithContexts } from '@/test/contexts'
 import { ForgotPasswordPage } from './ForgotPasswordPage'
 
 describe('ForgotPasswordPage', () => {
-  it('shows a neutral message when the email was sent, and moves focus to it', async () => {
+  it('shows a neutral message when the email was sent, and moves focus to the heading', async () => {
     const sendPasswordReset = vi.fn().mockResolvedValue(null)
     render(renderWithContexts(<ForgotPasswordPage />, { auth: { session: null, sendPasswordReset } }))
     const region = screen.getByRole('status')
@@ -16,7 +16,10 @@ describe('ForgotPasswordPage', () => {
     await userEvent.click(screen.getByRole('button', { name: t('auth.forgot.submit') }))
     expect(sendPasswordReset).toHaveBeenCalledWith('someone@mana.test')
     await waitFor(() => expect(region).toHaveTextContent(t('auth.forgot.sent')))
-    expect(screen.getByText(t('auth.forgot.sent'))).toHaveFocus()
+    // The live region announces the message; focusing the heading (not the message) avoids a
+    // second announcement of the same text.
+    expect(screen.getByRole('heading', { level: 1, name: t('auth.forgot.title') })).toHaveFocus()
+    expect(screen.getByText(t('auth.forgot.sent'))).not.toHaveAttribute('tabindex')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 

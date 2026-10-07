@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { t } from '@/i18n'
+import { t, type TranslationKey } from '@/i18n'
 import { renderWithContexts, testAccess } from '@/test/contexts'
 import { RequireAccess, RequireAuth } from './guards'
 
@@ -57,6 +57,36 @@ describe('RequireAuth', () => {
   it('renders children when ready', () => {
     render(renderWithContexts(<RequireAuth><p>SECRET</p></RequireAuth>))
     expect(screen.getByText('SECRET')).toBeInTheDocument()
+  })
+})
+
+describe('guard screens title the browser tab', () => {
+  const title = (key: TranslationKey) => `${t(key)} · ${t('app.name')}`
+  beforeEach(() => {
+    document.title = 'stale page'
+  })
+
+  it.each([
+    ['auth loading', { auth: { isLoading: true } }],
+    ['access loading', { access: { status: 'loading' as const, access: null } }],
+  ])('loading (%s)', (_label, options) => {
+    render(renderWithContexts(<RequireAuth><p>SECRET</p></RequireAuth>, options))
+    expect(document.title).toBe(title('pageTitles.loading'))
+  })
+
+  it('access error', () => {
+    render(renderWithContexts(<RequireAuth><p>SECRET</p></RequireAuth>, { access: { status: 'error' } }))
+    expect(document.title).toBe(title('pageTitles.accessError'))
+  })
+
+  it('access denied', () => {
+    render(renderWithContexts(<RequireAuth><p>SECRET</p></RequireAuth>, { access: { status: 'denied', problem: 'no_role' } }))
+    expect(document.title).toBe(title('pageTitles.accessDenied'))
+  })
+
+  it('forbidden', () => {
+    render(renderWithContexts(<RequireAccess permission="settings.manage"><p>SETTINGS</p></RequireAccess>))
+    expect(document.title).toBe(title('pageTitles.forbidden'))
   })
 })
 
