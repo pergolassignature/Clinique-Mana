@@ -74,6 +74,17 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
   const title = useMemo(() => resolveShellTitle(pathname, navItems), [pathname, navItems])
   const palettePages = useMemo<PalettePage[]>(() => [...navItems, { ...ACCOUNT_PAGE, icon: UserRound }], [navItems])
 
+  // Radix would focus the first tabbable element, skipping links: the footer's « Se déconnecter »,
+  // where one Enter signs out. Start on the current page's link instead (or the first one).
+  const focusCurrentNavLink = (event: Event) => {
+    const sheet = event.currentTarget
+    if (!(sheet instanceof HTMLElement)) return
+    const link = sheet.querySelector<HTMLElement>('nav a[aria-current="page"]') ?? sheet.querySelector<HTMLElement>('nav a')
+    if (!link) return
+    event.preventDefault()
+    link.focus()
+  }
+
   // Focus the main region directly: a plain #hash change would also reach the router.
   const skipToContent = (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
@@ -112,12 +123,17 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
           onSignOut={handleSignOut}
         />
         <main id={MAIN_ID} tabIndex={-1} className="min-w-0 flex-1 p-4 outline-none md:p-6">
-          <div className="mx-auto w-full max-w-content">{children}</div>
+          <div className="mx-auto flex w-full max-w-content flex-col gap-5">{children}</div>
         </main>
       </div>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" aria-describedby={undefined} className="w-[260px] max-w-[85vw] bg-sidebar px-2">
+        <SheetContent
+          side="left"
+          aria-describedby={undefined}
+          onOpenAutoFocus={focusCurrentNavLink}
+          className="w-[260px] max-w-[85vw] bg-sidebar px-2"
+        >
           <SheetTitle className="sr-only">{t('nav.menu')}</SheetTitle>
           <SidebarContent
             navItems={navItems}

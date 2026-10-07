@@ -270,6 +270,18 @@ describe('AppShell — mobile', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: t('nav.menu') })).not.toBeInTheDocument())
   })
 
+  // Radix would focus the first tabbable button (« Se déconnecter »): one Enter would sign out.
+  it.each([
+    ['/parametres/modules', 'nav.settings'],
+    ['/nulle-part', 'nav.home'],
+  ] as const)('focuses the current nav link when the sheet opens (%s)', async (path, key) => {
+    render(shellAt(path))
+    await userEvent.click(screen.getByRole('button', { name: t('nav.openMenu') }))
+    const sheet = await screen.findByRole('dialog', { name: t('nav.menu') })
+    await waitFor(() => expect(within(sheet).getByRole('link', { name: t(key) })).toHaveFocus())
+    expect(within(sheet).getByRole('button', { name: t('nav.logout') })).not.toHaveFocus()
+  })
+
   it('closes the sheet when the current page is chosen again', async () => {
     render(shellAt('/accueil'))
     await userEvent.click(screen.getByRole('button', { name: t('nav.openMenu') }))
