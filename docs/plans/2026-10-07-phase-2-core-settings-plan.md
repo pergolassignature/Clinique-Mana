@@ -2123,7 +2123,7 @@ Expected: all green. Also check that `git diff --stat src/core/supabase/database
 
 **Follow-ups to record in the status doc (not built in Phase 2):**
 - **Lock convention:** the RPCs serialise per org with `for update` on `organizations`. `for no key update` would avoid blocking FK inserts into child tables. Change the convention and the three RPCs (`set_module_enabled`, `add_tax_rate`, `delete_tax_rate`) together in one migration.
-- **Service-role variants for Facturation:** `tax_rate_on_for_org(org, tax, date)` and `clinic_today_for_org(org)`, granted to `service_role` only, because the user-scoped versions return null without a user.
+- **Service-role variants for Facturation:** `tax_rate_on_for_org(org, tax, date)` and `clinic_today_for_org(org)`, granted to `service_role` only, because the user-scoped versions return null without a user. Also add « no invoice uses this rate » to the `delete_tax_rate` conditions: today the 24 h correction window can delete a rate that is already in force.
 - **Staging check after the merge:** `select org_id, tax, rate, effective_from, effective_to from public.tax_rates order by 1, 2, 4;` and `select source, count(*) from public.audit_log where table_name = 'tax_rates' group by 1;` should return the two default rates and the source `migration:core_tax_rates`.
 
 **Step 5: Report to Jonathan.** Report what was built, with screenshots. Then ask, separately:
