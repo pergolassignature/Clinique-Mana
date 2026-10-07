@@ -29,9 +29,19 @@ function PageTitle({ title }: { title: string }) {
   return null
 }
 
+/** The phone layout (below `md`), where the menu is a disclosure. */
+const PHONE_QUERY = '(max-width: 767px)'
+const DESKTOP_QUERY = '(min-width: 768px)'
+const isPhoneLayout = () => typeof window.matchMedia === 'function' && window.matchMedia(PHONE_QUERY).matches
+
+/** How long to wait for a lazy page's heading before giving up. */
+const HEADING_WAIT_MS = 5000
+
 /**
  * Focuses the first h2 the section pane shows, now or once its lazy page has loaded. Pages give
  * their h2 `tabIndex={-1}` (PageHeader does); a heading without one gets it here.
+ * The wait is bounded: it stops on the first focus or pointer press inside the pane (the user is
+ * already working there; a late heading must not steal focus from a field) or after 5 s.
  */
 function focusSectionHeading(pane: HTMLElement): () => void {
   const focus = () => {
@@ -43,10 +53,19 @@ function focusSectionHeading(pane: HTMLElement): () => void {
   }
   if (focus()) return () => {}
   const observer = new MutationObserver(() => {
-    if (focus()) observer.disconnect()
+    if (focus()) stop()
   })
+  const timer = window.setTimeout(() => stop(), HEADING_WAIT_MS)
+  function stop() {
+    observer.disconnect()
+    window.clearTimeout(timer)
+    pane.removeEventListener('focusin', stop)
+    pane.removeEventListener('pointerdown', stop)
+  }
   observer.observe(pane, { childList: true, subtree: true })
-  return () => observer.disconnect()
+  pane.addEventListener('focusin', stop)
+  pane.addEventListener('pointerdown', stop)
+  return stop
 }
 
 interface SettingsLayoutProps {
@@ -70,8 +89,10 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
   const navId = useId()
   const paneRef = useRef<HTMLElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  // Set when a section is chosen from the open (phone) menu: focus its heading once it shows.
-  const focusHeadingNext = useRef(false)
+  // The section chosen from the phone menu: its heading gets focus once that section shows. Kept
+  // as a path, so a later navigation elsewhere (after « Rester », through the breadcrumb…) never
+  // moves focus.
+  const focusHeadingOf = useRef<string | null>(null)
 
   // In menu order, so /parametres opens the first section listed.
   const visible = visibleSettingsSections(sections, can)
@@ -82,10 +103,27 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
   // « Rester » in the unsaved-changes dialog nothing navigates, so the menu stays open.
   useEffect(() => {
     setMenuOpen(false)
-    if (!focusHeadingNext.current || !paneRef.current) return
-    focusHeadingNext.current = false
+    const target = focusHeadingOf.current
+    focusHeadingOf.current = null
+    if (!target || location.pathname.toLowerCase() !== target.toLowerCase() || !paneRef.current) return
     return focusSectionHeading(paneRef.current)
+    // location.key: choosing the open section again is a navigation too (same pathname, new key).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key])
+
+  // The disclosure is the phone layout only: close it when the window widens past md, like the
+  // shell's sheet.
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const desktop = window.matchMedia(DESKTOP_QUERY)
+    const onChange = () => {
+      if (!desktop.matches) return
+      setMenuOpen(false)
+      focusHeadingOf.current = null
+    }
+    desktop.addEventListener('change', onChange)
+    return () => desktop.removeEventListener('change', onChange)
+  }, [])
 
   const title = <h1 className="mb-5 text-xl font-semibold tracking-tight">{t('settings.title')}</h1>
 
@@ -109,7 +147,7 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
             aria-expanded={menuOpen}
             aria-controls={navId}
             onClick={() => {
-              focusHeadingNext.current = false
+              focusHeadingOf.current = null
               setMenuOpen((open) => !open)
             }}
             className={`flex min-h-11 w-full items-center gap-2 rounded-md border border-border bg-card px-3 text-left text-sm font-medium text-foreground transition-colors duration-120 hover:border-border-strong md:hidden ${focusRing}`}
@@ -144,7 +182,7 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
                       key={s.id}
                       to={settingsSectionPath(s, basePath)}
                       onClick={() => {
-                        if (menuOpen) focusHeadingNext.current = true
+                        focusHeadingOf.current = isPhoneLayout() ? settingsSectionPath(s, basePath) : null
                       }}
                       className={({ isActive }) =>
                         cn(

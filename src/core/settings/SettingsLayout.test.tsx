@@ -1,8 +1,8 @@
-import { lazy } from 'react'
+import { lazy, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { Blocks, Building2, Bug } from 'lucide-react'
 import { t } from '@/i18n'
 import { renderWithContexts } from '@/test/contexts'
@@ -247,6 +247,28 @@ describe('SettingsLayout', () => {
     const platform: SettingsSection = { ...modulesSection, component: headingPage('MODULES HEADING') }
     const menuButton = () => screen.getByRole('button', { name: `${t('settings.menuButtonPrefix')} ${t('settings.title')}` })
     const nav = () => screen.getByRole('navigation', { name: t('settings.navLabel') })
+    const modulesLink = () => within(nav()).getByRole('link', { name: t('settings.sections.modules') })
+
+    // jsdom has no matchMedia: a viewport the test can resize, answering the layout's two queries.
+    let phone = true
+    const listeners = new Set<() => void>()
+    const resize = (toPhone: boolean) => {
+      phone = toPhone
+      act(() => listeners.forEach((listener) => listener()))
+    }
+    beforeEach(() => {
+      phone = true
+      listeners.clear()
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        get matches() {
+          return query === '(max-width: 767px)' ? phone : query === '(min-width: 768px)' ? !phone : false
+        },
+        media: query,
+        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+      }))
+    })
+    afterEach(() => vi.unstubAllGlobals())
 
     it('names the current section and controls the collapsed menu', async () => {
       render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
@@ -269,12 +291,12 @@ describe('SettingsLayout', () => {
     it('closes after a section is chosen, focuses its heading and marks it current', async () => {
       render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
       await userEvent.click(menuButton())
-      await userEvent.click(within(nav()).getByRole('link', { name: t('settings.sections.modules') }))
+      await userEvent.click(modulesLink())
 
       const heading = await screen.findByRole('heading', { name: 'MODULES HEADING' })
       await waitFor(() => expect(heading).toHaveFocus())
       expect(nav()).toHaveAttribute('data-state', 'closed')
-      expect(within(nav()).getByRole('link', { name: t('settings.sections.modules') })).toHaveAttribute('aria-current', 'page')
+      expect(modulesLink()).toHaveAttribute('aria-current', 'page')
       expect(
         screen.getByRole('button', { name: `${t('settings.menuButtonPrefix')} ${t('settings.sections.modules')}` }),
       ).toHaveAttribute('aria-expanded', 'false')
@@ -291,9 +313,98 @@ describe('SettingsLayout', () => {
     })
 
     it('does not move focus when the desktop menu is used', async () => {
+      phone = false
       render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
-      await userEvent.click(within(nav()).getByRole('link', { name: t('settings.sections.modules') }))
+      await userEvent.click(modulesLink())
       expect(await screen.findByRole('heading', { name: 'MODULES HEADING' })).not.toHaveFocus()
+      expect(modulesLink()).toHaveFocus()
+    })
+
+    it('closes when the window widens past md; a link then keeps focus', async () => {
+      render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
+      await userEvent.click(menuButton())
+      resize(false)
+      expect(nav()).toHaveAttribute('data-state', 'closed')
+
+      await userEvent.click(modulesLink())
+      expect(await screen.findByRole('heading', { name: 'MODULES HEADING' })).not.toHaveFocus()
+      expect(modulesLink()).toHaveFocus()
+    })
+
+    // After « Rester » nothing navigates; the section chosen in the menu must not get focus on a
+    // later, unrelated navigation: the breadcrumb « Paramètres » (back to the first section), or a
+    // link to another section (e.g. from the palette).
+    it.each([
+      ['the breadcrumb', '/parametres', 'DIRTY HEADING'],
+      ['a link to another section', '/parametres/troisieme', 'THIRD HEADING'],
+    ])('does not move focus after « Rester », then %s', async (_label, to, landing) => {
+      function DirtyPage() {
+        useUnsavedChanges(true)
+        return <h2 tabIndex={-1}>DIRTY HEADING</h2>
+      }
+      const dirty: SettingsSection = { ...clinic, component: lazy(async () => ({ default: DirtyPage })) }
+      const third: SettingsSection = { ...clinic, id: 'third', path: 'troisieme', labelKey: 'nav.home', component: headingPage('THIRD HEADING') }
+      render(
+        renderWithContexts(
+          <UnsavedChangesProvider>
+            {/* An unguarded link from outside the layout (the guard is not under test here). */}
+            <Link to={to}>Ailleurs</Link>
+            <Routes>
+              <Route path="/parametres/*" element={<SettingsLayout sections={[dirty, third, platform]} />} />
+            </Routes>
+          </UnsavedChangesProvider>,
+          { path: '/parametres/visible-fr', access: canEverything },
+        ),
+      )
+      await screen.findByRole('heading', { name: 'DIRTY HEADING' })
+      await userEvent.click(menuButton())
+      await userEvent.click(modulesLink())
+      await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('common.unsaved.stay') }))
+      expect(nav()).toHaveAttribute('data-state', 'open')
+
+      const elsewhere = screen.getByRole('link', { name: 'Ailleurs' })
+      await userEvent.click(elsewhere)
+      const heading = await screen.findByRole('heading', { name: landing })
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(heading).not.toHaveFocus()
+      expect(elsewhere).toHaveFocus()
+      expect(nav()).toHaveAttribute('data-state', 'closed')
+    })
+
+    describe('a heading that appears late', () => {
+      // The page renders a field first and its heading only when the test reveals it.
+      let reveal: () => void = () => {}
+      function LatePage() {
+        const [shown, setShown] = useState(false)
+        reveal = () => setShown(true)
+        return (
+          <>
+            <input aria-label="Champ" />
+            {shown && <h2 tabIndex={-1}>LATE HEADING</h2>}
+          </>
+        )
+      }
+      const late: SettingsSection = { ...platform, component: lazy(async () => ({ default: LatePage })) }
+
+      it('gets focus when the user has not started working in the page', async () => {
+        render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, late]))
+        await userEvent.click(menuButton())
+        await userEvent.click(modulesLink())
+        await screen.findByRole('textbox', { name: 'Champ' })
+        act(() => reveal())
+        await waitFor(() => expect(screen.getByRole('heading', { name: 'LATE HEADING' })).toHaveFocus())
+      })
+
+      it('never steals focus once the user is in the page', async () => {
+        render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, late]))
+        await userEvent.click(menuButton())
+        await userEvent.click(modulesLink())
+        const field = await screen.findByRole('textbox', { name: 'Champ' })
+        await userEvent.click(field)
+        act(() => reveal())
+        expect(await screen.findByRole('heading', { name: 'LATE HEADING' })).not.toHaveFocus()
+        expect(field).toHaveFocus()
+      })
     })
   })
 })
