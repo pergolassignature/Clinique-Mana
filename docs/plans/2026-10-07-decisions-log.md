@@ -22,3 +22,5 @@ Jonathan asked for the work to continue without questions until a local version 
 | 16 | « Mot de passe oublié » errors | Real errors (server down, network throttling) are shown; success stays neutral | Neither reveals whether an account exists; hiding a server outage would mislead the user. |
 | 17 | Explicit sign-out | Lands on plain `/connexion` (no return to the previous user's page); an expired session keeps the return target | Shared reception PCs. |
 | 18 | Local address | `http://localhost:5173` only (not `127.0.0.1`) | Vite listens on `localhost`; one origin avoids split sessions. |
+| 19 | Settings visibility | « Paramètres » (nav item and `parametres/*` route) follows the accessible sections: shown when the user can access at least one settings section, otherwise no menu item and the route shows « accès refusé » | `settings.view` alone led staff to an empty page; the menu should never offer a place with nothing in it. |
+| 20 | Node version | Node 22 pinned (`.nvmrc`, `engines: >=22 <23`), matching CI | One runtime everywhere. The Vercel project setting must be switched to Node.js 22.x at deploy time (release sequence step 2). |
