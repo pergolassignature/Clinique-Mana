@@ -936,6 +936,13 @@ Behaviour:
 
 ## Task 2.10: Sections « Signataire », « Région », « Confidentialité »
 
+> **As built after Task 2.9 and the lane merge (read this first):**
+> - `OrganizationCard` uses the shared `FormActions` footer (outline « Annuler », plus « Enregistrer », which is outline until the form is dirty) and takes a required, type-checked `firstField` (focus after Annuler).
+> - Save, re-sync and cancel logic lives in `useSettingsForm` (`src/shared/lib/use-settings-form.ts`; flat form values only).
+> - Pages use `OrganizationSettingsPage` (header, `ReadOnlyNotice` once, loading, error).
+> - Read-only fields are `readOnly`, never disabled. Buttons don't inherit read-only: hide them.
+> - Copy `IdentitySettingsPage`, not the older sketch in Task 2.9.
+
 Same pattern as Task 2.9: one page each, `OrganizationCard`, and tests mirroring 2.9 (read-only, validation, save payload, toast).
 
 | Page | Cards and fields |
