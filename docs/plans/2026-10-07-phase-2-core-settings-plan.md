@@ -897,7 +897,8 @@ Behaviour:
 - **Permissions:** `readOnly = !can('settings.manage')`.
 - **Dirty guard:** `useUnsavedChanges(form.formState.isDirty)`.
 - **Submit:** `useUpdateOrganization(successMessage).mutate({ id, patch: parsedValues })`.
-- **Footer:** `Button type="submit"` with label « Enregistrer », or « Enregistrement… » while pending; disabled when not dirty or pending.
+- **Footer:** `SaveButton pending={mutation.isPending} disabled={!isDirty}` (Task 2.3), and pass `pending` to `SettingsCard` as well. *(Amended after the Task 2.3 review.)*
+- **Guard:** call `useUnsavedChanges(isDirty && !readOnly)`. After a successful save, call `form.reset(toFormValues(saved))`, so the guard disarms even when the saved values normalise to what was already stored.
 
 **Step 3: The page.**
 - `PageHeader`: title « Identité légale », description « Ces renseignements figurent sur les contrats, reçus et factures. »
