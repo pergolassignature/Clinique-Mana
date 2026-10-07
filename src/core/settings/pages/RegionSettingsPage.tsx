@@ -39,7 +39,8 @@ function LocaleCard({ organization }: { organization: Organization }) {
       <dl className="space-y-1 text-sm">
         {lines.map(([term, value]) => (
           <div key={term}>
-            <dt className="inline text-muted-foreground">{term} :</dt> <dd className="inline">{value}</dd>
+            {/* A no-break space before the colon (French typography): it never starts a line. */}
+            <dt className="inline text-muted-foreground">{term}{'\u00a0'}:</dt> <dd className="inline">{value}</dd>
           </div>
         ))}
       </dl>
