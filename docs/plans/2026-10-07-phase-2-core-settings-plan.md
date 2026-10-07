@@ -1209,6 +1209,7 @@ to authenticated, service_role;
      - Taux en % (`parseRate`; error « Taux invalide. »);
      - À partir du (`<input type="date">`; error « Date requise. »);
      - help: « Le taux actuel se terminera la veille de cette date. »
+     - when the date is before today (clinic time), show an inline warning before saving: « Cette date est passée : le nouveau taux s'appliquera aussi aux calculs faits depuis cette date. Les factures déjà émises gardent leur taux. » The RPC accepts back-dating on purpose, to allow corrections. *(Added after the Task 2.11 review.)*
 
 **Tests:**
 - the rates table renders the statuses for today = `2026-10-07`: mock `getClinicDateString`, or set the system time with `vi.setSystemTime`;
