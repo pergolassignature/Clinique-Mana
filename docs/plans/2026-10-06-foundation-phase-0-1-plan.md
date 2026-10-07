@@ -1649,8 +1649,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithPassword: async (email, password) =>
         toCode((await supabase.auth.signInWithPassword({ email, password })).error),
       // shouldCreateUser: false — accounts only exist through invitations.
-      sendMagicLink: async (email) =>
-        toCode((await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: absolute('/accueil') } })).error),
+      // An unknown email returns "signups not allowed" (422): treat it as success so the
+      // page never reveals whether an account exists.
+      sendMagicLink: async (email) => {
+        const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: absolute('/accueil') } })
+        if (error && (error.code === 'otp_disabled' || (error.status === 422 && /signups not allowed/i.test(error.message)))) return null
+        return toCode(error)
+      },
       sendPasswordReset: async (email) =>
         toCode((await supabase.auth.resetPasswordForEmail(email, { redirectTo: absolute('/reinitialiser-mot-de-passe') })).error),
       updatePassword: async (password) => toCode((await supabase.auth.updateUser({ password })).error),
@@ -1677,9 +1682,17 @@ export function useAuth(): AuthContextValue {
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/core/auth/AuthProvider'
-import { setClinicTimezone } from '@/shared/lib/timezone'
-import { can, type Access, type AccessProblem } from './access'
+import { resetClinicTimezone, setClinicTimezone } from '@/shared/lib/timezone'
+import { can, type Access, type AccessProblem, type AccessResult } from './access'
 import { fetchMyAccess } from './api'
+
+// The clinic timezone must be set BEFORE the signed-in tree renders (status 'ready'),
+// so it is applied inside the query function, not in an effect.
+async function loadAccess(): Promise<AccessResult> {
+  const result = await fetchMyAccess()
+  if ('access' in result) setClinicTimezone(result.access.org_timezone)
+  return result
+}
 
 export type AccessStatus = 'idle' | 'loading' | 'ready' | 'denied' | 'error'
 
@@ -1703,7 +1716,7 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   const userId = session?.user.id
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: accessKeys.me(userId ?? 'anonymous'),
-    queryFn: fetchMyAccess,
+    queryFn: loadAccess,
     enabled: Boolean(userId),
     staleTime: 5 * 60_000,
     retry: 1,
@@ -1713,8 +1726,8 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   const problem = data && 'problem' in data ? data.problem : null
 
   useEffect(() => {
-    if (access) setClinicTimezone(access.org_timezone)
-  }, [access])
+    if (!userId) resetClinicTimezone()
+  }, [userId])
 
   // Never degrade silently: a failed load is an error state with a retry, not "no permissions".
   const status: AccessStatus = !userId ? 'idle' : isError ? 'error' : isPending ? 'loading' : problem ? 'denied' : 'ready'
@@ -2725,7 +2738,7 @@ import { useEnabledModuleKeys } from '@/core/modules/hooks'
 import { resolveEnabledModules } from '@/core/modules/resolve'
 import { SettingsLayout } from '@/core/settings/SettingsLayout'
 import { coreSettingsSections } from '@/core/settings/sections'
-import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
+import { RouteBoundary } from './RouteBoundary'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { AppShell, type ShellNavItem } from './AppShell'
 import { HomePage } from './HomePage'
@@ -2761,9 +2774,9 @@ export function AuthenticatedApp() {
           path="parametres/*"
           element={
             <RequireAccess permission="settings.view">
-              <ErrorBoundary scope="settings">
+              <RouteBoundary scope="settings">
                 <SettingsLayout sections={settingsSections} />
-              </ErrorBoundary>
+              </RouteBoundary>
             </RequireAccess>
           }
         />
@@ -2775,9 +2788,9 @@ export function AuthenticatedApp() {
               element={
                 <RequireAccess permission={r.permission}>
                   {/* Design §6.2: a crash or failed chunk stays inside its module. */}
-                  <ErrorBoundary scope={m.key}>
+                  <RouteBoundary scope={m.key}>
                     <Suspense fallback={<FullPageMessage title={t('common.loading')} />}>{createElement(r.component)}</Suspense>
-                  </ErrorBoundary>
+                  </RouteBoundary>
                 </RequireAccess>
               }
             />
@@ -2786,6 +2799,28 @@ export function AuthenticatedApp() {
         <Route path="*" element={<FullPageMessage title={t('common.notFound.title')} body={t('common.notFound.body')} />} />
       </Routes>
     </AppShell>
+  )
+}
+```
+
+**Step 4b: Write `src/app/RouteBoundary.tsx`** — error boundary that recovers on navigation and resets failed React Query queries on retry (Batch B review).
+
+```tsx
+import type { ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
+import { QueryErrorResetBoundary } from '@tanstack/react-query'
+import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
+
+export function RouteBoundary({ scope, children }: { scope: string; children: ReactNode }) {
+  const { pathname } = useLocation()
+  return (
+    <QueryErrorResetBoundary>
+      {({ reset }) => (
+        <ErrorBoundary scope={scope} resetKey={pathname} onReset={reset}>
+          {children}
+        </ErrorBoundary>
+      )}
+    </QueryErrorResetBoundary>
   )
 }
 ```
