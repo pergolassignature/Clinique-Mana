@@ -8,6 +8,7 @@ import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { cn } from '@/shared/lib/utils'
 import { focusRing } from '@/shared/ui/field-classes'
 import { usePageTitle } from '@/shared/lib/use-page-title'
+import { SETTINGS_BASE_PATH, settingsSectionPath } from './paths'
 
 const GROUP_ORDER: SettingsGroup[] = ['clinique', 'plateforme', 'modules', 'compte']
 
@@ -23,7 +24,7 @@ interface SettingsLayoutProps {
  * Settings shell: a grouped side menu and one nested route per section the user can access.
  * Each section has its own error boundary, so a crashing section leaves the menu usable.
  */
-export function SettingsLayout({ sections, basePath = '/parametres' }: SettingsLayoutProps) {
+export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: SettingsLayoutProps) {
   usePageTitle(t('pageTitles.settings'))
   const { can } = useAccess()
   const visible = sections.filter((s) => can(s.permission))
@@ -57,7 +58,7 @@ export function SettingsLayout({ sections, basePath = '/parametres' }: SettingsL
                 {items.map((s) => (
                   <NavLink
                     key={s.id}
-                    to={`${basePath}/${s.id}`}
+                    to={settingsSectionPath(s, basePath)}
                     className={({ isActive }) =>
                       cn(
                         `flex items-center gap-2 rounded-md px-2 py-[5px] text-sm transition-colors duration-120 ${focusRing}`,
