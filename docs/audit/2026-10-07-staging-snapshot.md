@@ -62,3 +62,5 @@ Done with Jonathan's explicit go-ahead.
 **Smoke test on the preview (staging data):** Jonathan's admin sign-in ✅ · menu Accueil / Professionnels / Paramètres ✅ · module Professionnels off → disappears from the menu, back on ✅ · explicit sign-out ✅ · « Mot de passe oublié » → Resend shows « Reset Your Password » **Delivered** to Jonathan's address ✅.
 
 **Still to verify:** Secure email change needs both addresses (plan Task 1.21 Step 10). The auth emails still use Supabase's default English templates (French templates: Phase 3, or earlier in the dashboard).
+
+**Custom domain (2026-10-07, with Jonathan's go-ahead):** Cloudflare CNAME `app.cliniquemana.com` → `cname.vercel-dns.com` (DNS only) created by Jonathan; Vercel serves the app there with a valid certificate. `_dmarc.cliniquemana.com` fixed by Jonathan. Supabase Site URL changed to `https://app.cliniquemana.com`, and `https://app.cliniquemana.com/**` added to the redirect URLs (the two Vercel patterns are kept for previews). Verified after a reload of the dashboard.

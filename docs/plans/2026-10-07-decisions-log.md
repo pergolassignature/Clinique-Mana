@@ -25,3 +25,15 @@ Jonathan asked for the work to continue without questions until a local version 
 | 19 | Settings visibility | « Paramètres » (nav item and `parametres/*` route) follows the accessible sections: shown when the user can access at least one settings section, otherwise no menu item and the route shows « accès refusé » | `settings.view` alone led staff to an empty page; the menu should never offer a place with nothing in it. |
 | 20 | Node version | Node 22 pinned (`.nvmrc`, `engines: >=22 <23`), matching CI | One runtime everywhere. The Vercel project setting must be switched to Node.js 22.x at deploy time (release sequence step 2). |
 | 21 | Auth email templates | French, clinic-branded templates for the 6 auth emails, versioned in `supabase/templates/` + `config.toml`, pasted identically in the staging dashboard | First real email landed in Gmail spam: Supabase's default English two-line template looks like phishing. Links on the clinic's own domain follow in Phase 3. |
+
+## Phase 2 decisions (with Jonathan, 2026-10-07)
+
+| # | Topic | Decision | Why |
+|---|---|---|---|
+| 22 | Staff invitations | Built after Phase 3; until then staff accounts are added by hand | The design creates accounts only on acceptance, which needs secure links and clinic emails (Phase 3). |
+| 23 | Staff roles | Two roles replace `staff`: `counselor` « Conseillère » and `admin_assistant` « Adjointe administrative », with distinct defaults | Their work differs (matching vs administration/billing); overrides stay for exceptions. |
+| 24 | Settings URLs | French URL segments (`/parametres/identite`); sections keep an English `id` for code | Identifiers English, user-facing text French (decision #2). |
+| 25 | Fonts | Raleway self-hosted (`@fontsource-variable`), no Google Fonts | Loi 25: no third-party request revealing staff IPs; works offline from cache. |
+| 26 | Visual foundation | Built first in Phase 2 (tokens, shell, form kit); data-heavy screens are designed with their module | The ~10 Phase 2 screens would otherwise be redone. |
+| 27 | Bank details | Account number encrypted (pgcrypto, key in Vault); revealing it writes an audit row (`read`) | ADR 0004; same helpers reused for professionals' SIN and bank accounts in Phase 4. |
+| 28 | Users admin guards | No self role/status change; `provider` role owned by Professionnels; no overrides on admins; at least one active admin, enforced in the database | Prevents lock-out and keeps role ownership clear. |

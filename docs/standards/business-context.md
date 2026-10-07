@@ -64,6 +64,13 @@ Whether *conseillère* and *adjointe administrative* need distinct default permi
 - **B2B** (ateliers / conférences, MANA's own PAE offer to employers, schools) is a separate future area. It is not in the legacy app.
 - **Loi 25:** the privacy officer is Christine Sirois (ext. 222). Clients can request a copy or destruction of their data, so retention and export must be planned per module.
 
+### Product notes from Jonathan (2026-10-07)
+
+- **Matching is the heart of the app.** Professionals are matched on **motifs de consultation** and **spécialités**; both must be first-class, well-curated data in Professionnels (module 1) so Demandes can rely on them.
+- **Consultation languages.** Every professional works in French (the default); what matters for matching is who also works in **English** and **Spanish**. The professional profile records the languages; the demande records the client's language, and matching uses it.
+- **Insurance expiry is soft.** Legacy deactivated professionals automatically when their liability insurance expired. The rebuild does not: it raises an important in-app notification and sends an email **7 days before** expiry. What happens on the expiry date itself is settled in the Professionnels design.
+- **Professional record layout.** The content listed in design §5.5 is right, but the order of the tabs and the way they are presented will be rethought in the Professionnels design.
+
 ## 6. Brand & tone
 
 **Tone of voice:** warm, simple, human, reassuring, never clinical. Formal **vous**. Key lines:

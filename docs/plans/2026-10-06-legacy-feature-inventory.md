@@ -86,6 +86,7 @@
 - [ ] Status per type (newest doc): missing → expired (`expires_at` past) → verified (`verified_at`) → pending. Completeness = verified / 3.
 - [ ] Documents tab: summary (verified / 4, missing, expired, "Complet"); required cards with upload, preview/download (1 h signed URL), verify / unverify, edit expiry, replace, delete (confirm); e-consent shows signer + date; "Autres documents" list. Limits 10 MB; pdf, doc, docx, jpg, png, webp (bucket enforces too). Expiry stored `YYYY-MM-DDT23:59:59.999Z`.
 - [ ] `deactivate_professionals_with_expired_insurance()`: active pros whose latest **verified** insurance is missing / no expiry / past → inactive, reason `insurance_expired` (never overrides `manual`). Reactivation trigger: insurance doc becomes verified with future expiry + pro inactive for `insurance_expired` → active, reason cleared. Daily `0 6 * * *` UTC (schedule set by hand, not in migrations).
+  - **Change (Jonathan, 2026-10-07):** no automatic deactivation; important in-app notification + email 7 days before expiry ([business context §5](../standards/business-context.md#product-notes-from-jonathan-2026-10-07)).
 
 ### A5. Contracts (DocuSeal today → Documenso)
 - [ ] Contract card: none → "Générer et envoyer"; sent → "Synchroniser", "Voir", "Régénérer" (confirm); signed → preview, download PDF, signature log (stored copy first), regenerate. Shows version, sent date, signed date, clinic signer, provider id. Status = newest `document_instances` with key `contrat_service`.
@@ -126,7 +127,7 @@
 8. Manual deactivation never writes `deactivation_reason`.
 9. Contract: `generated` shows no actions; declined/expired ignored; clinic signer always null; Annexe A says "taxes incluses" on pre-tax prices.
 10. Motifs of archived categories vanish in grouped view; categories can't be reordered; motif labels not editable.
-11. `education`, `languages`, `availability_notes` typed but never collected.
+11. `education`, `languages`, `availability_notes` typed but never collected. → **Languages are needed** (Jonathan, 2026-10-07): French by default, English and Spanish matter for matching.
 
 ---
 
