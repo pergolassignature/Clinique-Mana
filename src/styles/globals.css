@@ -99,3 +99,14 @@
     display: none;
   }
 }
+
+/* Toasts: sonner's own focus cue is a faint 20 % black ring. Same shadow as
+   sonner, plus the brand ring. Outside @layer so it is never purged; the
+   [data-sonner-toaster] prefix outranks sonner's injected selectors. */
+[data-sonner-toaster] [data-sonner-toast]:focus-visible,
+[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-close-button]:focus-visible,
+[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-button]:focus-visible {
+  box-shadow:
+    0 4px 12px rgb(0 0 0 / 0.1),
+    0 0 0 2px theme('colors.ring.DEFAULT');
+}

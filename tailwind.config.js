@@ -36,6 +36,7 @@ export default {
         // Neutral fills and hovers; distinct from the page background.
         muted: {
           DEFAULT: brand('muted-bg'),
+          hover: brand('line'),
           foreground: brand('charcoal-soft'),
         },
         accent: {

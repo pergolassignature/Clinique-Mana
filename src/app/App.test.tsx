@@ -23,13 +23,7 @@ const fake = vi.hoisted(() => {
     updateUserCalls: [] as unknown[],
     respond: undefined as ((userId: string) => RpcResult) | undefined,
   }
-  // Warm the module transform once: the first cold import of the whole app can
-// exceed the 5 s test timeout on a loaded machine.
-beforeAll(async () => {
-  await import('./App')
-}, 30_000)
-
-const emit = (event: string, session: typeof state.session) => {
+  const emit = (event: string, session: typeof state.session) => {
     state.session = session
     state.listener?.(event, session)
   }
