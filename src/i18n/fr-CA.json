@@ -10,15 +10,18 @@
   "auth": {
     "login": {
       "title": "Connexion",
+      "subtitle": "Connectez-vous pour accéder à votre espace.",
       "email": "Courriel",
       "password": "Mot de passe",
       "submit": "Se connecter",
+      "or": "ou",
       "magicLink": "Recevoir un lien de connexion par courriel",
       "magicLinkSent": "Si un compte existe pour ce courriel, un lien de connexion vient d'être envoyé.",
       "forgot": "Mot de passe oublié ?"
     },
     "forgot": {
       "title": "Réinitialiser le mot de passe",
+      "subtitle": "Indiquez votre courriel : nous vous enverrons un lien pour choisir un nouveau mot de passe.",
       "submit": "Envoyer le lien",
       "sent": "Si un compte existe pour ce courriel, un lien de réinitialisation vient d'être envoyé.",
       "back": "Retour à la connexion"
@@ -31,6 +34,7 @@
       "tooShort": "Au moins 10 caractères.",
       "mismatch": "Les mots de passe ne correspondent pas.",
       "invalidLink": "Ce lien est invalide ou expiré. Demandez-en un nouveau.",
+      "requestNew": "Demander un nouveau lien",
       "success": "Mot de passe mis à jour."
     },
     "errors": {
