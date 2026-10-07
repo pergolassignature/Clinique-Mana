@@ -18,7 +18,7 @@ Clinique MANA is the management platform of a **dispatch clinic**: conseillères
 | Local | `supabase start` (ports **553xx**: API 55321, DB 55322, Studio 55323, Mailpit 55324) + `npm run dev` on **`http://localhost:5173`** | Use `localhost`, not `127.0.0.1`: a second origin means a second session. PS Hub's stack uses 543xx; never touch it. Test logins: see the header of `supabase/seed.sql`. |
 | Staging | Supabase project `vnmbjbdsjxmpijyjmmkh` (Canada Central) | The only remote environment. It still holds the legacy schema until it is re-baselined (plan Task 1.21, needs Jonathan's go-ahead). |
 
-Production does not exist yet. `.env.local` (from `.env.example`) holds `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`; never put a service-role key in a `VITE_` variable.
+Node **22** everywhere (`.nvmrc`, `package.json` `engines`, CI; decision #20). Production does not exist yet. `.env.local` (from `.env.example`) holds `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`; never put a service-role key in a `VITE_` variable.
 
 ## 3. Commands
 

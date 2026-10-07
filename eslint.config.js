@@ -17,6 +17,11 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
+  // shadcn primitives export their variants (buttonVariants, badgeVariants, toast) next to the component.
+  {
+    files: ['src/shared/ui/**/*.{ts,tsx}'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
   // Design §6.2 — core/ and shared/ never depend on modules or the app shell.
   {
     files: ['src/core/**/*.{ts,tsx}', 'src/shared/**/*.{ts,tsx}'],
