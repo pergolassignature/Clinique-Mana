@@ -212,7 +212,7 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     env: {
-      VITE_SUPABASE_URL: 'http://127.0.0.1:54321',
+      VITE_SUPABASE_URL: 'http://127.0.0.1:55321',
       VITE_SUPABASE_ANON_KEY: 'test-anon-key',
     },
   },
@@ -2868,7 +2868,7 @@ Expected: all green; `vite build` writes `dist/`.
 | staff@mana.test | Accueil · Professionnels · Paramètres | Paramètres shows « Aucune section… » (no `modules.manage`). |
 | provider@mana.test | Accueil | `/parametres` shows « Accès refusé ». |
 
-Also: « Mot de passe oublié » → the email arrives in Inbucket (http://127.0.0.1:54324) → the link opens the reset page → new password works.
+Also: « Mot de passe oublié » → the email arrives in Inbucket (http://127.0.0.1:55324) → the link opens the reset page → new password works.
 
 **Step 9: Commit**
 
@@ -3036,7 +3036,7 @@ jobs:
       - run: npm run test:run
       - run: npm run build
         env:
-          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_URL: http://127.0.0.1:55321
           VITE_SUPABASE_ANON_KEY: ci-placeholder
 
   functions:
