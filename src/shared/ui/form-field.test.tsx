@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import { FormField } from './form-field'
 import { Input } from './input'
+import { FieldsReadOnlyContext } from './read-only-context'
 
 describe('FormField', () => {
   it('associates the label with the control', () => {
@@ -55,5 +57,39 @@ describe('FormField', () => {
     expect(screen.getByRole('textbox', { name: 'Ville' })).toBeInTheDocument()
     expect(screen.queryByText('*')).not.toBeInTheDocument()
     expect(screen.queryByText(t('common.form.required'))).not.toBeInTheDocument()
+  })
+
+  it('read-only: hands readOnly to the control, which stays focusable and enabled, without the required marker', async () => {
+    render(
+      <FormField label="NEQ" help="10 chiffres." required readOnly>
+        {(field) => <Input {...field} defaultValue="1234567890" />}
+      </FormField>,
+    )
+    // No « (requis) »: nothing to fill in a field that cannot be changed.
+    const input = screen.getByRole('textbox', { name: 'NEQ' })
+    expect(input).toHaveAttribute('readonly')
+    expect(input).toBeEnabled()
+    expect(input).toHaveAccessibleDescription('10 chiffres.')
+    expect(screen.queryByText('*')).not.toBeInTheDocument()
+    await userEvent.tab()
+    expect(input).toHaveFocus()
+  })
+
+  it('read-only from the surrounding context (SettingsCard), unless the field says otherwise', () => {
+    render(
+      <FieldsReadOnlyContext.Provider value={true}>
+        <FormField label="Ville">{(field) => <Input {...field} />}</FormField>
+        <FormField label="Note" readOnly={false}>
+          {(field) => <Input {...field} />}
+        </FormField>
+      </FieldsReadOnlyContext.Provider>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Ville' })).toHaveAttribute('readonly')
+    expect(screen.getByRole('textbox', { name: 'Note' })).not.toHaveAttribute('readonly')
+  })
+
+  it('editable by default: no readOnly prop on the control', () => {
+    render(<FormField label="Ville">{(field) => <Input {...field} />}</FormField>)
+    expect(screen.getByRole('textbox', { name: 'Ville' })).not.toHaveAttribute('readonly')
   })
 })

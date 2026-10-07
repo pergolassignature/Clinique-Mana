@@ -3,7 +3,7 @@ import type { SettingsSection } from '@/core/modules/types'
 
 export interface SettingsSectionState {
   section: SettingsSection
-  /** The user can see the section but lacks its `editPermission`: show the notice, disable the fields. */
+  /** The user can see the section but lacks its `editPermission`: show the notice once, render the fields read-only (never disabled). */
   readOnly: boolean
 }
 

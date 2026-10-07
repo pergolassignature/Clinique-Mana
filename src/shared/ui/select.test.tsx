@@ -112,3 +112,61 @@ describe('Select with react-hook-form register()', () => {
     expect(select).toHaveValue('America/Vancouver')
   })
 })
+
+describe('Select, read-only', () => {
+  const provinces = (
+    <>
+      <option value="ON">Ontario</option>
+      <option value="QC">Québec</option>
+    </>
+  )
+
+  it('renders a read-only text input showing the chosen label, not the code', async () => {
+    render(
+      <>
+        <label htmlFor="province">Province</label>
+        <Select id="province" aria-describedby="province-help" readOnly value="QC" onChange={() => {}} placeholder="Choisir…">
+          {provinces}
+        </Select>
+        <p id="province-help">Siège social.</p>
+      </>,
+    )
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    const input = screen.getByRole('textbox', { name: 'Province' })
+    expect(input).toHaveValue('Québec')
+    expect(input).toHaveAttribute('readonly')
+    expect(input).toBeEnabled()
+    expect(input).toHaveAccessibleDescription('Siège social.')
+    // Focusable and selectable, like the other read-only fields.
+    await userEvent.tab()
+    expect(input).toHaveFocus()
+  })
+
+  it('finds the label inside nested fragments and arrays, and uses defaultValue when uncontrolled', () => {
+    render(
+      <Select aria-label="Province" readOnly defaultValue="ON">
+        {[<option key="ab" value="AB">Alberta</option>]}
+        <>{provinces}</>
+      </Select>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Province' })).toHaveValue('Ontario')
+  })
+
+  it('shows an empty field for no value (never the placeholder)', () => {
+    render(
+      <Select aria-label="Province" readOnly value="" onChange={() => {}} placeholder="Choisir…">
+        {provinces}
+      </Select>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Province' })).toHaveValue('')
+  })
+
+  it('shows an unknown value as is', () => {
+    render(
+      <Select aria-label="Province" readOnly value="XX" onChange={() => {}}>
+        {provinces}
+      </Select>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Province' })).toHaveValue('XX')
+  })
+})

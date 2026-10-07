@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
+import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { SaveButton } from './SaveButton'
 import { SettingsCard } from './SettingsCard'
@@ -53,11 +54,41 @@ describe('SettingsCard', () => {
     expect(screen.getByRole('form', { name: 'Identité' })).not.toHaveAttribute('aria-busy')
   })
 
-  it('read-only: shows the badge, hides the footer and disables the fields', () => {
+  it('read-only: no badge (the page shows one notice), no footer, fields read-only but enabled and focusable', async () => {
     render(card({ readOnly: true }))
-    expect(screen.getByText(t('common.readOnly'))).toBeInTheDocument()
+    expect(screen.queryByText(t('common.readOnly'))).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
-    expect(screen.getByRole('group')).toBeDisabled()
-    expect(screen.getByLabelText('Nom')).toBeDisabled()
+    expect(screen.getByRole('group')).toBeEnabled()
+    const input = screen.getByRole('textbox', { name: 'Nom' })
+    expect(input).toBeEnabled()
+    expect(input).toHaveAttribute('readonly')
+    expect(input).toHaveValue('Clinique MANA')
+    await userEvent.tab()
+    expect(input).toHaveFocus()
+  })
+
+  it('read-only: never submits, even when Enter submits the form implicitly', async () => {
+    const onSubmit = vi.fn()
+    render(card({ readOnly: true, onSubmit }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Nom' }), '{Enter}')
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('hands read-only to the fields through FormField, without each field being told', () => {
+    render(
+      <SettingsCard title="Adresse" readOnly>
+        <FormField label="Ville">{(field) => <Input {...field} defaultValue="Laval" />}</FormField>
+      </SettingsCard>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Ville' })).toHaveAttribute('readonly')
+  })
+
+  it('editable: the fields are not read-only', () => {
+    render(
+      <SettingsCard title="Adresse">
+        <FormField label="Ville">{(field) => <Input {...field} defaultValue="Laval" />}</FormField>
+      </SettingsCard>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Ville' })).not.toHaveAttribute('readonly')
   })
 })
