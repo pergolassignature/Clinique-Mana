@@ -1,5 +1,6 @@
+import { StrictMode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { t } from '@/i18n'
@@ -13,16 +14,44 @@ function Form({ dirty }: { dirty: boolean }) {
   return <p>FORMULAIRE</p>
 }
 
-function CloseButton({ onClose }: { onClose: () => void }) {
+/** A part of the page that is left without the router (e.g. switching section in local state). */
+function Section({ onLeave }: { onLeave: () => void }) {
   const confirmLeave = useConfirmLeave()
-  return <button onClick={() => confirmLeave(onClose)}>Fermer le panneau</button>
+  const [open, setOpen] = useState(true)
+  if (!open) return <p>SECTION QUITTÉE</p>
+  return (
+    <>
+      <Form dirty />
+      <button
+        onClick={() =>
+          confirmLeave(() => {
+            setOpen(false)
+            onLeave()
+          })
+        }
+      >
+        Changer de section
+      </button>
+    </>
+  )
 }
 
-function App({ forms = [true], provider = true, onClose = () => {} }: { forms?: boolean[]; provider?: boolean; onClose?: () => void }) {
+interface AppProps {
+  forms?: boolean[]
+  section?: boolean
+  onLeave?: () => void
+  provider?: boolean
+}
+
+function App({ forms = [true], section = false, onLeave = () => {}, provider = true }: AppProps) {
   const content = (
     <>
       <GuardedNavLink to="/b">Aller à B</GuardedNavLink>
-      <CloseButton onClose={onClose} />
+      <GuardedNavLink to="/a">Page A</GuardedNavLink>
+      <GuardedNavLink to="/b" target="_blank">
+        B dans un nouvel onglet
+      </GuardedNavLink>
+      {section && <Section onLeave={onLeave} />}
       <Routes>
         <Route
           path="/a"
@@ -47,6 +76,9 @@ function App({ forms = [true], provider = true, onClose = () => {} }: { forms?: 
 }
 
 const link = () => screen.getByRole('link', { name: 'Aller à B' })
+const dialog = () => screen.queryByRole('alertdialog')
+const stay = () => screen.getByRole('button', { name: t('common.unsaved.stay') })
+const leave = () => screen.findByRole('button', { name: t('common.unsaved.leave') })
 const fireBeforeUnload = () => {
   const event = new Event('beforeunload', { cancelable: true })
   window.dispatchEvent(event)
@@ -58,33 +90,67 @@ describe('unsaved-changes guard', () => {
     render(<App forms={[false]} />)
     await userEvent.click(link())
     expect(await screen.findByText('PAGE B')).toBeInTheDocument()
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(dialog()).not.toBeInTheDocument()
   })
 
   it('a dirty form asks first: « Rester » keeps the page, « Quitter » navigates', async () => {
     render(<App forms={[true]} />)
 
     await userEvent.click(link())
-    const dialog = await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })
-    expect(dialog).toHaveTextContent(t('common.unsaved.body'))
-    expect(screen.getByRole('button', { name: t('common.unsaved.stay') })).toHaveFocus() // the safe default
-    await userEvent.click(screen.getByRole('button', { name: t('common.unsaved.stay') }))
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    const alert = await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })
+    expect(alert).toHaveTextContent(t('common.unsaved.body'))
+    expect(stay()).toHaveFocus() // the safe default
+    await userEvent.click(stay())
+    expect(dialog()).not.toBeInTheDocument()
     expect(screen.getByText('PAGE A')).toBeInTheDocument()
 
     await userEvent.click(link())
-    await userEvent.click(await screen.findByRole('button', { name: t('common.unsaved.leave') }))
+    await userEvent.click(await leave())
     expect(await screen.findByText('PAGE B')).toBeInTheDocument()
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(dialog()).not.toBeInTheDocument()
+  })
+
+  it('returns focus to the link after « Rester » or Escape', async () => {
+    render(<App forms={[true]} />)
+    await userEvent.tab()
+    expect(link()).toHaveFocus()
+
+    await userEvent.keyboard('{Enter}')
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
+    await userEvent.keyboard('{Enter}') // on « Rester », focused by default
+    await waitFor(() => expect(link()).toHaveFocus())
+    expect(dialog()).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Enter}')
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(link()).toHaveFocus())
+    expect(screen.getByText('PAGE A')).toBeInTheDocument()
   })
 
   it('leaves modified and middle clicks to the browser', () => {
     render(<App forms={[true]} />)
-    fireEvent.click(link(), { ctrlKey: true })
-    fireEvent.click(link(), { metaKey: true })
-    fireEvent.click(link(), { shiftKey: true })
-    fireEvent.click(link(), { button: 1 })
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    // fireEvent returns false when a listener called preventDefault().
+    expect(fireEvent.click(link(), { ctrlKey: true })).toBe(true)
+    expect(fireEvent.click(link(), { metaKey: true })).toBe(true)
+    expect(fireEvent.click(link(), { shiftKey: true })).toBe(true)
+    expect(fireEvent.click(link(), { altKey: true })).toBe(true)
+    expect(fireEvent.click(link(), { button: 1 })).toBe(true)
+    expect(dialog()).not.toBeInTheDocument()
+    expect(screen.getByText('PAGE A')).toBeInTheDocument()
+  })
+
+  it('does not intercept a link that opens another tab', () => {
+    render(<App forms={[true]} />)
+    // React Router itself leaves target="_blank" to the browser, so the default is not prevented.
+    expect(fireEvent.click(screen.getByRole('link', { name: 'B dans un nouvel onglet' }))).toBe(true)
+    expect(dialog()).not.toBeInTheDocument()
+  })
+
+  it('does not prompt for a link to the current page', async () => {
+    render(<App forms={[true]} />)
+    await userEvent.click(screen.getByRole('link', { name: 'Page A' }))
+    expect(dialog()).not.toBeInTheDocument()
     expect(screen.getByText('PAGE A')).toBeInTheDocument()
   })
 
@@ -93,7 +159,7 @@ describe('unsaved-changes guard', () => {
     rerender(<App forms={[]} />)
     await userEvent.click(link())
     expect(await screen.findByText('PAGE B')).toBeInTheDocument()
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(dialog()).not.toBeInTheDocument()
   })
 
   it('stays armed while another form is still dirty', async () => {
@@ -103,13 +169,20 @@ describe('unsaved-changes guard', () => {
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
   })
 
-  it('guards other ways of leaving through useConfirmLeave', async () => {
-    const onClose = vi.fn()
-    render(<App forms={[true]} onClose={onClose} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Fermer le panneau' }))
-    expect(onClose).not.toHaveBeenCalled()
-    await userEvent.click(await screen.findByRole('button', { name: t('common.unsaved.leave') }))
-    expect(onClose).toHaveBeenCalledOnce()
+  it('useConfirmLeave proceeds only after « Quitter », and the forms left behind stay guarded', async () => {
+    const onLeave = vi.fn()
+    render(<App forms={[true]} section onLeave={onLeave} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Changer de section' }))
+    expect(onLeave).not.toHaveBeenCalled()
+    await userEvent.click(await leave())
+    expect(onLeave).toHaveBeenCalledOnce()
+    expect(await screen.findByText('SECTION QUITTÉE')).toBeInTheDocument()
+
+    // The page's own form is still dirty: confirming the section switch did not clear it.
+    await userEvent.click(link())
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
+    expect(fireBeforeUnload()).toBe(true)
   })
 
   it('prevents beforeunload only while a form is dirty', () => {
@@ -124,11 +197,55 @@ describe('unsaved-changes guard', () => {
     expect(fireBeforeUnload()).toBe(false)
   })
 
+  it('after « Quitter », a full-page navigation does not ask a second time (once only)', async () => {
+    let unloadPrevented: boolean | undefined
+    function FullReload() {
+      const confirmLeave = useConfirmLeave()
+      // Stands for window.location.assign(…), which fires beforeunload.
+      return <button onClick={() => confirmLeave(() => (unloadPrevented = fireBeforeUnload()))}>Recharger</button>
+    }
+    render(
+      <MemoryRouter future={ROUTER_FUTURE}>
+        <UnsavedChangesProvider>
+          <Form dirty />
+          <FullReload />
+        </UnsavedChangesProvider>
+      </MemoryRouter>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Recharger' }))
+    await userEvent.click(await leave())
+    expect(unloadPrevented).toBe(false)
+    // One-shot: the form is still dirty, so the next unload is guarded again.
+    expect(fireBeforeUnload()).toBe(true)
+  })
+
+  it('works under StrictMode (effects mounted twice)', async () => {
+    const { rerender } = render(
+      <StrictMode>
+        <App forms={[true]} />
+      </StrictMode>,
+    )
+    expect(fireBeforeUnload()).toBe(true)
+    await userEvent.click(link())
+    await userEvent.click(stay())
+    expect(screen.getByText('PAGE A')).toBeInTheDocument()
+
+    rerender(
+      <StrictMode>
+        <App forms={[false]} />
+      </StrictMode>,
+    )
+    expect(fireBeforeUnload()).toBe(false)
+    await userEvent.click(link())
+    expect(await screen.findByText('PAGE B')).toBeInTheDocument()
+    expect(dialog()).not.toBeInTheDocument()
+  })
+
   it('does nothing outside a provider', async () => {
-    const onClose = vi.fn()
-    render(<App forms={[true]} provider={false} onClose={onClose} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Fermer le panneau' }))
-    expect(onClose).toHaveBeenCalledOnce()
+    const onLeave = vi.fn()
+    render(<App forms={[true]} section onLeave={onLeave} provider={false} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Changer de section' }))
+    expect(onLeave).toHaveBeenCalledOnce()
     await userEvent.click(link())
     expect(await screen.findByText('PAGE B')).toBeInTheDocument()
   })

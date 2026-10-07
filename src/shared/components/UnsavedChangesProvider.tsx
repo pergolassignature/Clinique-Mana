@@ -19,6 +19,13 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   // (a permanent one would keep pages out of the back/forward cache in some browsers).
   const [hasDirty, setHasDirty] = useState(false)
   const [pending, setPending] = useState<(() => void) | null>(null)
+  // Set by « Quitter » around `proceed`: lets one beforeunload through, so a full-page navigation
+  // there does not ask twice. Cleared on the next task, so after an in-app leave the forms still
+  // dirty (e.g. a card left behind) keep their tab-close warning.
+  const bypassUnload = useRef(false)
+  // Where focus was when the dialog opened, to return it after « Rester » / Escape.
+  const returnFocus = useRef<HTMLElement | null>(null)
+  const leaving = useRef(false)
 
   const setDirty = useCallback((id: string, dirty: boolean) => {
     if (dirty) dirtyIds.current.add(id)
@@ -29,14 +36,23 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   const isDirty = useCallback(() => dirtyIds.current.size > 0, [])
 
   const confirmLeave = useCallback((proceed: () => void) => {
-    if (dirtyIds.current.size === 0) proceed()
+    if (dirtyIds.current.size === 0) {
+      proceed()
+      return
+    }
+    leaving.current = false
+    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     // Wrapped: a function passed to setState would be called as an updater.
-    else setPending(() => proceed)
+    setPending(() => proceed)
   }, [])
 
   useEffect(() => {
     if (!hasDirty) return
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (bypassUnload.current) {
+        bypassUnload.current = false
+        return
+      }
       event.preventDefault()
       event.returnValue = '' // older Chromium and Safari still need it
     }
@@ -44,12 +60,24 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [hasDirty])
 
+  // Does not clear the dirty ids: forms that really leave unregister on unmount, the others stay guarded.
   const leave = () => {
     const proceed = pending
-    dirtyIds.current.clear()
-    setHasDirty(false)
+    leaving.current = true
+    bypassUnload.current = true
     setPending(null)
     proceed?.()
+    setTimeout(() => {
+      bypassUnload.current = false
+    }, 0)
+  }
+
+  const onCloseAutoFocus = (event: Event) => {
+    // No AlertDialogTrigger to return to: put focus back where it was, unless we are leaving.
+    event.preventDefault()
+    if (!leaving.current) returnFocus.current?.focus()
+    leaving.current = false
+    returnFocus.current = null
   }
 
   const value = useMemo<UnsavedChangesValue>(() => ({ setDirty, confirmLeave, isDirty }), [setDirty, confirmLeave, isDirty])
@@ -58,7 +86,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     <UnsavedChangesContext.Provider value={value}>
       {children}
       <AlertDialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent onCloseAutoFocus={onCloseAutoFocus}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('common.unsaved.title')}</AlertDialogTitle>
             <AlertDialogDescription>{t('common.unsaved.body')}</AlertDialogDescription>
@@ -66,8 +94,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
           <AlertDialogFooter>
             {/* Radix focuses Cancel first: « Rester » is the safe default. */}
             <AlertDialogCancel>{t('common.unsaved.stay')}</AlertDialogCancel>
-            {/* A plain Button, not AlertDialogAction: the action's default (primary) classes would leak
-                shadow-soft into the soft destructive variant. Clearing `pending` closes the dialog. */}
+            {/* A plain Button with the soft destructive variant; clearing `pending` closes the dialog. */}
             <Button variant="destructive" onClick={leave}>
               {t('common.unsaved.leave')}
             </Button>
