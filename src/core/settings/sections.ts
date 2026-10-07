@@ -53,7 +53,11 @@ export const coreSettingsSections: SettingsSection[] = [
     permission: 'settings.view',
     editPermission: 'settings.manage',
     group: 'clinique',
-    component: ComingSoonSection,
+    component: lazy(() =>
+      import('./pages/SignatorySettingsPage').then((m) => ({
+        default: m.SignatorySettingsPage,
+      }))
+    ),
   },
   {
     id: 'bank',

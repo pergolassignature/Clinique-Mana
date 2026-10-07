@@ -223,6 +223,75 @@
         "website": "Site web"
       }
     },
+    "signatory": {
+      "description": "La personne qui signe les contrats et les reçus au nom de la clinique.",
+      "representative": {
+        "title": "Représentant de la clinique",
+        "saved": "Signataire enregistré."
+      },
+      "note": "L'image de la signature s'ajoutera avec les contrats.",
+      "fields": {
+        "name": "Nom",
+        "title": "Titre",
+        "titlePlaceholder": "Directrice"
+      }
+    },
+    "region": {
+      "description": "Le fuseau horaire, la langue et la devise de la clinique.",
+      "timezone": {
+        "title": "Fuseau horaire",
+        "description": "Les dates et les heures de l'application suivent ce fuseau.",
+        "saved": "Fuseau horaire enregistré."
+      },
+      "fields": {
+        "timezone": "Fuseau horaire",
+        "other": "Autre fuseau…"
+      },
+      "picker": {
+        "title": "Choisir un fuseau horaire",
+        "placeholder": "Rechercher un fuseau (ex. : Paris)",
+        "empty": "Aucun fuseau trouvé.",
+        "current": "(fuseau actuel)"
+      },
+      "zones": {
+        "toronto": "Heure de l'Est (Montréal, Toronto)",
+        "halifax": "Heure de l'Atlantique (Halifax)",
+        "stJohns": "Heure de Terre-Neuve (St. John's)",
+        "winnipeg": "Heure du Centre (Winnipeg)",
+        "regina": "Heure du Centre, sans heure avancée (Regina)",
+        "edmonton": "Heure des Rocheuses (Edmonton)",
+        "vancouver": "Heure du Pacifique (Vancouver)"
+      },
+      "locale": {
+        "title": "Langue et devise",
+        "language": "Langue",
+        "currency": "Devise",
+        "languages": {
+          "fr-CA": "Français (Canada)"
+        },
+        "currencies": {
+          "CAD": "dollar canadien (CAD)"
+        }
+      }
+    },
+    "privacy": {
+      "description": "Les renseignements exigés par la Loi 25 sur la protection des renseignements personnels.",
+      "officer": {
+        "title": "Responsable de la protection des renseignements personnels",
+        "saved": "Responsable enregistré."
+      },
+      "policy": {
+        "title": "Politique et conservation",
+        "saved": "Politique et conservation enregistrées."
+      },
+      "fields": {
+        "officerName": "Nom",
+        "officerEmail": "Courriel",
+        "policyUrl": "URL de la politique",
+        "retentionYears": "Durée de conservation des dossiers administratifs (années)",
+        "retentionYearsHelp": "Les notes cliniques ne sont pas conservées dans l'application."
+      }
+    },
     "provinces": {
       "AB": "Alberta",
       "BC": "Colombie-Britannique",
