@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -293,24 +294,40 @@ describe('AppShell — command palette', () => {
     expect(queryPalette()).not.toBeInTheDocument()
   })
 
-  // A popover is a non-modal Radix dialog (role="dialog", data-state="open"): it must not block ⌘K.
-  it('opens over an open popover', async () => {
+  const shellWith = (children: ReactNode) =>
+    renderWithContexts(
+      <UnsavedChangesProvider>
+        <AppShell navItems={navItems}>{children}</AppShell>
+      </UnsavedChangesProvider>,
+      { path: '/accueil', access: { access: assistant } },
+    )
+
+  // A popover is role="dialog" too, but not modal (no aria-modal): it must not block ⌘K.
+  it('opens over an open popover, which then closes', async () => {
     render(
-      renderWithContexts(
-        <UnsavedChangesProvider>
-          <AppShell navItems={navItems}>
-            <Popover defaultOpen>
-              <PopoverTrigger>Options</PopoverTrigger>
-              <PopoverContent aria-label="Options de la page">Contenu</PopoverContent>
-            </Popover>
-          </AppShell>
-        </UnsavedChangesProvider>,
-        { path: '/accueil', access: { access: assistant } },
+      shellWith(
+        <Popover defaultOpen>
+          <PopoverTrigger>Options</PopoverTrigger>
+          <PopoverContent aria-label="Options de la page">Contenu</PopoverContent>
+        </Popover>,
       ),
     )
-    expect(screen.getByRole('dialog', { name: 'Options de la page' })).toHaveAttribute('data-state', 'open')
+    expect(screen.getByRole('dialog', { name: 'Options de la page' })).toBeInTheDocument()
     await userEvent.keyboard(CTRL_K)
     expect(await findPalette()).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Options de la page' })).not.toBeInTheDocument())
+  })
+
+  it('is not blocked by a modal that is closing (exit animation)', async () => {
+    render(shellWith(<div role="dialog" aria-modal="true" aria-label="Fenêtre qui se ferme" data-state="closed" />))
+    await userEvent.keyboard(CTRL_K)
+    expect(await findPalette()).toBeInTheDocument()
+  })
+
+  it('is blocked by any open modal', async () => {
+    render(shellWith(<div role="dialog" aria-modal="true" aria-label="Autre fenêtre" data-state="open" />))
+    await userEvent.keyboard(CTRL_K)
+    expect(queryPalette()).not.toBeInTheDocument()
   })
 
   it('opens from the search button, and Escape gives focus back to it', async () => {

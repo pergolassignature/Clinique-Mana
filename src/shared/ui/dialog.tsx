@@ -36,6 +36,9 @@ const DialogContent = React.forwardRef<
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      // Radix makes the rest of the page inert but does not say so; the app shell relies on it
+      // (⌘K stays closed while another modal is open), and it is the correct ARIA for a modal.
+      aria-modal="true"
       className={cn(overlayContentClasses, className)}
       {...props}
     >

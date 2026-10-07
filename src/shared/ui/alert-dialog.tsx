@@ -28,6 +28,7 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogOverlay />
     <AlertDialogPrimitive.Content
       ref={ref}
+      aria-modal="true"
       className={cn(overlayContentClasses, className)}
       {...props}
     />

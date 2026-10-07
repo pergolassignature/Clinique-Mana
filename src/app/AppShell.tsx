@@ -24,17 +24,14 @@ function focusedElement(): HTMLElement | null {
 }
 
 /**
- * Is a modal dialog other than the palette and the sheet open (e.g. « Quitter sans enregistrer ? »)?
- * Radix popovers also carry role="dialog" and data-state="open" but are not modal: they sit in a
- * popper wrapper, and the palette may open over them. A dialog closing (data-state="closed",
- * exit animation) no longer counts.
+ * Is a modal other than the palette and the sheet open (e.g. « Quitter sans enregistrer ? »)?
+ * Our Dialog, AlertDialog and Sheet contents carry aria-modal="true"; a popover (role="dialog" too)
+ * does not, so the palette may open over it. A modal closing (data-state="closed", exit
+ * animation) no longer counts. The sheet is excluded because ⌘K from the sheet opens the palette.
  */
-function otherModalDialogOpen(...own: (HTMLElement | null)[]): boolean {
-  return Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]')).some(
-    (dialog) =>
-      !own.includes(dialog as HTMLElement) &&
-      dialog.getAttribute('data-state') !== 'closed' &&
-      !dialog.closest('[data-radix-popper-content-wrapper]'),
+function otherModalOpen(...own: (HTMLElement | null)[]): boolean {
+  return Array.from(document.querySelectorAll<HTMLElement>('[aria-modal="true"]:not([data-state="closed"])')).some(
+    (modal) => !own.includes(modal),
   )
 }
 
@@ -113,7 +110,7 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
       if (event.defaultPrevented || event.repeat || !isPaletteShortcut(event)) return
       const palette = paletteRef.current
       // Another modal dialog (e.g. « Quitter sans enregistrer ? ») has the floor: leave it alone.
-      if (otherModalDialogOpen(palette, sheetRef.current)) return
+      if (otherModalOpen(palette, sheetRef.current)) return
       event.preventDefault() // Ctrl+K is the browser's search shortcut on Windows and Linux
       if (palette?.isConnected) setPaletteOpen(false)
       else openPalette()
