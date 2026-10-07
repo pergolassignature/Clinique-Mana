@@ -16,6 +16,8 @@ interface Props {
   resetKey?: unknown
   /** Called on Retry, e.g. React Query's QueryErrorResetBoundary reset. */
   onReset?: () => void
+  /** Pane-sized fallback with a level-2 heading, for boundaries under an existing page title. */
+  compact?: boolean
 }
 
 interface State {
@@ -57,6 +59,8 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <FullPageMessage
         role="alert"
+        headingLevel={this.props.compact ? 2 : 1}
+        compact={this.props.compact}
         title={t('common.moduleError.title')}
         body={t('common.moduleError.body')}
         action={<Button onClick={this.handleRetry}>{t('common.retry')}</Button>}

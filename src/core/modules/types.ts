@@ -3,13 +3,14 @@ import type { LucideIcon } from 'lucide-react'
 import type { TranslationKey } from '@/i18n'
 
 export interface ModuleRoute {
-  /** Path relative to the app root, e.g. 'professionnels' or 'professionnels/:id'. */
+  /** RELATIVE to the app root (no leading slash): 'professionnels' or 'professionnels/:id'. */
   path: string
   component: LazyExoticComponent<ComponentType>
   permission: string
 }
 
 export interface ModuleNavItem {
+  /** ABSOLUTE link target (leading slash): '/professionnels'. */
   path: string
   labelKey: TranslationKey
   icon: LucideIcon
@@ -21,6 +22,7 @@ export interface ModuleNavItem {
 export type SettingsGroup = 'clinique' | 'plateforme' | 'modules' | 'compte'
 
 export interface SettingsSection {
+  /** URL segment under the settings base path; must be unique across core and all modules. */
   id: string
   labelKey: TranslationKey
   icon: LucideIcon
@@ -32,9 +34,10 @@ export interface SettingsSection {
 }
 
 export interface ModuleManifest {
-  /** Must match public.modules.key. */
+  /** Must equal public.modules.key (English, e.g. 'professionals'). */
   key: string
   labelKey: TranslationKey
+  /** Keys of the modules this one requires (mirrors public.module_dependencies). Never lists 'core', which is implicit. */
   dependsOn: string[]
   nav?: ModuleNavItem
   routes: ModuleRoute[]

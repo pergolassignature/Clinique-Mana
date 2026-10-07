@@ -13,10 +13,11 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/core/modules/api', () => ({ fetchModules: mocks.fetchModules, setModuleEnabled: mocks.setModuleEnabled }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
+vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 const rows: ModuleRow[] = [
   { key: 'professionals', name: 'Professionnels', depends_on: [], enabled: true },
-  { key: 'billing', name: 'Facturation', depends_on: ['professionals'], enabled: false },
+  { key: 'billing', name: 'Facturation', depends_on: ['professionals', 'ghost'], enabled: false },
 ]
 
 function renderPage() {
@@ -31,27 +32,32 @@ function renderPage() {
 afterEach(() => vi.clearAllMocks())
 
 describe('ModulesSettingsPage', () => {
-  it('lists the modules with their state and dependencies', async () => {
+  it('lists the modules with their state and dependency names (key when unknown)', async () => {
     mocks.fetchModules.mockResolvedValue(rows)
     renderPage()
     expect(await screen.findByRole('switch', { name: 'Professionnels' })).toBeChecked()
-    expect(screen.getByRole('switch', { name: 'Facturation' })).not.toBeChecked()
-    expect(screen.getByText(`${t('settings.modules.dependsOn')} professionals`)).toBeInTheDocument()
+    const billing = screen.getByRole('switch', { name: 'Facturation' })
+    expect(billing).not.toBeChecked()
+    const requires = `${t('settings.modules.dependsOn')} Professionnels, ghost`
+    // getByText normalizes the DOM text (U+00A0 becomes a space) but not the expected string.
+    expect(screen.getByText(requires.replace(/\s+/g, ' '))).toBeInTheDocument()
+    expect(billing).toHaveAccessibleDescription(requires)
+    expect(t('settings.modules.dependsOn')).toBe('Requiert :')
   })
 
-  it('toggles a module and confirms with a toast', async () => {
-    mocks.fetchModules.mockResolvedValue(rows)
+  it('toggles a module, confirms with a toast and shows the refreshed state', async () => {
+    mocks.fetchModules.mockResolvedValueOnce(rows).mockResolvedValue(rows.map((r) => ({ ...r, enabled: true })))
     mocks.setModuleEnabled.mockResolvedValue(undefined)
     renderPage()
     await userEvent.click(await screen.findByRole('switch', { name: 'Facturation' }))
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.modules.saved')))
     expect(mocks.setModuleEnabled).toHaveBeenCalledWith('billing', true)
-    // The list is refetched after the change.
-    expect(mocks.fetchModules).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('switch', { name: 'Facturation' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Facturation' })).toBeEnabled()
     expect(mocks.toast.error).not.toHaveBeenCalled()
   })
 
-  it('shows the database message when the change is refused', async () => {
+  it('shows the database message when the change is refused and reverts the switch', async () => {
     mocks.fetchModules.mockResolvedValue(rows)
     mocks.setModuleEnabled.mockRejectedValue({ message: "Désactivez d'abord : Facturation", code: 'P0001' })
     renderPage()
@@ -59,6 +65,7 @@ describe('ModulesSettingsPage', () => {
     await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith("Désactivez d'abord : Facturation"))
     expect(mocks.setModuleEnabled).toHaveBeenCalledWith('professionals', false)
     expect(mocks.toast.success).not.toHaveBeenCalled()
+    expect(screen.getByRole('switch', { name: 'Professionnels' })).toBeChecked()
   })
 
   it('falls back to a generic message for network errors', async () => {
@@ -77,12 +84,15 @@ describe('ModulesSettingsPage', () => {
     expect(await screen.findByRole('switch', { name: 'Professionnels' })).toBeInTheDocument()
   })
 
-  it('disables the switches while a change is saving', async () => {
+  it('shows the requested state at once and disables the switches while saving', async () => {
     mocks.fetchModules.mockResolvedValue(rows)
     mocks.setModuleEnabled.mockReturnValue(new Promise(() => {}))
     renderPage()
     await userEvent.click(await screen.findByRole('switch', { name: 'Facturation' }))
-    await waitFor(() => expect(screen.getByRole('switch', { name: 'Facturation' })).toBeDisabled())
+    const billing = screen.getByRole('switch', { name: 'Facturation' })
+    await waitFor(() => expect(billing).toBeDisabled())
+    expect(billing).toBeChecked()
     expect(screen.getByRole('switch', { name: 'Professionnels' })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'Professionnels' })).toBeChecked()
   })
 })

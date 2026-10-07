@@ -57,13 +57,14 @@
   "home": { "title": "Bienvenue", "body": "Les modules s'ajoutent ici au fur et à mesure qu'ils sont activés." },
   "settings": {
     "title": "Paramètres",
+    "navLabel": "Sections des paramètres",
     "empty": "Aucune section de paramètres n'est disponible pour votre rôle.",
     "groups": { "clinique": "Clinique", "plateforme": "Plateforme", "modules": "Modules", "compte": "Mon compte" },
     "sections": { "modules": "Modules" },
     "modules": {
       "title": "Modules",
       "description": "Activez un module lorsqu'il est prêt. Un module désactivé disparaît du menu et de l'application.",
-      "dependsOn": "Requiert :",
+      "dependsOn": "Requiert :",
       "saved": "Modules mis à jour.",
       "error": "Impossible de modifier ce module.",
       "loadError": "Impossible de charger les modules.",

@@ -100,8 +100,24 @@ describe('SettingsLayout', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('shows an empty state when no section is accessible', () => {
+  it('shows an empty state under the page title when no section is accessible', () => {
     render(settingsAt('/parametres', { access: { can: () => false } }))
-    expect(screen.getByText(t('settings.empty'))).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.title') })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: t('settings.empty') })).toBeInTheDocument()
+  })
+
+  it('has one page title, a labelled menu and level-2 headings inside the pane', async () => {
+    render(settingsAt('/parametres/nope'))
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 1, name: t('settings.title') })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: t('settings.navLabel') })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: t('common.notFound.title') })).toBeInTheDocument()
+  })
+
+  it('renders a crashed section fallback as a level-2 heading', async () => {
+    const crash: SettingsSection = { id: 'crash', labelKey: 'nav.home', icon: Bug, permission: 'settings.view', group: 'clinique', component: crashingPage() }
+    render(settingsAt('/parametres/crash', {}, [crash]))
+    expect(await screen.findByRole('heading', { level: 2, name: t('common.moduleError.title') })).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   })
 })

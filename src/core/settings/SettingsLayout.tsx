@@ -26,53 +26,70 @@ export function SettingsLayout({ sections, basePath = '/parametres' }: SettingsL
   const visible = sections.filter((s) => can(s.permission))
   const first = visible[0]
 
-  if (!first) return <FullPageMessage title={t('settings.title')} body={t('settings.empty')} />
+  const title = <h1 className="mb-6 text-xl font-semibold">{t('settings.title')}</h1>
+
+  if (!first) {
+    return (
+      <div>
+        {title}
+        <FullPageMessage title={t('settings.empty')} headingLevel={2} compact />
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col gap-6 md:flex-row">
-      <nav className="md:w-56 md:shrink-0">
-        <h1 className="mb-4 text-xl font-semibold">{t('settings.title')}</h1>
-        {GROUP_ORDER.map((group) => {
-          const items = visible.filter((s) => s.group === group)
-          if (items.length === 0) return null
-          return (
-            <div key={group} className="mb-4">
-              <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t(`settings.groups.${group}`)}</p>
-              {items.map((s) => (
-                <NavLink
-                  key={s.id}
-                  to={`${basePath}/${s.id}`}
-                  className={({ isActive }) =>
-                    cn('flex items-center gap-2 rounded-md px-3 py-2 text-sm', isActive ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-muted')
-                  }
-                >
-                  <s.icon className="h-4 w-4" aria-hidden />
-                  {t(s.labelKey)}
-                </NavLink>
-              ))}
-            </div>
-          )
-        })}
-      </nav>
-      <section className="min-w-0 flex-1">
-        <Routes>
-          <Route index element={<Navigate to={first.id} replace />} />
-          {visible.map((s) => (
+    <div>
+      {title}
+      <div className="flex flex-col gap-6 md:flex-row">
+        <nav aria-label={t('settings.navLabel')} className="md:w-56 md:shrink-0">
+          {GROUP_ORDER.map((group) => {
+            const items = visible.filter((s) => s.group === group)
+            if (items.length === 0) return null
+            const headingId = `settings-group-${group}`
+            return (
+              <div key={group} role="group" aria-labelledby={headingId} className="mb-4">
+                <p id={headingId} className="mb-1 px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t(`settings.groups.${group}`)}
+                </p>
+                {items.map((s) => (
+                  <NavLink
+                    key={s.id}
+                    to={`${basePath}/${s.id}`}
+                    className={({ isActive }) =>
+                      cn('flex items-center gap-2 rounded-md px-3 py-2 text-sm', isActive ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-muted')
+                    }
+                  >
+                    <s.icon className="h-4 w-4" aria-hidden />
+                    {t(s.labelKey)}
+                  </NavLink>
+                ))}
+              </div>
+            )
+          })}
+        </nav>
+        <section className="min-w-0 flex-1">
+          <Routes>
+            <Route index element={<Navigate to={first.id} replace />} />
+            {visible.map((s) => (
+              <Route
+                key={s.id}
+                path={s.id}
+                element={
+                  <RouteBoundary scope={sectionScope(s)} compact>
+                    <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
+                      {createElement(s.component)}
+                    </Suspense>
+                  </RouteBoundary>
+                }
+              />
+            ))}
             <Route
-              key={s.id}
-              path={s.id}
-              element={
-                <RouteBoundary scope={sectionScope(s)}>
-                  <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
-                    {createElement(s.component)}
-                  </Suspense>
-                </RouteBoundary>
-              }
+              path="*"
+              element={<FullPageMessage title={t('common.notFound.title')} body={t('common.notFound.body')} headingLevel={2} compact />}
             />
-          ))}
-          <Route path="*" element={<FullPageMessage title={t('common.notFound.title')} body={t('common.notFound.body')} />} />
-        </Routes>
-      </section>
+          </Routes>
+        </section>
+      </div>
     </div>
   )
 }
