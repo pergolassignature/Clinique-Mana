@@ -9,6 +9,7 @@ One file per decision that is hard to reverse or that later work must respect: `
 | [0003](0003-module-and-settings-registry.md) | Module manifests, `org_modules`, settings registry, import boundaries | Accepted |
 | [0004](0004-secrets-in-vault.md) | Secrets in Vault, write-only from the UI; encrypted `*_private` tables | Accepted |
 | [0005](0005-documenso-replaces-docuseal.md) | Self-hosted Documenso replaces DocuSeal | Accepted |
+| [0006](0006-session-and-recovery-policy.md) | Session and recovery policy (shared reception PCs, enumeration-safe auth) | Accepted |
 
 ## Template
 

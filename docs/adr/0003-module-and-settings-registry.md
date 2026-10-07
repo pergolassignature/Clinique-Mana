@@ -10,7 +10,7 @@ The app grows module by module (Professionnels first, then Services, Clients, De
 - Activation per org lives in **`org_modules`**; dependencies in `module_dependencies`. `set_module_enabled` enforces them; `get_my_access().modules` tells the app which manifests to load.
 - The **settings page** is built from core sections plus enabled modules' sections, each in its own error boundary.
 - **Import boundaries** (ESLint): modules only through `@/modules/<key>` (their `index.ts`); `core/` and `shared/` never import modules or the app.
-- Edge functions of a module call `requireModule()`.
+- Edge functions of a module always check the gate: user-scoped ones with `verifyAuth(req, { module })` or `requireModule(auth.client, key)`; service-role, webhook and cron ones resolve the org from the database row, then call `requireModuleForOrg(serviceClient, orgId, key)` (`module_enabled_for_org`, service role only).
 
 ## Consequences
 - A disabled module has no route, menu entry, settings section, permission or edge-function access.

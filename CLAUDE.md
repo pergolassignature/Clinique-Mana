@@ -29,9 +29,10 @@ npm run lint             # ESLint (incl. module import boundaries)
 npm run lint:supabase    # no Supabase client in .tsx files
 npm run lint:migrations  # migration timestamps (BASE_REF=origin/main by default)
 npm run test:run         # Vitest, once (npm test = watch)
-npm run test:functions   # Deno tests for supabase/functions/_shared
-npm run check:functions  # deno check for supabase/functions/_shared
-npm run build            # typecheck + vite build
+npm run test:functions   # deno test, all of supabase/functions (--frozen lock)
+npm run check:functions  # deno check, all of supabase/functions (--frozen lock)
+npm run lint:functions   # deno lint, all of supabase/functions
+npm run build            # typecheck + vite build (build:only = vite build)
 
 npm run db:start         # supabase start
 npm run db:reset         # supabase db reset (migrations + seed.sql)
@@ -92,13 +93,21 @@ The full rules, with examples, are in **[`docs/standards/database-conventions.md
 
 ## 7. Edge functions
 
-- Shared helpers in `supabase/functions/_shared/`: `verifyAuth(req, { permission })`, `verifyServiceRoleAuth(req)`, `requireModule(client, key)`, `getUserClient`, `getServiceRoleClient`, `jsonResponse`, `errorResponse`, `handleCors`, `timingSafeEqual`.
+- Shared helpers in `supabase/functions/_shared/`: `verifyAuth(req, { permission, module })`, `verifyServiceRoleAuth(req)`, `requireModule(client, key)`, `requireModuleForOrg(serviceClient, orgId, key)`, `getUserClient(token)`, `getServiceRoleClient()`, `jsonResponse`, `errorResponse(code, message, status)`, `handleCors`, `timingSafeEqual`.
 - `verify_jwt = false` only when the function calls `verifyAuth` / `verifyServiceRoleAuth` first, or verifies a webhook signature with `timingSafeEqual`.
-- `verifyAuth` reads `get_my_access()`: it requires an active profile, then the permission. A function of a module calls `requireModule(auth.client, '<module>')`. Functions using the service role bypass RLS (and the module gate): they still call `requireModule()`.
-- **Never trust an org id sent by the client**: use `auth.access.org_id`.
-- Imports use `npm:` / `jsr:` specifiers. Run deno with `--config supabase/functions/deno.json` (the npm scripts do), so imports resolve from the functions' own `deno.lock`, not from the web app's `node_modules`.
+- `verifyAuth` reads `get_my_access()`: it requires an active profile, then the module (if `module` is given), then the permission.
+- **Module gate, always:**
+  - user-scoped functions call `verifyAuth(req, { module: '<module>' })` or `requireModule(auth.client, '<module>')`;
+  - service-role, webhook and cron functions resolve the org **from the database row** they act on, then call `requireModuleForOrg(serviceClient, orgId, '<module>')` (RPC `module_enabled_for_org`, service role only). The service role bypasses RLS, so nothing else gates them.
+- **Never trust an org id sent by the client**: use `auth.access.org_id`, or the org of the row.
+- `verifyServiceRoleAuth` contract: `Authorization: Bearer <key>`, where the key is `SUPABASE_SERVICE_ROLE_KEY`, one of `SUPABASE_SECRET_KEYS` or `INTERNAL_FUNCTION_SECRET`; 500 when none is configured.
+- Errors are `{ error: { code, message } }`, code ∈ `unauthenticated` (401), `forbidden` / `module_disabled` (403), `auth_unavailable` (503), `server_misconfigured` / `internal` (500). The client and service factories return a 500 `Response` when `SUPABASE_URL` or a key is missing: check `instanceof Response`.
+- CORS: `ALLOWED_ORIGINS` (comma-separated) is echoed with `Vary: Origin`; unset means `*`. Pass `req` to `jsonResponse` / `errorResponse`. Webhooks are not browser-facing: they use their own response helper, without CORS.
+- Imports use bare specifiers mapped in `supabase/functions/deno.json` (exact versions, `@supabase/supabase-js` pinned to the web app's version). Run deno with `--config supabase/functions/deno.json` (the npm scripts do, with `--frozen`), so imports resolve from the functions' own `deno.lock`, not from the web app's `node_modules`. Format with `deno fmt --config supabase/functions/deno.json supabase/functions/`.
 
 ## 8. Frontend rules
+
+- **The auth behaviours are deliberate — read decisions log #9–17 and ADR 0006 before changing them.**
 
 - **No Supabase client in `.tsx` files** (`npm run lint:supabase`): queries live in `api.ts` / `api/*.ts`, called through hooks. Type-only imports (`import type …`) are allowed. Providers that must touch the client carry a `// SUPABASE_ALLOWED: <reason>` comment.
 - The only client is `supabase` from `@/core/supabase/client`; it fails fast without `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, and stores the session under `AUTH_STORAGE_KEY` (`clinique-mana-auth`). The password-recovery marker (`RECOVERY_STORAGE_KEY`, `src/core/auth/recovery.ts`) is bound to the recovery session's `session_id`; while it is set, `RequireAuth` sends every protected page to `/reinitialiser-mot-de-passe`.
@@ -291,4 +300,4 @@ Both `SheetContent` and `DialogContent` support `hideClose` prop to prevent doub
 - **Never apply a migration through the Supabase MCP (`apply_migration`)** or by pasting SQL in the dashboard: it bypasses the migration history. Migrations go through git and `supabase db push`.
 - The target flow (plan Task 1.22, not built yet): merging to `main` applies migrations and deploys changed edge functions to staging through GitHub Actions. Until then, nothing deploys automatically.
 - Any remote reset uses `supabase db reset --linked --no-seed` (the seed is local only), and only with the go-ahead above.
-- Pull requests must be green on CI (`ci.yml`: typecheck, lint, `lint:supabase`, Vitest, build, Deno checks and tests, pgTAP, types drift; `migration-lint.yml`).
+- Pull requests must be green on CI (`ci.yml`: typecheck, lint, `lint:supabase`, Vitest, build, Deno check/lint/test of every function, pgTAP, types drift; `migration-lint.yml`).

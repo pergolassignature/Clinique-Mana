@@ -12,7 +12,7 @@
 > - **A disabled module grants nothing in the database:** `has_permission` and `get_my_access()` drop its permissions. `get_my_access()` also returns `modules`, `org_name` and `org_timezone`, and is empty unless the profile is active.
 > - **Module activation (§3):** dependencies are rows in `module_dependencies` (not `modules.depends_on text[]`); `org_modules` has `enabled, updated_at, updated_by` (not `enabled_at, enabled_by`); `core` is registered as a module and is always on.
 > - **Frontend (§2):** the access context exposes `status`, `access`, `problem`, `can()`, `reload()`, `isReloading` (no `hasRole`); `useReadyAccess()` returns the verified access under `RequireAuth`. `RouteBoundary` lives in `src/shared/components/`, not `src/app/`.
-> - **Edge functions (§2):** `verifyAuth(req, { permission })` (no `role` option) reads `get_my_access()` and requires an active profile; `requireModule()` uses `module_enabled()`.
+> - **Edge functions (§2):** `verifyAuth(req, { permission, module })` (no `role` option) reads `get_my_access()` and requires an active profile; `requireModule()` uses `module_enabled()`; functions without a user use `requireModuleForOrg()` (`module_enabled_for_org`, service role only). Errors are `{ error: { code, message } }`.
 > - **Migrations (§6.1):** four files (`core_access`, `core_audit`, `core_module_settings_secrets`, `professionals_module`) instead of one `00000000000001_baseline.sql`; pgTAP tests in `supabase/tests/database/`.
 > - **Local stack** runs on ports 553xx and `http://localhost:5173` (decisions log #1, #18).
 

@@ -12,7 +12,7 @@ Legacy signed contracts through DocuSeal; `docuseal-create-submission` could be 
 
 ## Consequences
 - Jonathan provisions and operates the clinic instance (owner action, Phase 0).
-- Signing functions use `verifyAuth` + `requireModule`; the webhook is `verify_jwt = false` with a signature check.
+- Signing functions use `verifyAuth(req, { permission, module })`. The webhook is `verify_jwt = false` with a signature check; it has no user, so it resolves the org from the stored `signature_requests` row and calls `requireModuleForOrg()` before acting.
 - DocuSeal code stays in `_legacy/` only as a reference.
 
 ## Alternatives
