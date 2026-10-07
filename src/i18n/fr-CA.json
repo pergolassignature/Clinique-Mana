@@ -76,6 +76,6 @@
     }
   },
   "modules": {
-    "professionnels": { "name": "Professionnels", "placeholder": "Le module Professionnels est en construction." }
+    "professionals": { "name": "Professionnels", "placeholder": "Le module Professionnels est en préparation. Il sera disponible ici sous peu." }
   }
 }
