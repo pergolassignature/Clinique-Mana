@@ -1,5 +1,5 @@
 // SUPABASE_ALLOWED: test mocks the Supabase client module.
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
@@ -23,7 +23,13 @@ const fake = vi.hoisted(() => {
     updateUserCalls: [] as unknown[],
     respond: undefined as ((userId: string) => RpcResult) | undefined,
   }
-  const emit = (event: string, session: typeof state.session) => {
+  // Warm the module transform once: the first cold import of the whole app can
+// exceed the 5 s test timeout on a loaded machine.
+beforeAll(async () => {
+  await import('./App')
+}, 30_000)
+
+const emit = (event: string, session: typeof state.session) => {
     state.session = session
     state.listener?.(event, session)
   }
@@ -91,6 +97,12 @@ async function openAt(path: string, session: typeof fake.state.session = null) {
   const { App } = await import('./App')
   return render(<App />)
 }
+
+// Warm the module transform once: the first cold import of the whole app can
+// exceed the 5 s test timeout on a loaded machine.
+beforeAll(async () => {
+  await import('./App')
+}, 30_000)
 
 const emit = (event: string, session: typeof fake.state.session) => act(() => fake.emit(event, session))
 const where = () => window.location.pathname + window.location.search

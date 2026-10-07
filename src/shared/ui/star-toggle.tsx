@@ -42,7 +42,7 @@ export function StarToggle({
           disabled={disabled}
           className={cn(
             'inline-flex items-center justify-center rounded-sm transition-colors',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:scale-110',
             className
           )}

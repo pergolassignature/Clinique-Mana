@@ -19,7 +19,7 @@ interface AuthCardProps {
 export function AuthCard({ title, subtitle, status, children, headingRef }: AuthCardProps) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-sm">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-soft">
         <p className="text-sm font-medium text-muted-foreground">{t('app.name')}</p>
         <h1 ref={headingRef} tabIndex={-1} className="mt-1 text-xl font-semibold text-foreground outline-none">
           {title}

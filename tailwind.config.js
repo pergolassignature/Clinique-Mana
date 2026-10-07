@@ -16,8 +16,6 @@ export default {
         },
         foreground: {
           DEFAULT: brand('charcoal'),
-          secondary: brand('charcoal-soft'),
-          muted: brand('charcoal-soft'),
         },
         border: {
           DEFAULT: brand('line'),
@@ -35,8 +33,9 @@ export default {
           hover: brand('wine-dark'),
           foreground: 'rgb(255 255 255 / <alpha-value>)',
         },
+        // Neutral fills and hovers; distinct from the page background.
         muted: {
-          DEFAULT: brand('offwhite'),
+          DEFAULT: brand('muted-bg'),
           foreground: brand('charcoal-soft'),
         },
         accent: {

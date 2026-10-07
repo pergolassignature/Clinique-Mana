@@ -39,7 +39,7 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
       <a
         href={`#${MAIN_ID}`}
         onClick={skipToContent}
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary focus:shadow"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary focus:shadow-medium"
       >
         {t('nav.skipToContent')}
       </a>

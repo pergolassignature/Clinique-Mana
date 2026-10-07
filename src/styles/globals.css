@@ -14,6 +14,7 @@
     --teal-dark: 27 122 115;      /* #1B7A73 teal text (AA on white) */
     --mint: 226 241 235;          /* #E2F1EB calm surfaces */
     --offwhite: 248 248 249;      /* #F8F8F9 page background */
+    --muted-bg: 239 239 242;      /* #EFEFF2 neutral fills, hover */
     --line: 229 229 232;          /* #E5E5E8 borders, dividers (decorative) */
     --input: 143 143 149;         /* #8F8F95 form-control borders (3:1 on white and off-white) */
     --danger: 180 35 24;          /* #B42318 destructive */
@@ -21,6 +22,15 @@
 
   * {
     @apply border-border;
+  }
+
+  /* Form controls do not inherit font-variant-numeric by default. */
+  button,
+  input,
+  select,
+  textarea,
+  optgroup {
+    font-variant-numeric: inherit;
   }
 
   body {
@@ -59,9 +69,9 @@
     @apply relative overflow-hidden;
     background: linear-gradient(
       90deg,
-      rgb(var(--line)) 0%,
-      rgb(var(--offwhite)) 50%,
-      rgb(var(--line)) 100%
+      theme('colors.muted.DEFAULT') 0%,
+      theme('colors.card.DEFAULT') 50%,
+      theme('colors.muted.DEFAULT') 100%
     );
     background-size: 200% 100%;
     animation: shimmer 2s linear infinite;
@@ -69,7 +79,7 @@
 
   /* Focus ring utility */
   .focus-ring {
-    @apply outline-none ring-2 ring-primary/30 ring-offset-2 ring-offset-background;
+    @apply outline-none ring-2 ring-ring ring-offset-2;
   }
 }
 
