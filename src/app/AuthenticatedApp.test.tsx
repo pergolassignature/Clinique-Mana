@@ -8,6 +8,8 @@ import { AuthenticatedApp } from './AuthenticatedApp'
 
 // The Modules section needs a query client and the Supabase client: it has its own tests.
 vi.mock('@/core/settings/pages/ModulesSettingsPage', () => ({ ModulesSettingsPage: () => <p>MODULES PAGE</p> }))
+// Same for « Mon compte ».
+vi.mock('@/core/account/pages/AccountPage', () => ({ AccountPage: () => <p>ACCOUNT PAGE</p> }))
 
 const adminLike: Access = {
   ...testAccess,
@@ -81,6 +83,14 @@ describe('AuthenticatedApp', () => {
     render(appAt('/professionnels', { ...adminLike, permissions: ['settings.view', 'modules.manage'] }))
     expect(menuLinks()).toEqual([t('nav.home'), t('nav.settings')])
     expect(screen.getByText(t('access.forbidden.title'))).toBeInTheDocument()
+  })
+
+  // Outside Paramètres: a role with no settings section (here a provider) still reaches it.
+  it('opens « Mon compte » for every role, titled in the topbar', async () => {
+    render(appAt('/mon-compte', { ...adminLike, role: 'provider', permissions: [] }))
+    expect(await screen.findByText('ACCOUNT PAGE')).toBeInTheDocument()
+    expect(within(screen.getByRole('banner')).getByText(t('nav.account'))).toBeInTheDocument()
+    expect(menuLinks()).toEqual([t('nav.home')])
   })
 
   it('shows not found for an unknown path', () => {

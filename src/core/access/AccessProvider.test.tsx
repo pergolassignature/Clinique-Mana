@@ -39,7 +39,10 @@ function authValue(session: Session | null): AuthContextValue {
     sendMagicLink: async () => null,
     sendPasswordReset: async () => null,
     updatePassword: async () => null,
+    sendReauthenticationCode: async () => null,
+    updateEmail: async () => null,
     signOut: async () => {},
+    signOutEverywhere: async () => null,
   }
 }
 
