@@ -1682,7 +1682,7 @@ export function useAuth(): AuthContextValue {
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/core/auth/AuthProvider'
-import { resetClinicTimezone, setClinicTimezone } from '@/shared/lib/timezone'
+import { getClinicTimezone, resetClinicTimezone, setClinicTimezone } from '@/shared/lib/timezone'
 import { can, type Access, type AccessProblem, type AccessResult } from './access'
 import { fetchMyAccess } from './api'
 
@@ -1724,6 +1724,10 @@ export function AccessProvider({ children }: { children: ReactNode }) {
 
   const access = data && 'access' in data ? data.access : null
   const problem = data && 'problem' in data ? data.problem : null
+
+  // Idempotent re-sync: covers a cached access result reused after a sign-out/sign-in
+  // within staleTime (loadAccess would not re-run).
+  if (access && getClinicTimezone() !== access.org_timezone) setClinicTimezone(access.org_timezone)
 
   useEffect(() => {
     if (!userId) resetClinicTimezone()
@@ -3289,4 +3293,5 @@ Expected: everything passes. Paste the summary lines (test counts) into the PR d
 - **Phase 4 — Professionnels:** starts with the module design doc marking inventory §A items Keep / Change / Drop.
 - Visual redesign of the shell (mobile nav, branding) — a dedicated design task.
 - **Before the 2nd module:** replace the text-pattern module boundary with a path-resolving rule (`eslint-plugin-boundaries` or `import-x/no-restricted-paths`): only `index.ts` entry points, only modules listed in `dependsOn`, cover dynamic `import()`, restrict `src/app` to module entries (Batch A quality review).
+- "Mon compte" password change (Phase 2): `secure_password_change = true` requires `supabase.auth.reauthenticate()` after 24 h; map that error to its own message.
 - Use `mergeConfig(viteConfig, …)` in `vitest.config.ts` once `vite.config.ts` gains plugins/defines; add happy-dom polyfills (ResizeObserver, pointer capture) when Radix dialogs get tests.
