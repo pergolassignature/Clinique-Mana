@@ -6,31 +6,36 @@
 -- time zone, read from the org. now() is fixed for the whole transaction.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(65);
+select plan(68);
 
 -- =============================================================================
--- Fixtures (as postgres): org A with an admin, an adjointe and a provider; org B with an admin.
--- Both orgs are created after the migration, so the seeding trigger runs.
+-- Fixtures (as postgres): org A with an admin, an adjointe and a provider; org B with an admin;
+-- org C with an admin (its seeded rates are left fresh, created_at = now()).
+-- All orgs are created after the migration, so the seeding trigger runs.
 -- =============================================================================
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
   ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@a.test',    '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'adjointe@a.test', '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'provider@a.test', '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',    '', now(), '{}', '{}', now(), now());
+  ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',    '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@c.test',    '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A'),
-  ('b0000000-0000-0000-0000-00000000000b', 'Org B');
+  ('b0000000-0000-0000-0000-00000000000b', 'Org B'),
+  ('b0000000-0000-0000-0000-00000000000c', 'Org C');
 insert into public.profiles (user_id, org_id, display_name, email) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',    'admin@a.test'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe A', 'adjointe@a.test'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Provider A', 'provider@a.test'),
-  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',    'admin@b.test');
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',    'admin@b.test'),
+  ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000c', 'Admin C',    'admin@c.test');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'provider'),
-  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin');
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin'),
+  ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000c', 'admin');
 
 -- =============================================================================
 -- Seeding: GST 5 % from 2008 and QST 9.975 % from 2013, both open
@@ -84,8 +89,9 @@ delete from public.tax_rates where org_id = 'b0000000-0000-0000-0000-00000000000
 -- Clinic today, from org A's time zone (org B has the same default).
 select set_config('test.today',
   ((now() at time zone (select timezone from public.organizations where id = 'b0000000-0000-0000-0000-00000000000a'))::date)::text, true);
--- The seeded rows were created in this transaction: move them out of the
--- 24-hour correction window so « in force » rules apply to them.
+-- The seeded rows were created in this transaction: move org A's and B's out of
+-- the 24-hour correction window so « in force » rules apply to them. Org C keeps
+-- fresh rows, as a newly created org (or staging right after the backfill) has.
 update public.tax_rates set created_at = now() - interval '1 year'
  where org_id in ('b0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b');
 
@@ -258,10 +264,24 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select throws_ok($$ select public.delete_tax_rate((select id from public.tax_rates
                       where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'qst' and effective_to is null)) $$,
-  'P0001', 'L''historique des taux est incohérent ; contactez le soutien technique.',
-  'a delete that cannot reopen the previous rate is refused');
+  'P0001', 'Le premier taux d''une taxe ne peut pas être supprimé.',
+  'a delete that cannot reopen the previous rate (gap) is refused');
 select is((select count(*)::int from public.tax_rates where tax = 'qst' and effective_to is null), 1,
   'the refused delete left the open QST rate in place');
+
+
+-- =============================================================================
+-- Admin C: a freshly seeded rate is inside the correction window but is the
+-- tax's first rate, so it cannot be deleted (the tax would have no rate left).
+-- =============================================================================
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+
+select ok((select created_at > now() - interval '24 hours' from public.tax_rates where tax = 'gst'),
+  'org C''s seeded GST rate is inside the correction window');
+select throws_ok($$ select public.delete_tax_rate((select id from public.tax_rates where tax = 'gst')) $$,
+  'P0001', 'Le premier taux d''une taxe ne peut pas être supprimé.', 'a fresh seeded rate cannot be deleted');
+select is(public.tax_rate_on('gst', current_setting('test.today')::date), 0.05::numeric,
+  'org C still has its GST rate');
 
 select * from finish();
 rollback;

@@ -163,6 +163,8 @@ $$;
 -- Removes the last (open) rate and reopens the previous one. Allowed when the rate
 -- is not in force yet, or was created less than 24 hours ago: the window to fix a
 -- typo, including on a back-dated rate (in force as soon as it is added).
+-- Never allowed on a tax's first rate (nothing to reopen: the tax would be left
+-- with no rate, e.g. a freshly seeded default still inside the window).
 create function public.delete_tax_rate(p_id uuid)
 returns void
 language plpgsql
@@ -192,18 +194,22 @@ begin
      and not coalesce(v_row.created_at > pg_catalog.now() - interval '24 hours', false) then
     raise exception 'Un taux déjà en vigueur ne peut pas être supprimé.' using errcode = 'P0001';
   end if;
+  -- The previous rate must end exactly where this one starts (also refuses a gap).
+  if not exists (
+    select 1 from public.tax_rates t
+     where t.org_id = v_org and t.tax = v_row.tax and t.effective_to = v_row.effective_from
+  ) then
+    raise exception 'Le premier taux d''une taxe ne peut pas être supprimé.' using errcode = 'P0001';
+  end if;
 
   delete from public.tax_rates t where t.id = v_row.id;
   update public.tax_rates t
      set effective_to = null
    where t.org_id = v_org and t.tax = v_row.tax and t.effective_to = v_row.effective_from;
   get diagnostics v_reopened = row_count;
-  -- A closed row exists but none ends where the deleted one started: a gap in the
-  -- history. Refuse rather than leave the tax with no open rate.
-  if v_reopened = 0 and exists (
-    select 1 from public.tax_rates t
-     where t.org_id = v_org and t.tax = v_row.tax and t.effective_to is not null
-  ) then
+  -- Assertion: the check above guarantees exactly one row (the exclusion
+  -- constraint forbids two). Never left with no open rate.
+  if v_reopened <> 1 then
     raise exception 'L''historique des taux est incohérent ; contactez le soutien technique.' using errcode = 'P0001';
   end if;
 end;
