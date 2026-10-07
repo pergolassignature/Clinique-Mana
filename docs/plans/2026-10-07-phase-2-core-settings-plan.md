@@ -944,6 +944,8 @@ Same pattern as Task 2.9: one page each, `OrganizationCard`, and tests mirroring
 | `RegionSettingsPage` | « Fuseau horaire »: a `Select` with the Canadian zones (`America/Toronto` « Heure de l'Est (Montréal, Toronto) », `America/Halifax`, `America/St_Johns`, `America/Winnipeg`, `America/Regina`, `America/Edmonton`, `America/Vancouver`). « Autre fuseau… » opens a searchable `Command` list built from `Intl.supportedValuesOf('timeZone')`. Read-only lines « Langue : Français (Canada) », « Devise : dollar canadien (CAD) ». Saving invalidates access, so `setClinicTimezone` runs with the new zone. Test: after a save, `accessKeys.all` is invalidated. |
 | `PrivacySettingsPage` | « Responsable de la protection des renseignements personnels »: Nom, Courriel. « Politique et conservation »: URL de la politique, Durée de conservation des dossiers administratifs (années; help « Les notes cliniques ne sont pas conservées dans l'application. »). |
 
+**Amendments after the Task 2.9 review:** the timezone select uses `Controller`, not `register()`, so its read-only view shows the zone's label. The « Autre fuseau… » trigger is a button: hide it in read-only mode, since buttons don't inherit read-only. A read-only test is required for every control on this page.
+
 The database rejects an unknown timezone with `22023`. The UI only offers valid zones, so a `22023` here is unexpected and goes to Sentry (fallback message).
 
 **Commit:** `feat(settings): Signataire, Région and Confidentialité sections`.
