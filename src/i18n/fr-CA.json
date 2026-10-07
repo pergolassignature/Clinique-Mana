@@ -129,6 +129,21 @@
       "saved": "Modules mis à jour.",
       "error": "Impossible de modifier ce module.",
       "loadError": "Impossible de charger les modules."
+    },
+    "validation": {
+      "nameRequired": "Le nom est requis.",
+      "maxLength": "{max} caractères maximum.",
+      "neq": "Le NEQ compte 10 chiffres.",
+      "gst": "Format attendu : 123456789 RT 0001.",
+      "qst": "Format attendu : 1234567890 TQ 0001.",
+      "province": "Province invalide.",
+      "postalCode": "Code postal invalide (ex. : H2X 1Y4).",
+      "phone": "Numéro à 10 chiffres.",
+      "https": "L'adresse doit commencer par https://",
+      "url": "Adresse web invalide.",
+      "controlChar": "Caractère invalide.",
+      "retention": "Entre 1 et 50 ans.",
+      "timezone": "Choisissez un fuseau horaire."
     }
   },
   "modules": {

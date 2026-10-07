@@ -11,7 +11,9 @@ export const organizationKeys = {
 }
 
 export function useOrganization() {
-  return useQuery({ queryKey: organizationKeys.current(), queryFn: fetchOrganization })
+  // Fresh for a minute: a background refetch (window focus, another card mounting) must not
+  // re-sync the cards' `values` while someone is typing.
+  return useQuery({ queryKey: organizationKeys.current(), queryFn: fetchOrganization, staleTime: 60_000 })
 }
 
 /**
@@ -25,13 +27,16 @@ export function useUpdateOrganization(successMessage: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: OrganizationUpdate }) => updateOrganization(id, patch),
-    onSuccess: async (_saved, { patch }) => {
-      const touchesAccess = patch.name !== undefined || patch.timezone !== undefined
-      // Awaited: the mutation stays pending until the fresh values are in the cache.
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: organizationKeys.all }),
-        touchesAccess && queryClient.invalidateQueries({ queryKey: accessKeys.all }),
-      ])
+    onSuccess: async (saved, { patch }) => {
+      // The saved row is the truth: cache it at once, then refetch anything derived from it.
+      queryClient.setQueryData(organizationKeys.current(), saved)
+      const invalidations = [queryClient.invalidateQueries({ queryKey: organizationKeys.all })]
+      if (patch.name !== undefined || patch.timezone !== undefined) {
+        invalidations.push(queryClient.invalidateQueries({ queryKey: accessKeys.all }))
+      }
+      // Awaited: the mutation stays pending until the fresh values are in the cache. A failed
+      // refetch does not reject (invalidateQueries swallows it), so the save is still confirmed.
+      await Promise.all(invalidations)
       toast.success(successMessage)
     },
     onError: (error) => {

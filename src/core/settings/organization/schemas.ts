@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { t } from '@/i18n'
 import { formatPhone, formatPostalCode, parsePhone } from '@/shared/lib/format'
 import type { Organization } from './api'
 
@@ -10,19 +11,20 @@ import type { Organization } from './api'
  */
 
 const MESSAGES = {
-  nameRequired: 'Le nom est requis.',
-  maxLength: (max: number) => `${max} caractères maximum.`,
-  neq: 'Le NEQ compte 10 chiffres.',
-  gst: 'Format attendu : 123456789 RT 0001.',
-  qst: 'Format attendu : 1234567890 TQ 0001.',
-  province: 'Province invalide.',
-  postalCode: 'Code postal invalide (ex. : H2X 1Y4).',
-  phone: 'Numéro à 10 chiffres.',
-  https: "L'adresse doit commencer par https://",
-  email: 'Courriel invalide.',
-  controlChar: 'Caractère invalide.',
-  retention: 'Entre 1 et 50 ans.',
-  timezone: 'Choisissez un fuseau horaire.',
+  nameRequired: t('settings.validation.nameRequired'),
+  maxLength: (max: number) => t('settings.validation.maxLength', { max: String(max) }),
+  neq: t('settings.validation.neq'),
+  gst: t('settings.validation.gst'),
+  qst: t('settings.validation.qst'),
+  province: t('settings.validation.province'),
+  postalCode: t('settings.validation.postalCode'),
+  phone: t('settings.validation.phone'),
+  https: t('settings.validation.https'),
+  url: t('settings.validation.url'),
+  email: t('auth.errors.invalidEmail'),
+  controlChar: t('settings.validation.controlChar'),
+  retention: t('settings.validation.retention'),
+  timezone: t('settings.validation.timezone'),
 } as const
 
 /** The 13 province and territory codes allowed by `organizations_province_check`. */
@@ -36,6 +38,11 @@ const POSTAL_CODE = /^[A-Z][0-9][A-Z] [0-9][A-Z][0-9]$/
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 const HTTPS_URL = /^https:\/\/\S+$/
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i
+/**
+ * A scheme not followed by `//` (`mailto:x`, `https:/x.ca`, `https:x.ca`). No dot in the scheme, so
+ * a host with a port (`x.ca:8443`) is not mistaken for one.
+ */
+const SCHEME_WITHOUT_SLASHES = /^[a-z][a-z0-9+-]*:(?!\/\/)/i
 /**
  * C0 and C1 control characters. JS `\s` misses U+001C–U+001F and U+0085, which the database (ICU)
  * treats as whitespace, so the email and URL patterns would accept what the SQL check refuses.
@@ -56,22 +63,49 @@ const optionalPattern = (pattern: RegExp, message: string, normalize: (v: string
     .refine((v) => v === '' || pattern.test(v), { error: message })
     .transform(emptyToNull)
 
-/** `12 34-5 rt` → `12345RT`: tax and enterprise numbers are typed or pasted with spaces and dashes (-, –, —). */
-const compactUpper = (v: string) => v.replace(/[\s\-\u2013\u2014]/g, '').toUpperCase()
+/** Hyphen, en and em dashes: typed or pasted in identifiers, as `parsePhone` accepts them. */
+const DASHES = /[-\u2013\u2014]/g
+
+/** `12 34-5 rt` → `12345RT`: tax and enterprise numbers are typed or pasted with spaces and dashes. */
+const compactUpper = (v: string) => v.replace(/\s/g, '').replace(DASHES, '').toUpperCase()
+
+/** `h2x-1y4` → `H2X 1Y4`. */
+const normalizePostalCode = (v: string) => formatPostalCode(v.replace(DASHES, ''))
 
 /** Lowercases the scheme, and adds `https://` when there is none (`www.x.ca` → `https://www.x.ca`). */
 function normalizeUrl(v: string): string {
-  if (v === '') return v
   const scheme = URL_SCHEME.exec(v)
   return scheme ? scheme[0].toLowerCase() + v.slice(scheme[0].length) : `https://${v}`
 }
 
-/** Refuses control characters first (abort: no second, misleading format message), then checks the pattern. */
+/** A browser-parsable address whose host has a dot inside it (`x.ca`, not `localhost` nor `x.`). */
+function isWebAddress(url: string): boolean {
+  return URL.canParse(url) && /[^.]\.[^.]/.test(new URL(url).hostname)
+}
+
+/**
+ * Trims, then refuses control characters before anything else (abort: no second, misleading
+ * format message). A pasted tab or line break at either end is trimmed, not refused.
+ */
 const withoutControlChars = <T extends z.ZodType<unknown, string>>(schema: T) =>
-  z.string().refine((v) => !CONTROL_CHARS.test(v), { error: MESSAGES.controlChar, abort: true }).pipe(schema)
+  z.string().trim().refine((v) => !CONTROL_CHARS.test(v), { error: MESSAGES.controlChar, abort: true }).pipe(schema)
 
 const optionalEmail = () => withoutControlChars(optionalPattern(EMAIL, MESSAGES.email))
-const optionalHttpsUrl = () => withoutControlChars(optionalPattern(HTTPS_URL, MESSAGES.https, normalizeUrl))
+
+/**
+ * Optional `https://` address. Typed without a scheme it gets one; `http://` and other schemes
+ * are refused (the SQL check wants https), and so is anything a browser could not open.
+ */
+const optionalHttpsUrl = () =>
+  withoutControlChars(
+    z
+      .string()
+      .refine((v) => !SCHEME_WITHOUT_SLASHES.test(v), { error: MESSAGES.url, abort: true })
+      .transform((v) => (v === '' ? v : normalizeUrl(v)))
+      .refine((v) => v === '' || HTTPS_URL.test(v), { error: MESSAGES.https, abort: true })
+      .refine((v) => v === '' || isWebAddress(v), { error: MESSAGES.url })
+      .transform(emptyToNull),
+  )
 const str = (v: string | null) => v ?? ''
 
 // --- Identité légale: « Clinique » ---------------------------------------------------------------
@@ -98,7 +132,7 @@ export const addressSchema = z.object({
     .trim()
     .refine((v): v is Province | '' => v === '' || (PROVINCES as readonly string[]).includes(v), { error: MESSAGES.province })
     .transform(emptyToNull),
-  postal_code: optionalPattern(POSTAL_CODE, MESSAGES.postalCode, formatPostalCode),
+  postal_code: optionalPattern(POSTAL_CODE, MESSAGES.postalCode, normalizePostalCode),
 })
 
 export function toAddressFormValues(org: Organization): z.input<typeof addressSchema> {

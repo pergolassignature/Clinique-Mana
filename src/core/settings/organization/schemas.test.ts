@@ -122,6 +122,10 @@ describe('addressSchema', () => {
     expect(addressSchema.parse({ ...valid, postal_code: 'h2x 1y4' }).postal_code).toBe('H2X 1Y4')
   })
 
+  it.each(['H2X-1Y4', 'h2x\u20131y4', 'H2X \u2014 1Y4'])('strips the dash from the postal code %s', (postal_code) => {
+    expect(addressSchema.parse({ ...valid, postal_code }).postal_code).toBe('H2X 1Y4')
+  })
+
   it('trims text and turns empty values into null, including « no province »', () => {
     expect(addressSchema.parse({ address_line1: ' 123, rue Saint-Denis ', address_line2: ' ', city: '', province: '', postal_code: '' })).toEqual({
       address_line1: '123, rue Saint-Denis',
@@ -141,7 +145,7 @@ describe('addressSchema', () => {
     expect(errorOf(addressSchema, { ...valid, province: 'XX' }, 'province')).toBe('Province invalide.')
   })
 
-  it.each(['H2X1Y', 'H2X-1Y4', '22X 1Y4', 'H2X 1Y４'])('refuses the postal code %s', (postal_code) => {
+  it.each(['H2X1Y', 'H2X_1Y4', '22X 1Y4', 'H2X 1Y４'])('refuses the postal code %s', (postal_code) => {
     expect(errorOf(addressSchema, { ...valid, postal_code }, 'postal_code')).toBe('Code postal invalide (ex. : H2X 1Y4).')
   })
 
@@ -183,6 +187,32 @@ describe('contactSchema', () => {
 
   it.each(['http://x.ca', 'HTTP://x.ca', 'ftp://x.ca', 'https://x .ca'])('refuses the website %s', (website) => {
     expect(errorOf(contactSchema, { ...valid, website }, 'website')).toBe("L'adresse doit commencer par https://")
+  })
+
+  it.each([
+    ['a scheme without //', 'mailto:info@cliniquemana.com'],
+    ['a scheme with one slash', 'https:/cliniquemana.com'],
+    ['a scheme typed with no slash', 'https:cliniquemana.com'],
+    ['a host without a dot', 'cliniquemana'],
+    ['a host without a dot, after the scheme', 'https://localhost/x'],
+    ['a host ending with a dot', 'cliniquemana.'],
+    ['an unparsable address', 'https://clinique[mana.com'],
+  ])('refuses %s as a web address', (_case, website) => {
+    expect(errorOf(contactSchema, { ...valid, website }, 'website')).toBe('Adresse web invalide.')
+  })
+
+  it.each(['cliniquemana.com:8443/rendez-vous', 'https://www.cliniquemana.com/?lang=fr#equipe', 'https://192.168.0.10'])(
+    'accepts the web address %s',
+    (website) => {
+      expect(errorOf(contactSchema, { ...valid, website }, 'website')).toBeUndefined()
+    },
+  )
+
+  it('trims a pasted tab or line break instead of refusing it', () => {
+    expect(contactSchema.parse({ ...valid, email: 'info@cliniquemana.com\t', website: '\nhttps://cliniquemana.com\r\n' })).toMatchObject({
+      email: 'info@cliniquemana.com',
+      website: 'https://cliniquemana.com',
+    })
   })
 
   // JS \s misses these, but the database (ICU) treats them as whitespace: they would only fail later, as a 23514.
@@ -268,6 +298,7 @@ describe('privacySchema', () => {
   it('refuses an invalid email or policy URL', () => {
     expect(errorOf(privacySchema, { ...valid, privacy_officer_email: 'julie' }, 'privacy_officer_email')).toBe('Courriel invalide.')
     expect(errorOf(privacySchema, { ...valid, privacy_policy_url: 'http://x.ca' }, 'privacy_policy_url')).toBe("L'adresse doit commencer par https://")
+    expect(errorOf(privacySchema, { ...valid, privacy_policy_url: 'mailto:julie@x.ca' }, 'privacy_policy_url')).toBe('Adresse web invalide.')
   })
 
   it.each([

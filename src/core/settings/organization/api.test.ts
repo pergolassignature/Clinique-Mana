@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchOrganization, ORGANIZATION_COLUMNS, updateOrganization } from './api'
+import { fetchOrganization, ORGANIZATION_COLUMNS, updateOrganization, type OrganizationUpdate } from './api'
 
 const mocks = vi.hoisted(() => {
   const single = vi.fn()
@@ -62,6 +62,24 @@ describe('updateOrganization', () => {
   it('throws a permission error (42501) when RLS updated no row', async () => {
     // Without settings.manage the update policy filters the row out: no error, zero rows.
     mocks.updateSelect.mockResolvedValue({ data: [], error: null })
-    await expect(updateOrganization('o1', { name: 'X' })).rejects.toMatchObject({ code: '42501', message: 'no row updated' })
+    const result = updateOrganization('o1', { name: 'X' })
+    await expect(result).rejects.toBeInstanceOf(Error)
+    await expect(result).rejects.toMatchObject({ code: '42501', message: 'no row updated' })
+  })
+
+  it('only accepts the columns a card may write (type-level)', () => {
+    const refused: OrganizationUpdate[] = [
+      // @ts-expect-error country has no update grant: sending it raises 42501.
+      { country: 'US' },
+      // @ts-expect-error default_locale stays read-only until a second locale exists.
+      { default_locale: 'en-CA' },
+      // @ts-expect-error currency stays read-only until a second currency exists.
+      { currency: 'USD' },
+      // @ts-expect-error the primary key is never written.
+      { id: 'o2' },
+      // @ts-expect-error updated_at is set by the database.
+      { updated_at: '2026-10-07T12:00:00Z' },
+    ]
+    expect(refused).toHaveLength(5)
   })
 })

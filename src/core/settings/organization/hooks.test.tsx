@@ -36,7 +36,34 @@ describe('useOrganization', () => {
   })
 })
 
+describe('useOrganization', () => {
+  it('keeps the loaded values fresh for a minute, so a background refetch does not reset a form being typed in', async () => {
+    const { wrapper } = setup()
+    mocks.api.fetchOrganization.mockResolvedValue(SAVED)
+    const { result } = renderHook(() => useOrganization(), { wrapper })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.isStale).toBe(false)
+    // A second card mounting (refetchOnMount) does not refetch fresh data.
+    renderHook(() => useOrganization(), { wrapper })
+    expect(mocks.api.fetchOrganization).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('useUpdateOrganization', () => {
+  it('puts the saved row in the cache before invalidating', async () => {
+    const { queryClient, wrapper, invalidate } = setup()
+    mocks.api.updateOrganization.mockResolvedValue(SAVED)
+    invalidate.mockImplementation(async () => {
+      expect(queryClient.getQueryData(organizationKeys.current())).toBe(SAVED)
+    })
+
+    const { result } = renderHook(() => useUpdateOrganization('Enregistré.'), { wrapper })
+    result.current.mutate({ id: 'o1', patch: { city: 'Laval' } })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(invalidate).toHaveBeenCalledTimes(1)
+  })
+
   it('saves, invalidates the organization only, then confirms with the given message', async () => {
     const { wrapper, invalidate } = setup()
     mocks.api.updateOrganization.mockResolvedValue(SAVED)
@@ -47,9 +74,53 @@ describe('useUpdateOrganization', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(mocks.api.updateOrganization).toHaveBeenCalledWith('o1', { signatory_name: 'Marie Tremblay', signatory_title: null })
     expect(result.current.data).toBe(SAVED)
+    expect(invalidate).toHaveBeenCalledTimes(1)
     expect(invalidate).toHaveBeenCalledWith({ queryKey: organizationKeys.all })
-    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: accessKeys.all })
     expect(mocks.toast.success).toHaveBeenCalledWith('Signataire enregistré.')
+  })
+
+  it('still confirms the save when the refetch that follows fails', async () => {
+    const { wrapper } = setup()
+    mocks.api.fetchOrganization.mockResolvedValueOnce(SAVED).mockRejectedValue({ code: '', message: 'TypeError: Failed to fetch' })
+    mocks.api.updateOrganization.mockResolvedValue(SAVED)
+
+    const { result } = renderHook(() => ({ query: useOrganization(), mutation: useUpdateOrganization('Enregistré.') }), { wrapper })
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true))
+    result.current.mutation.mutate({ id: 'o1', patch: { city: 'Laval' } })
+
+    await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true))
+    expect(mocks.api.fetchOrganization).toHaveBeenCalledTimes(2)
+    expect(mocks.toast.success).toHaveBeenCalledWith('Enregistré.')
+    expect(mocks.toast.error).not.toHaveBeenCalled()
+  })
+
+  it('shows the success toast even if the page unmounted meanwhile', async () => {
+    const { wrapper } = setup()
+    let resolve: (saved: unknown) => void = () => {}
+    mocks.api.updateOrganization.mockReturnValue(new Promise((r) => (resolve = r)))
+
+    const { result, unmount } = renderHook(() => useUpdateOrganization('Enregistré.'), { wrapper })
+    result.current.mutate({ id: 'o1', patch: { city: 'Laval' } })
+    await waitFor(() => expect(mocks.api.updateOrganization).toHaveBeenCalled())
+    unmount()
+    resolve(SAVED)
+
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith('Enregistré.'))
+  })
+
+  it('shows the error toast even if the page unmounted meanwhile', async () => {
+    const { wrapper } = setup()
+    let reject: (error: unknown) => void = () => {}
+    mocks.api.updateOrganization.mockReturnValue(new Promise((_r, r) => (reject = r)))
+
+    const { result, unmount } = renderHook(() => useUpdateOrganization('Enregistré.'), { wrapper })
+    result.current.mutate({ id: 'o1', patch: { city: 'Laval' } })
+    await waitFor(() => expect(mocks.api.updateOrganization).toHaveBeenCalled())
+    unmount()
+    reject({ code: '42501', message: 'no row updated' })
+
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith(t('common.errors.forbidden')))
+    expect(mocks.toast.success).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -85,10 +156,10 @@ describe('useUpdateOrganization', () => {
   })
 
   it.each([
-    [{ code: '42501', message: 'no row updated' }, t('common.errors.forbidden')],
-    [{ code: '23514', message: 'violates check constraint "organizations_neq_check"' }, t('common.errors.invalidValue')],
-    [{ code: '57014', message: 'canceling statement due to statement timeout' }, t('common.errors.generic')],
-  ])('shows the mapped error (%o) and no success toast', async (error, message) => {
+    [{ code: '42501', message: 'no row updated' }, t('common.errors.forbidden'), false],
+    [{ code: '23514', message: 'violates check constraint "organizations_neq_check"' }, t('common.errors.invalidValue'), true],
+    [{ code: '57014', message: 'canceling statement due to statement timeout' }, t('common.errors.generic'), true],
+  ])('shows the mapped error (%o) and no success toast', async (error, message, reported) => {
     const { wrapper } = setup()
     mocks.api.updateOrganization.mockRejectedValue(error)
 
@@ -98,6 +169,7 @@ describe('useUpdateOrganization', () => {
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(mocks.toast.error).toHaveBeenCalledWith(message)
     expect(mocks.toast.success).not.toHaveBeenCalled()
+    expect(mocks.captureException).toHaveBeenCalledTimes(reported ? 1 : 0)
   })
 
   it('tags unexpected errors with the settings area in Sentry', async () => {
