@@ -85,7 +85,6 @@
     /* Typography */
     --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-    --font-features: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
     --text-2xs: 11px; --leading-2xs: 16px;
     --text-xs: 12px;  --leading-xs: 16px;
     --text-sm: 13px;  --leading-sm: 18px;
@@ -108,7 +107,7 @@
     --radius-full: 9999px;
 
     /* Shadows: none on surfaces; only floating layers cast one. */
-    --shadow-soft: none;
+    --shadow-soft: 0 0 #0000;
     --shadow-medium: 0 2px 8px rgb(31 31 32 / 0.08), 0 0 0 1px rgb(31 31 32 / 0.04);
     --shadow-large: 0 12px 32px rgb(31 31 32 / 0.14), 0 0 0 1px rgb(31 31 32 / 0.05);
     --ring: 0 0 0 2px rgb(var(--bg)), 0 0 0 4px rgb(var(--focus-ring));
@@ -139,8 +138,9 @@
   }
 
   body {
+    /* The design system asks for Inter's cv02 cv03 cv04 cv11 ss01 alternates; the fontsource
+       (Google Fonts) build does not contain them, so they are not set. */
     @apply bg-background text-sm text-foreground antialiased;
-    font-feature-settings: var(--font-features);
   }
 
   /* Links: the same teal focus ring as every control (components may restyle). */
@@ -209,10 +209,14 @@
   }
 }
 
-/* Toasts: sonner's own focus cue is a faint 20 % black ring. Its shadow plus the solid teal ring.
-   Outside @layer so it is never purged; the [data-sonner-toaster] prefix outranks sonner's
-   injected selectors. */
-[data-sonner-toaster] [data-sonner-toast]:focus-visible {
+/* Toasts (sonner.tsx). Outside @layer so they are never purged; the [data-sonner-toaster]
+   prefix outranks sonner's injected selectors. The large shadow lives here, not inline, so the
+   focus rule below can replace it: sonner's own focus cue is a faint 20 % black ring. */
+[data-sonner-toaster] [data-sonner-toast][data-styled='true'] {
+  box-shadow: var(--shadow-large);
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-styled='true']:focus-visible {
   box-shadow: var(--ring), var(--shadow-large);
 }
 

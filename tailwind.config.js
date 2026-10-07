@@ -63,7 +63,11 @@ export default {
         },
         // Status colours: dots and icons only, never text or fills.
         success: token('success'),
-        warning: token('warning'),
+        warning: {
+          DEFAULT: token('warning'),
+          // yellow-700 (#9A7B05, ~4:1): a warning icon that must be seen, e.g. the pending clock (decision #30).
+          strong: token('yellow-700'),
+        },
         info: token('info'),
         neutral: token('neutral-dot'),
         ring: token('focus-ring'),

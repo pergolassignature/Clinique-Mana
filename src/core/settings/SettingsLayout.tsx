@@ -6,6 +6,7 @@ import type { SettingsGroup, SettingsSection } from '@/core/modules/types'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { cn } from '@/shared/lib/utils'
+import { focusRing } from '@/shared/ui/field-classes'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 
 const GROUP_ORDER: SettingsGroup[] = ['clinique', 'plateforme', 'modules', 'compte']
@@ -59,7 +60,7 @@ export function SettingsLayout({ sections, basePath = '/parametres' }: SettingsL
                     to={`${basePath}/${s.id}`}
                     className={({ isActive }) =>
                       cn(
-                        'flex items-center gap-2 rounded-md px-2 py-[5px] text-sm transition-colors duration-120 focus-visible:shadow-focus focus-visible:outline-none',
+                        `flex items-center gap-2 rounded-md px-2 py-[5px] text-sm transition-colors duration-120 ${focusRing}`,
                         isActive ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                       )
                     }

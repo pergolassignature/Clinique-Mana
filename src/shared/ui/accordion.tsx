@@ -2,6 +2,7 @@ import * as React from 'react'
 import * as AccordionPrimitive from '@radix-ui/react-accordion'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
+import { focusRing } from './field-classes'
 
 const Accordion = AccordionPrimitive.Root
 
@@ -25,7 +26,7 @@ const AccordionTrigger = React.forwardRef<
     <AccordionPrimitive.Trigger
       ref={ref}
       className={cn(
-        'flex flex-1 items-center justify-between gap-3 rounded-sm py-4 text-left text-sm font-medium text-foreground transition-all hover:underline focus-visible:shadow-focus focus-visible:outline-none [&[data-state=open]>svg]:rotate-180',
+        `flex flex-1 items-center justify-between gap-3 rounded-sm py-4 text-left text-sm font-medium text-foreground transition-all hover:underline ${focusRing} [&[data-state=open]>svg]:rotate-180`,
         className
       )}
       {...props}

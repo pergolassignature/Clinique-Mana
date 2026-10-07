@@ -3,6 +3,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
+import { closeButtonClasses, overlayClasses } from './overlay-classes'
 
 const Sheet = DialogPrimitive.Root
 const SheetTrigger = DialogPrimitive.Trigger
@@ -15,10 +16,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      'fixed inset-0 z-50 bg-overlay animate-fade-in motion-reduce:animate-none',
-      className
-    )}
+    className={cn(overlayClasses, className)}
     {...props}
   />
 ))
@@ -58,7 +56,7 @@ const SheetContent = React.forwardRef<
       {!hideClose && (
         <DialogPrimitive.Close
           tabIndex={-1}
-          className="absolute right-4 top-4 rounded-lg p-1 text-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:shadow-focus focus-visible:outline-none disabled:pointer-events-none"
+          className={closeButtonClasses}
         >
           <X className="h-4 w-4" />
           <span className="sr-only">{t('common.close')}</span>

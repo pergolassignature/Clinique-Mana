@@ -1,6 +1,7 @@
 import * as React from 'react'
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 import { cn } from '@/shared/lib/utils'
+import { overlayClasses, overlayContentClasses } from './overlay-classes'
 import { buttonVariants } from './button'
 
 const AlertDialog = AlertDialogPrimitive.Root
@@ -13,10 +14,7 @@ const AlertDialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      'fixed inset-0 z-50 bg-overlay animate-fade-in motion-reduce:animate-none',
-      className
-    )}
+    className={cn(overlayClasses, className)}
     {...props}
   />
 ))
@@ -30,10 +28,7 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogOverlay />
     <AlertDialogPrimitive.Content
       ref={ref}
-      className={cn(
-        'fixed left-1/2 top-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[512px] -translate-x-1/2 -translate-y-1/2 gap-3.5 overflow-y-auto rounded-2xl bg-card p-5 text-foreground shadow-large animate-dialog-in motion-reduce:animate-none',
-        className
-      )}
+      className={cn(overlayContentClasses, className)}
       {...props}
     />
   </AlertDialogPortal>

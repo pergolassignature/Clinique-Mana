@@ -6,7 +6,7 @@ export type StatusIndicatorStatus = 'complete' | 'pending' | 'warning'
 
 const statuses = {
   complete: { Icon: CircleCheck, className: 'text-success', label: 'common.status.complete' },
-  pending: { Icon: Clock, className: 'text-warning', label: 'common.status.pending' },
+  pending: { Icon: Clock, className: 'text-warning-strong', label: 'common.status.pending' },
   warning: { Icon: CircleAlert, className: 'text-destructive', label: 'common.status.warning' },
 } as const
 

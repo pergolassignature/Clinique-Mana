@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react'
 import { Toaster as SonnerToaster } from 'sonner'
+import { t } from '@/i18n'
 
 export { toast } from 'sonner'
 
@@ -8,7 +9,8 @@ export { toast } from 'sonner'
  * Sonner styled as the design system's Toast, through its own CSS variables and inline styles
  * (no class overrides): 356px, ink background, white text, radius 6, padding 10×12, large shadow.
  * Only the icon carries the tone, in a light colour that reads on ink. The dark theme gives
- * sonner's close button light colours on the ink. The keyboard focus ring lives in globals.css.
+ * sonner's close button light colours on the ink. The shadow and the keyboard focus ring live in
+ * globals.css.
  */
 const toasterVariables = {
   fontFamily: 'inherit',
@@ -19,11 +21,12 @@ const toasterVariables = {
   '--normal-text': 'rgb(var(--text-inverse))',
 } as CSSProperties
 
+// The large shadow is set in globals.css, not here: an inline box-shadow would beat the
+// keyboard focus ring.
 const toastStyle: CSSProperties = {
   padding: '10px 12px',
   gap: 12,
   alignItems: 'flex-start',
-  boxShadow: 'var(--shadow-large)',
   fontSize: 'var(--text-sm)',
   lineHeight: 'var(--leading-sm)',
 }
@@ -49,8 +52,10 @@ export function Toaster() {
       closeButton
       icons={toastIcons}
       style={toasterVariables}
+      containerAriaLabel={t('common.toast.region')}
       toastOptions={{
         style: toastStyle,
+        closeButtonAriaLabel: t('common.toast.close'),
         // Sonner's dark theme sets the description to 91 % white; the design system says 70 %.
         classNames: { description: '!text-white/70' },
       }}

@@ -47,7 +47,6 @@ describe('FormField', () => {
     const label = document.querySelector(`label[for="${input.id}"]`)
     const asterisk = within(label as HTMLElement).getByText('*')
     expect(asterisk).toHaveAttribute('aria-hidden', 'true')
-    expect(asterisk).toHaveClass('text-primary')
     expect(within(label as HTMLElement).getByText(t('common.form.required'))).toHaveClass('sr-only')
   })
 

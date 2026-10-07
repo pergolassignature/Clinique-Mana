@@ -1,5 +1,6 @@
 import { Star } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
+import { focusRing } from './field-classes'
 import {
   Tooltip,
   TooltipContent,
@@ -42,7 +43,7 @@ export function StarToggle({
           disabled={disabled}
           className={cn(
             'inline-flex items-center justify-center rounded-md p-0.5 transition-colors',
-            'focus-visible:shadow-focus focus-visible:outline-none',
+            focusRing,
             disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
             className
           )}

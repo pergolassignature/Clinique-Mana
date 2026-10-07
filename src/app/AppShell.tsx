@@ -5,6 +5,7 @@ import { t, type TranslationKey } from '@/i18n'
 import { useAuth } from '@/core/auth/auth-context'
 import { useReadyAccess } from '@/core/access/access-context'
 import { cn } from '@/shared/lib/utils'
+import { focusRing } from '@/shared/ui/field-classes'
 
 export interface ShellNavItem {
   /** Absolute link target, e.g. '/professionnels'. */
@@ -52,7 +53,7 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
               to={item.path}
               className={({ isActive }) =>
                 cn(
-                  'group flex items-center gap-2.5 whitespace-nowrap rounded-md px-2 py-1.5 text-sm transition-colors duration-120 focus-visible:shadow-focus focus-visible:outline-none',
+                  `group flex items-center gap-2.5 whitespace-nowrap rounded-md px-2 py-1.5 text-sm transition-colors duration-120 ${focusRing}`,
                   isActive
                     ? 'bg-card font-medium text-foreground ring-1 ring-border'
                     : 'text-muted-foreground hover:bg-ink/5 hover:text-foreground',
@@ -72,7 +73,7 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
             type="button"
             onClick={handleSignOut}
             disabled={signingOut}
-            className="flex shrink-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors duration-120 hover:bg-ink/5 hover:text-foreground focus-visible:shadow-focus focus-visible:outline-none disabled:opacity-50 md:mt-1 md:w-full"
+            className={`flex shrink-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors duration-120 hover:bg-ink/5 hover:text-foreground ${focusRing} disabled:opacity-50 md:mt-1 md:w-full`}
           >
             <LogOut className="h-4 w-4 text-subtle" aria-hidden />
             {t('nav.logout')}

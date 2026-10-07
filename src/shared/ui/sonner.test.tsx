@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { act, render, screen } from '@testing-library/react'
+import { t } from '@/i18n'
 import { toast, Toaster } from './sonner'
 
 async function show(fire: () => void, text: string) {
@@ -18,8 +19,8 @@ describe('Toaster (design system Toast)', () => {
     expect(toaster.style.getPropertyValue('--normal-bg')).toBe('rgb(var(--ink))')
     expect(toaster.style.getPropertyValue('--normal-text')).toBe('rgb(var(--text-inverse))')
     expect(toaster.style.getPropertyValue('--border-radius')).toBe('var(--radius-lg)')
-    expect(node.style.padding).toBe('10px 12px')
-    expect(node.style.boxShadow).toBe('var(--shadow-large)')
+    // The shadow is a globals.css rule, never inline: an inline one would hide the focus ring.
+    expect(node.style.boxShadow).toBe('')
     // One look for every type: no rich colours.
     expect(node).not.toHaveAttribute('data-rich-colors', 'true')
   })
@@ -35,8 +36,15 @@ describe('Toaster (design system Toast)', () => {
     expect(icon.style.color).toBe(color)
   })
 
-  it('keeps a close button for keyboard users', async () => {
+  it('keeps a close button for keyboard users, labelled in French', async () => {
     const node = await show(() => toast('Bonjour'), 'Bonjour')
-    expect(node.querySelector('[data-close-button]')).toBeInTheDocument()
+    expect(node.querySelector('[data-close-button]')).toHaveAccessibleName(t('common.toast.close'))
+    expect(t('common.toast.close')).toBe('Fermer la notification')
+  })
+
+  it('names the notifications region in French', async () => {
+    const node = await show(() => toast('Bonjour'), 'Bonjour')
+    const region = node.closest('section')
+    expect(region).toHaveAttribute('aria-label', expect.stringContaining(t('common.toast.region')))
   })
 })

@@ -1,6 +1,7 @@
 import { t } from '@/i18n'
 import { useModules, useSetModuleEnabled } from '@/core/modules/hooks'
 import { Button } from '@/shared/ui/button'
+import { Label } from '@/shared/ui/label'
 import { Switch } from '@/shared/ui/switch'
 
 export function ModulesSettingsPage() {
@@ -25,12 +26,13 @@ export function ModulesSettingsPage() {
       ) : (
         <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
           {modules?.map((m) => {
+            const switchId = `module-${m.key}-switch`
             const dependsOnId = `module-${m.key}-depends-on`
             const hasDependencies = m.depends_on.length > 0
             return (
               <li key={m.key} className="flex items-center justify-between gap-3 px-3 py-2.5">
                 <div>
-                  <p className="text-sm font-medium">{m.name}</p>
+                  <Label htmlFor={switchId}>{m.name}</Label>
                   {hasDependencies && (
                     <p id={dependsOnId} className="text-xs text-muted-foreground">
                       {t('settings.modules.dependsOn')} {m.depends_on.map((key) => nameByKey.get(key) ?? key).join(', ')}
@@ -44,7 +46,7 @@ export function ModulesSettingsPage() {
                   checked={saving?.key === m.key ? saving.enabled : m.enabled}
                   disabled={setEnabled.isPending}
                   onCheckedChange={(checked) => setEnabled.mutate({ key: m.key, enabled: checked })}
-                  aria-label={m.name}
+                  id={switchId}
                   aria-describedby={hasDependencies ? dependsOnId : undefined}
                 />
               </li>

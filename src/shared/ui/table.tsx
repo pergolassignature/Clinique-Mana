@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { cn } from '@/shared/lib/utils'
+import { focusRing } from './field-classes'
 
 interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   /**
@@ -13,7 +14,7 @@ interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
   ({ className, scrollLabel, ...props }, ref) => (
     <div
-      className="relative w-full overflow-x-auto rounded-lg focus-visible:shadow-focus focus-visible:outline-none"
+      className={`relative w-full overflow-x-auto rounded-lg ${focusRing}`}
       {...(scrollLabel ? { role: 'region', 'aria-label': scrollLabel, tabIndex: 0 } : {})}
     >
       <table ref={ref} className={cn('w-full caption-bottom text-sm text-foreground', className)} {...props} />

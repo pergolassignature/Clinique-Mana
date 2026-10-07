@@ -5,6 +5,8 @@ import { cn } from '@/shared/lib/utils'
 /**
  * White, hairline border, radius 6, padding 10×12; only the 15px icon carries the tone.
  * Usage: <Alert variant="warning"><TriangleAlert /><AlertTitle>…</AlertTitle><AlertDescription>…</AlertDescription></Alert>
+ * No live role by default (a static « Lecture seule » notice must not be announced): pass
+ * `role="alert"` for an error that appears after an action, `role="status"` for a polite update.
  */
 const alertVariants = cva(
   'relative grid w-full grid-cols-[1fr] items-start gap-x-2.5 gap-y-px rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground has-[>svg]:grid-cols-[15px_1fr] [&>svg~*]:col-start-2 [&>svg]:mt-0.5 [&>svg]:size-[15px] [&>svg]:shrink-0',
@@ -29,7 +31,6 @@ const Alert = React.forwardRef<
 >(({ className, variant, ...props }, ref) => (
   <div
     ref={ref}
-    role="alert"
     className={cn(alertVariants({ variant }), className)}
     {...props}
   />

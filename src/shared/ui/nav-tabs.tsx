@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { cn } from '@/shared/lib/utils'
+import { focusRing } from './field-classes'
 
 /**
  * NavTabs - Navigation tabs that are excluded from keyboard tab order.
@@ -49,7 +50,7 @@ const NavTab = React.forwardRef<HTMLButtonElement, NavTabProps>(
       aria-selected={active}
       tabIndex={-1}
       className={cn(
-        '-mb-px mr-3 flex items-center gap-1.5 whitespace-nowrap border-b-2 px-0.5 py-2 text-sm transition-colors focus-visible:shadow-focus focus-visible:outline-none [&_svg]:size-3.5 [&_svg]:shrink-0',
+        `-mb-px mr-3 flex items-center gap-1.5 whitespace-nowrap border-b-2 px-0.5 py-2 text-sm transition-colors ${focusRing} [&_svg]:size-3.5 [&_svg]:shrink-0`,
         active
           ? 'border-ink font-medium text-foreground'
           : 'border-transparent text-muted-foreground hover:text-foreground',

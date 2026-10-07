@@ -29,6 +29,12 @@ describe('cn', () => {
     expect(cn('text-2xs', 'text-muted-foreground')).toBe('text-2xs text-muted-foreground')
   })
 
+  it('knows max-w-form and max-w-content are max widths', () => {
+    expect(cn('max-w-form', 'max-w-sm')).toBe('max-w-sm')
+    expect(cn('max-w-2xl', 'max-w-form')).toBe('max-w-form')
+    expect(cn('max-w-content', 'max-w-form')).toBe('max-w-form')
+  })
+
   it('treats the design-system colours as colours', () => {
     expect(cn('text-muted-foreground', 'text-subtle')).toBe('text-subtle')
     expect(cn('bg-primary', 'bg-ink')).toBe('bg-ink')

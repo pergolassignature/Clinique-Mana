@@ -57,6 +57,15 @@ describe('ModulesSettingsPage', () => {
     expect(mocks.toast.error).not.toHaveBeenCalled()
   })
 
+  it('the module name is the switch label: clicking it toggles the module (larger target)', async () => {
+    mocks.fetchModules.mockResolvedValue(rows)
+    mocks.setModuleEnabled.mockResolvedValue(undefined)
+    renderPage()
+    await screen.findByRole('switch', { name: 'Facturation' })
+    await userEvent.click(screen.getByText('Facturation', { selector: 'label' }))
+    await waitFor(() => expect(mocks.setModuleEnabled).toHaveBeenCalledWith('billing', true))
+  })
+
   it('shows the database message when the change is refused and reverts the switch', async () => {
     mocks.fetchModules.mockResolvedValue(rows)
     mocks.setModuleEnabled.mockRejectedValue({ message: "Désactivez d'abord : Facturation", code: 'P0001' })

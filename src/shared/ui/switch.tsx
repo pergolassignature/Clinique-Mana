@@ -1,10 +1,12 @@
 import * as React from 'react'
 import * as SwitchPrimitive from '@radix-ui/react-switch'
 import { cn } from '@/shared/lib/utils'
+import { focusRing } from './field-classes'
 
 /**
  * 32×18 track, 14px white thumb travelling 14px. The off track is #8E8E92 (3.3:1, decision #30)
- * rather than the design system's #D4D4D8 (1.5:1), so the state is visible.
+ * rather than the design system's #D4D4D8 (1.5:1), so the state is visible. An invisible ::after
+ * enlarges the hit area to 32×32 (the border is 2px, hence the -9px / -2px insets).
  */
 const Switch = React.forwardRef<
   React.ElementRef<typeof SwitchPrimitive.Root>,
@@ -13,7 +15,7 @@ const Switch = React.forwardRef<
   <SwitchPrimitive.Root
     ref={ref}
     className={cn(
-      'peer inline-flex h-[18px] w-8 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-subtle',
+      `peer relative inline-flex h-[18px] w-8 shrink-0 after:absolute after:-inset-x-0.5 after:-inset-y-[9px] after:content-[''] cursor-pointer items-center rounded-full border-2 border-transparent transition-colors ${focusRing} disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-subtle`,
       className
     )}
     {...props}
