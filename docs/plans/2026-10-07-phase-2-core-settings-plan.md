@@ -1209,6 +1209,8 @@ to authenticated, service_role;
      - Taux en % (`parseRate`; error « Taux invalide. »);
      - À partir du (`<input type="date">`; error « Date requise. »);
      - help: « Le taux actuel se terminera la veille de cette date. »
+     - a rate created less than 24 h ago can be deleted even when it is already in force: that is the correction window `delete_tax_rate` allows. Show « Supprimer » on that row too, with the confirm dialog;
+     - type `tax_rate_on` results as `number | null`, and narrow `tax` to `'gst' | 'qst'` in the Zod schema;
      - when the date is before today (clinic time), show an inline warning before saving: « Cette date est passée : le nouveau taux s'appliquera aussi aux calculs faits depuis cette date. Les factures déjà émises gardent leur taux. » The RPC accepts back-dating on purpose, to allow corrections. *(Added after the Task 2.11 review.)*
 
 **Tests:**
@@ -2118,6 +2120,11 @@ Expected: all green. Also check that `git diff --stat src/core/supabase/database
 - **unsaved changes:** edit a card, click another section → the dialog shows; reload with unsaved changes → the browser warns.
 
 **Step 4: Final review.** Dispatch the `superpowers:code-reviewer` agent on the whole branch diff against `origin/main`, with the design and this plan. Fix the findings and have them re-reviewed.
+
+**Follow-ups to record in the status doc (not built in Phase 2):**
+- **Lock convention:** the RPCs serialise per org with `for update` on `organizations`. `for no key update` would avoid blocking FK inserts into child tables. Change the convention and the three RPCs (`set_module_enabled`, `add_tax_rate`, `delete_tax_rate`) together in one migration.
+- **Service-role variants for Facturation:** `tax_rate_on_for_org(org, tax, date)` and `clinic_today_for_org(org)`, granted to `service_role` only, because the user-scoped versions return null without a user.
+- **Staging check after the merge:** `select org_id, tax, rate, effective_from, effective_to from public.tax_rates order by 1, 2, 4;` and `select source, count(*) from public.audit_log where table_name = 'tax_rates' group by 1;` should return the two default rates and the source `migration:core_tax_rates`.
 
 **Step 5: Report to Jonathan.** Report what was built, with screenshots. Then ask, separately:
 1. push + PR (CI, Vercel preview);
