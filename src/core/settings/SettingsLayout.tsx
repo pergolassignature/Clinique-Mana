@@ -6,6 +6,7 @@ import type { SettingsGroup, SettingsSection } from '@/core/modules/types'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { cn } from '@/shared/lib/utils'
+import { usePageTitle } from '@/shared/lib/use-page-title'
 
 const GROUP_ORDER: SettingsGroup[] = ['clinique', 'plateforme', 'modules', 'compte']
 
@@ -22,6 +23,7 @@ interface SettingsLayoutProps {
  * Each section has its own error boundary, so a crashing section leaves the menu usable.
  */
 export function SettingsLayout({ sections, basePath = '/parametres' }: SettingsLayoutProps) {
+  usePageTitle(t('pageTitles.settings'))
   const { can } = useAccess()
   const visible = sections.filter((s) => can(s.permission))
   const first = visible[0]

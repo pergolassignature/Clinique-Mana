@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import type { Access } from '@/core/access/access'
@@ -78,6 +78,37 @@ describe('AuthenticatedApp', () => {
     render(appAt('/accueil'))
     expect(screen.getByText('Camille Admin')).toBeInTheDocument()
     expect(screen.getByText(adminLike.org_name)).toBeInTheDocument()
+  })
+
+  it.each([
+    ['/accueil', 'pageTitles.home'],
+    ['/parametres', 'pageTitles.settings'],
+    ['/professionnels', 'modules.professionals.name'],
+    ['/nulle-part', 'pageTitles.notFound'],
+  ] as const)('titles the browser tab for %s', async (path, key) => {
+    render(appAt(path))
+    await waitFor(() => expect(document.title).toBe(`${t(key)} · ${t('app.name')}`))
+  })
+
+  it('offers a skip link to the main content', async () => {
+    render(appAt('/accueil'))
+    const skip = screen.getByRole('link', { name: t('nav.skipToContent') })
+    expect(skip).toHaveAttribute('href', '#contenu')
+    const main = screen.getByRole('main')
+    expect(main).toHaveAttribute('id', 'contenu')
+    await userEvent.click(skip)
+    expect(main).toHaveFocus()
+  })
+
+  it('uses a banner and main landmarks, not a complementary one', () => {
+    render(appAt('/accueil'))
+    expect(screen.getByRole('banner')).toContainElement(screen.getByRole('navigation', { name: t('nav.label') }))
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  })
+
+  it('shows the full name on hover when it is truncated', () => {
+    render(appAt('/accueil'))
+    expect(screen.getByText('Camille Admin')).toHaveAttribute('title', 'Camille Admin')
   })
 
   // The redirect itself is RequireAuth's job (covered at App level): the shell only signs out.

@@ -60,6 +60,11 @@ describe('ResetPasswordPage', () => {
     expect(screen.queryByText(t('auth.reset.invalidLink'))).not.toBeInTheDocument()
   })
 
+  it('titles the browser tab', () => {
+    render(resetAt({}))
+    expect(document.title).toBe(`${t('pageTitles.reset')} · ${t('app.name')}`)
+  })
+
   it('requires both passwords to match', async () => {
     const updatePassword = vi.fn().mockResolvedValue(null)
     render(resetAt({ updatePassword }))

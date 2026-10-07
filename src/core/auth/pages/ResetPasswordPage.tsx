@@ -8,6 +8,7 @@ import { useAuth, type AuthErrorCode } from '@/core/auth/auth-context'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { usePageTitle } from '@/shared/lib/use-page-title'
 import { toast } from '@/shared/ui/sonner'
 import { AuthCard, StatusNotice } from './AuthCard'
 
@@ -28,6 +29,7 @@ type Values = z.infer<typeof schema>
  * here, and they must be able to stay. Serves only a real recovery session.
  */
 export function ResetPasswordPage() {
+  usePageTitle(t('pageTitles.reset'))
   const { session, isLoading, isRecovery, updatePassword, signOut } = useAuth()
   const { hash } = useLocation()
   const navigate = useNavigate()

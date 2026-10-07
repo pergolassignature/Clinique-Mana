@@ -8,12 +8,14 @@ import { useAuth, type AuthErrorCode } from '@/core/auth/auth-context'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { usePageTitle } from '@/shared/lib/use-page-title'
 import { AuthCard, StatusNotice } from './AuthCard'
 
 const schema = z.object({ email: z.email({ error: t('auth.errors.invalidEmail') }) })
 type Values = z.infer<typeof schema>
 
 export function ForgotPasswordPage() {
+  usePageTitle(t('pageTitles.forgot'))
   const { sendPasswordReset } = useAuth()
   // Sent here by the reset page when the recovery session could no longer be used.
   const expired = (useLocation().state as { expired?: boolean } | null)?.expired === true

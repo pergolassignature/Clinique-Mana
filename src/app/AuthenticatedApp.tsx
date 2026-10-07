@@ -9,9 +9,15 @@ import { SettingsLayout } from '@/core/settings/SettingsLayout'
 import { coreSettingsSections } from '@/core/settings/sections'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { RouteBoundary } from '@/shared/components/RouteBoundary'
+import { usePageTitle } from '@/shared/lib/use-page-title'
 import { AppShell, type ShellNavItem } from './AppShell'
 import { HomePage } from './HomePage'
 import { ALL_MODULES } from './modules'
+
+function NotFoundPage() {
+  usePageTitle(t('pageTitles.notFound'))
+  return <FullPageMessage title={t('common.notFound.title')} body={t('common.notFound.body')} />
+}
 
 /** The signed-in app. Renders under RequireAuth, so access is ready (useReadyAccess throws otherwise). */
 export function AuthenticatedApp() {
@@ -66,7 +72,7 @@ export function AuthenticatedApp() {
             />
           )),
         )}
-        <Route path="*" element={<FullPageMessage title={t('common.notFound.title')} body={t('common.notFound.body')} />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AppShell>
   )

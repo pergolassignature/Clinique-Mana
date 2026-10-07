@@ -141,6 +141,11 @@ describe('LoginPage', () => {
     expect(screen.getByText('PROFESSIONALS PAGE')).toBeInTheDocument()
   })
 
+  it('titles the browser tab', () => {
+    render(loginAt('/', {}))
+    expect(document.title).toBe(`${t('pageTitles.login')} · ${t('app.name')}`)
+  })
+
   it('links to the forgotten-password page', () => {
     render(loginAt('/', {}))
     expect(screen.getByRole('link', { name: t('auth.login.forgot') })).toHaveAttribute('href', '/mot-de-passe-oublie')

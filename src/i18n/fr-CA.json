@@ -1,6 +1,6 @@
 {
   "app": { "name": "Clinique MANA" },
-  "nav": { "label": "Menu principal", "home": "Accueil", "settings": "Paramètres", "logout": "Se déconnecter" },
+  "nav": { "label": "Menu principal", "skipToContent": "Aller au contenu", "home": "Accueil", "settings": "Paramètres", "logout": "Se déconnecter" },
   "common": {
     "loading": "Chargement…",
     "retry": "Réessayer",
@@ -60,6 +60,14 @@
       "signOut": "Se déconnecter"
     },
     "forbidden": { "title": "Accès refusé", "body": "Vous n'avez pas la permission d'ouvrir cette page." }
+  },
+  "pageTitles": {
+    "login": "Connexion",
+    "forgot": "Mot de passe oublié",
+    "reset": "Nouveau mot de passe",
+    "home": "Accueil",
+    "settings": "Paramètres",
+    "notFound": "Page introuvable"
   },
   "home": { "title": "Bienvenue", "body": "Les modules s'ajoutent ici au fur et à mesure qu'ils sont activés." },
   "settings": {

@@ -48,6 +48,11 @@ describe('ForgotPasswordPage', () => {
     expect(sendPasswordReset).not.toHaveBeenCalled()
   })
 
+  it('titles the browser tab', () => {
+    render(renderWithContexts(<ForgotPasswordPage />, { auth: { session: null } }))
+    expect(document.title).toBe(`${t('pageTitles.forgot')} · ${t('app.name')}`)
+  })
+
   it('links back to the login page', () => {
     render(renderWithContexts(<ForgotPasswordPage />, { auth: { session: null } }))
     expect(screen.getByRole('link', { name: t('auth.forgot.back') })).toHaveAttribute('href', '/connexion')

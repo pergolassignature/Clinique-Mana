@@ -9,6 +9,7 @@ import { safeRedirect } from '@/core/auth/redirect'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { usePageTitle } from '@/shared/lib/use-page-title'
 import { AuthCard, StatusNotice } from './AuthCard'
 
 const schema = z.object({
@@ -18,6 +19,7 @@ const schema = z.object({
 type Values = z.infer<typeof schema>
 
 export function LoginPage() {
+  usePageTitle(t('pageTitles.login'))
   const { session, isLoading, signInWithPassword, sendMagicLink } = useAuth()
   const [params] = useSearchParams()
   const navigate = useNavigate()
