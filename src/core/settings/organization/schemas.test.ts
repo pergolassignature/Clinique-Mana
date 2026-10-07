@@ -271,55 +271,60 @@ describe('signatorySchema', () => {
   })
 })
 
-// The two Confidentialité cards' schemas together, so each field's rules are tested in one place.
-const privacySchema = privacyOfficerSchema.extend(privacyPolicySchema.shape)
+describe('privacy schemas (the two Confidentialité cards)', () => {
+  const officer = { privacy_officer_name: 'Julie Roy', privacy_officer_email: 'vie-privee@cliniquemana.com' }
+  const policy = { privacy_policy_url: 'https://cliniquemana.com/confidentialite', record_retention_years: '7' }
 
-describe('privacy schemas', () => {
-  const valid = {
-    privacy_officer_name: 'Julie Roy',
-    privacy_officer_email: 'vie-privee@cliniquemana.com',
-    privacy_policy_url: 'https://cliniquemana.com/confidentialite',
-    record_retention_years: '7',
-  }
-
-  it('normalises the values and turns the retention into a number', () => {
-    expect(privacySchema.parse({ ...valid, privacy_officer_name: ' Julie Roy ', privacy_policy_url: 'cliniquemana.com/confidentialite', record_retention_years: ' 10 ' })).toEqual({
-      privacy_officer_name: 'Julie Roy',
-      privacy_officer_email: 'vie-privee@cliniquemana.com',
-      privacy_policy_url: 'https://cliniquemana.com/confidentialite',
-      record_retention_years: 10,
-    })
+  it.each([
+    [
+      'privacyOfficerSchema',
+      privacyOfficerSchema,
+      { ...officer, privacy_officer_name: ' Julie Roy ', privacy_officer_email: ' vie-privee@cliniquemana.com ' },
+      { privacy_officer_name: 'Julie Roy', privacy_officer_email: 'vie-privee@cliniquemana.com' },
+    ],
+    [
+      'privacyPolicySchema',
+      privacyPolicySchema,
+      { privacy_policy_url: 'cliniquemana.com/confidentialite', record_retention_years: ' 10 ' },
+      { privacy_policy_url: 'https://cliniquemana.com/confidentialite', record_retention_years: 10 },
+    ],
+  ] as const)('%s normalises its own fields and drops the other card’s', (_name, schema, values, expected) => {
+    expect((schema as z.ZodType).parse({ ...officer, ...policy, ...values })).toEqual(expected)
   })
 
-  it('turns empty values into null', () => {
-    expect(privacySchema.parse({ privacy_officer_name: '', privacy_officer_email: '', privacy_policy_url: '', record_retention_years: '' })).toEqual({
-      privacy_officer_name: null,
-      privacy_officer_email: null,
-      privacy_policy_url: null,
-      record_retention_years: null,
-    })
+  it.each([
+    ['privacyOfficerSchema', privacyOfficerSchema, { privacy_officer_name: '', privacy_officer_email: '' }],
+    ['privacyPolicySchema', privacyPolicySchema, { privacy_policy_url: '', record_retention_years: '' }],
+  ] as const)('%s turns empty values into null', (_name, schema, values) => {
+    const parsed = (schema as z.ZodType).parse(values) as Record<string, unknown>
+    expect(Object.keys(parsed).sort()).toEqual(Object.keys(values).sort())
+    for (const value of Object.values(parsed)) expect(value).toBeNull()
   })
 
   it('refuses an invalid email or policy URL', () => {
-    expect(errorOf(privacySchema, { ...valid, privacy_officer_email: 'julie' }, 'privacy_officer_email')).toBe('Courriel invalide.')
-    expect(errorOf(privacySchema, { ...valid, privacy_policy_url: 'http://x.ca' }, 'privacy_policy_url')).toBe("L'adresse doit commencer par https://")
-    expect(errorOf(privacySchema, { ...valid, privacy_policy_url: 'mailto:julie@x.ca' }, 'privacy_policy_url')).toBe('Adresse web invalide.')
+    expect(errorOf(privacyOfficerSchema, { ...officer, privacy_officer_email: 'julie' }, 'privacy_officer_email')).toBe('Courriel invalide.')
+    expect(errorOf(privacyPolicySchema, { ...policy, privacy_policy_url: 'http://x.ca' }, 'privacy_policy_url')).toBe("L'adresse doit commencer par https://")
+    expect(errorOf(privacyPolicySchema, { ...policy, privacy_policy_url: 'mailto:julie@x.ca' }, 'privacy_policy_url')).toBe('Adresse web invalide.')
   })
 
   it.each([
     ['chr(31)', '\u001f'],
     ['U+0085', '\u0085'],
   ])('refuses a control character (%s) in the email and the policy URL', (_name, char) => {
-    expect(errorOf(privacySchema, { ...valid, privacy_officer_email: `julie${char}@x.ca` }, 'privacy_officer_email')).toBe('Caractère invalide.')
-    expect(errorOf(privacySchema, { ...valid, privacy_policy_url: `https://x.ca/${char}` }, 'privacy_policy_url')).toBe('Caractère invalide.')
+    expect(errorOf(privacyOfficerSchema, { ...officer, privacy_officer_email: `julie${char}@x.ca` }, 'privacy_officer_email')).toBe('Caractère invalide.')
+    expect(errorOf(privacyPolicySchema, { ...policy, privacy_policy_url: `https://x.ca/${char}` }, 'privacy_policy_url')).toBe('Caractère invalide.')
+  })
+
+  it('caps the officer name at 120 characters', () => {
+    expect(errorOf(privacyOfficerSchema, { ...officer, privacy_officer_name: 'a'.repeat(121) }, 'privacy_officer_name')).toBe('120 caractères maximum.')
   })
 
   it.each(['1', '50'])('accepts a retention of %s years', (years) => {
-    expect(privacySchema.parse({ ...valid, record_retention_years: years }).record_retention_years).toBe(Number(years))
+    expect(privacyPolicySchema.parse({ ...policy, record_retention_years: years }).record_retention_years).toBe(Number(years))
   })
 
   it.each(['0', '51', '7.5', '-3', 'sept', '1e1', '７'])('refuses a retention of %s', (years) => {
-    expect(errorOf(privacySchema, { ...valid, record_retention_years: years }, 'record_retention_years')).toBe('Entre 1 et 50 ans.')
+    expect(errorOf(privacyPolicySchema, { ...policy, record_retention_years: years }, 'record_retention_years')).toBe('Entre 1 et 50 ans.')
   })
 })
 
