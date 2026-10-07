@@ -32,3 +32,31 @@ client_relations, client_relations_expanded (view), demande_audit_log, demande_m
 RLS limits most of these, but `client_relations` had an "any authenticated, all operations" policy and the view `client_relations_expanded` does not enforce RLS by default. `TRUNCATE` bypasses RLS entirely. This confirms the inventory's security findings.
 
 **Lessons applied in the rebuild:** every table revokes `anon` explicitly; cron schedules live in migrations; every edge function is in the repo and deployed by CI only.
+
+---
+
+## Reset to the foundation baseline — 2026-10-07 (Task 1.21)
+
+Done with Jonathan's explicit go-ahead.
+
+| Step | Result |
+|---|---|
+| Cron | `check-insurance-expiry-daily` unscheduled; the reset then removed the `pg_cron` extension (re-added by migration when Phase 4 needs it) |
+| Database | `supabase db reset --linked --no-seed`; migrations `20261007140517`, `…140623`, `…140741`, `…140859` applied (local = remote) |
+| Auth users | Legacy test users removed by the reset (`auth` tables truncated) |
+| Edge functions | All 13 legacy functions deleted (none remain) |
+| Vault | Empty (no legacy secret) |
+| Function secrets removed | `DOCUSEAL_API_KEY`, `ANTHROPIC_API_KEY`, `TOKEN_ENCRYPTION_KEY` |
+| Function secrets kept | `GOOGLE_PLACES_API_KEY`, `GOOGLE_OAUTH_*` (to be reused by later modules), built-in `SUPABASE_*` |
+| Storage | Bucket `professional-documents` (39 legacy test files) **kept**, not covered by the backup; it has no storage policy left, so clients cannot read it. Delete it when no longer wanted. |
+| Advisors (security) | No error. 1 INFO (`org_secrets` has RLS and no policy — intended) and 7 WARN (the intended public RPCs callable by signed-in users; each checks its permission first) |
+
+**Auth settings (dashboard):** Site URL `https://clinique-mana.vercel.app`; redirect URLs `https://clinique-mana.vercel.app/**` and `https://clinique-mana-*-pergolas-signature.vercel.app/**`; sign-ups off; email provider on; email confirmation on; secure email change on; secure password change on; leaked-password protection on; minimum password length 10; refresh-token reuse detection on, interval 10 s.
+
+**SMTP:** Resend account « cliniquemana », domain `gestion.cliniquemana.com` verified (DNS on Cloudflare), sender `no-reply@gestion.cliniquemana.com` « Clinique MANA », `smtp.resend.com:465`, user `resend`, password = a sending-only API key restricted to that domain (entered by Jonathan).
+
+**Admin:** Jonathan's account created in the dashboard, then `scripts/bootstrap-admin.sql` → organization « Clinique MANA », role `admin`, module `professionals` enabled (4 audit rows tagged `bootstrap`). First sign-in on the Vercel preview succeeded.
+
+**Vercel:** Node 22.x; preview of PR #1 built and serves deep links (`vercel.json`).
+
+**Still to verify:** Secure email change needs both addresses (plan Task 1.21 Step 10); a real reset email delivered through Resend.
