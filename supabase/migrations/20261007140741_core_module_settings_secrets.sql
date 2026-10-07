@@ -145,9 +145,11 @@ begin
 
   if p_enabled then
     -- Every dependency must already be enabled (core is implicit, never listed).
-    select array_agg(d.depends_on order by d.depends_on)
+    -- The message is user-facing (P0001), so it lists module names, not keys.
+    select array_agg(m.name order by m.name)
       into v_blockers
       from public.module_dependencies d
+      join public.modules m on m.key = d.depends_on
      where d.module_key = p_key
        and not exists (
          select 1 from public.org_modules om
@@ -156,12 +158,13 @@ begin
       raise exception 'Activez d''abord : %', array_to_string(v_blockers, ', ') using errcode = 'P0001';
     end if;
   else
-    -- No enabled module may depend on this one.
-    select array_agg(d.module_key order by d.module_key)
+    -- No enabled module may depend on this one (names, as above).
+    select array_agg(m.name order by m.name)
       into v_blockers
       from public.module_dependencies d
       join public.org_modules om
         on om.org_id = v_org and om.module_key = d.module_key and om.enabled
+      join public.modules m on m.key = d.module_key
      where d.depends_on = p_key;
     if v_blockers is not null then
       raise exception 'Désactivez d''abord : %', array_to_string(v_blockers, ', ') using errcode = 'P0001';

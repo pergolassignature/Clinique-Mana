@@ -79,13 +79,13 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 
 select ok(not public.module_enabled('test_parent'), 'modules start disabled');
 select ok(public.module_enabled('core'), 'core is always enabled');
-select throws_ok($$ select public.set_module_enabled('test_child', true) $$, 'P0001', null, 'cannot enable a module before its dependency');
+select throws_ok($$ select public.set_module_enabled('test_child', true) $$, 'P0001', 'Activez d''abord : Test parent', 'cannot enable a module before its dependency (message names the module)');
 select throws_ok($$ select public.set_module_enabled('nope', true) $$, '22023', null, 'unknown module is rejected');
 select throws_ok($$ select public.set_module_enabled('core', false) $$, '22023', null, 'core cannot be toggled');
 select lives_ok($$ select public.set_module_enabled('test_parent', true) $$, 'admin enables the parent');
 select ok(public.module_enabled('test_parent'), 'module_enabled reflects the change');
 select lives_ok($$ select public.set_module_enabled('test_child', true) $$, 'dependent module can now be enabled');
-select throws_ok($$ select public.set_module_enabled('test_parent', false) $$, 'P0001', null, 'cannot disable a module others depend on');
+select throws_ok($$ select public.set_module_enabled('test_parent', false) $$, 'P0001', 'Désactivez d''abord : Test enfant', 'cannot disable a module others depend on (message names the module)');
 select is((select updated_by from public.org_modules where module_key = 'test_parent'),
   'a0000000-0000-0000-0000-000000000001'::uuid, 'org_modules records who toggled');
 select results_eq(
