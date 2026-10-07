@@ -55,6 +55,26 @@ describe('SaveButton', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
+  // Implicit submission (Enter in a text field) clicks the submit button, which ignores it.
+  it.each([
+    ['unchanged', { disabled: true }],
+    ['saving', { pending: true }],
+  ] as const)('ignores Enter in a text field while inactive (%s), and submits on Enter once active', async (_label, props) => {
+    const onSubmit = vi.fn((e: React.FormEvent) => e.preventDefault())
+    const ui = (p: Parameters<typeof SaveButton>[0]) => (
+      <form onSubmit={onSubmit}>
+        <input aria-label="Nom" />
+        <SaveButton {...p} />
+      </form>
+    )
+    const { rerender } = render(ui(props))
+    await userEvent.type(screen.getByLabelText('Nom'), 'Camille{Enter}')
+    expect(onSubmit).not.toHaveBeenCalled()
+    rerender(ui({}))
+    await userEvent.type(screen.getByLabelText('Nom'), '{Enter}')
+    expect(onSubmit).toHaveBeenCalledOnce()
+  })
+
   it('can read another verb, with its own pending label', () => {
     const { rerender } = renderInForm({ label: 'Changer le courriel', pendingLabel: 'Envoi…' })
     expect(screen.getByRole('button', { name: 'Changer le courriel' })).not.toHaveAttribute('aria-disabled')

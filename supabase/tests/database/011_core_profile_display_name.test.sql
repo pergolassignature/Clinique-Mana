@@ -1,9 +1,9 @@
--- profiles.display_name length (migration *_core_profile_display_name.sql): 1 to 80 characters
--- once spaces, tabs and line breaks are stripped, as the « Mon compte » form (Zod) checks.
+-- profiles.display_name length (migration *_core_profile_display_name.sql): at most 80 characters
+-- as stored, and not blank once spaces, tabs and line breaks are stripped.
 -- Covers: a single named check on the column, its bounds, and a self-rename through RLS.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(10);
 
 -- =============================================================================
 -- Fixtures (as postgres): one org, one active admin.
@@ -37,8 +37,10 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 
 select lives_ok($$ update public.profiles set display_name = repeat('a', 80) where user_id = auth.uid() $$,
   '80 characters are accepted');
-select lives_ok($$ update public.profiles set display_name = ' ' || repeat('a', 80) || E'\n' where user_id = auth.uid() $$,
-  'surrounding spaces and line breaks do not count');
+select throws_ok($$ update public.profiles set display_name = ' ' || repeat('a', 80) || E'\n' where user_id = auth.uid() $$,
+  '23514', null, 'padding cannot get past the limit: 80 characters plus a space and a line break are refused');
+select lives_ok($$ update public.profiles set display_name = E' Camille\t' where user_id = auth.uid() $$,
+  'a short name with padding fits (non-blank once stripped)');
 select throws_ok($$ update public.profiles set display_name = repeat('a', 81) where user_id = auth.uid() $$,
   '23514', null, '81 characters are refused');
 select throws_ok($$ update public.profiles set display_name = E' \t\r\n' where user_id = auth.uid() $$,

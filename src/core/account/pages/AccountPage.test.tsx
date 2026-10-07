@@ -15,7 +15,7 @@ import { AccountPage } from './AccountPage'
 const mocks = vi.hoisted(() => ({
   updateDisplayName: vi.fn(),
   fetchAuthUser: vi.fn(),
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }))
 vi.mock('@/core/account/api', () => ({ updateDisplayName: mocks.updateDisplayName, fetchAuthUser: mocks.fetchAuthUser }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
@@ -378,6 +378,18 @@ describe('« Mot de passe »', () => {
     const code = await within(passwordCard()).findByLabelText(label(t('account.password.code')))
     expect(code).toHaveAccessibleDescription(t('account.password.codeRecent'))
     expect(within(passwordCard()).queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  // The hint under the field changes silently: the toast is what screen readers announce.
+  it('says so, in a toast, when « Renvoyer le code » is throttled', async () => {
+    const sendReauthenticationCode = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce('rate_limited')
+    renderPage({ updatePassword: vi.fn().mockResolvedValue('reauthentication_needed'), sendReauthenticationCode })
+    await fill('un-long-mot-de-passe')
+    await userEvent.click(submit())
+    await userEvent.click(await within(passwordCard()).findByRole('button', { name: t('account.password.resend') }))
+    await waitFor(() => expect(mocks.toast.info).toHaveBeenCalledWith(t('account.password.codeRecent')))
+    expect(mocks.toast.success).not.toHaveBeenCalled()
+    expect(codeField()).toHaveAccessibleDescription(t('account.password.codeRecent'))
   })
 
   it('shows any other failure to send the code as an alert, without the code field', async () => {

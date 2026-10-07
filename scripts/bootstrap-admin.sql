@@ -47,9 +47,10 @@ begin
     end if;
   end if;
 
-  -- Profile: the email is copied from auth.users by trigger (profiles_email_from_auth).
+  -- Profile: the email is copied from auth.users by trigger (profiles_email_from_auth). The name
+  -- is trimmed like the app does (profiles_display_name_check: at most 80 characters as stored).
   insert into public.profiles (user_id, org_id, display_name)
-  values (v_user, v_org, v_display_name)
+  values (v_user, v_org, btrim(v_display_name, E' \t\r\n'))
   on conflict (user_id) do nothing;
 
   update public.profiles p set status = 'active'

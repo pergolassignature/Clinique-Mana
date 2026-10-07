@@ -277,7 +277,10 @@ function PasswordCard() {
     setResending(true)
     setError(null)
     try {
-      if ((await sendCode()) === 'sent') toast.success(t('account.password.resent'))
+      const outcome = await sendCode()
+      if (outcome === 'sent') toast.success(t('account.password.resent'))
+      // The hint under the field changes silently; the toast is announced.
+      else if (outcome === 'throttled') toast.info(t('account.password.codeRecent'))
     } finally {
       resendingRef.current = false
       setResending(false)
