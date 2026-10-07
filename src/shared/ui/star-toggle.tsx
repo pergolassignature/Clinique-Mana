@@ -54,8 +54,8 @@ export function StarToggle({
               sizeClasses[size],
               'transition-colors',
               isSpecialized
-                ? 'fill-amber-400 text-amber-400'
-                : 'fill-transparent text-muted-foreground hover:text-amber-300'
+                ? 'fill-amber-600 text-amber-600'
+                : 'fill-transparent text-muted-foreground hover:text-amber-600'
             )}
           />
         </button>

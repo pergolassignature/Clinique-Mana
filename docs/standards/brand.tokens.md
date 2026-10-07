@@ -16,7 +16,8 @@ Defined as RGB channels on `:root` in `src/styles/globals.css` and mapped in `ta
 | `--teal-dark` | `#1B7A73` | teal text on white (AA) |
 | `--mint` | `#E2F1EB` | calm surfaces, hover |
 | `--offwhite` | `#F8F8F9` | page background |
-| `--line` | `#E5E5E8` | borders |
+| `--line` | `#E5E5E8` | dividers, card outlines (decorative) |
+| `--input` | `#8F8F95` | form-control borders (3.22:1 on white, 3.03:1 on off-white) |
 | `--danger` | `#B42318` | destructive actions, errors |
 
 Use the semantic Tailwind names, never the raw variables:
@@ -26,6 +27,7 @@ Use the semantic Tailwind names, never the raw variables:
 | `background` | offwhite |
 | `foreground` (`secondary`, `muted`) | charcoal (charcoal-soft) |
 | `border` | line |
+| `input` | input |
 | `card` / `card-foreground` | white / charcoal |
 | `primary` / `primary-hover` / `primary-foreground` | wine / wine-dark / white |
 | `muted` / `muted-foreground` | offwhite / charcoal-soft |
@@ -37,6 +39,8 @@ Use the semantic Tailwind names, never the raw variables:
 Rules:
 - Text on mint stays charcoal (`accent-foreground`): teal-dark on mint is 4.4:1, under AA.
 - Floating surfaces (cards, dialogs, menus, popovers) and inputs are `bg-card` (white) on the off-white page.
+- Form controls (input, textarea, select, checkbox, switch off-track) use `border-input` / `bg-input`: WCAG 1.4.11 asks 3:1 for the parts that identify a control. `border` stays for decorative lines.
+- Destructive buttons are the soft variant (red text and border on a 10 % red tint) so they differ from the solid wine primary by fill, not only by hue; they always carry an explicit verb (« Supprimer », « Désactiver »).
 - Focus: `ring-primary/30` (or the `.focus-ring` utility).
 - Font: Raleway Variable, self-hosted through `@fontsource-variable/raleway` (no Google request, Loi 25). Figures are lining everywhere (`body`); use `.tabular` for tables, amounts and inputs.
 

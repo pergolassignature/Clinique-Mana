@@ -22,6 +22,10 @@ export default {
         border: {
           DEFAULT: brand('line'),
         },
+        // Form-control borders: WCAG 1.4.11 needs 3:1 against the background.
+        input: {
+          DEFAULT: brand('input'),
+        },
         card: {
           DEFAULT: 'rgb(255 255 255 / <alpha-value>)',
           foreground: brand('charcoal'),

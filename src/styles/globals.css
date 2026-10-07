@@ -14,7 +14,8 @@
     --teal-dark: 27 122 115;      /* #1B7A73 teal text (AA on white) */
     --mint: 226 241 235;          /* #E2F1EB calm surfaces */
     --offwhite: 248 248 249;      /* #F8F8F9 page background */
-    --line: 229 229 232;          /* #E5E5E8 borders */
+    --line: 229 229 232;          /* #E5E5E8 borders, dividers (decorative) */
+    --input: 143 143 149;         /* #8F8F95 form-control borders (3:1 on white and off-white) */
     --danger: 180 35 24;          /* #B42318 destructive */
   }
 
