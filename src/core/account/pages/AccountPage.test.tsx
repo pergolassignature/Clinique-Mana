@@ -110,6 +110,20 @@ describe('« Nom affiché »', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
+  it('« Annuler » puts the saved name back and disarms the guard', async () => {
+    renderPage()
+    const cancel = within(card(t('account.name.title'))).getByRole('button', { name: t('common.cancel') })
+    expect(cancel).toBeDisabled()
+    await userEvent.type(nameField(), ' bis')
+    await userEvent.click(cancel)
+    expect(nameField()).toHaveValue('Camille Tremblay')
+    expect(cancel).toBeDisabled()
+    expect(save()).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'LEAVE' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(mocks.updateDisplayName).not.toHaveBeenCalled()
+  })
+
   it('registers unsaved edits with the guard', async () => {
     renderPage()
     await userEvent.type(nameField(), ' bis')
@@ -182,6 +196,17 @@ describe('« Courriel »', () => {
     await userEvent.type(newEmail(), 'nouvelle@mana.test')
     await userEvent.click(submit())
     expect(await within(emailCard()).findByRole('alert')).toHaveTextContent(t('auth.errors.rate_limited'))
+  })
+
+  it('« Annuler » empties the field and clears the failure', async () => {
+    renderPage({ updateEmail: vi.fn().mockResolvedValue('rate_limited') })
+    await userEvent.type(newEmail(), 'nouvelle@mana.test')
+    await userEvent.click(submit())
+    await within(emailCard()).findByRole('alert')
+    await userEvent.click(within(emailCard()).getByRole('button', { name: t('common.cancel') }))
+    expect(newEmail()).toHaveValue('')
+    expect(within(emailCard()).queryByRole('alert')).not.toBeInTheDocument()
+    expect(within(emailCard()).getByRole('button', { name: t('common.cancel') })).toBeDisabled()
   })
 })
 
@@ -270,6 +295,18 @@ describe('« Mot de passe »', () => {
     expect(mocks.toast.success).toHaveBeenCalledWith(t('account.password.resent'))
   })
 
+  it('« Annuler » clears the fields and leaves the code step', async () => {
+    renderPage({ updatePassword: vi.fn().mockResolvedValue('reauthentication_needed'), sendReauthenticationCode: vi.fn().mockResolvedValue(null) })
+    await fill('un-long-mot-de-passe')
+    await userEvent.click(submit())
+    await userEvent.type(await within(passwordCard()).findByLabelText(new RegExp(t('account.password.code'))), '123456')
+    await userEvent.click(within(passwordCard()).getByRole('button', { name: t('common.cancel') }))
+    expect(within(passwordCard()).queryByLabelText(new RegExp(t('account.password.code')))).not.toBeInTheDocument()
+    expect(field(t('account.password.new'))).toHaveValue('')
+    expect(field(t('account.password.confirm'))).toHaveValue('')
+    expect(submit()).toBeDisabled()
+  })
+
   it('shows a failure to send the code as an alert', async () => {
     renderPage({
       updatePassword: vi.fn().mockResolvedValue('reauthentication_needed'),
@@ -310,6 +347,28 @@ describe('« Sessions »', () => {
     await open()
     const dialog = await screen.findByRole('alertdialog')
     await userEvent.click(within(dialog).getByRole('button', { name: t('account.sessions.confirm') }))
+    expect(signOutEverywhere).toHaveBeenCalledOnce()
+  })
+
+  // Like the shell's « Se déconnecter »: unsaved edits in another card are not lost silently.
+  it('asks before discarding unsaved edits in another card', async () => {
+    const signOutEverywhere = vi.fn().mockResolvedValue(null)
+    renderPage({ signOutEverywhere })
+    await userEvent.type(within(card(t('account.name.title'))).getByLabelText(new RegExp(t('account.name.label'))), ' bis')
+    const trigger = within(sessionsCard()).getByRole('button', { name: t('account.sessions.signOutEverywhere') })
+
+    await open()
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('account.sessions.confirm') }))
+    const unsaved = await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })
+    expect(signOutEverywhere).not.toHaveBeenCalled()
+    await userEvent.click(within(unsaved).getByRole('button', { name: t('common.unsaved.stay') }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(signOutEverywhere).not.toHaveBeenCalled()
+    await waitFor(() => expect(trigger).toHaveFocus())
+
+    await open()
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('account.sessions.confirm') }))
+    await userEvent.click(within(await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })).getByRole('button', { name: t('common.unsaved.leave') }))
     expect(signOutEverywhere).toHaveBeenCalledOnce()
   })
 

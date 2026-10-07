@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,10 +10,10 @@ import { accountKeys, useAuthUser, useUpdateDisplayName } from '@/core/account/h
 import { useAuth, type AuthErrorCode } from '@/core/auth/auth-context'
 import { newPasswordRule, passwordMismatch, passwordsMatch } from '@/core/auth/password-schema'
 import { PageHeader } from '@/shared/components/PageHeader'
-import { SaveButton } from '@/shared/components/SaveButton'
+import { FormActions } from '@/shared/components/FormActions'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { usePageTitle } from '@/shared/lib/use-page-title'
-import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
+import { useConfirmLeave, useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import {
   AlertDialog,
@@ -83,7 +83,8 @@ function NameCard() {
       description={t('account.name.description')}
       pending={rename.isPending}
       onSubmit={onSubmit}
-      footer={<SaveButton pending={rename.isPending} disabled={!isDirty} />}
+      // reset(): back to the last saved name (`values`, or the reset after a save).
+      footer={<FormActions onCancel={() => form.reset()} dirty={isDirty} pending={rename.isPending} />}
     >
       <FormField label={t('account.name.label')} required error={errors.displayName?.message}>
         {(field) => <Input {...field} autoComplete="name" {...form.register('displayName')} />}
@@ -150,9 +151,16 @@ function EmailCard() {
       pending={isSubmitting}
       onSubmit={onSubmit}
       footer={
-        <Button type="submit" disabled={!isDirty || isSubmitting}>
-          {isSubmitting ? t('account.email.submitting') : t('account.email.submit')}
-        </Button>
+        <FormActions
+          onCancel={() => {
+            setError(null)
+            form.reset()
+          }}
+          dirty={isDirty}
+          pending={isSubmitting}
+          submitLabel={t('account.email.submit')}
+          pendingLabel={t('account.email.submitting')}
+        />
       }
     >
       <dl className="space-y-1">
@@ -247,9 +255,16 @@ function PasswordCard() {
       pending={isSubmitting}
       onSubmit={onSubmit}
       footer={
-        <Button type="submit" disabled={!isDirty || isSubmitting}>
-          {isSubmitting ? t('common.saving') : t('account.password.submit')}
-        </Button>
+        <FormActions
+          onCancel={() => {
+            setError(null)
+            setCodeSent(false)
+            form.reset()
+          }}
+          dirty={isDirty}
+          pending={isSubmitting}
+          submitLabel={t('account.password.submit')}
+        />
       }
     >
       {/* Tells password managers which account the new password belongs to. */}
@@ -289,11 +304,15 @@ function PasswordCard() {
 
 function SessionsCard() {
   const { signOutEverywhere } = useAuth()
+  const confirmLeave = useConfirmLeave()
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<AuthErrorCode | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  // Set by « Se déconnecter partout »: the sign-out starts once this dialog has closed.
+  const signOutOnClose = useRef(false)
 
-  const confirm = async () => {
+  const signOutNow = async () => {
     setPending(true)
     setError(null)
     const code = await signOutEverywhere()
@@ -301,8 +320,18 @@ function SessionsCard() {
     if (code) {
       setError(code)
       setPending(false)
-      setOpen(false)
     }
+  }
+
+  // Like the shell's « Se déconnecter », unsaved edits in another card are confirmed first
+  // (confirmLeave). That waits for this dialog to close, so the two dialogs never stack and focus
+  // goes back to the trigger, where the unsaved-changes dialog returns it after « Rester ».
+  const onCloseAutoFocus = (event: Event) => {
+    if (!signOutOnClose.current) return
+    signOutOnClose.current = false
+    event.preventDefault()
+    triggerRef.current?.focus()
+    confirmLeave(() => void signOutNow())
   }
 
   return (
@@ -310,22 +339,29 @@ function SessionsCard() {
       title={t('account.sessions.title')}
       description={t('account.sessions.description')}
       footer={
-        <AlertDialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
+        <AlertDialog open={open} onOpenChange={setOpen}>
           <AlertDialogTrigger asChild>
-            <Button type="button" variant="outline">
-              {t('account.sessions.signOutEverywhere')}
+            <Button ref={triggerRef} type="button" variant="outline" disabled={pending}>
+              {pending ? t('account.sessions.pending') : t('account.sessions.signOutEverywhere')}
             </Button>
           </AlertDialogTrigger>
-          <AlertDialogContent>
+          <AlertDialogContent onCloseAutoFocus={onCloseAutoFocus}>
             <AlertDialogHeader>
               <AlertDialogTitle>{t('account.sessions.confirmTitle')}</AlertDialogTitle>
               <AlertDialogDescription>{t('account.sessions.confirmBody')}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               {/* Radix focuses Cancel first: staying signed in is the safe default. */}
-              <AlertDialogCancel disabled={pending}>{t('common.cancel')}</AlertDialogCancel>
-              <Button type="button" variant="destructive" disabled={pending} onClick={() => void confirm()}>
-                {pending ? t('account.sessions.pending') : t('account.sessions.confirm')}
+              <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  signOutOnClose.current = true
+                  setOpen(false)
+                }}
+              >
+                {t('account.sessions.confirm')}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

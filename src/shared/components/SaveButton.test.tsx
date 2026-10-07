@@ -20,4 +20,11 @@ describe('SaveButton', () => {
     render(<SaveButton disabled />)
     expect(screen.getByRole('button', { name: t('common.save') })).toBeDisabled()
   })
+
+  it('can read another verb, with its own pending label', () => {
+    const { rerender } = render(<SaveButton label="Changer le courriel" pendingLabel="Envoi…" />)
+    expect(screen.getByRole('button', { name: 'Changer le courriel' })).toBeEnabled()
+    rerender(<SaveButton label="Changer le courriel" pendingLabel="Envoi…" pending />)
+    expect(screen.getByRole('button', { name: 'Envoi…' })).toBeDisabled()
+  })
 })
