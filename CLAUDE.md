@@ -115,7 +115,7 @@ The full rules, with examples, are in **[`docs/standards/database-conventions.md
 - Contexts: `useAuth` from `@/core/auth/auth-context`; `useAccess`, `useReadyAccess`, `accessKeys` from `@/core/access/access-context`. Provider files export only components. Under `RequireAuth`, use `useReadyAccess()` (it throws unless access is ready). Permission checks: `useAccess().can(key)` and `<RequireAccess permission="…">` — the UI hides what the user cannot do, the database enforces it.
 - React Query key factories are named `<thing>Keys` (`accessKeys`, `moduleKeys`); mutations invalidate the factory's `all`.
 - **All user-facing text goes through `t()`** from `@/i18n` (keys typed from `src/i18n/fr-CA.json`). Pages title the browser tab with `usePageTitle()`.
-- Toasts: `toast` from `@/shared/ui/sonner`. RPC errors shown to users go through `moduleErrorMessage` (`src/core/modules/errors.ts`): `P0001` message as is, `42501` → permission text, anything else → generic message + Sentry.
+- Toasts: `toast` from `@/shared/ui/sonner`. RPC errors shown to users go through `moduleErrorMessage` (`src/core/modules/errors.ts`): `P0001` message as is, `42501` → generic permission text, `23514` (check violation) → « valeur invalide » text (neither reported), anything else → the caller's fallback + Sentry.
 - Route and settings crashes stay local: `RouteBoundary` (`@/shared/components/RouteBoundary`); full-page states use `FullPageMessage`.
 - Tests: Vitest + Testing Library; render with `renderWithContexts` (`src/test/contexts.tsx`), whose router `future` flags mirror `App.tsx` (`ROUTER_FUTURE`).
 

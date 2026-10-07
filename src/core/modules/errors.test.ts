@@ -16,9 +16,20 @@ describe('moduleErrorMessage', () => {
     expect(mocks.captureException).not.toHaveBeenCalled()
   })
 
-  it('maps a permission error (42501) to the forbidden text', () => {
-    expect(moduleErrorMessage(pgError('42501', 'Permission refusée : modules.manage'), FALLBACK)).toBe(t('settings.modules.forbidden'))
+  it('maps a permission error (42501) to the generic forbidden text', () => {
+    expect(moduleErrorMessage(pgError('42501', 'Permission refusée : modules.manage'), FALLBACK)).toBe(t('common.errors.forbidden'))
     expect(mocks.captureException).not.toHaveBeenCalled()
+  })
+
+  it('maps a check violation (23514) to the invalid-value text, without reporting it', () => {
+    // The client validates first, so this only happens when the UI is bypassed: not a bug to report.
+    const error = pgError('23514', 'new row for relation "organizations" violates check constraint "organizations_neq_format"')
+    expect(moduleErrorMessage(error, FALLBACK)).toBe(t('common.errors.invalidValue'))
+    expect(mocks.captureException).not.toHaveBeenCalled()
+  })
+
+  it('does not show a raw P0001 message when it is empty', () => {
+    expect(moduleErrorMessage(pgError('P0001', ''), FALLBACK)).toBe(FALLBACK)
   })
 
   it.each([
