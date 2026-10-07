@@ -305,8 +305,8 @@ git add -A && git commit -m "feat(ui): brand tokens and self-hosted Raleway"
 **Step 1: `FormField`. Write the test first** (`form-field.test.tsx`):
 - the label is associated with the input (`getByLabelText`);
 - `help` is linked by `aria-describedby`;
-- with `error`, the error text is linked too, `aria-invalid="true"` is set and the message has `role="alert"`;
-- `required` adds a visually hidden « (requis) » to the label, not a bare asterisk.
+- with `error`, the error text is linked too and `aria-invalid="true"` is set (no `role="alert"`: react-hook-form focuses the first invalid field, whose description reads the error; alerts on every field would announce them all at once);
+- `required` adds a **visible** « (requis) » to the label (muted, normal weight), not a bare asterisk: one text for sighted and screen-reader users (WCAG 3.3.2). *(Amended after the Task 2.3 review.)*
 
 Implementation:
 ```tsx
@@ -338,11 +338,11 @@ export function FormField({ label, help, error, required, children }: FormFieldP
     <div className="space-y-1.5">
       <Label htmlFor={id}>
         {label}
-        {required && <span className="sr-only"> {t('common.form.required')}</span>}
+        {required && <span className="font-normal text-muted-foreground"> {t('common.form.required')}</span>}
       </Label>
       {children({ id, 'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined })}
       {help && <p id={helpId} className="text-xs text-muted-foreground">{help}</p>}
-      {error && <p id={errorId} role="alert" className="text-xs text-destructive">{error}</p>}
+      {error && <p id={errorId} className="text-xs text-destructive">{error}</p>}
     </div>
   )
 }
@@ -402,7 +402,7 @@ export function SettingsCard({ title, description, readOnly, onSubmit, footer, c
 - `parsePhone('1 514 555 1234') === '+15145551234'`;
 - `parsePhone('555-1234') === null` (invalid);
 - `formatPostalCode('h2x1y4') === 'H2X 1Y4'`;
-- `formatRate(0.09975) === '9,975 %'` and `formatRate(0.05) === '5 %'`: French decimal comma, no trailing zeros, via `Intl.NumberFormat('fr-CA', { maximumFractionDigits: 3 })` on `rate * 100`;
+- `formatRate(0.09975) === '9,975 %'` and `formatRate(0.05) === '5 %'`: French decimal comma, no trailing zeros, via `Intl.NumberFormat('fr-CA', { maximumFractionDigits: 4 })` on `rate * 100` (4 = every digit `numeric(7,6)` stores, so a pre-filled form saved untouched never changes the rate);
 - `parseRate('9,975') === 0.09975`: accepts a comma or a dot, returns `null` when invalid, and rounds to 6 decimals.
 
 Implement in `src/shared/lib/format.ts`.
