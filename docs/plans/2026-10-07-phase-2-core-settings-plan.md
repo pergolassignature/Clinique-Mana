@@ -942,6 +942,10 @@ Behaviour:
 > - Pages use `OrganizationSettingsPage` (header, `ReadOnlyNotice` once, loading, error).
 > - Read-only fields are `readOnly`, never disabled. Buttons don't inherit read-only: hide them.
 > - Copy `IdentitySettingsPage`, not the older sketch in Task 2.9.
+> - **As built (Task 2.10):**
+>   - The Région card is titled « Heure de la clinique », and its field « Fuseau horaire ».
+>   - The Canadian list has 8 zones, with `America/Whitehorse` (« Heure du Yukon (Whitehorse) ») after Vancouver.
+>   - The privacy schema is split into `privacyOfficerSchema` and `privacyPolicySchema`, one per card.
 
 Same pattern as Task 2.9: one page each, `OrganizationCard`, and tests mirroring 2.9 (read-only, validation, save payload, toast).
 
