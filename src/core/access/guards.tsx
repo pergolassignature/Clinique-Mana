@@ -39,7 +39,8 @@ function AccessDenied({ problem, signOut }: { problem: AccessProblem; signOut: (
   )
 }
 
-function Forbidden() {
+/** The « accès refusé » page: exported for guards that compute their own condition. */
+export function Forbidden() {
   usePageTitle(t('pageTitles.forbidden'))
   return <FullPageMessage title={t('access.forbidden.title')} body={t('access.forbidden.body')} />
 }

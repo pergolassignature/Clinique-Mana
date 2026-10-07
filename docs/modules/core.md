@@ -65,4 +65,4 @@ Per-user grants and revokes live in `user_permission_overrides`. Module keys may
 
 ## Frontend
 
-`src/core/`: `auth/` (session, recovery, login/forgot/reset pages), `access/` (`AccessProvider`, `useAccess`, `useReadyAccess`, `RequireAuth`, `RequireAccess`), `modules/` (manifest types, `resolveEnabledModules`, `useModules`, `useSetModuleEnabled`), `settings/` (`SettingsLayout`, `coreSettingsSections`: « Modules »).
+`src/core/`: `auth/` (session, recovery, login/forgot/reset pages), `access/` (`AccessProvider`, `useAccess`, `useReadyAccess`, `RequireAuth`, `RequireAccess`), `modules/` (manifest types, `resolveEnabledModules`, `useModules`, `useSetModuleEnabled`), `settings/` (`SettingsLayout`, `coreSettingsSections`: « Modules »). « Paramètres » appears only when at least one section is accessible (decision #19).

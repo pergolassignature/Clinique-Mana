@@ -6,11 +6,14 @@ import type { Access } from '@/core/access/access'
 import { renderWithContexts, testAccess } from '@/test/contexts'
 import { AuthenticatedApp } from './AuthenticatedApp'
 
+// The Modules section needs a query client and the Supabase client: it has its own tests.
+vi.mock('@/core/settings/pages/ModulesSettingsPage', () => ({ ModulesSettingsPage: () => <p>MODULES PAGE</p> }))
+
 const adminLike: Access = {
   ...testAccess,
   display_name: 'Camille Admin',
   role: 'admin',
-  permissions: ['settings.view', 'professionals.view'],
+  permissions: ['settings.view', 'modules.manage', 'professionals.view'],
   modules: ['professionals'],
 }
 
@@ -34,21 +37,32 @@ describe('AuthenticatedApp', () => {
     expect(screen.getByRole('link', { name: t('modules.professionals.name') })).toHaveAttribute('href', '/professionnels')
   })
 
-  it('hides Paramètres without settings.view', () => {
-    render(appAt('/accueil', { ...adminLike, permissions: ['professionals.view'] }))
+  // Real role defaults: staff has settings.view but no section permission (modules.manage is admin-only).
+  const staffLike: Access = { ...adminLike, role: 'staff', permissions: ['settings.view', 'professionals.view'] }
+
+  it('hides Paramètres when no settings section is accessible, even with settings.view', () => {
+    render(appAt('/accueil', staffLike))
     expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.name')])
   })
 
-  it('refuses the settings route without settings.view', () => {
-    render(appAt('/parametres', { ...adminLike, permissions: ['professionals.view'] }))
+  it('refuses the settings route when no settings section is accessible', () => {
+    render(appAt('/parametres', staffLike))
     expect(screen.getByText(t('access.forbidden.title'))).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: t('settings.title') })).not.toBeInTheDocument()
   })
 
-  it('mounts the settings shell under /parametres', () => {
-    render(appAt('/parametres'))
-    // No modules.manage: the shell renders, with no section to show.
+  it('shows Paramètres and its section to a user who can access only that section', async () => {
+    render(appAt('/parametres', { ...adminLike, permissions: ['modules.manage'] }))
+    expect(menuLinks()).toEqual([t('nav.home'), t('nav.settings')])
     expect(screen.getByRole('heading', { name: t('settings.title') })).toBeInTheDocument()
-    expect(screen.getByText(t('settings.empty'))).toBeInTheDocument()
+    expect(await screen.findByText('MODULES PAGE')).toBeInTheDocument()
+  })
+
+  it('mounts the settings shell under /parametres, on the first accessible section', async () => {
+    render(appAt('/parametres'))
+    expect(screen.getByRole('heading', { name: t('settings.title') })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t('settings.sections.modules') })).toHaveAttribute('href', '/parametres/modules')
+    expect(await screen.findByText('MODULES PAGE')).toBeInTheDocument()
   })
 
   it('renders the module placeholder at its route', async () => {
@@ -64,7 +78,7 @@ describe('AuthenticatedApp', () => {
   })
 
   it('hides an enabled module the user may not view, and refuses its route', () => {
-    render(appAt('/professionnels', { ...adminLike, permissions: ['settings.view'] }))
+    render(appAt('/professionnels', { ...adminLike, permissions: ['settings.view', 'modules.manage'] }))
     expect(menuLinks()).toEqual([t('nav.home'), t('nav.settings')])
     expect(screen.getByText(t('access.forbidden.title'))).toBeInTheDocument()
   })

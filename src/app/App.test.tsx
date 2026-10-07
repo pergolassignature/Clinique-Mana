@@ -47,6 +47,8 @@ const fake = vi.hoisted(() => {
       },
     },
     rpc: async (name: string) => {
+      // The Modules settings section (admins land on it under /parametres) lists the org's modules.
+      if (name === 'list_modules') return { data: [], error: null }
       const userId = state.session?.user.id
       state.rpcCalls.push({ name, userId })
       return state.respond?.(userId ?? '') ?? { data: null, error: null }
@@ -61,7 +63,7 @@ const accessFor = (userId: string) => ({
   user_id: userId,
   display_name: `Personne ${userId}`,
   role: 'admin',
-  permissions: ['settings.view', 'professionals.view'],
+  permissions: ['settings.view', 'modules.manage', 'professionals.view'],
   modules: ['professionals'],
 })
 const grantAccess = (userId: string) => ({ data: accessFor(userId), error: null })
@@ -173,11 +175,11 @@ describe('App — sign-out', () => {
   })
 
   it('keeps the way back when the session ends elsewhere (another tab, expiry)', async () => {
-    await openAt('/parametres', sessionFor('u1'))
+    await openAt('/parametres/modules', sessionFor('u1'))
     await screen.findByRole('button', { name: t('nav.logout') })
     emit('SIGNED_OUT', null)
     expect(await screen.findByRole('heading', { name: t('auth.login.title') })).toBeInTheDocument()
-    expect(where()).toBe('/connexion?redirect=%2Fparametres')
+    expect(where()).toBe('/connexion?redirect=%2Fparametres%2Fmodules')
   })
 })
 

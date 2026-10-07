@@ -150,6 +150,7 @@ These amendments come from the reviews of Batches A/B and the core schema design
 - **Task 1.18:**
   - Import `RouteBoundary` from `@/shared/components/RouteBoundary` (do not create `src/app/RouteBoundary.tsx`).
   - The settings route is only `<RequireAccess permission="settings.view"><SettingsLayout sections={…} /></RequireAccess>`: the per-section boundaries live inside `SettingsLayout`, so there is no outer `RouteBoundary`.
+    *Superseded by decision #19:* the route and the « Paramètres » nav item are gated on `settingsSections.some((s) => can(s.permission))`, not on `settings.view`.
   - Module routes are wrapped in `RouteBoundary` (scope = module key).
   - Enabled keys come from `useReadyAccess().modules`; `can` comes from `useAccess()`.
   - Add a test that `ALL_MODULES` contains the key `'professionals'` and that settings section ids are unique across core and all modules.

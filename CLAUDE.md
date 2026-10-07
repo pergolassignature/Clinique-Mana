@@ -74,6 +74,7 @@ supabase/
   - `src/modules/**`: no `@/modules/<name>/…` deep path (so a module's own files are imported relatively) and no `@/app/…`.
   Not enforced yet: a module importing only the modules listed in its `dependsOn`, and relative `../<other-module>/` paths between modules — review them.
 - A disabled module contributes nothing: `AuthenticatedApp` keeps only the manifests that are in `useReadyAccess().modules` and whose dependencies are enabled too (`resolveEnabledModules`); each module route is wrapped in a `RouteBoundary` (scope = module key), and `SettingsLayout` wraps each settings section in its own boundary.
+- « Paramètres » follows its sections (decision #19): the nav item shows, and `parametres/*` opens, only when the user can access **at least one** settings section (core or enabled module); otherwise the route shows the forbidden page. `settings.view` alone does not open it (staff have it but no section yet).
 - A module owns its tables and publishes views/RPCs for other modules; never read another module's raw tables. Migrations are additive within a release.
 - Each module ships pgTAP, unit and (from Phase 4) Playwright tests, and a `docs/modules/<name>.md`.
 - Before building a module, mark every item of its inventory section **Keep / Change / Drop** in its design doc (Drop needs Jonathan's OK).
