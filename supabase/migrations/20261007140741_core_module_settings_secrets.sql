@@ -49,6 +49,26 @@ create trigger org_secrets_set_updated_at
   before update on public.org_secrets
   for each row execute function private.set_updated_at();
 
+-- A Vault secret never outlives its org_secrets row, whatever deletes it
+-- (delete_org_secret, or the cascade from deleting an organization).
+create function private.org_secrets_delete_vault()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from vault.secrets vs where vs.id = old.vault_secret_id;
+  return null;
+end;
+$$;
+
+create trigger org_secrets_delete_vault
+  after delete on public.org_secrets
+  for each row execute function private.org_secrets_delete_vault();
+
+revoke all on function private.org_secrets_delete_vault() from public, anon, authenticated, service_role;
+
 -- -----------------------------------------------------------------------------
 -- Privileges and RLS
 -- -----------------------------------------------------------------------------
@@ -124,12 +144,11 @@ begin
   end if;
 
   if p_enabled then
-    -- Every dependency must already be enabled (core is implicit).
+    -- Every dependency must already be enabled (core is implicit, never listed).
     select array_agg(d.depends_on order by d.depends_on)
       into v_blockers
       from public.module_dependencies d
      where d.module_key = p_key
-       and d.depends_on <> 'core'
        and not exists (
          select 1 from public.org_modules om
           where om.org_id = v_org and om.module_key = d.depends_on and om.enabled);
@@ -234,28 +253,22 @@ begin
 end;
 $$;
 
--- Remove a secret and its Vault entry. Missing keys are a no-op.
+-- Remove a secret; the org_secrets_delete_vault trigger removes the Vault entry.
+-- Missing keys are a no-op.
 create function public.delete_org_secret(p_key text)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_org uuid := private.current_user_org_id();
-  v_id uuid;
 begin
   if not private.has_permission('settings.manage') then
     raise exception 'Permission refusée : settings.manage' using errcode = '42501';
   end if;
 
   delete from public.org_secrets s
-   where s.org_id = v_org and s.key = p_key
-  returning s.vault_secret_id into v_id;
-
-  if v_id is not null then
-    delete from vault.secrets vs where vs.id = v_id;
-  end if;
+   where s.org_id = private.current_user_org_id()
+     and s.key = p_key;
 end;
 $$;
 
@@ -269,8 +282,8 @@ set search_path = ''
 as $$
   select s.key, s.updated_at
     from public.org_secrets s
-   where s.org_id = private.current_user_org_id()
-     and private.has_permission('settings.view')
+   where s.org_id = (select private.current_user_org_id())
+     and (select private.has_permission('settings.view'))
    order by s.key
 $$;
 

@@ -165,6 +165,7 @@ create table public.profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   org_id uuid not null references public.organizations(id),
   display_name text not null check (length(trim(display_name)) > 0),
+  -- Copied from auth.users by trigger; auth is the only source of truth (I9).
   email text not null,
   status text not null default 'active' check (status in ('active', 'disabled')),
   created_at timestamptz not null default now(),
@@ -179,17 +180,42 @@ create trigger profiles_set_updated_at
   before update on public.profiles
   for each row execute function private.set_updated_at();
 
--- Keep profiles.email in sync when the user changes their auth email (I9).
-create function private.sync_profile_email()
+-- Whatever the caller passes, profiles.email is copied from auth.users.
+create function private.profiles_email_from_auth()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
+  select u.email into new.email from auth.users u where u.id = new.user_id;
+  if new.email is null then
+    raise exception 'Utilisateur sans courriel : %', new.user_id using errcode = '22023';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger profiles_email_from_auth
+  before insert or update of email on public.profiles
+  for each row execute function private.profiles_email_from_auth();
+
+-- Keep profiles.email in sync when the user changes their auth email (I9).
+-- Tags the audit row, then restores the caller's audit source.
+create function private.sync_profile_email()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
+begin
+  perform pg_catalog.set_config('app.audit_source', 'auth:email_change', true);
   update public.profiles p
      set email = new.email
    where p.user_id = new.id;
+  perform pg_catalog.set_config('app.audit_source', coalesce(v_prev_source, ''), true);
   return new;
 end;
 $$;
@@ -373,6 +399,7 @@ revoke all on function
   private.set_updated_at(),
   private.module_dependencies_no_cycle(),
   private.validate_org_timezone(),
+  private.profiles_email_from_auth(),
   private.sync_profile_email()
 from public, anon, authenticated, service_role;
 

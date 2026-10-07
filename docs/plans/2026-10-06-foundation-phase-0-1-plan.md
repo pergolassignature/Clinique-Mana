@@ -3291,6 +3291,7 @@ end $$;
 ```
 
 **Step 6: Hand off to Jonathan** — invite his admin account from the dashboard, then run the script with his email. Also: set **Auth → URL configuration** site URL and redirect URLs to the Vercel staging URL (`/**`), and disable "Allow new users to sign up".
+In **Auth → Providers → Email**, keep the Email provider **enabled** (password and magic-link login need it) and turn on **Secure email change** (`double_confirm_changes = true` in `supabase/config.toml`): the same settings as local.
 
 **Step 7: Commit**
 

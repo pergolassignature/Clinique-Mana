@@ -3,7 +3,7 @@
 -- RLS per role, cross-org isolation, get_my_access() for every profile state.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(118);
+select plan(121);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -16,7 +16,8 @@ values
   ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'disabled@a.test', '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',    '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'norole@a.test',   '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'spare@a.test',    '', now(), '{}', '{}', now(), now());
+  ('a0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'spare@a.test',    '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', null,              '', now(), '{}', '{}', now(), now());
 
 insert into public.organizations (id, name) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A'),
@@ -98,6 +99,7 @@ select function_privs_are('public', 'get_my_access', array[]::text[], 'anon', ar
 select function_privs_are('private', 'sync_profile_email', array[]::text[], 'service_role', array[]::text[], 'nobody can execute the email-sync trigger function');
 select function_privs_are('private', 'validate_org_timezone', array[]::text[], 'authenticated', array[]::text[], 'clients cannot execute the timezone trigger function');
 select function_privs_are('private', 'set_updated_at', array[]::text[], 'authenticated', array[]::text[], 'clients cannot execute set_updated_at');
+select function_privs_are('private', 'profiles_email_from_auth', array[]::text[], 'service_role', array[]::text[], 'nobody can execute the profile email trigger function');
 select function_privs_are('private', 'module_dependencies_no_cycle', array[]::text[], 'service_role', array[]::text[], 'nobody can execute the cycle-check trigger function');
 
 -- Default privileges: a table/function created later by a migration starts closed.
@@ -125,8 +127,16 @@ select throws_ok($$ update public.organizations set default_locale = 'fr_CA' whe
 select throws_ok($$ insert into public.modules (key, name) values ('settings', 'x') $$,
   '23514', null, 'core permission prefixes are reserved module keys');
 
-select throws_ok($$ insert into public.profiles (user_id, org_id, display_name, email) values ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'Dup', 'ADMIN@a.test') $$,
-  '23505', null, 'profile email is unique case-insensitively');
+-- profiles.email always comes from auth.users.
+insert into public.profiles (user_id, org_id, display_name, email) values
+  ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'Spare', 'ADMIN@a.test');
+select is((select email from public.profiles where user_id = 'a0000000-0000-0000-0000-000000000007'),
+  'spare@a.test', 'profile email is copied from auth.users, whatever the insert says');
+delete from public.profiles where user_id = 'a0000000-0000-0000-0000-000000000007';
+select throws_ok($$ insert into public.profiles (user_id, org_id, display_name, email) values ('a0000000-0000-0000-0000-000000000008', 'b0000000-0000-0000-0000-00000000000a', 'No mail', 'x@a.test') $$,
+  '22023', null, 'a user without an auth email cannot get a profile');
+select throws_ok($$ update auth.users set email = 'STAFF@a.test' where id = 'a0000000-0000-0000-0000-000000000003' $$,
+  '23505', null, 'an auth email clashing case-insensitively with another profile is refused');
 
 -- Module dependency graph stays acyclic and never mentions core.
 insert into public.modules (key, name) values

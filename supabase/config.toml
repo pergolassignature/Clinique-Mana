@@ -47,7 +47,8 @@ minimum_password_length = 10
 # false disables password and magic-link LOGIN too. Sign-ups stay closed through
 # `[auth] enable_signup = false` (GOTRUE_DISABLE_SIGNUP); accounts come from invitations.
 enable_signup = true
-double_confirm_changes = false
+# Email changes must be confirmed from both the old and new address. Same value on staging/production (plan Task 1.21).
+double_confirm_changes = true
 secure_password_change = true
 enable_confirmations = false
 
