@@ -266,7 +266,7 @@
         "submitting": "Ajout…",
         "added": "Nouveau taux enregistré."
       },
-      "validation": { "rate": "Taux invalide.", "date": "Date requise." }
+      "validation": { "rate": "Taux invalide.", "date": "Date requise.", "afterOpen": "Le nouveau taux doit commencer après le {date}." }
     },
     "provinces": {
       "AB": "Alberta",

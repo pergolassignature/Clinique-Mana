@@ -5,12 +5,13 @@ import { moduleErrorMessage } from '@/core/modules/errors'
 import { useSettingsSection } from '@/core/settings/section-context'
 import type { Tax, TaxRate } from '@/core/settings/tax/api'
 import { useDeleteTaxRate, useTaxRates } from '@/core/settings/tax/hooks'
-import { canDeleteTaxRate, lastDayOf, taxRateStatus, type TaxRateStatus } from '@/core/settings/tax/rates'
+import { canDeleteTaxRate, earliestNewRateStart, lastDayOf, taxRateStatus, type TaxRateStatus } from '@/core/settings/tax/rates'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { formatRate } from '@/shared/lib/format'
 import { formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
+import { useNow } from '@/shared/lib/use-now'
 import { cn } from '@/shared/lib/utils'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import {
@@ -51,9 +52,11 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null)
   const addButtonRef = useRef<HTMLButtonElement>(null)
 
+  // Ticks every minute, so statuses and « Supprimer » follow the clock while the page stays open
+  // (midnight in the clinic, the end of the 24 h correction window).
+  const now = useNow(60_000)
   const title = t(`settings.tax.taxes.${tax}.title`)
-  const today = getClinicDateString(new Date())
-  const now = Date.now()
+  const today = getClinicDateString(new Date(now))
   const rates = data?.filter((rate) => rate.tax === tax) ?? []
   const deletable = new Set(readOnly || !data ? [] : rates.filter((rate) => canDeleteTaxRate(rate, data, today, now)).map((rate) => rate.id))
 
@@ -126,7 +129,8 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="max-sm:w-7 max-sm:px-0"
+                        // Phone: a 28 px icon with a 44 px hit area (an invisible ::after 8 px around it).
+                        className="max-sm:relative max-sm:w-7 max-sm:px-0 max-sm:after:absolute max-sm:after:-inset-2 max-sm:after:content-['']"
                         aria-label={t('settings.tax.rates.deleteLabel', {
                           rate: formatRate(rate.rate),
                           date: formatDateOnlyShort(rate.effective_from),
@@ -155,7 +159,11 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
       as="section"
       title={title}
       description={t(`settings.tax.taxes.${tax}.description`)}
-      footer={readOnly ? undefined : <NewTaxRateDialog ref={addButtonRef} tax={tax} taxLabel={title} />}
+      footer={
+        readOnly ? undefined : (
+          <NewTaxRateDialog ref={addButtonRef} tax={tax} taxLabel={title} minDate={data ? earliestNewRateStart(rates) : null} />
+        )
+      }
     >
       {content}
       <AlertDialog open={toDelete !== null} onOpenChange={closeConfirm}>
@@ -188,7 +196,14 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
               )}
               <AlertDialogFooter>
                 {/* Radix focuses Cancel first: keeping the rate is the safe default. */}
-                <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+                <AlertDialogCancel
+                  aria-disabled={remove.isPending || undefined}
+                  // While deleting, the press is cancelled (Radix then does not close the dialog).
+                  onClick={ignoreWhenInactive(remove.isPending)}
+                  className={cn(softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
+                >
+                  {t('common.cancel')}
+                </AlertDialogCancel>
                 <Button
                   type="button"
                   variant="destructive"

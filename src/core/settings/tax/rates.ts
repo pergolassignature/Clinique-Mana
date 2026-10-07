@@ -22,7 +22,21 @@ export function taxRateStatus(rate: Pick<TaxRate, 'effective_from' | 'effective_
  * with no timezone.
  */
 export function lastDayOf(effectiveTo: string | null): string | null {
-  return effectiveTo === null ? null : format(addDays(parseISO(effectiveTo), -1), 'yyyy-MM-dd')
+  return effectiveTo === null ? null : shiftDay(effectiveTo, -1)
+}
+
+/**
+ * The earliest start a new rate can have: the day after the open rate's start (`add_tax_rate`
+ * wants it strictly later). Null when the tax has no open rate.
+ */
+export function earliestNewRateStart(rates: readonly TaxRate[]): string | null {
+  const open = rates.find((rate) => rate.effective_to === null)
+  return open ? shiftDay(open.effective_from, 1) : null
+}
+
+/** `yyyy-MM-dd` ± days, as calendar dates (parsed as local midnight, so no timezone or DST shift). */
+function shiftDay(date: string, days: number): string {
+  return format(addDays(parseISO(date), days), 'yyyy-MM-dd')
 }
 
 /**

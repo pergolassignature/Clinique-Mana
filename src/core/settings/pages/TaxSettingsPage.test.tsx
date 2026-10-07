@@ -141,12 +141,67 @@ describe('TaxSettingsPage', () => {
     expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.tax.rates.deleted'))
   })
 
-  it('does not delete when the confirmation is cancelled', async () => {
+  it("does not delete when the confirmation is cancelled, and returns focus to the row's « Supprimer »", async () => {
     await renderPage()
-    await userEvent.click(within(card('qst')).getByRole('button', { name: /supprimer/i }))
+    const rowDelete = within(card('qst')).getByRole('button', { name: /supprimer/i })
+    await userEvent.click(rowDelete)
     await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: t('common.cancel') }))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(mocks.tax.deleteTaxRate).not.toHaveBeenCalled()
+    await waitFor(() => expect(rowDelete).toHaveFocus())
+  })
+
+  it('returns focus to « Nouveau taux » once the deleted row is gone', async () => {
+    let deleted = false
+    mocks.tax.deleteTaxRate.mockImplementation(async () => {
+      deleted = true
+    })
+    await renderPage()
+    mocks.tax.fetchTaxRates.mockImplementation(async () => (deleted ? RATES.filter((rate) => rate.id !== 'q3') : RATES))
+    await userEvent.click(within(card('qst')).getByRole('button', { name: /supprimer/i }))
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: t('settings.tax.rates.delete') }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(rowsOf('qst')).toHaveLength(2)
+    await waitFor(() => expect(within(card('qst')).getByRole('button', { name: t('settings.tax.rates.add') })).toHaveFocus())
+  })
+
+  it('cannot be closed nor confirmed twice while the delete is pending', async () => {
+    mocks.tax.deleteTaxRate.mockReturnValue(new Promise(() => {}))
+    await renderPage()
+    await userEvent.click(within(card('qst')).getByRole('button', { name: /supprimer/i }))
+    const confirm = screen.getByRole('alertdialog')
+    await userEvent.click(within(confirm).getByRole('button', { name: t('settings.tax.rates.delete') }))
+    const pendingButton = await within(confirm).findByRole('button', { name: t('settings.tax.rates.deleting') })
+    expect(pendingButton).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(pendingButton)
+    const cancel = within(confirm).getByRole('button', { name: t('common.cancel') })
+    expect(cancel).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(cancel)
+    await userEvent.keyboard('{Escape}')
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    expect(mocks.tax.deleteTaxRate).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives the phone trash button a 44 px hit area without enlarging it', async () => {
+    await renderPage()
+    const rowDelete = within(card('qst')).getByRole('button', { name: /supprimer/i })
+    expect(rowDelete).toHaveClass('max-sm:w-7', 'max-sm:relative', 'max-sm:after:absolute', 'max-sm:after:-inset-2')
+  })
+
+  it("computes the statuses against the clinic's date, not the browser's", async () => {
+    // 2026-10-08 00:30 in Toronto (the clinic), still 2026-10-07 21:30 in Vancouver (the test host).
+    vi.setSystemTime(new Date('2026-10-08T04:30:00Z'))
+    try {
+      const closed: TaxRate = { ...GST_SEEDED, effective_to: '2026-10-08', created_at: '2026-01-01T00:00:00Z' }
+      const starting: TaxRate = { id: 'g2', tax: 'gst', rate: 0.06, effective_from: '2026-10-08', effective_to: null, created_at: '2026-09-01T00:00:00Z' }
+      await renderPage({ rates: [starting, closed] })
+      expect(rowsOf('gst').map(cellsOf)).toEqual([
+        ['6 %', '8 oct. 2026', '—', 'En vigueur'],
+        ['5 %', '1 janv. 2008', '7 oct. 2026', 'Terminé'],
+      ])
+    } finally {
+      vi.setSystemTime(new Date('2026-10-07T16:00:00Z'))
+    }
   })
 
   it('shows a refused delete in the confirmation, in the French of the database', async () => {
@@ -199,7 +254,7 @@ describe('TaxSettingsPage', () => {
       await renderPage()
       await openAddDialog('qst')
       await userEvent.type(rateField(), typed)
-      setDate('2027-01-01')
+      setDate('2027-02-01')
       await userEvent.click(within(dialog()).getByRole('button', { name: t('settings.tax.dialog.submit') }))
       expect(await within(dialog()).findByText(t('settings.tax.validation.rate'))).toBeInTheDocument()
       expect(rateField()).toHaveAttribute('aria-invalid', 'true')
@@ -231,11 +286,41 @@ describe('TaxSettingsPage', () => {
       await renderPage()
       await openAddDialog('qst')
       await userEvent.type(rateField(), '11')
-      setDate('2026-12-01')
+      setDate('2027-02-01')
       await userEvent.click(within(dialog()).getByRole('button', { name: t('settings.tax.dialog.submit') }))
       expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Le nouveau taux doit commencer après le 2027-01-01.')
       expect(rateField()).toHaveValue('11')
       expect(mocks.toast.error).not.toHaveBeenCalled()
+    })
+
+    it('cannot be closed nor submitted twice while the rate is being added', async () => {
+      mocks.tax.addTaxRate.mockReturnValue(new Promise(() => {}))
+      await renderPage()
+      await openAddDialog('qst')
+      setDate('2027-04-01')
+      await userEvent.type(rateField(), '10{Enter}')
+      const pendingButton = await within(dialog()).findByRole('button', { name: t('settings.tax.dialog.submitting') })
+      expect(pendingButton).toHaveAttribute('aria-disabled', 'true')
+      await userEvent.click(pendingButton)
+      await userEvent.type(rateField(), '{Enter}')
+      const cancel = within(dialog()).getByRole('button', { name: t('common.cancel') })
+      expect(cancel).toHaveAttribute('aria-disabled', 'true')
+      await userEvent.click(cancel)
+      await userEvent.keyboard('{Escape}')
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(mocks.tax.addTaxRate).toHaveBeenCalledTimes(1)
+    })
+
+    it("refuses a date that is not after the open rate's start, before any request", async () => {
+      await renderPage()
+      await openAddDialog('qst')
+      // The open QST rate starts on 2027-01-01.
+      expect(dateField()).toHaveAttribute('min', '2027-01-02')
+      setDate('2027-01-01')
+      await userEvent.type(rateField(), '11{Enter}')
+      expect(await within(dialog()).findByText(t('settings.tax.validation.afterOpen', { date: '1 janv. 2027' }))).toBeInTheDocument()
+      expect(dateField()).toHaveAttribute('aria-invalid', 'true')
+      expect(mocks.tax.addTaxRate).not.toHaveBeenCalled()
     })
 
     it('starts empty again once closed', async () => {

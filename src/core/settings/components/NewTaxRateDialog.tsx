@@ -7,9 +7,12 @@ import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
 import type { Tax } from '@/core/settings/tax/api'
 import { useAddTaxRate } from '@/core/settings/tax/hooks'
-import { newTaxRateSchema } from '@/core/settings/tax/schemas'
+import { lastDayOf } from '@/core/settings/tax/rates'
+import { isCalendarDate, newTaxRateSchema } from '@/core/settings/tax/schemas'
 import { SaveButton } from '@/shared/components/SaveButton'
-import { getClinicDateString } from '@/shared/lib/timezone'
+import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
+import { formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
+import { cn } from '@/shared/lib/utils'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import {
@@ -31,6 +34,11 @@ interface NewTaxRateDialogProps {
   tax: Tax
   /** « TPS » / « TVQ », for the title. */
   taxLabel: string
+  /**
+   * The earliest start `add_tax_rate` accepts (the day after the open rate's start), or null when
+   * unknown: the date picker starts there, and an earlier date is refused before any request.
+   */
+  minDate: string | null
 }
 
 /**
@@ -38,7 +46,7 @@ interface NewTaxRateDialogProps {
  * content, so each opening starts empty. While the rate is being added the dialog cannot be
  * closed, so its outcome is always seen: success closes it (with a toast), a refusal stays in it.
  */
-export const NewTaxRateDialog = forwardRef<HTMLButtonElement, NewTaxRateDialogProps>(function NewTaxRateDialog({ tax, taxLabel }, ref) {
+export const NewTaxRateDialog = forwardRef<HTMLButtonElement, NewTaxRateDialogProps>(function NewTaxRateDialog({ tax, taxLabel, minDate }, ref) {
   const [open, setOpen] = useState(false)
   const add = useAddTaxRate()
   const rateRef = useRef<HTMLInputElement | null>(null)
@@ -70,6 +78,7 @@ export const NewTaxRateDialog = forwardRef<HTMLButtonElement, NewTaxRateDialogPr
         </DialogHeader>
         <NewTaxRateForm
           tax={tax}
+          minDate={minDate}
           rateRef={rateRef}
           pending={add.isPending}
           error={add.isError ? moduleErrorMessage(add.error, t('common.errors.generic'), 'settings') : null}
@@ -84,6 +93,7 @@ export const NewTaxRateDialog = forwardRef<HTMLButtonElement, NewTaxRateDialogPr
 
 interface NewTaxRateFormProps {
   tax: Tax
+  minDate: string | null
   rateRef: RefObject<HTMLInputElement | null>
   pending: boolean
   /** The refusal to show (already through `moduleErrorMessage`), or null. */
@@ -91,7 +101,7 @@ interface NewTaxRateFormProps {
   onSubmit: (values: z.output<typeof newTaxRateSchema>) => void
 }
 
-function NewTaxRateForm({ tax, rateRef, pending, error, onSubmit }: NewTaxRateFormProps) {
+function NewTaxRateForm({ tax, minDate, rateRef, pending, error, onSubmit }: NewTaxRateFormProps) {
   const form = useForm<FormValues, unknown, z.output<typeof newTaxRateSchema>>({
     resolver: zodResolver(newTaxRateSchema),
     defaultValues: { tax, rate: '', effective_from: '' },
@@ -100,10 +110,22 @@ function NewTaxRateForm({ tax, rateRef, pending, error, onSubmit }: NewTaxRateFo
   const { ref: registerRateRef, ...rateField } = form.register('rate')
   const effectiveFrom = useWatch({ control: form.control, name: 'effective_from' })
   // A start date already past in the clinic: allowed on purpose (corrections), but said first.
-  const backdated = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(effectiveFrom) && effectiveFrom < getClinicDateString(new Date())
+  const backdated = isCalendarDate(effectiveFrom) && effectiveFrom < getClinicDateString(new Date())
+
+  const submit = form.handleSubmit((values) => {
+    // The obvious refusal of add_tax_rate, caught here; the database still decides (another admin
+    // may have added a rate since the page loaded).
+    if (minDate !== null && values.effective_from < minDate) {
+      // The open rate's start is the day before minDate.
+      const openStart = formatDateOnlyShort(lastDayOf(minDate))
+      form.setError('effective_from', { message: t('settings.tax.validation.afterOpen', { date: openStart }) }, { shouldFocus: true })
+      return
+    }
+    onSubmit(values)
+  })
 
   return (
-    <form noValidate onSubmit={(event) => void form.handleSubmit(onSubmit)(event)} className="grid gap-3.5">
+    <form noValidate onSubmit={(event) => void submit(event)} className="grid gap-3.5">
       <div className="grid gap-3 sm:grid-cols-2">
         <FormField label={t('settings.tax.dialog.rate')} required error={errors.rate?.message}>
           {(field) => (
@@ -125,7 +147,7 @@ function NewTaxRateForm({ tax, rateRef, pending, error, onSubmit }: NewTaxRateFo
           required
           error={errors.effective_from?.message}
         >
-          {(field) => <Input {...field} {...form.register('effective_from')} type="date" />}
+          {(field) => <Input {...field} {...form.register('effective_from')} type="date" min={minDate ?? undefined} />}
         </FormField>
       </div>
       {/* Always rendered, so screen readers announce the warning when it appears. */}
@@ -145,7 +167,14 @@ function NewTaxRateForm({ tax, rateRef, pending, error, onSubmit }: NewTaxRateFo
       )}
       <DialogFooter>
         <DialogClose asChild>
-          <Button type="button" variant="outline">
+          <Button
+            type="button"
+            variant="outline"
+            aria-disabled={pending || undefined}
+            // While adding, the press is cancelled (Radix then does not close the dialog).
+            onClick={ignoreWhenInactive(pending)}
+            className={cn(softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
+          >
             {t('common.cancel')}
           </Button>
         </DialogClose>

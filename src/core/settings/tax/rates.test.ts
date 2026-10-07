@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TaxRate } from './api'
-import { canDeleteTaxRate, lastDayOf, taxRateStatus } from './rates'
+import { canDeleteTaxRate, earliestNewRateStart, lastDayOf, taxRateStatus } from './rates'
 
 const TODAY = '2026-10-07'
 /** 2026-10-07 at noon UTC: « now » for the 24 h correction window. */
@@ -38,6 +38,23 @@ describe('lastDayOf', () => {
 
   it('is null for an open rate', () => {
     expect(lastDayOf(null)).toBeNull()
+  })
+
+  it('is not shifted by the end of daylight saving time (2026-11-01)', () => {
+    expect(lastDayOf('2026-11-02')).toBe('2026-11-01')
+    expect(lastDayOf('2026-03-09')).toBe('2026-03-08')
+  })
+})
+
+describe('earliestNewRateStart', () => {
+  it("is the day after the open rate's start", () => {
+    const ended = rate({ id: 'a', effective_from: '2012-01-01', effective_to: '2013-01-01' })
+    const open = rate({ id: 'b', effective_from: '2026-12-31', effective_to: null })
+    expect(earliestNewRateStart([open, ended])).toBe('2027-01-01')
+  })
+
+  it('is null without an open rate', () => {
+    expect(earliestNewRateStart([])).toBeNull()
   })
 })
 
