@@ -21,11 +21,11 @@ describe('moduleErrorMessage', () => {
     expect(mocks.captureException).not.toHaveBeenCalled()
   })
 
-  it('maps a check violation (23514) to the invalid-value text, without reporting it', () => {
-    // The client validates first, so this only happens when the UI is bypassed: not a bug to report.
-    const error = pgError('23514', 'new row for relation "organizations" violates check constraint "organizations_neq_format"')
-    expect(moduleErrorMessage(error, FALLBACK)).toBe(t('common.errors.invalidValue'))
-    expect(mocks.captureException).not.toHaveBeenCalled()
+  it('maps a check violation (23514) to the invalid-value text, and reports it', () => {
+    // The client validates first, so this only follows a bypass or a Zod/SQL parity bug: we want to hear about either.
+    const error = pgError('23514', 'new row for relation "organizations" violates check constraint "organizations_neq_check"')
+    expect(moduleErrorMessage(error, FALLBACK, 'settings')).toBe(t('common.errors.invalidValue'))
+    expect(mocks.captureException).toHaveBeenCalledWith(error, { tags: { area: 'settings' } })
   })
 
   it('does not show a raw P0001 message when it is empty', () => {
