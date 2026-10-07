@@ -55,13 +55,21 @@ const TAX_NUMBER_SEPARATORS = /[\s\-\u2013\u2014]/g
 const TAX_NUMBER = /^([0-9]{9,10})(RT|TQ)([0-9]{4})$/
 
 /**
+ * A GST or QST number as stored: separators removed, upper case (` 123456789 rt-0001 ` →
+ * `123456789RT0001`). No validation: that is the schema's job (`taxNumbersSchema`).
+ */
+export function compactTaxNumber(value: string): string {
+  return value.replace(TAX_NUMBER_SEPARATORS, '').toUpperCase()
+}
+
+/**
  * A GST or QST number as the clinic reads it: `123456789RT0001` → `123456789 RT 0001`. Typed with
  * spaces, dashes or in lower case it is regrouped too; anything else is returned as typed (the
- * schema reports it). The stored value is compact (see `taxNumbersSchema`).
+ * schema reports it). The stored value is compact (`compactTaxNumber`).
  */
 export function formatTaxNumber(value: string | null | undefined): string {
   if (!value) return ''
-  const match = TAX_NUMBER.exec(value.replace(TAX_NUMBER_SEPARATORS, '').toUpperCase())
+  const match = TAX_NUMBER.exec(compactTaxNumber(value))
   return match ? `${match[1]} ${match[2]} ${match[3]}` : value
 }
 

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
-import { formatPhone, formatPostalCode, formatTaxNumber, parsePhone } from '@/shared/lib/format'
+import { compactTaxNumber, formatPhone, formatPostalCode, formatTaxNumber, parsePhone } from '@/shared/lib/format'
 import type { Organization } from './api'
 
 /**
@@ -66,7 +66,7 @@ const optionalPattern = (pattern: RegExp, message: string, normalize: (v: string
 /** Hyphen, en and em dashes: typed or pasted in identifiers, as `parsePhone` accepts them. */
 const DASHES = /[-\u2013\u2014]/g
 
-/** `12 34-5 rt` → `12345RT`: tax and enterprise numbers are typed or pasted with spaces and dashes. */
+/** `12 34-5` → `12345`: the NEQ is typed or pasted with spaces and dashes (tax numbers: `compactTaxNumber`). */
 const compactUpper = (v: string) => v.replace(/\s/g, '').replace(DASHES, '').toUpperCase()
 
 
@@ -174,8 +174,8 @@ export function toContactFormValues(org: Organization): z.input<typeof contactSc
 // --- Fiscalité: numbers --------------------------------------------------------------------------
 
 export const taxNumbersSchema = z.object({
-  gst_number: optionalPattern(GST, MESSAGES.gst, compactUpper),
-  qst_number: optionalPattern(QST, MESSAGES.qst, compactUpper),
+  gst_number: optionalPattern(GST, MESSAGES.gst, compactTaxNumber),
+  qst_number: optionalPattern(QST, MESSAGES.qst, compactTaxNumber),
 })
 
 export function toTaxNumbersFormValues(org: Organization): z.input<typeof taxNumbersSchema> {
