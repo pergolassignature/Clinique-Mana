@@ -1,6 +1,6 @@
 # 0004 — Secrets in Vault, sensitive data in encrypted private tables
 
-**Status:** Accepted (secrets built; `*_private` tables come with their modules) · **Date:** 2026-10-06 · **Design:** [§3 Storage of settings](../plans/2026-10-06-foundation-rebuild-design.md#storage-of-settings) · **Conventions:** [§8](../standards/database-conventions.md#8-secrets-and-sensitive-data)
+**Status:** Accepted (secrets built; encrypted private tables built (`organization_bank_details`, Phase 2); professionals' `*_private` tables come with their module) · **Date:** 2026-10-06 · **Design:** [§3 Storage of settings](../plans/2026-10-06-foundation-rebuild-design.md#storage-of-settings) · **Conventions:** [§8](../standards/database-conventions.md#8-secrets-and-sensitive-data)
 
 ## Context
 Integrations (Documenso, Resend, Google) need per-clinic API keys, and legacy kept some in code and docs. Professionals are contractors: the app will hold SIN/BN and bank details (Loi 25).

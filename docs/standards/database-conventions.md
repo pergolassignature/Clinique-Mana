@@ -143,6 +143,14 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 - API keys and tokens live in **Vault**, referenced by `org_secrets`. Clients write with `set_org_secret`, list names with `list_org_secret_keys`, and never read values. Edge functions read with `get_org_secret(org_id, key)` under the service role. Deleting an `org_secrets` row (directly or by cascade from its organization) removes the Vault entry through a trigger.
 - Sensitive non-secret data (SIN, bank details) goes in `*_private` tables, read through audited RPCs only, with the sensitive columns redacted from the audit trigger.
 
+**Encrypted columns** (reference: `organization_bank_details`, migration `…_core_bank_details.sql`):
+- Store the value in a `bytea` column, on a table with no client privilege (RLS on, no policy).
+- Encrypt with `private.encrypt_pii(text)` inside a SECURITY DEFINER RPC that checks its permission first (key: Vault secret `pii_encryption_key`, AES-256 via pgcrypto).
+- Keep a `*_last4` (or otherwise masked) column for display; the « get » RPC returns only that.
+- A reveal RPC decrypts with `private.decrypt_pii(bytea)` and writes an `audit_log` row with action `read` and `source = 'rpc:<function>'`.
+- Attach the audit trigger with the column redacted: `private.audit_trigger('<column>')`.
+- Never grant `private.pii_key`, `encrypt_pii` or `decrypt_pii` to any role (`service_role` included), and never log or select the key.
+
 ## 9. Adding a module (recipe)
 
 One migration `…_<module>_module.sql` registers it; later migrations add its tables.

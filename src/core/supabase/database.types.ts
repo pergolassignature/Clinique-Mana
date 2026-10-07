@@ -230,6 +230,54 @@ export type Database = {
           },
         ]
       }
+      organization_bank_details: {
+        Row: {
+          account_last4: string
+          account_number: string
+          etransfer_email: string | null
+          institution_number: string
+          org_id: string
+          transit_number: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_last4: string
+          account_number: string
+          etransfer_email?: string | null
+          institution_number: string
+          org_id: string
+          transit_number: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_last4?: string
+          account_number?: string
+          etransfer_email?: string | null
+          institution_number?: string
+          org_id?: string
+          transit_number?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_bank_details_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_bank_details_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           address_line1: string | null
@@ -576,6 +624,17 @@ export type Database = {
       }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
+      get_bank_details: {
+        Args: never
+        Returns: {
+          account_last4: string
+          etransfer_email: string
+          institution_number: string
+          transit_number: string
+          updated_at: string
+          updated_by_name: string
+        }[]
+      }
       get_my_access: { Args: never; Returns: Json }
       get_org_secret: {
         Args: { p_key: string; p_org_id: string }
@@ -601,6 +660,16 @@ export type Database = {
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
+      }
+      reveal_bank_account_number: { Args: never; Returns: string }
+      set_bank_details: {
+        Args: {
+          p_account_number: string
+          p_etransfer_email: string
+          p_institution_number: string
+          p_transit_number: string
+        }
+        Returns: undefined
       }
       set_module_enabled: {
         Args: { p_enabled: boolean; p_key: string }

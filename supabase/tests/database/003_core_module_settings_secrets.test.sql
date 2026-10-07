@@ -71,7 +71,8 @@ select function_privs_are('public', 'module_enabled_for_org', array['uuid', 'tex
 select functions_are('public', array[
   'get_my_access', 'module_enabled', 'module_enabled_for_org', 'set_module_enabled', 'list_modules',
   'set_org_secret', 'delete_org_secret', 'list_org_secret_keys', 'get_org_secret',
-  'tax_rate_on', 'add_tax_rate', 'delete_tax_rate'
+  'tax_rate_on', 'add_tax_rate', 'delete_tax_rate',
+  'get_bank_details', 'reveal_bank_account_number', 'set_bank_details'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
