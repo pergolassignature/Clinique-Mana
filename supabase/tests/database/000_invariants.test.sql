@@ -18,16 +18,20 @@ select is_empty($$
      and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) ~ '(?<!SELECT )\m(private|auth)\.[a-z_]+\('
 $$, 'policies call private.*/auth.* only wrapped in (select …)');
 
+-- has_*_privilege also sees column-level grants, which information_schema.table_privileges omits.
 select is_empty($$
-  select table_name || ':' || grantee || ':' || privilege_type from information_schema.table_privileges
-   where table_schema = 'public' and grantee in ('anon', 'authenticated')
-     and privilege_type in ('TRUNCATE', 'REFERENCES', 'TRIGGER', 'DELETE', 'INSERT')
-$$, 'no client TRUNCATE/REFERENCES/TRIGGER/INSERT/DELETE (writes go through RPCs)');
+  select c.relname from pg_class c
+   where c.relnamespace = 'public'::regnamespace and c.relkind in ('r','p','v','m','f')
+     and (has_any_column_privilege('authenticated', c.oid, 'INSERT, REFERENCES')
+          or has_table_privilege('authenticated', c.oid, 'DELETE, TRUNCATE, TRIGGER'))
+$$, 'no client INSERT/DELETE/TRUNCATE/REFERENCES/TRIGGER, including column grants');
 
 select is_empty($$
-  select table_name || ':' || privilege_type from information_schema.table_privileges
-   where table_schema = 'public' and grantee = 'anon'
-$$, 'anon has no table privilege in public');
+  select c.relname from pg_class c
+   where c.relnamespace = 'public'::regnamespace and c.relkind in ('r','p','v','m','f')
+     and (has_any_column_privilege('anon', c.oid, 'SELECT, INSERT, UPDATE, REFERENCES')
+          or has_table_privilege('anon', c.oid, 'DELETE, TRUNCATE, TRIGGER'))
+$$, 'anon has no privilege on any public relation, including column grants');
 
 select is_empty($$
   select p.oid::regprocedure::text from pg_proc p

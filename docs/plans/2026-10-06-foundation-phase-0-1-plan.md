@@ -3292,6 +3292,7 @@ end $$;
 
 **Step 6: Hand off to Jonathan** — invite his admin account from the dashboard, then run the script with his email. Also: set **Auth → URL configuration** site URL and redirect URLs to the Vercel staging URL (`/**`), and disable "Allow new users to sign up".
 In **Auth → Providers → Email**, keep the Email provider **enabled** (password and magic-link login need it) and turn on **Secure email change** (`double_confirm_changes = true` in `supabase/config.toml`): the same settings as local.
+**Verify Secure email change on staging:** change a test user's email and click only the link sent to the new address. The change must NOT complete until the old-address link is also clicked. If the new-address link alone completes it, report it before go-live.
 
 **Step 7: Commit**
 
