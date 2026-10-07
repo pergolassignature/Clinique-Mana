@@ -7,6 +7,7 @@ select plan(37);
 
 -- =============================================================================
 -- Fixtures (as postgres; no app.audit_source → source 'system')
+-- The local seed may already have rows in audit_log: always filter by fixture ids.
 -- =============================================================================
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -54,15 +55,15 @@ select function_privs_are('private', 'audit_log_immutable', array[]::text[], 'se
 -- =============================================================================
 -- Content of the log (fixtures and triggers fired above)
 -- =============================================================================
-select is((select source from public.audit_log where table_name = 'organizations' and action = 'insert' limit 1),
+select is((select source from public.audit_log where table_name = 'organizations' and action = 'insert' and record_id = 'b0000000-0000-0000-0000-00000000000a'),
   'system', 'source defaults to system outside an API request');
 select is((select org_id from public.audit_log where table_name = 'profiles' and record_id = 'a0000000-0000-0000-0000-000000000002'),
   'b0000000-0000-0000-0000-00000000000a'::uuid, 'org_id is captured for profiles');
-select is((select record_id from public.audit_log where table_name = 'org_modules' and action = 'insert'),
+select is((select record_id from public.audit_log where table_name = 'org_modules' and action = 'insert' and org_id = 'b0000000-0000-0000-0000-00000000000a'),
   'b0000000-0000-0000-0000-00000000000a:test_mod', 'record_id joins composite primary keys with ":"');
 
 delete from public.user_roles where user_id = 'a0000000-0000-0000-0000-000000000002';
-select is((select org_id from public.audit_log where table_name = 'user_roles' and action = 'delete'),
+select is((select org_id from public.audit_log where table_name = 'user_roles' and action = 'delete' and record_id = 'a0000000-0000-0000-0000-000000000002'),
   'b0000000-0000-0000-0000-00000000000a'::uuid, 'deleted user_roles rows keep their org_id');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'staff');
@@ -76,7 +77,7 @@ select is((select changed_fields -> 'sin' from public.audit_log where table_name
   '"[redacted]"'::jsonb, 'redacted column is masked on update');
 select is((select changed_fields -> 'note' ->> 'after' from public.audit_log where table_name = 'zz_audit_probe' and action = 'update'),
   'second', 'other columns keep their before/after diff');
-select is((select count(*)::int from public.audit_log where changed_fields::text like '%456%' or changed_fields::text like '%654%'),
+select is((select count(*)::int from public.audit_log where table_name = 'zz_audit_probe' and (changed_fields::text like '%456%' or changed_fields::text like '%654%')),
   0, 'redacted values appear nowhere in the log');
 
 -- =============================================================================
