@@ -5,7 +5,7 @@
 -- audited reveal, redaction, validation, settings.manage is not enough, org isolation.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(72);
+select plan(73);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin and an adjointe who is granted
@@ -204,7 +204,15 @@ select is((select changed_fields -> 'account_number' from public.audit_log
 select is((select changed_fields -> 'transit_number' from public.audit_log
             where table_name = 'organization_bank_details' and action = 'update'
               and org_id = 'b0000000-0000-0000-0000-00000000000a' and changed_fields ? 'transit_number'),
-  '{"before": "30000", "after": "30001"}'::jsonb, 'non-sensitive changes stay readable in the log');
+  '"[redacted]"'::jsonb, 'a transit change is visible but its value is redacted');
+select results_eq(
+  $$ select changed_fields -> 'account_last4', changed_fields -> 'institution_number',
+            changed_fields -> 'transit_number', changed_fields -> 'etransfer_email'
+       from public.audit_log
+      where table_name = 'organization_bank_details' and action = 'insert'
+        and org_id = 'b0000000-0000-0000-0000-00000000000a' $$,
+  $$ values ('"[redacted]"'::jsonb, '"[redacted]"'::jsonb, '"[redacted]"'::jsonb, '"[redacted]"'::jsonb) $$,
+  'every bank value is redacted from the audit trail');
 select is((select count(*)::int from public.audit_log
             where changed_fields::text like '%1234567%' or changed_fields::text like '%7654321%'
                or changed_fields::text like '%11112222%'

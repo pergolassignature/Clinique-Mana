@@ -148,7 +148,7 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 - Encrypt with `private.encrypt_pii(text)` inside a SECURITY DEFINER RPC (owned by `postgres`) that checks its permission first. Key: Vault secret `pii_encryption_key`; AES-256 with a SHA-256 key derivation, via pgcrypto.
 - Keep a `*_last4` (or otherwise masked) column for display; the « get » RPC returns only that.
 - A reveal RPC decrypts with `private.decrypt_pii(bytea)` and writes an `audit_log` row: action `read`, `source = 'rpc:<function>'`, `changed_fields = {"fields": ["<column>", …]}` (the names of the revealed columns, never values). No stored value → return null, no audit row.
-- Attach the audit trigger with the column redacted: `private.audit_trigger('<column>')`.
+- Attach the audit trigger with the encrypted column **and every other value of the guarded data** redacted (masked column, related numbers, contact): `private.audit_trigger('<column>', …)`. `audit.view` must never show what the reveal permission guards; changes stay visible as `"[redacted]"`.
 - `private.pii_key`, `encrypt_pii` and `decrypt_pii` are SECURITY INVOKER and granted to no role (`service_role` included): never grant them, never log or select the key.
 - Only pass bytes read from an encrypted column to `decrypt_pii`, never caller-supplied bytes.
 

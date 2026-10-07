@@ -13,6 +13,8 @@
 --   tightened here so a forged org_secrets row can never reach this key.
 -- * Clients have no privilege on the table: they use get_bank_details (masked),
 --   reveal_bank_account_number (audited read) and set_bank_details.
+-- * Every bank value is redacted from the audit trail: audit.view must not
+--   reveal what settings.bank_manage guards. Changes stay visible (« [redacted] »).
 -- * Phase 4 reuses the helpers for professionals' SIN and bank accounts.
 -- * Patterns use [0-9], never \d (ICU: \d also matches non-ASCII digits).
 -- =============================================================================
@@ -155,7 +157,8 @@ create trigger organization_bank_details_set_updated_at
 
 create trigger organization_bank_details_audit
   after insert or update or delete on public.organization_bank_details
-  for each row execute function private.audit_trigger('account_number');
+  for each row execute function private.audit_trigger(
+    'account_number', 'account_last4', 'institution_number', 'transit_number', 'etransfer_email');
 
 revoke all on public.organization_bank_details from anon, authenticated;
 -- Server code does not need the ciphertext either (conventions §3: revoke explicitly).

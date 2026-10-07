@@ -34,18 +34,25 @@ language plpgsql
 stable
 security definer
 set search_path = ''
+-- Optional filters (« p_x is null or … »): a generic cached plan would ignore them.
+set plan_cache_mode = force_custom_plan
 as $$
 #variable_conflict use_column
+declare
+  v_org uuid := private.current_user_org_id();
 begin
   if not private.has_permission('audit.view') then
     raise exception 'Permission refusée : audit.view' using errcode = '42501';
+  end if;
+  if v_org is null then
+    return;
   end if;
   return query
     select a.id, a.created_at, a.table_name, a.record_id, a.action, a.changed_fields,
            a.actor_id, p.display_name, a.actor_role, a.source
       from public.audit_log a
       left join public.profiles p on p.user_id = a.actor_id and p.org_id = a.org_id
-     where a.org_id = private.current_user_org_id()
+     where a.org_id = v_org
        and (p_table is null or a.table_name = p_table)
        and (p_actor is null or a.actor_id = p_actor)
        and (p_from is null or a.created_at >= p_from)
@@ -56,7 +63,9 @@ begin
 end;
 $$;
 
--- People who appear in the org's log (for the « Personne » filter).
+-- People of the org who appear in its log (for the « Personne » filter).
+-- Profiles first: one index probe per member (audit_log_actor_created_idx)
+-- instead of a scan of the whole org log.
 create function public.list_audit_actors()
 returns table (actor_id uuid, actor_name text)
 language plpgsql
@@ -65,16 +74,21 @@ security definer
 set search_path = ''
 as $$
 #variable_conflict use_column
+declare
+  v_org uuid := private.current_user_org_id();
 begin
   if not private.has_permission('audit.view') then
     raise exception 'Permission refusée : audit.view' using errcode = '42501';
   end if;
+  if v_org is null then
+    return;
+  end if;
   return query
-    select distinct a.actor_id, p.display_name
-      from public.audit_log a
-      join public.profiles p on p.user_id = a.actor_id and p.org_id = a.org_id
-     where a.org_id = private.current_user_org_id()
-     order by p.display_name;
+    select p.user_id, p.display_name
+      from public.profiles p
+     where p.org_id = v_org
+       and exists (select 1 from public.audit_log a where a.actor_id = p.user_id and a.org_id = p.org_id)
+     order by p.display_name, p.user_id;
 end;
 $$;
 

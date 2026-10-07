@@ -120,9 +120,11 @@ create trigger user_roles_clear_admin_overrides
 
 -- One-off cleanup: no pre-existing override may sit on an admin (the triggers above
 -- only guard future writes). Audited by user_permission_overrides_audit.
+select pg_catalog.set_config('app.audit_source', 'migration:core_user_admin', true);
 delete from public.user_permission_overrides o
  using public.user_roles r
  where r.user_id = o.user_id and r.role = 'admin';
+select pg_catalog.set_config('app.audit_source', '', true);
 
 revoke all on function
   private.ensure_active_admin(),

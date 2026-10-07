@@ -6,26 +6,30 @@
 -- probe rows inserted as postgres with explicit dates.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(27);
+select plan(33);
 
 -- =============================================================================
--- Fixtures (as postgres): org A with an admin and a counselor; org B with an admin.
+-- Fixtures (as postgres): org A with an admin, a counselor and a disabled admin;
+-- org B with an admin.
 -- =============================================================================
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
   ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@a.test', '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cons@a.test',  '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'off@a.test',   '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test', '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A'),
   ('b0000000-0000-0000-0000-00000000000b', 'Org B');
-insert into public.profiles (user_id, org_id, display_name, email) values
-  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',       'admin@a.test'),
-  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère A', 'cons@a.test'),
-  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',       'admin@b.test');
+insert into public.profiles (user_id, org_id, display_name, email, status) values
+  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',       'admin@a.test', 'active'),
+  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère A', 'cons@a.test',  'active'),
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Admin désactivé', 'off@a.test', 'disabled'),
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',       'admin@b.test', 'active');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'counselor'),
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin');
 
 -- Probe rows (as postgres; audit_log is append-only, inserts are allowed):
@@ -119,12 +123,39 @@ select results_eq($$ select actor_id, actor_name from public.list_audit_actors()
   $$ values ('a0000000-0000-0000-0000-000000000001'::uuid, 'Admin A'::text) $$,
   'list_audit_actors returns admin A once (not org B''s admin)');
 
+-- Bank details: audit.view sees that they changed, never their values.
+select lives_ok($$ select public.set_bank_details('815', '30000', '1234567', 'paiement@clinique.test') $$,
+  'admin A saves bank details');
+select results_eq(
+  $$ select changed_fields -> 'account_number', changed_fields -> 'account_last4', changed_fields -> 'institution_number',
+            changed_fields -> 'transit_number', changed_fields -> 'etransfer_email'
+       from public.list_audit_entries(p_table => 'organization_bank_details') where action = 'insert' $$,
+  $$ values ('"[redacted]"'::jsonb, '"[redacted]"'::jsonb, '"[redacted]"'::jsonb, '"[redacted]"'::jsonb, '"[redacted]"'::jsonb) $$,
+  'every bank field is redacted in the audit viewer');
+
 -- =============================================================================
 -- Counselor A (no audit.view)
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select throws_ok($$ select * from public.list_audit_entries() $$, '42501', null, 'a counselor cannot list audit entries');
 select throws_ok($$ select * from public.list_audit_actors() $$, '42501', null, 'a counselor cannot list audit actors');
+
+-- The same counselor with an audit.view override.
+reset role;
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted)
+values ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'audit.view', true);
+set local role authenticated;
+select is((select count(*)::int from public.list_audit_entries(p_table => 'organizations')), 4,
+  'a counselor with an audit.view override lists the entries');
+select ok(exists (select 1 from public.list_audit_actors() where actor_id = 'a0000000-0000-0000-0000-000000000001'),
+  'a counselor with an audit.view override lists the actors');
+
+-- =============================================================================
+-- Disabled admin A
+-- =============================================================================
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select throws_ok($$ select * from public.list_audit_entries() $$, '42501', null, 'a disabled admin cannot list audit entries');
+select throws_ok($$ select * from public.list_audit_actors() $$, '42501', null, 'a disabled admin cannot list audit actors');
 
 -- =============================================================================
 -- Admin B: never sees org A
