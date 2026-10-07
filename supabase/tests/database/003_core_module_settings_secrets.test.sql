@@ -73,7 +73,8 @@ select functions_are('public', array[
   'set_org_secret', 'delete_org_secret', 'list_org_secret_keys', 'get_org_secret',
   'tax_rate_on', 'add_tax_rate', 'delete_tax_rate',
   'get_bank_details', 'reveal_bank_account_number', 'set_bank_details',
-  'list_org_users', 'set_user_role', 'set_user_status', 'set_permission_override', 'clear_permission_override'
+  'list_org_users', 'set_user_role', 'set_user_status', 'set_permission_override', 'clear_permission_override',
+  'list_audit_entries', 'list_audit_actors'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

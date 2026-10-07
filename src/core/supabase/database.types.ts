@@ -644,6 +644,35 @@ export type Database = {
         Args: { p_key: string; p_org_id: string }
         Returns: string
       }
+      list_audit_actors: {
+        Args: never
+        Returns: {
+          actor_id: string
+          actor_name: string
+        }[]
+      }
+      list_audit_entries: {
+        Args: {
+          p_actor?: string
+          p_before_id?: number
+          p_from?: string
+          p_limit?: number
+          p_table?: string
+          p_to?: string
+        }
+        Returns: {
+          action: string
+          actor_id: string
+          actor_name: string
+          actor_role: string
+          changed_fields: Json
+          created_at: string
+          id: number
+          record_id: string
+          source: string
+          table_name: string
+        }[]
+      }
       list_modules: {
         Args: never
         Returns: {
