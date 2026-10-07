@@ -63,6 +63,7 @@ Wine (`--wine-*`) is the logo colour only: it is defined but not mapped. Brand s
 ## Component rules
 
 - One `default` (teal) button per screen; secondary actions `outline`; `ink` for a main action when teal is already used; `destructive` only in an AlertDialog with an explicit verb (« Désactiver »).
+- Form footers are `FormActions` (« Annuler / Enregistrer », every `SettingsCard` form and « Mon compte »), **outline until dirty**: « Annuler » is always `outline`; the submit button is `outline` while the form is clean and the teal `default` only while it is dirty or saving. A page of several cards so shows teal only on the cards that have something to save, never one teal button per card. Inactive buttons (clean, saving) are `aria-disabled`, not `disabled` (`soft-disabled.ts`): same look as `disabled`, presses and Enter ignored, still in the tab order so keyboard focus never drops to `<body>`. « Annuler » returns focus to the card's first field.
 - Status is `Badge`: a 6px `StatusDot` + a word. `filled` only for « Urgent ». Checklists use `StatusIndicator` (icon + label; the status is also read as words).
 - Alerts are white with a hairline; only the icon is coloured. `Alert` has no live role by default: pass `role="alert"` for an error that appears after an action. Tooltips are ink, 12px, radius 3.
 - Empty states are two lines of text and an optional action: no icon, no box (`EmptyState`).

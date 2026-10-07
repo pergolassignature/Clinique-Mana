@@ -35,6 +35,7 @@ export function IdentitySettingsPage() {
             title={t('settings.identity.clinic.title')}
             schema={clinicSchema}
             toFormValues={toClinicFormValues}
+            firstField="name"
             successMessage={t('settings.identity.clinic.saved')}
           >
             {({ register, formState: { errors } }) => (
@@ -61,6 +62,7 @@ export function IdentitySettingsPage() {
             title={t('settings.identity.address.title')}
             schema={addressSchema}
             toFormValues={toAddressFormValues}
+            firstField="address_line1"
             successMessage={t('settings.identity.address.saved')}
           >
             {({ register, control, setValue, formState: { errors, isSubmitted } }) => (
@@ -127,6 +129,7 @@ export function IdentitySettingsPage() {
             title={t('settings.identity.contact.title')}
             schema={contactSchema}
             toFormValues={toContactFormValues}
+            firstField="phone"
             successMessage={t('settings.identity.contact.saved')}
           >
             {({ register, setValue, formState: { errors, isSubmitted } }) => (

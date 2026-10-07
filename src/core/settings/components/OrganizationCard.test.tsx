@@ -29,6 +29,7 @@ function card(organization: Organization = testOrganization) {
       description="Le nom et le NEQ."
       schema={clinicSchema}
       toFormValues={toClinicFormValues}
+      firstField="name"
       successMessage="Clinique enregistrée."
     >
       {(form) => (
@@ -46,10 +47,17 @@ function card(organization: Organization = testOrganization) {
 }
 
 const neq = () => screen.getByRole('textbox', { name: 'NEQ' })
+const nameField = () => screen.getByRole('textbox', { name: `Nom ${t('common.form.required')}` })
 const saveButton = () => screen.getByRole('button', { name: t('common.save') })
 const cancelButton = () => screen.getByRole('button', { name: t('common.cancel') })
 const leave = () => userEvent.click(screen.getByRole('link', { name: LEAVE_LINK }))
 const location = () => screen.getByTestId('location').textContent
+/**
+ * The footer buttons are `aria-disabled`, never `disabled`, when inactive (FormActions): they keep
+ * keyboard focus and stay in the tab order, and their presses are ignored.
+ */
+const inactive = (button: HTMLElement) => expect(button).toHaveAttribute('aria-disabled', 'true')
+const active = (button: HTMLElement) => expect(button).not.toHaveAttribute('aria-disabled')
 
 async function edit(field: HTMLElement, value: string) {
   await userEvent.clear(field)
@@ -57,13 +65,28 @@ async function edit(field: HTMLElement, value: string) {
 }
 
 describe('OrganizationCard', () => {
-  it('fills the form from the organization; Annuler and Enregistrer wait for a change', () => {
+  it('fills the form from the organization; Annuler and Enregistrer wait for a change', async () => {
     renderOrganizationPage(card())
     expect(screen.getByRole('form', { name: 'Clinique' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: `Nom ${t('common.form.required')}` })).toHaveValue('Clinique MANA')
+    expect(nameField()).toHaveValue('Clinique MANA')
     expect(neq()).toHaveValue('1234567890')
-    expect(saveButton()).toBeDisabled()
-    expect(cancelButton()).toBeDisabled()
+    inactive(saveButton())
+    inactive(cancelButton())
+    // Presses are ignored: a click on either button, and Enter in a field, save nothing.
+    await userEvent.click(saveButton())
+    await userEvent.click(cancelButton())
+    await userEvent.type(neq(), '{Enter}')
+    expect(mocks.api.updateOrganization).not.toHaveBeenCalled()
+    expect(neq()).toHaveValue('1234567890')
+  })
+
+  it('keeps the inactive buttons in the tab order (aria-disabled, not disabled)', async () => {
+    renderOrganizationPage(card())
+    neq().focus()
+    await userEvent.tab()
+    expect(cancelButton()).toHaveFocus()
+    await userEvent.tab()
+    expect(saveButton()).toHaveFocus()
   })
 
   it('puts Annuler before Enregistrer (reading and tab order)', () => {
@@ -95,8 +118,11 @@ describe('OrganizationCard', () => {
       neq: '9876543210',
     })
     await waitFor(() => expect(neq()).toHaveValue('9876543210'))
-    expect(saveButton()).toBeDisabled()
-    expect(cancelButton()).toBeDisabled()
+    inactive(saveButton())
+    inactive(cancelButton())
+    expect(saveButton()).toHaveFocus()
+    await userEvent.click(saveButton())
+    expect(mocks.api.updateOrganization).toHaveBeenCalledOnce()
   })
 
   it('disarms the guard after a save whose normalised values equal what was stored', async () => {
@@ -121,7 +147,7 @@ describe('OrganizationCard', () => {
     expect(location()).toBe('/parametres/identite')
   })
 
-  it('Annuler restores the saved values and disarms the guard', async () => {
+  it('Annuler restores the saved values, returns focus to the first field and disarms the guard', async () => {
     renderOrganizationPage(card())
     await edit(neq(), '123')
     await userEvent.click(saveButton())
@@ -130,7 +156,9 @@ describe('OrganizationCard', () => {
     await userEvent.click(cancelButton())
     expect(neq()).toHaveValue('1234567890')
     expect(screen.queryByText(t('settings.validation.neq'))).not.toBeInTheDocument()
-    expect(saveButton()).toBeDisabled()
+    expect(nameField()).toHaveFocus()
+    inactive(saveButton())
+    inactive(cancelButton())
     await leave()
     expect(location()).toBe('/ailleurs')
   })
@@ -141,9 +169,15 @@ describe('OrganizationCard', () => {
     await edit(neq(), '9876543210')
     await userEvent.click(saveButton())
 
-    expect(await screen.findByRole('button', { name: t('common.saving') })).toBeDisabled()
+    const pending = await screen.findByRole('button', { name: t('common.saving') })
+    inactive(pending)
     expect(screen.getByRole('form', { name: 'Clinique' })).toHaveAttribute('aria-busy', 'true')
-    expect(cancelButton()).toBeDisabled()
+    inactive(cancelButton())
+    // Presses are ignored while saving: no second save, and the edit is not discarded.
+    await userEvent.click(pending)
+    await userEvent.click(cancelButton())
+    expect(mocks.api.updateOrganization).toHaveBeenCalledOnce()
+    expect(neq()).toHaveValue('9876543210')
   })
 
   it.each([
@@ -158,7 +192,7 @@ describe('OrganizationCard', () => {
     await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith(message))
     expect(mocks.toast.success).not.toHaveBeenCalled()
     expect(neq()).toHaveValue('9876543210')
-    expect(saveButton()).toBeEnabled()
+    active(saveButton())
   })
 
   it('keeps unsaved edits when the organization changes underneath (another card saved), and takes the rest', async () => {
@@ -169,7 +203,7 @@ describe('OrganizationCard', () => {
 
     await waitFor(() => expect(screen.getByRole('textbox', { name: `Nom ${t('common.form.required')}` })).toHaveValue('Clinique MANA Laval'))
     expect(neq()).toHaveValue('9876543210')
-    expect(saveButton()).toBeEnabled()
+    active(saveButton())
   })
 
   it('keeps what was typed while the save was in flight: still there, dirty, guard armed', async () => {
@@ -186,7 +220,7 @@ describe('OrganizationCard', () => {
     resolve({ ...testOrganization, neq: '9876543210' })
 
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalled())
-    await waitFor(() => expect(saveButton()).toBeEnabled())
+    await waitFor(() => active(saveButton()))
     expect(name).toHaveValue('Clinique MANA Laval')
     expect(neq()).toHaveValue('9876543210')
     await leave()
@@ -203,7 +237,7 @@ describe('OrganizationCard', () => {
     resolve({ ...testOrganization, neq: '9876543210' })
 
     await waitFor(() => expect(neq()).toHaveValue('9876543210'))
-    expect(saveButton()).toBeDisabled()
+    inactive(saveButton())
   })
 
   it('keeps its validation errors when the organization changes underneath (another card saved, a refetch)', async () => {

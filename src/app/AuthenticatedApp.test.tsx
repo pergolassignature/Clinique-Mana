@@ -19,6 +19,8 @@ vi.mock('@/core/settings/organization/api', () => ({
   fetchOrganization: async () => testOrganization,
   updateOrganization: async () => testOrganization,
 }))
+// Same for « Mon compte ».
+vi.mock('@/core/account/pages/AccountPage', () => ({ AccountPage: () => <p>ACCOUNT PAGE</p> }))
 
 // The real module list, with one crashing settings section added to Professionals. It needs a
 // permission no role has ('test.crash'), so only the test that grants it sees it.
@@ -153,6 +155,14 @@ describe('AuthenticatedApp', () => {
     render(appAt('/professionnels', { ...adminLike, permissions: adminLike.permissions.filter((p) => p !== 'professionals.view') }))
     expect(menuLinks()).toEqual([t('nav.home'), t('nav.settings')])
     expect(screen.getByText(t('access.forbidden.title'))).toBeInTheDocument()
+  })
+
+  // Outside Paramètres: a role with no settings section (here a provider) still reaches it.
+  it('opens « Mon compte » for every role, titled in the topbar', async () => {
+    render(appAt('/mon-compte', { ...adminLike, role: 'provider', permissions: [] }))
+    expect(await screen.findByText('ACCOUNT PAGE')).toBeInTheDocument()
+    expect(within(screen.getByRole('banner')).getByText(t('nav.account'))).toBeInTheDocument()
+    expect(menuLinks()).toEqual([t('nav.home')])
   })
 
   it('shows not found for an unknown path', () => {

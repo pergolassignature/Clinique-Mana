@@ -18,6 +18,7 @@ const auth = vi.hoisted(() => ({
   signInWithPassword: vi.fn(),
   resetPasswordForEmail: vi.fn(),
   updateUser: vi.fn(),
+  reauthenticate: vi.fn(),
   signOut: vi.fn(),
   getSession: vi.fn(),
 }))
@@ -71,7 +72,7 @@ function renderReady() {
 }
 
 afterEach(() => {
-  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.signOut, auth.getSession, sentry.captureMessage, sentry.captureException]) {
+  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.reauthenticate, auth.signOut, auth.getSession, sentry.captureMessage, sentry.captureException]) {
     fn.mockReset()
   }
   auth.listener = undefined
@@ -285,6 +286,61 @@ describe('error codes', () => {
     auth.updateUser.mockResolvedValue(apiError('boom', 500, 'unexpected_failure'))
     await expect(renderReady().updatePassword('x')).resolves.toBe('unknown')
   })
+
+  it.each([
+    ['email_exists', 'email_exists'],
+    ['email_address_invalid', 'invalid_email'],
+  ] as const)('maps %s for an email change', async (serverCode, code) => {
+    auth.updateUser.mockResolvedValue(apiError('some server message', 422, serverCode))
+    await expect(renderReady().updateEmail('a@mana.test')).resolves.toBe(code)
+  })
+
+  it('maps reauthentication_not_valid (wrong or expired code) to invalid_code', async () => {
+    auth.updateUser.mockResolvedValue(apiError('Requires reauthentication', 400, 'reauthentication_not_valid'))
+    await expect(renderReady().updatePassword('un-long-mot-de-passe', '123456')).resolves.toBe('invalid_code')
+  })
+})
+
+describe('updatePassword', () => {
+  it('sends only the password without a code', async () => {
+    auth.updateUser.mockResolvedValue({ data: {}, error: null })
+    await expect(renderReady().updatePassword('un-long-mot-de-passe')).resolves.toBeNull()
+    expect(auth.updateUser).toHaveBeenCalledExactlyOnceWith({ password: 'un-long-mot-de-passe' })
+  })
+
+  // GoTrue asks for a code (secure_password_change) when the session is older than 24 h.
+  it('passes the reauthentication code as the nonce', async () => {
+    auth.updateUser.mockResolvedValue({ data: {}, error: null })
+    await expect(renderReady().updatePassword('un-long-mot-de-passe', '123456')).resolves.toBeNull()
+    expect(auth.updateUser).toHaveBeenCalledExactlyOnceWith({ password: 'un-long-mot-de-passe', nonce: '123456' })
+  })
+})
+
+describe('sendReauthenticationCode', () => {
+  it('asks GoTrue to email a code', async () => {
+    auth.reauthenticate.mockResolvedValue({ data: { user: null, session: null }, error: null })
+    await expect(renderReady().sendReauthenticationCode()).resolves.toBeNull()
+    expect(auth.reauthenticate).toHaveBeenCalledOnce()
+  })
+
+  // The caller is signed in: no enumeration concern, so the per-email throttle is reported.
+  it('reports the email throttle as rate_limited', async () => {
+    auth.reauthenticate.mockResolvedValue(apiError('For security purposes, you can only request this after 60 seconds.', 429, 'over_email_send_rate_limit'))
+    await expect(renderReady().sendReauthenticationCode()).resolves.toBe('rate_limited')
+  })
+})
+
+describe('updateEmail', () => {
+  it('asks for the change and brings the confirmation links back to « Mon compte »', async () => {
+    auth.updateUser.mockResolvedValue({ data: {}, error: null })
+    await expect(renderReady().updateEmail('nouvelle@mana.test')).resolves.toBeNull()
+    expect(auth.updateUser).toHaveBeenCalledExactlyOnceWith({ email: 'nouvelle@mana.test' }, { emailRedirectTo: `${origin}/mon-compte` })
+  })
+
+  it('reports the email throttle as rate_limited', async () => {
+    auth.updateUser.mockResolvedValue(apiError('For security purposes, you can only request this after 60 seconds.', 429, 'over_email_send_rate_limit'))
+    await expect(renderReady().updateEmail('nouvelle@mana.test')).resolves.toBe('rate_limited')
+  })
 })
 
 describe('updatePassword after a recovery link', () => {
@@ -423,6 +479,79 @@ describe('signOut (this device only)', () => {
   })
 })
 
+describe('signOutEverywhere', () => {
+  function renderSignedIn() {
+    const { latest } = renderAuth()
+    emit('INITIAL_SESSION', session('t1'))
+    return latest
+  }
+
+  async function signOutEverywhere(latest: () => AuthContextValue) {
+    let code: AuthErrorCode | null = null
+    await act(async () => {
+      code = await latest().signOutEverywhere()
+    })
+    return code
+  }
+
+  it('ends every session of the account, then forgets this one like signOut', async () => {
+    auth.signOut.mockResolvedValue({ error: null })
+    const latest = renderSignedIn()
+    emit('PASSWORD_RECOVERY', sessionWithId('s1'))
+    await expect(signOutEverywhere(latest)).resolves.toBeNull()
+    expect(auth.signOut).toHaveBeenCalledExactlyOnceWith({ scope: 'global' })
+    expect(latest().session).toBeNull()
+    expect(latest().signedOutHere).toBe(true)
+    expect(latest().isRecovery).toBe(false)
+    expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull()
+  })
+
+  // auth-js emits SIGNED_OUT during the call: RequireAuth must already know it was explicit (#17).
+  it('flags the explicit sign-out before the server answers', async () => {
+    let finish: (value: { error: null }) => void = () => {}
+    auth.signOut.mockReturnValue(new Promise((resolve) => (finish = resolve)))
+    const latest = renderSignedIn()
+    let pending: Promise<AuthErrorCode | null> = Promise.resolve(null)
+    act(() => {
+      pending = latest().signOutEverywhere()
+    })
+    expect(latest().signedOutHere).toBe(true)
+    await act(async () => {
+      finish({ error: null })
+      await pending
+    })
+    expect(latest().session).toBeNull()
+  })
+
+  // A token refresh during the call emits a session, which resets signedOutHere.
+  it('still flags the explicit sign-out when a refresh happened during the call', async () => {
+    auth.signOut.mockImplementation(async () => {
+      auth.listener?.('TOKEN_REFRESHED', session('t2'))
+      return { error: null }
+    })
+    const latest = renderSignedIn()
+    await expect(signOutEverywhere(latest)).resolves.toBeNull()
+    expect(latest().signedOutHere).toBe(true)
+    expect(latest().session).toBeNull()
+  })
+
+  it.each([
+    ['returns an error', () => auth.signOut.mockResolvedValue(apiError('boom', 500, 'unexpected_failure')), 'unknown', true],
+    ['is throttled', () => auth.signOut.mockResolvedValue(apiError('Request rate limit reached', 429, 'over_request_rate_limit')), 'rate_limited', false],
+    ['throws (offline, lock timeout)', () => auth.signOut.mockRejectedValue(new Error('network')), 'unknown', true],
+  ])('keeps this session and reports the failure when the call %s', async (_label, fail, code, reported) => {
+    fail()
+    const latest = renderSignedIn()
+    await expect(signOutEverywhere(latest)).resolves.toBe(code)
+    expect(auth.signOut).toHaveBeenCalledExactlyOnceWith({ scope: 'global' })
+    expect(latest().session?.access_token).toBe('t1')
+    expect(latest().signedOutHere).toBe(false)
+    // An unexpected failure goes to Sentry; throttling is expected and is not.
+    if (reported) expect(sentry.captureException).toHaveBeenCalledExactlyOnceWith(expect.anything(), { tags: { area: 'auth' } })
+    else expect(sentry.captureException).not.toHaveBeenCalled()
+  })
+})
+
 describe('FR-CA messages', () => {
   // Record<AuthErrorCode, …> fails to compile if a code is added without being listed here.
   const codes: Record<AuthErrorCode, true> = {
@@ -430,6 +559,9 @@ describe('FR-CA messages', () => {
     weak_password: true,
     same_password: true,
     reauthentication_needed: true,
+    invalid_code: true,
+    email_exists: true,
+    invalid_email: true,
     rate_limited: true,
     unknown: true,
   }

@@ -35,12 +35,13 @@ const cardNamed = (key: 'clinic' | 'address' | 'contact') => screen.getByRole('f
 const field = (key: keyof typeof FIELDS) => screen.getByRole('textbox', { name: FIELDS[key] })
 const provinceSelect = () => screen.getByRole('combobox', { name: FIELDS.province })
 
+/** The control of every field label in a card, in document (reading) order. */
+const labelledControlsOf = (form: HTMLElement) =>
+  [...form.querySelectorAll('label')].map((label) => document.getElementById(label.htmlFor) as HTMLElement)
+
 /** The control of every field label in the cards, in document (reading) order. */
 function labelledControls(): HTMLElement[] {
-  return screen
-    .getAllByRole('form')
-    .flatMap((form) => [...form.querySelectorAll('label')])
-    .map((label) => document.getElementById(label.htmlFor) as HTMLElement)
+  return screen.getAllByRole('form').flatMap(labelledControlsOf)
 }
 
 async function edit(element: HTMLElement, value: string) {
@@ -246,7 +247,7 @@ describe('IdentitySettingsPage', () => {
     await userEvent.click(within(cardNamed('clinic')).getByRole('button', { name: t('common.save') }))
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalled())
     expect(field('city')).toHaveValue('Laval')
-    expect(within(cardNamed('address')).getByRole('button', { name: t('common.save') })).toBeEnabled()
+    expect(within(cardNamed('address')).getByRole('button', { name: t('common.save') })).not.toHaveAttribute('aria-disabled')
   })
 
   it('asks before leaving with unsaved changes', async () => {
@@ -256,12 +257,20 @@ describe('IdentitySettingsPage', () => {
     expect(await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })).toBeInTheDocument()
   })
 
-  it("follows the reading order with Tab, card by card (the clean cards' disabled buttons are skipped)", async () => {
+  it("follows the reading order with Tab, card by card (the clean cards' inactive buttons stay in it)", async () => {
     await renderPage()
     // Every labelled control, in the order the cards and fields are read.
     const controls = labelledControls()
     expect(controls.map((c) => c.getAttribute('name'))).toEqual(['name', 'legal_name', 'neq', 'address_line1', 'address_line2', 'city', 'province', 'postal_code', 'phone', 'email', 'website'])
-    const [first, ...rest] = controls
+    // Each card: its fields, then « Annuler » and « Enregistrer ». Inactive while the card is clean,
+    // they are aria-disabled, not disabled, so they keep their place in the tab order (FormActions).
+    const order = screen.getAllByRole('form').flatMap((form) => {
+      const buttons = within(form).getAllByRole('button')
+      expect(buttons.map((b) => b.textContent)).toEqual([t('common.cancel'), t('common.save')])
+      for (const button of buttons) expect(button).toHaveAttribute('aria-disabled', 'true')
+      return [...labelledControlsOf(form), ...buttons]
+    })
+    const [first, ...rest] = order
     first?.focus()
     for (const control of rest) {
       await userEvent.tab()

@@ -19,6 +19,12 @@ function toCode(error: AuthError | null): AuthErrorCode | null {
       return 'same_password'
     case 'reauthentication_needed':
       return 'reauthentication_needed'
+    case 'reauthentication_not_valid':
+      return 'invalid_code'
+    case 'email_exists':
+      return 'email_exists'
+    case 'email_address_invalid':
+      return 'invalid_email'
     case 'over_request_rate_limit':
       return 'rate_limited'
   }
@@ -110,8 +116,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', onStorage)
   }, [])
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
+  const value = useMemo<AuthContextValue>(() => {
+    /** What every sign-out of this tab ends with: no session, no recovery mode. */
+    const forgetSessionState = () => {
+      setRecoveryMarker(null)
+      sessionRef.current = null
+      setSession(null)
+      setIsRecovery(false)
+    }
+
+    return {
       session,
       isLoading,
       isRecovery,
@@ -135,10 +149,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         toNeutralCode(
           (await supabase.auth.resetPasswordForEmail(email, { redirectTo: absolute('/reinitialiser-mot-de-passe') })).error,
         ),
-      updatePassword: async (password) => {
+      updatePassword: async (password, nonce) => {
         // Read before the update: its USER_UPDATED event clears the recovery marker.
         const wasRecovery = isRecoverySession(sessionRef.current)
-        const code = toCode((await supabase.auth.updateUser({ password })).error)
+        const code = toCode((await supabase.auth.updateUser(nonce ? { password, nonce } : { password })).error)
         // A recovery link means the password may be known to someone else: end every other session.
         // Best effort — the new password is already saved, so a failure here is only reported.
         if (!code && wasRecovery) {
@@ -151,6 +165,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         return code
       },
+      sendReauthenticationCode: async () => toCode((await supabase.auth.reauthenticate()).error),
+      updateEmail: async (email) =>
+        toCode((await supabase.auth.updateUser({ email }, { emailRedirectTo: absolute('/mon-compte') })).error),
       // "Se déconnecter" signs out THIS device only, and must always work — reception PCs are shared,
       // so a failed call (offline, server error, lock timeout) must never leave the next person
       // signed in as the previous one. When the server can't be reached, the local session is
@@ -173,15 +190,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           )
           if (stillStored) await forgetLocalSession()
         } finally {
-          setRecoveryMarker(null)
-          sessionRef.current = null
-          setSession(null)
-          setIsRecovery(false)
+          forgetSessionState()
         }
       },
-    }),
-    [session, isLoading, isRecovery, signedOutHere],
-  )
+      // « Se déconnecter de tous les appareils » (« Mon compte », decision #33): revokes every refresh
+      // token of the account. Access tokens already issued elsewhere stay valid until they expire
+      // (jwt_expiry, 1 h). Unlike signOut, a failure keeps this session: forgetting it would hide
+      // that the other devices are still signed in. Note that auth-js reports success, and clears
+      // the session locally, when the server answers 401/403/404: that means « this session is
+      // already gone », not necessarily that every other session was revoked.
+      signOutEverywhere: async () => {
+        // First, as in signOut: auth-js emits SIGNED_OUT before this call returns.
+        setSignedOutHere(true)
+        let failure: unknown = null
+        let code: AuthErrorCode | null
+        try {
+          const { error } = await supabase.auth.signOut({ scope: 'global' })
+          failure = error
+          code = toCode(error)
+        } catch (error) {
+          failure = error
+          code = 'unknown'
+        }
+        if (code) {
+          // Throttling is expected; anything else is worth hearing about.
+          if (code === 'unknown') Sentry.captureException(failure, { tags: { area: 'auth' } })
+          setSignedOutHere(false)
+          return code
+        }
+        // Again: a token refresh during the call emits a session, which resets the flag.
+        setSignedOutHere(true)
+        forgetSessionState()
+        return null
+      },
+    }
+  }, [session, isLoading, isRecovery, signedOutHere])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

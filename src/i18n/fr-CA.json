@@ -93,8 +93,57 @@
       "weak_password": "Ce mot de passe est trop faible. Choisissez-en un plus long ou plus varié.",
       "same_password": "Le nouveau mot de passe doit être différent de l'ancien.",
       "reauthentication_needed": "Pour des raisons de sécurité, reconnectez-vous puis réessayez.",
+      "invalid_code": "Code invalide ou expiré.",
+      "email_exists": "Ce courriel est déjà utilisé par un autre compte.",
+      "invalid_email": "Courriel invalide.",
       "rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
       "unknown": "Une erreur est survenue. Réessayez."
+    }
+  },
+  "account": {
+    "title": "Mon compte",
+    "description": "Votre nom, votre courriel de connexion et votre mot de passe.",
+    "name": {
+      "title": "Nom affiché",
+      "description": "Le nom que vos collègues voient dans l'application.",
+      "label": "Nom affiché",
+      "saved": "Nom mis à jour."
+    },
+    "email": {
+      "title": "Courriel",
+      "description": "Il sert à vous connecter et à recevoir les liens de l'application.",
+      "current": "Courriel actuel",
+      "new": "Nouveau courriel",
+      "same": "C'est déjà votre courriel.",
+      "submit": "Changer le courriel",
+      "submitting": "Envoi…",
+      "pendingTitle": "Changement en attente vers {email}",
+      "pending": "Confirmez le changement dans les deux boîtes : l'ancienne et la nouvelle adresse."
+    },
+    "password": {
+      "title": "Mot de passe",
+      "description": "Au moins 10 caractères, et un mot de passe que vous n'utilisez nulle part ailleurs.",
+      "new": "Nouveau mot de passe",
+      "confirm": "Confirmer le mot de passe",
+      "code": "Code reçu par courriel",
+      "codeHelp": "Pour confirmer qu'il s'agit bien de vous, un code vient d'être envoyé à votre courriel.",
+      "codeRequired": "Entrez le code reçu par courriel.",
+      "resend": "Renvoyer le code",
+      "resent": "Un nouveau code vient d'être envoyé.",
+      "codeRecent": "Un code vous a été envoyé il y a peu : utilisez le plus récent. Pour en recevoir un autre, réessayez dans une minute.",
+      "submit": "Changer le mot de passe",
+      "submitting": "Changement en cours…",
+      "success": "Mot de passe mis à jour."
+    },
+    "sessions": {
+      "title": "Sessions",
+      "description": "Fermez votre session sur tous les appareils où elle est ouverte, y compris celui-ci.",
+      "signOutEverywhere": "Se déconnecter de tous les appareils",
+      "confirmTitle": "Se déconnecter de tous les appareils ?",
+      "confirmBody": "Vous devrez vous reconnecter sur chaque appareil, y compris celui-ci.",
+      "confirm": "Se déconnecter partout",
+      "pending": "Déconnexion…",
+      "failed": "Les autres appareils n'ont pas pu être déconnectés. Votre session reste ouverte ici."
     }
   },
   "access": {
@@ -117,7 +166,8 @@
     "loading": "Chargement",
     "accessError": "Erreur de connexion",
     "accessDenied": "Compte indisponible",
-    "forbidden": "Accès refusé"
+    "forbidden": "Accès refusé",
+    "account": "Mon compte"
   },
   "home": { "title": "Bienvenue", "body": "Les modules s'ajoutent ici au fur et à mesure qu'ils sont activés." },
   "settings": {

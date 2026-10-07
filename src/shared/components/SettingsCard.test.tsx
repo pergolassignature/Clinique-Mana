@@ -42,7 +42,7 @@ describe('SettingsCard', () => {
     render(card({ pending: true }))
     expect(screen.getByRole('form', { name: 'Identité' })).toHaveAttribute('aria-busy', 'true')
     expect(screen.getByRole('group')).toBeEnabled()
-    expect(screen.getByRole('button', { name: t('common.saving') })).toBeDisabled()
+    expect(screen.getByRole('button', { name: t('common.saving') })).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('renders the footer and submits its form', async () => {
@@ -104,5 +104,19 @@ describe('SettingsCard', () => {
       </SettingsCard>,
     )
     expect(screen.getByRole('textbox', { name: 'Ville' })).not.toHaveAttribute('readonly')
+  })
+
+  // A card of actions with no fields (e.g. « Sessions »): a form there would be an empty landmark.
+  it('as a section: a region named after the title, with no form', () => {
+    render(
+      <SettingsCard as="section" title="Sessions" description="Fermez vos sessions." footer={<button type="button">Agir</button>}>
+        <p>Contenu</p>
+      </SettingsCard>,
+    )
+    expect(screen.getByRole('region', { name: 'Sessions' })).toBeInTheDocument()
+    expect(screen.queryByRole('form')).not.toBeInTheDocument()
+    expect(document.querySelector('form, fieldset')).toBeNull()
+    expect(screen.getByText('Contenu')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Agir' })).toBeInTheDocument()
   })
 })

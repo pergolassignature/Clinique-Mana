@@ -4,6 +4,7 @@ import { Home, Settings } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { Forbidden, RequireAccess } from '@/core/access/guards'
+import { AccountPage } from '@/core/account/pages/AccountPage'
 import { resolveEnabledModules } from '@/core/modules/resolve'
 import { SettingsLayout } from '@/core/settings/SettingsLayout'
 import { SETTINGS_BASE_PATH, settingsSectionPath } from '@/core/settings/paths'
@@ -72,6 +73,15 @@ export function AuthenticatedApp() {
         <Routes>
           <Route index element={<Navigate to="/accueil" replace />} />
           <Route path="accueil" element={<HomePage />} />
+          {/* « Mon compte »: outside Paramètres, so every role reaches it (ACCOUNT_PAGE in the shell). */}
+          <Route
+            path="mon-compte"
+            element={
+              <RouteBoundary scope="account">
+                <AccountPage />
+              </RouteBoundary>
+            }
+          />
           {/* SettingsLayout wraps each section in its own RouteBoundary. */}
           <Route
             path="parametres/*"

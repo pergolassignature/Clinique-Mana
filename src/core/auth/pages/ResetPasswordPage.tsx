@@ -1,28 +1,16 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAuth, type AuthErrorCode } from '@/core/auth/auth-context'
+import { newPasswordSchema, type NewPasswordValues } from '@/core/auth/password-schema'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { toast } from '@/shared/ui/sonner'
 import { AuthCard, StatusNotice } from './AuthCard'
-
-const schema = z
-  .object({
-    password: z
-      .string()
-      .min(10, { error: t('auth.reset.tooShort') })
-      // bcrypt (GoTrue) only uses the first 72 bytes; accented letters take two.
-      .refine((v) => new TextEncoder().encode(v).length <= 72, { error: t('auth.reset.tooLong') }),
-    confirm: z.string(),
-  })
-  .refine((v) => v.password === v.confirm, { path: ['confirm'], error: t('auth.reset.mismatch') })
-type Values = z.infer<typeof schema>
 
 /**
  * Lands here from the recovery email. Not under RequireAuth: the guard sends recovery sessions
@@ -36,7 +24,7 @@ export function ResetPasswordPage() {
   // An expired or already used link lands with #error_code=… (auth-js keeps any existing session).
   const linkFailed = new URLSearchParams(hash.slice(1)).has('error_code')
   const [error, setError] = useState<AuthErrorCode | null>(null)
-  const { register, handleSubmit, formState } = useForm<Values>({ resolver: zodResolver(schema) })
+  const { register, handleSubmit, formState } = useForm<NewPasswordValues>({ resolver: zodResolver(newPasswordSchema) })
 
   if (isLoading) return <AuthCard title={t('auth.reset.title')} status={<StatusNotice muted>{t('common.loading')}</StatusNotice>} />
 
@@ -62,7 +50,7 @@ export function ResetPasswordPage() {
   // An ordinary session has nothing to do here.
   if (!isRecovery) return <Navigate to="/accueil" replace />
 
-  const onSubmit = async ({ password }: Values) => {
+  const onSubmit = async ({ password }: NewPasswordValues) => {
     setError(null)
     const code = await updatePassword(password)
     if (code === 'reauthentication_needed') {
