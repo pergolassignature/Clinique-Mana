@@ -1,6 +1,28 @@
 {
   "app": { "name": "Clinique MANA" },
-  "nav": { "label": "Menu principal", "skipToContent": "Aller au contenu", "home": "Accueil", "settings": "Paramètres", "logout": "Se déconnecter" },
+  "nav": {
+    "label": "Menu principal",
+    "skipToContent": "Aller au contenu",
+    "home": "Accueil",
+    "settings": "Paramètres",
+    "logout": "Se déconnecter",
+    "account": "Mon compte",
+    "openMenu": "Ouvrir le menu",
+    "menu": "Menu",
+    "userMenu": "Menu utilisateur",
+    "collapse": "Réduire le menu",
+    "expand": "Agrandir le menu",
+    "breadcrumb": "Fil d'Ariane",
+    "search": "Rechercher…",
+    "searchLabel": "Rechercher une page",
+    "palette": {
+      "title": "Aller à une page",
+      "placeholder": "Rechercher une page…",
+      "empty": "Aucun résultat.",
+      "pages": "Pages",
+      "escape": "Échap"
+    }
+  },
   "common": {
     "loading": "Chargement…",
     "retry": "Réessayer",

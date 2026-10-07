@@ -1,33 +1,78 @@
-import { useState, type MouseEvent, type ReactNode } from 'react'
-import { NavLink } from 'react-router-dom'
-import { LogOut, type LucideIcon } from 'lucide-react'
-import { t, type TranslationKey } from '@/i18n'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { UserRound } from 'lucide-react'
+import { t } from '@/i18n'
 import { useAuth } from '@/core/auth/auth-context'
-import { useReadyAccess } from '@/core/access/access-context'
+import { useConfirmLeave } from '@/shared/lib/unsaved-changes-context'
 import { cn } from '@/shared/lib/utils'
-import { focusRing } from '@/shared/ui/field-classes'
+import { Sheet, SheetContent, SheetTitle } from '@/shared/ui/sheet'
+import { CommandPalette, type PalettePage } from './shell/CommandPalette'
+import { ACCOUNT_PAGE, resolveShellTitle, type ShellNavItem } from './shell/shell-pages'
+import { SidebarContent } from './shell/SidebarContent'
+import { Topbar } from './shell/Topbar'
+import { useSidebarCollapsed } from './shell/use-sidebar-collapsed'
 
-export interface ShellNavItem {
-  /** Absolute link target, e.g. '/professionnels'. */
-  path: string
-  labelKey: TranslationKey
-  icon: LucideIcon
-}
+export type { ShellNavItem, ShellPage } from './shell/shell-pages'
 
 const MAIN_ID = 'contenu'
 
-/** Deliberately minimal: the visual redesign is its own task. */
+/**
+ * The signed-in layout (design system « Ossature »): sidebar 220 px (56 collapsed, remembered),
+ * a 48 px topbar with the breadcrumb, ⌘K page search and the user menu, and the page (padding 24,
+ * content max 1120). Below md the sidebar becomes a sheet opened from the topbar.
+ * Every way of leaving the page goes through the unsaved-changes guard (Task 2.3).
+ */
 export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; children: ReactNode }) {
   const { signOut } = useAuth()
-  const { org_name, display_name } = useReadyAccess()
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const confirmLeave = useConfirmLeave()
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed()
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
 
-  // signOut() always forgets this device's session. RequireAuth then sends this tab to plain
-  // /connexion, and AccessProvider clears the query cache: no navigation here.
-  const handleSignOut = () => {
+  // signOut() always forgets this device's session (decision #13). RequireAuth then sends this tab
+  // to plain /connexion (#17), and AccessProvider clears the query cache (#10): no navigation here.
+  const handleSignOut = useCallback(() => {
+    if (signingOut) return
     setSigningOut(true)
     void signOut()
-  }
+  }, [signingOut, signOut])
+
+  const goTo = useCallback(
+    (path: string) => {
+      // Like GuardedNavLink: the current page is not left, so nothing to confirm or push.
+      if (path === pathname) return
+      confirmLeave(() => navigate(path))
+    },
+    [pathname, confirmLeave, navigate],
+  )
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault() // Ctrl+K is the browser's search shortcut on Windows and Linux
+        setPaletteOpen((open) => !open)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  // The sheet is the phone layout only: leaving it open while the window widens would leave its overlay.
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const desktop = window.matchMedia('(min-width: 768px)')
+    const onChange = () => {
+      if (desktop.matches) setMobileOpen(false)
+    }
+    desktop.addEventListener('change', onChange)
+    return () => desktop.removeEventListener('change', onChange)
+  }, [])
+
+  const title = useMemo(() => resolveShellTitle(pathname, navItems), [pathname, navItems])
+  const palettePages = useMemo<PalettePage[]>(() => [...navItems, { ...ACCOUNT_PAGE, icon: UserRound }], [navItems])
 
   // Focus the main region directly: a plain #hash change would also reach the router.
   const skipToContent = (e: MouseEvent<HTMLAnchorElement>) => {
@@ -36,7 +81,7 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background md:flex-row">
+    <div className="flex min-h-dvh bg-background">
       <a
         href={`#${MAIN_ID}`}
         onClick={skipToContent}
@@ -44,45 +89,55 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
       >
         {t('nav.skipToContent')}
       </a>
-      <header className="flex shrink-0 flex-col border-b border-border bg-sidebar md:sticky md:top-0 md:h-screen md:w-60 md:border-b-0">
-        <div className="px-4 py-3 text-sm font-semibold text-foreground">{org_name || t('app.name')}</div>
-        <nav aria-label={t('nav.label')} className="flex gap-px overflow-x-auto px-2 pb-2 md:flex-1 md:flex-col md:overflow-y-auto">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                cn(
-                  `group flex items-center gap-2.5 whitespace-nowrap rounded-md px-2 py-1.5 text-sm transition-colors duration-120 ${focusRing}`,
-                  isActive
-                    ? 'bg-card font-medium text-foreground ring-1 ring-border'
-                    : 'text-muted-foreground hover:bg-ink/5 hover:text-foreground',
-                )
-              }
-            >
-              <item.icon className="h-4 w-4 text-subtle group-aria-[current=page]:text-foreground" aria-hidden />
-              {t(item.labelKey)}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="flex items-center justify-between gap-2 border-t border-border px-2 py-2 md:block md:border-t-0">
-          <p className="truncate px-2 text-sm font-medium text-foreground" title={display_name}>
-            {display_name}
-          </p>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            disabled={signingOut}
-            className={`flex shrink-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors duration-120 hover:bg-ink/5 hover:text-foreground ${focusRing} disabled:opacity-50 md:mt-1 md:w-full`}
-          >
-            <LogOut className="h-4 w-4 text-subtle" aria-hidden />
-            {t('nav.logout')}
-          </button>
-        </div>
+
+      <header
+        data-collapsed={collapsed}
+        className={cn(
+          'sticky top-0 hidden h-dvh shrink-0 flex-col bg-sidebar px-2 transition-[width] duration-160 motion-reduce:transition-none md:flex',
+          collapsed ? 'w-14' : 'w-[220px]',
+        )}
+      >
+        <SidebarContent navItems={navItems} collapsed={collapsed} signingOut={signingOut} onSignOut={handleSignOut} />
       </header>
-      <main id={MAIN_ID} tabIndex={-1} className="min-w-0 flex-1 p-4 outline-none md:p-6">
-        {children}
-      </main>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Topbar
+          title={title}
+          collapsed={collapsed}
+          onToggleCollapsed={toggleCollapsed}
+          onOpenMenu={() => setMobileOpen(true)}
+          onOpenPalette={() => setPaletteOpen(true)}
+          onOpenAccount={() => goTo(ACCOUNT_PAGE.path)}
+          signingOut={signingOut}
+          onSignOut={handleSignOut}
+        />
+        <main id={MAIN_ID} tabIndex={-1} className="min-w-0 flex-1 p-4 outline-none md:p-6">
+          <div className="mx-auto w-full max-w-content">{children}</div>
+        </main>
+      </div>
+
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" aria-describedby={undefined} className="w-[260px] max-w-[85vw] bg-sidebar px-2">
+          <SheetTitle className="sr-only">{t('nav.menu')}</SheetTitle>
+          <SidebarContent
+            navItems={navItems}
+            collapsed={false}
+            signingOut={signingOut}
+            onSignOut={handleSignOut}
+            onNavigate={() => setMobileOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
+
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        pages={palettePages}
+        onSelect={(path) => {
+          setPaletteOpen(false)
+          goTo(path)
+        }}
+      />
     </div>
   )
 }

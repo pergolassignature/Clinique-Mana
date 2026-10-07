@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatPhone, formatPostalCode, formatRate, parsePhone, parseRate } from './format'
+import { formatPhone, formatPostalCode, formatRate, initialsOf, parsePhone, parseRate } from './format'
 
 // French typography puts a no-break space before « % ». Engines differ on which one Intl emits
 // (U+00A0 or the narrow U+202F), so the assertions compare with every space made regular.
@@ -106,5 +106,23 @@ describe('parseRate', () => {
 
   it.each([[0.09975], [0.099751], [0.05], [0.000001]])('round-trips %d with formatRate', (rate) => {
     expect(parseRate(formatRate(rate))).toBe(rate)
+  })
+})
+
+describe('initialsOf', () => {
+  it('takes the first letter of the first two words', () => {
+    expect(initialsOf('Camille Tremblay')).toBe('CT')
+    expect(initialsOf('Marie-Ève de la Fontaine')).toBe('MD')
+  })
+
+  it('upper-cases accented letters and keeps a single word', () => {
+    expect(initialsOf('élise')).toBe('É')
+    expect(initialsOf('  émile   ouellet ')).toBe('ÉO')
+  })
+
+  it('shows a question mark for a missing name', () => {
+    expect(initialsOf('')).toBe('?')
+    expect(initialsOf('   ')).toBe('?')
+    expect(initialsOf(null)).toBe('?')
   })
 })

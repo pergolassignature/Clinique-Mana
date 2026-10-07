@@ -71,3 +71,17 @@ export function parseRate(input: string): number | null {
   // by a power of ten so the result is the closest double to the decimal value (0.09975, not 0.09975000000000001).
   return Math.round(percent * 1e4) / 1e6
 }
+
+/**
+ * Avatar initials: the first letter of the first two words, upper-cased (`Marie-Ève Tremblay` → `MT`).
+ * Letters outside the BMP count as one; an empty name shows `?`.
+ */
+export function initialsOf(name: string | null | undefined): string {
+  const letters = (name ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => Array.from(word)[0])
+  return letters.length > 0 ? letters.join('').toLocaleUpperCase('fr-CA') : '?'
+}

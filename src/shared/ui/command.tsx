@@ -20,8 +20,11 @@ Command.displayName = CommandPrimitive.displayName
 
 const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
-  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & {
+    /** Shown at the end of the input row, e.g. a « Échap » key hint. */
+    trailing?: React.ReactNode
+  }
+>(({ className, trailing, ...props }, ref) => (
   <div className="flex items-center gap-2 border-b border-border px-3 focus-within:border-primary" cmdk-input-wrapper="">
     <Search className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
     <CommandPrimitive.Input
@@ -32,6 +35,7 @@ const CommandInput = React.forwardRef<
       )}
       {...props}
     />
+    {trailing}
   </div>
 ))
 CommandInput.displayName = CommandPrimitive.Input.displayName
