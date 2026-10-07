@@ -20,6 +20,7 @@ const MESSAGES = {
   phone: 'Numéro à 10 chiffres.',
   https: "L'adresse doit commencer par https://",
   email: 'Courriel invalide.',
+  controlChar: 'Caractère invalide.',
   retention: 'Entre 1 et 50 ans.',
   timezone: 'Choisissez un fuseau horaire.',
 } as const
@@ -35,6 +36,12 @@ const POSTAL_CODE = /^[A-Z][0-9][A-Z] [0-9][A-Z][0-9]$/
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 const HTTPS_URL = /^https:\/\/\S+$/
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i
+/**
+ * C0 and C1 control characters. JS `\s` misses U+001C–U+001F and U+0085, which the database (ICU)
+ * treats as whitespace, so the email and URL patterns would accept what the SQL check refuses.
+ */
+// eslint-disable-next-line no-control-regex -- matching control characters is the point
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/
 
 const emptyToNull = <T>(v: T | '') => (v === '' ? null : v)
 
@@ -49,8 +56,8 @@ const optionalPattern = (pattern: RegExp, message: string, normalize: (v: string
     .refine((v) => v === '' || pattern.test(v), { error: message })
     .transform(emptyToNull)
 
-/** `12 34-5 rt` → `12345RT`: tax and enterprise numbers are typed with spaces and dashes. */
-const compactUpper = (v: string) => v.replace(/[\s-]/g, '').toUpperCase()
+/** `12 34-5 rt` → `12345RT`: tax and enterprise numbers are typed or pasted with spaces and dashes (-, –, —). */
+const compactUpper = (v: string) => v.replace(/[\s\-\u2013\u2014]/g, '').toUpperCase()
 
 /** Lowercases the scheme, and adds `https://` when there is none (`www.x.ca` → `https://www.x.ca`). */
 function normalizeUrl(v: string): string {
@@ -59,8 +66,12 @@ function normalizeUrl(v: string): string {
   return scheme ? scheme[0].toLowerCase() + v.slice(scheme[0].length) : `https://${v}`
 }
 
-const optionalEmail = () => optionalPattern(EMAIL, MESSAGES.email)
-const optionalHttpsUrl = () => optionalPattern(HTTPS_URL, MESSAGES.https, normalizeUrl)
+/** Refuses control characters first (abort: no second, misleading format message), then checks the pattern. */
+const withoutControlChars = <T extends z.ZodType<unknown, string>>(schema: T) =>
+  z.string().refine((v) => !CONTROL_CHARS.test(v), { error: MESSAGES.controlChar, abort: true }).pipe(schema)
+
+const optionalEmail = () => withoutControlChars(optionalPattern(EMAIL, MESSAGES.email))
+const optionalHttpsUrl = () => withoutControlChars(optionalPattern(HTTPS_URL, MESSAGES.https, normalizeUrl))
 const str = (v: string | null) => v ?? ''
 
 // --- Identité légale: « Clinique » ---------------------------------------------------------------
@@ -170,7 +181,7 @@ export function toPrivacyFormValues(org: Organization): z.input<typeof privacySc
 
 /** The database checks the zone itself (`validate_org_timezone`); the picker only offers known zones. */
 export const regionSchema = z.object({
-  timezone: z.string().min(1, { error: MESSAGES.timezone }),
+  timezone: z.string().trim().min(1, { error: MESSAGES.timezone }),
 })
 
 export function toRegionFormValues(org: Organization): z.input<typeof regionSchema> {

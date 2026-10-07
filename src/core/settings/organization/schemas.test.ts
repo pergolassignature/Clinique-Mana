@@ -87,6 +87,10 @@ describe('clinicSchema', () => {
     })
   })
 
+  it('also strips en and em dashes from the NEQ (pasted from a document)', () => {
+    expect(clinicSchema.parse({ ...valid, neq: '1234\u2013567\u2014890' }).neq).toBe('1234567890')
+  })
+
   it('turns empty or blank optional values into null', () => {
     expect(clinicSchema.parse({ name: 'Clinique MANA', legal_name: ' \t\n', neq: '' })).toEqual({
       name: 'Clinique MANA',
@@ -180,11 +184,29 @@ describe('contactSchema', () => {
   it.each(['http://x.ca', 'HTTP://x.ca', 'ftp://x.ca', 'https://x .ca'])('refuses the website %s', (website) => {
     expect(errorOf(contactSchema, { ...valid, website }, 'website')).toBe("L'adresse doit commencer par https://")
   })
+
+  // JS \s misses these, but the database (ICU) treats them as whitespace: they would only fail later, as a 23514.
+  it.each([
+    ['chr(31)', '\u001f'],
+    ['U+0085', '\u0085'],
+    ['DEL', '\u007f'],
+  ])('refuses a control character (%s) in the email and the website', (_name, char) => {
+    expect(errorOf(contactSchema, { ...valid, email: `info${char}@cliniquemana.com` }, 'email')).toBe('Caractère invalide.')
+    expect(errorOf(contactSchema, { ...valid, email: `info@cliniquemana.com${char}` }, 'email')).toBe('Caractère invalide.')
+    expect(errorOf(contactSchema, { ...valid, website: `https://clinique${char}mana.com` }, 'website')).toBe('Caractère invalide.')
+  })
 })
 
 describe('taxNumbersSchema', () => {
   it('strips spaces and dashes and uppercases', () => {
     expect(taxNumbersSchema.parse({ gst_number: ' 123456789 rt 0001 ', qst_number: '1234567890-tq-0001' })).toEqual({
+      gst_number: '123456789RT0001',
+      qst_number: '1234567890TQ0001',
+    })
+  })
+
+  it('also strips en and em dashes', () => {
+    expect(taxNumbersSchema.parse({ gst_number: '123456789\u2013RT\u20130001', qst_number: '1234567890\u2014TQ\u20140001' })).toEqual({
       gst_number: '123456789RT0001',
       qst_number: '1234567890TQ0001',
     })
@@ -248,6 +270,14 @@ describe('privacySchema', () => {
     expect(errorOf(privacySchema, { ...valid, privacy_policy_url: 'http://x.ca' }, 'privacy_policy_url')).toBe("L'adresse doit commencer par https://")
   })
 
+  it.each([
+    ['chr(31)', '\u001f'],
+    ['U+0085', '\u0085'],
+  ])('refuses a control character (%s) in the email and the policy URL', (_name, char) => {
+    expect(errorOf(privacySchema, { ...valid, privacy_officer_email: `julie${char}@x.ca` }, 'privacy_officer_email')).toBe('Caractère invalide.')
+    expect(errorOf(privacySchema, { ...valid, privacy_policy_url: `https://x.ca/${char}` }, 'privacy_policy_url')).toBe('Caractère invalide.')
+  })
+
   it.each(['1', '50'])('accepts a retention of %s years', (years) => {
     expect(privacySchema.parse({ ...valid, record_retention_years: years }).record_retention_years).toBe(Number(years))
   })
@@ -261,6 +291,7 @@ describe('regionSchema', () => {
   it('requires a timezone', () => {
     expect(regionSchema.parse({ timezone: 'America/Toronto' })).toEqual({ timezone: 'America/Toronto' })
     expect(errorOf(regionSchema, { timezone: '' }, 'timezone')).toBe('Choisissez un fuseau horaire.')
+    expect(errorOf(regionSchema, { timezone: ' ' }, 'timezone')).toBe('Choisissez un fuseau horaire.')
   })
 })
 
