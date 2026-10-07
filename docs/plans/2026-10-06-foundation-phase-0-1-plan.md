@@ -134,6 +134,27 @@ These amendments come from the reviews of Batches A/B and the core schema design
   - it checks `status === 'active'` defensively before checking `permissions`.
 - **Task 1.21 — staging Auth → URL configuration** must allow `https://<staging-domain>/reinitialiser-mot-de-passe` and `https://<staging-domain>/**`. Otherwise recovery links fall back to `site_url`. The `isRecovery` redirect mitigates that, but it should still be configured.
 
+### A5. Changes from the Batch E quality review (Tasks 1.14–1.15 as built)
+
+- **As built in 1.14/1.15** (for reference by later tasks):
+  - `RouteBoundary` lives in `@/shared/components/RouteBoundary` (props `scope`, `compact?`, `children`), not `src/app/`.
+  - `SettingsLayout` takes `basePath` (default `'/parametres'`), builds absolute menu links, and wraps **each section** in its own `RouteBoundary` (scope `settings:<id>`, or `settings:<moduleKey>:<id>` when `SettingsSection.moduleKey` is set) with a `role="status"` Suspense fallback.
+  - `FullPageMessage` takes `headingLevel?: 1 | 2` and `compact?`; use 2 + compact under an existing page title.
+  - `useSetModuleEnabled` shows the success/error toasts itself (mutation options), so callers call `mutate({ key, enabled })` without callbacks.
+  - User-facing RPC errors go through an allow-list (`src/core/modules/errors.ts`): `P0001` shows the SQL message, `42501` a French « permission » text, anything else a generic message plus Sentry. User-facing SQL messages use `errcode = 'P0001'`, are in French and name modules by `name`, not key (`docs/standards/database-conventions.md` §6).
+- **Task 1.17:**
+  - The module key is `'professionals'`.
+  - Rename the i18n namespace `modules.professionnels.*` to `modules.professionals.*` and update `fr-CA.json`.
+  - The folder is `src/modules/professionals/`.
+  - The route path stays `professionnels`.
+- **Task 1.18:**
+  - Import `RouteBoundary` from `@/shared/components/RouteBoundary` (do not create `src/app/RouteBoundary.tsx`).
+  - The settings route is only `<RequireAccess permission="settings.view"><SettingsLayout sections={…} /></RequireAccess>`: the per-section boundaries live inside `SettingsLayout`, so there is no outer `RouteBoundary`.
+  - Module routes are wrapped in `RouteBoundary` (scope = module key).
+  - Enabled keys come from `useReadyAccess().modules`; `can` comes from `useAccess()`.
+  - Add a test that `ALL_MODULES` contains the key `'professionals'` and that settings section ids are unique across core and all modules.
+  - Whatever `future` flags `App.tsx` passes to the router must be mirrored in `renderWithContexts` (`src/test/contexts.tsx`), so relative `Navigate`/`NavLink` resolution in tests matches the app.
+
 ---
 
 ## Phase 0 — Preparation
