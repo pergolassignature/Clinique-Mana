@@ -57,6 +57,33 @@ double_confirm_changes = true
 secure_password_change = true
 enable_confirmations = false
 
+# Auth email templates, in French with the clinic's identity (supabase/templates/).
+# Staging/production: paste the same subject + HTML in Dashboard → Authentication → Emails
+# → Templates (config.toml is not pushed to remote projects). Keep both in sync.
+[auth.email.template.recovery]
+subject = "Choisissez un nouveau mot de passe · Clinique MANA"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Votre lien de connexion · Clinique MANA"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.invite]
+subject = "Votre accès à l'espace Clinique MANA"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.confirmation]
+subject = "Confirmez votre adresse courriel · Clinique MANA"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.email_change]
+subject = "Confirmez le changement d'adresse courriel · Clinique MANA"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.reauthentication]
+subject = "Votre code de vérification · Clinique MANA"
+content_path = "./supabase/templates/reauthentication.html"
+
 [auth.sms]
 enable_signup = false
 enable_confirmations = false
