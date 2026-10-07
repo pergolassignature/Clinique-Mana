@@ -28,11 +28,14 @@ describe('parsePhone', () => {
     ['514.555.1234', '+15145551234'],
     ['+1 514-555-1234', '+15145551234'],
     ['5145551234', '+15145551234'],
+    ['514\u2013555\u20131234', '+15145551234'], // en dash
+    ['514\u2014555\u20141234', '+15145551234'], // em dash
+    ['+15145551234', '+15145551234'],
   ])('turns %j into E.164', (input, expected) => {
     expect(parsePhone(input)).toBe(expected)
   })
 
-  it.each([['555-1234'], [''], ['   '], ['2 514 555 1234'], ['514 555 12345'], ['514-555-abcd'], ['514 555 1234 poste 12']])(
+  it.each([['555-1234'], [''], ['   '], ['2 514 555 1234'], ['514 555 12345'], ['514-555-abcd'], ['514 555 1234 poste 12'], ['+65 6123 4567'], ['+514 555 1234']])(
     'rejects %j',
     (input) => {
       expect(parsePhone(input)).toBeNull()
@@ -69,6 +72,7 @@ describe('formatRate', () => {
     expect(plainSpaces(formatRate(0.05))).toBe('5 %')
     expect(plainSpaces(formatRate(0.15))).toBe('15 %')
     expect(plainSpaces(formatRate(0))).toBe('0 %')
+    expect(plainSpaces(formatRate(0.099751))).toBe('9,9751 %') // the 4 decimals a stored rate can have, in percent
   })
 
   it('keeps « % » on the same line as the number', () => {
@@ -100,7 +104,7 @@ describe('parseRate', () => {
     expect(parseRate(input)).toBeNull()
   })
 
-  it('round-trips with formatRate', () => {
-    expect(parseRate(formatRate(0.09975))).toBe(0.09975)
+  it.each([[0.09975], [0.099751], [0.05], [0.000001]])('round-trips %d with formatRate', (rate) => {
+    expect(parseRate(formatRate(rate))).toBe(rate)
   })
 })

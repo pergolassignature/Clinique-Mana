@@ -8,8 +8,11 @@
  */
 
 const PHONE_E164 = /^\+1(\d{3})(\d{3})(\d{4})$/
-/** Digits plus the separators people type in a phone number; anything else (letters, « poste ») is refused. */
-const PHONE_INPUT = /^\+?[\d\s().-]+$/
+/**
+ * Digits plus the separators people type or paste in a phone number (spaces, brackets, dots,
+ * hyphens, en and em dashes); anything else (letters, « poste ») is refused.
+ */
+const PHONE_INPUT = /^\+?[\d\s().\-\u2013\u2014]+$/
 
 /** `+15145551234` → `514 555-1234`; a missing number shows as `''`, an unrecognised one as is. */
 export function formatPhone(value: string | null | undefined): string {
@@ -18,11 +21,15 @@ export function formatPhone(value: string | null | undefined): string {
   return match ? `${match[1]} ${match[2]}-${match[3]}` : value
 }
 
-/** A typed North American number (10 digits, optionally led by 1) → E.164, or `null` when invalid. */
+/**
+ * A typed North American number (10 digits, optionally led by 1) → E.164, or `null` when invalid.
+ * With a leading `+` the country code is explicit, so it must be `+1` and 11 digits (`+65 6123 4567` is refused).
+ */
 export function parsePhone(input: string): string | null {
   const trimmed = input.trim()
   if (!PHONE_INPUT.test(trimmed)) return null
   const digits = trimmed.replace(/\D/g, '')
+  if (trimmed.startsWith('+')) return digits.length === 11 && digits.startsWith('1') ? `+${digits}` : null
   if (digits.length === 10) return `+1${digits}`
   if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
   return null
@@ -35,7 +42,8 @@ export function formatPostalCode(value: string | null | undefined): string {
   return compact.length === 6 ? `${compact.slice(0, 3)} ${compact.slice(3)}` : compact
 }
 
-const percentNumber = new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 3 })
+// 4 decimals in percent = the 6 a stored rate can have (numeric(7, 6)), so every stored rate round-trips.
+const percentNumber = new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 4 })
 
 /**
  * `0.09975` → `9,975 %`: French decimal comma, no trailing zeros.

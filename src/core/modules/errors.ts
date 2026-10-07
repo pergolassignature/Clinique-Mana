@@ -12,8 +12,10 @@ import { t } from '@/i18n'
  * - `42501` (permission refused): the UI hides what the user cannot do, so it only follows a
  *   permission change or a bypass;
  * - `23514` (check violation): the client validates first, so it only follows a bypassed form.
+ *
+ * `area` tags the Sentry report (e.g. `'settings'`).
  */
-export function moduleErrorMessage(error: unknown, fallback: string): string {
+export function moduleErrorMessage(error: unknown, fallback: string, area = 'modules'): string {
   const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
   const message = typeof error === 'object' && error !== null && 'message' in error ? error.message : undefined
 
@@ -21,6 +23,6 @@ export function moduleErrorMessage(error: unknown, fallback: string): string {
   if (code === '42501') return t('common.errors.forbidden')
   if (code === '23514') return t('common.errors.invalidValue')
 
-  Sentry.captureException(error, { tags: { area: 'modules' } })
+  Sentry.captureException(error, { tags: { area } })
   return fallback
 }

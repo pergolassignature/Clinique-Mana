@@ -43,6 +43,14 @@ describe('moduleErrorMessage', () => {
     expect(mocks.captureException).toHaveBeenCalledWith(error, expect.anything())
   })
 
+  it('tags the Sentry report with the area, modules by default', () => {
+    const error = pgError('57014', 'canceling statement due to statement timeout')
+    moduleErrorMessage(error, FALLBACK)
+    expect(mocks.captureException).toHaveBeenLastCalledWith(error, { tags: { area: 'modules' } })
+    moduleErrorMessage(error, FALLBACK, 'settings')
+    expect(mocks.captureException).toHaveBeenLastCalledWith(error, { tags: { area: 'settings' } })
+  })
+
   it('falls back for network errors (empty code)', () => {
     expect(moduleErrorMessage(pgError('', 'TypeError: Failed to fetch'), FALLBACK)).toBe(FALLBACK)
   })
