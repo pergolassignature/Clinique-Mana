@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Session } from '@supabase/supabase-js'
 import { t } from '@/i18n'
+import type { Access } from '@/core/access/access'
 import { accessKeys } from '@/core/access/access-context'
 import type { AuthContextValue } from '@/core/auth/auth-context'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
@@ -25,6 +26,9 @@ afterEach(() => vi.resetAllMocks())
 const session = (user: Partial<Session['user']> = {}) =>
   ({ access_token: 't1', user: { id: 'u1', email: 'adjointe@mana.test', ...user } }) as Session
 
+/** Matches a label that starts with `text` (the required marker follows), taken literally. */
+const label = (text: string) => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
+
 /** A probe that leaves the page through the unsaved-changes guard. */
 function LeaveButton() {
   const confirmLeave = useConfirmLeave()
@@ -35,47 +39,57 @@ function LeaveButton() {
   )
 }
 
+const baseAccess: Access = { ...testAccess, display_name: 'Camille Tremblay' }
+
 function renderPage(auth: Partial<AuthContextValue> = {}) {
   const current = auth.session ?? session()
   // By default the server agrees with the stored session.
   if (!mocks.fetchAuthUser.getMockImplementation()) mocks.fetchAuthUser.mockImplementation(async () => current.user)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-  render(
+  const ui = (access: Access) => (
     <QueryClientProvider client={queryClient}>
       {renderWithContexts(
         <UnsavedChangesProvider>
           <AccountPage />
           <LeaveButton />
         </UnsavedChangesProvider>,
-        { auth: { ...auth, session: current }, access: { access: { ...testAccess, display_name: 'Camille Tremblay' } } },
+        { auth: { ...auth, session: current }, access: { access } },
       )}
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
-  return { invalidate }
+  const view = render(ui(baseAccess))
+  return { invalidate, rerenderWithAccess: (access: Access) => view.rerender(ui(access)) }
 }
 
 const card = (title: string) => screen.getByRole('form', { name: title })
+const inactive = (button: HTMLElement) => expect(button).toHaveAttribute('aria-disabled', 'true')
 
 describe('AccountPage', () => {
   it('is titled « Mon compte » (page heading and browser tab) and shows the four cards', () => {
     renderPage()
     expect(screen.getByRole('heading', { level: 1, name: t('account.title') })).toBeInTheDocument()
     expect(document.title).toContain(t('pageTitles.account'))
-    for (const title of [t('account.name.title'), t('account.email.title'), t('account.password.title'), t('account.sessions.title')]) {
+    for (const title of [t('account.name.title'), t('account.email.title'), t('account.password.title')]) {
       expect(card(title)).toBeInTheDocument()
     }
+    // No fields: a region, not a form.
+    expect(screen.getByRole('region', { name: t('account.sessions.title') })).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: t('account.sessions.title') })).not.toBeInTheDocument()
   })
 })
 
 describe('« Nom affiché »', () => {
-  const nameField = () => within(card(t('account.name.title'))).getByLabelText(new RegExp(t('account.name.label')))
-  const save = () => within(card(t('account.name.title'))).getByRole('button', { name: t('common.save') })
+  const nameCard = () => card(t('account.name.title'))
+  const nameField = () => within(nameCard()).getByLabelText(label(t('account.name.label')))
+  const save = () => within(nameCard()).getByRole('button', { name: t('common.save') })
+  const cancel = () => within(nameCard()).getByRole('button', { name: t('common.cancel') })
 
-  it('starts from the current name, with the save button disabled until something changes', () => {
+  it('starts from the current name, with the buttons inactive until something changes', () => {
     renderPage()
     expect(nameField()).toHaveValue('Camille Tremblay')
-    expect(save()).toBeDisabled()
+    inactive(save())
+    inactive(cancel())
   })
 
   it('requires a name', async () => {
@@ -96,7 +110,7 @@ describe('« Nom affiché »', () => {
     expect(mocks.updateDisplayName).not.toHaveBeenCalled()
   })
 
-  it('saves the trimmed name, refreshes access (the shell shows it) and disarms the guard', async () => {
+  it('saves the trimmed name, refreshes access (the shell shows it), keeps focus on the button and disarms the guard', async () => {
     mocks.updateDisplayName.mockResolvedValue(undefined)
     const { invalidate } = renderPage()
     await userEvent.clear(nameField())
@@ -105,23 +119,34 @@ describe('« Nom affiché »', () => {
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('account.name.saved')))
     expect(mocks.updateDisplayName).toHaveBeenCalledWith('u1', 'Camille T.')
     expect(invalidate).toHaveBeenCalledWith({ queryKey: accessKeys.all })
-    await waitFor(() => expect(save()).toBeDisabled())
+    await waitFor(() => inactive(save()))
+    expect(save()).toHaveFocus()
     await userEvent.click(screen.getByRole('button', { name: 'LEAVE' }))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
-  it('« Annuler » puts the saved name back and disarms the guard', async () => {
+  it('« Annuler » puts the saved name back, returns focus to the field and disarms the guard', async () => {
     renderPage()
-    const cancel = within(card(t('account.name.title'))).getByRole('button', { name: t('common.cancel') })
-    expect(cancel).toBeDisabled()
     await userEvent.type(nameField(), ' bis')
-    await userEvent.click(cancel)
+    await userEvent.click(cancel())
     expect(nameField()).toHaveValue('Camille Tremblay')
-    expect(cancel).toBeDisabled()
-    expect(save()).toBeDisabled()
+    expect(nameField()).toHaveFocus()
+    inactive(cancel())
+    inactive(save())
     await userEvent.click(screen.getByRole('button', { name: 'LEAVE' }))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(mocks.updateDisplayName).not.toHaveBeenCalled()
+  })
+
+  // e.g. the access payload refetched on window focus while typing.
+  it('keeps what is being typed when the saved name changes underneath', async () => {
+    const { rerenderWithAccess } = renderPage()
+    await userEvent.clear(nameField())
+    await userEvent.type(nameField(), 'Camille en cours')
+    rerenderWithAccess({ ...baseAccess, display_name: 'Renommée ailleurs' })
+    expect(nameField()).toHaveValue('Camille en cours')
+    await userEvent.click(cancel())
+    expect(nameField()).toHaveValue('Renommée ailleurs')
   })
 
   it('registers unsaved edits with the guard', async () => {
@@ -134,12 +159,19 @@ describe('« Nom affiché »', () => {
 
 describe('« Courriel »', () => {
   const emailCard = () => card(t('account.email.title'))
-  const newEmail = () => within(emailCard()).getByLabelText(new RegExp(t('account.email.new')))
+  const newEmail = () => within(emailCard()).getByLabelText(label(t('account.email.new')))
   const submit = () => within(emailCard()).getByRole('button', { name: t('account.email.submit') })
+  const status = () => within(emailCard()).getByRole('status')
 
   it('shows the current email', () => {
     renderPage()
     expect(within(emailCard()).getByText('adjointe@mana.test')).toBeInTheDocument()
+  })
+
+  // The live region exists before the notice, so screen readers announce it when it appears.
+  it('has an empty status region while no change is pending', () => {
+    renderPage()
+    expect(status()).toBeEmptyDOMElement()
   })
 
   // Confirmed on another device: the stored session still has the old user until its next refresh.
@@ -148,7 +180,7 @@ describe('« Courriel »', () => {
     renderPage({ session: session({ new_email: 'nouvelle@mana.test' }) })
     expect(await within(emailCard()).findByText('nouvelle@mana.test')).toBeInTheDocument()
     expect(within(emailCard()).queryByText('adjointe@mana.test')).not.toBeInTheDocument()
-    expect(within(emailCard()).queryByText(t('account.email.pending'))).not.toBeInTheDocument()
+    expect(status()).toBeEmptyDOMElement()
   })
 
   it.each([
@@ -164,22 +196,30 @@ describe('« Courriel »', () => {
     expect(updateEmail).not.toHaveBeenCalled()
   })
 
-  it('requests the change and asks to confirm in both mailboxes', async () => {
+  it('requests the change and announces, in the status region, to confirm in both mailboxes', async () => {
     const updateEmail = vi.fn().mockResolvedValue(null)
     renderPage({ updateEmail })
+    await waitFor(() => expect(mocks.fetchAuthUser).toHaveBeenCalledTimes(1))
     await userEvent.type(newEmail(), ' nouvelle@mana.test ')
     await userEvent.click(submit())
-    expect(await within(emailCard()).findByText(t('account.email.pending'))).toBeInTheDocument()
-    expect(within(emailCard()).getByText(t('account.email.pendingTitle', { email: 'nouvelle@mana.test' }))).toBeInTheDocument()
+    expect(await within(status()).findByText(t('account.email.pending'))).toBeInTheDocument()
+    expect(within(status()).getByText(t('account.email.pendingTitle', { email: 'nouvelle@mana.test' }))).toBeInTheDocument()
     expect(updateEmail).toHaveBeenCalledExactlyOnceWith('nouvelle@mana.test')
     expect(newEmail()).toHaveValue('')
-    expect(mocks.fetchAuthUser).toHaveBeenCalledTimes(2) // read again after the request
+    await waitFor(() => expect(mocks.fetchAuthUser).toHaveBeenCalledTimes(2)) // read again after the request
   })
 
   // After a reload: GoTrue keeps the pending address on the user (new_email).
   it('shows a change already waiting for confirmation', () => {
     renderPage({ session: session({ new_email: 'nouvelle@mana.test' }) })
-    expect(within(emailCard()).getByText(t('account.email.pendingTitle', { email: 'nouvelle@mana.test' }))).toBeInTheDocument()
+    expect(within(status()).getByText(t('account.email.pendingTitle', { email: 'nouvelle@mana.test' }))).toBeInTheDocument()
+  })
+
+  it('names the address just requested over an older pending one', async () => {
+    renderPage({ session: session({ new_email: 'ancienne-demande@mana.test' }), updateEmail: vi.fn().mockResolvedValue(null) })
+    await userEvent.type(newEmail(), 'nouvelle@mana.test')
+    await userEvent.click(submit())
+    expect(await within(status()).findByText(t('account.email.pendingTitle', { email: 'nouvelle@mana.test' }))).toBeInTheDocument()
   })
 
   it('shows an address taken by another account on the field', async () => {
@@ -188,7 +228,7 @@ describe('« Courriel »', () => {
     await userEvent.click(submit())
     expect(await within(emailCard()).findByText(t('auth.errors.email_exists'))).toBeInTheDocument()
     expect(newEmail()).toHaveAttribute('aria-invalid', 'true')
-    expect(within(emailCard()).queryByText(t('account.email.pending'))).not.toBeInTheDocument()
+    expect(status()).toBeEmptyDOMElement()
   })
 
   it('shows other failures as an alert', async () => {
@@ -198,21 +238,23 @@ describe('« Courriel »', () => {
     expect(await within(emailCard()).findByRole('alert')).toHaveTextContent(t('auth.errors.rate_limited'))
   })
 
-  it('« Annuler » empties the field and clears the failure', async () => {
+  it('« Annuler » empties the field, clears the failure and returns focus to the field', async () => {
     renderPage({ updateEmail: vi.fn().mockResolvedValue('rate_limited') })
     await userEvent.type(newEmail(), 'nouvelle@mana.test')
     await userEvent.click(submit())
     await within(emailCard()).findByRole('alert')
     await userEvent.click(within(emailCard()).getByRole('button', { name: t('common.cancel') }))
     expect(newEmail()).toHaveValue('')
+    expect(newEmail()).toHaveFocus()
     expect(within(emailCard()).queryByRole('alert')).not.toBeInTheDocument()
-    expect(within(emailCard()).getByRole('button', { name: t('common.cancel') })).toBeDisabled()
+    inactive(within(emailCard()).getByRole('button', { name: t('common.cancel') }))
   })
 })
 
 describe('« Mot de passe »', () => {
   const passwordCard = () => card(t('account.password.title'))
-  const field = (label: string) => within(passwordCard()).getByLabelText(new RegExp(`^${label}`))
+  const field = (text: string) => within(passwordCard()).getByLabelText(label(text))
+  const codeField = () => within(passwordCard()).queryByLabelText(label(t('account.password.code')))
   const submit = () => within(passwordCard()).getByRole('button', { name: t('account.password.submit') })
 
   async function fill(password: string, confirm = password) {
@@ -240,6 +282,18 @@ describe('« Mot de passe »', () => {
     await waitFor(() => expect(username()).toHaveValue('nouvelle@mana.test'))
   })
 
+  it('says it is saving while the change is in flight', async () => {
+    let finish: (code: null) => void = () => {}
+    renderPage({ updatePassword: vi.fn(() => new Promise<null>((resolve) => (finish = resolve))) })
+    await fill('un-long-mot-de-passe')
+    await userEvent.click(submit())
+    const pending = await within(passwordCard()).findByRole('button', { name: t('account.password.submitting') })
+    inactive(pending)
+    expect(pending).toHaveFocus()
+    finish(null)
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalled())
+  })
+
   it('changes the password without a code on a fresh session, then resets the form', async () => {
     const updatePassword = vi.fn().mockResolvedValue(null)
     const sendReauthenticationCode = vi.fn()
@@ -258,14 +312,15 @@ describe('« Mot de passe »', () => {
     const updatePassword = vi.fn().mockResolvedValueOnce('reauthentication_needed').mockResolvedValueOnce(null)
     const sendReauthenticationCode = vi.fn().mockResolvedValue(null)
     renderPage({ updatePassword, sendReauthenticationCode })
-    expect(within(passwordCard()).queryByLabelText(new RegExp(t('account.password.code')))).not.toBeInTheDocument()
+    expect(codeField()).not.toBeInTheDocument()
 
     await fill('un-long-mot-de-passe')
     await userEvent.click(submit())
 
-    const code = await within(passwordCard()).findByLabelText(new RegExp(t('account.password.code')))
+    const code = await within(passwordCard()).findByLabelText(label(t('account.password.code')))
     expect(sendReauthenticationCode).toHaveBeenCalledOnce()
     expect(code).toHaveFocus()
+    expect(code).toHaveAccessibleDescription(t('account.password.codeHelp'))
     expect(mocks.toast.success).not.toHaveBeenCalled()
 
     // The code is required once asked for.
@@ -277,7 +332,7 @@ describe('« Mot de passe »', () => {
     await userEvent.click(submit())
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('account.password.success')))
     expect(updatePassword).toHaveBeenLastCalledWith('un-long-mot-de-passe', '123456')
-    expect(within(passwordCard()).queryByLabelText(new RegExp(t('account.password.code')))).not.toBeInTheDocument()
+    expect(codeField()).not.toBeInTheDocument()
   })
 
   it('shows a wrong or expired code on the code field, and can send a new one', async () => {
@@ -286,7 +341,7 @@ describe('« Mot de passe »', () => {
     renderPage({ updatePassword, sendReauthenticationCode })
     await fill('un-long-mot-de-passe')
     await userEvent.click(submit())
-    await userEvent.type(await within(passwordCard()).findByLabelText(new RegExp(t('account.password.code'))), '000000')
+    await userEvent.type(await within(passwordCard()).findByLabelText(label(t('account.password.code'))), '000000')
     await userEvent.click(submit())
     expect(await within(passwordCard()).findByText(t('auth.errors.invalid_code'))).toBeInTheDocument()
 
@@ -295,27 +350,58 @@ describe('« Mot de passe »', () => {
     expect(mocks.toast.success).toHaveBeenCalledWith(t('account.password.resent'))
   })
 
-  it('« Annuler » clears the fields and leaves the code step', async () => {
-    renderPage({ updatePassword: vi.fn().mockResolvedValue('reauthentication_needed'), sendReauthenticationCode: vi.fn().mockResolvedValue(null) })
+  it('sends one code for a double click on « Renvoyer le code »', async () => {
+    let finish: (code: null) => void = () => {}
+    const sendReauthenticationCode = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockImplementationOnce(() => new Promise<null>((resolve) => (finish = resolve)))
+    renderPage({ updatePassword: vi.fn().mockResolvedValue('reauthentication_needed'), sendReauthenticationCode })
     await fill('un-long-mot-de-passe')
     await userEvent.click(submit())
-    await userEvent.type(await within(passwordCard()).findByLabelText(new RegExp(t('account.password.code'))), '123456')
-    await userEvent.click(within(passwordCard()).getByRole('button', { name: t('common.cancel') }))
-    expect(within(passwordCard()).queryByLabelText(new RegExp(t('account.password.code')))).not.toBeInTheDocument()
-    expect(field(t('account.password.new'))).toHaveValue('')
-    expect(field(t('account.password.confirm'))).toHaveValue('')
-    expect(submit()).toBeDisabled()
+    const resend = await within(passwordCard()).findByRole('button', { name: t('account.password.resend') })
+    await userEvent.dblClick(resend)
+    expect(sendReauthenticationCode).toHaveBeenCalledTimes(2) // the first code, then one resend
+    finish(null)
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('account.password.resent')))
+    expect(resend).toHaveFocus()
   })
 
-  it('shows a failure to send the code as an alert', async () => {
+  // GoTrue throttles the code email: one sent moments ago is still valid, so the field stays.
+  it('still asks for the code when sending one is throttled, saying a recent code works', async () => {
     renderPage({
       updatePassword: vi.fn().mockResolvedValue('reauthentication_needed'),
       sendReauthenticationCode: vi.fn().mockResolvedValue('rate_limited'),
     })
     await fill('un-long-mot-de-passe')
     await userEvent.click(submit())
-    expect(await within(passwordCard()).findByRole('alert')).toHaveTextContent(t('auth.errors.rate_limited'))
-    expect(within(passwordCard()).queryByLabelText(new RegExp(t('account.password.code')))).not.toBeInTheDocument()
+    const code = await within(passwordCard()).findByLabelText(label(t('account.password.code')))
+    expect(code).toHaveAccessibleDescription(t('account.password.codeRecent'))
+    expect(within(passwordCard()).queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows any other failure to send the code as an alert, without the code field', async () => {
+    renderPage({
+      updatePassword: vi.fn().mockResolvedValue('reauthentication_needed'),
+      sendReauthenticationCode: vi.fn().mockResolvedValue('unknown'),
+    })
+    await fill('un-long-mot-de-passe')
+    await userEvent.click(submit())
+    expect(await within(passwordCard()).findByRole('alert')).toHaveTextContent(t('auth.errors.unknown'))
+    expect(codeField()).not.toBeInTheDocument()
+  })
+
+  it('« Annuler » clears the fields, leaves the code step and returns focus to the first field', async () => {
+    renderPage({ updatePassword: vi.fn().mockResolvedValue('reauthentication_needed'), sendReauthenticationCode: vi.fn().mockResolvedValue(null) })
+    await fill('un-long-mot-de-passe')
+    await userEvent.click(submit())
+    await userEvent.type(await within(passwordCard()).findByLabelText(label(t('account.password.code'))), '123456')
+    await userEvent.click(within(passwordCard()).getByRole('button', { name: t('common.cancel') }))
+    expect(codeField()).not.toBeInTheDocument()
+    expect(field(t('account.password.new'))).toHaveValue('')
+    expect(field(t('account.password.confirm'))).toHaveValue('')
+    expect(field(t('account.password.new'))).toHaveFocus()
+    inactive(submit())
   })
 
   it('shows a refused password on the password field', async () => {
@@ -328,46 +414,50 @@ describe('« Mot de passe »', () => {
 })
 
 describe('« Sessions »', () => {
-  const sessionsCard = () => card(t('account.sessions.title'))
-  const open = () => userEvent.click(within(sessionsCard()).getByRole('button', { name: t('account.sessions.signOutEverywhere') }))
+  const sessionsCard = () => screen.getByRole('region', { name: t('account.sessions.title') })
+  const trigger = () => within(sessionsCard()).getByRole('button', { name: t('account.sessions.signOutEverywhere') })
+  const open = () => userEvent.click(trigger())
+  const confirmInDialog = async () =>
+    userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('account.sessions.confirm') }))
 
-  it('asks for confirmation before signing out everywhere', async () => {
+  it('asks for confirmation, with « Annuler » focused first, before signing out everywhere', async () => {
     const signOutEverywhere = vi.fn()
     renderPage({ signOutEverywhere })
     await open()
     const dialog = await screen.findByRole('alertdialog', { name: t('account.sessions.confirmTitle') })
-    await userEvent.click(within(dialog).getByRole('button', { name: t('common.cancel') }))
+    const cancel = within(dialog).getByRole('button', { name: t('common.cancel') })
+    expect(cancel).toHaveFocus()
+    await userEvent.click(cancel)
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
     expect(signOutEverywhere).not.toHaveBeenCalled()
+    expect(trigger()).toHaveFocus()
   })
 
   it('signs out everywhere once confirmed', async () => {
     const signOutEverywhere = vi.fn().mockResolvedValue(null)
     renderPage({ signOutEverywhere })
     await open()
-    const dialog = await screen.findByRole('alertdialog')
-    await userEvent.click(within(dialog).getByRole('button', { name: t('account.sessions.confirm') }))
-    expect(signOutEverywhere).toHaveBeenCalledOnce()
+    await confirmInDialog()
+    await waitFor(() => expect(signOutEverywhere).toHaveBeenCalledOnce())
   })
 
   // Like the shell's « Se déconnecter »: unsaved edits in another card are not lost silently.
   it('asks before discarding unsaved edits in another card', async () => {
     const signOutEverywhere = vi.fn().mockResolvedValue(null)
     renderPage({ signOutEverywhere })
-    await userEvent.type(within(card(t('account.name.title'))).getByLabelText(new RegExp(t('account.name.label'))), ' bis')
-    const trigger = within(sessionsCard()).getByRole('button', { name: t('account.sessions.signOutEverywhere') })
+    await userEvent.type(within(card(t('account.name.title'))).getByLabelText(label(t('account.name.label'))), ' bis')
 
     await open()
-    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('account.sessions.confirm') }))
+    await confirmInDialog()
     const unsaved = await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })
     expect(signOutEverywhere).not.toHaveBeenCalled()
     await userEvent.click(within(unsaved).getByRole('button', { name: t('common.unsaved.stay') }))
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
     expect(signOutEverywhere).not.toHaveBeenCalled()
-    await waitFor(() => expect(trigger).toHaveFocus())
+    await waitFor(() => expect(trigger()).toHaveFocus())
 
     await open()
-    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('account.sessions.confirm') }))
+    await confirmInDialog()
     await userEvent.click(within(await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })).getByRole('button', { name: t('common.unsaved.leave') }))
     expect(signOutEverywhere).toHaveBeenCalledOnce()
   })
@@ -376,7 +466,7 @@ describe('« Sessions »', () => {
     const signOutEverywhere = vi.fn().mockResolvedValue('unknown')
     renderPage({ signOutEverywhere })
     await open()
-    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('account.sessions.confirm') }))
+    await confirmInDialog()
     const alert = await within(sessionsCard()).findByRole('alert')
     expect(alert).toHaveTextContent(t('account.sessions.failed'))
     expect(alert).toHaveTextContent(t('auth.errors.unknown'))

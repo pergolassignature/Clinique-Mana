@@ -126,7 +126,9 @@
       "codeRequired": "Entrez le code reçu par courriel.",
       "resend": "Renvoyer le code",
       "resent": "Un nouveau code vient d'être envoyé.",
+      "codeRecent": "Un code vous a été envoyé il y a peu : utilisez le plus récent. Pour en recevoir un autre, réessayez dans une minute.",
       "submit": "Changer le mot de passe",
+      "submitting": "Changement en cours…",
       "success": "Mot de passe mis à jour."
     },
     "sessions": {

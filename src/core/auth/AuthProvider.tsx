@@ -193,22 +193,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           forgetSessionState()
         }
       },
-      // « Se déconnecter de tous les appareils » (« Mon compte »): revokes every refresh token of the
-      // account. Unlike signOut, a failure keeps this session: forgetting it would hide that the
-      // other devices are still signed in. auth-js already treats an expired session as success.
+      // « Se déconnecter de tous les appareils » (« Mon compte », decision #33): revokes every refresh
+      // token of the account. Access tokens already issued elsewhere stay valid until they expire
+      // (jwt_expiry, 1 h). Unlike signOut, a failure keeps this session: forgetting it would hide
+      // that the other devices are still signed in. Note that auth-js reports success, and clears
+      // the session locally, when the server answers 401/403/404: that means « this session is
+      // already gone », not necessarily that every other session was revoked.
       signOutEverywhere: async () => {
         // First, as in signOut: auth-js emits SIGNED_OUT before this call returns.
         setSignedOutHere(true)
+        let failure: unknown = null
         let code: AuthErrorCode | null
         try {
-          code = toCode((await supabase.auth.signOut({ scope: 'global' })).error)
-        } catch {
+          const { error } = await supabase.auth.signOut({ scope: 'global' })
+          failure = error
+          code = toCode(error)
+        } catch (error) {
+          failure = error
           code = 'unknown'
         }
         if (code) {
+          // Throttling is expected; anything else is worth hearing about.
+          if (code === 'unknown') Sentry.captureException(failure, { tags: { area: 'auth' } })
           setSignedOutHere(false)
           return code
         }
+        // Again: a token refresh during the call emits a session, which resets the flag.
+        setSignedOutHere(true)
         forgetSessionState()
         return null
       },

@@ -523,17 +523,32 @@ describe('signOutEverywhere', () => {
     expect(latest().session).toBeNull()
   })
 
+  // A token refresh during the call emits a session, which resets signedOutHere.
+  it('still flags the explicit sign-out when a refresh happened during the call', async () => {
+    auth.signOut.mockImplementation(async () => {
+      auth.listener?.('TOKEN_REFRESHED', session('t2'))
+      return { error: null }
+    })
+    const latest = renderSignedIn()
+    await expect(signOutEverywhere(latest)).resolves.toBeNull()
+    expect(latest().signedOutHere).toBe(true)
+    expect(latest().session).toBeNull()
+  })
+
   it.each([
-    ['returns an error', () => auth.signOut.mockResolvedValue(apiError('boom', 500, 'unexpected_failure')), 'unknown'],
-    ['is throttled', () => auth.signOut.mockResolvedValue(apiError('Request rate limit reached', 429, 'over_request_rate_limit')), 'rate_limited'],
-    ['throws (offline, lock timeout)', () => auth.signOut.mockRejectedValue(new Error('network')), 'unknown'],
-  ])('keeps this session and reports the failure when the call %s', async (_label, fail, code) => {
+    ['returns an error', () => auth.signOut.mockResolvedValue(apiError('boom', 500, 'unexpected_failure')), 'unknown', true],
+    ['is throttled', () => auth.signOut.mockResolvedValue(apiError('Request rate limit reached', 429, 'over_request_rate_limit')), 'rate_limited', false],
+    ['throws (offline, lock timeout)', () => auth.signOut.mockRejectedValue(new Error('network')), 'unknown', true],
+  ])('keeps this session and reports the failure when the call %s', async (_label, fail, code, reported) => {
     fail()
     const latest = renderSignedIn()
     await expect(signOutEverywhere(latest)).resolves.toBe(code)
     expect(auth.signOut).toHaveBeenCalledExactlyOnceWith({ scope: 'global' })
     expect(latest().session?.access_token).toBe('t1')
     expect(latest().signedOutHere).toBe(false)
+    // An unexpected failure goes to Sentry; throttling is expected and is not.
+    if (reported) expect(sentry.captureException).toHaveBeenCalledExactlyOnceWith(expect.anything(), { tags: { area: 'auth' } })
+    else expect(sentry.captureException).not.toHaveBeenCalled()
   })
 })
 

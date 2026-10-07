@@ -11,6 +11,7 @@ import { useAuth, type AuthErrorCode } from '@/core/auth/auth-context'
 import { newPasswordRule, passwordMismatch, passwordsMatch } from '@/core/auth/password-schema'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { FormActions } from '@/shared/components/FormActions'
+import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { useConfirmLeave, useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
@@ -29,6 +30,7 @@ import { Button } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { toast } from '@/shared/ui/sonner'
+import { cn } from '@/shared/lib/utils'
 
 /** An auth failure that belongs to no field, announced when it appears. */
 function ErrorAlert({ title, code }: { title?: string; code: AuthErrorCode }) {
@@ -65,16 +67,20 @@ const nameSchema = z.object({
 function NameCard() {
   const { user_id, display_name } = useReadyAccess()
   const rename = useUpdateDisplayName()
-  // `values`: re-syncs once the access payload brings the saved name back.
+  // `values`: re-syncs once the access payload brings the saved name back. keepDirtyValues: a
+  // refetch while typing (window focus) updates the saved value without wiping the edit.
   const form = useForm<z.input<typeof nameSchema>, unknown, z.output<typeof nameSchema>>({
     resolver: zodResolver(nameSchema),
     values: { displayName: display_name },
+    resetOptions: { keepDirtyValues: true },
   })
   const { errors, isDirty } = form.formState
   useUnsavedChanges(isDirty)
 
   const onSubmit = form.handleSubmit(({ displayName }) =>
-    rename.mutate({ userId: user_id, displayName }, { onSuccess: () => form.reset({ displayName }) }),
+    // After a save the saved name replaces the field. keepDirtyValues off explicitly: reset()
+    // applies resetOptions too (react-hook-form 7.89), which would keep the field as typed.
+    rename.mutate({ userId: user_id, displayName }, { onSuccess: () => form.reset({ displayName }, { keepDirtyValues: false }) }),
   )
 
   return (
@@ -83,8 +89,16 @@ function NameCard() {
       description={t('account.name.description')}
       pending={rename.isPending}
       onSubmit={onSubmit}
-      // reset(): back to the last saved name (`values`, or the reset after a save).
-      footer={<FormActions onCancel={() => form.reset()} dirty={isDirty} pending={rename.isPending} />}
+      // « Annuler »: back to the last saved name (`values`, or the reset after a save).
+      footer={
+        <FormActions
+          // keepDirtyValues off: reset() applies resetOptions too, and would keep the edit.
+          onCancel={() => form.reset(undefined, { keepDirtyValues: false })}
+          onReset={() => form.setFocus('displayName')}
+          dirty={isDirty}
+          pending={rename.isPending}
+        />
+      }
     >
       <FormField label={t('account.name.label')} required error={errors.displayName?.message}>
         {(field) => <Input {...field} autoComplete="name" {...form.register('displayName')} />}
@@ -120,8 +134,9 @@ function EmailCard() {
   const { errors, isDirty, isSubmitting } = form.formState
   useUnsavedChanges(isDirty)
 
-  // GoTrue keeps the address waiting for confirmation on the user, so the notice survives a reload.
-  const pendingEmail = user?.new_email ?? requested
+  // The address just requested wins; otherwise GoTrue's pending one (new_email), so the notice
+  // survives a reload.
+  const pendingEmail = requested ?? user?.new_email
   const showPending = Boolean(pendingEmail) && pendingEmail?.toLowerCase() !== current.toLowerCase()
 
   const onSubmit = form.handleSubmit(async ({ email }) => {
@@ -156,6 +171,7 @@ function EmailCard() {
             setError(null)
             form.reset()
           }}
+          onReset={() => form.setFocus('email')}
           dirty={isDirty}
           pending={isSubmitting}
           submitLabel={t('account.email.submit')}
@@ -167,13 +183,17 @@ function EmailCard() {
         <dt className="text-sm font-medium text-foreground">{t('account.email.current')}</dt>
         <dd className="break-all text-sm text-foreground">{current}</dd>
       </dl>
-      {showPending && (
-        <Alert role="status">
-          <MailCheck aria-hidden />
-          <AlertTitle className="break-all">{t('account.email.pendingTitle', { email: pendingEmail ?? '' })}</AlertTitle>
-          <AlertDescription>{t('account.email.pending')}</AlertDescription>
-        </Alert>
-      )}
+      {/* Always rendered, so screen readers announce the notice when it appears inside. Empty, it
+          takes no room (empty:!mt-0 cancels the card's spacing). */}
+      <div role="status" className="empty:!mt-0">
+        {showPending && (
+          <Alert>
+            <MailCheck aria-hidden />
+            <AlertTitle className="break-all">{t('account.email.pendingTitle', { email: pendingEmail ?? '' })}</AlertTitle>
+            <AlertDescription>{t('account.email.pending')}</AlertDescription>
+          </Alert>
+        )}
+      </div>
       <FormField label={t('account.email.new')} required error={errors.email?.message}>
         {(field) => <Input {...field} type="email" autoComplete="email" {...form.register('email')} />}
       </FormField>
@@ -197,6 +217,10 @@ function PasswordCard() {
   const user = useAccountUser()
   // GoTrue asked for a code (session older than 24 h): it has been emailed.
   const [codeSent, setCodeSent] = useState(false)
+  // Sending was throttled: a code sent moments ago is still in the mailbox and still valid.
+  const [codeThrottled, setCodeThrottled] = useState(false)
+  const [resending, setResending] = useState(false)
+  const resendingRef = useRef(false)
   const [error, setError] = useState<AuthErrorCode | null>(null)
   const form = useForm<z.input<typeof passwordSchema>, unknown, z.output<typeof passwordSchema>>({
     resolver: zodResolver(passwordSchema),
@@ -210,10 +234,13 @@ function PasswordCard() {
     if (codeSent) setFocus('code')
   }, [codeSent, setFocus])
 
-  const sendCode = async (): Promise<boolean> => {
+  /** Emails a code. `throttled`: GoTrue refused to send another so soon; the last one still works. */
+  const sendCode = async (): Promise<'sent' | 'throttled' | 'failed'> => {
     const code = await sendReauthenticationCode()
+    setCodeThrottled(code === 'rate_limited')
+    if (code === 'rate_limited') return 'throttled'
     setError(code)
-    return !code
+    return code ? 'failed' : 'sent'
   }
 
   const onSubmit = form.handleSubmit(async ({ password, code }) => {
@@ -224,7 +251,7 @@ function PasswordCard() {
     }
     const result = await updatePassword(password, codeSent ? code : undefined)
     if (result === 'reauthentication_needed') {
-      if (await sendCode()) setCodeSent(true)
+      if ((await sendCode()) !== 'failed') setCodeSent(true)
       return
     }
     if (result === 'invalid_code') {
@@ -240,12 +267,28 @@ function PasswordCard() {
       return
     }
     toast.success(t('account.password.success'))
-    setCodeSent(false)
-    form.reset()
+    leaveCodeStep()
   })
 
   const resend = async () => {
-    if (await sendCode()) toast.success(t('account.password.resent'))
+    // A ref, not the state: a double click lands before the next render.
+    if (resendingRef.current) return
+    resendingRef.current = true
+    setResending(true)
+    setError(null)
+    try {
+      if ((await sendCode()) === 'sent') toast.success(t('account.password.resent'))
+    } finally {
+      resendingRef.current = false
+      setResending(false)
+    }
+  }
+
+  const leaveCodeStep = () => {
+    setError(null)
+    setCodeSent(false)
+    setCodeThrottled(false)
+    form.reset()
   }
 
   return (
@@ -256,14 +299,12 @@ function PasswordCard() {
       onSubmit={onSubmit}
       footer={
         <FormActions
-          onCancel={() => {
-            setError(null)
-            setCodeSent(false)
-            form.reset()
-          }}
+          onCancel={leaveCodeStep}
+          onReset={() => form.setFocus('password')}
           dirty={isDirty}
           pending={isSubmitting}
           submitLabel={t('account.password.submit')}
+          pendingLabel={t('account.password.submitting')}
         />
       }
     >
@@ -279,7 +320,12 @@ function PasswordCard() {
       </div>
       {codeSent && (
         <div className="space-y-1">
-          <FormField label={t('account.password.code')} required help={t('account.password.codeHelp')} error={errors.code?.message}>
+          <FormField
+            label={t('account.password.code')}
+            required
+            help={codeThrottled ? t('account.password.codeRecent') : t('account.password.codeHelp')}
+            error={errors.code?.message}
+          >
             {(field) => (
               <Input
                 {...field}
@@ -290,7 +336,14 @@ function PasswordCard() {
               />
             )}
           </FormField>
-          <Button type="button" variant="link" size="sm" onClick={() => void resend()} disabled={isSubmitting}>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            aria-disabled={isSubmitting || resending || undefined}
+            onClick={ignoreWhenInactive(isSubmitting || resending, () => void resend())}
+            className={softDisabledClasses}
+          >
             {t('account.password.resend')}
           </Button>
         </div>
@@ -324,8 +377,11 @@ function SessionsCard() {
   }
 
   // Like the shell's « Se déconnecter », unsaved edits in another card are confirmed first
-  // (confirmLeave). That waits for this dialog to close, so the two dialogs never stack and focus
-  // goes back to the trigger, where the unsaved-changes dialog returns it after « Rester ».
+  // (confirmLeave). This runs from onCloseAutoFocus, i.e. once this dialog has finished closing,
+  // rather than from an effect on `open`: Radix keeps the dialog mounted during its exit
+  // animation, so an effect would open the unsaved-changes dialog over it, and that dialog would
+  // record the departing « Se déconnecter partout » button as the place to return focus to.
+  // Here focus is first put back on the trigger, which « Rester » then returns to.
   const onCloseAutoFocus = (event: Event) => {
     if (!signOutOnClose.current) return
     signOutOnClose.current = false
@@ -336,12 +392,21 @@ function SessionsCard() {
 
   return (
     <SettingsCard
+      as="section"
       title={t('account.sessions.title')}
       description={t('account.sessions.description')}
       footer={
         <AlertDialog open={open} onOpenChange={setOpen}>
           <AlertDialogTrigger asChild>
-            <Button ref={triggerRef} type="button" variant="outline" disabled={pending}>
+            <Button
+              ref={triggerRef}
+              type="button"
+              variant="outline"
+              aria-disabled={pending || undefined}
+              // While signing out: presses are ignored (and the dialog does not open), focus stays.
+              onClick={ignoreWhenInactive(pending)}
+              className={cn(softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
+            >
               {pending ? t('account.sessions.pending') : t('account.sessions.signOutEverywhere')}
             </Button>
           </AlertDialogTrigger>
