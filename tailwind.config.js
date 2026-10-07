@@ -20,6 +20,23 @@ export default {
           DEFAULT: '#E8E4DC', // Soft neutral gray
           light: '#F0EBE3',
         },
+        // shadcn semantic tokens, mapped onto the palette below
+        primary: {
+          DEFAULT: '#567A5F', // sage-600 (readable as text on cream)
+          foreground: '#FFFFFF',
+        },
+        muted: {
+          DEFAULT: '#F8F5F0', // background.secondary
+          foreground: '#6B6B6B', // foreground.secondary
+        },
+        destructive: {
+          DEFAULT: '#8A5C5C', // wine-600 (legacy error text)
+          foreground: '#FFFFFF',
+        },
+        card: {
+          DEFAULT: '#FFFFFF',
+          foreground: '#3D3D3D', // foreground
+        },
         // Primary accent: soft sage/mint green
         sage: {
           50: '#F4F7F5',

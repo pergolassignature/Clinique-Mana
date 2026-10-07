@@ -52,3 +52,7 @@ supabase/.temp
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Deno: the edge-function lockfile is supabase/functions/deno.lock (run deno with
+# --config supabase/functions/deno.json); a root lockfile is an accident.
+/deno.lock

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="fr-CA">
+  <body style="margin:0;padding:0;background:#f8f8f9;font-family:Raleway,Helvetica,Arial,sans-serif;color:#4d4d4f;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8f8f9;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;padding:32px;">
+            <tr><td style="font-size:14px;font-weight:600;color:#9b1b3c;letter-spacing:0.02em;">Clinique MANA</td></tr>
+            <tr><td style="padding-top:16px;font-size:20px;font-weight:600;color:#4d4d4f;">Votre lien de connexion</td></tr>
+            <tr><td style="padding-top:12px;font-size:15px;line-height:1.6;">Bonjour,<br /><br />Voici le lien pour vous connecter à votre espace Clinique MANA ({{ .Email }}), sans mot de passe.</td></tr>
+            <tr><td style="padding-top:24px;"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#9b1b3c;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 20px;border-radius:8px;">Me connecter</a><p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#6b6b6e;">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br /><a href="{{ .ConfirmationURL }}" style="color:#249d95;word-break:break-all;">{{ .ConfirmationURL }}</a></p></td></tr>
+            <tr><td style="padding-top:24px;font-size:13px;line-height:1.6;color:#6b6b6e;">Ce lien est valide pendant une heure et ne peut être utilisé qu'une seule fois.</td></tr>
+            <tr><td style="padding-top:24px;border-top:1px solid #e6e6e8;margin-top:24px;font-size:12px;line-height:1.6;color:#8a8a8d;">
+              Clinique MANA · Ressources en santé mentale et bien-être<br />
+              Ce courriel vous est envoyé parce qu'une action a été demandée pour votre compte. Si ce n'est pas vous, vous pouvez l'ignorer en toute sécurité.
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

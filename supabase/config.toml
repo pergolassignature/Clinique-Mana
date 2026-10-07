@@ -1,29 +1,31 @@
 # Supabase Local Development Configuration
-# Module: auth-foundation
+# Foundation rebuild — see docs/plans/2026-10-06-foundation-rebuild-design.md
 # See: https://supabase.com/docs/guides/cli/config
+
+project_id = "clinique-mana"
 
 [api]
 enabled = true
-port = 54321
+port = 55321
 schemas = ["public", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
 [db]
-port = 54322
-shadow_port = 54320
+port = 55322
+shadow_port = 55320
 major_version = 17
 
 [studio]
 enabled = true
-port = 54323
+port = 55323
 api_url = "http://127.0.0.1"
 
 [inbucket]
 enabled = true
-port = 54324
-smtp_port = 54325
-pop3_port = 54326
+port = 55324
+smtp_port = 55325
+pop3_port = 55326
 
 [storage]
 enabled = true
@@ -31,18 +33,56 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
-site_url = "http://127.0.0.1:5173"
-additional_redirect_urls = ["http://127.0.0.1:5173"]
+# One local origin: Vite listens on localhost ([::1]) only, and 127.0.0.1 would be a separate
+# origin with its own session storage. Changing these needs `supabase stop && supabase start`.
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173/**"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
-enable_signup = true
+enable_signup = false
 enable_anonymous_sign_ins = false
+minimum_password_length = 10
 
 [auth.email]
+# In the CLI this key toggles the whole email provider (GOTRUE_EXTERNAL_EMAIL_ENABLED):
+# false disables password and magic-link LOGIN too. Sign-ups stay closed through
+# `[auth] enable_signup = false` (GOTRUE_DISABLE_SIGNUP); accounts come from invitations.
 enable_signup = true
-double_confirm_changes = false
+# Sends a confirmation email to both the old and the new address on an email change.
+# Locally (autoconfirm on) the new-address link alone completed the change: two-address
+# enforcement is NOT proven here and must be verified on staging (plan Task 1.21).
+# Keep the same value on staging/production.
+double_confirm_changes = true
+secure_password_change = true
 enable_confirmations = false
+
+# Auth email templates, in French with the clinic's identity (supabase/templates/).
+# Staging/production: paste the same subject + HTML in Dashboard → Authentication → Emails
+# → Templates (config.toml is not pushed to remote projects). Keep both in sync.
+[auth.email.template.recovery]
+subject = "Choisissez un nouveau mot de passe · Clinique MANA"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Votre lien de connexion · Clinique MANA"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.invite]
+subject = "Votre accès à l'espace Clinique MANA"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.confirmation]
+subject = "Confirmez votre adresse courriel · Clinique MANA"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.email_change]
+subject = "Confirmez le changement d'adresse courriel · Clinique MANA"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.reauthentication]
+subject = "Votre code de vérification · Clinique MANA"
+content_path = "./supabase/templates/reauthentication.html"
 
 [auth.sms]
 enable_signup = false
@@ -55,31 +95,3 @@ sql_paths = ["./seed.sql"]
 
 [analytics]
 enabled = false
-
-# Edge Functions configuration
-# Skip gateway JWT verification since we handle auth internally
-# This is needed because the project uses ES256 signing keys
-
-[functions.create-professional]
-verify_jwt = false
-
-[functions.google-calendar-auth-url]
-verify_jwt = false
-
-[functions.google-calendar-callback]
-verify_jwt = false
-
-[functions.google-calendar-sync]
-verify_jwt = false
-
-[functions.google-calendar-disconnect]
-verify_jwt = false
-
-[functions.docuseal-create-submission]
-verify_jwt = false
-
-[functions.docuseal-get-submission]
-verify_jwt = false
-
-[functions.docuseal-webhook]
-verify_jwt = false

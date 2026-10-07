@@ -3,13 +3,55 @@
 // All dates in the database are stored as UTC (timestamptz)
 // The clinic operates in a specific timezone (default: America/Toronto for EST/EDT)
 
-import { parse as dateFnsParse, parseISO, format } from 'date-fns'
+import { parseISO, format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz'
 
-// Default clinic timezone - this should eventually come from clinic_settings
 // America/Toronto handles both EST (winter) and EDT (summer) automatically
-export const CLINIC_TIMEZONE = 'America/Toronto'
+const DEFAULT_CLINIC_TIMEZONE = 'America/Toronto'
+
+// Set at sign-in from organizations.timezone (see core/access/AccessProvider).
+let clinicTimezone = DEFAULT_CLINIC_TIMEZONE
+// Last value passed to setClinicTimezone (valid or not), so repeated calls are no-ops.
+let lastRequestedTimezone: string | null = null
+
+/** Placeholder shown for missing or invalid dates. */
+const EMPTY_DATE = '—'
+
+/**
+ * Set the clinic timezone (IANA name, e.g. 'America/Vancouver').
+ * An invalid value is ignored: the current timezone is kept and a warning logged.
+ */
+export function setClinicTimezone(timezone: string): void {
+  // Called on every render by the access provider: a repeated value (even an invalid one) is a no-op.
+  if (timezone === lastRequestedTimezone) return
+  lastRequestedTimezone = timezone
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: timezone })
+  } catch {
+    console.warn(`Invalid clinic timezone "${timezone}", keeping "${clinicTimezone}".`)
+    return
+  }
+  clinicTimezone = timezone
+}
+
+export function getClinicTimezone(): string {
+  return clinicTimezone
+}
+
+/** Restore the default clinic timezone (e.g. on sign-out). */
+export function resetClinicTimezone(): void {
+  clinicTimezone = DEFAULT_CLINIC_TIMEZONE
+  lastRequestedTimezone = null
+}
+
+type DateInput = Date | string | null | undefined
+
+function toValidDate(date: DateInput): Date | null {
+  if (date === null || date === undefined || date === '') return null
+  const dateObj = typeof date === 'string' ? new Date(date) : date
+  return Number.isNaN(dateObj.getTime()) ? null : dateObj
+}
 
 /**
  * Format a UTC date/ISO string for display in clinic timezone
@@ -17,14 +59,15 @@ export const CLINIC_TIMEZONE = 'America/Toronto'
  *
  * @param date - Date object or ISO string (assumed UTC)
  * @param formatStr - date-fns format string
- * @returns Formatted string in clinic timezone
+ * @returns Formatted string in clinic timezone, or '—' if missing/invalid
  */
 export function formatInClinicTimezone(
-  date: Date | string,
+  date: DateInput,
   formatStr: string
 ): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : date
-  return formatInTimeZone(dateObj, CLINIC_TIMEZONE, formatStr, { locale: fr })
+  const dateObj = toValidDate(date)
+  if (!dateObj) return EMPTY_DATE
+  return formatInTimeZone(dateObj, clinicTimezone, formatStr, { locale: fr })
 }
 
 /**
@@ -36,27 +79,38 @@ export function formatInClinicTimezone(
  */
 export function toClinicTime(date: Date | string): Date {
   const dateObj = typeof date === 'string' ? new Date(date) : date
-  return toZonedTime(dateObj, CLINIC_TIMEZONE)
+  return toZonedTime(dateObj, clinicTimezone)
+}
+
+/**
+ * Current time as a Date whose local values reflect the clinic timezone.
+ */
+export function clinicNow(): Date {
+  return toZonedTime(new Date(), clinicTimezone)
+}
+
+/**
+ * Whether a UTC date/ISO string falls on today's date in the clinic timezone.
+ * Missing or invalid dates are never "today".
+ */
+export function isClinicToday(date: DateInput): boolean {
+  return getClinicDateString(date) === getClinicDateString(new Date())
 }
 
 /**
  * Convert clinic local time to UTC ISO string for storage
  * Use when constructing dates from form inputs (date picker + time picker)
  *
+ * Independent of the browser's own timezone.
+ *
  * @param dateStr - Date string in yyyy-MM-dd format
- * @param timeStr - Time string in HH:mm format
+ * @param timeStr - Time string in HH:mm or HH:mm:ss format
  * @returns ISO string in UTC
  */
 export function clinicTimeToUTC(dateStr: string, timeStr: string): string {
-  // Parse the date and time as if they're in clinic timezone
-  const localDateTime = dateFnsParse(
-    `${dateStr} ${timeStr}`,
-    'yyyy-MM-dd HH:mm',
-    new Date()
-  )
-  // Convert from clinic timezone to UTC
-  const utcDate = fromZonedTime(localDateTime, CLINIC_TIMEZONE)
-  return utcDate.toISOString()
+  const time = timeStr.length === 5 ? `${timeStr}:00` : timeStr
+  // Interpret the wall-clock string in the clinic timezone, then convert to UTC
+  return fromZonedTime(`${dateStr}T${time}`, clinicTimezone).toISOString()
 }
 
 /**
@@ -66,7 +120,7 @@ export function clinicTimeToUTC(dateStr: string, timeStr: string): string {
  * @param date - Date object or ISO string (assumed UTC)
  * @returns Date string in yyyy-MM-dd format (in clinic timezone)
  */
-export function getClinicDateString(date: Date | string): string {
+export function getClinicDateString(date: DateInput): string {
   return formatInClinicTimezone(date, 'yyyy-MM-dd')
 }
 
@@ -77,7 +131,7 @@ export function getClinicDateString(date: Date | string): string {
  * @param date - Date object or ISO string (assumed UTC)
  * @returns Time string in HH:mm format (in clinic timezone)
  */
-export function getClinicTimeString(date: Date | string): string {
+export function getClinicTimeString(date: DateInput): string {
   return formatInClinicTimezone(date, 'HH:mm')
 }
 
@@ -88,7 +142,7 @@ export function getClinicTimeString(date: Date | string): string {
  * @param date - Date object or ISO string (assumed UTC)
  * @returns Formatted date string
  */
-export function formatClinicDateFull(date: Date | string): string {
+export function formatClinicDateFull(date: DateInput): string {
   return formatInClinicTimezone(date, 'EEEE d MMMM yyyy')
 }
 
@@ -99,7 +153,7 @@ export function formatClinicDateFull(date: Date | string): string {
  * @param date - Date object or ISO string (assumed UTC)
  * @returns Formatted date string
  */
-export function formatClinicDateShort(date: Date | string): string {
+export function formatClinicDateShort(date: DateInput): string {
   return formatInClinicTimezone(date, 'dd MMM yyyy')
 }
 
@@ -110,7 +164,7 @@ export function formatClinicDateShort(date: Date | string): string {
  * @param date - Date object or ISO string (assumed UTC)
  * @returns Formatted time string
  */
-export function formatClinicTime(date: Date | string): string {
+export function formatClinicTime(date: DateInput): string {
   return formatInClinicTimezone(date, 'HH:mm')
 }
 
@@ -121,7 +175,7 @@ export function formatClinicTime(date: Date | string): string {
  * @param date - Date object or ISO string (assumed UTC)
  * @returns Formatted datetime string
  */
-export function formatClinicDateTime(date: Date | string): string {
+export function formatClinicDateTime(date: DateInput): string {
   return formatInClinicTimezone(date, "dd MMM yyyy 'à' HH:mm")
 }
 
@@ -153,10 +207,10 @@ export function formatDateOnly(
   dateStr: string | null | undefined,
   formatStr: string = 'd MMMM yyyy'
 ): string {
-  if (!dateStr) return '—'
-
-  // Extract just the date part if it's a full ISO string
-  const datePart = dateStr.includes('T') ? dateStr.split('T')[0]! : dateStr
+  // Extract just the calendar date (handles 'yyyy-MM-dd', ISO and
+  // Postgres 'yyyy-MM-dd HH:mm:ss+00' forms)
+  const datePart = dateStr?.match(/^\d{4}-\d{2}-\d{2}/)?.[0]
+  if (!datePart) return EMPTY_DATE
 
   // Parse as local date (no timezone conversion)
   const date = parseISO(datePart)

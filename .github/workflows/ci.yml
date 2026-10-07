@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same PR makes the in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run lint:supabase
+      - run: npm run test:run
+      # Typecheck already ran above: vite build only.
+      - run: npm run build:only
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:55321
+          VITE_SUPABASE_ANON_KEY: ci-placeholder
+
+  functions:
+    name: Edge function checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.7.x
+      # Every function, not just _shared. The scripts pass --config
+      # supabase/functions/deno.json (import map + deno.lock, not the web app's
+      # node_modules) and --frozen (fail if deno.lock is out of date).
+      - run: npm run check:functions
+      - run: npm run lint:functions
+      - run: npm run test:functions
+
+  database:
+    name: Migrations, RLS tests, types drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.98.2
+      # Applies every migration, then supabase/seed.sql (local-only data).
+      # Excluded containers are not needed for pgTAP or type generation
+      # (names from `supabase start --help` for CLI 2.98.2).
+      - run: supabase start -x studio,imgproxy,mailpit,logflare,vector,supavisor,edge-runtime,realtime
+      - run: supabase test db
+      - name: Generated types are up to date
+        run: |
+          supabase gen types typescript --local --schema public > /tmp/database.types.ts
+          diff -u src/core/supabase/database.types.ts /tmp/database.types.ts || {
+            echo "::error::src/core/supabase/database.types.ts is stale. Run 'npm run db:types' and commit."
+            exit 1
+          }

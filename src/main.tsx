@@ -1,30 +1,18 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { RouterProvider } from '@tanstack/react-router'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { router } from '@/app/router'
-import { AuthProvider } from '@/auth'
-import { ErrorBoundary } from '@/shared/components/error-boundary'
+import * as Sentry from '@sentry/react'
+import { App } from '@/app/App'
 import '@/styles/globals.css'
 
-// Create a client for TanStack Query (ready for future API calls)
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
-    },
-  },
-})
+if (import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({ dsn: import.meta.env.VITE_SENTRY_DSN, environment: import.meta.env.MODE })
+}
 
-createRoot(document.getElementById('root')!).render(
+const root = document.getElementById('root')
+if (!root) throw new Error('#root not found in index.html')
+
+createRoot(root).render(
   <StrictMode>
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <RouterProvider router={router} />
-        </AuthProvider>
-      </QueryClientProvider>
-    </ErrorBoundary>
-  </StrictMode>
+    <App />
+  </StrictMode>,
 )
