@@ -118,6 +118,12 @@ create trigger user_roles_clear_admin_overrides
   for each row when (new.role = 'admin')
   execute function private.clear_overrides_of_new_admin();
 
+-- One-off cleanup: no pre-existing override may sit on an admin (the triggers above
+-- only guard future writes). Audited by user_permission_overrides_audit.
+delete from public.user_permission_overrides o
+ using public.user_roles r
+ where r.user_id = o.user_id and r.role = 'admin';
+
 revoke all on function
   private.ensure_active_admin(),
   private.reject_admin_override(),
@@ -216,6 +222,8 @@ begin
   if p_role = 'admin' and not private.has_role('admin') then
     raise exception 'Seul un administrateur peut modifier un administrateur.' using errcode = 'P0001';
   end if;
+  -- Fails closed by design: has_permission is false for a disabled module, so a
+  -- non-admin cannot assign a role whose defaults include such a permission.
   if not private.has_role('admin') and exists (
     select 1 from public.role_permissions rp
      where rp.role = p_role and not private.has_permission(rp.permission_key)

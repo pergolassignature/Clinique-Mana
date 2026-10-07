@@ -6,7 +6,7 @@
 -- path, audit of override changes, org isolation.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(93);
+select plan(94);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -264,8 +264,16 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000007', 'admin_assistant') $$,
   'P0001', 'Vous ne pouvez pas attribuer un rôle qui donne des permissions que vous n''avez pas.',
   'a counselor-manager cannot give the adjointe role (settings.view)');
+-- E is an adjointe (set as postgres) so the next call really changes the role.
+reset role;
+update public.user_roles set role = 'admin_assistant' where user_id = 'a0000000-0000-0000-0000-000000000007';
+set local role authenticated;
 select lives_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000007', 'counselor') $$,
   'a counselor-manager may give a role whose permissions she holds');
+reset role;  -- C has no users.view: read E's role as postgres
+select is((select r.role from public.user_roles r where r.user_id = 'a0000000-0000-0000-0000-000000000007'), 'counselor',
+  'E changed from adjointe to counselor');
+set local role authenticated;
 
 -- =============================================================================
 -- Admin B: org A is out of reach
