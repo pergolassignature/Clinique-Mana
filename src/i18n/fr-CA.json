@@ -9,7 +9,7 @@
     "account": "Mon compte",
     "openMenu": "Ouvrir le menu",
     "menu": "Menu",
-    "userMenu": "Menu utilisateur",
+    "userMenu": "Menu de {name}",
     "collapse": "Réduire le menu",
     "expand": "Agrandir le menu",
     "breadcrumb": "Fil d'Ariane",

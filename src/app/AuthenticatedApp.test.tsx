@@ -114,10 +114,19 @@ describe('AuthenticatedApp', () => {
     expect(main).toHaveFocus()
   })
 
-  it('uses a banner and main landmarks, not a complementary one', () => {
+  it('uses the topbar as the banner, the sidebar as an aside with the main menu, and a main region', () => {
     render(appAt('/accueil'))
-    expect(screen.getByRole('banner')).toContainElement(screen.getByRole('navigation', { name: t('nav.label') }))
-    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+    expect(screen.getByRole('banner')).toContainElement(screen.getByRole('navigation', { name: t('nav.breadcrumb') }))
+    expect(screen.getByRole('complementary')).toContainElement(screen.getByRole('navigation', { name: t('nav.label') }))
+    expect(screen.getByRole('main')).toBeInTheDocument()
+  })
+
+  it('titles the topbar with the settings section that opened', async () => {
+    render(appAt('/parametres'))
+    expect(await screen.findByText('MODULES PAGE')).toBeInTheDocument()
+    const breadcrumb = screen.getByRole('navigation', { name: t('nav.breadcrumb') })
+    expect(within(breadcrumb).getByRole('link', { name: t('nav.settings') })).toHaveAttribute('href', '/parametres')
+    expect(within(breadcrumb).getByText(t('settings.sections.modules'))).toHaveAttribute('aria-current', 'page')
   })
 
   it('shows the full name on hover when it is truncated', () => {

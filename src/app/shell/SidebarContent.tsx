@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react'
 import { LogOut } from 'lucide-react'
 import logoUrl from '@/assets/logo-header.svg'
 import { t } from '@/i18n'
@@ -13,19 +14,25 @@ interface SidebarContentProps {
   navItems: ShellNavItem[]
   /** 56 px: centred icons, labels for screen readers and the native tooltip only. */
   collapsed: boolean
+  /** `sheet`: the phone menu, with 40 px touch targets; `sidebar`: the design system's desktop sizes. */
+  variant: 'sidebar' | 'sheet'
   signingOut: boolean
   onSignOut: () => void
-  /** Called on every nav click (the mobile sheet closes itself with it). */
-  onNavigate?: () => void
+  /**
+   * Runs before the link's own handling. Calling `event.preventDefault()` takes over the navigation
+   * (the mobile sheet does, to close itself only once the unsaved-changes guard lets it leave).
+   */
+  onLinkClick?: (event: MouseEvent<HTMLAnchorElement>, path: string) => void
 }
 
 /**
  * The sidebar's inside (design system SidebarNav): logo, main menu, and the signed-in user with a
  * sign-out button. Rendered in the desktop sidebar and in the mobile sheet.
  */
-export function SidebarContent({ navItems, collapsed, signingOut, onSignOut, onNavigate }: SidebarContentProps) {
+export function SidebarContent({ navItems, collapsed, variant, signingOut, onSignOut, onLinkClick }: SidebarContentProps) {
   const { org_name, display_name, role } = useReadyAccess()
   const roleText = roleLabel(role)
+  const touch = variant === 'sheet'
 
   return (
     <>
@@ -42,12 +49,12 @@ export function SidebarContent({ navItems, collapsed, signingOut, onSignOut, onN
             <GuardedNavLink
               key={item.path}
               to={item.path}
-              onClick={onNavigate}
+              onClick={onLinkClick && ((event) => onLinkClick(event, item.path))}
               title={collapsed ? label : undefined}
               className={({ isActive }) =>
                 cn(
                   `group flex items-center gap-2.5 rounded-md text-sm transition-colors duration-120 ${focusRing}`,
-                  collapsed ? 'justify-center p-2' : 'px-2 py-1.5',
+                  collapsed ? 'justify-center p-2' : touch ? 'min-h-10 px-2 py-2.5' : 'px-2 py-1.5',
                   isActive
                     ? 'bg-card font-medium text-foreground ring-1 ring-border'
                     : 'text-muted-foreground hover:bg-ink/5 hover:text-foreground',
@@ -81,7 +88,10 @@ export function SidebarContent({ navItems, collapsed, signingOut, onSignOut, onN
               disabled={signingOut}
               aria-label={t('nav.logout')}
               title={t('nav.logout')}
-              className={`flex shrink-0 rounded-md p-1 text-subtle transition-colors duration-120 hover:bg-ink/5 hover:text-foreground ${focusRing} disabled:pointer-events-none disabled:opacity-50`}
+              className={cn(
+                `flex shrink-0 items-center justify-center rounded-md text-subtle transition-colors duration-120 hover:bg-ink/5 hover:text-foreground ${focusRing} disabled:pointer-events-none disabled:opacity-50`,
+                touch ? 'h-10 w-10' : 'p-1',
+              )}
             >
               <LogOut className="h-3.5 w-3.5" aria-hidden />
             </button>

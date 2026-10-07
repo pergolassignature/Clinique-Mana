@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 
-/** Per-device preference (not account data): which width the sidebar had last time. */
-export const SIDEBAR_COLLAPSED_KEY = 'clinique-mana:sidebar-collapsed'
+/** Per-device preference (not account data): which width the sidebar had last time. Same style as `clinique-mana-auth`. */
+export const SIDEBAR_COLLAPSED_KEY = 'clinique-mana-sidebar-collapsed'
 
 // Storage can throw (private mode, blocked site data): the sidebar then simply starts expanded.
 function readCollapsed(): boolean {

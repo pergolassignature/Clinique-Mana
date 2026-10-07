@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLocation } from 'react-router-dom'
 import { Home, Settings, Users } from 'lucide-react'
@@ -14,11 +14,7 @@ import { SIDEBAR_COLLAPSED_KEY } from './shell/use-sidebar-collapsed'
 
 const navItems: ShellNavItem[] = [
   { path: '/accueil', labelKey: 'nav.home', icon: Home },
-  {
-    path: '/professionnels',
-    labelKey: 'modules.professionals.name',
-    icon: Users,
-  },
+  { path: '/professionnels', labelKey: 'modules.professionals.name', icon: Users },
   {
     path: '/parametres',
     labelKey: 'nav.settings',
@@ -27,11 +23,8 @@ const navItems: ShellNavItem[] = [
   },
 ]
 
-const assistant: Access = {
-  ...testAccess,
-  display_name: 'Camille Tremblay',
-  role: 'admin_assistant',
-}
+const NAME = 'Camille Tremblay'
+const assistant: Access = { ...testAccess, display_name: NAME, role: 'admin_assistant' }
 
 function Location() {
   return <p data-testid="location">{useLocation().pathname}</p>
@@ -48,17 +41,54 @@ const shellAt = (path: string, { dirty = false, auth = {} }: { dirty?: boolean; 
       <AppShell navItems={navItems}>
         {dirty && <DirtyForm />}
         <Location />
+        <button type="button">Bouton de la page</button>
       </AppShell>
     </UnsavedChangesProvider>,
     { path, access: { access: assistant }, auth },
   )
 
 const location = () => screen.getByTestId('location').textContent
-const mainNav = () => screen.getByRole('navigation', { name: t('nav.label') })
+const sidebar = () => screen.getByRole('complementary')
+const mainNav = () => within(sidebar()).getByRole('navigation', { name: t('nav.label') })
 const breadcrumb = () => screen.getByRole('navigation', { name: t('nav.breadcrumb') })
+const userMenuButton = () => screen.getByRole('button', { name: t('nav.userMenu', { name: NAME }) })
+const searchButton = () => screen.getByRole('button', { name: t('nav.searchLabel') })
+const menuButton = () => screen.getByRole('button', { name: t('nav.openMenu') })
+const pageButton = () => screen.getByRole('button', { name: 'Bouton de la page' })
+const findPalette = () => screen.findByRole('dialog', { name: t('nav.palette.title') })
+const queryPalette = () => screen.queryByRole('dialog', { name: t('nav.palette.title') })
+const findSheet = () => screen.findByRole('dialog', { name: t('nav.menu') })
+const querySheet = () => screen.queryByRole('dialog', { name: t('nav.menu') })
+const CTRL_K = '{Control>}k{/Control}'
+const CMD_K = '{Meta>}k{/Meta}'
 
-beforeEach(() => localStorage.clear())
-afterEach(() => vi.restoreAllMocks())
+let platform = 'Win32'
+
+beforeEach(() => {
+  localStorage.clear()
+  platform = 'Win32'
+  vi.spyOn(navigator, 'platform', 'get').mockImplementation(() => platform)
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
+
+describe('AppShell — landmarks', () => {
+  it('uses the topbar as the banner and the sidebar as an aside holding the main menu', () => {
+    render(shellAt('/accueil'))
+    expect(screen.getByRole('banner')).toContainElement(breadcrumb())
+    expect(sidebar()).toContainElement(screen.getByRole('navigation', { name: t('nav.label') }))
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'contenu')
+  })
+
+  it('keeps the skip link to the focusable main region', async () => {
+    render(shellAt('/accueil'))
+    await userEvent.click(screen.getByRole('link', { name: t('nav.skipToContent') }))
+    expect(screen.getByRole('main')).toHaveFocus()
+  })
+})
 
 describe('AppShell — sidebar', () => {
   it('renders the nav items as links to their paths', () => {
@@ -79,26 +109,13 @@ describe('AppShell — sidebar', () => {
 
   it('shows the logo with the clinic name', () => {
     render(shellAt('/accueil'))
-    const banner = screen.getByRole('banner')
-    expect(within(banner).getByText(testAccess.org_name)).toBeInTheDocument()
+    expect(within(sidebar()).getByText(testAccess.org_name)).toBeInTheDocument()
   })
 
   it('shows who is signed in, with the French role label', () => {
     render(shellAt('/accueil'))
-    const banner = screen.getByRole('banner')
-    expect(within(banner).getByText('Camille Tremblay')).toBeInTheDocument()
-    expect(within(banner).getByText('Adjointe administrative')).toBeInTheDocument()
-  })
-
-  // The redirect itself is RequireAuth's job: the shell only signs out (decisions #10, #13, #17).
-  it('signs out once from the footer, and disables the button meanwhile', async () => {
-    const signOut = vi.fn(() => new Promise<void>(() => {}))
-    render(shellAt('/accueil', { auth: { signOut } }))
-    const button = screen.getByRole('button', { name: t('nav.logout') })
-    await userEvent.click(button)
-    await userEvent.click(button)
-    expect(signOut).toHaveBeenCalledTimes(1)
-    expect(button).toBeDisabled()
+    expect(within(sidebar()).getByText(NAME)).toBeInTheDocument()
+    expect(within(sidebar()).getByText('Adjointe administrative')).toBeInTheDocument()
   })
 
   it('collapses the sidebar, keeps the links named, and remembers the choice', async () => {
@@ -106,31 +123,54 @@ describe('AppShell — sidebar', () => {
     await userEvent.click(screen.getByRole('button', { name: t('nav.collapse') }))
 
     expect(screen.getByRole('button', { name: t('nav.expand') })).toBeInTheDocument()
-    expect(screen.getByRole('banner')).toHaveAttribute('data-collapsed', 'true')
+    expect(sidebar()).toHaveAttribute('data-collapsed', 'true')
     // Labels stay for screen readers; the native tooltip shows them on hover.
-    const home = within(mainNav()).getByRole('link', { name: t('nav.home') })
-    expect(home).toHaveAttribute('title', t('nav.home'))
+    expect(within(mainNav()).getByRole('link', { name: t('nav.home') })).toHaveAttribute('title', t('nav.home'))
+    expect(SIDEBAR_COLLAPSED_KEY).toBe('clinique-mana-sidebar-collapsed')
     expect(localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe('true')
 
     unmount()
     render(shellAt('/accueil'))
-    expect(screen.getByRole('banner')).toHaveAttribute('data-collapsed', 'true')
+    expect(sidebar()).toHaveAttribute('data-collapsed', 'true')
     await userEvent.click(screen.getByRole('button', { name: t('nav.expand') }))
-    expect(screen.getByRole('banner')).toHaveAttribute('data-collapsed', 'false')
+    expect(sidebar()).toHaveAttribute('data-collapsed', 'false')
     expect(localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe('false')
   })
 
   it('still works when the browser refuses storage', async () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    const boom = () => {
       throw new Error('SecurityError')
-    })
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new Error('SecurityError')
-    })
+    }
+    vi.stubGlobal('localStorage', { getItem: boom, setItem: boom, removeItem: boom })
     render(shellAt('/accueil'))
-    expect(screen.getByRole('banner')).toHaveAttribute('data-collapsed', 'false')
+    expect(sidebar()).toHaveAttribute('data-collapsed', 'false')
     await userEvent.click(screen.getByRole('button', { name: t('nav.collapse') }))
-    expect(screen.getByRole('banner')).toHaveAttribute('data-collapsed', 'true')
+    expect(sidebar()).toHaveAttribute('data-collapsed', 'true')
+  })
+})
+
+describe('AppShell — sign-out', () => {
+  // The redirect itself is RequireAuth's job: the shell only signs out (decisions #10, #13, #17).
+  it('signs out once even when clicked twice before the next render, then disables the button', async () => {
+    const signOut = vi.fn(() => new Promise<void>(() => {}))
+    render(shellAt('/accueil', { auth: { signOut } }))
+    const button = within(sidebar()).getByRole('button', { name: t('nav.logout') })
+    act(() => {
+      button.click()
+      button.click()
+    })
+    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(button).toBeDisabled()
+  })
+
+  it('asks before signing out over unsaved changes', async () => {
+    const signOut = vi.fn(() => new Promise<void>(() => {}))
+    render(shellAt('/accueil', { dirty: true, auth: { signOut } }))
+    await userEvent.click(within(sidebar()).getByRole('button', { name: t('nav.logout') }))
+    const confirm = await screen.findByRole('alertdialog')
+    expect(signOut).not.toHaveBeenCalled()
+    await userEvent.click(within(confirm).getByRole('button', { name: t('common.unsaved.leave') }))
+    expect(signOut).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -141,12 +181,14 @@ describe('AppShell — topbar', () => {
     expect(within(breadcrumb()).queryAllByRole('link')).toHaveLength(0)
   })
 
-  it('shows the parent as a link and the sub-page as the title', async () => {
+  it('shows the parent as a link and the sub-page as the title', () => {
     render(shellAt('/parametres/modules'))
-    const parent = within(breadcrumb()).getByRole('link', {
-      name: t('nav.settings'),
-    })
-    expect(parent).toHaveAttribute('href', '/parametres')
+    expect(within(breadcrumb()).getByRole('link', { name: t('nav.settings') })).toHaveAttribute('href', '/parametres')
+    expect(within(breadcrumb()).getByText(t('settings.sections.modules'))).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('matches the location whatever its case, like the router', () => {
+    render(shellAt('/Parametres/Modules'))
     expect(within(breadcrumb()).getByText(t('settings.sections.modules'))).toHaveAttribute('aria-current', 'page')
   })
 
@@ -160,11 +202,12 @@ describe('AppShell — topbar', () => {
     expect(screen.queryByRole('navigation', { name: t('nav.breadcrumb') })).not.toBeInTheDocument()
   })
 
-  it('has a user menu with the name, the role, « Mon compte » and « Se déconnecter »', async () => {
+  it('names the user menu after the user, with the name, the role and two entries', async () => {
     render(shellAt('/accueil'))
-    await userEvent.click(screen.getByRole('button', { name: t('nav.userMenu') }))
+    expect(userMenuButton()).toHaveAccessibleName(`Menu de ${NAME}`)
+    await userEvent.click(userMenuButton())
     const menu = await screen.findByRole('menu')
-    expect(within(menu).getByText('Camille Tremblay')).toBeInTheDocument()
+    expect(within(menu).getByText(NAME)).toBeInTheDocument()
     expect(within(menu).getByText('Adjointe administrative')).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: t('nav.account') })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: t('nav.logout') })).toBeInTheDocument()
@@ -172,43 +215,43 @@ describe('AppShell — topbar', () => {
 
   it('« Mon compte » navigates to /mon-compte', async () => {
     render(shellAt('/accueil'))
-    await userEvent.click(screen.getByRole('button', { name: t('nav.userMenu') }))
+    await userEvent.click(userMenuButton())
     await userEvent.click(await screen.findByRole('menuitem', { name: t('nav.account') }))
-    expect(location()).toBe('/mon-compte')
+    await waitFor(() => expect(location()).toBe('/mon-compte'))
   })
 
-  it('« Mon compte » asks before leaving unsaved changes', async () => {
+  it('« Mon compte » asks before leaving unsaved changes, and « Rester » returns to the avatar', async () => {
     render(shellAt('/accueil', { dirty: true }))
-    await userEvent.click(screen.getByRole('button', { name: t('nav.userMenu') }))
+    await userEvent.click(userMenuButton())
     await userEvent.click(await screen.findByRole('menuitem', { name: t('nav.account') }))
-    const dialog = await screen.findByRole('alertdialog')
+    const confirm = await screen.findByRole('alertdialog')
+    await userEvent.click(within(confirm).getByRole('button', { name: t('common.unsaved.stay') }))
     expect(location()).toBe('/accueil')
-    await userEvent.click(within(dialog).getByRole('button', { name: t('common.unsaved.leave') }))
+    await waitFor(() => expect(userMenuButton()).toHaveFocus())
+
+    await userEvent.click(userMenuButton())
+    await userEvent.click(await screen.findByRole('menuitem', { name: t('nav.account') }))
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('common.unsaved.leave') }))
     expect(location()).toBe('/mon-compte')
   })
 
-  it('« Se déconnecter » in the menu signs out once, then is disabled', async () => {
+  it('« Se déconnecter » in the menu signs out, then is disabled', async () => {
     const signOut = vi.fn(() => new Promise<void>(() => {}))
     render(shellAt('/accueil', { auth: { signOut } }))
-    await userEvent.click(screen.getByRole('button', { name: t('nav.userMenu') }))
+    await userEvent.click(userMenuButton())
     await userEvent.click(await screen.findByRole('menuitem', { name: t('nav.logout') }))
-    expect(signOut).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('button', { name: t('nav.logout') })).toBeDisabled()
-    await userEvent.click(screen.getByRole('button', { name: t('nav.userMenu') }))
+    await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1))
+    expect(within(sidebar()).getByRole('button', { name: t('nav.logout') })).toBeDisabled()
+    await userEvent.click(userMenuButton())
     expect(await screen.findByRole('menuitem', { name: t('nav.logout') })).toHaveAttribute('data-disabled')
   })
 })
 
 describe('AppShell — command palette', () => {
-  const palette = () => screen.findByRole('dialog', { name: t('nav.palette.title') })
-
-  it.each([
-    ['Ctrl+K', '{Control>}k{/Control}'],
-    ['⌘K', '{Meta>}k{/Meta}'],
-  ])('opens with %s and lists the pages the user can see, plus « Mon compte »', async (_, keys) => {
+  it('opens with Ctrl+K and lists the pages the user can see, plus « Mon compte »', async () => {
     render(shellAt('/accueil'))
-    await userEvent.keyboard(keys)
-    const dialog = await palette()
+    await userEvent.keyboard(CTRL_K)
+    const dialog = await findPalette()
     expect(within(dialog).getByText(t('nav.palette.pages'))).toBeInTheDocument()
     expect(
       within(dialog)
@@ -218,56 +261,142 @@ describe('AppShell — command palette', () => {
     expect(within(dialog).getByRole('combobox')).toHaveFocus()
   })
 
-  it('opens from the search button in the topbar', async () => {
+  it('uses ⌘K on Apple keyboards, and only there', async () => {
     render(shellAt('/accueil'))
-    await userEvent.click(screen.getByRole('button', { name: t('nav.searchLabel') }))
-    expect(await palette()).toBeInTheDocument()
+    await userEvent.keyboard(CMD_K)
+    expect(queryPalette()).not.toBeInTheDocument()
+
+    platform = 'MacIntel'
+    await userEvent.keyboard(CTRL_K)
+    expect(queryPalette()).not.toBeInTheDocument()
+    await userEvent.keyboard(CMD_K)
+    expect(await findPalette()).toBeInTheDocument()
   })
 
-  it('filters as you type and navigates to the chosen page', async () => {
+  it('closes with the same shortcut and gives focus back', async () => {
     render(shellAt('/accueil'))
-    await userEvent.keyboard('{Control>}k{/Control}')
-    const dialog = await palette()
-    await userEvent.type(within(dialog).getByRole('combobox'), 'profes')
+    pageButton().focus()
+    await userEvent.keyboard(CTRL_K)
+    await findPalette()
+    await userEvent.keyboard(CTRL_K)
+    await waitFor(() => expect(queryPalette()).not.toBeInTheDocument())
+    await waitFor(() => expect(pageButton()).toHaveFocus())
+  })
+
+  it('ignores the shortcut while another dialog is open', async () => {
+    render(shellAt('/accueil', { dirty: true }))
+    await userEvent.click(userMenuButton())
+    await userEvent.click(await screen.findByRole('menuitem', { name: t('nav.account') }))
+    await screen.findByRole('alertdialog')
+    await userEvent.keyboard(CTRL_K)
+    expect(queryPalette()).not.toBeInTheDocument()
+  })
+
+  it('opens from the search button, and Escape gives focus back to it', async () => {
+    render(shellAt('/accueil'))
+    await userEvent.click(searchButton())
+    await findPalette()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(queryPalette()).not.toBeInTheDocument())
+    await waitFor(() => expect(searchButton()).toHaveFocus())
+  })
+
+  it('filters on the label, ignoring accents and case, and navigates to the chosen page', async () => {
+    render(shellAt('/accueil'))
+    pageButton().focus()
+    await userEvent.keyboard(CTRL_K)
+    const dialog = await findPalette()
+    const input = within(dialog).getByRole('combobox')
+    await userEvent.type(input, 'PARAMETRES')
+    expect(
+      within(dialog)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual([t('nav.settings')])
+    await userEvent.clear(input)
+    await userEvent.type(input, 'profes')
     expect(
       within(dialog)
         .getAllByRole('option')
         .map((o) => o.textContent),
     ).toEqual([t('modules.professionals.name')])
     await userEvent.keyboard('{Enter}')
-    expect(location()).toBe('/professionnels')
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(location()).toBe('/professionnels'))
+    expect(queryPalette()).not.toBeInTheDocument()
+    // The page's own button belongs to the page being left: focus goes to the search button.
+    expect(searchButton()).toHaveFocus()
   })
 
-  it('says when nothing matches', async () => {
+  it('does not match on the path', async () => {
     render(shellAt('/accueil'))
-    await userEvent.keyboard('{Control>}k{/Control}')
-    const dialog = await palette()
-    await userEvent.type(within(dialog).getByRole('combobox'), 'zzz')
+    await userEvent.keyboard(CTRL_K)
+    const dialog = await findPalette()
+    await userEvent.type(within(dialog).getByRole('combobox'), 'mon-compte')
+    expect(within(dialog).queryAllByRole('option')).toHaveLength(0)
     expect(within(dialog).getByText(t('nav.palette.empty'))).toBeInTheDocument()
   })
 
-  it('asks before leaving unsaved changes', async () => {
+  it('asks before leaving unsaved changes; « Rester » stays with focus on the search button', async () => {
     render(shellAt('/accueil', { dirty: true }))
-    await userEvent.keyboard('{Control>}k{/Control}')
-    await userEvent.click(within(await palette()).getByRole('option', { name: t('nav.settings') }))
+    await userEvent.keyboard(CTRL_K)
+    await userEvent.click(within(await findPalette()).getByRole('option', { name: t('nav.settings') }))
     const confirm = await screen.findByRole('alertdialog')
+    await userEvent.click(within(confirm).getByRole('button', { name: t('common.unsaved.stay') }))
     expect(location()).toBe('/accueil')
-    await userEvent.click(within(confirm).getByRole('button', { name: t('common.unsaved.leave') }))
+    await waitFor(() => expect(searchButton()).toHaveFocus())
+
+    await userEvent.keyboard(CTRL_K)
+    await userEvent.click(within(await findPalette()).getByRole('option', { name: t('nav.settings') }))
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('common.unsaved.leave') }))
     expect(location()).toBe('/parametres')
   })
 })
 
 describe('AppShell — mobile', () => {
-  it('opens the menu in a sheet, and closes it when an item is chosen', async () => {
+  it('opens the menu in a sheet, and closes it when an item is chosen, focus back on the menu button', async () => {
     render(shellAt('/accueil'))
-    await userEvent.click(screen.getByRole('button', { name: t('nav.openMenu') }))
-    const sheet = await screen.findByRole('dialog', { name: t('nav.menu') })
+    await userEvent.click(menuButton())
+    const sheet = await findSheet()
+    expect(within(sheet).getByText(NAME)).toBeInTheDocument()
     const nav = within(sheet).getByRole('navigation', { name: t('nav.label') })
-    expect(within(sheet).getByText('Camille Tremblay')).toBeInTheDocument()
     await userEvent.click(within(nav).getByRole('link', { name: t('modules.professionals.name') }))
     expect(location()).toBe('/professionnels')
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: t('nav.menu') })).not.toBeInTheDocument())
+    await waitFor(() => expect(querySheet()).not.toBeInTheDocument())
+    await waitFor(() => expect(menuButton()).toHaveFocus())
+  })
+
+  it('closes the sheet when the current page is chosen again', async () => {
+    render(shellAt('/accueil'))
+    await userEvent.click(menuButton())
+    await userEvent.click(within(await findSheet()).getByRole('link', { name: t('nav.home') }))
+    await waitFor(() => expect(querySheet()).not.toBeInTheDocument())
+    expect(location()).toBe('/accueil')
+  })
+
+  it('gives focus back to the menu button on Escape', async () => {
+    render(shellAt('/accueil'))
+    await userEvent.click(menuButton())
+    await findSheet()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(querySheet()).not.toBeInTheDocument())
+    await waitFor(() => expect(menuButton()).toHaveFocus())
+  })
+
+  it('stays open after « Rester », with focus on the chosen link, and closes after « Quitter »', async () => {
+    render(shellAt('/accueil', { dirty: true }))
+    await userEvent.click(menuButton())
+    const link = within(await findSheet()).getByRole('link', { name: t('modules.professionals.name') })
+    await userEvent.click(link)
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('common.unsaved.stay') }))
+    expect(location()).toBe('/accueil')
+    expect(querySheet()).toBeInTheDocument()
+    await waitFor(() => expect(link).toHaveFocus())
+
+    await userEvent.click(link)
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('common.unsaved.leave') }))
+    expect(location()).toBe('/professionnels')
+    await waitFor(() => expect(querySheet()).not.toBeInTheDocument())
+    await waitFor(() => expect(menuButton()).toHaveFocus())
   })
 
   // Radix would focus the first tabbable button (« Se déconnecter »): one Enter would sign out.
@@ -276,27 +405,21 @@ describe('AppShell — mobile', () => {
     ['/nulle-part', 'nav.home'],
   ] as const)('focuses the current nav link when the sheet opens (%s)', async (path, key) => {
     render(shellAt(path))
-    await userEvent.click(screen.getByRole('button', { name: t('nav.openMenu') }))
-    const sheet = await screen.findByRole('dialog', { name: t('nav.menu') })
+    await userEvent.click(menuButton())
+    const sheet = await findSheet()
     await waitFor(() => expect(within(sheet).getByRole('link', { name: t(key) })).toHaveFocus())
     expect(within(sheet).getByRole('button', { name: t('nav.logout') })).not.toHaveFocus()
   })
 
-  it('closes the sheet when the current page is chosen again', async () => {
+  it('closes the sheet when the palette opens', async () => {
     render(shellAt('/accueil'))
-    await userEvent.click(screen.getByRole('button', { name: t('nav.openMenu') }))
-    const sheet = await screen.findByRole('dialog', { name: t('nav.menu') })
-    await userEvent.click(within(sheet).getByRole('link', { name: t('nav.home') }))
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: t('nav.menu') })).not.toBeInTheDocument())
-  })
-})
-
-describe('AppShell — content', () => {
-  it('keeps the skip link and the focusable main region', async () => {
-    render(shellAt('/accueil'))
-    const main = screen.getByRole('main')
-    expect(main).toHaveAttribute('id', 'contenu')
-    await userEvent.click(screen.getByRole('link', { name: t('nav.skipToContent') }))
-    expect(main).toHaveFocus()
+    await userEvent.click(menuButton())
+    await findSheet()
+    await userEvent.keyboard(CTRL_K)
+    const palette = await findPalette()
+    await waitFor(() => expect(querySheet()).not.toBeInTheDocument())
+    expect(within(palette).getByRole('combobox')).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(menuButton()).toHaveFocus())
   })
 })

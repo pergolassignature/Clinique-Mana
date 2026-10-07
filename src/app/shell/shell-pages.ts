@@ -26,7 +26,12 @@ export interface ShellTitle {
   current: ShellPage
 }
 
-const isUnder = (pathname: string, path: string) => pathname === path || pathname.startsWith(`${path}/`)
+// Case-insensitive, like React Router's matching (/Parametres opens the same page).
+const isUnder = (pathname: string, path: string) => {
+  const location = pathname.toLowerCase()
+  const target = path.toLowerCase()
+  return location === target || location.startsWith(`${target}/`)
+}
 
 /**
  * Names the current page from the nav items: the deepest item whose path contains the location,

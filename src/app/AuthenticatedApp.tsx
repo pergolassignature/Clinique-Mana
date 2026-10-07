@@ -6,6 +6,7 @@ import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { Forbidden, RequireAccess } from '@/core/access/guards'
 import { resolveEnabledModules } from '@/core/modules/resolve'
 import { SettingsLayout } from '@/core/settings/SettingsLayout'
+import { SETTINGS_BASE_PATH, settingsSectionPath } from '@/core/settings/paths'
 import { coreSettingsSections } from '@/core/settings/sections'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { RouteBoundary } from '@/shared/components/RouteBoundary'
@@ -49,11 +50,11 @@ export function AuthenticatedApp() {
       ...(canOpenSettings
         ? [
             {
-              path: '/parametres',
+              path: SETTINGS_BASE_PATH,
               labelKey: 'nav.settings' as const,
               icon: Settings,
-              // Named in the topbar as « Paramètres / <section> », with the paths of SettingsLayout's menu.
-              subPages: visibleSettingsSections.map((s) => ({ path: `/parametres/${s.id}`, labelKey: s.labelKey })),
+              // Named in the topbar as « Paramètres / <section> ».
+              subPages: visibleSettingsSections.map((s) => ({ path: settingsSectionPath(s), labelKey: s.labelKey })),
             },
           ]
         : []),
