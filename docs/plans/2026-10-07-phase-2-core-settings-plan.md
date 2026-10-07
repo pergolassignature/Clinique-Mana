@@ -887,17 +887,18 @@ export function useUpdateOrganization(successMessage: string) { /* toast.success
 
 **Step 2: The reusable card wrapper.**
 ```tsx
-// src/core/settings/components/OrganizationCard.tsx
-interface OrganizationCardProps<S extends z.ZodTypeAny> {
+// src/core/settings/components/OrganizationCard.tsx  (amended after the Task 2.8 review: this generic compiles; the original didn't)
+interface OrganizationCardProps<TIn extends FieldValues, TOut extends OrganizationUpdate> {
   title: string
   description?: string
-  schema: S
-  /** Form values (strings) from the organization row. */
-  defaults: z.input<S>
-  /** Organization columns this card may write. */
+  schema: z.ZodType<TOut, TIn>
+  /** The card's `to…FormValues` from schemas.ts; also used for the reset after a save. */
+  toFormValues: (org: Organization) => TIn
   successMessage: string
-  children: (form: UseFormReturn<z.input<S>, unknown, z.output<S>>) => ReactNode
+  children: (form: UseFormReturn<TIn, unknown, TOut>) => ReactNode
 }
+// useForm<TIn, unknown, TOut>({ resolver: zodResolver(schema), values: toFormValues(org), resetOptions: { keepDirtyValues: true } })
+// save: mutation.mutate({ id, patch }, { onSuccess: (saved) => form.reset(toFormValues(saved)) })  — not mutateAsync inside handleSubmit
 ```
 Behaviour:
 - **Form:** `useForm({ resolver: zodResolver(schema), values: defaults })`. `values` (not `defaultValues`) re-syncs after a save, once the refetch lands.
