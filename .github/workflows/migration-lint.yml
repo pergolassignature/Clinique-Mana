@@ -5,6 +5,9 @@ on:
     paths:
       - 'supabase/migrations/**'
 
+permissions:
+  contents: read
+
 jobs:
   check-timestamps:
     name: Reject round-HHMMSS migration timestamps
