@@ -6,14 +6,16 @@ import {
   clinicSchema,
   contactSchema,
   PROVINCES,
-  privacySchema,
+  privacyOfficerSchema,
+  privacyPolicySchema,
   regionSchema,
   signatorySchema,
   taxNumbersSchema,
   toAddressFormValues,
   toClinicFormValues,
   toContactFormValues,
-  toPrivacyFormValues,
+  toPrivacyOfficerFormValues,
+  toPrivacyPolicyFormValues,
   toRegionFormValues,
   toSignatoryFormValues,
   toTaxNumbersFormValues,
@@ -269,7 +271,10 @@ describe('signatorySchema', () => {
   })
 })
 
-describe('privacySchema', () => {
+// The two Confidentialité cards' schemas together, so each field's rules are tested in one place.
+const privacySchema = privacyOfficerSchema.extend(privacyPolicySchema.shape)
+
+describe('privacy schemas', () => {
   const valid = {
     privacy_officer_name: 'Julie Roy',
     privacy_officer_email: 'vie-privee@cliniquemana.com',
@@ -339,12 +344,8 @@ describe('toFormValues', () => {
     expect(toContactFormValues(ORG)).toEqual({ phone: '514 555-1234', email: 'info@cliniquemana.com', website: 'https://cliniquemana.com' })
     expect(toTaxNumbersFormValues(ORG)).toEqual({ gst_number: '123456789RT0001', qst_number: '1234567890TQ0001' })
     expect(toSignatoryFormValues(ORG)).toEqual({ signatory_name: 'Marie Tremblay', signatory_title: 'Directrice' })
-    expect(toPrivacyFormValues(ORG)).toEqual({
-      privacy_officer_name: 'Julie Roy',
-      privacy_officer_email: 'vie-privee@cliniquemana.com',
-      privacy_policy_url: 'https://cliniquemana.com/confidentialite',
-      record_retention_years: '7',
-    })
+    expect(toPrivacyOfficerFormValues(ORG)).toEqual({ privacy_officer_name: 'Julie Roy', privacy_officer_email: 'vie-privee@cliniquemana.com' })
+    expect(toPrivacyPolicyFormValues(ORG)).toEqual({ privacy_policy_url: 'https://cliniquemana.com/confidentialite', record_retention_years: '7' })
     expect(toRegionFormValues(ORG)).toEqual({ timezone: 'America/Toronto' })
   })
 
@@ -354,7 +355,8 @@ describe('toFormValues', () => {
     expect(toContactFormValues(EMPTY_ORG)).toEqual({ phone: '', email: '', website: '' })
     expect(toTaxNumbersFormValues(EMPTY_ORG)).toEqual({ gst_number: '', qst_number: '' })
     expect(toSignatoryFormValues(EMPTY_ORG)).toEqual({ signatory_name: '', signatory_title: '' })
-    expect(toPrivacyFormValues(EMPTY_ORG)).toEqual({ privacy_officer_name: '', privacy_officer_email: '', privacy_policy_url: '', record_retention_years: '' })
+    expect(toPrivacyOfficerFormValues(EMPTY_ORG)).toEqual({ privacy_officer_name: '', privacy_officer_email: '' })
+    expect(toPrivacyPolicyFormValues(EMPTY_ORG)).toEqual({ privacy_policy_url: '', record_retention_years: '' })
   })
 
   it.each([
@@ -363,7 +365,8 @@ describe('toFormValues', () => {
     ['contact', contactSchema, toContactFormValues],
     ['tax numbers', taxNumbersSchema, toTaxNumbersFormValues],
     ['signatory', signatorySchema, toSignatoryFormValues],
-    ['privacy', privacySchema, toPrivacyFormValues],
+    ['privacy officer', privacyOfficerSchema, toPrivacyOfficerFormValues],
+    ['privacy policy', privacyPolicySchema, toPrivacyPolicyFormValues],
     ['region', regionSchema, toRegionFormValues],
   ] as const)('round-trips the stored values through the %s schema', (_card, schema, toFormValues) => {
     for (const org of [ORG, EMPTY_ORG]) {

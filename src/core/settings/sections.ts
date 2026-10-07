@@ -86,7 +86,11 @@ export const coreSettingsSections: SettingsSection[] = [
     permission: 'settings.view',
     editPermission: 'settings.manage',
     group: 'clinique',
-    component: ComingSoonSection,
+    component: lazy(() =>
+      import('./pages/PrivacySettingsPage').then((m) => ({
+        default: m.PrivacySettingsPage,
+      }))
+    ),
   },
   {
     id: 'users',

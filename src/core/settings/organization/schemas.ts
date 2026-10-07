@@ -193,11 +193,20 @@ export function toSignatoryFormValues(org: Organization): z.input<typeof signato
   return { signatory_name: str(org.signatory_name), signatory_title: str(org.signatory_title) }
 }
 
-// --- Confidentialité (Loi 25) --------------------------------------------------------------------
+// --- Confidentialité (Loi 25): « Responsable de la protection des renseignements personnels » ---
 
-export const privacySchema = z.object({
+export const privacyOfficerSchema = z.object({
   privacy_officer_name: optionalText(120),
   privacy_officer_email: optionalEmail(),
+})
+
+export function toPrivacyOfficerFormValues(org: Organization): z.input<typeof privacyOfficerSchema> {
+  return { privacy_officer_name: str(org.privacy_officer_name), privacy_officer_email: str(org.privacy_officer_email) }
+}
+
+// --- Confidentialité (Loi 25): « Politique et conservation » -------------------------------------
+
+export const privacyPolicySchema = z.object({
   privacy_policy_url: optionalHttpsUrl(),
   // Whole years, 1–50 (`organizations_record_retention_years_check`); '' → null.
   record_retention_years: z
@@ -207,10 +216,8 @@ export const privacySchema = z.object({
     .transform((v) => (v === '' ? null : Number(v))),
 })
 
-export function toPrivacyFormValues(org: Organization): z.input<typeof privacySchema> {
+export function toPrivacyPolicyFormValues(org: Organization): z.input<typeof privacyPolicySchema> {
   return {
-    privacy_officer_name: str(org.privacy_officer_name),
-    privacy_officer_email: str(org.privacy_officer_email),
     privacy_policy_url: str(org.privacy_policy_url),
     record_retention_years: org.record_retention_years === null ? '' : String(org.record_retention_years),
   }
