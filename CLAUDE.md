@@ -299,7 +299,11 @@ Both `SheetContent` and `DialogContent` support `hideClose` prop to prevent doub
 
 - **Never mutate staging without Jonathan's explicit go-ahead in chat**, every time: migrations, resets, edge-function deploys, secrets, Auth settings. The same goes for `git push`, opening PRs and GitHub secrets.
 - **Never apply a migration through the Supabase MCP (`apply_migration`)** or by pasting SQL in the dashboard: it bypasses the migration history. Migrations go through git and `supabase db push`.
-- The target flow (plan Task 1.22, not built yet): merging to `main` applies migrations and deploys changed edge functions to staging through GitHub Actions. Until then, nothing deploys automatically.
+- **Merging to `main` is the deploy** (plan Task 1.22):
+  - `supabase-migrations.yml` runs `supabase db push --linked --include-all` on staging when `supabase/migrations/**` changes, then checks for drift;
+  - `apply-edge-functions.yml` deploys the changed functions (all of them when `_shared/` or `deno.json`/`deno.lock` change), honouring `verify_jwt` from `config.toml`;
+  - Vercel builds the web app from `main`.
+  Both workflows need the repository secrets `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`, and can be re-run by hand (`workflow_dispatch`). Never also apply by hand what the merge deploys.
 - The web app is hosted on Vercel. `vercel.json` rewrites every path to `/index.html` so SPA deep links (`/accueil`, `/reinitialiser-mot-de-passe`, …) do not 404; keep it when adding Vercel config.
 - Any remote reset uses `supabase db reset --linked --no-seed` (the seed is local only), and only with the go-ahead above.
 - Pull requests must be green on CI (`ci.yml`: typecheck, lint, `lint:supabase`, Vitest, build, Deno check/lint/test of every function, pgTAP, types drift; `migration-lint.yml`).

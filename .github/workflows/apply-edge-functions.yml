@@ -1,0 +1,110 @@
+name: Apply edge functions (staging)
+
+# Merging to main = deploying changed edge functions to staging (plan Task 1.22).
+# Adapted from PS Hub:
+#   - supabase/functions/<name>/** changed  -> redeploy <name>
+#   - supabase/functions/_shared/** or deno.json/deno.lock changed -> redeploy ALL
+#   - verify_jwt comes from supabase/config.toml per function (the CLI honours it)
+#   - the import map supabase/functions/deno.json (+ deno.lock) is copied into each
+#     function folder at deploy time only (never committed): the bundler does not
+#     apply a parent import map per function.
+#   - one failing function does not stop the others; the job still fails.
+# workflow_dispatch with no input redeploys every function.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+  workflow_dispatch:
+    inputs:
+      functions:
+        description: 'Comma/space-separated function names (blank = all)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edge-functions-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy edge functions to staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: vnmbjbdsjxmpijyjmmkh
+      DISPATCH_FUNCTIONS: ${{ github.event.inputs.functions }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.98.2
+
+      - name: Deploy changed functions
+        run: |
+          set -uo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::Repository secret SUPABASE_ACCESS_TOKEN is required."
+            exit 1
+          fi
+
+          emit_all() {
+            for d in supabase/functions/*/; do
+              n="$(basename "$d")"
+              [ "$n" = "_shared" ] && continue
+              [ -f "${d}index.ts" ] && echo "$n"
+            done
+          }
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${DISPATCH_FUNCTIONS:-}" ]; then
+              FNS="$(echo "$DISPATCH_FUNCTIONS" | tr ', ' '\n\n' | sed '/^$/d' | sort -u)"
+            else
+              FNS="$(emit_all | sort -u)"
+            fi
+          else
+            BEFORE="${{ github.event.before }}"
+            SHA="${{ github.sha }}"
+            if [ -z "$BEFORE" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+              BEFORE="$(git rev-parse "${SHA}~1" 2>/dev/null || true)"
+            fi
+            CHANGED="$(git diff --name-only "$BEFORE" "$SHA" -- 'supabase/functions/**' || true)"
+            echo "Changed function files:"; echo "${CHANGED:-<none>}"
+            if [ -z "$CHANGED" ]; then echo "Nothing to deploy."; exit 0; fi
+            if echo "$CHANGED" | grep -qE '^supabase/functions/(_shared/|deno\.json$|deno\.lock$)'; then
+              echo "::notice::Shared code or import map changed — deploying ALL functions"
+              FNS="$(emit_all | sort -u)"
+            else
+              FNS="$(echo "$CHANGED" | sed -nE 's#^supabase/functions/([^/]+)/.*#\1#p' | { grep -vx '_shared' || true; } | sort -u)"
+            fi
+          fi
+
+          if [ -z "${FNS//[[:space:]]/}" ]; then echo "No deployable function."; exit 0; fi
+
+          for d in supabase/functions/*/; do
+            n="$(basename "$d")"
+            [ "$n" = "_shared" ] && continue
+            [ -f "${d}index.ts" ] || continue
+            [ -f "${d}deno.json" ] || cp supabase/functions/deno.json "${d}deno.json"
+            [ -f "${d}deno.lock" ] || cp supabase/functions/deno.lock "${d}deno.lock"
+          done
+
+          FAILED=""
+          for fn in $FNS; do
+            [ -f "supabase/functions/$fn/index.ts" ] || { echo "Skipping $fn (no index.ts)"; continue; }
+            echo "::notice::Deploying $fn"
+            supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_ID" || FAILED="$FAILED $fn"
+          done
+          if [ -n "${FAILED//[[:space:]]/}" ]; then
+            echo "::error::Failed:${FAILED}"
+            exit 1
+          fi
+          echo "All requested functions deployed."
