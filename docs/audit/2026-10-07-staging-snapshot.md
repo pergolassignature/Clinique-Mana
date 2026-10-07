@@ -59,4 +59,6 @@ Done with Jonathan's explicit go-ahead.
 
 **Vercel:** Node 22.x; preview of PR #1 built and serves deep links (`vercel.json`).
 
-**Still to verify:** Secure email change needs both addresses (plan Task 1.21 Step 10); a real reset email delivered through Resend.
+**Smoke test on the preview (staging data):** Jonathan's admin sign-in ✅ · menu Accueil / Professionnels / Paramètres ✅ · module Professionnels off → disappears from the menu, back on ✅ · explicit sign-out ✅ · « Mot de passe oublié » → Resend shows « Reset Your Password » **Delivered** to Jonathan's address ✅.
+
+**Still to verify:** Secure email change needs both addresses (plan Task 1.21 Step 10). The auth emails still use Supabase's default English templates (French templates: Phase 3, or earlier in the dashboard).
