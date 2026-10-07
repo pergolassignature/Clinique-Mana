@@ -4,29 +4,33 @@
 -- every member (provider included), write refused without settings.manage, org isolation.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(46);
+select plan(55);
 
 -- =============================================================================
--- Fixtures (as postgres): org A with an admin, an adjointe and a provider; org B with an admin.
+-- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a disabled admin;
+-- org B with an admin.
 -- =============================================================================
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
   ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@a.test',    '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'adjointe@a.test', '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'provider@a.test', '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'disabled@a.test', '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',    '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A'),
   ('b0000000-0000-0000-0000-00000000000b', 'Org B');
-insert into public.profiles (user_id, org_id, display_name, email) values
-  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',    'admin@a.test'),
-  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe A', 'adjointe@a.test'),
-  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Provider A', 'provider@a.test'),
-  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',    'admin@b.test');
+insert into public.profiles (user_id, org_id, display_name, email, status) values
+  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',    'admin@a.test',    'active'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe A', 'adjointe@a.test', 'active'),
+  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Provider A', 'provider@a.test', 'active'),
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Disabled A', 'disabled@a.test', 'disabled'),
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',    'admin@b.test',    'active');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'provider'),
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin');
 
 -- =============================================================================
@@ -79,8 +83,35 @@ select results_eq(
              'H2X 1Y4'::text, 'QC'::text, '+15145551234'::text, 'https://cliniquemana.com'::text, 7::smallint) $$,
   'admin reads the values back');
 
+select lives_ok($$
+  update public.organizations set
+    address_line1 = '1234, rue Saint-Denis', address_line2 = 'Bureau 200', city = 'Montréal',
+    email = 'info@cliniquemana.com', signatory_name = 'Marie Tremblay', signatory_title = 'Directrice',
+    privacy_officer_name = 'Julie Gagnon', privacy_officer_email = 'confidentialite@cliniquemana.com',
+    privacy_policy_url = 'https://cliniquemana.com/confidentialite'
+  where id = 'b0000000-0000-0000-0000-00000000000a'
+$$, 'admin fills the address, contact, signatory and privacy columns');
+select results_eq(
+  $$ select address_line1, address_line2, city, email, signatory_name, signatory_title,
+            privacy_officer_name, privacy_officer_email, privacy_policy_url
+       from public.organizations where id = 'b0000000-0000-0000-0000-00000000000a' $$,
+  $$ values ('1234, rue Saint-Denis'::text, 'Bureau 200'::text, 'Montréal'::text, 'info@cliniquemana.com'::text,
+             'Marie Tremblay'::text, 'Directrice'::text, 'Julie Gagnon'::text,
+             'confidentialite@cliniquemana.com'::text, 'https://cliniquemana.com/confidentialite'::text) $$,
+  'admin reads those values back');
+
+select lives_ok($$
+  update public.organizations set address_line2 = null, website = null
+  where id = 'b0000000-0000-0000-0000-00000000000a'
+$$, 'admin clears optional fields back to null');
+select ok((select address_line2 is null and website is null
+             from public.organizations where id = 'b0000000-0000-0000-0000-00000000000a'),
+  'cleared fields read back as null');
+
 select throws_ok($$ update public.organizations set neq = '123' where id = 'b0000000-0000-0000-0000-00000000000a' $$,
   '23514', null, 'NEQ must be 10 digits');
+select throws_ok($$ update public.organizations set neq = '１２３４５６７８９０' where id = 'b0000000-0000-0000-0000-00000000000a' $$,
+  '23514', null, 'NEQ refuses non-ASCII (fullwidth) digits');
 select throws_ok($$ update public.organizations set gst_number = '123456789' where id = 'b0000000-0000-0000-0000-00000000000a' $$,
   '23514', null, 'GST number needs the RT program suffix');
 select throws_ok($$ update public.organizations set qst_number = '1234567890RT0001' where id = 'b0000000-0000-0000-0000-00000000000a' $$,
@@ -97,8 +128,14 @@ select throws_ok($$ update public.organizations set email = 'pas-un-courriel' wh
   '23514', null, 'email must look like an email');
 select throws_ok($$ update public.organizations set record_retention_years = 0 where id = 'b0000000-0000-0000-0000-00000000000a' $$,
   '23514', null, 'retention is at least 1 year');
+select throws_ok($$ update public.organizations set record_retention_years = 51 where id = 'b0000000-0000-0000-0000-00000000000a' $$,
+  '23514', null, 'retention is at most 50 years');
 select throws_ok($$ update public.organizations set legal_name = '   ' where id = 'b0000000-0000-0000-0000-00000000000a' $$,
   '23514', null, 'legal name cannot be blank');
+select throws_ok($$ update public.organizations set legal_name = E'\t\n' where id = 'b0000000-0000-0000-0000-00000000000a' $$,
+  '23514', null, 'tabs and line breaks count as blank');
+select throws_ok($$ update public.organizations set legal_name = repeat('a', 201) where id = 'b0000000-0000-0000-0000-00000000000a' $$,
+  '23514', null, 'legal name is at most 200 characters');
 select throws_ok($$ update public.organizations set privacy_officer_email = 'a@b' where id = 'b0000000-0000-0000-0000-00000000000a' $$,
   '23514', null, 'privacy officer email must look like an email');
 select throws_ok($$ update public.organizations set privacy_policy_url = 'cliniquemana.com/confidentialite' where id = 'b0000000-0000-0000-0000-00000000000a' $$,
@@ -133,6 +170,16 @@ select is_empty($$
   update public.organizations set legal_name = 'Provider inc.'
   where id = 'b0000000-0000-0000-0000-00000000000a' returning 1
 $$, 'provider updates no row');
+
+-- =============================================================================
+-- Disabled admin A: no current org, no permission, so no write
+-- =============================================================================
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+
+select is_empty($$
+  update public.organizations set legal_name = 'Disabled inc.'
+  where id = 'b0000000-0000-0000-0000-00000000000a' returning 1
+$$, 'disabled admin updates no row');
 
 -- =============================================================================
 -- Admin B: org A is invisible and untouchable
