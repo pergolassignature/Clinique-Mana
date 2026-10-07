@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
-import { AuthContext, type AuthContextValue } from '@/core/auth/AuthProvider'
-import { AccessContext, type AccessContextValue } from '@/core/access/AccessProvider'
+import { AuthContext, type AuthContextValue } from '@/core/auth/auth-context'
+import { AccessContext, type AccessContextValue } from '@/core/access/access-context'
 import type { Access } from '@/core/access/access'
 import { LoginRouteProbe } from './LoginRouteProbe'
 

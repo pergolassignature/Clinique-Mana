@@ -5,9 +5,10 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Session } from '@supabase/supabase-js'
 import { ZodError } from 'zod'
-import { AuthContext, type AuthContextValue } from '@/core/auth/AuthProvider'
+import { AuthContext, type AuthContextValue } from '@/core/auth/auth-context'
 import { getClinicTimezone, resetClinicTimezone } from '@/shared/lib/timezone'
-import { AccessProvider, accessKeys, useAccess } from './AccessProvider'
+import { AccessProvider } from './AccessProvider'
+import { accessKeys, useAccess } from './access-context'
 import type { Access } from './access'
 
 const fetchMyAccess = vi.hoisted(() => vi.fn())

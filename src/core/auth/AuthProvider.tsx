@@ -1,31 +1,9 @@
 // SUPABASE_ALLOWED: the auth provider owns the Supabase auth session.
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { AuthError, Session } from '@supabase/supabase-js'
 import { supabase } from '@/core/supabase/client'
+import { AuthContext, type AuthContextValue, type AuthErrorCode } from './auth-context'
 import { safeRedirect } from './redirect'
-
-export type AuthErrorCode =
-  | 'invalid_credentials'
-  | 'weak_password'
-  | 'same_password'
-  | 'reauthentication_needed'
-  | 'rate_limited'
-  | 'unknown'
-
-export interface AuthContextValue {
-  session: Session | null
-  isLoading: boolean
-  /** True between a PASSWORD_RECOVERY event and the password update (or sign-out). */
-  isRecovery: boolean
-  signInWithPassword: (email: string, password: string) => Promise<AuthErrorCode | null>
-  /** `redirectPath` is where the link lands after sign-in (sanitised; defaults to /accueil). */
-  sendMagicLink: (email: string, redirectPath?: string | null) => Promise<AuthErrorCode | null>
-  sendPasswordReset: (email: string) => Promise<AuthErrorCode | null>
-  updatePassword: (password: string) => Promise<AuthErrorCode | null>
-  signOut: () => Promise<void>
-}
-
-export const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 /** Maps a GoTrue error to a UI code, by error code (the message is only a fallback for old servers). */
 function toCode(error: AuthError | null): AuthErrorCode | null {
@@ -120,10 +98,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export function useAuth(): AuthContextValue {
-  const context = useContext(AuthContext)
-  if (!context) throw new Error('useAuth must be used within AuthProvider')
-  return context
 }

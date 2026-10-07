@@ -1,29 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ZodError } from 'zod'
-import { useAuth } from '@/core/auth/AuthProvider'
+import { useAuth } from '@/core/auth/auth-context'
 import { getClinicTimezone, resetClinicTimezone, setClinicTimezone } from '@/shared/lib/timezone'
-import { can, type Access, type AccessProblem } from './access'
+import { can } from './access'
+import { AccessContext, accessKeys, type AccessContextValue, type AccessStatus } from './access-context'
 import { fetchMyAccess } from './api'
-
-export type AccessStatus = 'idle' | 'loading' | 'ready' | 'denied' | 'error'
-
-export interface AccessContextValue {
-  status: AccessStatus
-  access: Access | null
-  problem: AccessProblem | null
-  can: (permission: string) => boolean
-  reload: () => void
-  /** True while access is being (re)fetched, e.g. after reload(). */
-  isReloading: boolean
-}
-
-export const accessKeys = {
-  all: ['access'] as const,
-  me: (userId: string) => [...accessKeys.all, 'me', userId] as const,
-}
-
-export const AccessContext = createContext<AccessContextValue | undefined>(undefined)
 
 export function AccessProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth()
@@ -86,10 +68,4 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   )
 
   return <AccessContext.Provider value={value}>{children}</AccessContext.Provider>
-}
-
-export function useAccess(): AccessContextValue {
-  const context = useContext(AccessContext)
-  if (!context) throw new Error('useAccess must be used within AccessProvider')
-  return context
 }

@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, render } from '@testing-library/react'
 import { AuthApiError, type AuthChangeEvent, type Session } from '@supabase/supabase-js'
 import { t } from '@/i18n'
-import { AuthProvider, useAuth, type AuthContextValue, type AuthErrorCode } from './AuthProvider'
+import { AuthProvider } from './AuthProvider'
+import { useAuth, type AuthContextValue, type AuthErrorCode } from './auth-context'
 
 type Listener = (event: AuthChangeEvent, session: Session | null) => void
 

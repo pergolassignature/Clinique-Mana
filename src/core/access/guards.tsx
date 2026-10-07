@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { t } from '@/i18n'
-import { useAuth } from '@/core/auth/AuthProvider'
+import { useAuth } from '@/core/auth/auth-context'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { Button } from '@/shared/ui/button'
-import { useAccess } from './AccessProvider'
+import { useAccess } from './access-context'
 
 function Loading() {
   return <FullPageMessage title={t('common.loading')} />
