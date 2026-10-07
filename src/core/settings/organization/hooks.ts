@@ -28,9 +28,10 @@ export function useUpdateOrganization(successMessage: string) {
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: OrganizationUpdate }) => updateOrganization(id, patch),
     onSuccess: async (saved, { patch }) => {
-      // The saved row is the truth: cache it at once, then refetch anything derived from it.
+      // The saved row is the truth: cache it at once. The organization queries are only marked
+      // stale (no second request); the access payload derived from name/timezone is refetched.
       queryClient.setQueryData(organizationKeys.current(), saved)
-      const invalidations = [queryClient.invalidateQueries({ queryKey: organizationKeys.all })]
+      const invalidations = [queryClient.invalidateQueries({ queryKey: organizationKeys.all, refetchType: 'none' })]
       if (patch.name !== undefined || patch.timezone !== undefined) {
         invalidations.push(queryClient.invalidateQueries({ queryKey: accessKeys.all }))
       }

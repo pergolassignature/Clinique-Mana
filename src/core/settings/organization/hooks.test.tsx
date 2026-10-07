@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { accessKeys } from '@/core/access/access-context'
 import { organizationKeys, useOrganization, useUpdateOrganization } from './hooks'
@@ -34,9 +34,7 @@ describe('useOrganization', () => {
     await waitFor(() => expect(result.current.data).toBe(SAVED))
     expect(queryClient.getQueryData(organizationKeys.current())).toBe(SAVED)
   })
-})
 
-describe('useOrganization', () => {
   it('keeps the loaded values fresh for a minute, so a background refetch does not reset a form being typed in', async () => {
     const { wrapper } = setup()
     mocks.api.fetchOrganization.mockResolvedValue(SAVED)
@@ -75,21 +73,43 @@ describe('useUpdateOrganization', () => {
     expect(mocks.api.updateOrganization).toHaveBeenCalledWith('o1', { signatory_name: 'Marie Tremblay', signatory_title: null })
     expect(result.current.data).toBe(SAVED)
     expect(invalidate).toHaveBeenCalledTimes(1)
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: organizationKeys.all })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: organizationKeys.all, refetchType: 'none' })
     expect(mocks.toast.success).toHaveBeenCalledWith('Signataire enregistré.')
   })
 
-  it('still confirms the save when the refetch that follows fails', async () => {
+  it('shows the saved row without fetching the organization again', async () => {
     const { wrapper } = setup()
-    mocks.api.fetchOrganization.mockResolvedValueOnce(SAVED).mockRejectedValue({ code: '', message: 'TypeError: Failed to fetch' })
-    mocks.api.updateOrganization.mockResolvedValue(SAVED)
+    const before = { ...SAVED, city: 'Montréal' }
+    const saved = { ...SAVED, city: 'Laval' }
+    mocks.api.fetchOrganization.mockResolvedValue(before)
+    mocks.api.updateOrganization.mockResolvedValue(saved)
 
     const { result } = renderHook(() => ({ query: useOrganization(), mutation: useUpdateOrganization('Enregistré.') }), { wrapper })
-    await waitFor(() => expect(result.current.query.isSuccess).toBe(true))
+    await waitFor(() => expect(result.current.query.data).toBe(before))
     result.current.mutation.mutate({ id: 'o1', patch: { city: 'Laval' } })
 
     await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true))
-    expect(mocks.api.fetchOrganization).toHaveBeenCalledTimes(2)
+    expect(result.current.query.data).toEqual(saved)
+    expect(mocks.api.fetchOrganization).toHaveBeenCalledTimes(1)
+  })
+
+  it('still confirms the save when the access refetch that follows fails', async () => {
+    const { wrapper } = setup()
+    const fetchAccess = vi.fn().mockResolvedValueOnce({ org_name: 'Clinique MANA' }).mockRejectedValue({ code: '', message: 'TypeError: Failed to fetch' })
+    mocks.api.updateOrganization.mockResolvedValue(SAVED)
+
+    const { result } = renderHook(
+      () => ({
+        access: useQuery({ queryKey: accessKeys.me('u1'), queryFn: fetchAccess, retry: false }),
+        mutation: useUpdateOrganization('Enregistré.'),
+      }),
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current.access.isSuccess).toBe(true))
+    result.current.mutation.mutate({ id: 'o1', patch: { name: 'Clinique MANA Laval', legal_name: null, neq: null } })
+
+    await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true))
+    expect(fetchAccess).toHaveBeenCalledTimes(2)
     expect(mocks.toast.success).toHaveBeenCalledWith('Enregistré.')
     expect(mocks.toast.error).not.toHaveBeenCalled()
   })
@@ -134,7 +154,7 @@ describe('useUpdateOrganization', () => {
     result.current.mutate({ id: 'o1', patch })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: organizationKeys.all })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: organizationKeys.all, refetchType: 'none' })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: accessKeys.all })
   })
 

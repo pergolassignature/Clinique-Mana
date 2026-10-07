@@ -78,9 +78,16 @@ function normalizeUrl(v: string): string {
   return scheme ? scheme[0].toLowerCase() + v.slice(scheme[0].length) : `https://${v}`
 }
 
-/** A browser-parsable address whose host has a dot inside it (`x.ca`, not `localhost` nor `x.`). */
+/**
+ * A browser-parsable address whose host has a dot inside it (`x.ca`, not `localhost` nor `x.`).
+ * `new URL` in a try/catch, not `URL.canParse`: the build targets Safari 14 / Chrome 87.
+ */
 function isWebAddress(url: string): boolean {
-  return URL.canParse(url) && /[^.]\.[^.]/.test(new URL(url).hostname)
+  try {
+    return /[^.]\.[^.]/.test(new URL(url).hostname)
+  } catch {
+    return false
+  }
 }
 
 /**
