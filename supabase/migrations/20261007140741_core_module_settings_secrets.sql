@@ -7,8 +7,8 @@
 --   table; they write through RPCs and see key names only. Edge functions read
 --   values with get_org_secret() under the service role.
 -- * RPCs: module_enabled, set_module_enabled, list_modules,
---         set_org_secret, delete_org_secret, list_org_secret_keys,
---         get_org_secret (service role only).
+--         set_org_secret, delete_org_secret, list_org_secret_keys;
+--         service role only: get_org_secret, module_enabled_for_org.
 --
 -- Design:   docs/plans/2026-10-06-foundation-rebuild-design.md §3
 -- Review:   docs/audit/2026-10-07-core-schema-design-review.md (C1, I1, I2, I10)
@@ -113,6 +113,24 @@ as $$
     select 1
       from public.org_modules om
      where om.org_id = private.current_user_org_id()
+       and om.module_key = p_key
+       and om.enabled
+  )
+$$;
+
+-- Module gate for functions that have no user (webhooks, cron): the caller
+-- (service role) resolves the org from a database row, never from the request.
+create function public.module_enabled_for_org(p_org_id uuid, p_key text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p_key = 'core' or exists (
+    select 1
+      from public.org_modules om
+     where om.org_id = p_org_id
        and om.module_key = p_key
        and om.enabled
   )
@@ -315,7 +333,8 @@ revoke all on function
   public.set_org_secret(text, text),
   public.delete_org_secret(text),
   public.list_org_secret_keys(),
-  public.get_org_secret(uuid, text)
+  public.get_org_secret(uuid, text),
+  public.module_enabled_for_org(uuid, text)
 from public, anon, authenticated;
 
 grant execute on function
@@ -328,3 +347,4 @@ grant execute on function
 to authenticated, service_role;
 
 grant execute on function public.get_org_secret(uuid, text) to service_role;
+grant execute on function public.module_enabled_for_org(uuid, text) to service_role;

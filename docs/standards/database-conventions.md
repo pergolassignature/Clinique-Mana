@@ -76,7 +76,7 @@ create policy trainings_select on public.trainings
 - **Every module policy includes a `has_permission` term.** It is the module gate: when an org disables a module, `has_permission('<module>.*')` turns false and the module's rows disappear. An ownership-only policy (`user_id = (select auth.uid())`) skips the gate, so combine it: `… and (select private.has_permission('trainings.view'))`.
 - **Never query `profiles` or `user_roles` inline in a policy** (legacy hit RLS recursion twice). Add a helper instead.
 - Write `with check` for every `update` policy; it usually repeats the org condition. (Clients have no `insert` privilege, so there are no client insert policies.)
-- Edge functions cannot call `private.*`. They use `get_my_access()` (permissions, already module-filtered) and `module_enabled()`. A function that works with the **service role** bypasses RLS and therefore the gate: it must still call `requireModule()`.
+- Edge functions cannot call `private.*`. They use `get_my_access()` (permissions and enabled modules, already filtered) and `module_enabled()`. A function that works with the **service role** bypasses RLS and therefore the gate: a user-scoped function still calls `requireModule()` (or `verifyAuth(req, { module })`); a function without a user (webhook, cron) resolves the org from a database row and calls `requireModuleForOrg()`, which uses `module_enabled_for_org(org_id, key)` (service role only).
 
 ## 5b. Views
 

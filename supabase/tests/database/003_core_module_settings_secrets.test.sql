@@ -4,7 +4,7 @@
 -- dependency rules, list_modules, secret lifecycle + audit, cross-org isolation.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(75);
+select plan(83);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -62,9 +62,14 @@ select function_privs_are('public', 'set_org_secret',       array['text', 'text'
 select function_privs_are('public', 'delete_org_secret',    array['text'],            'authenticated', array['EXECUTE'], 'authenticated can call delete_org_secret');
 select function_privs_are('public', 'list_org_secret_keys', array[]::text[],          'authenticated', array['EXECUTE'], 'authenticated can call list_org_secret_keys');
 
+-- module_enabled_for_org: the module gate for functions without a user (webhooks, cron).
+select function_privs_are('public', 'module_enabled_for_org', array['uuid', 'text'], 'anon', array[]::text[], 'anon cannot call module_enabled_for_org');
+select function_privs_are('public', 'module_enabled_for_org', array['uuid', 'text'], 'authenticated', array[]::text[], 'clients cannot call module_enabled_for_org');
+select function_privs_are('public', 'module_enabled_for_org', array['uuid', 'text'], 'service_role', array['EXECUTE'], 'service_role can call module_enabled_for_org');
+
 -- Only the intended RPCs are exposed through the API.
 select functions_are('public', array[
-  'get_my_access', 'module_enabled', 'set_module_enabled', 'list_modules',
+  'get_my_access', 'module_enabled', 'module_enabled_for_org', 'set_module_enabled', 'list_modules',
   'set_org_secret', 'delete_org_secret', 'list_org_secret_keys', 'get_org_secret'
 ], 'public schema exposes exactly the intended RPCs');
 
@@ -153,6 +158,12 @@ set local role service_role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 select is(public.get_org_secret('b0000000-0000-0000-0000-00000000000a', 'documenso_api_key'), 'rotated-value', 'service_role reads the current secret value');
 select is(public.get_org_secret('b0000000-0000-0000-0000-00000000000b', 'documenso_api_key'), null, 'secrets are per org');
+-- Org A: test_parent enabled, test_child disabled (toggled above).
+select ok(public.module_enabled_for_org('b0000000-0000-0000-0000-00000000000a', 'test_parent'), 'module_enabled_for_org: true for an enabled module');
+select ok(not public.module_enabled_for_org('b0000000-0000-0000-0000-00000000000a', 'test_child'), 'module_enabled_for_org: false for a disabled module');
+select ok(public.module_enabled_for_org('b0000000-0000-0000-0000-00000000000a', 'core'), 'module_enabled_for_org: core is always enabled');
+select ok(not public.module_enabled_for_org('b0000000-0000-0000-0000-00000000000a', 'nope'), 'module_enabled_for_org: false for an unknown module');
+select ok(not public.module_enabled_for_org('b0000000-0000-0000-0000-00000000000b', 'test_parent'), 'module_enabled_for_org: per org (org B has it disabled)');
 
 -- =============================================================================
 -- Storage checks (as postgres)

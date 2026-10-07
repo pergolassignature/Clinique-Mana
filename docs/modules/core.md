@@ -40,13 +40,14 @@ Clients (`authenticated`) get `SELECT` only, plus the column-level `UPDATE`s lis
 | `delete_org_secret(p_key)` | authenticated, service_role | needs `settings.manage`; removes the row and the Vault secret |
 | `list_org_secret_keys() → (key, updated_at)` | authenticated, service_role | key names only, with `settings.view` |
 | `get_org_secret(p_org_id, p_key) → text` | **service_role only** | decrypted value, for edge functions |
+| `module_enabled_for_org(p_org_id, p_key) → boolean` | **service_role only** | module gate for functions without a user (webhooks, cron); the org comes from a database row |
 
 ## Server-only functions (schema `private`, not exposed over the API)
 
 - RLS helpers (EXECUTE for `authenticated`, `service_role`): `current_user_org_id()`, `current_user_role()`, `has_role(text)`, `has_permission(text)`. They return null/false unless the caller's profile is active; `has_permission` = role default, overridden by a per-user grant/revoke, and only for `core` or a module enabled in the caller's org.
 - Trigger functions (EXECUTE revoked from everyone): `set_updated_at()`, `module_dependencies_no_cycle()`, `validate_org_timezone()`, `profiles_email_from_auth()`, `sync_profile_email()` (on `auth.users`), `audit_trigger()` (trigger arguments = columns to redact), `audit_log_immutable()`, `org_secrets_delete_vault()`.
 
-Edge functions use `get_my_access()` and `module_enabled()` through `supabase/functions/_shared/` (`verifyAuth`, `requireModule`).
+Edge functions use `get_my_access()`, `module_enabled()` and `module_enabled_for_org()` through `supabase/functions/_shared/` (`verifyAuth`, `requireModule`, `requireModuleForOrg`).
 
 ## Permission keys
 

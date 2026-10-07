@@ -488,6 +488,10 @@ export type Database = {
         }[]
       }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
+      module_enabled_for_org: {
+        Args: { p_key: string; p_org_id: string }
+        Returns: boolean
+      }
       set_module_enabled: {
         Args: { p_enabled: boolean; p_key: string }
         Returns: undefined
