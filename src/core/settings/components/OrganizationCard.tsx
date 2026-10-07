@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
-import type { FieldValues, Path, UseFormReturn } from 'react-hook-form'
+import type { Path, UseFormReturn } from 'react-hook-form'
 import type { z } from 'zod'
 import type { Organization, OrganizationUpdate } from '@/core/settings/organization/api'
 import { useUpdateOrganization } from '@/core/settings/organization/hooks'
@@ -7,9 +7,9 @@ import { useSettingsSection } from '@/core/settings/section-context'
 import { FormActions } from '@/shared/components/FormActions'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
-import { useSettingsForm } from '@/shared/lib/use-settings-form'
+import { useSettingsForm, type FlatFormValues } from '@/shared/lib/use-settings-form'
 
-interface OrganizationCardProps<TIn extends FieldValues, TOut extends OrganizationUpdate> {
+interface OrganizationCardProps<TIn extends FlatFormValues, TOut extends OrganizationUpdate> {
   /** The loaded organization (`useOrganization().data`); the form re-syncs when it changes. */
   organization: Organization
   title: string
@@ -39,7 +39,7 @@ interface OrganizationCardProps<TIn extends FieldValues, TOut extends Organizati
  *   flight are put back on top, dirty, so nothing typed is lost.
  * - « Annuler » puts the stored values back and returns focus to `firstField`.
  */
-export function OrganizationCard<TIn extends FieldValues, TOut extends OrganizationUpdate>({
+export function OrganizationCard<TIn extends FlatFormValues, TOut extends OrganizationUpdate>({
   organization,
   title,
   description,

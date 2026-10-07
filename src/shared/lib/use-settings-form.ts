@@ -1,5 +1,5 @@
 import type { BaseSyntheticEvent } from 'react'
-import { useForm, type FieldValues, type Path, type PathValue, type UseFormReturn } from 'react-hook-form'
+import { useForm, type Path, type PathValue, type UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 
@@ -16,16 +16,26 @@ const RESYNC_OPTIONS = { keepDirtyValues: true, keepErrors: true } as const
  */
 const FULL_RESET: { [K in keyof typeof RESYNC_OPTIONS]: false } = { keepDirtyValues: false, keepErrors: false }
 
-interface SettingsFormOptions<TIn extends FieldValues, TOut> {
+/**
+ * The form values of a settings card: flat form values only, since the re-apply after a save
+ * compares top-level keys (a nested object or an array would be compared by reference).
+ */
+export type FlatFormValues = Record<string, string | number | boolean | null>
+
+interface SettingsFormOptions<TIn extends FlatFormValues, TOut> {
   /** String form values in, the normalised output out. */
   schema: z.ZodType<TOut, TIn>
-  /** The stored values, as form values; the form follows them (`values`) and « Annuler » goes back to them. */
+  /** The stored values, as form values; the form follows them (`values`), keeping the user's edits. */
   values: TIn
 }
 
-export interface SettingsForm<TIn extends FieldValues, TOut> {
+export interface SettingsForm<TIn extends FlatFormValues, TOut> {
   form: UseFormReturn<TIn, unknown, TOut>
-  /** « Annuler »: a full reset to the stored values (clean, errors cleared). */
+  /**
+   * « Annuler »: a full reset (clean, errors cleared) to the form's default values, i.e. the last
+   * saved or synced values. After a save that is the saved row, even before `values` catches up
+   * (e.g. a refetch that is late or failed).
+   */
   cancel: () => void
   /**
    * The form's submit handler. `save` receives the validated output and `onSaved`, to call with
@@ -41,16 +51,18 @@ export interface SettingsForm<TIn extends FieldValues, TOut> {
  * what was stored. The fields stay editable while saving: a field typed into meanwhile (changed
  * since the snapshot taken on submit) is put back on top, dirty, so nothing typed is lost.
  *
- * Not for forms that clear on success by design (courriel, mot de passe).
+ * Flat form values only, since the re-apply compares top-level keys. Not for forms that clear on
+ * success by design (courriel, mot de passe).
  */
-export function useSettingsForm<TIn extends FieldValues, TOut>({ schema, values }: SettingsFormOptions<TIn, TOut>): SettingsForm<TIn, TOut> {
+export function useSettingsForm<TIn extends FlatFormValues, TOut>({ schema, values }: SettingsFormOptions<TIn, TOut>): SettingsForm<TIn, TOut> {
   const form = useForm<TIn, unknown, TOut>({
     resolver: zodResolver(schema),
     values,
     resetOptions: RESYNC_OPTIONS,
   })
 
-  const cancel = () => form.reset(values, FULL_RESET)
+  // defaultValues is the whole object last passed to reset() or `values`, typed as partial by react-hook-form.
+  const cancel = () => form.reset(form.formState.defaultValues as TIn, FULL_RESET)
 
   const handleSave: SettingsForm<TIn, TOut>['handleSave'] = (save) =>
     form.handleSubmit((data) => {

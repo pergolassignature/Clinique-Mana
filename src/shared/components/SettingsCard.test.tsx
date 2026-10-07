@@ -119,4 +119,17 @@ describe('SettingsCard', () => {
     expect(screen.getByText('Contenu')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Agir' })).toBeInTheDocument()
   })
+
+  it('as a section inside a read-only area: shows its content but not its footer action', () => {
+    render(
+      <FieldsReadOnlyContext.Provider value={true}>
+        <SettingsCard as="section" title="Sessions" footer={<button type="button">Agir</button>}>
+          <p>Contenu</p>
+        </SettingsCard>
+      </FieldsReadOnlyContext.Provider>,
+    )
+    expect(screen.getByRole('region', { name: 'Sessions' })).toBeInTheDocument()
+    expect(screen.getByText('Contenu')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Agir' })).not.toBeInTheDocument()
+  })
 })

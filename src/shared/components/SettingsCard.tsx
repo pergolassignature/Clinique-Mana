@@ -4,7 +4,8 @@ import { FieldsReadOnlyContext } from '@/shared/ui/read-only-context'
 interface SettingsCardProps {
   /**
    * `section` for a card of actions with no fields (e.g. « Sessions » in « Mon compte »): no
-   * form and no fieldset, so `onSubmit`, `pending` and `readOnly` do not apply.
+   * form and no fieldset, so `onSubmit`, `pending` and `readOnly` do not apply. Inside a read-only
+   * area (`FieldsReadOnlyContext`) its footer action is not rendered either.
    */
   as?: 'form' | 'section'
   title: string
@@ -18,7 +19,11 @@ interface SettingsCardProps {
   /** A save is in flight: the form is marked `aria-busy` (fields stay enabled; the SaveButton shows the state). */
   pending?: boolean
   onSubmit?: FormEventHandler<HTMLFormElement>
-  /** For a form card, `FormActions` (« Annuler / Enregistrer »); for a section, its action. Not rendered when read-only. */
+  /**
+   * For a form card, `FormActions` (« Annuler / Enregistrer »); for a section, its action. Not
+   * rendered when read-only: a form card's own `readOnly` or an inherited one; a section's only
+   * when inherited.
+   */
   footer?: ReactNode
   children: ReactNode
 }
@@ -50,7 +55,8 @@ export function SettingsCard({ as = 'form', title, description, readOnly: readOn
       <section aria-labelledby={titleId} className={CARD_CLASSES}>
         {header}
         <div className="min-w-0 space-y-3">{children}</div>
-        {footerRow}
+        {/* An action changes something: none inside a read-only area. */}
+        {!inherited && footerRow}
       </section>
     )
   }
