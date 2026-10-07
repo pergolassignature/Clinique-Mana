@@ -8,6 +8,7 @@ import type { Access } from '@/core/access/access'
 import type { AuthContextValue } from '@/core/auth/auth-context'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
 import { renderWithContexts, testAccess } from '@/test/contexts'
 import { AppShell, type ShellNavItem } from './AppShell'
 import { SIDEBAR_COLLAPSED_KEY } from './shell/use-sidebar-collapsed'
@@ -290,6 +291,26 @@ describe('AppShell — command palette', () => {
     await screen.findByRole('alertdialog')
     await userEvent.keyboard(CTRL_K)
     expect(queryPalette()).not.toBeInTheDocument()
+  })
+
+  // A popover is a non-modal Radix dialog (role="dialog", data-state="open"): it must not block ⌘K.
+  it('opens over an open popover', async () => {
+    render(
+      renderWithContexts(
+        <UnsavedChangesProvider>
+          <AppShell navItems={navItems}>
+            <Popover defaultOpen>
+              <PopoverTrigger>Options</PopoverTrigger>
+              <PopoverContent aria-label="Options de la page">Contenu</PopoverContent>
+            </Popover>
+          </AppShell>
+        </UnsavedChangesProvider>,
+        { path: '/accueil', access: { access: assistant } },
+      ),
+    )
+    expect(screen.getByRole('dialog', { name: 'Options de la page' })).toHaveAttribute('data-state', 'open')
+    await userEvent.keyboard(CTRL_K)
+    expect(await findPalette()).toBeInTheDocument()
   })
 
   it('opens from the search button, and Escape gives focus back to it', async () => {

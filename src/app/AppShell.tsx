@@ -23,6 +23,21 @@ function focusedElement(): HTMLElement | null {
   return active instanceof HTMLElement && active !== document.body ? active : null
 }
 
+/**
+ * Is a modal dialog other than the palette and the sheet open (e.g. « Quitter sans enregistrer ? »)?
+ * Radix popovers also carry role="dialog" and data-state="open" but are not modal: they sit in a
+ * popper wrapper, and the palette may open over them. A dialog closing (data-state="closed",
+ * exit animation) no longer counts.
+ */
+function otherModalDialogOpen(...own: (HTMLElement | null)[]): boolean {
+  return Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]')).some(
+    (dialog) =>
+      !own.includes(dialog as HTMLElement) &&
+      dialog.getAttribute('data-state') !== 'closed' &&
+      !dialog.closest('[data-radix-popper-content-wrapper]'),
+  )
+}
+
 /** Clicks the browser handles itself (new tab or window): never taken over. */
 const isNativeClick = (event: MouseEvent) =>
   event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
@@ -87,6 +102,8 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
   const openPalette = useCallback(() => {
     // From the sheet, focus goes back to what opened the sheet: the sheet itself is closing.
     paletteReturnFocus.current = sheetRef.current?.isConnected ? sheetReturnFocus.current : focusedElement()
+    // A choice left over from a close event that never came must not navigate later.
+    palettePath.current = null
     setMobileOpen(false)
     setPaletteOpen(true)
   }, [])
@@ -95,12 +112,8 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || !isPaletteShortcut(event)) return
       const palette = paletteRef.current
-      const sheet = sheetRef.current
-      // Another dialog (e.g. « Quitter sans enregistrer ? ») has the floor: leave it alone.
-      const otherDialogOpen = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]')).some(
-        (dialog) => dialog !== palette && dialog !== sheet,
-      )
-      if (otherDialogOpen) return
+      // Another modal dialog (e.g. « Quitter sans enregistrer ? ») has the floor: leave it alone.
+      if (otherModalDialogOpen(palette, sheetRef.current)) return
       event.preventDefault() // Ctrl+K is the browser's search shortcut on Windows and Linux
       if (palette?.isConnected) setPaletteOpen(false)
       else openPalette()
