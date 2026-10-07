@@ -432,6 +432,54 @@ export type Database = {
         }
         Relationships: []
       }
+      tax_rates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          org_id: string
+          rate: number
+          tax: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          org_id: string
+          rate: number
+          tax: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          org_id?: string
+          rate?: number
+          tax?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_rates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "tax_rates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_permission_overrides: {
         Row: {
           created_at: string
@@ -522,7 +570,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_tax_rate: {
+        Args: { p_effective_from: string; p_rate: number; p_tax: string }
+        Returns: string
+      }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
+      delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
       get_my_access: { Args: never; Returns: Json }
       get_org_secret: {
         Args: { p_key: string; p_org_id: string }
@@ -557,6 +610,7 @@ export type Database = {
         Args: { p_key: string; p_value: string }
         Returns: undefined
       }
+      tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
     }
     Enums: {
       [_ in never]: never
