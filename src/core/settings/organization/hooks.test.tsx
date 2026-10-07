@@ -62,6 +62,34 @@ describe('useUpdateOrganization', () => {
     expect(invalidate).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    ['older than the cached row (an earlier save answering last): keeps the cached row', '2026-10-07T12:00:01.5+00:00', '2026-10-07T12:00:01.25+00:00', 'cached'],
+    ['newer than the cached row: replaces it', '2026-10-07T12:00:01.25+00:00', '2026-10-07T12:00:01.5+00:00', 'saved'],
+    ['as recent as the cached row: replaces it', '2026-10-07T12:00:01.5+00:00', '2026-10-07T12:00:01.5+00:00', 'saved'],
+  ])('saved row %s', async (_case, cachedAt, savedAt, kept) => {
+    const { queryClient, wrapper } = setup()
+    const cached = { ...SAVED, city: 'Laval', updated_at: cachedAt }
+    const saved = { ...SAVED, city: 'Montréal', updated_at: savedAt }
+    queryClient.setQueryData(organizationKeys.current(), cached)
+    mocks.api.updateOrganization.mockResolvedValue(saved)
+
+    const { result } = renderHook(() => useUpdateOrganization('Enregistré.'), { wrapper })
+    result.current.mutate({ id: 'o1', patch: { city: 'Montréal' } })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(queryClient.getQueryData(organizationKeys.current())).toEqual(kept === 'cached' ? cached : saved)
+  })
+
+  it('caches the saved row when nothing was cached yet', async () => {
+    const { queryClient, wrapper } = setup()
+    const saved = { ...SAVED, updated_at: '2026-10-07T12:00:00+00:00' }
+    mocks.api.updateOrganization.mockResolvedValue(saved)
+    const { result } = renderHook(() => useUpdateOrganization('Enregistré.'), { wrapper })
+    result.current.mutate({ id: 'o1', patch: { city: 'Laval' } })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(queryClient.getQueryData(organizationKeys.current())).toBe(saved)
+  })
+
   it('saves, invalidates the organization only, then confirms with the given message', async () => {
     const { wrapper, invalidate } = setup()
     mocks.api.updateOrganization.mockResolvedValue(SAVED)

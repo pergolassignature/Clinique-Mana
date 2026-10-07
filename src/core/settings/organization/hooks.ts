@@ -3,7 +3,7 @@ import { t } from '@/i18n'
 import { accessKeys } from '@/core/access/access-context'
 import { moduleErrorMessage } from '@/core/modules/errors'
 import { toast } from '@/shared/ui/sonner'
-import { fetchOrganization, updateOrganization, type OrganizationUpdate } from './api'
+import { fetchOrganization, updateOrganization, type Organization, type OrganizationUpdate } from './api'
 
 export const organizationKeys = {
   all: ['organization'] as const,
@@ -28,9 +28,14 @@ export function useUpdateOrganization(successMessage: string) {
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: OrganizationUpdate }) => updateOrganization(id, patch),
     onSuccess: async (saved, { patch }) => {
-      // The saved row is the truth: cache it at once. The organization queries are only marked
-      // stale (no second request); the access payload derived from name/timezone is refetched.
-      queryClient.setQueryData(organizationKeys.current(), saved)
+      // The saved row is the truth: cache it at once, unless a later save already answered (two
+      // cards saved in turn, the first answering last). `updated_at` comes from PostgREST in one
+      // format (UTC, `+00:00`, trailing zeros trimmed), so the strings compare in time order.
+      // The organization queries are only marked stale (no second request); the access payload
+      // derived from name/timezone is refetched.
+      queryClient.setQueryData<Organization>(organizationKeys.current(), (cached) =>
+        cached && cached.updated_at > saved.updated_at ? cached : saved,
+      )
       const invalidations = [queryClient.invalidateQueries({ queryKey: organizationKeys.all, refetchType: 'none' })]
       if (patch.name !== undefined || patch.timezone !== undefined) {
         invalidations.push(queryClient.invalidateQueries({ queryKey: accessKeys.all }))
