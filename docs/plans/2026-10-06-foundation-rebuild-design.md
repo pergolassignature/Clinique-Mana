@@ -17,6 +17,8 @@ Clinique MANA was built fast. The concepts are right (professionals, motifs, ser
 - Security holes in staging: anon can list all active invite tokens + emails; `docuseal-create-submission` callable by any logged-in user; several edge functions without auth.
 - Clinic identity, signer, address and tax rates (TPS 5 % / TVQ 9.975 % in `src/facturation/api.ts`) are hardcoded. Clinic TPS/TVQ registration numbers exist nowhere.
 
+**Business model** ([business context](../standards/business-context.md)): MANA is a **dispatch clinic**. Conseillères receive every request, evaluate the need and match the client with the right professional from a bank of ~50 independent professionals, 100 % online. The clinic runs on **GOrendezvous** today. Clinique MANA is "a GOrendezvous adapted to a dispatch clinic": it adds what GOrendezvous lacks (management of the professional bank, the dispatch workflow) and progressively covers the practice features MANA relies on.
+
 **PS Hub** (`pergolassignature/new-ps-hub`) is an unrelated but mature app on the same stack. We rebuild Clinique MANA on PS Hub's proven foundations, module by module, and fix the things PS Hub itself lacks (module registry, settings registry, shared UI kit, secrets in Vault).
 
 ### Decisions taken
@@ -319,6 +321,10 @@ React 19 · Vite · TypeScript (strict) · React Router v6 · TanStack Query · 
 ---
 
 ## 8. Open items
+
+- **Scope vs GOrendezvous:** which GOrendezvous features Clinique MANA replaces, when, and how data migrates (clients, appointments, invoices, client records). Clinical notes and client records carry professional-order and Loi 25 obligations. Decide before the Clients and Rendez-vous designs.
+- **Videoconference platform** for sessions (100 % online): link per appointment?
+- **B2B** (ateliers, conférences, MANA's own PAE offer, schools): a future area, not in legacy.
 
 - Legacy bugs to decide per module (examples): taxable categories not taxed server-side, free invoices auto-voided, PAE never applicable, no booking conflict check — see inventory "Half-built / broken" lists.
 - Annexe A wording: legacy says "taxes incluses" while prices are stored pre-tax — confirm intended wording.
