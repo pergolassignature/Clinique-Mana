@@ -1540,7 +1540,7 @@ to authenticated;
   - Numéro de compte, empty with placeholder « Inchangé » when a row exists, required otherwise; `autoComplete="off"`;
   - Courriel Interac.
 
-  Zod mirrors the SQL rules and messages.
+  Zod mirrors the SQL rules and messages. For the account number, strip only spaces, tabs, line breaks and hyphens; any other character is an error (« 7 à 12 chiffres »), never silently removed (amended after the Task 2.13 review).
 
 **Tests:**
 - masked display;
