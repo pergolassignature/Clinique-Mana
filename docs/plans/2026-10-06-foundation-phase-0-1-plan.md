@@ -22,6 +22,101 @@
 
 ---
 
+## Amendments (2026-10-07) — read before Tasks 1.7 onward
+
+These amendments come from the reviews of Batches A/B and the core schema design review ([docs/audit/2026-10-07-core-schema-design-review.md](../audit/2026-10-07-core-schema-design-review.md)). **Where they conflict with a task below, the amendment wins.** The SQL blocks in Tasks 1.7–1.10 are the starting point, not the final text.
+
+### A1. Database (Tasks 1.7–1.10)
+
+**Migration layout**
+1. `…_core_access.sql`:
+   - schema `private`, the closed default privileges, and pgcrypto;
+   - `private.set_updated_at()`;
+   - `modules` (seed `core`) and `module_dependencies`;
+   - `organizations`, `roles` (seed `admin`, `staff`, `provider`, `is_system = true`) and `profiles`;
+   - `user_roles` and `user_permission_overrides`, both carrying `org_id`;
+   - `permissions`, `role_permissions` and `org_modules`;
+   - the helpers in `private`, `public.get_my_access()`, the RLS policies and grants, and the core permission seed;
+   - the email-sync trigger on `auth.users`.
+2. `…_core_audit.sql`: `audit_log` with immutability triggers, and `private.audit_trigger(VARIADIC redact text[])` (trigger arguments) attached to the core tables.
+3. `…_core_module_settings_secrets.sql`: `org_module_settings`, `org_secrets`, and the RPCs:
+   - `module_enabled`, `set_module_enabled`, `list_modules`;
+   - `set_org_secret`, `delete_org_secret`, `list_org_secret_keys`;
+   - `get_org_secret`, callable by the service role only.
+4. `…_professionals_module.sql`: registers module `professionals`, permission `professionals.view`, and the admin and staff defaults, all `on conflict do nothing`.
+
+**Rules (they also go in `docs/standards/database-conventions.md`)**
+- **Closed by default.** The first migration revokes the default table, sequence and function privileges from `anon`/`authenticated` (and function EXECUTE from `public`). Every table gets `revoke all … from anon, authenticated` followed by explicit grants, using column-level `update` grants. No table keeps TRUNCATE, REFERENCES or TRIGGER for clients.
+- **RLS helpers live in `private`** (not exposed through the API): `current_user_org_id()`, `current_user_role()` (text), `has_role(text)`, `has_permission(text)`. Grant `usage on schema private` and EXECUTE to `authenticated` and `service_role`. Only the intended RPCs are in `public`.
+- **Roles are a table**, not an enum. `user_roles.role` and `role_permissions.role` are text FKs to `roles(key)`.
+- **`org_id` on `user_roles` and `user_permission_overrides`**, with a composite FK to `profiles(user_id, org_id)` on delete cascade (`profiles` gets `unique (user_id, org_id)`). Policies compare `org_id = (select private.current_user_org_id())`, so `user_in_my_org()` is dropped.
+- **Actor columns** (`created_by`, `updated_by`) reference `public.profiles(user_id) on delete set null`. Nothing except `profiles` references `auth.users`.
+- **`org_modules` columns** are `enabled`, `updated_at`, `updated_by` (not `enabled_at`/`enabled_by`).
+- **Permissions:** `permissions.module_key` is a FK to `modules`, with check `module_key = 'core' or split_part(key, '.', 1) = module_key`. Module dependencies live in `module_dependencies` (both columns are FKs, check that they differ).
+- **`get_my_access()`** returns an empty `permissions` list unless the profile is active and has a role. It adds `modules` (the org's enabled module keys, empty unless active) and keeps `org_name` and `org_timezone`.
+- **`organizations`:**
+  - a timezone validation trigger (BEFORE INSERT OR UPDATE, `pg_catalog.pg_timezone_names`);
+  - `check (currency ~ '^[A-Z]{3}$')`;
+  - a column grant for update `(name, timezone, default_locale, currency)`.
+- **`profiles`:**
+  - unique `lower(email)`;
+  - `profiles_update_self` requires `status = 'active'`;
+  - a SECURITY DEFINER trigger `after update of email on auth.users` keeps `profiles.email` in sync.
+- **Audit:**
+  - **Immutable:** BEFORE UPDATE/DELETE (row) and BEFORE TRUNCATE (statement) triggers raise 42501 unless `app.audit_purge = 'on'`. Also revoke update/delete/truncate from `service_role`.
+  - **`source` default:** `app.audit_source`, otherwise from `auth.role()` (`authenticated` gives `app`, `service_role` gives `service`, anything else gives `system`).
+  - **Record ID:** `record_id` is built from the table's primary-key columns, looked up in `pg_index` and joined with `:`.
+  - **Redaction:** columns named in the trigger arguments are replaced by `"[redacted]"`.
+  - **EXECUTE** on the trigger functions is revoked from everyone.
+- **`set_module_enabled`:**
+  - checks the permission first, then locks the org row (`for update`), then checks that the module exists;
+  - checks dependencies and dependents through `module_dependencies`;
+  - refuses `core`;
+  - upserts `updated_at` and `updated_by`.
+- **`list_modules()`** (definer, caller's org) returns `key, name, depends_on text[], enabled`, excluding `core`.
+- **Secrets:**
+  - `org_secrets` gains `version int not null default 1`. `set_org_secret` bumps it and also inserts an explicit audit row (`source = 'rpc:set_org_secret'`, `changed_fields = {"value":{"rotated":true}}`) on rotation.
+  - `delete_org_secret(key)` removes the Vault secret too.
+  - Secret values never appear in the audit log.
+- **Indexes:** on every FK column that isn't a PK prefix, plus `audit_log (actor_id, created_at desc)`.
+- **Seeds** in migrations use `on conflict do nothing`.
+- **Tests (pgTAP):**
+  - **Privileges:** `table_privs_are` for `anon` (none) and `authenticated` (exactly the intended privileges) on every table.
+  - **Function denials:** assert with `function_privs_are`, never with `throws_ok`, because `throws_ok` segfaults Postgres image .106.
+  - **Service-role reads:** test under `set local role service_role`.
+  - **Behaviour to cover:**
+    - cross-org isolation for profiles, roles and overrides;
+    - a disabled user gets empty permissions and modules;
+    - audit rows are immutable for `authenticated` and `service_role`;
+    - secret rotation is audited;
+    - redaction;
+    - `org_secrets` is unreadable (42501).
+- **Seed (`supabase/seed.sql`):**
+  - starts with `select set_config('app.audit_source', 'seed', false);`;
+  - inserts `org_id` on `user_roles`;
+  - enables module `professionals`;
+  - carries a loud LOCAL-ONLY header (remote resets always use `--no-seed`).
+
+### A2. Code identifiers are English, user-facing text is French
+
+- The module key is **`professionals`** everywhere in code: `src/modules/professionals/`, `professionalsManifest`, i18n namespace `modules.professionals.*`, migration `…_professionals_module.sql`.
+- URLs and labels stay French: the route path is `professionnels`, the label is « Professionnels ».
+
+### A3. Frontend changes caused by A1
+
+- **Task 1.11:**
+  - `role` is `z.string()`; drop the `AppRole` enum type and keep `type AppRole = string`.
+  - The access payload gains `modules: z.array(z.string())`.
+- **Task 1.14:**
+  - `fetchEnabledModuleKeys` is removed. Enabled module keys come from `useAccess().access.modules`.
+  - `fetchModules` calls `supabase.rpc('list_modules')`.
+  - `useSetModuleEnabled` invalidates both `moduleKeys.all` and `accessKeys.all`.
+- **Task 1.18:** `AuthenticatedApp` reads enabled keys from `access.modules`, so there is no extra query and no `enabledKeys.isPending` branch.
+- **Task 1.19:** `has_permission` is no longer callable over the API. `verifyAuth(req, { permission })` calls `client.rpc('get_my_access')` and checks `permissions.includes(permission)`. `requireModule` keeps using `module_enabled`.
+- **Task 1.21:** `scripts/bootstrap-admin.sql` inserts `org_id` into `user_roles` and enables module `professionals`.
+
+---
+
 ## Phase 0 — Preparation
 
 ### Task 0.1: Publish the pending commit and tag the legacy app
