@@ -1,0 +1,183 @@
+-- Module settings, module toggling and Vault secrets
+-- (migration 20261007140741_core_module_settings_secrets.sql).
+-- Covers: privileges (functions asserted with function_privs_are, never throws_ok),
+-- dependency rules, list_modules, secret lifecycle + audit, cross-org isolation.
+begin;
+create extension if not exists pgtap with schema extensions;
+select plan(72);
+
+-- =============================================================================
+-- Fixtures (as postgres)
+-- =============================================================================
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+values
+  ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@a.test',    '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'staff@a.test',    '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'provider@a.test', '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',    '', now(), '{}', '{}', now(), now());
+insert into public.organizations (id, name) values
+  ('b0000000-0000-0000-0000-00000000000a', 'Org A'),
+  ('b0000000-0000-0000-0000-00000000000b', 'Org B');
+insert into public.profiles (user_id, org_id, display_name, email) values
+  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',    'admin@a.test'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Staff A',    'staff@a.test'),
+  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Provider A', 'provider@a.test'),
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',    'admin@b.test');
+insert into public.user_roles (user_id, org_id, role) values
+  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'staff'),
+  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'provider'),
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin');
+
+-- test_child depends on test_parent.
+insert into public.modules (key, name) values ('test_parent', 'Test parent'), ('test_child', 'Test enfant');
+insert into public.module_dependencies (module_key, depends_on) values ('test_child', 'test_parent');
+insert into public.org_module_settings (org_id, module_key, settings) values
+  ('b0000000-0000-0000-0000-00000000000a', 'test_parent', '{"reminder_hours": 24}');
+
+-- =============================================================================
+-- Privileges
+-- =============================================================================
+select table_privs_are('public', 'org_module_settings', 'anon', array[]::text[], 'anon: no privileges on org_module_settings');
+select table_privs_are('public', 'org_module_settings', 'authenticated', array['SELECT'], 'authenticated: select only on org_module_settings');
+select table_privs_are('public', 'org_secrets', 'anon', array[]::text[], 'anon: no privileges on org_secrets');
+select table_privs_are('public', 'org_secrets', 'authenticated', array[]::text[], 'authenticated: no privileges on org_secrets');
+
+select function_privs_are('public', 'get_org_secret', array['uuid', 'text'], 'anon', array[]::text[], 'anon cannot read secret values');
+select function_privs_are('public', 'get_org_secret', array['uuid', 'text'], 'authenticated', array[]::text[], 'clients cannot read secret values');
+select function_privs_are('public', 'get_org_secret', array['uuid', 'text'], 'service_role', array['EXECUTE'], 'service_role can read secret values');
+
+select function_privs_are('public', 'module_enabled',       array['text'],            'anon', array[]::text[], 'anon cannot call module_enabled');
+select function_privs_are('public', 'set_module_enabled',   array['text', 'boolean'], 'anon', array[]::text[], 'anon cannot call set_module_enabled');
+select function_privs_are('public', 'list_modules',         array[]::text[],          'anon', array[]::text[], 'anon cannot call list_modules');
+select function_privs_are('public', 'set_org_secret',       array['text', 'text'],    'anon', array[]::text[], 'anon cannot call set_org_secret');
+select function_privs_are('public', 'delete_org_secret',    array['text'],            'anon', array[]::text[], 'anon cannot call delete_org_secret');
+select function_privs_are('public', 'list_org_secret_keys', array[]::text[],          'anon', array[]::text[], 'anon cannot call list_org_secret_keys');
+
+select function_privs_are('public', 'module_enabled',       array['text'],            'authenticated', array['EXECUTE'], 'authenticated can call module_enabled');
+select function_privs_are('public', 'set_module_enabled',   array['text', 'boolean'], 'authenticated', array['EXECUTE'], 'authenticated can call set_module_enabled');
+select function_privs_are('public', 'list_modules',         array[]::text[],          'authenticated', array['EXECUTE'], 'authenticated can call list_modules');
+select function_privs_are('public', 'set_org_secret',       array['text', 'text'],    'authenticated', array['EXECUTE'], 'authenticated can call set_org_secret');
+select function_privs_are('public', 'delete_org_secret',    array['text'],            'authenticated', array['EXECUTE'], 'authenticated can call delete_org_secret');
+select function_privs_are('public', 'list_org_secret_keys', array[]::text[],          'authenticated', array['EXECUTE'], 'authenticated can call list_org_secret_keys');
+
+-- Only the intended RPCs are exposed through the API.
+select functions_are('public', array[
+  'get_my_access', 'module_enabled', 'set_module_enabled', 'list_modules',
+  'set_org_secret', 'delete_org_secret', 'list_org_secret_keys', 'get_org_secret'
+], 'public schema exposes exactly the intended RPCs');
+
+select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
+  '23514', null, 'module settings must be a JSON object');
+
+-- =============================================================================
+-- Admin A: module toggling
+-- =============================================================================
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+
+select ok(not public.module_enabled('test_parent'), 'modules start disabled');
+select ok(public.module_enabled('core'), 'core is always enabled');
+select throws_ok($$ select public.set_module_enabled('test_child', true) $$, 'P0001', null, 'cannot enable a module before its dependency');
+select throws_ok($$ select public.set_module_enabled('nope', true) $$, '22023', null, 'unknown module is rejected');
+select throws_ok($$ select public.set_module_enabled('core', false) $$, '22023', null, 'core cannot be toggled');
+select lives_ok($$ select public.set_module_enabled('test_parent', true) $$, 'admin enables the parent');
+select ok(public.module_enabled('test_parent'), 'module_enabled reflects the change');
+select lives_ok($$ select public.set_module_enabled('test_child', true) $$, 'dependent module can now be enabled');
+select throws_ok($$ select public.set_module_enabled('test_parent', false) $$, 'P0001', null, 'cannot disable a module others depend on');
+select is((select updated_by from public.org_modules where module_key = 'test_parent'),
+  'a0000000-0000-0000-0000-000000000001'::uuid, 'org_modules records who toggled');
+select results_eq(
+  $$ select key, depends_on, enabled from public.list_modules() where key like 'test\_%' order by key $$,
+  $$ values ('test_child'::text, array['test_parent']::text[], true), ('test_parent'::text, array[]::text[], true) $$,
+  'list_modules returns dependencies and state');
+select ok(not exists (select 1 from public.list_modules() where key = 'core'), 'list_modules hides core');
+select is(public.get_my_access() -> 'modules', '["test_child", "test_parent"]'::jsonb, 'get_my_access lists enabled modules');
+select lives_ok($$ select public.set_module_enabled('test_child', false) $$, 'dependent module can be disabled');
+select ok(not public.module_enabled('test_child'), 'disabled module reports false');
+select is((select count(*)::int from public.audit_log where table_name = 'org_modules'), 3, 'each toggle is audited');
+select results_eq('select settings from public.org_module_settings', array['{"reminder_hours": 24}'::jsonb], 'admin reads org module settings');
+
+-- =============================================================================
+-- Admin A: secrets
+-- =============================================================================
+select lives_ok($$ select public.set_org_secret('documenso_api_key', 'secret-value') $$, 'admin stores a secret');
+select throws_ok($$ select public.set_org_secret('Bad Key', 'x') $$, '22023', null, 'secret key format is validated');
+select throws_ok($$ select public.set_org_secret('empty_key', '') $$, '22023', null, 'empty secret values are rejected');
+select results_eq($$ select key from public.list_org_secret_keys() $$, array['documenso_api_key'], 'secret key is listed, value is not');
+select throws_ok('select count(*) from public.org_secrets', '42501', null, 'org_secrets is unreadable for clients');
+select lives_ok($$ select public.set_org_secret('documenso_api_key', 'rotated-value') $$, 'admin rotates the secret');
+select results_eq(
+  $$ select source, changed_fields, record_id from public.audit_log where table_name = 'org_secrets' and source = 'rpc:set_org_secret' $$,
+  $$ values ('rpc:set_org_secret'::text, '{"value": {"rotated": true}}'::jsonb, 'b0000000-0000-0000-0000-00000000000a:documenso_api_key'::text) $$,
+  'rotation writes an explicit audit row');
+select is((select changed_fields -> 'version' from public.audit_log where table_name = 'org_secrets' and action = 'update' and source <> 'rpc:set_org_secret'),
+  '{"before": 1, "after": 2}'::jsonb, 'rotation bumps the version');
+select is((select changed_fields -> 'vault_secret_id' from public.audit_log where table_name = 'org_secrets' and action = 'insert'),
+  '"[redacted]"'::jsonb, 'vault ids are redacted from the log');
+
+-- =============================================================================
+-- Staff A (settings.view, no settings.manage / modules.manage)
+-- =============================================================================
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok($$ select public.set_module_enabled('test_child', true) $$, '42501', null, 'staff cannot toggle modules');
+select throws_ok($$ select public.set_org_secret('documenso_api_key', 'x') $$, '42501', null, 'staff cannot write secrets');
+select throws_ok($$ select public.delete_org_secret('documenso_api_key') $$, '42501', null, 'staff cannot delete secrets');
+select results_eq($$ select key from public.list_org_secret_keys() $$, array['documenso_api_key'], 'staff with settings.view sees secret keys');
+select results_eq('select count(*)::int from public.org_module_settings', array[1], 'staff with settings.view reads module settings');
+
+-- =============================================================================
+-- Provider A (no settings access)
+-- =============================================================================
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select results_eq('select count(*)::int from public.list_org_secret_keys()', array[0], 'provider sees no secret keys');
+select results_eq('select count(*)::int from public.org_module_settings', array[0], 'provider cannot read module settings');
+select ok(public.module_enabled('test_parent'), 'any member can check whether a module is enabled');
+
+-- =============================================================================
+-- Admin B (cross-org isolation)
+-- =============================================================================
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+select ok(not public.module_enabled('test_parent'), 'org B does not inherit org A modules');
+select results_eq('select count(*)::int from public.org_modules', array[0], 'org B admin sees no org A module rows');
+select results_eq('select count(*)::int from public.org_module_settings', array[0], 'org B admin sees no org A settings');
+select results_eq('select count(*)::int from public.list_org_secret_keys()', array[0], 'org B admin sees no org A secret keys');
+select ok(not exists (select 1 from public.list_modules() where enabled), 'list_modules reports org B state');
+
+-- =============================================================================
+-- Service role (edge functions)
+-- =============================================================================
+reset role;
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select is(public.get_org_secret('b0000000-0000-0000-0000-00000000000a', 'documenso_api_key'), 'rotated-value', 'service_role reads the current secret value');
+select is(public.get_org_secret('b0000000-0000-0000-0000-00000000000b', 'documenso_api_key'), null, 'secrets are per org');
+
+-- =============================================================================
+-- Storage checks (as postgres)
+-- =============================================================================
+reset role;
+select is((select version from public.org_secrets where key = 'documenso_api_key'), 2, 'org_secrets.version counts rotations');
+select is((select count(*)::int from vault.secrets where name = 'org:b0000000-0000-0000-0000-00000000000a:documenso_api_key'), 1, 'one Vault secret per org key');
+select is((select count(*)::int from public.audit_log where changed_fields::text like '%secret-value%' or changed_fields::text like '%rotated-value%'),
+  0, 'secret values never reach the audit log');
+
+-- =============================================================================
+-- Admin A deletes the secret
+-- =============================================================================
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select lives_ok($$ select public.delete_org_secret('documenso_api_key') $$, 'admin deletes the secret');
+select results_eq('select count(*)::int from public.list_org_secret_keys()', array[0], 'deleted key is no longer listed');
+select lives_ok($$ select public.delete_org_secret('documenso_api_key') $$, 'deleting a missing key is a no-op');
+select lives_ok($$ select public.set_org_secret('documenso_api_key', 'fresh-value') $$, 'the key can be set again after deletion');
+select results_eq(
+  $$ select action from public.audit_log where table_name = 'org_secrets' and source <> 'rpc:set_org_secret' order by id $$,
+  $$ values ('insert'::text), ('update'::text), ('delete'::text), ('insert'::text) $$,
+  'secret lifecycle is audited');
+reset role;
+select is((select count(*)::int from vault.secrets where name = 'org:b0000000-0000-0000-0000-00000000000a:documenso_api_key'), 1, 'delete removed the Vault secret (only the fresh one remains)');
+select is((select version from public.org_secrets where key = 'documenso_api_key'), 1, 'a re-created secret starts at version 1');
+
+select * from finish();
+rollback;
