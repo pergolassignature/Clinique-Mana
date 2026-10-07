@@ -22,7 +22,11 @@ export default tseslint.config(
     files: ['src/core/**/*.{ts,tsx}', 'src/shared/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': ['error', {
-        patterns: [{ group: ['@/modules/*', '@/app/*'], message: 'core/ and shared/ must not import modules or app (design §6.2).' }],
+        patterns: [
+          { group: ['@/modules', '@/modules/*', '@/app', '@/app/*'], message: 'core/ and shared/ must not import modules or app (design §6.2).' },
+          { regex: '^(\\.\\./)+(modules|app)(/|$)', message: 'core/ and shared/ must not import modules or app (design §6.2).' },
+          { regex: '^src/', message: 'Use the @/ alias, not baseUrl paths.' },
+        ],
       }],
     },
   },

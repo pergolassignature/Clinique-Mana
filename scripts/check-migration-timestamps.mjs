@@ -19,7 +19,7 @@ const legacyRoundTimestampAllowlist = new Set([]);
 function listAddedMigrations() {
   try {
     const out = execSync(
-      `git diff --name-only --diff-filter=A ${baseRef}...HEAD -- "supabase/migrations/*.sql"`,
+      `git diff --name-only --no-renames --diff-filter=A ${baseRef}...HEAD -- "supabase/migrations/*.sql"`,
       { encoding: "utf8" },
     );
     return out.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -28,18 +28,19 @@ function listAddedMigrations() {
       `[migration-check] Could not diff against ${baseRef}: ${err.message}`,
     );
     console.error(
-      `[migration-check] Skipping check. Set BASE_REF or fetch the base branch first.`,
+      `[migration-check] Skipping the round-timestamp check. Set BASE_REF or fetch the base branch first.`,
     );
-    process.exit(0);
+    return null;
   }
 }
 
+// null when the base ref can't be diffed: Check 1 is skipped, Check 2 still runs.
 const added = listAddedMigrations();
 
 // Check 1 (round timestamps) only applies to newly-added files; Check 2 below
 // (stray/duplicate files) always runs so a bad merge can't slip a dup through.
 const offenders = [];
-for (const file of added) {
+for (const file of added ?? []) {
   if (legacyRoundTimestampAllowlist.has(file)) continue;
 
   const m = file.match(MIGRATION_RE);
@@ -126,6 +127,12 @@ if (spaceNamed.length > 0 || dupTimestamps.length > 0) {
   process.exit(1);
 }
 
-console.log(
-  `[migration-check] OK — ${added.length} new migration(s); no round timestamps, duplicates, or stray copies.`,
-);
+if (added === null) {
+  console.log(
+    "[migration-check] OK — no duplicates or stray copies (round-timestamp check skipped: base ref unavailable).",
+  );
+} else {
+  console.log(
+    `[migration-check] OK — ${added.length} new migration(s); no round timestamps, duplicates, or stray copies.`,
+  );
+}

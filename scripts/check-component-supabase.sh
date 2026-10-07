@@ -4,14 +4,16 @@
 # Exemption: add "// SUPABASE_ALLOWED: <reason>" (providers only).
 set -euo pipefail
 
+[ -d src ] || { echo "src/ not found" >&2; exit 2; }
+
 violations=""
 while IFS= read -r file; do
-  if grep -q "SUPABASE_ALLOWED" "$file"; then continue; fi
+  if grep -qE "SUPABASE_ALLOWED: *[^ ]" "$file"; then continue; fi
   violations="${violations}\n  - ${file}"
-done < <(grep -rl --include='*.tsx' "@/core/supabase/client" src || true)
+done < <(grep -rlE --include='*.tsx' "core/supabase(/client)?['\"]|@supabase/supabase-js" src || true)
 
 if [ -n "$violations" ]; then
-  echo -e "ERROR: UI files must not import the Supabase client directly:${violations}"
+  printf '%b\n' "ERROR: UI files must not import the Supabase client directly:${violations}"
   echo "Move the query to an api/*.ts file and call it through a hook."
   exit 1
 fi
