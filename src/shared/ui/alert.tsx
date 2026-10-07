@@ -37,11 +37,12 @@ const Alert = React.forwardRef<
 ))
 Alert.displayName = 'Alert'
 
+// A paragraph, not a heading: an alert's title sits inside a page section and would break the outline.
 const AlertTitle = React.forwardRef<
   HTMLParagraphElement,
-  React.HTMLAttributes<HTMLHeadingElement>
+  React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, ...props }, ref) => (
-  <h5
+  <p
     ref={ref}
     className={cn('text-sm font-medium text-foreground', className)}
     {...props}

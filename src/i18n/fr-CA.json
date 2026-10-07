@@ -121,7 +121,23 @@
     "navLabel": "Sections des paramètres",
     "empty": "Aucune section de paramètres n'est disponible pour votre rôle.",
     "groups": { "clinique": "Clinique", "plateforme": "Plateforme", "modules": "Modules", "compte": "Mon compte" },
-    "sections": { "modules": "Modules" },
+    "sections": {
+      "identity": "Identité légale",
+      "tax": "Fiscalité",
+      "signatory": "Signataire",
+      "bank": "Coordonnées bancaires",
+      "region": "Région",
+      "privacy": "Confidentialité",
+      "users": "Utilisateurs et accès",
+      "modules": "Modules",
+      "audit": "Journal d'audit"
+    },
+    "readOnly": {
+      "title": "Lecture seule",
+      "body": "Seule l'administration peut modifier ces informations.",
+      "navHint": "(lecture seule)"
+    },
+    "comingSoon": "Cette section arrive dans une prochaine phase.",
     "modules": {
       "title": "Modules",
       "description": "Activez un module lorsqu'il est prêt. Un module désactivé disparaît du menu et de l'application.",

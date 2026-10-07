@@ -22,11 +22,19 @@ export interface ModuleNavItem {
 export type SettingsGroup = 'clinique' | 'plateforme' | 'modules' | 'compte'
 
 export interface SettingsSection {
-  /** URL segment under the settings base path; must be unique across core and all modules. */
+  /** Stable English identifier, unique across core and modules (error scopes, React keys): 'identity'. */
   id: string
+  /** French URL segment under the settings base path, unique across core and modules: 'identite' (decision #24). */
+  path: string
   labelKey: TranslationKey
   icon: LucideIcon
+  /** Needed to see the section. */
   permission: string
+  /**
+   * Needed to change it. A user who can see the section without it reads it only: a lock in the
+   * menu and the « Lecture seule » notice on the page. Omitted: whoever sees the section may change it.
+   */
+  editPermission?: string
   group: SettingsGroup
   component: LazyExoticComponent<ComponentType>
   /** The owning module, if any; used for the error-reporting scope (`settings:<moduleKey>:<id>`). */
