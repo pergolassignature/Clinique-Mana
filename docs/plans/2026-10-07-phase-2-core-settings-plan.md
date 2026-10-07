@@ -2124,6 +2124,7 @@ Expected: all green. Also check that `git diff --stat src/core/supabase/database
 **Step 4: Final review.** Dispatch the `superpowers:code-reviewer` agent on the whole branch diff against `origin/main`, with the design and this plan. Fix the findings and have them re-reviewed.
 
 **Follow-ups to record in the status doc (not built in Phase 2):**
+- **Breadcrumb for detail pages (before the Professionnels detail page, Phase 4):** today the topbar only knows the nav items and static sub-pages. Add a `useShellCrumb(label)` hook (a small context) so a detail page sets « Professionnels / {nom} ». Derive it from the same value as `usePageTitle`, so the tab title and the topbar never drift apart.
 - ~~Lock convention~~: done in Task 2.15 (`for no key update` everywhere, conventions updated).
 - **Service-role variants for Facturation:** `tax_rate_on_for_org(org, tax, date)` and `clinic_today_for_org(org)`, granted to `service_role` only, because the user-scoped versions return null without a user. Also add « no invoice uses this rate » to the `delete_tax_rate` conditions: today the 24 h correction window can delete a rate that is already in force.
 - **Before Phase 4 stores any SIN (blocking):** the key management in ADR 0004's « Before Phase 4 » checklist: escrow runbook, known-ciphertext health check, key versioning and re-encryption.
