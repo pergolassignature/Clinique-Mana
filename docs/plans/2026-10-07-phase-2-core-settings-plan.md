@@ -65,6 +65,8 @@ revoke all on function public.some_rpc(text) from public, anon, authenticated;
 grant execute on function public.some_rpc(text) to authenticated, service_role;
 ```
 
+**Regex digits (amended after the Task 2.7 review):** in SQL patterns, write `[0-9]`, never `\d`. The local database uses the ICU locale provider, where `\d` also matches Arabic-Indic and fullwidth digits, and staging may differ. Apply this to every SQL block below (tax rates, bank details), and use `[0-9]` in the Zod schemas too, for parity. Blank checks use `btrim(x, E' \t\r\n')`. Name check constraints `<table>_<column>_check`, one per column.
+
 In plpgsql functions that `return query` with `returns table (…)` columns named like table columns, put `#variable_conflict use_column` as the first line of the body **and** qualify every column with its table alias.
 
 pgTAP fixtures reuse the Phase 1 pattern (insert `auth.users`, `organizations`, `profiles`, `user_roles` as `postgres`, then `set local role authenticated` and `select set_config('request.jwt.claims', '{"sub":"…","role":"authenticated"}', true)`). Copy a fixture block from `supabase/tests/database/003_core_module_settings_secrets.test.sql`. Assert privileges with `table_privs_are` / `column_privs_are` / `function_privs_are`. Set `plan(n)` to the final count.
@@ -831,6 +833,11 @@ Each schema's tests check:
 - each error message.
 
 The forms work on string values. Each schema has a matching `toFormValues(org)` that turns `null` into `''`; put it in the same file and test it.
+
+**Amendments from the Task 2.7 review:**
+- `province`: `toFormValues` turns `null` into `''`, so the schema must accept `''` and turn it into `null` (`z.preprocess((v) => (v === '' ? null : v), z.enum([...]).nullable())`). Test the « no province » case.
+- `website` and `privacy_policy_url`: lowercase the scheme, and prepend `https://` when it is missing (`www.cliniquemana.com` becomes `https://www.cliniquemana.com`). Test it.
+- `src/core/modules/errors.ts`: also send `23514` to Sentry, still showing the generic message. By design it only happens after a bypass or a Zod/SQL parity bug, and we want to hear about either.
 
 **Step 2: API, test first.**
 ```ts
