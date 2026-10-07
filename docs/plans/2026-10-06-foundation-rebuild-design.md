@@ -31,8 +31,8 @@ Clinique MANA was built fast. The concepts are right (professionals, motifs, ser
 | D4 | E-signature | **Documenso**, separate self-hosted instance for the clinic (e.g. `sign.cliniquemana.com`) — Loi 25 separation from Pergolas Signature, clinic branding. Replaces DocuSeal. |
 | D5 | Code organisation | **Module manifests + shared core** (`src/core`, `src/modules/<x>/manifest.ts`, `src/shared/ui`). Backend conventions copied from PS Hub verbatim. |
 | D6 | Router | **React Router v6** (match PS Hub), replacing TanStack Router. |
-| D8 | Scope vs GOrendezvous | **Replace everything except clinical notes**: agenda, reminders, client portal, invoicing/receipts, payments. Clinical notes and records stay in a specialised tool (order-specific record-keeping rules + Loi 25). Both systems coexist during the transition, module by module. |
 | D7 | Professionals' status | **Independent contractors** → profile stores tax numbers, bank details, SIN/BN (encrypted) and compensation terms. |
+| D8 | Scope vs GOrendezvous | **Replace everything except clinical notes**: agenda, reminders, client portal, invoicing/receipts, payments. Clinical notes and records stay in a specialised tool (order-specific record-keeping rules + Loi 25). Both systems coexist during the transition, module by module. |
 
 ---
 
