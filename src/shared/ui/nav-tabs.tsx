@@ -49,8 +49,8 @@ const NavTab = React.forwardRef<HTMLButtonElement, NavTabProps>(
       className={cn(
         'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px',
         active
-          ? 'border-sage-500 text-sage-700'
-          : 'border-transparent text-foreground-muted hover:text-foreground hover:border-border',
+          ? 'border-primary text-primary'
+          : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border',
         className
       )}
       {...props}

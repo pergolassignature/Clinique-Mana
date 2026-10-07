@@ -1,91 +1,59 @@
+/** @param {string} name */
+const brand = (name) => `rgb(var(--${name}) / <alpha-value>)`
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ['class'],
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      // Brand tokens (docs/standards/business-context.md §6). The RGB channels
+      // live as CSS variables in src/styles/globals.css so opacity modifiers
+      // (`bg-primary/10`) keep working.
       colors: {
-        // Clinique MANA brand colors
         background: {
-          DEFAULT: '#FDFBF7', // Warm off-white/cream
-          secondary: '#F8F5F0', // Slightly darker cream
-          tertiary: '#F2EDE5', // Light warm gray
+          DEFAULT: brand('offwhite'),
         },
         foreground: {
-          DEFAULT: '#3D3D3D', // Dark gray (not pure black)
-          secondary: '#6B6B6B', // Medium gray
-          muted: '#9A9A9A', // Light gray
+          DEFAULT: brand('charcoal'),
+          secondary: brand('charcoal-soft'),
+          muted: brand('charcoal-soft'),
         },
         border: {
-          DEFAULT: '#E8E4DC', // Soft neutral gray
-          light: '#F0EBE3',
-        },
-        // shadcn semantic tokens, mapped onto the palette below
-        primary: {
-          DEFAULT: '#567A5F', // sage-600 (readable as text on cream)
-          foreground: '#FFFFFF',
-        },
-        muted: {
-          DEFAULT: '#F8F5F0', // background.secondary
-          foreground: '#6B6B6B', // foreground.secondary
-        },
-        destructive: {
-          DEFAULT: '#8A5C5C', // wine-600 (legacy error text)
-          foreground: '#FFFFFF',
+          DEFAULT: brand('line'),
         },
         card: {
-          DEFAULT: '#FFFFFF',
-          foreground: '#3D3D3D', // foreground
+          DEFAULT: 'rgb(255 255 255 / <alpha-value>)',
+          foreground: brand('charcoal'),
         },
-        // Primary accent: soft sage/mint green
-        sage: {
-          50: '#F4F7F5',
-          100: '#E8EFE9',
-          200: '#D1DFD4',
-          300: '#B3C9B8',
-          400: '#8FB097',
-          500: '#6B9775', // Primary
-          600: '#567A5F',
-          700: '#45634D',
-          800: '#3A5140',
-          900: '#324436',
+        primary: {
+          DEFAULT: brand('wine'),
+          hover: brand('wine-dark'),
+          foreground: 'rgb(255 255 255 / <alpha-value>)',
         },
-        // Secondary accent: muted warm yellow
-        honey: {
-          50: '#FDF9F0',
-          100: '#FAF1DC',
-          200: '#F5E3B8',
-          300: '#EDD08A',
-          400: '#E4BC5C',
-          500: '#D9A832', // Primary
-          600: '#C4912A',
-          700: '#A37325',
-          800: '#855C24',
-          900: '#6E4C21',
+        muted: {
+          DEFAULT: brand('offwhite'),
+          foreground: brand('charcoal-soft'),
         },
-        // Tertiary accent: muted burgundy/wine (sparingly)
-        wine: {
-          50: '#FAF5F5',
-          100: '#F5EBEB',
-          200: '#EBDADA',
-          300: '#DCC0C0',
-          400: '#C79999',
-          500: '#A67373', // Primary
-          600: '#8A5C5C',
-          700: '#724C4C',
-          800: '#5E4040',
-          900: '#503838',
+        accent: {
+          DEFAULT: brand('mint'),
+          // teal-dark on mint is 4.4:1, under WCAG AA for body text: text on
+          // a mint surface stays charcoal; teal-dark is for text on white.
+          foreground: brand('charcoal'),
+        },
+        success: {
+          DEFAULT: brand('teal-dark'),
+        },
+        destructive: {
+          DEFAULT: brand('danger'),
+          foreground: 'rgb(255 255 255 / <alpha-value>)',
+        },
+        ring: {
+          DEFAULT: brand('wine'),
         },
       },
       fontFamily: {
-        sans: [
-          'Inter',
-          '-apple-system',
-          'BlinkMacSystemFont',
-          'Segoe UI',
-          'Roboto',
-          'sans-serif',
-        ],
+        sans: ['"Raleway Variable"', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         lg: '12px',

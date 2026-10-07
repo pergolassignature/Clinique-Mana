@@ -3,13 +3,29 @@
 @tailwind utilities;
 
 @layer base {
+  /* Brand colours as RGB channels, mapped in tailwind.config.js.
+     Source: docs/standards/business-context.md §6. */
+  :root {
+    --wine: 155 27 60;            /* #9B1B3C primary actions */
+    --wine-dark: 130 22 51;       /* #821633 hover */
+    --charcoal: 77 77 79;         /* #4D4D4F text */
+    --charcoal-soft: 107 107 110; /* #6B6B6E secondary text */
+    --teal: 36 157 149;           /* #249D95 accents, success icons */
+    --teal-dark: 27 122 115;      /* #1B7A73 teal text (AA on white) */
+    --mint: 226 241 235;          /* #E2F1EB calm surfaces */
+    --offwhite: 248 248 249;      /* #F8F8F9 page background */
+    --line: 229 229 232;          /* #E5E5E8 borders */
+    --danger: 180 35 24;          /* #B42318 destructive */
+  }
+
   * {
     @apply border-border;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    /* Raleway draws old-style figures by default. */
+    font-variant-numeric: lining-nums;
   }
 
   /* Smooth scrolling */
@@ -32,7 +48,7 @@
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-foreground-muted;
+    @apply bg-muted-foreground/60;
   }
 }
 
@@ -42,9 +58,9 @@
     @apply relative overflow-hidden;
     background: linear-gradient(
       90deg,
-      theme('colors.background.secondary') 0%,
-      theme('colors.background.DEFAULT') 50%,
-      theme('colors.background.secondary') 100%
+      rgb(var(--line)) 0%,
+      rgb(var(--offwhite)) 50%,
+      rgb(var(--line)) 100%
     );
     background-size: 200% 100%;
     animation: shimmer 2s linear infinite;
@@ -52,11 +68,16 @@
 
   /* Focus ring utility */
   .focus-ring {
-    @apply outline-none ring-2 ring-sage-500/30 ring-offset-2 ring-offset-background;
+    @apply outline-none ring-2 ring-primary/30 ring-offset-2 ring-offset-background;
   }
 }
 
 @layer utilities {
+  /* Aligned figures for tables, amounts and inputs */
+  .tabular {
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+
   /* Hide scrollbar but keep functionality */
   .scrollbar-hide {
     -ms-overflow-style: none;
