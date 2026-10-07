@@ -42,13 +42,12 @@ insert into public.user_roles (user_id, org_id, role) values
 -- admin_assistant default since core_roles_split, so the fixture re-adds it as a
 -- role default: the revoke must remove a real role default.
 -- No-role user: a grant that must be ignored (no role = no permissions).
--- Admin B: revoke audit.view.
+-- Admin B has no override: overrides on admins are refused since core_user_admin.
 insert into public.role_permissions (role, permission_key) values ('admin_assistant', 'users.view');
 insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'users.manage',  true),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'users.view',    false),
-  ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'settings.view', true),
-  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'audit.view',    false);
+  ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'settings.view', true);
 
 insert into public.modules (key, name) values ('test_mod', 'Module test');
 insert into public.org_modules (org_id, module_key, enabled) values
@@ -255,10 +254,10 @@ select is(public.get_my_access() -> 'modules', '["test_mod"]'::jsonb, 'role-less
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select results_eq('select count(*)::int from public.profiles', array[1], 'org B admin sees only org B profiles');
 select results_eq('select count(*)::int from public.user_roles', array[1], 'org B admin sees only org B roles');
-select results_eq('select count(*)::int from public.user_permission_overrides', array[1], 'org B admin sees only org B overrides');
+select results_eq('select count(*)::int from public.user_permission_overrides', array[0], 'org B admin sees no org A overrides (org B has none)');
 select results_eq('select id from public.organizations', array['b0000000-0000-0000-0000-00000000000b'::uuid], 'org B admin sees only org B');
 select results_eq('select count(*)::int from public.org_modules where enabled', array[0], 'org B admin does not see org A enabled modules');
-select ok(not private.has_permission('audit.view'), 'override revoke applies to admins too');
+select ok(private.has_permission('audit.view'), 'an admin holds every core permission (no overrides on admins)');
 select is(public.get_my_access() -> 'modules', '[]'::jsonb, 'org B has no enabled modules');
 update public.organizations set name = 'Hacked' where id = 'b0000000-0000-0000-0000-00000000000a';
 reset role;

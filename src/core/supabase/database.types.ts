@@ -230,33 +230,138 @@ export type Database = {
           },
         ]
       }
+      organization_bank_details: {
+        Row: {
+          account_last4: string
+          account_number: string
+          etransfer_email: string | null
+          institution_number: string
+          org_id: string
+          transit_number: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_last4: string
+          account_number: string
+          etransfer_email?: string | null
+          institution_number: string
+          org_id: string
+          transit_number: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_last4?: string
+          account_number?: string
+          etransfer_email?: string | null
+          institution_number?: string
+          org_id?: string
+          transit_number?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_bank_details_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_bank_details_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          country: string
           created_at: string
           currency: string
           default_locale: string
+          email: string | null
+          gst_number: string | null
           id: string
+          legal_name: string | null
           name: string
+          neq: string | null
+          phone: string | null
+          postal_code: string | null
+          privacy_officer_email: string | null
+          privacy_officer_name: string | null
+          privacy_policy_url: string | null
+          province: string | null
+          qst_number: string | null
+          record_retention_years: number | null
+          signatory_name: string | null
+          signatory_title: string | null
           timezone: string
           updated_at: string
+          website: string | null
         }
         Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string
           created_at?: string
           currency?: string
           default_locale?: string
+          email?: string | null
+          gst_number?: string | null
           id?: string
+          legal_name?: string | null
           name: string
+          neq?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          privacy_officer_email?: string | null
+          privacy_officer_name?: string | null
+          privacy_policy_url?: string | null
+          province?: string | null
+          qst_number?: string | null
+          record_retention_years?: number | null
+          signatory_name?: string | null
+          signatory_title?: string | null
           timezone?: string
           updated_at?: string
+          website?: string | null
         }
         Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string
           created_at?: string
           currency?: string
           default_locale?: string
+          email?: string | null
+          gst_number?: string | null
           id?: string
+          legal_name?: string | null
           name?: string
+          neq?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          privacy_officer_email?: string | null
+          privacy_officer_name?: string | null
+          privacy_policy_url?: string | null
+          province?: string | null
+          qst_number?: string | null
+          record_retention_years?: number | null
+          signatory_name?: string | null
+          signatory_title?: string | null
           timezone?: string
           updated_at?: string
+          website?: string | null
         }
         Relationships: []
       }
@@ -375,6 +480,54 @@ export type Database = {
         }
         Relationships: []
       }
+      tax_rates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          org_id: string
+          rate: number
+          tax: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          org_id: string
+          rate: number
+          tax: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          org_id?: string
+          rate?: number
+          tax?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_rates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "tax_rates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_permission_overrides: {
         Row: {
           created_at: string
@@ -465,11 +618,60 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_tax_rate: {
+        Args: { p_effective_from: string; p_rate: number; p_tax: string }
+        Returns: string
+      }
+      clear_permission_override: {
+        Args: { p_permission_key: string; p_user_id: string }
+        Returns: undefined
+      }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
+      delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
+      get_bank_details: {
+        Args: never
+        Returns: {
+          account_last4: string
+          etransfer_email: string
+          institution_number: string
+          transit_number: string
+          updated_at: string
+          updated_by_name: string
+        }[]
+      }
       get_my_access: { Args: never; Returns: Json }
       get_org_secret: {
         Args: { p_key: string; p_org_id: string }
         Returns: string
+      }
+      list_audit_actors: {
+        Args: never
+        Returns: {
+          actor_id: string
+          actor_name: string
+        }[]
+      }
+      list_audit_entries: {
+        Args: {
+          p_actor?: string
+          p_before_id?: number
+          p_from?: string
+          p_limit?: number
+          p_table?: string
+          p_to?: string
+        }
+        Returns: {
+          action: string
+          actor_id: string
+          actor_name: string
+          actor_role: string
+          changed_fields: Json
+          created_at: string
+          id: number
+          record_id: string
+          source: string
+          table_name: string
+        }[]
       }
       list_modules: {
         Args: never
@@ -487,10 +689,33 @@ export type Database = {
           updated_at: string
         }[]
       }
+      list_org_users: {
+        Args: never
+        Returns: {
+          display_name: string
+          email: string
+          last_sign_in_at: string
+          override_count: number
+          role: string
+          role_name: string
+          status: string
+          user_id: string
+        }[]
+      }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
+      }
+      reveal_bank_account_number: { Args: never; Returns: string }
+      set_bank_details: {
+        Args: {
+          p_account_number: string
+          p_etransfer_email: string
+          p_institution_number: string
+          p_transit_number: string
+        }
+        Returns: undefined
       }
       set_module_enabled: {
         Args: { p_enabled: boolean; p_key: string }
@@ -500,6 +725,23 @@ export type Database = {
         Args: { p_key: string; p_value: string }
         Returns: undefined
       }
+      set_permission_override: {
+        Args: {
+          p_granted: boolean
+          p_permission_key: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      set_user_role: {
+        Args: { p_role: string; p_user_id: string }
+        Returns: undefined
+      }
+      set_user_status: {
+        Args: { p_status: string; p_user_id: string }
+        Returns: undefined
+      }
+      tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
     }
     Enums: {
       [_ in never]: never
