@@ -113,6 +113,9 @@
     --shadow-large: 0 12px 32px rgb(31 31 32 / 0.14), 0 0 0 1px rgb(31 31 32 / 0.05);
     --ring: 0 0 0 2px rgb(var(--bg)), 0 0 0 4px rgb(var(--focus-ring));
     --ring-inset: 0 0 0 1px rgb(var(--primary));
+    /* Decision #30 (extension): the #F4F4F5 highlight alone is ~1.1:1, so highlighted menu and
+       command items also get a 2px teal bar on the left. */
+    --highlight-bar: inset 2px 0 0 rgb(var(--primary));
 
     /* Motion */
     --ease: cubic-bezier(0.4, 0, 0.2, 1);

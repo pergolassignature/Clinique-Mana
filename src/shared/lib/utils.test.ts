@@ -16,6 +16,7 @@ describe('cn', () => {
   it('knows the focus shadows are shadow sizes too', () => {
     expect(cn('focus-visible:shadow-focus', 'focus-visible:shadow-focus-inset')).toBe('focus-visible:shadow-focus-inset')
     expect(cn('shadow-medium', 'shadow-focus')).toBe('shadow-focus')
+    expect(cn('data-[highlighted]:shadow-none', 'data-[highlighted]:shadow-highlight')).toBe('data-[highlighted]:shadow-highlight')
   })
 
   it('keeps a shadow colour next to a custom shadow size', () => {

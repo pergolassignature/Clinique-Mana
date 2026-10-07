@@ -114,6 +114,8 @@ export default {
         focus: 'var(--ring)',
         // …and the 1px teal ring that fields add to their teal border.
         'focus-inset': 'var(--ring-inset)',
+        // Highlighted menu and command items (arrow keys): a 2px teal bar on the left (decision #30).
+        highlight: 'var(--highlight-bar)',
       },
       maxWidth: {
         form: 'var(--form-max)',

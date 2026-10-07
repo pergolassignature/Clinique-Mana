@@ -43,7 +43,7 @@ export function SettingsCard({ title, description, readOnly, pending, onSubmit, 
       <fieldset disabled={readOnly} className="min-w-0 space-y-3">
         {children}
       </fieldset>
-      {!readOnly && footer && <div className="mt-4 flex items-center justify-end gap-1.5">{footer}</div>}
+      {!readOnly && footer && <div className="mt-3 flex items-center justify-end gap-2">{footer}</div>}
     </form>
   )
 }
