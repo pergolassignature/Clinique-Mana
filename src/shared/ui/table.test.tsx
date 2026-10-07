@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { Table, TableBody, TableCell, TableRow } from './table'
 
 const table = (label?: string) => (
-  <Table aria-label={label}>
+  <Table scrollLabel={label}>
     <TableBody>
       <TableRow>
         <TableCell>9,975 %</TableCell>

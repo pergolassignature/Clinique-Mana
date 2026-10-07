@@ -79,6 +79,25 @@ const link = () => screen.getByRole('link', { name: 'Aller à B' })
 const dialog = () => screen.queryByRole('alertdialog')
 const stay = () => screen.getByRole('button', { name: t('common.unsaved.stay') })
 const leave = () => screen.findByRole('button', { name: t('common.unsaved.leave') })
+/**
+ * Clicks and reports whether our handlers left the browser's default action alone. A bubble-phase
+ * listener on window (after React's root listener) records `defaultPrevented`, then prevents the
+ * default itself so happy-dom does not actually follow the link (it would fetch localhost:3000).
+ */
+const clickLeavesDefault = (element: HTMLElement, init?: MouseEventInit) => {
+  let prevented: boolean | undefined
+  const record = (event: Event) => {
+    prevented = event.defaultPrevented
+    event.preventDefault()
+  }
+  window.addEventListener('click', record)
+  try {
+    fireEvent.click(element, init)
+  } finally {
+    window.removeEventListener('click', record)
+  }
+  return prevented === false
+}
 const fireBeforeUnload = () => {
   const event = new Event('beforeunload', { cancelable: true })
   window.dispatchEvent(event)
@@ -128,14 +147,34 @@ describe('unsaved-changes guard', () => {
     expect(screen.getByText('PAGE A')).toBeInTheDocument()
   })
 
+  it('after « Quitter », returns focus to the link when it is still on the page', async () => {
+    render(<App forms={[true]} />)
+    await userEvent.tab()
+    await userEvent.keyboard('{Enter}')
+    await userEvent.click(await leave())
+    expect(await screen.findByText('PAGE B')).toBeInTheDocument()
+    await waitFor(() => expect(link()).toHaveFocus()) // the link lives outside the routes, like a sidebar
+  })
+
+  it('after « Quitter », leaves focus alone when the element that opened the dialog is gone', async () => {
+    render(<App forms={[true]} section />)
+    const button = screen.getByRole('button', { name: 'Changer de section' })
+    button.focus()
+    await userEvent.keyboard('{Enter}')
+    await userEvent.click(await leave())
+    expect(await screen.findByText('SECTION QUITTÉE')).toBeInTheDocument()
+    expect(button).not.toBeInTheDocument()
+    await waitFor(() => expect(dialog()).not.toBeInTheDocument())
+    expect(document.body).toHaveFocus()
+  })
+
   it('leaves modified and middle clicks to the browser', () => {
     render(<App forms={[true]} />)
-    // fireEvent returns false when a listener called preventDefault().
-    expect(fireEvent.click(link(), { ctrlKey: true })).toBe(true)
-    expect(fireEvent.click(link(), { metaKey: true })).toBe(true)
-    expect(fireEvent.click(link(), { shiftKey: true })).toBe(true)
-    expect(fireEvent.click(link(), { altKey: true })).toBe(true)
-    expect(fireEvent.click(link(), { button: 1 })).toBe(true)
+    expect(clickLeavesDefault(link(), { ctrlKey: true })).toBe(true)
+    expect(clickLeavesDefault(link(), { metaKey: true })).toBe(true)
+    expect(clickLeavesDefault(link(), { shiftKey: true })).toBe(true)
+    expect(clickLeavesDefault(link(), { altKey: true })).toBe(true)
+    expect(clickLeavesDefault(link(), { button: 1 })).toBe(true)
     expect(dialog()).not.toBeInTheDocument()
     expect(screen.getByText('PAGE A')).toBeInTheDocument()
   })
@@ -143,7 +182,7 @@ describe('unsaved-changes guard', () => {
   it('does not intercept a link that opens another tab', () => {
     render(<App forms={[true]} />)
     // React Router itself leaves target="_blank" to the browser, so the default is not prevented.
-    expect(fireEvent.click(screen.getByRole('link', { name: 'B dans un nouvel onglet' }))).toBe(true)
+    expect(clickLeavesDefault(screen.getByRole('link', { name: 'B dans un nouvel onglet' }))).toBe(true)
     expect(dialog()).not.toBeInTheDocument()
   })
 

@@ -1,16 +1,20 @@
 import * as React from 'react'
 import { cn } from '@/shared/lib/utils'
 
-/**
- * `aria-label` names the horizontal scroll wrapper, not the table (name the table with a
- * `TableCaption`): with a label the wrapper becomes a focusable region, so keyboard users can
- * scroll a wide table with the arrow keys. Without one it stays out of the tab order.
- */
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, 'aria-label': label, ...props }, ref) => (
+interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  /**
+   * Names the horizontal scroll wrapper, not the table (name the table with a `TableCaption`).
+   * With it, the wrapper becomes a focusable region, so keyboard users can scroll a wide table with
+   * the arrow keys; without it, the wrapper stays out of the tab order.
+   */
+  scrollLabel?: string
+}
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, scrollLabel, ...props }, ref) => (
     <div
       className="relative w-full overflow-x-auto rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      {...(label ? { role: 'region', 'aria-label': label, tabIndex: 0 } : {})}
+      {...(scrollLabel ? { role: 'region', 'aria-label': scrollLabel, tabIndex: 0 } : {})}
     >
       <table ref={ref} className={cn('w-full caption-bottom text-sm text-foreground', className)} {...props} />
     </div>
