@@ -4,7 +4,7 @@
 -- dependency rules, list_modules, secret lifecycle + audit, cross-org isolation.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(72);
+select plan(75);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -47,6 +47,7 @@ select function_privs_are('public', 'get_org_secret', array['uuid', 'text'], 'an
 select function_privs_are('public', 'get_org_secret', array['uuid', 'text'], 'authenticated', array[]::text[], 'clients cannot read secret values');
 select function_privs_are('public', 'get_org_secret', array['uuid', 'text'], 'service_role', array['EXECUTE'], 'service_role can read secret values');
 
+select function_privs_are('private', 'org_secrets_delete_vault', array[]::text[], 'service_role', array[]::text[], 'nobody can execute the vault-cleanup trigger function');
 select function_privs_are('public', 'module_enabled',       array['text'],            'anon', array[]::text[], 'anon cannot call module_enabled');
 select function_privs_are('public', 'set_module_enabled',   array['text', 'boolean'], 'anon', array[]::text[], 'anon cannot call set_module_enabled');
 select function_privs_are('public', 'list_modules',         array[]::text[],          'anon', array[]::text[], 'anon cannot call list_modules');
@@ -157,7 +158,7 @@ select is(public.get_org_secret('b0000000-0000-0000-0000-00000000000b', 'documen
 -- Storage checks (as postgres)
 -- =============================================================================
 reset role;
-select is((select version from public.org_secrets where key = 'documenso_api_key'), 2, 'org_secrets.version counts rotations');
+select is((select version from public.org_secrets where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'documenso_api_key'), 2, 'org_secrets.version counts rotations');
 select is((select count(*)::int from vault.secrets where name = 'org:b0000000-0000-0000-0000-00000000000a:documenso_api_key'), 1, 'one Vault secret per org key');
 select is((select count(*)::int from public.audit_log where changed_fields::text like '%secret-value%' or changed_fields::text like '%rotated-value%'),
   0, 'secret values never reach the audit log');
@@ -177,7 +178,16 @@ select results_eq(
   'secret lifecycle is audited');
 reset role;
 select is((select count(*)::int from vault.secrets where name = 'org:b0000000-0000-0000-0000-00000000000a:documenso_api_key'), 1, 'delete removed the Vault secret (only the fresh one remains)');
-select is((select version from public.org_secrets where key = 'documenso_api_key'), 1, 'a re-created secret starts at version 1');
+select is((select version from public.org_secrets where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'documenso_api_key'), 1, 'a re-created secret starts at version 1');
+
+-- Deleting an org cascades to org_secrets, and the Vault entries go with it.
+insert into public.organizations (id, name) values ('b0000000-0000-0000-0000-00000000000c', 'Org C');
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values ('b0000000-0000-0000-0000-00000000000c', 'resend_api_key',
+        vault.create_secret('c-value', 'org:b0000000-0000-0000-0000-00000000000c:resend_api_key'));
+select is((select count(*)::int from vault.secrets where name like 'org:b0000000-0000-0000-0000-00000000000c:%'), 1, 'org C has a Vault secret');
+delete from public.organizations where id = 'b0000000-0000-0000-0000-00000000000c';
+select is((select count(*)::int from vault.secrets where name like 'org:b0000000-0000-0000-0000-00000000000c:%'), 0, 'deleting an org removes its Vault secrets');
 
 select * from finish();
 rollback;

@@ -3,7 +3,7 @@
 -- org_id on child tables, redaction, immutability for every role, RLS.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(50);
 
 -- =============================================================================
 -- Fixtures (as postgres; no app.audit_source → source 'system')
@@ -28,6 +28,10 @@ insert into public.user_roles (user_id, org_id, role) values
 insert into public.modules (key, name) values ('test_mod', 'Module test');
 insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'test_mod', true);
+insert into public.org_module_settings (org_id, module_key, settings) values
+  ('b0000000-0000-0000-0000-00000000000a', 'test_mod', '{"a": 1}');
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'users.manage', true);
 
 -- A probe table audited with redaction, as a future module would do.
 create table public.zz_audit_probe (
@@ -50,6 +54,13 @@ select ok(not has_table_privilege('service_role', 'public.audit_log', 'DELETE'),
 select ok(not has_table_privilege('service_role', 'public.audit_log', 'TRUNCATE'), 'service_role cannot truncate audit_log');
 select sequence_privs_are('public', 'audit_log_id_seq', 'authenticated', array[]::text[], 'authenticated: no privileges on the audit sequence');
 select function_privs_are('private', 'audit_trigger', array[]::text[], 'service_role', array[]::text[], 'nobody can execute audit_trigger directly');
+select has_trigger('public', 'organizations',             'organizations_audit',             'organizations is audited');
+select has_trigger('public', 'profiles',                  'profiles_audit',                  'profiles is audited');
+select has_trigger('public', 'user_roles',                'user_roles_audit',                'user_roles is audited');
+select has_trigger('public', 'user_permission_overrides', 'user_permission_overrides_audit', 'user_permission_overrides is audited');
+select has_trigger('public', 'org_modules',               'org_modules_audit',               'org_modules is audited');
+select has_trigger('public', 'org_module_settings',       'org_module_settings_audit',       'org_module_settings is audited');
+select has_trigger('public', 'org_secrets',               'org_secrets_audit',               'org_secrets is audited');
 select function_privs_are('private', 'audit_log_immutable', array[]::text[], 'service_role', array[]::text[], 'nobody can execute audit_log_immutable directly');
 
 -- =============================================================================
@@ -61,6 +72,28 @@ select is((select org_id from public.audit_log where table_name = 'profiles' and
   'b0000000-0000-0000-0000-00000000000a'::uuid, 'org_id is captured for profiles');
 select is((select record_id from public.audit_log where table_name = 'org_modules' and action = 'insert' and org_id = 'b0000000-0000-0000-0000-00000000000a'),
   'b0000000-0000-0000-0000-00000000000a:test_mod', 'record_id joins composite primary keys with ":"');
+
+select results_eq(
+  $$ select org_id, record_id from public.audit_log where table_name = 'user_permission_overrides' and action = 'insert' and org_id = 'b0000000-0000-0000-0000-00000000000a' $$,
+  $$ values ('b0000000-0000-0000-0000-00000000000a'::uuid, 'a0000000-0000-0000-0000-000000000002:users.manage'::text) $$,
+  'permission overrides are audited with org and composite id');
+select results_eq(
+  $$ select org_id, changed_fields -> 'settings' from public.audit_log where table_name = 'org_module_settings' and action = 'insert' and org_id = 'b0000000-0000-0000-0000-00000000000a' $$,
+  $$ values ('b0000000-0000-0000-0000-00000000000a'::uuid, '{"a": 1}'::jsonb) $$,
+  'module settings are audited');
+
+-- Email sync from auth.users is tagged, and does not leak its tag.
+update auth.users set email = 'staff.new@a.test' where id = 'a0000000-0000-0000-0000-000000000002';
+select results_eq(
+  $$ select source, changed_fields -> 'email' from public.audit_log where table_name = 'profiles' and action = 'update' and record_id = 'a0000000-0000-0000-0000-000000000002' $$,
+  $$ values ('auth:email_change'::text, '{"before": "staff@a.test", "after": "staff.new@a.test"}'::jsonb) $$,
+  'auth email change is audited with source auth:email_change');
+update auth.users set email = 'staff.new@a.test' where id = 'a0000000-0000-0000-0000-000000000002';
+select is((select count(*)::int from public.audit_log where table_name = 'profiles' and action = 'update' and record_id = 'a0000000-0000-0000-0000-000000000002'),
+  1, 'an unchanged auth email writes no audit row');
+update public.organizations set name = 'Org B bis' where id = 'b0000000-0000-0000-0000-00000000000b';
+select is((select source from public.audit_log where table_name = 'organizations' and action = 'update' and record_id = 'b0000000-0000-0000-0000-00000000000b'),
+  'system', 'the email-sync source does not stick to later writes');
 
 delete from public.user_roles where user_id = 'a0000000-0000-0000-0000-000000000002';
 select is((select org_id from public.audit_log where table_name = 'user_roles' and action = 'delete' and record_id = 'a0000000-0000-0000-0000-000000000002'),
@@ -111,7 +144,7 @@ select is((select count(*)::int from public.audit_log where table_name = 'organi
 -- Without app.audit_source, an API request is tagged `app`.
 select set_config('app.audit_source', '', true);
 update public.profiles set display_name = 'Admin Alpha' where user_id = auth.uid();
-select is((select source from public.audit_log where table_name = 'profiles' and action = 'update'),
+select is((select source from public.audit_log where table_name = 'profiles' and action = 'update' and record_id = 'a0000000-0000-0000-0000-000000000001'),
   'app', 'source defaults to app for authenticated requests');
 
 select ok((select count(*) from public.audit_log) > 0, 'admin with audit.view reads the org log');
@@ -149,6 +182,7 @@ select throws_ok($$ truncate public.audit_log $$, '42501', null, 'service_role c
 -- =============================================================================
 reset role;
 select throws_ok($$ delete from public.audit_log $$, '42501', null, 'even the owner cannot delete without the purge switch');
+select throws_ok($$ update public.audit_log set source = 'x' $$, '42501', null, 'even the owner cannot update without the purge switch');
 select throws_ok($$ truncate public.audit_log $$, '42501', null, 'even the owner cannot truncate without the purge switch');
 select set_config('app.audit_purge', 'on', true);
 delete from public.audit_log where table_name = 'zz_audit_probe';
