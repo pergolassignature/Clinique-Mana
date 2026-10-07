@@ -112,6 +112,7 @@ grant execute on function public.archive_training(uuid) to authenticated;
 - Helpers and trigger functions go in `private`; only RPCs the frontend or edge functions call go in `public` (test 003 asserts the exact list with `functions_are`).
 - Trigger functions: `revoke all … from public, anon, authenticated, service_role` (firing a trigger does not need EXECUTE).
 - Error codes: `42501` permission, `22023` invalid argument, `P0001` business rule. Messages in French.
+- **User-facing messages use `P0001` only.** A message the user should read is raised with `raise exception '…' using errcode = 'P0001'`, written in French, and names things by their label (module names, not keys). The frontend shows a `P0001` message as is, maps `42501` to its own « permission » text, and replaces every other code (`22023`, timeouts, deadlocks, PostgREST/JWT errors, network failures) with a generic message reported to Sentry (allow-list in `src/core/modules/errors.ts`). So `22023` messages such as « Module inconnu » are for developers, not users.
 - Serialize read-check-write sequences that span rows with a lock (`perform 1 from public.organizations where id = v_org for update;`).
 
 ## 7. Audit

@@ -66,7 +66,8 @@
       "dependsOn": "Requiert :",
       "saved": "Modules mis à jour.",
       "error": "Impossible de modifier ce module.",
-      "loadError": "Impossible de charger les modules."
+      "loadError": "Impossible de charger les modules.",
+      "forbidden": "Vous n'avez pas la permission de modifier les modules."
     }
   },
   "modules": {
