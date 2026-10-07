@@ -1,75 +1,61 @@
-> **Superseded (2026-10-07, decision #29):** the visual reference is now the design system in [`docs/design-system/`](../design-system/README.md) (Inter, teal primary, hairline borders, radii 4/6/8). The token mapping below is rewritten when the design system is applied (plan Task 2.2b).
+# Clinique MANA — Design system → Tailwind
 
-# Clinique MANA — Brand Tokens
+The visual reference is the **Clinique MANA design system** in [`docs/design-system/`](../design-system/README.md) (decisions #29–30). Its values are final; this page only says where they live in the code and which Tailwind names to use.
 
-> **Status:** the sage/honey/Inter tokens at the bottom of this page are **legacy**. Since Phase 2 (Task 2.2) the app follows the website identity described in [business context §6](business-context.md#6-brand--tone): Raleway, charcoal text, wine for primary actions, mint/teal for calm surfaces and states. Principle unchanged: calm, human, low contrast — while text still meets WCAG AA.
+## Where the values live
 
-## Current tokens
+- `src/styles/globals.css`: every token from `design_system/tokens/*.css`, as CSS variables with the design system's names (`--primary`, `--text-secondary`, `--radius-lg`, `--shadow-medium`…). Colours are RGB channels (`--border: 228 228 231`) so opacity modifiers work (`bg-ink/5`).
+- `tailwind.config.js`: maps the variables to the shadcn semantic names below. Never use a raw variable or a hex value in a component.
+- `src/shared/lib/utils.ts`: tailwind-merge learns the custom keys (shadows `soft`/`medium`/`large`/`focus`/`focus-inset`, font size `2xs`). **A new shadow or font-size key must be registered there, with a test.**
+- Font: Inter Variable, self-hosted through `@fontsource-variable/inter` (imported first in `src/main.tsx`). No request to Google (Loi 25); `dist/` must never mention `googleapis` or `gstatic`.
 
-Defined as RGB channels on `:root` in `src/styles/globals.css` and mapped in `tailwind.config.js` (`rgb(var(--x) / <alpha-value>)`, so `bg-primary/10` works).
+## Colours
 
-| Variable | Value | Use |
-|---|---|---|
-| `--wine` | `#9B1B3C` | primary actions, focus ring |
-| `--wine-dark` | `#821633` | primary hover |
-| `--charcoal` | `#4D4D4F` | text |
-| `--charcoal-soft` | `#6B6B6E` | secondary text |
-| `--teal-dark` | `#1B7A73` | teal text on white (AA) |
-| `--mint` | `#E2F1EB` | calm, success and selected surfaces |
-| `--offwhite` | `#F8F8F9` | page background |
-| `--muted-bg` | `#EFEFF2` | neutral fills and hovers |
-| `--line` | `#E5E5E8` | dividers, card outlines (decorative) |
-| `--input` | `#8F8F95` | form-control borders (3.22:1 on white, 3.03:1 on off-white) |
-| `--danger` | `#B42318` | destructive actions, errors |
+| Tailwind | Design system | Value | Use |
+|---|---|---|---|
+| `background` | `--bg` | #FFFFFF | page |
+| `foreground` | `--text-body` | #1F1F20 | text |
+| `muted-foreground` | `--text-secondary` | #6B6B6E | **all** informative secondary text (captions, hints, descriptions, table headers) |
+| `subtle` | `--text-muted` | #8E8E92 | placeholders, disabled text, separators, icons only (3.3:1) |
+| `link` | `--text-link` | #1A6B66 | text links |
+| `border` / `border-light` / `border-strong` | `--border*` | #E4E4E7 / #EFEFF1 / #CFCFD4 | hairlines; strong = control hover |
+| `input` / `input-hover` | `--border` / `--border-strong` | | form-control borders (own token, hairline as designed) |
+| `card` / `card-hover` | `--surface-card` / `--surface-panel-hover` | #FFFFFF / #FAFAFA | cards; row and interactive-card hover |
+| `muted` / `muted-strong` | `--bg-secondary` / `--bg-tertiary` | #F4F4F5 / #E9E9EB | disabled fill, ghost/menu hover; secondary hover, selected command item |
+| `sidebar` | `--surface-sidebar` | #F7F7F8 | app sidebar |
+| `overlay` | `--surface-overlay` | ink 32 % | dialog and sheet backdrop (no blur) |
+| `primary` (+ `hover`, `active`, `foreground`) | `--primary*` | teal #1E837C / #1A6B66 / #175551 | the single coloured action per screen, checked controls |
+| `primary-soft` / `primary-soft-foreground` | `--primary-soft*` | #EEF8F7 / #175551 | selected row |
+| `ink` (+ `hover`, `foreground`) | `--ink*` | #1F1F20 | ink button, active tab underline, tooltip, toast |
+| `destructive` (+ `hover`, `foreground`) | `--danger*` | #B3261E | errors; destructive button only inside a confirmation |
+| `success` / `warning` / `info` / `neutral` | status tokens | #249D95 / #E0B400 / #46ACA5 / #A8A8AD | status dots and icons only, never text or fills |
+| `ring` | `--focus-ring` | #1E837C | focus |
+| `gray-50` … `gray-900` | `--gray-*` | | the neutral scale, for the rare exact value (outline hover `gray-50`, avatar text `gray-700`, switch track `gray-300`) |
 
-`--teal` (`#249D95`) is also defined but deliberately not mapped: it is 3.3:1 on white, so never text; keep it for future decorative accents.
+Wine (`--wine-*`) is the logo colour only: it is defined but not mapped. Brand scales (teal, mint, pink, yellow) are defined for exact values (toast icons) and not mapped.
 
-Use the semantic Tailwind names, never the raw variables:
+## Type, radii, shadows, motion
 
-| Tailwind name | Maps to |
-|---|---|
-| `background` | offwhite |
-| `foreground` | charcoal |
-| `border` | line |
-| `input` | input |
-| `card` / `card-foreground` | white / charcoal |
-| `primary` / `primary-hover` / `primary-foreground` | wine / wine-dark / white |
-| `muted` / `muted-hover` / `muted-foreground` | muted-bg / line / charcoal-soft |
-| `accent` / `accent-foreground` | mint / charcoal |
-| `success` | teal-dark |
-| `destructive` / `destructive-foreground` | danger / white |
-| `ring` | wine |
+- Font sizes (size/line height): `text-2xs` 11/16 (overlines: `uppercase tracking-wide font-medium`), `text-xs` 12/16 captions, `text-sm` 13/18 body and labels (the `body` default), `text-base` 14/20 card titles, `text-lg` 16/24 section titles, `text-xl` 20/28 page titles (`tracking-tight`), `text-2xl` 24/32, `text-3xl` 30/36. Weights 400/500/600.
+- `tracking-tight` −0.01em, `tracking-wide` +0.06em (the design system's values replace Tailwind's).
+- Body: `font-feature-settings: "cv02","cv03","cv04","cv11","ss01"`, antialiased. Figures: `.tabular` (tables, amounts, inputs).
+- Radii: `rounded-sm` 3 (badge, tooltip, checkbox) · `rounded-md` 4 (buttons, fields, nav links) · `rounded-lg` 6 (cards, menus, alerts, toasts) · `rounded-2xl` 8 (dialogs) · `rounded-full` (avatars, switch).
+- Shadows: `shadow-soft` is `none` (surfaces never cast one); `shadow-medium` menus and popovers; `shadow-large` dialogs, sheets, toasts.
+- Motion: `duration-120` hovers, `duration-160` (default) menus and dialogs, `duration-240` sheets; easing `cubic-bezier(.4,0,.2,1)` (Tailwind's default). Animations: `animate-fade-in`, `animate-dialog-in` (fade + zoom 95 %), `animate-zoom-in`, `animate-slide-in-right`; always with `motion-reduce:animate-none`.
+- Layout: `max-w-form` 640, `max-w-content` 1120; spacing is Tailwind's 4px scale, which matches the design system's.
 
-Rules:
-- Text on mint stays charcoal (`accent-foreground`): teal-dark on mint is 4.4:1, under AA.
-- Floating surfaces (cards, dialogs, menus, popovers) and inputs are `bg-card` (white) on the off-white page.
-- Form controls (input, textarea, select, checkbox, switch off-track) use `border-input` / `bg-input`: WCAG 1.4.11 asks 3:1 for the parts that identify a control. `border` stays for decorative lines.
-- Destructive buttons are the soft variant (red text and border on a 10 % red tint) so they differ from the solid wine primary by fill, not only by hue; they always carry an explicit verb (« Supprimer », « Désactiver »).
-- Focus: `focus-visible:ring-2 focus-visible:ring-ring` at full strength (8.0:1 on white, 7.6:1 on off-white), with `ring-offset-2` where the control itself is wine (button, checkbox). No `ring-offset-background`: it draws an off-white halo on white surfaces. Text fields keep their wine border as the cue, plus a soft `ring-ring/30` halo. The `.focus-ring` utility applies the full ring.
-- Hover: neutral hovers use `bg-muted` (ghost/outline buttons, nav items, menu items). Mint (`accent`) is for calm, success and selected surfaces, not generic hover. A control already filled with `bg-muted` (secondary button) hovers one step darker, `bg-muted-hover`.
-- Highlighted menu and command items: `bg-muted` plus an inset 2px wine bar on the left (7.0:1 on muted), so the highlight does not rely on a faint fill.
-- Shadows: the custom scale only (`shadow-soft` cards, `shadow-medium` menus/popovers, `shadow-large` dialogs/sheets; toasts keep sonner's own shadow).
-- Toasts (`sonner.tsx`): styled through sonner's CSS variables, no class overrides. Every toast is a white card with a line border and Raleway; default text charcoal, success text and icon dark teal (5.2:1), error text and icon danger (6.6:1). Keyboard focus on a toast, its close or action button shows the wine ring (rule in `globals.css`).
-- Search fields inside menus (`CommandInput`): the bottom border turns wine on focus.
-- Font: Raleway Variable, self-hosted through `@fontsource-variable/raleway` (no Google request, Loi 25). Figures are lining everywhere (`body`); use `.tabular` for tables, amounts and inputs.
+## Accessibility rules (decision #30)
 
-## Legacy (before Phase 2, kept for history)
+1. Informative text uses `text-muted-foreground` (#6B6B6E, 5.3:1 on white, 4.8:1 on `muted`). `text-subtle` (#8E8E92, 3.3:1) is for placeholders, disabled text, separators and icons.
+2. Keyboard focus is a solid teal ring: `focus-visible:shadow-focus focus-visible:outline-none` on buttons and controls (2px white gap + 2px #1E837C, 4.6:1); fields add `focus-visible:border-primary focus-visible:shadow-focus-inset` (teal border + 1px teal ring). Links get the same ring from `globals.css`. `.focus-ring` applies `shadow-focus`.
+3. Required fields (`FormField required`): a teal `*` (`aria-hidden`) and an `sr-only` « (requis) ».
 
-Principles:
-Calm, human, premium. Avoid harsh contrast.
+Hairline control borders (#E4E4E7, 1.3:1) are kept as designed.
 
-Tokens (names only; values may evolve):
-- --bg: warm off-white / cream
-- --surface: white
-- --text: soft charcoal
-- --muted: warm gray
-- --border: light gray
-- --accent-primary: sage/mint
-- --accent-secondary: muted warm yellow (sparingly)
-- --accent-tertiary: muted burgundy/wine (very sparingly)
+## Component rules
 
-Usage:
-- Primary actions: accent-primary
-- Active navigation: accent-primary
-- Callouts: accent-secondary (rare)
-- Badges: accent-tertiary (rare)
+- One `default` (teal) button per screen; secondary actions `outline`; `ink` for a main action when teal is already used; `destructive` only in an AlertDialog with an explicit verb (« Désactiver »).
+- Status is `Badge`: a 6px `StatusDot` + a word. `filled` only for « Urgent ». Checklists use `StatusIndicator` (icon + label; the status is also read as words).
+- Alerts are white with a hairline; only the icon is coloured. Tooltips are ink, 12px, radius 3.
+- Empty states are two lines of text and an optional action: no icon, no box (`EmptyState`).
+- Toasts (`sonner.tsx`): ink background, white text, light coloured icon (success teal-300, error pink-300, warning yellow-300), bottom-right, 20px from the edges; styled through sonner's variables and inline styles, focus ring in `globals.css`.
