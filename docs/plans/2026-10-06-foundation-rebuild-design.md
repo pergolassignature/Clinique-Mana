@@ -31,6 +31,7 @@ Clinique MANA was built fast. The concepts are right (professionals, motifs, ser
 | D4 | E-signature | **Documenso**, separate self-hosted instance for the clinic (e.g. `sign.cliniquemana.com`) — Loi 25 separation from Pergolas Signature, clinic branding. Replaces DocuSeal. |
 | D5 | Code organisation | **Module manifests + shared core** (`src/core`, `src/modules/<x>/manifest.ts`, `src/shared/ui`). Backend conventions copied from PS Hub verbatim. |
 | D6 | Router | **React Router v6** (match PS Hub), replacing TanStack Router. |
+| D8 | Scope vs GOrendezvous | **Replace everything except clinical notes**: agenda, reminders, client portal, invoicing/receipts, payments. Clinical notes and records stay in a specialised tool (order-specific record-keeping rules + Loi 25). Both systems coexist during the transition, module by module. |
 | D7 | Professionals' status | **Independent contractors** → profile stores tax numbers, bank details, SIN/BN (encrypted) and compensation terms. |
 
 ---
@@ -322,7 +323,7 @@ React 19 · Vite · TypeScript (strict) · React Router v6 · TanStack Query · 
 
 ## 8. Open items
 
-- **Scope vs GOrendezvous:** which GOrendezvous features Clinique MANA replaces, when, and how data migrates (clients, appointments, invoices, client records). Clinical notes and client records carry professional-order and Loi 25 obligations. Decide before the Clients and Rendez-vous designs.
+- **Data migration from GOrendezvous** (clients, appointments, invoices): plan it in each replacing module's design.
 - **Videoconference platform** for sessions (100 % online): link per appointment?
 - **B2B** (ateliers, conférences, MANA's own PAE offer, schools): a future area, not in legacy.
 

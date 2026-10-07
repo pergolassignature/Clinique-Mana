@@ -23,7 +23,7 @@
 - **What GOrendezvous does not cover, and why Clinique MANA exists:**
   - management of the **professional bank**: recruitment, onboarding, documents, insurance, contracts, compensation;
   - the **dispatch workflow**: demande → evaluation → matching → assignment.
-- **Product vision:** Clinique MANA is "a GOrendezvous adapted to a dispatch clinic". It covers the professional bank and dispatch, plus, over time, the practice features MANA relies on GOrendezvous for. The scope of that replacement and the order of modules are open decisions (see the design doc, open items).
+- **Product vision:** Clinique MANA is "a GOrendezvous adapted to a dispatch clinic". It covers the professional bank and dispatch, plus, over time, the practice features MANA relies on GOrendezvous for. **Decided 2026-10-06 (design D8):** replace everything except clinical notes, coexisting with GOrendezvous during the transition.
 
 ## 2. The people who use the app
 
