@@ -30,6 +30,18 @@ export default tseslint.config(
       }],
     },
   },
+  // Design §6.2 — the app shell uses modules only through their public index.
+  {
+    files: ['src/app/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          { group: ['@/modules/*/*'], message: 'Import modules only via their public index @/modules/<name> (design §6.2).' },
+          { regex: '^(\\.\\./)+modules/', message: 'Import modules only via their public index @/modules/<name> (design §6.2).' },
+        ],
+      }],
+    },
+  },
   // Design §6.2 — modules talk to each other only through their public index.
   {
     files: ['src/modules/**/*.{ts,tsx}'],

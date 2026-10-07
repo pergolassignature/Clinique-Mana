@@ -67,7 +67,11 @@ supabase/
 
 - A module is declared by `src/modules/<name>/manifest.ts` (`ModuleManifest`: `key`, `labelKey`, `dependsOn`, `nav`, `routes`, `settingsSections`) and listed in `ALL_MODULES` (`src/app/modules.ts`). Its `key` equals `public.modules.key`.
 - **Identifiers are English, user-facing text is French**: key `professionals`, folder `src/modules/professionals/`, i18n `modules.professionals.*`, but route `professionnels` and label « Professionnels ».
-- Other code imports a module **only through its `index.ts`**; inside a module, use relative imports. `core/` and `shared/` never import `modules/` or `app/`. ESLint enforces all three.
+- Other code imports a module **only through its `index.ts`** (`@/modules/<name>`); inside a module, use relative imports. ESLint (`no-restricted-imports` in `eslint.config.js`) enforces:
+  - `src/core/**`, `src/shared/**`: no import of `@/modules…` or `@/app…` (alias or `../` paths);
+  - `src/app/**`: no deep import `@/modules/<name>/…` or `../modules/…`;
+  - `src/modules/**`: no `@/modules/<name>/…` deep path (so a module's own files are imported relatively) and no `@/app/…`.
+  Not enforced yet: a module importing only the modules listed in its `dependsOn`, and relative `../<other-module>/` paths between modules — review them.
 - A disabled module contributes nothing: `AuthenticatedApp` keeps only the manifests that are in `useReadyAccess().modules` and whose dependencies are enabled too (`resolveEnabledModules`); each module route is wrapped in a `RouteBoundary` (scope = module key), and `SettingsLayout` wraps each settings section in its own boundary.
 - A module owns its tables and publishes views/RPCs for other modules; never read another module's raw tables. Migrations are additive within a release.
 - Each module ships pgTAP, unit and (from Phase 4) Playwright tests, and a `docs/modules/<name>.md`.
