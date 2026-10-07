@@ -1,0 +1,25 @@
+name: Migration lint
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+
+jobs:
+  check-timestamps:
+    name: Reject round-HHMMSS migration timestamps
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Fetch base branch
+        run: git fetch origin "${{ github.base_ref }}" --depth=200
+
+      - name: Run check
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+        run: node scripts/check-migration-timestamps.mjs
