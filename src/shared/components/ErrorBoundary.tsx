@@ -5,7 +5,8 @@ import { Button } from '@/shared/ui/button'
 import { FullPageMessage } from './FullPageMessage'
 
 /** lazy() caches a failed chunk import, so only a full reload can recover. */
-const CHUNK_LOAD_ERROR = /Failed to fetch dynamically imported module|Loading chunk|Importing a module script failed/
+const CHUNK_LOAD_ERROR =
+  /Failed to fetch dynamically imported module|error loading dynamically imported module|Loading chunk|Importing a module script failed/i
 
 interface Props {
   children: ReactNode
@@ -37,6 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidUpdate(prevProps: Props) {
     if (this.state.error && !Object.is(prevProps.resetKey, this.props.resetKey)) {
+      this.props.onReset?.()
       this.setState({ error: null })
     }
   }
