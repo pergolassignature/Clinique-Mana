@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import type { Access } from '@/core/access/access'
 import { renderWithContexts } from '@/test/contexts'
+import { testOrganization } from '@/test/organization'
 import { accessForRole } from '@/test/role-fixtures'
 import { AuthenticatedApp } from './AuthenticatedApp'
 
@@ -12,6 +14,11 @@ vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 
 // The Modules section needs a query client and the Supabase client: it has its own tests.
 vi.mock('@/core/settings/pages/ModulesSettingsPage', () => ({ ModulesSettingsPage: () => <p>MODULES PAGE</p> }))
+// Identité légale, the first clinic section, is real (its read-only notice is asserted below); only its data is stubbed.
+vi.mock('@/core/settings/organization/api', () => ({
+  fetchOrganization: async () => testOrganization,
+  updateOrganization: async () => testOrganization,
+}))
 
 // The real module list, with one crashing settings section added to Professionals. It needs a
 // permission no role has ('test.crash'), so only the test that grants it sees it.
@@ -51,8 +58,11 @@ const ALL_SECTIONS = [
   'settings.sections.audit',
 ] as const
 
-const appAt = (path: string, access: Access = adminLike, auth: Parameters<typeof renderWithContexts>[1] = {}) =>
-  renderWithContexts(<AuthenticatedApp />, { ...auth, access: { access }, path })
+const appAt = (path: string, access: Access = adminLike, auth: Parameters<typeof renderWithContexts>[1] = {}) => (
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    {renderWithContexts(<AuthenticatedApp />, { ...auth, access: { access }, path })}
+  </QueryClientProvider>
+)
 
 const menuLinks = () =>
   within(screen.getByRole('navigation', { name: t('nav.label') }))
@@ -118,7 +128,7 @@ describe('AuthenticatedApp', () => {
   it('mounts the settings shell under /parametres, on the first accessible section', async () => {
     render(appAt('/parametres'))
     expect(screen.getByRole('heading', { level: 1, name: t('settings.title') })).toBeInTheDocument()
-    expect(await screen.findByText(t('settings.comingSoon'))).toBeInTheDocument()
+    expect(await screen.findByRole('form', { name: t('settings.identity.clinic.title') })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: t('settings.sections.identity') })).toHaveAttribute('aria-current', 'page')
   })
 

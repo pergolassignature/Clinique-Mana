@@ -29,7 +29,11 @@ export const coreSettingsSections: SettingsSection[] = [
     permission: 'settings.view',
     editPermission: 'settings.manage',
     group: 'clinique',
-    component: ComingSoonSection,
+    component: lazy(() =>
+      import('./pages/IdentitySettingsPage').then((m) => ({
+        default: m.IdentitySettingsPage,
+      }))
+    ),
   },
   {
     id: 'tax',

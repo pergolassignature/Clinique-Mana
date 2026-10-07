@@ -147,6 +147,45 @@
       "error": "Impossible de modifier ce module.",
       "loadError": "Impossible de charger les modules."
     },
+    "organization": {
+      "loadError": "Impossible de charger les renseignements de la clinique."
+    },
+    "identity": {
+      "description": "Ces renseignements figurent sur les contrats, reçus et factures.",
+      "clinic": { "title": "Clinique", "saved": "Identité enregistrée." },
+      "address": { "title": "Adresse du siège social", "saved": "Adresse enregistrée." },
+      "contact": { "title": "Coordonnées", "saved": "Coordonnées enregistrées." },
+      "fields": {
+        "name": "Nom affiché",
+        "nameHelp": "Le nom qui apparaît dans l'application.",
+        "legalName": "Raison sociale",
+        "neq": "NEQ",
+        "neqHelp": "Numéro d'entreprise du Québec, 10 chiffres.",
+        "addressLine1": "Adresse",
+        "addressLine2": "Complément",
+        "city": "Ville",
+        "province": "Province",
+        "postalCode": "Code postal",
+        "phone": "Téléphone",
+        "email": "Courriel",
+        "website": "Site web"
+      }
+    },
+    "provinces": {
+      "AB": "Alberta",
+      "BC": "Colombie-Britannique",
+      "MB": "Manitoba",
+      "NB": "Nouveau-Brunswick",
+      "NL": "Terre-Neuve-et-Labrador",
+      "NS": "Nouvelle-Écosse",
+      "NT": "Territoires du Nord-Ouest",
+      "NU": "Nunavut",
+      "ON": "Ontario",
+      "PE": "Île-du-Prince-Édouard",
+      "QC": "Québec",
+      "SK": "Saskatchewan",
+      "YT": "Yukon"
+    },
     "validation": {
       "nameRequired": "Le nom est requis.",
       "maxLength": "{max} caractères maximum.",
