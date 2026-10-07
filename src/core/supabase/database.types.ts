@@ -232,31 +232,88 @@ export type Database = {
       }
       organizations: {
         Row: {
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          country: string
           created_at: string
           currency: string
           default_locale: string
+          email: string | null
+          gst_number: string | null
           id: string
+          legal_name: string | null
           name: string
+          neq: string | null
+          phone: string | null
+          postal_code: string | null
+          privacy_officer_email: string | null
+          privacy_officer_name: string | null
+          privacy_policy_url: string | null
+          province: string | null
+          qst_number: string | null
+          record_retention_years: number | null
+          signatory_name: string | null
+          signatory_title: string | null
           timezone: string
           updated_at: string
+          website: string | null
         }
         Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string
           created_at?: string
           currency?: string
           default_locale?: string
+          email?: string | null
+          gst_number?: string | null
           id?: string
+          legal_name?: string | null
           name: string
+          neq?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          privacy_officer_email?: string | null
+          privacy_officer_name?: string | null
+          privacy_policy_url?: string | null
+          province?: string | null
+          qst_number?: string | null
+          record_retention_years?: number | null
+          signatory_name?: string | null
+          signatory_title?: string | null
           timezone?: string
           updated_at?: string
+          website?: string | null
         }
         Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string
           created_at?: string
           currency?: string
           default_locale?: string
+          email?: string | null
+          gst_number?: string | null
           id?: string
+          legal_name?: string | null
           name?: string
+          neq?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          privacy_officer_email?: string | null
+          privacy_officer_name?: string | null
+          privacy_policy_url?: string | null
+          province?: string | null
+          qst_number?: string | null
+          record_retention_years?: number | null
+          signatory_name?: string | null
+          signatory_title?: string | null
           timezone?: string
           updated_at?: string
+          website?: string | null
         }
         Relationships: []
       }
