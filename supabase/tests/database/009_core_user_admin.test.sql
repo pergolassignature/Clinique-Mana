@@ -6,7 +6,7 @@
 -- path, audit of override changes, org isolation.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(77);
+select plan(93);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -155,11 +155,18 @@ select lives_ok($$ select public.set_user_role('a0000000-0000-0000-0000-00000000
 select lives_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000003', 'disabled') $$, 'A1 disables C');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is(public.get_my_access() -> 'permissions', '[]'::jsonb, 'a disabled user has no permissions');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select throws_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000003', 'active') $$,
+  'P0001', 'Seul un administrateur peut réactiver un compte.', 'a non-admin manager cannot re-enable an account');
+select lives_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000007', 'disabled') $$, 'a non-admin manager disables a non-admin');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select throws_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000001', 'disabled') $$,
   'P0001', 'Vous ne pouvez pas modifier votre propre compte ici. Passez par « Mon compte ».', 'nobody disables themselves');
 select throws_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000003', 'archived') $$,
   '22023', null, 'unknown status is a technical error');
+-- Account access is core: an admin may disable a provider (the professional's lifecycle is separate).
+select lives_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000006', 'disabled') $$, 'an admin disables a provider''s account');
+select lives_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000006', 'active') $$, 'an admin re-enables a provider''s account');
 select lives_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000002', 'disabled') $$,
   'A1 disables A2 (A1 is still an active admin)');
 
@@ -177,6 +184,8 @@ select throws_ok($$ delete from public.profiles where user_id = 'a0000000-0000-0
   'P0001', 'La clinique doit garder au moins un administrateur actif.', 'the last active admin''s profile cannot be deleted');
 select throws_ok($$ update public.user_roles set role = 'counselor' where user_id = 'a0000000-0000-0000-0000-000000000005' $$,
   'P0001', 'La clinique doit garder au moins un administrateur actif.', 'org B''s only admin cannot be demoted either');
+select throws_ok($$ delete from auth.users where id = 'a0000000-0000-0000-0000-000000000005' $$,
+  'P0001', 'La clinique doit garder au moins un administrateur actif.', 'deleting the last admin''s auth user is refused (cascade)');
 select lives_ok($$ update public.user_roles set role = 'counselor' where user_id = 'a0000000-0000-0000-0000-000000000002' $$,
   'a disabled admin can be demoted while an active admin remains');
 update public.user_roles set role = 'admin' where user_id = 'a0000000-0000-0000-0000-000000000002';
@@ -186,6 +195,11 @@ select lives_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000
 select is((select status from public.list_org_users() where user_id = 'a0000000-0000-0000-0000-000000000002'), 'active',
   'A2 is active again');
 select lives_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000003', 'active') $$, 'A1 re-enables C');
+select lives_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000007', 'active') $$, 'A1 re-enables E (admin re-enable works)');
+reset role;
+select throws_ok($$ update public.user_roles set role = 'counselor' where user_id in ('a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002') $$,
+  'P0001', 'La clinique doit garder au moins un administrateur actif.', 'demoting both admins in one statement is refused');
+set local role authenticated;
 
 -- =============================================================================
 -- Permission overrides
@@ -211,6 +225,47 @@ select throws_ok($$ select public.set_permission_override('a0000000-0000-0000-00
   'P0001', 'Vous ne pouvez pas modifier votre propre compte ici. Passez par « Mon compte ».', 'nobody changes their own overrides (admin)');
 select throws_ok($$ select public.clear_permission_override('a0000000-0000-0000-0000-000000000001', 'audit.view') $$,
   'P0001', 'Vous ne pouvez pas modifier votre propre compte ici. Passez par « Mon compte ».', 'nobody clears their own overrides');
+
+-- =============================================================================
+-- No overrides on admins, at the table level (as postgres)
+-- =============================================================================
+reset role;
+select throws_ok($$ insert into public.user_permission_overrides (user_id, org_id, permission_key, granted)
+                    values ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'audit.view', false) $$,
+  'P0001', 'Un administrateur a déjà toutes les permissions.', 'an override on an admin is refused by the table trigger');
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted)
+values ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'audit.view', true);
+select lives_ok($$ update public.user_roles set role = 'admin' where user_id = 'a0000000-0000-0000-0000-000000000007' $$, 'E is promoted directly in SQL');
+select is((select count(*)::int from public.user_permission_overrides where user_id = 'a0000000-0000-0000-0000-000000000007'), 0,
+  'becoming admin by any write path deletes the overrides');
+update public.user_roles set role = 'counselor' where user_id = 'a0000000-0000-0000-0000-000000000007';
+
+-- =============================================================================
+-- Non-admin managers never give what they do not hold
+-- =============================================================================
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
+  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'settings.manage', false),
+  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'professionals.view', false);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select throws_ok($$ select public.clear_permission_override('a0000000-0000-0000-0000-000000000003', 'settings.manage') $$,
+  'P0001', 'Vous ne pouvez pas accorder une permission que vous n''avez pas.', 'D cannot clear a revoke on a permission she lacks');
+select lives_ok($$ select public.clear_permission_override('a0000000-0000-0000-0000-000000000003', 'professionals.view') $$,
+  'D clears a revoke on a permission she holds');
+select throws_ok($$ select public.clear_permission_override('a0000000-0000-0000-0000-000000000002', 'audit.view') $$,
+  'P0001', 'Seul un administrateur peut modifier un administrateur.', 'a non-admin cannot clear an admin''s overrides');
+
+-- C (counselor) becomes a manager by override: she lacks settings.view, an adjointe default.
+reset role;
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted)
+values ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'users.manage', true);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000007', 'admin_assistant') $$,
+  'P0001', 'Vous ne pouvez pas attribuer un rôle qui donne des permissions que vous n''avez pas.',
+  'a counselor-manager cannot give the adjointe role (settings.view)');
+select lives_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000007', 'counselor') $$,
+  'a counselor-manager may give a role whose permissions she holds');
 
 -- =============================================================================
 -- Admin B: org A is out of reach
@@ -261,6 +316,13 @@ select ok(exists (
      and changed_fields ->> 'permission_key' = 'professionals.view'
      and record_id like 'a0000000-0000-0000-0000-000000000003:%'
 ), 'overrides cleared by a promotion to admin are audited');
+
+select ok(exists (
+  select 1 from public.audit_log
+   where table_name = 'profiles' and action = 'update' and record_id = 'a0000000-0000-0000-0000-000000000003'
+     and actor_id = 'a0000000-0000-0000-0000-000000000001'
+     and changed_fields -> 'status' = '{"before": "active", "after": "disabled"}'::jsonb
+), 'a status change is audited on profiles');
 
 select * from finish();
 rollback;

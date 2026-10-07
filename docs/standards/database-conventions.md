@@ -113,7 +113,7 @@ grant execute on function public.archive_training(uuid) to authenticated;
 - Trigger functions: `revoke all … from public, anon, authenticated, service_role` (firing a trigger does not need EXECUTE).
 - Error codes: `42501` permission, `22023` invalid argument, `P0001` business rule. Messages in French.
 - **User-facing messages use `P0001` only.** A message the user should read is raised with `raise exception '…' using errcode = 'P0001'`, written in French, and names things by their label (module names, not keys). The frontend shows a `P0001` message as is, maps `42501` to its own « permission » text and `23514` (check violation, only reachable by bypassing the client's validation) to a « valeur invalide » text, and replaces every other code (`22023`, timeouts, deadlocks, PostgREST/JWT errors, network failures) with a generic message reported to Sentry (allow-list in `src/core/modules/errors.ts`). So `22023` messages such as « Module inconnu » are for developers, not users.
-- Serialize read-check-write sequences that span rows with a lock (`perform 1 from public.organizations where id = v_org for update;`).
+- Serialize read-check-write sequences that span rows with a lock on the org row: `perform 1 from public.organizations o where o.id = v_org for no key update;`. Use `for no key update`, not `for update`: it serializes writers just as well but does not block the FK key-share checks that every insert referencing `organizations` takes. The pattern relies on READ COMMITTED (the PostgREST default): after the lock, the next statement sees what the other writer committed. Lock a single target row the same way (`assert_can_manage_user` locks the target profile).
 
 ## 7. Audit
 
@@ -172,6 +172,8 @@ on conflict do nothing;
 - Module keys never equal a core permission prefix (`settings`, `users`, `modules`, `audit`): a check constraint refuses them.
 - Dependencies never mention `core` (it is implicit) and must stay acyclic: a trigger rejects any edge that closes a cycle (`23514`).
 - A disabled module grants nothing: its permissions vanish from `has_permission` and `get_my_access` until an admin enables it.
+
+- Grant **every** new module permission to `admin`: admins hold every permission by convention (overrides on admins are refused, so nothing else can give them one).
 
 Then, for each table: shape (§4) → `revoke all` + grants (§3) → RLS policies (§5) → `set_updated_at` and audit triggers (§7) → FK indexes. A new module starts **disabled** in every org; enable it with `set_module_enabled` (or in `seed.sql` locally). List the module's tables in `docs/modules/<module>.md`. Other modules read them only through a view or RPC the owner publishes.
 

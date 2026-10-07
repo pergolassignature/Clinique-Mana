@@ -139,7 +139,7 @@ begin
   end if;
 
   -- One writer per org at a time.
-  perform 1 from public.organizations o where o.id = v_org for update;
+  perform 1 from public.organizations o where o.id = v_org for no key update;
 
   select * into v_open
     from public.tax_rates t
@@ -180,7 +180,7 @@ begin
     raise exception 'Permission refusée : settings.manage' using errcode = '42501';
   end if;
 
-  perform 1 from public.organizations o where o.id = v_org for update;
+  perform 1 from public.organizations o where o.id = v_org for no key update;
 
   select * into v_row from public.tax_rates t where t.id = p_id and t.org_id = v_org;
   if v_row.id is null then
