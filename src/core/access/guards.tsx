@@ -11,11 +11,13 @@ function Loading() {
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { session, isLoading, signOut } = useAuth()
+  const { session, isLoading, isRecovery, signOut } = useAuth()
   const { status, problem, reload } = useAccess()
   const location = useLocation()
 
   if (isLoading) return <Loading />
+  // A recovery link signs the user in: they must choose a new password before using the app.
+  if (isRecovery) return <Navigate to="/reinitialiser-mot-de-passe" replace />
   if (!session) {
     const redirect = encodeURIComponent(location.pathname + location.search)
     return <Navigate to={`/connexion?redirect=${redirect}`} replace />

@@ -28,6 +28,7 @@ function authValue(session: Session | null): AuthContextValue {
   return {
     session,
     isLoading: false,
+    isRecovery: false,
     signInWithPassword: async () => null,
     sendMagicLink: async () => null,
     sendPasswordReset: async () => null,

@@ -25,6 +25,7 @@ export function renderWithContexts(
   const authValue: AuthContextValue = {
     session: { user: { id: 'u1' } } as Session,
     isLoading: false,
+    isRecovery: false,
     signInWithPassword: async () => null,
     sendMagicLink: async () => null,
     sendPasswordReset: async () => null,
@@ -46,6 +47,7 @@ export function renderWithContexts(
         <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route path="/connexion" element={<p>LOGIN PAGE</p>} />
+            <Route path="/reinitialiser-mot-de-passe" element={<p>RESET PAGE</p>} />
             <Route path="*" element={ui} />
           </Routes>
         </MemoryRouter>

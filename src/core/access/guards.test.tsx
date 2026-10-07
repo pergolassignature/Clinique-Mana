@@ -11,6 +11,12 @@ describe('RequireAuth', () => {
     expect(screen.getByText('LOGIN PAGE')).toBeInTheDocument()
   })
 
+  it('sends a password-recovery session to the reset page', () => {
+    render(renderWithContexts(<RequireAuth><p>SECRET</p></RequireAuth>, { auth: { isRecovery: true }, path: '/accueil' }))
+    expect(screen.getByText('RESET PAGE')).toBeInTheDocument()
+    expect(screen.queryByText('SECRET')).not.toBeInTheDocument()
+  })
+
   it('shows a retry screen when access fails to load', async () => {
     const reload = vi.fn()
     render(renderWithContexts(<RequireAuth><p>SECRET</p></RequireAuth>, { access: { status: 'error', reload } }))

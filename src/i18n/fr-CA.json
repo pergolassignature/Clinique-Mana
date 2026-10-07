@@ -37,6 +37,9 @@
       "invalidEmail": "Courriel invalide.",
       "required": "Champ requis.",
       "invalid_credentials": "Courriel ou mot de passe incorrect.",
+      "weak_password": "Ce mot de passe est trop faible. Choisissez-en un plus long ou plus varié.",
+      "same_password": "Le nouveau mot de passe doit être différent de l'ancien.",
+      "reauthentication_needed": "Pour des raisons de sécurité, reconnectez-vous puis réessayez.",
       "rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
       "unknown": "Une erreur est survenue. Réessayez."
     }

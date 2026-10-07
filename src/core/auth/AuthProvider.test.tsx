@@ -1,41 +1,137 @@
 // SUPABASE_ALLOWED: test mocks the Supabase client module and builds real AuthApiError fixtures.
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, waitFor } from '@testing-library/react'
-import { AuthApiError } from '@supabase/supabase-js'
-import { AuthProvider, useAuth, type AuthContextValue } from './AuthProvider'
+import { act, render } from '@testing-library/react'
+import { AuthApiError, type AuthChangeEvent, type Session } from '@supabase/supabase-js'
+import { t } from '@/i18n'
+import { AuthProvider, useAuth, type AuthContextValue, type AuthErrorCode } from './AuthProvider'
+
+type Listener = (event: AuthChangeEvent, session: Session | null) => void
 
 const auth = vi.hoisted(() => ({
-  getSession: vi.fn(async () => ({ data: { session: null } })),
-  onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: () => {} } } })),
+  listener: undefined as ((event: string, session: unknown) => void) | undefined,
+  unsubscribe: vi.fn(),
+  onAuthStateChange: vi.fn(),
   signInWithOtp: vi.fn(),
+  signInWithPassword: vi.fn(),
+  resetPasswordForEmail: vi.fn(),
+  updateUser: vi.fn(),
+  signOut: vi.fn(),
 }))
 
 vi.mock('@/core/supabase/client', () => ({ supabase: { auth } }))
 
-async function renderAuth(): Promise<AuthContextValue> {
-  let current: AuthContextValue | undefined
+auth.onAuthStateChange.mockImplementation((callback: Listener) => {
+  auth.listener = callback as typeof auth.listener
+  return { data: { subscription: { unsubscribe: auth.unsubscribe } } }
+})
+
+const session = (token: string, userId = 'u1') => ({ access_token: token, user: { id: userId } }) as Session
+const apiError = (message: string, status: number, code?: string) => ({ data: {}, error: new AuthApiError(message, status, code) })
+const origin = window.location.origin
+
+function emit(event: AuthChangeEvent, next: Session | null) {
+  act(() => auth.listener?.(event, next))
+}
+
+/** Renders the provider and returns a getter for the latest context value. */
+function renderAuth() {
+  const values: AuthContextValue[] = []
   function Probe() {
-    current = useAuth()
+    values.push(useAuth())
     return null
   }
-  render(
+  const view = render(
     <AuthProvider>
       <Probe />
     </AuthProvider>,
   )
-  await waitFor(() => expect(current?.isLoading).toBe(false))
-  return current as AuthContextValue
+  const latest = (): AuthContextValue => {
+    const value = values[values.length - 1]
+    if (!value) throw new Error('AuthProvider has not rendered')
+    return value
+  }
+  return { ...view, values, latest }
 }
 
-describe('sendMagicLink', () => {
-  afterEach(() => auth.signInWithOtp.mockReset())
+/** Renders and settles the initial (signed-out) session. */
+function renderReady() {
+  const view = renderAuth()
+  emit('INITIAL_SESSION', null)
+  return view.latest()
+}
 
-  it('never creates an account', async () => {
+afterEach(() => {
+  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.signOut]) {
+    fn.mockReset()
+  }
+  auth.listener = undefined
+})
+
+describe('session lifecycle', () => {
+  it('stays loading until INITIAL_SESSION, which sets the session', () => {
+    const { latest } = renderAuth()
+    expect(latest().isLoading).toBe(true)
+    emit('INITIAL_SESSION', session('t1'))
+    expect(latest().isLoading).toBe(false)
+    expect(latest().session?.access_token).toBe('t1')
+  })
+
+  it('stops loading on any event, even if INITIAL_SESSION never arrives', () => {
+    const { latest } = renderAuth()
+    emit('SIGNED_IN', session('t1'))
+    expect(latest().isLoading).toBe(false)
+  })
+
+  it('ignores a session update with the same token and user', () => {
+    const { latest } = renderAuth()
+    emit('INITIAL_SESSION', session('t1'))
+    const before = latest()
+    emit('TOKEN_REFRESHED', session('t1'))
+    expect(latest()).toBe(before)
+    emit('TOKEN_REFRESHED', session('t2'))
+    expect(latest().session?.access_token).toBe('t2')
+  })
+
+  it('unsubscribes on unmount', () => {
+    const { unmount } = renderAuth()
+    auth.unsubscribe.mockClear() // the previous test's cleanup unmount may have run after afterEach
+    expect(auth.unsubscribe).not.toHaveBeenCalled()
+    unmount()
+    expect(auth.unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('tracks password recovery from the auth events', () => {
+    const { latest } = renderAuth()
+    emit('INITIAL_SESSION', null)
+    expect(latest().isRecovery).toBe(false)
+    emit('PASSWORD_RECOVERY', session('t1'))
+    expect(latest().isRecovery).toBe(true)
+    emit('USER_UPDATED', session('t1'))
+    expect(latest().isRecovery).toBe(false)
+    emit('PASSWORD_RECOVERY', session('t1'))
+    emit('SIGNED_OUT', null)
+    expect(latest().isRecovery).toBe(false)
+  })
+})
+
+describe('sendMagicLink', () => {
+  it('never creates an account and returns to /accueil by default', async () => {
     auth.signInWithOtp.mockResolvedValue({ data: {}, error: null })
-    const { sendMagicLink } = await renderAuth()
-    await expect(sendMagicLink('staff@mana.test')).resolves.toBeNull()
+    await expect(renderReady().sendMagicLink('staff@mana.test')).resolves.toBeNull()
+    expect(auth.signInWithOtp).toHaveBeenCalledWith({
+      email: 'staff@mana.test',
+      options: { shouldCreateUser: false, emailRedirectTo: `${origin}/accueil` },
+    })
+  })
+
+  it.each([
+    ['/professionnels?x=1', `${origin}/professionnels?x=1`],
+    ['//evil.test', `${origin}/accueil`],
+  ])('keeps a safe redirect target (%s)', async (target, expected) => {
+    auth.signInWithOtp.mockResolvedValue({ data: {}, error: null })
+    await renderReady().sendMagicLink('staff@mana.test', target)
     expect(auth.signInWithOtp).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'staff@mana.test', options: expect.objectContaining({ shouldCreateUser: false }) }),
+      expect.objectContaining({ options: expect.objectContaining({ emailRedirectTo: expected }) }),
     )
   })
 
@@ -43,17 +139,83 @@ describe('sendMagicLink', () => {
     ['with the otp_disabled code', 'otp_disabled'],
     ['without a code', undefined],
   ])('treats "signups not allowed" (422) %s as success, so unknown emails are not revealed', async (_label, code) => {
-    auth.signInWithOtp.mockResolvedValue({ data: {}, error: new AuthApiError('Signups not allowed for otp', 422, code) })
-    const { sendMagicLink } = await renderAuth()
-    await expect(sendMagicLink('unknown@mana.test')).resolves.toBeNull()
+    auth.signInWithOtp.mockResolvedValue(apiError('Signups not allowed for otp', 422, code))
+    await expect(renderReady().sendMagicLink('unknown@mana.test')).resolves.toBeNull()
+  })
+})
+
+describe('email rate limits (no account enumeration)', () => {
+  const send = {
+    sendMagicLink: (value: AuthContextValue) => value.sendMagicLink('staff@mana.test'),
+    sendPasswordReset: (value: AuthContextValue) => value.sendPasswordReset('staff@mana.test'),
+  }
+  const mockFor = { sendMagicLink: auth.signInWithOtp, sendPasswordReset: auth.resetPasswordForEmail }
+  const fns = ['sendMagicLink', 'sendPasswordReset'] as const
+
+  // GoTrue only applies the per-email throttle to existing accounts: reporting it would reveal them.
+  it.each(fns)('%s treats the per-email throttle as success', async (fn) => {
+    mockFor[fn].mockResolvedValue(apiError('For security purposes, you can only request this after 60 seconds.', 429, 'over_email_send_rate_limit'))
+    await expect(send[fn](renderReady())).resolves.toBeNull()
   })
 
-  it('reports rate limiting (429)', async () => {
-    auth.signInWithOtp.mockResolvedValue({
-      data: {},
-      error: new AuthApiError('For security purposes, you can only request this after 60 seconds.', 429, 'over_email_send_rate_limit'),
-    })
-    const { sendMagicLink } = await renderAuth()
-    await expect(sendMagicLink('staff@mana.test')).resolves.toBe('rate_limited')
+  it.each(fns)('%s reports IP-level throttling as rate_limited', async (fn) => {
+    mockFor[fn].mockResolvedValue(apiError('Request rate limit reached', 429, 'over_request_rate_limit'))
+    await expect(send[fn](renderReady())).resolves.toBe('rate_limited')
+  })
+
+  it.each(fns)('%s reports any other 429 as rate_limited', async (fn) => {
+    mockFor[fn].mockResolvedValue(apiError('Too many requests', 429, undefined))
+    await expect(send[fn](renderReady())).resolves.toBe('rate_limited')
+  })
+})
+
+describe('error codes', () => {
+  it('maps invalid credentials by code, with a message fallback', async () => {
+    const value = renderReady()
+    auth.signInWithPassword.mockResolvedValueOnce(apiError('Invalid login credentials', 400, 'invalid_credentials'))
+    await expect(value.signInWithPassword('a@mana.test', 'x')).resolves.toBe('invalid_credentials')
+    auth.signInWithPassword.mockResolvedValueOnce(apiError('Invalid login credentials', 400, undefined))
+    await expect(value.signInWithPassword('a@mana.test', 'x')).resolves.toBe('invalid_credentials')
+  })
+
+  it.each(['weak_password', 'same_password', 'reauthentication_needed'] as const)('maps %s', async (code) => {
+    auth.updateUser.mockResolvedValue(apiError('some server message', 422, code))
+    await expect(renderReady().updatePassword('x')).resolves.toBe(code)
+  })
+
+  it('maps anything else to unknown', async () => {
+    auth.updateUser.mockResolvedValue(apiError('boom', 500, 'unexpected_failure'))
+    await expect(renderReady().updatePassword('x')).resolves.toBe('unknown')
+  })
+})
+
+describe('signOut', () => {
+  it('falls back to a local sign-out when the server call fails', async () => {
+    auth.signOut.mockResolvedValueOnce(apiError('server down', 500)).mockResolvedValueOnce({ error: null })
+    await renderReady().signOut()
+    expect(auth.signOut).toHaveBeenCalledTimes(2)
+    expect(auth.signOut).toHaveBeenLastCalledWith({ scope: 'local' })
+  })
+
+  it('signs out once when the server call succeeds', async () => {
+    auth.signOut.mockResolvedValue({ error: null })
+    await renderReady().signOut()
+    expect(auth.signOut).toHaveBeenCalledOnce()
+  })
+})
+
+describe('FR-CA messages', () => {
+  // Record<AuthErrorCode, …> fails to compile if a code is added without being listed here.
+  const codes: Record<AuthErrorCode, true> = {
+    invalid_credentials: true,
+    weak_password: true,
+    same_password: true,
+    reauthentication_needed: true,
+    rate_limited: true,
+    unknown: true,
+  }
+
+  it.each(Object.keys(codes) as AuthErrorCode[])('has a message for %s', (code) => {
+    expect(t(`auth.errors.${code}`)).not.toBe(`auth.errors.${code}`)
   })
 })
