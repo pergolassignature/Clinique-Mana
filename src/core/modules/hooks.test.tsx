@@ -38,6 +38,24 @@ describe('useSetModuleEnabled', () => {
     expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.modules.saved'))
   })
 
+  it('stays pending until the invalidations resolve, and only then confirms', async () => {
+    const { queryClient, wrapper } = setup()
+    let release: () => void = () => {}
+    const invalidations = new Promise<void>((resolve) => (release = resolve))
+    vi.spyOn(queryClient, 'invalidateQueries').mockReturnValue(invalidations)
+    mocks.api.setModuleEnabled.mockResolvedValue(undefined)
+
+    const { result } = renderHook(() => useSetModuleEnabled(), { wrapper })
+    result.current.mutate({ key: 'professionals', enabled: true })
+    await waitFor(() => expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2))
+    expect(result.current.isPending).toBe(true)
+    expect(mocks.toast.success).not.toHaveBeenCalled()
+
+    release()
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(mocks.toast.success).toHaveBeenCalledTimes(1)
+  })
+
   it('shows the refusal even if the page unmounted meanwhile', async () => {
     const { wrapper } = setup()
     let reject: (error: unknown) => void = () => {}

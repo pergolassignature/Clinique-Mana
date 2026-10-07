@@ -72,6 +72,24 @@ describe('SettingsLayout', () => {
     expect(screen.getByRole('link', { name: t('settings.sections.modules') })).toHaveAttribute('href', '/parametres/modules')
   })
 
+  it('marks the open section as the current page', async () => {
+    render(settingsAt('/parametres/modules', { access: canEverything }))
+    expect(await screen.findByText('MODULES PAGE')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t('settings.sections.modules') })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: t('settings.title') })).not.toHaveAttribute('aria-current')
+  })
+
+  it('orders groups clinique, plateforme, modules, compte whatever the section order', () => {
+    const inGroup = (id: string, group: SettingsSection['group'], labelKey: SettingsSection['labelKey']): SettingsSection => ({
+      id, labelKey, icon: Building2, permission: 'settings.view', group, component: page(id),
+    })
+    const shuffled = [inGroup('me', 'compte', 'nav.logout'), inGroup('mod', 'modules', 'nav.home'), inGroup('plat', 'plateforme', 'home.title'), inGroup('clin', 'clinique', 'nav.settings')]
+    render(settingsAt('/parametres/clin', {}, shuffled))
+    const groups = screen.getAllByRole('group').map((g) => document.getElementById(g.getAttribute('aria-labelledby') ?? '')?.textContent)
+    expect(groups).toEqual([t('settings.groups.clinique'), t('settings.groups.plateforme'), t('settings.groups.modules'), t('settings.groups.compte')])
+    expect(screen.getByRole('group', { name: t('settings.groups.compte') })).toContainElement(screen.getByRole('link', { name: t('nav.logout') }))
+  })
+
   it('honours a custom basePath', async () => {
     render(
       renderWithContexts(

@@ -32,6 +32,25 @@ describe('resolveEnabledModules', () => {
     expect(keys(resolveEnabledModules(all, new Set(['x', 'y'])))).toEqual([])
   })
 
+  it('resolves a diamond (d needs b and c, both need a)', () => {
+    const diamond = [manifest('d', ['b', 'c']), manifest('b', ['a']), manifest('c', ['a']), manifest('a')]
+    expect(keys(resolveEnabledModules(diamond, new Set(['a', 'b', 'c', 'd'])))).toEqual(['d', 'b', 'c', 'a'])
+    expect(keys(resolveEnabledModules(diamond, new Set(['b', 'c', 'd'])))).toEqual([])
+    expect(keys(resolveEnabledModules(diamond, new Set(['a', 'b', 'd'])))).toEqual(['b', 'a'])
+  })
+
+  it('drops a module that depends on a cycle member', () => {
+    const withZ = [...all, manifest('z', ['x'])]
+    expect(keys(resolveEnabledModules(withZ, new Set(['x', 'y', 'z'])))).toEqual([])
+    // Same answer whichever node the walk starts from.
+    expect(keys(resolveEnabledModules([manifest('z', ['x']), ...all], new Set(['x', 'y', 'z', 'a'])))).toEqual(['a'])
+  })
+
+  it('preserves manifest order, not dependency order', () => {
+    const reversed = [manifest('c', ['b']), manifest('b', ['a']), manifest('a')]
+    expect(keys(resolveEnabledModules(reversed, new Set(['a', 'b', 'c'])))).toEqual(['c', 'b', 'a'])
+  })
+
   it('ignores enabled keys that have no manifest', () => {
     expect(keys(resolveEnabledModules(all, new Set(['a', 'ghost'])))).toEqual(['a'])
   })
