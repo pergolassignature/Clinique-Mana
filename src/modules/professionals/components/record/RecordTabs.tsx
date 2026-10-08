@@ -1,4 +1,5 @@
 import { createElement, Suspense, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { t } from '@/i18n'
 import { Loading } from '@/shared/components/LoadState'
@@ -20,22 +21,28 @@ interface RecordTabsProps {
  * The record's tabs: page-level views, so real Radix tabs (decision #35: one tab stop, the arrow
  * keys switch), and the URL's last segment (`/professionnels/:id/<onglet>`), so alerts and links
  * can open a tab. A switch replaces the history entry (P4-70) and asks first while a card of the
- * open tab is dirty (`useGuardedTabs`). Hovering or focusing a tab starts loading its chunk. Only
- * the open panel is mounted; a crash in it stays inside it.
+ * open tab is dirty (`useGuardedTabs`). Hovering or focusing a tab starts loading its chunk, and
+ * its data for a tab that fetches its own (Historique). Only the open panel is mounted; a crash in
+ * it stays inside it.
  */
 export function RecordTabs({ id, current, tabs }: RecordTabsProps) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const isTab = useCallback((value: string): value is RecordTab => tabs.some((def) => def.tab === value), [tabs])
   const { onValueChange, triggerProps } = useGuardedTabs(current.tab, isTab, (tab) => navigate(recordPath(id, tab), { replace: true }))
 
   return (
     <Tabs value={current.tab} onValueChange={onValueChange}>
       <TabsList aria-label={t(`${T}.label`)}>
-        {tabs.map(({ tab, panel }) => {
+        {tabs.map(({ tab, panel, prefetch }) => {
           const guard = triggerProps(tab)
-          const preload = () => void panel.preload?.().catch(() => {
-            // Opening the tab loads it again and reports a real failure.
-          })
+          const preload = () => {
+            void panel.preload?.().catch(() => {
+              // Opening the tab loads it again and reports a real failure.
+            })
+            // A prefetch never throws; fresh data is not fetched again.
+            void prefetch?.(queryClient, id)
+          }
           return (
             <TabsTrigger
               key={tab}
