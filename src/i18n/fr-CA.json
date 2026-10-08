@@ -320,6 +320,21 @@
     },
     "errorCode": "Code : {code}"
   },
+  "address": {
+    "line1Placeholder": "Commencez à saisir l'adresse",
+    "line2Placeholder": "App. 4, bureau 210",
+    "suggestions": {
+      "label": "Adresses suggérées",
+      "countOne": "1 adresse suggérée. Flèches pour parcourir, Entrée pour choisir.",
+      "countMany": "{count} adresses suggérées. Flèches pour parcourir, Entrée pour choisir.",
+      "manual": "Saisir manuellement",
+      "manualOn": "Saisie manuelle : plus de suggestions dans ce champ tant qu'il n'est pas vidé.",
+      "filled": "Adresse remplie. Vérifiez la ville, la province et le code postal.",
+      "partial": "Seule la rue a pu être remplie. Complétez la ville, la province et le code postal.",
+      "unreadable": "L'adresse choisie n'a pas pu être lue. Complétez les champs à la main.",
+      "attribution": "Google Maps"
+    }
+  },
   "settings": {
     "title": "Paramètres",
     "navLabel": "Sections des paramètres",
