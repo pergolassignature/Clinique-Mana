@@ -203,6 +203,15 @@ describe('useCreateProfessional', () => {
     expect(invalidated()).toEqual([professionalKeys.lists(), professionalCatalogKeys.usage()])
     expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.toasts.created'))
   })
+
+  it('resolves without waiting for the lists to refetch', async () => {
+    const { wrapper, invalidate } = setup()
+    invalidate.mockReturnValue(new Promise(() => {}))
+    mocks.api.createProfessional.mockResolvedValue('new-id')
+    const { result } = renderHook(() => useCreateProfessional(), { wrapper })
+    await expect(result.current.mutateAsync({ firstName: 'M', lastName: 'T', email: 'm@t.ca', titleId: null, licenceNumber: null })).resolves.toBe('new-id')
+    expect(invalidate).toHaveBeenCalled()
+  })
 })
 
 describe('errors', () => {

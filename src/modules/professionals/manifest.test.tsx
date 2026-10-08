@@ -5,6 +5,7 @@ import { matchPath } from 'react-router-dom'
 import { t } from '@/i18n'
 import { coreSettingsSections } from '@/core/settings/sections'
 import { professionalsManifest } from './index'
+import { professionalRecordPage } from './manifest'
 
 const sections = professionalsManifest.settingsSections
 
@@ -28,6 +29,10 @@ describe('professionalsManifest', () => {
       expect(typeof page.preload).toBe('function')
       expect(typeof page.isLoaded).toBe('function')
     }
+  })
+
+  it('shares the record page with the list, which preloads it on row hover', () => {
+    expect(professionalsManifest.routes[1]?.component).toBe(professionalRecordPage)
   })
 
   it('matches the record route with and without a tab', () => {
@@ -62,8 +67,8 @@ describe('professionalsManifest', () => {
     expect(new Set(paths).size).toBe(paths.length)
   })
 
-  it('renders the placeholder page until 4a.10', async () => {
-    const route = professionalsManifest.routes[0]
+  it('renders the placeholder page for the record until 4a.11', async () => {
+    const route = professionalsManifest.routes[1]
     if (!route) throw new Error('no route')
     const Page = route.component
     render(

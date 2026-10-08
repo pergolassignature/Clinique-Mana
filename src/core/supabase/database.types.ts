@@ -3804,7 +3804,10 @@ export type Database = {
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_role: { Args: { p_role: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
-      delete_user_preference: { Args: { p_key: string }; Returns: undefined }
+      delete_user_preference: {
+        Args: { p_key: string; p_user_id: string }
+        Returns: undefined
+      }
       discard_system_file: {
         Args: { p_file_id: string; p_org_id: string }
         Returns: boolean
@@ -4511,7 +4514,7 @@ export type Database = {
       }
       set_signing_settings: { Args: { p: Json }; Returns: Json }
       set_user_preference: {
-        Args: { p_key: string; p_value: Json }
+        Args: { p_key: string; p_user_id: string; p_value: Json }
         Returns: undefined
       }
       set_user_role: {

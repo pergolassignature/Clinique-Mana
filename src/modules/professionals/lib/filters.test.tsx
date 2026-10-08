@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
@@ -154,7 +154,7 @@ describe('paginate', () => {
 })
 
 describe('useProfessionalsFilters', () => {
-  function setup(initial: string) {
+  function setup(initial: string, onChange?: (filters: ProfessionalsFilters) => void) {
     let location = { search: '', key: '' }
     function Probe() {
       const l = useLocation()
@@ -167,7 +167,7 @@ describe('useProfessionalsFilters', () => {
         <Probe />
       </MemoryRouter>
     )
-    const hook = renderHook(() => useProfessionalsFilters(), { wrapper })
+    const hook = renderHook(() => useProfessionalsFilters({ onChange }), { wrapper })
     return { hook, location: () => location }
   }
 
@@ -215,5 +215,29 @@ describe('useProfessionalsFilters', () => {
     expect(location().search).toBe('?surveiller=1&page=2')
     act(() => hook.result.current.reset())
     expect(location().search).toBe('')
+  })
+
+  it('tells onChange the filters a person chose, never a page change', () => {
+    const onChange = vi.fn()
+    const { hook } = setup('?statut=actif', onChange)
+    act(() => hook.result.current.setFilters({ q: 'marie' }))
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_FILTERS, q: 'marie', status: 'active' })
+    act(() => hook.result.current.toggleMotif(IDS.anxiete))
+    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_FILTERS, q: 'marie', status: 'active', motifIds: [IDS.anxiete] })
+    act(() => hook.result.current.reset())
+    expect(onChange).toHaveBeenLastCalledWith(DEFAULT_FILTERS)
+    onChange.mockClear()
+    act(() => hook.result.current.setPage(2))
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('restores saved filters on page 1, replacing the entry, without telling onChange', () => {
+    const onChange = vi.fn()
+    const { hook, location } = setup('?page=4', onChange)
+    const before = location().key
+    act(() => hook.result.current.restore({ ...DEFAULT_FILTERS, status: 'inactive', page: 3 }))
+    expect(location().search).toBe('?statut=inactif')
+    expect(location().key).not.toBe(before)
+    expect(onChange).not.toHaveBeenCalled()
   })
 })

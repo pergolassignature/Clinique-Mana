@@ -276,8 +276,8 @@ create table public.professional_professions (
 create unique index professional_professions_one_primary on public.professional_professions (professional_id) where is_primary;
 create index professional_professions_org_title_idx on public.professional_professions (org_id, profession_title_id);
 
--- Licence trimmed, required for regulated titles, in the base format and the order's; at most
--- two titles. The count ignores the row's own title, so an upsert that re-sends an existing title
+-- Licence trimmed, required for regulated titles, in the base format and the order's (HINT
+-- licence); at most two titles (HINT title). The count ignores the row's own title, so an upsert that re-sends an existing title
 -- (its BEFORE INSERT fires before the conflict is found) is not counted twice.
 create function private.professional_professions_guard()
 returns trigger
@@ -296,20 +296,20 @@ begin
     left join public.professional_orders o on o.org_id = t.org_id and o.id = t.order_id
    where t.org_id = new.org_id and t.id = new.profession_title_id;
   if v_order is not null and new.licence_number is null then
-    raise exception 'Le numéro de permis est requis pour ce titre.' using errcode = 'P0001';
+    raise exception 'Le numéro de permis est requis pour ce titre.' using errcode = 'P0001', hint = 'licence';
   end if;
   if new.licence_number !~ '^[A-Za-z0-9][A-Za-z0-9 -]{0,29}$' then
     raise exception 'Numéro de permis invalide : lettres, chiffres, espaces et traits d''union (30 caractères au plus).'
-      using errcode = 'P0001';
+      using errcode = 'P0001', hint = 'licence';
   end if;
   if v_pattern is not null and new.licence_number is not null and new.licence_number !~ v_pattern then
-    raise exception 'Le numéro de permis pour % n''a pas le bon format.', v_title using errcode = 'P0001';
+    raise exception 'Le numéro de permis pour % n''a pas le bon format.', v_title using errcode = 'P0001', hint = 'licence';
   end if;
   if tg_op = 'INSERT' and (
     select count(*) from public.professional_professions pp
      where pp.professional_id = new.professional_id and pp.profession_title_id <> new.profession_title_id
   ) >= 2 then
-    raise exception 'Un professionnel a au plus deux titres.' using errcode = 'P0001';
+    raise exception 'Un professionnel a au plus deux titres.' using errcode = 'P0001', hint = 'title';
   end if;
   return new;
 end;
@@ -492,7 +492,7 @@ create trigger professional_payer_numbers_audit after insert or update or delete
 -- -----------------------------------------------------------------------------
 -- Email: format, duplicates in the clinic, sync from the profile
 -- -----------------------------------------------------------------------------
--- The email as stored (lower-cased, trimmed), or « Courriel invalide. ».
+-- The email as stored (lower-cased, trimmed), or « Courriel invalide. » (HINT email).
 create function private.professional_email(p_email text)
 returns text
 language plpgsql
@@ -503,14 +503,14 @@ declare
   v_email text := pg_catalog.lower(pg_catalog.btrim(coalesce(p_email, ''), E' \t\r\n'));
 begin
   if pg_catalog.char_length(v_email) > 254 or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
-    raise exception 'Courriel invalide.' using errcode = 'P0001';
+    raise exception 'Courriel invalide.' using errcode = 'P0001', hint = 'email';
   end if;
   return v_email;
 end;
 $$;
 
 -- Raises unless no other professional and no profile of the clinic uses the email (P4-34: other
--- clinics are never checked, that would reveal their data). Callers hold the org row lock.
+-- clinics are never checked, that would reveal their data). HINT email. Callers hold the org row lock.
 create function private.assert_professional_email_free(p_org uuid, p_email text, p_except uuid)
 returns void
 language plpgsql
@@ -523,7 +523,7 @@ begin
               where p.org_id = p_org and p.email = p_email and p.id is distinct from p_except)
      or exists (select 1 from public.profiles pr
                  where pg_catalog.lower(pr.email) = p_email and pr.org_id = p_org) then
-    raise exception 'Ce courriel est déjà utilisé.' using errcode = 'P0001';
+    raise exception 'Ce courriel est déjà utilisé.' using errcode = 'P0001', hint = 'email';
   end if;
 end;
 $$;
@@ -569,6 +569,10 @@ from public, anon, authenticated, service_role;
 -- -----------------------------------------------------------------------------
 -- create_professional: the record, its 1:1 rows, French, and the primary profession
 -- -----------------------------------------------------------------------------
+-- A refusal about one field carries its HINT, so the form puts it under that field without
+-- reading the French text (« …caractères invisibles ou non permis » is about the first name, not
+-- the licence): first_name, last_name, email, title, licence (also from the guard and the email
+-- helpers). Refusals without a hint (no active language, permission) are about the whole form.
 create function public.create_professional(
   p_first_name text,
   p_last_name text,
@@ -592,21 +596,31 @@ begin
   if not private.has_permission('professionals.manage') then
     raise exception 'Permission refusée : professionals.manage' using errcode = '42501';
   end if;
-  v_first := private.reference_text(p_first_name, 'Le prénom', 80, true, true);
-  v_last := private.reference_text(p_last_name, 'Le nom', 80, true, true);
+  -- reference_text is shared by every reference list and raises without a hint: its refusal is
+  -- raised again with the field's.
+  begin
+    v_first := private.reference_text(p_first_name, 'Le prénom', 80, true, true);
+  exception when sqlstate 'P0001' then
+    raise exception using message = sqlerrm, errcode = 'P0001', hint = 'first_name';
+  end;
+  begin
+    v_last := private.reference_text(p_last_name, 'Le nom', 80, true, true);
+  exception when sqlstate 'P0001' then
+    raise exception using message = sqlerrm, errcode = 'P0001', hint = 'last_name';
+  end;
   v_email := private.professional_email(p_email);
   if p_profession_title_id is null then
     if nullif(pg_catalog.btrim(p_licence_number, E' \t\r\n'), '') is not null then
-      raise exception 'Un numéro de permis demande un titre.' using errcode = '22023';
+      raise exception 'Un numéro de permis demande un titre.' using errcode = '22023', hint = 'licence';
     end if;
   else
     select t.is_active into v_title_active
       from public.profession_titles t where t.org_id = v_org and t.id = p_profession_title_id;
     if not found then
-      raise exception 'Titre inconnu.' using errcode = '22023';
+      raise exception 'Titre inconnu.' using errcode = '22023', hint = 'title';
     end if;
     if not v_title_active then
-      raise exception 'Ce titre est archivé.' using errcode = 'P0001';
+      raise exception 'Ce titre est archivé.' using errcode = 'P0001', hint = 'title';
     end if;
   end if;
 

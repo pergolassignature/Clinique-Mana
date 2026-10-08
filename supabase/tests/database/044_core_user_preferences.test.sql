@@ -9,7 +9,7 @@
 -- cascade when the profile is deleted; no audit row (UI state, 000_invariants exception).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(53);
+select plan(60);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with user U1, user U2, disabled user X and user D (deleted at the
@@ -33,6 +33,22 @@ insert into public.profiles (user_id, org_id, display_name, email, status) value
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'B1',          'b1@b.test', 'active');
 insert into public.user_preferences (user_id, org_id, key, value) values
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'professionals.list_filters', '{"q": "x"}');
+
+-- The HINT of the error `p_sql` raises (null when it raises none or succeeds): throws_ok checks the
+-- code and the message only, the client routes refusals by their hint.
+create function private.test_error_hint(p_sql text) returns text
+language plpgsql set search_path = '' as $$
+declare
+  v_hint text;
+begin
+  execute p_sql;
+  return null;
+exception when others then
+  get stacked diagnostics v_hint = pg_exception_hint;
+  return nullif(v_hint, '');
+end;
+$$;
+grant execute on function private.test_error_hint(text) to authenticated;
 
 -- =============================================================================
 -- Shape
@@ -64,17 +80,17 @@ select table_privs_are('public', 'user_preferences', 'anon', array[]::text[], 'a
 select table_privs_are('public', 'user_preferences', 'authenticated', array['SELECT'],
   'authenticated: select only (writes go through the RPCs)');
 select policies_are('public', 'user_preferences', array['user_preferences_select'], 'one select policy');
-select function_privs_are('public', 'set_user_preference', array['text', 'jsonb'], 'anon', array[]::text[],
+select function_privs_are('public', 'set_user_preference', array['uuid', 'text', 'jsonb'], 'anon', array[]::text[],
   'anon cannot call set_user_preference');
-select function_privs_are('public', 'set_user_preference', array['text', 'jsonb'], 'authenticated', array['EXECUTE'],
+select function_privs_are('public', 'set_user_preference', array['uuid', 'text', 'jsonb'], 'authenticated', array['EXECUTE'],
   'authenticated may call set_user_preference');
-select function_privs_are('public', 'set_user_preference', array['text', 'jsonb'], 'service_role', array[]::text[],
+select function_privs_are('public', 'set_user_preference', array['uuid', 'text', 'jsonb'], 'service_role', array[]::text[],
   'service_role cannot call set_user_preference (acts for auth.uid())');
-select function_privs_are('public', 'delete_user_preference', array['text'], 'anon', array[]::text[],
+select function_privs_are('public', 'delete_user_preference', array['uuid', 'text'], 'anon', array[]::text[],
   'anon cannot call delete_user_preference');
-select function_privs_are('public', 'delete_user_preference', array['text'], 'authenticated', array['EXECUTE'],
+select function_privs_are('public', 'delete_user_preference', array['uuid', 'text'], 'authenticated', array['EXECUTE'],
   'authenticated may call delete_user_preference');
-select function_privs_are('public', 'delete_user_preference', array['text'], 'service_role', array[]::text[],
+select function_privs_are('public', 'delete_user_preference', array['uuid', 'text'], 'service_role', array[]::text[],
   'service_role cannot call delete_user_preference (acts for auth.uid())');
 
 -- =============================================================================
@@ -83,7 +99,7 @@ select function_privs_are('public', 'delete_user_preference', array['text'], 'se
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 
-select lives_ok($$ select public.set_user_preference('professionals.list_filters', '{"q": "Tremblay", "status": "active"}') $$,
+select lives_ok($$ select public.set_user_preference(auth.uid(), 'professionals.list_filters', '{"q": "Tremblay", "status": "active"}') $$,
   'U1 saves a preference');
 select results_eq(
   $$ select key, value from public.user_preferences $$,
@@ -91,31 +107,31 @@ select results_eq(
   'U1 reads it back (and nothing else)');
 select is((select org_id from public.user_preferences), 'b0000000-0000-0000-0000-00000000000a'::uuid,
   'org_id comes from the caller''s profile');
-select lives_ok($$ select public.set_user_preference('professionals.list_filters', '{"q": ""}') $$,
+select lives_ok($$ select public.set_user_preference(auth.uid(), 'professionals.list_filters', '{"q": ""}') $$,
   'saving again overwrites');
 select results_eq(
   $$ select key, value from public.user_preferences $$,
   $$ values ('professionals.list_filters'::text, '{"q": ""}'::jsonb) $$,
   'one row per key, new value');
-select lives_ok($$ select public.set_user_preference('clients:list-v2', '{}') $$,
+select lives_ok($$ select public.set_user_preference(auth.uid(), 'clients:list-v2', '{}') $$,
   'keys may contain « : » and « - »; an empty object is a value');
-select lives_ok($$ select public.set_user_preference(repeat('k', 100), '{}') $$, 'a 100-character key is accepted');
-select lives_ok($$ select public.set_user_preference('big', jsonb_build_object('q', repeat('x', 16000))) $$,
+select lives_ok($$ select public.set_user_preference(auth.uid(), repeat('k', 100), '{}') $$, 'a 100-character key is accepted');
+select lives_ok($$ select public.set_user_preference(auth.uid(), 'big', jsonb_build_object('q', repeat('x', 16000))) $$,
   'a value just under 16 KB is accepted');
 
 -- Format and size
-select throws_ok($$ select public.set_user_preference(repeat('k', 101), '{}') $$, '23514', null,
+select throws_ok($$ select public.set_user_preference(auth.uid(), repeat('k', 101), '{}') $$, '23514', null,
   'a 101-character key is refused');
-select throws_ok($$ select public.set_user_preference('Professionals.List', '{}') $$, '23514', null,
+select throws_ok($$ select public.set_user_preference(auth.uid(), 'Professionals.List', '{}') $$, '23514', null,
   'upper case is refused');
-select throws_ok($$ select public.set_user_preference('a b', '{}') $$, '23514', null, 'spaces are refused');
-select throws_ok($$ select public.set_user_preference('', '{}') $$, '23514', null, 'an empty key is refused');
-select throws_ok($$ select public.set_user_preference('k', '[]') $$, '23514', null, 'an array value is refused');
-select throws_ok($$ select public.set_user_preference('k', '"text"') $$, '23514', null, 'a scalar value is refused');
-select throws_ok($$ select public.set_user_preference('k', jsonb_build_object('q', repeat('x', 16400))) $$, '23514', null,
+select throws_ok($$ select public.set_user_preference(auth.uid(), 'a b', '{}') $$, '23514', null, 'spaces are refused');
+select throws_ok($$ select public.set_user_preference(auth.uid(), '', '{}') $$, '23514', null, 'an empty key is refused');
+select throws_ok($$ select public.set_user_preference(auth.uid(), 'k', '[]') $$, '23514', null, 'an array value is refused');
+select throws_ok($$ select public.set_user_preference(auth.uid(), 'k', '"text"') $$, '23514', null, 'a scalar value is refused');
+select throws_ok($$ select public.set_user_preference(auth.uid(), 'k', jsonb_build_object('q', repeat('x', 16400))) $$, '23514', null,
   'a value over 16 KB is refused');
-select throws_ok($$ select public.set_user_preference(null, '{}') $$, '22023', null, 'a null key is refused');
-select throws_ok($$ select public.set_user_preference('k', null) $$, '22023', null, 'a null value is refused');
+select throws_ok($$ select public.set_user_preference(auth.uid(), null, '{}') $$, '22023', null, 'a null key is refused');
+select throws_ok($$ select public.set_user_preference(auth.uid(), 'k', null) $$, '22023', null, 'a null value is refused');
 
 -- Direct writes are closed (no INSERT / UPDATE / DELETE privilege)
 select throws_ok($$ insert into public.user_preferences (user_id, org_id, key, value)
@@ -124,8 +140,8 @@ select throws_ok($$ insert into public.user_preferences (user_id, org_id, key, v
 select throws_ok($$ update public.user_preferences set value = '{}' $$, '42501', null, 'no direct update');
 select throws_ok($$ delete from public.user_preferences $$, '42501', null, 'no direct delete');
 
-select lives_ok($$ select public.delete_user_preference('big') $$, 'U1 deletes a preference');
-select lives_ok($$ select public.delete_user_preference('never-saved') $$, 'deleting a missing key is a no-op');
+select lives_ok($$ select public.delete_user_preference(auth.uid(), 'big') $$, 'U1 deletes a preference');
+select lives_ok($$ select public.delete_user_preference(auth.uid(), 'never-saved') $$, 'deleting a missing key is a no-op');
 select bag_eq(
   $$ select key from public.user_preferences $$,
   $$ values ('clients:list-v2'::text), ('professionals.list_filters'::text), (repeat('k', 100)) $$,
@@ -136,12 +152,27 @@ select bag_eq(
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select is_empty($$ select 1 from public.user_preferences $$, 'U2 sees none of U1''s rows');
-select lives_ok($$ select public.delete_user_preference('professionals.list_filters') $$,
+select lives_ok($$ select public.delete_user_preference(auth.uid(), 'professionals.list_filters') $$,
   'U2 deleting the same key touches only their own (absent) row');
-select lives_ok($$ select public.set_user_preference('professionals.list_filters', '{"q": "U2"}') $$,
+select lives_ok($$ select public.set_user_preference(auth.uid(), 'professionals.list_filters', '{"q": "U2"}') $$,
   'U2 saves the same key');
 select results_eq($$ select value from public.user_preferences $$, $$ values ('{"q": "U2"}'::jsonb) $$,
   'U2 sees only their own row');
+
+-- A write made for U1 (queued across a sign-out, or another tab switching the shared session)
+-- that goes out with U2's session is refused, whatever the key.
+select throws_ok($$ select public.set_user_preference('a0000000-0000-0000-0000-000000000001', 'professionals.list_filters', '{"q": "pris"}') $$,
+  '42501', 'Cette préférence appartient à un autre utilisateur.', 'U2''s session cannot save for U1');
+select is(private.test_error_hint($$ select public.set_user_preference('a0000000-0000-0000-0000-000000000001', 'professionals.list_filters', '{}') $$),
+  'user_mismatch', 'the refusal carries HINT user_mismatch (the client drops it quietly)');
+select throws_ok($$ select public.delete_user_preference('a0000000-0000-0000-0000-000000000001', 'professionals.list_filters') $$,
+  '42501', 'Cette préférence appartient à un autre utilisateur.', 'U2''s session cannot delete for U1');
+select is(private.test_error_hint($$ select public.delete_user_preference('a0000000-0000-0000-0000-000000000001', 'k') $$),
+  'user_mismatch', 'the delete refusal carries HINT user_mismatch');
+select throws_ok($$ select public.set_user_preference(null, 'professionals.list_filters', '{}') $$,
+  '42501', null, 'the user is required to save');
+select throws_ok($$ select public.delete_user_preference(null, 'professionals.list_filters') $$,
+  '42501', null, 'the user is required to delete');
 
 -- =============================================================================
 -- Another org
@@ -154,23 +185,27 @@ select is_empty($$ select 1 from public.user_preferences $$, 'org B sees nothing
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is_empty($$ select 1 from public.user_preferences $$, 'a disabled user cannot read their own rows');
-select throws_ok($$ select public.set_user_preference('professionals.list_filters', '{}') $$, '42501', null,
+select throws_ok($$ select public.set_user_preference(auth.uid(), 'professionals.list_filters', '{}') $$, '42501', null,
   'a disabled user cannot save');
-select throws_ok($$ select public.delete_user_preference('professionals.list_filters') $$, '42501', null,
+select throws_ok($$ select public.delete_user_preference(auth.uid(), 'professionals.list_filters') $$, '42501', null,
   'a disabled user cannot delete');
 
 -- =============================================================================
 -- Key cap: 50 keys per user; an existing key can still be updated at the cap
 -- =============================================================================
 reset role;
+select is(
+  (select value from public.user_preferences
+    where user_id = 'a0000000-0000-0000-0000-000000000001' and key = 'professionals.list_filters'),
+  '{"q": ""}'::jsonb, 'U1''s value is the one U1 saved, untouched by the refused writes');
 insert into public.user_preferences (user_id, org_id, key, value)
 select 'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'filler.' || i, '{}'
   from generate_series(1, 47) i;   -- U1 had 3 keys: now 50
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select throws_ok($$ select public.set_user_preference('one.too.many', '{}') $$, '22023', null,
+select throws_ok($$ select public.set_user_preference(auth.uid(), 'one.too.many', '{}') $$, '22023', null,
   'a 51st key is refused');
-select lives_ok($$ select public.set_user_preference('professionals.list_filters', '{"q": "cap"}') $$,
+select lives_ok($$ select public.set_user_preference(auth.uid(), 'professionals.list_filters', '{"q": "cap"}') $$,
   'an existing key is still updated at the cap');
 
 -- =============================================================================

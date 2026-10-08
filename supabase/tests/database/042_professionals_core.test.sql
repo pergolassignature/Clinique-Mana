@@ -5,14 +5,15 @@
 -- primary, promotion, row ids kept, licence format and order pattern, archived titles, the
 -- deferred primary check, restricted motifs kept consistent); the clientèle, approach, motif and
 -- language sets (replace, specialized flags, archived and restricted rules, org of the ids);
--- IVAC numbers; email changes and the profile → professional email sync (a conflict leaves the
+-- the HINT of each field refusal (first_name, last_name, email, title, licence: the form routes
+-- by it, never by the French text); IVAC numbers; email changes and the profile → professional email sync (a conflict leaves the
 -- professional's email, neutrally); private.current_professional_id(); provider RLS and the
 -- module gate; every RPC refused to disabled staff and with the module off; org isolation; usage
 -- counts (settings without view); audit rows (record ids prefixed by the professional's id, no
 -- audit noise, personal fields redacted).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(215);
+select plan(230);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
@@ -112,6 +113,22 @@ update public.specialties set is_active = false where id = current_setting('test
 
 select set_config('test.p1_psy_row', (select pp.id::text from public.professional_professions pp
   where pp.professional_id = current_setting('test.p1')::uuid and pp.profession_title_id = current_setting('test.psy')::uuid), true);
+
+-- The HINT of the error `p_sql` raises (null when it raises none or succeeds): throws_ok checks the
+-- code and the message only.
+create function private.test_error_hint(p_sql text) returns text
+language plpgsql set search_path = '' as $$
+declare
+  v_hint text;
+begin
+  execute p_sql;
+  return null;
+exception when others then
+  get stacked diagnostics v_hint = pg_exception_hint;
+  return nullif(v_hint, '');
+end;
+$$;
+grant execute on function private.test_error_hint(text) to authenticated;
 
 -- =============================================================================
 -- Privileges
@@ -246,6 +263,37 @@ select throws_ok($$ select public.create_professional('Xavier', 'X', 'x') $$,
   'P0001', 'Courriel invalide.', 'an invalid email is refused');
 select throws_ok($$ select public.create_professional('   ', 'Vide', 'vide@exemple.ca') $$,
   'P0001', 'Le prénom est obligatoire.', 'a blank first name is refused');
+select throws_ok($$ select public.create_professional(E'Ma\u200Brie', 'Invisible', 'zw@exemple.ca') $$,
+  'P0001', 'Le prénom contient des caractères invisibles ou non permis.',
+  'a first name with an invisible character is refused (its message says « permis »)');
+
+-- Each field refusal names its field in a HINT; the form routes by it, not by the wording.
+select is(private.test_error_hint($$ select public.create_professional('   ', 'Vide', 'vide@exemple.ca') $$),
+  'first_name', 'HINT first_name: blank first name');
+select is(private.test_error_hint($$ select public.create_professional(E'Ma\u200Brie', 'Invisible', 'zw@exemple.ca') $$),
+  'first_name', 'HINT first_name: « …caractères invisibles ou non permis » is about the first name, not the licence');
+select is(private.test_error_hint($$ select public.create_professional('Léa', repeat('n', 81), 'lea@exemple.ca') $$),
+  'last_name', 'HINT last_name: a last name over 80 characters');
+select is(private.test_error_hint($$ select public.create_professional('Xavier', 'X', 'x') $$),
+  'email', 'HINT email: an invalid email');
+select is(private.test_error_hint($$ select public.create_professional('Marie', 'Autre', 'MARIE.T@exemple.ca') $$),
+  'email', 'HINT email: the email of another professional');
+select is(private.test_error_hint($$ select public.create_professional('Con', 'Seillère', 'Conseillere@A.test') $$),
+  'email', 'HINT email: the email of a profile of the clinic');
+select is(private.test_error_hint($$ select public.create_professional('Pierre', 'Archive', 'pierre@exemple.ca', current_setting('test.psyed')::uuid, 'P-1') $$),
+  'title', 'HINT title: an archived title');
+select is(private.test_error_hint($$ select public.create_professional('Ulysse', 'Inconnu', 'ulysse@exemple.ca', gen_random_uuid(), null) $$),
+  'title', 'HINT title: an unknown title (22023)');
+select is(private.test_error_hint($$ select public.create_professional('Rita', 'Sans', 'rita@exemple.ca', current_setting('test.psy')::uuid, '  ') $$),
+  'licence', 'HINT licence: a regulated title without licence');
+select is(private.test_error_hint($$ select public.create_professional('Rita', 'Sans', 'rita@exemple.ca', current_setting('test.psy')::uuid, 'OPQ#1') $$),
+  'licence', 'HINT licence: a licence with other characters');
+select is(private.test_error_hint($$ select public.create_professional('Olivier', 'Orientation', 'olivier@exemple.ca', current_setting('test.orient')::uuid, 'abc') $$),
+  'licence', 'HINT licence: a licence outside the order''s pattern');
+select is(private.test_error_hint($$ select public.create_professional('Rita', 'Sans', 'rita@exemple.ca', null, 'OPQ-1') $$),
+  'licence', 'HINT licence: a licence without a title (22023)');
+select is(private.test_error_hint($$ select public.set_professional_email(current_setting('test.marie')::uuid, 'pas un courriel') $$),
+  'email', 'HINT email: set_professional_email shares the email rules');
 
 -- No active system language (hand-repaired data): refused, nothing created.
 reset role;
@@ -255,6 +303,8 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.create_professional('Lina', 'Sans', 'lina@exemple.ca') $$,
   'P0001', 'Aucune langue active n''est disponible.', 'no active system language: creation is refused');
+select is(private.test_error_hint($$ select public.create_professional('Lina', 'Sans', 'lina@exemple.ca') $$),
+  null, 'no HINT when the refusal is about no one field (the form shows it above the buttons)');
 rollback to savepoint no_language;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);

@@ -97,6 +97,9 @@ export function isDefaultFilters(filters: ProfessionalsFilters): boolean {
   return filtersToSearchParams({ ...filters, page: 1 }).toString() === ''
 }
 
+/** A filter change: replaces the history entry (typing must not stack entries) and is the person's choice. */
+const CHOSEN = { replace: true, chosen: true } as const
+
 /**
  * The URL's filters and their setters. A filter change goes back to page 1 and replaces the
  * history entry (typing must not stack entries); a page change pushes one, so Back returns to the
@@ -107,25 +110,32 @@ export function isDefaultFilters(filters: ProfessionalsFilters): boolean {
  * current URL is `latest`, not `setSearchParams`'s updater argument: react-router 6 hands that
  * updater the search params of its last render, so a second call in the same tick would undo the
  * first. `latest` follows every render (Back, links) and every write made here.
+ *
+ * `onChange` hears the filters a person chose (`setFilters`, `toggleMotif`, `reset`), not a page
+ * change, a link, Back, or `restore`: what the list remembers for them (4a.10).
  */
-export function useProfessionalsFilters() {
+export function useProfessionalsFilters({ onChange }: { onChange?: (filters: ProfessionalsFilters) => void } = {}) {
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = useMemo(() => parseProfessionalsFilters(searchParams), [searchParams])
   const latest = useRef(searchParams)
+  const changed = useRef(onChange)
   useLayoutEffect(() => {
     latest.current = searchParams
-  }, [searchParams])
+    changed.current = onChange
+  }, [searchParams, onChange])
 
   const update = useCallback(
-    (change: (current: ProfessionalsFilters) => ProfessionalsFilters, replace: boolean) => {
-      const next = filtersToSearchParams(change(parseProfessionalsFilters(latest.current)), latest.current)
+    (change: (current: ProfessionalsFilters) => ProfessionalsFilters, { replace, chosen }: { replace: boolean; chosen: boolean }) => {
+      const nextFilters = change(parseProfessionalsFilters(latest.current))
+      const next = filtersToSearchParams(nextFilters, latest.current)
       latest.current = next
       setSearchParams(next, { replace })
+      if (chosen) changed.current?.(nextFilters)
     },
     [setSearchParams],
   )
   const setFilters = useCallback(
-    (patch: Partial<Omit<ProfessionalsFilters, 'page'>>) => update((current) => ({ ...current, ...patch, page: 1 }), true),
+    (patch: Partial<Omit<ProfessionalsFilters, 'page'>>) => update((current) => ({ ...current, ...patch, page: 1 }), CHOSEN),
     [update],
   )
   const toggleMotif = useCallback(
@@ -136,24 +146,40 @@ export function useProfessionalsFilters() {
           motifIds: current.motifIds.includes(id) ? current.motifIds.filter((m) => m !== id) : [...current.motifIds, id],
           page: 1,
         }),
-        true,
+        CHOSEN,
       ),
     [update],
   )
-  const setPage = useCallback((page: number) => update((current) => ({ ...current, page }), false), [update])
-  const reset = useCallback(() => update(() => DEFAULT_FILTERS, true), [update])
+  const setPage = useCallback((page: number) => update((current) => ({ ...current, page }), { replace: false, chosen: false }), [update])
+  const reset = useCallback(() => update(() => DEFAULT_FILTERS, CHOSEN), [update])
+  /** Puts saved filters in the URL (page 1), replacing the entry; `onChange` is not called. */
+  const restore = useCallback((saved: ProfessionalsFilters) => update(() => ({ ...saved, page: 1 }), { replace: true, chosen: false }), [update])
 
-  return { filters, setFilters, toggleMotif, setPage, reset }
+  return { filters, setFilters, toggleMotif, setPage, reset, restore }
 }
 
 /** A known id, else null (no filter). */
 const known = (id: string | null, map: ReadonlyMap<string, unknown>) => (id !== null && map.has(id) ? id : null)
 
+/** The folded text the search looks in, per row: built once per list (`useMemo` on the rows), not per keystroke. */
+export type SearchHaystacks = ReadonlyMap<ProfessionalListRow, string>
+
+/** Pure: each row's name (either order), email and primary licence, folded (accents and case ignored). */
+export function searchHaystacks(rows: readonly ProfessionalListRow[]): SearchHaystacks {
+  return new Map(rows.map((row) => [row, foldSearch(`${row.firstName} ${row.lastName} ${row.email} ${row.primaryLicenceNumber ?? ''}`)]))
+}
+
 /**
  * Pure: the rows that pass every filter (« and »). The search splits on spaces; each word must
- * appear in the name (either order), the email or the primary licence.
+ * appear in the name (either order), the email or the primary licence. `haystacks` is
+ * `searchHaystacks(rows)`, passed in so the folding is not redone on each change.
  */
-export function filterProfessionals(rows: readonly ProfessionalListRow[], filters: ProfessionalsFilters, catalog: CatalogView): ProfessionalListRow[] {
+export function filterProfessionals(
+  rows: readonly ProfessionalListRow[],
+  filters: ProfessionalsFilters,
+  catalog: CatalogView,
+  haystacks: SearchHaystacks = searchHaystacks(rows),
+): ProfessionalListRow[] {
   const words = foldSearch(filters.q).split(/\s+/).filter(Boolean)
   const titleId = known(filters.titleId, catalog.byId.titles)
   const languageId = known(filters.languageId, catalog.byId.languages)
@@ -169,7 +195,7 @@ export function filterProfessionals(rows: readonly ProfessionalListRow[], filter
     if (filters.acceptingNewClients && !row.acceptingNewClients) return false
     if (filters.watch && watchFlags(row).length === 0) return false
     if (words.length === 0) return true
-    const haystack = foldSearch(`${row.firstName} ${row.lastName} ${row.email} ${row.primaryLicenceNumber ?? ''}`)
+    const haystack = haystacks.get(row) ?? ''
     return words.every((word) => haystack.includes(word))
   })
 }
