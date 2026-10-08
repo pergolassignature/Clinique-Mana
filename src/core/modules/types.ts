@@ -1,11 +1,17 @@
-import type { ComponentType, LazyExoticComponent } from 'react'
+import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import type { TranslationKey } from '@/i18n'
+
+/**
+ * A routed page. Use lazyPage() (`@/shared/lib/lazy-page`) so it loads in its own chunk and can be
+ * preloaded: the shell prefetches the pages the user can open when the browser is idle.
+ */
+export type PageComponent = ComponentType & { preload?: () => Promise<unknown> }
 
 export interface ModuleRoute {
   /** RELATIVE to the app root (no leading slash): 'professionnels' or 'professionnels/:id'. */
   path: string
-  component: LazyExoticComponent<ComponentType>
+  component: PageComponent
   permission: string
 }
 
@@ -36,7 +42,7 @@ export interface SettingsSection {
    */
   editPermission?: string
   group: SettingsGroup
-  component: LazyExoticComponent<ComponentType>
+  component: PageComponent
   /**
    * The owning module, if any; used for the error-reporting scope (`settings:<moduleKey>:<id>`).
    * Stamped by the app shell from the manifest's key: manifests never set it.

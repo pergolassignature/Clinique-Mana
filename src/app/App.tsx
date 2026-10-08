@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/core/auth/AuthProvider'
+import { useAuth } from '@/core/auth/auth-context'
 import { AccessProvider } from '@/core/access/AccessProvider'
 import { RequireAuth } from '@/core/access/guards'
 import { LoginPage } from '@/core/auth/pages/LoginPage'
@@ -10,10 +12,25 @@ import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { Toaster } from '@/shared/ui/sonner'
 import { AuthenticatedApp } from './AuthenticatedApp'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
+import { preloadRouteCode } from './route-preload'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 2 * 60_000, gcTime: 5 * 60_000, retry: 1 } },
 })
+
+/**
+ * As soon as a session exists (reload, deep link, sign-in), starts loading the code of the page
+ * the user is going to, in the same tick as AccessProvider's get_my_access. Renders nothing:
+ * RequireAuth still waits for the verified access before anything signed-in renders (#11).
+ */
+function PreloadSignedInCode() {
+  const { session, isRecovery } = useAuth()
+  const signedIn = Boolean(session) && !isRecovery
+  useEffect(() => {
+    if (signedIn) preloadRouteCode()
+  }, [signedIn])
+  return null
+}
 
 export function App() {
   return (
@@ -21,6 +38,7 @@ export function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <AccessProvider>
+            <PreloadSignedInCode />
             <BrowserRouter future={ROUTER_FUTURE}>
               <Routes>
                 <Route path="/connexion" element={<LoginPage />} />

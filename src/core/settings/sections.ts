@@ -1,4 +1,3 @@
-import { lazy } from 'react'
 import {
   Blocks,
   Building2,
@@ -11,6 +10,7 @@ import {
   Users,
 } from 'lucide-react'
 import type { SettingsSection } from '@/core/modules/types'
+import { lazyPage } from '@/shared/lib/lazy-page'
 
 // English `id` for code, French `path` for the URL (decision #24). Menu order within each group.
 export const coreSettingsSections: SettingsSection[] = [
@@ -22,11 +22,7 @@ export const coreSettingsSections: SettingsSection[] = [
     permission: 'settings.view',
     editPermission: 'settings.manage',
     group: 'clinique',
-    component: lazy(() =>
-      import('./pages/IdentitySettingsPage').then((m) => ({
-        default: m.IdentitySettingsPage,
-      }))
-    ),
+    component: lazyPage(() => import('./pages/IdentitySettingsPage'), 'IdentitySettingsPage'),
   },
   {
     id: 'tax',
@@ -36,11 +32,7 @@ export const coreSettingsSections: SettingsSection[] = [
     permission: 'settings.view',
     editPermission: 'settings.manage',
     group: 'clinique',
-    component: lazy(() =>
-      import('./pages/TaxSettingsPage').then((m) => ({
-        default: m.TaxSettingsPage,
-      }))
-    ),
+    component: lazyPage(() => import('./pages/TaxSettingsPage'), 'TaxSettingsPage'),
   },
   {
     id: 'signatory',
@@ -50,11 +42,7 @@ export const coreSettingsSections: SettingsSection[] = [
     permission: 'settings.view',
     editPermission: 'settings.manage',
     group: 'clinique',
-    component: lazy(() =>
-      import('./pages/SignatorySettingsPage').then((m) => ({
-        default: m.SignatorySettingsPage,
-      }))
-    ),
+    component: lazyPage(() => import('./pages/SignatorySettingsPage'), 'SignatorySettingsPage'),
   },
   {
     id: 'bank',
@@ -63,11 +51,7 @@ export const coreSettingsSections: SettingsSection[] = [
     icon: Landmark,
     permission: 'settings.bank_manage',
     group: 'clinique',
-    component: lazy(() =>
-      import('./pages/BankSettingsPage').then((m) => ({
-        default: m.BankSettingsPage,
-      }))
-    ),
+    component: lazyPage(() => import('./pages/BankSettingsPage'), 'BankSettingsPage'),
   },
   {
     id: 'region',
@@ -77,11 +61,7 @@ export const coreSettingsSections: SettingsSection[] = [
     permission: 'settings.view',
     editPermission: 'settings.manage',
     group: 'clinique',
-    component: lazy(() =>
-      import('./pages/RegionSettingsPage').then((m) => ({
-        default: m.RegionSettingsPage,
-      }))
-    ),
+    component: lazyPage(() => import('./pages/RegionSettingsPage'), 'RegionSettingsPage'),
   },
   {
     id: 'privacy',
@@ -91,11 +71,7 @@ export const coreSettingsSections: SettingsSection[] = [
     permission: 'settings.view',
     editPermission: 'settings.manage',
     group: 'clinique',
-    component: lazy(() =>
-      import('./pages/PrivacySettingsPage').then((m) => ({
-        default: m.PrivacySettingsPage,
-      }))
-    ),
+    component: lazyPage(() => import('./pages/PrivacySettingsPage'), 'PrivacySettingsPage'),
   },
   {
     id: 'users',
@@ -105,11 +81,7 @@ export const coreSettingsSections: SettingsSection[] = [
     permission: 'users.view',
     editPermission: 'users.manage',
     group: 'plateforme',
-    component: lazy(() =>
-      import('./pages/UsersSettingsPage').then((m) => ({
-        default: m.UsersSettingsPage,
-      }))
-    ),
+    component: lazyPage(() => import('./pages/UsersSettingsPage'), 'UsersSettingsPage'),
   },
   {
     id: 'modules',
@@ -118,11 +90,7 @@ export const coreSettingsSections: SettingsSection[] = [
     icon: Blocks,
     permission: 'modules.manage',
     group: 'plateforme',
-    component: lazy(() =>
-      import('./pages/ModulesSettingsPage').then((m) => ({
-        default: m.ModulesSettingsPage,
-      }))
-    ),
+    component: lazyPage(() => import('./pages/ModulesSettingsPage'), 'ModulesSettingsPage'),
   },
   {
     id: 'audit',
@@ -131,10 +99,6 @@ export const coreSettingsSections: SettingsSection[] = [
     icon: ScrollText,
     permission: 'audit.view',
     group: 'plateforme',
-    component: lazy(() =>
-      import('./pages/AuditLogPage').then((m) => ({
-        default: m.AuditLogPage,
-      }))
-    ),
+    component: lazyPage(() => import('./pages/AuditLogPage'), 'AuditLogPage'),
   },
 ]

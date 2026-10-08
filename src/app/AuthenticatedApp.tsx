@@ -1,4 +1,4 @@
-import { createElement, Suspense, useMemo, type ReactNode } from 'react'
+import { createElement, Suspense, useEffect, useMemo, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Home, Settings } from 'lucide-react'
 import { t } from '@/i18n'
@@ -13,6 +13,7 @@ import { visibleSettingsSections } from '@/core/settings/visible-sections'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
+import { preloadWhenIdle } from '@/shared/lib/lazy-page'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { AppShell, type ShellNavItem } from './AppShell'
 import { HomePage } from './HomePage'
@@ -45,6 +46,18 @@ export function AuthenticatedApp() {
   const visibleSections = useMemo(() => visibleSettingsSections(settingsSections, can), [settingsSections, can])
   // Decision #19: « Paramètres » exists only when it would show at least one section.
   const canOpenSettings = visibleSections.length > 0
+
+  // Prefetch the code of every page this user can open, once the browser is idle: a first visit
+  // then renders at once, without a Suspense fallback (and React's 300 ms hold of it). Static
+  // chunks only, the same for everyone: no data is fetched before the page itself mounts.
+  const routeComponents = useMemo(
+    () => modules.flatMap((m) => m.routes.filter((r) => can(r.permission)).map((r) => r.component)),
+    [modules, can],
+  )
+  useEffect(() => {
+    const idle = preloadWhenIdle([...visibleSections.map((s) => s.component), ...routeComponents])
+    return idle.cancel
+  }, [visibleSections, routeComponents])
 
   const navItems = useMemo<ShellNavItem[]>(() => {
     const moduleItems = modules
