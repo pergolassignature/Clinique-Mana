@@ -1,4 +1,4 @@
-import { Compass, GraduationCap, HandCoins, Languages, Send, Tags, UserMinus, Users } from 'lucide-react'
+import { Compass, FileText, GraduationCap, HandCoins, Languages, Send, Tags, UserMinus, Users } from 'lucide-react'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
@@ -84,6 +84,15 @@ export const professionalsManifest: ModuleManifest = {
       icon: UserMinus,
       ...LIST_SECTION,
       component: lazyPage(() => import('./pages/settings/DeactivationReasonsSettingsPage'), 'DeactivationReasonsSettingsPage'),
+    },
+    {
+      // What the fiche given to clients shows (P4-353): read like the lists, changed with `professionals.settings`.
+      id: 'fiche',
+      path: 'fiche-pdf',
+      labelKey: 'modules.professionals.settings.fiche.title',
+      icon: FileText,
+      ...LIST_SECTION,
+      component: lazyPage(() => import('./pages/settings/FicheSettingsPage'), 'FicheSettingsPage'),
     },
     {
       // The invitation link's lifetime and the automatic reminder (Task 4b.3): seen by whoever

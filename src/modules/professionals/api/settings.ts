@@ -9,6 +9,9 @@ const SETTING_KEYS = {
   collectSin: 'collect_sin',
   invitationExpiryDays: 'invitation_expiry_days',
   invitationReminderAfterDays: 'invitation_reminder_after_days',
+  ficheShowProContact: 'fiche_show_pro_contact',
+  ficheShowClinicFooter: 'fiche_show_clinic_footer',
+  ficheShowClosing: 'fiche_show_closing',
 } as const satisfies Record<keyof ProfessionalsSettings, string>
 
 /** The effective settings (stored values over the defaults). Open to any professionals permission. */

@@ -199,13 +199,29 @@ describe('historyEntryPayload', () => {
 })
 
 describe('settingsPayload', () => {
-  it('maps the module settings, the invitation ones included (4b.1)', () => {
-    expect(parseRpc(settingsPayload, { collect_sin: false, invitation_expiry_days: 7, invitation_reminder_after_days: 3 })).toEqual({
+  it('maps the module settings, the invitation (4b.1) and fiche (P4-353) ones included', () => {
+    const json = {
+      collect_sin: false,
+      invitation_expiry_days: 7,
+      invitation_reminder_after_days: 3,
+      fiche_show_pro_contact: true,
+      fiche_show_clinic_footer: false,
+      fiche_show_closing: true,
+    }
+    expect(parseRpc(settingsPayload, json)).toEqual({
       collectSin: false,
       invitationExpiryDays: 7,
       invitationReminderAfterDays: 3,
+      ficheShowProContact: true,
+      ficheShowClinicFooter: false,
+      ficheShowClosing: true,
     })
-    expect(parseRpc(settingsPayload, { collect_sin: true, invitation_expiry_days: 14, invitation_reminder_after_days: null }).invitationReminderAfterDays).toBeNull()
+    expect(parseRpc(settingsPayload, { ...json, collect_sin: true, invitation_expiry_days: 14, invitation_reminder_after_days: null }).invitationReminderAfterDays).toBeNull()
+  })
+
+  it('refuses settings without the invitation or fiche options', () => {
+    expect(() => parseRpc(settingsPayload, { collect_sin: false })).toThrow(new Error(SHAPE_ERROR))
+    expect(() => parseRpc(settingsPayload, { collect_sin: false, invitation_expiry_days: 7, invitation_reminder_after_days: 3 })).toThrow(new Error(SHAPE_ERROR))
   })
 })
 

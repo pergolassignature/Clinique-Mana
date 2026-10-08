@@ -469,13 +469,24 @@ export type StatusChange = z.output<typeof statusChangePayload>
 /**
  * `collectSin` is off until an admin turns it on after the accountant confirms (P4-7). The
  * invitation's lifetime (1–30 days) and its reminder delay (1–29 days, null for no reminder; shorter
- * than the lifetime, P4-308) are « Invitations »'s (4b.1).
+ * than the lifetime, P4-308) are « Invitations »'s (4b.1). The fiche's render options (P4-353) are
+ * on by default.
  */
 export const settingsPayload = z
-  .object({ collect_sin: z.boolean(), invitation_expiry_days: z.number().int(), invitation_reminder_after_days: z.number().int().nullable() })
+  .object({
+    collect_sin: z.boolean(),
+    invitation_expiry_days: z.number().int(),
+    invitation_reminder_after_days: z.number().int().nullable(),
+    fiche_show_pro_contact: z.boolean(),
+    fiche_show_clinic_footer: z.boolean(),
+    fiche_show_closing: z.boolean(),
+  })
   .transform((s) => ({
     collectSin: s.collect_sin,
     invitationExpiryDays: s.invitation_expiry_days,
     invitationReminderAfterDays: s.invitation_reminder_after_days,
+    ficheShowProContact: s.fiche_show_pro_contact,
+    ficheShowClinicFooter: s.fiche_show_clinic_footer,
+    ficheShowClosing: s.fiche_show_closing,
   }))
 export type ProfessionalsSettings = z.output<typeof settingsPayload>

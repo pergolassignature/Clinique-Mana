@@ -6,7 +6,9 @@ import type { ProfessionalsSettings } from '../api/parse'
 import { professionalsSettingsKeys } from './keys'
 import { showMutationError, type MutationFeedback } from './mutation-feedback'
 
-const settingsQuery = queryOptions({ queryKey: professionalsSettingsKeys.settings(), queryFn: fetchProfessionalsSettings })
+/** The module's settings query, shared by the screens and the fiche (which reads its render options, P4-353). */
+export const professionalsSettingsQuery = queryOptions({ queryKey: professionalsSettingsKeys.settings(), queryFn: fetchProfessionalsSettings })
+const settingsQuery = professionalsSettingsQuery
 
 /** The module's settings (`collectSin`…). `enabled`: only for a screen that uses them. */
 export function useProfessionalsSettings(enabled = true) {

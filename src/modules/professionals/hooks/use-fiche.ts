@@ -15,6 +15,7 @@ import { fetchPublicFees, markFicheGenerated, sendFicheEmail } from '../api/fich
 import type { ProfessionalRecord } from '../api/parse'
 import type { CatalogView } from '../lib/catalog-view'
 import { ficheFileName, ficheProfession } from '../lib/fiche'
+import { professionalsSettingsQuery } from './use-professionals-settings'
 
 /**
  * « Fiche PDF » (Task 4c.5). The renderer is a chunk of its own (react-pdf, Raleway and the logo, P4-58),
@@ -37,18 +38,27 @@ export interface FicheTarget {
 
 /**
  * The fiche as a PDF Blob and its file name, from the cached record and catalogue, the clinic's
- * identity and the public fees of the fiche's title, read fresh (a grid can change any day).
+ * identity, the fiche's render options (Paramètres → Fiche PDF, P4-353) and the public fees of the
+ * fiche's title, read fresh (a grid can change any day). A failed read of any makes no fiche
+ * (never one that shows what the clinic chose to hide).
  */
 export async function renderFiche(queryClient: QueryClient, { record, catalog, titleId }: FicheTarget): Promise<{ blob: Blob; fileName: string }> {
-  const [{ renderFichePdf }, organization, fees] = await Promise.all([
+  const [{ renderFichePdf }, organization, settings, fees] = await Promise.all([
     loadRenderer(),
     // The same entry as Settings' cards: fresh for a minute, so a fiche made right after an edit of
     // the clinic's identity in another tab may wait that long to show it.
     queryClient.fetchQuery({ queryKey: organizationKeys.current(), queryFn: fetchOrganization, staleTime: 60_000 }),
+    // The module's settings entry (the « Fiche PDF » card updates it on save), fresh for a minute too.
+    queryClient.fetchQuery({ ...professionalsSettingsQuery, staleTime: 60_000 }),
     // The title the content prints (two titles: the chosen one), so the fees follow it (P4-218).
     fetchPublicFees(record.professional.id, ficheProfession(record, titleId)?.titleId ?? null),
   ])
-  const blob = await renderFichePdf({ record, catalog, titleId, organization, fees })
+  const options = {
+    showProContact: settings.ficheShowProContact,
+    showClinicFooter: settings.ficheShowClinicFooter,
+    showClosing: settings.ficheShowClosing,
+  }
+  const blob = await renderFichePdf({ record, catalog, titleId, organization, fees, options })
   return { blob, fileName: ficheFileName(record.professional) }
 }
 
