@@ -31,10 +31,12 @@
 --   version v decrypts with the current v key: a canary never vouches for a key that would not
 --   read the data.
 -- * public.pii_health_check() (definer, granted to no role: the owner `postgres` runs it, from
---   the SQL Editor or the GitHub jobs) returns true when every canary decrypts to the test value
---   AND every version that holds stored data has its key and a canary; false otherwise. It never
---   raises for those, never returns a key or a value, and its warnings name only the key version,
---   the table and the SQLSTATE. GitHub runs it after each migration push and every day
+--   the SQL Editor or the GitHub jobs) returns true when every canary decrypts to the test value,
+--   every version that holds stored data has its key and a canary, AND every stored value decrypts
+--   with its row's version; false otherwise. The last step is a full scan (one decryption per
+--   stored value, cheap at the clinic's size: about 100 values). It never raises, never returns a
+--   key or a value, and its warnings name only the key version, the table, the column and the
+--   SQLSTATE. GitHub runs it after each migration push and every day
 --   (.github/workflows/supabase-migrations.yml, pii-health.yml): a red job is an alarm, it
 --   blocks nothing (Vercel deploys the app regardless).
 -- * The version 1 canary is seeded here only when the key reads every existing encrypted value.
@@ -144,18 +146,20 @@ alter table public.organization_bank_details
 -- -----------------------------------------------------------------------------
 -- The list of encrypted columns (the one place to extend)
 -- -----------------------------------------------------------------------------
--- Every stored ciphertext with the version it was written with: one `union all` branch per
--- encrypted column, null values left out. A new encrypted table or column is added here, with
--- `create or replace`, in the migration that creates it (conventions §8; 4a.17 adds
--- professional_private.sin and .bank_account). Granted to no role.
+-- Every stored ciphertext with its row's key (the primary key as text, never a value) and the
+-- version it was written with: one `union all` branch per encrypted column, null values left out.
+-- A new encrypted table or column is added here, with `create or replace`, in the migration that
+-- creates it (conventions §8; 4a.17 adds professional_private.sin and .bank_account, 4b.1
+-- professional_submission_private's). pgTAP 047 fails while a table with a key_version column is
+-- missing from this body. Granted to no role.
 create function private.pii_encrypted_values()
-returns table (table_name text, column_name text, key_version integer, ciphertext bytea)
+returns table (table_name text, column_name text, row_key text, key_version integer, ciphertext bytea)
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select 'organization_bank_details'::text, 'account_number'::text, b.key_version::integer, b.account_number
+  select 'organization_bank_details'::text, 'account_number'::text, b.org_id::text, b.key_version::integer, b.account_number
     from public.organization_bank_details b
    where b.account_number is not null
 $$;
@@ -201,8 +205,9 @@ $$;
 -- Creates the canary of a key version, only when that key reads every value already stored with
 -- it (none, for a new key). Returns true when it created the canary; otherwise false with a
 -- WARNING naming only the version and the SQLSTATE: the version already has a canary (left
--- unchanged), its key is missing, or a stored value does not decrypt with it (a key replaced
--- after data was written). The only way the migration and the runbooks create a canary.
+-- unchanged, also when a concurrent call created it first: `on conflict do nothing`), its key is
+-- missing, or a stored value does not decrypt with it (a key replaced after data was written).
+-- The only way the migration and the runbooks create a canary.
 create function private.pii_seed_canary(p_version integer)
 returns boolean
 language plpgsql
@@ -234,8 +239,15 @@ begin
     return false;
   end;
 
+  -- A concurrent call may have created it since the check above: it waits for that call's commit
+  -- on the primary key, then inserts nothing.
   insert into private.pii_canary (key_version, ciphertext)
-  values (p_version, private.encrypt_pii('mana-pii-canary', p_version));
+  values (p_version, private.encrypt_pii('mana-pii-canary', p_version))
+  on conflict (key_version) do nothing;
+  if not found then
+    raise warning 'pii_seed_canary: key version % already has a canary (left unchanged)', p_version;
+    return false;
+  end if;
   return true;
 end;
 $$;
@@ -272,6 +284,7 @@ as $$
 declare
   v_row record;
   v_plain text;
+  v_has_key boolean;
   v_checked int := 0;
 begin
   -- 1. Every canary decrypts to the test value with its key.
@@ -294,9 +307,16 @@ begin
     return false;
   end if;
 
-  -- 2. Every version that holds stored data has its key and a canary (so step 1 proved it).
+  -- 2. Every version that holds stored data has its key and a canary. Step 1 proved that key reads
+  -- its canary, not that it reads the data: step 3 does.
   for v_row in select u.key_version, u.table_name from private.pii_key_versions_in_use() u order by 1, 2 loop
-    if private.pii_key(v_row.key_version) is null then
+    begin
+      v_has_key := private.pii_key(v_row.key_version) is not null;
+    exception when others then
+      raise warning 'pii_health_check: key version % (used by %) could not be read (SQLSTATE %)', v_row.key_version, v_row.table_name, sqlstate;
+      return false;
+    end;
+    if not v_has_key then
       raise warning 'pii_health_check: key version % is used by % but its key is missing', v_row.key_version, v_row.table_name;
       return false;
     end if;
@@ -304,6 +324,23 @@ begin
       raise warning 'pii_health_check: key version % is used by % but has no canary', v_row.key_version, v_row.table_name;
       return false;
     end if;
+  end loop;
+
+  -- 3. Every stored value decrypts with its row's version: a canary only proves the key it was
+  -- made with, so data restored or copied from another project (production on staging, a new
+  -- project restored without the escrowed key) or written before the key was replaced is caught
+  -- here. Full scan on purpose: one decryption (and one subtransaction) per stored value, well
+  -- under a second for today's ~50 professionals (SIN and account) and one bank row; revisit
+  -- (sample, or check only rows changed since the last run) if it reaches tens of thousands
+  -- (conventions §8). The plaintext goes nowhere.
+  for v_row in select e.table_name, e.column_name, e.key_version, e.ciphertext
+                 from private.pii_encrypted_values() e order by 1, 2, 3 loop
+    begin
+      v_plain := private.decrypt_pii(v_row.ciphertext, v_row.key_version);
+    exception when others then
+      raise warning 'pii_health_check: a value of %.% stored with key version % does not decrypt (SQLSTATE %)', v_row.table_name, v_row.column_name, v_row.key_version, sqlstate;
+      return false;
+    end;
   end loop;
   return true;
 end;
@@ -351,6 +388,9 @@ $$;
 -- version (conventions §8, « one version per row »): a new account is encrypted with it; a kept
 -- account (blank p_account_number) is re-encrypted from the row's version in the same statement,
 -- unless the row is already current (no new ciphertext, so no spurious « changed » audit entry).
+-- A kept account that does not decrypt (its key is missing, or the row was copied from another
+-- environment) raises a clean P0001 with a hint, never pgcrypto's error: entering the full
+-- account number again replaces it (docs/runbooks/pii-key-rotation.md, « Une valeur illisible »).
 create or replace function public.set_bank_details(
   p_institution_number text,
   p_transit_number text,
@@ -388,16 +428,24 @@ begin
 
   v_version := private.pii_current_key_version();
   if v_account is null then
-    update public.organization_bank_details b
-       set institution_number = v_institution,
-           transit_number = v_transit,
-           etransfer_email = v_email,
-           account_number = case when b.key_version = v_version then b.account_number
-                                 else private.encrypt_pii(private.decrypt_pii(b.account_number, b.key_version), v_version)
-                            end,
-           key_version = v_version,
-           updated_by = auth.uid()
-     where b.org_id = v_org;
+    begin
+      update public.organization_bank_details b
+         set institution_number = v_institution,
+             transit_number = v_transit,
+             etransfer_email = v_email,
+             account_number = case when b.key_version = v_version then b.account_number
+                                   else private.encrypt_pii(private.decrypt_pii(b.account_number, b.key_version), v_version)
+                              end,
+             key_version = v_version,
+             updated_by = auth.uid()
+       where b.org_id = v_org;
+    exception
+      -- 39000: pgcrypto (wrong key or corrupt data); 55000: decrypt_pii (the row's key is missing).
+      when sqlstate '39000' or sqlstate '55000' then
+        raise exception 'Le numéro de compte enregistré ne peut pas être lu avec la clé de cet environnement.'
+          using errcode = 'P0001',
+                hint = 'Saisissez de nouveau le numéro de compte au complet : il remplacera celui qui est enregistré.';
+    end;
     if not found then
       raise exception 'Le numéro de compte est requis.' using errcode = 'P0001';
     end if;

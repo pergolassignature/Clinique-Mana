@@ -8,28 +8,32 @@
 -- Key values are never selected: only compared or used inside expressions.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(112);
+select plan(131);
 
 -- =============================================================================
--- Fixtures (as postgres): org A and org B, each with an admin (settings.bank_manage); org C has
--- no user (its bank row is written directly, as postgres, for the failure cases).
+-- Fixtures (as postgres): orgs A, B and C, each with an admin (settings.bank_manage). Org C's bank
+-- row is written directly, as postgres, for the failure cases.
 -- =============================================================================
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
   ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@a.test', '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test', '', now(), '{}', '{}', now(), now());
+  ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test', '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@c.test', '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A'),
   ('b0000000-0000-0000-0000-00000000000b', 'Org B'),
   ('b0000000-0000-0000-0000-00000000000c', 'Org C');
 insert into public.profiles (user_id, org_id, display_name, email) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A', 'admin@a.test'),
-  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B', 'admin@b.test');
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B', 'admin@b.test'),
+  ('a0000000-0000-0000-0000-000000000009', 'b0000000-0000-0000-0000-00000000000c', 'Admin C', 'admin@c.test');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
-  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin');
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin'),
+  ('a0000000-0000-0000-0000-000000000009', 'b0000000-0000-0000-0000-00000000000c', 'admin');
 
--- The rotation runbook's two blocks, verbatim (docs/runbooks/pii-key-rotation.md, steps 4 and 7).
+-- The rotation runbook's blocks, verbatim (docs/runbooks/pii-key-rotation.md, steps 4 and 7, and
+-- « Une valeur illisible »).
 create temp table runbook (step text primary key, code text not null);
 insert into runbook (step, code) values
   ('batch', $runbook$do $$
@@ -59,6 +63,8 @@ begin
   --                               where x.key_version <> v_target order by x.professional_id limit 500);
   -- get diagnostics v_count = row_count;
   -- raise notice 'professional_private : % ligne(s) re-chiffrée(s)', v_count;
+
+  -- À partir de la Task 4b.1 : professional_submission_private, même forme (clé de ligne submission_id).
 end;
 $$;$runbook$),
   ('retire', $runbook$do $$
@@ -92,6 +98,23 @@ begin
     raise exception 'pii_health_check() serait faux sans le secret % : rien n''est retiré.', v_name;
   end if;
   raise notice 'Version % retirée (témoin et secret %).', v_old, v_name;
+end;
+$$;$runbook$),
+  ('unreadable', $runbook$do $$
+declare
+  r record;
+  v_bad integer := 0;
+begin
+  for r in select e.table_name, e.column_name, e.row_key, e.key_version, e.ciphertext
+             from private.pii_encrypted_values() e order by 1, 3, 2 loop
+    begin
+      perform private.decrypt_pii(r.ciphertext, r.key_version);
+    exception when others then
+      v_bad := v_bad + 1;
+      raise notice '%.% ligne % : illisible avec la version % (SQLSTATE %)', r.table_name, r.column_name, r.row_key, r.key_version, sqlstate;
+    end;
+  end loop;
+  raise notice '% valeur(s) illisible(s)', v_bad;
 end;
 $$;$runbook$);
 
@@ -135,6 +158,25 @@ select table_privs_are('private', 'pii_canary', 'authenticated', array[]::text[]
 select table_privs_are('private', 'pii_canary', 'service_role',  array[]::text[], 'service_role: no privileges on pii_canary');
 select is((select c.relrowsecurity from pg_class c where c.oid = 'private.pii_canary'::regclass), true,
   'pii_canary has RLS on (no policy)');
+
+-- The list is complete: every table with a key_version column (its rows hold ciphertexts) is named
+-- in pii_encrypted_values()' body. 4a.17 (professional_private) and 4b.1
+-- (professional_submission_private) fail here until they add their branches.
+select is_empty($$
+  select c.table_schema || '.' || c.table_name
+    from information_schema.columns c
+    join information_schema.tables t
+      on t.table_schema = c.table_schema and t.table_name = c.table_name and t.table_type = 'BASE TABLE'
+   where c.column_name = 'key_version'
+     and c.table_schema in ('public', 'private')
+     and (c.table_schema, c.table_name) <> ('private', 'pii_canary')
+     and pg_get_functiondef('private.pii_encrypted_values()'::regprocedure)
+         !~ ('\m' || c.table_schema || '\.' || c.table_name || '\M')
+$$, 'every table with a key_version column is listed in private.pii_encrypted_values()');
+select ok((select count(*) from information_schema.columns c
+            where c.column_name = 'key_version' and c.table_schema in ('public', 'private')
+              and (c.table_schema, c.table_name) <> ('private', 'pii_canary')) >= 1,
+  '… and that check sees the encrypted tables (organization_bank_details at least)');
 
 select col_type_is('public', 'organization_bank_details', 'key_version', 'smallint', 'bank details carry a key_version (smallint)');
 select col_not_null('public', 'organization_bank_details', 'key_version', 'key_version is not null');
@@ -206,6 +248,26 @@ select is(private.pii_current_key_version(), 1, 'without a canary the write vers
 select is(private.pii_seed_canary(1), true, 'pii_seed_canary recreates the version 1 canary (its key reads every stored value)');
 select is(public.pii_health_check(), true, 'the health check passes again once the canary is restored');
 
+-- Two concurrent calls: the second one's insert waits for the first one's commit, then inserts
+-- nothing. Simulated by a trigger that inserts the same canary just before the call's own insert.
+create function private.test_047_canary_race() returns trigger language plpgsql as $$
+begin
+  if pg_trigger_depth() = 1 then
+    insert into private.pii_canary (key_version, ciphertext) values (new.key_version, new.ciphertext);
+  end if;
+  return new;
+end;
+$$;
+delete from private.pii_canary where key_version = 1;
+create trigger test_047_canary_race before insert on private.pii_canary
+  for each row execute function private.test_047_canary_race();
+select is(private.pii_seed_canary(1), false,
+  'a canary created by a concurrent call after the check: pii_seed_canary returns false, it does not raise');
+drop trigger test_047_canary_race on private.pii_canary;
+drop function private.test_047_canary_race();
+select is((select count(*)::int from private.pii_canary where key_version = 1), 1, '… and one version 1 canary exists');
+select is(public.pii_health_check(), true, '… which the check accepts');
+
 -- =============================================================================
 -- Bank details written before a rotation (version 1)
 -- =============================================================================
@@ -225,8 +287,9 @@ select results_eq(
 select throws_ok($$ update public.organization_bank_details set key_version = 0 where org_id = 'b0000000-0000-0000-0000-00000000000a' $$,
   '23514', null, 'a key version is at least 1');
 select ok(exists (select 1 from private.pii_encrypted_values() e
-                   where e.table_name = 'organization_bank_details' and e.column_name = 'account_number' and e.key_version = 1),
-  'pii_encrypted_values lists the stored account numbers with their version');
+                   where e.table_name = 'organization_bank_details' and e.column_name = 'account_number' and e.key_version = 1
+                     and e.row_key = 'b0000000-0000-0000-0000-00000000000a'),
+  'pii_encrypted_values lists the stored account numbers with their row key and version');
 select results_eq($$ select distinct key_version from private.pii_key_versions_in_use() $$, $$ values (1) $$,
   'only version 1 holds data');
 
@@ -241,6 +304,13 @@ reset role;
 select ok((select b.account_number = s.account_number from public.organization_bank_details b, account_a s
             where b.org_id = 'b0000000-0000-0000-0000-00000000000a'),
   'a row already on the current version keeps its ciphertext when the account is kept');
+select results_eq(
+  $$ select changed_fields ? 'account_number', changed_fields ? 'key_version', changed_fields ? 'transit_number'
+       from public.audit_log
+      where table_name = 'organization_bank_details' and action = 'update'
+        and org_id = 'b0000000-0000-0000-0000-00000000000a' $$,
+  $$ values (false, false, true) $$,
+  '… and its audit row shows only the transit change (no account, no key version)');
 
 -- =============================================================================
 -- The check covers the stored data (org C's row, written as postgres, with a version 3 key)
@@ -265,11 +335,55 @@ select is(private.pii_seed_canary(3), false, 'a replaced key: the canary is not 
 select is_empty($$ select 1 from private.pii_canary where key_version = 3 $$, '… no version 3 canary exists');
 select is(public.pii_health_check(), false, '… and the check stays false');
 
+-- Keeping an account that does not decrypt: a clean P0001 with a hint, never pgcrypto's error.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000009","role":"authenticated"}', true);
+select throws_ok($$ select public.set_bank_details('002', '22223', null, null) $$, 'P0001',
+  'Le numéro de compte enregistré ne peut pas être lu avec la clé de cet environnement.',
+  'keeping an account whose key was replaced raises a clean P0001 (not 39000)');
+do $$
+declare
+  v_hint text;
+begin
+  perform public.set_bank_details('002', '22223', null, null);
+exception when others then
+  get stacked diagnostics v_hint = pg_exception_hint;
+  perform set_config('test047.hint', coalesce(v_hint, ''), true);
+end;
+$$;
+reset role;
+select is(current_setting('test047.hint', true),
+  'Saisissez de nouveau le numéro de compte au complet : il remplacera celui qui est enregistré.',
+  '… with a hint that says how to fix it');
+
 delete from vault.secrets where name = 'pii_encryption_key_v3';
 select is(public.pii_health_check(), false, 'a version in use with no key fails the check');
 
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000009","role":"authenticated"}', true);
+select throws_ok($$ select public.set_bank_details('002', '22223', null, null) $$, 'P0001',
+  'Le numéro de compte enregistré ne peut pas être lu avec la clé de cet environnement.',
+  'keeping an account whose key is missing raises the same clean P0001 (not 55000)');
+reset role;
+select results_eq(
+  $$ select transit_number, key_version from public.organization_bank_details where org_id = 'b0000000-0000-0000-0000-00000000000c' $$,
+  $$ values ('22222'::text, 3::smallint) $$,
+  '… and the row is left as it was');
+
 delete from public.organization_bank_details where org_id = 'b0000000-0000-0000-0000-00000000000c';
 select is(public.pii_health_check(), true, 'once no data uses version 3, the check passes again');
+
+-- The canary only proves its own key: a value encrypted with another key under a valid version
+-- (a production row copied to staging) is caught by decrypting the stored data.
+insert into public.organization_bank_details (org_id, institution_number, transit_number, account_number, account_last4, key_version)
+values ('b0000000-0000-0000-0000-00000000000c', '002', '22222',
+        extensions.pgp_sym_encrypt('99990000', 'pas-la-bonne-cle', 'cipher-algo=aes256'), '0000', 1);
+select is(public.pii_health_check(), false,
+  'canary 1 is valid but a bank row encrypted with another key (version 1) fails the check');
+select lives_ok((select code from runbook where step = 'unreadable'),
+  'the runbook block « Une valeur illisible » lists it without raising (row key and version only)');
+delete from public.organization_bank_details where org_id = 'b0000000-0000-0000-0000-00000000000c';
+select is(public.pii_health_check(), true, '… and passes once that row is gone');
 
 -- =============================================================================
 -- Rotation to version 2 (the runbook's steps, as postgres)
@@ -354,6 +468,9 @@ select throws_ok((select replace(code, 'v_target constant integer := 2', 'v_targ
 delete from private.pii_canary where key_version = 2;
 select is(private.pii_current_key_version(), 1, 'rollback point 1: without the version 2 canary, writes go back to version 1');
 select is(public.pii_health_check(), false, 'rollback point 1: version 2 still holds data without a canary, the check is false');
+select throws_ok((select replace(code, 'v_old constant integer := 1', 'v_old constant integer := 2') from runbook where step = 'retire'),
+  'P0001', 'Des valeurs sont encore chiffrées avec la version 2 (étape 4) : rien n''est retiré.',
+  'rollback: step 7 with v_old = 2 refuses while values are still on version 2');
 select lives_ok((select replace(code, 'v_target constant integer := 2', 'v_target constant integer := 1') from runbook where step = 'batch'),
   'rollback point 2: the batch re-encrypts back to version 1');
 select set_config('app.audit_source', '', true);
@@ -367,6 +484,18 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select is(public.reveal_bank_account_number(), '11112222', 'rollback: admin B reveals the account');
 reset role;
 
+-- Rollback, point 3: step 7 with v_old = 2 deletes the unused version 2 secret.
+select lives_ok((select replace(code, 'v_old constant integer := 1', 'v_old constant integer := 2') from runbook where step = 'retire'),
+  'rollback point 3: step 7 with v_old = 2 retires the version 2 key');
+select ok(private.pii_key(2) is null and private.pii_key(1) is not null,
+  '… pii_encryption_key_v2 is gone, pii_encryption_key is kept');
+select results_eq($$ select key_version from private.pii_canary order by 1 $$, $$ values (1::smallint) $$,
+  '… and only the version 1 canary is left');
+select is(public.pii_health_check(), true, '… and the check passes');
+
+select lives_ok(
+  $$ select vault.create_secret(encode(extensions.gen_random_bytes(32), 'base64'), 'pii_encryption_key_v2', 'test 047') $$,
+  'forward again: step 1 creates a new version 2 key');
 select is(private.pii_seed_canary(2), true, 'forward again: step 3 re-adds the version 2 canary');
 
 -- =============================================================================
