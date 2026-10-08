@@ -28,6 +28,14 @@ import {
 } from '@supabase/supabase-js'
 import { timingSafeEqual } from './timing-safe-equal.ts'
 
+/**
+ * Error codes stay English; the UI maps each one to a French text (P3-28).
+ * Usual statuses: `invalid_request` 400 (413 for a body over the cap),
+ * `unauthenticated` 401, `forbidden` / `module_disabled` 403, `not_found` 404,
+ * `conflict` 409, `link_invalid` / `link_expired` / `link_used` 410,
+ * `rate_limited` 429, `server_misconfigured` / `internal` 500,
+ * `provider_error` 502, `auth_unavailable` / `not_configured` 503.
+ */
 export type ErrorCode =
   | 'unauthenticated'
   | 'forbidden'
@@ -35,6 +43,15 @@ export type ErrorCode =
   | 'server_misconfigured'
   | 'auth_unavailable'
   | 'internal'
+  | 'rate_limited'
+  | 'invalid_request'
+  | 'link_invalid'
+  | 'link_expired'
+  | 'link_used'
+  | 'conflict'
+  | 'not_found'
+  | 'provider_error'
+  | 'not_configured'
 
 // ---------------------------------------------------------------------------
 // CORS and responses

@@ -1,0 +1,238 @@
+import { assertEquals } from '@std/assert'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Deps } from './deps.ts'
+import { runJob } from './jobs.ts'
+import { captureConsole, withEnv } from './testing/env.ts'
+import { fakeFetch } from './testing/fake-fetch.ts'
+import { fakeSupabase, type RpcRoute } from './testing/fake-supabase.ts'
+import { fixedClock } from './testing/fixed-clock.ts'
+
+const SECRET = 'local-dev-internal-function-secret'
+const JOB = 'core.test_job'
+const ORG_A = '11111111-1111-1111-1111-111111111111'
+const ORG_B = '22222222-2222-2222-2222-222222222222'
+const ENV = {
+  INTERNAL_FUNCTION_SECRET: SECRET,
+  SUPABASE_SERVICE_ROLE_KEY: undefined,
+  SUPABASE_SECRET_KEYS: undefined,
+  SENTRY_DSN: undefined,
+}
+
+function depsFor(client: SupabaseClient): Deps {
+  return {
+    env: () => undefined,
+    fetch: fakeFetch({}).fetch,
+    now: fixedClock('2026-10-08T10:00:00Z').now,
+    serviceClient: () => client,
+    userClient: () => new Response(null, { status: 500 }),
+  }
+}
+
+const jobRequest = (body: unknown, token = SECRET) =>
+  new Request('https://fn.test/job', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+
+const CRON = { job_key: JOB, org_id: null, trigger: 'cron' }
+
+function setup(rpc: Record<string, RpcRoute>) {
+  const fake = fakeSupabase({
+    rpc: {
+      list_job_orgs: { data: [ORG_A, ORG_B] },
+      start_job_run: (args) => ({ data: `run-${args.p_org_id}` }),
+      finish_job_run: { data: null },
+      ...rpc,
+    },
+  })
+  const perOrgCalls: string[] = []
+  return { ...fake, deps: depsFor(fake.client), perOrgCalls }
+}
+
+/** Runs the job with env set and console.error captured. */
+async function run(
+  deps: Deps,
+  req: Request,
+  perOrg: (orgId: string) => Promise<string>,
+) {
+  let res = new Response()
+  const errors = await captureConsole('error', async () => {
+    await withEnv(ENV, async () => {
+      res = await runJob(deps, req, JOB, perOrg)
+    })
+  })
+  return { res, errors }
+}
+
+const finishes = (calls: Array<{ fn: string; args: unknown }>) =>
+  calls.filter((c) => c.fn === 'finish_job_run').map((c) => c.args)
+
+Deno.test('runJob: a wrong bearer gives 401 and touches nothing', async () => {
+  const { deps, calls } = setup({})
+  const { res } = await run(deps, jobRequest(CRON, 'wrong'), () => {
+    throw new Error('must not run')
+  })
+  assertEquals(res.status, 401)
+  assertEquals(calls, [])
+})
+
+Deno.test('runJob: cron runs every listed org; a throwing org is finished as error', async () => {
+  const { deps, calls } = setup({})
+  const { res, errors } = await run(deps, jobRequest(CRON), (orgId) => {
+    if (orgId === ORG_B) {
+      return Promise.reject(
+        Object.assign(new Error('Resend said no to ana@example.test'), {
+          code: 'provider_error',
+        }),
+      )
+    }
+    return Promise.resolve('3 courriels envoyés')
+  })
+  assertEquals(res.status, 200)
+  assertEquals(await res.json(), { runs: 2 })
+  assertEquals(calls.map((c) => c.fn), [
+    'list_job_orgs',
+    'start_job_run',
+    'finish_job_run',
+    'start_job_run',
+    'finish_job_run',
+  ])
+  assertEquals(calls[0].args, { p_key: JOB })
+  assertEquals(calls[1].args, {
+    p_key: JOB,
+    p_org_id: ORG_A,
+    p_trigger: 'cron',
+  })
+  assertEquals(finishes(calls), [
+    { p_id: `run-${ORG_A}`, p_status: 'ok', p_detail: '3 courriels envoyés' },
+    { p_id: `run-${ORG_B}`, p_status: 'error', p_detail: 'provider_error' },
+  ])
+  // Reported with ids only: the error message (and its address) never leaves.
+  assertEquals(errors.length, 1)
+  assertEquals(JSON.parse(String(errors[0][0])), {
+    fn: JOB,
+    code: 'provider_error',
+    ids: { org_id: ORG_B, run_id: `run-${ORG_B}` },
+  })
+})
+
+Deno.test('runJob: start_job_run returning null skips the org (no perOrg, no finish)', async () => {
+  const { deps, calls } = setup({
+    start_job_run: (args) => ({
+      data: args.p_org_id === ORG_A ? null : 'run-b',
+    }),
+  })
+  const seen: string[] = []
+  const { res } = await run(deps, jobRequest(CRON), (orgId) => {
+    seen.push(orgId)
+    return Promise.resolve('ok')
+  })
+  assertEquals(await res.json(), { runs: 1 })
+  assertEquals(seen, [ORG_B])
+  assertEquals(finishes(calls), [
+    { p_id: 'run-b', p_status: 'ok', p_detail: 'ok' },
+  ])
+})
+
+Deno.test('runJob: a manual run uses the body org only, without list_job_orgs', async () => {
+  const { deps, calls } = setup({})
+  const { res } = await run(
+    deps,
+    jobRequest({ job_key: JOB, org_id: ORG_B, trigger: 'manual' }),
+    () => Promise.resolve('done'),
+  )
+  assertEquals(await res.json(), { runs: 1 })
+  assertEquals(calls.map((c) => c.fn), ['start_job_run', 'finish_job_run'])
+  assertEquals(calls[0].args, {
+    p_key: JOB,
+    p_org_id: ORG_B,
+    p_trigger: 'manual',
+  })
+})
+
+Deno.test('runJob: a manual run without an org, or a bad body, gives 400', async () => {
+  for (
+    const body of [
+      { job_key: JOB, org_id: null, trigger: 'manual' },
+      { trigger: 'later' },
+      { org_id: 'not-a-uuid', trigger: 'manual' },
+    ]
+  ) {
+    const { deps, calls } = setup({})
+    const { res } = await run(deps, jobRequest(body), () => Promise.resolve(''))
+    assertEquals(res.status, 400)
+    assertEquals((await res.json()).error.code, 'invalid_request')
+    assertEquals(calls, [])
+  }
+})
+
+Deno.test('runJob: an error without a safe code is recorded as internal', async () => {
+  for (
+    const thrown of [
+      new Error('row for ana@example.test'),
+      { code: 'a code with spaces' },
+      'plain string',
+    ]
+  ) {
+    const { deps, calls } = setup({ list_job_orgs: { data: [ORG_A] } })
+    await run(deps, jobRequest(CRON), () => Promise.reject(thrown))
+    assertEquals(finishes(calls), [
+      { p_id: `run-${ORG_A}`, p_status: 'error', p_detail: 'internal' },
+    ])
+  }
+})
+
+Deno.test('runJob: the detail is capped at 500 characters', async () => {
+  const { deps, calls } = setup({ list_job_orgs: { data: [ORG_A] } })
+  await run(deps, jobRequest(CRON), () => Promise.resolve('x'.repeat(600)))
+  assertEquals(
+    (finishes(calls)[0] as { p_detail: string }).p_detail.length,
+    500,
+  )
+})
+
+Deno.test('runJob: list_job_orgs failing gives 500 internal, reported', async () => {
+  const { deps } = setup({
+    list_job_orgs: { error: { code: 'XX000', message: 'boom' } },
+  })
+  const { res, errors } = await run(
+    deps,
+    jobRequest(CRON),
+    () => Promise.resolve(''),
+  )
+  assertEquals(res.status, 500)
+  assertEquals((await res.json()).error.code, 'internal')
+  assertEquals(JSON.parse(String(errors[0][0])).code, 'job_orgs_unavailable')
+})
+
+Deno.test('runJob: a failing start_job_run or finish_job_run is reported and the next org still runs', async () => {
+  const { deps, calls } = setup({
+    start_job_run: (args) =>
+      args.p_org_id === ORG_A
+        ? { error: { code: 'XX000', message: 'boom' } }
+        : { data: 'run-b' },
+    finish_job_run: { error: { code: 'XX000', message: 'boom' } },
+  })
+  const seen: string[] = []
+  const { res, errors } = await run(deps, jobRequest(CRON), (orgId) => {
+    seen.push(orgId)
+    return Promise.resolve('ok')
+  })
+  assertEquals(await res.json(), { runs: 1 })
+  assertEquals(seen, [ORG_B])
+  assertEquals(finishes(calls).length, 1)
+  assertEquals(errors.map((e) => JSON.parse(String(e[0])).code), [
+    'job_run_start_failed',
+    'job_run_finish_failed',
+  ])
+})
+
+Deno.test('runJob: a missing service client configuration is returned as is', async () => {
+  const deps = {
+    ...depsFor(fakeSupabase({}).client),
+    serviceClient: () => new Response(null, { status: 500 }),
+  }
+  const { res } = await run(deps, jobRequest(CRON), () => Promise.resolve(''))
+  assertEquals(res.status, 500)
+})
