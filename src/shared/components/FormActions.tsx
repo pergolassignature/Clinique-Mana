@@ -21,12 +21,18 @@ interface FormActionsProps {
   /** Another verb for the submit button (see SaveButton); « Enregistrer » by default. */
   submitLabel?: string
   pendingLabel?: string
+  /**
+   * « Annuler » closes the form instead of discarding edits (an edit mode opened by « Modifier »,
+   * as in Coordonnées bancaires): it stays active while the form is clean, inactive only while saving.
+   */
+  cancelCloses?: boolean
 }
 
 /**
  * The footer of a SettingsCard form: « Annuler / Enregistrer », aligned right by the card. Not a
  * dialog footer: here « Annuler » means « discard my edits », so it is inactive while nothing
- * changed, whereas a dialog's « Annuler » always closes.
+ * changed, whereas a dialog's « Annuler » always closes. A form shown only while editing
+ * (`cancelCloses`) is the exception: there « Annuler » also leaves the edit mode.
  *
  * Outline until dirty (design system: « Un seul bouton d'action coloré par écran »): « Annuler » is
  * always `outline`; the submit button is `outline` too while the form is clean, and the teal
@@ -37,8 +43,8 @@ interface FormActionsProps {
  * on them while saving, after a save and after « Annuler »; presses are ignored meanwhile.
  * « Annuler » is a plain button: it never submits.
  */
-export function FormActions({ onCancel, onReset, dirty, pending = false, submitLabel, pendingLabel }: FormActionsProps) {
-  const cancelInactive = !dirty || pending
+export function FormActions({ onCancel, onReset, dirty, pending = false, submitLabel, pendingLabel, cancelCloses = false }: FormActionsProps) {
+  const cancelInactive = (!dirty && !cancelCloses) || pending
   // Counts the « Annuler » presses: each one runs onReset after the render it caused.
   const [cancelled, setCancelled] = useState(0)
   useEffect(() => {

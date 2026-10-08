@@ -98,6 +98,19 @@ describe('FormActions', () => {
     expect(cancel()).not.toHaveClass('bg-primary')
   })
 
+  // An edit mode opened by « Modifier » (Coordonnées bancaires): « Annuler » leaves it, edits or not.
+  it('with cancelCloses, keeps « Annuler » active while the form is clean, and inactive only while saving', async () => {
+    const { onCancel, rerender } = renderActions({ dirty: false, cancelCloses: true })
+    expect(cancel()).not.toHaveAttribute('aria-disabled')
+    expect(save()).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(cancel())
+    expect(onCancel).toHaveBeenCalledOnce()
+    rerender({ dirty: true, pending: true, cancelCloses: true })
+    expect(cancel()).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(cancel())
+    expect(onCancel).toHaveBeenCalledOnce()
+  })
+
   it('passes another verb to the submit button', () => {
     renderActions({ submitLabel: 'Changer le courriel', pendingLabel: 'Envoi…' })
     expect(screen.getByRole('button', { name: 'Changer le courriel' })).toHaveAttribute('type', 'submit')
