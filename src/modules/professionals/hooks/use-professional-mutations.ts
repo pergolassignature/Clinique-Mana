@@ -7,6 +7,7 @@ import {
   deactivateProfessional,
   setClienteles,
   setLanguages,
+  setMatchingNote,
   setMotifs,
   setPayerNumber,
   setProfessionalEmail,
@@ -137,6 +138,19 @@ export function useUpdateMatchingProfile(feedback?: MutationFeedback) {
       apply: (record, _, { patch }) => ({ ...record, matchingProfile: { ...record.matchingProfile, ...patch } }),
       touchesUsage: false,
       touchesList: ({ patch }) => 'acceptingNewClients' in patch,
+    },
+    feedback,
+  )
+}
+
+/** « Bon à savoir » (P4-384): `note` null or blank clears it. Not in the list (no list refetch). */
+export function useSetMatchingNote(feedback?: MutationFeedback) {
+  return useRecordMutation(
+    {
+      mutationFn: ({ id, note }: { id: string; note: string | null }) => setMatchingNote(id, note),
+      apply: (record, matchingNote) => ({ ...record, matchingNote }),
+      touchesUsage: false,
+      touchesList: never,
     },
     feedback,
   )

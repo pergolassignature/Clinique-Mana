@@ -7,6 +7,7 @@ import {
   fetchProfessionalRecord,
   setClienteles,
   setLanguages,
+  setMatchingNote,
   setMotifs,
   setPayerNumber,
   setProfessionalEmail,
@@ -133,6 +134,26 @@ describe('column updates', () => {
     await updateMatchingProfile(ID, { acceptingNewClients: false, availabilityPeriods: ['am'], availabilityNote: null })
     expect(mocks.from).toHaveBeenCalledWith('professional_matching_profiles')
     expect(mocks.update).toHaveBeenCalledWith({ accepting_new_clients: false, availability_periods: ['am'], availability_note: null })
+  })
+
+  it('updateMatchingProfile writes the places offered alone (the database stamps their date, P4-382)', async () => {
+    mocks.select.mockResolvedValue({ data: [{ professional_id: ID }], error: null })
+    await updateMatchingProfile(ID, { newClientPlaces: 4 })
+    expect(mocks.update).toHaveBeenCalledWith({ new_client_places: 4 })
+  })
+})
+
+describe('« Bon à savoir » (P4-384)', () => {
+  it('setMatchingNote sends the text and returns the stored note', async () => {
+    ok({ note: 'Écrire avant de réserver.', updated_at: '2026-10-08T15:00:00+00:00' })
+    await expect(setMatchingNote(ID, 'Écrire avant de réserver.')).resolves.toEqual({ note: 'Écrire avant de réserver.', updatedAt: '2026-10-08T15:00:00+00:00' })
+    expect(mocks.rpc).toHaveBeenCalledWith('set_professional_matching_note', { p_id: ID, p_note: 'Écrire avant de réserver.' })
+  })
+
+  it('setMatchingNote with null clears it (null back)', async () => {
+    ok(null)
+    await expect(setMatchingNote(ID, null)).resolves.toBeNull()
+    expect(mocks.rpc).toHaveBeenCalledWith('set_professional_matching_note', { p_id: ID, p_note: '' })
   })
 })
 

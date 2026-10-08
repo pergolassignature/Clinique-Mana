@@ -56,6 +56,8 @@ const TECHNICAL = new Set([
   'client_label',
   // The fiche's last download or email (P4-203): bookkeeping, not a change to the file.
   'fiche_generated_at',
+  // The day the places offered were declared: stamped with the number (P4-382), which says it.
+  'new_client_places_set_at',
 ])
 /** Free texts: shown in the details only, never inside a sentence. */
 const LONG_TEXT = new Set(['bio', 'approach', 'availability_note', 'deactivation_note', 'activation_override_reason'])
@@ -443,6 +445,8 @@ function sessionsRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
 
 const SUBMISSIONS_TABLE = 'professional_submissions'
 const CONSENTS_TABLE = 'professional_consents'
+/** « Bon à savoir » (P4-384, P4-385): staff only, its text redacted in the audit and never shown here. */
+const MATCHING_NOTE_TABLE = 'professional_matching_notes'
 
 const isSection = (value: unknown): value is SubmissionSection => typeof value === 'string' && (SUBMISSION_SECTIONS as readonly string[]).includes(value)
 
@@ -492,6 +496,15 @@ function consentRow(entry: HistoryEntry): Described | null {
   return null
 }
 
+/** « a ajouté / modifié / retiré la note Bon à savoir »: that it changed, never what it says (P4-385). */
+function matchingNoteRow(entry: HistoryEntry): Described | null {
+  const S = `${H}.sentences.matchingNote`
+  if (entry.action === 'insert') return { kind: 'change', sentence: t(`${S}.added`), lines: [] }
+  if (entry.action === 'update') return { kind: 'change', sentence: t(`${S}.changed`), lines: [] }
+  if (entry.action === 'delete') return { kind: 'change', sentence: t(`${S}.removed`), lines: [] }
+  return null
+}
+
 /** One audit row of a table that is not a set, as a sentence and its details. */
 function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null {
   if (entry.tableName === PRIVATE_TABLE) {
@@ -503,6 +516,7 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   if (entry.tableName === SESSIONS_TABLE) return sessionsRow(ctx, entry)
   if (entry.tableName === SUBMISSIONS_TABLE) return submissionRow(entry)
   if (entry.tableName === CONSENTS_TABLE) return consentRow(entry)
+  if (entry.tableName === MATCHING_NOTE_TABLE) return matchingNoteRow(entry)
   switch (entry.tableName) {
     case 'professionals':
       return professionalRow(ctx.catalog, entry)

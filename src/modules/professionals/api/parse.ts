@@ -193,6 +193,8 @@ const matchingProfileRowPayload = z
     availability_note: z.string().nullable(),
     min_client_age: z.number().nullable(),
     women_only: z.boolean(),
+    new_client_places: z.number().int().nullable(),
+    new_client_places_set_at: z.string().nullable(),
     updated_at: z.string(),
   })
   .transform((r) => ({
@@ -203,10 +205,20 @@ const matchingProfileRowPayload = z
     minClientAge: r.min_client_age,
     /** Women clients only (« Femmes exclusivement », P4-245). */
     womenOnly: r.women_only,
+    /** « Places offertes » (0–99), null when not tracked (P4-382). The places left are Demandes'. */
+    newClientPlaces: r.new_client_places,
+    /** When the number was last (re)declared: the database stamps it when the number changes; null with it. */
+    newClientPlacesSetAt: r.new_client_places_set_at,
     updatedAt: r.updated_at,
   }))
 export type MatchingProfile = z.output<typeof matchingProfileRowPayload>
 
+/** « Bon à savoir » (P4-384): staff only; null without a note (and always for the provider). */
+export const matchingNotePayload = z
+  .object({ note: z.string(), updated_at: z.string() })
+  .transform((r) => ({ note: r.note, updatedAt: r.updated_at }))
+  .nullable()
+export type MatchingNote = NonNullable<z.output<typeof matchingNotePayload>>
 
 /**
  * One of the professional's titles (at most two, exactly one primary). Shared by the record and
@@ -247,6 +259,7 @@ export const recordPayload = z
     professional: professionalPayload,
     public_profile: publicProfileRowPayload,
     matching_profile: matchingProfileRowPayload,
+    matching_note: matchingNotePayload,
     professions: z.array(professionRowPayload),
     clienteles: z.array(specializedRefPayload),
     motif_ids: z.array(z.string()),
@@ -258,6 +271,7 @@ export const recordPayload = z
     professional: r.professional,
     publicProfile: r.public_profile,
     matchingProfile: r.matching_profile,
+    matchingNote: r.matching_note,
     professions: r.professions,
     clienteles: r.clienteles,
     motifIds: r.motif_ids,

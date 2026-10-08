@@ -5,11 +5,13 @@ import { invokeFunction } from '@/core/supabase/functions'
 import type { PayerType } from '../lib/constants'
 import { asRpcRefusal } from './function-errors'
 import {
+  matchingNotePayload,
   parseRpc,
   professionRowPayload,
   recordPayload,
   signinSyncPayload,
   statusChangePayload,
+  type MatchingNote,
   type MatchingProfile,
   type Professional,
   type ProfessionalRecord,
@@ -97,13 +99,14 @@ const MATCHING_PROFILE_COLUMNS = {
   availabilityNote: 'availability_note',
   minClientAge: 'min_client_age',
   womenOnly: 'women_only',
+  newClientPlaces: 'new_client_places',
 } as const satisfies Partial<Record<keyof MatchingProfile, keyof TablesUpdate<'professional_matching_profiles'>>>
 
 /** Identity, contact and experience (`professionals.manage`). Any other column is a compile error. */
 export type ProfessionalPatch = Partial<Pick<Professional, keyof typeof PROFESSIONAL_COLUMNS>>
 /** Portrait and public contact (`professionals.manage`). */
 export type PublicProfilePatch = Partial<Pick<PublicProfile, keyof typeof PUBLIC_PROFILE_COLUMNS>>
-/** General availability, new clients and the client limits (`professionals.matching`). */
+/** General availability, new clients, the client limits and the places offered (`professionals.matching`). */
 export type MatchingProfilePatch = Partial<Pick<MatchingProfile, keyof typeof MATCHING_PROFILE_COLUMNS>>
 
 type PatchTable = 'professionals' | 'professional_public_profiles' | 'professional_matching_profiles'
@@ -183,6 +186,16 @@ export async function setLanguages(id: string, languageIds: string[]): Promise<s
 export async function setPayerNumber(id: string, type: PayerType, value: string | null): Promise<void> {
   const { error } = await supabase.rpc('set_professional_payer_number', sqlArgs<'set_professional_payer_number'>({ p_id: id, p_payer_type: type, p_number: value }))
   if (error) throw error
+}
+
+/**
+ * « Bon à savoir » (P4-384, `professionals.matching`): the note, trimmed by the RPC; empty or null
+ * deletes it. Resolves with the stored note, or null once there is none.
+ */
+export async function setMatchingNote(id: string, note: string | null): Promise<MatchingNote | null> {
+  const { data, error } = await supabase.rpc('set_professional_matching_note', { p_id: id, p_note: note ?? '' })
+  if (error) throw error
+  return parseRpc(matchingNotePayload, data)
 }
 
 /** Changes the login email while no account exists (then « Mon compte » owns it). */

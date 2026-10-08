@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     setMotifs: vi.fn(),
     setLanguages: vi.fn(),
     updateMatchingProfile: vi.fn(),
+    setMatchingNote: vi.fn(),
   },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
@@ -108,6 +109,85 @@ describe('MatchingTab — what is held', () => {
     expect(screen.queryByRole('button', { name: /Modifier/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
     expect(within(card(t(`${M}.clienteles.title`))).getByText('Couples', { exact: false })).toBeInTheDocument()
+  })
+})
+
+describe('MatchingTab — places offertes and « Bon à savoir » (P4-382, P4-384)', () => {
+  const PL = `${M}.places`
+  const N = `${M}.matchingNote`
+
+  it('saves the places offered alone, says who they are for and when they were declared', async () => {
+    mocks.api.updateMatchingProfile.mockImplementation(async (_id: string, patch: Partial<ProfessionalRecord['matchingProfile']>) => {
+      stored = { ...stored, matchingProfile: { ...stored.matchingProfile, ...patch, newClientPlacesSetAt: '2026-10-08T14:00:00Z' } }
+    })
+    renderTab()
+    const places = card(t(`${PL}.title`))
+    expect(within(places).getByText(t(`${PL}.help`, { firstName: 'Marie' }))).toBeInTheDocument()
+    expect(within(places).getByText(t(`${PL}.notTracked`))).toBeInTheDocument()
+    await userEvent.type(within(places).getByRole('textbox', { name: t(`${PL}.label`) }), '4')
+    await userEvent.click(within(places).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.updateMatchingProfile).toHaveBeenCalledExactlyOnceWith(IDS.professional, { newClientPlaces: 4 }))
+    await waitFor(() => expect(within(card(t(`${PL}.title`))).getByText(/^Indiqué le 8 oct\./)).toBeInTheDocument())
+  })
+
+  it('refuses anything but a whole number under the field; empty means not tracked', async () => {
+    mocks.api.updateMatchingProfile.mockImplementation(async (_id: string, patch: Partial<ProfessionalRecord['matchingProfile']>) => {
+      stored = { ...stored, matchingProfile: { ...stored.matchingProfile, ...patch, newClientPlacesSetAt: null } }
+    })
+    renderTab({ change: (r) => ({ ...r, matchingProfile: { ...r.matchingProfile, newClientPlaces: 3, newClientPlacesSetAt: '2026-10-01T14:00:00Z' } }) })
+    const places = card(t(`${PL}.title`))
+    const input = within(places).getByRole('textbox', { name: t(`${PL}.label`) })
+    expect(input).toHaveValue('3')
+    await userEvent.clear(input)
+    await userEvent.type(input, '4a')
+    await userEvent.click(within(places).getByRole('button', { name: t('common.save') }))
+    expect(await within(places).findByText(t('modules.professionals.validation.places'))).toBeInTheDocument()
+    expect(mocks.api.updateMatchingProfile).not.toHaveBeenCalled()
+    await userEvent.clear(input)
+    await userEvent.click(within(places).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.updateMatchingProfile).toHaveBeenCalledExactlyOnceWith(IDS.professional, { newClientPlaces: null }))
+  })
+
+  it('saves « Bon à savoir » through its own RPC, trimmed; says it is never shown to the professional', async () => {
+    mocks.api.setMatchingNote.mockImplementation(async (_id: string, note: string | null) => {
+      const saved = note === null ? null : { note, updatedAt: '2026-10-08T15:00:00Z' }
+      stored = { ...stored, matchingNote: saved }
+      return saved
+    })
+    renderTab()
+    const note = card(t(`${N}.title`))
+    // (Its no-break space before « : » is kept: textContent, not the whitespace-folding text matcher.)
+    expect(note.textContent).toContain(t(`${N}.description`, { firstName: 'Marie' }))
+    await userEvent.type(within(note).getByRole('textbox', { name: t(`${N}.label`) }), '  Écrire avant de réserver.  ')
+    await userEvent.click(within(note).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.setMatchingNote).toHaveBeenCalledExactlyOnceWith(IDS.professional, 'Écrire avant de réserver.'))
+    expect(mocks.api.updateMatchingProfile).not.toHaveBeenCalled()
+    expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.toasts.saved'))
+  })
+
+  it('shows the note’s refusal under the field (HINT note)', async () => {
+    mocks.api.setMatchingNote.mockRejectedValue({ code: 'P0001', message: 'La note compte au plus 1000 caractères.', hint: 'note' })
+    renderTab()
+    const note = card(t(`${N}.title`))
+    await userEvent.type(within(note).getByRole('textbox', { name: t(`${N}.label`) }), 'Texte')
+    await userEvent.click(within(note).getByRole('button', { name: t('common.save') }))
+    expect(await within(note).findByText('La note compte au plus 1000 caractères.')).toBeInTheDocument()
+    expect(mocks.toast.error).not.toHaveBeenCalled()
+  })
+
+  it('read-only without professionals.matching: the note and the places are read, nothing saves', () => {
+    renderTab({
+      permissions: ['professionals.view'],
+      change: (r) => ({
+        ...r,
+        matchingProfile: { ...r.matchingProfile, newClientPlaces: 2, newClientPlacesSetAt: '2026-10-01T14:00:00Z' },
+        matchingNote: { note: 'Écrire avant de réserver.', updatedAt: '2026-10-08T15:00:00Z' },
+      }),
+    })
+    expect(within(card(t(`${N}.title`))).getByRole('textbox', { name: t(`${N}.label`) })).toHaveValue('Écrire avant de réserver.')
+    expect(within(card(t(`${PL}.title`))).getByRole('textbox', { name: t(`${PL}.label`) })).toHaveValue('2')
+    expect(screen.queryByText(t(`${PL}.help`, { firstName: 'Marie' }))).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t('common.save') })).not.toBeInTheDocument()
   })
 })
 

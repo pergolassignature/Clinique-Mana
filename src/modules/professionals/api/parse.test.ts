@@ -96,8 +96,11 @@ describe('recordPayload', () => {
       availabilityNote: null,
       minClientAge: null,
       womenOnly: false,
+      newClientPlaces: null,
+      newClientPlacesSetAt: null,
       updatedAt: '2026-10-08T12:00:00+00:00',
     })
+    expect(record?.matchingNote).toBeNull()
     expect(record?.professions).toEqual([{ id: IDS.professionRow, titleId: IDS.psychologue, licenceNumber: '12345', isPrimary: true }])
     expect(record?.clienteles).toEqual([{ id: IDS.couples, specialized: true }])
     expect(record?.motifIds).toEqual([IDS.anxiete])
@@ -114,6 +117,25 @@ describe('recordPayload', () => {
 
   it('is null when the caller cannot read the professional', () => {
     expect(parseRpc(recordPayload, null)).toBeNull()
+  })
+
+  it('reads the places offered with their date, and the staff note « Bon à savoir » (P4-382, P4-384)', () => {
+    const record = parseRpc(recordPayload, {
+      ...RECORD_JSON,
+      matching_profile: { ...RECORD_JSON.matching_profile, new_client_places: 4, new_client_places_set_at: '2026-10-08T14:00:00+00:00' },
+      matching_note: { note: 'Écrire avant de réserver.', updated_at: '2026-10-08T15:00:00+00:00' },
+    })
+    expect(record?.matchingProfile).toMatchObject({ newClientPlaces: 4, newClientPlacesSetAt: '2026-10-08T14:00:00+00:00' })
+    expect(record?.matchingNote).toEqual({ note: 'Écrire avant de réserver.', updatedAt: '2026-10-08T15:00:00+00:00' })
+  })
+
+  it('ignores columns added by later batches', () => {
+    const record = parseRpc(recordPayload, { ...RECORD_JSON, professional: { ...RECORD_JSON.professional, photo_file_id: 'x' } })
+    expect(record?.professional).not.toHaveProperty('photo_file_id')
+  })
+
+  it('refuses a status the database does not allow', () => {
+    expect(() => parseRpc(recordPayload, { ...RECORD_JSON, professional: { ...RECORD_JSON.professional, status: 'pending' } })).toThrow(SHAPE_ERROR)
   })
 })
 

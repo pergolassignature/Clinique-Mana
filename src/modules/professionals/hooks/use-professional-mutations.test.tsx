@@ -8,6 +8,7 @@ import {
   useDeactivateProfessional,
   useSetClienteles,
   useSetLanguages,
+  useSetMatchingNote,
   useSetMotifs,
   useSetPayerNumber,
   useSetProfessionalEmail,
@@ -37,6 +38,7 @@ const mocks = vi.hoisted(() => ({
     activateProfessional: vi.fn(),
     deactivateProfessional: vi.fn(),
     syncProfessionalSignin: vi.fn(),
+    setMatchingNote: vi.fn(),
   },
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
   captureException: vi.fn(),
@@ -268,6 +270,18 @@ describe('status: the provider’s account and its sign-in (Task 4b.6, P4-381)',
     mocks.api.syncProfessionalSignin.mockRejectedValueOnce({ code: '42501', message: 'Permission refusée' })
     mocks.toast.warning.mock.calls[0]?.[1].action.onClick()
     await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith(t('common.errors.forbidden')))
+  })
+})
+
+describe('useSetMatchingNote (« Bon à savoir », P4-384)', () => {
+  it('writes the stored note into the record, refreshes the record and the history, never the lists', async () => {
+    const { wrapper, cached, invalidated } = setup()
+    mocks.api.setMatchingNote.mockResolvedValue({ note: 'Écrire avant de réserver.', updatedAt: '2026-10-08T15:00:00+00:00' })
+    await run(() => useSetMatchingNote(), { id: ID, note: 'Écrire avant de réserver.' }, wrapper)
+    expect(mocks.api.setMatchingNote).toHaveBeenCalledWith(ID, 'Écrire avant de réserver.')
+    expect(cached()?.matchingNote).toEqual({ note: 'Écrire avant de réserver.', updatedAt: '2026-10-08T15:00:00+00:00' })
+    expect(invalidated()).toEqual([professionalKeys.record(ID), professionalKeys.history(ID)])
+    expect(mocks.toast.success).toHaveBeenCalledWith(SAVED)
   })
 })
 
