@@ -1,14 +1,16 @@
 -- Rate limits and the shared webhook claim
 -- (migration *_core_rate_limits_webhook_events.sql, plan Phase 3 Task 3.2).
 -- Covers: privileges on rate_limits / webhook_events and the five RPCs; consume_rate_limit
--- (fixed window, independent keys, argument checks); claim_webhook_event (claimed,
--- in_progress, duplicate, lease takeover, retry after a failure, another org);
--- complete_webhook_event / fail_webhook_event (token match, payload cleared or kept, error
--- codes only); last_webhook_event_at (settings.view, caller's org and provider only).
+-- (fixed window, no write once past max, independent keys, argument checks);
+-- claim_webhook_event (claimed, in_progress, duplicate, lease takeover, retry after a failure,
+-- another org on a completed, failed or lapsed event, lease and payload bounds);
+-- complete_webhook_event / fail_webhook_event (token match, payload cleared or kept, last error
+-- cleared on completion, error codes only, a lapsed holder completing); the status/lease check;
+-- last_webhook_event_at (settings.view, caller's org and provider only).
 -- The whole file is one transaction, so now() is constant: every hit lands in one window.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(56);
+select plan(68);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -87,12 +89,19 @@ select results_eq($$ select allowed, hits, retry_after_seconds from public.consu
 select results_eq(
   $$ select allowed, hits, retry_after_seconds between 1 and 60 from public.consume_rate_limit('test.bucket', sha256('k'), 2, 60) $$,
   $$ values (false, 3, true) $$, 'third hit is refused with a wait inside the window');
+select results_eq(
+  $$ select allowed, hits, retry_after_seconds between 1 and 60 from public.consume_rate_limit('test.bucket', sha256('k'), 2, 60) $$,
+  $$ values (false, 3, true) $$, 'a fourth hit is refused the same way (hits = max + 1)');
+reset role;
+select is((select hits from public.rate_limits where bucket = 'test.bucket' and key_hash = sha256('k')), 3,
+  'refused hits past max + 1 write nothing');
+set local role service_role;
 select results_eq($$ select allowed, hits from public.consume_rate_limit('test.bucket', sha256('other'), 2, 60) $$,
   $$ values (true, 1) $$, 'another key is counted on its own');
 select results_eq($$ select allowed, hits from public.consume_rate_limit('test.other_bucket', sha256('k'), 2, 60) $$,
   $$ values (true, 1) $$, 'another bucket is counted on its own');
 
-select throws_ok($$ select * from public.consume_rate_limit('test.bucket', sha256('k'), 0, 60) $$, '22023', null,
+select throws_ok($$ select * from public.consume_rate_limit('test.bucket', sha256('k'), 0, 60) $$, '22023', 'Arguments invalides.',
   'p_max = 0 is refused');
 select throws_ok($$ select * from public.consume_rate_limit('test.bucket', '\x00'::bytea, 2, 60) $$, '22023', null,
   'a key that is not 32 bytes is refused');
@@ -138,7 +147,7 @@ select is(public.complete_webhook_event((select id from claims where step = 'fir
 
 select throws_ok($$ select * from public.claim_webhook_event('resend', 'test-evt-1', 'b0000000-0000-0000-0000-00000000000b',
                                                              'email.delivered', '{}') $$,
-  '22023', null, 'an event id that belongs to another org is refused');
+  '22023', 'Fournisseur ou événement invalide.', 'an event id that belongs to another org is refused');
 
 -- =============================================================================
 -- Lease takeover, failure, retry
@@ -180,6 +189,10 @@ select results_eq(
   'a failed event keeps its payload for the retry and counts both attempts');
 set local role service_role;
 
+select throws_ok($$ select * from public.claim_webhook_event('resend', 'test-evt-2', 'b0000000-0000-0000-0000-00000000000b',
+                                                             'email.bounced', '{"email_id":"e2"}') $$,
+  '22023', 'Fournisseur ou événement invalide.', 'another org cannot take over a failed event');
+
 insert into claims
   select 'retry', * from public.claim_webhook_event('resend', 'test-evt-2', 'b0000000-0000-0000-0000-00000000000a',
                                                     'email.bounced', '{"email_id":"e2"}');
@@ -188,6 +201,29 @@ select results_eq($$ select status, claim_token is not null from claims where st
 reset role;
 select is((select attempts from public.webhook_events where provider = 'resend' and event_id = 'test-evt-2'), 3,
   'the retry is the third attempt');
+update public.webhook_events set lease_expires_at = now() - interval '1 second'
+ where provider = 'resend' and event_id = 'test-evt-2';
+set local role service_role;
+
+select throws_ok($$ select * from public.claim_webhook_event('resend', 'test-evt-2', 'b0000000-0000-0000-0000-00000000000b',
+                                                             'email.bounced', '{"email_id":"e2"}') $$,
+  '22023', 'Fournisseur ou événement invalide.', 'another org cannot take over a lapsed lease');
+reset role;
+select results_eq(
+  $$ select w.status, w.attempts, w.claim_token = c.claim_token
+       from public.webhook_events w, claims c
+      where w.provider = 'resend' and w.event_id = 'test-evt-2' and c.step = 'retry' $$,
+  $$ values ('processing'::text, 3, true) $$, 'the refused claims leave org A''s event untouched');
+set local role service_role;
+
+select is(public.complete_webhook_event((select id from claims where step = 'retry'), (select claim_token from claims where step = 'retry')),
+  true, 'a holder past its lease still completes when nobody took over');
+reset role;
+select results_eq(
+  $$ select status, last_error, payload is null, claim_token is null, lease_expires_at is null, attempts
+       from public.webhook_events where provider = 'resend' and event_id = 'test-evt-2' $$,
+  $$ values ('completed'::text, null::text, true, true, true, 3) $$,
+  'completion clears the last error of the failed attempt (attempts still counts it)');
 set local role service_role;
 
 -- =============================================================================
@@ -206,6 +242,30 @@ select throws_ok($$ select * from public.claim_webhook_event('resend', 'test-evt
   '22023', null, 'a payload over 64 KB is refused');
 select throws_ok($$ select * from public.claim_webhook_event('resend', 'test-evt-3', 'b0000000-0000-0000-0000-00000000000a', 'x', '{}', 0) $$,
   '22023', null, 'a lease under one second is refused');
+select throws_ok($$ select * from public.claim_webhook_event('resend', 'test-evt-3', 'b0000000-0000-0000-0000-00000000000a', 'x', '{}', 3601) $$,
+  '22023', null, 'a lease over one hour is refused');
+select throws_ok($$ select * from public.claim_webhook_event('resend', 'test-evt-3', 'b0000000-0000-0000-0000-00000000000a', 'x', null) $$,
+  '22023', 'Arguments invalides.', 'a null payload is refused');
+
+insert into claims
+  select 'hour_lease', * from public.claim_webhook_event('resend', 'test-evt-4', 'b0000000-0000-0000-0000-00000000000a', 'email.sent', '{"email_id":"e4"}', 3600);
+reset role;
+select results_eq(
+  $$ select c.status, w.lease_expires_at = now() + interval '1 hour'
+       from claims c join public.webhook_events w on w.id = c.id where c.step = 'hour_lease' $$,
+  $$ values ('claimed'::text, true) $$, 'a one-hour lease is accepted');
+
+-- =============================================================================
+-- webhook_events_lease_check: only a processing row holds a token and a lease
+-- =============================================================================
+select throws_ok($$ insert into public.webhook_events (provider, event_id, org_id, event_type)
+                    values ('resend', 'test-bad-1', 'b0000000-0000-0000-0000-00000000000a', 'x') $$,
+  '23514', 'new row for relation "webhook_events" violates check constraint "webhook_events_lease_check"',
+  'a processing row without a token and a lease is refused');
+select throws_ok($$ insert into public.webhook_events (provider, event_id, org_id, event_type, status, claim_token, lease_expires_at)
+                    values ('resend', 'test-bad-2', 'b0000000-0000-0000-0000-00000000000a', 'x', 'failed', gen_random_uuid(), now()) $$,
+  '23514', null, 'a failed row cannot keep a token and a lease');
+set local role service_role;
 
 -- =============================================================================
 -- last_webhook_event_at (caller's org, settings.view)

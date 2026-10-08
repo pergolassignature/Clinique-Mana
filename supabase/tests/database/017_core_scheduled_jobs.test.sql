@@ -242,8 +242,11 @@ insert into public.webhook_events (provider, event_id, org_id, event_type, statu
   ('resend', 'test-completed', 'b0000000-0000-0000-0000-00000000000a', 'email.sent', 'completed',  '{"a":1}', now() - interval '1 day'),
   ('resend', 'test-failed-old', 'b0000000-0000-0000-0000-00000000000a', 'email.sent', 'failed',    '{"a":1}', now() - interval '8 days'),
   ('resend', 'test-failed-new', 'b0000000-0000-0000-0000-00000000000a', 'email.sent', 'failed',    '{"a":1}', now() - interval '6 days'),
-  ('resend', 'test-processing', 'b0000000-0000-0000-0000-00000000000a', 'email.sent', 'processing', '{"a":1}', now() - interval '8 days'),
   ('resend', 'test-expired', 'b0000000-0000-0000-0000-00000000000a', 'email.sent', 'failed',       '{"a":1}', now() - interval '91 days');
+-- A processing row holds a token and a lease (webhook_events_lease_check).
+insert into public.webhook_events (provider, event_id, org_id, event_type, status, payload, received_at, claim_token, lease_expires_at)
+values ('resend', 'test-processing', 'b0000000-0000-0000-0000-00000000000a', 'email.sent', 'processing', '{"a":1}', now() - interval '8 days',
+        gen_random_uuid(), now() + interval '5 minutes');
 select ok(private.job_webhook_events_purge() ~ '^payloads_cleared=\d+ deleted=\d+$', 'job_webhook_events_purge returns counts');
 select results_eq(
   $$ select event_id, payload is null from public.webhook_events where event_id like 'test-%' order by event_id $$,
