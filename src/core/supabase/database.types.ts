@@ -469,6 +469,27 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          bucket: string
+          hits: number
+          key_hash: string
+          window_start: string
+        }
+        Insert: {
+          bucket: string
+          hits?: number
+          key_hash: string
+          window_start: string
+        }
+        Update: {
+          bucket?: string
+          hits?: number
+          key_hash?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       role_permissions: {
         Row: {
           permission_key: string
@@ -664,6 +685,65 @@ export type Database = {
           },
         ]
       }
+      webhook_events: {
+        Row: {
+          attempts: number
+          claim_token: string | null
+          claimed_at: string | null
+          completed_at: string | null
+          event_id: string
+          event_type: string
+          id: string
+          last_error: string | null
+          lease_expires_at: string | null
+          org_id: string
+          payload: Json | null
+          provider: string
+          received_at: string
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          claim_token?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          event_id: string
+          event_type: string
+          id?: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          org_id: string
+          payload?: Json | null
+          provider: string
+          received_at?: string
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          claim_token?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          event_id?: string
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          org_id?: string
+          payload?: Json | null
+          provider?: string
+          received_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -673,6 +753,21 @@ export type Database = {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
         Returns: string
       }
+      claim_webhook_event: {
+        Args: {
+          p_event_id: string
+          p_event_type: string
+          p_lease_seconds?: number
+          p_org_id: string
+          p_payload: Json
+          p_provider: string
+        }
+        Returns: {
+          claim_token: string
+          id: string
+          status: string
+        }[]
+      }
       clear_permission_override: {
         Args: { p_permission_key: string; p_user_id: string }
         Returns: undefined
@@ -681,6 +776,23 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: number
       }
+      complete_webhook_event: {
+        Args: { p_claim_token: string; p_id: string }
+        Returns: boolean
+      }
+      consume_rate_limit: {
+        Args: {
+          p_bucket: string
+          p_key_hash: string
+          p_max: number
+          p_window_seconds: number
+        }
+        Returns: {
+          allowed: boolean
+          hits: number
+          retry_after_seconds: number
+        }[]
+      }
       create_role: {
         Args: { p_copy_from?: string; p_name: string }
         Returns: string
@@ -688,6 +800,10 @@ export type Database = {
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_role: { Args: { p_role: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
+      fail_webhook_event: {
+        Args: { p_claim_token: string; p_error: string; p_id: string }
+        Returns: boolean
+      }
       get_bank_details: {
         Args: never
         Returns: {
@@ -704,6 +820,7 @@ export type Database = {
         Args: { p_key: string; p_org_id: string }
         Returns: string
       }
+      last_webhook_event_at: { Args: { p_provider: string }; Returns: string }
       list_audit_actors: {
         Args: never
         Returns: {

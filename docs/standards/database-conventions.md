@@ -147,6 +147,7 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 **Encrypted columns** (reference: `organization_bank_details`, migration `…_core_bank_details.sql`):
 - Store the value in a `bytea` column, on a table with no client privilege (RLS on, no policy), revoked from `service_role` too: `revoke all on public.<table> from anon, authenticated, service_role;`.
 - Encrypt with `private.encrypt_pii(text)` inside a SECURITY DEFINER RPC (owned by `postgres`) that checks its permission first. Key: Vault secret `pii_encryption_key`; AES-256 with a SHA-256 key derivation, via pgcrypto.
+- **Operational logs are not audited either**, even with an `org_id`: `webhook_events`, `email_log`, `scheduled_job_runs`, `notifications`, `notification_reads` (and `rate_limits`, which has no `org_id`). They are written by the service role or by RPCs, hold recipient addresses or provider payloads, and are purged; auditing them would copy that data into the append-only `audit_log` forever (Loi 25; Phase 3 design §2.5). The list lives in `000_invariants` (§12): a new operational log is added there with its reason, never by disabling the check.
 - Keep a `*_last4` (or otherwise masked) column for display; the « get » RPC returns only that.
 - A reveal RPC decrypts with `private.decrypt_pii(bytea)` and writes an `audit_log` row: action `read`, `source = 'rpc:<function>'`, `changed_fields = {"fields": ["<column>", …]}` (the names of the revealed columns, never values). No stored value → return null, no audit row.
 - Attach the audit trigger with the encrypted column **and every other value of the guarded data** redacted (masked column, related numbers, contact): `private.audit_trigger('<column>', …)`. `audit.view` must never show what the reveal permission guards; changes stay visible as `"[redacted]"`.
@@ -224,7 +225,7 @@ These hold for every current and future object; a violation fails CI.
 | No `public` / `private` function is executable by `anon` or `PUBLIC` | `revoke all on function … from public, anon` |
 | Every function in `public` / `private` has `set search_path = ''` | add it, qualify names (§6) |
 | Every foreign key has an index whose first column is the FK's first column | add the index (§4) |
-| Every table with an `org_id` column (except `audit_log`) has an `audit_trigger` | attach it (§7) |
+| Every table with an `org_id` column has an `audit_trigger`, except `audit_log` and the operational logs `webhook_events`, `email_log`, `scheduled_job_runs`, `notifications`, `notification_reads` (they hold addresses and payloads that must not be copied into `audit_log` forever, §7) | attach it (§7) |
 | Every view is `security_invoker = true` | §5b |
 | `admin` holds every permission in every org (`org_role_permissions`) | add the `('admin', '<permission>')` row to `role_permissions` in the migration that adds the permission (§9) |
 

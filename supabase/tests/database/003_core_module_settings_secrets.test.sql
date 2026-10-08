@@ -76,7 +76,8 @@ select functions_are('public', array[
   'list_org_users', 'set_user_role', 'set_user_status', 'set_permission_override', 'clear_permission_override',
   'clear_permission_overrides',
   'set_role_permission', 'create_role', 'rename_role', 'delete_role',
-  'list_audit_entries', 'list_audit_actors'
+  'list_audit_entries', 'list_audit_actors',
+  'consume_rate_limit', 'claim_webhook_event', 'complete_webhook_event', 'fail_webhook_event', 'last_webhook_event_at'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
