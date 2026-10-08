@@ -1248,6 +1248,29 @@ create trigger profiles_sync_professional_email
 revoke all on function private.professionals_email_from_profile() from public, anon, authenticated, service_role;
 ```
 
+**As built (the migration is the reference where this sketch differs):**
+- **Professions guard:** the « at most two » count ignores the row's own title. An upsert that re-sends an existing title fires `BEFORE INSERT` before the conflict is found, so the sketch's count would refuse re-sending two titles. The guard also checks the base licence format with a French P0001 (« Numéro de permis invalide : lettres, chiffres, espaces et traits d'union (30 caractères au plus). »), so the check constraint (`23514`) is never what a user sees. A title repeated in the items gets « Un titre ne peut être choisi qu'une fois. ». An unknown title gives `22023` « Titre inconnu. ».
+- **Restricted motifs, both ways (P4-16):** `set_professional_professions` refuses to remove the last regulated title while restricted motifs are held: « Retirez d'abord les motifs réservés aux professions réglementées : Psychose. » (names joined with « , »). Two paths stay open, as in the sketch: an admin marking a held motif restricted (`save_motif`), and a title losing its order (`save_profession_title`). 4a.4 readiness can flag them.
+- **Set inputs:**
+  - a `null` set (`p_motif_ids`, `p_language_ids`, `p_items`) is refused with `22023`, while `[]` clears the set. The sketch's `coalesce(…, '{}')` would have cleared a set on a client bug.
+  - At most 500 ids or items (`22023`), and null ids are ignored.
+  - Clientèles and approaches parse `[{id, specialized?}]` through `private.parse_specialized_items` (an id repeated is specialized if any item says so).
+  - Unknown ids give `22023` (« Clientèle inconnue. », « Approche inconnue. », « Langue inconnue. », « Motif inconnu. »). New archived rows give P0001 « La clientèle « … » est archivée. », « L'approche « … » est archivée. » or « La langue « … » est archivée. »; a row already held may stay.
+- **Writes only what changes:** profession upserts and specialized flags are skipped when unchanged, so re-sending a set writes no audit row (pgTAP checks it).
+- **Lock order:** `set_professional_email` locks the professional, then the org row (conventions §6). `create_professional` locks the org row only. Names go through `private.reference_text` (« Le prénom est obligatoire. », 80 characters). The email helpers are `private.professional_email` (« Courriel invalide. ») and `private.assert_professional_email_free(org, email, except)`.
+- **Other errors:** a licence without a title in `create_professional` gives `22023`. An IVAC number outside `^[A-Za-z0-9-]{3,30}$` gives P0001 « Numéro IVAC invalide : 3 à 30 lettres, chiffres ou traits d'union. ».
+- **Check constraints:**
+  - the matching profile's « distinct periods » check calls `private.has_no_duplicates(text[])`, because a check constraint cannot hold a subquery. It is granted to `authenticated` and `service_role`, since checks run with the writer's privileges.
+  - `bio`, `approach` and `availability_note` are 1–4000 / 1–500 characters and not blank.
+- **Indexes:** the four matching junction indexes are `(org_id, <x>_id) include (professional_id)`, so « who holds X » never needs the heap for the id.
+  - EXPLAIN (50 professionals, ~600 motif rows, conseillère under RLS): the matching query (clientèle + language + accepting, scored by motif hits) runs in about 1 ms. RLS helpers run once per statement (InitPlans), and lookups use the junction primary keys or the `(org_id, <x>_id)` indexes.
+  - `set_professional_motifs` with 15 motifs runs in about 2 ms.
+- **`list_professionals_reference_usage`:**
+  - `kind` is the table name, as `set_professionals_reference_active` takes it: `motifs`, `clienteles`, `specialties`, `languages`, `profession_titles`, `deactivation_reasons`, `profession_categories`, `professional_orders`, `motif_categories`.
+  - It is plpgsql security invoker and filters on the caller's org, so each count uses its index.
+- **Email sync test:** `profiles.email` is always copied from `auth.users` by a `BEFORE` trigger, so the pgTAP updates `auth.users.email` and checks that the change reaches `professionals.email` through the profile.
+- **Redaction:** no column of these tables is redacted. They hold no SIN or bank data (that is 4a.17), and everything they log is already readable with `professionals.view`.
+
 **Step 4: Run the database checks** (lock; with and without seed). **Step 5: Commit** (`feat(db): professional record, matching sets and provider link`).
 
 ---

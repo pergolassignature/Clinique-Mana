@@ -1437,6 +1437,179 @@ export type Database = {
           },
         ]
       }
+      professional_clienteles: {
+        Row: {
+          clientele_id: string
+          created_at: string
+          is_specialized: boolean
+          org_id: string
+          professional_id: string
+          updated_at: string
+        }
+        Insert: {
+          clientele_id: string
+          created_at?: string
+          is_specialized?: boolean
+          org_id: string
+          professional_id: string
+          updated_at?: string
+        }
+        Update: {
+          clientele_id?: string
+          created_at?: string
+          is_specialized?: boolean
+          org_id?: string
+          professional_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_clienteles_clientele_fkey"
+            columns: ["org_id", "clientele_id"]
+            isOneToOne: false
+            referencedRelation: "clienteles"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_clienteles_clientele_fkey"
+            columns: ["org_id", "clientele_id"]
+            isOneToOne: false
+            referencedRelation: "clienteles_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_clienteles_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      professional_languages: {
+        Row: {
+          created_at: string
+          language_id: string
+          org_id: string
+          professional_id: string
+        }
+        Insert: {
+          created_at?: string
+          language_id: string
+          org_id: string
+          professional_id: string
+        }
+        Update: {
+          created_at?: string
+          language_id?: string
+          org_id?: string
+          professional_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_languages_language_fkey"
+            columns: ["org_id", "language_id"]
+            isOneToOne: false
+            referencedRelation: "languages"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_languages_language_fkey"
+            columns: ["org_id", "language_id"]
+            isOneToOne: false
+            referencedRelation: "languages_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_languages_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      professional_matching_profiles: {
+        Row: {
+          accepting_new_clients: boolean
+          availability_note: string | null
+          availability_periods: string[]
+          created_at: string
+          org_id: string
+          professional_id: string
+          updated_at: string
+        }
+        Insert: {
+          accepting_new_clients?: boolean
+          availability_note?: string | null
+          availability_periods?: string[]
+          created_at?: string
+          org_id: string
+          professional_id: string
+          updated_at?: string
+        }
+        Update: {
+          accepting_new_clients?: boolean
+          availability_note?: string | null
+          availability_periods?: string[]
+          created_at?: string
+          org_id?: string
+          professional_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_matching_profiles_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      professional_motifs: {
+        Row: {
+          created_at: string
+          motif_id: string
+          org_id: string
+          professional_id: string
+        }
+        Insert: {
+          created_at?: string
+          motif_id: string
+          org_id: string
+          professional_id: string
+        }
+        Update: {
+          created_at?: string
+          motif_id?: string
+          org_id?: string
+          professional_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_motifs_motif_fkey"
+            columns: ["org_id", "motif_id"]
+            isOneToOne: false
+            referencedRelation: "motifs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_motifs_motif_fkey"
+            columns: ["org_id", "motif_id"]
+            isOneToOne: false
+            referencedRelation: "motifs_catalog"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_motifs_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       professional_orders: {
         Row: {
           acronym: string
@@ -1487,6 +1660,292 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      professional_payer_numbers: {
+        Row: {
+          created_at: string
+          number: string
+          org_id: string
+          payer_type: string
+          professional_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          number: string
+          org_id: string
+          payer_type: string
+          professional_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          number?: string
+          org_id?: string
+          payer_type?: string
+          professional_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_payer_numbers_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      professional_professions: {
+        Row: {
+          created_at: string
+          id: string
+          is_primary: boolean
+          licence_number: string | null
+          org_id: string
+          profession_title_id: string
+          professional_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          licence_number?: string | null
+          org_id: string
+          profession_title_id: string
+          professional_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          licence_number?: string | null
+          org_id?: string
+          profession_title_id?: string
+          professional_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_professions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_professions_title_fkey"
+            columns: ["org_id", "profession_title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      professional_public_profiles: {
+        Row: {
+          approach: string | null
+          bio: string | null
+          created_at: string
+          org_id: string
+          professional_id: string
+          public_email: string | null
+          public_phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          approach?: string | null
+          bio?: string | null
+          created_at?: string
+          org_id: string
+          professional_id: string
+          public_email?: string | null
+          public_phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approach?: string | null
+          bio?: string | null
+          created_at?: string
+          org_id?: string
+          professional_id?: string
+          public_email?: string | null
+          public_phone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_public_profiles_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      professional_specialties: {
+        Row: {
+          created_at: string
+          is_specialized: boolean
+          org_id: string
+          professional_id: string
+          specialty_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          is_specialized?: boolean
+          org_id: string
+          professional_id: string
+          specialty_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          is_specialized?: boolean
+          org_id?: string
+          professional_id?: string
+          specialty_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_specialties_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_specialties_specialty_fkey"
+            columns: ["org_id", "specialty_id"]
+            isOneToOne: false
+            referencedRelation: "specialties"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      professionals: {
+        Row: {
+          activation_override_reason: string | null
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          country: string
+          created_at: string
+          created_by: string | null
+          deactivation_disabled_account: boolean
+          deactivation_note: string | null
+          deactivation_reason_id: string | null
+          email: string
+          first_name: string
+          gender: string | null
+          id: string
+          last_name: string
+          org_id: string
+          personal_phone: string | null
+          postal_code: string | null
+          profile_id: string | null
+          province: string
+          status: string
+          status_changed_at: string
+          status_changed_by: string | null
+          updated_at: string
+          years_experience: number | null
+        }
+        Insert: {
+          activation_override_reason?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          deactivation_disabled_account?: boolean
+          deactivation_note?: string | null
+          deactivation_reason_id?: string | null
+          email: string
+          first_name: string
+          gender?: string | null
+          id?: string
+          last_name: string
+          org_id: string
+          personal_phone?: string | null
+          postal_code?: string | null
+          profile_id?: string | null
+          province?: string
+          status?: string
+          status_changed_at?: string
+          status_changed_by?: string | null
+          updated_at?: string
+          years_experience?: number | null
+        }
+        Update: {
+          activation_override_reason?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          deactivation_disabled_account?: boolean
+          deactivation_note?: string | null
+          deactivation_reason_id?: string | null
+          email?: string
+          first_name?: string
+          gender?: string | null
+          id?: string
+          last_name?: string
+          org_id?: string
+          personal_phone?: string | null
+          postal_code?: string | null
+          profile_id?: string | null
+          province?: string
+          status?: string
+          status_changed_at?: string
+          status_changed_by?: string | null
+          updated_at?: string
+          years_experience?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professionals_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "professionals_deactivation_reason_fkey"
+            columns: ["org_id", "deactivation_reason_id"]
+            isOneToOne: false
+            referencedRelation: "deactivation_reasons"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professionals_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professionals_profile_fkey"
+            columns: ["profile_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+          {
+            foreignKeyName: "professionals_status_changed_by_fkey"
+            columns: ["status_changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -2907,6 +3366,16 @@ export type Database = {
           object_path: string
         }[]
       }
+      create_professional: {
+        Args: {
+          p_email: string
+          p_first_name: string
+          p_last_name: string
+          p_licence_number?: string
+          p_profession_title_id?: string
+        }
+        Returns: string
+      }
       create_role: {
         Args: { p_copy_from?: string; p_name: string }
         Returns: string
@@ -3152,6 +3621,14 @@ export type Database = {
           role_name: string
           status: string
           user_id: string
+        }[]
+      }
+      list_professionals_reference_usage: {
+        Args: never
+        Returns: {
+          id: string
+          kind: string
+          usage: number
         }[]
       }
       list_scheduled_job_runs: {
@@ -3480,6 +3957,45 @@ export type Database = {
           p_user_id: string
         }
         Returns: undefined
+      }
+      set_professional_clienteles: {
+        Args: { p_id: string; p_items: Json }
+        Returns: {
+          clientele_id: string
+          is_specialized: boolean
+        }[]
+      }
+      set_professional_email: {
+        Args: { p_email: string; p_id: string }
+        Returns: undefined
+      }
+      set_professional_languages: {
+        Args: { p_id: string; p_language_ids: string[] }
+        Returns: string[]
+      }
+      set_professional_motifs: {
+        Args: { p_id: string; p_motif_ids: string[] }
+        Returns: string[]
+      }
+      set_professional_payer_number: {
+        Args: { p_id: string; p_number: string; p_payer_type: string }
+        Returns: undefined
+      }
+      set_professional_professions: {
+        Args: { p_id: string; p_items: Json }
+        Returns: {
+          id: string
+          is_primary: boolean
+          licence_number: string
+          profession_title_id: string
+        }[]
+      }
+      set_professional_specialties: {
+        Args: { p_id: string; p_items: Json }
+        Returns: {
+          is_specialized: boolean
+          specialty_id: string
+        }[]
       }
       set_professionals_reference_active: {
         Args: { p_active: boolean; p_id: string; p_kind: string }
