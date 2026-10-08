@@ -94,7 +94,8 @@ select functions_are('public', array[
   'publish_template_version', 'archive_template_version', 'list_document_templates',
   'list_subject_signature_requests', 'get_signature_request',
   'get_signing_context', 'create_signature_request', 'mark_signature_request_sent', 'mark_signature_request_failed',
-  'apply_signing_event', 'complete_signature_request', 'list_signature_requests_to_reconcile', 'expire_signature_request'
+  'apply_signing_event', 'complete_signature_request', 'list_signature_requests_to_reconcile', 'expire_signature_request',
+  'save_professional_order', 'save_profession_category', 'save_profession_title', 'save_clientele', 'save_specialty', 'save_motif_category', 'save_motif', 'save_language', 'save_deactivation_reason', 'set_professionals_reference_active', 'reorder_professionals_reference', 'get_professionals_catalog', 'get_professionals_settings', 'set_professionals_settings'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

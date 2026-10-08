@@ -848,6 +848,16 @@ Security invoker on purpose: each table's RLS scopes it to the caller's clinic a
 - `public.get_professionals_settings() returns jsonb`: defaults `||` stored, for callers with `professionals.view` or `professionals.self` (`42501` otherwise);
 - `public.set_professionals_settings(p_patch jsonb) returns jsonb`: `professionals.settings`; every key must be known and of the right type (`collect_sin` boolean; `22023` otherwise); `collect_sin` also requires `professionals.private`; upserts `settings = settings || p_patch` and returns the effective settings. `org_module_settings` has no audit trigger today: insert an explicit `audit_log` row (`table_name 'org_module_settings'`, `record_id '<org>:professionals'`, before/after of the changed keys, `source 'rpc:set_professionals_settings'`), as `set_org_secret` does.
 
+**As built (the migration is the reference where this sketch differs):**
+- Names go through `private.reference_text`: Unicode spaces are stripped at both ends, inner runs fold to one space (like `valid_role_name`), and invisible characters are refused. Messages: « Le nom est obligatoire. », « Le nom ne peut pas dépasser 120 caractères. », « Le nom contient des caractères invisibles ou non permis. ». The same rules apply to the description, the licence label and the licence pattern; the pattern keeps its inner spaces. Duplicates are compared as `lower(normalize(…, NFKC))` and use the unique index.
+- The permission check and the org lock share one helper, `private.lock_for_professionals_settings()`. Keys come from `private.unique_reference_key(private.reference_key(name), <org keys>)`. `reference_key` uses the two-argument `unaccent`, because the one-argument form needs a search_path.
+- The acronym is upper-cased, like the language code and the 4a.7 dialog: `'ot'` is stored as `OT`, and `'O1'` gets « Sigle : 2 à 10 lettres majuscules. ».
+- A title is restored only once its category **and** its order are active (« Restaurez d'abord son ordre. »). A row may keep the archived category or order it already has when it is renamed. Archive and restore leave a row that is already in the requested state untouched.
+- `reorder` refuses an empty or repeated id list, or one longer than 500 (`22023`). It writes only the rows whose order changes.
+- Each list holds at most **500 rows**, archived rows included (« Cette liste compte déjà 500 éléments (archivés compris). »). This bounds the catalogue, which is about 30 KB today and about 1 ms.
+- `get_professionals_catalog` is `security definer`. It applies the policies' own predicate (org and `can_read_professionals_reference()`), evaluated once rather than nine times. Callers without access get nine empty lists.
+- `org_module_settings` already has an audit trigger. `set_professionals_settings` therefore sets `app.audit_source = 'rpc:set_professionals_settings'` around its upsert and writes no second row. `get_professionals_settings` returns the known keys only, through `private.professionals_settings(org)`. It is open to any professionals key, as the lists are.
+
 **Step 4: Run the database checks** (lock; with and without seed). **Step 5: Commit** (`feat(db): settings RPCs and cached catalogue for the professionals lists`), staging the migration, the test and `database.types.ts`.
 
 ---

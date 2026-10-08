@@ -2671,7 +2671,100 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      clienteles_catalog: {
+        Row: {
+          id: string | null
+          key: string | null
+          max_age: number | null
+          min_age: number | null
+          name: string | null
+          org_id: string | null
+          sort_order: number | null
+        }
+        Insert: {
+          id?: string | null
+          key?: string | null
+          max_age?: number | null
+          min_age?: number | null
+          name?: string | null
+          org_id?: string | null
+          sort_order?: number | null
+        }
+        Update: {
+          id?: string | null
+          key?: string | null
+          max_age?: number | null
+          min_age?: number | null
+          name?: string | null
+          org_id?: string | null
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clienteles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      languages_catalog: {
+        Row: {
+          code: string | null
+          id: string | null
+          name: string | null
+          org_id: string | null
+          sort_order: number | null
+        }
+        Insert: {
+          code?: string | null
+          id?: string | null
+          name?: string | null
+          org_id?: string | null
+          sort_order?: number | null
+        }
+        Update: {
+          code?: string | null
+          id?: string | null
+          name?: string | null
+          org_id?: string | null
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "languages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      motifs_catalog: {
+        Row: {
+          category_icon: string | null
+          category_id: string | null
+          category_key: string | null
+          category_name: string | null
+          category_sort_order: number | null
+          id: string | null
+          is_restricted: boolean | null
+          key: string | null
+          name: string | null
+          org_id: string | null
+          sort_order: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "motifs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_staff_invitation: {
@@ -2886,6 +2979,8 @@ export type Database = {
           size_bytes: number
         }[]
       }
+      get_professionals_catalog: { Args: never; Returns: Json }
+      get_professionals_settings: { Args: never; Returns: Json }
       get_signature_request: {
         Args: { p_id: string }
         Returns: {
@@ -3260,11 +3355,33 @@ export type Database = {
           expires_at: string
         }[]
       }
+      reorder_professionals_reference: {
+        Args: { p_ids: string[]; p_kind: string }
+        Returns: undefined
+      }
       reset_email_template: { Args: { p_key: string }; Returns: undefined }
       resolve_staff_invitation: { Args: { p_link_id: string }; Returns: Json }
       reveal_bank_account_number: { Args: never; Returns: string }
       revoke_staff_invitation: { Args: { p_id: string }; Returns: undefined }
       run_scheduled_job_now: { Args: { p_key: string }; Returns: undefined }
+      save_clientele: {
+        Args: {
+          p_id: string
+          p_max_age: number
+          p_min_age: number
+          p_name: string
+        }
+        Returns: string
+      }
+      save_deactivation_reason: {
+        Args: {
+          p_disables_account: boolean
+          p_id: string
+          p_name: string
+          p_requires_note: boolean
+        }
+        Returns: string
+      }
       save_email_template: {
         Args: {
           p_body: string
@@ -3273,6 +3390,55 @@ export type Database = {
           p_subject: string
         }
         Returns: undefined
+      }
+      save_language: {
+        Args: { p_code: string; p_id: string; p_name: string }
+        Returns: string
+      }
+      save_motif: {
+        Args: {
+          p_category_id: string
+          p_id: string
+          p_is_restricted: boolean
+          p_name: string
+        }
+        Returns: string
+      }
+      save_motif_category: {
+        Args: {
+          p_description: string
+          p_icon: string
+          p_id: string
+          p_name: string
+        }
+        Returns: string
+      }
+      save_profession_category: {
+        Args: { p_id: string; p_name: string }
+        Returns: string
+      }
+      save_profession_title: {
+        Args: {
+          p_category_id: string
+          p_id: string
+          p_name: string
+          p_order_id: string
+        }
+        Returns: string
+      }
+      save_professional_order: {
+        Args: {
+          p_acronym: string
+          p_id: string
+          p_licence_label: string
+          p_licence_pattern: string
+          p_name: string
+        }
+        Returns: string
+      }
+      save_specialty: {
+        Args: { p_id: string; p_name: string }
+        Returns: string
       }
       set_bank_details: {
         Args: {
@@ -3315,6 +3481,11 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_professionals_reference_active: {
+        Args: { p_active: boolean; p_id: string; p_kind: string }
+        Returns: undefined
+      }
+      set_professionals_settings: { Args: { p_patch: Json }; Returns: Json }
       set_role_permission: {
         Args: { p_granted: boolean; p_permission_key: string; p_role: string }
         Returns: undefined
