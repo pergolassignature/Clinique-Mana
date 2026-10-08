@@ -7,10 +7,12 @@ import {
   assertThrows,
 } from '@std/assert'
 import {
-  type CreateDocumentInput,
+  type CreateEnvelopeInput,
   documensoClient,
   DocumensoError,
   documensoEventId,
+  ENVELOPE_ID,
+  isEnvelopeId,
   isPublicAddress,
 } from './documenso.ts'
 import { FunctionError } from './errors.ts'
@@ -27,16 +29,19 @@ const ADDRESS = 'ana.gagnon@example.com'
 const CLINIC = 'signataire@cliniquemana.test'
 const PDF = new TextEncoder().encode('%PDF-1.7\n1 0 obj\n%%EOF\n')
 
+/** An envelope id as Documenso 2.20 makes them (seen live on the clinic's instance). */
+const E = 'envelope_hsnzzscbexaddcar'
+const ITEM = 'envelope_item_hsnzzscbexaddcar'
+
 const route = (method: string, path: string) => `${method} ${BASE}${path}`
-const CREATE = route('POST', '/api/v2/document/create')
-const GET_12 = route('GET', '/api/v2/document/12')
-const FIELDS = route('POST', '/api/v2/document/field/create-many')
-const DISTRIBUTE = route('POST', '/api/v2/document/distribute')
-const REDISTRIBUTE = route('POST', '/api/v2/document/redistribute')
-const DELETE = route('POST', '/api/v2/document/delete')
+const CREATE = route('POST', '/api/v2/envelope/create')
+const GET_E = route('GET', `/api/v2/envelope/${E}`)
+const DISTRIBUTE = route('POST', '/api/v2/envelope/distribute')
+const REDISTRIBUTE = route('POST', '/api/v2/envelope/redistribute')
+const DELETE = route('POST', '/api/v2/envelope/delete')
 const CANCEL = route('POST', '/api/v2/envelope/cancel')
-const DOWNLOAD_12 = route('GET', '/api/v2/document/12/download')
-const LIST = route('GET', '/api/v2/document')
+const DOWNLOAD = route('GET', `/api/v2/envelope/item/${ITEM}/download`)
+const LIST = route('GET', '/api/v2/envelope')
 
 const json = (status: number, body: unknown): Responder => () =>
   new Response(JSON.stringify(body), {
@@ -46,40 +51,89 @@ const json = (status: number, body: unknown): Responder => () =>
 
 const recipient = (over: Record<string, unknown> = {}) => ({
   id: 51,
+  envelopeId: E,
   email: ADDRESS,
   name: 'Ana Gagnon',
+  token: 'secret-signing-token-51',
   role: 'SIGNER',
   signingOrder: 1,
   readStatus: 'NOT_OPENED',
   signingStatus: 'NOT_SIGNED',
   sendStatus: 'NOT_SENT',
+  expired: null,
+  expiresAt: null,
   signedAt: null,
   rejectionReason: null,
   ...over,
 })
 
-const documentBody = (over: Record<string, unknown> = {}) => ({
-  id: 12,
-  envelopeId: 'envelope_abc',
+/** `GET /api/v2/envelope/{id}`, in the parts the client reads (plus a few it must ignore). */
+const envelopeBody = (over: Record<string, unknown> = {}) => ({
+  id: E,
+  secondaryId: 'document_12',
+  type: 'DOCUMENT',
   externalId: 'req-1',
   title: 'Contrat',
   status: 'DRAFT',
   completedAt: null,
   recipients: [
     recipient(),
-    recipient({ id: 52, email: CLINIC, name: 'Christine', signingOrder: 2 }),
+    recipient({
+      id: 52,
+      email: CLINIC,
+      name: 'Christine',
+      signingOrder: 2,
+      token: 'secret-signing-token-52',
+    }),
   ],
+  envelopeItems: [{
+    id: ITEM,
+    envelopeId: E,
+    documentDataId: 'data_1',
+    title: 'document.pdf',
+    order: 0,
+  }],
   ...over,
 })
 
+const SIGNATURE = {
+  role: 'professional',
+  type: 'SIGNATURE' as const,
+  page: 3,
+  x: 10,
+  y: 70.5,
+  width: 30,
+  height: 6,
+}
+
 const input = (
-  over: Partial<CreateDocumentInput> = {},
-): CreateDocumentInput => ({
+  over: Partial<CreateEnvelopeInput> = {},
+): CreateEnvelopeInput => ({
   title: 'Contrat de services',
   externalId: '6f1c1b2e-3d4a-4b5c-8d9e-0f1a2b3c4d5e',
   recipients: [
-    { email: ADDRESS, name: 'Ana Gagnon', role: 'SIGNER', signingOrder: 1 },
-    { email: CLINIC, name: 'Christine', role: 'SIGNER', signingOrder: 2 },
+    {
+      email: ADDRESS,
+      name: 'Ana Gagnon',
+      role: 'SIGNER',
+      signingOrder: 1,
+      fields: [SIGNATURE, {
+        role: 'professional',
+        type: 'INITIALS',
+        page: 1,
+        x: 85,
+        y: 2,
+        width: 8,
+        height: 4,
+      }],
+    },
+    {
+      email: CLINIC,
+      name: 'Christine',
+      role: 'SIGNER',
+      signingOrder: 2,
+      fields: [{ ...SIGNATURE, role: 'clinic', x: 55 }],
+    },
   ],
   meta: {
     subject: 'Votre contrat',
@@ -125,7 +179,7 @@ Deno.test('documensoClient: a trailing slash on the base URL is ignored', async 
   const { fetch, calls } = fakeFetch({ [LIST]: json(200, { data: [] }) })
   await documensoClient(`${BASE}//`, KEY, fetch, { reach: deployedReach() })
     .ping()
-  assertEquals(calls[0].url, `${BASE}/api/v2/document?perPage=1`)
+  assertEquals(calls[0].url, `${BASE}/api/v2/envelope?perPage=1`)
 })
 
 // ---------------------------------------------------------------------------
@@ -144,15 +198,15 @@ function tracingRedirects(fetchFn: typeof fetch) {
 Deno.test('reach: every request is sent with redirect: manual', async () => {
   const { fetch } = fakeFetch({
     [LIST]: json(200, { data: [] }),
-    [CREATE]: json(200, { id: 12, envelopeId: 'envelope_abc' }),
-    [GET_12]: json(200, documentBody()),
-    [route('POST', '/api/v2/document/distribute')]: json(200, {}),
+    [CREATE]: json(200, { id: E }),
+    [GET_E]: json(200, envelopeBody()),
+    [DISTRIBUTE]: json(200, {}),
   })
   const { traced, modes } = tracingRedirects(fetch)
   const documenso = client(traced)
   await documenso.ping()
-  await documenso.createDocument(PDF, input())
-  await documenso.distribute('12')
+  await documenso.createEnvelope(PDF, input())
+  await documenso.distribute(E)
   assertEquals(modes, ['manual', 'manual', 'manual', 'manual'])
 })
 
@@ -167,12 +221,12 @@ Deno.test('reach: any 3xx is a provider_error, never followed (the key stays hom
     )
     assertEquals([error.code, error.status], ['provider_error', status])
     assertFalse(error.message.includes('evil.test'))
-    assertEquals(calls.map((c) => c.url), [`${BASE}/api/v2/document?perPage=1`])
+    assertEquals(calls.map((c) => c.url), [`${BASE}/api/v2/envelope?perPage=1`])
   }
   const { fetch, calls } = fakeFetch({
-    [GET_12]: () => Response.redirect('http://169.254.169.254/', 302),
+    [GET_E]: () => Response.redirect('http://169.254.169.254/', 302),
   })
-  await assertRejects(() => client(fetch).get('12'), DocumensoError)
+  await assertRejects(() => client(fetch).get(E), DocumensoError)
   assertEquals(calls.length, 1)
 })
 
@@ -306,7 +360,7 @@ Deno.test('reach: without options a client is deployed (fails closed): the local
 Deno.test('reach: local dev allows the fake at host.docker.internal, with no lookup', async () => {
   const base = 'http://host.docker.internal:55390'
   const { fetch, calls } = fakeFetch({
-    [`GET ${base}/api/v2/document`]: json(200, { data: [] }),
+    [`GET ${base}/api/v2/envelope`]: json(200, { data: [] }),
   })
   assertEquals(
     await documensoClient(base, KEY, fetch, { reach: LOCAL_REACH }).ping(),
@@ -365,27 +419,69 @@ Deno.test('isPublicAddress: public unicast only, IPv4-mapped IPv6 judged by its 
 })
 
 // ---------------------------------------------------------------------------
-// createDocument
+// createEnvelope
 // ---------------------------------------------------------------------------
-Deno.test('createDocument: multipart with the payload JSON and the PDF part, then reads the recipients', async () => {
+Deno.test('createEnvelope: multipart with type DOCUMENT, inline fields (identifier 0, positionX/positionY) and one `files` part, then reads the recipients', async () => {
   const { fetch, calls } = fakeFetch({
-    [CREATE]: json(200, { id: 12, envelopeId: 'envelope_abc' }),
-    [GET_12]: json(200, documentBody()),
+    [CREATE]: json(200, { id: E }),
+    [GET_E]: json(200, envelopeBody()),
   })
-  const result = await client(fetch).createDocument(PDF, input())
+  const result = await client(fetch).createEnvelope(PDF, input())
   assertEquals(result, {
-    documentId: '12',
-    envelopeId: 'envelope_abc',
+    envelopeId: E,
     recipients: [{ id: '51', email: ADDRESS }, { id: '52', email: CLINIC }],
   })
-  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CREATE, GET_12])
+  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CREATE, GET_E])
 
   const form = await formOf(calls[0])
   const payload = JSON.parse(String(form.get('payload')))
   assertEquals(payload, {
     title: 'Contrat de services',
+    type: 'DOCUMENT',
     externalId: '6f1c1b2e-3d4a-4b5c-8d9e-0f1a2b3c4d5e',
-    recipients: input().recipients,
+    recipients: [
+      {
+        email: ADDRESS,
+        name: 'Ana Gagnon',
+        role: 'SIGNER',
+        signingOrder: 1,
+        fields: [
+          {
+            identifier: 0,
+            type: 'SIGNATURE',
+            page: 3,
+            positionX: 10,
+            positionY: 70.5,
+            width: 30,
+            height: 6,
+          },
+          {
+            identifier: 0,
+            type: 'INITIALS',
+            page: 1,
+            positionX: 85,
+            positionY: 2,
+            width: 8,
+            height: 4,
+          },
+        ],
+      },
+      {
+        email: CLINIC,
+        name: 'Christine',
+        role: 'SIGNER',
+        signingOrder: 2,
+        fields: [{
+          identifier: 0,
+          type: 'SIGNATURE',
+          page: 3,
+          positionX: 55,
+          positionY: 70.5,
+          width: 30,
+          height: 6,
+        }],
+      },
+    ],
     meta: {
       subject: 'Votre contrat',
       message: 'Bonjour,\n\nVoici votre contrat.',
@@ -394,9 +490,12 @@ Deno.test('createDocument: multipart with the payload JSON and the PDF part, the
       signingOrder: 'SEQUENTIAL',
       timezone: 'America/Toronto',
       dateFormat: 'dd/MM/yyyy',
+      emailSettings: { ownerRecipientExpired: false },
     },
   })
-  const file = form.get('file')
+  assertEquals(form.getAll('files').length, 1)
+  assertEquals(form.get('file'), null)
+  const file = form.get('files')
   assertInstanceOf(file, File)
   assertEquals(file.type, 'application/pdf')
   // No title or name in the file name (Loi 25): the title can name a person.
@@ -404,13 +503,13 @@ Deno.test('createDocument: multipart with the payload JSON and the PDF part, the
   assertEquals(new Uint8Array(await file.arrayBuffer()), PDF)
 })
 
-Deno.test('createDocument: expiryDays becomes envelopeExpirationPeriod in days', async () => {
+Deno.test('createEnvelope: expiryDays becomes envelopeExpirationPeriod in days', async () => {
   const { fetch, calls } = fakeFetch({
-    [CREATE]: json(200, { id: 12, envelopeId: 'envelope_abc' }),
-    [GET_12]: json(200, documentBody()),
+    [CREATE]: json(200, { id: E }),
+    [GET_E]: json(200, envelopeBody()),
   })
   const base = input()
-  await client(fetch).createDocument(
+  await client(fetch).createEnvelope(
     PDF,
     { ...base, meta: { ...base.meta, expiryDays: 14 } },
   )
@@ -419,7 +518,7 @@ Deno.test('createDocument: expiryDays becomes envelopeExpirationPeriod in days',
   assertFalse('expiryDays' in meta)
 })
 
-Deno.test('createDocument: two recipients with one address, or a bad expiry → invalid_request, no request', async () => {
+Deno.test('createEnvelope: two recipients with one address, a bad expiry, a subject or message too long → invalid_request, no request', async () => {
   const { fetch, calls } = fakeFetch({})
   const base = input()
   for (
@@ -434,39 +533,57 @@ Deno.test('createDocument: two recipients with one address, or a bad expiry → 
         ...base,
         meta: { ...base.meta, expiryDays },
       })),
+      { ...base, meta: { ...base.meta, subject: 'x'.repeat(255) } },
+      { ...base, meta: { ...base.meta, message: 'x'.repeat(5001) } },
     ]
   ) {
     const error = await assertRejects(
-      () => client(fetch).createDocument(PDF, bad),
+      () => client(fetch).createEnvelope(PDF, bad),
       DocumensoError,
     )
     assertEquals([error.code, error.status], ['invalid_request', null])
     assertFalse(error.message.includes('@'))
   }
   assertEquals(calls.length, 0)
+  // At the limits exactly: accepted.
+  const ok = fakeFetch({
+    [CREATE]: json(200, { id: E }),
+    [GET_E]: json(200, envelopeBody()),
+  })
+  await client(ok.fetch).createEnvelope(PDF, {
+    ...base,
+    meta: { ...base.meta, subject: 'x'.repeat(254), message: 'x'.repeat(5000) },
+  })
 })
 
-Deno.test('createDocument: a missing or malformed envelopeId → null (cancel then deletes)', async () => {
-  for (const created of [{ id: 12 }, { id: 12, envelopeId: '../x' }]) {
-    const { fetch } = fakeFetch({
-      [CREATE]: json(200, created),
-      [GET_12]: json(200, documentBody()),
-    })
-    const result = await client(fetch).createDocument(PDF, input())
-    assertEquals(result.envelopeId, null)
+Deno.test('createEnvelope: an answer without a well-formed envelope id → provider_error, no read, no id to cancel', async () => {
+  for (
+    const created of [{ id: 12 }, { id: '12' }, { id: '../x' }, {
+      envelopeId: E,
+    }, { id: 'envelope_a/b' }]
+  ) {
+    const { fetch, calls } = fakeFetch({ [CREATE]: json(200, created) })
+    const error = await assertRejects(
+      () => client(fetch).createEnvelope(PDF, input()),
+      DocumensoError,
+    )
+    assertEquals([error.code, error.status], ['provider_error', 200])
+    assertEquals(error.message, 'Documenso create: unexpected response')
+    assertEquals(error.envelopeId, null)
+    assertEquals(calls.length, 1)
   }
 })
 
-Deno.test('createDocument: the Authorization header is the bare key (no Bearer)', async () => {
+Deno.test('createEnvelope: the Authorization header is the bare key (no Bearer)', async () => {
   const { fetch, calls } = fakeFetch({
-    [CREATE]: json(200, { id: 12 }),
-    [GET_12]: json(200, documentBody()),
+    [CREATE]: json(200, { id: E }),
+    [GET_E]: json(200, envelopeBody()),
   })
-  await client(fetch).createDocument(PDF, input())
+  await client(fetch).createEnvelope(PDF, input())
   for (const call of calls) assertEquals(call.headers.get('authorization'), KEY)
 })
 
-Deno.test('createDocument: a 500 → DocumensoError provider_error, without the body text', async () => {
+Deno.test('createEnvelope: a 500 → DocumensoError provider_error, without the body text', async () => {
   const { fetch } = fakeFetch({
     [CREATE]: json(500, {
       message: `Recipient ${ADDRESS} is invalid`,
@@ -474,73 +591,67 @@ Deno.test('createDocument: a 500 → DocumensoError provider_error, without the 
     }),
   })
   const error = await assertRejects(
-    () => client(fetch).createDocument(PDF, input()),
+    () => client(fetch).createEnvelope(PDF, input()),
     DocumensoError,
   )
   assertInstanceOf(error, FunctionError)
   assertEquals(error.code, 'provider_error')
   assertEquals(error.status, 500)
-  assertEquals(error.documentId, null)
+  assertEquals(error.envelopeId, null)
   assertFalse(error.message.includes(ADDRESS))
   assertFalse(error.message.includes('invalid'))
 })
 
-Deno.test('createDocument: a failed recipient read keeps the created document id (so it can be cancelled)', async () => {
+Deno.test('createEnvelope: a failed recipient read keeps the created envelope id (so it can be cancelled)', async () => {
   const { fetch } = fakeFetch({
-    [CREATE]: json(200, { id: 12 }),
-    [GET_12]: json(502, {}),
+    [CREATE]: json(200, { id: E }),
+    [GET_E]: json(502, {}),
   })
   const error = await assertRejects(
-    () => client(fetch).createDocument(PDF, input()),
+    () => client(fetch).createEnvelope(PDF, input()),
     DocumensoError,
   )
   assertEquals(error.code, 'provider_error')
   assertEquals(error.status, 502)
-  assertEquals(error.documentId, '12')
+  assertEquals(error.envelopeId, E)
 })
 
-Deno.test('createDocument: a recipient missing from the created document → provider_error with the id', async () => {
+Deno.test('createEnvelope: a recipient missing from the created envelope → provider_error with the id', async () => {
   const { fetch } = fakeFetch({
-    [CREATE]: json(200, { id: 12 }),
-    [GET_12]: json(200, documentBody({ recipients: [recipient()] })),
+    [CREATE]: json(200, { id: E }),
+    [GET_E]: json(200, envelopeBody({ recipients: [recipient()] })),
   })
   const error = await assertRejects(
-    () => client(fetch).createDocument(PDF, input()),
+    () => client(fetch).createEnvelope(PDF, input()),
     DocumensoError,
   )
   assertEquals(error.code, 'provider_error')
-  assertEquals(error.documentId, '12')
+  assertEquals(error.envelopeId, E)
   assertFalse(error.message.includes(CLINIC))
 })
 
-Deno.test('createDocument: recipients are matched by address without regard to case', async () => {
+Deno.test('createEnvelope: recipients are matched by address without regard to case', async () => {
   const { fetch } = fakeFetch({
-    [CREATE]: json(200, { id: 12 }),
-    [GET_12]: json(200, documentBody()),
+    [CREATE]: json(200, { id: E }),
+    [GET_E]: json(200, envelopeBody()),
   })
-  const result = await client(fetch).createDocument(
+  const base = input()
+  const result = await client(fetch).createEnvelope(
     PDF,
     input({
       recipients: [
-        {
-          email: 'Ana.Gagnon@Example.com',
-          name: 'Ana',
-          role: 'SIGNER',
-          signingOrder: 1,
-        },
-        { email: CLINIC, name: 'Christine', role: 'SIGNER', signingOrder: 2 },
+        { ...base.recipients[0], email: 'Ana.Gagnon@Example.com' },
+        base.recipients[1],
       ],
     }),
   )
   assertEquals(result.recipients[0].id, '51')
 })
 
-Deno.test('createDocument: a malformed success body → provider_error', async () => {
-  const { fetch } = fakeFetch({
-    [CREATE]: json(200, { envelopeId: 'envelope_abc' }),
-  })
+Deno.test('createEnvelope: a malformed success body → provider_error', async () => {
+  const { fetch } = fakeFetch({ [CREATE]: json(200, { success: true }) })
   const error = await assertRejects(
-    () => client(fetch).createDocument(PDF, input()),
+    () => client(fetch).createEnvelope(PDF, input()),
     DocumensoError,
   )
   assertEquals(error.code, 'provider_error')
@@ -564,7 +675,7 @@ Deno.test('errors: 401 and 403 → not_configured (the key is refused); 404, 400
       [DISTRIBUTE]: json(status, { message: 'no' }),
     })
     const error = await assertRejects(
-      () => client(fetch).distribute('12'),
+      () => client(fetch).distribute(E),
       DocumensoError,
     )
     assertEquals([error.code, error.status], [code, status])
@@ -578,7 +689,7 @@ Deno.test('errors: a network failure → provider_error with no status', async (
     },
   })
   const error = await assertRejects(
-    () => client(fetch).distribute('12'),
+    () => client(fetch).distribute(E),
     DocumensoError,
   )
   assertEquals([error.code, error.status], ['provider_error', null])
@@ -595,7 +706,7 @@ Deno.test('errors: each request is cut after timeoutMs', async () => {
         )
       })) as typeof fetch
   const error = await assertRejects(
-    () => client(hang, { timeoutMs: 10 }).distribute('12'),
+    () => client(hang, { timeoutMs: 10 }).distribute(E),
     DocumensoError,
   )
   assertEquals([error.code, error.status], ['provider_error', null])
@@ -609,7 +720,7 @@ Deno.test('errors: an aborted caller signal stops the request', async () => {
     ((_input: RequestInfo | URL, init?: RequestInit) =>
       Promise.reject(init?.signal?.reason)) as typeof fetch
   const error = await assertRejects(
-    () => client(spy, { signal: controller.signal }).distribute('12'),
+    () => client(spy, { signal: controller.signal }).distribute(E),
     DocumensoError,
   )
   assertEquals(error.code, 'provider_error')
@@ -639,17 +750,16 @@ const brokenBody =
 Deno.test('errors: a body that fails mid-read → provider_error, never the raw error', async () => {
   for (
     const [name, call] of [
-      ['get', (c: ReturnType<typeof client>) => c.get('12')],
-      [
-        'downloadSigned',
-        (c: ReturnType<typeof client>) => c.downloadSigned('12'),
-      ],
+      ['get', (c: ReturnType<typeof client>) => c.get(E)],
+      ['downloadSigned', (c: ReturnType<typeof client>) => c.downloadSigned(E)],
       ['ping', (c: ReturnType<typeof client>) => c.ping()],
     ] as const
   ) {
     const { fetch } = fakeFetch({
-      [GET_12]: brokenBody('{"id":12,', 'reset'),
-      [DOWNLOAD_12]: brokenBody('%PDF-1.7', 'reset'),
+      [GET_E]: name === 'get'
+        ? brokenBody('{"id":"envelope_', 'reset')
+        : json(200, envelopeBody({ status: 'COMPLETED' })),
+      [DOWNLOAD]: brokenBody('%PDF-1.7', 'reset'),
       [LIST]: brokenBody('{"data":[', 'reset'),
     })
     const error = await assertRejects(() => call(client(fetch)), DocumensoError)
@@ -660,111 +770,142 @@ Deno.test('errors: a body that fails mid-read → provider_error, never the raw 
 })
 
 Deno.test('errors: the timeout also covers the body (it stalls mid-read)', async () => {
-  const { fetch } = fakeFetch({
-    [GET_12]: brokenBody('{"id":12,', 'abort'),
-    [DOWNLOAD_12]: brokenBody('%PDF-1.7', 'abort'),
+  const stalled = fakeFetch({ [GET_E]: brokenBody('{"id":', 'abort') })
+  const download = fakeFetch({
+    [GET_E]: json(200, envelopeBody({ status: 'COMPLETED' })),
+    [DOWNLOAD]: brokenBody('%PDF-1.7', 'abort'),
   })
-  const c = client(fetch, { timeoutMs: 20 })
-  for (const call of [() => c.get('12'), () => c.downloadSigned('12')]) {
+  for (
+    const call of [
+      () => client(stalled.fetch, { timeoutMs: 20 }).get(E),
+      () => client(download.fetch, { timeoutMs: 20 }).downloadSigned(E),
+    ]
+  ) {
     const error = await assertRejects(call, DocumensoError)
     assertEquals([error.code, error.status], ['provider_error', null])
     assert(error.message.includes('timed out while reading'), error.message)
   }
 })
 
-Deno.test('errors: a non-numeric document id is refused before any request', async () => {
+Deno.test('errors: a non-envelope id is refused before any request, by every method', async () => {
   const { fetch, calls } = fakeFetch({})
+  const c = client(fetch)
   for (
-    const id of ['', '12/../delete', 'envelope_abc', '1e3', '1234567890123456']
+    const id of [
+      '',
+      '12',
+      'envelope_',
+      'envelope_a/b',
+      'envelope_../delete',
+      `envelope_${'a'.repeat(65)}`,
+      'abc',
+    ]
   ) {
-    const error = await assertRejects(
-      () => client(fetch).get(id),
-      DocumensoError,
-    )
-    assertEquals(error.code, 'provider_error')
+    for (
+      const call of [
+        () => c.get(id),
+        () => c.distribute(id),
+        () => c.redistribute(id, ['51']),
+        () => c.cancel(id),
+        () => c.cancel(id, { draft: true }),
+        () => c.downloadSigned(id),
+      ]
+    ) {
+      const error = await assertRejects(call, DocumensoError, undefined, id)
+      assertEquals([error.code, error.status], ['provider_error', null], id)
+      assert(error.message.endsWith('invalid id'), id)
+    }
   }
   assertEquals(calls.length, 0)
 })
 
-Deno.test('errors: a 15-digit id is still accepted (a safe integer)', async () => {
-  const id = '123456789012345'
+Deno.test('errors: a non-numeric recipient id is refused; a 15-digit one is accepted (a safe integer)', async () => {
   const { fetch, calls } = fakeFetch({
-    [route('POST', '/api/v2/document/distribute')]: json(200, {}),
-  })
-  await client(fetch).distribute(id)
-  assertEquals(JSON.parse(calls[0].body), { documentId: Number(id) })
-})
-
-// ---------------------------------------------------------------------------
-// addFields, distribute, redistribute
-// ---------------------------------------------------------------------------
-Deno.test('addFields: percent coordinates become pageNumber / pageX / pageY, ids become numbers', async () => {
-  const { fetch, calls } = fakeFetch({ [FIELDS]: json(200, { fields: [] }) })
-  await client(fetch).addFields('12', [
-    {
-      role: 'professional',
-      type: 'SIGNATURE',
-      page: 3,
-      x: 10,
-      y: 70.5,
-      width: 30,
-      height: 6,
-      recipientId: '51',
-    },
-    {
-      role: 'professional',
-      type: 'INITIALS',
-      page: 1,
-      x: 85,
-      y: 2,
-      width: 8,
-      height: 4,
-      recipientId: '51',
-    },
-  ])
-  assertEquals(JSON.parse(calls[0].body), {
-    documentId: 12,
-    fields: [
-      {
-        recipientId: 51,
-        type: 'SIGNATURE',
-        pageNumber: 3,
-        pageX: 10,
-        pageY: 70.5,
-        width: 30,
-        height: 6,
-      },
-      {
-        recipientId: 51,
-        type: 'INITIALS',
-        pageNumber: 1,
-        pageX: 85,
-        pageY: 2,
-        width: 8,
-        height: 4,
-      },
-    ],
-  })
-  assertEquals(calls[0].headers.get('content-type'), 'application/json')
-})
-
-Deno.test('addFields and redistribute: an empty list makes no request', async () => {
-  const { fetch, calls } = fakeFetch({})
-  await client(fetch).addFields('12', [])
-  await client(fetch).redistribute('12', [])
-  assertEquals(calls.length, 0)
-})
-
-Deno.test('distribute and redistribute: the document id and recipient ids as numbers', async () => {
-  const { fetch, calls } = fakeFetch({
-    [DISTRIBUTE]: json(200, documentBody({ status: 'PENDING' })),
     [REDISTRIBUTE]: json(200, { success: true }),
   })
-  await client(fetch).distribute('12')
-  await client(fetch).redistribute('12', ['51', '52'])
-  assertEquals(JSON.parse(calls[0].body), { documentId: 12 })
-  assertEquals(JSON.parse(calls[1].body), {
-    documentId: 12,
+  for (const id of ['', 'x', '1e3', '1234567890123456', '0']) {
+    await assertRejects(
+      () => client(fetch).redistribute(E, [id]),
+      DocumensoError,
+    )
+  }
+  assertEquals(calls.length, 0)
+  await client(fetch).redistribute(E, ['123456789012345'])
+  assertEquals(JSON.parse(calls[0].body).recipients, [123456789012345])
+})
+
+Deno.test('isEnvelopeId: ENVELOPE_ID, as the live ids look', () => {
+  assert(isEnvelopeId(E))
+  assert(isEnvelopeId('envelope_aaaaaaaaaaaaaaab'))
+  for (const v of [null, 12, '12', 'envelope_', 'Envelope_x', 'envelope_a b']) {
+    assertFalse(isEnvelopeId(v), String(v))
+  }
+})
+
+Deno.test('ENVELOPE_ID equals the database check (signature_requests.envelope_id and the envelope RPCs)', async () => {
+  const MIGRATIONS = new URL('../../migrations/', import.meta.url)
+  const names: string[] = []
+  for await (const entry of Deno.readDir(MIGRATIONS)) {
+    if (entry.isFile && entry.name.endsWith('.sql')) names.push(entry.name)
+  }
+  const envelope = names.find((n) => n.endsWith('_core_signing_envelope.sql'))
+  assert(envelope, 'no *_core_signing_envelope.sql migration')
+  const signing = names.find((n) => n.endsWith('_core_signing.sql'))
+  assert(signing, 'no *_core_signing.sql migration')
+  const patterns = new Set<string>()
+  for (const name of [signing, envelope]) {
+    const sql = await Deno.readTextFile(new URL(name, MIGRATIONS))
+    for (const [, pattern] of sql.matchAll(/'(\^envelope_[^']*)'/g)) {
+      patterns.add(pattern)
+    }
+  }
+  assertEquals([...patterns], [ENVELOPE_ID.source])
+})
+
+// ---------------------------------------------------------------------------
+// distribute, redistribute
+// ---------------------------------------------------------------------------
+Deno.test('distribute: { envelopeId }; its answer (tokens, signing URLs) is not read', async () => {
+  const answer = {
+    success: true,
+    id: E,
+    recipients: [{
+      id: 51,
+      email: ADDRESS,
+      token: 'secret-signing-token-51',
+      signingUrl: `${BASE}/sign/secret-signing-token-51`,
+    }],
+  }
+  let bodyRead = false
+  const { fetch, calls } = fakeFetch({
+    [DISTRIBUTE]: () =>
+      new Response(
+        new ReadableStream({
+          pull(controller) {
+            bodyRead = true
+            controller.enqueue(new TextEncoder().encode(JSON.stringify(answer)))
+            controller.close()
+          },
+        }, { highWaterMark: 0 }),
+        { headers: { 'Content-Type': 'application/json' } },
+      ),
+  })
+  const result = await client(fetch).distribute(E)
+  assertEquals(result, undefined)
+  assertEquals(JSON.parse(calls[0].body), { envelopeId: E })
+  assertEquals(calls[0].headers.get('content-type'), 'application/json')
+  assertFalse(bodyRead, 'the answer is discarded unread')
+})
+
+Deno.test('redistribute: the envelope id and the recipient ids as numbers; an empty list makes no request', async () => {
+  const { fetch, calls } = fakeFetch({
+    [REDISTRIBUTE]: json(200, { success: true, id: E, recipients: [] }),
+  })
+  await client(fetch).redistribute(E, [])
+  assertEquals(calls.length, 0)
+  await client(fetch).redistribute(E, ['51', '52'])
+  assertEquals(JSON.parse(calls[0].body), {
+    envelopeId: E,
     recipients: [51, 52],
   })
 })
@@ -772,11 +913,11 @@ Deno.test('distribute and redistribute: the document id and recipient ids as num
 // ---------------------------------------------------------------------------
 // get
 // ---------------------------------------------------------------------------
-Deno.test('get: the status and each recipient, without addresses', async () => {
+Deno.test('get: the status and each recipient, without addresses or tokens', async () => {
   const { fetch } = fakeFetch({
-    [GET_12]: json(
+    [GET_E]: json(
       200,
-      documentBody({
+      envelopeBody({
         status: 'REJECTED',
         recipients: [
           recipient({
@@ -796,8 +937,8 @@ Deno.test('get: the status and each recipient, without addresses', async () => {
       }),
     ),
   })
-  const doc = await client(fetch).get('12')
-  assertEquals(doc, {
+  const state = await client(fetch).get(E)
+  assertEquals(state, {
     status: 'REJECTED',
     completedAt: null,
     externalId: 'req-1',
@@ -828,22 +969,67 @@ Deno.test('get: the status and each recipient, without addresses', async () => {
       },
     ],
   })
-  assertFalse(JSON.stringify(doc).includes('@'))
+  const text = JSON.stringify(state)
+  assertFalse(text.includes('@'))
+  assertFalse(text.includes('token'))
+  assertFalse(text.includes(ITEM))
 })
 
-Deno.test('get: a document without an externalId reads null', async () => {
+Deno.test('get: unknown fields in the read (the rest of Documenso 2.20 envelope) are ignored', async () => {
   const { fetch } = fakeFetch({
-    [GET_12]: json(200, documentBody({ externalId: null })),
+    [GET_E]: json(
+      200,
+      envelopeBody({
+        internalVersion: 2,
+        source: 'DOCUMENT',
+        visibility: 'EVERYONE',
+        documentMeta: { id: 'meta_1', language: 'fr', emailSettings: null },
+        fields: [{ id: 1, envelopeItemId: ITEM, type: 'SIGNATURE', page: 1 }],
+        user: { id: 1, name: 'Clinique', email: 'owner@mana.test' },
+        team: { id: 1, url: 'clinique-mana' },
+        aNewField: { nested: [1, 2, 3] },
+      }),
+    ),
   })
-  assertEquals((await client(fetch).get('12')).externalId, null)
+  const state = await client(fetch).get(E)
+  assertEquals(state.status, 'DRAFT')
+  assertEquals(state.recipients.map((r) => r.id), ['51', '52'])
+  assertFalse(JSON.stringify(state).includes('@'))
 })
 
-Deno.test('get: a document read without the externalId field → provider_error (a bad response, never « no id »)', async () => {
-  const { externalId: _, ...withoutField } = documentBody()
-  for (const body of [withoutField, documentBody({ externalId: 12 })]) {
-    const { fetch } = fakeFetch({ [GET_12]: json(200, body) })
+Deno.test('get: a read over 1 MB → provider_error (the cap the deprecated document read overran with its embedded PDF)', async () => {
+  const { fetch } = fakeFetch({
+    [GET_E]: json(
+      200,
+      envelopeBody({ documentData: { data: 'A'.repeat(1_122_716) } }),
+    ),
+  })
+  const error = await assertRejects(() => client(fetch).get(E), DocumensoError)
+  assertEquals([error.code, error.status], ['provider_error', 200])
+  assertEquals(error.message, 'Documenso read: unexpected response')
+})
+
+Deno.test('get: another envelope in the answer than the one asked → provider_error', async () => {
+  const { fetch } = fakeFetch({
+    [GET_E]: json(200, envelopeBody({ id: 'envelope_aaaaaaaaaaaaaaab' })),
+  })
+  const error = await assertRejects(() => client(fetch).get(E), DocumensoError)
+  assertEquals([error.code, error.status], ['provider_error', 200])
+})
+
+Deno.test('get: an envelope without an externalId reads null', async () => {
+  const { fetch } = fakeFetch({
+    [GET_E]: json(200, envelopeBody({ externalId: null })),
+  })
+  assertEquals((await client(fetch).get(E)).externalId, null)
+})
+
+Deno.test('get: an envelope read without the externalId field → provider_error (a bad response, never « no id »)', async () => {
+  const { externalId: _, ...withoutField } = envelopeBody()
+  for (const body of [withoutField, envelopeBody({ externalId: 12 })]) {
+    const { fetch } = fakeFetch({ [GET_E]: json(200, body) })
     const error = await assertRejects(
-      () => client(fetch).get('12'),
+      () => client(fetch).get(E),
       DocumensoError,
     )
     assertEquals(error.code, 'provider_error')
@@ -851,30 +1037,41 @@ Deno.test('get: a document read without the externalId field → provider_error 
   }
 })
 
-Deno.test('get: an unknown document status → provider_error', async () => {
+Deno.test('get: an unknown envelope status → provider_error', async () => {
   const { fetch } = fakeFetch({
-    [GET_12]: json(200, documentBody({ status: 'ARCHIVED' })),
+    [GET_E]: json(200, envelopeBody({ status: 'ARCHIVED' })),
   })
   const error = await assertRejects(
-    () => client(fetch).get('12'),
+    () => client(fetch).get(E),
     DocumensoError,
   )
   assertEquals(error.code, 'provider_error')
 })
 
 // ---------------------------------------------------------------------------
-// cancel
+// cancel (E-8)
 // ---------------------------------------------------------------------------
-const NOT_FOUND = { message: 'Document not found', code: 'NOT_FOUND' }
+const NOT_FOUND = { message: 'Envelope not found', code: 'NOT_FOUND' }
+const REFUSED = json(400, { message: 'not pending', code: 'BAD_REQUEST' })
 
-Deno.test("cancel: without an envelope id, deletes the document; Documenso's 404 (already gone) resolves", async () => {
+Deno.test('cancel: a pending envelope is cancelled with the reason', async () => {
   const { fetch, calls } = fakeFetch({
-    [DELETE]: [json(200, { success: true }), json(404, NOT_FOUND)],
+    [CANCEL]: [json(200, { success: true }), json(200, { success: true })],
   })
-  await client(fetch).cancel('12')
-  await client(fetch).cancel('12', { envelopeId: null })
-  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [DELETE, DELETE])
-  assertEquals(JSON.parse(calls[0].body), { documentId: 12 })
+  await client(fetch).cancel(E, { reason: 'Contrat remplacé' })
+  await client(fetch).cancel(E)
+  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CANCEL, CANCEL])
+  assertEquals(JSON.parse(calls[0].body), {
+    envelopeId: E,
+    reason: 'Contrat remplacé',
+  })
+  assertEquals(JSON.parse(calls[1].body), { envelopeId: E })
+})
+
+Deno.test("cancel: Documenso's 404 (already gone) resolves", async () => {
+  const { fetch, calls } = fakeFetch({ [CANCEL]: json(404, NOT_FOUND) })
+  await client(fetch).cancel(E)
+  assertEquals(calls.length, 1)
 })
 
 Deno.test("cancel: a 404 that is not Documenso's error (proxy, wrong URL) is an error", async () => {
@@ -891,99 +1088,130 @@ Deno.test("cancel: a 404 that is not Documenso's error (proxy, wrong URL) is an 
       json(404, 'NOT_FOUND'),
     ]
   ) {
-    const { fetch } = fakeFetch({ [DELETE]: responder })
-    const error = await assertRejects(
-      () => client(fetch).cancel('12'),
-      DocumensoError,
-    )
-    assertEquals([error.code, error.status], ['provider_error', 404])
-  }
-})
-
-Deno.test('cancel: with an envelope id, cancels the envelope with the reason', async () => {
-  const { fetch, calls } = fakeFetch({
-    [CANCEL]: [json(200, { success: true }), json(200, { success: true })],
-  })
-  await client(fetch).cancel('12', {
-    envelopeId: 'envelope_abc',
-    reason: 'Contrat remplacé',
-  })
-  await client(fetch).cancel('12', { envelopeId: 'envelope_abc' })
-  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CANCEL, CANCEL])
-  assertEquals(JSON.parse(calls[0].body), {
-    envelopeId: 'envelope_abc',
-    reason: 'Contrat remplacé',
-  })
-  assertEquals(JSON.parse(calls[1].body), { envelopeId: 'envelope_abc' })
-})
-
-Deno.test('cancel: an envelope 400 resolves only when the document reads back CANCELLED', async () => {
-  const refused = json(400, { message: 'not pending', code: 'BAD_REQUEST' })
-  const cases = [
-    [json(200, documentBody({ status: 'CANCELLED' })), true],
-    [json(200, documentBody({ status: 'DRAFT' })), false],
-    [json(500, {}), false],
-  ] as const
-  for (const [readBack, resolves] of cases) {
-    const { fetch, calls } = fakeFetch({
-      [CANCEL]: refused,
-      [GET_12]: readBack,
-    })
-    const attempt = client(fetch).cancel('12', { envelopeId: 'envelope_abc' })
-    if (resolves) await attempt
-    else {
-      const error = await assertRejects(() => attempt, DocumensoError)
-      assertEquals([error.code, error.status], ['provider_error', 400])
+    for (const draft of [false, true]) {
+      const { fetch } = fakeFetch({ [CANCEL]: responder, [DELETE]: responder })
+      const error = await assertRejects(
+        () => client(fetch).cancel(E, { draft }),
+        DocumensoError,
+      )
+      assertEquals([error.code, error.status], ['provider_error', 404])
     }
-    assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CANCEL, GET_12])
   }
-  // Documenso's 404 for an unknown envelope also counts as done.
-  const { fetch } = fakeFetch({ [CANCEL]: json(404, NOT_FOUND) })
-  await client(fetch).cancel('12', { envelopeId: 'envelope_abc' })
 })
 
-Deno.test('cancel: a malformed envelope id is refused before any request', async () => {
-  const { fetch, calls } = fakeFetch({})
-  for (const envelopeId of ['', 'envelope_', 'abc', 'envelope_a/b', '12']) {
+Deno.test('cancel: a 400, then the envelope reads back CANCELLED → done', async () => {
+  const { fetch, calls } = fakeFetch({
+    [CANCEL]: REFUSED,
+    [GET_E]: json(200, envelopeBody({ status: 'CANCELLED' })),
+  })
+  await client(fetch).cancel(E)
+  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CANCEL, GET_E])
+})
+
+Deno.test('cancel: a 400, then the envelope reads back DRAFT → deleted (its 404 counts as done)', async () => {
+  for (const deleted of [json(200, { success: true }), json(404, NOT_FOUND)]) {
+    const { fetch, calls } = fakeFetch({
+      [CANCEL]: REFUSED,
+      [GET_E]: json(200, envelopeBody({ status: 'DRAFT' })),
+      [DELETE]: deleted,
+    })
+    await client(fetch).cancel(E, { reason: 'Remplacé' })
+    assertEquals(calls.map((c) => `${c.method} ${c.url}`), [
+      CANCEL,
+      GET_E,
+      DELETE,
+    ])
+    assertEquals(JSON.parse(calls[2].body), { envelopeId: E })
+  }
+})
+
+Deno.test('cancel: draft → deleted straight away, never cancelled', async () => {
+  const { fetch, calls } = fakeFetch({
+    [DELETE]: [json(200, { success: true }), json(404, NOT_FOUND)],
+  })
+  await client(fetch).cancel(E, { draft: true })
+  await client(fetch).cancel(E, { draft: true })
+  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [DELETE, DELETE])
+  assertEquals(JSON.parse(calls[0].body), { envelopeId: E })
+})
+
+Deno.test("cancel: a 400 on a completed or rejected envelope, or an unreadable one, is the cancel's error; delete never sent", async () => {
+  for (
+    const readBack of [
+      json(200, envelopeBody({ status: 'COMPLETED' })),
+      json(200, envelopeBody({ status: 'REJECTED' })),
+      json(200, envelopeBody({ status: 'PENDING' })),
+      json(500, {}),
+    ]
+  ) {
+    const { fetch, calls } = fakeFetch({ [CANCEL]: REFUSED, [GET_E]: readBack })
     const error = await assertRejects(
-      () => client(fetch).cancel('12', { envelopeId }),
+      () => client(fetch).cancel(E),
       DocumensoError,
     )
-    assertEquals(error.code, 'provider_error')
+    assertEquals([error.code, error.status], ['provider_error', 400])
+    assertEquals(error.message, 'Documenso cancel failed (400)')
+    assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CANCEL, GET_E])
   }
-  assertEquals(calls.length, 0)
 })
 
-Deno.test('cancel: a 400 (e.g. a completed document) is still an error', async () => {
-  const { fetch } = fakeFetch({ [DELETE]: json(400, { message: 'completed' }) })
+Deno.test('cancel: a refused delete is its own error', async () => {
+  const { fetch } = fakeFetch({ [DELETE]: json(400, { message: 'no' }) })
   const error = await assertRejects(
-    () => client(fetch).cancel('12'),
+    () => client(fetch).cancel(E, { draft: true }),
     DocumensoError,
   )
   assertEquals([error.code, error.status], ['provider_error', 400])
+  assertEquals(error.message, 'Documenso delete failed (400)')
 })
 
 // ---------------------------------------------------------------------------
-// downloadSigned
+// downloadSigned (E-7)
 // ---------------------------------------------------------------------------
-Deno.test('downloadSigned: the signed version, as bytes', async () => {
+Deno.test("downloadSigned: reads the envelope, then the one item's signed version, as bytes", async () => {
   const { fetch, calls } = fakeFetch({
-    [DOWNLOAD_12]: () =>
-      new Response(PDF, { headers: { 'Content-Type': 'application/pdf' } }),
+    [GET_E]: json(200, envelopeBody({ status: 'COMPLETED' })),
+    // Documenso declares JSON for this answer; the bytes are what count.
+    [DOWNLOAD]: () =>
+      new Response(PDF, { headers: { 'Content-Type': 'application/json' } }),
   })
-  assertEquals(await client(fetch).downloadSigned('12'), PDF)
-  assertEquals(
-    calls[0].url,
-    `${BASE}/api/v2/document/12/download?version=signed`,
-  )
+  assertEquals(await client(fetch).downloadSigned(E), PDF)
+  assertEquals(calls.map((c) => c.url), [
+    `${BASE}/api/v2/envelope/${E}`,
+    `${BASE}/api/v2/envelope/item/${ITEM}/download?version=signed`,
+  ])
+})
+
+Deno.test('downloadSigned: zero or two items, or a malformed item id → provider_error, no download request', async () => {
+  const item = (id: string) => ({ id, envelopeId: E, documentDataId: 'd' })
+  for (
+    const envelopeItems of [
+      [],
+      [item(ITEM), item('envelope_item_b')],
+      [item('../../document/12')],
+      [item('a'.repeat(101))],
+      [item('')],
+    ]
+  ) {
+    const { fetch, calls } = fakeFetch({
+      [GET_E]: json(200, envelopeBody({ status: 'COMPLETED', envelopeItems })),
+    })
+    const error = await assertRejects(
+      () => client(fetch).downloadSigned(E),
+      DocumensoError,
+    )
+    assertEquals([error.code, error.status], ['provider_error', 200])
+    assertEquals(calls.length, 1)
+  }
 })
 
 Deno.test('downloadSigned: a body that is not a PDF → provider_error', async () => {
   const { fetch } = fakeFetch({
-    [DOWNLOAD_12]: json(200, { downloadUrl: 'https://s3.test/x' }),
+    [GET_E]: json(200, envelopeBody({ status: 'COMPLETED' })),
+    [DOWNLOAD]: json(200, { downloadUrl: 'https://s3.test/x' }),
   })
   const error = await assertRejects(
-    () => client(fetch).downloadSigned('12'),
+    () => client(fetch).downloadSigned(E),
     DocumensoError,
   )
   assertEquals(error.code, 'provider_error')
@@ -993,7 +1221,8 @@ Deno.test('downloadSigned: over maxDownloadBytes → provider_error (declared or
   const big = new Uint8Array(64).fill(0x20)
   big.set(PDF)
   const { fetch } = fakeFetch({
-    [DOWNLOAD_12]: [
+    [GET_E]: json(200, envelopeBody({ status: 'COMPLETED' })),
+    [DOWNLOAD]: [
       () => new Response(big, { headers: { 'Content-Length': '64' } }),
       // No Content-Length: the stream is counted.
       () =>
@@ -1005,7 +1234,7 @@ Deno.test('downloadSigned: over maxDownloadBytes → provider_error (declared or
   const c = client(fetch, { maxDownloadBytes: 32 })
   for (let i = 0; i < 2; i++) {
     const error = await assertRejects(
-      () => c.downloadSigned('12'),
+      () => c.downloadSigned(E),
       DocumensoError,
     )
     assertEquals(error.code, 'provider_error')
@@ -1013,15 +1242,16 @@ Deno.test('downloadSigned: over maxDownloadBytes → provider_error (declared or
 })
 
 // ---------------------------------------------------------------------------
-// ping
+// ping (E-9)
 // ---------------------------------------------------------------------------
-Deno.test('ping: 200 → ok; 401 → { ok: false, status: 401 }', async () => {
-  const { fetch } = fakeFetch({
+Deno.test('ping: GET /api/v2/envelope?perPage=1; 200 → ok; 401 → { ok: false, status: 401 }', async () => {
+  const { fetch, calls } = fakeFetch({
     [LIST]: [json(200, { data: [] }), json(401, { message: 'Unauthorized' })],
   })
   const c = client(fetch)
   assertEquals(await c.ping(), { ok: true })
   assertEquals(await c.ping(), { ok: false, status: 401 })
+  assertEquals(calls[0].url, `${BASE}/api/v2/envelope?perPage=1`)
 })
 
 Deno.test("ping: a 200 that is not Documenso's list → provider_error", async () => {
@@ -1059,38 +1289,47 @@ const ORG_B = '00000000-0000-0000-0000-00000000000b'
 
 Deno.test('documensoEventId: terminal events ignore the version', () => {
   assertEquals(
-    documensoEventId(ORG_A, 'DOCUMENT_COMPLETED', '12', 'x'),
-    `${ORG_A}:DOCUMENT_COMPLETED:12`,
+    documensoEventId(ORG_A, 'DOCUMENT_COMPLETED', E, 'x'),
+    `${ORG_A}:DOCUMENT_COMPLETED:${E}`,
   )
   assertEquals(
-    documensoEventId(ORG_A, 'DOCUMENT_REJECTED', '12', '2026-10-08T14:00:00Z'),
-    `${ORG_A}:DOCUMENT_REJECTED:12`,
+    documensoEventId(ORG_A, 'DOCUMENT_REJECTED', E, '2026-10-08T14:00:00.000Z'),
+    `${ORG_A}:DOCUMENT_REJECTED:${E}`,
   )
   assertEquals(
-    documensoEventId(ORG_A, 'DOCUMENT_CANCELLED', '12', null),
-    `${ORG_A}:DOCUMENT_CANCELLED:12`,
+    documensoEventId(ORG_A, 'DOCUMENT_CANCELLED', E, null),
+    `${ORG_A}:DOCUMENT_CANCELLED:${E}`,
   )
 })
 
 Deno.test('documensoEventId: other events include the version (or « unversioned »)', () => {
   assertEquals(
-    documensoEventId(
-      ORG_A,
-      'DOCUMENT_OPENED',
-      '12',
-      '2026-10-08T14:00:00.000Z',
-    ),
-    `${ORG_A}:DOCUMENT_OPENED:12:2026-10-08T14:00:00.000Z`,
+    documensoEventId(ORG_A, 'DOCUMENT_OPENED', E, '2026-10-08T14:00:00.000Z'),
+    `${ORG_A}:DOCUMENT_OPENED:${E}:2026-10-08T14:00:00.000Z`,
   )
   assertEquals(
-    documensoEventId(ORG_A, 'DOCUMENT_SIGNED', '12', null),
-    `${ORG_A}:DOCUMENT_SIGNED:12:unversioned`,
+    documensoEventId(ORG_A, 'DOCUMENT_SIGNED', E, null),
+    `${ORG_A}:DOCUMENT_SIGNED:${E}:unversioned`,
   )
 })
 
-Deno.test('documensoEventId: the same document id at two clinics (two instances) is two events', () => {
-  const a = documensoEventId(ORG_A, 'DOCUMENT_COMPLETED', '12', null)
-  const b = documensoEventId(ORG_B, 'DOCUMENT_COMPLETED', '12', null)
+Deno.test('documensoEventId: the same envelope id at two clinics (two instances) is two events', () => {
+  const a = documensoEventId(ORG_A, 'DOCUMENT_COMPLETED', E, null)
+  const b = documensoEventId(ORG_B, 'DOCUMENT_COMPLETED', E, null)
   assertEquals(a === b, false)
-  assertEquals(b, `${ORG_B}:DOCUMENT_COMPLETED:12`)
+  assertEquals(b, `${ORG_B}:DOCUMENT_COMPLETED:${E}`)
+})
+
+Deno.test('documensoEventId: the worst-case id is 200 characters (webhook_events.event_id)', () => {
+  // A 64-character event name, the longest ENVELOPE_ID, an ISO version (24).
+  const event = `DOCUMENT_${'X'.repeat(55)}`
+  assertEquals(event.length, 64)
+  const worst = documensoEventId(
+    ORG_A,
+    event,
+    `envelope_${'a'.repeat(64)}`,
+    new Date(0).toISOString(),
+  )
+  assert(isEnvelopeId(`envelope_${'a'.repeat(64)}`))
+  assertEquals(worst.length, 200)
 })

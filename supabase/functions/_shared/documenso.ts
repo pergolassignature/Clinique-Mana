@@ -33,117 +33,75 @@
  *   by default) and stops at once when the caller's `signal` aborts. A signed
  *   PDF over `maxDownloadBytes` (25 MB) is refused while it streams; a JSON
  *   body over 1 MB is refused the same way.
- * - Nothing here logs. Document ids are numeric strings (the `document` API's
- *   ids) and envelope ids `envelope_…`; anything else is refused before a
- *   request, so no id reaches a path or a body unchecked.
+ * - Nothing here logs. Envelope ids are `envelope_…` (`ENVELOPE_ID`), item
+ *   ids are checked path-safe (`ITEM_ID`) and recipient ids are numeric; any
+ *   other id is refused before a request, so no id reaches a path or a body
+ *   unchecked.
  *
- * The paths use the v2 `document` family, as PS Hub does, except `cancel`,
- * which uses the `envelope` family when the envelope id is known. Documenso
- * marks `document` deprecated in favour of `envelope` (string ids); every
- * path used here is in the public v2 OpenAPI document
- * (app.documenso.com/api/v2/openapi.json, checked 2026-10-08). The ones PS
- * Hub never called are marked `VERIFY` below; the fake
- * (`testing/fake-documenso.ts`, also served locally by
- * `scripts/fake-documenso.ts`) mirrors this table exactly.
+ * The paths are the v2 `envelope` family only (plan
+ * docs/plans/2026-10-08-documenso-envelope-api-plan.md): the clinic's
+ * Documenso 2.20 marks every `/api/v2/document/*` route deprecated. Every path
+ * is in the instance's OpenAPI document (`/api/v2/openapi.json`, 2.20.0,
+ * checked 2026-10-08). What it leaves open is marked `VERIFY` below and listed
+ * in §4 of the plan (live checks); the fake (`testing/fake-documenso.ts`, also
+ * served locally by `scripts/fake-documenso.ts`) mirrors this table exactly.
  */
 import { z } from 'zod'
 import { FunctionError } from './errors.ts'
 
 /** Every Documenso path this client calls, relative to the instance's base URL. */
 export const DOCUMENSO_PATHS = {
-  /** POST multipart: `payload` (JSON) + `file` (PDF) → `{ id, envelopeId }`. */
-  create: '/api/v2/document/create',
-  /** GET → the document with `status` and `recipients`. */
-  document: (id: string) => `/api/v2/document/${id}`,
-  /** POST `{ documentId, fields: [...] }`. */
-  // VERIFY against the clinic instance (Mise en service): body shape
-  // `{ documentId, fields: [{ recipientId, type, pageNumber, pageX, pageY,
-  // width, height }] }` from the public OpenAPI (envelope successor:
-  // /api/v2/envelope/field/create-many).
-  fields: '/api/v2/document/field/create-many',
-  /** POST `{ documentId }`: sends the signing emails. */
-  distribute: '/api/v2/document/distribute',
-  /** POST `{ documentId, recipients: number[] }`: resends to those recipients. */
-  redistribute: '/api/v2/document/redistribute',
-  /** POST `{ envelopeId, reason? }`: a pending document is cancelled and stays visible. */
-  // VERIFY against the clinic instance (Mise en service): in the public v2
-  // OpenAPI (« Cancel a pending envelope », 200 `{ success }`, checked
-  // 2026-10-08). Its answer for a draft or an already-cancelled envelope is
-  // not documented: `cancel` reads the status back after a 400.
+  /**
+   * POST multipart: `payload` (JSON: recipients with their fields inline,
+   * E-5) + `files` (the one PDF) → `{ id }`, the envelope id.
+   */
+  // VERIFY against the clinic instance (plan §4.2 item 2): an inline field's
+  // `identifier` is the file's index in `files` (0 here), as Documenso's own
+  // embed client sends it.
+  create: '/api/v2/envelope/create',
+  /** GET → the envelope: `status`, `externalId`, `recipients`, `envelopeItems`. */
+  envelope: (id: string) => `/api/v2/envelope/${id}`,
+  /** POST `{ envelopeId }`: sends the signing emails. */
+  distribute: '/api/v2/envelope/distribute',
+  /**
+   * POST `{ envelopeId, recipients: number[] }`: resends to those recipients
+   * (and renews their expired signing links).
+   */
+  redistribute: '/api/v2/envelope/redistribute',
+  /** POST `{ envelopeId, reason? }`: a pending envelope is cancelled and stays visible. */
+  // VERIFY against the clinic instance (plan §4.2 items 4 and 6, R1): the
+  // OpenAPI documents « Cancel a pending envelope » only; its answer for a
+  // draft or an already-cancelled envelope is not documented, so `cancel`
+  // reads the status back after a 400 (E-8).
   cancel: '/api/v2/envelope/cancel',
-  /** POST `{ documentId }`: a draft is deleted, a pending document cancelled (`DOCUMENT_CANCELLED`). */
-  // VERIFY against the clinic instance (Mise en service): the `document`
-  // family has no cancel; deleting a pending document cancels it and fires
-  // DOCUMENT_CANCELLED. Used when the envelope id is unknown (and for drafts).
-  delete: '/api/v2/document/delete',
-  /** GET `?version=signed` → the signed PDF (certificate appended). */
-  // VERIFY against the clinic instance (Mise en service): raw PDF bytes, as PS
-  // Hub reads them (envelope successor: /api/v2/envelope/item/{itemId}/download).
-  download: (id: string) => `/api/v2/document/${id}/download`,
-  /** GET `?perPage=1`: the cheapest authenticated read (`ping`). */
-  list: '/api/v2/document',
+  /** POST `{ envelopeId }`: deletes an envelope. Only ever sent for a draft (E-8). */
+  delete: '/api/v2/envelope/delete',
+  /**
+   * GET `?version=signed` → the item's signed PDF, with the signing
+   * certificate and the audit log the org appends (E-7).
+   */
+  // VERIFY against the clinic instance (plan §4.3 items 9 and 11): the OpenAPI
+  // declares `application/json` for this 200, but `signed` « returns the
+  // completed document »; the client checks the bytes (`%PDF-`), not the type.
+  download: (itemId: string) => `/api/v2/envelope/item/${itemId}/download`,
+  /** GET `?perPage=1`: the cheapest authenticated read (`ping`, E-9). */
+  list: '/api/v2/envelope',
 } as const
 
-/** Documenso's document statuses. */
-export type DocumensoDocumentStatus =
+/** Documenso's envelope statuses. */
+export type DocumensoEnvelopeStatus =
   | 'DRAFT'
   | 'PENDING'
   | 'COMPLETED'
   | 'REJECTED'
   | 'CANCELLED'
 
-/** One recipient to create; `signingOrder` starts at 1. */
-export interface DocumensoRecipientInput {
-  email: string
-  name: string
-  role: 'SIGNER'
-  signingOrder: number
-}
-
-/** What `createDocument` needs besides the PDF. */
-export interface CreateDocumentInput {
-  title: string
-  /** Our `signature_requests.id`; Documenso echoes it in webhooks. */
-  externalId: string
-  recipients: DocumensoRecipientInput[]
-  meta: {
-    /** The invitation email's subject and text (from the template version). */
-    subject: string
-    message: string
-    language: 'fr'
-    distributionMethod: 'EMAIL'
-    signingOrder: 'SEQUENTIAL' | 'PARALLEL'
-    /** The clinic timezone (`organizations.timezone`), for DATE fields. */
-    timezone: string
-    /**
-     * Days before the invitation expires (a positive integer), sent as
-     * `envelopeExpirationPeriod: { unit: 'day', amount }`; absent, the
-     * instance's default applies.
-     */
-    expiryDays?: number
-  }
-}
-
-/** What `cancel` may know besides the document id. */
-export interface DocumensoCancelOptions {
-  /**
-   * From `createDocument`. Set, the envelope is cancelled and stays visible
-   * in Documenso; absent (or null), the document is deleted, which cancels a
-   * pending one too. Documenso cancels only a pending (distributed)
-   * envelope: cancel a draft by its document id alone.
-   */
-  envelopeId?: string | null
-  /** Why, as Documenso records it (envelope cancel only). */
-  reason?: string
-}
-
 /**
- * One field to place, in percent of the page (origin top-left), on a
- * recipient returned by `createDocument`. A `SigningField` from
- * `_shared/pdf` plus its `recipientId` fits as is (`role` is ignored).
+ * One field to place, in percent of the page (origin top-left), on the
+ * recipient it is listed under (E-5). A `SigningField` from `_shared/pdf`
+ * fits as is (`role` is not sent).
  */
 export interface DocumensoFieldInput {
-  recipientId: string
   /** The signer role from the renderer; not sent. */
   role?: string
   type: 'SIGNATURE' | 'INITIALS' | 'DATE' | 'NAME'
@@ -155,22 +113,67 @@ export interface DocumensoFieldInput {
   height: number
 }
 
-/** A document's state, as `get` returns it: no address or name. */
-export interface DocumensoDocumentState {
-  status: DocumensoDocumentStatus
+/** One recipient to create, with its fields; `signingOrder` starts at 1. */
+export interface DocumensoRecipientInput {
+  email: string
+  name: string
+  role: 'SIGNER'
+  signingOrder: number
+  fields: DocumensoFieldInput[]
+}
+
+/** What `createEnvelope` needs besides the PDF. */
+export interface CreateEnvelopeInput {
+  title: string
+  /** Our `signature_requests.id`; Documenso echoes it in webhooks. */
+  externalId: string
+  recipients: DocumensoRecipientInput[]
+  meta: {
+    /** The invitation email's subject (≤ 254) and text (≤ 5000), from the template version. */
+    subject: string
+    message: string
+    language: 'fr'
+    distributionMethod: 'EMAIL'
+    signingOrder: 'SEQUENTIAL' | 'PARALLEL'
+    /** The clinic timezone (`organizations.timezone`), for DATE fields. */
+    timezone: string
+    /**
+     * Days before the signing links expire (a positive integer), sent as
+     * `envelopeExpirationPeriod: { unit: 'day', amount }`; absent, the
+     * instance's default applies. Documenso expires the recipients' links,
+     * not the envelope (E-6).
+     */
+    expiryDays?: number
+  }
+}
+
+/** How `cancel` closes an envelope (E-8). */
+export interface DocumensoCancelOptions {
+  /** Why, as Documenso records it (the cancel route only). */
+  reason?: string
+  /**
+   * The caller read the envelope as DRAFT, or never called `distribute` on
+   * it: it is deleted straight away (Documenso cancels only a pending one).
+   */
+  draft?: boolean
+}
+
+/** An envelope's state, as `get` returns it: no address, name, token or item. */
+export interface DocumensoEnvelopeState {
+  status: DocumensoEnvelopeStatus
   completedAt: string | null
   /**
-   * The `externalId` the document was created with (the request id, see
-   * `createDocument`), or null when it has none (the field itself is
+   * The `externalId` the envelope was created with (the request id, see
+   * `createEnvelope`), or null when it has none (the field itself is
    * required: a read without it is a bad response): how the signing functions
-   * tell their own document from another one under the same id (an org that
+   * tell their own envelope from another one under the same id (an org that
    * changed Documenso instance).
    */
   externalId: string | null
   recipients: {
     id: string
     /**
-     * As sent to `createDocument` (1-based), or null when Documenso has none:
+     * As sent to `createEnvelope` (1-based), or null when Documenso has none:
      * how the signing functions match recipients to signers (never by address).
      */
     signingOrder: number | null
@@ -186,39 +189,40 @@ export interface DocumensoDocumentState {
 /** The calls the signing functions make. Every method throws `DocumensoError`. */
 export interface DocumensoClient {
   /**
-   * Uploads the PDF with its recipients and meta (as a draft), then reads the
-   * recipient ids back (PS Hub's two calls). Two recipients with the same
-   * address (case-insensitive) are refused first (`invalid_request`): the
-   * recipient ids are read back by address, so they could not be told apart.
-   * When the second step fails, the error's `documentId` names the created
-   * document, so it can be cancelled. `envelopeId` is null when Documenso
-   * did not return a well-formed one.
+   * Uploads the PDF with its recipients, their fields and the meta (as a
+   * draft, one call), then reads the recipient ids back by address. Two
+   * recipients with the same address (case-insensitive), or a subject or
+   * message over Documenso's limits, are refused first (`invalid_request`).
+   * When the read fails, the error's `envelopeId` names the created envelope,
+   * so it can be cancelled; a create answer without a well-formed envelope id
+   * is a bad response with none (nothing to address).
    */
-  createDocument(
+  createEnvelope(
     pdf: Uint8Array,
-    input: CreateDocumentInput,
+    input: CreateEnvelopeInput,
   ): Promise<{
-    documentId: string
-    envelopeId: string | null
+    envelopeId: string
     recipients: { id: string; email: string }[]
   }>
-  /** Places the fields; an empty list makes no request. */
-  addFields(documentId: string, fields: DocumensoFieldInput[]): Promise<void>
-  /** Sends the document (Documenso emails the first signer). */
-  distribute(documentId: string): Promise<void>
+  /** Sends the envelope (Documenso emails the first signer). */
+  distribute(envelopeId: string): Promise<void>
   /** Resends the invitation to these recipients; an empty list makes no request. */
-  redistribute(documentId: string, recipientIds: string[]): Promise<void>
-  /** The document's status and recipients. */
-  get(documentId: string): Promise<DocumensoDocumentState>
+  redistribute(envelopeId: string, recipientIds: string[]): Promise<void>
+  /** The envelope's status and recipients. */
+  get(envelopeId: string): Promise<DocumensoEnvelopeState>
   /**
-   * Cancels the document (`DocumensoCancelOptions`). Already done counts as
-   * done: a 404 whose body is Documenso's `NOT_FOUND` error (any other 404,
-   * e.g. a proxy's, is an error), or, for an envelope, a 400 while the
-   * document reads back as CANCELLED.
+   * Closes the envelope (E-8): a draft is deleted, a pending one cancelled.
+   * Without `draft`, the cancel route first; on its 400 the envelope is read
+   * back: CANCELLED is done, DRAFT is deleted, anything else is the cancel's
+   * error. Already gone counts as done: a 404 whose body is Documenso's
+   * `NOT_FOUND` error (any other 404, e.g. a proxy's, is an error).
    */
-  cancel(documentId: string, options?: DocumensoCancelOptions): Promise<void>
-  /** The signed PDF (Documenso appends its certificate). */
-  downloadSigned(documentId: string): Promise<Uint8Array>
+  cancel(envelopeId: string, options?: DocumensoCancelOptions): Promise<void>
+  /**
+   * The signed PDF of the envelope's one item (its certificate and audit log
+   * appended by Documenso). Reads the envelope for the item id first.
+   */
+  downloadSigned(envelopeId: string): Promise<Uint8Array>
   /**
    * One authenticated read: ok, or the HTTP status. Throws when nothing
    * answered, or when a 2xx is not Documenso's list (`{ data: [...] }`, e.g.
@@ -285,8 +289,8 @@ export class DocumensoError extends FunctionError {
     code: DocumensoErrorCode,
     readonly status: number | null,
     message: string,
-    /** Set by `createDocument` when the document exists but a later step failed. */
-    readonly documentId: string | null = null,
+    /** Set by `createEnvelope` when the envelope exists but a later step failed. */
+    readonly envelopeId: string | null = null,
   ) {
     super(code, message)
     this.name = 'DocumensoError'
@@ -300,15 +304,28 @@ const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
  * order, which is year first (yyyy-MM-dd, also in Documenso's list).
  */
 const DATE_FORMAT = 'dd/MM/yyyy'
-/** Documenso's ids in the `document` API are integers: ≤ 15 digits stay safe integers. */
+/** Recipient ids are integers (E-10): ≤ 15 digits stay safe integers. */
 const NUMERIC_ID = /^[1-9][0-9]{0,14}$/
-/** Envelope ids: `envelope_` and a generated suffix. */
-// VERIFY against the clinic instance (Mise en service): the suffix alphabet.
-const ENVELOPE_ID = /^envelope_[A-Za-z0-9_-]{1,64}$/
+/**
+ * Envelope ids: `envelope_` and a generated suffix, 16 letters of
+ * `abcdefhiklmnorstuvwxyz` on 2.20 (seen live: `envelope_hsnzzscbexaddcar`).
+ * Deliberately looser (E-1), and the same regex as the
+ * `signature_requests.envelope_id` check (a test reads the migration).
+ */
+export const ENVELOPE_ID = /^envelope_[A-Za-z0-9_-]{1,64}$/
+/** Envelope item ids, before they go into a path (E-7, R10: format not pinned). */
+// VERIFY against the clinic instance (plan §4.2 item 3): the item id format.
+const ITEM_ID = /^[A-Za-z0-9_-]{1,100}$/
 const PDF_MAGIC = '%PDF-'
-/** Largest JSON success body read (a document with its recipients is far smaller). */
+/**
+ * Largest JSON success body read. An envelope read is small: its items carry a
+ * `documentDataId`, never the file. The deprecated `GET /api/v2/document/{id}`
+ * embedded `documentData` (with database uploads, the whole PDF in base64:
+ * 1,122,716 characters for a signed test document on staging, 2026-10-08), so
+ * it overran this cap; no read used here may embed file data.
+ */
 const MAX_JSON_BYTES = 1024 * 1024
-/** Largest error body read (only `cancel` reads one, for its 404). */
+/** Largest error body read (only `cancel` and `delete` read one, for their 404). */
 const MAX_ERROR_BYTES = 64 * 1024
 
 const TERMINAL_EVENTS = new Set([
@@ -317,24 +334,31 @@ const TERMINAL_EVENTS = new Set([
   'DOCUMENT_CANCELLED',
 ])
 
+/** Whether `value` is a well-formed envelope id (`ENVELOPE_ID`). */
+export function isEnvelopeId(value: unknown): value is string {
+  return typeof value === 'string' && ENVELOPE_ID.test(value)
+}
+
 /**
- * The webhook claim id (design §2.7, PS Hub `idempotency.ts`):
- * `<org id>:<event>:<document id>[:<version>]`. The org comes first because
+ * The webhook claim id (design §2.7, PS Hub `idempotency.ts`, E-4):
+ * `<org id>:<event>:<envelope id>[:<version>]`. The org comes first because
  * claims are unique per provider, while Documenso ids are per instance and
- * each clinic has its own: two clinics' document 12 are two documents, and
- * one's event must never be taken for a duplicate of the other's. `event` is
- * Documenso's name (`DOCUMENT_COMPLETED`). A terminal event happens once per
- * document, so its id has no version: a replay with a new envelope timestamp
- * stays a duplicate. Other events add the version (the webhook's `createdAt`,
- * else the document's `updatedAt`), or `unversioned`.
+ * each clinic has its own: two clinics' envelopes with one id are two
+ * envelopes, and one's event must never be taken for a duplicate of the
+ * other's. `event` is Documenso's name (`DOCUMENT_COMPLETED`). A terminal
+ * event happens once per envelope, so its id has no version: a replay with a
+ * new timestamp stays a duplicate. Other events add the version (the caller
+ * passes an ISO timestamp: the webhook's `createdAt`, else the envelope's
+ * `updatedAt`), or `unversioned`. Bounded at 36 + 1 + 64 (event) + 1 + 73
+ * (`ENVELOPE_ID`) + 1 + 24 = 200 characters, `webhook_events.event_id`'s limit.
  */
 export function documensoEventId(
   orgId: string,
   event: string,
-  documentId: string,
+  envelopeId: string,
   version: string | null,
 ): string {
-  const prefix = `${orgId}:${event}:${documentId}`
+  const prefix = `${orgId}:${event}:${envelopeId}`
   return TERMINAL_EVENTS.has(event)
     ? prefix
     : `${prefix}:${version ?? 'unversioned'}`
@@ -464,17 +488,16 @@ async function reachable(
   return addresses.every(isPublicAddress)
 }
 
-const createdSchema = z.object({
-  id: z.number().int().positive(),
-  envelopeId: z.unknown().optional(),
-})
+/** The create answer: the envelope id (checked with `isEnvelopeId` after). */
+const createdSchema = z.object({ id: z.string() })
 
 /** `{ data: [...] }`, the list `ping` reads. */
 const listSchema = z.object({ data: z.array(z.unknown()) })
 
-/** Documenso's error body for a missing document or envelope. */
-// VERIFY against the clinic instance (Mise en service): `code` is the tRPC
-// error code (OpenAPI error shape `{ message, code, issues? }`).
+/** Documenso's error body for a missing envelope. */
+// VERIFY against the clinic instance (plan §4.2 item 5, R2): the read's 404 is
+// documented (`{ message, code, issues? }`, `code` the tRPC code); the
+// cancel's and the delete's answer for a missing envelope is not.
 const notFoundSchema = z.object({
   message: z.string(),
   code: z.literal('NOT_FOUND'),
@@ -482,16 +505,22 @@ const notFoundSchema = z.object({
 
 const nullableString = z.string().nullish().transform((v) => v ?? null)
 
-const documentSchema = z.object({
+/**
+ * The envelope read (`GET /api/v2/envelope/{id}`). Unknown fields are dropped
+ * (zod's default), recipients' `token` among them; nothing here is file data
+ * (`MAX_JSON_BYTES`).
+ */
+const envelopeSchema = z.object({
+  id: z.string(),
   status: z.enum(['DRAFT', 'PENDING', 'COMPLETED', 'REJECTED', 'CANCELLED']),
   completedAt: nullableString,
-  // The v2 OpenAPI's document read: `externalId`, a string or null, always
+  // The 2.20 OpenAPI's envelope read: `externalId`, a string or null, always
   // present (checked 2026-10-08); the create payload's `externalId` is a
   // string of at most 255. Required here: a read without the field is a bad
-  // response (`provider_error`), never a document « held under no id », so a
+  // response (`provider_error`), never an envelope « held under no id », so a
   // re-send stops on `previous_read_failed` (retryable) instead of taking the
-  // document for another's.
-  // VERIFY against the clinic instance (Mise en service): the read carries
+  // envelope for another's.
+  // VERIFY against the clinic instance (plan §4.2 item 3): the read carries
   // `externalId`.
   externalId: z.string().nullable(),
   recipients: z.array(z.object({
@@ -503,15 +532,16 @@ const documentSchema = z.object({
     signedAt: nullableString,
     rejectionReason: nullableString,
   })),
+  envelopeItems: z.array(z.object({ id: z.string() })),
 })
 
 type Operation =
   | 'create'
   | 'read'
-  | 'fields'
   | 'distribute'
   | 'redistribute'
   | 'cancel'
+  | 'delete'
   | 'download'
   | 'ping'
 
@@ -531,15 +561,23 @@ function badResponse(operation: Operation, status: number): DocumensoError {
   )
 }
 
-/** The id as a JSON number, after checking its form. */
-function numericId(id: string, operation: Operation): number {
-  if (!NUMERIC_ID.test(id)) {
-    throw new DocumensoError(
-      'provider_error',
-      null,
-      `Documenso ${operation}: invalid id`,
-    )
-  }
+function invalidId(operation: Operation): DocumensoError {
+  return new DocumensoError(
+    'provider_error',
+    null,
+    `Documenso ${operation}: invalid id`,
+  )
+}
+
+/** The envelope id, after checking its form (before any request). */
+function envelopeId(id: string, operation: Operation): string {
+  if (!isEnvelopeId(id)) throw invalidId(operation)
+  return id
+}
+
+/** A recipient id as a JSON number, after checking its form. */
+function recipientId(id: string, operation: Operation): number {
+  if (!NUMERIC_ID.test(id)) throw invalidId(operation)
   return Number(id)
 }
 
@@ -743,16 +781,45 @@ export function documensoClient(
     return result.data
   }
 
-  async function readDocument(documentId: string) {
-    const id = numericId(documentId, 'read')
-    const exchange = await ok('read', DOCUMENSO_PATHS.document(String(id)), {
-      method: 'GET',
-    })
-    return parsed(exchange, documentSchema)
+  /** The envelope, checked to be the one asked for. */
+  async function readEnvelope(id: string) {
+    const exchange = await ok(
+      'read',
+      DOCUMENSO_PATHS.envelope(envelopeId(id, 'read')),
+      { method: 'GET' },
+    )
+    const envelope = await parsed(exchange, envelopeSchema)
+    if (envelope.id !== id) throw badResponse('read', exchange.res.status)
+    return envelope
   }
 
-  /** Refuses input Documenso would accept wrongly (`invalid_request`). */
-  function checkInput(input: CreateDocumentInput): void {
+  /**
+   * Whether a refused answer means « already gone »: a 404 whose body is
+   * Documenso's own `NOT_FOUND` error. A proxy's or another server's 404 (a
+   * wrong base URL) is not. The body is read (≤ 64 KB) only for that.
+   */
+  async function gone(exchange: Exchange): Promise<boolean> {
+    if (exchange.res.status !== 404) {
+      await discard(exchange)
+      return false
+    }
+    const body = await readJson(exchange, MAX_ERROR_BYTES)
+    return notFoundSchema.safeParse(body).success
+  }
+
+  /** Deletes a draft (E-8); already gone is done. */
+  async function remove(id: string): Promise<void> {
+    const exchange = await send('delete', DOCUMENSO_PATHS.delete, {
+      method: 'POST',
+      json: { envelopeId: id },
+    })
+    if (exchange.res.ok) return await discard(exchange)
+    if (await gone(exchange)) return
+    throw statusError('delete', exchange.res.status)
+  }
+
+  /** Refuses input Documenso would accept wrongly, or refuse (`invalid_request`). */
+  function checkInput(input: CreateEnvelopeInput): void {
     const refuse = (why: string) => {
       throw new DocumensoError(
         'invalid_request',
@@ -768,10 +835,13 @@ export function documensoClient(
     if (days !== undefined && !(Number.isSafeInteger(days) && days >= 1)) {
       refuse('expiryDays is not a positive integer')
     }
+    // The OpenAPI's limits (R8): refused here rather than as Documenso's 400.
+    if (input.meta.subject.length > 254) refuse('the subject is too long')
+    if (input.meta.message.length > 5000) refuse('the message is too long')
   }
 
   return {
-    async createDocument(pdf, input) {
+    async createEnvelope(pdf, input) {
       checkInput(input)
       const { expiryDays, ...meta } = input.meta
       const form = new FormData()
@@ -779,97 +849,102 @@ export function documensoClient(
         'payload',
         JSON.stringify({
           title: input.title,
+          type: 'DOCUMENT',
           externalId: input.externalId,
-          recipients: input.recipients,
+          recipients: input.recipients.map((r) => ({
+            email: r.email,
+            name: r.name,
+            role: r.role,
+            signingOrder: r.signingOrder,
+            // `identifier`: the PDF's index in `files` (E-5); no fieldMeta.
+            fields: r.fields.map((f) => ({
+              identifier: 0,
+              type: f.type,
+              page: f.page,
+              positionX: f.x,
+              positionY: f.y,
+              width: f.width,
+              height: f.height,
+            })),
+          })),
           meta: {
             ...meta,
             dateFormat: DATE_FORMAT,
             ...(expiryDays === undefined ? {} : {
               envelopeExpirationPeriod: { unit: 'day', amount: expiryDays },
             }),
+            // No owner email when a signing link expires (E-13): the app shows
+            // it and its daily job closes the request. Documenso fills the
+            // other settings with its defaults (all on), which replace the
+            // org's email preferences for this envelope; the clinic keeps
+            // them at those defaults (runbook §6).
+            emailSettings: { ownerRecipientExpired: false },
           },
         }),
       )
       // A fixed file name: the title can name a person (Loi 25).
       form.append(
-        'file',
+        'files',
         new Blob([pdf as Uint8Array<ArrayBuffer>], { type: 'application/pdf' }),
         'document.pdf',
       )
-      const created = await parsed(
-        await ok('create', DOCUMENSO_PATHS.create, {
-          method: 'POST',
-          body: form,
-        }),
-        createdSchema,
-      )
-      const documentId = String(created.id)
-      const envelopeId = typeof created.envelopeId === 'string' &&
-          ENVELOPE_ID.test(created.envelopeId)
-        ? created.envelopeId
-        : null
+      const exchange = await ok('create', DOCUMENSO_PATHS.create, {
+        method: 'POST',
+        body: form,
+      })
+      const created = await parsed(exchange, createdSchema)
+      // Without a well-formed id there is nothing to address (R7): the draft
+      // stays at Documenso, never emailed.
+      if (!isEnvelopeId(created.id)) {
+        throw badResponse('create', exchange.res.status)
+      }
+      const id = created.id
       try {
-        const doc = await readDocument(documentId)
+        const envelope = await readEnvelope(id)
         const recipients = input.recipients.map(({ email }) => {
-          const match = doc.recipients.find((r) =>
+          const match = envelope.recipients.find((r) =>
             r.email.toLowerCase() === email.toLowerCase()
           )
           if (!match) throw badResponse('read', 200)
           return { id: String(match.id), email }
         })
-        return { documentId, envelopeId, recipients }
+        return { envelopeId: id, recipients }
       } catch (error) {
         const e = error instanceof DocumensoError
           ? error
           : badResponse('read', 200)
-        throw new DocumensoError(e.code, e.status, e.message, documentId)
+        throw new DocumensoError(e.code, e.status, e.message, id)
       }
     },
 
-    async addFields(documentId, fields) {
-      if (fields.length === 0) return
-      await done('fields', DOCUMENSO_PATHS.fields, {
-        method: 'POST',
-        json: {
-          documentId: numericId(documentId, 'fields'),
-          fields: fields.map((f) => ({
-            recipientId: numericId(f.recipientId, 'fields'),
-            type: f.type,
-            pageNumber: f.page,
-            pageX: f.x,
-            pageY: f.y,
-            width: f.width,
-            height: f.height,
-          })),
-        },
-      })
-    },
-
-    async distribute(documentId) {
+    async distribute(id) {
+      // The answer carries each recipient's token and signing URL: discarded
+      // unread.
       await done('distribute', DOCUMENSO_PATHS.distribute, {
         method: 'POST',
-        json: { documentId: numericId(documentId, 'distribute') },
+        json: { envelopeId: envelopeId(id, 'distribute') },
       })
     },
 
-    async redistribute(documentId, recipientIds) {
+    async redistribute(id, recipientIds) {
       if (recipientIds.length === 0) return
+      // As `distribute`: the answer (tokens, signing URLs) is discarded unread.
       await done('redistribute', DOCUMENSO_PATHS.redistribute, {
         method: 'POST',
         json: {
-          documentId: numericId(documentId, 'redistribute'),
-          recipients: recipientIds.map((id) => numericId(id, 'redistribute')),
+          envelopeId: envelopeId(id, 'redistribute'),
+          recipients: recipientIds.map((r) => recipientId(r, 'redistribute')),
         },
       })
     },
 
-    async get(documentId) {
-      const doc = await readDocument(documentId)
+    async get(id) {
+      const envelope = await readEnvelope(id)
       return {
-        status: doc.status,
-        completedAt: doc.completedAt,
-        externalId: doc.externalId,
-        recipients: doc.recipients.map((r) => ({
+        status: envelope.status,
+        completedAt: envelope.completedAt,
+        externalId: envelope.externalId,
+        recipients: envelope.recipients.map((r) => ({
           id: String(r.id),
           signingOrder: r.signingOrder,
           signingStatus: r.signingStatus,
@@ -880,51 +955,41 @@ export function documensoClient(
       }
     },
 
-    async cancel(documentId, { envelopeId = null, reason } = {}) {
-      const id = numericId(documentId, 'cancel')
-      if (envelopeId !== null && !ENVELOPE_ID.test(envelopeId)) {
-        throw new DocumensoError(
-          'provider_error',
-          null,
-          'Documenso cancel: invalid id',
-        )
-      }
-      const exchange = envelopeId !== null
-        ? await send('cancel', DOCUMENSO_PATHS.cancel, {
-          method: 'POST',
-          json: { envelopeId, ...(reason === undefined ? {} : { reason }) },
-        })
-        : await send('cancel', DOCUMENSO_PATHS.delete, {
-          method: 'POST',
-          json: { documentId: id },
-        })
+    async cancel(id, { reason, draft = false } = {}) {
+      envelopeId(id, 'cancel')
+      if (draft) return await remove(id)
+      const exchange = await send('cancel', DOCUMENSO_PATHS.cancel, {
+        method: 'POST',
+        json: { envelopeId: id, ...(reason === undefined ? {} : { reason }) },
+      })
       const { status } = exchange.res
       if (exchange.res.ok) return await discard(exchange)
-      if (status === 404) {
-        // Gone already, but only Documenso's own error says so: a proxy's or
-        // another server's 404 (a wrong base URL) is an error.
-        const body = await readJson(exchange, MAX_ERROR_BYTES)
-        if (notFoundSchema.safeParse(body).success) return
-        throw statusError('cancel', status)
-      }
-      await discard(exchange)
-      if (envelopeId !== null && status === 400) {
-        // Documenso refuses to cancel what is not pending: already cancelled
-        // counts as done, anything else (a draft, a completed document) not.
+      if (await gone(exchange)) return
+      if (status === 400) {
+        // Documenso cancels only a pending envelope: already cancelled is
+        // done, a draft is deleted, anything else (completed, rejected) is
+        // the cancel's error. The read-back's own error never replaces it.
+        let current: DocumensoEnvelopeStatus | null = null
         try {
-          if ((await readDocument(documentId)).status === 'CANCELLED') return
+          current = (await readEnvelope(id)).status
         } catch {
           // The cancel's own error is the one to report.
         }
+        if (current === 'CANCELLED') return
+        if (current === 'DRAFT') return await remove(id)
       }
       throw statusError('cancel', status)
     },
 
-    async downloadSigned(documentId) {
-      const id = numericId(documentId, 'download')
+    async downloadSigned(id) {
+      const { envelopeItems } = await readEnvelope(id)
+      // The app creates one file per envelope (R10: several → not stored).
+      if (envelopeItems.length !== 1 || !ITEM_ID.test(envelopeItems[0].id)) {
+        throw badResponse('download', 200)
+      }
       const exchange = await ok(
         'download',
-        `${DOCUMENSO_PATHS.download(String(id))}?version=signed`,
+        `${DOCUMENSO_PATHS.download(envelopeItems[0].id)}?version=signed`,
         { method: 'GET' },
       )
       const bytes = await readCapped(exchange, maxDownloadBytes)

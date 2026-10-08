@@ -1,4 +1,4 @@
-// A local, in-memory Documenso v2 for development (Task 3.32, P3-23). Nothing
+// A local, in-memory Documenso v2 (envelope API) for development (Task 3.32, P3-23). Nothing
 // is written to disk; every restart starts empty.
 //
 //   npm run fake:documenso
@@ -11,11 +11,14 @@
 // the functions' import map and lock, so it adds no dependency.
 //
 // Admin routes (no key; each posts the webhook and answers its outcome):
-//   POST /__fake/open/:id[?recipient=101]         DOCUMENT_OPENED
-//   POST /__fake/sign/:id[?recipient=101]         DOCUMENT_SIGNED (stays pending)
-//   POST /__fake/complete/:id                     DOCUMENT_COMPLETED
-//   POST /__fake/reject/:id[?recipient=&reason=]  DOCUMENT_REJECTED
-//   GET  /__fake/documents                        ids, titles, statuses (no address)
+//   POST /__fake/open/:envelopeId[?recipient=101]         DOCUMENT_OPENED
+//   POST /__fake/sign/:envelopeId[?recipient=101]         DOCUMENT_SIGNED (stays pending)
+//   POST /__fake/complete/:envelopeId                     DOCUMENT_COMPLETED
+//   POST /__fake/reject/:envelopeId[?recipient=&reason=]  DOCUMENT_REJECTED
+//   GET  /__fake/documents              envelope ids, titles, statuses (no address)
+//
+// Envelope ids look like Documenso's (`envelope_aaaaaaaaaaaaaaab`, …ac, …):
+// read them from GET /__fake/documents.
 //
 // The API needs `Authorization: local-dev-documenso-key` (no `Bearer`).
 // Webhooks go to FAKE_DOCUMENSO_WEBHOOK_URL (default: the local
