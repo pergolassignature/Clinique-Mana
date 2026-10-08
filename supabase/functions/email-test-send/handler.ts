@@ -6,7 +6,12 @@
  * - CORS; `POST` only; `verifyAuth` with `settings.email_manage`.
  * - Body `{ template_key, subject?, body?, button_label? }`: a draft has both
  *   `subject` and `body` (rules: `../_shared/email/draft.ts`), else none of
- *   the three. Any other field (a `to`, an `org_id`) is ignored.
+ *   the three. The « Modèles » editor sends all three fields of its draft;
+ *   `button_label` null or empty means « no button », and an omitted one
+ *   keeps the effective template's label. Any other field (a `to`, an
+ *   `org_id`) is ignored. A `{{` or `}}` outside a placeholder → 400
+ *   `invalid_request` « Accolades non fermées dans le texte. » (SQL's
+ *   check), before any RPC.
  * - The recipient is always the caller's own address (`auth.access.email`,
  *   `profiles.email`) and the org the caller's; the log row is subject
  *   `email_test` / the caller.
@@ -16,9 +21,12 @@
  *
  * Status mapping: ok 200 `{ email_log_id }`; `rate_limited` 429 (with
  * `Retry-After`); `not_configured` 503; `provider_error` 502;
- * `missing_variable` 400; `invalid_recipient` 400 `invalid_request`;
- * `module_disabled` 403; `recipient_not_allowed` 403 `forbidden`; a
- * `FunctionError` from the send path its code with 500 (already reported).
+ * `missing_variable` 400 `invalid_request` with `variable`, as
+ * `email-preview` (in test mode samples fill every value, so this is an
+ * unknown placeholder); `invalid_recipient` 400 `invalid_request`;
+ * `module_disabled` 403; `recipient_not_allowed` 403 `forbidden`. A
+ * `FunctionError` from the send path (already reported): `not_found` (an
+ * unknown template key) 404, any other code 500.
  */
 import { z } from 'zod'
 import {
@@ -30,6 +38,7 @@ import {
 import type { Deps } from '../_shared/deps.ts'
 import {
   draftBodySchema,
+  draftBraceError,
   draftButtonSchema,
   draftSubjectSchema,
   templateKeySchema,
@@ -78,7 +87,17 @@ function outcomeResponse(result: SendResult, req: Request): Response {
     case 'provider_error':
       return errorResponse('provider_error', 'Email provider failed', 502, req)
     case 'missing_variable':
-      return errorResponse('missing_variable', 'Missing variable', 400, req)
+      return jsonResponse(
+        {
+          error: {
+            code: 'invalid_request',
+            message: 'Unknown variable',
+            variable: result.path.slice(0, 80),
+          },
+        },
+        400,
+        req,
+      )
     case 'invalid_recipient':
       return errorResponse('invalid_request', 'Invalid recipient', 400, req)
     case 'module_disabled':
@@ -105,6 +124,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (auth instanceof Response) return auth
     const input = await readJson(req, bodySchema)
     if (input instanceof Response) return input
+    const braces = draftBraceError(
+      input.subject,
+      input.body,
+      input.button_label,
+    )
+    if (braces) return errorResponse('invalid_request', braces, 400, req)
     const client = deps.serviceClient()
     if (client instanceof Response) return client
 
@@ -132,7 +157,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
               ? {
                 subject: input.subject,
                 body: input.body,
-                buttonLabel: input.button_label ?? null,
+                // undefined (omitted) keeps the effective label.
+                buttonLabel: input.button_label,
               }
               : undefined,
           },
@@ -142,7 +168,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     } catch (error) {
       // The send path reports its own failures before throwing them.
       if (error instanceof FunctionError) {
-        return errorResponse(error.code, 'Test email failed', 500, req)
+        return error.code === 'not_found'
+          ? errorResponse('not_found', 'Unknown template', 404, req)
+          : errorResponse(error.code, 'Test email failed', 500, req)
       }
       await reportError(
         { fn: FN, code: 'unexpected', ids: { org_id: orgId } },

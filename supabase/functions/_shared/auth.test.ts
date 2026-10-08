@@ -100,6 +100,15 @@ Deno.test('corsHeaders: * when ALLOWED_ORIGINS is unset; no Content-Type', async
   })
 })
 
+Deno.test('corsHeaders: exposes Retry-After (a 429 is read by the app), with or without ALLOWED_ORIGINS', async () => {
+  for (const origins of [undefined, 'https://app.test']) {
+    await withEnv({ ALLOWED_ORIGINS: origins }, () => {
+      const h = corsHeaders(fromOrigin('https://app.test'))
+      assertEquals(h['Access-Control-Expose-Headers'], 'Retry-After')
+    })
+  }
+})
+
 Deno.test('corsHeaders: echoes an allowed origin with Vary: Origin', async () => {
   await withEnv(
     { ALLOWED_ORIGINS: 'https://app.test, http://localhost:5173' },

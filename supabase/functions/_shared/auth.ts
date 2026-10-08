@@ -76,6 +76,8 @@ export function corsHeaders(req?: Request): Record<string, string> {
     'Access-Control-Allow-Headers':
       'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    // A 429's `Retry-After` must be readable by the app (« Réessayez dans … »).
+    'Access-Control-Expose-Headers': 'Retry-After',
   }
   const allowed = allowedOrigins()
   if (allowed === null) {

@@ -833,7 +833,7 @@ Deno.test('send: an invalid clinic timezone throws server_misconfigured, nothing
 Deno.test('send: an RPC error or a malformed context throws internal (reported, nothing sent)', async () => {
   for (
     const route of [
-      { error: { code: '22023', message: 'unknown template' } },
+      { error: { code: 'XX000', message: 'boom' } },
       { data: { module_enabled: true } },
     ] as FakeResult[]
   ) {
@@ -850,6 +850,29 @@ Deno.test('send: an RPC error or a malformed context throws internal (reported, 
     assertEquals(errors.length, 1)
     assertEquals(h.http.calls.length, 0)
   }
+})
+
+Deno.test('send: an unknown template key (22023) throws not_found, still reported, nothing sent', async () => {
+  const h = harness({
+    rpc: { get_email_context: { error: { code: '22023', message: 'x' } } },
+  })
+  const errors = await captureConsole('error', async () => {
+    await withEnv(ENV, async () => {
+      const error = await assertRejects(
+        () => sendTemplatedEmail(h.deps, input()),
+        FunctionError,
+      )
+      assertEquals(error.code, 'not_found')
+    })
+  })
+  assertEquals(errors.length, 1)
+  assertEquals(JSON.parse(String(errors[0][0])), {
+    fn: 'test-fn',
+    code: 'email_template_unknown',
+    ids: { org_id: ORG },
+  })
+  assertFalse(h.rpcNames().includes('consume_rate_limit'))
+  assertEquals(h.http.calls.length, 0)
 })
 
 // ---------------------------------------------------------------------------
@@ -906,15 +929,115 @@ Deno.test('send: test mode renders the draft text when given', async () => {
   assertStringIncludes(body.text, 'Nouveau texte')
 })
 
-Deno.test('send: the 11th test send in an hour → rate_limited', async () => {
+Deno.test('send: the 11th test send in an hour → rate_limited, and the org day is not consumed', async () => {
   const h = harness({ limits: { 'emails.test': { allowed: false, hits: 11 } } })
+  for (let i = 0; i < 3; i++) {
+    const { result } = await run(() =>
+      sendTemplatedEmail(
+        h.deps,
+        input({ values: {}, test: { callerId: CALLER } }),
+      )
+    )
+    assertEquals(!result.ok && result.code, 'rate_limited')
+  }
+  assertFalse(h.buckets().includes('emails.org_day'))
+  assertFalse(h.rpcNames().includes('queue_email'))
+})
+
+Deno.test('send: test sends and « Renvoyer » consume the narrow buckets first, then the org day', async () => {
+  for (
+    const [over, narrow] of [
+      [{ values: {}, test: { callerId: CALLER } }, [
+        'consume_rate_limit:emails.repeat_guard',
+        'consume_rate_limit:emails.test',
+      ]],
+      [{ explicitResend: true }, ['consume_rate_limit:emails.repeat_guard']],
+    ] as [Partial<SendTemplatedEmailInput>, string[]][]
+  ) {
+    const h = harness()
+    const { result } = await run(() => sendTemplatedEmail(h.deps, input(over)))
+    assertEquals(result, { ok: true, emailLogId: LOG_ID })
+    assertEquals(steps(h.log).slice(1, 3), [
+      narrow,
+      ['consume_rate_limit:emails.org_day'],
+    ])
+  }
+})
+
+Deno.test('send: a refused repeat guard or a limiter failure on a narrow bucket leaves the org day alone', async () => {
+  for (
+    const limits of [
+      { 'emails.repeat_guard': { allowed: false, hits: 2 } },
+      { 'emails.repeat_guard': 'error' },
+    ] as Options['limits'][]
+  ) {
+    const h = harness({ limits })
+    await run(() => sendTemplatedEmail(h.deps, input({ explicitResend: true })))
+    assertEquals(h.buckets(), ['emails.repeat_guard'])
+  }
+})
+
+Deno.test('send: the org day refusing a test send after the narrow buckets pass → rate_limited', async () => {
+  const h = harness({
+    limits: { 'emails.org_day': { allowed: false, hits: 501 } },
+  })
   const { result } = await run(() =>
     sendTemplatedEmail(
       h.deps,
       input({ values: {}, test: { callerId: CALLER } }),
     )
   )
-  assertEquals(!result.ok && result.code, 'rate_limited')
+  assertEquals(result, {
+    ok: false,
+    emailLogId: null,
+    code: 'rate_limited',
+    retryAfter: 42,
+  })
+  assertFalse(h.rpcNames().includes('queue_email'))
+})
+
+Deno.test('send: the 80 % warning also fires on a test send (org day hit 401)', async () => {
+  const h = harness({ limits: { 'emails.org_day': { hits: 401 } } })
+  const { errors } = await run(() =>
+    sendTemplatedEmail(
+      h.deps,
+      input({ values: {}, test: { callerId: CALLER } }),
+    )
+  )
+  assertEquals(errors.map((e) => JSON.parse(e).code), [
+    'email_daily_80_percent',
+  ])
+})
+
+Deno.test('send: a draft without buttonLabel keeps the effective label; null drops the button', async () => {
+  for (
+    const [buttonLabel, shown] of [[undefined, true], [null, false]] as const
+  ) {
+    const h = harness()
+    await run(() =>
+      sendTemplatedEmail(
+        h.deps,
+        input({
+          values: {},
+          actionUrl: null,
+          test: {
+            callerId: CALLER,
+            draft: {
+              subject: 'Brouillon',
+              body: 'Texte',
+              ...(buttonLabel === undefined ? {} : { buttonLabel }),
+            },
+          },
+        }),
+      )
+    )
+    const body = JSON.parse(h.http.calls[0].body)
+    assertEquals(
+      body.html.includes('Créer mon accès'),
+      shown,
+      String(buttonLabel),
+    )
+  }
 })
 
 // ---------------------------------------------------------------------------

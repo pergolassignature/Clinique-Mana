@@ -100,7 +100,7 @@ Deno.test('email-preview: no token → 401, nothing read', async () => {
   })
 })
 
-Deno.test('email-preview: the conseillère (no settings.email_manage) → 403', async () => {
+Deno.test('email-preview: no settings.view → 403', async () => {
   await quiet(async () => {
     const { handler, service } = harness({
       access: accessFixture(['clients.view']),
@@ -109,6 +109,62 @@ Deno.test('email-preview: the conseillère (no settings.email_manage) → 403', 
     const error = await errorOf(res)
     assertEquals([error.status, error.code], [403, 'forbidden'])
     assertEquals(service.calls, [])
+  })
+})
+
+Deno.test('email-preview: settings.view without settings.email_manage may preview (nothing is stored or sent)', async () => {
+  await quiet(async () => {
+    const { handler } = harness({ access: accessFixture(['settings.view']) })
+    const res = await handler(post(draft()))
+    assertEquals(res.status, 200)
+    assertEquals((await res.json()).subject, 'Brouillon pour Clinique MANA')
+  })
+})
+
+Deno.test('email-preview: unclosed braces → 400 invalid_request « Accolades non fermées », nothing read', async () => {
+  await quiet(async () => {
+    const { handler, service } = harness()
+    for (
+      const over of [
+        { subject: 'Objet {{clinic.name' },
+        { body: 'Texte }} fin' },
+        { body: 'Texte {{ {{clinic.name}}' },
+        { button_label: 'Ouvrir {{' },
+      ]
+    ) {
+      const error = await errorOf(await handler(post(draft(over))))
+      assertEquals(error, {
+        status: 400,
+        code: 'invalid_request',
+        message: 'Accolades non fermées dans le texte.',
+      }, JSON.stringify(over))
+    }
+    assertEquals(service.calls, [])
+  })
+})
+
+Deno.test('email-preview: single braces around a placeholder are not unclosed (as SQL)', async () => {
+  await quiet(async () => {
+    const { handler } = harness()
+    const res = await handler(post(draft({ body: '{{{clinic.name}}}' })))
+    assertEquals(res.status, 200)
+    assert((await res.json()).text.includes('{Clinique MANA}'))
+  })
+})
+
+Deno.test('email-preview: trims only space, tab, CR and LF (as SQL btrim)', async () => {
+  await quiet(async () => {
+    const { handler } = harness()
+    const ok = await handler(post(draft({ subject: ' \t\r\nObjet\t ' })))
+    assertEquals((await ok.json()).subject, 'Objet')
+    // A no-break space is not trimmed, as in SQL: the subject is not empty.
+    const nbsp = await handler(post(draft({ subject: '\u00a0' })))
+    assertEquals(nbsp.status, 200)
+    await nbsp.body?.cancel()
+    // A body of only an ideographic space is not empty for SQL either.
+    const ideo = await handler(post(draft({ body: '\u3000' })))
+    assertEquals(ideo.status, 200)
+    await ideo.body?.cancel()
   })
 })
 

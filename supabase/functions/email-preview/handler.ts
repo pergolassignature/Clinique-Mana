@@ -2,8 +2,12 @@
  * `email-preview` (Task 3.10): renders an unsaved template for the « Modèles »
  * editor, with the catalogue's sample values. Nothing is stored or sent.
  *
- * - CORS; `POST` only; `verifyAuth` with `settings.email_manage`.
+ * - CORS; `POST` only; `verifyAuth` with `settings.view`: a preview stores
+ *   and sends nothing, so anyone who can read the settings may render one
+ *   (`email-test-send` keeps `settings.email_manage`).
  * - Body `{ template_key, subject, body, button_label }` (`../_shared/email/draft.ts`).
+ *   A `{{` or `}}` outside a placeholder → 400 `invalid_request`
+ *   « Accolades non fermées dans le texte. » (SQL's check), before any RPC.
  * - `get_email_context` for the caller's org (never one from the body): an
  *   unknown key → 404 `not_found`; a disabled module → 403 `module_disabled`.
  * - `composeEmail` in `preview` mode over the draft text. Values are escaped
@@ -25,6 +29,7 @@ import type { Deps } from '../_shared/deps.ts'
 import { composeEmail } from '../_shared/email/compose.ts'
 import {
   draftBodySchema,
+  draftBraceError,
   draftButtonSchema,
   draftSubjectSchema,
   templateKeySchema,
@@ -55,12 +60,18 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     const auth = await verifyAuth(
       req,
-      { permission: 'settings.email_manage' },
+      { permission: 'settings.view' },
       deps.userClient,
     )
     if (auth instanceof Response) return auth
     const input = await readJson(req, bodySchema)
     if (input instanceof Response) return input
+    const braces = draftBraceError(
+      input.subject,
+      input.body,
+      input.button_label,
+    )
+    if (braces) return errorResponse('invalid_request', braces, 400, req)
 
     const orgId = auth.access.org_id
     const report = (code: string) =>

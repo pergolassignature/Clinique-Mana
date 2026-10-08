@@ -197,18 +197,114 @@ Deno.test('email-test-send: the 11th test in an hour → 429 with Retry-After', 
   })
 })
 
-Deno.test('email-test-send: unknown placeholder in the draft → 400 missing_variable', async () => {
+Deno.test('email-test-send: unknown placeholder in the draft → 400 invalid_request naming it (as preview)', async () => {
   await run(async () => {
     const { handler, http } = harness()
     const error = await errorOf(
       await handler(post({
         template_key: 'core.staff_invite',
         subject: 'Objet',
-        body: 'Bonjour {{patient.name}}',
+        body: 'Bonjour {{ patient.name }}',
       })),
     )
-    assertEquals([error.status, error.code], [400, 'missing_variable'])
+    assertEquals(error, {
+      status: 400,
+      code: 'invalid_request',
+      message: 'Unknown variable',
+      variable: 'patient.name',
+    })
     assertEquals(http.calls, [])
+  })
+})
+
+Deno.test('email-test-send: unclosed braces in the draft → 400 invalid_request, nothing read', async () => {
+  await run(async () => {
+    const { handler, service, http } = harness()
+    for (
+      const draft of [
+        { subject: 'Objet {{clinic.name', body: 'Texte' },
+        { subject: 'Objet', body: 'Texte }} fin' },
+        { subject: 'Objet', body: 'Texte', button_label: 'Ouvrir {{' },
+        // A placeholder may not cross the line break between the fields.
+        { subject: 'Objet {{', body: 'clinic.name}} texte' },
+      ]
+    ) {
+      const error = await errorOf(
+        await handler(post({ template_key: 'core.staff_invite', ...draft })),
+      )
+      assertEquals(error, {
+        status: 400,
+        code: 'invalid_request',
+        message: 'Accolades non fermées dans le texte.',
+      })
+    }
+    assertEquals(service.calls, [])
+    assertEquals(http.calls, [])
+  })
+})
+
+Deno.test('email-test-send: a draft without button_label keeps the effective label', async () => {
+  await run(async () => {
+    const { handler, http } = harness()
+    const res = await handler(post({
+      template_key: 'core.staff_invite',
+      subject: 'Brouillon',
+      body: 'Texte',
+    }))
+    assertEquals(res.status, 200)
+    assert(JSON.parse(http.calls[0].body).HTML.includes('Créer mon accès'))
+  })
+})
+
+Deno.test('email-test-send: an unknown template key (22023) → 404 not_found, reported once', async () => {
+  await run(async () => {
+    const { handler, http } = harness({
+      rpc: { get_email_context: { error: { code: '22023' } } },
+    })
+    const logged = await captureConsole('error', async () => {
+      const error = await errorOf(
+        await handler(post({ template_key: 'core.nope' })),
+      )
+      assertEquals([error.status, error.code], [404, 'not_found'])
+    })
+    assertEquals(logged.length, 1)
+    assertEquals(
+      JSON.parse(String(logged[0][0])).code,
+      'email_template_unknown',
+    )
+    assertEquals(http.calls, [])
+  })
+})
+
+Deno.test('email-test-send: a 429 exposes Retry-After to the browser', async () => {
+  await run(async () => {
+    const { handler } = harness({
+      limits: { 'emails.test': { allowed: false, hits: 11 } },
+    })
+    const res = await handler(post({ template_key: 'core.staff_invite' }))
+    assertEquals(res.status, 429)
+    assertEquals(
+      res.headers.get('Access-Control-Expose-Headers'),
+      'Retry-After',
+    )
+    await res.body?.cancel()
+  })
+})
+
+Deno.test('email-test-send: refused test sends after the hourly limit leave the org day alone', async () => {
+  await run(async () => {
+    const { handler, service } = harness({
+      limits: { 'emails.test': { allowed: false, hits: 11 } },
+    })
+    for (let i = 0; i < 3; i++) {
+      const res = await handler(post({ template_key: 'core.staff_invite' }))
+      assertEquals(res.status, 429)
+      await res.body?.cancel()
+    }
+    const buckets = service.calls.filter((c) => c.fn === 'consume_rate_limit')
+      .map((c) => c.args.p_bucket)
+    assert(buckets.length > 0)
+    assert(!buckets.includes('emails.org_day'))
   })
 })
 

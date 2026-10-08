@@ -1,5 +1,5 @@
-import { assert, assertEquals } from '@std/assert'
-import { createHandler } from './handler.ts'
+import { assert, assertEquals, assertFalse } from '@std/assert'
+import { createHandler, createReportThrottle } from './handler.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { fakeFetch } from '../_shared/testing/fake-fetch.ts'
 import {
@@ -94,16 +94,17 @@ function harness(rpc: Record<string, RpcRoute> = {}) {
       ...rpc,
     },
   })
+  const clock = fixedClock(NOW)
   const deps: Deps = {
     env: () => undefined,
     fetch: fakeFetch({}).fetch,
-    now: fixedClock(NOW).now,
+    now: clock.now,
     serviceClient: () => service.client,
     userClient: () => new Response(null, { status: 500 }),
   }
   const names = () => service.calls.map((c) => c.fn)
   const args = (fn: string) => service.calls.find((c) => c.fn === fn)?.args
-  return { handler: createHandler(deps), service, names, args }
+  return { handler: createHandler(deps), service, names, args, clock }
 }
 
 /** No Sentry: reports are console lines, returned for inspection. */
@@ -164,6 +165,8 @@ Deno.test('resend-webhook: each mapped type, and the array form of tags', async 
       'email.delivery_delayed': 'delivery_delayed',
       'email.bounced': 'bounced',
       'email.complained': 'complained',
+      'email.suppressed': 'bounced',
+      'email.failed': 'failed',
     }
     for (const [type, status] of Object.entries(types)) {
       const { handler, args } = harness()
@@ -182,16 +185,40 @@ Deno.test('resend-webhook: each mapped type, and the array form of tags', async 
   })
 })
 
-Deno.test('resend-webhook: no usable tag → apply by the provider id only', async () => {
+Deno.test('resend-webhook: no usable email_log_id tag → 200 skipped before the claim, no report', async () => {
+  await withEnv({ SENTRY_DSN: undefined }, async () => {
+    for (
+      const tags of [
+        undefined,
+        { email_log_id: 'not-a-uuid' },
+        [{ name: 'category', value: 'newsletter' }],
+        [],
+      ]
+    ) {
+      const { handler, names } = harness()
+      const logged = await captureConsole('error', async () => {
+        const res = await handler(
+          await signed(event('email.bounced', { tags })),
+        )
+        assertEquals(res.status, 200)
+        assertEquals(await res.json(), { outcome: 'skipped' })
+      })
+      assertEquals(names(), ['get_org_secret'], JSON.stringify(tags))
+      assertEquals(logged, [])
+    }
+  })
+})
+
+Deno.test('resend-webhook: an untagged event is still verified first (bad signature → 401)', async () => {
   await run(async () => {
-    const { handler, args } = harness()
-    await handler(
-      await signed(event('email.bounced', {
-        tags: { email_log_id: 'not-a-uuid' },
-      })),
+    const { handler, names } = harness()
+    const res = await handler(
+      await signed(event('email.bounced', { tags: undefined }), {
+        secret: 'whsec_' + btoa('another-secret'),
+      }),
     )
-    assertEquals(args('apply_email_event')?.p_email_log_id, null)
-    assertEquals(args('apply_email_event')?.p_resend_id, RESEND_ID)
+    assertEquals(res.status, 401)
+    assertEquals(names(), ['get_org_secret'])
   })
 })
 
@@ -257,6 +284,65 @@ Deno.test('resend-webhook: no secret for the org → 401, reported', async () =>
       ids: { org_id: ORG_ID },
     })
   })
+})
+
+Deno.test('resend-webhook: a missing secret is reported once per org per hour; other hits are console lines', async () => {
+  await withEnv({ SENTRY_DSN: undefined }, async () => {
+    const { handler, clock } = harness({ get_org_secret: { data: null } })
+    const OTHER_ORG = '0b9d7c1e-2f3a-4b5c-9d8e-7f6a5b4c3d2e'
+    const hit = async (org = ORG_ID) => {
+      assertEquals((await handler(await signed(event(), { org }))).status, 401)
+    }
+    let warned: unknown[][] = []
+    const reported = await captureConsole('error', async () => {
+      warned = await captureConsole('warn', async () => {
+        await hit()
+        await hit()
+        await hit(ORG_ID.toUpperCase())
+        clock.advance(59 * 60 * 1000)
+        await hit()
+        await hit(OTHER_ORG)
+        clock.advance(60 * 1000)
+        await hit()
+      })
+    })
+    const codes = reported.map((r) => JSON.parse(String(r[0])))
+    assertEquals(codes, [
+      {
+        fn: 'resend-webhook',
+        code: 'resend_webhook_secret_missing',
+        ids: { org_id: ORG_ID },
+      },
+      {
+        fn: 'resend-webhook',
+        code: 'resend_webhook_secret_missing',
+        ids: { org_id: OTHER_ORG },
+      },
+      {
+        fn: 'resend-webhook',
+        code: 'resend_webhook_secret_missing',
+        ids: { org_id: ORG_ID },
+      },
+    ])
+    assertEquals(warned.length, 3)
+    for (const [line] of warned) {
+      const parsed = JSON.parse(String(line))
+      assertEquals(parsed.code, 'resend_webhook_secret_missing')
+      assertEquals(Object.keys(parsed.ids), ['org_id'])
+    }
+  })
+})
+
+Deno.test('createReportThrottle: once per key per window; the map is capped, the oldest evicted', () => {
+  const allow = createReportThrottle(1_000, 2)
+  assert(allow('a', 0))
+  assertFalse(allow('a', 999))
+  assert(allow('a', 1_000))
+  assert(allow('b', 1_000))
+  assert(allow('c', 1_000)) // evicts `a`, the oldest
+  assert(allow('a', 1_001)) // forgotten, so reported again (evicts `b`)
+  assertFalse(allow('c', 1_002))
+  assert(allow('b', 1_003))
 })
 
 Deno.test('resend-webhook: the secret cannot be read → 500 (Resend retries)', async () => {

@@ -7,26 +7,38 @@
  * 2. The three Svix headers must be present (else 401, before any read), and
  *    the raw body at most 64 KB (413) and UTF-8 (400).
  * 3. `get_org_secret(org, 'resend_webhook_secret')`: none → 401 (fail
- *    closed, reported `resend_webhook_secret_missing`); a read error → 500.
+ *    closed); a read error → 500. An unknown or unconfigured org would
+ *    otherwise report on every delivery (Resend retries, anyone can post),
+ *    so `resend_webhook_secret_missing` is reported at most once per org per
+ *    hour per isolate (a map capped at 256 orgs, the oldest evicted); the
+ *    other hits are a console line with the org id only.
  * 4. `verifySvix` over the raw body, before parsing: false → 401, and no
  *    other RPC runs.
  * 5. Parse `{ type, created_at, data: { email_id, tags } }` (else 400). The
  *    `email_log_id` tag is read in Resend's object or array form; a value
- *    that is not a uuid is dropped (the row is then found by `email_id`).
- * 6. `claimEvent('resend', svix-id, …)` with ids only (`type`, `email_id`,
+ *    that is not a uuid is dropped.
+ * 6. **No tag → 200 `{ outcome: 'skipped' }`, before the claim:** an email
+ *    this app did not send (another tool on the clinic's Resend account),
+ *    acked so Resend stops, with no report and no row in `webhook_events`.
+ *    Only signed events get here (step 4 comes first).
+ * 7. `claimEvent('resend', svix-id, …)` with ids only (`type`, `email_id`,
  *    `email_log_id`), never `data.to` or the subject: `duplicate` → 200,
  *    `in_progress` → 409 (Resend retries later), an RPC error → 500.
- * 7. `email.sent` / `delivered` / `delivery_delayed` / `bounced` /
- *    `complained` → `apply_email_event`; any other type is acked (200) and
- *    completed, so Resend does not retry it.
- * 8. **Module gate in the same RPC:** `apply_email_event` reads the row's
+ * 8. `email.sent` / `delivered` / `delivery_delayed` / `bounced` /
+ *    `complained` → `apply_email_event` with that status; `email.suppressed`
+ *    (Resend did not send to a suppressed address) → `bounced`;
+ *    `email.failed` → `failed` (the RPC sets `provider_failed`). Any other
+ *    type is acked (200 `skipped`) and completed, so Resend does not retry
+ *    it. The RPC gets the tag's id and `email_id` (`p_resend_id`, recorded on
+ *    a row whose `mark_email_sent` failed).
+ * 9. **Module gate in the same RPC:** `apply_email_event` reads the row's
  *    `module_key` and checks `module_enabled_for_org` itself, answering
  *    `ignored` for a disabled module (the design's `requireModuleForOrg` from
  *    the row, without an extra round trip). `applied` and `ignored` → 200;
- *    `not_found` (no row, or another org's) → 200 too, reported: a retry
- *    cannot find it either.
- * 9. Then `completeEvent`. A failure after the claim → `failEvent(code)` and
- *    500, so the next delivery retries the event.
+ *    `not_found` (a tagged id with no row, or another org's) → 200 too,
+ *    reported: a retry cannot find it either.
+ * 10. Then `completeEvent`. A failure after the claim → `failEvent(code)` and
+ *     500, so the next delivery retries the event.
  *
  * Answers carry `{ outcome }` at most. Reports and logs carry the org,
  * webhook-event and email-log ids only: never an address or a payload.
@@ -45,10 +57,14 @@ import {
 
 const FN = 'resend-webhook'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-/** A Resend email id (a uuid today); anything else is not looked up. */
+/** A Resend email id (a uuid today); anything else is passed as null. */
 const PROVIDER_ID = /^[A-Za-z0-9_-]{1,100}$/
 /** `claim_webhook_event` accepts event ids of 1 to 200 characters. */
 const MAX_EVENT_ID = 200
+/** `resend_webhook_secret_missing` is reported once per org per this window. */
+const MISSING_SECRET_WINDOW_MS = 60 * 60 * 1000
+/** Orgs remembered for that throttle (per isolate); the oldest is evicted. */
+const MISSING_SECRET_MAX_ORGS = 256
 
 /** Resend event types that move an `email_log` row, and the status they set. */
 const STATUS: Record<string, string> = {
@@ -57,6 +73,10 @@ const STATUS: Record<string, string> = {
   'email.delivery_delayed': 'delivery_delayed',
   'email.bounced': 'bounced',
   'email.complained': 'complained',
+  // Resend refused to send to an address on its suppression list.
+  'email.suppressed': 'bounced',
+  // Resend could not send it (`apply_email_event` sets `provider_failed`).
+  'email.failed': 'failed',
 }
 
 /** The fields read from an event; everything else (`to`, `subject`) is ignored. */
@@ -88,8 +108,30 @@ function eventTime(value: string | undefined): string | null {
   return Number.isFinite(at) ? new Date(at).toISOString() : null
 }
 
+/**
+ * True when `key` was not reported within the window: records it now. A Map
+ * keeps insertion order, and a report re-inserts its key, so the first key is
+ * the one reported longest ago (evicted past `max`).
+ */
+export function createReportThrottle(
+  windowMs = MISSING_SECRET_WINDOW_MS,
+  max = MISSING_SECRET_MAX_ORGS,
+): (key: string, nowMs: number) => boolean {
+  const last = new Map<string, number>()
+  return (key, nowMs) => {
+    const at = last.get(key)
+    if (at !== undefined && nowMs - at < windowMs) return false
+    last.delete(key)
+    last.set(key, nowMs)
+    if (last.size > max) last.delete(last.keys().next().value!)
+    return true
+  }
+}
+
 /** The webhook handler; see the module comment. */
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
+  // One handler per isolate (`index.ts`), so this throttle is per isolate.
+  const reportMissingSecret = createReportThrottle()
   return async (req) => {
     if (req.method !== 'POST') return webhookResponse(405)
     const orgId = new URL(req.url).searchParams.get('org') ?? ''
@@ -125,7 +167,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return webhookResponse(500)
     }
     if (typeof secret.data !== 'string' || !secret.data) {
-      await report('resend_webhook_secret_missing')
+      if (reportMissingSecret(orgId.toLowerCase(), deps.now().getTime())) {
+        await report('resend_webhook_secret_missing')
+      } else {
+        console.warn(
+          JSON.stringify({
+            fn: FN,
+            code: 'resend_webhook_secret_missing',
+            ids,
+          }),
+        )
+      }
       return webhookResponse(401)
     }
     const valid = await verifySvix({
@@ -148,9 +200,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     const { type } = parsed
     const logId = emailLogId(parsed.data?.tags)
+    // Not an email this app sent: ack it, claim nothing, report nothing.
+    if (!logId) return webhookResponse(200, { outcome: 'skipped' })
     const providerId = parsed.data?.email_id ?? ''
     const resendId = PROVIDER_ID.test(providerId) ? providerId : null
-    if (logId) ids.email_log_id = logId
+    ids.email_log_id = logId
 
     let claim
     try {
