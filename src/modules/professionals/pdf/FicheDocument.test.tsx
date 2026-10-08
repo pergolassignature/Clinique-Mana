@@ -7,6 +7,7 @@ import type { ProfessionalRecord } from '../api/parse'
 import { IDS } from '../test/fixtures'
 import { CATALOG_VIEW, recordFixture, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
 import { readPdf } from '../test/pdf-text'
+import { buildCatalogView } from '../lib/catalog-view'
 import { buildFicheContent, type FicheInput } from './fiche-content'
 import { FicheDocument } from './FicheDocument'
 import { loadFicheFonts } from './fonts'
@@ -66,14 +67,16 @@ describe('FicheDocument', () => {
       'www.cliniquemana.ca',
       'Marie Tremblay',
       'Psychologue',
-      'Ordre des psychologues du Québec (OPQ) · N° de permis\u00a012345',
+      'Membre de l’OPQ · N° de permis\u00a012345',
       'marie@exemple.ca · 514 555-1234',
       upper(t(`${P}.clienteles`)),
       'Couples',
       upper(t(`${P}.languages`)),
       'Français',
-      t(`${P}.presentation`),
+      t(`${P}.about`),
       'Une présentation.',
+      upper(t(`${P}.fees`)),
+      t(`${P}.feesPending`),
       'Fiche à jour le 8 octobre 2026 · Page 1 de 1',
     ]) {
       expect(text).toContain(expected)
@@ -118,32 +121,36 @@ describe('FicheDocument', () => {
     expect(all(pdf.pages)).toContain('Approche intégrative.')
   })
 
-  it('summarises 72 motifs per category: each name on its own line, then « Tous », never the 72 names', async () => {
-    const catalog = seventyTwoMotifsCatalog()
-    const motifIds = catalog.motifs.filter((m) => m.isActive).map((m) => m.id)
-    const pdf = await render({ catalog, record: record({ motifIds }) })
+  it('names every one of 72 held motifs under its category, in columns, never « Tous » (P4-211)', async () => {
+    // The legacy list's shape (8 categories of 9) with names as long as the clinic's real ones.
+    const base = seventyTwoMotifsCatalog()
+    const catalog = buildCatalogView({
+      ...base,
+      motifs: base.motifs.map((m) => (m.isActive ? { ...m, name: `${m.name} : difficultés relationnelles et transitions` } : m)),
+    })
+    const held = catalog.motifs.filter((m) => m.isActive)
+    const pdf = await render({ catalog, record: record({ motifIds: held.map((m) => m.id) }) })
     const text = all(pdf.pages)
-    expect(text).toContain(t(`${P}.motifs`))
+    // A long name may wrap inside its column: compare without line breaks.
+    const flat = text.replace(/\s+/g, ' ')
+    for (const motif of held) expect(flat, motif.name).toContain(motif.name)
+    expect(text).not.toMatch(/\bTous\b/)
+    expect(text).not.toMatch(/\d+ sur \d+/)
     const lines = text.split('\n')
-    for (let c = 1; c <= 8; c++) {
-      const at = lines.indexOf(`Catégorie ${c}`)
-      expect(at, `Catégorie ${c}`).toBeGreaterThan(-1)
-      expect(lines[at + 1]).toBe(t(`${P}.all`))
-    }
-    expect(text).not.toMatch(/Motif \d/)
-    expect(pdf.pages).toHaveLength(1)
+    for (let c = 1; c <= 8; c++) expect(lines, `Catégorie ${c}`).toContain(`Catégorie ${c}`)
+    expect(pdf.offPage).toBe(0)
+    expect(pdf.pages.length).toBeLessThanOrEqual(3)
   })
 
-  it('names the held motifs of a partial category in columns, a short one on one line', async () => {
+  it("lists a category's motifs down three columns, its name on its own line above them", async () => {
     const catalog = seventyTwoMotifsCatalog()
     const held = [...['0-0', '0-1', '0-2', '0-3', '0-4', '0-5'], ...['1-0', '1-1']].map((k) => `m-${k}`)
-    const text = all((await render({ catalog, record: record({ motifIds: held }) })).pages)
-    const lines = text.split('\n')
+    const lines = all((await render({ catalog, record: record({ motifIds: held }) })).pages).split('\n')
     const first = lines.indexOf('Catégorie 1')
     // Down the columns: 1.1 and 1.2 in the first, 1.3 and 1.4 in the second…
     expect(lines.slice(first + 1, first + 7)).toEqual(['Motif 1.1', 'Motif 1.2', 'Motif 1.3', 'Motif 1.4', 'Motif 1.5', 'Motif 1.6'])
-    expect(lines[lines.indexOf('Catégorie 2') + 1]).toBe('Motif 2.1 · Motif 2.2')
-    expect(text).not.toContain(t(`${P}.all`))
+    const second = lines.indexOf('Catégorie 2')
+    expect(lines.slice(second + 1, second + 3)).toEqual(['Motif 2.1', 'Motif 2.2'])
   })
 
   it('makes the fiche of the title chosen, with that title\'s order and licence only', async () => {
@@ -159,7 +166,7 @@ describe('FicheDocument', () => {
     expect(second).not.toContain('OPQ')
     const primary = all((await render({ record: two, titleId: null })).pages)
     expect(primary).toContain('Psychologue')
-    expect(primary).toContain('(OPQ)')
+    expect(primary).toContain('Membre de l’OPQ')
     expect(primary).not.toContain('Naturopathe')
   })
 
@@ -170,6 +177,12 @@ describe('FicheDocument', () => {
     const priced = all((await render({ fees: ['Individuel, 50 min : 120 $'] })).pages)
     expect(priced).toContain('Individuel, 50 min : 120 $')
     expect(priced).not.toContain(t(`${P}.feesPending`))
+  })
+
+  it('prints no « Approches » list, even when the record holds some (P4-210)', async () => {
+    const text = all((await render({ record: record({ specialties: [{ id: IDS.cbt, specialized: true }] }) })).pages)
+    expect(text).not.toContain('Thérapie cognitivo-comportementale')
+    expect(text).not.toMatch(/APPROCHES/)
   })
 
   it('marks specialised clientèles with the star and its legend', async () => {

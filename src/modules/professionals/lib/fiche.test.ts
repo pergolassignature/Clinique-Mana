@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { IDS } from '../test/fixtures'
 import { CATALOG_VIEW } from '../test/fixtures-domain'
+import { ficheFileName as serverFicheFileName } from '../../../../supabase/functions/professionals-fiche/file-name'
 import { ficheFileName, ficheTitles } from './fiche'
 
 describe('ficheTitles', () => {
@@ -45,5 +46,19 @@ describe('ficheFileName', () => {
     expect(name.endsWith('.pdf')).toBe(true)
     // The email path's own rule (SAFE_FILENAME, _shared/email/send.ts).
     expect(name).toMatch(/^[\p{L}\p{N}][\p{L}\p{N} '’()._-]{0,95}\.pdf$/iu)
+  })
+})
+
+describe('ficheFileName parity', () => {
+  it.each([
+    ['Geneviève', 'Tremblay'],
+    ['Marc-André', "O'Neil"],
+    ['Łukasz', 'Dvořák'],
+    ['Ge\u0301raldine', 'Roy'],
+    ['Anne/Marie', 'Roy\u202e"\t<b>'],
+    ['***', ''],
+    ['Anne'.repeat(30), 'Roy'],
+  ])('the download and the emailed attachment are named alike (%s %s)', (firstName, lastName) => {
+    expect(serverFicheFileName({ firstName, lastName })).toBe(ficheFileName({ firstName, lastName }))
   })
 })

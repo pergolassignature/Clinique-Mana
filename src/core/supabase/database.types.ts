@@ -4265,6 +4265,10 @@ export type Database = {
         Args: { p_id: string; p_on?: string }
         Returns: Json
       }
+      get_professional_fiche_upload: {
+        Args: { p_file_id: string; p_id: string }
+        Returns: Json
+      }
       get_professional_private: {
         Args: { p_id: string }
         Returns: {

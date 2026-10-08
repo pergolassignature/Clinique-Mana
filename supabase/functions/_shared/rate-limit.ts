@@ -118,6 +118,16 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `professionals-fiche` (« Envoyer par courriel »), per caller: each call
+   * downloads the uploaded fiche (up to 10 MB) and sends an email, on top of
+   * the email limits.
+   */
+  ficheEmailUser: {
+    bucket: 'professionals.fiche_email_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
+  /**
    * `email-preview`, per caller: each call renders a template on the server
    * (the editor previews on demand, not per keystroke).
    */

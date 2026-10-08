@@ -19,16 +19,17 @@ export interface FicheClinic {
   website: string | null
 }
 
-/** One motif category on paper (P4-73 on paper, P4-201): its name, then « Tous » or its names. */
+/**
+ * One motif category on paper: its name, then every motif held in it, by name (P4-211: the
+ * staff screens' summaries, « Tous » and counts, never reach the client's document).
+ */
 export interface FicheMotifGroup {
   name: string
-  /** Every active motif of the category is held, and more than three: « Tous ». */
-  all: boolean
-  /** The held motifs, in the catalogue's order (empty when `all`). */
+  /** The held active motifs, in the catalogue's order. */
   names: string[]
 }
 
-/** A clientèle or an approach; `specialized` is the record's ★, printed first and marked. */
+/** A clientèle; `specialized` is the record's ★, printed first and marked. */
 export interface FicheItem {
   label: string
   specialized: boolean
@@ -47,20 +48,25 @@ export interface FicheContent {
   name: string
   /** The chosen title (one fiche per title, A2.19); null without one. */
   title: string | null
-  /** « Ordre des psychologues du Québec (OPQ) · N° de permis 08417 »; null for a title without an order. */
+  /** « Membre de l’OPQ · N° de permis 08417 » (the clinic's public profiles); null for a title without an order. */
   credential: string | null
   /** The public email and phone (« Profil public »), null when neither is set. */
   publicContact: string | null
   /** The photo as a data URL: the slot 4c fills (P4-202); null leaves no box. */
   photo: string | null
-  /** « Présentation » and « Approche », as paragraphs (blank lines split them); empty → not printed. */
-  presentation: string[]
-  approach: string[]
+  /**
+   * « À propos »: the presentation, then the approach text (« Profil public »), as paragraphs
+   * (blank lines split them); empty → not printed (P4-212).
+   */
+  about: string[]
   motifs: FicheMotifGroup[]
   clienteles: FicheItem[]
-  approaches: FicheItem[]
   languages: string[]
-  /** « Honoraires » lines from Services et tarifs; null → « À confirmer » (P4-204). */
+  /**
+   * « Honoraires », one line per duration as the clinic's site words them (« Rencontre 50 min :
+   * 175 $ »), from the price grid of the professional's profession once it exists; null →
+   * « À confirmer » (P4-204).
+   */
   fees: string[] | null
   /** « 8 octobre 2026 », the day it was made, in the clinic's timezone. */
   generatedOn: string
@@ -131,7 +137,8 @@ export function buildFicheContent({ record, catalog, titleId, clinic, logo, phot
   const order = profession ? titleOrder(catalog, profession.titleId) : null
   const credential = order
     ? [
-        t(`${F}.order`, { name: order.name, acronym: order.acronym }),
+        // « l’ » before a vowel (every Québec order: « Ordre … » → OPQ, OTSTCFQ…).
+        t(/^[aeiouyh]/i.test(order.acronym) ? `${F}.memberElided` : `${F}.member`, { acronym: order.acronym }),
         profession?.licenceNumber ? `${order.licenceLabel}\u00a0${profession.licenceNumber}` : null,
       ]
         .filter(Boolean)
@@ -142,15 +149,12 @@ export function buildFicheContent({ record, catalog, titleId, clinic, logo, phot
   const publicContact = [publicEmail, publicPhone ? formatPhone(publicPhone) : null].filter(Boolean).join(SEPARATOR)
 
   const digest = matchingDigest(record, catalog)
-  // Archived items are the clinic's past wording: never printed for a client (P4-201).
+  // Archived items are the clinic's past wording: never printed for a client (P4-211). The
+  // « Approches » list is not printed: Jonathan is removing it from the app (P4-210).
   const current = (items: typeof digest.clienteles): FicheItem[] =>
     items.filter((i) => !i.archived).map((i) => ({ label: clean(i.label), specialized: i.specialized }))
   const motifs = digest.motifs.groups.map(
-    (group): FicheMotifGroup => ({
-      name: clean(group.name),
-      all: group.summary.kind === 'all',
-      names: group.summary.kind === 'all' ? [] : group.motifs.filter((m) => !m.archived).map((m) => clean(m.name)),
-    }),
+    (group): FicheMotifGroup => ({ name: clean(group.name), names: group.motifs.filter((m) => !m.archived).map((m) => clean(m.name)) }),
   )
 
   const website = clinic.website ? displayWebsite(clinic.website) : null
@@ -166,11 +170,9 @@ export function buildFicheContent({ record, catalog, titleId, clinic, logo, phot
     credential: credential ? clean(credential) : null,
     publicContact: publicContact ? clean(publicContact) : null,
     photo,
-    presentation: paragraphs(record.publicProfile.bio, clean),
-    approach: paragraphs(record.publicProfile.approach, clean),
+    about: [...paragraphs(record.publicProfile.bio, clean), ...paragraphs(record.publicProfile.approach, clean)],
     motifs,
     clienteles: current(digest.clienteles),
-    approaches: current(digest.approaches),
     languages: digest.languages.filter((l) => !l.archived).map((l) => clean(l.label)),
     fees: fees ? fees.map(clean) : null,
     generatedOn,

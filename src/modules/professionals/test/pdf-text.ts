@@ -120,19 +120,32 @@ export function readPdf(pdf: Buffer): PdfReading {
     }
     const content = get(ref(page, 'Contents'))?.stream?.toString('latin1') ?? ''
     // A little interpreter of what pdfkit writes: the transform stack (q, Q, cm) and the text
-    // matrix (Tm) place each run (TJ); runs drawn one after the other on the same baseline (one
-    // laid-out line, split where the font changes) are joined.
+    // matrix (Tm) place each run (TJ); a run that continues the previous one on its baseline (one
+    // laid-out line, split where the font changes) is joined to it.
     const lines: string[] = []
     let font: Map<number, string> | null = null
     let ctm: Matrix = [1, 0, 0, 1, 0, 0]
     let tm: Matrix = [1, 0, 0, 1, 0, 0]
     const stack: Matrix[] = []
     let lastY: number | null = null
+    // Where the last run ended: pdfkit moves past each run with a pure translation (`1 0 0 1 dx 0
+    // cm`) right after it, so a run that starts there continues the same line (a font change),
+    // while one elsewhere at the same height is another column.
+    let lastRunX = 0
+    let lastEnd: number | null = null
+    let awaitingAdvance = false
     for (const op of content.matchAll(OPERATORS)) {
       const { array, nums, kind, fontName, single } = op.groups ?? {}
       if (single === 'q') stack.push(ctm)
       else if (single === 'Q') ctm = stack.pop() ?? ctm
-      else if (kind === 'cm') ctm = multiply(numbers(nums), ctm)
+      else if (kind === 'cm') {
+        const m = numbers(nums)
+        if (awaitingAdvance && m[0] === 1 && m[1] === 0 && m[2] === 0 && m[3] === 1 && m[5] === 0) {
+          lastEnd = lastRunX + m[4]
+          awaitingAdvance = false
+        }
+        ctm = multiply(m, ctm)
+      }
       else if (kind === 'Tm') tm = numbers(nums)
       else if (fontName !== undefined) font = maps.get(fontName) ?? null
       else if (array !== undefined) {
@@ -149,11 +162,15 @@ export function readPdf(pdf: Buffer): PdfReading {
             for (const code of hex?.match(/.{2}/g) ?? []) run += String.fromCharCode(parseInt(code, 16))
           }
         }
-        const y = Math.round(multiply(tm, ctm)[5] * 10) / 10
+        const [, , , , x, rawY] = multiply(tm, ctm)
+        const y = Math.round(rawY * 10) / 10
         if (y < 0 || y > height) offPage++
-        if (y === lastY && lines.length > 0) lines[lines.length - 1] += run
+        if (y === lastY && lastEnd !== null && Math.abs(x - lastEnd) < 1 && lines.length > 0) lines[lines.length - 1] += run
         else lines.push(run)
         lastY = y
+        lastRunX = x
+        lastEnd = null
+        awaitingAdvance = true
       }
     }
     return lines.join('\n')

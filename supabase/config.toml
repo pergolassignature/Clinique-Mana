@@ -138,3 +138,6 @@ verify_jwt = false
 verify_jwt = false
 [functions.signing-test-document]
 verify_jwt = false
+# « Fiche PDF » → « Envoyer par courriel » (verifyAuth, module professionals).
+[functions.professionals-fiche]
+verify_jwt = false

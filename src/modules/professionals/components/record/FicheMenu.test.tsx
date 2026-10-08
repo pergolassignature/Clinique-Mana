@@ -64,7 +64,7 @@ describe('FicheMenu', () => {
       ],
     })
     await open()
-    const items = await screen.findAllByRole('menuitem')
+    const items = (await screen.findAllByRole('menuitem')).filter((item) => item.hasAttribute('aria-label'))
     expect(items.map((item) => item.getAttribute('aria-label'))).toEqual([
       t(`${M}.downloadTitle`, { title: 'Psychologue' }),
       t(`${M}.downloadTitle`, { title: 'Naturopathe' }),
