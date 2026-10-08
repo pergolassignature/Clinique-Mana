@@ -4,7 +4,8 @@
  *
  * Keys are HMAC-hashed here, so no raw IP, address or id reaches the database.
  * The HMAC key is derived from `INTERNAL_FUNCTION_SECRET`. Every failure (no
- * secret, an RPC error, an unexpected result) fails **closed** and is reported.
+ * secret, an RPC error, an unexpected result) fails **closed** and is reported,
+ * with `reason: 'unavailable'`: answer it 503 `not_configured`, not 429.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { reportError } from './report.ts'
@@ -49,15 +50,25 @@ export const LIMITS = {
   },
 } as const satisfies Record<string, RateLimit>
 
-/** The outcome of one hit; `retryAfter` is in seconds (0 when allowed). */
+/**
+ * The outcome of one hit; `retryAfter` is in seconds (0 when allowed).
+ * `reason: 'unavailable'` means the limiter itself failed (closed): the caller
+ * answers 503 `not_configured`, not 429 `rate_limited` (« Trop de tentatives »).
+ */
 export interface RateLimitResult {
   allowed: boolean
   hits: number
   retryAfter: number
+  reason?: 'unavailable'
 }
 
 /** What a caller is told when the limiter itself fails (fail closed). */
-const FAIL_CLOSED: RateLimitResult = { allowed: false, hits: 0, retryAfter: 60 }
+const FAIL_CLOSED: RateLimitResult = {
+  allowed: false,
+  hits: 0,
+  retryAfter: 60,
+  reason: 'unavailable',
+}
 
 const encoder = new TextEncoder()
 let derived: { secret: string; key: Promise<CryptoKey> } | null = null
@@ -85,13 +96,57 @@ function derivedKey(secret: string): Promise<CryptoKey> {
   return derived.key
 }
 
+/** The 16-bit groups of an IPv6 address (8, or 6 + an IPv4 tail), or null. */
+function ipv6Groups(ip: string): number[] | null {
+  const halves = ip.split('::')
+  if (halves.length > 2) return null
+  const parse = (half: string): number[] | null => {
+    if (half === '') return []
+    const groups: number[] = []
+    for (const part of half.split(':')) {
+      if (/^[0-9a-f]{1,4}$/i.test(part)) groups.push(parseInt(part, 16))
+      else if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(part)) {
+        const [a, b, c, d] = part.split('.').map(Number)
+        if ([a, b, c, d].some((n) => n > 255)) return null
+        groups.push((a << 8) | b, (c << 8) | d)
+      } else return null
+    }
+    return groups
+  }
+  const head = parse(halves[0])
+  const tail = halves.length === 2 ? parse(halves[1]) : []
+  if (!head || !tail) return null
+  const missing = 8 - head.length - tail.length
+  if (halves.length === 2 ? missing < 1 : missing !== 0) return null
+  return [...head, ...new Array(missing).fill(0), ...tail]
+}
+
 /**
- * The caller's IP: the first `x-forwarded-for` hop, trimmed, else `'unknown'`.
+ * The rate-limit key for an IP: IPv4 as is; IPv6 reduced to its /64 prefix
+ * (`2001:db8:0:1::/64`), since one subscriber usually holds a whole /64 and
+ * could otherwise rotate addresses within it; an IPv4-mapped IPv6
+ * (`::ffff:203.0.113.5`) as its IPv4. Anything unparseable is kept as is.
+ */
+function ipKey(ip: string): string {
+  if (!ip.includes(':')) return ip
+  const groups = ipv6Groups(ip.replace(/^\[|\]$/g, '').replace(/%.*$/, ''))
+  if (!groups) return ip
+  if (groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff) {
+    return [groups[6] >> 8, groups[6] & 255, groups[7] >> 8, groups[7] & 255]
+      .join('.')
+  }
+  return `${groups.slice(0, 4).map((g) => g.toString(16)).join(':')}::/64`
+}
+
+/**
+ * The caller's IP as a rate-limit key: the first `x-forwarded-for` hop,
+ * trimmed, with IPv6 grouped by /64 (see `ipKey`). Requests without an IP all
+ * get `'unknown'`, so they share one bucket per limit.
  * Verify on staging what the edge runtime forwards (design §3.2).
  */
 export function clientIp(req: Request): string {
   const first = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  return first || 'unknown'
+  return first ? ipKey(first) : 'unknown'
 }
 
 /**
@@ -120,7 +175,9 @@ function byteaHex(bytes: Uint8Array): string {
 
 /**
  * Records one hit on `limit` for `keyParts` (e.g. `[clientIp(req)]` or
- * `[orgId, userId]`). Needs a service-role client. Fails closed.
+ * `[orgId, userId]`). Needs a service-role client. Fails closed with
+ * `reason: 'unavailable'` (→ 503 `not_configured`); a plain refusal (→ 429
+ * `rate_limited`) has no `reason`.
  */
 export async function consume(
   client: SupabaseClient,

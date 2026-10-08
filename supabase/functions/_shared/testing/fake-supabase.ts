@@ -16,7 +16,7 @@ export type RpcRoute =
   | FakeResult
   | ((args: Record<string, unknown>) => FakeResult | Promise<FakeResult>)
 
-/** Handles `storage.from(bucket).<method>(...args)`. */
+/** Handles `storage.from(bucket).<method>(...args)`; an unrouted method throws. */
 export type StorageRoute = (
   bucket: string,
   ...args: unknown[]
@@ -55,16 +55,26 @@ export function fakeSupabase(
       return normalise(typeof route === 'function' ? await route(args) : route)
     },
     storage: {
+      // A Proxy, so an unrouted method fails loudly instead of being undefined.
       from: (bucket: string) =>
-        Object.fromEntries(
-          Object.entries(routes.storage ?? {}).map(([method, route]) => [
-            method,
-            async (...args: unknown[]) => {
+        new Proxy({}, {
+          get: (_target, method) => {
+            // Not a thenable, and no symbol keys (inspection, iteration).
+            if (typeof method !== 'string' || method === 'then') {
+              return undefined
+            }
+            const route = routes.storage?.[method]
+            if (route === undefined) {
+              return () => {
+                throw new Error(`fake: no storage.${method}`)
+              }
+            }
+            return async (...args: unknown[]) => {
               storageCalls.push({ bucket, method, args })
               return normalise(await route(bucket, ...args))
-            },
-          ]),
-        ),
+            }
+          },
+        }),
     },
   }
   return { client: client as unknown as SupabaseClient, calls, storageCalls }

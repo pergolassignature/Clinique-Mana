@@ -1,26 +1,15 @@
 /**
- * Request bodies and typed failures for edge functions.
+ * Request bodies for edge functions (typed failures: `errors.ts`).
  *
  * JSON bodies are capped (64 KB by default) and validated with Zod. Errors never
  * echo the input: a schema error answers a fixed message, so a body that holds a
  * token or an address is not reflected back or logged.
  */
 import type { z } from 'zod'
-import { type ErrorCode, errorResponse } from './auth.ts'
+import { errorResponse } from './auth.ts'
 
 /** Default cap on a JSON request body, in bytes (plan « Conventions »). */
 const MAX_JSON_BYTES = 65_536
-
-/**
- * A failure with an `ErrorCode`, thrown by shared wrappers (e.g. an RPC error).
- * The message names the operation and a SQLSTATE at most, never a value.
- */
-export class FunctionError extends Error {
-  constructor(readonly code: ErrorCode, message: string) {
-    super(message)
-    this.name = 'FunctionError'
-  }
-}
 
 /** The body bytes, or null as soon as they exceed `maxBytes` (stops reading). */
 async function readCapped(

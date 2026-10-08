@@ -1,7 +1,7 @@
 import { assertEquals } from '@std/assert'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Deps } from './deps.ts'
-import { runJob } from './jobs.ts'
+import { type PerOrg, runJob, type RunJobOptions } from './jobs.ts'
 import { captureConsole, withEnv } from './testing/env.ts'
 import { fakeFetch } from './testing/fake-fetch.ts'
 import { fakeSupabase, type RpcRoute } from './testing/fake-supabase.ts'
@@ -54,12 +54,13 @@ function setup(rpc: Record<string, RpcRoute>) {
 async function run(
   deps: Deps,
   req: Request,
-  perOrg: (orgId: string) => Promise<string>,
+  perOrg: PerOrg,
+  options?: RunJobOptions,
 ) {
   let res = new Response()
   const errors = await captureConsole('error', async () => {
     await withEnv(ENV, async () => {
-      res = await runJob(deps, req, JOB, perOrg)
+      res = await runJob(deps, req, JOB, perOrg, options)
     })
   })
   return { res, errors }
@@ -235,4 +236,69 @@ Deno.test('runJob: a missing service client configuration is returned as is', as
   }
   const { res } = await run(deps, jobRequest(CRON), () => Promise.resolve(''))
   assertEquals(res.status, 500)
+})
+
+Deno.test('runJob: the detail is cut by code point, never inside an emoji', async () => {
+  const { deps, calls } = setup({ list_job_orgs: { data: [ORG_A] } })
+  // 499 letters then emoji: the 500th code point is a whole emoji (2 UTF-16 units).
+  await run(
+    deps,
+    jobRequest(CRON),
+    () => Promise.resolve(`${'x'.repeat(499)}📨📨`),
+  )
+  const detail = (finishes(calls)[0] as { p_detail: string }).p_detail
+  assertEquals(Array.from(detail).length, 500)
+  assertEquals(detail, `${'x'.repeat(499)}📨`)
+  assertEquals(detail.isWellFormed(), true)
+})
+
+Deno.test('runJob: a body job_key other than this job gives 400 and touches nothing', async () => {
+  const { deps, calls } = setup({})
+  const { res } = await run(
+    deps,
+    jobRequest({ ...CRON, job_key: 'core.other_job' }),
+    () => Promise.reject(new Error('must not run')),
+  )
+  assertEquals(res.status, 400)
+  assertEquals((await res.json()).error.code, 'invalid_request')
+  assertEquals(calls, [])
+  // Without job_key, the request is accepted.
+  const ok = setup({ list_job_orgs: { data: [] } })
+  const { res: accepted } = await run(
+    ok.deps,
+    jobRequest({ trigger: 'cron' }),
+    () => Promise.resolve(''),
+  )
+  assertEquals(accepted.status, 200)
+})
+
+Deno.test('runJob: an org over its timeout is finished as error / timeout, aborted, and the next org runs', async () => {
+  const { deps, calls } = setup({})
+  let aborted = false
+  const { res, errors } = await run(
+    deps,
+    jobRequest(CRON),
+    (orgId, _client, signal) => {
+      if (orgId === ORG_B) return Promise.resolve('fait')
+      // Never settles on its own; rejects late once aborted.
+      return new Promise((_, reject) => {
+        signal.addEventListener('abort', () => {
+          aborted = true
+          reject(new Error('late'))
+        })
+      })
+    },
+    { perOrgTimeoutMs: 20 },
+  )
+  assertEquals(await res.json(), { runs: 2 })
+  assertEquals(aborted, true)
+  assertEquals(finishes(calls), [
+    { p_id: `run-${ORG_A}`, p_status: 'error', p_detail: 'timeout' },
+    { p_id: `run-${ORG_B}`, p_status: 'ok', p_detail: 'fait' },
+  ])
+  assertEquals(JSON.parse(String(errors[0][0])), {
+    fn: JOB,
+    code: 'timeout',
+    ids: { org_id: ORG_A, run_id: `run-${ORG_A}` },
+  })
 })

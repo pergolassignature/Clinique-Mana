@@ -25,7 +25,34 @@ const hex = (bytes: Uint8Array) =>
 // ---------------------------------------------------------------------------
 Deno.test('clientIp: the first x-forwarded-for hop, trimmed', () => {
   assertEquals(clientIp(withIp('203.0.113.5, 10.0.0.1')), '203.0.113.5')
-  assertEquals(clientIp(withIp('  2001:db8::1  ')), '2001:db8::1')
+  assertEquals(clientIp(withIp('  198.51.100.7  ')), '198.51.100.7')
+})
+
+Deno.test('clientIp: IPv6 is grouped by /64, so addresses in one block share a key', () => {
+  const block = '2001:db8:0:1::/64'
+  for (
+    const ip of [
+      '2001:db8:0:1::1',
+      '2001:db8:0:1:ffff:ffff:ffff:ffff',
+      '2001:0DB8:0000:0001:abcd:0:0:9',
+      '[2001:db8:0:1::42]',
+      '2001:db8:0:1::1%eth0',
+      '2001:db8:0:1:0:0:192.0.2.1',
+    ]
+  ) {
+    assertEquals(clientIp(withIp(ip)), block, ip)
+  }
+  assertEquals(clientIp(withIp('2001:db8:0:2::1')), '2001:db8:0:2::/64')
+  assertEquals(clientIp(withIp('::1')), '0:0:0:0::/64')
+  assertEquals(clientIp(withIp('2001:db8::')), '2001:db8:0:0::/64')
+})
+
+Deno.test('clientIp: an IPv4-mapped IPv6 is its IPv4; unparseable values are kept', () => {
+  assertEquals(clientIp(withIp('::ffff:203.0.113.5')), '203.0.113.5')
+  assertEquals(clientIp(withIp('::FFFF:cb00:7105')), '203.0.113.5')
+  for (const ip of ['1::2::3', '2001:db8:zz::1', '1:2:3:4:5:6:7:8:9', 'junk']) {
+    assertEquals(clientIp(withIp(ip)), ip, ip)
+  }
 })
 
 Deno.test('clientIp: unknown when the header is missing or empty', () => {
@@ -113,7 +140,12 @@ Deno.test('consume: fails closed and reports on an RPC error or a malformed resu
         const lines = await captureConsole('error', async () => {
           outcome = await consume(client, LIMIT, ['k'])
         })
-        assertEquals(outcome, { allowed: false, hits: 0, retryAfter: 60 })
+        assertEquals(outcome, {
+          allowed: false,
+          hits: 0,
+          retryAfter: 60,
+          reason: 'unavailable',
+        })
         assertEquals(lines.length, 1)
         assertEquals(JSON.parse(String(lines[0][0])), {
           fn: 'rate-limit',
@@ -134,7 +166,12 @@ Deno.test('consume: fails closed without calling the RPC when the secret is miss
       const lines = await captureConsole('error', async () => {
         outcome = await consume(client, LIMIT, ['k'])
       })
-      assertEquals(outcome, { allowed: false, hits: 0, retryAfter: 60 })
+      assertEquals(outcome, {
+        allowed: false,
+        hits: 0,
+        retryAfter: 60,
+        reason: 'unavailable',
+      })
       assertEquals(JSON.parse(String(lines[0][0])).code, 'not_configured')
       assertEquals(calls.length, 0)
     },

@@ -144,3 +144,89 @@ Deno.test('reportError: a malformed DSN warns and logs the line', async () => {
     assertEquals(lines.length, 1)
   })
 })
+
+Deno.test('reportError: fn and code that are not identifiers are replaced', async () => {
+  await withEnv({ SENTRY_DSN: undefined }, async () => {
+    const lines = await captureConsole('error', async () => {
+      for (
+        const [fn, code] of [
+          ['send email', 'provider_error'],
+          ['send-email', 'Resend said no to ana@example.test'],
+          ['', 'x'.repeat(65)],
+        ]
+      ) {
+        await reportError({ fn, code }, unexpected)
+      }
+      // Upper case, dots and dashes pass: SQLSTATE, PGRST and job keys.
+      await reportError({ fn: 'core.daily-digest', code: '42P01' }, unexpected)
+      await reportError({ fn: 'f', code: 'PGRST202' }, unexpected)
+    })
+    assertEquals(lines.map((l) => JSON.parse(String(l[0]))), [
+      { fn: 'invalid_fn', code: 'provider_error' },
+      { fn: 'send-email', code: 'invalid_code' },
+      { fn: 'invalid_fn', code: 'invalid_code' },
+      { fn: 'core.daily-digest', code: '42P01' },
+      { fn: 'f', code: 'PGRST202' },
+    ])
+  })
+})
+
+Deno.test('reportError: id values with @, whitespace or over 100 characters are dropped, key named only', async () => {
+  await withEnv({ SENTRY_DSN: undefined }, async () => {
+    let lines: unknown[][] = []
+    const warnings = await captureConsole('warn', async () => {
+      lines = await captureConsole('error', () =>
+        reportError({
+          fn: 'send-email',
+          code: 'provider_error',
+          ids: {
+            org_id: '11111111-1111-1111-1111-111111111111',
+            recipient: 'ana@example.test',
+            note: 'free text here',
+            tabbed: 'a\tb',
+            long_id: 'x'.repeat(101),
+            max_id: 'y'.repeat(100),
+          },
+        }, unexpected))
+    })
+    assertEquals(JSON.parse(String(lines[0][0])).ids, {
+      org_id: '11111111-1111-1111-1111-111111111111',
+      max_id: 'y'.repeat(100),
+    })
+    assertEquals(warnings.length, 1)
+    const warning = warnings[0].map(String).join(' ')
+    for (const key of ['recipient', 'note', 'tabbed', 'long_id']) {
+      assertEquals(warning.includes(key), true)
+    }
+    for (const value of ['example.test', 'free text', 'xxxx']) {
+      assertEquals(warning.includes(value), false)
+    }
+  })
+})
+
+Deno.test('reportError: a Sentry send that hangs is aborted after 3 s and falls back to the line', async () => {
+  let signal: AbortSignal | null | undefined
+  const hanging = ((_input: RequestInfo | URL, init?: RequestInit) => {
+    signal = init?.signal
+    return new Promise<Response>((_, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+    })
+  }) as typeof fetch
+  await withEnv({ SENTRY_DSN: DSN }, async () => {
+    let lines: unknown[][] = []
+    const started = Date.now()
+    const warnings = await captureConsole('warn', async () => {
+      lines = await captureConsole(
+        'error',
+        () => reportError({ fn: 'f', code: 'internal' }, hanging),
+      )
+    })
+    const elapsed = Date.now() - started
+    assertEquals(signal?.aborted, true)
+    assertEquals((signal?.reason as Error).name, 'TimeoutError')
+    assertEquals(elapsed >= 2_900 && elapsed < 5_000, true)
+    assertEquals(warnings.length, 1)
+    assertEquals(String(warnings[0][1]), 'TimeoutError')
+    assertEquals(lines, [[JSON.stringify({ fn: 'f', code: 'internal' })]])
+  })
+})

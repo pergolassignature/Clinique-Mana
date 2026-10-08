@@ -1,4 +1,4 @@
-import { assertEquals } from '@std/assert'
+import { assertEquals, assertThrows } from '@std/assert'
 import { fakeSupabase } from './fake-supabase.ts'
 
 Deno.test('fakeSupabase: routes rpc calls to fixed results and handlers, in a call log', async () => {
@@ -40,4 +40,17 @@ Deno.test('fakeSupabase: storage methods are routed by name, with the bucket log
     method: 'remove',
     args: [['a', 'b']],
   }])
+})
+
+Deno.test('fakeSupabase: an unrouted storage method throws, naming it', () => {
+  const { client, storageCalls } = fakeSupabase({
+    storage: { remove: () => ({ data: null }) },
+  })
+  const bucket = client.storage.from('documents')
+  assertThrows(
+    () => bucket.createSignedUploadUrl('a.pdf'),
+    Error,
+    'fake: no storage.createSignedUploadUrl',
+  )
+  assertEquals(storageCalls, [])
 })

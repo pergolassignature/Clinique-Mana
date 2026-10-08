@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from '@std/assert'
-import { FunctionError } from './http.ts'
+import { FunctionError } from './errors.ts'
 import {
   claimEvent,
   type ClaimInput,

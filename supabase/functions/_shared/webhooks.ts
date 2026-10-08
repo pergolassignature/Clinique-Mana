@@ -13,7 +13,7 @@
  * `FunctionError('internal')` whose message holds the SQLSTATE only.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { FunctionError } from './http.ts'
+import { FunctionError } from './errors.ts'
 
 /** A response for a webhook provider: JSON when `body` is given, `no-store`, no CORS. */
 export function webhookResponse(status: number, body?: unknown): Response {
