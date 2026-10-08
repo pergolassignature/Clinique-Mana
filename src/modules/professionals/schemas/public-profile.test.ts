@@ -10,6 +10,7 @@ describe('publicProfileSchema', () => {
   it('reads an empty profile as empty fields, and stores them as null', () => {
     expect(empty).toEqual({ bio: '', approach: '', publicEmail: '', publicPhone: '' })
     expect(publicProfileSchema.parse(empty)).toEqual({ bio: null, approach: null, publicEmail: null, publicPhone: null })
+    expect(toPublicProfileFormValues({ ...recordFixture().publicProfile, publicPhone: '+15145551234' }).publicPhone).toBe('514 555-1234')
   })
 
   it('keeps line breaks in the texts, lower-cases the email, formats the phone', () => {

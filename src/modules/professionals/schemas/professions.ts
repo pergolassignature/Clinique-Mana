@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
+import { rpcErrorCode, rpcErrorDetail, rpcErrorHint } from '@/core/modules/errors'
 import { titleOrder, type CatalogView } from '../lib/catalog-view'
 import { hasPostgresOnlySyntax } from '../lib/licence-pattern'
 import type { ProfessionInput } from '../api/record'
@@ -103,4 +104,25 @@ export function professionsSchema(catalog: CatalogView, { heldTitleIds, heldMoti
 /** The editor's rows from the record (primary first, as the RPC returns them). */
 export function toProfessionItems(professions: readonly ProfessionRow[]): ProfessionItemValues[] {
   return professions.map((p) => ({ titleId: p.titleId, licenceNumber: p.licenceNumber ?? '', isPrimary: p.isPrimary }))
+}
+
+/** A field of the editor's rows. */
+export type ProfessionErrorField = `items.${number}.titleId` | `items.${number}.licenceNumber`
+
+/**
+ * Where a refusal of `set_professional_professions` belongs: under the field its HINT names
+ * (`title`, `licence`), on the row of the title its DETAIL names (the last one, for a title chosen
+ * twice); null (above the buttons) for a refusal about the whole list or a title no row holds.
+ * P0001 only, the messages users read; never by the wording.
+ */
+export function professionsErrorField(error: unknown, items: readonly { titleId: string }[]): ProfessionErrorField | null {
+  if (rpcErrorCode(error) !== 'P0001') return null
+  const hint = rpcErrorHint(error)
+  const field = hint === 'title' ? 'titleId' : hint === 'licence' ? 'licenceNumber' : null
+  const titleId = rpcErrorDetail(error)
+  if (!field || !titleId) return null
+  for (let index = items.length - 1; index >= 0; index--) {
+    if (items[index]?.titleId === titleId) return `items.${index}.${field}`
+  }
+  return null
 }

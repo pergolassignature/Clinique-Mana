@@ -1296,6 +1296,75 @@
           "nextAction": {
             "title": "Prochaine action"
           }
+        },
+        "publicProfile": {
+          "portrait": {
+            "title": "Portrait",
+            "description": "Ces textes figurent sur la fiche remise au client.",
+            "bio": "Bio",
+            "approach": "Approche",
+            "counter": "{count} / {max} caractères"
+          },
+          "contact": {
+            "title": "Coordonnées publiques",
+            "description": "Laissez vide pour ne pas les afficher.",
+            "email": "Courriel public",
+            "phone": "Téléphone public"
+          }
+        },
+        "identity": {
+          "readOnly": "Seules les personnes qui gèrent les dossiers des professionnels peuvent modifier ces informations.",
+          "identity": {
+            "title": "Identité",
+            "firstName": "Prénom",
+            "lastName": "Nom",
+            "gender": "Genre",
+            "genderNone": "Non indiqué",
+            "genderHelp": "Utilisé seulement pour la préférence du client."
+          },
+          "contact": {
+            "title": "Coordonnées",
+            "loginEmail": "Courriel de connexion",
+            "change": "Modifier",
+            "changeLabel": "Modifier le courriel de connexion",
+            "accountOwns": "Le professionnel le change dans « Mon compte ».",
+            "personalPhone": "Téléphone personnel",
+            "addressLine1": "Adresse",
+            "addressLine2": "Complément",
+            "city": "Ville",
+            "province": "Province",
+            "postalCode": "Code postal"
+          },
+          "changeEmail": {
+            "title": "Modifier le courriel de connexion",
+            "description": "L'invitation sera envoyée à cette adresse, et elle servira à se connecter.",
+            "email": "Courriel"
+          },
+          "professions": {
+            "title": "Professions et permis",
+            "description": "Deux titres au plus, dont un principal.",
+            "titleField": "Titre",
+            "titlePlaceholder": "Choisir un titre…",
+            "archived": "{name} (archivé)",
+            "licenceHelp": "Requis pour ce titre ({order}).",
+            "primary": "Titre principal",
+            "add": "Ajouter un titre",
+            "max": "Deux titres au maximum.",
+            "remove": "Retirer",
+            "removeLabel": "Retirer le titre {name}",
+            "removeEmpty": "Retirer ce titre",
+            "empty": "Aucun titre pour l'instant.",
+            "licenceNowRequired": "Ce titre demande maintenant un numéro de permis. Saisissez-le dans le champ ajouté, puis enregistrez de nouveau."
+          },
+          "experience": {
+            "title": "Expérience",
+            "years": "Années d'expérience"
+          },
+          "payers": {
+            "title": "Numéros de payeurs",
+            "ivac": "N° IVAC",
+            "ivacHelp": "Unique dans la clinique. Laissez vide pour le retirer."
+          }
         }
       },
       "list": {

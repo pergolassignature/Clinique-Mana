@@ -9,7 +9,7 @@ import {
   toClinicFormValues,
   toContactFormValues,
 } from '@/core/settings/organization/schemas'
-import { formatPhone, formatPostalCode, parsePhone } from '@/shared/lib/format'
+import { formatPostalCode, regroupPhone } from '@/shared/lib/format'
 import { regroupOnBlur } from '@/shared/lib/regroup-on-blur'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
@@ -21,12 +21,6 @@ import { OrganizationSettingsPage } from '../components/OrganizationSettingsPage
 /** Full width in the card's two-column grid (long values); the others share a row from `md` up. */
 const WIDE = 'md:col-span-2'
 const GRID = 'grid gap-3 md:grid-cols-2'
-
-/** A valid number in the Québec format (418 907-9754); anything else as typed, for its error. */
-function regroupPhone(value: string): string {
-  const parsed = parsePhone(value)
-  return parsed ? formatPhone(parsed) : value
-}
 
 /**
  * Paramètres → Identité légale: the clinic's name and legal identity, its head-office address, its

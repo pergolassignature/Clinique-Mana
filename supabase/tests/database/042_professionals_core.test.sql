@@ -5,15 +5,15 @@
 -- primary, promotion, row ids kept, licence format and order pattern, archived titles, the
 -- deferred primary check, restricted motifs kept consistent); the clientèle, approach, motif and
 -- language sets (replace, specialized flags, archived and restricted rules, org of the ids);
--- the HINT of each field refusal (first_name, last_name, email, title, licence: the form routes
--- by it, never by the French text); IVAC numbers; email changes and the profile → professional email sync (a conflict leaves the
+-- the HINT of each field refusal (first_name, last_name, email, title, licence, ivac: the forms
+-- route by it, never by the French text; for titles and licences DETAIL names the title); IVAC numbers; email changes and the profile → professional email sync (a conflict leaves the
 -- professional's email, neutrally); private.current_professional_id(); provider RLS and the
 -- module gate; every RPC refused to disabled staff and with the module off; org isolation; usage
 -- counts (settings without view); audit rows (record ids prefixed by the professional's id, no
 -- audit noise, personal fields redacted).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(230);
+select plan(237);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
@@ -129,6 +129,23 @@ exception when others then
 end;
 $$;
 grant execute on function private.test_error_hint(text) to authenticated;
+
+-- `hint|detail` of the error `p_sql` raises: the professions editor routes a refusal to the row of
+-- the title its DETAIL names.
+create function private.test_error_hint_detail(p_sql text) returns text
+language plpgsql set search_path = '' as $$
+declare
+  v_hint text;
+  v_detail text;
+begin
+  execute p_sql;
+  return null;
+exception when others then
+  get stacked diagnostics v_hint = pg_exception_hint, v_detail = pg_exception_detail;
+  return v_hint || '|' || v_detail;
+end;
+$$;
+grant execute on function private.test_error_hint_detail(text) to authenticated;
 
 -- =============================================================================
 -- Privileges
@@ -432,6 +449,23 @@ select throws_ok($$ select public.set_professional_professions(current_setting('
                      jsonb_build_object('title_id', current_setting('test.psy'), 'licence_number', 'OPQ#1'))) $$,
   'P0001', 'Numéro de permis invalide : lettres, chiffres, espaces et traits d''union (30 caractères au plus).',
   'a licence with other characters is refused with a French message');
+-- Each refusal about one title names it (HINT title / licence, DETAIL the title id).
+select is(private.test_error_hint_detail($$ select public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
+                     jsonb_build_object('title_id', current_setting('test.psy'), 'licence_number', 'OPQ-1'),
+                     jsonb_build_object('title_id', current_setting('test.psy'), 'licence_number', 'OPQ-2'))) $$),
+  'title|' || current_setting('test.psy'), 'a repeated title: HINT title, DETAIL its id');
+select is(private.test_error_hint_detail($$ select public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
+                     jsonb_build_object('title_id', current_setting('test.psyed'), 'licence_number', 'P-1'))) $$),
+  'title|' || current_setting('test.psyed'), 'an archived title: HINT title, DETAIL its id');
+select is(private.test_error_hint_detail($$ select public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
+                     jsonb_build_object('title_id', current_setting('test.orient'), 'licence_number', 'abc'))) $$),
+  'licence|' || current_setting('test.orient'), 'a licence outside the order''s pattern: HINT licence, DETAIL the title id');
+select is(private.test_error_hint_detail($$ select public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
+                     jsonb_build_object('title_id', current_setting('test.psy'), 'licence_number', 'OPQ#1'))) $$),
+  'licence|' || current_setting('test.psy'), 'a licence in no valid format: HINT licence, DETAIL the title id');
+select is(private.test_error_hint_detail($$ select public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
+                     jsonb_build_object('title_id', current_setting('test.psy')))) $$),
+  'licence|' || current_setting('test.psy'), 'a regulated title without licence: HINT licence, DETAIL the title id');
 select throws_ok($$ select public.set_professional_professions(current_setting('test.p1')::uuid, '{"title_id": null}'::jsonb) $$,
   '22023', null, 'the items must be a JSON array');
 select throws_ok($$ select public.set_professional_professions(current_setting('test.p1')::uuid, '[{"title_id": "pas-un-uuid"}]'::jsonb) $$,
@@ -535,6 +569,10 @@ select throws_ok($$ select public.set_professional_payer_number(current_setting(
   'P0001', 'Ce numéro IVAC est déjà attribué à un autre professionnel.', 'an IVAC number is unique in the clinic');
 select throws_ok($$ select public.set_professional_payer_number(current_setting('test.p1')::uuid, 'ivac', '1') $$,
   'P0001', 'Numéro IVAC invalide : 3 à 30 lettres, chiffres ou traits d''union.', 'an IVAC number has a format');
+select is(private.test_error_hint($$ select public.set_professional_payer_number(current_setting('test.p2')::uuid, 'ivac', '123456') $$),
+  'ivac', 'a duplicate IVAC number: HINT ivac (the field)');
+select is(private.test_error_hint($$ select public.set_professional_payer_number(current_setting('test.p1')::uuid, 'ivac', '1') $$),
+  'ivac', 'an invalid IVAC number: HINT ivac');
 select throws_ok($$ select public.set_professional_payer_number(current_setting('test.p1')::uuid, 'csst', '123456') $$,
   '22023', null, 'an unknown payer type is refused');
 

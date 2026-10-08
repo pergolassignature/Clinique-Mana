@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { t } from '@/i18n'
 import { EMAIL_PATTERN } from '@/shared/lib/email'
 import { optionalPhone, optionalPostalCode, optionalText, PROVINCES, withoutControlChars } from '@/shared/lib/field-schemas'
+import { formatPhone } from '@/shared/lib/format'
 import type { Professional } from '../api/parse'
 
 /**
@@ -36,7 +37,8 @@ export type ContactValues = z.input<typeof contactSchema>
 
 export function toContactFormValues(p: Professional): ContactValues {
   return {
-    personalPhone: p.personalPhone ?? '',
+    // Shown as typed in Québec (514 555-1234); the schema parses it back to E.164.
+    personalPhone: formatPhone(p.personalPhone),
     addressLine1: p.addressLine1 ?? '',
     addressLine2: p.addressLine2 ?? '',
     city: p.city ?? '',
