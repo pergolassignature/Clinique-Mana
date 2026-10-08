@@ -6,7 +6,9 @@
 
 ## What it does
 - It reads a CSV of the ~50 professionals and, for each line, calls `import_professional(row, dry_run)`. That RPC writes through the app's own RPCs (creation, titles and licences, languages, clientèles, approaches, motifs, IVAC number, activation) and the same column update as the « Coordonnées » card. Guards, messages, readiness and Historique therefore behave exactly as in the app. The audit rows carry the source `import`, with the person who ran it as the actor.
-- **A dry run by default:** each row is fully written and then rolled back, so nothing stays in the database. With `--commit`, the script dry-runs every row first. If any row has an error, it writes nothing. Otherwise it asks you to type `importer`, then imports row by row. Each row is all or nothing.
+- **A dry run by default:** each row is fully written and then rolled back, so nothing stays in the database (the deferred checks a commit would make are made too). With `--commit`, the script dry-runs every row first. If any row has an error, it writes nothing. Otherwise it asks you to type `importer`, then imports row by row. Each row is all or nothing.
+- **One dry run lists everything to fix:** a line with a CSV error (« douze » in `annees_experience`, an email or IVAC number repeated in the file) still goes through the database's dry run with its other values, and both sides' errors are listed together, column by column. Only a line with more cells than the header (a stray separator: its values may sit under the wrong columns) is not sent; its line says so.
+- **The report** is created before anything is asked or imported: an existing path stops the run at once (it is never replaced). It is readable by you only (mode 600). Each line is written to disk as its row completes, so an interrupted run keeps every line done. With `--commit` it holds the dry run's lines (`mode = essai`) and then the import's (`mode = import`). A report with no line (the run stopped before the first one, at the sign-in for example) is removed.
 - **Re-runs are safe:** an email the clinic's professionals already use is reported « ignoré » (Courriel déjà présent) and left as it is. The import never updates an existing record; corrections are made in the app.
 - **`activer = oui`** activates the record. A complete record is simply activated. An incomplete one is activated with the override reason « Dossier complété hors application ». Aperçu then reads « Activé sans dossier complet » and lists what is missing. This needs `professionals.activate_override`, which only the admin role has.
 - **Not imported in 4a** (complete them in the app): gender, address lines, presentation and approach (Profil public), public contact, availability and « Accepte de nouveaux clients » (it defaults to yes), documents, compensation.
@@ -40,24 +42,31 @@ Titles, clientèles, approaches and motifs are given by their **key**, never by 
 - **Approaches:** `cbt` (TCC), `psychodynamic`, `humanistic`, `systemic`, `gestalt`, `emdr`, `act`, `dbt`, `art_therapy`, `play_therapy`.
 - **Motifs:** 72 keys, listed with their names by the query below. The seed is `supabase/migrations/20261008082847_professionals_reference_data.sql`.
 
-The clinic's current lists, archived rows included, can be read with this query. Run it locally, or on staging in the dashboard's SQL editor (read only):
+The clinic's current lists, archived rows included, can be read with this query. Run it locally, or on staging in the dashboard's SQL editor (read only). Each clinic has its own lists and the import resolves keys in the clinic of the person who runs it, so the query reads one clinic:
 ```sql
+-- The clinic whose keys to list. Today each project holds one clinic, so this picks it.
+-- With several clinics, name yours instead: where o.name = 'Clinique MANA'
+-- (select id, name from public.organizations lists them).
+with org as (select o.id from public.organizations o)
 select 'titre' as list, t.key, t.name, o.acronym as ordre, t.is_active
   from public.profession_titles t left join public.professional_orders o on o.id = t.order_id
-union all select 'langue', l.code, l.name, null, l.is_active from public.languages l
-union all select 'clientele', c.key, c.name, null, c.is_active from public.clienteles c
-union all select 'approche', s.key, s.name, null, s.is_active from public.specialties s
+ where t.org_id in (select id from org)
+union all select 'langue', l.code, l.name, null, l.is_active from public.languages l where l.org_id in (select id from org)
+union all select 'clientele', c.key, c.name, null, c.is_active from public.clienteles c where c.org_id in (select id from org)
+union all select 'approche', s.key, s.name, null, s.is_active from public.specialties s where s.org_id in (select id from org)
 union all select 'motif', m.key, m.name, mc.name, m.is_active
   from public.motifs m left join public.motif_categories mc on mc.id = m.category_id
+ where m.org_id in (select id from org)
 order by 1, 3;
 ```
+If the `org` line returns more than one clinic, the lists repeat: add the `where` above before using the result.
 A convenient way to build the file: keep a « clés » sheet with this result, write names in the working sheet, and turn them into keys with `RECHERCHEV`.
 
 ### From GOrendezvous or the clinic's spreadsheet
 - Export the professionals from GOrendezvous (or start from the clinic's own list), then copy the columns above into a new sheet. The layout of the GOrendezvous export is not known to this repository, so map its columns by hand. The table above is the target.
 - Licence numbers go in `permis_1` / `permis_2` only, exactly as the order issued them.
 - **Legacy trap (inconsistency 12):** in the old app, the document type `license` meant the **image-rights consent** (« Consentement droit à l'image »), not a professional licence. Never copy anything about a `license` document into `permis_*`. Documents are not imported in 4a (they arrive in 4c).
-- Keep the CSV **outside the repository** (for example next to the staging backups, in `clinique-mana-backups/`). Never commit it and never paste it in chat. Delete it once the import is checked. The reports hold emails: they are git-ignored (`import-report-*.csv`); keep them outside the repository as well, and delete them with the CSV.
+- Keep the CSV **outside the repository** (for example next to the staging backups, in `clinique-mana-backups/`). Never commit it and never paste it in chat. Delete it once the import is checked. The reports hold emails: **give every real run a `--report` path outside the repository** (in the same folder as the CSV). The default name lands in the current folder; it is git-ignored (`import-report-*.csv`), which is a safety net, not a place to keep them. Delete the reports with the CSV.
 
 ## Steps
 1. **Local dry run with the sample** (any time, no go-ahead needed). Start the local stack (`npm run db:start`, seeded), then:
@@ -65,32 +74,45 @@ A convenient way to build the file: keep a « clés » sheet with this result, w
    ANON="$(npx supabase status -o env | sed -n 's/^ANON_KEY="\(.*\)"$/\1/p')"
    node scripts/import-professionals.mjs --file scripts/fixtures/professionals-sample.csv --anon-key "$ANON"
    ```
-   Sign in as `admin@mana.test` (the local seed's password, `supabase/seed.sql`). Expected: 6 lines « ok », « Résumé : 6 à créer (5 activé(s), dont 1 avec un dossier incomplet) · 0 déjà présent(s) · 0 en erreur. », and a report `import-report-<UTC time>.csv` in the current folder.
+   Sign in as `admin@mana.test` (the local seed's password, `supabase/seed.sql`). Expected: 6 lines « ok », « Résumé : 6 à créer (5 activé(s), dont 1 avec un dossier incomplet) · 0 déjà présent(s) · 0 en erreur. », and a report `import-report-<UTC time>.csv` in the current folder (fictional people only; delete it afterwards).
 2. **Local dry run with the real CSV.** Use the same command with `--file <your csv> --report <folder outside git>/essai-local.csv`. Nothing is written. Fix every line in error and run it again until the run is clean. The local lists are the seeded ones: if Paramètres on staging has rows the seed does not, those keys show as unknown here only.
-3. **With Jonathan's go-ahead: dry run on staging.** You need the staging anon key, which is public: Dashboard → Settings → API keys. Then:
+3. **With Jonathan's go-ahead: dry run on staging.** You need the staging anon key, which is public: Dashboard → Settings → API keys, the `anon` / publishable one. The secret key (`service_role`, `sb_secret_…`) is refused: it would bypass the permissions the import relies on. Then:
    ```bash
    node scripts/import-professionals.mjs --file <your csv> \
      --url https://vnmbjbdsjxmpijyjmmkh.supabase.co --anon-key <staging anon key> \
      --report <folder outside git>/essai-staging.csv
    ```
    Type the project reference `vnmbjbdsjxmpijyjmmkh` when asked, then sign in with **your own** admin account. Review the report: every line should be « ok » (or « ignoré » for a re-run). Read each « activé, dossier incomplet (…) » line, since those records will be activated with the override.
-4. **With Jonathan's go-ahead: import.** Run the same command with `--commit` and a new `--report` path. The script dry-runs every row again, writes nothing if a row fails, and otherwise asks you to type `importer`. Each line is printed as it is imported.
+4. **With Jonathan's go-ahead: import.** Run the same command with `--commit` and a new `--report` path. The script dry-runs every row again, writes nothing if a row fails, and otherwise asks you to type `importer`. Each line is printed, and written to the report, as it is imported. If the run stops before the end, see « Reprendre après une interruption ».
 5. **Spot-check five records** in the app (Professionnels): one with two titles, one with an IVAC number, one not activated, and one activated with an incomplete file. Check Aperçu, Jumelage, Identité et permis, and Historique (« … a créé le dossier », by you). Also check that the list's count matches the report.
 6. Delete the CSV and the reports, or move them to the backup folder until Jonathan decides.
+
+## Reprendre après une interruption
+An import can stop partway: Ctrl-C, the terminal closed (SIGTERM), the network lost, or a database error.
+- **Ctrl-C** (or SIGINT / SIGTERM) stops between two rows: the row under way finishes (each row is all or nothing), then the script prints « Import arrêté après N ligne(s) sur M », signs out and closes the report. Ctrl-C at a question (credentials, project reference, `importer`) cancels the run instead: nothing has been imported then. A row stuck on the network cannot be cut short from the keyboard; close the terminal, then resume.
+- **What was imported** is in the report: every `mode = import` line, each written as its row completed, with the record's `id`. The rows after the last line were not touched.
+- **To resume,** run the same command again with `--commit` and a **new** `--report` path (the old report is kept, never replaced). The rows already created come back « ignoré » (Courriel déjà présent) in the dry run and in the import; the others are imported. Nothing is created twice.
+- Keep both reports together: the first says which rows the interrupted run created, the second the rest.
 
 ## Messages and exit codes
 | Message | Meaning |
 |---|---|
-| `Ligne N · … · erreur` and `colonne : message` | The value in that column is refused. The messages are the app's (« Motif inconnu : anxite », « Le numéro de permis est requis pour ce titre. », « Ce numéro IVAC est déjà attribué à un autre professionnel. »). At most three unknown keys are named per message, and a value that looks personal reads « (valeur masquée) » |
+| `Ligne N · … · erreur` and `colonne : message` | The value in that column is refused. The messages are the app's (« Motif inconnu : anxite », « Le numéro de permis est requis pour ce titre. », « Ce numéro IVAC est déjà attribué à un autre professionnel. »). At most three unknown keys are named per message, and only a value shaped like a key is quoted: anything else (a name, an address, a number) reads « (valeur masquée) » |
 | `Courriel déjà présent` (ignoré) | The clinic already has this professional; nothing is changed |
 | `Courriel déjà présent à la ligne N du fichier.` | The same email appears twice in the CSV |
+| `Numéro IVAC déjà présent à la ligne N du fichier.` | The same IVAC number (spaces and case ignored) appears twice in the CSV |
+| `ligne : Plus de cellules que de colonnes …` | A stray separator in that line: it was neither read nor sent. Fix the line |
+| `La première ligne doit contenir les en-têtes …` | The file starts with data: add the header line (column names) |
+| `Le rapport … existe déjà …` | Choose another `--report` path; nothing was asked or imported |
+| `Cette clé est une clé secrète (service_role) …` | Use the project's public anon key, never the secret one |
+| `Import arrêté après N ligne(s) sur M …` | The import stopped partway: see « Reprendre après une interruption » |
 | `Ce courriel est déjà utilisé.` | A staff account of the clinic uses this address |
 | `Erreur de la base (42501) : Permission refusée : …` | The account lacks a permission: `professionals.manage`, `.matching` and `.view`, plus `.activate_override` when a line says `activer = oui` |
 | `Connexion refusée …` | Wrong email or password, or a disabled account |
 | `Le fichier n'est pas en UTF-8 …` | Save the file again as « CSV UTF-8 » |
-| `Adresse refusée …` / `Référence différente …` | Only the local stack may be reached over http; a remote project needs its reference typed back |
+| `Adresse refusée …` / `Référence différente …` | On this computer only the local stack (`http://127.0.0.1:55321`, `http://localhost:55321`) may be reached; a remote project must be https and needs its reference typed back |
 
-Exit code `0`: done, with no line in error. `1`: a line in error, or the import was cancelled. `2`: the run stopped (arguments, file, target, sign-in, a database error).
+Exit code `0`: done, with no line in error. `1`: a line in error, or the run was cancelled (`importer` not typed, Ctrl-C at a question). `2`: the run stopped (arguments, file, target, key, report path, sign-in, a database error, an interruption between rows).
 
 ## Undo
 - The dry runs change nothing.

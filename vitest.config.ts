@@ -11,15 +11,18 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
   test: {
-    environment: 'happy-dom',
     setupFiles: ['./src/test/setup.ts'],
     // Every test starts with empty mock call history, whatever the order (`--sequence.shuffle`).
     clearMocks: true,
-    // scripts/*.test.mjs: Node scripts, each test file opts into the node environment.
-    include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
     env: {
       VITE_SUPABASE_URL: 'http://127.0.0.1:55321',
       VITE_SUPABASE_ANON_KEY: 'test-anon-key',
     },
+    // The app in a DOM; the Node scripts (scripts/*.test.mjs) in Node (P4-130). Each project
+    // extends the settings above.
+    projects: [
+      { extends: true, test: { name: 'app', environment: 'happy-dom', include: ['src/**/*.test.{ts,tsx}'] } },
+      { extends: true, test: { name: 'scripts', environment: 'node', include: ['scripts/**/*.test.mjs'] } },
+    ],
   },
 })

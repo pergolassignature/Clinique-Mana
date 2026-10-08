@@ -4,13 +4,16 @@
 -- source put back); the real run writes through the app's paths (normalised values, titles and
 -- licences, sets with stars, IVAC, activation, audit source `import` and the person as actor);
 -- idempotent re-runs (`skipped`); unknown keys reported per field, never more than three named,
--- personal-looking values masked; the forms' messages for plain fields; the RPCs' refusals routed
--- to their field (names, email, licence by title row, IVAC, restricted motifs, at most two titles),
--- several at once, motifs skipped after a refused title; activation with the override reason;
--- permission refusals (manage, activate_override, module off), another clinic; contract errors.
+-- only key-shaped values quoted (anything else masked); the forms' messages for plain fields; the
+-- RPCs' refusals routed to their field (names, email, licence by title row, a repeated title, IVAC
+-- including one already imported, restricted motifs, at most two titles), several at once, motifs
+-- skipped after a refused title; archived reference rows; activation with the override reason;
+-- permission refusals (manage, matching, view, activate_override, module off), another clinic;
+-- an update RLS filters out; contract errors; deferred constraints checked by a dry run, whose
+-- rollback puts the deferred mode back.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(78);
+select plan(89);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
@@ -211,6 +214,17 @@ select is(current_setting('test.three')::jsonb -> 'errors',
     {"field": "approaches", "message": "Approches inconnues : a et b"}]'::jsonb,
   'two or three named with « et »; a number is masked; a blank key is ignored');
 
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": [{"title_key": "Jean Tremblay"}]}', true) -> 'errors',
+  '[{"field": "professions.0.titleId", "message": "Titre inconnu : (valeur masquée)"}]'::jsonb,
+  'a value not shaped like a key (a name in the title column) is masked');
+select is(public.import_professional(jsonb_build_object('first_name', 'Léa', 'last_name', 'Roy', 'email', 'lea.roy@example.test',
+    'motifs', jsonb_build_array(' Anxite ', repeat('a', 51), 'rue-1234')), true) -> 'errors',
+  '[{"field": "motifs", "message": "Motifs inconnus : anxite, (valeur masquée) et (valeur masquée)"}]'::jsonb,
+  'a key is quoted as looked up (trimmed, lower-cased); over 50 characters or 4 digits in a row: masked');
+reset role;
+
 -- =============================================================================
 -- Plain fields: the forms' messages, all at once
 -- =============================================================================
@@ -263,6 +277,12 @@ select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy",
   'several steps refused at once; motifs skipped after a refused title (no repeated refusal)');
 select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": [{"title_key": "psychologue", "licence_number": "1"}], "motifs": ["psychose"], "languages": []}', true) ->> 'status',
   'ok', 'a restricted motif with a regulated title; an empty language list keeps French');
+select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": [{"title_key": "psychologue", "licence_number": "1"}, {"title_key": " Psychologue", "licence_number": "2"}]}', true) -> 'errors',
+  '[{"field": "professions.1.titleId", "message": "Un titre ne peut être choisi qu''une fois."}]'::jsonb,
+  'a repeated title: under its second row (titre 2)');
+select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "ivac": "ivac-1234"}', true) -> 'errors',
+  '[{"field": "ivac", "message": "Ce numéro IVAC est déjà attribué à un autre professionnel."}]'::jsonb,
+  'an IVAC number an earlier imported row holds (the same clinic)');
 reset role;
 select is((select count(*)::int from public.professionals where email = 'lea.roy@example.test'), 0, 'refused rows wrote nothing (real run included)');
 
@@ -314,6 +334,65 @@ reset role;
 update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-0000-00000000000b' and module_key = 'professionals';
 
 -- =============================================================================
+-- Archived reference rows: the set RPCs' own refusals
+-- =============================================================================
+update public.profession_titles set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'sexologue';
+update public.languages set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 'es';
+update public.clienteles set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'groups';
+update public.specialties set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'gestalt';
+update public.motifs set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'deuil';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": [{"title_key": "sexologue", "licence_number": "1"}]}', true) -> 'errors',
+  '[{"field": "professions.0.titleId", "message": "Ce titre est archivé."}]'::jsonb, 'an archived title: refused under its row');
+select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "languages": ["es"], "clienteles": [{"key": "groups"}], "approaches": [{"key": "gestalt"}], "motifs": ["deuil"]}', true) -> 'errors',
+  jsonb_build_array(
+    jsonb_build_object('field', 'languages', 'message', 'La langue « Espagnol » est archivée.'),
+    jsonb_build_object('field', 'clienteles', 'message', 'La clientèle « Groupes » est archivée.'),
+    jsonb_build_object('field', 'approaches', 'message', 'L''approche « Gestalt-thérapie » est archivée.'),
+    jsonb_build_object('field', 'motifs', 'message', format('Le motif « %s » est archivé.',
+      (select name from public.motifs where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'deuil')))),
+  'archived language, clientèle, approach and motif: each refused under its field');
+reset role;
+update public.profession_titles set is_active = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'sexologue';
+update public.languages set is_active = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 'es';
+update public.clienteles set is_active = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'groups';
+update public.specialties set is_active = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'gestalt';
+update public.motifs set is_active = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'deuil';
+
+-- =============================================================================
+-- .matching or .view missing alone (a per-person override, on the adjointe: an admin takes none)
+-- =============================================================================
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted)
+values ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'professionals.matching', false);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok($$ select public.import_professional('{"first_name": "A", "last_name": "B", "email": "c@example.test"}') $$,
+  '42501', 'Permission refusée : professionals.matching', 'professionals.matching withdrawn alone: refused');
+reset role;
+update public.user_permission_overrides set permission_key = 'professionals.view'
+ where user_id = 'a0000000-0000-0000-0000-000000000002' and permission_key = 'professionals.matching';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok($$ select public.import_professional('{"first_name": "A", "last_name": "B", "email": "c@example.test"}') $$,
+  '42501', 'Permission refusée : professionals.view', 'professionals.view withdrawn alone: refused');
+reset role;
+delete from public.user_permission_overrides where user_id = 'a0000000-0000-0000-0000-000000000002';
+
+-- =============================================================================
+-- The contact update must touch the record (RLS filters an update silently)
+-- =============================================================================
+create policy import_test_block on public.professionals as restrictive for update to authenticated
+  using (last_name <> 'Bloqué');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(public.import_professional('{"first_name": "Léa", "last_name": "Bloqué", "email": "lea.bloque@example.test", "city": "Laval"}', true) -> 'errors',
+  '[{"field": null, "message": "Les coordonnées (téléphone, ville, province, code postal, années d''expérience) n''ont pas pu être enregistrées."}]'::jsonb,
+  'an update that touched no row is an error for the row');
+reset role;
+drop policy import_test_block on public.professionals;
+
+-- =============================================================================
 -- Contract errors (the caller's bugs, not the row's data): 22023
 -- =============================================================================
 set local role authenticated;
@@ -332,6 +411,30 @@ select throws_ok($$ select public.import_professional('{"motifs": [1]}') $$, '22
 select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": null, "motifs": null, "city": null}') ->> 'status',
   'ok', 'JSON null reads as absent');
 reset role;
+
+-- =============================================================================
+-- Deferred constraints: a dry run checks them, and its rollback puts the deferred mode back.
+-- Last, as the check below leaves a deferred event pending (never fired: rollback).
+-- =============================================================================
+create function public.import_test_deferred() returns trigger language plpgsql set search_path = '' as $f$
+begin
+  if new.city = 'Ville-Différée' then
+    raise exception 'Contrôle différé refusé.' using errcode = 'P0001';
+  end if;
+  return null;
+end;
+$f$;
+grant execute on function public.import_test_deferred() to authenticated;
+create constraint trigger import_test_deferred after update on public.professionals
+  deferrable initially deferred for each row execute function public.import_test_deferred();
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "city": "Ville-Différée"}', true),
+  '{"status": "error", "dry_run": true, "id": null, "errors": [{"field": null, "message": "Contrôle différé refusé."}]}'::jsonb,
+  'a dry run reports what a deferred constraint refuses at commit');
+reset role;
+select lives_ok($$ update public.professionals set city = 'Ville-Différée' where id = current_setting('test.existing')::uuid $$,
+  'after the dry run, deferred constraints are deferred again (not checked at the statement)');
 
 select * from finish();
 rollback;

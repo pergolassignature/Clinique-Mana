@@ -14,9 +14,14 @@
 // - The person running it signs in with their own account: email and password are asked on the
 //   terminal (/dev/tty, the password hidden), never read from a file, an argument or the
 //   environment, and never printed. The anon key (public by design) comes from --anon-key or
-//   VITE_SUPABASE_ANON_KEY.
+//   VITE_SUPABASE_ANON_KEY; a secret key (service_role, sb_secret_…) is refused.
 // - It prints one line per CSV line and writes a report (import-report-<UTC time>.csv) holding the
 //   line number, the email, the status, the record id and the messages: no other personal data.
+//   The report is created first (never over an existing file, mode 600) and each line is written
+//   and flushed as its row completes.
+// - Ctrl-C (or SIGINT / SIGTERM) stops between two rows: the row under way finishes, the session
+//   is signed out and the report closed. Running the same --commit again resumes: the rows already
+//   created come back « ignoré ».
 //
 // CSV: UTF-8 (a BOM is fine), comma- or semicolon-separated (read from the header line), RFC 4180
 // quotes. Columns (header names are matched without case or accents):
@@ -24,7 +29,7 @@
 //   titre_1, permis_1, titre_2, permis_2, langues, clienteles, approches, motifs, ivac, activer
 // Lists hold keys separated by « ; » (or « , »); in clienteles and approches, « * » after a key marks
 // it specialized (adults*;couples). titre_1 is the primary title. activer: oui, non or empty (non).
-import { closeSync, openSync, readFileSync, writeFileSync } from 'node:fs'
+import { closeSync, fsyncSync, openSync, readFileSync, unlinkSync, writeSync } from 'node:fs'
 import { ReadStream, WriteStream } from 'node:tty'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
@@ -116,12 +121,25 @@ export function normalizeHeader(name) {
     .replace(/[\s-]+/g, '_')
 }
 
-/** Header checked, blank lines dropped: [{ line, values: { prenom: '…', … } }]. */
+/**
+ * Header checked, blank lines dropped: [{ line, values: { prenom: '…', … } }]. A row with a
+ * non-empty cell beyond the header has `values: null`: its cells may sit under the wrong columns,
+ * so none is read (buildRows reports it without sending it).
+ */
 export function readRows(text) {
   const { records } = parseCsv(text)
   const [header, ...body] = records
   if (!header) throw new InputError('Le fichier est vide.')
-  const names = header.cells.map(normalizeHeader)
+  const cells = [...header.cells]
+  // Empty trailing header cells (a spreadsheet's empty columns) are not columns.
+  while (cells.length > 0 && cells[cells.length - 1].trim() === '') cells.pop()
+  const names = cells.map(normalizeHeader)
+  // A first line of data (no header): said without printing any of its cells.
+  if (!names.some((n) => COLUMNS.includes(n)) || cells.some((c) => /@|[0-9]{4}/.test(c))) {
+    throw new InputError(`La première ligne doit contenir les en-têtes (${COLUMNS.join(', ')}).`)
+  }
+  const blank = names.indexOf('')
+  if (blank !== -1) throw new InputError(`En-tête vide à la colonne ${blank + 1}.`)
   const unknown = names.filter((n) => !COLUMNS.includes(n))
   if (unknown.length > 0) throw new InputError(`Colonnes inconnues : ${unknown.join(', ')}. Colonnes permises : ${COLUMNS.join(', ')}.`)
   const repeated = names.find((n, i) => names.indexOf(n) !== i)
@@ -131,7 +149,10 @@ export function readRows(text) {
   const rows = []
   for (const record of body) {
     if (record.cells.every((c) => c.trim() === '')) continue
-    if (record.cells.length > names.length) throw new InputError(`Ligne ${record.line} : plus de cellules que de colonnes.`)
+    if (record.cells.slice(names.length).some((c) => c.trim() !== '')) {
+      rows.push({ line: record.line, values: null })
+      continue
+    }
     rows.push({ line: record.line, values: Object.fromEntries(names.map((n, i) => [n, (record.cells[i] ?? '').trim()])) })
   }
   return rows
@@ -235,14 +256,29 @@ function professionsOf(values, errors) {
   return professions
 }
 
-/** Every row's payload and its CSV errors; an email repeated in the file is an error from its second line on. */
+const TOO_WIDE = 'Plus de cellules que de colonnes (un séparateur de trop ?) : la ligne n’est ni lue ni envoyée à la base.'
+
+/**
+ * Every row's payload and its CSV errors. An email (case ignored) or an IVAC number (trimmed,
+ * upper-cased, as stored) repeated in the file is an error from its second line on. A row too
+ * broken to read has `payload: null` and no email (its cells may be shifted).
+ */
 export function buildRows(text) {
-  const seen = new Map()
+  const emails = new Map()
+  const ivacs = new Map()
+  const firstSeen = (seen, value, line) => {
+    if (value === '') return null
+    if (seen.has(value)) return seen.get(value)
+    seen.set(value, line)
+    return null
+  }
   return readRows(text).map(({ line, values }) => {
+    if (values === null) return { line, email: '', payload: null, errors: [{ field: null, message: TOO_WIDE }] }
     const { payload, errors } = rowToPayload(values)
-    const email = (values.courriel ?? '').toLowerCase()
-    if (email !== '' && seen.has(email)) errors.push({ field: 'email', message: `Courriel déjà présent à la ligne ${seen.get(email)} du fichier.` })
-    else if (email !== '') seen.set(email, line)
+    const emailLine = firstSeen(emails, (values.courriel ?? '').toLowerCase(), line)
+    if (emailLine !== null) errors.push({ field: 'email', message: `Courriel déjà présent à la ligne ${emailLine} du fichier.` })
+    const ivacLine = firstSeen(ivacs, (values.ivac ?? '').trim().toUpperCase(), line)
+    if (ivacLine !== null) errors.push({ field: 'ivac', message: `Numéro IVAC déjà présent à la ligne ${ivacLine} du fichier.` })
     return { line, email: values.courriel ?? '', payload, errors }
   })
 }
@@ -266,11 +302,46 @@ export function resolveTarget(urlArg) {
     throw new InputError('L’adresse doit être celle du projet seulement (https://<référence>.supabase.co).')
   }
   if (LOCAL_ORIGINS.has(url.origin)) return { url: url.origin, local: true, confirmWith: null }
+  if (isLoopback(url.hostname)) {
+    throw new InputError(`Adresse refusée : ${url.origin}. Sur cet ordinateur, seules ${[...LOCAL_ORIGINS].join(' et ')} sont permises.`)
+  }
   if (url.protocol !== 'https:') {
     throw new InputError(`Adresse refusée : ${url.origin}. Seule la base locale (${LOCAL_URL}) est permise en http.`)
   }
   const ref = SUPABASE_HOST.exec(url.hostname)?.[1]
   return { url: url.origin, local: false, confirmWith: ref ?? url.hostname }
+}
+
+/** This computer under any name (another port, https, 127.x, ::1, *.localhost): never a remote project. */
+function isLoopback(hostname) {
+  const host = hostname.toLowerCase().replace(/\.$/, '')
+  return (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    /^127\./.test(host) ||
+    host === '0.0.0.0' ||
+    host === '[::1]' ||
+    host === '[::]' ||
+    /^\[::ffff:(7f|0:)/.test(host)
+  )
+}
+
+const SECRET_KEY =
+  'Cette clé est une clé secrète (service_role) : elle passe outre les permissions et ne sert jamais à l’import. ' +
+  'Utilisez la clé publique du projet (anon, ou sb_publishable_…).'
+
+/** The anon key is public; a secret key (a JWT whose role is service_role, or sb_secret_…) is refused, never echoed. */
+export function checkPublicKey(key) {
+  if (key.startsWith('sb_secret_')) throw new InputError(SECRET_KEY)
+  const parts = key.split('.')
+  if (parts.length !== 3) return
+  let role
+  try {
+    role = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'))?.role
+  } catch {
+    role = undefined
+  }
+  if (role === 'service_role') throw new InputError(SECRET_KEY)
 }
 
 // --- Terminal ------------------------------------------------------------------------------------
@@ -279,61 +350,105 @@ export class Aborted extends Error {}
 
 /**
  * The controlling terminal (/dev/tty), so credentials are typed there even when stdin or stdout are
- * redirected. `ask` echoes, `askHidden` does not; Ctrl-C or Ctrl-D aborts.
+ * redirected; tests pass `input` and `output` streams instead. `ask` shows what is typed,
+ * `askHidden` shows nothing; Ctrl-C or Ctrl-D at a prompt aborts it (Aborted).
+ *
+ * Raw mode is set once, before anything is written, and kept until `close`: an answer typed as
+ * soon as a prompt shows is never echoed by the terminal, the password included, and keys typed
+ * between prompts are dropped unseen. In raw mode Ctrl-C is a key, not a signal: between prompts
+ * it calls `onInterrupt` (the run then stops after the row under way). Escape sequences (arrow
+ * keys and the like) are ignored.
  */
-export function openTerminal() {
-  let inFd
-  let outFd
-  try {
-    inFd = openSync('/dev/tty', 'r')
-    outFd = openSync('/dev/tty', 'w')
-  } catch {
-    if (inFd !== undefined) closeSync(inFd)
-    throw new InputError('Aucun terminal : l’import demande vos identifiants au clavier.')
+export function openTerminal({ input: givenInput, output: givenOutput, onInterrupt = () => {} } = {}) {
+  let input = givenInput
+  let output = givenOutput
+  if (!input || !output) {
+    let inFd
+    let outFd
+    try {
+      inFd = openSync('/dev/tty', 'r')
+      outFd = openSync('/dev/tty', 'w')
+    } catch {
+      if (inFd !== undefined) closeSync(inFd)
+      throw new InputError('Aucun terminal : l’import demande vos identifiants au clavier.')
+    }
+    input = new ReadStream(inFd)
+    output = new WriteStream(outFd)
   }
-  const input = new ReadStream(inFd)
-  const output = new WriteStream(outFd)
+  input.setRawMode(true)
+  input.setEncoding('utf8')
+
+  let pending = null // the prompt being answered: { value, hidden, resolve, reject }
+  let escape = 0 // 1 after ESC, 2 inside a CSI / SS3 sequence
+  const settle = (error) => {
+    const prompt = pending
+    pending = null
+    output.write('\n')
+    if (error) prompt.reject(error)
+    else prompt.resolve(prompt.value)
+  }
+  const onData = (chunk) => {
+    for (const ch of chunk) {
+      if (escape === 1) {
+        escape = ch === '[' || ch === 'O' ? 2 : 0
+        continue
+      }
+      if (escape === 2) {
+        if (ch >= '@' && ch <= '~') escape = 0
+        continue
+      }
+      if (ch === '\u001b') {
+        escape = 1
+        continue
+      }
+      if (ch === '\u0003') {
+        if (pending) settle(new Aborted('Interrompu.'))
+        else onInterrupt()
+        continue
+      }
+      if (!pending) continue // typed between prompts: dropped, never shown
+      if (ch === '\u0004') settle(new Aborted('Interrompu.'))
+      else if (ch === '\r' || ch === '\n') settle()
+      else if (ch === '\u007f' || ch === '\b') {
+        if (pending.value !== '') {
+          pending.value = [...pending.value].slice(0, -1).join('')
+          if (!pending.hidden) output.write('\b \b')
+        }
+      } else if (ch >= ' ' && !(ch >= '\u0080' && ch <= '\u009f')) {
+        pending.value += ch
+        if (!pending.hidden) output.write(ch)
+      }
+    }
+    if (escape === 1) escape = 0 // a lone ESC at the end of a chunk is the Escape key
+  }
+  input.on('data', onData)
+  input.resume()
+
   const read = (question, hidden) =>
     new Promise((resolve, reject) => {
-      let value = ''
-      const finish = (error) => {
-        input.off('data', onData)
-        input.setRawMode(false)
-        input.pause()
-        output.write('\n')
-        if (error) reject(error)
-        else resolve(value)
-      }
-      const onData = (chunk) => {
-        for (const ch of chunk) {
-          if (ch === '\r' || ch === '\n') return finish()
-          if (ch === '\u0003' || ch === '\u0004') return finish(new Aborted('Interrompu.'))
-          if (ch === '\u007f' || ch === '\b') {
-            if (value !== '') {
-              value = [...value].slice(0, -1).join('')
-              if (!hidden) output.write('\b \b')
-            }
-          } else if (ch >= ' ') {
-            value += ch
-            if (!hidden) output.write(ch)
-          }
-        }
-      }
-      // Raw mode (no echo by the terminal) before the question shows: an answer typed as soon as
-      // it appears is never echoed, the password included.
-      input.setEncoding('utf8')
-      input.setRawMode(true)
-      input.on('data', onData)
-      input.resume()
+      if (pending) return reject(new Error('Une question attend déjà sa réponse.'))
+      pending = { value: '', hidden, resolve, reject }
       output.write(question)
     })
   return {
     ask: (question) => read(question, false),
     askHidden: (question) => read(question, true),
     say: (text) => output.write(`${text}\n`),
+    /** Aborts the prompt under way, if any (a signal while a question waits); true when there was one. */
+    interruptPrompt: () => {
+      if (!pending) return false
+      settle(new Aborted('Interrompu.'))
+      return true
+    },
     close: () => {
-      input.destroy()
-      output.destroy()
+      if (pending) settle(new Aborted('Interrompu.'))
+      input.off('data', onData)
+      try {
+        input.setRawMode(false)
+      } finally {
+        input.destroy()
+        output.destroy()
+      }
     },
   }
 }
@@ -372,17 +487,22 @@ function contentText(payload) {
     .join(', ')
 }
 
-const errorsText = (errors) => errors.map((e) => `${columnOf(e.field)} : ${e.message}`)
+/** CSV order: the row as a whole first, then column by column (a stable sort keeps each side's order). */
+const columnRank = (field) => (field == null ? -1 : COLUMNS.indexOf(columnOf(field).split(',')[0]))
+const errorsText = (errors) =>
+  [...errors].sort((a, b) => columnRank(a.field) - columnRank(b.field)).map((e) => `${columnOf(e.field)} : ${e.message}`)
 
 /**
  * One entry per CSV row: { line, email, status: ok | skipped | error, id, details: string[] }, and
- * for an ok row whether it is (or would be) activated, and with an incomplete file.
+ * for an ok row whether it is (or would be) activated, and with an incomplete file. `result` is
+ * import_professional's (null when the row was not sent); the CSV's errors and the database's are
+ * listed together, so one dry run names everything to fix (P4-122).
  */
 export function describe(row, result) {
   const base = { line: row.line, email: row.email, id: null, activated: false, incomplete: false }
-  if (row.errors.length > 0) return { ...base, status: 'error', details: errorsText(row.errors) }
+  const dbErrors = result?.status === 'error' ? result.errors : []
+  if (row.errors.length > 0 || dbErrors.length > 0) return { ...base, status: 'error', details: errorsText([...row.errors, ...dbErrors]) }
   if (result.status === 'skipped') return { ...base, status: 'skipped', id: result.id ?? null, details: [result.reason] }
-  if (result.status === 'error') return { ...base, status: 'error', details: errorsText(result.errors) }
   const details = [contentText(row.payload), outcomeText(result)].filter(Boolean).join(' · ')
   return { ...base, status: 'ok', id: result.id ?? null, activated: result.activated, incomplete: result.activated && !result.complete, details: [details] }
 }
@@ -404,17 +524,45 @@ export function printEntry(e, out) {
   out(`Ligne ${e.line} · ${e.email || '(sans courriel)'} · ${STATUS_LABELS[e.status]}`)
   for (const d of e.details) out(`    ${d}`)
 }
-/** A cell as RFC 4180 writes it; a leading = + - @ is neutralised so a spreadsheet never runs it as a formula. */
+/**
+ * A cell as RFC 4180 writes it; a leading = + - @, tab or carriage return is neutralised so a
+ * spreadsheet never runs it as a formula.
+ */
 function csvCell(value) {
-  const text = /^[=+\-@]/.test(value) ? `'${value}` : value
+  const text = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
 }
 
-/** The report: line number, email, mode, status, record id and messages; no other personal data. */
-export function reportCsv(entries, mode) {
-  const lines = [['ligne', 'courriel', 'mode', 'statut', 'id', 'details']]
-  for (const e of entries) lines.push([String(e.line), e.email, mode, STATUS_LABELS[e.status], e.id ?? '', e.details.join(' | ')])
-  return `${lines.map((l) => l.map(csvCell).join(',')).join('\r\n')}\r\n`
+const csvLine = (cells) => `${cells.map(csvCell).join(',')}\r\n`
+export const REPORT_HEADER = csvLine(['ligne', 'courriel', 'mode', 'statut', 'id', 'details'])
+/** One report line: line number, email, mode, status, record id and messages; no other personal data. */
+export const reportLine = (e, mode) => csvLine([String(e.line), e.email, mode, STATUS_LABELS[e.status], e.id ?? '', e.details.join(' | ')])
+export const reportCsv = (entries, mode) => REPORT_HEADER + entries.map((e) => reportLine(e, mode)).join('')
+
+/**
+ * The report file, claimed before anything is asked or imported: created with 'wx' (an existing
+ * file is never replaced) and mode 600 (it holds emails). Each `write` is flushed to disk, so an
+ * interrupted run keeps every line written so far. `close(discard)` removes a report that holds no
+ * row (the run stopped before the first one), so the same --report can be used again.
+ */
+export function openReportFile(path, fs = { openSync, writeSync, fsyncSync, closeSync, unlinkSync }) {
+  let fd
+  try {
+    fd = fs.openSync(path, 'wx', 0o600)
+  } catch (error) {
+    if (error?.code === 'EEXIST') throw new InputError(`Le rapport ${path} existe déjà : il n’est pas remplacé. Choisissez un autre --report.`)
+    throw new InputError(`Rapport impossible à créer : ${path} (${error?.code ?? 'erreur'}).`)
+  }
+  return {
+    write: (text) => {
+      fs.writeSync(fd, text)
+      fs.fsyncSync(fd)
+    },
+    close: (discard) => {
+      fs.closeSync(fd)
+      if (discard) fs.unlinkSync(path)
+    },
+  }
 }
 
 export const reportName = (now) => `import-report-${now.toISOString().replace(/[-:]/g, '').replace(/\.[0-9]+Z$/, 'Z')}.csv`
@@ -453,15 +601,23 @@ async function callImport(client, payload, dryRun) {
 }
 
 /**
- * Every row through import_professional, printed as it goes, into `entries` (filled even when a
- * database error stops the pass, so the report says what was done). Rows the CSV refused are not sent.
+ * Every row through import_professional, each printed and written to the report as it completes
+ * (a database error that stops the pass leaves the lines done so far in the report). Stops between
+ * two rows once a stop is requested. A dry run also sends the rows with CSV errors (when they could
+ * be read) so the database's errors join them; a real pass never sends a row in error. `entries`
+ * holds the rows done, even when an error stops the pass.
  */
-async function pass(client, rows, dryRun, entries, out) {
+async function pass(ctx, rows, dryRun, entries = []) {
   for (const row of rows) {
-    const entry = describe(row, row.errors.length > 0 ? null : await callImport(client, row.payload, dryRun))
+    if (ctx.stop.requested) break
+    const send = row.payload !== null && (dryRun || row.errors.length === 0)
+    const entry = describe(row, send ? await callImport(ctx.client, row.payload, dryRun) : null)
     entries.push(entry)
-    printEntry(entry, out)
+    ctx.report.write(reportLine(entry, dryRun ? 'essai' : 'import'))
+    ctx.report.lines++
+    printEntry(entry, ctx.out)
   }
+  return entries
 }
 
 /** Signs in on the terminal; the password lives only in this call. */
@@ -471,16 +627,25 @@ async function signIn(client, terminal) {
   if (error) throw new InputError('Connexion refusée : vérifiez le courriel et le mot de passe.')
 }
 
+const RESUME = 'Pour reprendre, relancez la même commande avec --commit (et un nouveau --report) : les lignes déjà créées reviendront « ignoré ».'
+
 /**
- * The whole run; returns the exit code: 0 done, 1 a row in error or the import cancelled, 2 the run
- * stopped (arguments, file, target, sign-in, a database error).
- * `deps` (terminal, client, files, clock, output) is injected so tests run it without a terminal
- * or a database; the command line below always wires the real ones.
+ * The whole run; returns the exit code: 0 done, 1 a row in error or the import cancelled (a prompt
+ * answered with Ctrl-C included), 2 the run stopped (arguments, file, target, report, sign-in, a
+ * database error, an interruption between rows).
+ * `deps` (terminal, client, report file, signals, clock, output) is injected so tests run it
+ * without a terminal, a database or a file; the command line below always wires the real ones.
  */
 export async function run(argv, deps) {
   const { out } = deps
-  let terminal
-  let client
+  const ctx = { out, stop: { requested: false }, client: null, report: null, terminal: null }
+  let unsubscribe
+  const requestStop = () => {
+    if (ctx.stop.requested) return
+    ctx.stop.requested = true
+    // A question under way is aborted; otherwise the row under way finishes first.
+    if (!ctx.terminal?.interruptPrompt?.()) out('Arrêt demandé : la ligne en cours se termine, puis l’import s’arrête.')
+  }
   try {
     const cli = parseCli(argv)
     if (cli.help || !cli.file) {
@@ -490,67 +655,84 @@ export async function run(argv, deps) {
     const target = resolveTarget(cli.url)
     const anonKey = cli.anonKey ?? deps.env.VITE_SUPABASE_ANON_KEY
     if (!anonKey) throw new InputError('Clé anon manquante : --anon-key <clé> ou VITE_SUPABASE_ANON_KEY.')
+    checkPublicKey(anonKey)
     const rows = buildRows(deps.readFile(cli.file))
     if (rows.length === 0) throw new InputError('Aucune ligne à importer.')
 
-    terminal = deps.openTerminal()
+    // The report first: an existing path stops the run before any question or call.
+    const reportPath = cli.report ?? reportName(deps.now())
+    ctx.report = { path: reportPath, lines: 0, ...deps.openReport(reportPath) }
+    ctx.report.write(REPORT_HEADER)
+    unsubscribe = deps.onSignals(requestStop)
+
+    ctx.terminal = deps.openTerminal({ onInterrupt: requestStop })
     if (!target.local) {
-      terminal.say(`Base distante : ${target.url}`)
-      const typed = (await terminal.ask('Tapez la référence du projet pour confirmer : ')).trim()
+      ctx.terminal.say(`Base distante : ${target.url}`)
+      const typed = (await ctx.terminal.ask('Tapez la référence du projet pour confirmer : ')).trim()
       if (typed !== target.confirmWith) throw new InputError('Référence différente : rien n’a été fait.')
     }
-    client = deps.createClient(target.url, anonKey)
-    await signIn(client, terminal)
+    if (ctx.stop.requested) throw new Aborted('Interrompu.')
+    ctx.client = deps.createClient(target.url, anonKey)
+    await signIn(ctx.client, ctx.terminal)
+    if (ctx.stop.requested) throw new Aborted('Interrompu.')
 
     out(`Essai sur ${target.url} (rien n’est écrit) : ${rows.length} ligne(s).`)
-    const entries = []
-    await pass(client, rows, true, entries, out)
+    const entries = await pass(ctx, rows, true)
     out(summaryText(entries, true))
+    if (entries.length < rows.length) {
+      out(`Essai interrompu après ${entries.length} ligne(s) sur ${rows.length} : rien n’a été écrit.`)
+      return 2
+    }
     const errors = entries.some((e) => e.status === 'error')
     if (!cli.commit || errors || !entries.some((e) => e.status === 'ok')) {
-      writeReport(deps, cli, entries, 'essai')
       if (cli.commit) out(errors ? 'Rien n’a été importé : corrigez les erreurs, puis relancez.' : 'Rien à importer.')
       return errors ? 1 : 0
     }
-    return await commit(deps, cli, client, terminal, target, rows, entries)
+    return await commit(ctx, target, rows, entries)
   } catch (error) {
     if (!(error instanceof InputError) && !(error instanceof Aborted)) throw error
     out(error.message)
     return error instanceof Aborted ? 1 : 2
   } finally {
-    if (client) await client.auth.signOut({ scope: 'local' })
-    terminal?.close()
+    unsubscribe?.()
+    // Always: sign out, close the report (with every line written so far), give the terminal back.
+    if (ctx.client) {
+      try {
+        await ctx.client.auth.signOut({ scope: 'local' })
+      } catch {
+        out('Déconnexion : la session locale est abandonnée.')
+      }
+    }
+    if (ctx.report) {
+      ctx.report.close(ctx.report.lines === 0)
+      if (ctx.report.lines > 0) out(`Rapport : ${ctx.report.path}`)
+    }
+    ctx.terminal?.close()
   }
 }
 
 /** Confirmed by typing « importer »; then row by row, for real. */
-async function commit(deps, cli, client, terminal, target, rows, dryEntries) {
+async function commit(ctx, target, rows, dryEntries) {
+  if (ctx.stop.requested) throw new Aborted('Interrompu.')
   const count = dryEntries.filter((e) => e.status === 'ok').length
-  const typed = await terminal.ask(`Importer ${count} professionnel(s) dans ${target.url} ? Tapez « importer » pour confirmer : `)
+  const typed = await ctx.terminal.ask(`Importer ${count} professionnel(s) dans ${target.url} ? Tapez « importer » pour confirmer : `)
   if (typed.trim() !== 'importer') {
-    deps.out('Import annulé : rien n’a été écrit.')
+    ctx.out('Import annulé : rien n’a été écrit.')
     return 1
   }
-  deps.out('Import :')
+  ctx.out('Import :')
   const entries = []
+  let done = false
   try {
-    await pass(client, rows, false, entries, deps.out)
+    await pass(ctx, rows, false, entries)
+    done = entries.length === rows.length
   } finally {
-    deps.out(summaryText(entries, false))
-    writeReport(deps, cli, entries, 'import')
+    // Also when a database error stops the pass: what was imported is counted and in the report.
+    ctx.out(summaryText(entries, false))
+    if (!done) ctx.out(`Import arrêté après ${entries.length} ligne(s) sur ${rows.length}. ${RESUME}`)
   }
+  if (!done) return 2
   return entries.some((e) => e.status === 'error') ? 1 : 0
-}
-
-function writeReport(deps, cli, entries, mode) {
-  const path = cli.report ?? reportName(deps.now())
-  try {
-    deps.writeFile(path, reportCsv(entries, mode))
-  } catch (error) {
-    if (error?.code === 'EEXIST') throw new InputError(`Le rapport ${path} existe déjà : il n’est pas remplacé.`)
-    throw error
-  }
-  deps.out(`Rapport : ${path}`)
 }
 
 function decodeUtf8(path) {
@@ -567,8 +749,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     env: process.env,
     out: (line) => process.stdout.write(`${line}\n`),
     readFile: decodeUtf8,
-    // 'wx': never overwrite an earlier report.
-    writeFile: (path, text) => writeFileSync(path, text, { encoding: 'utf8', flag: 'wx' }),
+    openReport: (path) => openReportFile(path),
+    onSignals: (handler) => {
+      process.on('SIGINT', handler)
+      process.on('SIGTERM', handler)
+      return () => {
+        process.off('SIGINT', handler)
+        process.off('SIGTERM', handler)
+      }
+    },
     now: () => new Date(),
     openTerminal,
     createClient: (url, key) => createSupabaseClient(url, key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }),

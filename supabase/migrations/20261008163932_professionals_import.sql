@@ -39,8 +39,12 @@
 -- * Values typed the way the forms accept them: phone (514 555-0101, 1-514-…, +1 …) → E.164,
 --   postal code (h2x-1y4) → H2X 1Y4, province upper-cased, keys and codes trimmed and lower-cased.
 --   Messages are the forms' (src/shared/lib/field-schemas.ts, schemas/identity.ts). An unknown
---   value is quoted unless it looks personal (an @, or 4 digits in a row: « (valeur masquée) »),
---   at most 3 per message (« … et 4 autres »), so a report never lists a wall of keys.
+--   value is quoted only when it is shaped like a key (lower-cased: a-z, 0-9, _ * -, 50 characters
+--   at most, never 4 digits in a row); anything else (a name, an address, a number typed in the
+--   wrong column) reads « (valeur masquée) ». At most 3 per message (« … et 4 autres »), so a
+--   report never lists a wall of keys.
+-- * A dry run checks the deferred constraints too (set constraints all immediate before its
+--   rollback), so it refuses what the commit of a real run would refuse.
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:professionals_import', true);
@@ -120,8 +124,10 @@ $$;
 -- Messages about values the clinic does not know
 -- -----------------------------------------------------------------------------
 -- « Motif inconnu : anxite », « Motifs inconnus : a, b et c », « Motifs inconnus : a, b, c et
--- 4 autres ». Distinct values in order of appearance; one that looks personal (an @, 4 digits in a
--- row: an address or a number typed in the wrong column) reads « (valeur masquée) ».
+-- 4 autres ». Distinct values (trimmed, lower-cased, as they were looked up) in order of
+-- appearance. Only a value shaped like a key is quoted (a-z, 0-9, _ * -, 50 characters at most,
+-- the keys' own limit, and never 4 digits in a row); anything else may be personal (« Jean
+-- Tremblay », an address, a phone number typed in the wrong column) and reads « (valeur masquée) ».
 create function private.import_unknown_message(p_one text, p_many text, p_values text[])
 returns text
 language sql
@@ -129,14 +135,14 @@ immutable
 set search_path = ''
 as $$
   with v as (
-    select case when pg_catalog.btrim(x.value) = '' then '(vide)'
-                when x.value ~ '@' or x.value ~ '[0-9]{4}' then '(valeur masquée)'
-                else pg_catalog.left(x.value, 60) end as label,
+    select case when x.value = '' then '(vide)'
+                when x.value ~ '^[a-z0-9_*-]{1,50}$' and x.value !~ '[0-9]{4}' then x.value
+                else '(valeur masquée)' end as label,
            pg_catalog.row_number() over (order by x.first_ord) as n,
            count(*) over () as total
-      from (select u.value, min(u.ord) as first_ord
+      from (select pg_catalog.lower(pg_catalog.btrim(coalesce(u.value, ''), E' \t\r\n')) as value, min(u.ord) as first_ord
               from pg_catalog.unnest(p_values) with ordinality as u(value, ord)
-             group by u.value) x
+             group by 1) x
   )
   select case
            when max(v.total) = 1 then p_one || ' : ' || max(v.label)
@@ -338,6 +344,7 @@ declare
   v_detail text;
   v_titles_failed boolean := false;
   v_readiness jsonb;
+  v_rows int;
 begin
   errors := '[]';
   activated := false;
@@ -351,7 +358,8 @@ begin
     return;
   end;
 
-  -- The plain fields, as the cards write them (column grants, RLS), once they are all valid.
+  -- The plain fields, as the cards write them (column grants, RLS), once they are all valid. RLS
+  -- filters an update silently: one row must be touched, else the fields were not saved.
   if p_contact -> 'errors' = '[]' and exists (select 1 from pg_catalog.jsonb_each(p_contact -> 'values') as v where v.value <> 'null') then
     update public.professionals p
        set personal_phone = p_contact -> 'values' ->> 'personal_phone',
@@ -360,6 +368,11 @@ begin
            postal_code = p_contact -> 'values' ->> 'postal_code',
            years_experience = (p_contact -> 'values' ->> 'years_experience')::smallint
      where p.id = import_professional_apply.id;
+    get diagnostics v_rows = row_count;
+    if v_rows <> 1 then
+      errors := errors || pg_catalog.jsonb_build_object('field', null,
+        'message', 'Les coordonnées (téléphone, ville, province, code postal, années d''expérience) n''ont pas pu être enregistrées.');
+    end if;
   end if;
 
   if p_sets ? 'professions' then
@@ -463,6 +476,8 @@ declare
   v_sets jsonb;
   v_result record;
   v_errors jsonb;
+  v_deferred boolean := false;
+  v_message text;
   v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
 begin
   if not private.has_permission('professionals.manage') then
@@ -494,11 +509,26 @@ begin
   begin
     select * into v_result from private.import_professional_apply(p_row, v_contact, v_sets, v_activate);
     v_errors := (v_contact -> 'errors') || (v_sets -> 'errors') || v_result.errors;
+    -- A dry run checks the deferred constraints now (the one-primary-title check), as the commit of
+    -- a real run would. Set at this block's level, so its rollback puts the deferred mode back.
+    if v_dry and v_errors = '[]' then
+      v_deferred := true;
+      set constraints all immediate;
+      v_deferred := false;
+    end if;
     if v_dry or v_errors <> '[]' then
       raise exception 'import_professional: rollback' using errcode = 'IMPRB';
     end if;
-  exception when sqlstate 'IMPRB' then
-    null;  -- everything the block wrote is rolled back; v_result and v_errors keep their values
+  exception
+    when sqlstate 'IMPRB' then
+      null;  -- everything the block wrote is rolled back; v_result and v_errors keep their values
+    when sqlstate 'P0001' then
+      -- Only a deferred check refused by set constraints is a row error; anything else propagates.
+      if not v_deferred then
+        raise;
+      end if;
+      get stacked diagnostics v_message = message_text;
+      v_errors := v_errors || pg_catalog.jsonb_build_object('field', null, 'message', v_message);
   end;
   perform pg_catalog.set_config('app.audit_source', coalesce(v_prev_source, ''), true);
 

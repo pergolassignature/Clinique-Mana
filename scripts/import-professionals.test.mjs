@@ -1,11 +1,17 @@
-// @vitest-environment node
+// Runs in Node: vitest.config.ts's « scripts » project (P4-130).
+import { EventEmitter } from 'node:events'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  Aborted,
   InputError,
   LOCAL_URL,
   buildRows,
+  checkPublicKey,
+  describe as describeRow,
   normalizeHeader,
+  openReportFile,
+  openTerminal,
   parseCsv,
   readRows,
   reportCsv,
@@ -67,12 +73,35 @@ describe('readRows', () => {
     ])
   })
 
-  it('refuses unknown, repeated or missing columns and rows wider than the header', () => {
+  it('refuses unknown, repeated, blank or missing columns', () => {
     expect(() => readRows('prenom,nom,courriel,motif\n')).toThrow('Colonnes inconnues : motif.')
     expect(() => readRows('prenom,nom,courriel,Nom\n')).toThrow('Colonne en double : nom.')
     expect(() => readRows('prenom,courriel\n')).toThrow('Colonnes obligatoires absentes : nom.')
-    expect(() => readRows('prenom,nom,courriel\na,b,c,d\n')).toThrow('Ligne 2 : plus de cellules que de colonnes.')
+    expect(() => readRows('prenom,,nom,courriel\n')).toThrow('En-tête vide à la colonne 2.')
     expect(() => readRows('')).toThrow(InputError)
+  })
+
+  it('ignores empty trailing header cells and empty trailing cells of a row', () => {
+    expect(readRows('prenom,nom,courriel,,\nLéa,Roy,lea@example.test,,\n')).toEqual([
+      { line: 2, values: { prenom: 'Léa', nom: 'Roy', courriel: 'lea@example.test' } },
+    ])
+  })
+
+  it('says a file without a header row needs one, without printing any of its cells', () => {
+    for (const text of [`${ROW}\n`, 'Jean,Tremblay,Montréal\n', 'Prenom,Jean,5145550101\n']) {
+      let message = ''
+      try {
+        readRows(text)
+      } catch (error) {
+        message = error.message
+      }
+      expect(message).toMatch(/^La première ligne doit contenir les en-têtes/)
+      for (const cell of ['Élodie', 'elodie', 'Jean', 'Tremblay', 'Montréal', '5145550101']) expect(message).not.toContain(cell)
+    }
+  })
+
+  it('keeps a row wider than the header without reading its cells', () => {
+    expect(readRows('prenom,nom,courriel\na,b,c,d\n')).toEqual([{ line: 2, values: null }])
   })
 })
 
@@ -135,9 +164,25 @@ describe('rowToPayload', () => {
   })
 
   it('flags an email repeated in the file from its second line on', () => {
-    const rows = buildRows(`${HEADER}\n${ROW}\n${ROW.replace('Élodie', 'Élo').replace('elodie.gagnon', 'ELODIE.GAGNON')}\n`)
+    const rows = buildRows(`${HEADER}\n${ROW}\n${ROW.replace('Élodie', 'Élo').replace('elodie.gagnon', 'ELODIE.GAGNON').replace('IVAC-1', 'IVAC-2')}\n`)
     expect(rows[0].errors).toEqual([])
     expect(rows[1].errors).toEqual([{ field: 'email', message: 'Courriel déjà présent à la ligne 2 du fichier.' }])
+  })
+
+  it('flags an IVAC number repeated in the file (trimmed, case ignored) from its second line on', () => {
+    const other = (n, ivac) => ROW.replace('elodie.gagnon', `autre${n}`).replace('IVAC-1', ivac)
+    const rows = buildRows(`${HEADER}\n${ROW}\n${other(1, '"  ivac-1 "')}\n${other(2, 'IVAC-9')}\n${other(3, '')}\n${other(4, '')}\n`)
+    expect(rows.map((r) => r.errors)).toEqual([[], [{ field: 'ivac', message: 'Numéro IVAC déjà présent à la ligne 2 du fichier.' }], [], [], []])
+  })
+
+  it('reports a row wider than the header without a payload or an email', () => {
+    const [row] = buildRows('prenom,nom,courriel\nJean,Tremblay,jean@example.test,5145550101\n')
+    expect(row).toEqual({
+      line: 2,
+      email: '',
+      payload: null,
+      errors: [{ field: null, message: 'Plus de cellules que de colonnes (un séparateur de trop ?) : la ligne n’est ni lue ni envoyée à la base.' }],
+    })
   })
 
   it('reads the sample file without an error', () => {
@@ -163,12 +208,82 @@ describe('resolveTarget', () => {
     expect(resolveTarget('https://api.exemple.test').confirmWith).toBe('api.exemple.test')
   })
 
+  it('refuses this computer under any other name, port or scheme', () => {
+    for (const url of [
+      'https://127.0.0.1:55321',
+      'https://localhost:55321',
+      'https://localhost',
+      'https://127.0.0.1:54321',
+      'https://127.1.2.3',
+      'https://[::1]:55321',
+      'https://[::ffff:127.0.0.1]',
+      'https://api.localhost',
+      'https://localhost.:55321',
+      'https://0.0.0.0',
+      'http://localhost:54321',
+    ]) {
+      expect(() => resolveTarget(url), url).toThrow('Adresse refusée')
+    }
+  })
+
   it('refuses plain http outside the local stack (PS Hub’s 54321 included), paths and credentials', () => {
     expect(() => resolveTarget('http://127.0.0.1:54321')).toThrow('Adresse refusée')
     expect(() => resolveTarget('http://abcdefghijklmnopqrst.supabase.co')).toThrow('Adresse refusée')
     expect(() => resolveTarget('https://abcdefghijklmnopqrst.supabase.co/rest/v1')).toThrow('L’adresse doit être celle du projet seulement')
     expect(() => resolveTarget('https://user:pw@abcdefghijklmnopqrst.supabase.co')).toThrow(InputError)
     expect(() => resolveTarget('pas une adresse')).toThrow('Adresse invalide')
+  })
+})
+
+describe('checkPublicKey', () => {
+  const jwt = (payload) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.c2lnbmF0dXJl`
+
+  it('accepts the public keys (anon JWT, sb_publishable_…)', () => {
+    expect(() => checkPublicKey(jwt({ role: 'anon' }))).not.toThrow()
+    expect(() => checkPublicKey('sb_publishable_abc123')).not.toThrow()
+    expect(() => checkPublicKey('test-anon-key')).not.toThrow()
+  })
+
+  it('refuses a secret key without echoing it', () => {
+    for (const key of [jwt({ iss: 'supabase', role: 'service_role' }), 'sb_secret_Zx9verysecret']) {
+      let message = ''
+      try {
+        checkPublicKey(key)
+      } catch (error) {
+        message = error.message
+      }
+      expect(message).toMatch(/^Cette clé est une clé secrète \(service_role\)/)
+      expect(message).not.toContain(key.slice(-12))
+    }
+  })
+})
+
+describe('describe (one row’s report entry)', () => {
+  it('lists the CSV’s and the database’s errors together, column by column', () => {
+    const row = {
+      line: 3,
+      email: 'a@example.test',
+      payload: {},
+      errors: [
+        { field: 'activate', message: 'Indiquez oui ou non.' },
+        { field: 'yearsExperience', message: 'Entre 0 et 60 ans.' },
+      ],
+    }
+    const result = {
+      status: 'error',
+      errors: [
+        { field: 'motifs', message: 'Motif inconnu : anxite' },
+        { field: 'personalPhone', message: 'Numéro à 10 chiffres.' },
+        { field: null, message: 'Contrôle refusé.' },
+      ],
+    }
+    expect(describeRow(row, result).details).toEqual([
+      'ligne : Contrôle refusé.',
+      'telephone : Numéro à 10 chiffres.',
+      'annees_experience : Entre 0 et 60 ans.',
+      'motifs : Motif inconnu : anxite',
+      'activer : Indiquez oui ou non.',
+    ])
   })
 })
 
@@ -179,6 +294,7 @@ describe('reportCsv', () => {
         { line: 2, email: 'a@example.test', status: 'ok', id: 'id-1', details: ['1 titre · activé'] },
         { line: 3, email: 'b@example.test', status: 'error', id: null, details: ['motifs : Motif inconnu : anxite', 'telephone : Numéro à 10 chiffres.'] },
         { line: 4, email: '=cmd', status: 'skipped', id: 'id-2', details: ['Courriel déjà présent, "x"'] },
+        { line: 5, email: '\t=cmd', status: 'skipped', id: null, details: ['\r=cmd'] },
       ],
       'essai',
     )
@@ -186,20 +302,160 @@ describe('reportCsv', () => {
       'ligne,courriel,mode,statut,id,details\r\n' +
         '2,a@example.test,essai,ok,id-1,1 titre · activé\r\n' +
         '3,b@example.test,essai,erreur,,motifs : Motif inconnu : anxite | telephone : Numéro à 10 chiffres.\r\n' +
-        `4,'=cmd,essai,ignoré,id-2,"Courriel déjà présent, ""x"""\r\n`,
+        `4,'=cmd,essai,ignoré,id-2,"Courriel déjà présent, ""x"""\r\n` +
+        `5,'\t=cmd,essai,ignoré,,"'\r=cmd"\r\n`,
     )
   })
 
   it('names the report after the UTC time', () => {
     expect(reportName(new Date('2026-10-08T16:31:57.123Z'))).toBe('import-report-20261008T163157Z.csv')
   })
+
+  it('claims the report file with wx and mode 600, flushes every write, and removes it when it holds no row', () => {
+    const fs = fakeFs()
+    const report = openReportFile('r.csv', fs)
+    expect(fs.calls[0]).toEqual(['open', 'r.csv', 'wx', 0o600])
+    report.write('a\r\n')
+    expect(fs.calls.slice(1)).toEqual([['write', 'a\r\n'], ['fsync']])
+    report.close(false)
+    expect(fs.files['r.csv']).toBe('a\r\n')
+    openReportFile('vide.csv', fs).close(true)
+    expect('vide.csv' in fs.files).toBe(false)
+  })
+
+  it('never replaces an existing report', () => {
+    const fs = fakeFs({ 'r.csv': 'ancien' })
+    expect(() => openReportFile('r.csv', fs)).toThrow('Le rapport r.csv existe déjà : il n’est pas remplacé.')
+    expect(fs.files['r.csv']).toBe('ancien')
+  })
 })
 
-// --- run(): the flow, with a fake terminal and a fake client ------------------------------------
+// --- Fakes ---------------------------------------------------------------------------------------
+
+/** node:fs as openReportFile uses it, over an in-memory map (no file is ever touched). */
+function fakeFs(files = {}) {
+  const calls = []
+  const open = new Map()
+  let next = 10
+  return {
+    files,
+    calls,
+    openSync: (path, flags, mode) => {
+      calls.push(['open', path, flags, mode])
+      if (path in files) throw Object.assign(new Error('EEXIST: file already exists'), { code: 'EEXIST' })
+      files[path] = ''
+      open.set(next, path)
+      return next++
+    },
+    writeSync: (fd, text) => {
+      calls.push(['write', text])
+      files[open.get(fd)] += text
+    },
+    fsyncSync: () => calls.push(['fsync']),
+    closeSync: (fd) => {
+      calls.push(['close'])
+      open.delete(fd)
+    },
+    unlinkSync: (path) => {
+      calls.push(['unlink', path])
+      delete files[path]
+    },
+  }
+}
+
+/** A terminal's two streams: what openTerminal does to them is logged in order. */
+function fakeTty() {
+  const log = []
+  const input = new EventEmitter()
+  Object.assign(input, {
+    setRawMode: (on) => log.push(['raw', on]),
+    setEncoding: () => {},
+    resume: () => {},
+    destroy: () => log.push(['destroy']),
+  })
+  const output = { write: (text) => log.push(['write', text]), destroy: () => {} }
+  const written = () =>
+    log
+      .filter(([kind]) => kind === 'write')
+      .map(([, text]) => text)
+      .join('')
+  const type = (text) => input.emit('data', text)
+  return { input, output, log, written, type }
+}
+
+describe('openTerminal', () => {
+  it('sets raw mode before the first prompt is written and keeps it until close', async () => {
+    const tty = fakeTty()
+    const terminal = openTerminal({ input: tty.input, output: tty.output })
+    const email = terminal.ask('Courriel : ')
+    expect(tty.log.slice(0, 2)).toEqual([
+      ['raw', true],
+      ['write', 'Courriel : '],
+    ])
+    tty.type('admin@mana.test\r')
+    expect(await email).toBe('admin@mana.test')
+    const password = terminal.askHidden('Mot de passe : ')
+    tty.type('s3cret\r')
+    expect(await password).toBe('s3cret')
+    expect(tty.log.filter(([kind]) => kind === 'raw')).toEqual([['raw', true]])
+    terminal.close()
+    expect(tty.log.filter(([kind]) => kind === 'raw')).toEqual([
+      ['raw', true],
+      ['raw', false],
+    ])
+  })
+
+  it('never shows what is typed at a hidden prompt, nor what is typed between prompts', async () => {
+    const tty = fakeTty()
+    const terminal = openTerminal({ input: tty.input, output: tty.output })
+    tty.type('avance') // typed before any question: dropped
+    const password = terminal.askHidden('Mot de passe : ')
+    tty.type('mot-de')
+    tty.type('-passe\u007fe-secret\r')
+    expect(await password).toBe('mot-de-passe-secret')
+    tty.type('apres')
+    expect(tty.written()).toBe('Mot de passe : \n')
+    terminal.close()
+  })
+
+  it('ignores escape sequences (arrow keys, function keys) and control characters', async () => {
+    const tty = fakeTty()
+    const terminal = openTerminal({ input: tty.input, output: tty.output })
+    const answer = terminal.ask('Q : ')
+    tty.type('im\u001b[Apor\u001bOBt\u001b[1;5C\u0007er\u001b')
+    tty.type('\r')
+    expect(await answer).toBe('importer')
+    expect(tty.written()).toBe('Q : importer\n')
+    terminal.close()
+  })
+
+  it('Ctrl-C or Ctrl-D at a prompt aborts it; Ctrl-C between prompts asks the run to stop', async () => {
+    const tty = fakeTty()
+    const onInterrupt = vi.fn()
+    const terminal = openTerminal({ input: tty.input, output: tty.output, onInterrupt })
+    const first = terminal.askHidden('Mot de passe : ')
+    tty.type('abc\u0003')
+    await expect(first).rejects.toBeInstanceOf(Aborted)
+    const second = terminal.ask('Courriel : ')
+    tty.type('\u0004')
+    await expect(second).rejects.toBeInstanceOf(Aborted)
+    expect(onInterrupt).not.toHaveBeenCalled()
+    tty.type('\u0003')
+    expect(onInterrupt).toHaveBeenCalledTimes(1)
+    expect(tty.written()).not.toContain('abc')
+    terminal.close()
+  })
+})
+
+// --- run(): the flow, with a fake terminal, a fake client and an in-memory report ----------------
+
+const okResult = (dryRun, id) => ({ status: 'ok', dry_run: dryRun, id: dryRun ? null : id, activated: true, complete: true, missing: [] })
 
 function setup({ answers = [], results = {} } = {}) {
   const output = []
-  const files = {}
+  const fs = fakeFs()
+  const files = fs.files
+  const signals = { handler: null }
   const terminal = {
     ask: vi.fn(async () => answers.shift() ?? ''),
     askHidden: vi.fn(async () => 'mot-de-passe-secret'),
@@ -211,36 +467,40 @@ function setup({ answers = [], results = {} } = {}) {
       signInWithPassword: vi.fn(async () => ({ data: {}, error: null })),
       signOut: vi.fn(async () => ({ error: null })),
     },
-    rpc: vi.fn(async (_name, { p_row, p_dry_run }) => ({
-      data: results[p_row.email] ?? { status: 'ok', dry_run: p_dry_run, id: p_dry_run ? null : `id-${p_row.email}`, activated: true, complete: true, missing: [] },
-      error: null,
-    })),
+    rpc: vi.fn(async (_name, { p_row, p_dry_run }) => ({ data: results[p_row.email] ?? okResult(p_dry_run, `id-${p_row.email}`), error: null })),
   }
   const deps = {
     env: { VITE_SUPABASE_ANON_KEY: 'anon' },
     out: (line) => output.push(line),
-    readFile: () => `${HEADER}\n${ROW}\n${ROW.replace('elodie.gagnon', 'eve.roy').replace('Gagnon', 'Roy')}\n`,
-    writeFile: vi.fn((path, text) => {
-      files[path] = text
+    readFile: () => `${HEADER}\n${ROW}\n${ROW.replace('elodie.gagnon', 'eve.roy').replace('Gagnon', 'Roy').replace('IVAC-1', 'IVAC-2')}\n`,
+    openReport: vi.fn((path) => openReportFile(path, fs)),
+    onSignals: vi.fn((handler) => {
+      signals.handler = handler
+      return () => {
+        signals.handler = null
+      }
     }),
     now: () => new Date('2026-10-08T16:31:57Z'),
     openTerminal: vi.fn(() => terminal),
     createClient: vi.fn(() => client),
   }
-  return { deps, client, terminal, output, files }
+  return { deps, client, terminal, output, files, fs, signals }
 }
 
 describe('run', () => {
   it('is a dry run by default: every row with p_dry_run true, nothing for real, a report', async () => {
-    const { deps, client, terminal, output, files } = setup({ answers: ['admin@mana.test'] })
+    const { deps, client, terminal, output, files, fs } = setup({ answers: ['admin@mana.test'] })
     expect(await run(['--file', 'x.csv'], deps)).toBe(0)
     expect(deps.createClient).toHaveBeenCalledWith(LOCAL_URL, 'anon')
     expect(client.rpc).toHaveBeenCalledTimes(2)
     expect(client.rpc.mock.calls.every(([name, args]) => name === 'import_professional' && args.p_dry_run === true)).toBe(true)
     expect(Object.keys(files)).toEqual(['import-report-20261008T163157Z.csv'])
+    expect(fs.calls[0]).toEqual(['open', 'import-report-20261008T163157Z.csv', 'wx', 0o600])
     expect(output).toContain('Résumé : 2 à créer (2 activé(s)) · 0 déjà présent(s) · 0 en erreur.')
+    expect(output).toContain('Rapport : import-report-20261008T163157Z.csv')
     expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
     expect(terminal.close).toHaveBeenCalled()
+    expect(deps.onSignals).toHaveBeenCalled()
   })
 
   it('asks for the credentials on the terminal, the password hidden, and never prints it', async () => {
@@ -253,10 +513,11 @@ describe('run', () => {
   })
 
   it('refuses a remote URL unless its project reference is typed back, before any sign-in', async () => {
-    const { deps, client } = setup({ answers: ['nope'] })
+    const { deps, client, files } = setup({ answers: ['nope'] })
     expect(await run(['--file', 'x.csv', '--url', 'https://abcdefghijklmnopqrst.supabase.co'], deps)).toBe(2)
     expect(deps.createClient).not.toHaveBeenCalled()
     expect(client.rpc).not.toHaveBeenCalled()
+    expect(files).toEqual({}) // a report without a row is removed
 
     const confirmed = setup({ answers: ['abcdefghijklmnopqrst', 'admin@example.test'] })
     expect(await run(['--file', 'x.csv', '--url', 'https://abcdefghijklmnopqrst.supabase.co'], confirmed.deps)).toBe(0)
@@ -264,18 +525,41 @@ describe('run', () => {
     expect(confirmed.client.rpc.mock.calls.every(([, args]) => args.p_dry_run === true)).toBe(true)
   })
 
-  it('refuses a plain-http remote URL without asking anything', async () => {
-    const { deps, terminal } = setup()
+  it('refuses a plain-http remote URL and a secret key without asking anything', async () => {
+    const { deps, terminal, output } = setup()
     expect(await run(['--file', 'x.csv', '--url', 'http://127.0.0.1:54321'], deps)).toBe(2)
+    expect(await run(['--file', 'x.csv', '--anon-key', 'sb_secret_abcdef'], deps)).toBe(2)
+    expect(output.at(-1)).toMatch(/^Cette clé est une clé secrète/)
+    expect(output.join('\n')).not.toContain('sb_secret_abcdef')
+    expect(deps.openReport).not.toHaveBeenCalled()
     expect(deps.openTerminal).not.toHaveBeenCalled()
     expect(terminal.ask).not.toHaveBeenCalled()
   })
 
-  it('--commit: dry run first, then « importer » typed, then row by row for real', async () => {
-    const { deps, client, output, files } = setup({ answers: ['admin@mana.test', 'importer'] })
+  it('stops before any question or call when the report path already exists', async () => {
+    const { deps, client, output, files } = setup()
+    files['r.csv'] = 'ancien rapport'
+    expect(await run(['--file', 'x.csv', '--commit', '--report', 'r.csv'], deps)).toBe(2)
+    expect(output).toContain('Le rapport r.csv existe déjà : il n’est pas remplacé. Choisissez un autre --report.')
+    expect(deps.openTerminal).not.toHaveBeenCalled()
+    expect(deps.createClient).not.toHaveBeenCalled()
+    expect(client.rpc).not.toHaveBeenCalled()
+    expect(files['r.csv']).toBe('ancien rapport')
+  })
+
+  it('--commit: dry run first, « importer » typed, then row by row for real; each line written and flushed as it completes', async () => {
+    const { deps, client, output, files, fs } = setup({ answers: ['admin@mana.test', 'importer'] })
+    const linesBeforeCall = []
+    client.rpc.mockImplementation(async (_name, { p_row, p_dry_run }) => {
+      linesBeforeCall.push(files['r.csv'].split('\r\n').length - 2)
+      return { data: okResult(p_dry_run, `id-${p_row.email}`), error: null }
+    })
     expect(await run(['--file', 'x.csv', '--commit', '--report', 'r.csv'], deps)).toBe(0)
     expect(client.rpc.mock.calls.map(([, args]) => args.p_dry_run)).toEqual([true, true, false, false])
+    expect(linesBeforeCall).toEqual([0, 1, 2, 3])
+    expect(fs.calls.filter(([kind]) => kind === 'fsync')).toHaveLength(5) // the header and 4 lines
     expect(output).toContain('Résumé : 2 créé(s) (2 activé(s)) · 0 déjà présent(s) · 0 en erreur.')
+    expect(files['r.csv']).toContain('2,elodie.gagnon@example.test,essai,ok,,')
     expect(files['r.csv']).toContain('2,elodie.gagnon@example.test,import,ok,id-elodie.gagnon@example.test,')
   })
 
@@ -295,14 +579,31 @@ describe('run', () => {
     expect(cancelled.output).toContain('Import annulé : rien n’a été écrit.')
   })
 
-  it('sends no row the CSV refused, and the report keeps no personal data beyond the line and the email', async () => {
-    const { deps, client, files } = setup({ answers: ['admin@mana.test'] })
+  it('sends a row with CSV errors to the dry run anyway and lists both sides’ errors; the report keeps no other personal data', async () => {
+    const { deps, client, files } = setup({
+      answers: ['admin@mana.test'],
+      results: { 'elodie.gagnon@example.test': { status: 'error', dry_run: true, id: null, errors: [{ field: 'motifs', message: 'Motif inconnu : anxite' }] } },
+    })
     deps.readFile = () => `${HEADER}\n${ROW.replace(',14,', ',quatorze,')}\n`
     expect(await run(['--file', 'x.csv'], deps)).toBe(1)
-    expect(client.rpc).not.toHaveBeenCalled()
+    expect(client.rpc).toHaveBeenCalledTimes(1)
+    const [, args] = client.rpc.mock.calls[0]
+    expect(args.p_dry_run).toBe(true)
+    expect(args.p_row).not.toHaveProperty('years_experience')
     const report = Object.values(files)[0]
-    expect(report).toContain('2,elodie.gagnon@example.test,essai,erreur,,annees_experience : Entre 0 et 60 ans.')
+    expect(report).toContain('2,elodie.gagnon@example.test,essai,erreur,,annees_experience : Entre 0 et 60 ans. | motifs : Motif inconnu : anxite')
     for (const value of ['Élodie', 'Gagnon', '555-0142', 'Montréal', 'H2J', '54321', 'IVAC-1']) expect(report).not.toContain(value)
+  })
+
+  it('says why a row too broken to read is not sent', async () => {
+    const { deps, client, output, files } = setup({ answers: ['admin@mana.test'] })
+    deps.readFile = () => 'prenom,nom,courriel\nJean,Tremblay,jean@example.test,5145550101\nLéa,Roy,lea@example.test\n'
+    expect(await run(['--file', 'x.csv'], deps)).toBe(1)
+    expect(client.rpc).toHaveBeenCalledTimes(1)
+    expect(output).toContain('Ligne 2 · (sans courriel) · erreur')
+    const report = Object.values(files)[0]
+    expect(report).toContain('2,,essai,erreur,,ligne : Plus de cellules que de colonnes (un séparateur de trop ?) : la ligne n’est ni lue ni envoyée à la base.')
+    for (const value of ['Jean', 'Tremblay', 'jean@', '5145550101']) expect(report).not.toContain(value)
   })
 
   it('stops on a database error (permission) and says so', async () => {
@@ -312,6 +613,88 @@ describe('run', () => {
     expect(client.rpc).toHaveBeenCalledTimes(1)
     expect(output).toContain('Erreur de la base (42501) : Permission refusée : professionals.manage')
     expect(client.auth.signOut).toHaveBeenCalled()
+  })
+
+  it('--commit: a database error partway keeps the rows done in the report, counts them and says how to resume', async () => {
+    const { deps, client, output, files, fs } = setup({ answers: ['admin@mana.test', 'importer'] })
+    client.rpc
+      .mockResolvedValueOnce({ data: okResult(true), error: null })
+      .mockResolvedValueOnce({ data: okResult(true), error: null })
+      .mockResolvedValueOnce({ data: okResult(false, 'id-1'), error: null })
+      .mockResolvedValueOnce({ data: null, error: { code: '', message: 'fetch failed' } })
+    expect(await run(['--file', 'x.csv', '--commit', '--report', 'r.csv'], deps)).toBe(2)
+    expect(files['r.csv'].trimEnd().split('\r\n')).toHaveLength(4) // the header, 2 dry-run lines, 1 imported
+    expect(files['r.csv']).toContain('2,elodie.gagnon@example.test,import,ok,id-1,')
+    expect(files['r.csv']).not.toContain('eve.roy@example.test,import')
+    expect(output).toContain('Résumé : 1 créé(s) (1 activé(s)) · 0 déjà présent(s) · 0 en erreur.')
+    expect(output.some((l) => l.startsWith('Import arrêté après 1 ligne(s) sur 2.') && l.includes('« ignoré »'))).toBe(true)
+    expect(output).toContain('Erreur de la base (réseau) : fetch failed')
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
+    expect(fs.calls.at(-1)).toEqual(['close'])
+  })
+
+  it('--commit: a row refused during the import is reported and the exit code is 1', async () => {
+    const { deps, client, output, files } = setup({ answers: ['admin@mana.test', 'importer'] })
+    client.rpc.mockImplementation(async (_name, { p_row, p_dry_run }) => ({
+      data:
+        !p_dry_run && p_row.email === 'eve.roy@example.test'
+          ? { status: 'error', dry_run: false, id: null, errors: [{ field: 'ivac', message: 'Ce numéro IVAC est déjà attribué à un autre professionnel.' }] }
+          : { ...okResult(p_dry_run, 'id-1'), activated: false },
+      error: null,
+    }))
+    expect(await run(['--file', 'x.csv', '--commit', '--report', 'r.csv'], deps)).toBe(1)
+    expect(output).toContain('Résumé : 1 créé(s) · 0 déjà présent(s) · 1 en erreur.')
+    expect(files['r.csv']).toContain('3,eve.roy@example.test,import,erreur,,ivac : Ce numéro IVAC est déjà attribué à un autre professionnel.')
+  })
+
+  it('a signal during the import stops between two rows: the row under way finishes, sign-out, report closed', async () => {
+    const { deps, client, output, files, signals, fs } = setup({ answers: ['admin@mana.test', 'importer'] })
+    client.rpc.mockImplementation(async (_name, { p_row, p_dry_run }) => {
+      if (!p_dry_run) signals.handler() // SIGINT / SIGTERM while the first real row is under way
+      return { data: okResult(p_dry_run, `id-${p_row.email}`), error: null }
+    })
+    expect(await run(['--file', 'x.csv', '--commit', '--report', 'r.csv'], deps)).toBe(2)
+    expect(client.rpc.mock.calls.map(([, args]) => args.p_dry_run)).toEqual([true, true, false])
+    expect(output).toContain('Arrêt demandé : la ligne en cours se termine, puis l’import s’arrête.')
+    expect(output.some((l) => l.startsWith('Import arrêté après 1 ligne(s) sur 2.'))).toBe(true)
+    expect(files['r.csv']).toContain('2,elodie.gagnon@example.test,import,ok,id-elodie.gagnon@example.test,')
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
+    expect(fs.calls.at(-1)).toEqual(['close'])
+    expect(signals.handler).toBeNull() // the handlers are removed
+  })
+
+  it('Ctrl-C between prompts during the dry run ends it there, before the confirmation', async () => {
+    const { deps, client, output, terminal } = setup({ answers: ['admin@mana.test', 'importer'] })
+    client.rpc.mockImplementationOnce(async () => {
+      deps.openTerminal.mock.calls[0][0].onInterrupt()
+      return { data: okResult(true), error: null }
+    })
+    expect(await run(['--file', 'x.csv', '--commit'], deps)).toBe(2)
+    expect(client.rpc).toHaveBeenCalledTimes(1)
+    expect(terminal.ask).toHaveBeenCalledTimes(1) // the email only: no confirmation asked
+    expect(output).toContain('Essai interrompu après 1 ligne(s) sur 2 : rien n’a été écrit.')
+  })
+
+  it('Ctrl-C at a prompt (the real terminal code): Aborted, exit 1, signed out, raw mode put back, nothing typed shown', async () => {
+    const { deps, client, output, files } = setup()
+    const tty = fakeTty()
+    tty.output.write = (text) => {
+      tty.log.push(['write', text])
+      if (text === 'Courriel : ') queueMicrotask(() => tty.type('admin@mana.test\r'))
+      if (text === 'Mot de passe : ') queueMicrotask(() => tty.type('ManaLocal\u0003'))
+    }
+    deps.openTerminal = vi.fn((options) => openTerminal({ ...options, input: tty.input, output: tty.output }))
+    expect(await run(['--file', 'x.csv'], deps)).toBe(1)
+    expect(output).toContain('Interrompu.')
+    expect(client.auth.signInWithPassword).not.toHaveBeenCalled()
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
+    expect(client.rpc).not.toHaveBeenCalled()
+    expect(tty.log.filter(([kind]) => kind === 'raw')).toEqual([
+      ['raw', true],
+      ['raw', false],
+    ])
+    expect(tty.written()).not.toContain('ManaLocal')
+    expect(files).toEqual({})
   })
 
   it('stops when the sign-in is refused', async () => {
