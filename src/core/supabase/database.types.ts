@@ -1167,6 +1167,152 @@ export type Database = {
           },
         ]
       }
+      secure_link_purposes: {
+        Row: {
+          accept_rpc: string | null
+          created_at: string
+          creates_account: boolean
+          default_ttl: string
+          key: string
+          max_ttl: string
+          max_uses: number
+          module_key: string
+          requires_session: boolean
+          resolve_rpc: string
+          view_permission: string
+        }
+        Insert: {
+          accept_rpc?: string | null
+          created_at?: string
+          creates_account?: boolean
+          default_ttl: string
+          key: string
+          max_ttl: string
+          max_uses?: number
+          module_key: string
+          requires_session?: boolean
+          resolve_rpc: string
+          view_permission: string
+        }
+        Update: {
+          accept_rpc?: string | null
+          created_at?: string
+          creates_account?: boolean
+          default_ttl?: string
+          key?: string
+          max_ttl?: string
+          max_uses?: number
+          module_key?: string
+          requires_session?: boolean
+          resolve_rpc?: string
+          view_permission?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secure_link_purposes_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "secure_link_purposes_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      secure_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          last_opened_at: string | null
+          max_uses: number
+          org_id: string
+          purpose: string
+          revoked_at: string | null
+          revoked_by: string | null
+          scope: Json
+          subject_id: string
+          subject_type: string
+          token_hash: string
+          updated_at: string
+          use_count: number
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          last_opened_at?: string | null
+          max_uses: number
+          org_id: string
+          purpose: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope?: Json
+          subject_id: string
+          subject_type: string
+          token_hash: string
+          updated_at?: string
+          use_count?: number
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          last_opened_at?: string | null
+          max_uses?: number
+          org_id?: string
+          purpose?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope?: Json
+          subject_id?: string
+          subject_type?: string
+          token_hash?: string
+          updated_at?: string
+          use_count?: number
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secure_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "secure_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "secure_links_purpose_fkey"
+            columns: ["purpose"]
+            isOneToOne: false
+            referencedRelation: "secure_link_purposes"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "secure_links_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       tax_rates: {
         Row: {
           created_at: string
@@ -1665,6 +1811,10 @@ export type Database = {
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
+      }
+      peek_secure_link: {
+        Args: { p_mark_opened: boolean; p_token_hash: string }
+        Returns: Json
       }
       queue_email: {
         Args: {
