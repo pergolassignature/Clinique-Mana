@@ -200,6 +200,7 @@ Cover at least: privileges for `anon` and `authenticated`; cross-org isolation (
 
 Traps:
 - `throws_ok` on a function the role cannot EXECUTE segfaults Postgres image `.106`: use `function_privs_are`.
+- The local Postgres image (supabase/postgres 17.6.1.x) has segfaulted on pgTAP tests that define `pg_temp` plpgsql helpers with exception handlers. Don't define helper functions in tests; inline the logic or check function source via `pg_proc` instead.
 - A table the role has no privilege on raises `42501`; it does not return 0 rows. RLS-filtered tables return 0 rows.
 - OrbStack may lack macOS access to `~/Documents`, so `supabase test db` finds no files. Grant OrbStack the Documents folder, or mirror the tests elsewhere and pass the path: `supabase test db /tmp/pgtap`.
 - The local seed writes rows (including audit rows): filter assertions by fixture ids, never count a whole table.

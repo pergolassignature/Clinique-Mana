@@ -49,7 +49,7 @@ src/
   app/            composition root: App (router), AuthenticatedApp, AppShell, HomePage, modules.ts (ALL_MODULES)
   core/
     auth/         AuthProvider, auth-context (useAuth), recovery marker, safeRedirect, pages/ (login, forgot, reset)
-    access/       AccessProvider, access-context (useAccess, useReadyAccess, accessKeys), guards (RequireAuth, RequireAccess)
+    access/       AccessProvider, access-context (useAccess, useReadyAccess, accessKeys), org-roles (useOrgId, useOrgRoles, useRoleLabel, roleKeys), guards (RequireAuth, RequireAccess)
     modules/      manifest types, resolveEnabledModules, list/toggle API + hooks (moduleKeys), error allow-list
     settings/     SettingsLayout, coreSettingsSections, pages/ (modules toggle)
     supabase/     client.ts (the only client), database.types.ts (generated, never edited)
