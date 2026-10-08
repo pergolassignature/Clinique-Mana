@@ -40,7 +40,7 @@ Jonathan, 2026-10-08: « You will go on without asking me questions you have pha
 | P3-18 | **Attachments and free recipients are catalogue flags** on `email_template_defaults`: `recipient_mode` (`subject` \| `free`) and `allows_attachments` (PDF only, at most 3, 10 MB in total). `_shared/email` refuses anything else. A free-recipient send is limited to 20 per user per hour. | `professionals.fiche` (any address, with a PDF) without opening a generic relay. |
 | P3-19 | **One PDF path:** `_shared/pdf/` (`renderPdf(doc, assets) → { bytes, pageCount, fields }`) serves both signing (3f) and the Phase 4c fiche. Images (logo, signature) are read from storage by the service role. | Professionnels §7 asks for one rendering path. |
 | P3-20 | Where the two designs differ, **the Phase 3 design wins and Phase 4 aligns**: storage paths are `{org_id}/{module_key}/{subject_id}/{file_id}.{ext}` with no file name (Professionnels §7 said `{uuid}-{name}`); signed read URLs last 5 min (not 1 h); template keys use the module key, `professionals.*` (not `professional.*`), including document templates. | Loi 25 (no names in URLs), the A4 Change, and the key-prefix rule shared with permissions. |
-| P3-21 | **One permission source, evaluated once per statement.** New `private.current_permission_keys() → text[]` (stable, definer). `has_permission(k)` becomes `k = any(current_permission_keys())`, and `get_my_access().permissions` reads the same function. Row-level `view_permission` policies use `view_permission = any ((select private.current_permission_keys()))`. | A per-row `has_permission(column)` call cannot be hoisted out of the scan (design §2.3 wrote it that way); a single function also cannot drift. |
+| P3-21 | **One permission source, evaluated once per statement.** New `private.current_permission_keys() → text[]` (stable, definer). `has_permission(k)` becomes `k = any(current_permission_keys())`, and `get_my_access().permissions` reads the same function. Row-level `view_permission` policies use `view_permission = any ((select private.current_permission_keys())::text[])`. Note: `((select …))` alone does not compile (`text = text[]`); the `::text[]` cast is required. | A per-row `has_permission(column)` call cannot be hoisted out of the scan (design §2.3 wrote it that way); a single function also cannot drift. |
 | P3-22 | **Jobs at a clinic-local hour:** `scheduled_jobs.local_hour`. The cron entry runs hourly. `list_job_orgs` returns the orgs whose local hour (from `organizations.timezone`) equals `local_hour` and that have no run yet for that local date (unique index). Maintenance jobs keep fixed UTC schedules. | Professionnels wants 06:00 clinic time; the design's 11:00 UTC is 07:00 in summer (EDT). |
 | P3-23 | **Local fakes only, no real secret:** `EMAIL_TRANSPORT=mailpit` locally; `scripts/fake-documenso.mjs` (port 55390); `scripts/send-test-webhook.mjs` signs Resend/Documenso payloads with the local test secrets. Local-only values live in `supabase/seed.sql` (Vault rows) and `supabase/functions/.env` (gitignored, copied from the committed `.env.example`). Each is visibly fake (`local-dev-…`). | Jonathan pastes the real keys later (Mise en service). |
 | P3-24 | The bell **polls** (count every 60 s, on window focus, never in background tabs) instead of using Realtime. This deviates from PS Hub (Realtime on `notifications`). | Realtime would need a publication and per-change RLS checks on permission-addressed rows; one minute of latency is enough for insurance notices. |
@@ -332,7 +332,7 @@ on conflict do nothing;
 ```
 Then:
 - **`private.current_permission_keys() returns text[]`**: `language sql stable security definer set search_path = ''`. It uses the same CTEs as today's `has_permission` (the active caller, their role and org; permissions whose module is `core` or enabled for the org), with the role defaults read from `org_role_permissions` for the caller's org (as `has_permission` reads them after Task 2.20). It returns `coalesce(array_agg(key order by key), '{}')` of the keys where `coalesce(override.granted, role default exists)`. Grant execute to `authenticated` and `service_role` (policies run as the caller), revoke from `public, anon`.
-- **`private.has_permission(p_key)`**: `create or replace` with the same signature, grants and comment, body `select p_key = any (private.current_permission_keys())`.
+- **`private.has_permission(p_key)`**: `create or replace` with the same signature, grants and comment, body `select p_key = any (private.current_permission_keys())`. *Review of 3.1:* wrap in `coalesce(…, false)` (null key → false) and write it in `language plpgsql` (a definer SQL wrapper is not inlined: ~8× slower per call); done as a follow-up migration with Task 3.2.
 - **`public.get_my_access()`**: `create or replace`. Only the `permissions` field changes, to `to_jsonb(private.current_permission_keys())`; every other field stays byte-identical. Read the current definition first (`\sf public.get_my_access`).
 - **`set_org_secret` / `delete_org_secret`**: `create or replace` with `settings.integrations_manage` in the check and in the `42501` message. Keep the audit row and everything else.
 
@@ -675,7 +675,7 @@ Expected: `ok | N passed | 0 failed`.
 create policy email_log_select on public.email_log for select to authenticated
   using (
     org_id = (select private.current_user_org_id())
-    and (view_permission = any ((select private.current_permission_keys()))
+    and (view_permission = any ((select private.current_permission_keys())::text[])
          or (select private.has_permission('settings.email_manage')))
   );
 create index email_log_org_created_idx on public.email_log (org_id, created_at desc);
@@ -1103,7 +1103,7 @@ Record the outputs (status codes only) in the task report.
   ```sql
   using (
     org_id = (select private.current_user_org_id())
-    and recipient_permission = any ((select private.current_permission_keys()))
+    and recipient_permission = any ((select private.current_permission_keys())::text[])
     and (recipient_user_id is null or recipient_user_id = (select auth.uid()))
     and (expires_at is null or expires_at > now())
   )
@@ -1717,9 +1717,9 @@ on conflict (id) do nothing;
       org_id = (select private.current_user_org_id())
       and status = 'ready'
       and (view_permission is null
-           or view_permission = any ((select private.current_permission_keys()))
+           or view_permission = any ((select private.current_permission_keys())::text[])
            or (owner_profile_id = (select auth.uid())
-               and owner_permission = any ((select private.current_permission_keys()))))
+               and owner_permission = any ((select private.current_permission_keys())::text[])))
     )
     ```
   - no client writes.
@@ -1743,8 +1743,8 @@ as $$
        and f.status = 'ready'
        and f.org_id = private.current_user_org_id()
        and (f.view_permission is null
-            or f.view_permission = any (private.current_permission_keys())
-            or (f.owner_profile_id = auth.uid() and f.owner_permission = any (private.current_permission_keys())))
+            or f.view_permission = any ((select private.current_permission_keys())::text[])
+            or (f.owner_profile_id = auth.uid() and f.owner_permission = any ((select private.current_permission_keys())::text[])))
   )
 $$;
 revoke all on function private.can_read_object(text, text) from public, anon;
@@ -2029,7 +2029,7 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   - audited.
 - **`document_templates`**:
   - `id, org_id, key (unique per org; must start with module_key || '.'), module_key → modules, title, description, view_permission → permissions, edit_permission → permissions, is_active, timestamps`;
-  - select: own org and `view_permission = any(current_permission_keys())`;
+  - select: own org and `view_permission = any ((select private.current_permission_keys())::text[])`;
   - audited.
 - **`document_template_versions`** as in design §6.2:
   - `body jsonb check (jsonb_typeof(body) = 'object' and pg_column_size(body) <= 262144)` (the `PdfDocument` model);
@@ -2046,7 +2046,7 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   - `source_file_id` / `signed_file_id → stored_files`;
   - `unique (org_id, idempotency_key)`;
   - indexes: `(org_id, subject_type, subject_id, created_at desc)`; `(status, sent_at) where status in ('sent','viewed')` (reconcile); FK indexes;
-  - select: own org and `view_permission = any(current_permission_keys())`;
+  - select: own org and `view_permission = any ((select private.current_permission_keys())::text[])`;
   - audited.
 - **`signature_request_signers`** as in design §6.2:
   - composite reference to the request's org;
