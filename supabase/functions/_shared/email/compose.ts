@@ -5,7 +5,11 @@
  * The button URL comes from code (`actionUrl`), never from template text, and
  * must be `https:` (or local `http:` when `APP_URL` is local). A template with
  * a button label fails closed without one (`missing_variable`, path
- * `action_url`), except in preview, where the button points at the app.
+ * `action_url`) when sending. In preview and test the URL is optional: without
+ * one the button points at the app (`appUrl`, held to the same rule).
+ *
+ * There is no preheader: the templates have none, and one derived from the
+ * body would only repeat the first line the inbox already shows.
  *
  * Modes: `send` (default) needs every required value; `preview` fills missing
  * values with samples; `test` does the same and prefixes the subject with
@@ -58,14 +62,23 @@ export interface ComposeInput {
   mode?: 'send' | 'preview' | 'test'
 }
 
-/** The email to send, or the first variable that prevented composing it. */
+/**
+ * The email to send, or why it could not be composed.
+ *
+ * Hand-off to Task 3.8 (the send path):
+ * - `unknown_variable` is reported to callers as `missing_variable` (the
+ *   template refers to a value the catalogue does not provide);
+ * - `invalid_timezone` means `organizations.timezone` is not a known IANA
+ *   name: a configuration error (`server_misconfigured`);
+ * - `get_email_context` must return the template's `why_line` (`whyLine`).
+ */
 export type ComposeResult =
   | { ok: true; subject: string; html: string; text: string }
   | { ok: false; code: 'missing_variable' | 'unknown_variable'; path: string }
+  | { ok: false; code: 'invalid_timezone' }
 
 /** Label used when code passes a URL but the template has no button label. */
 const DEFAULT_BUTTON_LABEL = 'Ouvrir le lien'
-const PREHEADER_MAX = 140
 
 /** The footer lines from the stored identity: formatted phone, Canada Post city line. */
 export function clinicFooter(clinic: ClinicIdentity): ClinicFooter {
@@ -84,14 +97,6 @@ export function clinicFooter(clinic: ClinicIdentity): ClinicFooter {
       ? { name: clinic.privacyOfficerName, email: clinic.privacyOfficerEmail }
       : null,
   }
-}
-
-/** The first line of the text part, cut to fit an inbox preview. */
-function preheader(text: string): string {
-  const first = text.split('\n', 1)[0]
-  return first.length > PREHEADER_MAX
-    ? `${first.slice(0, PREHEADER_MAX - 1).trimEnd()}…`
-    : first
 }
 
 /** Composes the email; see the module comment for the rules. */
@@ -118,25 +123,23 @@ export function composeEmail(
   if (!rendered.ok) return rendered
 
   const label = rendered.buttonLabel?.trim() || null
-  let href: string | null = null
-  if (input.actionUrl !== null) {
-    href = safeUrl(input.actionUrl, allowLocalHttp)
-    if (!href) {
-      return { ok: false, code: 'missing_variable', path: 'action_url' }
-    }
-  } else if (label !== null) {
-    if (mode === 'send') {
-      return { ok: false, code: 'missing_variable', path: 'action_url' }
-    }
-    href = input.appUrl
+  // Preview and test fall back to the app when the template has a button.
+  const url = input.actionUrl ??
+    (label !== null && mode !== 'send' ? input.appUrl : null)
+  const href = url === null ? null : safeUrl(url, allowLocalHttp)
+  if (!href && (url !== null || label !== null)) {
+    return { ok: false, code: 'missing_variable', path: 'action_url' }
   }
   const button = href
     ? { label: label ?? DEFAULT_BUTTON_LABEL, href }
     : undefined
 
+  const subject = mode === 'test'
+    ? `[Test] ${rendered.subject}`
+    : rendered.subject
   const footer = clinicFooter(context.clinic)
   const { html } = renderLayout({
-    preheader: preheader(rendered.text),
+    title: subject,
     contentHtml: rendered.html,
     button,
     footer,
@@ -150,10 +153,5 @@ export function composeEmail(
     whyLine: template.whyLine,
   })
 
-  return {
-    ok: true,
-    subject: mode === 'test' ? `[Test] ${rendered.subject}` : rendered.subject,
-    html,
-    text,
-  }
+  return { ok: true, subject, html, text }
 }

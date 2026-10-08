@@ -5,8 +5,10 @@
  * - timestamps (`timestamptz`) are shown in the clinic timezone;
  * - date-only values (`date`) are calendar dates: never converted;
  * - dates read `d MMMM yyyy` with date-fns' French month names (« 1 janvier 2020 »);
- * - times use the Québec form « 14 h 30 », and « 9 h » on the hour (OQLF), the
- *   form the plan sets for emails, rather than the app's compact « 14:30 ».
+ * - times use the Québec prose form « 14 h 30 », and « 9 h » on the hour
+ *   (OQLF), the form the plan sets for emails, rather than the app's compact
+ *   « 14:30 ». The datetime helper is therefore named `formatEmailDateTime`,
+ *   not after the app's `formatClinicDateTime`, whose output differs.
  *
  * Month names are a fixed table and the time is assembled from numeric parts,
  * so the output does not depend on the runtime's ICU locale data.
@@ -68,14 +70,30 @@ function partsFormatter(timeZone: string): Intl.DateTimeFormat {
 }
 
 /**
- * A timestamp in the clinic timezone: « 15 octobre 2026 à 14 h 30 »
- * (the web app's `formatClinicDateTime`, in the plan's email form).
+ * True when `timeZone` is an IANA name the runtime knows (`America/Toronto`).
+ * Lets callers turn a misconfigured clinic timezone into a result code
+ * instead of the RangeError `formatEmailDateTime` would throw.
+ */
+export function isValidTimeZone(timeZone: string): boolean {
+  try {
+    partsFormatter(timeZone)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A timestamp in the clinic timezone, in email prose style:
+ * « 15 octobre 2026 à 14 h 30 », « 15 octobre 2026 à 9 h ». The web app's
+ * `formatClinicDateTime` shows the same instant as « 15 oct. 2026 à 14:30 »;
+ * emails are read as sentences, so they spell the month and use « h ».
  * Accepts a Date, or a string with a time and an offset (ISO, JSON, or Postgres
  * text `2026-07-15 18:30:00+00`). Returns null for anything else, including a
  * bare date (read as UTC midnight it would shift a day, CLAUDE.md §9).
- * Throws RangeError for an unknown timezone.
+ * Throws RangeError for an unknown timezone (check with `isValidTimeZone`).
  */
-export function formatClinicDateTime(
+export function formatEmailDateTime(
   value: Date | string,
   timeZone: string,
 ): string | null {

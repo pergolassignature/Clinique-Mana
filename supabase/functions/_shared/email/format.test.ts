@@ -1,110 +1,122 @@
 import { assertEquals, assertThrows } from '@std/assert'
-import { formatClinicDateTime, formatDateOnly, formatPhone } from './format.ts'
+import {
+  formatDateOnly,
+  formatEmailDateTime,
+  formatPhone,
+  isValidTimeZone,
+} from './format.ts'
 
 const TORONTO = 'America/Toronto'
 
-Deno.test('formatClinicDateTime: summer (EDT, UTC-4)', () => {
+Deno.test('formatEmailDateTime: summer (EDT, UTC-4)', () => {
   assertEquals(
-    formatClinicDateTime('2026-07-15T18:30:00Z', TORONTO),
+    formatEmailDateTime('2026-07-15T18:30:00Z', TORONTO),
     '15 juillet 2026 à 14 h 30',
   )
 })
 
-Deno.test('formatClinicDateTime: winter (EST, UTC-5)', () => {
+Deno.test('formatEmailDateTime: winter (EST, UTC-5)', () => {
   assertEquals(
-    formatClinicDateTime('2026-01-15T18:30:00Z', TORONTO),
+    formatEmailDateTime('2026-01-15T18:30:00Z', TORONTO),
     '15 janvier 2026 à 13 h 30',
   )
 })
 
-Deno.test('formatClinicDateTime: either side of the spring change (2026-03-08)', () => {
+Deno.test('formatEmailDateTime: either side of the spring change (2026-03-08)', () => {
   assertEquals(
-    formatClinicDateTime('2026-03-08T06:30:00Z', TORONTO),
+    formatEmailDateTime('2026-03-08T06:30:00Z', TORONTO),
     '8 mars 2026 à 1 h 30',
   )
   assertEquals(
-    formatClinicDateTime('2026-03-08T07:30:00Z', TORONTO),
+    formatEmailDateTime('2026-03-08T07:30:00Z', TORONTO),
     '8 mars 2026 à 3 h 30',
   )
 })
 
-Deno.test('formatClinicDateTime: either side of the fall change (2026-11-01)', () => {
+Deno.test('formatEmailDateTime: either side of the fall change (2026-11-01)', () => {
   assertEquals(
-    formatClinicDateTime('2026-11-01T05:30:00Z', TORONTO),
+    formatEmailDateTime('2026-11-01T05:30:00Z', TORONTO),
     '1 novembre 2026 à 1 h 30',
   )
   assertEquals(
-    formatClinicDateTime('2026-11-01T06:30:00Z', TORONTO),
+    formatEmailDateTime('2026-11-01T06:30:00Z', TORONTO),
     '1 novembre 2026 à 1 h 30',
   )
   assertEquals(
-    formatClinicDateTime('2026-11-01T07:30:00Z', TORONTO),
+    formatEmailDateTime('2026-11-01T07:30:00Z', TORONTO),
     '1 novembre 2026 à 2 h 30',
   )
 })
 
-Deno.test('formatClinicDateTime: the calendar day is the clinic’s, not UTC’s', () => {
+Deno.test('formatEmailDateTime: the calendar day is the clinic’s, not UTC’s', () => {
   assertEquals(
-    formatClinicDateTime('2026-07-16T02:30:00Z', TORONTO),
+    formatEmailDateTime('2026-07-16T02:30:00Z', TORONTO),
     '15 juillet 2026 à 22 h 30',
   )
 })
 
-Deno.test('formatClinicDateTime: whole hours, midnight and noon', () => {
+Deno.test('formatEmailDateTime: whole hours, midnight and noon', () => {
   assertEquals(
-    formatClinicDateTime('2026-10-15T13:00:00Z', TORONTO),
+    formatEmailDateTime('2026-10-15T13:00:00Z', TORONTO),
     '15 octobre 2026 à 9 h',
   )
   assertEquals(
-    formatClinicDateTime('2026-10-15T04:00:00Z', TORONTO),
+    formatEmailDateTime('2026-10-15T04:00:00Z', TORONTO),
     '15 octobre 2026 à 0 h',
   )
   assertEquals(
-    formatClinicDateTime('2026-10-15T16:05:00Z', TORONTO),
+    formatEmailDateTime('2026-10-15T16:05:00Z', TORONTO),
     '15 octobre 2026 à 12 h 05',
   )
 })
 
-Deno.test('formatClinicDateTime: Postgres text form and Date objects', () => {
+Deno.test('formatEmailDateTime: Postgres text form and Date objects', () => {
   assertEquals(
-    formatClinicDateTime('2026-07-15 18:30:00+00', TORONTO),
+    formatEmailDateTime('2026-07-15 18:30:00+00', TORONTO),
     '15 juillet 2026 à 14 h 30',
   )
   assertEquals(
-    formatClinicDateTime(new Date('2026-07-15T18:30:00Z'), TORONTO),
+    formatEmailDateTime(new Date('2026-07-15T18:30:00Z'), TORONTO),
     '15 juillet 2026 à 14 h 30',
   )
 })
 
-Deno.test('formatClinicDateTime: another timezone', () => {
+Deno.test('formatEmailDateTime: another timezone', () => {
   assertEquals(
-    formatClinicDateTime('2026-07-15T18:30:00Z', 'America/Vancouver'),
+    formatEmailDateTime('2026-07-15T18:30:00Z', 'America/Vancouver'),
     '15 juillet 2026 à 11 h 30',
   )
 })
 
-Deno.test('formatClinicDateTime: a date-only or invalid value is refused (null)', () => {
+Deno.test('formatEmailDateTime: a date-only or invalid value is refused (null)', () => {
   // A bare date would be read as UTC midnight and shift a day (CLAUDE.md §9).
-  assertEquals(formatClinicDateTime('2026-07-15', TORONTO), null)
-  assertEquals(formatClinicDateTime('demain', TORONTO), null)
+  assertEquals(formatEmailDateTime('2026-07-15', TORONTO), null)
+  assertEquals(formatEmailDateTime('demain', TORONTO), null)
   // No offset: the runtime's own timezone would be assumed.
-  assertEquals(formatClinicDateTime('2026-07-15T18:30:00', TORONTO), null)
+  assertEquals(formatEmailDateTime('2026-07-15T18:30:00', TORONTO), null)
   assertEquals(
-    formatClinicDateTime('2026-07-15T18:30:00-04:00', TORONTO),
+    formatEmailDateTime('2026-07-15T18:30:00-04:00', TORONTO),
     '15 juillet 2026 à 18 h 30',
   )
   assertEquals(
-    formatClinicDateTime('2026-07-15T18:30:00.123+0000', TORONTO),
+    formatEmailDateTime('2026-07-15T18:30:00.123+0000', TORONTO),
     '15 juillet 2026 à 14 h 30',
   )
-  assertEquals(formatClinicDateTime(new Date('x'), TORONTO), null)
+  assertEquals(formatEmailDateTime(new Date('x'), TORONTO), null)
 })
 
-Deno.test('formatClinicDateTime: an unknown timezone throws (configuration error)', () => {
+Deno.test('formatEmailDateTime: an unknown timezone throws (configuration error)', () => {
   assertThrows(
-    () => formatClinicDateTime('2026-07-15T18:30:00Z', 'Mars/Olympus'),
+    () => formatEmailDateTime('2026-07-15T18:30:00Z', 'Mars/Olympus'),
     RangeError,
   )
+})
+
+Deno.test('isValidTimeZone: known IANA names only', () => {
+  assertEquals(isValidTimeZone(TORONTO), true)
+  assertEquals(isValidTimeZone('UTC'), true)
+  assertEquals(isValidTimeZone('Mars/Olympus'), false)
+  assertEquals(isValidTimeZone(''), false)
 })
 
 Deno.test('formatDateOnly: no timezone conversion (the CLAUDE.md §9 bug case)', () => {

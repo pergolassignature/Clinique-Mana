@@ -5,8 +5,10 @@ import {
   assertStringIncludes,
 } from '@std/assert'
 import {
+  PLACEHOLDER_SOURCE,
   type RenderInput,
   renderTemplate,
+  safeUrl,
   type TemplateVariable,
 } from './render.ts'
 
@@ -33,7 +35,8 @@ const input = (over: Partial<RenderInput> = {}): RenderInput => ({
 function ok(over: Partial<RenderInput> = {}) {
   const result = renderTemplate(input(over))
   if (!result.ok) {
-    throw new Error(`expected ok, got ${result.code} (${result.path})`)
+    const path = 'path' in result ? ` (${result.path})` : ''
+    throw new Error(`expected ok, got ${result.code}${path}`)
   }
   return result
 }
@@ -104,6 +107,96 @@ Deno.test('subject: plain text, line breaks removed (also from values)', () => {
   assertEquals(r.subject, 'Accès à A <b> Bcc: x@y.test')
 })
 
+Deno.test('subject: control characters and U+2028/U+2029 become spaces', () => {
+  const r = ok({
+    subject: 'A\u0000B\u000bC\u2028D\u2029E\tF\u0085G\u007fH',
+  })
+  assertEquals(r.subject, 'A B C D E F G H')
+  const fromValue = ok({
+    values: {
+      clinic: { name: 'X\u0000\u2028\u000b Y' },
+      invitee: { display_name: 'Ana' },
+    },
+  })
+  assertEquals(fromValue.subject, 'Votre accès à X Y')
+})
+
+Deno.test('subject: 10 000 spaces collapse quickly (linear)', () => {
+  const start = performance.now()
+  const r = ok({ subject: `A${' '.repeat(10_000)}\n${' '.repeat(10_000)}B` })
+  const elapsed = performance.now() - start
+  assertEquals(r.subject, 'A B')
+  assert(elapsed < 50, `${elapsed.toFixed(1)} ms`)
+})
+
+Deno.test('placeholders: the rule is pinned (Task 3.6 SQL mirrors it)', () => {
+  assertEquals(PLACEHOLDER_SOURCE, String.raw`\{\{([^{}\r\n]*)\}\}`)
+})
+
+Deno.test('placeholders: pathological input completes in under 50 ms', () => {
+  const cases = {
+    'open braces then 10 000 spaces': `{{${' '.repeat(10_000)}`,
+    'open braces repeated to 60 000 chars': '{{'.repeat(30_000),
+    'spaces inside an unclosed placeholder, repeated':
+      `{{ ${' '.repeat(5_000)}x`.repeat(10),
+  }
+  const pattern = new RegExp(PLACEHOLDER_SOURCE, 'g')
+  for (const [name, text] of Object.entries(cases)) {
+    let start = performance.now()
+    assertEquals([...text.matchAll(pattern)].length, 0, name)
+    let elapsed = performance.now() - start
+    assert(elapsed < 50, `regex, ${name}: ${elapsed.toFixed(1)} ms`)
+
+    start = performance.now()
+    const r = ok({ subject: text, body: text, buttonLabel: text })
+    elapsed = performance.now() - start
+    assertStringIncludes(r.text, '{{', name)
+    assert(elapsed < 50, `renderTemplate, ${name}: ${elapsed.toFixed(1)} ms`)
+  }
+})
+
+Deno.test('placeholders: a line break inside is literal text in every part', () => {
+  for (const br of ['\n', '\r\n', '\r']) {
+    const r = ok({
+      subject: `Accès {{${br}clinic.name}}`,
+      body: `Bonjour {{${br}invitee.display_name }} & <cie>`,
+      buttonLabel: `Créer {{${br}clinic.name}}`,
+    })
+    const label = JSON.stringify(br)
+    // Not filled anywhere: the value never appears, the braces stay visible.
+    for (const part of [r.subject, r.html, r.text, r.buttonLabel ?? '']) {
+      assertFalse(part.includes('Ana'), label)
+      assertFalse(part.includes('Clinique MANA'), label)
+      assertStringIncludes(part, '{{', label)
+    }
+    assertEquals(r.subject, 'Accès {{ clinic.name}}', label)
+    assertStringIncludes(
+      r.html,
+      'Bonjour {{<br>invitee.display_name }} &amp; &lt;cie&gt;',
+      label,
+    )
+    assertEquals(r.text, 'Bonjour {{\ninvitee.display_name }} & <cie>', label)
+  }
+})
+
+Deno.test('placeholders: an unknown path is caught in the filled parts too', () => {
+  // `toText` drops the bold markers, which would leave `{{nope}}` behind.
+  assertEquals(renderTemplate(input({ body: '{**{nope}}**' })), {
+    ok: false,
+    code: 'unknown_variable',
+    path: 'nope',
+  })
+})
+
+Deno.test('timezone: an unknown clinic timezone → invalid_timezone (no throw)', () => {
+  for (const timezone of ['Mars/Olympus', '']) {
+    assertEquals(renderTemplate(input({ timezone })), {
+      ok: false,
+      code: 'invalid_timezone',
+    }, timezone)
+  }
+})
+
 Deno.test('variables: an unknown placeholder → unknown_variable', () => {
   assertEquals(
     renderTemplate(input({ body: 'Bonjour {{ invitee.first_name }}' })),
@@ -169,7 +262,11 @@ Deno.test('variables: a required variable not used in the text is still required
   const r = renderTemplate(
     input({ body: 'Bonjour', values: { clinic: { name: 'C' } } }),
   )
-  assertEquals(r.ok ? 'ok' : r.path, 'invitee.display_name')
+  assertEquals(r, {
+    ok: false,
+    code: 'missing_variable',
+    path: 'invitee.display_name',
+  })
 })
 
 Deno.test('variables: a missing optional value → empty string', () => {
@@ -339,6 +436,25 @@ Deno.test('urls: anything but https → missing_variable', () => {
       path: 'link',
     }, link)
   }
+})
+
+Deno.test('urls: credentials in the URL are refused', () => {
+  for (
+    const link of [
+      'https://user:pass@app.cliniquemana.com/x',
+      'https://user@app.cliniquemana.com/x',
+      'https://:pass@app.cliniquemana.com/x',
+      'https://app.cliniquemana.com@evil.test/x',
+    ]
+  ) {
+    assertEquals(safeUrl(link), null, link)
+    assertEquals(urlInput(link).ok, false, link)
+  }
+  assertEquals(safeUrl('http://u:p@localhost:5173/x', true), null)
+  assertEquals(
+    safeUrl('https://app.cliniquemana.com/x?u=a@b'),
+    'https://app.cliniquemana.com/x?u=a@b',
+  )
 })
 
 Deno.test('urls: http://localhost only when the app itself is local', () => {

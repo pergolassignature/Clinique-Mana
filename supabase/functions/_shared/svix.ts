@@ -8,7 +8,9 @@
  * - HMAC-SHA256 of `${id}.${timestamp}.${rawBody}`, keyed with the base64
  *   bytes of the secret after `whsec_`;
  * - `svix-signature` lists space-separated `v1,<base64>` entries (several
- *   during a secret rotation): any one may match;
+ *   during a secret rotation): any one may match; more than
+ *   `MAX_SIGNATURE_ENTRIES` entries fail, so one request cannot demand
+ *   unbounded decoding and comparisons;
  * - the timestamp must be within the tolerance of now, to stop replays.
  */
 import { timingSafeEqualBytes } from './timing-safe-equal.ts'
@@ -33,6 +35,8 @@ export interface SvixInput {
 
 const SECRET_PREFIX = 'whsec_'
 const DEFAULT_TOLERANCE_SECONDS = 300
+/** A rotation lists two or three entries; far more is not a real header. */
+const MAX_SIGNATURE_ENTRIES = 20
 
 function decodeBase64(value: string): Uint8Array<ArrayBuffer> | null {
   try {
@@ -42,10 +46,15 @@ function decodeBase64(value: string): Uint8Array<ArrayBuffer> | null {
   }
 }
 
-/** The `v1` signatures of a `svix-signature` header, decoded; others are ignored. */
-function v1Signatures(header: string): Uint8Array[] {
+/**
+ * The `v1` signatures of a `svix-signature` header, decoded; others are
+ * ignored. Null when the header has more than `MAX_SIGNATURE_ENTRIES` entries.
+ */
+function v1Signatures(header: string): Uint8Array[] | null {
+  const entries = header.split(' ').filter(Boolean)
+  if (entries.length > MAX_SIGNATURE_ENTRIES) return null
   const out: Uint8Array[] = []
-  for (const entry of header.split(' ')) {
+  for (const entry of entries) {
     const comma = entry.indexOf(',')
     if (comma < 0 || entry.slice(0, comma) !== 'v1') continue
     const bytes = decodeBase64(entry.slice(comma + 1))
@@ -57,7 +66,8 @@ function v1Signatures(header: string): Uint8Array[] {
 /**
  * True when one `v1` signature of `svix-signature` is the HMAC of the message
  * and the timestamp is within tolerance. Fails closed: a missing header, an
- * empty or undecodable secret, or a malformed timestamp gives false.
+ * empty or undecodable secret, a malformed timestamp or too many signature
+ * entries gives false.
  */
 export async function verifySvix(input: SvixInput): Promise<boolean> {
   const {
@@ -75,7 +85,7 @@ export async function verifySvix(input: SvixInput): Promise<boolean> {
   if (Math.abs(nowSeconds - Number(timestamp)) > toleranceSeconds) return false
 
   const candidates = v1Signatures(signature)
-  if (candidates.length === 0) return false
+  if (!candidates?.length) return false
 
   const key = decodeBase64(
     secret.startsWith(SECRET_PREFIX)

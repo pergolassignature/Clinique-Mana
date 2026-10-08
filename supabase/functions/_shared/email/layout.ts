@@ -4,9 +4,11 @@
  *
  * Email-client-safe HTML: nested presentation tables, inline styles only (no
  * `<style>`, no class, no web font, no script), 560 px wide with an Outlook
- * ghost table, `lang="fr-CA"`. Colours and type come from the design system
- * (`tokens.ts`). The only image is the static wordmark served by the app
- * (P3-10); there is no tracking pixel and no tracking parameter.
+ * ghost table, `lang="fr-CA" dir="ltr"` on the document and on the outer
+ * wrapper (some clients drop `<html>`). Colours and type come from the design
+ * system (`tokens.ts`). The only image is the static wordmark served by the app
+ * (P3-10), opaque on white so it stays legible when a client darkens the
+ * card; there is no tracking pixel and no tracking parameter.
  *
  * Everything passed in is escaped here except `contentHtml`, which callers
  * build from escaped parts (`markup.ts` / `render.ts`). Placeholders of other
@@ -33,8 +35,10 @@ export interface LayoutButton {
 
 /** What `renderLayout` wraps around the content. */
 export interface LayoutInput {
-  /** Inbox preview text, hidden in the message. */
-  preheader: string
+  /** The document `<title>`: the email's subject. */
+  title: string
+  /** Inbox preview text, hidden in the message; none when absent or empty. */
+  preheader?: string
   /** Trusted, already-escaped HTML of the body. */
   contentHtml: string
   button?: LayoutButton
@@ -52,7 +56,11 @@ export interface LayoutTextInput {
   whyLine: string
 }
 
-/** Displayed size of the wordmark; the PNG is 240 × 106 (2× for sharp screens). */
+/**
+ * Displayed size of the wordmark. The PNG (`public/email/wordmark.png`) is
+ * 240 × 106 (2× for sharp screens) with an opaque white background baked in,
+ * the card's colour, so dark-mode clients never put the wine ink on black.
+ */
 const WORDMARK = { width: 120, height: 53 }
 
 /** « Confidentialité : name, email », or null when neither is known. */
@@ -78,7 +86,7 @@ function buttonHtml({ label, href }: LayoutButton): string {
   const url = escapeHtml(href)
   return `<tr><td style="padding:8px 0 0">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-<td style="border-radius:4px;background-color:${COLOR.primary}">
+<td style="border-radius:4px;background-color:${COLOR.primary};mso-padding-alt:12px 20px">
 <a href="${url}" target="_blank" style="display:inline-block;padding:12px 20px;border-radius:4px;font-family:${FONT_STACK};font-size:16px;line-height:24px;font-weight:600;color:${COLOR.primaryText};text-decoration:none">${
     escapeHtml(label)
   }</a>
@@ -90,19 +98,22 @@ function buttonHtml({ label, href }: LayoutButton): string {
 /** The full HTML document for one email. */
 export function renderLayout(input: LayoutInput): { html: string } {
   const footer = footerLines(input.footer).map(escapeHtml).join('<br>')
+  const preheader = input.preheader
+    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${
+      escapeHtml(input.preheader)
+    }</div>\n`
+    : ''
   const html = `<!doctype html>
-<html lang="fr-CA">
+<html lang="fr-CA" dir="ltr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
+<title>${escapeHtml(input.title)}</title>
 </head>
 <body style="margin:0;padding:0;background-color:${COLOR.page};${BODY_TEXT}">
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${
-    escapeHtml(input.preheader)
-  }</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${COLOR.page}">
+${preheader}<table role="presentation" lang="fr-CA" dir="ltr" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${COLOR.page}">
 <tr><td align="center" style="padding:32px 16px">
 <!--[if mso]><table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px">

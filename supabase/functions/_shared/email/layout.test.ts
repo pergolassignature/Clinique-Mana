@@ -23,6 +23,7 @@ const footer: ClinicFooter = {
 }
 
 const layout = (over: Partial<LayoutInput> = {}): LayoutInput => ({
+  title: 'Votre accès à Clinique MANA',
   preheader: 'Votre accès vous attend.',
   contentHtml: '<p>Bonjour Ana,</p>',
   button: {
@@ -39,9 +40,30 @@ const layout = (over: Partial<LayoutInput> = {}): LayoutInput => ({
 Deno.test('renderLayout: a complete fr-CA document with the content', () => {
   const { html } = renderLayout(layout())
   assertMatch(html, /^<!doctype html>/i)
-  assertStringIncludes(html, '<html lang="fr-CA"')
+  assertStringIncludes(html, '<html lang="fr-CA" dir="ltr">')
   assertStringIncludes(html, '<meta charset="utf-8">')
+  assertStringIncludes(html, '<title>Votre accès à Clinique MANA</title>')
   assertStringIncludes(html, '<p>Bonjour Ana,</p>')
+  // The outer wrapper repeats lang and dir for clients that drop <html>.
+  assertMatch(html, /<body[^>]*>\n<div[^>]*>[^<]*<\/div>\n<table [^>]*lang="fr-CA" dir="ltr"/)
+})
+
+Deno.test('renderLayout: the title is escaped', () => {
+  const { html } = renderLayout(layout({ title: '<b>A & B</b>' }))
+  assertStringIncludes(html, '<title>&lt;b&gt;A &amp; B&lt;/b&gt;</title>')
+})
+
+Deno.test('renderLayout: no preheader element without a preheader', () => {
+  for (const preheader of [undefined, '']) {
+    const { html } = renderLayout(layout({ preheader }))
+    assertFalse(html.includes('display:none'), String(preheader))
+    assertMatch(html, /<body[^>]*>\n<table /)
+  }
+})
+
+Deno.test('renderLayout: the button cell has Outlook padding (mso-padding-alt)', () => {
+  const { html } = renderLayout(layout())
+  assertMatch(html, /<td style="[^"]*mso-padding-alt:12px 20px[^"]*">\n<a href=/)
 })
 
 Deno.test('renderLayout: table-based, inline-styled, 560 px wide, no <style> or script', () => {

@@ -92,7 +92,8 @@ const send = (over: Partial<ComposeInput> = {}) =>
 function ok(over: Partial<ComposeInput> = {}) {
   const result = send(over)
   if (!result.ok) {
-    throw new Error(`expected ok, got ${result.code} (${result.path})`)
+    const path = 'path' in result ? ` (${result.path})` : ''
+    throw new Error(`expected ok, got ${result.code}${path}`)
   }
   return result
 }
@@ -174,8 +175,61 @@ Deno.test('composeEmail: preview uses samples and no prefix', () => {
   const r = ok({ mode: 'preview', values: {}, actionUrl: null })
   assertEquals(r.subject, 'Votre accès à Clinique MANA')
   assertStringIncludes(r.text, 'valide jusqu’au 15 octobre 2026 à 14 h 30.')
-  // Without a URL, the preview's button points at the app.
-  assertStringIncludes(r.html, 'href="https://app.cliniquemana.com"')
+  // Without a URL, the preview's button points at the app (normalised).
+  assertStringIncludes(r.html, 'href="https://app.cliniquemana.com/"')
+})
+
+Deno.test('composeEmail: the app URL fallback (preview, test) must pass safeUrl', () => {
+  for (const mode of ['preview', 'test'] as const) {
+    for (
+      const appUrl of [
+        'javascript:alert(1)',
+        'http://app.cliniquemana.com',
+        'https://user:pass@app.cliniquemana.com',
+      ]
+    ) {
+      assertEquals(send({ mode, values: {}, actionUrl: null, appUrl }), {
+        ok: false,
+        code: 'missing_variable',
+        path: 'action_url',
+      }, `${mode} ${appUrl}`)
+    }
+  }
+  const local = send({
+    mode: 'preview',
+    actionUrl: null,
+    appUrl: 'http://localhost:5173',
+  })
+  assert(local.ok)
+  assertStringIncludes(local.html, 'href="http://localhost:5173/"')
+})
+
+Deno.test('composeEmail: in preview and test the button URL is optional', () => {
+  for (const mode of ['preview', 'test'] as const) {
+    assert(send({ mode, values: {}, actionUrl: null }).ok, mode)
+  }
+})
+
+Deno.test('composeEmail: an invalid clinic timezone → invalid_timezone (no throw)', () => {
+  assertEquals(
+    composeEmail({ ...context, timezone: 'Mars/Olympus' }, {
+      values,
+      actionUrl: 'https://a.test',
+      appUrl: 'https://a.test',
+    }),
+    { ok: false, code: 'invalid_timezone' },
+  )
+})
+
+Deno.test('composeEmail: the subject is the document title, « [Test] » included', () => {
+  assertStringIncludes(
+    ok().html,
+    '<title>Votre accès à Clinique MANA</title>',
+  )
+  assertStringIncludes(
+    ok({ mode: 'test', values: {} }).html,
+    '<title>[Test] Votre accès à Clinique MANA</title>',
+  )
 })
 
 Deno.test('composeEmail: test mode adds « [Test] » and uses samples', () => {
@@ -262,19 +316,10 @@ Deno.test('composeEmail: a blank button label counts as none', () => {
   assertFalse(r.html.includes('<a '))
 })
 
-Deno.test('composeEmail: the preheader is the first line of the text, escaped', () => {
-  const r = composeEmail(
-    {
-      ...context,
-      template: {
-        ...context.template,
-        body: 'Bonjour {{invitee.display_name}} & cie\n\nSuite',
-      },
-    },
-    { values, actionUrl: 'https://a.test', appUrl: 'https://a.test' },
-  )
-  assert(r.ok)
-  assertStringIncludes(r.html, '>Bonjour Ana Gagnon &amp; cie</div>')
+Deno.test('composeEmail: no preheader (it would only repeat the first line)', () => {
+  const r = ok()
+  assertFalse(r.html.includes('display:none'))
+  assertFalse(r.html.includes('mso-hide:all'))
 })
 
 Deno.test('composeEmail: staff-invite HTML snapshot (layout regressions)', async (t) => {

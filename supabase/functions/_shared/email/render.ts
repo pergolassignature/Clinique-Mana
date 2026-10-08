@@ -1,8 +1,12 @@
 /**
  * Renders a template (subject, body, button label) with its variables.
  *
- * - Every `{{ path }}` must be a catalogue variable: an unknown one fails
- *   (`unknown_variable`), a defence behind `save_email_template`'s check.
+ * - A placeholder follows `PLACEHOLDER_SOURCE`. Every one must be a catalogue
+ *   variable: an unknown one fails (`unknown_variable`), a defence behind
+ *   `save_email_template`'s check. Text that does not follow the rule (a
+ *   `{{` with a line break before its `}}`) is literal text, escaped and
+ *   visible, in every part.
+ * - An invalid clinic timezone fails (`invalid_timezone`) instead of throwing.
  * - A required value that is missing fails closed (`missing_variable`), so an
  *   email is never sent with a hole in it. In `sample` mode (preview, test send)
  *   a missing value uses the catalogue's `sample`, inserted as written: samples
@@ -14,9 +18,14 @@
  * - The body goes through `markup.ts` first and the values are inserted
  *   afterwards, HTML-escaped in the HTML part and plain in the text part, in a
  *   single pass: a value is never read as markup or as a placeholder.
- * - The subject is plain text on one line (line breaks become spaces).
+ * - The subject is plain text on one line: control characters (line breaks
+ *   included) and U+2028/U+2029 become spaces, and runs of spaces collapse.
  */
-import { formatClinicDateTime, formatDateOnly } from './format.ts'
+import {
+  formatDateOnly,
+  formatEmailDateTime,
+  isValidTimeZone,
+} from './format.ts'
 import { escapeHtml, toHtml, toText } from './markup.ts'
 
 /** One entry of `email_template_defaults.variables`. */
@@ -54,8 +63,30 @@ export type RenderResult =
     buttonLabel: string | null
   }
   | { ok: false; code: 'missing_variable' | 'unknown_variable'; path: string }
+  | { ok: false; code: 'invalid_timezone' }
 
-const PLACEHOLDER = /\{\{\s*([^}]*?)\s*\}\}/g
+/**
+ * The placeholder rule, as a regex source: `{{`, then any characters except
+ * `{`, `}` and line breaks (CR, LF), then `}}`. The variable path is the
+ * captured text with surrounding whitespace removed (`{{ clinic.name }}` is
+ * `clinic.name`). The one repeated class stops at the next brace, so each
+ * attempt scans its own stretch of text once and matching is linear.
+ *
+ * The SQL `save_email_template` check (Task 3.6) must use the same rule:
+ * `regexp_matches(text, '\{\{([^{}\r\n]*)\}\}', 'g')`, then `btrim` the capture.
+ * (`btrim` removes spaces only, so SQL can only be stricter than `trim()`.)
+ * Any `{{` or `}}` left after removing the matches is unclosed.
+ */
+export const PLACEHOLDER_SOURCE = String.raw`\{\{([^{}\r\n]*)\}\}`
+const PLACEHOLDER = new RegExp(PLACEHOLDER_SOURCE, 'g')
+/**
+ * The same rule applied to the HTML of the body. Markup has turned each line
+ * break into a tag (`<br>`, `</p><p …>`), so it also stops at `<`: escaped
+ * text never contains one, and `{{<br>x}}` stays literal as `{{\nx}}` does.
+ */
+const HTML_PLACEHOLDER = /\{\{([^{}\r\n<]*)\}\}/g
+/** Control characters (C0, DEL, C1) and the Unicode line/paragraph separators. */
+const SUBJECT_BREAKS = /[\p{Cc}\u2028\u2029]/gu
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 /** The value at a dot path, through own properties only (never `constructor`, `__proto__`). */
@@ -74,8 +105,9 @@ function valueAt(values: Record<string, unknown>, path: string): unknown {
 }
 
 /**
- * An `https:` URL (or local `http:` when allowed), normalised by the URL parser
- * (which also drops tabs and line breaks); null for anything else.
+ * An `https:` URL (or local `http:` when allowed) without credentials,
+ * normalised by the URL parser (which also drops tabs and line breaks); null
+ * for anything else.
  */
 export function safeUrl(value: string, allowLocalHttp = false): string | null {
   let url: URL
@@ -84,6 +116,8 @@ export function safeUrl(value: string, allowLocalHttp = false): string | null {
   } catch {
     return null
   }
+  // `https://user:pass@host` hides the real host from a quick reading.
+  if (url.username || url.password) return null
   if (url.protocol === 'https:') return url.href
   if (
     url.protocol === 'http:' && allowLocalHttp && LOCAL_HOSTS.has(url.hostname)
@@ -104,7 +138,7 @@ function format(
   }
   if (value instanceof Date) {
     return variable.kind === 'datetime'
-      ? formatClinicDateTime(value, input.timezone)
+      ? formatEmailDateTime(value, input.timezone)
       : null
   }
   if (typeof value !== 'string' || value.trim() === '') return null
@@ -112,7 +146,7 @@ function format(
     case 'text':
       return value
     case 'datetime':
-      return formatClinicDateTime(value, input.timezone)
+      return formatEmailDateTime(value, input.timezone)
     case 'date':
       return formatDateOnly(value)
     case 'url':
@@ -120,12 +154,32 @@ function format(
   }
 }
 
+/** The subject on one line: breaks and control characters → spaces, runs collapsed. */
+function oneLine(text: string): string {
+  return text.replace(SUBJECT_BREAKS, ' ').replace(/ {2,}/g, ' ').trim()
+}
+
 /** Renders the template; see the module comment for the rules. */
 export function renderTemplate(input: RenderInput): RenderResult {
+  if (!isValidTimeZone(input.timezone)) {
+    return { ok: false, code: 'invalid_timezone' }
+  }
+
   const byPath = new Map(input.variables.map((v) => [v.path, v]))
-  const texts = [input.subject, input.body, input.buttonLabel ?? '']
-  for (const text of texts) {
-    for (const [, path] of text.matchAll(PLACEHOLDER)) {
+  const htmlBody = toHtml(input.body)
+  const textBody = toText(input.body)
+  // The texts as written, then the parts actually filled (the text part drops
+  // bold markers): whatever is filled has been checked.
+  const texts: [string, RegExp][] = [
+    [input.subject, PLACEHOLDER],
+    [input.body, PLACEHOLDER],
+    [input.buttonLabel ?? '', PLACEHOLDER],
+    [htmlBody, HTML_PLACEHOLDER],
+    [textBody, PLACEHOLDER],
+  ]
+  for (const [text, pattern] of texts) {
+    for (const [, raw] of text.matchAll(pattern)) {
+      const path = raw.trim()
       if (!byPath.has(path)) {
         return { ok: false, code: 'unknown_variable', path }
       }
@@ -146,17 +200,21 @@ export function renderTemplate(input: RenderInput): RenderResult {
     } else resolved.set(variable.path, '')
   }
 
-  const fill = (text: string, escape: (s: string) => string = (s) => s) =>
+  const fill = (
+    text: string,
+    pattern = PLACEHOLDER,
+    escape: (s: string) => string = (s) => s,
+  ) =>
     text.replace(
-      PLACEHOLDER,
-      (_, path: string) => escape(resolved.get(path) ?? ''),
+      pattern,
+      (_, raw: string) => escape(resolved.get(raw.trim()) ?? ''),
     )
 
   return {
     ok: true,
-    subject: fill(input.subject).replace(/\s*[\r\n]+\s*/g, ' ').trim(),
-    html: fill(toHtml(input.body), escapeHtml),
-    text: fill(toText(input.body)),
+    subject: oneLine(fill(input.subject)),
+    html: fill(htmlBody, HTML_PLACEHOLDER, escapeHtml),
+    text: fill(textBody),
     buttonLabel: input.buttonLabel === null ? null : fill(input.buttonLabel),
   }
 }

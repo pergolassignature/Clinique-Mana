@@ -107,8 +107,17 @@ Deno.test('verifySvix: defaults to the current time', async () => {
     nowSeconds: undefined,
   }
   assert(await verifySvix(await input(fresh)))
-  // TS is in 2033: far outside the window from today.
-  assertFalse(await verifySvix(await input({ nowSeconds: undefined })))
+  // A fixed timestamp from 2021: outside the window from any later today.
+  const stale = '1614265330'
+  assertFalse(
+    await verifySvix(
+      await input({
+        timestamp: stale,
+        signature: await sign(KEY, BODY, ID, stale),
+        nowSeconds: undefined,
+      }),
+    ),
+  )
 })
 
 Deno.test('verifySvix: a tampered body, id or timestamp fails', async () => {
@@ -134,6 +143,16 @@ Deno.test('verifySvix: any one of several signatures may match', async () => {
   // Extra whitespace between entries is tolerated.
   assert(await verifySvix(await input({ signature: `  ${bad}   ${good} ` })))
   assertFalse(await verifySvix(await input({ signature: `${bad} ${bad}` })))
+})
+
+Deno.test('verifySvix: more than 20 signature entries fail', async () => {
+  const good = await sign(KEY)
+  const bad = await sign(OTHER_KEY)
+  const many = (n: number) => [...Array(n - 1).fill(bad), good].join(' ')
+  assert(await verifySvix(await input({ signature: many(20) })))
+  assertFalse(await verifySvix(await input({ signature: many(21) })))
+  // Extra spaces are not entries.
+  assert(await verifySvix(await input({ signature: `  ${many(20)}  ` })))
 })
 
 Deno.test('verifySvix: only v1 entries count', async () => {
