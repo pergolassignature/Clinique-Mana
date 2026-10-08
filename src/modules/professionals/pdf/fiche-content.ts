@@ -69,7 +69,7 @@ export interface FicheContent {
    */
   about: string[]
   motifs: FicheMotifGroup[]
-  /** The youngest held age group reads the youngest client age: « Adolescents (14 ans et +) » (P4-245). */
+  /** The youngest held age group reads the youngest client age: « Adolescents (14 ans et plus) » (P4-245). */
   clienteles: FicheItem[]
   /**
    * The client limits the website shows under the clientèles, in the record's words (P4-245):

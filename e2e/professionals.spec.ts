@@ -92,7 +92,7 @@ test('the adjointe creates and matches a professional, the admin activates it, a
   const limits = page.locator('form').filter({ has: page.getByRole('heading', { name: 'Limites de clientèle' }) })
   await limits.getByRole('textbox', { name: 'Âge minimum des clients' }).fill('14')
   await limits.getByRole('button', { name: 'Enregistrer' }).click()
-  await expect(page.getByRole('region', { name: 'Clientèles' }).getByText('Adolescents (14 ans et +)')).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Clientèles' }).getByText('Adolescents (14 ans et plus)')).toBeVisible()
 
   sheet = await openPicker(page, 'Modifier les langues')
   await sheet.getByRole('checkbox', { name: 'Anglais' }).click()

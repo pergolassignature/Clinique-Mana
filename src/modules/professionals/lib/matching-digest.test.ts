@@ -53,13 +53,13 @@ describe('matchingDigest', () => {
     ])
   })
 
-  it('reads the youngest client age on the youngest held age group: « Enfants (8 ans et +) » (P4-245)', () => {
+  it('reads the youngest client age on the youngest held age group: « Enfants (8 ans et plus) » (P4-245)', () => {
     const both = [
       { id: IDS.seniors, specialized: false },
       { id: IDS.children, specialized: true },
     ]
     const digest = matchingDigest(limited(8, true, both), CATALOG_VIEW)
-    expect(digest.clienteles.map((c) => c.label)).toEqual(['Enfants (8 ans et +)', 'Aînés (65 ans et plus)'])
+    expect(digest.clienteles.map((c) => c.label)).toEqual(['Enfants (8 ans et plus)', 'Aînés (65 ans et plus)'])
     expect(digest).toMatchObject({ minClientAge: null, womenOnly: true })
     // An age the youngest group already starts at adds nothing.
     expect(matchingDigest(limited(0, false, both), CATALOG_VIEW).clienteles.map((c) => c.label)).toEqual(['Enfants (0 à 12 ans)', 'Aînés (65 ans et plus)'])

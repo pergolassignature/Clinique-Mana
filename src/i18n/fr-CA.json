@@ -1216,7 +1216,7 @@
       },
       "display": {
         "withAges": "{name} ({ages})",
-        "withMinAge": "{name} ({age} {unit} et +)",
+        "withMinAge": "{name} ({age} {unit} et plus)",
         "minClientAge": "Âge minimum : {age} {unit}",
         "womenOnly": "Femmes seulement",
         "ages": {
@@ -1503,7 +1503,7 @@
             "title": "Limites de clientèle",
             "description": "Ce que le jumelage exclut, au-delà des clientèles.",
             "minAge": "Âge minimum des clients",
-            "minAgeHelp": "Par exemple 8 pour « Enfants (8 ans et +) ». Laissez vide s'il n'y en a pas.",
+            "minAgeHelp": "Par exemple 8 pour « Enfants (8 ans et plus) ». Laissez vide s'il n'y en a pas.",
             "womenOnly": "Femmes seulement",
             "womenOnlyHelp": "Le jumelage ne propose ce dossier qu'aux clientes."
           },

@@ -78,7 +78,7 @@ describe('OverviewTab — Profil de jumelage', () => {
   it('reads the client limits with the clientèles (P4-245)', () => {
     const M = `${O}.matching`
     renderOverview((r) => ({ ...r, clienteles: [{ id: IDS.children, specialized: false }], matchingProfile: { ...r.matchingProfile, minClientAge: 8, womenOnly: true } }))
-    expect(value(t(`${M}.clienteles`))).toBe(`Enfants (8 ans et +)${t('modules.professionals.display.womenOnly')}`)
+    expect(value(t(`${M}.clienteles`))).toBe(`Enfants (8 ans et plus)${t('modules.professionals.display.womenOnly')}`)
     cleanup()
     renderOverview((r) => ({ ...r, clienteles: [{ id: IDS.couples, specialized: false }], matchingProfile: { ...r.matchingProfile, minClientAge: 14 } }))
     expect(value(t(`${M}.clienteles`))).toBe(`Couples${t('modules.professionals.display.minClientAge', { age: '14', unit: 'ans' })}`)

@@ -211,7 +211,7 @@ describe('FicheDocument', () => {
       matchingProfile: { ...recordFixture().matchingProfile, minClientAge: 8, womenOnly: true },
     })
     const text = all((await render({ record: limited })).pages)
-    expect(text).toContain('Enfants (8 ans et +)')
+    expect(text).toContain('Enfants (8 ans et plus)')
     expect(text).toContain('Femmes seulement')
     const alone = record({ clienteles: [], matchingProfile: { ...recordFixture().matchingProfile, minClientAge: 14, womenOnly: false } })
     const aloneText = all((await render({ record: alone })).pages)

@@ -113,7 +113,7 @@ describe('buildFicheContent', () => {
       { id: IDS.seniors, specialized: false },
       { id: IDS.children, specialized: false },
     ])
-    expect(onGroup.clienteles.map((c) => c.label)).toEqual(['Enfants (8 ans et +)', 'Aînés (65 ans et plus)'])
+    expect(onGroup.clienteles.map((c) => c.label)).toEqual(['Enfants (8 ans et plus)', 'Aînés (65 ans et plus)'])
     expect(onGroup.clientLimits).toEqual(['Femmes seulement'])
     // No held age group carries the age: its own line.
     const alone = limited(14, false, [{ id: IDS.couples, specialized: true }])

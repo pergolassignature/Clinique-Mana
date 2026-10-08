@@ -63,8 +63,8 @@ describe('agesLabel', () => {
 
 describe('minAgeClienteleLabel and minClientAgeLabel (P4-245)', () => {
   it('say the youngest client age in the website’s words', () => {
-    expect(minAgeClienteleLabel('Adolescents', 14)).toBe('Adolescents (14 ans et +)')
-    expect(minAgeClienteleLabel('Enfants', 1)).toBe('Enfants (1 an et +)')
+    expect(minAgeClienteleLabel('Adolescents', 14)).toBe('Adolescents (14 ans et plus)')
+    expect(minAgeClienteleLabel('Enfants', 1)).toBe('Enfants (1 an et plus)')
     expect(minClientAgeLabel(8)).toBe('Âge minimum\u00a0: 8 ans')
   })
 })

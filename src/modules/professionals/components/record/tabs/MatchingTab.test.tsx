@@ -99,7 +99,7 @@ describe('MatchingTab — what is held', () => {
     await userEvent.click(within(limits).getByRole('switch', { name: t(`${M}.limits.womenOnly`) }))
     await userEvent.click(within(limits).getByRole('button', { name: t('common.save') }))
     await waitFor(() => expect(mocks.api.updateMatchingProfile).toHaveBeenCalledWith(IDS.professional, { minClientAge: 8, womenOnly: true }))
-    await waitFor(() => expect(within(card(t(`${M}.clienteles.title`))).getByText('Enfants (8 ans et +)')).toBeInTheDocument())
+    await waitFor(() => expect(within(card(t(`${M}.clienteles.title`))).getByText('Enfants (8 ans et plus)')).toBeInTheDocument())
   })
 
   it('is read-only without professionals.matching: no « Modifier », no footer, the notice', () => {

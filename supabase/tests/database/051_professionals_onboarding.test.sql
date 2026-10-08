@@ -194,8 +194,9 @@ select results_eq($$ select bucket, upload_permission, view_permission, owner_pe
 select set_eq($$ select key || ':' || recipient_mode || ':' || allows_attachments || ':' || view_permission from public.email_template_defaults
                   where module_key = 'professionals' $$,
   array['professionals.invite:subject:false:professionals.view', 'professionals.invite_reminder:subject:false:professionals.view',
-        'professionals.profile_update:subject:false:professionals.view', 'professionals.submission_received:subject:false:professionals.view'],
-  'the four email templates');
+        'professionals.profile_update:subject:false:professionals.view', 'professionals.submission_received:subject:false:professionals.view',
+        'professionals.fiche:free:true:professionals.view'],
+  'the four onboarding email templates, and the fiche''s (054)');
 select is_empty($$ select key from public.email_template_defaults
                     where module_key = 'professionals'
                       and (subject || body || coalesce(button_label, '')) ~* '(diagnostic|trouble|patient|th[ée]rapie)' $$,

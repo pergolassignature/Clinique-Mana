@@ -181,7 +181,7 @@ const matchingProfileRowPayload = z
     acceptingNewClients: r.accepting_new_clients,
     availabilityPeriods: r.availability_periods,
     availabilityNote: r.availability_note,
-    /** The youngest client age the professional takes (« Enfants (8 ans et +) »), null for none (P4-245). */
+    /** The youngest client age the professional takes (« Enfants (8 ans et plus) »), null for none (P4-245). */
     minClientAge: r.min_client_age,
     /** Women clients only (« Femmes exclusivement », P4-245). */
     womenOnly: r.women_only,

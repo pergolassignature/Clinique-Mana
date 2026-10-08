@@ -14,7 +14,7 @@ export interface DigestItem {
 
 /** Aperçu « Profil de jumelage »: what matching reads, in words. */
 export interface MatchingDigest {
-  /** The youngest held age group reads the professional's youngest client age: « Enfants (8 ans et +) » (P4-245). */
+  /** The youngest held age group reads the professional's youngest client age: « Enfants (8 ans et plus) » (P4-245). */
   clienteles: DigestItem[]
   /** The youngest client age when no held age group can carry it (« Âge minimum : 14 ans »), else null. */
   minClientAge: number | null
@@ -52,7 +52,7 @@ const unstarred = (ids: readonly string[]) => new Map(ids.map((id) => [id, false
 /**
  * The held age group the youngest client age qualifies: the held age group with the lowest
  * minimum, when the professional's youngest client age is above it (« Enfants » 0–12 held, 8 → «
- * Enfants (8 ans et +) »). Null when no age group is held, or the age adds nothing.
+ * Enfants (8 ans et plus) »). Null when no age group is held, or the age adds nothing.
  */
 function youngestQualified(record: ProfessionalRecord, catalog: CatalogView): string | null {
   const { minClientAge } = record.matchingProfile

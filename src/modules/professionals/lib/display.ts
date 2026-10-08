@@ -73,7 +73,7 @@ export function clienteleLabel(c: { name: string } & AgeBounds): string {
 }
 
 /**
- * « Adolescents (14 ans et +) »: a held age group from the professional's youngest client age, in
+ * « Adolescents (14 ans et plus) »: a held age group from the professional's youngest client age, in
  * the website's words (P4-245).
  */
 export function minAgeClienteleLabel(name: string, minClientAge: number): string {
