@@ -39,12 +39,15 @@ export function toExperienceFormValues(p: Professional): ExperienceValues {
   return { yearsExperience: p.yearsExperience === null ? '' : String(p.yearsExperience) }
 }
 
-/** `professional_payer_numbers_number_check`. */
-const IVAC = /^[A-Za-z0-9-]{3,30}$/
+/** `professional_payer_numbers_number_check`, on the upper-cased number. */
+const IVAC = /^[A-Z0-9-]{3,30}$/
 
-/** « Numéros de payeurs »: the IVAC number; empty deletes it. */
+/** An IVAC number as `set_professional_payer_number` stores it: trimmed, upper-cased (unique whatever the case). */
+export const normalizeIvac = (value: string) => value.trim().toUpperCase()
+
+/** « Numéros de payeurs »: the IVAC number, upper-cased; empty deletes it. */
 export const payerNumbersSchema = z.object({
-  ivac: optionalPattern(IVAC, t('modules.professionals.validation.ivac')),
+  ivac: optionalPattern(IVAC, t('modules.professionals.validation.ivac'), normalizeIvac),
 })
 export type PayerNumbersValues = z.input<typeof payerNumbersSchema>
 

@@ -20,7 +20,8 @@ export interface FieldControlProps {
 
 interface FormFieldProps {
   label: string
-  help?: string
+  /** A line under the control, read with it (`aria-describedby`): a hint, or a live counter. */
+  help?: ReactNode
   error?: string
   /**
    * Marks the label: a teal `*` for sighted users (hidden from screen readers) and « (requis) »

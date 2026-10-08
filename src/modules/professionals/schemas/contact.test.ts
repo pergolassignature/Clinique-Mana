@@ -10,7 +10,7 @@ describe('contactSchema', () => {
   it('round-trips the record', () => {
     const values = toContactFormValues(professional)
     expect(values).toEqual({
-      personalPhone: '+15145551234',
+      personalPhone: '514 555-1234',
       addressLine1: '123, rue Saint-Denis',
       addressLine2: '',
       city: 'Montréal',

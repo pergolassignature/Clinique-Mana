@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { matchesOrderPattern, professionItemSchema, professionsSchema, toProfessionItems } from './professions'
+import { matchesOrderPattern, professionItemSchema, professionsErrorField, professionsSchema, toProfessionItems } from './professions'
 import { CATALOG, CATALOG_VIEW, recordFixture } from '../test/fixtures-domain'
 import { buildCatalogView } from '../lib/catalog-view'
 import { IDS } from '../test/fixtures'
@@ -82,5 +82,26 @@ describe('professionsSchema with an order format in PostgreSQL-only syntax', () 
     const items = [psy({ licenceNumber: 'AB 1' })]
     expect(professionsSchema(catalog, { heldTitleIds: [], heldMotifIds: [] }).parse(items)).toEqual([{ titleId: IDS.psychologue, licenceNumber: 'AB 1', isPrimary: true }])
     expect(errorAt(schema(), items, '0.licenceNumber')).toBe(t('modules.professionals.validation.licenceOrderFormat', { title: 'Psychologue' }))
+  })
+})
+
+describe('professionsErrorField', () => {
+  const items = [{ titleId: 'a' }, { titleId: 'b' }]
+  const refusal = (hint: string, details: string) => ({ code: 'P0001', message: 'x', hint, details })
+
+  it('routes by HINT to the row whose title the DETAIL names', () => {
+    expect(professionsErrorField(refusal('licence', 'b'), items)).toBe('items.1.licenceNumber')
+    expect(professionsErrorField(refusal('title', 'a'), items)).toBe('items.0.titleId')
+  })
+
+  it('takes the last row for a title chosen twice', () => {
+    expect(professionsErrorField(refusal('title', 'a'), [{ titleId: 'a' }, { titleId: 'a' }])).toBe('items.1.titleId')
+  })
+
+  it('is null for a refusal about the list, a title no row holds, or another code', () => {
+    expect(professionsErrorField(refusal('', ''), items)).toBeNull()
+    expect(professionsErrorField(refusal('licence', 'z'), items)).toBeNull()
+    expect(professionsErrorField(refusal('licence', ''), items)).toBeNull()
+    expect(professionsErrorField({ code: '22023', message: 'Titre inconnu.', hint: 'title', details: 'a' }, items)).toBeNull()
   })
 })

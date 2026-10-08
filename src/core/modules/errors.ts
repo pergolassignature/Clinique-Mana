@@ -29,7 +29,7 @@ export function moduleErrorMessage(error: unknown, fallback: string, area = 'mod
 }
 
 /** A string field of a failed RPC's error (a PostgREST error is a plain object or an Error with these fields). */
-function stringField(error: unknown, field: 'code' | 'message' | 'hint'): string | undefined {
+function stringField(error: unknown, field: 'code' | 'message' | 'hint' | 'details'): string | undefined {
   if (typeof error !== 'object' || error === null || !(field in error)) return undefined
   const value = (error as Record<string, unknown>)[field]
   return typeof value === 'string' ? value : undefined
@@ -48,6 +48,16 @@ export function rpcErrorCode(error: unknown): string | undefined {
 export function rpcErrorHint(error: unknown): string | undefined {
   const hint = stringField(error, 'hint')
   return hint === '' ? undefined : hint
+}
+
+/**
+ * The DETAIL of a failed RPC (PostgREST `details`), where a refusal about one item of a list names
+ * it (e.g. the title id of a licence refusal, so the form marks that row); undefined when empty.
+ * Like the hint, only read here: Sentry never gets it.
+ */
+export function rpcErrorDetail(error: unknown): string | undefined {
+  const details = stringField(error, 'details')
+  return details === '' ? undefined : details
 }
 
 /**
