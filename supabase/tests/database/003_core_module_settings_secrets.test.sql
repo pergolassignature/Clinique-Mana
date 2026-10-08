@@ -77,7 +77,9 @@ select functions_are('public', array[
   'clear_permission_overrides',
   'set_role_permission', 'create_role', 'rename_role', 'delete_role',
   'list_audit_entries', 'list_audit_actors',
-  'consume_rate_limit', 'claim_webhook_event', 'complete_webhook_event', 'fail_webhook_event', 'last_webhook_event_at'
+  'consume_rate_limit', 'claim_webhook_event', 'complete_webhook_event', 'fail_webhook_event', 'last_webhook_event_at',
+  'list_job_orgs', 'start_job_run', 'finish_job_run',
+  'list_scheduled_jobs', 'list_scheduled_job_runs', 'set_scheduled_job_enabled', 'run_scheduled_job_now'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

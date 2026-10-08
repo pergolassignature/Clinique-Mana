@@ -228,6 +228,52 @@ export type Database = {
           },
         ]
       }
+      org_scheduled_jobs: {
+        Row: {
+          enabled: boolean
+          job_key: string
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled: boolean
+          job_key: string
+          org_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          job_key?: string
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_scheduled_jobs_job_key_fkey"
+            columns: ["job_key"]
+            isOneToOne: false
+            referencedRelation: "scheduled_jobs"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "org_scheduled_jobs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_scheduled_jobs_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       org_secrets: {
         Row: {
           key: string
@@ -552,6 +598,107 @@ export type Database = {
           },
         ]
       }
+      scheduled_job_runs: {
+        Row: {
+          detail: string | null
+          finished_at: string | null
+          id: string
+          job_key: string
+          org_id: string | null
+          run_local_date: string | null
+          started_at: string
+          status: string
+          trigger: string
+        }
+        Insert: {
+          detail?: string | null
+          finished_at?: string | null
+          id?: string
+          job_key: string
+          org_id?: string | null
+          run_local_date?: string | null
+          started_at?: string
+          status?: string
+          trigger: string
+        }
+        Update: {
+          detail?: string | null
+          finished_at?: string | null
+          id?: string
+          job_key?: string
+          org_id?: string | null
+          run_local_date?: string | null
+          started_at?: string
+          status?: string
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_job_runs_job_key_fkey"
+            columns: ["job_key"]
+            isOneToOne: false
+            referencedRelation: "scheduled_jobs"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "scheduled_job_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_jobs: {
+        Row: {
+          created_at: string
+          cron_job_name: string | null
+          description: string
+          function_name: string | null
+          is_maintenance: boolean
+          key: string
+          kind: string
+          label: string
+          local_hour: number | null
+          module_key: string
+          sql_function: string | null
+        }
+        Insert: {
+          created_at?: string
+          cron_job_name?: string | null
+          description: string
+          function_name?: string | null
+          is_maintenance?: boolean
+          key: string
+          kind: string
+          label: string
+          local_hour?: number | null
+          module_key: string
+          sql_function?: string | null
+        }
+        Update: {
+          created_at?: string
+          cron_job_name?: string | null
+          description?: string
+          function_name?: string | null
+          is_maintenance?: boolean
+          key?: string
+          kind?: string
+          label?: string
+          local_hour?: number | null
+          module_key?: string
+          sql_function?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_jobs_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       tax_rates: {
         Row: {
           created_at: string
@@ -804,6 +951,10 @@ export type Database = {
         Args: { p_claim_token: string; p_error: string; p_id: string }
         Returns: boolean
       }
+      finish_job_run: {
+        Args: { p_detail: string; p_id: string; p_status: string }
+        Returns: undefined
+      }
       get_bank_details: {
         Args: never
         Returns: {
@@ -850,6 +1001,7 @@ export type Database = {
           table_name: string
         }[]
       }
+      list_job_orgs: { Args: { p_key: string }; Returns: string[] }
       list_modules: {
         Args: never
         Returns: {
@@ -879,6 +1031,34 @@ export type Database = {
           user_id: string
         }[]
       }
+      list_scheduled_job_runs: {
+        Args: { p_before?: string; p_job_key?: string; p_limit?: number }
+        Returns: {
+          detail: string
+          finished_at: string
+          id: string
+          job_key: string
+          started_at: string
+          status: string
+          trigger: string
+        }[]
+      }
+      list_scheduled_jobs: {
+        Args: never
+        Returns: {
+          description: string
+          enabled: boolean
+          is_maintenance: boolean
+          key: string
+          kind: string
+          label: string
+          last_detail: string
+          last_started_at: string
+          last_status: string
+          local_hour: number
+          schedule: string
+        }[]
+      }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
@@ -889,6 +1069,7 @@ export type Database = {
         Returns: undefined
       }
       reveal_bank_account_number: { Args: never; Returns: string }
+      run_scheduled_job_now: { Args: { p_key: string }; Returns: undefined }
       set_bank_details: {
         Args: {
           p_account_number: string
@@ -918,6 +1099,10 @@ export type Database = {
         Args: { p_granted: boolean; p_permission_key: string; p_role: string }
         Returns: undefined
       }
+      set_scheduled_job_enabled: {
+        Args: { p_enabled: boolean; p_key: string }
+        Returns: undefined
+      }
       set_user_role: {
         Args: { p_role: string; p_user_id: string }
         Returns: undefined
@@ -925,6 +1110,10 @@ export type Database = {
       set_user_status: {
         Args: { p_status: string; p_user_id: string }
         Returns: undefined
+      }
+      start_job_run: {
+        Args: { p_key: string; p_org_id: string; p_trigger: string }
+        Returns: string
       }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
     }

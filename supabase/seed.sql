@@ -68,3 +68,7 @@ insert into public.user_roles (user_id, org_id, role) values
 
 insert into public.org_modules (org_id, module_key, enabled, updated_by) values
   ('00000000-0000-0000-0000-000000000001', 'professionals', true, '11111111-1111-1111-1111-111111111111');
+
+-- Local Vault secrets for pg_net → edge functions (fake values; staging gets real ones, plan « Mise en service »).
+select vault.create_secret('http://supabase_kong_clinique-mana:8000', 'project_url', 'Local: Kong as seen from the DB container');
+select vault.create_secret('local-dev-internal-function-secret', 'internal_function_secret', 'Local: matches supabase/functions/.env');
