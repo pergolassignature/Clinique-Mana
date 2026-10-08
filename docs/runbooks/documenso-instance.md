@@ -1,6 +1,6 @@
 # Runbook — Clinique MANA's Documenso instance
 
-**Status:** In progress (2026-10-08). · **ADR:** [0005](../adr/0005-documenso-replaces-docuseal.md) · **Status doc:** [Mise en service, item 4](../plans/2026-10-07-status.md#mise-en-service-phase-3-jonathan) · **Files:** [`ops/documenso/`](../../ops/documenso/)
+**Status:** Steps 1–4 and 8 done on 2026-10-08 (`https://sign.cliniquemana.com` live, Documenso 2.20.0); steps 5–7 next. · **ADR:** [0005](../adr/0005-documenso-replaces-docuseal.md) · **Status doc:** [Mise en service, item 4](../plans/2026-10-07-status.md#mise-en-service-phase-3-jonathan) · **Files:** [`ops/documenso/`](../../ops/documenso/)
 
 > **This droplet also runs Pergolas Signature's production Documenso.** Every step that changes the server (resize, Caddy, `docker compose`, cron) waits for Jonathan's go-ahead in chat. **Secrets never pass through chat or git.** `setup.sh` generates them on the server, and Jonathan types the Resend key at its silent prompt.
 
@@ -14,7 +14,7 @@
 | Port (loopback only) | 127.0.0.1:3000 | 127.0.0.1:3001 |
 | Domain | `sign.pergolassignature.ca` | `sign.cliniquemana.com` |
 | Email | Resend, `noreply@notifications.pergolassignature.ca` | Resend, `signature@gestion.cliniquemana.com` (domain already verified) |
-| Image | `documenso/documenso:v2.14.0` (pinned in step 8) | `documenso/documenso:v2.19.0` |
+| Image | `documenso/documenso:v2.14.0` (pinned in step 8; upgrade pending, see Operations) | `documenso/documenso:v2.20.0` |
 
 **Why the same droplet but a separate stack** (decision 2026-10-08, Jonathan): one server to operate. ADR 0005's reason for not sharing PS Hub's *instance* still holds. A second organisation inside PS Hub's Documenso would send clinic emails as « Pergolas Signature », because the sender is set once per instance, and it would mix both companies' data in one database. The two stacks share only the host, Docker and Caddy: each has its own network, database, certificate, secrets and admin.
 
@@ -26,7 +26,7 @@
 
 ### 1. Resize the droplet (Jonathan, DigitalOcean dashboard)
 `documenso-sign` → Resize → **CPU and RAM only** (keeps the 50 GB disk, so it can be sized back down), 4 GB. The droplet powers off, so PS Hub signing is down for about 1–2 minutes. Also turn on **Backups** (weekly snapshots) if they are off.
-Check: `ssh root@178.128.234.204 free -m` shows about 3900 MB in total.
+Check: `ssh root@178.128.234.204 free -m` shows about 3900 MB in total. *Done 2026-10-08: 4 GB, 2 vCPU; the disk was resized too (80 GB), so the droplet can no longer be sized back down.*
 
 ### 2. DNS (Jonathan, Cloudflare)
 `cliniquemana.com` zone → add `A  sign  178.128.234.204`, **DNS only** (grey cloud). Caddy needs to reach Let's Encrypt directly.
@@ -74,7 +74,7 @@ Check: `curl -sI https://sign.cliniquemana.com` returns 200 or a redirect with a
 4. « Tester la connexion », then « Envoyer un document test », sign it, and check that the signed PDF appears. Then go through the `VERIFY` list in ADR 0005 (Consequences) against `https://sign.cliniquemana.com/api/v2/openapi.json`.
 
 ### 8. Hardening of the shared droplet (agent, with go-ahead; decision 2026-10-08)
-PS Hub's stack, found on 2026-10-08:
+PS Hub's stack, found and fixed on 2026-10-08 (backup first: `/opt/documenso/backups/*-20261008-123939*`; about 20 s of downtime). Only the repo-doc secrets remain:
 
 | Finding | Fix |
 |---|---|
@@ -88,12 +88,12 @@ PS Hub's stack, found on 2026-10-08:
 Backups:
 ```bash
 scp ops/documenso/backup.sh root@178.128.234.204:/usr/local/bin/documenso-backup
-ssh root@178.128.234.204 'chmod 0700 /usr/local/bin/documenso-backup && echo "30 7 * * * root /usr/local/bin/documenso-backup" > /etc/cron.d/documenso-backup && /usr/local/bin/documenso-backup && ls -la /opt/documenso*/backups | tail'
+ssh root@178.128.234.204 'chmod 0700 /usr/local/bin/documenso-backup && echo "30 7 * * * root /usr/local/bin/documenso-backup 2>&1 | logger -t documenso-backup" > /etc/cron.d/documenso-backup && /usr/local/bin/documenso-backup && ls -la /opt/documenso*/backups | tail'
 ```
-(07:30 UTC = 03:30 Toronto.) The dumps sit on the droplet and are covered by the weekly droplet backups. An off-site copy (DigitalOcean Spaces, Toronto) is a follow-up.
+(07:30 UTC = 03:30 Toronto. Output goes to syslog: `journalctl -t documenso-backup`.) The dumps sit on the droplet and are covered by the weekly droplet backups. An off-site copy (DigitalOcean Spaces, Toronto) is a follow-up.
 
 ## Operations
-- **Upgrade:** read the release notes, run `documenso-backup`, change the tag in `compose.yml` (here first, then the server), then `docker compose pull && docker compose up -d`. Then « Tester la connexion » and re-check the `VERIFY` endpoints.
+- **Upgrade:** read the release notes (the 2.17.0 « deprecate endpoints » change matters to PS Hub, which still calls the `/api/v2/document/*` routes), run `documenso-backup`, change the tag in `compose.yml` (here first, then the server), then `docker compose pull && docker compose up -d`. Then « Tester la connexion » and re-check the `VERIFY` endpoints.
 - **Logs:** `cd /opt/documenso-clinique && docker compose logs --tail 200 documenso`.
 - **Webhook history:** `docker compose exec database psql -U documenso -d documenso -c 'select status, "responseCode", "createdAt" from "WebhookCall" order by "createdAt" desc limit 10;'`.
 - **Restore:** `docker compose exec -T database pg_restore -U documenso -d documenso --clean < backups/db-<stamp>.dump` (stack stopped except the database).
