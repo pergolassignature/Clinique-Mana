@@ -148,8 +148,8 @@ select results_eq($$
     from public.scheduled_jobs j join cron.job c on c.jobname = j.cron_job_name
    where j.key = 'core.signing_reconcile'
 $$, $$ values ('core.signing_reconcile'::text, 'core'::text, 'function'::text, 'signing-sync'::text,
-               true, '50 8 * * *'::text, 'select private.invoke_job_function(''core.signing_reconcile'')'::text) $$,
-  'core.signing_reconcile is a maintenance function job, daily at 08:50 UTC');
+               true, '50 * * * *'::text, 'select private.invoke_job_function(''core.signing_reconcile'')'::text) $$,
+  'core.signing_reconcile is a maintenance function job, hourly at :50 (daily at 08:50 UTC until *_core_signing_capture)');
 
 -- =============================================================================
 -- Fixtures
@@ -1138,7 +1138,9 @@ $$, $$ values ('cancelled'::text, true, 'a0000000-0000-0000-0000-000000000001'::
 -- Reconcile, expiry, and drafts or completions under way
 --   x1 sent 2 days ago (sync)                x2 draft 2 days old, with a document (sync)
 --   x3 abandoned draft (not listed)          x4 viewed, past its expiry (expire; its
---   x5 sent an hour ago (not listed)            DOCUMENT_COMPLETED was lost)
+--   x5 sent an hour ago (sync: every sent or    DOCUMENT_COMPLETED was lost)
+--      viewed request at each hourly run since *_core_signing_capture; 045 covers it; r4,
+--      sent earlier in this file, is listed for the same reason)
 --   x6 org B, sent 2 days ago                x7 sent, past its expiry (expire)
 --   x8 draft 2 days old, no document (abandon)
 --   x9 draft 3 days old with a document, re-sent 30 minutes ago, still sending (not listed:
@@ -1198,6 +1200,8 @@ $$, $$ values
   ('c0000000-0000-0000-0000-000000000004', 'viewed', '604', 'envelope_604', 'expire'),
   ('c0000000-0000-0000-0000-000000000008', 'draft', null, null, 'abandon'),
   ('c0000000-0000-0000-0000-000000000001', 'sent', '601', 'envelope_601', 'sync'),
+  ('c0000000-0000-0000-0000-000000000005', 'sent', '605', 'envelope_605', 'sync'),
+  ((select id from t where step = 'r4'), 'sent', '34', 'envelope_34', 'sync'),
   ('c0000000-0000-0000-0000-000000000015', 'draft', '615', 'envelope_615', 'sync'),
   ('c0000000-0000-0000-0000-000000000002', 'draft', '602', 'envelope_602', 'sync'),
   ('c0000000-0000-0000-0000-000000000010', 'draft', '610', 'envelope_610', 'sync')
@@ -1257,7 +1261,8 @@ select ok(public.expire_signature_request('c0000000-0000-0000-0000-000000000007'
 select ok(not public.expire_signature_request('c0000000-0000-0000-0000-000000000001'), 'a request not yet overdue is left as is');
 select ok(not public.expire_signature_request('c0000000-0000-0000-0000-000000000007'), 'an expired request stays expired');
 select results_eq($$ select id from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a') $$,
-  $$ values ('c0000000-0000-0000-0000-000000000001'::uuid), ('c0000000-0000-0000-0000-000000000015'),
+  $$ values ('c0000000-0000-0000-0000-000000000001'::uuid), ('c0000000-0000-0000-0000-000000000005'),
+            ((select id from t where step = 'r4')), ('c0000000-0000-0000-0000-000000000015'),
             ('c0000000-0000-0000-0000-000000000002'), ('c0000000-0000-0000-0000-000000000010') $$,
   'signed, expired and abandoned requests leave the list');
 reset role;

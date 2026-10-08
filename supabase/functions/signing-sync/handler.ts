@@ -3,11 +3,14 @@
  * from Documenso and applies what changed, in case a webhook was lost.
  *
  * **Job mode** (a request carrying `X-Job-Signature`, `core.signing_reconcile`,
- * daily): `runJob` verifies the signature, then `reconcileOrg` per org
- * (`_shared/signing-events.ts`, `perOrgTimeoutMs` `RECONCILE_TIMEOUT_MS`,
- * no new batch after `RECONCILE_SOFT_DEADLINE_MS`): up to 100 listed
- * requests, 4 at a time; `sync` (sent or viewed for over a day, or
- * completed without its PDF; a draft with a document whose send started
+ * hourly: the Documenso VM is not backed up, so a signed PDF whose webhook
+ * was lost or failed must reach our storage within the hour,
+ * `…_core_signing_capture.sql`): `runJob` verifies the signature, then
+ * `reconcileOrg` per org (`_shared/signing-events.ts`, `perOrgTimeoutMs`
+ * `RECONCILE_TIMEOUT_MS`, no new batch after `RECONCILE_SOFT_DEADLINE_MS`):
+ * up to 100 listed requests, 4 at a time, those Documenso completed without
+ * their PDF first; `sync` (every sent or viewed request, completed without
+ * its PDF or not; a draft with a document whose send started
  * over an hour ago: claimed, read, then recovered when Documenso completed
  * it, else cancelled and abandoned), `expire` (sync first; still not
  * completed → expired here, then cancelled at Documenso, a 400 there

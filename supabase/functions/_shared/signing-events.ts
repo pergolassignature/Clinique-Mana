@@ -1,7 +1,7 @@
 /**
  * Following Documenso after a request is sent (design §6.3, Task 3.33):
  * mapping a document's state or a webhook to `apply_signing_event` calls,
- * storing the signed PDF, syncing one request, and the daily reconcile.
+ * storing the signed PDF, syncing one request, and the hourly reconcile.
  * Used by `signing-webhook`, `signing-sync` and `_shared/signing.ts`.
  *
  * **Render-free on purpose:** nothing here imports `pdf/render.ts`, so the
