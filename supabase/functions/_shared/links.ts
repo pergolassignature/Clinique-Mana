@@ -92,9 +92,11 @@ export async function hashToken(token: string): Promise<string> {
 /**
  * The app origin of `appUrl`: a bare `https://` origin (an optional trailing
  * slash is allowed), or exactly `http://localhost:5173` for local
- * development. No path, query, fragment or credentials.
+ * development. No path, query, fragment or credentials. Null otherwise.
+ * Also builds the token-free app links of module emails (Professionnels'
+ * `/mon-profil/questionnaire`, P4-44).
  */
-function appOrigin(appUrl: string): string | null {
+export function appOrigin(appUrl: string): string | null {
   let url: URL
   try {
     url = new URL(appUrl)

@@ -13,7 +13,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 /** What a routed call resolves to; omitted fields default to null. */
 export interface FakeResult {
   data?: unknown
-  error?: { code?: string; message?: string } | null
+  error?:
+    | { code?: string; message?: string; hint?: string; details?: string }
+    | null
 }
 
 /** A fixed result, or a function of the RPC arguments. */

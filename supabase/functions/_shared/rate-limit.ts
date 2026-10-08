@@ -67,6 +67,26 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `professionals-invite` (send, « Renvoyer », « Nouveau lien », update
+   * request), per caller: each call issues a link or opens a submission and
+   * sends an email, on top of the email limits. « Révoquer » is not counted.
+   */
+  professionalInviteUser: {
+    bucket: 'professionals.invite_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `professionals-submit`, per caller: each call emails the clinic's
+   * reviewers (up to 20). A submission can only be sent again after a
+   * refusal, so 10 per hour is ample.
+   */
+  professionalSubmitUser: {
+    bucket: 'professionals.submit_user',
+    max: 10,
+    windowSeconds: 3_600,
+  },
+  /**
    * `storage-upload`, per caller: each call creates a pending row and signs
    * an upload of up to the purpose's size cap.
    */

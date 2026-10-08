@@ -112,6 +112,8 @@ select functions_are('public', array[
   'get_my_submission', 'save_my_submission_draft', 'save_my_submission_private', 'sign_my_consent', 'submit_my_submission',
   'get_my_professional_private', 'start_my_profile_update',
   'get_submission_review', 'apply_professional_submission', 'reject_professional_submission',
+  'list_professional_invitations_to_remind_for_service', 'reissue_professional_invitation_for_service',
+  'get_professional_submission_notice_for_service',
   'set_user_preference', 'delete_user_preference'
 ], 'public schema exposes exactly the intended RPCs');
 

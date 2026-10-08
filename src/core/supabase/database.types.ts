@@ -4636,6 +4636,10 @@ export type Database = {
       get_professional_public_profile: { Args: { p_id: string }; Returns: Json }
       get_professional_readiness: { Args: { p_id: string }; Returns: Json }
       get_professional_record: { Args: { p_id: string }; Returns: Json }
+      get_professional_submission_notice_for_service: {
+        Args: { p_actor: string }
+        Returns: Json
+      }
       get_professionals_catalog: { Args: never; Returns: Json }
       get_professionals_settings: { Args: never; Returns: Json }
       get_signature_request: {
@@ -4865,6 +4869,10 @@ export type Database = {
           submitted_at: string
           used_at: string
         }[]
+      }
+      list_professional_invitations_to_remind_for_service: {
+        Args: { p_limit?: number; p_org: string }
+        Returns: string[]
       }
       list_professionals: {
         Args: {
@@ -5132,6 +5140,10 @@ export type Database = {
           file_id: string
           object_path: string
         }[]
+      }
+      reissue_professional_invitation_for_service: {
+        Args: { p_id: string; p_org: string; p_token_hash: string }
+        Returns: Json
       }
       reject_professional_submission: {
         Args: { p_note: string; p_submission_id: string }

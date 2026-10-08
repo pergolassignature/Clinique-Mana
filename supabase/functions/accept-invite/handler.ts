@@ -49,8 +49,13 @@
  *    about two hours, and until then a new attempt answers 409 `conflict`
  *    (the address has an account). A failed delete is reported with the
  *    user id; nothing is retried.
- * 12. 200 `{ status: 'accepted', email }`: the token holder already knows
- *    the address, and the page signs in with it.
+ * 12. 200 `{ status: 'accepted', email, redirect? }`: the token holder
+ *    already knows the address, and the page signs in with it. `redirect` is
+ *    the purpose handler's own `redirect` (Professionnels:
+ *    `/mon-profil/questionnaire`, Task 4b.2), passed on only when it is a
+ *    plain app path (`/` then letters, digits, `-`, `_` and `/`; no `//`, no
+ *    query or fragment); any other value is dropped and reported
+ *    `redirect_invalid`. The page still sends it through `safeRedirect`.
  *
  * Status mapping: 200; 400 `invalid_request` (body, a purpose without
  * accounts) or `weak_password` (a password Auth refused); 405; 409
@@ -219,7 +224,16 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     })
     const status = (accepted.data as { status?: unknown } | null)?.status
     if (!accepted.error && status === 'accepted') {
-      return jsonResponse({ status: 'accepted', email }, 200, req)
+      const redirect = (accepted.data as { redirect?: unknown }).redirect
+      const safe = isAppPath(redirect)
+      if (redirect !== undefined && redirect !== null && !safe) {
+        await report('redirect_invalid', ids)
+      }
+      return jsonResponse(
+        { status: 'accepted', email, ...(safe && { redirect }) },
+        200,
+        req,
+      )
     }
 
     // Compensation: the account exists only with an accepted link.
@@ -238,6 +252,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     await deleteCreatedUser(client, userIds, report)
     return answer
   }
+}
+
+/** A plain app path an accept handler may send the new account to (step 12). */
+const APP_PATH = /^\/(?!\/)[A-Za-z0-9_\/-]{0,199}$/
+
+function isAppPath(value: unknown): value is string {
+  return typeof value === 'string' && APP_PATH.test(value) &&
+    !value.includes('//')
 }
 
 /**

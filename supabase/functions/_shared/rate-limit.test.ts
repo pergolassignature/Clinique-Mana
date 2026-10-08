@@ -262,6 +262,8 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     inviteAcceptIp: ['links.accept_ip', 10, 3_600],
     inviteAcceptLink: ['links.accept_link', 5, 3_600],
     staffInviteUser: ['invites.staff_user', 30, 3_600],
+    professionalInviteUser: ['professionals.invite_user', 30, 3_600],
+    professionalSubmitUser: ['professionals.submit_user', 10, 3_600],
     storageUploadUser: ['storage.upload_user', 60, 3_600],
     storageConfirmUser: ['storage.confirm_user', 120, 3_600],
     storageSignUser: ['storage.sign_user', 120, 3_600],

@@ -138,3 +138,11 @@ verify_jwt = false
 verify_jwt = false
 [functions.signing-test-document]
 verify_jwt = false
+# Professionnels (Task 4b.2): two user functions (verifyAuth with the module and the permission)
+# and a job (runJob verifies X-Job-Signature).
+[functions.professionals-invite]
+verify_jwt = false
+[functions.professionals-submit]
+verify_jwt = false
+[functions.professionals-invitation-reminders]
+verify_jwt = false
