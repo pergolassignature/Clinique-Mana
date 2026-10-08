@@ -25,12 +25,13 @@
 //
 // CSV: UTF-8 (a BOM is fine), comma- or semicolon-separated (read from the header line), RFC 4180
 // quotes. Columns (header names are matched without case or accents):
-//   prenom, nom, courriel, telephone, ville, province, code_postal, annees_experience,
+//   prenom, nom, courriel, telephone, ville, province, code_postal, annees_experience, genre,
 //   titre_1, permis_1, titre_2, permis_2, langues, clienteles, age_minimum, femmes_seulement,
 //   motifs, ivac, activer, retenue, seances_cumulees
 // Lists hold keys separated by « ; » (or « , »); in clienteles, « * » after a key marks it
 // specialized (adults*;couples). titre_1 is the primary title. age_minimum: the youngest client age
-// (0–120, empty for none). femmes_seulement and activer: oui, non or empty (non). A permis may be
+// (0–120, empty for none). femmes_seulement and activer: oui, non or empty (non). genre: femme,
+// homme, autre or empty (not set; P4-388): it picks the title's form (« Travailleuse sociale »). A permis may be
 // pasted as the website shows it: normalizeLicence keeps the bare number (P4-247).
 // retenue (the clinic's retention %, « 27,5 % ») and seances_cumulees (the cumulative sessions
 // through last month, « 237,5 ») are numbers typed the Québec way; both need
@@ -112,7 +113,7 @@ const count = (text, ch) => text.split(ch).length - 1
 
 /** The columns the import reads, by their normalised header name. */
 export const COLUMNS = [
-  'prenom', 'nom', 'courriel', 'telephone', 'ville', 'province', 'code_postal', 'annees_experience',
+  'prenom', 'nom', 'courriel', 'telephone', 'ville', 'province', 'code_postal', 'annees_experience', 'genre',
   'titre_1', 'permis_1', 'titre_2', 'permis_2', 'langues', 'clienteles', 'age_minimum', 'femmes_seulement',
   'motifs', 'ivac', 'activer', 'retenue', 'seances_cumulees',
 ]
@@ -177,6 +178,7 @@ const FIELD_COLUMNS = {
   province: 'province',
   postalCode: 'code_postal',
   yearsExperience: 'annees_experience',
+  gender: 'genre',
   'professions.0.titleId': 'titre_1',
   'professions.0.licenceNumber': 'permis_1',
   'professions.1.titleId': 'titre_2',
@@ -205,6 +207,13 @@ const starredList = (cell) =>
   splitList(cell).map((item) => (item.endsWith('*') ? { key: item.slice(0, -1).trim(), specialized: true } : { key: item, specialized: false }))
 
 const STAR_ONLY = 'Le « * » ne s’applique qu’aux clientèles.'
+
+/**
+ * genre (P4-388) → the stored gender: femme → female, homme → male, autre → unspecified (« Autre /
+ * non précisé »). Case and accents are ignored; empty sets nothing. Never guessed from a name.
+ */
+export const GENRES = { femme: 'female', homme: 'male', autre: 'unspecified' }
+const GENRE_MESSAGE = 'Indiquez femme, homme ou autre, ou laissez vide.'
 
 /** oui → true, non or empty → false, anything else → null (an error for the caller). */
 const yesNo = (cell) => {
@@ -287,6 +296,9 @@ export function rowToPayload(values) {
   const years = values.annees_experience ?? ''
   if (/^[0-9]{1,3}$/.test(years)) payload.years_experience = Number(years)
   else if (years !== '') errors.push({ field: 'yearsExperience', message: 'Entre 0 et 60 ans.' })
+  const genre = normalizeHeader(values.genre ?? '')
+  if (Object.hasOwn(GENRES, genre)) payload.gender = GENRES[genre]
+  else if (genre !== '') errors.push({ field: 'gender', message: GENRE_MESSAGE })
 
   const professions = professionsOf(values, errors)
   if (professions.length > 0) payload.professions = professions
@@ -559,8 +571,8 @@ function outcomeText(result) {
 }
 
 /**
- * Counts, never the lists themselves (motifs: a summary, never a wall); the retention and the
- * cumulative sessions are named when given, never their values.
+ * Counts, never the lists themselves (motifs: a summary, never a wall); the gender, the retention
+ * and the cumulative sessions are named when given, never their values.
  */
 function contentText(payload) {
   const parts = [
@@ -570,6 +582,7 @@ function contentText(payload) {
     [payload.motifs?.length, 'motif', 'motifs'],
   ]
   const flags = [
+    ['gender', 'genre'],
     ['retention_pct', 'retenue'],
     ['cumulative_sessions', 'séances cumulées'],
   ]
