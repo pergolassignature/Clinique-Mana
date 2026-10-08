@@ -33,7 +33,7 @@ function RequireAnyAccess({ allowed, children }: { allowed: boolean; children: R
 /** The signed-in app. Renders under RequireAuth, so access is ready (useReadyAccess throws otherwise). */
 export function AuthenticatedApp() {
   // Enabled module keys come with the access payload (get_my_access): no extra query.
-  const { modules: enabledKeys } = useReadyAccess()
+  const { modules: enabledKeys, org_timezone } = useReadyAccess()
   const { can } = useAccess()
 
   const modules = useMemo(() => resolveEnabledModules(ALL_MODULES, new Set(enabledKeys)), [enabledKeys])
@@ -84,7 +84,9 @@ export function AuthenticatedApp() {
   return (
     <UnsavedChangesProvider>
       <AppShell navItems={navItems}>
-        <Routes>
+        {/* Keyed on the clinic time zone: a « Région » change remounts every page, so dates memoised
+            with the old zone are formatted again (AccessProvider sets the zone before this renders). */}
+        <Routes key={org_timezone}>
           <Route index element={<Navigate to="/accueil" replace />} />
           <Route path="accueil" element={<HomePage />} />
           {/* « Mon compte »: outside Paramètres, so every role reaches it (ACCOUNT_PAGE in the shell). */}

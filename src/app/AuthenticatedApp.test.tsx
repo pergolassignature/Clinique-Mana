@@ -8,10 +8,11 @@ import { renderWithContexts } from '@/test/contexts'
 import { testOrganization } from '@/test/organization'
 import { accessForRole } from '@/test/role-fixtures'
 import { coreSettingsSections } from '@/core/settings/sections'
+import { getClinicTimezone, resetClinicTimezone, setClinicTimezone } from '@/shared/lib/timezone'
 import { AuthenticatedApp } from './AuthenticatedApp'
 import { ALL_MODULES } from './modules'
 
-const mocks = vi.hoisted(() => ({ captureException: vi.fn() }))
+const mocks = vi.hoisted(() => ({ captureException: vi.fn(), accountMounts: 0 }))
 // The topbar bell (and Accueil) read the caller's notices: none here, and no network.
 vi.mock('@/core/notifications/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/notifications/api')>()),
@@ -28,8 +29,24 @@ vi.mock('@/core/settings/organization/api', () => ({
   fetchOrganization: async () => testOrganization,
   updateOrganization: async () => testOrganization,
 }))
-// Same for « Mon compte ».
-vi.mock('@/core/account/pages/AccountPage', () => ({ AccountPage: () => <p>ACCOUNT PAGE</p> }))
+// Same for « Mon compte », which also probes the time-zone remount: it counts its mounts and shows the zone it sees.
+vi.mock('@/core/account/pages/AccountPage', async () => {
+  const { useEffect } = await import('react')
+  const { getClinicTimezone } = await import('@/shared/lib/clinic-timezone')
+  return {
+    AccountPage: () => {
+      useEffect(() => {
+        mocks.accountMounts += 1
+      }, [])
+      return (
+        <>
+          <p>ACCOUNT PAGE</p>
+          <p data-testid="account-timezone">{getClinicTimezone()}</p>
+        </>
+      )
+    },
+  }
+})
 
 // The real module list, with one crashing settings section added to Professionals. It needs a
 // permission no role has ('test.crash'), so only the test that grants it sees it.
@@ -185,6 +202,27 @@ describe('AuthenticatedApp', () => {
     expect(await screen.findByText('ACCOUNT PAGE')).toBeInTheDocument()
     expect(within(screen.getByRole('banner')).getByText(t('nav.account'))).toBeInTheDocument()
     expect(menuLinks()).toEqual([t('nav.home')])
+  })
+
+  // AccessProvider sets the new zone during its render, before this tree renders: done by hand here.
+  it('remounts the routed page when the clinic time zone changes, and only then', async () => {
+    try {
+      mocks.accountMounts = 0
+      const { rerender } = render(appAt('/mon-compte'))
+      expect(await screen.findByTestId('account-timezone')).toHaveTextContent('America/Toronto')
+      expect(mocks.accountMounts).toBe(1)
+
+      rerender(appAt('/mon-compte', { ...adminLike, display_name: 'Camille A.' }))
+      expect(mocks.accountMounts).toBe(1)
+
+      setClinicTimezone('America/Vancouver')
+      rerender(appAt('/mon-compte', { ...adminLike, org_timezone: 'America/Vancouver' }))
+      await waitFor(() => expect(mocks.accountMounts).toBe(2))
+      expect(getClinicTimezone()).toBe('America/Vancouver')
+      expect(screen.getByTestId('account-timezone')).toHaveTextContent('America/Vancouver')
+    } finally {
+      resetClinicTimezone()
+    }
   })
 
   it('shows not found for an unknown path', () => {
