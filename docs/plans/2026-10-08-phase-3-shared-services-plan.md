@@ -871,12 +871,12 @@ create index email_log_retention_idx on public.email_log (created_at) where to_e
   1. `Promise.all([get_email_context, get_org_secret(org, 'resend_api_key') when EMAIL_TRANSPORT = 'resend'])`.
   2. `module_enabled` false → `module_disabled`.
   3. Catalogue checks: `freeRecipient` requires `recipient_mode = 'free'`; attachments require `allows_attachments`, at most 3, ≤ 10 MB in total, and `%PDF` magic bytes (else `attachment_not_allowed`).
-  4. Rate limits, run in parallel with `Promise.all` over `consume`:
+  4. Rate limits over `consume`:
      - org daily (`emails.org_day`, 500/86 400);
      - same template + address (`emails.same_address`, 1/60, skipped when `explicitResend`);
      - test sends (`emails.test`, 10/3 600 per caller) or free-recipient sends (`emails.free_recipient`, 20/3 600 per sender).
 
-     Any refusal → `rate_limited`. When the daily count passes 400, call `reportError({ code: 'email_daily_80_percent' })` once (the `hits` value equals 401).
+     Normal sends run them in parallel with `Promise.all`. Test sends and `explicitResend` consume the repeat guard, test and free-recipient limits first, then `emails.org_day` only if all of them pass. Any refusal → `rate_limited`. When the daily count passes 400, call `reportError({ code: 'email_daily_80_percent' })` once (it fires when `emails.org_day` reaches `hits = 401`).
   5. `composeEmail` → on failure, `missing_variable` (nothing queued).
   6. `queue_email` → id.
   7. `transport.send` with `idempotencyKey = id`, `tags = [{ name: 'email_log_id', value: id }]`.
@@ -960,25 +960,26 @@ verify_jwt = false
 
 **Behaviour:**
 - **`email-preview`:**
-  - `handleCors`; `verifyAuth(req, { permission: 'settings.email_manage' })`;
+  - `handleCors`; `verifyAuth(req, { permission: 'settings.view' })` (preview stores and sends nothing);
   - body `{ template_key, subject, body, button_label }` (Zod: lengths as in SQL);
   - `get_email_context` (with the caller's org); a disabled module → 403 `module_disabled`;
   - `composeEmail` with `sample: true` and the **draft** text;
   - returns `{ subject, html, text }`; the HTML is ≤ 200 KB, else 413.
 - **`email-test-send`:**
-  - same auth;
-  - body `{ template_key, subject?, body?, button_label? }` (the draft, if any);
+  - `verifyAuth(req, { permission: 'settings.email_manage' })`;
+  - body `{ template_key, subject?, body?, button_label? }`: a draft sends all three fields; an omitted `button_label` keeps the effective label;
   - `sendTemplatedEmail` in test mode to `auth.access.email` (subject type `email_test`, id = the caller);
-  - result codes map to HTTP statuses: `rate_limited` 429; `not_configured` 503; `provider_error` 502; `missing_variable` 400.
+  - result codes map to HTTP statuses: `rate_limited` 429; `not_configured` 503; `provider_error` 502;
+  - an unknown placeholder → 400 `invalid_request` with `variable` (not `missing_variable`); an unknown template key → 404 `not_found`; unclosed braces → 400 « Accolades non fermées dans le texte. ».
 - **`send-email`: dropped (coordinator, after the Task 3.3 review).** Internal senders are edge functions (job functions, module functions); they import `sendTemplatedEmail` from `_shared/email/send.ts` and call it in-process, so no internal HTTP endpoint (and no service-key bearer on the wire) is needed. SQL never sends email directly: a job function does. If a future caller truly needs HTTP, it uses the `X-Job-Signature` scheme, never a raw bearer.
 - **`resend-webhook`:**
   1. `org` from `?org=`, a UUID, else 400.
   2. Read the raw body (≤ 64 KB).
-  3. `get_org_secret(org, 'resend_webhook_secret')`: none → 401 (fail closed, `reportError('resend_webhook_secret_missing')`).
+  3. `get_org_secret(org, 'resend_webhook_secret')`: none → 401 (fail closed). `reportError('resend_webhook_secret_missing')` is throttled to once per org per hour per isolate; other hits are console lines.
   4. `verifySvix` → false → 401.
-  5. Parse `{ type, created_at, data: { email_id, tags } }`; `email_log_id` from `data.tags` (object or array form, as Resend sends).
+  5. Parse `{ type, created_at, data: { email_id, tags } }`; `email_log_id` from `data.tags` (object or array form, as Resend sends). No `email_log_id` tag → 200 `skipped` (after Svix verification, before the claim).
   6. `claimEvent('resend', svix-id, org, type, { type, email_id, email_log_id })`. Store only ids, never `data.to`: the payload is minimised before storage. `duplicate` → 200; `in_progress` → 409.
-  7. Map the type to a status: `email.sent` → sent, `email.delivered` → delivered, `email.delivery_delayed` → delivery_delayed, `email.bounced` → bounced, `email.complained` → complained; others are acked (200) and completed.
+  7. Map the type to a status: `email.sent` → sent, `email.delivered` → delivered, `email.delivery_delayed` → delivery_delayed, `email.bounced` → bounced, `email.suppressed` → bounced, `email.complained` → complained, `email.failed` → failed (error code `provider_failed`); others are acked (200) and completed.
   8. **Module gate, in the same RPC:** `apply_email_event` reads the row's `module_key` and checks `module_enabled_for_org` itself before applying. A disabled module returns `ignored`, which the function acks with 200 and completes, so Resend does not retry forever. This is the design's `requireModuleForOrg(org, email_log.module_key)` without an extra round trip. Say so in the function header, and add a Task 3.6 pgTAP case (a disabled module's row → `ignored`, status unchanged).
   9. `apply_email_event` → complete. An exception → `failEvent(code)` → 500 (Resend retries).
 
@@ -986,7 +987,7 @@ verify_jwt = false
 
 **Tests** (handler level, fake deps):
 - **Preview:**
-  - no auth → 401; the conseillère → 403;
+  - no auth → 401; no `settings.view` → 403 (`settings.view` alone may preview);
   - an unknown placeholder in the draft → 400 `invalid_request`, with the French message from the render code mapped in the UI;
   - an HTML response contains no `<script>` from the input.
 - **Test send:** the recipient is always the caller's address, even if the body has `to`; the 11th test in an hour → 429.
@@ -1049,13 +1050,13 @@ Record the outputs (status codes only) in the task report.
   - columns: date, template label, recipient (`to_email` or « Anonymisé »), status dot + word, with French labels (« En file », « Envoyé », « Livré », « Retardé », « Adresse introuvable » for bounced, « Signalé comme indésirable », « Échec »), error code shown as « Code : … »;
   - keyset « Charger plus » (`p_before` = the last row's `created_at`).
 - **Read-only** (the adjointe with `settings.view`):
-  - `ReadOnlyNotice`; the Réglages fields are `readOnly`; the editor opens in read-only with its preview; no test or save;
+  - `ReadOnlyNotice`; the Réglages fields are `readOnly`; the editor opens in read-only with its preview (`email-preview` needs only `settings.view`); « M'envoyer un test » is hidden or disabled without `settings.email_manage`; no save;
   - Historique is hidden without `settings.email_manage`.
 - **Error mapping:** function codes → `settings.email.errors.<code>`:
   - `not_configured` « L'envoi de courriels n'est pas encore configuré. »;
   - `rate_limited` « Trop d'envois en peu de temps. Réessayez dans quelques minutes. »;
   - `provider_error` « Le service d'envoi n'a pas répondu. Réessayez. »;
-  - `missing_variable` « Une variable obligatoire est vide. ».
+  - `invalid_request` with `variable` « Variable inconnue » (with the `variable` name); the unclosed-braces message is shown as is. Test send no longer returns `missing_variable`.
 
 **Tests:**
 - Permission matrix: admin (all editable), adjointe (read-only, no Historique tab), adjointe + `settings.email_manage` (templates editable, keys card read-only).

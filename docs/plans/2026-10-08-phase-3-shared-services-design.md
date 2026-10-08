@@ -171,7 +171,7 @@ Staff edit words, never HTML. **The button URL is not editable**: it is the secu
 
 Resend's own per-team API rate also applies: the retry handles its 429.
 
-**Gating:** `email-preview` and `email-test-send` use `verifyAuth(req, { permission: 'settings.email_manage' })`. Module functions gate on their module (CLAUDE.md §7). `send-email` resolves the org and module from the row it acts on.
+**Gating:** `email-preview` uses `verifyAuth(req, { permission: 'settings.view' })` (it stores and sends nothing); `email-test-send` uses `verifyAuth(req, { permission: 'settings.email_manage' })`. Module functions gate on their module (CLAUDE.md §7). `send-email` resolves the org and module from the row it acts on.
 
 ### 2.7 Shared webhook claim (`webhook_events`)
 
@@ -516,7 +516,7 @@ They follow the Phase 2 patterns: `SettingsCard` stacks, outline « Enregistrer 
 
 | Function | Caller | `verify_jwt` | Auth | Module gate |
 |---|---|---|---|---|
-| `email-preview` | Settings | false | `verifyAuth`, `settings.email_manage` | core; a module template needs that module enabled |
+| `email-preview` | Settings | false | `verifyAuth`, `settings.view` | core; a module template needs that module enabled |
 | `email-test-send` | Settings | false | `verifyAuth`, `settings.email_manage` | same |
 | `send-email` | cron / internal | false | `verifyServiceRoleAuth` | `requireModuleForOrg` from the row |
 | `resend-webhook` | Resend | false | Svix signature, `timingSafeEqualBytes`, org secret | `requireModuleForOrg(org, email_log.module_key)`; ack if disabled |
