@@ -2400,6 +2400,8 @@ Nothing below is needed to build or test Phase 3. Each item is done by Jonathan,
 | 14 | **Drop: legacy bucket** `professional-documents` (39 test files) | Runbook `docs/runbooks/legacy-professional-documents-bucket.md` | Back up into `clinique-mana-backups/`, then delete through the Storage API. **Only with Jonathan's OK**; no inventory feature is dropped |
 | 15 | **Loi 25** (Christine) | Privacy officer | EFVP for Resend (United States) and the Documenso host before real personal data is sent; list the processors in the privacy policy; confirm the 24-month `email_log` anonymisation (P3-6) |
 | 16 | **Inter TTF** (only if the spike needed it) | Download from the official Inter release | Requires Jonathan's OK (download rule); the agent then regenerates `_shared/pdf/fonts.ts` |
+| 16b | **Email change on staging** (Task 3.16) | After item 7 | Check that an email change needs **both** links on hosted GoTrue (locally one link of either address completes it). Then, one release after the new templates are live, remove the old `#…` link reader in `AuthProvider.tsx` (TRANSITION comment). |
+| 16c | **Outlook desktop** (Task 3.16) | Only if the clinic uses classic Outlook for Windows | GoTrue strips HTML comments, so auth emails lose the `<!--[if mso]>` 560 px table and span the window. Readable; the full fix is a Supabase Send Email Hook that sends auth emails through our layout and Resend (a later decision). |
 | 17 | **Merge = deploy** | GitHub | Push, PR and merge each need his go-ahead. After the merge, run the staging smoke test of design §11 step by step, each with a go-ahead |
 
 ---
