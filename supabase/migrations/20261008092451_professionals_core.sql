@@ -15,7 +15,10 @@
 --   that check their permission, then lock the professional row (for no key update), so set
 --   replacements on one professional never interleave.
 -- * A set RPC replaces a set in three statements (delete, update, insert), never one per item,
---   and writes only what changes: re-sending a set leaves no audit row.
+--   and writes only what changes: re-sending a set leaves no audit row. When a statement touched
+--   a row, it bumps professionals.updated_at (a removed row leaves nothing to read), so the
+--   directory's updated_at follows every set change; audit_trigger skips an updated_at-only
+--   change, so the bump writes no audit row.
 -- * Professions: at most two, exactly one primary (deferred check: the RPC moves it), a licence
 --   when the title belongs to an order, in the order's format (P4-35, P4-36). Upserted by title,
 --   so row ids survive for Services et tarifs' FKs.
@@ -669,7 +672,8 @@ $$;
 -- -----------------------------------------------------------------------------
 -- Set RPCs. Each checks its permission, locks the professional, validates every id in one
 -- query (22023 for an id outside the clinic's list), refuses to add an archived row (one already
--- held may stay), then replaces the set with at most three statements and returns it.
+-- held may stay), then replaces the set with at most three statements and returns it. When any of
+-- them touched a row, the professional's updated_at is bumped (professionals_directory reads it).
 -- unnest(a, b) zips arrays; it is FROM-clause syntax, so it is never written pg_catalog.unnest.
 -- -----------------------------------------------------------------------------
 -- [{"id": uuid, "specialized"?: boolean}, …] → distinct ids (sorted) and their flags; a repeated
@@ -731,6 +735,8 @@ declare
   v_org uuid := private.current_user_org_id();
   v_ids uuid[];
   v_bad text;
+  v_rows int;
+  v_n int;
 begin
   if not private.has_permission('professionals.matching') then
     raise exception 'Permission refusée : professionals.matching' using errcode = '42501';
@@ -771,9 +777,15 @@ begin
   end if;
 
   delete from public.professional_motifs pm where pm.professional_id = p_id and pm.motif_id <> all (v_ids);
+  get diagnostics v_rows = row_count;
   insert into public.professional_motifs (org_id, professional_id, motif_id)
   select v_org, p_id, x from pg_catalog.unnest(v_ids) as x
   on conflict do nothing;
+  get diagnostics v_n = row_count;
+  v_rows := v_rows + v_n;
+  if v_rows > 0 then
+    update public.professionals p set updated_at = pg_catalog.now() where p.id = p_id;
+  end if;
 
   return query select pm.motif_id from public.professional_motifs pm where pm.professional_id = p_id order by pm.motif_id;
 end;
@@ -791,6 +803,8 @@ declare
   v_ids uuid[];
   v_flags boolean[];
   v_bad text;
+  v_rows int;
+  v_n int;
 begin
   if not private.has_permission('professionals.matching') then
     raise exception 'Permission refusée : professionals.matching' using errcode = '42501';
@@ -814,13 +828,21 @@ begin
   end if;
 
   delete from public.professional_clienteles pc where pc.professional_id = p_id and pc.clientele_id <> all (v_ids);
+  get diagnostics v_rows = row_count;
   -- Only flags that change are written (no audit noise).
   update public.professional_clienteles pc set is_specialized = x.flag
     from unnest(v_ids, v_flags) as x(id, flag)
    where pc.professional_id = p_id and pc.clientele_id = x.id and pc.is_specialized <> x.flag;
+  get diagnostics v_n = row_count;
+  v_rows := v_rows + v_n;
   insert into public.professional_clienteles (org_id, professional_id, clientele_id, is_specialized)
   select v_org, p_id, x.id, x.flag from unnest(v_ids, v_flags) as x(id, flag)
   on conflict do nothing;
+  get diagnostics v_n = row_count;
+  v_rows := v_rows + v_n;
+  if v_rows > 0 then
+    update public.professionals p set updated_at = pg_catalog.now() where p.id = p_id;
+  end if;
 
   return query select pc.clientele_id, pc.is_specialized from public.professional_clienteles pc
                 where pc.professional_id = p_id order by pc.clientele_id;
@@ -839,6 +861,8 @@ declare
   v_ids uuid[];
   v_flags boolean[];
   v_bad text;
+  v_rows int;
+  v_n int;
 begin
   if not private.has_permission('professionals.matching') then
     raise exception 'Permission refusée : professionals.matching' using errcode = '42501';
@@ -862,12 +886,20 @@ begin
   end if;
 
   delete from public.professional_specialties ps where ps.professional_id = p_id and ps.specialty_id <> all (v_ids);
+  get diagnostics v_rows = row_count;
   update public.professional_specialties ps set is_specialized = x.flag
     from unnest(v_ids, v_flags) as x(id, flag)
    where ps.professional_id = p_id and ps.specialty_id = x.id and ps.is_specialized <> x.flag;
+  get diagnostics v_n = row_count;
+  v_rows := v_rows + v_n;
   insert into public.professional_specialties (org_id, professional_id, specialty_id, is_specialized)
   select v_org, p_id, x.id, x.flag from unnest(v_ids, v_flags) as x(id, flag)
   on conflict do nothing;
+  get diagnostics v_n = row_count;
+  v_rows := v_rows + v_n;
+  if v_rows > 0 then
+    update public.professionals p set updated_at = pg_catalog.now() where p.id = p_id;
+  end if;
 
   return query select ps.specialty_id, ps.is_specialized from public.professional_specialties ps
                 where ps.professional_id = p_id order by ps.specialty_id;
@@ -884,6 +916,8 @@ declare
   v_org uuid := private.current_user_org_id();
   v_ids uuid[];
   v_bad text;
+  v_rows int;
+  v_n int;
 begin
   if not private.has_permission('professionals.matching') then
     raise exception 'Permission refusée : professionals.matching' using errcode = '42501';
@@ -910,9 +944,15 @@ begin
   end if;
 
   delete from public.professional_languages pl where pl.professional_id = p_id and pl.language_id <> all (v_ids);
+  get diagnostics v_rows = row_count;
   insert into public.professional_languages (org_id, professional_id, language_id)
   select v_org, p_id, x from pg_catalog.unnest(v_ids) as x
   on conflict do nothing;
+  get diagnostics v_n = row_count;
+  v_rows := v_rows + v_n;
+  if v_rows > 0 then
+    update public.professionals p set updated_at = pg_catalog.now() where p.id = p_id;
+  end if;
 
   return query select pl.language_id from public.professional_languages pl where pl.professional_id = p_id order by pl.language_id;
 end;
@@ -936,6 +976,8 @@ declare
   v_licences text[];
   v_primary boolean[];
   v_bad text;
+  v_rows int;
+  v_n int;
 begin
   if not private.has_permission('professionals.manage') then
     raise exception 'Permission refusée : professionals.manage' using errcode = '42501';
@@ -1004,15 +1046,24 @@ begin
 
   delete from public.professional_professions pp
    where pp.professional_id = p_id and pp.profession_title_id <> all (v_titles);
+  get diagnostics v_rows = row_count;
   update public.professional_professions pp set is_primary = false
     from unnest(v_titles, v_primary) as x(tid, primary_flag)
    where pp.professional_id = p_id and pp.profession_title_id = x.tid and pp.is_primary and not x.primary_flag;
+  get diagnostics v_n = row_count;
+  v_rows := v_rows + v_n;
+  -- Counts inserted rows and rows the DO UPDATE changed (its WHERE skips the others).
   insert into public.professional_professions as pp (org_id, professional_id, profession_title_id, licence_number, is_primary)
   select v_org, p_id, x.tid, x.licence, x.primary_flag
     from unnest(v_titles, v_licences, v_primary) as x(tid, licence, primary_flag)
   on conflict on constraint professional_professions_title_key do update
     set licence_number = excluded.licence_number, is_primary = excluded.is_primary
   where (pp.licence_number, pp.is_primary) is distinct from (excluded.licence_number, excluded.is_primary);
+  get diagnostics v_n = row_count;
+  v_rows := v_rows + v_n;
+  if v_rows > 0 then
+    update public.professionals p set updated_at = pg_catalog.now() where p.id = p_id;
+  end if;
 
   return query select pp.id, pp.profession_title_id, pp.licence_number, pp.is_primary
                  from public.professional_professions pp
@@ -1031,6 +1082,7 @@ as $$
 declare
   v_org uuid := private.current_user_org_id();
   v_number text := nullif(pg_catalog.btrim(p_number, E' \t\r\n'), '');
+  v_rows int;
 begin
   if not private.has_permission('professionals.manage') then
     raise exception 'Permission refusée : professionals.manage' using errcode = '42501';
@@ -1042,6 +1094,9 @@ begin
 
   if v_number is null then
     delete from public.professional_payer_numbers n where n.professional_id = p_id and n.payer_type = p_payer_type;
+    if found then
+      update public.professionals p set updated_at = pg_catalog.now() where p.id = p_id;
+    end if;
     return;
   end if;
   if v_number !~ '^[A-Za-z0-9-]{3,30}$' then
@@ -1053,10 +1108,14 @@ begin
     on conflict on constraint professional_payer_numbers_pkey do update
       set number = excluded.number
     where n.number <> excluded.number;
+    get diagnostics v_rows = row_count;  -- 1: inserted, or the number changed
   exception when unique_violation then
     -- Only (org_id, payer_type, number) can be violated here: the primary key is the arbiter.
     raise exception 'Ce numéro IVAC est déjà attribué à un autre professionnel.' using errcode = 'P0001';
   end;
+  if v_rows > 0 then
+    update public.professionals p set updated_at = pg_catalog.now() where p.id = p_id;
+  end if;
 end;
 $$;
 

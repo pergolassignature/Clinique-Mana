@@ -1,17 +1,22 @@
 -- Professionnels lifecycle (migration *_professionals_lifecycle.sql, plan Phase 4 Task 4a.4).
 -- Covers: privileges (views, RPCs, helpers) and indexes; readiness (« Profil de jumelage
 -- complet »: profession, licence, regulated title for restricted motifs, language, clientèle,
--- motif; the login email warning) for staff, the provider and another org; activate_professional
+-- motif; archived reference rows do not count; the login email warning, its helper scoped to
+-- what the caller may read) for staff, the provider and another org; activate_professional
 -- (incomplete file, admin override with a reason, already active, permission, module gate, other
 -- org); deactivate_professional (reasons and notes, already inactive, reasons of another org or
 -- archived); the provider account disabled and re-enabled with its sessions ended, never an
--- account disabled by someone else; professionals_list, professionals_directory and
--- list_professionals (filters, sorts, keyset pages, provider and org isolation);
--- get_professional_record; get_professional_public_profile; list_professional_history (child rows,
--- deleted rows, newest first, keyset pages, cap, redaction, isolation, permission).
+-- account disabled by someone else, nor one an admin re-enabled then disabled again (the module's
+-- own changes keep its claim; the setting is reset, errors included); professionals_list,
+-- professionals_directory and list_professionals (filters, sorts, keyset pages, name ties, partial
+-- cursors, the 500-id cap, provider and org isolation, module off); the directory's updated_at
+-- following a set change without an audit row; get_professional_record;
+-- get_professional_public_profile; list_professional_history (child rows, deleted rows, newest
+-- first, keyset pages, cap, redaction of phone, address and gender, isolation, permission,
+-- module off).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(133);
+select plan(165);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
@@ -131,6 +136,10 @@ select function_privs_are('public', 'list_professionals',
   'anon', array[]::text[], 'anon cannot page the list');
 select function_privs_are('private', 'professional_login_email_mismatches', array[]::text[], 'authenticated', array['EXECUTE'],
   'the invoker views may call the login email helper');
+select function_privs_are('private', 'professional_login_email_mismatches', array[]::text[], 'service_role', array[]::text[],
+  'service_role cannot call the login email helper');
+select function_privs_are('private', 'professionals_release_account', array[]::text[], 'authenticated', array[]::text[],
+  'clients cannot call the account release trigger function');
 select function_privs_are('private', 'set_provider_account_status', array['uuid', 'uuid', 'text'], 'authenticated', array[]::text[],
   'clients cannot call the account helper');
 select function_privs_are('private', 'professional_history_tables', array[]::text[], 'authenticated', array[]::text[],
@@ -180,6 +189,22 @@ select is((select r.ready from public.professionals_readiness r where r.professi
 reset role;
 update public.motifs set is_restricted = false where id = current_setting('test.anxiete')::uuid;
 
+-- Archived reference rows do not count (matching ignores them): P5's title, language, clientèle
+-- and motif archived, the motif also restricted.
+update public.profession_titles set is_active = false where id = current_setting('test.naturo')::uuid;
+update public.languages set is_active = false where id = current_setting('test.fr')::uuid;
+update public.clienteles set is_active = false where id = current_setting('test.adults')::uuid;
+update public.motifs set is_active = false, is_restricted = true where id = current_setting('test.anxiete')::uuid;
+set local role authenticated;
+select is(public.get_professional_readiness(current_setting('test.p5')::uuid) -> 'items' -> 0 -> 'missing',
+  '["profession", "language", "clientele", "motif"]'::jsonb,
+  'archived titles, languages, clientèles and motifs do not count; an archived restricted motif needs no regulated title');
+reset role;
+update public.profession_titles set is_active = true where id = current_setting('test.naturo')::uuid;
+update public.languages set is_active = true where id = current_setting('test.fr')::uuid;
+update public.clienteles set is_active = true where id = current_setting('test.adults')::uuid;
+update public.motifs set is_active = true, is_restricted = false where id = current_setting('test.anxiete')::uuid;
+
 -- The login address differs from the professional's email (sync conflict): a warning, not a gap.
 update public.professionals set email = 'pia.autre@exemple.ca' where id = current_setting('test.p2')::uuid;
 set local role authenticated;
@@ -194,7 +219,8 @@ update public.professionals set email = 'provider@a.test' where id = current_set
 -- Who sees readiness: the provider their own only; another org nothing.
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select ok(public.get_professional_readiness(current_setting('test.p2')::uuid) is not null, 'the provider reads their own readiness');
+select is(public.get_professional_readiness(current_setting('test.p2')::uuid) -> 'complete', 'true'::jsonb,
+  'the provider reads their own readiness, complete (the reference rows it joins are readable)');
 select ok(public.get_professional_readiness(current_setting('test.p1')::uuid) is null, 'the provider cannot read another professional''s readiness');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select ok(public.get_professional_readiness(current_setting('test.p1')::uuid) is null, 'admin B cannot read org A''s readiness');
@@ -339,11 +365,53 @@ select is((select pr.status from public.profiles pr where pr.user_id = 'a0000000
   'the account disabled by someone else stays disabled');
 update public.profiles set status = 'active' where user_id = 'a0000000-0000-0000-0000-000000000003';
 
--- Module off: refused.
+-- The module disables the account; an admin re-enables it, then disables it herself
+-- (set_user_status): the module no longer owns it, so reactivation leaves it disabled.
+set local role authenticated;
+select results_eq($$ select * from public.deactivate_professional(current_setting('test.p2')::uuid, current_setting('test.ended')::uuid) $$,
+  $$ values ('inactive'::text, 'disabled'::text, 'a0000000-0000-0000-0000-000000000003'::uuid) $$,
+  'the adjointe''s « Fin de collaboration » disables the account');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select lives_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000003', 'active') $$,
+  'the admin re-enables the account');
+reset role;
+select is((select p.deactivation_disabled_account from public.professionals p where p.id = current_setting('test.p2')::uuid), false,
+  'a status change outside the module clears the module''s claim on the account');
+set local role authenticated;
+select lives_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000003', 'disabled') $$,
+  'then the admin disables it herself');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select results_eq($$ select * from public.activate_professional(current_setting('test.p2')::uuid) $$,
+  $$ values ('active'::text, null::text, null::uuid) $$, 'the adjointe reactivates P2 without touching the account');
+reset role;
+select is((select pr.status from public.profiles pr where pr.user_id = 'a0000000-0000-0000-0000-000000000003'), 'disabled',
+  'the account the admin disabled stays disabled');
+
+-- The module's own account changes keep its claim (app.professionals_account_status), and the
+-- setting is reset afterwards, errors included.
+update public.professionals set deactivation_disabled_account = true where id = current_setting('test.p2')::uuid;
+select ok(private.set_provider_account_status('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'active'),
+  'the module re-enables the account');
+select is((select p.deactivation_disabled_account from public.professionals p where p.id = current_setting('test.p2')::uuid), true,
+  'the module''s own change keeps its claim');
+select is(coalesce(current_setting('app.professionals_account_status', true), ''), '', 'the setting is reset after the change');
+select throws_ok($$ select private.set_provider_account_status('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'paused') $$,
+  '23514', null, 'an invalid status fails');
+select is(coalesce(current_setting('app.professionals_account_status', true), ''), '', 'the setting is reset after an error');
+update public.professionals set deactivation_disabled_account = false where id = current_setting('test.p2')::uuid;
+
+-- Module off: refused, and every read model is empty.
 update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
 set local role authenticated;
 select throws_ok($$ select public.activate_professional(current_setting('test.p4')::uuid) $$,
   '42501', null, 'module off: activation refused');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select is((select count(*)::int from public.professionals_list), 0, 'module off: the list view is empty');
+select is((select count(*)::int from public.professionals_directory), 0, 'module off: the directory is empty');
+select is((select count(*)::int from public.professionals_readiness), 0, 'module off: no readiness');
+select is((select count(*)::int from public.list_professionals()), 0, 'module off: the paged list is empty');
+select throws_ok($$ select * from public.list_professional_history(current_setting('test.p1')::uuid) $$,
+  '42501', null, 'module off: no history');
 reset role;
 update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
 
@@ -510,7 +578,8 @@ select ok(public.get_professional_public_profile(current_setting('test.p2')::uui
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select public.set_professional_professions(current_setting('test.p1')::uuid,
   jsonb_build_array(jsonb_build_object('title_id', current_setting('test.sexo'), 'licence_number', 'S-100')));
-update public.professionals set personal_phone = '+15145550101' where id = current_setting('test.p1')::uuid;
+update public.professionals set personal_phone = '+15145550101', address_line1 = '123, rue Principale', gender = 'female'
+ where id = current_setting('test.p1')::uuid;
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select is((select array_agg(distinct h.table_name order by h.table_name) from public.list_professional_history(current_setting('test.p1')::uuid, null, 200) h),
@@ -528,6 +597,13 @@ select is((select count(*)::int from public.list_professional_history(current_se
 select is((select h.changed_fields -> 'personal_phone' from public.list_professional_history(current_setting('test.p1')::uuid, null, 200) h
             where h.table_name = 'professionals' and h.action = 'update' and h.changed_fields ? 'personal_phone'),
   '"[redacted]"'::jsonb, 'redacted fields stay redacted');
+select results_eq($$ select h.changed_fields -> 'address_line1', h.changed_fields -> 'gender'
+                       from public.list_professional_history(current_setting('test.p1')::uuid, null, 200) h
+                      where h.table_name = 'professionals' and h.action = 'update' and h.changed_fields ? 'address_line1' $$,
+  $$ values ('"[redacted]"'::jsonb, '"[redacted]"'::jsonb) $$, 'the address and the gender are redacted too');
+select is((select h.changed_fields -> 'gender' from public.list_professional_history(current_setting('test.p1')::uuid, null, 200) h
+            where h.table_name = 'professionals' and h.action = 'insert'),
+  '"[redacted]"'::jsonb, 'an insert row redacts a field even when it was null');
 select is((select h.actor_name from public.list_professional_history(current_setting('test.p1')::uuid, null, 200) h
             where h.table_name = 'professionals' and h.changed_fields -> 'status' ->> 'after' = 'inactive'),
   'Adjointe A', 'the actor is named');
@@ -551,6 +627,71 @@ select is((select count(*)::int from public.list_professional_history(current_se
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select throws_ok($$ select * from public.list_professional_history(current_setting('test.p2')::uuid) $$,
   '42501', null, 'the provider has no history (professionals.view)');
+
+-- =============================================================================
+-- professionals_directory.updated_at follows a set change (P2: anxiété, deuil, adoption)
+-- =============================================================================
+reset role;
+alter table public.professionals disable trigger professionals_set_updated_at;
+alter table public.professional_matching_profiles disable trigger professional_matching_profiles_set_updated_at;
+update public.professionals set updated_at = '2020-01-01 00:00:00+00' where id = current_setting('test.p2')::uuid;
+update public.professional_matching_profiles set updated_at = '2020-01-01 00:00:00+00' where professional_id = current_setting('test.p2')::uuid;
+alter table public.professionals enable trigger professionals_set_updated_at;
+alter table public.professional_matching_profiles enable trigger professional_matching_profiles_set_updated_at;
+select set_config('test.p2_audit', (select count(*)::text from public.audit_log a
+                                      where a.table_name = 'professionals' and a.record_id = current_setting('test.p2')), true);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select public.set_professional_motifs(current_setting('test.p2')::uuid,
+  array[current_setting('test.anxiete')::uuid, current_setting('test.deuil')::uuid, current_setting('test.adoption')::uuid]);
+select is((select d.updated_at from public.professionals_directory d where d.id = current_setting('test.p2')::uuid),
+  '2020-01-01 00:00:00+00'::timestamptz, 're-sending the same set leaves the directory''s updated_at alone');
+select public.set_professional_motifs(current_setting('test.p2')::uuid,
+  array[current_setting('test.anxiete')::uuid, current_setting('test.deuil')::uuid]);
+select is((select d.updated_at from public.professionals_directory d where d.id = current_setting('test.p2')::uuid),
+  now(), 'removing a motif bumps the directory''s updated_at');
+reset role;
+select is((select count(*)::text from public.audit_log a where a.table_name = 'professionals' and a.record_id = current_setting('test.p2')),
+  current_setting('test.p2_audit'), 'the bump writes no audit row of the record');
+
+-- =============================================================================
+-- list_professionals: name ties, partial cursors, the id cap (Deux: Pia P2, Tia T6 and T7)
+-- =============================================================================
+insert into public.professionals (id, org_id, first_name, last_name, email) values
+  ('c0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'Tia', 'Deux', 't7@exemple.ca'),
+  ('c0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'Tia', 'Deux', 't6@exemple.ca');
+set local role authenticated;
+select results_eq($$ select l.id from public.list_professionals() l where l.last_name = 'Deux' $$,
+  $$ values (current_setting('test.p2')::uuid), ('c0000000-0000-0000-0000-000000000006'::uuid), ('c0000000-0000-0000-0000-000000000007'::uuid) $$,
+  'a name tie is broken by id');
+select results_eq($$ select l.id from public.list_professionals(p_after_last_name => 'Deux', p_after_first_name => 'Tia',
+                                                                 p_after_id => 'c0000000-0000-0000-0000-000000000006') l $$,
+  $$ values ('c0000000-0000-0000-0000-000000000007'::uuid), (current_setting('test.p4')::uuid), (current_setting('test.p1')::uuid) $$,
+  'the cursor resumes inside a tie');
+select results_eq($$ select l.id from public.list_professionals(p_after_last_name => 'Deux', p_after_first_name => 'Tia') l $$,
+  $$ values (current_setting('test.p4')::uuid), (current_setting('test.p1')::uuid) $$,
+  'a full name without an id: after every row of that name');
+select results_eq($$ select l.id from public.list_professionals(p_after_last_name => 'Deux') l $$,
+  $$ values (current_setting('test.p4')::uuid), (current_setting('test.p1')::uuid) $$,
+  'a last name alone: after every row of that last name');
+select throws_ok($$ select * from public.list_professionals(p_motif_ids => array(select gen_random_uuid() from generate_series(1, 501))) $$,
+  '22023', 'Filtre invalide : 500 identifiants au plus.', 'a filter holds at most 500 ids');
+
+-- =============================================================================
+-- The login email helper returns only what its caller may read (P1 linked to the conseillère's
+-- account, P2 to the provider's; both emails differ from the login)
+-- =============================================================================
+reset role;
+update public.professionals set profile_id = 'a0000000-0000-0000-0000-000000000004' where id = current_setting('test.p1')::uuid;
+update public.professionals set email = 'pia.autre@exemple.ca' where id = current_setting('test.p2')::uuid;
+set local role authenticated;
+select set_eq($$ select x from private.professional_login_email_mismatches() x $$,
+  array[current_setting('test.p1')::uuid, current_setting('test.p2')::uuid], 'professionals.view: every mismatch of the clinic');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select set_eq($$ select x from private.professional_login_email_mismatches() x $$,
+  array[current_setting('test.p2')::uuid], 'the provider: their own only');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+select is((select count(*)::int from private.professional_login_email_mismatches()), 0, 'another clinic: none');
 
 select * from finish();
 rollback;

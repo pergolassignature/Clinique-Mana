@@ -12,11 +12,13 @@
 --   (professionals_readiness), grouped subqueries joined by professional_id: one statement for
 --   one professional or for the whole list, never a query per row. `ready` is
 --   `matching_complete` in 4a; 4b, 4c and 4d replace the view (same columns first, new ones
---   appended, `ready` redefined).
+--   appended, `ready` redefined). Archived reference rows (titles, motifs, clientèles, languages)
+--   do not count: matching ignores them, so a file holding only archived ones is not complete.
 -- * A login address different from the professional's email (the 4a.3 sync left it, decision
 --   #38) is a warning, not a gap: get_professional_readiness lists `login_email_mismatch`. Staff
 --   without users.view cannot read profiles, so the comparison is one definer set function
---   (professional_login_email_mismatches), scanned once per statement.
+--   (professional_login_email_mismatches), scanned once per statement. It returns ids only, and
+--   only those its caller may read: every professional with professionals.view, else their own.
 -- * activate_professional: from any non-active status once ready; otherwise only with
 --   professionals.activate_override and a reason of 5 to 500 characters, stored. A complete
 --   file stores no reason. deactivate_professional: an active reason of the clinic, a note when
@@ -26,7 +28,13 @@
 -- * Accounts (P4-11): a reason with disables_account disables the provider's profile the way
 --   set_user_status does (status, then its auth.sessions, P3-32), only when the profile was
 --   active and holds the role provider, and remembers it did (deactivation_disabled_account).
---   Reactivation re-enables only an account this module disabled.
+--   Reactivation re-enables only an account this module disabled. Any other change of the
+--   account's status (set_user_status, by hand) clears that memory (trigger
+--   profiles_release_professional_account): an account an admin re-enabled, then disabled again,
+--   is no longer the module's doing. The module's own changes run with the transaction-local
+--   setting app.professionals_account_status = 'on', which the trigger skips.
+--   Écart from set_user_status (only an admin re-enables an account): an adjointe who reactivates
+--   a professional re-enables the account the module disabled with it (P4-11).
 -- * Read models (security_invoker, ids rather than labels): professionals_list (the list page),
 --   professionals_directory (published to Demandes, Rendez-vous, Facturation), both gated by
 --   professionals.view so a provider's self policies do not leak their row into them.
@@ -61,7 +69,8 @@ create index audit_log_org_record_prefix_idx on public.audit_log (org_id, (left(
 -- Readiness
 -- -----------------------------------------------------------------------------
 -- Linked professionals of the caller's clinic whose email differs from their login address.
--- Definer: staff without users.view cannot read profiles. Ids only, for professionals readers.
+-- Definer: staff without users.view cannot read profiles. Ids only, and only of professionals the
+-- caller may read (the professionals select policies): all with professionals.view, else their own.
 create function private.professional_login_email_mismatches()
 returns setof uuid
 language sql
@@ -74,15 +83,19 @@ as $$
     from public.professionals p
     join public.profiles pr on pr.user_id = p.profile_id and pr.org_id = p.org_id
    where p.org_id = (select private.current_user_org_id())
-     and (select private.can_read_professionals_reference())
+     and ((select private.has_permission('professionals.view'))
+          or (p.id = (select private.current_professional_id()) and (select private.has_permission('professionals.self'))))
      and p.email <> pg_catalog.lower(pr.email)
 $$;
--- The invoker views below call it with the reader's privileges.
-revoke all on function private.professional_login_email_mismatches() from public, anon;
-grant execute on function private.professional_login_email_mismatches() to authenticated, service_role;
+-- The invoker views below call it with the reader's privileges. Not service_role: it has no
+-- clinic (current_user_org_id), and nothing service-side reads these views.
+revoke all on function private.professional_login_email_mismatches() from public, anon, service_role;
+grant execute on function private.professional_login_email_mismatches() to authenticated;
 
 -- Readiness grows by phase: 4b, 4c and 4d replace this view (same columns first, new ones
--- appended; `ready` is redefined each time).
+-- appended; `ready` is redefined each time). Only active reference rows count (matching ignores
+-- archived ones): an archived title is neither a profession nor a licence gap, an archived
+-- restricted motif needs no regulated title.
 create view public.professionals_readiness with (security_invoker = true) as
 select r.*, r.matching_complete as ready
   from (
@@ -105,13 +118,15 @@ select r.*, r.matching_complete as ready
                         count(*) filter (where t.order_id is not null and x.licence_number is null) as missing_licences,
                         count(*) filter (where t.order_id is not null) as regulated
                    from public.professional_professions x
-                   join public.profession_titles t on t.org_id = x.org_id and t.id = x.profession_title_id
+                   join public.profession_titles t on t.org_id = x.org_id and t.id = x.profession_title_id and t.is_active
                   group by x.professional_id) pr on pr.professional_id = p.id
-      left join (select distinct x.professional_id from public.professional_languages x) l on l.professional_id = p.id
-      left join (select distinct x.professional_id from public.professional_clienteles x) c on c.professional_id = p.id
+      left join (select distinct x.professional_id from public.professional_languages x
+                   join public.languages g on g.org_id = x.org_id and g.id = x.language_id and g.is_active) l on l.professional_id = p.id
+      left join (select distinct x.professional_id from public.professional_clienteles x
+                   join public.clienteles k on k.org_id = x.org_id and k.id = x.clientele_id and k.is_active) c on c.professional_id = p.id
       left join (select x.professional_id, bool_or(mo.is_restricted) as has_restricted
                    from public.professional_motifs x
-                   join public.motifs mo on mo.org_id = x.org_id and mo.id = x.motif_id
+                   join public.motifs mo on mo.org_id = x.org_id and mo.id = x.motif_id and mo.is_active
                   group by x.professional_id) m on m.professional_id = p.id
       left join private.professional_login_email_mismatches() as em(id) on em.id = p.id
   ) r;
@@ -154,6 +169,10 @@ $$;
 -- Locks the professional's account (when linked), then the professional, and returns the locked
 -- row. Same order as the email sync (profiles → professionals), so the two never deadlock.
 -- « Professionnel introuvable. » outside the caller's clinic.
+-- 4b: linking an account (setting profile_id when an invitation is accepted) must take the same
+-- order, the profile, then the professional. The account is read before the professional is
+-- locked, so a link or unlink committed in between would leave this call holding the wrong
+-- account: the re-check below refuses it (40001, the caller retries).
 create function private.lock_professional_with_account(p_id uuid)
 returns public.professionals
 language plpgsql
@@ -162,31 +181,51 @@ set search_path = ''
 as $$
 declare
   v_row public.professionals;
+  v_profile uuid;
 begin
-  perform 1 from public.profiles pr
-   where pr.user_id = (select p.profile_id from public.professionals p
-                        where p.id = p_id and p.org_id = private.current_user_org_id())
-     for no key update;
+  select p.profile_id into v_profile from public.professionals p
+   where p.id = p_id and p.org_id = private.current_user_org_id();
+  if v_profile is not null then
+    perform 1 from public.profiles pr where pr.user_id = v_profile for no key update;
+  end if;
   perform private.lock_professional(p_id);
   select * into v_row from public.professionals p where p.id = p_id;
+  if v_row.profile_id is distinct from v_profile then
+    raise exception 'Le dossier vient de changer. Réessayez.' using errcode = '40001';
+  end if;
   return v_row;
 end;
 $$;
 
 -- A provider's account, as set_user_status changes it (P3-32: disabling also ends the sessions;
 -- their refresh tokens cascade). Only a profile of the clinic holding the role provider, and only
--- when its status changes: returns whether it did.
+-- when its status changes: returns whether it did. The update runs with
+-- app.professionals_account_status = 'on' (transaction-local), so
+-- profiles_release_professional_account knows it is the module's own change; the previous value
+-- is put back on every path, errors included, so no later status change in the transaction is
+-- taken for the module's.
 create function private.set_provider_account_status(p_user_id uuid, p_org uuid, p_status text)
 returns boolean
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_prev text := coalesce(pg_catalog.current_setting('app.professionals_account_status', true), '');
+  v_changed boolean;
 begin
-  update public.profiles pr set status = p_status
-   where pr.user_id = p_user_id and pr.org_id = p_org and pr.status <> p_status
-     and exists (select 1 from public.user_roles r where r.user_id = pr.user_id and r.role = 'provider');
-  if not found then
+  perform pg_catalog.set_config('app.professionals_account_status', 'on', true);
+  begin
+    update public.profiles pr set status = p_status
+     where pr.user_id = p_user_id and pr.org_id = p_org and pr.status <> p_status
+       and exists (select 1 from public.user_roles r where r.user_id = pr.user_id and r.role = 'provider');
+    v_changed := found;
+  exception when others then
+    perform pg_catalog.set_config('app.professionals_account_status', v_prev, true);
+    raise;
+  end;
+  perform pg_catalog.set_config('app.professionals_account_status', v_prev, true);
+  if not v_changed then
     return false;
   end if;
   if p_status = 'disabled' then
@@ -196,9 +235,33 @@ begin
 end;
 $$;
 
+-- An account status changed outside this module (set_user_status, by hand): whatever the module
+-- disabled is no longer its doing, so a later reactivation must not re-enable it (P4-11). Clears
+-- deactivation_disabled_account of the linked professional. Lock order profiles → professionals,
+-- as the email sync. Definer: set_user_status's caller may lack professionals.manage.
+create function private.professionals_release_account()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if coalesce(pg_catalog.current_setting('app.professionals_account_status', true), '') <> 'on' then
+    update public.professionals p set deactivation_disabled_account = false
+     where p.profile_id = new.user_id and p.org_id = new.org_id and p.deactivation_disabled_account;
+  end if;
+  return null;
+end;
+$$;
+create trigger profiles_release_professional_account
+  after update of status on public.profiles
+  for each row when (old.status is distinct from new.status)
+  execute function private.professionals_release_account();
+
 revoke all on function
   private.lock_professional_with_account(uuid),
-  private.set_provider_account_status(uuid, uuid, text)
+  private.set_provider_account_status(uuid, uuid, text),
+  private.professionals_release_account()
 from public, anon, authenticated, service_role;
 
 -- account_change: 'enabled' when this call re-enabled the account, else null; profile_id then.
@@ -340,9 +403,10 @@ revoke all on public.professionals_list from anon, authenticated;
 grant select on public.professionals_list to authenticated;
 
 -- Published contract (design §3.8): what Demandes matches on, one row per professional.
--- updated_at: the latest change of the record, its matching profile or a set row it holds, so a
--- stored recommendation can say « profil modifié depuis » (a removed set row leaves no trace here;
--- the history has it). insurance_status is 'unknown' until 4c.
+-- updated_at: the latest change of the record or its matching profile, so a stored recommendation
+-- can say « profil modifié depuis ». Every set RPC that changes a set row (added, changed or
+-- removed) bumps the record's updated_at, so the sets need no aggregate here. insurance_status is
+-- 'unknown' until 4c.
 create view public.professionals_directory with (security_invoker = true) as
 select p.id, p.org_id, p.status,
        mp.accepting_new_clients,
@@ -364,7 +428,7 @@ select p.id, p.org_id, p.status,
        p.gender,
        'unknown'::text                       as insurance_status,
        r.ready,
-       greatest(p.updated_at, mp.updated_at, pr.changed_at, l.changed_at, c.changed_at, s.changed_at, m.changed_at) as updated_at
+       greatest(p.updated_at, mp.updated_at) as updated_at
   from public.professionals p
   left join public.professional_matching_profiles mp on mp.professional_id = p.id
   left join public.professional_professions pp on pp.professional_id = p.id and pp.is_primary
@@ -376,34 +440,30 @@ select p.id, p.org_id, p.status,
                     jsonb_agg(jsonb_build_object('id', x.id, 'title_id', t.id, 'title_key', t.key, 'title_name', t.name,
                                                  'category_key', tc.key, 'order_acronym', o.acronym,
                                                  'licence_number', x.licence_number, 'is_primary', x.is_primary)
-                              order by x.is_primary desc, x.created_at, x.id) as items,
-                    max(x.updated_at) as changed_at
+                              order by x.is_primary desc, x.created_at, x.id) as items
                from public.professional_professions x
                join public.profession_titles t on t.org_id = x.org_id and t.id = x.profession_title_id
                join public.profession_categories tc on tc.org_id = t.org_id and tc.id = t.category_id
                left join public.professional_orders o on o.org_id = t.org_id and o.id = t.order_id
               group by x.professional_id) pr on pr.professional_id = p.id
-  left join (select x.professional_id, array_agg(g.code order by g.sort_order, g.code) as codes, max(x.created_at) as changed_at
+  left join (select x.professional_id, array_agg(g.code order by g.sort_order, g.code) as codes
                from public.professional_languages x
                join public.languages g on g.org_id = x.org_id and g.id = x.language_id
               group by x.professional_id) l on l.professional_id = p.id
   left join (select x.professional_id,
                     jsonb_agg(jsonb_build_object('id', x.clientele_id, 'key', k.key, 'specialized', x.is_specialized,
                                                  'min_age', k.min_age, 'max_age', k.max_age)
-                              order by k.sort_order, k.key) as items,
-                    max(x.updated_at) as changed_at
+                              order by k.sort_order, k.key) as items
                from public.professional_clienteles x
                join public.clienteles k on k.org_id = x.org_id and k.id = x.clientele_id
               group by x.professional_id) c on c.professional_id = p.id
   left join (select x.professional_id,
                     jsonb_agg(jsonb_build_object('id', x.specialty_id, 'key', k.key, 'specialized', x.is_specialized)
-                              order by k.sort_order, k.key) as items,
-                    max(x.updated_at) as changed_at
+                              order by k.sort_order, k.key) as items
                from public.professional_specialties x
                join public.specialties k on k.org_id = x.org_id and k.id = x.specialty_id
               group by x.professional_id) s on s.professional_id = p.id
-  left join (select x.professional_id, array_agg(x.motif_id order by k.key) as ids, array_agg(k.key order by k.key) as keys,
-                    max(x.created_at) as changed_at
+  left join (select x.professional_id, array_agg(x.motif_id order by k.key) as ids, array_agg(k.key order by k.key) as keys
                from public.professional_motifs x
                join public.motifs k on k.org_id = x.org_id and k.id = x.motif_id
               group by x.professional_id) m on m.professional_id = p.id
@@ -415,9 +475,12 @@ grant select on public.professionals_directory to authenticated;
 -- empty array is no filter. Within a set filter any id matches; filters combine with « and ».
 -- Sorts: 'name' (last name, first name, id) and 'recent' (status_changed_at desc, id desc).
 -- Cursor: the last row's last_name + first_name + id ('name') or status_changed_at + id
--- ('recent'). The cursor and the org are plpgsql variables, i.e. plan parameters: index bounds
--- of professionals_org_name_idx / professionals_org_status_changed_idx in any plan. The set
--- filters are resolved first into one id array through their (org_id, <x>_id) indexes.
+-- ('recent'). A partial 'name' cursor: a last name alone starts after every row of that last
+-- name; a full name without an id, after every row of that name. A 'recent' time without an id
+-- starts strictly before it. The cursor and the org are plpgsql variables, i.e. plan
+-- parameters: index bounds of professionals_org_name_idx / professionals_org_status_changed_idx
+-- in any plan. The set filters are resolved first into one id array through their
+-- (org_id, <x>_id) indexes.
 -- Page size 1–200 (default 50).
 create function public.list_professionals(
   p_statuses text[] default null,
@@ -452,6 +515,7 @@ declare
   v_limit int := least(greatest(coalesce(p_limit, 50), 1), 200);
   v_last text := coalesce(p_after_last_name, '');
   v_first text := coalesce(p_after_first_name, '');
+  v_last_only boolean := p_after_last_name is not null and p_after_first_name is null;
   v_at timestamptz := coalesce(p_after_status_changed_at, 'infinity');
   v_after_id uuid;
 begin
@@ -491,13 +555,16 @@ begin
   end if;
 
   if p_sort = 'name' then
-    -- No cursor: before every name. A name without an id: after every row of that name.
+    -- No cursor: ('', '', nil uuid), before every name. A full name without an id: the max uuid,
+    -- after every row of that name. A last name alone: after every row of that last name
+    -- (v_last_only; a plan constant, so only one of the two bounds remains in the plan).
     v_after_id := coalesce(p_after_id, case when p_after_last_name is null then '00000000-0000-0000-0000-000000000000'::uuid
                                             else 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid end);
     return query
       select l.* from public.professionals_list l
        where l.org_id = v_org
-         and (l.last_name, l.first_name, l.id) > (v_last, v_first, v_after_id)
+         and ((v_last_only and l.last_name > v_last)
+              or (not v_last_only and (l.last_name, l.first_name, l.id) > (v_last, v_first, v_after_id)))
          and (v_statuses is null or l.status = any (v_statuses))
          and (v_ids is null or l.id = any (v_ids))
        order by l.last_name, l.first_name, l.id
