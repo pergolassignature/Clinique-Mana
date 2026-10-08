@@ -31,7 +31,7 @@ export const SESSION_ROW_JSON = {
 /** `get_professional_compensation(P)` on 2026-10-08: 55,5 sessions, 28 % applied, 27,5 % suggested. */
 export const COMPENSATION_JSON = {
   on: '2026-10-08',
-  title: { id: COMP_IDS.title, name: 'Psychologue' },
+  title: { id: COMP_IDS.title, name: 'Psychologue', label: 'Psychologue' },
   grid: {
     id: COMP_IDS.grid,
     effective_from: '2026-07-01',
@@ -69,7 +69,7 @@ export const COMPENSATION_JSON = {
 export function compensationFixture(overrides: Partial<ProfessionalCompensation> = {}): ProfessionalCompensation {
   return {
     on: '2026-10-08',
-    title: { id: COMP_IDS.title, name: 'Psychologue' },
+    title: { id: COMP_IDS.title, name: 'Psychologue', label: 'Psychologue' },
     grid: {
       id: COMP_IDS.grid,
       effectiveFrom: '2026-07-01',

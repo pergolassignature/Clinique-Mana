@@ -10,6 +10,7 @@ import type { ProfessionalListRow } from '../../api/parse'
 import { titleOrder, type CatalogView } from '../../lib/catalog-view'
 import { recordPath } from '../../lib/constants'
 import { fullName, languagesLabel, statusLabel, statusTone } from '../../lib/display'
+import { titleLabel } from '../../lib/title-label'
 import { watchFlags } from '../../lib/watch'
 
 const T = 'modules.professionals.list.table'
@@ -131,7 +132,7 @@ const ProfessionalRow = memo(function ProfessionalRow({
       <div role="cell" className={cn(CELL, PROFESSION_COLUMN)}>
         {title ? (
           <>
-            <span className="block truncate">{title.name}</span>
+            <span className="block truncate">{titleLabel(title, row.gender)}</span>
             {licence && <span className="tabular block truncate text-xs text-muted-foreground">{licence}</span>}
           </>
         ) : (

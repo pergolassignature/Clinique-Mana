@@ -107,18 +107,30 @@ describe('set mutations: write the returned set, then refresh only what it touch
 })
 
 describe('field updates', () => {
-  it('useUpdateProfessional merges the patch, without touching usage counts; the lists only for a name', async () => {
+  it('useUpdateProfessional merges the patch, without touching usage counts; the lists only for a name or the gender', async () => {
     const { wrapper, cached, invalidated } = setup()
     mocks.api.updateProfessional.mockResolvedValue(undefined)
-    await run(() => useUpdateProfessional(), { id: ID, patch: { city: 'Lévis', gender: 'female' as const, yearsExperience: 3 } }, wrapper)
-    expect(mocks.api.updateProfessional).toHaveBeenCalledWith(ID, { city: 'Lévis', gender: 'female', yearsExperience: 3 })
-    expect(cached()?.professional).toMatchObject({ city: 'Lévis', gender: 'female', firstName: 'Marie' })
-    // Address, gender and experience are not in the list.
+    await run(() => useUpdateProfessional(), { id: ID, patch: { city: 'Lévis', yearsExperience: 3 } }, wrapper)
+    expect(mocks.api.updateProfessional).toHaveBeenCalledWith(ID, { city: 'Lévis', yearsExperience: 3 })
+    expect(cached()?.professional).toMatchObject({ city: 'Lévis', firstName: 'Marie' })
+    // Address and experience are not in the list.
     expect(invalidated()).toEqual([professionalKeys.record(ID), professionalKeys.history(ID)])
 
     const names = setup()
     await run(() => useUpdateProfessional(), { id: ID, patch: { lastName: 'Gagnon' } }, names.wrapper)
     expect(names.invalidated()).toEqual([professionalKeys.record(ID), professionalKeys.lists(), professionalKeys.history(ID)])
+
+    // The gender picks the title's form the list shows (P4-342).
+    const gender = setup()
+    await run(() => useUpdateProfessional(), { id: ID, patch: { gender: 'female' as const } }, gender.wrapper)
+    expect(gender.cached()?.professional).toMatchObject({ gender: 'female' })
+    expect(gender.invalidated()).toEqual([
+      professionalKeys.record(ID),
+      professionalKeys.lists(),
+      professionalKeys.history(ID),
+      professionalKeys.compensation(ID),
+      professionalKeys.reviews(),
+    ])
   })
 
   it('useUpdatePublicProfile and useUpdateMatchingProfile merge into their profile; the lists only for new clients', async () => {

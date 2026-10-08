@@ -341,7 +341,7 @@ function ReviewItem({ row, drafts, on, halfHintId, onType, onDecide }: ReviewIte
         <Link id={`${id}-name`} to={`/professionnels/${row.id}/remuneration`} className="text-sm font-medium text-foreground underline-offset-[3px] hover:underline">
           {name}
         </Link>
-        <p className="text-xs text-muted-foreground">{row.titleName ?? t(`${R}.noTitle`)}</p>
+        <p className="text-xs text-muted-foreground">{row.titleLabel ?? t(`${R}.noTitle`)}</p>
         {row.agreements > 0 && (
           <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
             <Handshake aria-hidden className="size-3.5" />

@@ -103,7 +103,8 @@ export type RetentionState = ReturnType<typeof state>
 const compensationPayload = z
   .object({
     on: z.string(),
-    title: z.object({ id: z.string(), name: z.string() }).nullable(),
+    /** The primary title: its name, and its label in the professional's form (« Travailleuse sociale », P4-342). */
+    title: z.object({ id: z.string(), name: z.string(), label: z.string() }).nullable(),
     grid: z
       .object({ id: z.string(), effective_from: z.string(), floor_pct: z.number().nullable(), tiers: z.array(tierPayload) })
       .transform((g) => ({ id: g.id, effectiveFrom: g.effective_from, floorPct: g.floor_pct, tiers: g.tiers }))
@@ -352,7 +353,8 @@ const reviewRowPayload = z
     id: z.string(),
     first_name: z.string(),
     last_name: z.string(),
-    title_name: z.string().nullable(),
+    /** The primary title in the professional's form (P4-342); null without a title. */
+    title_label: z.string().nullable(),
     entry: z
       .object({ sessions_50_60: z.number(), sessions_30: z.number(), adjustment: z.number(), note: z.string().nullable(), updated_at: z.string() })
       .transform((e) => ({ long: e.sessions_50_60, short: e.sessions_30, adjustment: e.adjustment, note: e.note, updatedAt: e.updated_at }))
@@ -363,11 +365,11 @@ const reviewRowPayload = z
     agreements: z.number(),
     ...stateColumns,
   })
-  .transform(({ id, first_name, last_name, title_name, entry, sessions_before, floor_pct, increase_decided, agreements, ...rest }) => ({
+  .transform(({ id, first_name, last_name, title_label, entry, sessions_before, floor_pct, increase_decided, agreements, ...rest }) => ({
     id,
     firstName: first_name,
     lastName: last_name,
-    titleName: title_name,
+    titleLabel: title_label,
     entry,
     sessionsBefore: sessions_before,
     floorPct: floor_pct,

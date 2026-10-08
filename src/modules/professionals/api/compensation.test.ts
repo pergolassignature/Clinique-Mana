@@ -205,7 +205,8 @@ describe('fetchRetentionReview', () => {
             id: IDS.professional,
             first_name: 'Paul',
             last_name: 'Un',
-            title_name: 'Psychologue',
+            title_name: 'Travailleuse sociale ou travailleur social',
+            title_label: 'Travailleuse sociale',
             entry: { sessions_50_60: 20, sessions_30: 4, adjustment: 0, note: null, updated_at: '2026-10-02T14:00:00Z' },
             sessions_before: 33.5,
             floor_pct: 25,
@@ -219,6 +220,6 @@ describe('fetchRetentionReview', () => {
     })
     const review = await fetchRetentionReview('2026-09-01')
     expect(mocks.rpc).toHaveBeenCalledWith('list_retention_review', { p_month: '2026-09-01' })
-    expect(review.rows[0]).toMatchObject({ firstName: 'Paul', sessionsBefore: 33.5, entry: { long: 20, short: 4 }, agreements: 1, status: 'gap' })
+    expect(review.rows[0]).toMatchObject({ firstName: 'Paul', titleLabel: 'Travailleuse sociale', sessionsBefore: 33.5, entry: { long: 20, short: 4 }, agreements: 1, status: 'gap' })
   })
 })

@@ -62,6 +62,7 @@ const TITLE_LABELS: Partial<ReferenceListLabels> = {
       : count === 1
         ? t(`${P}.titles.archive.bodyOne`)
         : t(`${P}.titles.archive.bodyOther`, { count: String(count) }),
+  nameHelp: t(`${P}.titles.nameHelp`),
 }
 
 // --- Ordres professionnels -----------------------------------------------------------------------
@@ -192,6 +193,7 @@ function titleColumns(catalog: CatalogView): ReferenceColumn<'profession_titles'
 }
 
 /**
+ * « Forme féminine » and « Forme masculine » (optional: blank shows the name, P4-340), then
  * Catégorie* and Ordre (« Aucun ordre » first, sent as null). Only active rows are offered; the
  * archived category or order a title already has stays shown, marked, so saving a rename keeps it
  * (the RPC accepts a row keeping its archived parent). A title that gains an order makes its
@@ -212,6 +214,12 @@ function TitleFields({
   const gainsOrder = row !== null && row.orderId === null && orderId !== '' && holders > 0
   return (
     <>
+      <FormField label={t(`${P}.titles.feminine`)} help={t(`${P}.titles.feminineHelp`)} error={errors.nameFeminine?.message}>
+        {(field) => <Input {...field} {...form.register('nameFeminine')} autoComplete="off" maxLength={120} />}
+      </FormField>
+      <FormField label={t(`${P}.titles.masculine`)} help={t(`${P}.titles.masculineHelp`)} error={errors.nameMasculine?.message}>
+        {(field) => <Input {...field} {...form.register('nameMasculine')} autoComplete="off" maxLength={120} />}
+      </FormField>
       <FormField label={t(`${P}.titles.category`)} required error={errors.categoryId?.message}>
         {(field) => (
           <Select {...field} {...form.register('categoryId')} placeholder={t(`${P}.titles.categoryPlaceholder`)}>
@@ -259,7 +267,7 @@ function TitleFields({
  *   « Format du permis ». « Utilisé par » counts their active titles.
  * - Catégories: name only (Services et tarifs prices by category); same count.
  * - Titres: their category and order (« — » without one: no licence required); « Utilisé par »
- *   counts professionals. Reorderable (the catalogue's order, which the title pickers follow),
+ *   counts professionals. The dialog also edits the feminine and masculine forms (P4-340). Reorderable (the catalogue's order, which the title pickers follow),
  *   since a new title always lands last.
  * The database refuses archiving a parent with active titles, and restoring a title before its
  * category and order: the confirmation shows its message.

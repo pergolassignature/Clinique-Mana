@@ -12,6 +12,7 @@ export const IDS = {
   psychologue: '00000000-0000-4000-8000-0000000000c1',
   naturopathe: '00000000-0000-4000-8000-0000000000c2',
   archivedTitle: '00000000-0000-4000-8000-0000000000c3',
+  travailleurSocial: '00000000-0000-4000-8000-0000000000c4',
   children: '00000000-0000-4000-8000-0000000000d1',
   seniors: '00000000-0000-4000-8000-0000000000d2',
   couples: '00000000-0000-4000-8000-0000000000d3',
@@ -47,10 +48,27 @@ export const CATALOG_JSON = {
     ref(IDS.opq, 'opq', 'Ordre des psychologues du Québec', 10, { acronym: 'OPQ', licence_label: 'N° de permis', licence_pattern: '^[0-9]{5}$' }),
   ],
   categories: [ref(IDS.psychologie, 'psychologie', 'Psychologie', 10), ref(IDS.naturopathie, 'naturopathie', 'Naturopathie', 60)],
+  // Forms as seeded (P4-340): the same word for an epicene title, none for the archived one.
   titles: [
-    ref(IDS.psychologue, 'psychologue', 'Psychologue', 10, { category_id: IDS.psychologie, order_id: IDS.opq }),
-    ref(IDS.naturopathe, 'naturopathe', 'Naturopathe', 60, { category_id: IDS.naturopathie, order_id: null }),
-    ref(IDS.archivedTitle, 'ancien_titre', 'Ancien titre', 70, { category_id: IDS.psychologie, order_id: null, is_active: false }),
+    ref(IDS.psychologue, 'psychologue', 'Psychologue', 10, {
+      name_feminine: 'Psychologue',
+      name_masculine: 'Psychologue',
+      category_id: IDS.psychologie,
+      order_id: IDS.opq,
+    }),
+    ref(IDS.naturopathe, 'naturopathe', 'Naturopathe', 60, {
+      name_feminine: 'Naturopathe',
+      name_masculine: 'Naturopathe',
+      category_id: IDS.naturopathie,
+      order_id: null,
+    }),
+    ref(IDS.archivedTitle, 'ancien_titre', 'Ancien titre', 70, {
+      name_feminine: null,
+      name_masculine: null,
+      category_id: IDS.psychologie,
+      order_id: null,
+      is_active: false,
+    }),
   ],
   clienteles: [
     ref(IDS.children, 'children', 'Enfants', 10, { min_age: 0, max_age: 12, is_system: true }),
@@ -152,6 +170,7 @@ export const LIST_ROW_JSON = {
   has_account: false,
   primary_title_id: IDS.psychologue,
   primary_licence_number: '12345',
+  gender: null,
   language_ids: [IDS.fr],
   clientele_ids: [IDS.couples],
   motif_ids: [IDS.anxiete],

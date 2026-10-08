@@ -6,7 +6,7 @@ const row = (id: string, over: Partial<ReviewRow> = {}): ReviewRow => ({
   id,
   firstName: 'Paul',
   lastName: id,
-  titleName: 'Psychologue',
+  titleLabel: 'Psychologue',
   entry: { long: 20, short: 4, adjustment: 0, note: null, updatedAt: `v-${id}` },
   sessionsBefore: 33.5,
   floorPct: 25,

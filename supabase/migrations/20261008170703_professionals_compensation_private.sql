@@ -1098,7 +1098,8 @@ as $$
               else pg_catalog.round(p_price_cents * (100 - p_pct) / 100)::int end
 $$;
 
--- One row per professional of p_org: the primary title and its grid in force on p_on, the
+-- One row per professional of p_org: the primary title (its name, and its label: the form shown
+-- for the professional, P4-342) and its grid in force on p_on, the
 -- cumulative sessions through the month p_through (entries of that month included), the applied
 -- rate (the open row: the latest decision, even when it starts after p_on), the previous one and
 -- the one in force on p_on, the suggested tier (the highest threshold the count reached), the
@@ -1122,6 +1123,7 @@ returns table (
   professional_id uuid,
   title_id uuid,
   title_name text,
+  title_label text,
   grid_id uuid,
   sessions_total numeric,
   applied_id uuid,
@@ -1143,7 +1145,7 @@ language sql
 stable
 set search_path = ''
 as $$
-  select p.id, t.id, t.name, g.id, s.total,
+  select p.id, t.id, t.name, t.label, g.id, s.total,
          a.id, a.retention_pct, a.decision, a.effective_from, a.tier_threshold, a.note,
          prev.retention_pct, f.retention_pct,
          sug.threshold_sessions, sug.retention_pct, nxt.threshold_sessions, nxt.retention_pct, fl.retention_pct,
@@ -1161,7 +1163,7 @@ as $$
          end
     from public.professionals p
     left join lateral (
-      select pt.id, pt.name
+      select pt.id, pt.name, private.profession_title_label(pt.name, pt.name_feminine, pt.name_masculine, p.gender) as label
         from public.professional_professions pp
         join public.profession_titles pt on pt.org_id = pp.org_id and pt.id = pp.profession_title_id
        where pp.professional_id = p.id and pp.org_id = p_org and pp.is_primary
@@ -1965,7 +1967,8 @@ begin
   return pg_catalog.jsonb_build_object(
     'on', v_on,
     'title', case when v_state.title_id is null then null
-                  else pg_catalog.jsonb_build_object('id', v_state.title_id, 'name', v_state.title_name) end,
+                  else pg_catalog.jsonb_build_object('id', v_state.title_id, 'name', v_state.title_name,
+                                                     'label', v_state.title_label) end,
     'grid', case when v_state.grid_id is null then null else (
       select pg_catalog.jsonb_build_object(
                'id', g.id,
@@ -2049,6 +2052,7 @@ begin
                'first_name', p.first_name,
                'last_name', p.last_name,
                'title_name', o.title_name,
+               'title_label', o.title_label,
                'entry', case when e.id is null then null else pg_catalog.jsonb_build_object(
                           'sessions_50_60', e.sessions_50_60, 'sessions_30', e.sessions_30,
                           'adjustment', e.adjustment, 'note', e.note, 'updated_at', e.updated_at) end,

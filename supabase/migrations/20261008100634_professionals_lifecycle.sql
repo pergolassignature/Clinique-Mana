@@ -376,11 +376,14 @@ $$;
 -- -----------------------------------------------------------------------------
 -- The list page: one flat row per professional, ids rather than labels (resolved from the cached
 -- catalogue). professionals.view only: a provider's self policies must not put their row here.
+-- gender picks the title's form the list shows (« Travailleuse sociale », P4-342); the record
+-- shows it to the same readers.
 create view public.professionals_list with (security_invoker = true) as
 select p.id, p.org_id, p.first_name, p.last_name, p.email, p.status, p.status_changed_at, p.deactivation_reason_id,
        p.profile_id is not null              as has_account,
        pp.profession_title_id                as primary_title_id,
        pp.licence_number                     as primary_licence_number,
+       p.gender,
        coalesce(l.ids, '{}')                 as language_ids,
        coalesce(c.ids, '{}')                 as clientele_ids,
        coalesce(m.ids, '{}')                 as motif_ids,
@@ -407,7 +410,8 @@ grant select on public.professionals_list to authenticated;
 -- updated_at: the latest change of the record or its matching profile, so a stored recommendation
 -- can say « profil modifié depuis ». Every set RPC that changes a set row (added, changed or
 -- removed) bumps the record's updated_at, so the sets need no aggregate here. insurance_status is
--- 'unknown' until 4c.
+-- 'unknown' until 4c. *_title_name is the title's name (filters, settings); *_title_label is the
+-- form shown for this professional (« Travailleuse sociale », P4-342).
 create view public.professionals_directory with (security_invoker = true) as
 select p.id, p.org_id, p.status,
        mp.accepting_new_clients,
@@ -418,6 +422,8 @@ select p.id, p.org_id, p.status,
        pp.profession_title_id                as primary_title_id,
        pt.key                                as primary_title_key,
        pt.name                               as primary_title_name,
+       private.profession_title_label(pt.name, pt.name_feminine, pt.name_masculine, p.gender)
+                                             as primary_title_label,
        pc.key                                as category_key,
        po.acronym                            as order_acronym,
        pp.licence_number,
@@ -440,10 +446,12 @@ select p.id, p.org_id, p.status,
   left join public.professionals_readiness r on r.professional_id = p.id
   left join (select x.professional_id,
                     jsonb_agg(jsonb_build_object('id', x.id, 'title_id', t.id, 'title_key', t.key, 'title_name', t.name,
+                                                 'title_label', private.profession_title_label(t.name, t.name_feminine, t.name_masculine, xp.gender),
                                                  'category_key', tc.key, 'order_acronym', o.acronym,
                                                  'licence_number', x.licence_number, 'is_primary', x.is_primary)
                               order by x.is_primary desc, x.created_at, x.id) as items
                from public.professional_professions x
+               join public.professionals xp on xp.id = x.professional_id
                join public.profession_titles t on t.org_id = x.org_id and t.id = x.profession_title_id
                join public.profession_categories tc on tc.org_id = t.org_id and tc.id = t.category_id
                left join public.professional_orders o on o.org_id = t.org_id and o.id = t.order_id
@@ -621,6 +629,7 @@ $$;
 -- active category in category order; a motif without a category or whose category is archived
 -- goes under « Sans catégorie » (key null, no icon), last: « Autres » is one of the clinic's
 -- categories (P4-246). min_client_age and women_only qualify the clientèles (P4-245).
+-- primary_title_label is the title in the professional's form, primary_title_name its name (P4-342).
 create function public.get_professional_public_profile(p_id uuid)
 returns jsonb
 language sql
@@ -635,6 +644,7 @@ as $$
            'public_email', pp.public_email,
            'public_phone', pp.public_phone,
            'primary_title_name', t.name,
+           'primary_title_label', private.profession_title_label(t.name, t.name_feminine, t.name_masculine, p.gender),
            'order_acronym', o.acronym,
            'licence_number', pr.licence_number,
            'motif_groups', coalesce((

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import { render } from '@testing-library/react'
 import { t } from '@/i18n'
-import { CATALOG_VIEW, recordFixture } from '../../test/fixtures-domain'
+import { CATALOG_VIEW, GENDERED_CATALOG_VIEW, recordFixture, socialWorkerRecord } from '../../test/fixtures-domain'
 import { IDS } from '../../test/fixtures'
 import type { ProfessionalRecord } from '../../api/parse'
 import { RecordHeader } from './RecordHeader'
@@ -22,6 +22,14 @@ describe('RecordHeader', () => {
     expect(screen.getByText('Psychologue · OPQ 12345 · marie.t@exemple.ca')).toBeInTheDocument()
     const chips = screen.getAllByRole('listitem')
     expect(chips.map((chip) => chip.textContent)).toEqual([`${t(`${H}.languages`)} FR · EN`])
+  })
+
+  it('names the title in the professional\'s form (P4-342)', () => {
+    const { unmount } = render(<RecordHeader record={socialWorkerRecord('female')} catalog={GENDERED_CATALOG_VIEW} />)
+    expect(screen.getByText('Travailleuse sociale · OPQ TS04518 · marie.t@exemple.ca')).toBeInTheDocument()
+    unmount()
+    render(<RecordHeader record={socialWorkerRecord('male')} catalog={GENDERED_CATALOG_VIEW} />)
+    expect(screen.getByText('Travailleur social · OPQ TS04518 · marie.t@exemple.ca')).toBeInTheDocument()
   })
 
   it('says when the professional takes no new clients', () => {

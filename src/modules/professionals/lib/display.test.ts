@@ -17,7 +17,7 @@ import {
   statusLabel,
   statusTone,
 } from './display'
-import { CATALOG_VIEW, recordFixture } from '../test/fixtures-domain'
+import { CATALOG_VIEW, GENDERED_CATALOG_VIEW, recordFixture } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
 
 describe('fullName', () => {
@@ -96,21 +96,29 @@ describe('languagesLabel', () => {
 
 describe('professionLine', () => {
   it('is « Titre · SIGLE permis » for a regulated title', () => {
-    expect(professionLine({ titleId: IDS.psychologue, licenceNumber: '12345' }, CATALOG_VIEW)).toBe('Psychologue · OPQ 12345')
+    expect(professionLine({ titleId: IDS.psychologue, licenceNumber: '12345' }, CATALOG_VIEW, null)).toBe('Psychologue · OPQ 12345')
   })
 
   it('is the title alone without an order or a licence', () => {
-    expect(professionLine({ titleId: IDS.naturopathe, licenceNumber: null }, CATALOG_VIEW)).toBe('Naturopathe')
-    expect(professionLine({ titleId: IDS.psychologue, licenceNumber: null }, CATALOG_VIEW)).toBe('Psychologue · OPQ')
+    expect(professionLine({ titleId: IDS.naturopathe, licenceNumber: null }, CATALOG_VIEW, null)).toBe('Naturopathe')
+    expect(professionLine({ titleId: IDS.psychologue, licenceNumber: null }, CATALOG_VIEW, 'female')).toBe('Psychologue · OPQ')
   })
 
   it('shows a licence held under a title without an order', () => {
-    expect(professionLine({ titleId: IDS.naturopathe, licenceNumber: 'N-1' }, CATALOG_VIEW)).toBe('Naturopathe · N-1')
+    expect(professionLine({ titleId: IDS.naturopathe, licenceNumber: 'N-1' }, CATALOG_VIEW, 'male')).toBe('Naturopathe · N-1')
+  })
+
+  it('names the title in the professional\'s form (P4-342)', () => {
+    const row = { titleId: IDS.travailleurSocial, licenceNumber: 'TS04518' }
+    expect(professionLine(row, GENDERED_CATALOG_VIEW, 'female')).toBe('Travailleuse sociale · OPQ TS04518')
+    expect(professionLine(row, GENDERED_CATALOG_VIEW, 'male')).toBe('Travailleur social · OPQ TS04518')
+    expect(professionLine(row, GENDERED_CATALOG_VIEW, 'unspecified')).toBe('Travailleuse sociale ou travailleur social · OPQ TS04518')
+    expect(professionLine(row, GENDERED_CATALOG_VIEW, null)).toBe('Travailleuse sociale ou travailleur social · OPQ TS04518')
   })
 
   it('is empty without a title, or for an unknown one', () => {
-    expect(professionLine(null, CATALOG_VIEW)).toBe('')
-    expect(professionLine({ titleId: 'unknown', licenceNumber: '1' }, CATALOG_VIEW)).toBe('')
+    expect(professionLine(null, CATALOG_VIEW, null)).toBe('')
+    expect(professionLine({ titleId: 'unknown', licenceNumber: '1' }, CATALOG_VIEW, null)).toBe('')
   })
 })
 

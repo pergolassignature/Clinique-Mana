@@ -101,7 +101,7 @@ export function reorderedCatalog(catalog: ProfessionalsCatalog, kind: ReferenceK
 export interface ReferenceFieldsByKind {
   professional_orders: { name: string; acronym: string; licenceLabel: string | null; licencePattern: string | null }
   profession_categories: { name: string }
-  profession_titles: { name: string; categoryId: string; orderId: string | null }
+  profession_titles: { name: string; nameFeminine: string | null; nameMasculine: string | null; categoryId: string; orderId: string | null }
   clienteles: { name: string; minAge: number | null; maxAge: number | null }
   motif_categories: { name: string; description: string | null; icon: MotifCategoryIcon }
   motifs: { name: string; categoryId: string | null; isRestricted: boolean }
@@ -131,7 +131,14 @@ const SAVERS: { [K in ReferenceKind]: Saver<K> } = {
   profession_titles: (i) =>
     supabase.rpc(
       'save_profession_title',
-      sqlArgs<'save_profession_title'>({ p_id: i.id, p_name: i.name, p_category_id: i.categoryId, p_order_id: i.orderId }),
+      sqlArgs<'save_profession_title'>({
+        p_id: i.id,
+        p_name: i.name,
+        p_name_feminine: i.nameFeminine,
+        p_name_masculine: i.nameMasculine,
+        p_category_id: i.categoryId,
+        p_order_id: i.orderId,
+      }),
     ),
   clienteles: (i) =>
     supabase.rpc('save_clientele', sqlArgs<'save_clientele'>({ p_id: i.id, p_name: i.name, p_min_age: i.minAge, p_max_age: i.maxAge })),

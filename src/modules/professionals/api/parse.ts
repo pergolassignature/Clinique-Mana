@@ -50,8 +50,20 @@ const orderPayload = z
   .transform((r) => ({ ...keyed(r), acronym: r.acronym, licenceLabel: r.licence_label, licencePattern: r.licence_pattern }))
 const categoryPayload = z.object(keyedRow).transform(keyed)
 const titlePayload = z
-  .object({ ...keyedRow, category_id: z.string(), order_id: z.string().nullable() })
-  .transform((r) => ({ ...keyed(r), categoryId: r.category_id, orderId: r.order_id }))
+  .object({
+    ...keyedRow,
+    name_feminine: z.string().nullable(),
+    name_masculine: z.string().nullable(),
+    category_id: z.string(),
+    order_id: z.string().nullable(),
+  })
+  .transform((r) => ({
+    ...keyed(r),
+    nameFeminine: r.name_feminine,
+    nameMasculine: r.name_masculine,
+    categoryId: r.category_id,
+    orderId: r.order_id,
+  }))
 const clientelePayload = z
   .object({ ...keyedRow, min_age: z.number().nullable(), max_age: z.number().nullable() })
   .transform((r) => ({ ...keyed(r), minAge: r.min_age, maxAge: r.max_age }))
@@ -69,7 +81,10 @@ const deactivationReasonPayload = z
 /** Professional orders (licensing bodies). A title with an order requires a licence (P4-6). */
 export type ProfessionalOrder = z.output<typeof orderPayload>
 export type ProfessionCategory = z.output<typeof categoryPayload>
-/** A title; `orderId` null means not regulated: no licence required. */
+/**
+ * A title; `orderId` null means not regulated: no licence required. `nameFeminine` and
+ * `nameMasculine` are the forms shown for a professional (null: the name), through `titleLabel`.
+ */
 export type ProfessionTitle = z.output<typeof titlePayload>
 /** A clientèle: an age group (`minAge` set, `maxAge` null = « and over »), or none (couples, families, parents). */
 export type Clientele = z.output<typeof clientelePayload>
@@ -267,6 +282,8 @@ export const listRowPayload = z
     has_account: z.boolean(),
     primary_title_id: z.string().nullable(),
     primary_licence_number: z.string().nullable(),
+    /** Picks the title's form the list shows (P4-342). */
+    gender: z.enum(GENDERS).nullable(),
     language_ids: z.array(z.string()),
     clientele_ids: z.array(z.string()),
     motif_ids: z.array(z.string()),
@@ -289,6 +306,7 @@ export const listRowPayload = z
     hasAccount: r.has_account,
     primaryTitleId: r.primary_title_id,
     primaryLicenceNumber: r.primary_licence_number,
+    gender: r.gender,
     languageIds: r.language_ids,
     clienteleIds: r.clientele_ids,
     motifIds: r.motif_ids,

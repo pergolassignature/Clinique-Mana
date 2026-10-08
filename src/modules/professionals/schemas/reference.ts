@@ -69,8 +69,13 @@ const orderSchema = z.object({
 
 const nameOnlySchema = z.object({ name: name() })
 
+/** A title's feminine or masculine form (P4-340): optional, blank = the name; 1–120, tidy. */
+const titleForm = () => tidyText({ max: 120 })
+
 const titleSchema = z.object({
   name: name(),
+  nameFeminine: titleForm(),
+  nameMasculine: titleForm(),
   categoryId: z.string().min(1, { error: M.categoryRequired }),
   /** '' = « Aucun ordre » (not regulated: no licence required). */
   orderId: z.string().transform(emptyToNull),
@@ -111,7 +116,7 @@ const deactivationReasonSchema = z.object({ name: name(), requiresNote: z.boolea
 export interface ReferenceFormValues {
   professional_orders: { name: string; acronym: string; licenceLabel: string; licencePattern: string }
   profession_categories: { name: string }
-  profession_titles: { name: string; categoryId: string; orderId: string }
+  profession_titles: { name: string; nameFeminine: string; nameMasculine: string; categoryId: string; orderId: string }
   clienteles: { name: string; minAge: string; maxAge: string }
   motif_categories: { name: string; description: string; icon: string }
   motifs: { name: string; categoryId: string; isRestricted: boolean }
@@ -173,7 +178,13 @@ const DEFAULT_ICON: MotifCategoryIcon = 'Brain'
 const TO_FORM: { [K in ReferenceKind]: (row: ReferenceRow<K> | null) => ReferenceFormValues[K] } = {
   professional_orders: (r) => ({ name: r?.name ?? '', acronym: r?.acronym ?? '', licenceLabel: r?.licenceLabel ?? '', licencePattern: r?.licencePattern ?? '' }),
   profession_categories: (r) => ({ name: r?.name ?? '' }),
-  profession_titles: (r) => ({ name: r?.name ?? '', categoryId: r?.categoryId ?? '', orderId: r?.orderId ?? '' }),
+  profession_titles: (r) => ({
+    name: r?.name ?? '',
+    nameFeminine: r?.nameFeminine ?? '',
+    nameMasculine: r?.nameMasculine ?? '',
+    categoryId: r?.categoryId ?? '',
+    orderId: r?.orderId ?? '',
+  }),
   clienteles: (r) => ({ name: r?.name ?? '', minAge: str(r?.minAge ?? null), maxAge: str(r?.maxAge ?? null) }),
   motif_categories: (r) => ({ name: r?.name ?? '', description: r?.description ?? '', icon: r?.icon ?? DEFAULT_ICON }),
   motifs: (r) => ({ name: r?.name ?? '', categoryId: r?.categoryId ?? '', isRestricted: r?.isRestricted ?? false }),

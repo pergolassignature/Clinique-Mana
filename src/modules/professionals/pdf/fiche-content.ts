@@ -6,6 +6,7 @@ import { titleOrder, type CatalogView } from '../lib/catalog-view'
 import { fullName, minClientAgeLabel } from '../lib/display'
 import { ficheProfession } from '../lib/fiche'
 import { matchingDigest } from '../lib/matching-digest'
+import { titleLabel } from '../lib/title-label'
 
 /**
  * What the fiche prints (Task 4c.5 « Content », A2.19), already in words: the document only lays
@@ -210,7 +211,8 @@ export function buildFicheContent({ record, catalog, titleId, clinic, logo, bran
       website: website ? clean(website) : null,
     },
     name: clean(fullName(record.professional)),
-    title: title ? clean(title.name) : null,
+    // In the professional's form: « Travailleuse sociale » (P4-342).
+    title: title ? clean(titleLabel(title, record.professional.gender)) : null,
     credential: credential ? clean(credential) : null,
     publicContact: publicContact ? clean(publicContact) : null,
     photo,

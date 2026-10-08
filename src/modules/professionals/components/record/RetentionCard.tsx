@@ -91,7 +91,7 @@ export function RetentionCard({ professionalId, data }: RetentionCardProps) {
     <SettingsCard as="section" title={t(`${R}.title`)} description={t(`${R}.description`)}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <RetentionStatusBadge display={retentionDisplay(data)} />
-        {data.title && <span className="text-xs text-muted-foreground">{t(`${R}.grid`, { title: data.title.name })}</span>}
+        {data.title && <span className="text-xs text-muted-foreground">{t(`${R}.grid`, { title: data.title.label })}</span>}
       </div>
       {data.status === 'profession_unconfirmed' && <p className="text-sm text-muted-foreground">{t(`${R}.noGrid`)}</p>}
 

@@ -10,7 +10,7 @@ import type { Tables } from '@/core/supabase/database.types'
 const COLUMNS = {
   professional_orders: ['id', 'org_id', 'key', 'name', 'acronym', 'licence_label', 'licence_pattern', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
   profession_categories: ['id', 'org_id', 'key', 'name', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
-  profession_titles: ['id', 'org_id', 'key', 'name', 'category_id', 'order_id', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
+  profession_titles: ['id', 'org_id', 'key', 'name', 'name_feminine', 'name_masculine', 'category_id', 'order_id', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
   clienteles: ['id', 'org_id', 'key', 'name', 'min_age', 'max_age', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
   motif_categories: ['id', 'org_id', 'key', 'name', 'description', 'icon', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],
   motifs: ['id', 'org_id', 'key', 'name', 'category_id', 'is_restricted', 'is_system', 'sort_order', 'is_active', 'created_at', 'updated_at'],

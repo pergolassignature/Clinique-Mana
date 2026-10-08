@@ -28,7 +28,11 @@
 --   cliniquemana.com (Jonathan, 2026-10-08, P4-241–P4-245): 13 categories and 124
 --   motifs in the site's order and wording (apostrophes ’, « / » spaced, the two
 --   labels listed under two headings told apart), 8 clientèles. Titles are the 8
---   legacy titles plus « Nutritionniste » (P4-6). The seed is only a start: the
+--   legacy titles plus « Nutritionniste » (P4-6), each with its feminine and masculine
+--   forms (P4-340): « Travailleuse sociale » / « Travailleur social », as on the website,
+--   and a name for settings, filters and a professional whose gender is « Autre » or not
+--   given, never a dotted form (« Travailleuse sociale ou travailleur social »,
+--   P4-341). The seed is only a start: the
 --   clinic edits, archives and reorders every list in Paramètres. There are no
 --   therapeutic approaches (P4-240).
 -- =============================================================================
@@ -161,7 +165,9 @@ create table public.profession_titles (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.organizations(id) on delete cascade,
   key text not null,
-  name text not null,
+  name text not null,                     -- settings, filters, « Autre » and no gender (P4-341)
+  name_feminine text,                     -- « Travailleuse sociale »; null: the name (P4-340)
+  name_masculine text,                    -- « Travailleur social »; null: the name
   category_id uuid not null,
   order_id uuid,                          -- null: not regulated, no licence required
   is_system boolean not null default false,
@@ -171,6 +177,8 @@ create table public.profession_titles (
   updated_at timestamptz not null default now(),
   constraint profession_titles_key_check check (key ~ '^[a-z][a-z0-9_]{0,49}$'),
   constraint profession_titles_name_check check (char_length(name) between 1 and 120 and private.is_tidy_text(name)),
+  constraint profession_titles_name_feminine_check check (char_length(name_feminine) between 1 and 120 and private.is_tidy_text(name_feminine)),
+  constraint profession_titles_name_masculine_check check (char_length(name_masculine) between 1 and 120 and private.is_tidy_text(name_masculine)),
   constraint profession_titles_org_id_key_key unique (org_id, key),
   constraint profession_titles_org_id_id_key unique (org_id, id),
   constraint profession_titles_category_fkey foreign key (org_id, category_id) references public.profession_categories (org_id, id),
@@ -180,6 +188,27 @@ create unique index profession_titles_org_name_key on public.profession_titles (
 create index profession_titles_org_sort_idx on public.profession_titles (org_id, sort_order);
 create index profession_titles_org_category_idx on public.profession_titles (org_id, category_id);
 create index profession_titles_org_order_idx on public.profession_titles (org_id, order_id);
+
+-- A title as shown for one professional (P4-340, P4-342): the feminine form for « Femme », the
+-- masculine form for « Homme », else the name (« Autre / non précisé », no gender recorded, or
+-- the form left empty). The twin of titleLabel() in src/modules/professionals/lib/title-label.ts.
+-- Read models call it: the retention review, the directory and the public profile.
+create function private.profession_title_label(p_name text, p_feminine text, p_masculine text, p_gender text)
+returns text
+language sql
+immutable
+parallel safe
+set search_path = ''
+as $$
+  select case p_gender
+           when 'female' then coalesce(p_feminine, p_name)
+           when 'male' then coalesce(p_masculine, p_name)
+           else p_name
+         end
+$$;
+-- Pure; the directory view and the public profile run with the caller's privileges.
+revoke all on function private.profession_title_label(text, text, text, text) from public, anon;
+grant execute on function private.profession_title_label(text, text, text, text) to authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
 -- clienteles: the age groups and formats matching filters on (hard filter, P4-3)
@@ -497,19 +526,23 @@ begin
   end loop;
 
   -- The 8 legacy titles plus « Nutritionniste » (P4-6); naturopathe and coach belong to no order.
-  insert into public.profession_titles (org_id, key, name, category_id, order_id, sort_order)
-  select p_org, t.key, t.name, (v_categories ->> t.category_key)::uuid, (v_orders ->> t.order_key)::uuid, t.sort_order
+  -- Feminine and masculine forms as on the website (« Travailleuse sociale », « Psychoéducatrice »;
+  -- P4-340), the same word for an epicene title; the name is the full pair, feminine first, never
+  -- a dotted form (P4-341). « Conseiller d'orientation » is the order's reserved title; the coach
+  -- reads « Coach certifiée / certifié » (P4-343).
+  insert into public.profession_titles (org_id, key, name, name_feminine, name_masculine, category_id, order_id, sort_order)
+  select p_org, t.key, t.name, t.feminine, t.masculine, (v_categories ->> t.category_key)::uuid, (v_orders ->> t.order_key)::uuid, t.sort_order
     from (values
-      ('psychologue',            'Psychologue',                       'psychologie',            'opq',     10),
-      ('psychotherapeute',       'Psychothérapeute',                  'psychotherapie',         'opq',     20),
-      ('travailleur_social',     'Travailleur.euse social.e',         'travail_social',         'otstcfq', 30),
-      ('psychoeducateur',        'Psychoéducateur.trice',             'psychoeducation',        'oppq',    40),
-      ('sexologue',              'Sexologue',                         'sexologie',              'opsq',    50),
-      ('naturopathe',            'Naturopathe',                       'naturopathie',           null,      60),
-      ('conseiller_orientation', 'Conseiller.ère en orientation',     'orientation',            'occoq',   70),
-      ('coach_professionnel',    'Coach professionnel.le certifié.e', 'coaching_professionnel', null,      80),
-      ('nutritionniste',         'Nutritionniste',                    'nutrition',              'odnq',    90)
-    ) as t(key, name, category_key, order_key, sort_order)
+      ('psychologue',            'Psychologue',                                'Psychologue',                'Psychologue',              'psychologie',            'opq',     10),
+      ('psychotherapeute',       'Psychothérapeute',                           'Psychothérapeute',           'Psychothérapeute',         'psychotherapie',         'opq',     20),
+      ('travailleur_social',     'Travailleuse sociale ou travailleur social', 'Travailleuse sociale',       'Travailleur social',       'travail_social',         'otstcfq', 30),
+      ('psychoeducateur',        'Psychoéducatrice ou psychoéducateur',        'Psychoéducatrice',           'Psychoéducateur',          'psychoeducation',        'oppq',    40),
+      ('sexologue',              'Sexologue',                                  'Sexologue',                  'Sexologue',                'sexologie',              'opsq',    50),
+      ('naturopathe',            'Naturopathe',                                'Naturopathe',                'Naturopathe',              'naturopathie',           null,      60),
+      ('conseiller_orientation', 'Conseillère ou conseiller d''orientation',   'Conseillère d''orientation', 'Conseiller d''orientation', 'orientation',            'occoq',   70),
+      ('coach_professionnel',    'Coach certifiée ou certifié',                'Coach certifiée',            'Coach certifié',           'coaching_professionnel', null,      80),
+      ('nutritionniste',         'Nutritionniste',                             'Nutritionniste',             'Nutritionniste',           'nutrition',              'odnq',    90)
+    ) as t(key, name, feminine, masculine, category_key, order_key, sort_order)
   on conflict do nothing;
 
   -- The clientèles of the website's profiles (P4-244), in the site's order of age then format.

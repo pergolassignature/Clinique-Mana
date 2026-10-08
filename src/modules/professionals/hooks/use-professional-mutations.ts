@@ -44,10 +44,13 @@ interface RecordMutation<V extends { id: string }, R> {
   touchesUsage: boolean
   /**
    * Whether the change shows in the list (`LIST_COLUMNS`: names, email, status, primary title and
-   * licence, the sets, new clients, readiness). Default: yes. Bio, approach, public contact, IVAC,
-   * experience, gender, phone and address do not: the lists are not refetched for them.
+   * licence, the gender (the title's form, P4-342), the sets, new clients, readiness). Default:
+   * yes. Bio, approach, public contact, IVAC, experience, phone and address do not: the lists are
+   * not refetched for them.
    */
   touchesList?: (variables: V) => boolean
+  /** Other queries the change shows in (the gender: the title's form in Rémunération and the review, P4-342). */
+  alsoRefetch?: (variables: V) => readonly (readonly unknown[])[]
   successMessage?: string
 }
 
@@ -64,6 +67,7 @@ function useRecordMutation<V extends { id: string }, R>(config: RecordMutation<V
         (config.touchesList?.(variables) ?? true) && queryClient.invalidateQueries({ queryKey: professionalKeys.lists() }),
         refreshProfessionalHistory(queryClient, variables.id),
         config.touchesUsage && queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.usage() }),
+        ...(config.alsoRefetch?.(variables) ?? []).map((queryKey) => queryClient.invalidateQueries({ queryKey })),
       ])
       toast.success(config.successMessage ?? t('modules.professionals.toasts.saved'))
     },
@@ -93,8 +97,8 @@ export function useCreateProfessional(feedback?: MutationFeedback) {
 
 // --- Plain fields --------------------------------------------------------------------------------
 
-/** The columns of `professionals` a patch can change that the list shows. */
-const LIST_FIELDS = ['firstName', 'lastName'] as const satisfies readonly (keyof ProfessionalPatch)[]
+/** The columns of `professionals` a patch can change that the list shows (gender: the title's form). */
+const LIST_FIELDS = ['firstName', 'lastName', 'gender'] as const satisfies readonly (keyof ProfessionalPatch)[]
 const never = () => false
 
 export function useUpdateProfessional(feedback?: MutationFeedback) {
@@ -104,6 +108,7 @@ export function useUpdateProfessional(feedback?: MutationFeedback) {
       apply: (record, _, { patch }) => ({ ...record, professional: { ...record.professional, ...patch } }),
       touchesUsage: false,
       touchesList: ({ patch }) => LIST_FIELDS.some((field) => field in patch),
+      alsoRefetch: ({ id, patch }) => ('gender' in patch ? [professionalKeys.compensation(id), professionalKeys.reviews()] : []),
     },
     feedback,
   )

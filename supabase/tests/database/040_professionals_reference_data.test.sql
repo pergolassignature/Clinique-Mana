@@ -9,7 +9,7 @@
 -- keys.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(102);
+select plan(111);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider, a conseillère, K and S in
@@ -160,6 +160,12 @@ select function_privs_are('private', 'seed_professionals_reference_on_org', arra
   'clients cannot execute the seeding trigger function');
 select function_privs_are('private', 'freeze_reference_identity', array[]::text[], 'authenticated', array[]::text[],
   'clients cannot execute the key-freeze trigger function');
+select function_privs_are('private', 'profession_title_label', array['text', 'text', 'text', 'text'], 'authenticated', array['EXECUTE'],
+  'the directory and the public profile (run as the caller) may name a title in the professional''s form (P4-342)');
+select function_privs_are('private', 'profession_title_label', array['text', 'text', 'text', 'text'], 'anon', array[]::text[],
+  'anon cannot call profession_title_label');
+select function_privs_are('private', 'profession_title_label', array['text', 'text', 'text', 'text'], 'service_role', array['EXECUTE'],
+  'service_role may call profession_title_label (a later email template, P4-344)');
 
 -- =============================================================================
 -- Seeding (orgs A and B, created after the migration)
@@ -207,6 +213,30 @@ $$, $$ values ('psychologue'::text, 'psychologie'::text, 'opq'::text), ('psychot
               ('conseiller_orientation', 'orientation', 'occoq'), ('coach_professionnel', 'coaching_professionnel', null),
               ('nutritionniste', 'nutrition', 'odnq') $$,
   'titles: psychologue → OPQ, naturopathe and coach without an order, nutritionniste → ODNQ / nutrition (P4-6)');
+select results_eq($$
+  select t.key, t.name, t.name_feminine, t.name_masculine from public.profession_titles t
+   where t.org_id = 'b0000000-0000-0000-0000-00000000000a' order by t.sort_order
+$$, $$ values ('psychologue'::text, 'Psychologue'::text, 'Psychologue'::text, 'Psychologue'::text),
+              ('psychotherapeute', 'Psychothérapeute', 'Psychothérapeute', 'Psychothérapeute'),
+              ('travailleur_social', 'Travailleuse sociale ou travailleur social', 'Travailleuse sociale', 'Travailleur social'),
+              ('psychoeducateur', 'Psychoéducatrice ou psychoéducateur', 'Psychoéducatrice', 'Psychoéducateur'),
+              ('sexologue', 'Sexologue', 'Sexologue', 'Sexologue'),
+              ('naturopathe', 'Naturopathe', 'Naturopathe', 'Naturopathe'),
+              ('conseiller_orientation', 'Conseillère ou conseiller d''orientation', 'Conseillère d''orientation', 'Conseiller d''orientation'),
+              ('coach_professionnel', 'Coach certifiée ou certifié', 'Coach certifiée', 'Coach certifié'),
+              ('nutritionniste', 'Nutritionniste', 'Nutritionniste', 'Nutritionniste') $$,
+  'titles carry their feminine and masculine forms, as on the website (P4-340), and a name written in full (P4-341)');
+select is_empty($$ select t.key from public.profession_titles t where t.name ~ '\.' or t.name_feminine ~ '\.' or t.name_masculine ~ '\.' $$,
+  'no seeded title is a dotted form (P4-341)');
+select results_eq($$ select private.profession_title_label('Travailleuse sociale ou travailleur social', 'Travailleuse sociale', 'Travailleur social', g)
+                       from unnest(array['female', 'male', 'unspecified', null]) with ordinality as x(g, n) order by n $$,
+  $$ values ('Travailleuse sociale'::text), ('Travailleur social'), ('Travailleuse sociale ou travailleur social'),
+            ('Travailleuse sociale ou travailleur social') $$,
+  'profession_title_label: Femme → feminine, Homme → masculine, « Autre » or no gender → the name (P4-342)');
+select results_eq($$ select private.profession_title_label('Psychologue', null, null, g)
+                       from unnest(array['female', 'male']) with ordinality as x(g, n) order by n $$,
+  $$ values ('Psychologue'::text), ('Psychologue') $$,
+  'profession_title_label: an empty form falls back to the name');
 select results_eq($$
   select c.key, c.min_age::int, c.max_age::int, c.is_system from public.clienteles c
    where c.org_id = 'b0000000-0000-0000-0000-00000000000a' order by c.sort_order
@@ -348,6 +378,14 @@ select throws_ok($$ insert into public.motifs (org_id, key, name) values ('b0000
   '23514', null, 'keys are ASCII snake_case');
 select throws_ok($$ insert into public.motifs (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'untrimmed', ' Espaces') $$,
   '23514', null, 'names are trimmed');
+select throws_ok($$ insert into public.profession_titles (org_id, key, name, name_feminine, category_id)
+                    select 'b0000000-0000-0000-0000-00000000000a', 'vide', 'Vide', '', c.id
+                      from public.profession_categories c where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.key = 'psychologie' $$,
+  '23514', null, 'a title''s form is never empty (null stands for « the name », P4-340)');
+select throws_ok($$ insert into public.profession_titles (org_id, key, name, name_masculine, category_id)
+                    select 'b0000000-0000-0000-0000-00000000000a', 'espaces', 'Espaces', 'Espaces ', c.id
+                      from public.profession_categories c where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.key = 'psychologie' $$,
+  '23514', null, 'a title''s form is tidy, like its name');
 select throws_ok($$ insert into public.motif_categories (org_id, key, name, icon) values ('b0000000-0000-0000-0000-00000000000a', 'skull', 'Crâne', 'Skull') $$,
   '23514', null, 'category icons come from the 20-icon set');
 select throws_ok($$ insert into public.clienteles (org_id, key, name, min_age, max_age) values ('b0000000-0000-0000-0000-00000000000a', 'bad_range', 'Mauvais intervalle', 13, 12) $$,

@@ -156,6 +156,7 @@ describe('listRowPayload', () => {
       hasAccount: false,
       primaryTitleId: IDS.psychologue,
       primaryLicenceNumber: '12345',
+      gender: null,
       languageIds: [IDS.fr],
       clienteleIds: [IDS.couples],
       motifIds: [IDS.anxiete],

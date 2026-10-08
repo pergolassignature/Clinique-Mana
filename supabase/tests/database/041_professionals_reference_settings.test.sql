@@ -10,7 +10,7 @@
 -- of a rename.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(185);
+select plan(188);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider, a conseillère, K in a
@@ -71,8 +71,8 @@ select function_privs_are('public', 'save_professional_order', array['uuid', 'te
 select function_privs_are('public', 'save_professional_order', array['uuid', 'text', 'text', 'text', 'text'], 'authenticated', array['EXECUTE'], 'authenticated may call save_professional_order');
 select function_privs_are('public', 'save_profession_category', array['uuid', 'text'], 'anon', array[]::text[], 'anon cannot call save_profession_category');
 select function_privs_are('public', 'save_profession_category', array['uuid', 'text'], 'authenticated', array['EXECUTE'], 'authenticated may call save_profession_category');
-select function_privs_are('public', 'save_profession_title', array['uuid', 'text', 'uuid', 'uuid'], 'anon', array[]::text[], 'anon cannot call save_profession_title');
-select function_privs_are('public', 'save_profession_title', array['uuid', 'text', 'uuid', 'uuid'], 'authenticated', array['EXECUTE'], 'authenticated may call save_profession_title');
+select function_privs_are('public', 'save_profession_title', array['uuid', 'text', 'uuid', 'uuid', 'text', 'text'], 'anon', array[]::text[], 'anon cannot call save_profession_title');
+select function_privs_are('public', 'save_profession_title', array['uuid', 'text', 'uuid', 'uuid', 'text', 'text'], 'authenticated', array['EXECUTE'], 'authenticated may call save_profession_title');
 select function_privs_are('public', 'save_clientele', array['uuid', 'text', 'integer', 'integer'], 'anon', array[]::text[], 'anon cannot call save_clientele');
 select function_privs_are('public', 'save_clientele', array['uuid', 'text', 'integer', 'integer'], 'authenticated', array['EXECUTE'], 'authenticated may call save_clientele');
 select hasnt_function('public', 'save_specialty', 'there is no save RPC for approaches (P4-240)');
@@ -206,17 +206,27 @@ select results_eq($$ select c.key, c.name from public.profession_categories c wh
 
 -- Profession titles
 select set_config('test.title', public.save_profession_title(null, 'Art-thérapeute',
-  current_setting('test.category')::uuid, null)::text, true);
-select results_eq($$ select t.key, t.category_id, t.order_id from public.profession_titles t where t.id = current_setting('test.title')::uuid $$,
-  $$ select 'art_therapeute'::text, current_setting('test.category')::uuid, null::uuid $$,
-  'save_profession_title creates an unregulated title');
-select lives_ok($$ select public.save_profession_title(current_setting('test.title')::uuid, 'Art-thérapeute certifié.e',
-                    current_setting('test.category')::uuid, current_setting('test.order')::uuid) $$,
-  'save_profession_title updates a title and attaches an order');
-select results_eq($$ select t.key, t.name, t.order_id from public.profession_titles t where t.id = current_setting('test.title')::uuid $$,
-  $$ select 'art_therapeute'::text, 'Art-thérapeute certifié.e'::text, current_setting('test.order')::uuid $$,
-  'the title keeps its key and gets the order');
-select throws_ok($$ select public.save_profession_title(null, 'Titre sans catégorie', null, null) $$,
+  current_setting('test.category')::uuid, null, null, null)::text, true);
+select results_eq($$ select t.key, t.category_id, t.order_id, t.name_feminine, t.name_masculine
+                      from public.profession_titles t where t.id = current_setting('test.title')::uuid $$,
+  $$ select 'art_therapeute'::text, current_setting('test.category')::uuid, null::uuid, null::text, null::text $$,
+  'save_profession_title creates an unregulated title, without forms (the name is shown, P4-340)');
+select lives_ok($$ select public.save_profession_title(current_setting('test.title')::uuid, 'Art-thérapeute certifiée ou certifié',
+                    current_setting('test.category')::uuid, current_setting('test.order')::uuid,
+                    E'  Art-thérapeute\u00A0 certifiée ', 'Art-thérapeute certifié') $$,
+  'save_profession_title updates a title, attaches an order and sets its forms');
+select results_eq($$ select t.key, t.name, t.order_id, t.name_feminine, t.name_masculine
+                      from public.profession_titles t where t.id = current_setting('test.title')::uuid $$,
+  $$ select 'art_therapeute'::text, 'Art-thérapeute certifiée ou certifié'::text, current_setting('test.order')::uuid,
+            'Art-thérapeute certifiée'::text, 'Art-thérapeute certifié'::text $$,
+  'the title keeps its key, gets the order and its forms, tidied as the name is');
+select throws_ok($$ select public.save_profession_title(current_setting('test.title')::uuid, 'Art-thérapeute',
+                     current_setting('test.category')::uuid, null, repeat('x', 121), null) $$,
+  'P0001', 'La forme féminine ne peut pas dépasser 120 caractères.', 'a form is at most 120 characters');
+select throws_ok($$ select public.save_profession_title(current_setting('test.title')::uuid, 'Art-thérapeute',
+                     current_setting('test.category')::uuid, null, null, E'Art\u200Bthérapeute') $$,
+  'P0001', 'La forme masculine contient des caractères invisibles ou non permis.', 'a form is tidy text');
+select throws_ok($$ select public.save_profession_title(null, 'Titre sans catégorie', null, null, null, null) $$,
   'P0001', 'Choisissez une catégorie.', 'a title needs a category');
 
 -- Clientèles
@@ -325,16 +335,18 @@ select lives_ok($$ select public.set_professionals_reference_active('professiona
   'with its title archived, the order can be archived');
 select throws_ok($$ select public.set_professionals_reference_active('profession_titles', current_setting('test.title')::uuid, true) $$,
   'P0001', 'Restaurez d''abord sa catégorie.', 'a title cannot be restored while its category is archived');
-select throws_ok($$ select public.save_profession_title(null, 'Nouveau titre', current_setting('test.category')::uuid, null) $$,
+select throws_ok($$ select public.save_profession_title(null, 'Nouveau titre', current_setting('test.category')::uuid, null, null, null) $$,
   'P0001', 'Catégorie introuvable ou archivée.', 'a new title cannot use an archived category');
 select lives_ok($$ select public.save_profession_title(current_setting('test.title')::uuid, 'Art-thérapeute',
-                    current_setting('test.category')::uuid, current_setting('test.order')::uuid) $$,
+                    current_setting('test.category')::uuid, current_setting('test.order')::uuid, null, null) $$,
   'an archived title can be renamed while keeping its archived category and order');
+select results_eq($$ select t.name_feminine, t.name_masculine from public.profession_titles t where t.id = current_setting('test.title')::uuid $$,
+  $$ values (null::text, null::text) $$, 'blank forms are cleared: the name is shown again');
 select lives_ok($$ select public.set_professionals_reference_active('profession_categories', current_setting('test.category')::uuid, true) $$,
   'the category is restored');
 select throws_ok($$ select public.set_professionals_reference_active('profession_titles', current_setting('test.title')::uuid, true) $$,
   'P0001', 'Restaurez d''abord son ordre.', 'a title cannot be restored while its order is archived');
-select throws_ok($$ select public.save_profession_title(null, 'Autre titre', current_setting('test.category')::uuid, current_setting('test.order')::uuid) $$,
+select throws_ok($$ select public.save_profession_title(null, 'Autre titre', current_setting('test.category')::uuid, current_setting('test.order')::uuid, null, null) $$,
   'P0001', 'Ordre introuvable ou archivé.', 'a new title cannot use an archived order');
 select throws_ok($$ select public.set_professionals_reference_active('nope', current_setting('test.motif')::uuid, false) $$,
   '22023', null, 'an unknown kind is a technical error');

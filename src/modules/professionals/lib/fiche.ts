@@ -1,5 +1,6 @@
 import type { ProfessionalRecord, ProfessionRow } from '../api/parse'
 import type { CatalogView } from './catalog-view'
+import { titleLabel } from './title-label'
 
 /**
  * What the « Fiche PDF » menu needs before any PDF code loads (Task 4c.5): the titles a fiche can
@@ -9,19 +10,21 @@ import type { CatalogView } from './catalog-view'
 /** A title the fiche can carry (A2.19: one fiche per profession title). */
 export interface FicheTitle {
   titleId: string
+  /** In the professional's form, as the fiche prints it (« Travailleuse sociale », P4-342). */
   name: string
 }
 
 /**
- * The professional's titles, the primary one first, named from the catalogue (an archived title
- * is still theirs). Empty without a title: the fiche then shows the name alone.
+ * The professional's titles, the primary one first, named from the catalogue in the
+ * professional's form (an archived title is still theirs). Empty without a title: the fiche then
+ * shows the name alone.
  */
-export function ficheTitles(record: Pick<ProfessionalRecord, 'professions'>, catalog: CatalogView): FicheTitle[] {
+export function ficheTitles(record: Pick<ProfessionalRecord, 'professions' | 'professional'>, catalog: CatalogView): FicheTitle[] {
   return [...record.professions]
     .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
     .flatMap((row) => {
       const title = catalog.byId.titles.get(row.titleId)
-      return title ? [{ titleId: row.titleId, name: title.name }] : []
+      return title ? [{ titleId: row.titleId, name: titleLabel(title, record.professional.gender) }] : []
     })
 }
 

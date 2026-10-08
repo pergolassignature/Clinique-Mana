@@ -44,7 +44,7 @@ export function HistoryTab() {
   const rows = useMemo(() => pages?.flat() ?? [], [pages])
   const settled = useMemo(() => settledHistoryRows(rows, hasNextPage), [rows, hasNextPage])
   const events = useMemo(
-    () => buildHistoryEvents(settled, { catalog, titleByRow: professionTitlesByRow(rows, record) }),
+    () => buildHistoryEvents(settled, { catalog, titleByRow: professionTitlesByRow(rows, record), gender: record.professional.gender }),
     [settled, rows, catalog, record],
   )
   const days = useMemo(() => groupHistoryByDay(filterHistory(events, filter)), [events, filter])

@@ -269,8 +269,11 @@ $$;
 
 -- A title's category must be active, and its order active or none (not regulated). A title may
 -- keep the archived category or order it already has (renaming an archived title). Changing the
--- order does not touch existing licences: readiness flags the missing ones (4a.4).
-create function public.save_profession_title(p_id uuid, p_name text, p_category_id uuid, p_order_id uuid)
+-- order does not touch existing licences: readiness flags the missing ones (4a.4). The feminine
+-- and masculine forms are optional (blank: the name is shown, P4-340) and not unique: an epicene
+-- title has the same word in both, and two titles may share a form.
+create function public.save_profession_title(p_id uuid, p_name text, p_category_id uuid, p_order_id uuid,
+                                             p_name_feminine text, p_name_masculine text)
 returns uuid
 language plpgsql
 security definer
@@ -279,6 +282,8 @@ as $$
 declare
   v_org uuid := private.lock_for_professionals_settings();
   v_name text := private.reference_text(p_name, 'Le nom', 120, true, true);
+  v_feminine text := private.reference_text(p_name_feminine, 'La forme féminine', 120, false, true);
+  v_masculine text := private.reference_text(p_name_masculine, 'La forme masculine', 120, false, true);
   v_current public.profession_titles;
   v_id uuid;
 begin
@@ -311,16 +316,17 @@ begin
 
   if p_id is null then
     perform private.assert_reference_room((select count(*) from public.profession_titles x where x.org_id = v_org));
-    insert into public.profession_titles (org_id, key, name, category_id, order_id, sort_order)
+    insert into public.profession_titles (org_id, key, name, name_feminine, name_masculine, category_id, order_id, sort_order)
     values (v_org,
             private.unique_reference_key(private.reference_key(v_name),
               array(select x.key from public.profession_titles x where x.org_id = v_org)),
-            v_name, p_category_id, p_order_id,
+            v_name, v_feminine, v_masculine, p_category_id, p_order_id,
             coalesce((select max(x.sort_order) from public.profession_titles x where x.org_id = v_org), 0) + 10)
     returning id into v_id;
   else
     update public.profession_titles x
-       set name = v_name, category_id = p_category_id, order_id = p_order_id
+       set name = v_name, name_feminine = v_feminine, name_masculine = v_masculine,
+           category_id = p_category_id, order_id = p_order_id
      where x.id = p_id and x.org_id = v_org
     returning x.id into v_id;
   end if;
@@ -980,7 +986,7 @@ $$;
 revoke all on function
   public.save_professional_order(uuid, text, text, text, text),
   public.save_profession_category(uuid, text),
-  public.save_profession_title(uuid, text, uuid, uuid),
+  public.save_profession_title(uuid, text, uuid, uuid, text, text),
   public.save_clientele(uuid, text, int, int),
   public.save_motif_category(uuid, text, text, text),
   public.save_motif(uuid, text, uuid, boolean),
@@ -995,7 +1001,7 @@ from public, anon, authenticated;
 grant execute on function
   public.save_professional_order(uuid, text, text, text, text),
   public.save_profession_category(uuid, text),
-  public.save_profession_title(uuid, text, uuid, uuid),
+  public.save_profession_title(uuid, text, uuid, uuid, text, text),
   public.save_clientele(uuid, text, int, int),
   public.save_motif_category(uuid, text, text, text),
   public.save_motif(uuid, text, uuid, boolean),

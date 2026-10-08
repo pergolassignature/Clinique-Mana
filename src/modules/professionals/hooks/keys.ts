@@ -7,10 +7,11 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * | Change                                   | Invalidated                                                    |
  * |------------------------------------------|----------------------------------------------------------------|
  * | a record's set, email or status, or a    | `record(id)` (after writing the returned set), `lists()`,      |
- * | field the list shows (names, new clients)| `history(id)` (its first page, `refreshProfessionalHistory`);  |
- * |                                          | sets and status also `usage()` (« Utilisé par »)               |
+ * | field the list shows (names, new clients,| `history(id)` (its first page, `refreshProfessionalHistory`);  |
+ * | gender: the title's form, P4-342)        | sets and status also `usage()` (« Utilisé par »); the gender   |
+ * |                                          | also `compensation(id)` and `reviews()`                        |
  * | a field the list does not show (bio,     | `record(id)`, `history(id)` (first page) only (`touchesList`   |
- * | approach, public contact, IVAC, gender,  | in `use-professional-mutations.ts`)                            |
+ * | approach, public contact, IVAC,          | in `use-professional-mutations.ts`)                            |
  * | experience, phone, address)              |                                                                |
  * | creation                                 | `lists()`, `usage()`                                           |
  * | a list row saved                         | `catalog()`, `usage()`; `professionalKeys.all` for titles and  |

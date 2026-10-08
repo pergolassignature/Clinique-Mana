@@ -27,7 +27,7 @@ const P2 = '00000000-0000-4000-8000-000000009002'
 const P3 = '00000000-0000-4000-8000-000000009003'
 
 const base = {
-  titleName: 'Psychologue',
+  titleLabel: 'Psychologue',
   sessionsBefore: 33.5,
   floorPct: 25,
   increaseDecided: false,
@@ -84,7 +84,7 @@ const NO_RATE: ReviewRow = {
   id: '00000000-0000-4000-8000-000000009004',
   firstName: 'Isa',
   lastName: 'Quatre',
-  titleName: 'Travailleuse sociale',
+  titleLabel: 'Travailleuse sociale',
   entry: null,
   sessionsBefore: 0,
   sessionsTotal: 0,

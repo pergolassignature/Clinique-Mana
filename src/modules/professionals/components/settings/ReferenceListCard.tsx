@@ -64,6 +64,8 @@ export interface ReferenceListLabels {
   usageNone: string
   /** The archive confirmation's body (default « Cet élément est utilisé par 3 professionnels. … »). */
   archiveBody: (name: string, count: number) => string
+  /** Help under the dialog's « Nom » (default none). */
+  nameHelp?: string
 }
 
 export interface ReferenceListCardProps<K extends ReferenceKind> {
@@ -514,6 +516,7 @@ export function ReferenceListCard<K extends ReferenceKind>({
               rows={rows}
               title={editRow ? labels.editTitle : labels.createTitle}
               renderForm={renderForm}
+              nameHelp={labels.nameHelp}
               createDefaults={createDefaults}
               onOpenChange={setEditOpen}
               onSaved={(id) => (focusRow.current = id)}

@@ -16,7 +16,7 @@
 -- module off).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(174);
+select plan(180);
 
 -- The HINT of the error `p_sql` raises (null when it raises none or succeeds): throws_ok checks the
 -- code and the message only; the activation and deactivation dialogs route refusals by HINT (4a.14).
@@ -479,7 +479,7 @@ select results_eq($$ select d.display_name, d.primary_title_key, d.category_key,
   'a directory row carries what matching needs');
 select is((select d.professions from public.professionals_directory d where d.id = current_setting('test.p2')::uuid),
   jsonb_build_array(jsonb_build_object('id', (select pp.id from public.professional_professions pp where pp.professional_id = current_setting('test.p2')::uuid),
-    'title_id', current_setting('test.psy'), 'title_key', 'psychologue', 'title_name', 'Psychologue', 'category_key', 'psychologie',
+    'title_id', current_setting('test.psy'), 'title_key', 'psychologue', 'title_name', 'Psychologue', 'title_label', 'Psychologue', 'category_key', 'psychologie',
     'order_acronym', 'OPQ', 'licence_number', 'OPQ-2000', 'is_primary', true)),
   'the directory lists every profession');
 select results_eq($$ select d.min_client_age::int, d.women_only from public.professionals_directory d
@@ -601,7 +601,7 @@ select is(public.get_professional_public_profile(current_setting('test.p2')::uui
   'motifs grouped by active category, « Sans catégorie » last (P4-246)');
 select is(public.get_professional_public_profile(current_setting('test.p2')::uuid) - 'motif_groups',
   jsonb_build_object('first_name', 'Pia', 'last_name', 'Deux', 'bio', 'Accompagne les adultes.', 'approach', null,
-    'public_email', 'pia@clinique.ca', 'public_phone', null, 'primary_title_name', 'Psychologue', 'order_acronym', 'OPQ',
+    'public_email', 'pia@clinique.ca', 'public_phone', null, 'primary_title_name', 'Psychologue', 'primary_title_label', 'Psychologue', 'order_acronym', 'OPQ',
     'licence_number', 'OPQ-2000',
     'clienteles', jsonb_build_array(jsonb_build_object('name', 'Adultes', 'min_age', 18, 'max_age', null, 'specialized', true)),
     'min_client_age', null, 'women_only', false),
@@ -733,6 +733,47 @@ select set_eq($$ select x from private.professional_login_email_mismatches() x $
   array[current_setting('test.p2')::uuid], 'the provider: their own only');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select is((select count(*)::int from private.professional_login_email_mismatches()), 0, 'another clinic: none');
+
+-- =============================================================================
+-- The title in the professional's form (P4-342): P2, a woman, also holds the seeded
+-- travailleur_social, then makes it her primary title
+-- =============================================================================
+reset role;
+update public.professionals set gender = 'female' where id = current_setting('test.p2')::uuid;
+insert into public.professional_professions (org_id, professional_id, profession_title_id, licence_number, is_primary)
+select t.org_id, current_setting('test.p2')::uuid, t.id, 'TS-2000', false
+  from public.profession_titles t where t.org_id = 'b0000000-0000-0000-0000-00000000000a' and t.key = 'travailleur_social';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select is((select l.gender from public.professionals_list l where l.id = current_setting('test.p2')::uuid), 'female',
+  'the list carries the gender, which picks the title''s form');
+select results_eq($$ select x ->> 'title_name', x ->> 'title_label'
+                       from public.professionals_directory d, jsonb_array_elements(d.professions) x
+                      where d.id = current_setting('test.p2')::uuid order by x ->> 'title_key' $$,
+  $$ values ('Psychologue'::text, 'Psychologue'::text), ('Travailleuse sociale ou travailleur social', 'Travailleuse sociale') $$,
+  'the directory names each title and its form for her: an epicene title, the feminine form');
+reset role;
+update public.professional_professions set is_primary = false where professional_id = current_setting('test.p2')::uuid and is_primary;
+update public.professional_professions set is_primary = true where professional_id = current_setting('test.p2')::uuid and licence_number = 'TS-2000';
+set local role authenticated;
+select results_eq($$ select d.primary_title_name, d.primary_title_label from public.professionals_directory d
+                      where d.id = current_setting('test.p2')::uuid $$,
+  $$ values ('Travailleuse sociale ou travailleur social'::text, 'Travailleuse sociale'::text) $$,
+  'the directory''s primary title: its name and her form');
+select results_eq($$ select public.get_professional_public_profile(current_setting('test.p2')::uuid) ->> 'primary_title_name',
+                            public.get_professional_public_profile(current_setting('test.p2')::uuid) ->> 'primary_title_label' $$,
+  $$ values ('Travailleuse sociale ou travailleur social'::text, 'Travailleuse sociale'::text) $$,
+  'the public profile (run as the caller) names her form');
+reset role;
+update public.professionals set gender = 'male' where id = current_setting('test.p2')::uuid;
+set local role authenticated;
+select is((select d.primary_title_label from public.professionals_directory d where d.id = current_setting('test.p2')::uuid),
+  'Travailleur social', 'a man: the masculine form');
+reset role;
+update public.professionals set gender = 'unspecified' where id = current_setting('test.p2')::uuid;
+set local role authenticated;
+select is((select d.primary_title_label from public.professionals_directory d where d.id = current_setting('test.p2')::uuid),
+  'Travailleuse sociale ou travailleur social', '« Autre / non précisé »: the title''s name, never a dotted form');
 
 select * from finish();
 rollback;

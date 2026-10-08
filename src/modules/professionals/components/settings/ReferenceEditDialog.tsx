@@ -35,6 +35,8 @@ interface ReferenceEditDialogProps<K extends ReferenceKind> {
   description?: string
   /** The list's own fields, under « Nom ». */
   renderForm?: (props: ReferenceFormProps<K>) => ReactNode
+  /** Help under « Nom » (titles: where the name shows, P4-341). */
+  nameHelp?: string
   /** Values a new row starts with, over the empty ones (e.g. the category a list is filtered on). Ignored when editing. */
   createDefaults?: Partial<ReferenceFormValues[K]>
   onOpenChange: (open: boolean) => void
@@ -59,6 +61,7 @@ export function ReferenceEditDialog<K extends ReferenceKind>({
   title,
   description,
   renderForm,
+  nameHelp,
   createDefaults,
   onOpenChange,
   onSaved,
@@ -110,6 +113,7 @@ export function ReferenceEditDialog<K extends ReferenceKind>({
           row={row}
           rows={rows}
           renderForm={renderForm}
+          nameHelp={nameHelp}
           createDefaults={createDefaults}
           pending={save.isPending}
           refusal={refusal}
@@ -125,13 +129,24 @@ interface ReferenceFormComponentProps<K extends ReferenceKind> {
   row: ReferenceRow<K> | null
   rows: readonly ReferenceRow<K>[]
   renderForm?: (props: ReferenceFormProps<K>) => ReactNode
+  nameHelp?: string
   createDefaults?: Partial<ReferenceFormValues[K]>
   pending: boolean
   refusal: string | null
   onSubmit: (values: ReferenceFields<K>) => void
 }
 
-function ReferenceForm<K extends ReferenceKind>({ kind, row, rows, renderForm, createDefaults, pending, refusal, onSubmit }: ReferenceFormComponentProps<K>) {
+function ReferenceForm<K extends ReferenceKind>({
+  kind,
+  row,
+  rows,
+  renderForm,
+  nameHelp,
+  createDefaults,
+  pending,
+  refusal,
+  onSubmit,
+}: ReferenceFormComponentProps<K>) {
   // Built once per opening (the form remounts with each one): the database refuses a duplicate
   // that another manager adds meanwhile.
   const [resolver] = useState(
@@ -149,7 +164,7 @@ function ReferenceForm<K extends ReferenceKind>({ kind, row, rows, renderForm, c
 
   return (
     <form noValidate onSubmit={(event) => void form.handleSubmit(onSubmit)(event)} className="grid gap-3.5">
-      <FormField label={t('modules.professionals.settings.list.dialog.name')} required error={errors.name?.message}>
+      <FormField label={t('modules.professionals.settings.list.dialog.name')} help={nameHelp} required error={errors.name?.message}>
         {(field) => <Input {...field} {...nameForm.register('name')} autoComplete="off" maxLength={120} />}
       </FormField>
       {renderForm?.({ form, row })}

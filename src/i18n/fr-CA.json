@@ -1618,7 +1618,7 @@
             "lastName": "Nom",
             "gender": "Genre",
             "genderNone": "Non indiqué",
-            "genderHelp": "Utilisé seulement pour la préférence du client."
+            "genderHelp": "Utilisé pour la préférence du client et pour la forme du titre : « Travailleuse sociale » ou « Travailleur social »."
           },
           "contact": {
             "title": "Coordonnées",
@@ -2199,6 +2199,11 @@
             "add": "Ajouter un titre",
             "createTitle": "Ajouter un titre",
             "editTitle": "Modifier le titre",
+            "nameHelp": "Affiché dans les paramètres et les filtres, et pour une personne dont le genre est « Autre » ou non indiqué. Écrivez-le en toutes lettres, par exemple « Travailleuse sociale ou travailleur social ».",
+            "feminine": "Forme féminine",
+            "feminineHelp": "Affichée pour une professionnelle (genre « Femme ») : liste, dossier, fiche. Laissez vide pour afficher le nom.",
+            "masculine": "Forme masculine",
+            "masculineHelp": "Affichée pour un professionnel (genre « Homme »). Laissez vide pour afficher le nom.",
             "category": "Catégorie",
             "categoryPlaceholder": "Choisir une catégorie…",
             "order": "Ordre",
@@ -2682,6 +2687,8 @@
       "profession_titles": {
         "key": "Clé",
         "name": "Nom",
+        "name_feminine": "Forme féminine",
+        "name_masculine": "Forme masculine",
         "is_system": "Élément protégé",
         "sort_order": "Ordre d'affichage",
         "is_active": "Actif",

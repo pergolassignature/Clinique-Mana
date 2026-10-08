@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { IDS } from '../test/fixtures'
-import { CATALOG_VIEW } from '../test/fixtures-domain'
+import { CATALOG_VIEW, GENDERED_CATALOG_VIEW, recordFixture, socialWorkerRecord } from '../test/fixtures-domain'
 import { ficheFileName as serverFicheFileName } from '../../../../supabase/functions/professionals-fiche/file-name'
 import { ficheFileName, ficheTitles } from './fiche'
 
@@ -10,7 +10,7 @@ describe('ficheTitles', () => {
       { id: 'r2', titleId: IDS.naturopathe, licenceNumber: null, isPrimary: false },
       { id: 'r1', titleId: IDS.psychologue, licenceNumber: '12345', isPrimary: true },
     ]
-    expect(ficheTitles({ professions }, CATALOG_VIEW)).toEqual([
+    expect(ficheTitles({ ...recordFixture(), professions }, CATALOG_VIEW)).toEqual([
       { titleId: IDS.psychologue, name: 'Psychologue' },
       { titleId: IDS.naturopathe, name: 'Naturopathe' },
     ])
@@ -21,8 +21,16 @@ describe('ficheTitles', () => {
       { id: 'r1', titleId: IDS.archivedTitle, licenceNumber: null, isPrimary: true },
       { id: 'r2', titleId: 'unknown', licenceNumber: null, isPrimary: false },
     ]
-    expect(ficheTitles({ professions }, CATALOG_VIEW)).toEqual([{ titleId: IDS.archivedTitle, name: 'Ancien titre' }])
-    expect(ficheTitles({ professions: [] }, CATALOG_VIEW)).toEqual([])
+    expect(ficheTitles({ ...recordFixture(), professions }, CATALOG_VIEW)).toEqual([{ titleId: IDS.archivedTitle, name: 'Ancien titre' }])
+    expect(ficheTitles({ ...recordFixture(), professions: [] }, CATALOG_VIEW)).toEqual([])
+  })
+
+  it('names each title in the professional\'s form (P4-342)', () => {
+    expect(ficheTitles(socialWorkerRecord('female'), GENDERED_CATALOG_VIEW)).toEqual([{ titleId: IDS.travailleurSocial, name: 'Travailleuse sociale' }])
+    expect(ficheTitles(socialWorkerRecord('male'), GENDERED_CATALOG_VIEW)).toEqual([{ titleId: IDS.travailleurSocial, name: 'Travailleur social' }])
+    expect(ficheTitles(socialWorkerRecord(null), GENDERED_CATALOG_VIEW)).toEqual([
+      { titleId: IDS.travailleurSocial, name: 'Travailleuse sociale ou travailleur social' },
+    ])
   })
 })
 

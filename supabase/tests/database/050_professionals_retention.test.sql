@@ -14,7 +14,7 @@
 -- org A's ids, module off); the history; the import's two keys.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(294);
+select plan(297);
 
 -- The HINT / DETAIL of the error p_sql raises (null when none): throws_ok checks only code and message.
 create function private.test_error_hint(p_sql text) returns text
@@ -617,6 +617,18 @@ select is((select x ->> 'status' from jsonb_array_elements(public.list_retention
   'floor', 'P5: « Palier maximum atteint »');
 select is((select x ->> 'status' from jsonb_array_elements(public.list_retention_review('2026-09-01') -> 'rows') x where x ->> 'last_name' = 'Deux'),
   'no_rate', 'P2: no rate, « Taux de départ à fixer » (P4-197)');
+select results_eq($$ select x ->> 'title_name', x ->> 'title_label' from jsonb_array_elements(public.list_retention_review('2026-09-01') -> 'rows') x
+                     where x ->> 'last_name' = 'Deux' $$,
+  $$ values ('Travailleuse sociale ou travailleur social'::text, 'Travailleuse sociale ou travailleur social'::text) $$,
+  'P2 has no gender: her title reads by its name (P4-341)');
+reset role;
+update public.professionals set gender = 'female' where id = 'c0000000-0000-0000-0000-000000000002';
+set local role authenticated;
+select is((select x ->> 'title_label' from jsonb_array_elements(public.list_retention_review('2026-09-01') -> 'rows') x where x ->> 'last_name' = 'Deux'),
+  'Travailleuse sociale', 'the review names her title in her form (P4-342)');
+select is((public.get_professional_compensation('c0000000-0000-0000-0000-000000000002', '2026-09-15') -> 'title') - 'id',
+  '{"name": "Travailleuse sociale ou travailleur social", "label": "Travailleuse sociale"}'::jsonb,
+  'Rémunération reads the title''s name and her form');
 select is(private.test_error_hint($$ select public.list_retention_review(null) $$), 'month', 'a month is required');
 
 -- The decision counts through the month it was taken for (P4-187): reviewing September while

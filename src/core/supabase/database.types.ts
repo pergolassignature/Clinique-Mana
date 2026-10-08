@@ -1515,6 +1515,8 @@ export type Database = {
           is_system: boolean
           key: string
           name: string
+          name_feminine: string | null
+          name_masculine: string | null
           order_id: string | null
           org_id: string
           sort_order: number
@@ -1528,6 +1530,8 @@ export type Database = {
           is_system?: boolean
           key: string
           name: string
+          name_feminine?: string | null
+          name_masculine?: string | null
           order_id?: string | null
           org_id: string
           sort_order?: number
@@ -1541,6 +1545,8 @@ export type Database = {
           is_system?: boolean
           key?: string
           name?: string
+          name_feminine?: string | null
+          name_masculine?: string | null
           order_id?: string | null
           org_id?: string
           sort_order?: number
@@ -4281,6 +4287,7 @@ export type Database = {
           org_id: string | null
           primary_title_id: string | null
           primary_title_key: string | null
+          primary_title_label: string | null
           primary_title_name: string | null
           professions: Json | null
           ready: boolean | null
@@ -4308,6 +4315,7 @@ export type Database = {
           email: string | null
           email_matches_login: boolean | null
           first_name: string | null
+          gender: string | null
           has_account: boolean | null
           id: string | null
           language_ids: string[] | null
@@ -4969,6 +4977,7 @@ export type Database = {
           email: string | null
           email_matches_login: boolean | null
           first_name: string | null
+          gender: string | null
           has_account: boolean | null
           id: string | null
           language_ids: string[] | null
@@ -5341,6 +5350,8 @@ export type Database = {
           p_category_id: string
           p_id: string
           p_name: string
+          p_name_feminine: string
+          p_name_masculine: string
           p_order_id: string
         }
         Returns: string

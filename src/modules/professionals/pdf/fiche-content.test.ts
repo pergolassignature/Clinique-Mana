@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ProfessionalRecord } from '../api/parse'
 import { IDS } from '../test/fixtures'
-import { CATALOG_VIEW, motifsCatalog, recordFixture, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
+import { CATALOG_VIEW, GENDERED_CATALOG_VIEW, motifsCatalog, recordFixture, seventyTwoMotifsCatalog, socialWorkerRecord } from '../test/fixtures-domain'
 import { buildFicheContent, displayWebsite, feeLines, formatPublicFee, initialsOf, toPdfText, type FicheInput } from './fiche-content'
 
 const CLINIC = { name: 'Clinique MANA', phone: '+15145550000', email: 'bonjour@cliniquemana.ca', website: 'https://www.cliniquemana.ca/' }
@@ -65,6 +65,14 @@ describe('buildFicheContent', () => {
     expect(content.credential).toBeNull()
     // An unknown title id falls back to the primary one.
     expect(buildFicheContent(input({ titleId: 'unknown' }, { professions })).title).toBe('Psychologue')
+  })
+
+  it('prints the title in the professional\'s form, as the clinic site does (P4-342)', () => {
+    const fiche = (gender: 'female' | 'male' | null) =>
+      buildFicheContent(input({ catalog: GENDERED_CATALOG_VIEW }, socialWorkerRecord(gender)))
+    expect(fiche('female').title).toBe('Travailleuse sociale')
+    expect(fiche('male').title).toBe('Travailleur social')
+    expect(fiche(null).title).toBe('Travailleuse sociale ou travailleur social')
   })
 
   it('has no title line without a title', () => {

@@ -1,11 +1,45 @@
 import { catalogPayload, listRowPayload, parseRpc, recordPayload, type ProfessionalListRow, type ProfessionalRecord } from '../api/parse'
 import { buildCatalogView, type CatalogView } from '../lib/catalog-view'
-import type { ProfessionalStatus } from '../lib/constants'
-import { CATALOG_JSON, LIST_ROW_JSON, RECORD_JSON } from './fixtures'
+import type { Gender, ProfessionalStatus } from '../lib/constants'
+import { CATALOG_JSON, IDS, LIST_ROW_JSON, RECORD_JSON } from './fixtures'
 
 /** The fixtures as the pages see them (parsed, camelCase). Test-only. */
 export const CATALOG = parseRpc(catalogPayload, CATALOG_JSON)
 export const CATALOG_VIEW = buildCatalogView(CATALOG)
+
+/**
+ * The catalogue with a gendered title (P4-340): « Travailleuse sociale ou travailleur social »,
+ * « Travailleuse sociale », « Travailleur social », in the Psychologie category for brevity.
+ */
+export const GENDERED_CATALOG = {
+  ...CATALOG,
+  titles: [
+    ...CATALOG.titles,
+    {
+      id: IDS.travailleurSocial,
+      key: 'travailleur_social',
+      name: 'Travailleuse sociale ou travailleur social',
+      nameFeminine: 'Travailleuse sociale',
+      nameMasculine: 'Travailleur social',
+      isSystem: false,
+      sortOrder: 30,
+      isActive: true,
+      categoryId: IDS.psychologie,
+      orderId: IDS.opq,
+    },
+  ],
+}
+export const GENDERED_CATALOG_VIEW = buildCatalogView(GENDERED_CATALOG)
+
+/** The record fixture holding the gendered title alone (primary), with `gender`. */
+export function socialWorkerRecord(gender: Gender | null): ProfessionalRecord {
+  const record = recordFixture()
+  return {
+    ...record,
+    professional: { ...record.professional, gender },
+    professions: [{ id: 'row-ts', titleId: IDS.travailleurSocial, licenceNumber: 'TS04518', isPrimary: true }],
+  }
+}
 
 export function recordFixture(): ProfessionalRecord {
   const record = parseRpc(recordPayload, RECORD_JSON)

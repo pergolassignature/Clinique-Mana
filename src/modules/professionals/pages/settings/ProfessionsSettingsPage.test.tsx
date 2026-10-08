@@ -279,7 +279,43 @@ describe('ProfessionsSettingsPage', () => {
     await userEvent.selectOptions(category, IDS.naturopathie)
     await submit(t(`${LIST}.dialog.create`))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(mocks.api.saveReference).toHaveBeenCalledWith('profession_titles', { id: null, name: 'Naturothérapeute', categoryId: IDS.naturopathie, orderId: null })
+    // Forms left blank: the name is shown for everyone (P4-340).
+    expect(mocks.api.saveReference).toHaveBeenCalledWith('profession_titles', {
+      id: null,
+      name: 'Naturothérapeute',
+      nameFeminine: null,
+      nameMasculine: null,
+      categoryId: IDS.naturopathie,
+      orderId: null,
+    })
+  })
+
+  it('edits the feminine and masculine forms, with where each shows (P4-340, P4-341)', async () => {
+    await renderPage()
+    mocks.api.saveReference.mockResolvedValue(IDS.naturopathe)
+    await chooseAction('Naturopathe', 'edit')
+    expect(textbox('Nom')).toHaveAccessibleDescription(t(`${P}.titles.nameHelp`))
+    const feminine = textbox(t(`${P}.titles.feminine`))
+    const masculine = textbox(t(`${P}.titles.masculine`))
+    expect(feminine).toHaveValue('Naturopathe')
+    expect(feminine).toHaveAccessibleDescription(t(`${P}.titles.feminineHelp`))
+    expect(masculine).toHaveAccessibleDescription(t(`${P}.titles.masculineHelp`))
+    await userEvent.clear(textbox('Nom'))
+    await userEvent.type(textbox('Nom'), 'Naturopathe ou naturothérapeute')
+    await userEvent.clear(feminine)
+    await userEvent.type(feminine, 'Naturothérapeute')
+    await userEvent.clear(masculine)
+    await submit(t('common.save'))
+    await waitFor(() =>
+      expect(mocks.api.saveReference).toHaveBeenCalledWith('profession_titles', {
+        id: IDS.naturopathe,
+        name: 'Naturopathe ou naturothérapeute',
+        nameFeminine: 'Naturothérapeute',
+        nameMasculine: null,
+        categoryId: IDS.naturopathie,
+        orderId: null,
+      }),
+    )
   })
 
   it('keeps an archived category and order shown on the title that has them', async () => {
@@ -313,6 +349,8 @@ describe('ProfessionsSettingsPage', () => {
       expect(mocks.api.saveReference).toHaveBeenCalledWith('profession_titles', {
         id: IDS.archivedTitle,
         name: 'Titre retiré',
+        nameFeminine: null,
+        nameMasculine: null,
         categoryId: ARCHIVED_CATEGORY,
         orderId: ARCHIVED_ORDER,
       }),
@@ -338,6 +376,8 @@ describe('ProfessionsSettingsPage', () => {
       expect(mocks.api.saveReference).toHaveBeenCalledWith('profession_titles', {
         id: IDS.naturopathe,
         name: 'Naturopathe',
+        nameFeminine: 'Naturopathe',
+        nameMasculine: 'Naturopathe',
         categoryId: IDS.naturopathie,
         orderId: IDS.opq,
       }),

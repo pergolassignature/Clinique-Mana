@@ -58,8 +58,30 @@ describe('professional_orders', () => {
 describe('profession_titles', () => {
   it('requires a category; « Aucun ordre » sends null', () => {
     const schema = referenceSchemas.profession_titles
-    expect(schema.parse({ name: 'Naturopathe', categoryId: IDS.naturopathie, orderId: '' })).toEqual({ name: 'Naturopathe', categoryId: IDS.naturopathie, orderId: null })
-    expect(errorAt(schema, { name: 'X', categoryId: '', orderId: '' }, 'categoryId')).toBe(V('modules.professionals.validation.categoryRequired'))
+    const forms = { nameFeminine: '', nameMasculine: '' }
+    expect(schema.parse({ name: 'Naturopathe', ...forms, categoryId: IDS.naturopathie, orderId: '' })).toEqual({
+      name: 'Naturopathe',
+      nameFeminine: null,
+      nameMasculine: null,
+      categoryId: IDS.naturopathie,
+      orderId: null,
+    })
+    expect(errorAt(schema, { name: 'X', ...forms, categoryId: '', orderId: '' }, 'categoryId')).toBe(V('modules.professionals.validation.categoryRequired'))
+  })
+
+  it('reads the feminine and masculine forms as stored: tidy, blank as null, 120 characters at most (P4-340)', () => {
+    const schema = referenceSchemas.profession_titles
+    const base = { name: 'Travailleuse sociale ou travailleur social', categoryId: IDS.psychologie, orderId: '' }
+    expect(schema.parse({ ...base, nameFeminine: '  Travailleuse   sociale ', nameMasculine: ' ' })).toMatchObject({
+      nameFeminine: 'Travailleuse sociale',
+      nameMasculine: null,
+    })
+    expect(errorAt(schema, { ...base, nameFeminine: 'x'.repeat(121), nameMasculine: '' }, 'nameFeminine')).toBe(
+      t('modules.professionals.validation.maxChars', { max: '120' }),
+    )
+    expect(errorAt(schema, { ...base, nameFeminine: '', nameMasculine: 'Travailleur\u200bsocial' }, 'nameMasculine')).toBe(
+      V('modules.professionals.validation.invisibleChars'),
+    )
   })
 })
 
@@ -109,7 +131,7 @@ describe('referenceSchema: checks against the list (the RPC stays authoritative)
     // NFKC folds the full-width letters and the composed « î » the same way the index does.
     expect(errorAt(clienteles(null), { name: 'Ａi\u0302nés', minAge: '65', maxAge: '' }, 'name')).toBe(V('modules.professionals.validation.nameTaken.clienteles'))
     const titles = referenceSchema('profession_titles', { rows: CATALOG.titles, current: null })
-    expect(errorAt(titles, { name: 'ANCIEN TITRE', categoryId: IDS.psychologie, orderId: '' }, 'name')).toBe(V('modules.professionals.validation.nameTaken.profession_titles'))
+    expect(errorAt(titles, { name: 'ANCIEN TITRE', nameFeminine: '', nameMasculine: '', categoryId: IDS.psychologie, orderId: '' }, 'name')).toBe(V('modules.professionals.validation.nameTaken.profession_titles'))
   })
 
   it('lets a row keep its own name', () => {

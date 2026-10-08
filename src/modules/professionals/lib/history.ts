@@ -6,9 +6,10 @@ import { DECISIONS, DURATIONS, type Decision, type Duration } from '../api/compe
 import type { HistoryEntry, ProfessionalRecord } from '../api/parse'
 import { OTHER_MOTIF_GROUP, type CatalogView } from './catalog-view'
 import { durationLabel, formatCents, formatPercent, formatSessions, monthLabel, sessionsLabel } from './compensation'
-import { PAYER_TYPES, PROFESSIONAL_STATUSES, type AvailabilityPeriod, type PayerType, type ProfessionalStatus } from './constants'
+import { PAYER_TYPES, PROFESSIONAL_STATUSES, type AvailabilityPeriod, type Gender, type PayerType, type ProfessionalStatus } from './constants'
 import { listLabel, periodsLabel, statusLabel } from './display'
 import { FEW_MOTIFS, type HeldMotif } from './motif-summary'
+import { titleLabel } from './title-label'
 
 /**
  * The Historique tab's reading of `list_professional_history` (Task 4a.15): audit rows become
@@ -125,6 +126,8 @@ export interface HistoryContext {
   catalog: CatalogView
   /** profession row id → title id: an update row names only what changed, not its title. */
   titleByRow: ReadonlyMap<string, string>
+  /** The professional's gender today: a title reads in their form (« a ajouté le titre Travailleuse sociale », P4-342). */
+  gender: Gender | null
 }
 
 export const HISTORY_FILTERS = ['all', 'changes'] as const
@@ -157,8 +160,10 @@ function reasonName(catalog: CatalogView, id: unknown): string {
   return (typeof id === 'string' && catalog.byId.deactivationReasons.get(id)?.name) || unknown('reason')
 }
 
-function titleName(catalog: CatalogView, id: string | undefined): string {
-  return (id !== undefined && catalog.byId.titles.get(id)?.name) || unknown('title')
+/** A title in the professional's form; one the catalogue does not know reads « Titre archivé ». */
+function titleName(catalog: CatalogView, id: string | undefined, gender: Gender | null): string {
+  const title = id !== undefined ? catalog.byId.titles.get(id) : undefined
+  return title ? titleLabel(title, gender) : unknown('title')
 }
 
 /** A value for reading: never an id, never JSON, never the redaction marker. */
@@ -277,7 +282,7 @@ function professionRow(ctx: HistoryContext, entry: HistoryEntry): Described | nu
   const S = `${H}.sentences`
   const T = 'professional_professions'
   const titleId = typeof fields.profession_title_id === 'string' ? fields.profession_title_id : ctx.titleByRow.get(itemIdOf(entry))
-  const title = titleName(ctx.catalog, titleId)
+  const title = titleName(ctx.catalog, titleId, ctx.gender)
   if (entry.action !== 'update') {
     const added = entry.action === 'insert'
     const lines: HistoryLine[] = []

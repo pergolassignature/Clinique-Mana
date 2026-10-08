@@ -82,9 +82,16 @@ describe('saveReference', () => {
     ],
     profession_categories: [{ id: IDS.psychologie, name: 'Psychologie' }, 'save_profession_category', { p_id: IDS.psychologie, p_name: 'Psychologie' }],
     profession_titles: [
-      { id: null, name: 'Psychologue', categoryId: IDS.psychologie, orderId: null },
+      { id: null, name: 'Travailleuse sociale ou travailleur social', nameFeminine: 'Travailleuse sociale', nameMasculine: null, categoryId: IDS.psychologie, orderId: null },
       'save_profession_title',
-      { p_id: null, p_name: 'Psychologue', p_category_id: IDS.psychologie, p_order_id: null },
+      {
+        p_id: null,
+        p_name: 'Travailleuse sociale ou travailleur social',
+        p_name_feminine: 'Travailleuse sociale',
+        p_name_masculine: null,
+        p_category_id: IDS.psychologie,
+        p_order_id: null,
+      },
     ],
     clienteles: [
       { id: null, name: 'Aînés', minAge: 65, maxAge: null },

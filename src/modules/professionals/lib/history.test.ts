@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
 import type { HistoryEntry } from '../api/parse'
-import { CATALOG, CATALOG_VIEW, recordFixture, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
+import { CATALOG, CATALOG_VIEW, GENDERED_CATALOG_VIEW, recordFixture, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
 import { buildCatalogView, OTHER_MOTIF_GROUP } from './catalog-view'
 import { IDS } from '../test/fixtures'
 import {
@@ -42,7 +42,7 @@ function row(tableName: string, action: HistoryEntry['action'], changedFields: H
 const junction = (table: string, column: string, id: string, action: HistoryEntry['action'] = 'insert', extra: Record<string, unknown> = {}) =>
   row(table, action, { org_id: ORG, professional_id: P, [column]: id, created_at: TX, ...extra }, { recordId: `${P}:${id}` })
 
-const ctx = (over: Partial<HistoryContext> = {}): HistoryContext => ({ catalog: CATALOG_VIEW, titleByRow: new Map(), ...over })
+const ctx = (over: Partial<HistoryContext> = {}): HistoryContext => ({ catalog: CATALOG_VIEW, titleByRow: new Map(), gender: null, ...over })
 const events = (rows: HistoryEntry[], context = ctx()) => buildHistoryEvents(rows, context)
 const only = (rows: HistoryEntry[], context = ctx()): HistoryEvent => {
   const list = events(rows, context)
@@ -282,6 +282,15 @@ describe('history — titles and payer numbers', () => {
     expect(only([professionRow('delete', { profession_title_id: IDS.naturopathe, licence_number: null, is_primary: false })]).sentence).toBe(
       'a retiré le titre Naturopathe',
     )
+  })
+
+  it('names a title in the professional\'s form, the name without a gender (P4-342)', () => {
+    const added = professionRow('insert', { profession_title_id: IDS.travailleurSocial, licence_number: null, is_primary: false })
+    const sentence = (gender: HistoryContext['gender']) => only([added], ctx({ catalog: GENDERED_CATALOG_VIEW, gender })).sentence
+    expect(sentence('female')).toBe('a ajouté le titre Travailleuse sociale')
+    expect(sentence('male')).toBe('a ajouté le titre Travailleur social')
+    expect(sentence('unspecified')).toBe('a ajouté le titre Travailleuse sociale ou travailleur social')
+    expect(sentence(null)).toBe('a ajouté le titre Travailleuse sociale ou travailleur social')
   })
 
   it('says nothing of a non-primary flag or an empty licence on an added title', () => {

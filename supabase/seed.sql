@@ -111,7 +111,7 @@ values
 --   03 Camille Roy           active     Psychologue (OPQ), FR · EN · ES, women only, 14 and over
 --                                                                                  25 motifs, 10 categories
 --   04 Félix Gauthier        active     Sexologue (OPSQ), linked to provider@mana.test   3 motifs
---   05 Sophie Lavoie         active     Coach professionnelle (no order)           14 motifs (« écrans »)
+--   05 Sophie Lavoie         active     Coach certifiée (no order)                 14 motifs (« écrans »)
 --   06 Marc-André Pelletier  active     Psychothérapeute (OPQ), not accepting      12 motifs
 --   07 Étienne Fortin        active     Travailleur social (OTSTCFQ)               15 motifs
 --   08 Nadia Côté            draft      Naturopathe (no order), gaps: clientèle, motif   0 motifs
@@ -119,6 +119,8 @@ values
 --   10 Julie Morin           inactive   Psychoéducatrice (OPPQ), « Congé » + note, 12 and over
 --                                                                                  7 motifs
 --
+-- Every one has a gender, so each title shows in its form (« Travailleuse sociale » for 02,
+-- « Travailleur social » for 07, P4-345).
 -- Motif and clientèle keys are the website catalogue's (P4-241, P4-244). « Idées suicidaires » and
 -- « Trouble de personnalité limite (TPL) » are marked restricted here (P4-16; none is by default)
 -- so the rule holds something: only titles from an order carry them. Only OPPQ has a
@@ -230,6 +232,7 @@ declare
      "public_email": "e.fortin@exemple.test", "public_phone": "+14185550107"},
 
     {"n": 8, "first": "Nadia", "last": "Côté", "email": "nadia.cote@exemple.test", "status": "draft",
+     "gender": "female",
      "titles": [{"key": "naturopathe"}],
      "languages": ["fr"],
      "accepting": true},

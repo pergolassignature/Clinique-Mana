@@ -11,7 +11,8 @@ import { accessForRole, type FixtureRole } from '@/test/role-fixtures'
 import { PAGE_SIZE } from '../lib/constants'
 import { LIST_FILTERS_PREFERENCE } from '../lib/remembered-filters'
 import { setupQueryClient } from '../test/query-client'
-import { CATALOG, listRowFixture } from '../test/fixtures-domain'
+import type { ProfessionalListRow } from '../api/parse'
+import { CATALOG, GENDERED_CATALOG, listRowFixture } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
 import { ProfessionalsListPage } from './ProfessionalsListPage'
 
@@ -103,6 +104,21 @@ describe('ProfessionalsListPage', () => {
     expect(screen.getByText('3 résultats')).toBeInTheDocument()
     expect(screen.getByText('3 sur 3 professionnels')).toBeInTheDocument()
     expect(screen.getByText('Page 1 sur 1')).toBeInTheDocument()
+  })
+
+  it('names each title in the professional\'s form, the title\'s name without a gender (P4-342)', async () => {
+    const socialWorker = (n: number, firstName: string, gender: ProfessionalListRow['gender']) =>
+      listRowFixture({ id: id(n), firstName, lastName: 'Roy', email: `${firstName.toLowerCase()}@exemple.ca`, primaryTitleId: IDS.travailleurSocial, gender })
+    mocks.catalog.fetchProfessionalsCatalog.mockResolvedValue(GENDERED_CATALOG)
+    mocks.list.fetchProfessionalsList.mockResolvedValue({
+      rows: [socialWorker(4, 'Anne', 'female'), socialWorker(5, 'Luc', 'male'), socialWorker(6, 'Sam', null)],
+      truncated: false,
+    })
+    renderPage()
+    const rowOf = async (name: string) => (await screen.findByRole('link', { name })).closest('[role=row]') as HTMLElement
+    expect(within(await rowOf('Anne Roy')).getByText('Travailleuse sociale')).toBeInTheDocument()
+    expect(within(await rowOf('Luc Roy')).getByText('Travailleur social')).toBeInTheDocument()
+    expect(within(await rowOf('Sam Roy')).getByText('Travailleuse sociale ou travailleur social')).toBeInTheDocument()
   })
 
   it('loads the list, the catalogue and the remembered filters in parallel', () => {

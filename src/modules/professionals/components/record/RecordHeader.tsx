@@ -21,14 +21,15 @@ interface RecordHeaderProps {
 
 /**
  * The record's band (design §5.3): avatar 48 (initials until the photo, 4c), the name (the page's
- * h1) with its status, « Psychologue · OPQ 12345 · courriel », then quiet chips for the languages
+ * h1) with its status, « Travailleuse sociale · OTSTCFQ 12345 · courriel » (the title in the
+ * professional's form, P4-342), then quiet chips for the languages
  * and « N'accepte pas de nouveaux clients »; the actions at the right. The identity keeps at least
  * 16rem: below that the actions wrap under it rather than squeezing the name (375 px).
  */
 export function RecordHeader({ record, catalog, headingRef, actions }: RecordHeaderProps) {
   const { professional, matchingProfile, languageIds } = record
   const name = fullName(professional)
-  const line = [professionLine(primaryProfession(record), catalog), professional.email].filter(Boolean).join(' · ')
+  const line = [professionLine(primaryProfession(record), catalog, professional.gender), professional.email].filter(Boolean).join(' · ')
   const languages = languagesLabel(languageIds, catalog)
   return (
     <header className="flex min-w-0 flex-wrap items-start gap-3">

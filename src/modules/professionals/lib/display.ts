@@ -2,6 +2,7 @@ import { t } from '@/i18n'
 import type { BadgeProps } from '@/shared/ui/badge'
 import { AVAILABILITY_PERIODS, type AvailabilityPeriod, type Gender, type MotifCategoryIcon, type ProfessionalStatus } from './constants'
 import { titleOrder, type CatalogView } from './catalog-view'
+import { titleLabel } from './title-label'
 import type { ProfessionalRecord, ProfessionRow } from '../api/parse'
 
 /** Joins short labels on one line: « FR · EN », « Psychologue · OPQ 12345 ». */
@@ -109,14 +110,16 @@ export function periodsLabel(periods: readonly AvailabilityPeriod[]): string {
 }
 
 /**
- * « Psychologue · OPQ 12345 »: the title, then the order's acronym and the licence. Empty without
- * a title, or for a title the catalogue does not know.
+ * « Travailleuse sociale · OTSTCFQ 12345 »: the title in the professional's form (`titleLabel`,
+ * P4-342), then the order's acronym and the licence. Empty without a title, or for a title the
+ * catalogue does not know.
  */
-export function professionLine(row: Pick<ProfessionRow, 'titleId' | 'licenceNumber'> | null, catalog: CatalogView): string {
+export function professionLine(row: Pick<ProfessionRow, 'titleId' | 'licenceNumber'> | null, catalog: CatalogView, gender: Gender | null): string {
   const title = row ? catalog.byId.titles.get(row.titleId) : undefined
   if (!row || !title) return ''
+  const label = titleLabel(title, gender)
   const licence = [titleOrder(catalog, row.titleId)?.acronym, row.licenceNumber].filter(Boolean).join(' ')
-  return licence ? `${title.name}${SEPARATOR}${licence}` : title.name
+  return licence ? `${label}${SEPARATOR}${licence}` : label
 }
 
 /** The record's primary title, or null without one. */

@@ -445,7 +445,7 @@ select results_eq($$ select x.id, x.profession_title_id, x.licence_number, x.is_
   'removing the primary promotes the remaining title (same row)');
 select throws_ok($$ select public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
                      jsonb_build_object('title_id', current_setting('test.orient'), 'licence_number', 'abc'))) $$,
-  'P0001', 'Le numéro de permis pour Conseiller.ère en orientation n''a pas le bon format.',
+  'P0001', 'Le numéro de permis pour Conseillère ou conseiller d''orientation n''a pas le bon format.',
   'the order''s licence pattern applies, and the message names the title');
 select throws_ok($$ select public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
                      jsonb_build_object('title_id', current_setting('test.psyed'), 'licence_number', 'P-1'))) $$,
