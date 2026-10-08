@@ -9,6 +9,12 @@ type KnownCode = typeof KNOWN extends Set<infer C> ? C : never
 const isKnown = (code: string): code is KnownCode => (KNOWN as Set<string>).has(code)
 
 /**
+ * `email-test-send`'s answer when the provider refused the recipient (`invalid_recipient` → 400
+ * `invalid_request`, message « Invalid recipient »). The test goes to the caller's own address.
+ */
+const INVALID_RECIPIENT_MESSAGE = 'Invalid recipient'
+
+/**
  * The French text of a failed email function call (`email-preview`, `email-test-send`; P3-28).
  * The function's English message is never shown, except SQL's unclosed-braces sentence, which it
  * sends as is; an unknown placeholder names its `variable`. Unexpected codes go to Sentry (code and
@@ -20,6 +26,7 @@ export function emailErrorMessage(error: unknown): string {
     if (code === 'invalid_request') {
       if (variable !== undefined) return t('settings.email.validation.unknownVariable', { variable: `{{${variable}}}` })
       if (message === UNCLOSED_BRACES_MESSAGE) return message
+      if (message === INVALID_RECIPIENT_MESSAGE) return t('settings.email.errors.invalidRecipient')
       return status === 413 ? t('settings.email.errors.tooLarge') : t('settings.email.errors.invalid_request')
     }
     if (code === 'forbidden') return t('common.errors.forbidden')

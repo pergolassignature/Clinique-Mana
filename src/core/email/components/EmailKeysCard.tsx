@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { Copy } from 'lucide-react'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
@@ -89,6 +89,7 @@ function DomainForm({ domain, readOnly }: { domain: string; readOnly: boolean })
   const [error, setError] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
   const mutation = useSetEmailSendingDomain()
+  const inputRef = useRef<HTMLInputElement>(null)
   const value = draft ?? domain
   const dirty = draft !== null && draft !== domain
   useUnsavedChanges(dirty && !readOnly)
@@ -99,6 +100,8 @@ function DomainForm({ domain, readOnly }: { domain: string; readOnly: boolean })
     const parsed = sendingDomainSchema.safeParse(value)
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? null)
+      // As react-hook-form does elsewhere: the field takes focus and reads its error (aria-describedby).
+      inputRef.current?.focus()
       return
     }
     if (parsed.data === domain) {
@@ -114,6 +117,7 @@ function DomainForm({ domain, readOnly }: { domain: string; readOnly: boolean })
         {(field) => (
           <Input
             {...field}
+            ref={inputRef}
             value={value}
             autoComplete="off"
             spellCheck={false}

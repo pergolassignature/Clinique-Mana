@@ -3,6 +3,7 @@ import { t } from '@/i18n'
 import { periodStartOn } from '@/core/audit/period'
 import type { EmailLogFilters, EmailLogRow } from '@/core/email/api'
 import { useEmailLog, useEmailTemplates } from '@/core/email/hooks'
+import { EMAIL_STATUSES, emailStatusLabel, type EmailStatus } from '@/core/email/status'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
@@ -12,34 +13,25 @@ import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
 import { Select } from '@/shared/ui/select'
-import { StatusDot, type StatusTone } from '@/shared/ui/status-dot'
+import { StatusDot } from '@/shared/ui/status-dot'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
-
-/** `email_log.status`, in the order of the filter, with the tone of its dot. */
-const STATUSES = {
-  queued: 'neutral',
-  sent: 'neutral',
-  delivered: 'success',
-  delivery_delayed: 'warning',
-  bounced: 'error',
-  complained: 'error',
-  failed: 'error',
-} as const satisfies Record<string, StatusTone>
-type Status = keyof typeof STATUSES
-const isStatus = (status: string): status is Status => Object.hasOwn(STATUSES, status)
 
 const PERIODS = ['7d', '30d', 'all'] as const
 type Period = (typeof PERIODS)[number]
 
-/** Status dot and French word (« Adresse introuvable » for a bounce, P3-5); the raw status otherwise. */
+/**
+ * Status dot and French word (« Adresse introuvable » for a bounce, P3-5; « Résultat inconnu »,
+ * not « Échec », when the provider may still have accepted it), with its second line if any.
+ */
 function LogStatus({ status, errorCode }: { status: string; errorCode: string | null }) {
+  const { label, tone, detail } = emailStatusLabel(status, errorCode)
   return (
     <>
       <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-        <StatusDot tone={isStatus(status) ? STATUSES[status] : 'default'} />
-        {isStatus(status) ? t(`settings.email.log.status.${status}`) : status}
+        <StatusDot tone={tone} />
+        {label}
       </span>
-      {errorCode && <span className="block text-xs text-muted-foreground">{t('settings.email.log.errorCode', { code: errorCode })}</span>}
+      {detail && <span className="block text-xs text-muted-foreground">{detail}</span>}
     </>
   )
 }
@@ -153,7 +145,11 @@ export function EmailLogTable() {
         {t('settings.email.log.title')}
       </h3>
       <div role="group" aria-label={t('settings.email.log.filters.label')} className="grid gap-3 sm:max-w-form sm:grid-cols-3">
-        <FormField label={t('settings.email.log.filters.template')}>
+        {/* Without the list, only « Tous les modèles »: the hint says why the filter is empty. */}
+        <FormField
+          label={t('settings.email.log.filters.template')}
+          help={templates.isError && !templates.data ? t('settings.email.log.filters.templatesError') : undefined}
+        >
           {(field) => (
             <Select {...field} value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>
               <option value="">{t('settings.email.log.filters.allTemplates')}</option>
@@ -169,9 +165,9 @@ export function EmailLogTable() {
           {(field) => (
             <Select {...field} value={status} onChange={(event) => setStatus(event.target.value)}>
               <option value="">{t('settings.email.log.filters.allStatuses')}</option>
-              {(Object.keys(STATUSES) as Status[]).map((key) => (
+              {(Object.keys(EMAIL_STATUSES) as EmailStatus[]).map((key) => (
                 <option key={key} value={key}>
-                  {t(`settings.email.log.status.${key}`)}
+                  {t(`email.status.${key}`)}
                 </option>
               ))}
             </Select>

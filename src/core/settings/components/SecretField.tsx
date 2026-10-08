@@ -107,7 +107,11 @@ export function SecretField({ secretKey, label, help, configuredAt, readOnly }: 
               // Opened by « Remplacer »: the field takes focus at once.
               autoFocus
               type="password"
-              autoComplete="new-password"
+              // Not a password of the user's: password managers must neither fill nor offer to save it.
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
+              data-bwignore
               spellCheck={false}
               aria-label={t('settings.secrets.newValue', { label })}
               aria-invalid={error ? true : undefined}
@@ -118,8 +122,9 @@ export function SecretField({ secretKey, label, help, configuredAt, readOnly }: 
                 setError(null)
               }}
             />
+            {/* Announced at once: on « Entrée » focus is already in the field, so nothing would read it. */}
             {error && (
-              <p id={errorId} className="text-xs text-destructive">
+              <p id={errorId} role="alert" className="text-xs text-destructive">
                 {error}
               </p>
             )}

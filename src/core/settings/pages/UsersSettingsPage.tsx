@@ -10,6 +10,7 @@ import { useOrgUsers } from '@/core/users/hooks'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
+import { useGuardedTabs } from '@/shared/lib/unsaved-changes-context'
 import { initialsOf } from '@/shared/lib/format'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
@@ -41,16 +42,18 @@ export function UsersSettingsPage() {
   const [selected, setTab] = useState<Tab | null>(null)
   // The chosen tab while it is visible, else the first one (also after a permission change).
   const tab = selected !== null && tabs.includes(selected) ? selected : (tabs[0] ?? 'roles')
+  // A tab's content unmounts when another tab opens: unsaved edits there would go silently.
+  const { onValueChange, triggerProps } = useGuardedTabs(tab, isTab, setTab)
 
   return (
     <div className="max-w-content space-y-5">
       <PageHeader title={t('settings.sections.users')} description={t('settings.users.description')} />
       {readOnly && <ReadOnlyNotice />}
       {/* Page-level views: real tabs, reachable by keyboard (decision #35). */}
-      <Tabs value={tab} onValueChange={(value) => isTab(value) && setTab(value)}>
+      <Tabs value={tab} onValueChange={onValueChange}>
         <TabsList>
           {tabs.map((value) => (
-            <TabsTrigger key={value} value={value}>
+            <TabsTrigger key={value} value={value} {...triggerProps(value)}>
               {t(`settings.users.tabs.${value}`)}
             </TabsTrigger>
           ))}

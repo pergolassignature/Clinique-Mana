@@ -52,7 +52,11 @@ describe('SecretField', () => {
     const input = screen.getByLabelText(plain(t('settings.secrets.newValue', { label: LABEL })))
     expect(input).toHaveAttribute('type', 'password')
     expect(input).toHaveValue('')
-    expect(input).toHaveAttribute('autocomplete', 'new-password')
+    // Not the user's password: browsers and password managers neither fill nor save it.
+    expect(input).toHaveAttribute('autocomplete', 'off')
+    expect(input).toHaveAttribute('data-1p-ignore')
+    expect(input).toHaveAttribute('data-lpignore', 'true')
+    expect(input).toHaveAttribute('data-bwignore')
     expect(input).toHaveFocus()
     await user.type(input, ' re_new-key {Enter}')
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.secrets.saved')))
@@ -66,7 +70,9 @@ describe('SecretField', () => {
     renderField()
     await user.click(screen.getByRole('button', { name: t('settings.secrets.replace', { label: LABEL }) }))
     await user.click(screen.getByRole('button', { name: t('common.save') }))
-    expect(screen.getByText(t('settings.secrets.required'))).toBeInTheDocument()
+    // Announced (an alert), and read with the field.
+    expect(screen.getByRole('alert')).toHaveTextContent(t('settings.secrets.required'))
+    expect(screen.getByLabelText(plain(t('settings.secrets.newValue', { label: LABEL })))).toHaveAccessibleDescription(t('settings.secrets.required'))
     expect(mocks.api.setOrgSecret).not.toHaveBeenCalled()
   })
 

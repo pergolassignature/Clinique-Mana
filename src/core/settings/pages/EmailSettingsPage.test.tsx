@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Mail } from 'lucide-react'
 import { t } from '@/i18n'
 import type { EmailSender, EmailTemplate } from '@/core/email/api'
 import type { SettingsSection } from '@/core/modules/types'
+import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
 import { lazyPage } from '@/shared/lib/lazy-page'
 import { testAccess } from '@/test/contexts'
 import { renderInSettingsSection } from '@/test/settings-section'
@@ -87,7 +88,12 @@ function renderPage(permissions: string[], { lastEvent = '2026-10-08T12:00:00Z' 
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      {renderInSettingsSection(<EmailSettingsPage />, { readOnly, section, access: { access: { ...testAccess, permissions } } })}
+      {renderInSettingsSection(
+        <UnsavedChangesProvider>
+          <EmailSettingsPage />
+        </UnsavedChangesProvider>,
+        { readOnly, section, access: { access: { ...testAccess, permissions } } },
+      )}
     </QueryClientProvider>,
   )
 }
@@ -156,6 +162,78 @@ describe('EmailSettingsPage', () => {
       expect(mocks.email.setEmailSendingDomain).not.toHaveBeenCalled()
       await user.click(within(dialog).getByRole('button', { name: t('settings.email.keys.domain.confirm') }))
       await waitFor(() => expect(mocks.email.setEmailSendingDomain).toHaveBeenCalledExactlyOnceWith('courriel.cliniquemana.com'))
+    })
+
+    it('focuses the sending domain with its error when it is invalid', async () => {
+      const user = userEvent.setup()
+      renderPage(ADMIN)
+      const domain = await within(keysCard()).findByLabelText(new RegExp(`^${t('settings.email.keys.domain.label')}`))
+      await user.clear(domain)
+      await user.type(domain, 'pas un domaine')
+      await user.click(within(keysCard()).getByRole('button', { name: t('common.save') }))
+      expect(domain).toHaveFocus()
+      expect(domain).toHaveAttribute('aria-invalid', 'true')
+      expect(domain.getAttribute('aria-describedby')).toMatch(/-error/)
+      expect(mocks.email.setEmailSendingDomain).not.toHaveBeenCalled()
+    })
+
+    describe('changing tabs', () => {
+      const typeInFromName = async (user: ReturnType<typeof userEvent.setup>) => {
+        const name = await fromName()
+        await user.clear(name)
+        await user.type(name, 'Accueil MANA')
+      }
+
+      it('opens the other tab at once when nothing is being edited', async () => {
+        const user = userEvent.setup()
+        renderPage(ADMIN)
+        await fromName()
+        await user.click(screen.getByRole('tab', { name: 'Modèles' }))
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+        expect(screen.getByRole('tab', { name: 'Modèles' })).toHaveAttribute('aria-selected', 'true')
+      })
+
+      it('asks first with an unsaved card, and « Rester » keeps the edit', async () => {
+        const user = userEvent.setup()
+        renderPage(ADMIN)
+        await typeInFromName(user)
+        await user.click(screen.getByRole('tab', { name: 'Modèles' }))
+        const dialog = await screen.findByRole('alertdialog')
+        await user.click(within(dialog).getByRole('button', { name: t('common.unsaved.stay') }))
+        await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+        expect(screen.getByRole('tab', { name: 'Réglages' })).toHaveAttribute('aria-selected', 'true')
+        expect(await fromName()).toHaveValue('Accueil MANA')
+        expect(mocks.email.listEmailTemplates).not.toHaveBeenCalled()
+      })
+
+      it('by keyboard: focus alone switches nothing, Espace asks and the dialog stays open', async () => {
+        const user = userEvent.setup()
+        renderPage(ADMIN)
+        await typeInFromName(user)
+        const templatesTab = screen.getByRole('tab', { name: 'Modèles' })
+        act(() => templatesTab.focus())
+        expect(screen.getByRole('tab', { name: 'Réglages' })).toHaveAttribute('aria-selected', 'true')
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+        await user.keyboard(' ')
+        const dialog = await screen.findByRole('alertdialog')
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        expect(dialog).toBeInTheDocument()
+        expect(within(dialog).getByRole('button', { name: t('common.unsaved.stay') })).toHaveFocus()
+      })
+
+      it('« Quitter sans enregistrer » opens the other tab', async () => {
+        const user = userEvent.setup()
+        renderPage(ADMIN)
+        await typeInFromName(user)
+        await user.click(screen.getByRole('tab', { name: 'Modèles' }))
+        await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('common.unsaved.leave') }))
+        expect(screen.getByRole('tab', { name: 'Modèles' })).toHaveAttribute('aria-selected', 'true')
+        expect(await screen.findByRole('button', { name: TEMPLATE.label })).toBeInTheDocument()
+        // Back on « Réglages », the stored name again: the edit was dropped (and nothing asks).
+        await user.click(screen.getByRole('tab', { name: 'Réglages' }))
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+        expect(await fromName()).toHaveValue(SENDER.from_name)
+      })
     })
 
     it('saves the sender with the address on the sending domain', async () => {

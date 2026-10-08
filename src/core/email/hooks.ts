@@ -24,18 +24,27 @@ import {
 import { emailErrorMessage } from './errors'
 
 /**
- * Narrow invalidations (like users and roles, CLAUDE.md §8): a save refetches only what it changed
- * (the sender, or the templates), never the open editor's preview, which would cost a render call.
+ * The email settings' reads. Saves invalidate `all` (CLAUDE.md §8): the sender, the templates,
+ * the log and the last event are cheap reads.
  */
 export const emailKeys = {
   all: ['email'] as const,
   sender: () => [...emailKeys.all, 'sender'] as const,
   templates: () => [...emailKeys.all, 'templates'] as const,
-  /** A draft's preview, by template and a hash of the draft. */
-  preview: (key: string, draftHash: string) => [...emailKeys.all, 'preview', key, draftHash] as const,
   logs: () => [...emailKeys.all, 'log'] as const,
   log: (filters: EmailLogFilters) => [...emailKeys.logs(), filters] as const,
   lastEvent: () => [...emailKeys.all, 'last-event', 'resend'] as const,
+}
+
+/**
+ * The previews have their own root, like the permission catalogue: no save touches them, so a save
+ * never re-renders the open editor's preview through `email-preview` (one render call each). A
+ * draft's preview is keyed by its text: an edit asks for a new one anyway.
+ */
+export const emailPreviewKeys = {
+  all: ['email-preview'] as const,
+  /** A draft's preview, by template and a hash of the draft. */
+  draft: (key: string, draftHash: string) => [...emailPreviewKeys.all, key, draftHash] as const,
 }
 
 /** The preview waits this long after the last keystroke (one call per pause, not per key). */
@@ -76,7 +85,7 @@ export function useSetEmailSender() {
   return useMutation({
     mutationFn: (sender: EmailSenderUpdate) => setEmailSender(sender),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: emailKeys.sender() })
+      await queryClient.invalidateQueries({ queryKey: emailKeys.all })
       toast.success(t('settings.email.sender.saved'))
     },
     onError: (error) => {
@@ -91,7 +100,7 @@ export function useSetEmailSendingDomain() {
   return useMutation({
     mutationFn: (domain: string) => setEmailSendingDomain(domain),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: emailKeys.sender() })
+      await queryClient.invalidateQueries({ queryKey: emailKeys.all })
       toast.success(t('settings.email.keys.domain.saved'))
     },
     onError: (error) => {
@@ -114,7 +123,7 @@ export function useSaveEmailTemplate() {
   return useMutation({
     mutationFn: ({ key, draft }: { key: string; draft: EmailTemplateDraft }) => saveEmailTemplate(key, draft),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: emailKeys.templates() })
+      await queryClient.invalidateQueries({ queryKey: emailKeys.all })
       toast.success(t('settings.email.editor.saved'))
     },
   })
@@ -126,7 +135,7 @@ export function useResetEmailTemplate() {
   return useMutation({
     mutationFn: (key: string) => resetEmailTemplate(key),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: emailKeys.templates() })
+      await queryClient.invalidateQueries({ queryKey: emailKeys.all })
       toast.success(t('settings.email.editor.resetDone'))
     },
     onError: (error) => {
@@ -143,7 +152,7 @@ export function useResetEmailTemplate() {
 export function useEmailPreview(key: string, draft: EmailTemplateDraft | null) {
   const serialized = useDebouncedValue(draft === null ? null : JSON.stringify(draft), PREVIEW_DEBOUNCE_MS)
   return useQuery({
-    queryKey: emailKeys.preview(key, serialized === null ? 'invalid' : hash(serialized)),
+    queryKey: emailPreviewKeys.draft(key, serialized === null ? 'invalid' : hash(serialized)),
     queryFn: ({ signal }) => previewEmail(key, JSON.parse(serialized!) as EmailTemplateDraft, signal),
     enabled: serialized !== null,
     placeholderData: keepPreviousData,

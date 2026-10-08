@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({ captureException: vi.fn() }))
 vi.mock('@/core/notifications/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/notifications/api')>()),
   countMyUnreadNotifications: async () => ({ total: 0, important: 0 }),
-  listMyNotifications: async () => [],
+  listMyNotifications: async () => ({ notices: [], hasMore: false }),
   listImportantUnreadNotifications: async () => [],
 }))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))

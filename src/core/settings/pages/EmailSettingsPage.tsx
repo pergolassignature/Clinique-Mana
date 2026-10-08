@@ -12,6 +12,7 @@ import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
+import { useGuardedTabs } from '@/shared/lib/unsaved-changes-context'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 
 type Tab = 'settings' | 'templates' | 'log'
@@ -37,15 +38,17 @@ export function EmailSettingsPage() {
   const tabs = TABS.filter((value) => value !== 'log' || canManageEmail)
   const [selected, setTab] = useState<Tab>('settings')
   const tab = tabs.includes(selected) ? selected : 'settings'
+  // A tab's cards unmount when another tab opens: their unsaved edits would go silently.
+  const { onValueChange, triggerProps } = useGuardedTabs(tab, isTab, setTab)
 
   return (
     <div className="max-w-content space-y-5">
       <PageHeader title={t('settings.sections.email')} description={t('settings.email.description')} />
       {readOnly && <ReadOnlyNotice />}
-      <Tabs value={tab} onValueChange={(value) => isTab(value) && setTab(value)}>
+      <Tabs value={tab} onValueChange={onValueChange}>
         <TabsList>
           {tabs.map((value) => (
-            <TabsTrigger key={value} value={value}>
+            <TabsTrigger key={value} value={value} {...triggerProps(value)}>
               {t(`settings.email.tabs.${value}`)}
             </TabsTrigger>
           ))}

@@ -191,7 +191,10 @@ function EditorContent({ template, readOnly, onDirtyChange }: EditorContentProps
   }
 
   return (
-    <form onSubmit={(event) => void onSubmit(event)} noValidate aria-busy={save.isPending || undefined} className="flex min-h-0 flex-1 flex-col">
+    <form
+      // Read-only: « Entrée » in a field must not try a save the database would refuse.
+      onSubmit={readOnly ? (event) => event.preventDefault() : (event) => void onSubmit(event)}
+      noValidate aria-busy={save.isPending || undefined} className="flex min-h-0 flex-1 flex-col">
       <SheetHeader>
         <SheetTitle>{template.label}</SheetTitle>
         <SheetDescription>{template.description}</SheetDescription>

@@ -46,6 +46,8 @@ function renderLog(pages: EmailLogRow[][] = [[DELIVERED, BOUNCED], [ANONYMISED_F
   return render(<QueryClientProvider client={queryClient}>{renderWithContexts(<EmailLogTable />)}</QueryClientProvider>)
 }
 
+/** Testing Library reads non-breaking spaces as spaces. */
+const plain = (text: string) => text.replace(/\u00a0/g, ' ')
 const table = () => screen.getByRole('table', { name: t('settings.email.log.title') })
 const rowOf = (text: string) => within(table()).getByRole('row', { name: new RegExp(text) })
 
@@ -84,13 +86,43 @@ describe('EmailLogTable', () => {
       { templateKey: null, status: null, from: null },
       { before: BOUNCED.created_at, beforeId: BOUNCED.id },
     )
-    // Anonymised after 24 months, failed with a code.
+    // Anonymised after 24 months; failed, but the provider may have accepted it: not « Échec ».
     const failed = rowOf('07 janv. 2024')
     expect(within(failed).getAllByText('Adresse retirée')).toHaveLength(2)
-    expect(within(failed).getByText('Échec')).toBeInTheDocument()
-    expect(within(failed).getByText('Code : provider_unavailable')).toBeInTheDocument()
+    expect(within(failed).getByText('Résultat inconnu')).toBeInTheDocument()
+    expect(within(failed).getByText(plain(t('email.failure.unknownOutcomeHint')))).toBeInTheDocument()
+    expect(within(failed).queryByText('Échec')).not.toBeInTheDocument()
+    expect(within(failed).queryByText(/^Code/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: t('settings.email.log.loadMore') })).not.toBeInTheDocument()
     expect(screen.getByText(t('settings.email.log.end'))).toBeInTheDocument()
+  })
+
+  it('names a known failure, and shows the code of an unknown one only', async () => {
+    renderLog([
+      [
+        row({ id: 'f1', status: 'failed', error_code: 'invalid_recipient', created_at: '2026-10-08T12:00:00Z' }),
+        row({ id: 'f2', status: 'failed', error_code: 'something_new', created_at: '2026-10-07T12:00:00Z' }),
+      ],
+    ])
+    await screen.findByText('08 oct. 2026 à 08:00')
+    const known = rowOf('08 oct. 2026 à 08:00')
+    expect(within(known).getByText('Adresse invalide')).toBeInTheDocument()
+    expect(within(known).queryByText(/^Code/)).not.toBeInTheDocument()
+    const unknown = rowOf('07 oct. 2026 à 08:00')
+    expect(within(unknown).getByText('Échec')).toBeInTheDocument()
+    expect(within(unknown).getByText(/^Code.:.something_new$/)).toBeInTheDocument()
+  })
+
+  it('says why the template filter is empty when the template list fails', async () => {
+    mocks.api.listEmailLog.mockResolvedValue([DELIVERED])
+    mocks.api.listEmailTemplates.mockRejectedValue(new Error('boom'))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={queryClient}>{renderWithContexts(<EmailLogTable />)}</QueryClientProvider>)
+    const hint = plain(t('settings.email.log.filters.templatesError'))
+    expect(await screen.findByText(hint)).toBeInTheDocument()
+    expect(screen.getByLabelText(t('settings.email.log.filters.template'))).toHaveAccessibleDescription(t('settings.email.log.filters.templatesError'))
+    // The log itself still loads.
+    expect(await screen.findByText('08 oct. 2026 à 08:00')).toBeInTheDocument()
   })
 
   it('filters by template and status, from the first page again', async () => {

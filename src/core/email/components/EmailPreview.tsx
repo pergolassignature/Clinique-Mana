@@ -3,6 +3,7 @@ import { t } from '@/i18n'
 import type { EmailTemplateDraft } from '@/core/email/api'
 import { emailErrorMessage } from '@/core/email/errors'
 import { useEmailPreview } from '@/core/email/hooks'
+import { withInertLinks } from '@/core/email/preview-html'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 
@@ -21,7 +22,8 @@ interface EmailPreviewProps {
 /**
  * The live preview of a draft, rendered by `email-preview` with the catalogue's sample values.
  * The HTML is shown in an `<iframe sandbox="">`: no script, no form, no same-origin access, no
- * navigation of the app — whatever the email holds. « Ordinateur » / « Téléphone » switch the width.
+ * navigation of the app — whatever the email holds; its links do nothing (`withInertLinks`).
+ * « Ordinateur » / « Téléphone » switch the width.
  */
 export function EmailPreview({ templateKey, draft, pausedReason }: EmailPreviewProps) {
   const [width, setWidth] = useState<Width>('desktop')
@@ -30,6 +32,11 @@ export function EmailPreview({ templateKey, draft, pausedReason }: EmailPreviewP
   // Memoised: the mapping reports unexpected codes to Sentry, once per failure, not per render.
   const failure = useMemo(() => (error ? emailErrorMessage(error) : null), [error])
   const titleId = useId()
+  const srcDoc = useMemo(() => (data ? withInertLinks(data.html) : ''), [data])
+  // Only why the preview is not the text being typed is announced (paused, failed); « Mise à jour
+  // de l'aperçu… » shows on every pause in typing and is not.
+  const announcement = draft === null ? t('settings.email.preview.paused', { reason: pausedReason ?? '' }) : failure
+  const updating = !announcement && isFetching && (isPending || isPlaceholderData)
 
   return (
     <section aria-labelledby={titleId} className="min-w-0 space-y-2">
@@ -52,15 +59,9 @@ export function EmailPreview({ templateKey, draft, pausedReason }: EmailPreviewP
           ))}
         </div>
       </div>
-      {/* Announced politely: why the preview is not the text being typed. */}
-      <p aria-live="polite" className="text-xs text-muted-foreground">
-        {draft === null
-          ? t('settings.email.preview.paused', { reason: pausedReason ?? '' })
-          : failure
-            ? failure
-            : isFetching && (isPending || isPlaceholderData)
-              ? t('settings.email.preview.updating')
-              : ''}
+      <p className="text-xs text-muted-foreground">
+        <span aria-live="polite">{announcement ?? ''}</span>
+        {updating && t('settings.email.preview.updating')}
       </p>
       {data ? (
         <>
@@ -70,12 +71,13 @@ export function EmailPreview({ templateKey, draft, pausedReason }: EmailPreviewP
           <div className="overflow-x-auto rounded-lg border border-border">
             <iframe
               sandbox=""
-              srcDoc={data.html}
+              srcDoc={srcDoc}
               title={t('settings.email.preview.frameTitle')}
               width={WIDTHS[width]}
               className={cn('block h-[560px] max-w-none bg-card', (draft === null || failure) && 'opacity-60')}
             />
           </div>
+          <p className="text-xs text-muted-foreground">{t('settings.email.preview.linksDisabled')}</p>
         </>
       ) : (
         !failure && draft !== null && <p className="text-sm text-muted-foreground">{t('common.loading')}</p>

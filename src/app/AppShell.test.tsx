@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({ fetchOrgRoles: vi.fn() }))
 vi.mock('@/core/notifications/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/notifications/api')>()),
   countMyUnreadNotifications: async () => ({ total: 0, important: 0 }),
-  listMyNotifications: async () => [],
+  listMyNotifications: async () => ({ notices: [], hasMore: false }),
   listImportantUnreadNotifications: async () => [],
 }))
 // The shell names a custom role from the clinic's roles (get_my_access returns only its key).

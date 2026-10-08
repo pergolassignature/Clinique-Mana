@@ -215,6 +215,25 @@
       "dismiss": "Marquer comme lu"
     }
   },
+  "email": {
+    "status": {
+      "queued": "En file",
+      "sent": "Envoyé",
+      "delivered": "Livré",
+      "delivery_delayed": "Retardé",
+      "bounced": "Adresse introuvable",
+      "complained": "Signalé comme indésirable",
+      "failed": "Échec"
+    },
+    "failure": {
+      "unknownOutcome": "Résultat inconnu",
+      "unknownOutcomeHint": "Le service d'envoi n'a pas confirmé l'envoi ; le statut peut encore changer.",
+      "invalidRecipient": "Adresse invalide",
+      "rejected": "Refusé par le service d'envoi",
+      "rateLimited": "Limite d'envoi atteinte"
+    },
+    "errorCode": "Code : {code}"
+  },
   "settings": {
     "title": "Paramètres",
     "navLabel": "Sections des paramètres",
@@ -424,7 +443,8 @@
         "subject": "Objet :",
         "frameTitle": "Aperçu du courriel",
         "paused": "Aperçu en pause : {reason}",
-        "updating": "Mise à jour de l'aperçu…"
+        "updating": "Mise à jour de l'aperçu…",
+        "linksDisabled": "Les liens sont désactivés dans l'aperçu."
       },
       "log": {
         "title": "Historique d'envoi",
@@ -436,19 +456,10 @@
           "status": "Statut"
         },
         "anonymised": "Adresse retirée",
-        "errorCode": "Code : {code}",
-        "status": {
-          "queued": "En file",
-          "sent": "Envoyé",
-          "delivered": "Livré",
-          "delivery_delayed": "Retardé",
-          "bounced": "Adresse introuvable",
-          "complained": "Signalé comme indésirable",
-          "failed": "Échec"
-        },
         "filters": {
           "label": "Filtres de l'historique d'envoi",
           "template": "Modèle",
+          "templatesError": "La liste des modèles n'a pas pu être chargée ; seul « Tous les modèles » est proposé.",
           "allTemplates": "Tous les modèles",
           "status": "Statut",
           "allStatuses": "Tous les statuts",
@@ -479,7 +490,8 @@
         "unauthenticated": "Votre session a expiré. Reconnectez-vous, puis réessayez.",
         "network": "Le service est injoignable. Vérifiez votre connexion et réessayez.",
         "invalid_request": "Le texte n'a pas pu être vérifié. Vérifiez l'objet, le texte et le libellé du bouton.",
-        "tooLarge": "Ce courriel est trop long pour être prévisualisé."
+        "tooLarge": "Ce courriel est trop long pour être prévisualisé.",
+        "invalidRecipient": "Votre adresse courriel n'est pas valide pour l'envoi d'un test."
       },
       "validation": {
         "unknownVariable": "Variable inconnue : {variable}",

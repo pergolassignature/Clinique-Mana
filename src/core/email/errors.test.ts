@@ -24,12 +24,18 @@ describe('emailErrorMessage', () => {
     expect(emailErrorMessage(fail('invalid_request', 400, 'Unknown variable', 'client.diagnosis'))).toBe('Variable inconnue : {{client.diagnosis}}')
   })
 
+  it('says the caller’s own address is the problem when the test’s recipient is refused', () => {
+    // email-test-send: invalid_recipient → 400 invalid_request « Invalid recipient »; the test goes to the caller.
+    expect(emailErrorMessage(fail('invalid_request', 400, 'Invalid recipient'))).toBe(t('settings.email.errors.invalidRecipient'))
+    expect(mocks.captureException).not.toHaveBeenCalled()
+  })
+
   it('shows the unclosed-braces message as the function sends it', () => {
     expect(emailErrorMessage(fail('invalid_request', 400, 'Accolades non fermées dans le texte.'))).toBe('Accolades non fermées dans le texte.')
   })
 
   it('never shows another (English) message of the function', () => {
-    expect(emailErrorMessage(fail('invalid_request', 400, 'Invalid recipient'))).toBe(t('settings.email.errors.invalid_request'))
+    expect(emailErrorMessage(fail('invalid_request', 400, 'Invalid draft'))).toBe(t('settings.email.errors.invalid_request'))
     expect(emailErrorMessage(fail('invalid_request', 413, 'Preview too large'))).toBe(t('settings.email.errors.tooLarge'))
   })
 
