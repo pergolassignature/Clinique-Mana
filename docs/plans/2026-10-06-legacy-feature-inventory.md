@@ -32,102 +32,104 @@
 
 ## A. Professionnels (incl. onboarding, documents, contrats, spécialités, motifs)
 
+**Rebuild status (Task 4a.20, 2026-10-08):** each item names its id in the [Professionnels design §2](2026-10-08-professionals-module-design.md#2-keep--change--drop-inventory-a) and where it went. `[x]` = built in batch 4a (task in bold); otherwise the part built in 4a is named and the rest points to its batch (4b invitation and questionnaire, 4c documents and fiche, 4d contract) or to another module.
+
 ### A1. List & creation
-- [ ] Card grid: initials, name, status badge, email, specialty count, document count, "invitation en attente" flag (`pages/professionals.tsx:49-111`).
-- [ ] Search name/email; status filter all/pending/invited/active/inactive; empty state with reset.
-- [ ] "Ajouter un professionnel": name, email, "envoyer l'invitation" (checked by default) → detail page. Name required; email regex, trimmed + lowercased; duplicate check against `profiles.email` and `auth.users` ("Ce courriel est déjà utilisé"); admin/staff only.
-- [ ] `create-professional` (edge): auth user → profile (provider, active) → professional (pending) → optional invite (64-hex token, 7-day expiry, status → invited), with rollback. ⚠ random password; `listUsers()` unpaginated.
+- [ ] Card grid: initials, name, status badge, email, specialty count, document count, "invitation en attente" flag (`pages/professionals.tsx:49-111`). — A1.1 · **4a.10** dense table (profession and licence, languages, status, « À surveiller »); document count → 4c.3, invitation flag → 4b.3.
+- [x] Search name/email; status filter all/pending/invited/active/inactive; empty state with reset. — A1.2 · **4a.10** (plus profession, langue, clientèle, motif, « Accepte de nouveaux clients », « À surveiller »; filters in the URL, remembered per user).
+- [ ] "Ajouter un professionnel": name, email, "envoyer l'invitation" (checked by default) → detail page. Name required; email regex, trimmed + lowercased; duplicate check against `profiles.email` and `auth.users` ("Ce courriel est déjà utilisé"); admin/staff only. — A1.3 · **4a.10** Prénom / Nom / Courriel / profession + licence (P4-35); « envoyer l'invitation » → 4b.3.
+- [ ] `create-professional` (edge): auth user → profile (provider, active) → professional (pending) → optional invite (64-hex token, 7-day expiry, status → invited), with rollback. ⚠ random password; `listUsers()` unpaginated. — A1.4 · **4a.3** `create_professional` (record only, `draft`); account and invitation → 4b.1–4b.2.
 
 ### A2. Detail page
-- [ ] Header: photo (⚠ uses first photo doc, should be newest/verified), status badge, email, profession titles joined " • ", activate/deactivate with confirm.
-- [ ] Tabs: Aperçu, Profil, Profil public, Services, Documents, Calendrier, Historique.
+- [ ] Header: photo (⚠ uses first photo doc, should be newest/verified), status badge, email, profession titles joined " • ", activate/deactivate with confirm. — A2.1 · **4a.11 / 4a.14** header, status, activation with readiness or override; photo → 4c.3.
+- [x] Tabs: Aperçu, Profil, Profil public, Services, Documents, Calendrier, Historique. — A2.2 · **4a.11** tabs of P4-13; Documents → 4c.3, Services → Services et tarifs, Calendrier → Rendez-vous.
 
 **Aperçu**
-- [ ] "À compléter" alerts with jump buttons: missing bio + approach; no specialties; N missing/expired required documents (error when > 2).
-- [ ] Quick actions: download fiche PDF (title picker if 2 titles); "Envoyer le formulaire" / "Nouveau lien" (no invite or expired/revoked); copy link; "Demander une mise à jour" (invite completed); "Voir la soumission"; "Gérer les documents"; activate/deactivate.
-- [ ] Onboarding steps Formulaire → Documents requis → Activation; formulaire display precedence approved > reviewed > submitted > completed/opened ("consulté") > sent > expired/revoked > "à envoyer" (pending past expiry = expired).
-- [ ] Activation blockers: formulaire not approved; each missing ("À téléverser") or expired ("À renouveler") required doc; contract not signed ("À signer" / "À envoyer"). `canActivate` = no blockers and not active. Completion % = done steps / 3.
+- [ ] "À compléter" alerts with jump buttons: missing bio + approach; no specialties; N missing/expired required documents (error when > 2). — A2.3 · **4a.11** « Dossier » (readiness gaps with links) and « À surveiller »; document alerts → 4c.3.
+- [ ] Quick actions: download fiche PDF (title picker if 2 titles); "Envoyer le formulaire" / "Nouveau lien" (no invite or expired/revoked); copy link; "Demander une mise à jour" (invite completed); "Voir la soumission"; "Gérer les documents"; activate/deactivate. — A2.4 · **4a.14** activate / deactivate; form, new link, update request → 4b.3; fiche → 4c.5; documents → 4c.3.
+- [ ] Onboarding steps Formulaire → Documents requis → Activation; formulaire display precedence approved > reviewed > submitted > completed/opened ("consulté") > sent > expired/revoked > "à envoyer" (pending past expiry = expired). — A2.5 · **4a.4 / 4a.11** readiness checklist (matching profile); form, documents, contract items → 4b.1, 4c.2, 4d.1.
+- [ ] Activation blockers: formulaire not approved; each missing ("À téléverser") or expired ("À renouveler") required doc; contract not signed ("À signer" / "À envoyer"). `canActivate` = no blockers and not active. Completion % = done steps / 3. — A2.6 · **4a.4 / 4a.14** activation from any non-active status, override with a reason; form, document and contract blockers → 4b.1, 4c.2, 4d.1.
 
 **Profil**
-- [ ] Inline edit (Enter saves, Esc cancels): personal phone (E.164), years of experience (int), **IVAC number** (empty = delete; unique globally; one per pro). Login email read-only.
-- [ ] Address: Google Places (≥ 3 chars, 300 ms, CA, fr, Québec bias) + manual street number, street, apartment, city, province (13 codes), postal code; country fixed Canada; autocomplete keeps apartment. Format "{no} {street}, app. {apt}\n{city}, {prov}\n{postal}".
-- [ ] Professions editor: max 2; title + licence required; first = primary; set primary unsets other; edit licence; remove (⚠ doesn't promote remaining primary, leaves services rows).
-- [ ] Dates card: created, updated, questionnaire submitted (via invitation?), fiche generated (never written).
+- [x] Inline edit (Enter saves, Esc cancels): personal phone (E.164), years of experience (int), **IVAC number** (empty = delete; unique globally; one per pro). Login email read-only. — A2.7 · **4a.13** (cards with « Enregistrer », not inline Enter/Esc; IVAC unique per clinic, P4-14).
+- [ ] Address: Google Places (≥ 3 chars, 300 ms, CA, fr, Québec bias) + manual street number, street, apartment, city, province (13 codes), postal code; country fixed Canada; autocomplete keeps apartment. Format "{no} {street}, app. {apt}\n{city}, {prov}\n{postal}". — A2.8 · **4a.13** manual address fields; Google Places → with Clients (P4-12).
+- [x] Professions editor: max 2; title + licence required; first = primary; set primary unsets other; edit licence; remove (⚠ doesn't promote remaining primary, leaves services rows). — A2.9 · **4a.3 / 4a.13** max 2 and one primary enforced in the database; removing the primary promotes the other.
+- [ ] Dates card: created, updated, questionnaire submitted (via invitation?), fiche generated (never written). — A2.10 · creation and changes read in Historique (**4a.15**); questionnaire date → 4b.5; `fiche_generated_at` written → 4c.5.
 
 **Profil public**
-- [ ] Editable: bio, approche, courriel public, téléphone public (empty → null).
-- [ ] Specialties drawer: accordion per category (therapy_type, clientele), search + highlight, expand/collapse all, checkbox adds/removes immediately, **star = `is_specialized`**, counts per category; display specialized first then A–Z fr-CA.
-- [ ] Motifs drawer: grouped by active `motif_categories` in `display_order` + "Autres"; Lucide icon per category.
-- [ ] Questionnaire review card (latest submission `submitted`): professions, years, portrait, contact, specialties, motifs; "ce qui sera remplacé" summary; "Appliquer au profil" with confirm.
-- [ ] Provenance banner + "Voir la soumission originale" (all responses incl. education, languages, availability notes; raw JSON toggle).
-- [ ] Apply mapping: bio → `portrait_bio`, approach → `portrait_approach`, public_email, public_phone, years_experience (present fields only; empty → null); professions replaced (exactly one primary); specialties replaced by code / motifs by key (only if ≥ 1 resolves); submission → approved (+ reviewer, time); audit `questionnaire_approved` with before/after. Not applied: education, languages, availability_notes, consent, full_name. ⚠ not transactional.
+- [x] Editable: bio, approche, courriel public, téléphone public (empty → null). — A2.11 · **4a.13**, editable when empty (fixes A10.7).
+- [x] Specialties drawer: accordion per category (therapy_type, clientele), search + highlight, expand/collapse all, checkbox adds/removes immediately, **star = `is_specialized`**, counts per category; display specialized first then A–Z fr-CA. — A2.12 · **4a.12** clientèles and approches as two lists; batch save on « Enregistrer » (decision #36), ★ kept.
+- [x] Motifs drawer: grouped by active `motif_categories` in `display_order` + "Autres"; Lucide icon per category. — A2.13 · **4a.12** grouped, « Autres » last, summarised per category (P4-73).
+- [ ] Questionnaire review card (latest submission `submitted`): professions, years, portrait, contact, specialties, motifs; "ce qui sera remplacé" summary; "Appliquer au profil" with confirm. — A2.14 → 4b.5.
+- [ ] Provenance banner + "Voir la soumission originale" (all responses incl. education, languages, availability notes; raw JSON toggle). — A2.15 → 4b.5 (no raw JSON, D5).
+- [ ] Apply mapping: bio → `portrait_bio`, approach → `portrait_approach`, public_email, public_phone, years_experience (present fields only; empty → null); professions replaced (exactly one primary); specialties replaced by code / motifs by key (only if ≥ 1 resolves); submission → approved (+ reviewer, time); audit `questionnaire_approved` with before/after. Not applied: education, languages, availability_notes, consent, full_name. ⚠ not transactional. — A2.16 → 4b.5.
 
 **Services**
-- [ ] One card per profession title with assigned services + durations; edit dialog lists services for that title's `profession_category_key` (pre-select all when none), activate-all / deactivate-all; save replaces rows keeping the other title's selections; unique (pro, title, service).
+- [ ] One card per profession title with assigned services + durations; edit dialog lists services for that title's `profession_category_key` (pre-select all when none), activate-all / deactivate-all; save replaces rows keeping the other title's selections; unique (pro, title, service). — A2.17 → Services et tarifs.
 
 **Historique**
-- [ ] Timeline grouped by date, relative time (full date on hover), actor or "Système", short event id, expandable JSON with shortened UUIDs + copy buttons, colour per action type, FR labels for 24 actions.
+- [x] Timeline grouped by date, relative time (full date on hover), actor or "Système", short event id, expandable JSON with shortened UUIDs + copy buttons, colour per action type, FR labels for 24 actions. — A2.18 · **4a.15** readable sentences from `audit_log`, no JSON or ids (D5).
 
 **Fiche PDF** (`utils/fiche-data.ts`, `components/fiche-pdf-document.tsx`)
-- [ ] One per profession title, file `{Name}_{Profession}.pdf`: clinic logo; photo (verified first, else newest) or initials; "{name}, {title lowercase}"; "Permis : {licence}"; bio + approach paragraphs or "Information à venir."; motifs grouped by category A–Z, "Autres" last; clientèle specialties by sort_order or "Tous types de clientèles"; **Honoraires** = prices of services assigned to that title (category or category-less prices) as `{$}/{min} min` longest → shortest, or "À confirmer"; clinic blurb, URL, phone (hardcoded 418 907-9754).
+- [ ] One per profession title, file `{Name}_{Profession}.pdf`: clinic logo; photo (verified first, else newest) or initials; "{name}, {title lowercase}"; "Permis : {licence}"; bio + approach paragraphs or "Information à venir."; motifs grouped by category A–Z, "Autres" last; clientèle specialties by sort_order or "Tous types de clientèles"; **Honoraires** = prices of services assigned to that title (category or category-less prices) as `{$}/{min} min` longest → shortest, or "À confirmer"; clinic blurb, URL, phone (hardcoded 418 907-9754). — A2.19 → 4c.5 (P4-58).
 
 ### A3. Onboarding invite & questionnaire (`pages/invite.tsx`, `/invitation/$token`)
-- [ ] Invite types: `onboarding`; `update_request` (choose any of 8 sections, select-all; current data copied into `pre_populated_data`; `parent_invite_id` = latest completed invite). Default expiry 7 days.
-- [ ] Load order: invalid → invalid page; onboarding already submitted/reviewed/approved → "déjà soumis" (draft cleared); expired; revoked → invalid; completed; else restore draft (localStorage + submission id); update requests start at first requested section, prefilled; pending → mark `opened`.
-- [ ] Steps: personnel, professionnel, portrait, spécialités, motifs, photo, assurance, consentement, révision (update requests skip unrequested sections; review always reachable).
-- [ ] Fields/validation: name + email read-only (name required); ≤ 2 titles × (title + licence required), first primary, removing primary promotes other, ≥ 1 complete title; years 0–50; bio required, approach, public email, public phone; specialties optional; motifs optional (+ disclaimer); **photo required** JPEG/PNG ≤ 5 MB; **insurance required** PDF/JPEG/PNG ≤ 10 MB; **consent required**.
-- [ ] Consent (droit à l'image) v1: 12 months, auto-renew, 3-month withdrawal notice, "j'ai lu" checkbox + typed signature name → `{version, signed, signer_full_name, signed_at, renewal_policy:'12_months_auto_renew', withdrawal_notice:'3_months'}`.
-- [ ] Saving: localStorage immediately + server draft after 2.5 s idle, on "Continuer", manual save, retry on error. Draft = `professional_questionnaire_submissions` status `draft`; submit → `submitted`, invite → `completed`.
-- [ ] Uploads go straight to storage `professionals/{id}/{type}/{ts}_{safeName}` + `professional_documents` (no expiry); file removed if DB insert fails. ⚠ update-request uploads create documents before submit.
+- [ ] Invite types: `onboarding`; `update_request` (choose any of 8 sections, select-all; current data copied into `pre_populated_data`; `parent_invite_id` = latest completed invite). Default expiry 7 days. — A3.1 → 4b.1–4b.3 (update requests without a link, P4-44).
+- [ ] Load order: invalid → invalid page; onboarding already submitted/reviewed/approved → "déjà soumis" (draft cleared); expired; revoked → invalid; completed; else restore draft (localStorage + submission id); update requests start at first requested section, prefilled; pending → mark `opened`. — A3.2 → 4b.2–4b.4.
+- [ ] Steps: personnel, professionnel, portrait, spécialités, motifs, photo, assurance, consentement, révision (update requests skip unrequested sections; review always reachable). — A3.3 → 4b.4 (adds langues, clientèles, disponibilités, fiscalité et banque).
+- [ ] Fields/validation: name + email read-only (name required); ≤ 2 titles × (title + licence required), first primary, removing primary promotes other, ≥ 1 complete title; years 0–50; bio required, approach, public email, public phone; specialties optional; motifs optional (+ disclaimer); **photo required** JPEG/PNG ≤ 5 MB; **insurance required** PDF/JPEG/PNG ≤ 10 MB; **consent required**. — A3.4 → 4b.4 (years 0–60, P4-33).
+- [ ] Consent (droit à l'image) v1: 12 months, auto-renew, 3-month withdrawal notice, "j'ai lu" checkbox + typed signature name → `{version, signed, signer_full_name, signed_at, renewal_policy:'12_months_auto_renew', withdrawal_notice:'3_months'}`. — A3.5 → 4b.1 / 4b.4.
+- [ ] Saving: localStorage immediately + server draft after 2.5 s idle, on "Continuer", manual save, retry on error. Draft = `professional_questionnaire_submissions` status `draft`; submit → `submitted`, invite → `completed`. — A3.6 → 4b.4 (server autosave only, D4).
+- [ ] Uploads go straight to storage `professionals/{id}/{type}/{ts}_{safeName}` + `professional_documents` (no expiry); file removed if DB insert fails. ⚠ update-request uploads create documents before submit. — A3.7 → 4b.4 / 4c.2 (staged uploads).
 
 ### A4. Documents & insurance
-- [ ] Types: cv, diploma, license, insurance, photo, fiche, other (+ DB `service_contract`).
-- [ ] Required (3 + contract): **Photo** (no expiry); **Assurance responsabilité** (expires next **March 31**, auto-set + locked in UI; DB `next_insurance_expiry_date()`); **Consentement droit à l'image** (12 months auto-renew, 3-month withdrawal; questionnaire signature counts as verified until signed_at + 12 months); **Contrat de service** counted as 4th on the Documents tab.
-- [ ] Status per type (newest doc): missing → expired (`expires_at` past) → verified (`verified_at`) → pending. Completeness = verified / 3.
-- [ ] Documents tab: summary (verified / 4, missing, expired, "Complet"); required cards with upload, preview/download (1 h signed URL), verify / unverify, edit expiry, replace, delete (confirm); e-consent shows signer + date; "Autres documents" list. Limits 10 MB; pdf, doc, docx, jpg, png, webp (bucket enforces too). Expiry stored `YYYY-MM-DDT23:59:59.999Z`.
-- [ ] `deactivate_professionals_with_expired_insurance()`: active pros whose latest **verified** insurance is missing / no expiry / past → inactive, reason `insurance_expired` (never overrides `manual`). Reactivation trigger: insurance doc becomes verified with future expiry + pro inactive for `insurance_expired` → active, reason cleared. Daily `0 6 * * *` UTC (schedule set by hand, not in migrations).
+- [ ] Types: cv, diploma, license, insurance, photo, fiche, other (+ DB `service_contract`). — A4.1 → 4c.2 (`document_types`; never the word `license`, inconsistency 12).
+- [ ] Required (3 + contract): **Photo** (no expiry); **Assurance responsabilité** (expires next **March 31**, auto-set + locked in UI; DB `next_insurance_expiry_date()`); **Consentement droit à l'image** (12 months auto-renew, 3-month withdrawal; questionnaire signature counts as verified until signed_at + 12 months); **Contrat de service** counted as 4th on the Documents tab. — A4.2 → 4c.2.
+- [ ] Status per type (newest doc): missing → expired (`expires_at` past) → verified (`verified_at`) → pending. Completeness = verified / 3. — A4.3 → 4c.2.
+- [ ] Documents tab: summary (verified / 4, missing, expired, "Complet"); required cards with upload, preview/download (1 h signed URL), verify / unverify, edit expiry, replace, delete (confirm); e-consent shows signer + date; "Autres documents" list. Limits 10 MB; pdf, doc, docx, jpg, png, webp (bucket enforces too). Expiry stored `YYYY-MM-DDT23:59:59.999Z`. — A4.4 → 4c.3.
+- [ ] `deactivate_professionals_with_expired_insurance()`: active pros whose latest **verified** insurance is missing / no expiry / past → inactive, reason `insurance_expired` (never overrides `manual`). Reactivation trigger: insurance doc becomes verified with future expiry + pro inactive for `insurance_expired` → active, reason cleared. Daily `0 6 * * *` UTC (schedule set by hand, not in migrations). — A4.5 → 4c.4 (no automatic deactivation, P4-1).
   - **Change (Jonathan, 2026-10-07):** no automatic deactivation; important in-app notification + email 7 days before expiry ([business context §5](../standards/business-context.md#product-notes-from-jonathan-2026-10-07)).
 
 ### A5. Contracts (DocuSeal today → Documenso)
-- [ ] Contract card: none → "Générer et envoyer"; sent → "Synchroniser", "Voir", "Régénérer" (confirm); signed → preview, download PDF, signature log (stored copy first), regenerate. Shows version, sent date, signed date, clinic signer, provider id. Status = newest `document_instances` with key `contrat_service`.
-- [ ] Generation: published template → professional snapshot + pricing snapshot for their categories → render `{{path}}` (missing → "") → provider sends signing email, initials on each page header, expires 7 days, FR subject/body → `document_instances` (`sent`, `render_data` snapshot).
-- [ ] Variables: `clinic.name/address/representative/representative_title/legal_form`, `professional.full_name/email (public email!)/phone/address/profession (titles joined " et ")/license_number (first profession)`, `today`, `pricing.annexe_a_html`.
-- [ ] **Annexe A**: one row per category; columns 60 min couple, 50 min, 30 min, évaluation initiale ("-"); each shows the professional's portion = price × (1 − 30 %) to price × (1 − 25 %); "Autres frais" rows from `DEFAULT_AUTRES_FRAIS`.
-- [ ] **Clinic margin model** (`contracts/constants/pricing-margin.ts`): consultation 25–30 %, ateliers/conférences 25 %, annulation tardive 30 %, autres frais 15 %; bonus rates defined, unused.
-- [ ] Completion: on `completed` event re-fetch, require all signers done, store signed PDF `documents/{subject}/{id}_signed.pdf` + audit log `…_audit_log.pdf`, status `signed`. Manual sync does the same.
-- [ ] Templates admin (Settings › Gabarits): status filter (all/published/draft/archived) + counts, search title/key; create (key immutable, title, description, HTML), tabs content / preview with sample data / variables cheat-sheet; draft = edit/publish/archive; published = new version/preview/archive; archived = preview. `rpc_publish_template` (admin, draft only, archives previous published), `rpc_create_new_template_version` (admin, refuses if a draft exists, clones, bumps version). One published version per key. Admin write, staff read.
-- [ ] Signature block: clinic representative (static today) + `{{today}}`; professional fields city, signature, date.
+- [ ] Contract card: none → "Générer et envoyer"; sent → "Synchroniser", "Voir", "Régénérer" (confirm); signed → preview, download PDF, signature log (stored copy first), regenerate. Shows version, sent date, signed date, clinic signer, provider id. Status = newest `document_instances` with key `contrat_service`. — A5.1 → 4d.3.
+- [ ] Generation: published template → professional snapshot + pricing snapshot for their categories → render `{{path}}` (missing → "") → provider sends signing email, initials on each page header, expires 7 days, FR subject/body → `document_instances` (`sent`, `render_data` snapshot). — A5.2 → 4d.1–4d.2.
+- [ ] Variables: `clinic.name/address/representative/representative_title/legal_form`, `professional.full_name/email (public email!)/phone/address/profession (titles joined " et ")/license_number (first profession)`, `today`, `pricing.annexe_a_html`. — A5.3 → 4d.1.
+- [ ] **Annexe A**: one row per category; columns 60 min couple, 50 min, 30 min, évaluation initiale ("-"); each shows the professional's portion = price × (1 − 30 %) to price × (1 − 25 %); "Autres frais" rows from `DEFAULT_AUTRES_FRAIS`. — A5.4 → 4d.1 (« avant taxes », P4-18).
+- [ ] **Clinic margin model** (`contracts/constants/pricing-margin.ts`): consultation 25–30 %, ateliers/conférences 25 %, annulation tardive 30 %, autres frais 15 %; bonus rates defined, unused. — A5.5 · **4a.17 / 4a.18** dated default ranges, a margin per professional and the recognition rules and levels (P4-8, P4-9); used by Annexe A → 4d.1.
+- [ ] Completion: on `completed` event re-fetch, require all signers done, store signed PDF `documents/{subject}/{id}_signed.pdf` + audit log `…_audit_log.pdf`, status `signed`. Manual sync does the same. — A5.6 → core signing (Phase 3) and its capture (P4-53, P4-57); the contract card → 4d.3.
+- [ ] Templates admin (Settings › Gabarits): status filter (all/published/draft/archived) + counts, search title/key; create (key immutable, title, description, HTML), tabs content / preview with sample data / variables cheat-sheet; draft = edit/publish/archive; published = new version/preview/archive; archived = preview. `rpc_publish_template` (admin, draft only, archives previous published), `rpc_create_new_template_version` (admin, refuses if a draft exists, clones, bumps version). One published version per key. Admin write, staff read. — A5.7 → 4d.3.
+- [ ] Signature block: clinic representative (static today) + `{{today}}`; professional fields city, signature, date. — A5.8 → 4d.1–4d.2.
 
 ### A6. Spécialités (Settings)
-- [ ] Filter active/archived/all + counts; view by category (clientele, then therapy_type; sort_order then name) or flat A–Z; search name/code; create (name, code, category); archive with "N professionnels utilisent" warning (associations kept); restore.
-- [ ] Categories `therapy_type`, `clientele` only for new rows. Clientèle codes used by matching — **keep stable**: children 1, adolescents 2, adults 3, seniors 4, groups 5, couples 5, families 6. Codes unique. Add/remove on a pro audited with `specialty_name`, `is_specialized`.
+- [x] Filter active/archived/all + counts; view by category (clientele, then therapy_type; sort_order then name) or flat A–Z; search name/code; create (name, code, category); archive with "N professionnels utilisent" warning (associations kept); restore. — A6.1 · **4a.8** (crash of the archived view fixed, A10.5).
+- [x] Categories `therapy_type`, `clientele` only for new rows. Clientèle codes used by matching — **keep stable**: children 1, adolescents 2, adults 3, seniors 4, groups 5, couples 5, families 6. Codes unique. Add/remove on a pro audited with `specialty_name`, `is_specialized`. — A6.2 · **4a.1 / 4a.8** clientèles their own list with ages, keys stable (P4-3).
 
 ### A7. Motifs (Settings)
-- [ ] Filter active/archived/all, category filter (all / sans catégorie / one), grouped or flat, search label.
-- [ ] Create: label required; key auto snake_case without accents, ≤ 50 chars, `^[a-z][a-z0-9_]*$`, unique; optional category. Archive, restore, change category.
-- [ ] Categories drawer: label, key, description, one of 20 Lucide icons; archive with motif-count warning; restore. Seed: 70+ motifs, 8 categories (inner_life, relationships, dependencies, work, development, identity, trauma, life_changes). No hard delete.
-- [ ] `is_restricted` motif flag (enforced only in one picker, no UI to set).
+- [x] Filter active/archived/all, category filter (all / sans catégorie / one), grouped or flat, search label. — A7.1 · **4a.9**.
+- [x] Create: label required; key auto snake_case without accents, ≤ 50 chars, `^[a-z][a-z0-9_]*$`, unique; optional category. Archive, restore, change category. — A7.2 · **4a.2 / 4a.9** label editable, key immutable.
+- [x] Categories drawer: label, key, description, one of 20 Lucide icons; archive with motif-count warning; restore. Seed: 70+ motifs, 8 categories (inner_life, relationships, dependencies, work, development, identity, trauma, life_changes). No hard delete. — A7.3 · **4a.9** categories reorderable, motifs of an archived category under « Autres ».
+- [x] `is_restricted` motif flag (enforced only in one picker, no UI to set). — A7.4 · **4a.3 / 4a.9** enforced in the database (P4-16, P4-55), switch in « Motifs ».
 
 ### A8. Google Calendar (professional › Calendrier) → moves to Rendez-vous module
-- [ ] Connect / sync now / reconnect (expired/revoked) / disconnect (confirm) / link to agenda; shows Google email, status, last sync, last error. Flow detailed in section E. No automatic sync job.
+- [ ] Connect / sync now / reconnect (expired/revoked) / disconnect (confirm) / link to agenda; shows Google email, status, last sync, last error. Flow detailed in section E. No automatic sync job. — A8.1 → Rendez-vous.
 
 ### A9. Automations & fields
-- [ ] Audit: professionals (created, status_changed incl. reason, deactivation_reason_changed, portrait_updated, fiche_generated, deleted); documents (uploaded, verified, rejected, expiry_updated, deleted); invites (created, status changes, sent, deleted); submissions (started, submitted, reviewed, approved); specialties. Not audited: motifs, professions, services.
-- [ ] `professionals`: profile_id, status, deactivation_reason (manual / insurance_expired), portrait_bio, portrait_approach, public_email, public_phone, phone_number, license_number (legacy dup), years_experience, address fields, fiche_generated_at, fiche_version.
-- [ ] Permissions: admin/staff manage all; provider reads/updates own; only admin deletes documents.
+- [ ] Audit: professionals (created, status_changed incl. reason, deactivation_reason_changed, portrait_updated, fiche_generated, deleted); documents (uploaded, verified, rejected, expiry_updated, deleted); invites (created, status changes, sent, deleted); submissions (started, submitted, reviewed, approved); specialties. Not audited: motifs, professions, services. — A9.1 · **4a** generic `audit_log` on every module table, read in Historique (4a.15); later tables join with 4b–4d.
+- [ ] `professionals`: profile_id, status, deactivation_reason (manual / insurance_expired), portrait_bio, portrait_approach, public_email, public_phone, phone_number, license_number (legacy dup), years_experience, address fields, fiche_generated_at, fiche_version. — A9.2 · **4a.3** (no `license_number` copy, no `fiche_version`: D1, D2); `fiche_generated_at` → 4c.5.
+- [ ] Permissions: admin/staff manage all; provider reads/updates own; only admin deletes documents. — A9.3 · **4a.1** permission catalogue, provider read through `current_professional_id()`; document deletion → 4c.2.
 
 ### A10. Half-built / broken (do not port as-is)
-1. `invited` professionals can't be activated; header reactivates without checking blockers.
-2. No invite email ever sent (UI says it is); links copied by hand.
-3. Calendar functions + DocuSeal webhook unprotected; OAuth state unsigned; `docuseal-create-template` auth removed.
-4. Anon grants missing in migrations for questionnaire reads — verify against live DB before wipe.
-5. Specialties page crashes in grouped archived view; code uniqueness checked before normalisation.
-6. List search on embedded columns doesn't filter; `specialty_ids` filter unused.
-7. Profil public uneditable until data exists; "reviewed" never set; no general upload for CV/diploma/other; staff see delete they can't do.
-8. Manual deactivation never writes `deactivation_reason`.
-9. Contract: `generated` shows no actions; declined/expired ignored; clinic signer always null; Annexe A says "taxes incluses" on pre-tax prices.
-10. Motifs of archived categories vanish in grouped view; categories can't be reordered; motif labels not editable.
-11. `education`, `languages`, `availability_notes` typed but never collected. → **Languages are needed** (Jonathan, 2026-10-07): French by default, English and Spanish matter for matching.
+1. `invited` professionals can't be activated; header reactivates without checking blockers. — fixed in **4a.4 / 4a.14**.
+2. No invite email ever sent (UI says it is); links copied by hand. → 4b.2.
+3. Calendar functions + DocuSeal webhook unprotected; OAuth state unsigned; `docuseal-create-template` auth removed. → 4d / Rendez-vous.
+4. Anon grants missing in migrations for questionnaire reads — verify against live DB before wipe. → 4b (no anon grant).
+5. Specialties page crashes in grouped archived view; code uniqueness checked before normalisation. — fixed in **4a.8**.
+6. List search on embedded columns doesn't filter; `specialty_ids` filter unused. — fixed in **4a.10**.
+7. Profil public uneditable until data exists; "reviewed" never set; no general upload for CV/diploma/other; staff see delete they can't do. — Profil public editable in **4a.13**; « reviewed », uploads and delete → 4b.5, 4c.3.
+8. Manual deactivation never writes `deactivation_reason`. — fixed in **4a.4** (a reason is required).
+9. Contract: `generated` shows no actions; declined/expired ignored; clinic signer always null; Annexe A says "taxes incluses" on pre-tax prices. → 4d.
+10. Motifs of archived categories vanish in grouped view; categories can't be reordered; motif labels not editable. — fixed in **4a.9**.
+11. `education`, `languages`, `availability_notes` typed but never collected. → **Languages are needed** (Jonathan, 2026-10-07): French by default, English and Spanish matter for matching. — languages and general availability in **4a.3 / 4a.12**; collected by the questionnaire → 4b.4; education left out (P4-15).
 
 ---
 
