@@ -1,8 +1,9 @@
 // Guards the bundle isolation of pdfmake (ADR 0008, CLAUDE.md §7): the
 // edge-runtime bundler ships every npm package of deno.lock in every
 // function, so pdfmake must stay vendored and reachable only through
-// render.ts.
-import { assert, assertEquals } from '@std/assert'
+// render.ts. Also guards the vendored file's integrity and the notices that
+// travel with the vendored code and fonts.
+import { assert, assertEquals, assertMatch } from '@std/assert'
 
 const FUNCTIONS = new URL('../../', import.meta.url)
 const RENDER = new URL('./render.ts', import.meta.url).href
@@ -68,4 +69,37 @@ Deno.test('pdfmake: only render.ts (and tests) import the vendored module', asyn
     importers.filter((path) => !path.endsWith('.test.ts')),
     ['_shared/pdf/render.ts'],
   )
+})
+
+Deno.test('pdfmake: the vendored file matches its committed SHA-256', async () => {
+  // Written by `npm run build:pdfmake` next to the file (sha256sum format).
+  const [expected, name] = (
+    await Deno.readTextFile(new URL(`${VENDOR}.sha256`))
+  ).trim().split(/\s+/)
+  assertMatch(expected, /^[0-9a-f]{64}$/)
+  assertEquals(name, 'pdfmake.js')
+  const digest = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', await Deno.readFile(new URL(VENDOR))),
+  )
+  const actual = [...digest].map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+  assertEquals(actual, expected, 'vendor/pdfmake.js was edited by hand')
+})
+
+Deno.test('pdfmake and Inter: their license notices ship with them', async () => {
+  const vendored = await Deno.readTextFile(new URL(VENDOR))
+  const header = vendored.slice(0, vendored.indexOf('*/'))
+  for (const pkg of ['fontkit@', 'brotli@', 'dfa@', 'pdfkit@', 'pdfmake@']) {
+    const at = header.indexOf(` * ${pkg}`)
+    assert(at !== -1, `no notice for ${pkg}`)
+    const notice = header.slice(at, header.indexOf(' * ----', at))
+    assert(notice.includes('Permission is hereby granted'), `${pkg}: no text`)
+  }
+  const fonts = await Deno.readTextFile(new URL('./fonts.ts', import.meta.url))
+  assert(fonts.includes('./OFL-Inter.txt'), 'fonts.ts names the OFL file')
+  const ofl = await Deno.readTextFile(
+    new URL('./OFL-Inter.txt', import.meta.url),
+  )
+  assert(ofl.includes('The Inter Project Authors'))
+  assert(ofl.includes('SIL OPEN FONT LICENSE Version 1.1'))
 })

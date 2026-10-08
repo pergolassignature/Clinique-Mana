@@ -4,6 +4,8 @@ import { referenceFiche } from './fixtures/reference-fiche.ts'
 import {
   type Block,
   checkDocument,
+  MAX_DOCUMENT_TABLE_ROWS,
+  MAX_DOCUMENT_TEXT,
   MAX_TABLE_ROWS,
   type PdfDocument,
 } from './model.ts'
@@ -29,7 +31,7 @@ const signatures = (...roles: string[]) => ({
 function refused(value: unknown): string {
   const result = checkDocument(value)
   assert(!result.ok, 'expected the document to be refused')
-  assertEquals(result.code, 'invalid_document')
+  assert(result.code === 'invalid_document', result.code)
   return result.path
 }
 
@@ -44,6 +46,37 @@ Deno.test('checkDocument: the reference contract and fiche are valid', () => {
 Deno.test(`checkDocument: a table takes ${MAX_TABLE_ROWS} rows, not one more`, () => {
   assert(checkDocument(doc([table(MAX_TABLE_ROWS)])).ok)
   assertEquals(refused(doc([p, table(MAX_TABLE_ROWS + 1)])), 'blocks.1.rows')
+})
+
+Deno.test(`checkDocument: ${MAX_DOCUMENT_TABLE_ROWS} table rows in all, not one more`, () => {
+  const full = Array.from(
+    { length: MAX_DOCUMENT_TABLE_ROWS / MAX_TABLE_ROWS },
+    () => table(MAX_TABLE_ROWS),
+  )
+  assert(checkDocument(doc(full)).ok)
+  assertEquals(checkDocument(doc([...full, table(1)])), {
+    ok: false,
+    code: 'document_too_large',
+    limit: 'table_rows',
+  })
+})
+
+Deno.test(`checkDocument: ${MAX_DOCUMENT_TEXT} characters of text in all, not one more`, () => {
+  // Every text counts: title (8) + footer (4) + paragraphs + table cells.
+  const run = (n: number) => ({
+    type: 'paragraph',
+    runs: [{ text: 'x'.repeat(n) }],
+  })
+  const fixed = 'Document'.length + 'Pied'.length +
+    ['A', 'B', 'a0', 'b0'].join('').length
+  const paragraphs = Array.from({ length: 39 }, () => run(5000))
+  const rest = MAX_DOCUMENT_TEXT - fixed - 39 * 5000
+  assert(checkDocument(doc([...paragraphs, run(rest), table(1)])).ok)
+  assertEquals(checkDocument(doc([...paragraphs, run(rest + 1), table(1)])), {
+    ok: false,
+    code: 'document_too_large',
+    limit: 'text',
+  })
 })
 
 Deno.test('checkDocument: an unknown block type or property is refused', () => {

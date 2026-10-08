@@ -12,12 +12,21 @@
  * - signer roles are unique, and every `header.initialsFor` role is a signer;
  * - every table row has one cell per column, and a table has ≤ 200 rows.
  *
+ * Document-wide caps keep a render inside the edge CPU budget whatever the
+ * template: ≤ 400 table rows in all and ≤ 200 000 characters of text in all
+ * (title, header, footer and every block's text). Over either,
+ * `document_too_large`.
+ *
  * pdfmake-free: importing this module never pulls in the renderer.
  */
 import { z } from 'zod'
 
 /** Rows per table (plan Task 3.30). */
 export const MAX_TABLE_ROWS = 200
+/** Table rows across the whole document. */
+export const MAX_DOCUMENT_TABLE_ROWS = 400
+/** Characters (UTF-16 code units) of text across the whole document. */
+export const MAX_DOCUMENT_TEXT = 200_000
 
 /** Roles that sign a document (`document_template_versions.signers`). */
 export const SIGNER_ROLES = ['professional', 'clinic', 'client'] as const
@@ -159,8 +168,10 @@ export interface PdfRenderer {
 /** Why a document could not be rendered. */
 export type PdfErrorCode =
   | 'invalid_document'
+  | 'document_too_large'
   | 'missing_asset'
   | 'unsupported_image'
+  | 'image_too_large'
   | 'asset_unavailable'
 
 /**
@@ -174,21 +185,72 @@ export class PdfError extends Error {
   }
 }
 
-/** The validation outcome: the parsed document, or the first issue's path. */
+/**
+ * The validation outcome: the parsed document, the first issue's path, or
+ * the document-wide cap that was exceeded.
+ */
 export type DocumentCheck =
   | { ok: true; document: PdfDocument }
   | { ok: false; code: 'invalid_document'; path: string }
+  | { ok: false; code: 'document_too_large'; limit: 'table_rows' | 'text' }
+
+/** Table rows and text length of a (parsed) document, for the caps. */
+function documentSize(doc: PdfDocument): { rows: number; text: number } {
+  let rows = 0
+  let text = doc.title.length + (doc.header?.text.length ?? 0) +
+    doc.footer.text.length
+  const runs = (items: Run[]) => {
+    for (const r of items) text += r.text.length
+  }
+  for (const block of doc.blocks) {
+    switch (block.type) {
+      case 'heading':
+        text += block.text.length
+        break
+      case 'paragraph':
+        runs(block.runs)
+        break
+      case 'list':
+        block.items.forEach(runs)
+        break
+      case 'table':
+        rows += block.rows.length
+        for (const c of block.columns) text += c.label.length
+        for (const row of block.rows) {
+          for (const cell of row) text += cell.length
+        }
+        break
+      case 'signaturePage':
+        for (const s of block.signers) text += s.label.length
+        break
+      case 'image':
+      case 'pageBreak':
+        break
+    }
+  }
+  return { rows, text }
+}
 
 /**
  * Validates `value` as a `PdfDocument` (module comment). On failure, `path`
- * is the first issue's location (`blocks.12.rows`), never the input.
+ * is the first issue's location (`blocks.12.rows`), never the input; a
+ * well-formed document over a document-wide cap names the cap (`limit`).
  */
 export function checkDocument(value: unknown): DocumentCheck {
   const result = pdfDocumentSchema.safeParse(value)
-  if (result.success) return { ok: true, document: result.data }
-  return {
-    ok: false,
-    code: 'invalid_document',
-    path: result.error.issues[0].path.join('.'),
+  if (!result.success) {
+    return {
+      ok: false,
+      code: 'invalid_document',
+      path: result.error.issues[0].path.join('.'),
+    }
   }
+  const size = documentSize(result.data)
+  if (size.rows > MAX_DOCUMENT_TABLE_ROWS) {
+    return { ok: false, code: 'document_too_large', limit: 'table_rows' }
+  }
+  if (size.text > MAX_DOCUMENT_TEXT) {
+    return { ok: false, code: 'document_too_large', limit: 'text' }
+  }
+  return { ok: true, document: result.data }
 }

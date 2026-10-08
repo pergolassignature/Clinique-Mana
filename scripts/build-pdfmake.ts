@@ -18,6 +18,36 @@ const VERSION = '0.3.11'
 const SPECIFIER = `npm:pdfmake@${VERSION}`
 const LOCK = 'scripts/build-pdfmake.lock'
 const OUT = 'supabase/functions/_shared/pdf/vendor/pdfmake.js'
+/** `sha256sum` format; isolation.test.ts checks the vendored file against it. */
+const OUT_SHA256 = `${OUT}.sha256`
+
+/**
+ * The MIT License text, for packages that declare MIT in package.json but
+ * ship no license file (fontkit, brotli, dfa): the notice must still travel
+ * with the code. The copyright line names the package.json author.
+ */
+const MIT_TEXT = (holder: string) =>
+  `MIT License
+
+Copyright (c) ${holder}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`
 
 /**
  * Node built-ins the bundle may `require()`. `deno bundle --minify` drops
@@ -93,11 +123,19 @@ const notices = await Promise.all(packages.map(async ({ name, version }) => {
     }
   }
   const author = typeof pkg.author === 'string' ? pkg.author : pkg.author?.name
-  const body = text ||
-    `(no license file in the package; package.json: ${pkg.license}${
-      author ? `, author ${author}` : ''
-    })`
-  return `${name}@${version} (${pkg.license ?? 'see below'})\n\n${body}`
+  if (!text) {
+    // Without a file, only a declared MIT license can be reproduced here.
+    if (pkg.license !== 'MIT' || !author) {
+      throw new Error(
+        `${name}@${version}: no license file and no MIT author to credit`,
+      )
+    }
+    text =
+      `(no license file in the package; package.json declares MIT, author ${author}: the MIT License text follows)\n\n${
+        MIT_TEXT(author)
+      }`
+  }
+  return `${name}@${version} (${pkg.license ?? 'see below'})\n\n${text}`
 }))
 
 const comment = (text: string) =>
@@ -146,11 +184,13 @@ function require(id) {
 }
 `
 
-await Deno.writeTextFile(OUT, header + prelude + bundle)
+const output = new TextEncoder().encode(header + prelude + bundle)
+const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', output))
+const hex = [...digest].map((b) => b.toString(16).padStart(2, '0')).join('')
+await Deno.writeFile(OUT, output)
+await Deno.writeTextFile(OUT_SHA256, `${hex}  pdfmake.js\n`)
 console.log(
   `Wrote ${OUT} (pdfmake ${VERSION}, ${
-    (new TextEncoder().encode(header + prelude + bundle).length / 1e6).toFixed(
-      2,
-    )
-  } MB, ${packages.length} packages)`,
+    (output.length / 1e6).toFixed(2)
+  } MB, ${packages.length} packages, sha256 ${hex})`,
 )
