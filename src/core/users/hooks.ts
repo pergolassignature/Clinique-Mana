@@ -111,14 +111,15 @@ function invalidateUser(queryClient: QueryClient, userId: string, callerId: stri
 
 /**
  * The French text of a failed user-admin change. The functions' own refusals (`staff-invite`'s
- * per-caller limit, with how long to wait from `Retry-After`; an unreachable function) have their
- * text; RPC refusals, including those the functions pass on (`asRpcRefusal`), go through
- * `moduleErrorMessage`.
+ * per-caller limit, with how long to wait from `Retry-After`; an unreachable function; an expired
+ * session, 401 `unauthenticated`, expected and not reported) have their text; RPC refusals,
+ * including those the functions pass on (`asRpcRefusal`), go through `moduleErrorMessage`.
  */
 export function userAdminErrorMessage(error: unknown): string {
   if (error instanceof FunctionCallError) {
     if (error.code === 'rate_limited') return `${t('settings.users.invite.errors.rateLimited')} ${retryInText(error.retryAfter)}`
     if (error.code === 'network') return t('settings.users.invite.errors.network')
+    if (error.code === 'unauthenticated') return t('settings.users.invite.errors.unauthenticated')
   }
   return moduleErrorMessage(error, t('common.errors.generic'), 'settings')
 }

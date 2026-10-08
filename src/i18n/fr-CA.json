@@ -672,7 +672,7 @@
         "not_configured": "La configuration de la signature est incomplète ou a été refusée par Documenso. Vérifiez l'adresse et la clé.",
         "provider_error": "Le service de signature n'a pas répondu. Réessayez.",
         "conflict": "Un envoi est déjà en cours.",
-        "not_found": "Ce document test n'existe plus. Rechargez la page.",
+        "not_found": "Cette demande de signature n'existe plus. Rechargez la page.",
         "rate_limited": "Trop d'essais en peu de temps.",
         "unauthenticated": "Votre session a expiré. Reconnectez-vous, puis réessayez.",
         "network": "Le service est injoignable. Vérifiez votre connexion et réessayez."
@@ -847,7 +847,8 @@
         "emailAdvice": "Utilisez « Renvoyer » dans un moment.",
         "errors": {
           "rateLimited": "Trop d'invitations en peu de temps.",
-          "network": "Le service est injoignable. Vérifiez votre connexion et réessayez."
+          "network": "Le service est injoignable. Vérifiez votre connexion et réessayez.",
+          "unauthenticated": "Votre session a expiré. Reconnectez-vous, puis réessayez."
         }
       },
       "invitations": {
