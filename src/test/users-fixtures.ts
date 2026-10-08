@@ -17,6 +17,8 @@ export const testCatalog: PermissionCatalog = {
     { key: 'users.manage', module_key: 'core', description: 'Inviter et gérer les utilisateurs' },
     { key: 'users.view', module_key: 'core', description: 'Voir les utilisateurs' },
     { key: 'roles.manage', module_key: 'core', description: 'Gérer les rôles' },
+    { key: 'settings.email_manage', module_key: 'core', description: 'Gérer les courriels de la clinique' },
+    { key: 'settings.integrations_manage', module_key: 'core', description: "Gérer les clés d'intégration" },
     { key: 'professionals.view', module_key: 'professionals', description: 'Voir les professionnels' },
     { key: 'billing.view', module_key: 'billing', description: 'Voir la facturation' },
   ],

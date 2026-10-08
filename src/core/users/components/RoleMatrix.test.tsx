@@ -155,6 +155,8 @@ describe('RoleMatrix — read-only', () => {
       'Activer ou désactiver des modules',
       'Gérer les rôles',
       'Voir et modifier les coordonnées bancaires de la clinique',
+      'Gérer les courriels de la clinique',
+      "Gérer les clés d'intégration",
       'Modifier les paramètres de la clinique',
       'Inviter et gérer les utilisateurs',
       'Professionnels',

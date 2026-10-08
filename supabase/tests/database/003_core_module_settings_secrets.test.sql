@@ -129,7 +129,7 @@ select is((select changed_fields -> 'vault_secret_id' from public.audit_log wher
   '"[redacted]"'::jsonb, 'vault ids are redacted from the log');
 
 -- =============================================================================
--- Adjointe A (settings.view, no settings.manage / modules.manage)
+-- Adjointe A (settings.view; no settings.integrations_manage, settings.manage or modules.manage)
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.set_module_enabled('test_child', true) $$, '42501', null, 'adjointe cannot toggle modules');
