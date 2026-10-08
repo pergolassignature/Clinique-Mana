@@ -291,6 +291,13 @@ export class DocumensoError extends FunctionError {
     message: string,
     /** Set by `createEnvelope` when the envelope exists but a later step failed. */
     readonly envelopeId: string | null = null,
+    /**
+     * True only for a 404 whose body is Documenso's own `NOT_FOUND` error
+     * (`notFoundSchema`): the instance answered and the envelope is not there.
+     * A proxy's or another server's 404 is false, as is every other failure
+     * (E-14: callers tell an outage from a missing envelope).
+     */
+    readonly notFound: boolean = false,
   ) {
     super(code, message)
     this.name = 'DocumensoError'
@@ -545,11 +552,17 @@ type Operation =
   | 'download'
   | 'ping'
 
-function statusError(operation: Operation, status: number): DocumensoError {
+function statusError(
+  operation: Operation,
+  status: number,
+  notFound = false,
+): DocumensoError {
   return new DocumensoError(
     status === 401 || status === 403 ? 'not_configured' : 'provider_error',
     status,
     `Documenso ${operation} failed (${status})`,
+    null,
+    notFound,
   )
 }
 
@@ -755,8 +768,8 @@ export function documensoClient(
   ): Promise<Exchange> {
     const exchange = await send(operation, path, init)
     if (!exchange.res.ok) {
-      await discard(exchange)
-      throw statusError(operation, exchange.res.status)
+      // `gone` reads a 404's body (Documenso's NOT_FOUND?) and drops any other.
+      throw statusError(operation, exchange.res.status, await gone(exchange))
     }
     return exchange
   }
@@ -913,7 +926,7 @@ export function documensoClient(
         const e = error instanceof DocumensoError
           ? error
           : badResponse('read', 200)
-        throw new DocumensoError(e.code, e.status, e.message, id)
+        throw new DocumensoError(e.code, e.status, e.message, id, e.notFound)
       }
     },
 

@@ -1017,6 +1017,72 @@ Deno.test('get: another envelope in the answer than the one asked → provider_e
   assertEquals([error.code, error.status], ['provider_error', 200])
 })
 
+Deno.test("get: notFound is true only for a 404 with Documenso's NOT_FOUND body (E-14)", async () => {
+  const cases = [
+    [
+      json(404, { message: 'Envelope not found', code: 'NOT_FOUND' }),
+      404,
+      true,
+    ],
+    [
+      () =>
+        new Response('<html>404 Not Found</html>', {
+          status: 404,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+      404,
+      false,
+    ],
+    [json(404, { message: 'x', code: 'BAD_REQUEST' }), 404, false],
+    [json(500, { message: 'boom', code: 'NOT_FOUND' }), 500, false],
+    [json(401, { message: 'no' }), 401, false],
+  ] as const
+  for (const [responder, status, notFound] of cases) {
+    const { fetch } = fakeFetch({ [GET_E]: responder })
+    const error = await assertRejects(
+      () => client(fetch).get(E),
+      DocumensoError,
+    )
+    assertEquals(
+      [error.code, error.status, error.notFound],
+      [status === 401 ? 'not_configured' : 'provider_error', status, notFound],
+    )
+  }
+  const { fetch } = fakeFetch({
+    [GET_E]: () => {
+      throw new TypeError('connection refused')
+    },
+  })
+  const error = await assertRejects(() => client(fetch).get(E), DocumensoError)
+  assertEquals([error.status, error.notFound], [null, false])
+})
+
+Deno.test('notFound: kept through createEnvelope (with its envelope id) and set by the download read', async () => {
+  const missing = json(404, {
+    message: 'Envelope not found',
+    code: 'NOT_FOUND',
+  })
+  const created = fakeFetch({
+    [CREATE]: json(200, { id: E }),
+    [GET_E]: missing,
+  })
+  const error = await assertRejects(
+    () => client(created.fetch).createEnvelope(PDF, input()),
+    DocumensoError,
+  )
+  assertEquals([error.status, error.notFound, error.envelopeId], [404, true, E])
+  const download = fakeFetch({ [GET_E]: missing })
+  const failed = await assertRejects(
+    () => client(download.fetch).downloadSigned(E),
+    DocumensoError,
+  )
+  assertEquals([failed.code, failed.status, failed.notFound], [
+    'provider_error',
+    404,
+    true,
+  ])
+})
+
 Deno.test('get: an envelope without an externalId reads null', async () => {
   const { fetch } = fakeFetch({
     [GET_E]: json(200, envelopeBody({ externalId: null })),
