@@ -1612,7 +1612,7 @@ export async function saveProfessionalsSettings(patch: Partial<ProfessionalsSett
 Tests per schema: valid, each invalid case, normalisation (email lower-cased, postal code spaced, empty → null).
 
 **Step 5: `lib/`.**
-- `display.ts`: `fullName(p)`, `clienteleLabel(c)` → « Enfants (0–12 ans) », « Aînés (65 ans et plus) », « Couples »; `languagesLabel(codes)` → « FR · EN »; `professionLine(row, catalog)` → « Psychologue · OPQ 12345 ».
+- `display.ts`: `fullName(p)`, `clienteleLabel(c)` → « Enfants (0 à 12 ans) », « Aînés (65 ans et plus) », « Couples » (wording aligned with 4a.8's `agesLabel`); `languagesLabel(codes)` → « FR · EN »; `professionLine(row, catalog)` → « Psychologue · OPQ 12345 ».
 - `watch.ts`: `watchFlags(row, catalog)` → ordered `{ key, label, tone: 'danger' | 'muted' }[]`. 4a flags: `matching_incomplete` « Profil de jumelage incomplet » (muted); 4b adds `invitation_pending` (« Invitation sans réponse · 6 j »), `review_pending` (« Dossier à réviser »); 4c adds `insurance_expiring` (« Assurance expire le 31 mars », danger), `insurance_expired`, `insurance_missing`. One function, one test table.
 - `readiness.ts`: item and missing-field labels (`profession` « un titre professionnel », `licence` « le numéro de permis », …) and `nextAction(record, can)` (Aperçu « Prochaine action »).
 - `filters.ts`: `useProfessionalsFilters()` — URL is the source of truth: `q`, `statut`, `profession`, `langue`, `clientele`, `motif` (repeatable), `nouveaux` (`1`), `surveiller` (`1`), `page`. **PS Hub check:** `NEW PS Hub/src/hooks/useCrmUrlState.ts` (`parseEnumParam`, URL as source of truth, `replace: true` for typing). Unknown values fall back to defaults; changing a filter resets `page`. `filterProfessionals(rows, filters, catalog)`: pure, tested (search on name, email and licence, accent-insensitive with `normalize('NFD')`).
@@ -1760,6 +1760,12 @@ Three `ReferenceListCard`s on one page:
 - **Fixes A10.5:** the archived filter never crashes when a list is empty or every row is archived (test it).
 
 **Tests:** ages display and validation messages; system lock; the empty archived view renders the empty state.
+
+**As built (the code is the reference where this sketch differs):**
+- **Ages in words** (`agesLabel`, `lib/display.ts`): « 6 à 12 ans », « 12 ans », « 18 ans et plus », « Tous les âges » (from 0, no maximum), and « Sans limite d'âge » (muted) instead of « — » for couples, familles, groupes; « an » under 2. `clienteleLabel` uses the same words in parentheses (« Enfants (0 à 12 ans) ») and stays the bare name for a clientèle without ages.
+- **Clientèle dialog:** Âge minimum and Âge maximum side by side (digits, `inputMode="numeric"`, empty = none), each with its help (« Laissez vide pour « et plus »… » on the maximum). A system clientèle keeps its kind, as `save_clientele` requires: an age group shows the minimum as required (help « …l'âge minimum reste requis. »; clearing it gets « Cette clientèle garde son type… » before any request); a clientèle without ages shows both fields read-only (help « …elle reste sans âge. »). The database decides: its refusals show in the dialog.
+- **Both lists reorderable** (Approches per the plan, Clientèles too, as titles in 4a.7: a new clientèle otherwise lands after Groupes); the lock note is feminine (« Utilisée par le jumelage : ne peut pas être archivée. »).
+- **Page:** two cards with visible headings and an outline « Ajouter une clientèle / une approche »; description « Les clientèles et les approches des professionnels, qui servent au jumelage. »
 
 **Commit:** `feat(professionals): Spécialités settings (clientèles and approaches)`.
 

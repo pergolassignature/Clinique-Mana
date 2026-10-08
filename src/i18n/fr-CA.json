@@ -897,8 +897,16 @@
       },
       "otherCategory": "Autres",
       "display": {
-        "agesRange": "{name} ({min}–{max} ans)",
-        "agesFrom": "{name} ({min} ans et plus)"
+        "withAges": "{name} ({ages})",
+        "ages": {
+          "range": "{min} à {max} {unit}",
+          "single": "{age} {unit}",
+          "from": "{min} {unit} et plus",
+          "all": "Tous les âges",
+          "none": "Sans limite d'âge",
+          "year": "an",
+          "years": "ans"
+        }
       },
       "readiness": {
         "items": {
@@ -1061,7 +1069,30 @@
           }
         },
         "specialties": {
-          "title": "Spécialités"
+          "title": "Spécialités",
+          "description": "Les clientèles et les approches des professionnels, qui servent au jumelage.",
+          "clienteles": {
+            "title": "Clientèles",
+            "description": "Le jumelage filtre selon la clientèle : l'âge de la personne principale, ou couple, famille, groupe.",
+            "add": "Ajouter une clientèle",
+            "createTitle": "Ajouter une clientèle",
+            "editTitle": "Modifier la clientèle",
+            "system": "Utilisée par le jumelage : ne peut pas être archivée.",
+            "ages": "Âges",
+            "minAge": "Âge minimum",
+            "maxAge": "Âge maximum",
+            "minAgeHelp": "Laissez vide pour une clientèle sans âge, par exemple Couples.",
+            "maxAgeHelp": "Laissez vide pour « et plus », par exemple 65 ans et plus.",
+            "systemAgeGroup": "Le jumelage s'appuie sur ce groupe d'âge : l'âge minimum reste requis.",
+            "systemNoAges": "Le jumelage s'appuie sur cette clientèle telle quelle : elle reste sans âge."
+          },
+          "approaches": {
+            "title": "Approches",
+            "description": "Les approches orientent le jumelage sans l'exclure.",
+            "add": "Ajouter une approche",
+            "createTitle": "Ajouter une approche",
+            "editTitle": "Modifier l'approche"
+          }
         },
         "motifs": {
           "title": "Motifs"

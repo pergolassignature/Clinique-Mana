@@ -19,11 +19,31 @@ export function genderLabel(gender: Gender): string {
   return t(`modules.professionals.gender.${gender}`)
 }
 
-/** « Enfants (0–12 ans) », « Aînés (65 ans et plus) », « Couples ». */
-export function clienteleLabel(c: { name: string; minAge: number | null; maxAge: number | null }): string {
+/** A clientèle's age bounds: `minAge` null = not an age group (couples…); `maxAge` null = « et plus ». */
+interface AgeBounds {
+  minAge: number | null
+  maxAge: number | null
+}
+
+/** « an » under 2, « ans » from 2 (French: « 1 an », « 0 à 1 an », « 2 ans »). */
+const years = (age: number) => t(age < 2 ? 'modules.professionals.display.ages.year' : 'modules.professionals.display.ages.years')
+
+/**
+ * A clientèle's ages in words: « 6 à 12 ans », « 12 ans », « 18 ans et plus », « Tous les âges »
+ * (from 0, no maximum), « Sans limite d'âge » (not an age group: couples, families, groups).
+ */
+export function agesLabel({ minAge, maxAge }: AgeBounds): string {
+  const A = 'modules.professionals.display.ages'
+  if (minAge === null) return t(`${A}.none`)
+  if (maxAge === null) return minAge === 0 ? t(`${A}.all`) : t(`${A}.from`, { min: String(minAge), unit: years(minAge) })
+  if (maxAge === minAge) return t(`${A}.single`, { age: String(minAge), unit: years(minAge) })
+  return t(`${A}.range`, { min: String(minAge), max: String(maxAge), unit: years(maxAge) })
+}
+
+/** « Enfants (0 à 12 ans) », « Aînés (65 ans et plus) », « Couples » (not an age group: the name alone). */
+export function clienteleLabel(c: { name: string } & AgeBounds): string {
   if (c.minAge === null) return c.name
-  if (c.maxAge === null) return t('modules.professionals.display.agesFrom', { name: c.name, min: String(c.minAge) })
-  return t('modules.professionals.display.agesRange', { name: c.name, min: String(c.minAge), max: String(c.maxAge) })
+  return t('modules.professionals.display.withAges', { name: c.name, ages: agesLabel(c) })
 }
 
 /** « FR · EN »: the codes of the held languages, in the catalogue's order. Unknown ids are skipped. */

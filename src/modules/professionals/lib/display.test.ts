@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { clienteleLabel, fullName, genderLabel, languagesLabel, periodsLabel, primaryProfession, professionLine, statusLabel } from './display'
+import { agesLabel, clienteleLabel, fullName, genderLabel, languagesLabel, periodsLabel, primaryProfession, professionLine, statusLabel } from './display'
 import { CATALOG_VIEW, recordFixture } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
 
@@ -10,10 +10,26 @@ describe('fullName', () => {
   })
 })
 
+describe('agesLabel', () => {
+  it.each([
+    [{ minAge: 6, maxAge: 12 }, '6 à 12 ans'],
+    [{ minAge: 0, maxAge: 1 }, '0 à 1 an'],
+    [{ minAge: 18, maxAge: null }, '18 ans et plus'],
+    [{ minAge: 1, maxAge: null }, '1 an et plus'],
+    [{ minAge: 12, maxAge: 12 }, '12 ans'],
+    [{ minAge: 1, maxAge: 1 }, '1 an'],
+    [{ minAge: 0, maxAge: null }, 'Tous les âges'],
+    [{ minAge: null, maxAge: null }, "Sans limite d'âge"],
+  ])('%o → %s', (bounds, label) => {
+    expect(agesLabel(bounds)).toBe(label)
+  })
+})
+
 describe('clienteleLabel', () => {
   it.each([
-    [{ name: 'Enfants', minAge: 0, maxAge: 12 }, 'Enfants (0–12 ans)'],
+    [{ name: 'Enfants', minAge: 0, maxAge: 12 }, 'Enfants (0 à 12 ans)'],
     [{ name: 'Aînés', minAge: 65, maxAge: null }, 'Aînés (65 ans et plus)'],
+    // Not an age group: its name says it all.
     [{ name: 'Couples', minAge: null, maxAge: null }, 'Couples'],
   ])('%o → %s', (clientele, label) => {
     expect(clienteleLabel(clientele)).toBe(label)
