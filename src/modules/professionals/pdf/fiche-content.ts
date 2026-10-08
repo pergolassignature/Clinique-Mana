@@ -37,11 +37,16 @@ export interface FicheItem {
 
 export interface FicheContent {
   clinic: {
+    /** The clinic's name: the PDF's author metadata only; the logo stands for it on the page (P4-214). */
     name: string
     /** Phone, email and website, as printed (empty ones left out). */
     contact: string[]
-    /** The logo as a data URL; null → the clinic's name in its place. */
-    logo: string | null
+    /**
+     * The logo printed in the band: the one uploaded in Settings (a data URL), else Clinique
+     * MANA's full lockup bundled with the renderer (`brand`: placed by its known margins). Never
+     * the clinic's name in text (P4-214).
+     */
+    logo: { src: string; brand: boolean }
     /** The website without its scheme, for the footer. */
     website: string | null
   }
@@ -52,11 +57,13 @@ export interface FicheContent {
   credential: string | null
   /** The public email and phone (« Profil public »), null when neither is set. */
   publicContact: string | null
-  /** The photo as a data URL: the slot 4c fills (P4-202); null leaves no box. */
+  /** The photo as a data URL: the slot 4c fills (P4-202); null → the initials monogram. */
   photo: string | null
+  /** « GT », the monogram drawn in the photo's place while there is none (P4-214). */
+  initials: string
   /**
-   * « À propos »: the presentation, then the approach text (« Profil public »), as paragraphs
-   * (blank lines split them); empty → not printed (P4-212).
+   * « À propos »: the presentation of « Profil public », as paragraphs (blank lines split them);
+   * empty → not printed. The free-text approach is not printed (P4-216).
    */
   about: string[]
   motifs: FicheMotifGroup[]
@@ -78,7 +85,10 @@ export interface FicheInput {
   /** The title the fiche is for; null or unknown → the primary one. */
   titleId: string | null
   clinic: FicheClinic
+  /** The logo uploaded in Settings as a data URL, or null. */
   logo: string | null
+  /** Clinique MANA's bundled lockup (`MANA_LOGO_URL`), printed when Settings has no logo. */
+  brandLogo: string
   photo: string | null
   fees: string[] | null
   generatedOn: string
@@ -98,7 +108,7 @@ const CONTROL = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/g
 
 /**
  * Text as the fonts can draw it: NFC, line breaks as `\n`, control characters out, the narrow
- * no-break space (French « : ») as a no-break space (Inter's latin subset has no U+202F), and any
+ * no-break space (French « : ») as a no-break space (Raleway's latin subset has no U+202F), and any
  * other character the fonts lack replaced by its base letter (« ǹ » → « n ») or dropped (emoji).
  */
 export function toPdfText(text: string, canDraw: (codePoint: number) => boolean = () => true): string {
@@ -129,7 +139,13 @@ export function displayWebsite(url: string): string {
   return url.replace(/^https?:\/\//i, '').replace(/\/$/, '')
 }
 
-export function buildFicheContent({ record, catalog, titleId, clinic, logo, photo, fees, generatedOn, canDraw }: FicheInput): FicheContent {
+/** « Geneviève Tremblay » → « GT », « Marc-André Pelletier » → « MP », « Étienne » → « É ». */
+export function initialsOf(firstName: string, lastName: string): string {
+  const first = (word: string) => [...word.trim()][0] ?? ''
+  return (first(firstName) + first(lastName)).toLocaleUpperCase('fr-CA')
+}
+
+export function buildFicheContent({ record, catalog, titleId, clinic, logo, brandLogo, photo, fees, generatedOn, canDraw }: FicheInput): FicheContent {
   const clean = (s: string) => toPdfText(s, canDraw)
   const profession =
     record.professions.find((p) => p.titleId === titleId) ?? record.professions.find((p) => p.isPrimary) ?? record.professions[0] ?? null
@@ -162,7 +178,7 @@ export function buildFicheContent({ record, catalog, titleId, clinic, logo, phot
     clinic: {
       name: clean(clinic.name),
       contact: [clinic.phone ? formatPhone(clinic.phone) : null, clinic.email, website].filter((v): v is string => Boolean(v)).map(clean),
-      logo,
+      logo: logo ? { src: logo, brand: false } : { src: brandLogo, brand: true },
       website: website ? clean(website) : null,
     },
     name: clean(fullName(record.professional)),
@@ -170,7 +186,9 @@ export function buildFicheContent({ record, catalog, titleId, clinic, logo, phot
     credential: credential ? clean(credential) : null,
     publicContact: publicContact ? clean(publicContact) : null,
     photo,
-    about: [...paragraphs(record.publicProfile.bio, clean), ...paragraphs(record.publicProfile.approach, clean)],
+    initials: clean(initialsOf(record.professional.firstName, record.professional.lastName)),
+    // The free-text « Approche » is not printed: Jonathan removed approaches from the app (P4-216).
+    about: paragraphs(record.publicProfile.bio, clean),
     motifs,
     clienteles: current(digest.clienteles),
     languages: digest.languages.filter((l) => !l.archived).map((l) => clean(l.label)),

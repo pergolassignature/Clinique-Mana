@@ -1,6 +1,6 @@
 // @vitest-environment node
 import path from 'node:path'
-import { renderToBuffer } from '@react-pdf/renderer'
+import { Font, renderToBuffer } from '@react-pdf/renderer'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
 import type { ProfessionalRecord } from '../api/parse'
@@ -13,13 +13,15 @@ import { FicheDocument } from './FicheDocument'
 import { loadFicheFonts } from './fonts'
 
 /**
- * The fiche rendered for real (react-pdf in Node, the app's Inter files) and read back: what a
- * client would see on paper, following PS Hub's generateReactPDF tests with text extraction
- * (Task 4c.5 « Tests »).
+ * The fiche rendered for real (react-pdf in Node, the app's Raleway files, Clinique MANA's logo)
+ * and read back: what a client would see on paper, following PS Hub's generateReactPDF tests with
+ * text extraction (Task 4c.5 « Tests »).
  */
 
-const fontFile = (subset: string, weight: number) => path.resolve(`node_modules/@fontsource/inter/files/inter-${subset}-${weight}-normal.woff`)
-const files = (subset: string) => ({ 400: fontFile(subset, 400), 600: fontFile(subset, 600), 700: fontFile(subset, 700) })
+const fontFile = (subset: string, weight: number) => path.resolve(`node_modules/@fontsource/raleway/files/raleway-${subset}-${weight}-normal.woff`)
+const files = (subset: string) => ({ 400: fontFile(subset, 400), 500: fontFile(subset, 500), 600: fontFile(subset, 600), 700: fontFile(subset, 700) })
+/** The lockup the renderer bundles (`MANA_LOGO_URL`), from the design system. */
+const BRAND_LOGO = path.resolve('docs/design-system/assets/logo.png')
 /** 1×1 PNGs without alpha (a logo, a photo): one image object each. */
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGOQa64BAAHgAR7osfNHAAAAAElFTkSuQmCC'
 const PHOTO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGOYLW0DAAJHAPMFhPWnAAAAAElFTkSuQmCC'
@@ -42,6 +44,7 @@ async function render(over: Partial<Omit<FicheInput, 'canDraw'>> = {}) {
     titleId: null,
     clinic: { name: 'Clinique MANA', phone: '+15145550000', email: 'bonjour@cliniquemana.ca', website: 'https://www.cliniquemana.ca' },
     logo: null,
+    brandLogo: BRAND_LOGO,
     photo: null,
     fees: null,
     generatedOn: '8 octobre 2026',
@@ -56,15 +59,15 @@ const all = (pages: string[]) => pages.join('\n')
 const upper = (text: string) => text.toLocaleUpperCase('fr-CA')
 
 describe('FicheDocument', () => {
-  it('prints the clinic, the person, the facts and the footer on one Letter page', async () => {
+  it('prints the clinic, the person, the facts and the footer on one Letter page, never the clinic name as a header', async () => {
     const pdf = await render({ record: record({ publicProfile: { ...recordFixture().publicProfile, bio: 'Une présentation.', publicEmail: 'marie@exemple.ca', publicPhone: '+15145551234' } }) })
     expect(pdf.pages).toHaveLength(1)
     const text = all(pdf.pages)
     for (const expected of [
-      'Clinique MANA',
       '514 555-0000',
       'bonjour@cliniquemana.ca',
       'www.cliniquemana.ca',
+      'MT',
       'Marie Tremblay',
       'Psychologue',
       'Membre de l’OPQ · N° de permis\u00a012345',
@@ -81,18 +84,31 @@ describe('FicheDocument', () => {
     ]) {
       expect(text).toContain(expected)
     }
+    // The logo stands for the clinic: its name (« Clinique MANA (local) » on a local stack) is never printed.
+    expect(text).not.toContain('Clinique MANA')
+    // One page: no running header (it starts on page 2).
+    expect(text.split('\n')).not.toContain('Marie Tremblay · Psychologue')
     expect(pdf.title).toBe('Fiche de Marie Tremblay')
     expect(pdf.offPage).toBe(0)
   })
 
-  it('draws French with Inter only: é è à ç « » ’ and no-break spaces, nothing missing, no fallback font', async () => {
+  it('draws lining figures: Raleway\'s old-style ones would drop 3, 4, 5, 7 and 9 below the line (P4-215)', () => {
+    for (const fontWeight of [400, 500, 600, 700]) {
+      const font = Font.getFont({ fontFamily: 'Raleway', fontWeight }).data
+      const glyphs: { bbox: { minY: number } }[] = font?.layout('0123456789').glyphs ?? []
+      expect(glyphs).toHaveLength(10)
+      expect(glyphs.every((glyph) => glyph.bbox.minY > -30), `weight ${fontWeight}`).toBe(true)
+    }
+  })
+
+  it('draws French with Raleway only: é è à ç « » ’ and no-break spaces, nothing missing, no fallback font', async () => {
     const bio = 'Un espace « où déposer ce qu’on vit », à son rythme\u202f: ça compte. Garçon, élève, Noël, cœur.'
     const pdf = await render({ record: record({ publicProfile: { ...recordFixture().publicProfile, bio } }) })
-    // The narrow no-break space (absent from Inter's latin subset) is printed as a no-break space.
+    // The narrow no-break space (absent from Raleway's latin subset) is printed as a no-break space.
     expect(all(pdf.pages)).toContain('Un espace « où déposer ce qu’on vit », à son rythme\u00a0: ça compte. Garçon, élève, Noël, cœur.')
     expect(pdf.notdef).toBe(0)
     expect(pdf.fonts.length).toBeGreaterThan(0)
-    expect(pdf.fonts.every((font) => /\+Inter-/.test(font))).toBe(true)
+    expect(pdf.fonts.every((font) => /\+Raleway-/.test(font))).toBe(true)
   })
 
   it('draws names beyond French from the latin-ext subset, under its own font name', async () => {
@@ -105,10 +121,10 @@ describe('FicheDocument', () => {
   it('drops a character no font has (an emoji) instead of printing it garbled', async () => {
     const pdf = await render({ record: record({ publicProfile: { ...recordFixture().publicProfile, bio: 'Bienvenue 🙂 ici.' } }) })
     expect(all(pdf.pages)).toContain('Bienvenue  ici.')
-    expect(pdf.fonts.every((font) => /\+Inter-/.test(font))).toBe(true)
+    expect(pdf.fonts.every((font) => /\+Raleway-/.test(font))).toBe(true)
   })
 
-  it('flows a long presentation over pages, the footer on each', async () => {
+  it('flows a long presentation over pages, the footer on each, the person named atop every page after the first', async () => {
     const paragraph = 'Elle accompagne les adultes dans les périodes où la vie pèse plus lourd : anxiété, deuil, transitions. '.repeat(5)
     const bio = Array.from({ length: 14 }, () => paragraph).join('\n\n')
     const pdf = await render({ record: record({ publicProfile: { ...recordFixture().publicProfile, bio, approach: 'Approche intégrative.' } }) })
@@ -116,9 +132,11 @@ describe('FicheDocument', () => {
     expect(pdf.offPage).toBe(0)
     pdf.pages.forEach((page, i) => {
       expect(page).toContain(`Page ${i + 1} de ${pdf.pages.length}`)
-      expect(page).toContain('Clinique MANA · www.cliniquemana.ca')
+      expect(page.split('\n')).toContain('www.cliniquemana.ca')
+      if (i > 0) expect(page.split('\n')).toContain('Marie Tremblay · Psychologue')
     })
-    expect(all(pdf.pages)).toContain('Approche intégrative.')
+    // The free-text approach is not printed (P4-216).
+    expect(all(pdf.pages)).not.toContain('Approche intégrative.')
   })
 
   it('names every one of 72 held motifs under its category, in columns, never « Tous » (P4-211)', async () => {
@@ -192,11 +210,16 @@ describe('FicheDocument', () => {
     expect(plain).not.toContain(t(`${P}.specialized`))
   })
 
-  it('leaves no box without a photo or a logo: the clinic\'s name stands in for the logo', async () => {
-    expect((await render()).images).toBe(0)
+  it('always prints a logo: Clinique MANA\'s lockup, or the one uploaded in Settings; the initials until a photo exists', async () => {
+    // The lockup is a PNG with transparency: the image and its soft mask.
+    const brand = await render()
+    expect(brand.images).toBe(2)
+    expect(brand.pages[0]).toContain('MT')
+    // An uploaded logo (opaque 1×1 here) replaces it.
     expect((await render({ logo: PNG })).images).toBe(1)
     const both = await render({ logo: PNG, photo: PHOTO })
     expect(both.images).toBe(2)
-    expect(both.pages[0]?.split('\n')[0]).not.toBe('Clinique MANA')
+    expect(both.pages[0]?.split('\n')).not.toContain('MT')
+    for (const pdf of [brand, both]) expect(all(pdf.pages)).not.toContain('Clinique MANA')
   })
 })

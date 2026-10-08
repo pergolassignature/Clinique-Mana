@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ProfessionalRecord } from '../api/parse'
 import { IDS } from '../test/fixtures'
 import { CATALOG_VIEW, motifsCatalog, recordFixture, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
-import { buildFicheContent, displayWebsite, toPdfText, type FicheInput } from './fiche-content'
+import { buildFicheContent, displayWebsite, initialsOf, toPdfText, type FicheInput } from './fiche-content'
 
 const CLINIC = { name: 'Clinique MANA', phone: '+15145550000', email: 'bonjour@cliniquemana.ca', website: 'https://www.cliniquemana.ca/' }
 
@@ -13,6 +13,7 @@ function input(over: Partial<FicheInput> = {}, record: Partial<ProfessionalRecor
     titleId: null,
     clinic: CLINIC,
     logo: null,
+    brandLogo: '/assets/logo.png',
     photo: null,
     fees: null,
     generatedOn: '8 octobre 2026',
@@ -25,12 +26,26 @@ describe('buildFicheContent', () => {
     expect(buildFicheContent(input()).clinic).toEqual({
       name: 'Clinique MANA',
       contact: ['514 555-0000', 'bonjour@cliniquemana.ca', 'www.cliniquemana.ca'],
-      logo: null,
+      logo: { src: '/assets/logo.png', brand: true },
       website: 'www.cliniquemana.ca',
     })
     const bare = buildFicheContent(input({ clinic: { name: 'Clinique', phone: null, email: null, website: null } })).clinic
     expect(bare.contact).toEqual([])
     expect(bare.website).toBeNull()
+  })
+
+  it('prints the logo uploaded in Settings, else Clinique MANA\'s lockup: never no logo (P4-214)', () => {
+    expect(buildFicheContent(input({ logo: 'data:image/png;base64,x' })).clinic.logo).toEqual({ src: 'data:image/png;base64,x', brand: false })
+    expect(buildFicheContent(input({ logo: null })).clinic.logo).toEqual({ src: '/assets/logo.png', brand: true })
+  })
+
+  it.each([
+    ['Marie', 'Tremblay', 'MT'],
+    ['Marc-André', 'Pelletier', 'MP'],
+    ['étienne', 'Fortin', 'ÉF'],
+    ['  Łukasz ', 'Dvořák', 'ŁD'],
+  ])('draws the initials of %s %s as « %s » while there is no photo', (firstName, lastName, initials) => {
+    expect(initialsOf(firstName, lastName)).toBe(initials)
   })
 
   it('prints the primary title by default, « Membre de l’ordre » and the licence, as the clinic site does', () => {
@@ -58,10 +73,11 @@ describe('buildFicheContent', () => {
     expect(content.credential).toBeNull()
   })
 
-  it('makes « À propos » of the presentation then the approach, as paragraphs; empty ones print nothing', () => {
+  it('makes « À propos » of the presentation, as paragraphs, never the approach text (P4-216); empty prints nothing', () => {
     const publicProfile = { ...recordFixture().publicProfile, bio: '  Premier.\n\n\nDeuxième,\nsuite.  ', approach: 'Mon approche.' }
-    expect(buildFicheContent(input({}, { publicProfile })).about).toEqual(['Premier.', 'Deuxième,\nsuite.', 'Mon approche.'])
-    expect(buildFicheContent(input({}, { publicProfile: { ...publicProfile, bio: null, approach: '   ' } })).about).toEqual([])
+    expect(buildFicheContent(input({}, { publicProfile })).about).toEqual(['Premier.', 'Deuxième,\nsuite.'])
+    expect(JSON.stringify(buildFicheContent(input({}, { publicProfile })))).not.toContain('Mon approche.')
+    expect(buildFicheContent(input({}, { publicProfile: { ...publicProfile, bio: '   ' } })).about).toEqual([])
   })
 
   it('prints the public contact when set', () => {
@@ -110,10 +126,11 @@ describe('buildFicheContent', () => {
     ])
   })
 
-  it('keeps « Honoraires » pending without fees, the photo slot empty without a photo', () => {
+  it('keeps « Honoraires » pending without fees, the initials in the photo slot without a photo', () => {
     const content = buildFicheContent(input())
     expect(content.fees).toBeNull()
     expect(content.photo).toBeNull()
+    expect(content.initials).toBe('MT')
     expect(buildFicheContent(input({ fees: ['Individuel, 50 min : 120 $'], photo: 'data:image/png;base64,x' }))).toMatchObject({
       fees: ['Individuel, 50 min : 120 $'],
       photo: 'data:image/png;base64,x',

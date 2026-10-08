@@ -17,7 +17,7 @@ import type { CatalogView } from '../lib/catalog-view'
 import { ficheFileName } from '../lib/fiche'
 
 /**
- * « Fiche PDF » (Task 4c.5). The renderer is a chunk of its own (react-pdf and Inter, P4-58),
+ * « Fiche PDF » (Task 4c.5). The renderer is a chunk of its own (react-pdf, Raleway and the logo, P4-58),
  * imported here on demand, never with the record page; `preloadFicheRenderer` starts it as the
  * menu opens.
  */

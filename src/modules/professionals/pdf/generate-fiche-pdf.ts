@@ -4,10 +4,11 @@ import type { Organization } from '@/core/settings/organization/api'
 import { formatInClinicTimezone } from '@/shared/lib/timezone'
 import type { ProfessionalRecord } from '../api/parse'
 import type { CatalogView } from '../lib/catalog-view'
+import { MANA_LOGO_URL } from './brand'
 import { buildFicheContent } from './fiche-content'
 import { FicheDocument } from './FicheDocument'
 import { loadFicheFonts } from './fonts'
-import { storedImageDataUrl } from './load-images'
+import { bundledImageDataUrl, storedImageDataUrl } from './load-images'
 
 /**
  * The fiche's generator (PS Hub's `generateReactPDF.ts`: load images → build props →
@@ -21,19 +22,24 @@ export interface FicheRequest {
   catalog: CatalogView
   /** The title the fiche is for (two titles: the person's choice); null → the primary one. */
   titleId: string | null
-  /** The clinic identity and logo from Settings (no hard-coded phone or URL). */
+  /** The clinic identity and logo from Settings (no hard-coded phone or URL; Clinique MANA's lockup without a logo). */
   organization: Pick<Organization, 'name' | 'phone' | 'email' | 'website' | 'logo_file_id'>
 }
 
 /** Renders the fiche as a PDF Blob, in the browser. */
 export async function renderFichePdf({ record, catalog, titleId, organization }: FicheRequest): Promise<Blob> {
-  const [canDraw, logo] = await Promise.all([loadFicheFonts(), storedImageDataUrl(organization.logo_file_id)])
+  const [canDraw, logo, brandLogo] = await Promise.all([
+    loadFicheFonts(),
+    storedImageDataUrl(organization.logo_file_id),
+    bundledImageDataUrl(MANA_LOGO_URL),
+  ])
   const content = buildFicheContent({
     record,
     catalog,
     titleId,
     clinic: { name: organization.name, phone: organization.phone, email: organization.email, website: organization.website },
     logo,
+    brandLogo,
     // The photo comes with 4c's documents (P4-202).
     photo: null,
     // Services et tarifs is not built: « À confirmer » (P4-204).

@@ -15,7 +15,7 @@ interface PdfObject {
 export interface PdfReading {
   /** Each page's text: one line per laid-out line, in drawing order. */
   pages: string[]
-  /** `/BaseFont` of every font object (`ABCDEF+Inter-Regular`, `Helvetica`…). */
+  /** `/BaseFont` of every font object (`ABCDEF+Raleway-Regular`, `Helvetica`…). */
   fonts: string[]
   /** How many image XObjects the document holds. */
   images: number
@@ -59,9 +59,10 @@ const ref = (dict: string, key: string): number | null => {
 /** code → text, from a ToUnicode CMap (`bfchar` and both `bfrange` forms). */
 function toUnicode(cmap: string): Map<number, string> {
   const map = new Map<number, string>()
-  const utf16 = (hex: string) => String.fromCharCode(...(hex.match(/.{4}/g) ?? []).map((h) => parseInt(h, 16)))
+  // A ligature (Raleway's « fi », « ffi ») maps to several UTF-16 units, which pdfkit writes apart: <0066 0069>.
+  const utf16 = (hex: string) => String.fromCharCode(...(hex.replace(/\s+/g, '').match(/.{4}/g) ?? []).map((h) => parseInt(h, 16)))
   for (const block of cmap.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
-    for (const [, code, value] of (block[1] ?? '').matchAll(/<([0-9a-f]+)>\s*<([0-9a-f]+)>/gi)) map.set(parseInt(code ?? '0', 16), utf16(value ?? ''))
+    for (const [, code, value] of (block[1] ?? '').matchAll(/<([0-9a-f]+)>\s*<([0-9a-f\s]+)>/gi)) map.set(parseInt(code ?? '0', 16), utf16(value ?? ''))
   }
   for (const block of cmap.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
     for (const [, from, to, rest] of (block[1] ?? '').matchAll(/<([0-9a-f]+)>\s*<([0-9a-f]+)>\s*(\[[^\]]*\]|<[0-9a-f]+>)/gi)) {
