@@ -197,8 +197,8 @@ select throws_ok($$ select public.add_tax_rate('qst', 0.1, '2099-01-01') $$,
 select throws_ok($$ select public.delete_tax_rate((select id from public.tax_rates
                       where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'gst' and effective_to is null)) $$,
   '42501', null, 'adjointe cannot delete a rate');
-select is((select count(*)::int from public.tax_rates where tax = 'qst'), 1, 'adjointe reads the QST history');
-select is((select count(*)::int from public.tax_rates), 3, 'adjointe reads every rate of her org (GST 2008, GST back-dated, QST 2013)');
+select is((select count(*)::int from public.tax_rates where org_id = 'b0000000-0000-0000-0000-00000000000a' and tax = 'qst'), 1, 'adjointe reads the QST history');
+select is((select count(*)::int from public.tax_rates where org_id = 'b0000000-0000-0000-0000-00000000000a'), 3, 'adjointe reads every rate of her org (GST 2008, GST back-dated, QST 2013)');
 select is(public.tax_rate_on('qst', '2020-06-01'), 0.09975::numeric, 'adjointe looks up a rate');
 
 -- =============================================================================
@@ -206,7 +206,7 @@ select is(public.tax_rate_on('qst', '2020-06-01'), 0.09975::numeric, 'adjointe l
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 
-select is((select count(*)::int from public.tax_rates), 3, 'provider reads the rates');
+select is((select count(*)::int from public.tax_rates where org_id = 'b0000000-0000-0000-0000-00000000000a'), 3, 'provider reads the rates');
 select is(public.tax_rate_on('gst', '2020-06-01'), 0.05::numeric, 'provider looks up a rate');
 select throws_ok($$ select public.add_tax_rate('qst', 0.1, '2099-01-01') $$,
   '42501', null, 'provider cannot add a rate');
@@ -220,7 +220,7 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 
 select results_eq($$ select distinct org_id from public.tax_rates $$,
   array['b0000000-0000-0000-0000-00000000000b'::uuid], 'org B admin sees only org B rates');
-select is((select count(*)::int from public.tax_rates), 2, 'org B still has exactly its two seeded rates');
+select is((select count(*)::int from public.tax_rates where org_id = 'b0000000-0000-0000-0000-00000000000b'), 2, 'org B still has exactly its two seeded rates');
 select is(public.tax_rate_on('gst', current_setting('test.today')::date), 0.05::numeric, 'org B lookups ignore org A rates');
 -- Org A's open GST id, stashed while org A was visible: admin A would get
 -- « déjà en vigueur », so « introuvable » proves the row is out of reach.
