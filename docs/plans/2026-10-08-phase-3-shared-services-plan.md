@@ -716,6 +716,7 @@ create index email_log_retention_idx on public.email_log (created_at) where to_e
     - sets `last_event_at`.
   - `count_org_emails_today(p_org_id) returns int` (clinic day; feeds the 80 % warning).
 - **Job:** `core.email_log_retention` (sql, maintenance, `30 8 * * *`): `update … set to_email = null where to_email is not null and created_at < now() - interval '24 months'`, in batches of 5 000 (loop until fewer rows), so one run never holds a long lock.
+- **Job (from the Task 3.8 review; deferred here by Task 3.3 because `email_log` does not exist before this task):** `core.email_log_stale_queued` (sql, maintenance, `*/5 * * * *`): `update … set status = 'failed', error_code = 'provider_unavailable' where status = 'queued' and created_at < now() - interval '15 minutes'`, with a partial index `(created_at) where status = 'queued'`. Seed it like the Task 3.3 jobs (`scheduled_jobs` row + `cron.schedule`). Test: a `queued` row 16 minutes old becomes `failed` / `provider_unavailable`; one 14 minutes old stays `queued`.
 - **Seed:** `core.staff_invite` in `email_template_defaults`:
   - label « Invitation d'un membre du personnel », `why_line` « Vous recevez ce courriel parce que la clinique vous invite à créer votre accès. »;
   - subject « Votre accès à {{clinic.name}} », button « Créer mon accès »;
@@ -2016,6 +2017,8 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 ---
 
 ## Task 3.31: Signing (database)
+
+**From lane F (Task 3.32, commit a0cca70):** the local seed sets the signing base URL to `http://host.docker.internal:55390` (the fake started by `npm run fake:documenso`) and the two org secrets to `local-dev-documenso-api-key` / `local-dev-documenso-webhook-secret`. `signing-webhook` passes Documenso's raw event names (`DOCUMENT_COMPLETED`, `DOCUMENT_CANCELLED`, …) to `documensoEventId`. `signature_requests` keeps `provider_document_id` even when a later creation step fails (the client's error carries it) so the reconcile job can cancel it.
 
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_signing.sql`
