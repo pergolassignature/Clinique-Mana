@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
 import type { HistoryEntry } from '../api/parse'
-import { CATALOG_VIEW, recordFixture, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
+import { CATALOG, CATALOG_VIEW, recordFixture, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
+import { buildCatalogView } from './catalog-view'
 import { IDS } from '../test/fixtures'
 import {
   buildHistoryEvents,
   filterHistory,
   groupHistoryByDay,
+  historyReadsOn,
   professionTitlesByRow,
   settledHistoryRows,
   type HistoryContext,
@@ -131,14 +133,15 @@ describe('history — the record row', () => {
 
   it('reads status changes as what happened to the file', () => {
     expect(only([row('professionals', 'update', { status: { before: 'draft', after: 'active' } })]).sentence).toBe(t(`${H}.sentences.activated`))
-    expect(
-      only([
-        row('professionals', 'update', {
-          status: { before: 'in_review', after: 'active' },
-          activation_override_reason: { before: null, after: 'Dossier complété hors application' },
-        }),
-      ]).sentence,
-    ).toBe('a activé le dossier incomplet (raison\u00a0: Dossier complété hors application)')
+    // The override reason is a free text: in the details, not the sentence (P4-103).
+    const override = only([
+      row('professionals', 'update', {
+        status: { before: 'in_review', after: 'active' },
+        activation_override_reason: { before: null, after: 'Dossier complété hors application' },
+      }),
+    ])
+    expect(override.sentence).toBe('a activé le dossier incomplet')
+    expect(override.lines).toEqual([{ kind: 'value', field: "Raison de l'activation d'un dossier incomplet", value: 'Dossier complété hors application' }])
 
     const deactivation = only([
       row('professionals', 'update', {
@@ -242,11 +245,22 @@ describe('history — sets (motifs, languages, clientèles, approaches)', () => 
     expect(
       only([row('professional_clienteles', 'update', { is_specialized: { before: false, after: true } }, { recordId: `${P}:${IDS.children}` })])
         .sentence,
-    ).toBe('a indiqué une spécialisation\u00a0: Enfants')
+    ).toBe('a indiqué une spécialisation pour\u00a0: Enfants')
     expect(
       only([row('professional_specialties', 'update', { is_specialized: { before: true, after: false } }, { recordId: `${P}:${IDS.cbt}` })]).sentence,
-    ).toBe('a retiré la spécialisation\u00a0: Thérapie cognitivo-comportementale (TCC)')
+    ).toBe('a retiré la spécialisation pour\u00a0: Thérapie cognitivo-comportementale (TCC)')
     expect(only([junction('professional_specialties', 'specialty_id', ORG)]).sentence).toBe(`a ajouté l'approche ${t(`${H}.values.unknown.specialty`)}`)
+  })
+
+  it('puts archived items last, then unknown ones, for every set', () => {
+    // Motifs: « Ancien motif » (archived, first category) after « Deuil » (active, « Autres »).
+    expect(
+      only([IDS.archivedMotif, IDS.deuil, ORG].map((id) => junction('professional_motifs', 'motif_id', id, 'delete'))).sentence,
+    ).toBe(`a retiré les motifs Deuil, Ancien motif (archivé) et ${t(`${H}.values.unknown.motif`)}`)
+    // Languages: French archived by the clinic comes after English, though first in the catalogue.
+    const catalog = buildCatalogView({ ...CATALOG, languages: CATALOG.languages.map((l) => (l.id === IDS.fr ? { ...l, isActive: false } : l)) })
+    const languages = [ORG, IDS.fr, IDS.en].map((id) => junction('professional_languages', 'language_id', id))
+    expect(only(languages, ctx({ catalog })).sentence).toBe(`a ajouté les langues Anglais, Français (archivé) et ${t(`${H}.values.unknown.language`)}`)
   })
 })
 
@@ -264,6 +278,13 @@ describe('history — titles and payer numbers', () => {
     expect(only([professionRow('delete', { profession_title_id: IDS.naturopathe, licence_number: null, is_primary: false })]).sentence).toBe(
       'a retiré le titre Naturopathe',
     )
+  })
+
+  it('says nothing of a non-primary flag or an empty licence on an added title', () => {
+    for (const licence_number of [null, '', '  ']) {
+      const added = only([professionRow('insert', { profession_title_id: IDS.naturopathe, licence_number, is_primary: false })])
+      expect(added).toMatchObject({ sentence: 'a ajouté le titre Naturopathe', lines: [] })
+    }
   })
 
   it('finds the title of an updated row through the record or the loaded rows', () => {
@@ -292,6 +313,14 @@ describe('history — titles and payer numbers', () => {
     expect(only([ivac('update', { number: { before: 'IVAC-1', after: 'IVAC-2' } })]).sentence).toBe('a modifié le numéro IVAC\u00a0: IVAC-1 → IVAC-2')
     expect(only([ivac('delete', { payer_type: 'ivac', number: 'IVAC-2' })]).sentence).toBe('a retiré le numéro IVAC IVAC-2')
   })
+
+  it('reads a payer this tab does not know without its raw key', () => {
+    const other = (action: HistoryEntry['action'], fields: Record<string, unknown>) =>
+      row('professional_payer_numbers', action, fields, { recordId: `${P}:csst_new` })
+    expect(only([other('insert', { payer_type: 'csst_new', number: 'C-1' })]).sentence).toBe('a ajouté le numéro de payeur C-1')
+    expect(only([other('update', { number: { before: 'C-1', after: 'C-2' } })]).sentence).toBe('a modifié le numéro de payeur\u00a0: C-1 → C-2')
+    expect(printed(events([other('delete', { number: 'C-2' })]))).not.toContain('csst_new')
+  })
 })
 
 describe('history — private data, actors, ids', () => {
@@ -299,8 +328,21 @@ describe('history — private data, actors, ids', () => {
     const changed = only([row('professional_private', 'update', { sin: { before: null, after: '046454286' } })])
     expect(changed).toMatchObject({ kind: 'change', sentence: t(`${H}.sentences.privateChanged`), lines: [], groups: [] })
     const read = only([row('professional_private', 'read', { fields: ['bank_account'] })])
-    expect(read).toMatchObject({ kind: 'read', sentence: t(`${H}.sentences.privateRead`), lines: [] })
+    expect(read).toMatchObject({ kind: 'read', sentence: 'a affiché le numéro de compte', lines: [] })
     expect(printed([changed, read])).not.toContain('046454286')
+  })
+
+  it('names the private fields a consultation showed, from a fixed list only (4a.17)', () => {
+    const read = (changedFields: HistoryEntry['changedFields']) => only([row('professional_private', 'read', changedFields)])
+    expect(read({ fields: ['sin'] })).toMatchObject({ kind: 'read', sentence: 'a affiché le NAS', lines: [], groups: [] })
+    expect(read({ fields: ['sin', 'bank_account'] }).sentence).toBe('a affiché le NAS et le numéro de compte')
+    expect(read({ fields: ['bank_account', 'bank_account'] }).sentence).toBe('a affiché le numéro de compte')
+    // Anything else, or nothing: what kind of thing, never a name or a value.
+    for (const fields of [null, {}, { fields: [] }, { fields: ['email'] }, { fields: ['sin', 'toString'] }, { fields: 'sin' }, { fields: [{ sin: '046454286' }] }]) {
+      const event = read(fields)
+      expect(event.sentence).toBe(t(`${H}.sentences.privateReadOther`))
+      expect(printed([event])).not.toMatch(/046454286|email|toString/)
+    }
   })
 
   it('names who wrote the entry, or where it came from', () => {
@@ -309,7 +351,8 @@ describe('history — private data, actors, ids', () => {
     expect(actor({ actorId: null, actorName: null, source: 'import:professionals' }).actor).toBe(t(`${H}.actors.import`))
     expect(actor({ actorId: null, actorName: null, source: 'migration:professionals_core' }).actor).toBe(t(`${H}.actors.migration`))
     expect(actor({ actorId: null, actorName: null, source: 'service' }).actor).toBe(t(`${H}.actors.system`))
-    expect(actor({ actorName: null })).toMatchObject({ actor: t(`${H}.actors.unknown`), byPerson: false })
+    expect(actor({ actorId: null, actorName: null, source: 'bootstrap' })).toMatchObject({ actor: 'Le système', byPerson: false })
+    expect(actor({ actorName: null })).toMatchObject({ actor: "Une personne qui n'a plus accès", byPerson: false })
   })
 
   it('prints no UUID for any table, an unknown one included', () => {
@@ -319,8 +362,44 @@ describe('history — private data, actors, ids', () => {
       row('professional_professions', 'update', { licence_number: { before: '1', after: '2' } }, { recordId: `${P}:${ORG}` }),
       row('professional_documents', 'insert', { id: ORG, stored_file_id: ORG }, { recordId: `${P}:${ORG}` }),
     ])
-    expect(list.at(-1)?.sentence).toBe('a modifié\u00a0: professional_documents')
+    expect(list.at(-1)?.sentence).toBe('a modifié une autre section du dossier')
     expect(printed(list)).not.toMatch(UUID)
+    expect(printed(list)).not.toContain('professional_documents')
+  })
+
+  it('reads a consultation of a table it does not know as a consultation, without its name', () => {
+    const event = only([row('professional_documents', 'read', { fields: ['stored_file_id'] }, { recordId: `${P}:${ORG}` })])
+    expect(event).toMatchObject({ kind: 'read', sentence: 'a consulté une section du dossier', lines: [], groups: [] })
+    expect(printed([event])).not.toMatch(/professional_documents|stored_file_id/)
+  })
+
+  it('reads a deleted profile row, folded nowhere', () => {
+    expect(only([row('professional_public_profiles', 'delete', { org_id: ORG, professional_id: P, bio: 'Texte' })])).toMatchObject({
+      sentence: 'a supprimé le profil public',
+      lines: [],
+    })
+    expect(only([row('professional_matching_profiles', 'delete', { professional_id: P })]).sentence).toBe('a supprimé le profil de jumelage')
+  })
+
+  it('never prints an id, the redaction marker or an object as a value', () => {
+    const hidden = t(`${H}.values.hidden`)
+    const event = only([
+      row('professionals', 'update', {
+        // Columns without a catalogue reading: an id is not printed, an object is not « (vide) ».
+        referred_by: { before: null, after: ORG },
+        extra: { before: { a: 1 }, after: [1, 2] },
+        nickname: { before: '[redacted]', after: 'Marie' },
+        updated_by: { before: null, after: IDS.admin },
+        user_id: { before: null, after: IDS.admin },
+      }),
+    ])
+    expect(event.lines).toEqual([
+      { kind: 'change', field: 'referred_by', before: t('audit.values.empty'), after: hidden },
+      { kind: 'change', field: 'extra', before: hidden, after: hidden },
+      { kind: 'change', field: 'nickname', before: t('audit.values.redacted'), after: 'Marie' },
+    ])
+    expect(printed([event])).not.toMatch(UUID)
+    expect(printed([event])).not.toContain('[redacted]')
   })
 })
 
@@ -333,6 +412,21 @@ describe('history — pages, days, filter', () => {
     expect(settledHistoryRows(rows.slice(2), true)).toEqual([])
   })
 
+  it('reads on while the last page holds only the held-back save', () => {
+    const at = (createdAt: string) => ({ createdAt })
+    const a = { ...junction('professional_motifs', 'motif_id', IDS.anxiete), ...at('2026-10-08T15:00:00+00:00') }
+    const b = () => ({ ...junction('professional_motifs', 'motif_id', IDS.deuil), ...at('2026-10-08T14:00:00+00:00') })
+    const c = { ...junction('professional_motifs', 'motif_id', IDS.psychose), ...at('2026-10-08T13:00:00+00:00') }
+    expect(historyReadsOn([[a, b()]], true)).toBe(false)
+    expect(historyReadsOn([[a, b()], [b(), b()]], true)).toBe(true)
+    expect(historyReadsOn([[a, b()], [b(), b()], [b(), c]], true)).toBe(false)
+    expect(historyReadsOn([[b(), b()]], true)).toBe(true)
+    // The end of the history, or an empty page, stops it.
+    expect(historyReadsOn([[b(), b()]], false)).toBe(false)
+    expect(historyReadsOn([[a, b()], []], true)).toBe(false)
+    expect(historyReadsOn([], true)).toBe(false)
+  })
+
   it('groups by clinic day, newest first', () => {
     const list = events([
       row('professionals', 'update', { years_experience: { before: 1, after: 2 } }, { createdAt: '2026-10-08T14:00:00+00:00' }),
@@ -342,6 +436,35 @@ describe('history — pages, days, filter', () => {
     const days = groupHistoryByDay(list)
     expect(days.map((d) => d.label)).toEqual(['Jeudi 8 octobre 2026', 'Mercredi 7 octobre 2026'])
     expect(days.map((d) => d.events.length)).toEqual([1, 1])
+  })
+
+  it('cuts days at the clinic midnight on both DST changeovers (America/Toronto)', () => {
+    const at = (createdAt: string) => row('professionals', 'update', { years_experience: { before: 1, after: 2 } }, { createdAt })
+    // March 8, 2026: EST (UTC−5) until 2:00, then EDT (UTC−4).
+    const march = groupHistoryByDay(
+      events([at('2026-03-09T04:00:00+00:00'), at('2026-03-09T03:59:00+00:00'), at('2026-03-08T05:00:00+00:00'), at('2026-03-08T04:59:00+00:00')]),
+    )
+    expect(march.map((d) => [d.label, d.events.length])).toEqual([
+      ['Lundi 9 mars 2026', 1],
+      ['Dimanche 8 mars 2026', 2],
+      ['Samedi 7 mars 2026', 1],
+    ])
+    // November 1, 2026: EDT until 2:00, then EST.
+    const november = groupHistoryByDay(
+      events([at('2026-11-02T05:00:00+00:00'), at('2026-11-02T04:59:00+00:00'), at('2026-11-01T04:00:00+00:00'), at('2026-11-01T03:59:00+00:00')]),
+    )
+    expect(november.map((d) => [d.label, d.events.length])).toEqual([
+      ['Lundi 2 novembre 2026', 1],
+      ['Dimanche 1 novembre 2026', 2],
+      ['Samedi 31 octobre 2026', 1],
+    ])
+  })
+
+  it('gives each day section a unique key when a day comes back', () => {
+    const at = (createdAt: string) => row('professionals', 'update', { years_experience: { before: 1, after: 2 } }, { createdAt })
+    const days = groupHistoryByDay(events([at('2026-10-08T14:00:00+00:00'), at('2026-10-07T14:00:00+00:00'), at('2026-10-08T13:00:00+00:00')]))
+    expect(days.map((d) => d.date)).toEqual(['2026-10-08', '2026-10-07', '2026-10-08'])
+    expect(new Set(days.map((d) => d.key)).size).toBe(3)
   })
 
   it('« Modifications » leaves out consultations', () => {

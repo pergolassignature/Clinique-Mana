@@ -24,6 +24,7 @@ import {
 import type { ProfessionalRecord, SpecializedRef, StatusChange } from '../api/parse'
 import type { PayerType } from '../lib/constants'
 import { professionalCatalogKeys, professionalKeys } from './keys'
+import { refreshProfessionalHistory } from './use-professional-record'
 import { showMutationError, type MutationFeedback } from './mutation-feedback'
 
 /**
@@ -55,7 +56,7 @@ function useRecordMutation<V extends { id: string }, R>(config: RecordMutation<V
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: professionalKeys.record(variables.id) }),
         queryClient.invalidateQueries({ queryKey: professionalKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: professionalKeys.history(variables.id) }),
+        refreshProfessionalHistory(queryClient, variables.id),
         config.touchesUsage && queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.usage() }),
       ])
       toast.success(config.successMessage ?? t('modules.professionals.toasts.saved'))

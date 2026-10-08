@@ -1314,17 +1314,23 @@
           "system": "Le système",
           "import": "L'importation",
           "migration": "Une mise à jour du système",
-          "unknown": "Un utilisateur retiré"
+          "unknown": "Une personne qui n'a plus accès"
         },
         "sentences": {
           "created": "a créé le dossier",
           "deleted": "a supprimé le dossier",
-          "createdPublicProfile": "a créé le profil public",
-          "createdMatchingProfile": "a créé le profil de jumelage",
+          "publicProfile": {
+            "created": "a créé le profil public",
+            "deleted": "a supprimé le profil public"
+          },
+          "matchingProfile": {
+            "created": "a créé le profil de jumelage",
+            "deleted": "a supprimé le profil de jumelage"
+          },
           "changedOne": "a modifié {field}",
           "changedValue": "a modifié {field} : {before} → {after}",
           "activated": "a activé le dossier",
-          "activatedOverride": "a activé le dossier incomplet (raison : {reason})",
+          "activatedOverride": "a activé le dossier incomplet",
           "reactivated": "a réactivé le dossier",
           "deactivated": "a désactivé le dossier (raison : {reason})",
           "statusChanged": "a changé le statut : {before} → {after}",
@@ -1336,8 +1342,10 @@
           "payerChanged": "a modifié le numéro {payer} : {before} → {after}",
           "payerRemoved": "a retiré le numéro {payer} {number}",
           "privateChanged": "a modifié les coordonnées fiscales ou bancaires",
-          "privateRead": "a affiché le numéro de compte",
-          "other": "a modifié : {section}"
+          "privateRead": "a affiché {fields}",
+          "privateReadOther": "a consulté des données privées",
+          "other": "a modifié une autre section du dossier",
+          "otherRead": "a consulté une section du dossier"
         },
         "sets": {
           "professional_motifs": {
@@ -1363,9 +1371,9 @@
             "removedOne": "a retiré la clientèle {name}",
             "removedFew": "a retiré les clientèles {names}",
             "removedMany": "a retiré {count} clientèles",
-            "specializedFew": "a indiqué une spécialisation : {names}",
+            "specializedFew": "a indiqué une spécialisation pour : {names}",
             "specializedMany": "a indiqué une spécialisation pour {count} clientèles",
-            "unspecializedFew": "a retiré la spécialisation : {names}",
+            "unspecializedFew": "a retiré la spécialisation pour : {names}",
             "unspecializedMany": "a retiré la spécialisation pour {count} clientèles"
           },
           "professional_specialties": {
@@ -1375,9 +1383,9 @@
             "removedOne": "a retiré l'approche {name}",
             "removedFew": "a retiré les approches {names}",
             "removedMany": "a retiré {count} approches",
-            "specializedFew": "a indiqué une spécialisation : {names}",
+            "specializedFew": "a indiqué une spécialisation pour : {names}",
             "specializedMany": "a indiqué une spécialisation pour {count} approches",
-            "unspecializedFew": "a retiré la spécialisation : {names}",
+            "unspecializedFew": "a retiré la spécialisation pour : {names}",
             "unspecializedMany": "a retiré la spécialisation pour {count} approches"
           }
         },
@@ -1425,9 +1433,15 @@
             "title": "Titre archivé",
             "reason": "Raison archivée"
           },
+          "hidden": "(valeur non affichable)",
           "payers": {
-            "ivac": "IVAC"
+            "ivac": "IVAC",
+            "other": "de payeur"
           }
+        },
+        "privateFields": {
+          "sin": "le NAS",
+          "bankAccount": "le numéro de compte"
         },
         "lines": {
           "accountDisabled": "Le compte de connexion a aussi été désactivé.",

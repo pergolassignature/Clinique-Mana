@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { memo, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { t } from '@/i18n'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
@@ -15,6 +15,7 @@ import {
   groupHistoryByDay,
   HISTORY_FILTERS,
   historyItemLabel,
+  historyReadsOn,
   professionTitlesByRow,
   settledHistoryRows,
   type HistoryEvent,
@@ -40,7 +41,8 @@ export function HistoryTab() {
   const endRef = useRef<HTMLParagraphElement>(null)
   const loadMorePressed = useRef(false)
 
-  const rows = useMemo(() => data?.pages.flat() ?? [], [data])
+  const pages = data?.pages
+  const rows = useMemo(() => pages?.flat() ?? [], [pages])
   const settled = useMemo(() => settledHistoryRows(rows, hasNextPage), [rows, hasNextPage])
   const events = useMemo(
     () => buildHistoryEvents(settled, { catalog, titleByRow: professionTitlesByRow(rows, record) }),
@@ -48,32 +50,42 @@ export function HistoryTab() {
   )
   const days = useMemo(() => groupHistoryByDay(filterHistory(events, filter)), [events, filter])
 
-  // Pages that hold only one unfinished save show nothing yet: read on, page by page, until the
-  // save ends. Each new page re-runs this (`rows.length`): a quick fetch may never render as pending.
-  const waiting = hasNextPage && rows.length > 0 && settled.length === 0
+  // A last page holding only the held-back save added nothing to the screen (the first page, or
+  // the one « Charger plus » brought): read on, page by page, until the save ends (P4-101). It
+  // stops on an error, an empty page or the end of the history. Each new page re-runs this
+  // (`pageCount`): a quick fetch may never render as pending.
+  const readsOn = historyReadsOn(pages ?? [], hasNextPage)
+  const chaining = readsOn && !isFetchNextPageError
+  const pageCount = pages?.length ?? 0
   useEffect(() => {
-    if (waiting && !isFetchingNextPage && !isFetchNextPageError) void fetchNextPage()
-  }, [waiting, rows.length, isFetchingNextPage, isFetchNextPageError, fetchNextPage])
+    if (chaining && !isFetchingNextPage) void fetchNextPage()
+  }, [chaining, pageCount, isFetchingNextPage, fetchNextPage])
+  const loadingMore = isFetchingNextPage || chaining
 
-  // After « Charger plus » reaches the start, its button goes away: focus moves to « Début de l'historique ».
+  // After « Charger plus » (and the pages it reads on) reaches the start, its button goes away:
+  // focus moves to « Début de l'historique ».
   useEffect(() => {
-    if (isFetchingNextPage || !loadMorePressed.current) return
+    if (isFetchingNextPage || readsOn || !loadMorePressed.current) return
     loadMorePressed.current = false
     if (!hasNextPage) endRef.current?.focus()
-  }, [hasNextPage, isFetchingNextPage])
+  }, [hasNextPage, isFetchingNextPage, readsOn])
 
   let content: ReactNode
-  if (isPending || (waiting && !isFetchNextPageError)) {
+  if (isPending || (chaining && events.length === 0)) {
     content = <Loading />
   } else if (isError && !data) {
     content = <LoadError message={t(`${H}.loadError`)} retrying={isFetching} onRetry={() => void refetch()} />
+  } else if (readsOn && events.length === 0) {
+    // The save that fills the first pages could not be read to its end: nothing to show but the retry.
+    content = <LoadError message={t(`${H}.loadError`)} retrying={isFetchingNextPage} onRetry={() => void fetchNextPage()} />
   } else {
     content = (
       <>
         {events.length === 0 && !hasNextPage ? (
           <EmptyState title={t(`${H}.empty.title`)} body={t(`${H}.empty.body`)} />
         ) : days.length === 0 ? (
-          <EmptyState title={t(`${H}.emptyFiltered.title`)} body={t(`${H}.emptyFiltered.body`)} />
+          // Only a filter can empty loaded entries; without one, the list waits for « Charger plus ».
+          filter !== 'all' && <EmptyState title={t(`${H}.emptyFiltered.title`)} body={t(`${H}.emptyFiltered.body`)} />
         ) : (
           <div className="space-y-5">
             {days.map((day) => (
@@ -88,14 +100,14 @@ export function HistoryTab() {
                 type="button"
                 variant="outline"
                 size="sm"
-                aria-disabled={isFetchingNextPage || undefined}
-                onClick={ignoreWhenInactive(isFetchingNextPage, () => {
+                aria-disabled={loadingMore || undefined}
+                onClick={ignoreWhenInactive(loadingMore, () => {
                   loadMorePressed.current = true
                   void fetchNextPage()
                 })}
                 className={cn(softDisabledClasses, 'max-sm:h-11 aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
               >
-                {isFetchingNextPage ? t(`${H}.loadingMore`) : t(`${H}.loadMore`)}
+                {loadingMore ? t(`${H}.loadingMore`) : t(`${H}.loadMore`)}
               </Button>
               {isFetchNextPageError && !isFetchingNextPage && <p role="alert">{t(`${H}.loadMoreError`)}</p>}
             </>
@@ -142,8 +154,12 @@ function HistoryDaySection({ label, events }: { label: string; events: readonly 
   )
 }
 
-/** « 14:30  Admin Local a modifié la ville », unfolding to its details when it has any. */
-function HistoryItem({ event }: { event: HistoryEvent }) {
+/**
+ * « 14:30  Admin Local a modifié la ville », unfolding to its details when it has any. Memoised:
+ * an event keeps its identity until the loaded rows change, so the loading state of « Charger
+ * plus » and the filter do not re-render the entries.
+ */
+const HistoryItem = memo(function HistoryItem({ event }: { event: HistoryEvent }) {
   const text = (
     <>
       <span className={cn('font-medium', !event.byPerson && 'text-muted-foreground')}>{event.actor}</span> {event.sentence}
@@ -167,7 +183,7 @@ function HistoryItem({ event }: { event: HistoryEvent }) {
       </div>
     </li>
   )
-}
+})
 
 function lineText(line: HistoryLine): string {
   switch (line.kind) {

@@ -1,10 +1,10 @@
 import { t, type TranslationKey } from '@/i18n'
-import { fieldLabel, tableLabel } from '@/core/audit/labels'
+import { fieldLabel } from '@/core/audit/labels'
 import { formatPhone } from '@/shared/lib/format'
 import { formatClinicDateFull, getClinicDateString } from '@/shared/lib/timezone'
 import type { HistoryEntry, ProfessionalRecord } from '../api/parse'
 import { OTHER_MOTIF_GROUP, type CatalogView } from './catalog-view'
-import { PROFESSIONAL_STATUSES, type AvailabilityPeriod, type ProfessionalStatus } from './constants'
+import { PAYER_TYPES, PROFESSIONAL_STATUSES, type AvailabilityPeriod, type PayerType, type ProfessionalStatus } from './constants'
 import { listLabel, periodsLabel, statusLabel } from './display'
 import { FEW_MOTIFS, summarizeMotifs, type HeldMotif } from './motif-summary'
 
@@ -13,25 +13,39 @@ import { FEW_MOTIFS, summarizeMotifs, type HeldMotif } from './motif-summary'
  * French sentences (« a modifié la ville », « a ajouté 65 motifs »), with the details behind a
  * disclosure. No raw JSON and no UUID ever reaches the screen (D5): ids are named through the
  * catalogue, and values the audit trigger redacted (« [redacted] ») are never read, only the fact
- * that the field changed.
+ * that the field changed. As a last guard, `formatValue` never prints a UUID-shaped string or the
+ * redaction marker, whatever the column.
  */
 
 const H = 'modules.professionals.history'
 
 /** What `private.audit_trigger` writes in place of a redacted column (Loi 25). */
 const REDACTED = '[redacted]'
+/** A UUID anywhere in a string: such a value is never printed (D5). */
+const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 
-/** Columns that say nothing to a reader: ids, the org, timestamps, who changed the status (the actor says it). */
-const TECHNICAL = new Set(['id', 'org_id', 'professional_id', 'created_at', 'updated_at', 'created_by', 'status_changed_at', 'status_changed_by'])
+/** Columns that say nothing to a reader: ids, the org, timestamps, who wrote the row or changed the status (the actor says it). */
+const TECHNICAL = new Set([
+  'id',
+  'org_id',
+  'professional_id',
+  'user_id',
+  'created_at',
+  'updated_at',
+  'created_by',
+  'updated_by',
+  'status_changed_at',
+  'status_changed_by',
+])
 /** Free texts: shown in the details only, never inside a sentence. */
 const LONG_TEXT = new Set(['bio', 'approach', 'availability_note', 'deactivation_note', 'activation_override_reason'])
 /** A creation's details: who the file is about. Everything else starts empty or at its default. */
 const CREATION_FIELDS = ['first_name', 'last_name', 'email', 'profile_id']
 
 /** The 1:1 rows created empty with the record: folded into « a créé le dossier ». */
-const PROFILE_TABLES: Readonly<Record<string, 'createdPublicProfile' | 'createdMatchingProfile'>> = {
-  professional_public_profiles: 'createdPublicProfile',
-  professional_matching_profiles: 'createdMatchingProfile',
+const PROFILE_TABLES: Readonly<Record<string, 'publicProfile' | 'matchingProfile'>> = {
+  professional_public_profiles: 'publicProfile',
+  professional_matching_profiles: 'matchingProfile',
 }
 /** Tables whose field phrases (« la ville ») exist in `history.fields`. */
 type PhrasedTable = 'professionals' | 'professional_public_profiles' | 'professional_matching_profiles'
@@ -49,6 +63,13 @@ type SetChange = 'added' | 'removed' | 'specialized' | 'unspecialized'
 
 /** Data from 4a.17's table: the history says what happened, never the values (P4-7, P4-38). */
 const PRIVATE_TABLE = 'professional_private'
+/**
+ * The fields `reveal_professional_private` names in a `read` row (`{"fields": ["bank_account"]}`,
+ * 4a.17), and how each reads. Only these names are ever read; anything else (or nothing) reads
+ * « a consulté des données privées ».
+ */
+const PRIVATE_READ_FIELDS = { sin: 'sin', bank_account: 'bankAccount' } as const
+type PrivateReadField = keyof typeof PRIVATE_READ_FIELDS
 
 /** One line of an event's details, already in French. */
 export type HistoryLine =
@@ -118,7 +139,7 @@ function titleName(catalog: CatalogView, id: string | undefined): string {
   return (id !== undefined && catalog.byId.titles.get(id)?.name) || unknown('title')
 }
 
-/** A value for reading: never an id, never JSON. Redacted values never get here. */
+/** A value for reading: never an id, never JSON, never the redaction marker. */
 function formatValue(catalog: CatalogView, column: string, value: unknown): string {
   if (value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) {
     return column === 'profile_id' ? t(`${H}.values.accountNone`) : t('audit.values.empty')
@@ -129,10 +150,13 @@ function formatValue(catalog: CatalogView, column: string, value: unknown): stri
   if (column === 'status' && isStatus(value)) return statusLabel(value)
   if (column === 'deactivation_reason_id') return reasonName(catalog, value)
   if (column === 'availability_periods' && Array.isArray(value)) return periodsLabel(value as AvailabilityPeriod[])
+  if (value === REDACTED) return t('audit.values.redacted')
+  // An id the catalogue did not name (a column this tab does not know): never shown (D5).
+  if (typeof value === 'string' && UUID_PATTERN.test(value)) return t(`${H}.values.hidden`)
   if (column === 'public_phone' && typeof value === 'string') return formatPhone(value)
   if (typeof value === 'string' || typeof value === 'number') return String(value)
-  // Anything else (an object, a list) is not shown raw (D5).
-  return t('audit.values.empty')
+  // Anything else (an object, a list) is not shown raw (D5), and it is not empty either.
+  return t(`${H}.values.hidden`)
 }
 
 /** « la ville » for a sentence; the field's label (« Ville ») for a table without phrases. */
@@ -183,18 +207,27 @@ function statusUpdate(catalog: CatalogView, fields: Record<string, unknown>, sta
   const S = `${H}.sentences`
   const lines: HistoryLine[] = []
   const note = pairOf(fields.deactivation_note)?.after
-  if (typeof note === 'string' && note !== '') lines.push({ kind: 'value', field: fieldLabel('professionals', 'deactivation_note'), value: note })
+  if (typeof note === 'string' && note !== '') {
+    lines.push({ kind: 'value', field: fieldLabel('professionals', 'deactivation_note'), value: formatValue(catalog, 'deactivation_note', note) })
+  }
   const account = pairOf(fields.deactivation_disabled_account)
   if (account?.after === true) lines.push({ kind: 'text', text: t(`${H}.lines.accountDisabled`) })
   if (account?.before === true && account.after === false) lines.push({ kind: 'text', text: t(`${H}.lines.accountEnabled`) })
 
   let sentence: string
   if (status.after === 'active') {
+    // The reason is a free text: in the details, not the sentence (P4-103).
     const override = pairOf(fields.activation_override_reason)?.after
-    sentence =
-      typeof override === 'string' && override !== ''
-        ? t(`${S}.activatedOverride`, { reason: override })
-        : t(status.before === 'inactive' ? `${S}.reactivated` : `${S}.activated`)
+    if (typeof override === 'string' && override !== '') {
+      sentence = t(`${S}.activatedOverride`)
+      lines.unshift({
+        kind: 'value',
+        field: fieldLabel('professionals', 'activation_override_reason'),
+        value: formatValue(catalog, 'activation_override_reason', override),
+      })
+    } else {
+      sentence = t(status.before === 'inactive' ? `${S}.reactivated` : `${S}.activated`)
+    }
   } else if (status.after === 'inactive') {
     sentence = t(`${S}.deactivated`, { reason: reasonName(catalog, pairOf(fields.deactivation_reason_id)?.after) })
   } else {
@@ -225,11 +258,15 @@ function professionRow(ctx: HistoryContext, entry: HistoryEntry): Described | nu
   const title = titleName(ctx.catalog, titleId)
   if (entry.action !== 'update') {
     const added = entry.action === 'insert'
-    const lines: HistoryLine[] = added
-      ? ['licence_number', 'is_primary']
-          .filter((column) => fields[column] !== null && fields[column] !== undefined)
-          .map((column) => ({ kind: 'value', field: fieldLabel(T, column), value: formatValue(ctx.catalog, column, fields[column]) }))
-      : []
+    const lines: HistoryLine[] = []
+    if (added) {
+      // An empty licence says nothing; « Titre principal » only when it is the primary one.
+      const licence = fields.licence_number
+      if (typeof licence === 'string' && licence.trim() !== '' && licence !== REDACTED) {
+        lines.push({ kind: 'value', field: fieldLabel(T, 'licence_number'), value: formatValue(ctx.catalog, 'licence_number', licence) })
+      }
+      if (fields.is_primary === true) lines.push({ kind: 'value', field: fieldLabel(T, 'is_primary'), value: formatValue(ctx.catalog, 'is_primary', true) })
+    }
     return { kind: 'change', sentence: t(added ? `${S}.titleAdded` : `${S}.titleRemoved`, { title }), lines }
   }
   // A primary that loses the flag: the row becoming primary in the same save says it.
@@ -254,7 +291,8 @@ function payerRow(catalog: CatalogView, entry: HistoryEntry): Described | null {
   const fields = readable(fieldsOf(entry))
   const S = `${H}.sentences`
   const type = typeof fields.payer_type === 'string' ? fields.payer_type : itemIdOf(entry)
-  const payer = type === 'ivac' ? t(`${H}.values.payers.ivac`) : type
+  // A payer this tab does not know yet reads « le numéro de payeur », never its raw key.
+  const payer = (PAYER_TYPES as readonly string[]).includes(type) ? t(`${H}.values.payers.${type as PayerType}`) : t(`${H}.values.payers.other`)
   if (entry.action === 'update') {
     const number = pairOf(fields.number)
     if (!number) return fieldUpdate(catalog, 'professional_payer_numbers', fields)
@@ -264,11 +302,24 @@ function payerRow(catalog: CatalogView, entry: HistoryEntry): Described | null {
   return { kind: 'change', sentence: t(entry.action === 'insert' ? `${S}.payerAdded` : `${S}.payerRemoved`, { payer, number }), lines: [] }
 }
 
+/**
+ * A consultation of private data (4a.17): « a affiché le NAS », « a affiché le numéro de compte »,
+ * both listed, read from `changedFields.fields` against PRIVATE_READ_FIELDS. Any other name, or
+ * none, reads « a consulté des données privées ». Never a value.
+ */
+function privateRead(entry: HistoryEntry): string {
+  const names = fieldsOf(entry).fields
+  const known = Array.isArray(names) && names.length > 0 && names.every((name) => typeof name === 'string' && Object.hasOwn(PRIVATE_READ_FIELDS, name))
+  if (!known) return t(`${H}.sentences.privateReadOther`)
+  const fields = [...new Set(names as PrivateReadField[])].map((name) => t(`${H}.privateFields.${PRIVATE_READ_FIELDS[name]}`))
+  return t(`${H}.sentences.privateRead`, { fields: listLabel(fields) })
+}
+
 /** One audit row of a table that is not a set, as a sentence and its details. */
 function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null {
   if (entry.tableName === PRIVATE_TABLE) {
     return entry.action === 'read'
-      ? { kind: 'read', sentence: t(`${H}.sentences.privateRead`), lines: [] }
+      ? { kind: 'read', sentence: privateRead(entry), lines: [] }
       : { kind: 'change', sentence: t(`${H}.sentences.privateChanged`), lines: [] }
   }
   switch (entry.tableName) {
@@ -279,11 +330,15 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
     case 'professional_payer_numbers':
       return payerRow(ctx.catalog, entry)
   }
-  const profileSentence = PROFILE_TABLES[entry.tableName]
+  const profileSentence = Object.hasOwn(PROFILE_TABLES, entry.tableName) ? PROFILE_TABLES[entry.tableName] : undefined
   if (profileSentence && entry.action === 'update') return fieldUpdate(ctx.catalog, entry.tableName, readable(fieldsOf(entry)))
-  if (profileSentence && entry.action === 'insert') return { kind: 'change', sentence: t(`${H}.sentences.${profileSentence}`), lines: [] }
-  // A table this tab does not know yet (a later batch's): what it is, never its values.
-  return { kind: entry.action === 'read' ? 'read' : 'change', sentence: t(`${H}.sentences.other`, { section: tableLabel(entry.tableName) }), lines: [] }
+  if (profileSentence && entry.action === 'insert') return { kind: 'change', sentence: t(`${H}.sentences.${profileSentence}.created`), lines: [] }
+  if (profileSentence && entry.action === 'delete') return { kind: 'change', sentence: t(`${H}.sentences.${profileSentence}.deleted`), lines: [] }
+  // A table this tab does not know yet (a later batch's): that something happened, never the
+  // table's name or its values.
+  return entry.action === 'read'
+    ? { kind: 'read', sentence: t(`${H}.sentences.otherRead`), lines: [] }
+    : { kind: 'change', sentence: t(`${H}.sentences.other`), lines: [] }
 }
 
 // --- Sets --------------------------------------------------------------------------------------------
@@ -307,31 +362,50 @@ function setChangeOf(entry: HistoryEntry): SetChange | null {
 type ListTable = Exclude<SetTable, 'professional_motifs'>
 const LIST_KIND = { professional_languages: 'language', professional_clienteles: 'clientele', professional_specialties: 'specialty' } as const
 
+/** The names of a batch, and how many of them (the last ones) the catalogue no longer knows. */
+interface BatchNames {
+  groups: HistoryNameGroup[]
+  unknownCount: number
+}
+
 /**
- * The items of a language, clientèle or approach batch, in the catalogue's order (unknown ones
- * last), archived ones marked, « (spécialisé) » after the ones added with the ★.
+ * The items of a language, clientèle or approach batch, in the catalogue's order, archived ones
+ * last and marked, unknown ones after them (as motifs, P4-100); « (spécialisé) » after the ones
+ * added with the ★.
  */
-function listItems(catalog: CatalogView, batch: SetBatch & { table: ListTable }): HeldMotif[] {
+function listItems(catalog: CatalogView, batch: SetBatch & { table: ListTable }): BatchNames {
   const list = batch.table === 'professional_languages' ? catalog.languages : batch.table === 'professional_clienteles' ? catalog.clienteles : catalog.specialties
   const held = new Set(batch.ids)
   const known = list.filter((item) => held.has(item.id)).map((item) => ({ id: item.id, name: item.name, archived: !item.isActive }))
   const knownIds = new Set(known.map((item) => item.id))
   const missing = batch.ids.filter((id) => !knownIds.has(id)).map((id) => ({ id, name: unknown(LIST_KIND[batch.table]), archived: false }))
   const star = t('modules.professionals.record.overview.matching.specialized')
-  return [...known, ...missing].map(({ id, name, archived }) => ({ name: batch.specialized.has(id) ? `${name} ${star}` : name, archived }))
+  const ordered = [...known.filter((item) => !item.archived), ...known.filter((item) => item.archived), ...missing]
+  const items = ordered.map(({ id, name, archived }) => ({ name: batch.specialized.has(id) ? `${name} ${star}` : name, archived }))
+  return { groups: [{ key: batch.table, name: null, items }], unknownCount: missing.length }
 }
 
-/** The motifs by category (the record's grouping, P4-73), unknown ones under « Autres ». */
-function motifGroups(catalog: CatalogView, ids: readonly string[]): HistoryNameGroup[] {
+/** The motifs by category (the record's grouping, P4-73), archived ones last in each, unknown ones last under « Autres ». */
+function motifGroups(catalog: CatalogView, ids: readonly string[]): BatchNames {
   const groups: HistoryNameGroup[] = summarizeMotifs(ids, catalog).full.map((group) => ({ key: group.key, name: group.name, items: group.motifs }))
   const missing = ids.filter((id) => !catalog.byId.motifs.has(id)).length
   if (missing > 0) {
     const items = Array.from({ length: missing }, () => ({ name: unknown('motif'), archived: false }))
     const other = groups.find((group) => group.key === OTHER_MOTIF_GROUP)
+    // « Autres » is the last category (summarizeMotifs), so the unknown ones end the list.
     if (other) other.items.push(...items)
     else groups.push({ key: OTHER_MOTIF_GROUP, name: t('modules.professionals.otherCategory'), items })
   }
-  return groups
+  return { groups, unknownCount: missing }
+}
+
+/** The names for a sentence: active ones first, then archived, then unknown — the same for every set. */
+function sentenceNames({ groups, unknownCount }: BatchNames): string[] {
+  const items = groups.flatMap((group) => group.items)
+  const known = items.slice(0, items.length - unknownCount)
+  return [...known.filter((item) => !item.archived), ...known.filter((item) => item.archived), ...items.slice(items.length - unknownCount)].map(
+    historyItemLabel,
+  )
 }
 
 /** « Ancien motif (archivé) » inside a sentence. */
@@ -345,8 +419,9 @@ const isListBatch = (batch: SetBatch): batch is SetBatch & { table: ListTable } 
  * (« a ajouté 65 motifs ») with the names behind the disclosure, never one huge sentence.
  */
 function describeSet(catalog: CatalogView, batch: SetBatch): Pick<HistoryEvent, 'sentence' | 'groups'> {
-  const groups = isListBatch(batch) ? [{ key: batch.table, name: null, items: listItems(catalog, batch) }] : motifGroups(catalog, batch.ids)
-  const names = groups.flatMap((group) => group.items.map(historyItemLabel))
+  const named = isListBatch(batch) ? listItems(catalog, batch) : motifGroups(catalog, batch.ids)
+  const { groups } = named
+  const names = sentenceNames(named)
   const count = String(batch.ids.length)
   if (batch.change === 'added' || batch.change === 'removed') {
     const S = `${H}.sets.${batch.table}` as const
@@ -362,6 +437,12 @@ function describeSet(catalog: CatalogView, batch: SetBatch): Pick<HistoryEvent, 
 
 // --- Assembly ----------------------------------------------------------------------------------------
 
+/**
+ * The subject of the sentence: the person's name; « Une personne qui n'a plus accès » for an actor
+ * id the clinic no longer names; else what wrote the row, by source (P4-104): `seed` and
+ * `import…` → « L'importation », `migration:…` → « Une mise à jour du système », anything else
+ * (`bootstrap`, `service`…) → « Le système ».
+ */
 function actorOf(entry: HistoryEntry): { actor: string; byPerson: boolean } {
   if (entry.actorName) return { actor: entry.actorName, byPerson: true }
   if (entry.actorId) return { actor: t(`${H}.actors.unknown`), byPerson: false }
@@ -401,7 +482,7 @@ export function buildHistoryEvents(rows: readonly HistoryEntry[], ctx: HistoryCo
       if (change === 'added' && fields.is_specialized === true) batch.specialized.add(id)
       continue
     }
-    if (PROFILE_TABLES[entry.tableName] && entry.action === 'insert' && creations.has(transactionOf(entry))) continue
+    if (Object.hasOwn(PROFILE_TABLES, entry.tableName) && entry.action === 'insert' && creations.has(transactionOf(entry))) continue
     units.push(entry)
   }
 
@@ -433,6 +514,19 @@ export function settledHistoryRows(rows: readonly HistoryEntry[], more: boolean)
   return rows.slice(0, end)
 }
 
+/**
+ * Whether the tab must read on by itself (P4-101): more pages exist and the last loaded page
+ * holds only rows of the held-back save (its first row is of the same transaction as its last).
+ * That page added nothing to the screen, so « Charger plus » would seem to do nothing. An empty
+ * last page, or the end of the history, stops it.
+ */
+export function historyReadsOn(pages: readonly (readonly HistoryEntry[])[], more: boolean): boolean {
+  const last = pages.at(-1)
+  const first = last?.[0]
+  const end = last?.at(-1)
+  return more && first !== undefined && end !== undefined && transactionOf(first) === transactionOf(end)
+}
+
 /** The professions' title ids by row id: the record's rows, and any loaded row that names its title. */
 export function professionTitlesByRow(rows: readonly HistoryEntry[], record: Pick<ProfessionalRecord, 'professions'>): Map<string, string> {
   const titles = new Map(record.professions.map((p) => [p.id, p.titleId]))
@@ -450,8 +544,14 @@ export function filterHistory(events: readonly HistoryEvent[], filter: HistoryFi
 }
 
 export interface HistoryDay {
-  /** `yyyy-MM-dd` in the clinic's timezone. */
+  /**
+   * Unique among the days: `yyyy-MM-dd` in the clinic's timezone, then `-2`, `-3`… when the same
+   * day comes back (rows are ordered by audit id, and a long transaction may commit after a
+   * later one, across midnight).
+   */
   key: string
+  /** `yyyy-MM-dd` in the clinic's timezone. */
+  date: string
   /** « Jeudi 8 octobre 2026 ». */
   label: string
   events: HistoryEvent[]
@@ -460,12 +560,15 @@ export interface HistoryDay {
 /** Events (newest first) by clinic day, newest day first. */
 export function groupHistoryByDay(events: readonly HistoryEvent[]): HistoryDay[] {
   const days: HistoryDay[] = []
+  const seen = new Map<string, number>()
   for (const event of events) {
-    const key = getClinicDateString(event.createdAt)
+    const date = getClinicDateString(event.createdAt)
     let day = days.at(-1)
-    if (day?.key !== key) {
+    if (day?.date !== date) {
       const label = formatClinicDateFull(event.createdAt)
-      day = { key, label: label.charAt(0).toLocaleUpperCase('fr-CA') + label.slice(1), events: [] }
+      const count = (seen.get(date) ?? 0) + 1
+      seen.set(date, count)
+      day = { key: count === 1 ? date : `${date}-${count}`, date, label: label.charAt(0).toLocaleUpperCase('fr-CA') + label.slice(1), events: [] }
       days.push(day)
     }
     day.events.push(event)

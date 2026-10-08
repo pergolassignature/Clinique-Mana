@@ -7,7 +7,8 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * | Change                                   | Invalidated                                                    |
  * |------------------------------------------|----------------------------------------------------------------|
  * | a record's field, set, email or status   | `record(id)` (after writing the returned set), `lists()`,      |
- * |                                          | `history(id)`; sets and status also `usage()` (« Utilisé par ») |
+ * |                                          | `history(id)` (its first page, `refreshProfessionalHistory`);  |
+ * |                                          | sets and status also `usage()` (« Utilisé par »)               |
  * | creation                                 | `lists()`, `usage()`                                           |
  * | a list row saved                         | `catalog()`, `usage()`; `professionalKeys.all` for titles and  |
  * |                                          | motifs (licence and restricted rules change readiness)         |
