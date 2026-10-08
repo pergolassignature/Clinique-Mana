@@ -72,3 +72,11 @@ insert into public.org_modules (org_id, module_key, enabled, updated_by) values
 -- Local Vault secrets for pg_net → edge functions (fake values; staging gets real ones, plan « Mise en service »).
 select vault.create_secret('http://supabase_kong_clinique-mana:8000', 'project_url', 'Local: Kong as seen from the DB container');
 select vault.create_secret('local-dev-internal-function-secret', 'internal_function_secret', 'Local: matches supabase/functions/.env');
+
+-- Local Resend webhook secret for the seed org (fake: base64 of « local-dev-resend-webhook »;
+-- scripts/send-test-webhook.mjs signs with it). Stored as set_org_secret stores it. No Resend API
+-- key: locally EMAIL_TRANSPORT=mailpit needs none.
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values ('00000000-0000-0000-0000-000000000001', 'resend_webhook_secret',
+        vault.create_secret('whsec_bG9jYWwtZGV2LXJlc2VuZC13ZWJob29r',
+                            'org:00000000-0000-0000-0000-000000000001:resend_webhook_secret'));

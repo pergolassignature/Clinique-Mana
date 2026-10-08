@@ -48,6 +48,271 @@ export type Database = {
         }
         Relationships: []
       }
+      email_log: {
+        Row: {
+          attachment_count: number
+          attempts: number
+          created_at: string
+          error_code: string | null
+          id: string
+          last_event_at: string | null
+          module_key: string
+          org_id: string
+          resend_id: string | null
+          sent_at: string | null
+          sent_by: string | null
+          status: string
+          subject_id: string
+          subject_type: string
+          template_key: string
+          template_version: number
+          to_email: string | null
+          to_profile_id: string | null
+          view_permission: string
+        }
+        Insert: {
+          attachment_count?: number
+          attempts?: number
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          last_event_at?: string | null
+          module_key: string
+          org_id: string
+          resend_id?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          subject_id: string
+          subject_type: string
+          template_key: string
+          template_version: number
+          to_email?: string | null
+          to_profile_id?: string | null
+          view_permission: string
+        }
+        Update: {
+          attachment_count?: number
+          attempts?: number
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          last_event_at?: string | null
+          module_key?: string
+          org_id?: string
+          resend_id?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          subject_id?: string
+          subject_type?: string
+          template_key?: string
+          template_version?: number
+          to_email?: string | null
+          to_profile_id?: string | null
+          view_permission?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_log_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "email_log_template_key_fkey"
+            columns: ["template_key"]
+            isOneToOne: false
+            referencedRelation: "email_template_defaults"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "email_log_to_profile_id_fkey"
+            columns: ["to_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "email_log_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      email_settings: {
+        Row: {
+          from_address: string
+          from_name: string
+          org_id: string
+          reply_to: string | null
+          sending_domain: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          from_address: string
+          from_name: string
+          org_id: string
+          reply_to?: string | null
+          sending_domain?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          from_address?: string
+          from_name?: string
+          org_id?: string
+          reply_to?: string | null
+          sending_domain?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      email_template_defaults: {
+        Row: {
+          allows_attachments: boolean
+          body: string
+          button_label: string | null
+          description: string
+          key: string
+          label: string
+          module_key: string
+          recipient_mode: string
+          subject: string
+          updated_at: string
+          variables: Json
+          view_permission: string
+          why_line: string
+        }
+        Insert: {
+          allows_attachments?: boolean
+          body: string
+          button_label?: string | null
+          description: string
+          key: string
+          label: string
+          module_key: string
+          recipient_mode?: string
+          subject: string
+          updated_at?: string
+          variables?: Json
+          view_permission: string
+          why_line: string
+        }
+        Update: {
+          allows_attachments?: boolean
+          body?: string
+          button_label?: string | null
+          description?: string
+          key?: string
+          label?: string
+          module_key?: string
+          recipient_mode?: string
+          subject?: string
+          updated_at?: string
+          variables?: Json
+          view_permission?: string
+          why_line?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_template_defaults_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "email_template_defaults_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          body: string
+          button_label: string | null
+          key: string
+          org_id: string
+          subject: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          body: string
+          button_label?: string | null
+          key: string
+          org_id: string
+          subject: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          body?: string
+          button_label?: string | null
+          key?: string
+          org_id?: string
+          subject?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_key_fkey"
+            columns: ["key"]
+            isOneToOne: false
+            referencedRelation: "email_template_defaults"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "email_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_templates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       module_dependencies: {
         Row: {
           depends_on: string
@@ -951,6 +1216,16 @@ export type Database = {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
         Returns: string
       }
+      apply_email_event: {
+        Args: {
+          p_at: string
+          p_email_log_id: string
+          p_org_id: string
+          p_resend_id: string
+          p_status: string
+        }
+        Returns: string
+      }
       claim_webhook_event: {
         Args: {
           p_event_id: string
@@ -991,6 +1266,7 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      count_org_emails_today: { Args: { p_org_id: string }; Returns: number }
       create_role: {
         Args: { p_copy_from?: string; p_name: string }
         Returns: string
@@ -1016,6 +1292,10 @@ export type Database = {
           updated_at: string
           updated_by_name: string
         }[]
+      }
+      get_email_context: {
+        Args: { p_org_id: string; p_template_key: string }
+        Returns: Json
       }
       get_my_access: { Args: never; Returns: Json }
       get_org_secret: {
@@ -1050,6 +1330,47 @@ export type Database = {
           record_id: string
           source: string
           table_name: string
+        }[]
+      }
+      list_email_log: {
+        Args: {
+          p_before?: string
+          p_before_id?: string
+          p_from?: string
+          p_limit?: number
+          p_status?: string
+          p_template_key?: string
+          p_to?: string
+        }
+        Returns: {
+          created_at: string
+          error_code: string
+          id: string
+          last_event_at: string
+          sent_at: string
+          status: string
+          subject_id: string
+          subject_type: string
+          template_key: string
+          template_label: string
+          to_email: string
+        }[]
+      }
+      list_email_templates: {
+        Args: never
+        Returns: {
+          body: string
+          button_label: string
+          description: string
+          is_custom: boolean
+          key: string
+          label: string
+          module_key: string
+          subject: string
+          updated_at: string
+          updated_by_name: string
+          variables: Json
+          version: number
         }[]
       }
       list_job_orgs: { Args: { p_key: string }; Returns: string[] }
@@ -1115,17 +1436,65 @@ export type Database = {
           schedule: string
         }[]
       }
+      list_subject_emails: {
+        Args: { p_limit?: number; p_subject_id: string; p_subject_type: string }
+        Returns: {
+          created_at: string
+          error_code: string
+          id: string
+          last_event_at: string
+          sent_at: string
+          sent_by: string
+          status: string
+          template_key: string
+          template_label: string
+          to_email: string
+        }[]
+      }
+      mark_email_failed: {
+        Args: { p_attempts: number; p_error_code: string; p_id: string }
+        Returns: undefined
+      }
+      mark_email_sent: {
+        Args: { p_attempts: number; p_id: string; p_resend_id: string }
+        Returns: undefined
+      }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
       }
+      queue_email: {
+        Args: {
+          p_attachment_count: number
+          p_org_id: string
+          p_sent_by: string
+          p_subject_id: string
+          p_subject_type: string
+          p_template_key: string
+          p_template_version: number
+          p_to_email: string
+          p_to_profile_id: string
+          p_view_permission: string
+        }
+        Returns: string
+      }
       rename_role: {
         Args: { p_name: string; p_role: string }
         Returns: undefined
       }
+      reset_email_template: { Args: { p_key: string }; Returns: undefined }
       reveal_bank_account_number: { Args: never; Returns: string }
       run_scheduled_job_now: { Args: { p_key: string }; Returns: undefined }
+      save_email_template: {
+        Args: {
+          p_body: string
+          p_button_label: string
+          p_key: string
+          p_subject: string
+        }
+        Returns: undefined
+      }
       set_bank_details: {
         Args: {
           p_account_number: string
@@ -1133,6 +1502,18 @@ export type Database = {
           p_institution_number: string
           p_transit_number: string
         }
+        Returns: undefined
+      }
+      set_email_sender: {
+        Args: {
+          p_from_address: string
+          p_from_name: string
+          p_reply_to: string
+        }
+        Returns: undefined
+      }
+      set_email_sending_domain: {
+        Args: { p_domain: string }
         Returns: undefined
       }
       set_module_enabled: {
