@@ -16,7 +16,8 @@
  * 3. For each, in batches (one first, then 25 at a time): a new token in
  *    memory, `reissue_professional_invitation_for_service(org, id, hash)`
  *    (re-checks the rule under the file's lock and issues the link for the
- *    original inviter; null → skipped), then `professionals.invite_reminder`
+ *    original inviter, bound to the file's address like every invitation,
+ *    P4-300; null → skipped), then `professionals.invite_reminder`
  *    to the address the RPC returned, with the new link. The previous link is
  *    revoked by the re-issue: its raw token is gone, so a reminder always
  *    carries a new one.

@@ -241,6 +241,33 @@ Deno.test('professionals-submit: a refusal → 400 with message, field and secti
     )
     assertEquals(http.calls, [])
 
+    // An inactive file (4b.1, P4-303): the provider's wording, nothing emailed.
+    const inactiveMessage =
+      'Votre dossier est inactif : communiquez avec la clinique pour le réactiver.'
+    const inactive = harness({
+      submit: {
+        error: { code: 'P0001', message: inactiveMessage, hint: 'status' },
+      },
+    })
+    const closed = await inactive.handler(post())
+    assertEquals(closed.status, 400)
+    assertEquals(await closed.json(), {
+      error: {
+        code: 'invalid_request',
+        message: inactiveMessage,
+        refusal: true,
+        field: 'status',
+      },
+    })
+    assertEquals(
+      calls(
+        inactive.service.calls,
+        'get_professional_submission_notice_for_service',
+      ),
+      [],
+    )
+    assertEquals(inactive.http.calls, [])
+
     const denied = harness({
       submit: { error: { code: '42501', message: 'Permission refusée' } },
     })

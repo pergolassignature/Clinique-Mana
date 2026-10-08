@@ -659,7 +659,7 @@ end;
 $$;
 
 -- Only while no account exists; afterwards the professional changes it in « Mon compte ».
--- A new address withdraws the invitation sent to the old one (4b.1 security review, P4-240): the
+-- A new address withdraws the invitation sent to the old one (4b.1 security review, P4-300): the
 -- file's live `professional_invite` links are revoked after the update (professional first, then
 -- links: the module's lock order), and an invited file is « À inviter » again (draft, as
 -- « Révoquer », P4-171). The purpose is seeded by …_professionals_onboarding.sql; before it, no

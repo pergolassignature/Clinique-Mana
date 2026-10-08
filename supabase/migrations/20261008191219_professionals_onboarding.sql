@@ -29,7 +29,7 @@
 --   no section, no helper, not in the history list; set_professional_specialties and
 --   get_professional_record are left as 4a built them. No motif or clientèle key is named here.
 --   Status draft → submitted → approved; a rejection returns the submission to draft with the
---   reviewer's note (P4-170); `cancelled` closes it without review (P4-241). At most one open
+--   reviewer's note (P4-170); `cancelled` closes it without review (P4-301). At most one open
 --   (draft or submitted) submission per professional. `prefill` is a snapshot of the record at creation; `submitted_values`
 --   holds the provider's answers per section, normalised, never a SIN or an account number.
 -- * Private answers (P4-38) are encrypted at once in professional_submission_private, under the
@@ -60,23 +60,23 @@
 -- * Audit: every table is audited. professional_submissions redacts `prefill` and `submitted_values`
 --   (phone and address, as professionals does); the private step shows through `private_saved_at`.
 --   The history adds submissions and consents, never the private table.
--- * Security review (P4-240 … P4-248):
+-- * Security review (P4-300 … P4-308):
 --   - The invitation is bound to the file's address: the link's scope holds {"email": …} (lower
 --     case, private.issue_professional_invitation_link, which 4b.2's re-issue calls too); both
 --     handlers refuse a link whose address is no longer the file's (resolve: null; accept:
 --     link_invalid, the consumption rolled back), and set_professional_email (4a) revokes the live
---     link (P4-240).
---   - Private answers never outlive the submission (Loi 25, P4-241, P4-242): an open submission is
+--     link (P4-300).
+--   - Private answers never outlive the submission (Loi 25, P4-301, P4-302): an open submission is
 --     closed as `cancelled` (its private row deleted) when the invitation is revoked, the file is
 --     deactivated or its account is removed; the maintenance job professionals.submission_private_purge
 --     deletes the private row of a draft not saved for 90 days.
 --   - A save stores only the keys it was given, merged into the section; a field is answered only
 --     when its key is present, and applying never touches a field that was not answered (P4-176).
---   - Inactive files: the provider RPCs, update requests, apply and acceptance refuse (P4-243).
---     Self-review is refused (P4-244). Apply re-checks the consent version and the insurance's
---     expiry (P4-245); the SIN is not an available field while collect_sin is off (P4-182).
+--   - Inactive files: the provider RPCs, update requests, apply and acceptance refuse (P4-303).
+--     Self-review is refused (P4-304). Apply re-checks the consent version and the insurance's
+--     expiry (P4-305); the SIN is not an available field while collect_sin is off (P4-182).
 --   - Staged files must belong to this submission (subject), drafts of the consent text are read
---     by staff only, and the reminder must leave before the link expires (P4-246 … P4-248).
+--     by staff only, and the reminder must leave before the link expires (P4-306 … P4-308).
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:professionals_onboarding', true);
@@ -154,7 +154,7 @@ begin
 end;
 $$;
 
--- The rules that span keys, on the effective settings a patch would leave (P4-248): a reminder
+-- The rules that span keys, on the effective settings a patch would leave (P4-308): a reminder
 -- leaves before the link expires (otherwise it would re-issue an already expired invitation). A
 -- user-facing P0001 with the field as HINT: each value is valid alone, the pair is not.
 create function private.validate_professionals_settings(p_settings jsonb)
@@ -414,7 +414,7 @@ create table public.professional_submissions (
   constraint professional_submissions_reviewed_by_fkey foreign key (reviewed_by)
     references public.profiles (user_id) on delete set null,
   constraint professional_submissions_kind_check check (kind in ('onboarding', 'update')),
-  -- cancelled: closed without review (invitation revoked, file deactivated, account removed, P4-241).
+  -- cancelled: closed without review (invitation revoked, file deactivated, account removed, P4-301).
   constraint professional_submissions_status_check check (status in ('draft', 'submitted', 'approved', 'cancelled')),
   constraint professional_submissions_requested_sections_check check (
     pg_catalog.cardinality(requested_sections) between 1 and 11
@@ -548,7 +548,7 @@ as $$
 $$;
 
 -- -----------------------------------------------------------------------------
--- Private answers never outlive the submission (Loi 25; P4-241, P4-242)
+-- Private answers never outlive the submission (Loi 25; P4-301, P4-302)
 -- -----------------------------------------------------------------------------
 -- Closes the professional's open submission without review: status `cancelled`, its private row
 -- deleted (audited, every value redacted). Called with the professional locked, by
@@ -666,7 +666,7 @@ revoke all on public.consent_versions from anon, authenticated;
 grant select on public.consent_versions to authenticated;
 alter table public.consent_versions enable row level security;
 -- The text is not secret: whoever reads the lists reads it (staff and the provider who signs). A
--- draft version (4c.3) is read by staff only (professionals.view), never by the provider (P4-247).
+-- draft version (4c.3) is read by staff only (professionals.view), never by the provider (P4-307).
 create policy consent_versions_select on public.consent_versions
   for select to authenticated
   using (org_id = (select private.current_user_org_id()) and (select private.can_read_professionals_reference())
@@ -1403,7 +1403,7 @@ end;
 $$;
 
 -- A staged upload of the questionnaire: the provider's own (p_uploader), of the purpose
--- professional_submission_file, uploaded for this submission (its subject, P4-246: a file staged for
+-- professional_submission_file, uploaded for this submission (its subject, P4-306: a file staged for
 -- another submission, or already attached to the record, is not reused), ready and not past its
 -- retain_until, of the clinic, and of the accepted types and size. « Fichier introuvable » reveals
 -- nothing about another file.
@@ -1890,7 +1890,7 @@ $$;
 
 -- -----------------------------------------------------------------------------
 -- Deactivation revokes the open invitation link (4a.4 / 4a.14 « for later tasks ») and closes the
--- open submission (P4-241)
+-- open submission (P4-301)
 -- -----------------------------------------------------------------------------
 -- Same signature, grants, checks and result as *_professionals_lifecycle.sql, plus the revocation
 -- and the cancellation (professional, then links and submission: the module's lock order).
@@ -1941,7 +1941,7 @@ begin
    where p.id = p_id;
 
   -- An open invitation link stops working (the dialog says so, 4b.3), and the open submission is
-  -- closed with its private answers deleted (Loi 25, P4-241).
+  -- closed with its private answers deleted (Loi 25, P4-301).
   perform private.revoke_secure_links(v_org, 'professional_invite', 'professional', p_id, auth.uid());
   perform private.cancel_open_submission(v_org, p_id);
 
@@ -1952,7 +1952,7 @@ $$;
 -- -----------------------------------------------------------------------------
 -- Invitation RPCs
 -- -----------------------------------------------------------------------------
--- Issues a file's invitation link (P4-240): the clinic's lifetime (invitation_expiry_days), the
+-- Issues a file's invitation link (P4-300): the clinic's lifetime (invitation_expiry_days), the
 -- file's address bound in the scope ({"email": …}, lower case) and the previous live link revoked
 -- (issue_secure_link). The handlers refuse the link once the file's address differs. Call it with
 -- the professional locked; every issuer of professional_invite links goes through it (4b.2's
@@ -1978,7 +1978,7 @@ revoke all on function private.issue_professional_invitation_link(uuid, uuid, by
   from public, anon, authenticated, service_role;
 
 -- Locks one professional of the caller's clinic (private.lock_professional) and returns the locked
--- row; P0001 HINT status when the file is inactive (P4-243): nothing is asked of, sent by or
+-- row; P0001 HINT status when the file is inactive (P4-303): nothing is asked of, sent by or
 -- applied to an inactive file. p_self picks the provider's wording. Read after the lock, so a
 -- deactivation committed meanwhile is seen.
 create function private.lock_active_professional(p_id uuid, p_self boolean)
@@ -2005,7 +2005,7 @@ revoke all on function private.lock_active_professional(uuid, boolean) from publ
 
 -- Service role only (professionals-invite, p_actor = the verified caller): issues a link for a file
 -- of the actor's clinic without an account (any status but inactive, P4-171), revoking the previous
--- one, with the clinic's lifetime (invitation_expiry_days) and the file's address bound (P4-240); a
+-- one, with the clinic's lifetime (invitation_expiry_days) and the file's address bound (P4-300); a
 -- draft becomes `invited`; the onboarding
 -- submission is created (prefill from the record) or reused, pointed at the new link. Returns what
 -- the email needs: {link_id, submission_id, email, first_name, expires_at}.
@@ -2080,7 +2080,7 @@ $$;
 
 -- « Révoquer l'invitation »: the live link stops working; an invited file without an account is
 -- « À inviter » again (P4-171). Its open submission is closed (`cancelled`, private answers
--- deleted, P4-241); the next link starts a new onboarding draft.
+-- deleted, P4-301); the next link starts a new onboarding draft.
 create function public.revoke_professional_invitation(p_id uuid)
 returns void
 language plpgsql
@@ -2144,7 +2144,7 @@ $$;
 -- -----------------------------------------------------------------------------
 -- What /invitation shows for a live link: the clinic, the professional's own name and address (the
 -- token proves the address), the expiry. Null when the link is no longer live, the file already
--- has an account, is inactive, or no longer has the address the link was sent to (P4-240) —
+-- has an account, is inactive, or no longer has the address the link was sent to (P4-300) —
 -- resolve-link then answers link_invalid.
 create function public.resolve_professional_invitation(p_link_id uuid)
 returns jsonb
@@ -2173,8 +2173,8 @@ $$;
 --   {"status": "accepted", "org_id": …, "redirect": "/mon-profil/questionnaire"}
 --   {"status": "link_used" | "link_expired" | "link_invalid"}   the function deletes the user
 -- link_invalid also when the inviter no longer holds professionals.invite in the clinic, when the
--- file's address is no longer the one the link was sent to (P4-240) and when the file is inactive
--- (P4-243): the consumption is rolled back; staff re-send it. A file that has meanwhile got an account answers
+-- file's address is no longer the one the link was sent to (P4-300) and when the file is inactive
+-- (P4-303): the consumption is rolled back; staff re-send it. A file that has meanwhile got an account answers
 -- link_used (its link is spent). 22023 (all rolled back) when p_user_id is not an auth user with the
 -- professional's address; 23505 when it already has a profile. p_payload is unused.
 create function public.link_professional_account(p_token_hash bytea, p_user_id uuid, p_payload jsonb)
@@ -2357,7 +2357,7 @@ $$;
 -- forms and RPCs would (sets through a rolled-back run of the staff write paths, P4-174), then
 -- merged into the section: only the keys given are stored, the others keep what the section holds
 -- (P4-176: a key never sent is a field not answered). A file must be the provider's own upload for
--- this submission (P4-246). Returns the submission's updated_at.
+-- this submission (P4-306). Returns the submission's updated_at.
 create function public.save_my_submission_draft(p_section text, p_values jsonb)
 returns timestamptz
 language plpgsql
@@ -2913,8 +2913,8 @@ revoke all on function private.apply_submission_private(uuid, uuid, uuid, text[]
 -- are attached to the professional (4c creates their documents); the consent becomes a
 -- professional_consents row. Then approved, with the fields applied; the submission's private row
 -- is deleted. An empty selection approves without changing the record. Refused: an inactive file
--- (P4-243), the reviewer's own file (P4-244), a consent signed on a version that is no longer the
--- latest published one and an insurance that has expired since it was sent (P4-245), the SIN while
+-- (P4-303), the reviewer's own file (P4-304), a consent signed on a version that is no longer the
+-- latest published one and an insurance that has expired since it was sent (P4-305), the SIN while
 -- collect_sin is off (P4-182).
 create function public.apply_professional_submission(p_submission_id uuid, p_fields text[] default null)
 returns void
@@ -2975,7 +2975,7 @@ begin
                          where f.field = any (coalesce(p_fields, v_available))), '{}');
   v_values := v_sub.submitted_values;
 
-  -- What may have changed since the provider sent it (P4-245).
+  -- What may have changed since the provider sent it (P4-305).
   if 'consent' = any (v_fields)
      and (v_values #>> '{consent,consent_version_id}')::uuid is distinct from private.current_consent_version(v_org, 'image_rights') then
     raise exception 'Le texte du consentement a changé depuis la signature.'
@@ -3075,7 +3075,7 @@ $$;
 
 -- « Refuser »: the submission goes back to the provider as a draft with the note (P4-170); a
 -- refused onboarding puts an in_review file back to invited (completing its questionnaire). Not
--- for the reviewer's own file (P4-244).
+-- for the reviewer's own file (P4-304).
 create function public.reject_professional_submission(p_submission_id uuid, p_note text)
 returns void
 language plpgsql

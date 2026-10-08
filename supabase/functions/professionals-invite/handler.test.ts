@@ -432,7 +432,32 @@ Deno.test('professionals-invite: refusals of the RPCs → 400 with message and f
       })),
     )
     assertEquals([refused.status, refused.field], [400, 'submission'])
-    for (const h of [denied, busy]) assertEquals(h.http.calls, [])
+
+    // An inactive file (4b.1, P4-303: private.lock_active_professional).
+    const inactiveMessage = "Ce dossier est inactif : réactivez-le d'abord."
+    const inactive = harness({
+      userRpc: {
+        request_professional_update: {
+          error: { code: 'P0001', message: inactiveMessage, hint: 'status' },
+        },
+      },
+    })
+    const closed = await errorOf(
+      await inactive.handler(post({
+        action: 'request_update',
+        professional_id: PROFESSIONAL_ID,
+        sections: ['portrait'],
+      })),
+    )
+    assertEquals(closed.body, {
+      error: {
+        code: 'invalid_request',
+        message: inactiveMessage,
+        refusal: true,
+        field: 'status',
+      },
+    })
+    for (const h of [denied, busy, inactive]) assertEquals(h.http.calls, [])
   })
 })
 

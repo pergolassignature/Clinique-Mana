@@ -4,11 +4,13 @@
 -- reminder (delay, account, status, live and unopened link, expiry, one reminder per sending, the
 -- inviter's standing, the clinic's switch-off, isolation); the re-issue (new link for the original
 -- inviter, the previous one revoked, the onboarding draft re-pointed, the clinic's lifetime, audit
--- as the job, null once the file no longer qualifies); the submission notice (the actor's submitted
--- submission, reviewers by permission, null otherwise).
+-- as the job, null once the file no longer qualifies); the reminded link bound to the file's address
+-- (4b.1's P4-300: it resolves and is accepted while the address is the file's, and is refused once
+-- the address is corrected); the submission notice (the actor's submitted submission, reviewers by
+-- permission, null otherwise).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(43);
+select plan(51);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A (admin 01, adjointe 02, provider 03 linked to P2, conseillère 04,
@@ -208,6 +210,72 @@ set local role service_role;
 select is_empty($$ select * from public.list_professional_invitations_to_remind_for_service('b0000000-0000-0000-0000-00000000000a') $$,
   'a reminder logged after the link was made counts: one reminder per sending');
 reset role;
+
+-- =============================================================================
+-- The reminded link is bound to the file's address (4b.1's P4-300): it resolves and is accepted
+-- while the address is the file's; corrected after the reminder, the link is refused.
+-- P11 and P12 invited by admin 01 four days ago, both reminded; P12's address then corrected.
+-- =============================================================================
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+values
+  ('a0000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'p11@exemple.test',         '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'p12-nouveau@exemple.test', '', now(), '{}', '{}', now(), now());
+insert into public.professionals (id, org_id, profile_id, first_name, last_name, email, status) values
+  ('c0000000-0000-0000-0000-000000000011', 'b0000000-0000-0000-0000-00000000000a', null, 'Pia', 'Onze', 'p11@exemple.test', 'draft'),
+  ('c0000000-0000-0000-0000-000000000012', 'b0000000-0000-0000-0000-00000000000a', null, 'Pat', 'Douze', 'p12@exemple.test', 'draft');
+insert into public.professional_public_profiles (org_id, professional_id)
+select p.org_id, p.id from public.professionals p where p.id in ('c0000000-0000-0000-0000-000000000011', 'c0000000-0000-0000-0000-000000000012');
+insert into public.professional_matching_profiles (org_id, professional_id)
+select p.org_id, p.id from public.professionals p where p.id in ('c0000000-0000-0000-0000-000000000011', 'c0000000-0000-0000-0000-000000000012');
+select public.create_professional_invitation('a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000011', decode(repeat('11', 32), 'hex'));
+select public.create_professional_invitation('a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000012', decode(repeat('12', 32), 'hex'));
+update public.secure_links set created_at = now() - interval '4 days'
+ where purpose = 'professional_invite' and subject_id in ('c0000000-0000-0000-0000-000000000011', 'c0000000-0000-0000-0000-000000000012');
+
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+create temp table test_bound on commit drop as
+  select p.id as pid,
+         public.reissue_professional_invitation_for_service('b0000000-0000-0000-0000-00000000000a', p.id,
+           decode(repeat(case p.id when 'c0000000-0000-0000-0000-000000000011' then 'b2' else 'b3' end, 32), 'hex')) as r
+    from (values ('c0000000-0000-0000-0000-000000000011'::uuid), ('c0000000-0000-0000-0000-000000000012'::uuid)) p (id);
+reset role;
+select results_eq($$
+  select t.pid, l.scope from test_bound t join public.secure_links l on l.id = (t.r ->> 'link_id')::uuid order by t.pid
+$$, $$ values ('c0000000-0000-0000-0000-000000000011'::uuid, '{"email": "p11@exemple.test"}'::jsonb),
+              ('c0000000-0000-0000-0000-000000000012'::uuid, '{"email": "p12@exemple.test"}'::jsonb) $$,
+  'the reminded link is bound to the file''s address, as every invitation (P4-300)');
+
+set local role service_role;
+select is(public.resolve_professional_invitation((select (r ->> 'link_id')::uuid from test_bound where pid = 'c0000000-0000-0000-0000-000000000011')) ->> 'email',
+  'p11@exemple.test', 'resolve: the reminded link shows the invitation while the address is the file''s');
+select is(public.link_professional_account(decode(repeat('b2', 32), 'hex'), 'a0000000-0000-0000-0000-000000000011', '{}') ->> 'status',
+  'accepted', 'accept: the reminded link opens the account');
+reset role;
+select is((select profile_id from public.professionals where id = 'c0000000-0000-0000-0000-000000000011'),
+  'a0000000-0000-0000-0000-000000000011'::uuid, '… and the file is linked to it');
+
+-- P12's address corrected after the reminder (« Modifier le courriel », staff).
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select lives_ok($$ select public.set_professional_email('c0000000-0000-0000-0000-000000000012', 'p12-nouveau@exemple.test') $$,
+  'the address of a reminded file is corrected');
+reset role;
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select ok(public.resolve_professional_invitation((select (r ->> 'link_id')::uuid from test_bound where pid = 'c0000000-0000-0000-0000-000000000012')) is null,
+  'resolve: the reminded link shows nothing once the address changed');
+select is(public.link_professional_account(decode(repeat('b3', 32), 'hex'), 'a0000000-0000-0000-0000-000000000012', '{}'),
+  '{"status": "link_invalid"}'::jsonb, 'accept: … and opens no account, even for the new address');
+reset role;
+select results_eq($$
+  select p.status, p.profile_id, l.revoked_at is not null, l.use_count
+    from public.professionals p join public.secure_links l on l.subject_id = p.id
+   where p.id = 'c0000000-0000-0000-0000-000000000012'
+     and l.id = (select (r ->> 'link_id')::uuid from test_bound where pid = 'c0000000-0000-0000-0000-000000000012')
+$$, $$ values ('draft'::text, null::uuid, true, 0) $$,
+  'the reminded link is revoked, unused; the file is « À inviter » again (no further reminder)');
+select set_config('request.jwt.claims', '', true);
 
 -- P5 ages past the delay; then the clinic switches reminders off.
 update public.secure_links set created_at = now() - interval '4 days' where subject_id = 'c0000000-0000-0000-0000-000000000005' and revoked_at is null;

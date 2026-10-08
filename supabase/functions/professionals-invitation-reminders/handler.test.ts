@@ -193,8 +193,15 @@ Deno.test('professionals-invitation-reminders: re-issues each due file with a ne
       service.calls,
       'reissue_professional_invitation_for_service',
     )
+    // The first file alone, then the batch in parallel: within the batch the
+    // calls land in whatever order the token hashes resolve.
     assertEquals(
-      reissued.map((a) => [a.p_org, a.p_id]),
+      [
+        [reissued[0].p_org, reissued[0].p_id],
+        ...reissued.slice(1).map((a) => [a.p_org, a.p_id]).sort((x, y) =>
+          String(x[1]).localeCompare(String(y[1]))
+        ),
+      ],
       ids.map((id) => [ORG_ID, id]),
     )
     assertEquals(new Set(reissued.map((a) => a.p_token_hash)).size, 3)
@@ -229,16 +236,33 @@ Deno.test('professionals-invitation-reminders: one file first, then batches of 2
     const ids = Array.from({ length: 30 }, (_, i) => pid(i + 1))
     const { handler, service } = harness({ ids })
     await handler(await jobRequest())
-    const order = service.calls
+    const events = service.calls
       .filter((c) =>
         c.fn === 'reissue_professional_invitation_for_service' ||
         c.fn === 'queue_email'
       )
-      .map((c) => c.fn === 'queue_email' ? 'q' : 'r')
-    // The first file is re-issued and queued alone; then 25 re-issues start
-    // before any of their emails is queued.
-    assertEquals(order.slice(0, 2), ['r', 'q'])
-    assertEquals(order.slice(2, 27), Array(25).fill('r'))
+      .map((c) => ({
+        kind: c.fn === 'queue_email' ? 'q' : 'r',
+        id: String(c.args.p_id ?? c.args.p_subject_id),
+      }))
+    const order = events.map((e) => e.kind)
+    // The first file is re-issued and queued alone.
+    assertEquals(events.slice(0, 2), [
+      { kind: 'r', id: pid(1) },
+      { kind: 'q', id: pid(1) },
+    ])
+    // Then 25 in parallel: several re-issues start before the batch's first
+    // email (how many depends on when each token hash resolves), and the whole
+    // batch ends before the next one starts.
+    const second = new Set(ids.slice(1, 26))
+    const firstQueued = order.indexOf('q', 2)
+    assert(order.slice(2, firstQueued).length > 1)
+    const lastOfSecond = events.findLastIndex((e) => second.has(e.id))
+    const firstOfThird = events.findIndex((e) =>
+      !second.has(e.id) && e.id !== pid(1)
+    )
+    assertEquals(lastOfSecond, 51)
+    assertEquals(firstOfThird, 52)
     assertEquals(order.filter((o) => o === 'r').length, 30)
     assertEquals(finished(service.calls), [[
       'ok',

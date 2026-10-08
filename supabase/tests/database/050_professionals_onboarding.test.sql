@@ -16,7 +16,7 @@
 -- transaction rolled back by any refusal, files attached, consent row, private data moved and the
 -- submission's copy deleted, the adjointe without professionals.private); reject; update requests;
 -- readiness items; invitation states (precedence); the record bundle; history; pii_encrypted_values.
--- Security review (P4-240 … P4-248): the link bound to the address (scope, set_professional_email,
+-- Security review (P4-300 … P4-308): the link bound to the address (scope, set_professional_email,
 -- a forced mismatch, the new link); private answers closed with the submission (revocation,
 -- deactivation, account removal, the 90-day purge job); partial saves (only the keys given, merged;
 -- unanswered fields never applied); the SIN path (collect_sin on, Luhn, last three digits, rotation,
@@ -284,7 +284,7 @@ select throws_ok($$ select public.set_professionals_settings('{"invitation_expir
 select throws_ok($$ select public.set_professionals_settings('{"invitation_reminder_after_days": 0}') $$, '22023', null, 'reminder: at least 1 day');
 select throws_ok($$ select public.set_professionals_settings('{"invitation_reminder_after_days": 7}') $$, 'P0001',
   'Le rappel doit partir avant la fin de validité du lien : choisissez un délai plus court que sa durée de validité.',
-  'the reminder leaves before the link expires (P4-248)');
+  'the reminder leaves before the link expires (P4-308)');
 select is(private.test_error_hint($$ select public.set_professionals_settings('{"invitation_expiry_days": 3}') $$), 'invitation_reminder_after_days',
   '… also when the lifetime is shortened under the reminder (HINT the reminder)');
 select is(public.set_professionals_settings('{"invitation_reminder_after_days": null}') -> 'invitation_reminder_after_days', 'null'::jsonb,
@@ -323,7 +323,7 @@ select results_eq($$ select l.purpose, l.subject_type, l.subject_id, l.created_b
   $$ values ('professional_invite'::text, 'professional'::text, current_setting('test.p1')::uuid, 'a0000000-0000-0000-0000-000000000002'::uuid, true) $$,
   'the link: the purpose, the professional, the actor; only the token''s hash');
 select is((select l.scope from public.secure_links l where l.id = (current_setting('test.inv1')::jsonb ->> 'link_id')::uuid),
-  '{"email": "p1@exemple.test"}'::jsonb, 'the link is bound to the file''s address (P4-240)');
+  '{"email": "p1@exemple.test"}'::jsonb, 'the link is bound to the file''s address (P4-300)');
 select results_eq($$ select s.kind, s.status, s.requested_sections, s.secure_link_id, s.prefill -> 'languages' -> 'language_ids'
                        from public.professional_submissions s where s.id = (current_setting('test.inv1')::jsonb ->> 'submission_id')::uuid $$,
   $$ values ('onboarding'::text, 'draft'::text,
@@ -443,7 +443,7 @@ select results_eq($$ select p.status, l.revoked_at is not null, l.revoked_by fro
                        join public.secure_links l on l.subject_id = p.id where p.id = current_setting('test.p5')::uuid $$,
   $$ values ('draft'::text, true, 'a0000000-0000-0000-0000-000000000002'::uuid) $$, 'the link is revoked; the file is « À inviter » again');
 select is((select s.status from public.professional_submissions s where s.id = (current_setting('test.inv5')::jsonb ->> 'submission_id')::uuid),
-  'cancelled', '… and its onboarding draft is closed (P4-241)');
+  'cancelled', '… and its onboarding draft is closed (P4-301)');
 
 set local role service_role;
 select set_config('test.inv6', public.create_professional_invitation('a0000000-0000-0000-0000-000000000001', current_setting('test.p6')::uuid,
@@ -473,7 +473,7 @@ select lives_ok($$ select public.deactivate_professional(current_setting('test.p
 select is((select s.state from public.list_professional_invitation_states() s where s.professional_id = current_setting('test.p6')::uuid), 'revoked',
   '… and its link is revoked (4a.4, 4a.14)');
 select is((select s.status from public.professional_submissions s where s.id = (current_setting('test.inv6')::jsonb ->> 'submission_id')::uuid),
-  'cancelled', '… and its onboarding draft is closed (P4-241)');
+  'cancelled', '… and its onboarding draft is closed (P4-301)');
 select results_eq($$ select s.professional_id, s.state from public.list_professional_invitation_states() s
                       where s.professional_id in (current_setting('test.p1')::uuid, current_setting('test.p5')::uuid) order by 1 $$,
   $$ values (current_setting('test.p1')::uuid, 'used'::text), (current_setting('test.p5')::uuid, 'revoked'::text) $$,
@@ -570,7 +570,7 @@ select throws_ok($$ select public.save_my_submission_draft('portrait', jsonb_bui
 select throws_ok($$ select public.save_my_submission_draft('photo', '{"file_id": "e0000000-0000-0000-0000-000000000004"}') $$,
   'P0001', 'Fichier introuvable. Téléversez-le de nouveau.', 'someone else''s upload is not found');
 select throws_ok($$ select public.save_my_submission_draft('photo', '{"file_id": "e0000000-0000-0000-0000-000000000005"}') $$,
-  'P0001', 'Fichier introuvable. Téléversez-le de nouveau.', 'an upload staged for another submission is not found (P4-246)');
+  'P0001', 'Fichier introuvable. Téléversez-le de nouveau.', 'an upload staged for another submission is not found (P4-306)');
 select throws_ok($$ select public.save_my_submission_draft('photo', '{"file_id": "e0000000-0000-0000-0000-000000000003"}') $$,
   'P0001', 'La photo doit être une image JPEG ou PNG de 5 Mo au plus.', 'a PDF is not a photo');
 select lives_ok($$ select public.save_my_submission_draft('photo', '{"file_id": "e0000000-0000-0000-0000-000000000001"}') $$, 'the photo');
@@ -750,8 +750,8 @@ select results_eq($$ select s.status, s.decision_note, (select count(*)::int fro
                        from public.professional_submissions s where s.id = current_setting('test.s1')::uuid $$,
   $$ values ('submitted'::text, null::text, 2) $$, 'sent again: the note is cleared, a new notice');
 
--- A draft consent text (4c.3) is read by staff only (P4-247); once published, a signature on the
--- previous version is not applied (P4-245). An insurance expired since the sending is not either.
+-- A draft consent text (4c.3) is read by staff only (P4-307); once published, a signature on the
+-- previous version is not applied (P4-305). An insurance expired since the sending is not either.
 reset role;
 insert into public.consent_versions (org_id, key, version, title, body)
 values (current_setting('test.a')::uuid, 'image_rights', 2, 'Consentement au droit à l''image', 'Texte révisé.');
@@ -974,7 +974,7 @@ select results_eq($$ select pp.key_version::int, private.decrypt_pii(pp.bank_acc
   $$ values (2, '7654321'::text, '123456789'::text) $$, '… lands on version 2 (re-encrypted inside the database)');
 -- =============================================================================
 -- The SIN in the questionnaire (P4-182): collect_sin on, Luhn, last three digits, a rotation, an
--- unreadable kept value at save and at apply, applied; partial saves (P4-176); self-review (P4-244)
+-- unreadable kept value at save and at apply, applied; partial saves (P4-176); self-review (P4-304)
 -- =============================================================================
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
@@ -1095,7 +1095,7 @@ select results_eq($$ select private.decrypt_pii(pp.sin, pp.key_version), s.appli
   $$ values ('046454286'::text, '{}'::text[], 0) $$, 'the record keeps its SIN; the one sent is discarded with the private row');
 
 -- =============================================================================
--- Loi 25: private answers never outlive their submission (P4-241, P4-242); inactive files (P4-243)
+-- Loi 25: private answers never outlive their submission (P4-301, P4-302); inactive files (P4-303)
 -- =============================================================================
 select results_eq($$ select j.module_key, j.kind, j.sql_function, j.is_maintenance, c.schedule, c.command
                        from public.scheduled_jobs j join cron.job c on c.jobname = j.cron_job_name
@@ -1154,7 +1154,7 @@ select results_eq($$ select p.profile_id, s.status, (select count(*)::int from p
   $$ values (null::uuid, 'cancelled'::text, 0) $$, 'the account removed: the open submission is closed, its private answers deleted');
 
 -- =============================================================================
--- The invitation is bound to the address it was sent to (P4-240)
+-- The invitation is bound to the address it was sent to (P4-300)
 -- =============================================================================
 set local role service_role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);

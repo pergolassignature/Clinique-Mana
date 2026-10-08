@@ -23,11 +23,15 @@
 --   link_invalid: a reminder whose link cannot be accepted is not sent (P4-263).
 -- * reissue_professional_invitation_for_service issues the new link for the system (service role,
 --   no person acting): professional lock first, the rule re-checked under it (null when the file no
---   longer qualifies), then private.issue_secure_link with the original inviter as created_by (the
---   acceptance re-checks her), the clinic's current invitation_expiry_days, and the onboarding
---   draft re-pointed to the new link, as create_professional_invitation does. The previous link is
---   revoked by issue_secure_link (one live link per file); its raw token is gone, so a reminder is
---   always a new link. Audit source `job:professionals.invitation_reminders`, no actor.
+--   longer qualifies), then private.issue_professional_invitation_link (4b.1, P4-300), the one
+--   issuer of professional_invite links: the original inviter as created_by (the acceptance
+--   re-checks her), the clinic's current invitation_expiry_days, and the file's address bound in
+--   the scope, without which the acceptance refuses the link; then the onboarding draft re-pointed
+--   to the new link, as create_professional_invitation does. The previous link is revoked by the
+--   issue (one live link per file); its raw token is gone, so a reminder is always a new link. A
+--   corrected address revokes the live link (set_professional_email, P4-300), so a reminded link
+--   is never sent to an address the file no longer has. Audit source
+--   `job:professionals.invitation_reminders`, no actor.
 -- * get_professional_submission_notice_for_service(p_actor): what professionals-submit emails after
 --   submit_my_submission succeeded (the in-app notice is already created there, P4-181): the
 --   caller's submitted submission (one open per file), the professional's name, and up to 20 active
@@ -35,6 +39,10 @@
 --   overrides and the module switch), the actor excluded. p_actor is the user the function verified
 --   (never a body value); the org is the actor's. Null when the actor has no submitted submission.
 -- * Service role only for all three; no client privilege. Nothing here changes a 4b.1 RPC.
+-- * 4b.1's security review (P4-300 … P4-308) as it bears on these: the re-issue binds the address
+--   (above); an inactive file is never due (the rule) and its open submission is `cancelled`, which
+--   the notice never reads (submitted only, P4-301); the provider RPCs refuse an inactive file
+--   before submit_my_submission succeeds (P4-303), so no notice follows.
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:professionals_onboarding_functions', true);
@@ -120,7 +128,6 @@ declare
   v_row public.professionals;
   v_due_link uuid;
   v_inviter uuid;
-  v_days int;
   v_link uuid;
   v_expires timestamptz;
   v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
@@ -140,13 +147,13 @@ begin
     return null;
   end if;
 
-  v_days := (private.professionals_setting(p_org, 'invitation_expiry_days') #>> '{}')::int;
   perform pg_catalog.set_config('app.audit_source', 'job:professionals.invitation_reminders', true);
   perform pg_catalog.set_config('app.audit_actor', '', true);
 
-  -- The original inviter stays the link's author: the acceptance re-checks her (P3-31).
-  v_link := private.issue_secure_link(p_org, 'professional_invite', 'professional', p_id, p_token_hash,
-                                      v_inviter, pg_catalog.make_interval(days => v_days));
+  -- The original inviter stays the link's author: the acceptance re-checks her (P3-31). The
+  -- clinic's lifetime and the file's address in the scope (P4-300): the acceptance refuses a
+  -- professional_invite link without it.
+  v_link := private.issue_professional_invitation_link(p_org, p_id, p_token_hash, v_inviter);
   update public.professional_submissions s
      set secure_link_id = v_link
    where s.professional_id = p_id and s.org_id = p_org and s.kind = 'onboarding' and s.status = 'draft';
