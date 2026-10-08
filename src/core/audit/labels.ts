@@ -22,6 +22,9 @@ export const AUDITED_TABLES = [
   'tax_rates',
   'organization_bank_details',
   'org_scheduled_jobs',
+  'email_settings',
+  'email_templates',
+  'email_template_versions',
 ] as const
 
 /** The French text of a key built from database names, or undefined when there is none. */

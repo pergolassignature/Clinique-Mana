@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Globe,
   Landmark,
+  Mail,
   PenLine,
   Percent,
   ScrollText,
@@ -113,5 +114,17 @@ export const coreSettingsSections: SettingsSection[] = [
     editPermission: 'settings.manage',
     group: 'plateforme',
     component: lazyPage(() => import('./pages/ScheduledJobsSettingsPage'), 'ScheduledJobsSettingsPage'),
+  },
+  {
+    id: 'email',
+    path: 'courriels',
+    labelKey: 'settings.sections.email',
+    icon: Mail,
+    permission: 'settings.view',
+    // Any of them: the sender and templates follow settings.email_manage, the keys
+    // settings.integrations_manage (EmailSettingsPage); read-only (the lock) only without either.
+    editPermission: ['settings.email_manage', 'settings.integrations_manage'],
+    group: 'plateforme',
+    component: lazyPage(() => import('./pages/EmailSettingsPage'), 'EmailSettingsPage'),
   },
 ]
