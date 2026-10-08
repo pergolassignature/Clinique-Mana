@@ -1344,11 +1344,12 @@ git commit -m "docs(adr): 0006 amendment, auth links land on /connexion/confirme
   - `expires_at timestamptz not null`;
   - **no client privilege at all** (like `org_secrets`);
   - audited with `private.audit_trigger('token_hash')`;
-  - indexes: the unique `token_hash`; `(org_id, purpose, subject_type, subject_id) where revoked_at is null and used_at is null` (live-link lookup); `(created_at)` (purge); FK indexes.
+  - indexes: the unique `token_hash`; **unique** `(org_id, purpose, subject_type, subject_id) where revoked_at is null and use_count < max_uses` (one live link per subject, as a constraint); `(org_id, purpose, subject_type, subject_id, created_at desc)` (a subject's links, newest first: the 4b states list; also the org FK index); `(greatest(used_at, revoked_at, expires_at))` (purge); FK indexes.
 
 **Functions:**
 - **`private.issue_secure_link(p_org_id uuid, p_purpose text, p_subject_type text, p_subject_id uuid, p_token_hash bytea, p_created_by uuid, p_ttl interval default null, p_scope jsonb default '{}') returns uuid`**:
   - checks the purpose exists (`22023`) and `ttl ≤ max_ttl`;
+  - takes a transaction advisory lock on `(org, purpose, subject)`, so two concurrent issues serialize (the last one wins) instead of failing on the unique live-link index;
   - revokes the live links for `(org, purpose, subject)` with `revoked_at = now(), revoked_by = p_created_by`;
   - inserts with `expires_at = now() + coalesce(p_ttl, default_ttl)` and `max_uses` from the purpose;
   - called only from definer RPCs (staff invitations here; Professionnels in 4b), never granted to a client role.
@@ -1367,8 +1368,8 @@ git commit -m "docs(adr): 0006 amendment, auth links land on /connexion/confirme
   - `{ "state": "expired" | "used", "purpose": … }`;
   - `{ "state": "valid", "link_id", "org_id", "purpose", "module_key", "subject_type", "subject_id", "scope", "expires_at", "requires_session", "creates_account", "resolve_rpc", "accept_rpc" }`.
 
-  With `p_mark_opened`, a valid link gets `last_opened_at = now()` (legacy A3 « opened »).
-- **Job:** `core.secure_links_purge` (sql, maintenance, `20 8 * * *`): deletes links where `greatest(used_at, revoked_at, expires_at) < now() - interval '12 months'`.
+  With `p_mark_opened`, a valid link gets `last_opened_at = now()` (legacy A3 « opened ») when it is null or more than an hour old (each change is an audit row).
+- **Job:** `core.secure_links_purge` (sql, maintenance, `25 8 * * *`: 08:20 is `core.scheduled_job_runs_purge`): deletes links where `greatest(used_at, revoked_at, expires_at) < now() - interval '12 months'`.
 
 **Tests:**
 - **Privileges:** `secure_links` and `secure_link_purposes` have no `anon` / `authenticated` privilege; `peek_secure_link` is service role only; the private functions are executable by no client.

@@ -24,7 +24,10 @@
 --   public, security definer, service role only; 020_core_secure_links checks every seeded
 --   purpose against that contract, so core never imports module code (ADR 0003).
 -- * One live link per (org, purpose, subject): `issue_secure_link` revokes the previous ones in
---   the same transaction, and a unique partial index makes it a constraint. « Live » is « not
+--   the same transaction, and a unique partial index makes it a constraint. Two concurrent issues
+--   for one subject serialize on a transaction advisory lock (org, purpose, subject), taken before
+--   the revoke: the second then sees and revokes the first's link (the last one wins) instead of
+--   failing on the unique index with a raw 23505. « Live » is « not
 --   revoked and uses left », whatever the expiry (now() cannot be in an index predicate), so
 --   an expired link is revoked too when a new one is issued; a used link never is, and keeps
 --   answering « used ».
@@ -33,13 +36,16 @@
 --   is the accept function's `consume_rate_limit` bucket (design §3.2).
 -- * No enumeration (design §3.3): `peek_secure_link` answers an unknown and a revoked hash with
 --   the same `{"state": "invalid"}`; `expired` and `used` add only the purpose (only the token
---   holder reaches them). `used` wins over `expired`.
+--   holder reaches them). `used` wins over `expired`. `p_mark_opened` rewrites last_opened_at
+--   only when it is null or more than an hour old: each change is an audit row, and a page
+--   reloaded in a loop must not fill the journal.
 -- * Audited with `token_hash` redacted. Retention: `core.secure_links_purge` deletes a link 12
 --   months after its last event (use, revocation or expiry).
 -- * Deviations from the plan's index list: the live-link index is unique and its predicate is
 --   `use_count < max_uses` rather than `used_at is null` (the same for single-use purposes,
 --   right for multi-use ones); the purge index is on the purge expression itself rather than on
---   `created_at`. The job runs at 08:25 UTC instead of 08:20, a minute already taken by
+--   `created_at`; a non-partial (org_id, purpose, subject_type, subject_id, created_at desc)
+--   index lists a subject's links newest first (Professionnels 4b) and serves the org FK. The job runs at 08:25 UTC instead of 08:20, a minute already taken by
 --   `core.scheduled_job_runs_purge`. `resolve_rpc` is required (resolve-link calls it for every
 --   valid link).
 -- =============================================================================
@@ -106,9 +112,10 @@ create table public.secure_links (
 -- One live link per (org, purpose, subject); serves issue_secure_link and revoke_secure_links.
 create unique index secure_links_live_key on public.secure_links (org_id, purpose, subject_type, subject_id)
   where revoked_at is null and use_count < max_uses;
+-- A subject's links, newest first (Professionnels 4b states list); also the org FK index.
+create index secure_links_subject_idx on public.secure_links (org_id, purpose, subject_type, subject_id, created_at desc);
 -- Serves core.secure_links_purge.
 create index secure_links_purge_idx on public.secure_links ((greatest(used_at, revoked_at, expires_at)));
-create index secure_links_org_id_idx on public.secure_links (org_id);
 create index secure_links_purpose_idx on public.secure_links (purpose);
 create index secure_links_revoked_by_idx on public.secure_links (revoked_by) where revoked_by is not null;
 create index secure_links_created_by_idx on public.secure_links (created_by) where created_by is not null;
@@ -159,7 +166,7 @@ end;
 $$;
 
 -- Issues a link for a subject, revoking its previous live links for the purpose, and returns
--- its id. The TTL defaults to the purpose's and may not exceed its max_ttl; max_uses comes from
+-- its id. Concurrent issues for one subject serialize on an advisory lock (last one wins). The TTL defaults to the purpose's and may not exceed its max_ttl; max_uses comes from
 -- the purpose. 22023: unknown purpose, TTL out of bounds, creator outside the org. The hash and
 -- scope are checked by the table (23514; a reused hash: 23505).
 create function private.issue_secure_link(
@@ -194,6 +201,10 @@ begin
     raise exception 'L''auteur du lien doit appartenir à l''organisation' using errcode = '22023';
   end if;
 
+  -- Without it, two concurrent issues each revoke nothing the other can see yet, and the second
+  -- insert fails on secure_links_live_key (23505). Released at the end of the transaction.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+    p_org_id::text || p_purpose || p_subject_type || p_subject_id::text, 0));
   perform private.revoke_secure_links(p_org_id, p_purpose, p_subject_type, p_subject_id, p_created_by);
 
   insert into public.secure_links
@@ -236,8 +247,9 @@ from public, anon, authenticated, service_role;
 --   {"state": "valid", "link_id", "org_id", "purpose", "module_key", "subject_type",
 --    "subject_id", "scope", "expires_at", "requires_session", "creates_account",
 --    "resolve_rpc", "accept_rpc"}               accept_rpc may be null
--- With p_mark_opened, a valid link gets last_opened_at = now() (legacy A3 « opened »). The
--- caller then checks the module (requireModuleForOrg on org_id, module_key).
+-- With p_mark_opened, a valid link gets last_opened_at = now() (legacy A3 « opened ») when it is
+-- null or more than an hour old (one audit row per hour at most). The caller then checks the
+-- module (requireModuleForOrg on org_id, module_key).
 create function public.peek_secure_link(p_token_hash bytea, p_mark_opened boolean)
 returns jsonb
 language plpgsql
@@ -260,7 +272,8 @@ begin
   end if;
 
   select * into v_purpose from public.secure_link_purposes p where p.key = v_link.purpose;
-  if coalesce(p_mark_opened, false) then
+  if coalesce(p_mark_opened, false)
+     and (v_link.last_opened_at is null or v_link.last_opened_at < pg_catalog.now() - interval '1 hour') then
     update public.secure_links l set last_opened_at = pg_catalog.now() where l.id = v_link.id;
   end if;
 

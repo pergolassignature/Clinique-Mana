@@ -2,18 +2,21 @@
 -- Covers: no client privilege on either table (service_role included), peek_secure_link for
 -- service_role only, the private functions for no role; indexes and the purge job's cron entry;
 -- the purpose handler contract for every seeded purpose (resolve_rpc / accept_rpc signatures,
--- definer, service role only; view_permission of the purpose's module); catalogue checks;
--- issue_secure_link (defaults from the purpose, TTL bounds, unknown purpose, creator outside
--- the org, scope and hash checks, one live link per subject and purpose, as a constraint too);
+-- one function of that name, definer, service role only; view_permission of the purpose's
+-- module), and that the check catches a missing, mis-typed or overloaded handler; catalogue
+-- checks; issue_secure_link (defaults from the purpose, TTL bounds, unknown purpose, creator
+-- outside the org, scope and hash checks, one live link per subject and purpose, as a
+-- constraint too, the advisory lock that serializes concurrent issues);
 -- audit redaction of token_hash; consume_secure_link (single use within one transaction, purpose
 -- mismatch, expired, revoked, unknown, multi-use); peek_secure_link (exact answers, unknown and
--- revoked byte-identical, used before expired, last_opened_at only for a valid link);
+-- revoked byte-identical, used before expired, last_opened_at only for a valid link and at
+-- most once an hour);
 -- revoke_secure_links; core.secure_links_purge (12 months after use, revocation or expiry).
 -- The whole file is one transaction, so now() is constant. Token hashes are computed as
 -- _shared/links.ts does: SHA-256 over the token string's UTF-8 bytes.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(80);
+select plan(88);
 
 -- =============================================================================
 -- Privileges, indexes, job
@@ -63,9 +66,16 @@ select results_eq($$
   select indexname::text collate "default" from pg_indexes
    where schemaname = 'public' and tablename = 'secure_links'
    order by 1
-$$, array['secure_links_created_by_idx', 'secure_links_live_key', 'secure_links_org_id_idx', 'secure_links_pkey',
-          'secure_links_purge_idx', 'secure_links_purpose_idx', 'secure_links_revoked_by_idx', 'secure_links_token_hash_key'],
-  'token, live-link, purge and FK indexes exist');
+$$, array['secure_links_created_by_idx', 'secure_links_live_key', 'secure_links_pkey', 'secure_links_purge_idx',
+          'secure_links_purpose_idx', 'secure_links_revoked_by_idx', 'secure_links_subject_idx', 'secure_links_token_hash_key'],
+  'token, live-link, subject list, purge and FK indexes exist');
+select is((select pg_get_indexdef(i.indexrelid) from pg_index i where i.indexrelid = 'public.secure_links_subject_idx'::regclass),
+  'CREATE INDEX secure_links_subject_idx ON public.secure_links USING btree (org_id, purpose, subject_type, subject_id, created_at DESC)',
+  'a subject''s links are listed newest first, for every state (non-partial)');
+select ok(
+  (select p.prosrc ~ 'pg_advisory_xact_lock\(.*revoke_secure_links\(' from pg_proc p
+    where p.oid = 'private.issue_secure_link(uuid, text, text, uuid, bytea, uuid, interval, jsonb)'::regprocedure),
+  'issue_secure_link takes the subject''s advisory lock before revoking (concurrent issues: the last one wins)');
 select is((select i.indisunique and pg_get_expr(i.indpred, i.indrelid) is not null
              from pg_index i where i.indexrelid = 'public.secure_links_live_key'::regclass),
   true, 'the live-link index is unique and partial');
@@ -86,6 +96,7 @@ select is_empty($$
   select p.key from public.secure_link_purposes p
     left join pg_proc f on f.oid = pg_catalog.to_regprocedure('public.' || p.resolve_rpc || '(uuid)')
    where f.oid is null
+      or (select count(*) from pg_proc g where g.pronamespace = 'public'::regnamespace and g.proname = p.resolve_rpc) <> 1
       or f.prorettype <> 'jsonb'::regtype
       or f.proargnames is distinct from array['p_link_id']
       or not f.prosecdef
@@ -98,6 +109,7 @@ select is_empty($$
     left join pg_proc f on f.oid = pg_catalog.to_regprocedure('public.' || p.accept_rpc || '(bytea, uuid, jsonb)')
    where p.accept_rpc is not null
      and (f.oid is null
+          or (select count(*) from pg_proc g where g.pronamespace = 'public'::regnamespace and g.proname = p.accept_rpc) <> 1
           or f.prorettype <> 'jsonb'::regtype
           or f.proargnames is distinct from array['p_token_hash', 'p_user_id', 'p_payload']
           or not f.prosecdef
@@ -105,6 +117,47 @@ select is_empty($$
           or has_function_privilege('authenticated', f.oid, 'execute')
           or not has_function_privilege('service_role', f.oid, 'execute'))
 $$, 'every accept_rpc is public.<name>(p_token_hash bytea, p_user_id uuid, p_payload jsonb) returns jsonb, definer, service role only');
+-- The same checks catch a missing handler, a mis-typed one and an overloaded one (test_overloaded
+-- (uuid) alone would pass: definer, service role only, the right name and types). Undone below.
+create function public.test_overloaded(p_link_id uuid) returns jsonb
+  language sql security definer set search_path = '' as $f$ select '{}'::jsonb $f$;
+create function public.test_overloaded(p_link_id text) returns jsonb
+  language sql security definer set search_path = '' as $f$ select '{}'::jsonb $f$;
+grant execute on function public.test_overloaded(uuid), public.test_overloaded(text) to service_role;
+insert into public.secure_link_purposes (key, module_key, default_ttl, max_ttl, resolve_rpc, accept_rpc, view_permission)
+values ('test_missing', 'core', interval '1 day', interval '1 day', 'test_no_such_handler', null, 'users.view'),
+       ('test_overload', 'core', interval '1 day', interval '1 day', 'peek_secure_link', 'test_overloaded', 'users.view'),
+       ('test_overload_resolve', 'core', interval '1 day', interval '1 day', 'test_overloaded', null, 'users.view');
+select results_eq($$
+  select p.key::text from public.secure_link_purposes p
+    left join pg_proc f on f.oid = pg_catalog.to_regprocedure('public.' || p.resolve_rpc || '(uuid)')
+   where f.oid is null
+      or (select count(*) from pg_proc g where g.pronamespace = 'public'::regnamespace and g.proname = p.resolve_rpc) <> 1
+      or f.prorettype <> 'jsonb'::regtype
+      or f.proargnames is distinct from array['p_link_id']
+      or not f.prosecdef
+      or has_function_privilege('anon', f.oid, 'execute')
+      or has_function_privilege('authenticated', f.oid, 'execute')
+      or not has_function_privilege('service_role', f.oid, 'execute')
+   order by 1
+$$, array['test_missing', 'test_overload', 'test_overload_resolve'],
+  'the resolve_rpc check reports a missing handler, one with the wrong signature and an overloaded one');
+select results_eq($$
+  select p.key::text from public.secure_link_purposes p
+    left join pg_proc f on f.oid = pg_catalog.to_regprocedure('public.' || p.accept_rpc || '(bytea, uuid, jsonb)')
+   where p.accept_rpc is not null
+     and (f.oid is null
+          or (select count(*) from pg_proc g where g.pronamespace = 'public'::regnamespace and g.proname = p.accept_rpc) <> 1
+          or f.prorettype <> 'jsonb'::regtype
+          or f.proargnames is distinct from array['p_token_hash', 'p_user_id', 'p_payload']
+          or not f.prosecdef
+          or has_function_privilege('anon', f.oid, 'execute')
+          or has_function_privilege('authenticated', f.oid, 'execute')
+          or not has_function_privilege('service_role', f.oid, 'execute'))
+$$, array['test_overload'], 'the accept_rpc check reports an overloaded (and mis-typed) handler');
+delete from public.secure_link_purposes where key in ('test_missing', 'test_overload', 'test_overload_resolve');
+drop function public.test_overloaded(uuid);
+drop function public.test_overloaded(text);
 select is_empty($$
   select p.key from public.secure_link_purposes p
     join public.permissions perm on perm.key = p.view_permission
@@ -370,6 +423,22 @@ select results_eq($$
 $$, $$ values ('expired'::text, null::timestamptz), ('other_subject', now()), ('revoked', null), ('second', null) $$,
   'p_mark_opened marks only a valid link');
 
+-- At most once an hour: opened 30 minutes ago stays; opened 2 hours ago is re-marked.
+update public.secure_links l set last_opened_at = now() - interval '30 minutes' from t where t.name = 'other_subject' and l.id = t.id;
+set local role service_role;
+select is(public.peek_secure_link((select hash from t where name = 'other_subject'), true) ->> 'state', 'valid',
+  'a link opened 30 minutes ago, peeked again');
+reset role;
+select is((select l.last_opened_at from public.secure_links l join t on t.id = l.id where t.name = 'other_subject'),
+  now() - interval '30 minutes', 'last_opened_at is not rewritten within the hour (no audit row per reload)');
+update public.secure_links l set last_opened_at = now() - interval '2 hours' from t where t.name = 'other_subject' and l.id = t.id;
+set local role service_role;
+select is(public.peek_secure_link((select hash from t where name = 'other_subject'), true) ->> 'state', 'valid',
+  'a link opened 2 hours ago, peeked again');
+reset role;
+select is((select l.last_opened_at from public.secure_links l join t on t.id = l.id where t.name = 'other_subject'),
+  now(), 'last_opened_at is rewritten after an hour');
+
 -- =============================================================================
 -- core.secure_links_purge (as postgres)
 -- =============================================================================
@@ -390,11 +459,8 @@ update public.secure_links l set created_at = now() - d.created, expires_at = no
          on d.name = t.name
  where l.id = t.id;
 
-create temp table purge_expected on commit drop as
-  select count(*)::int as n from public.secure_links l
-   where greatest(l.used_at, l.revoked_at, l.expires_at) < now() - interval '12 months';
-select is(private.job_secure_links_purge(), 'deleted=' || (select n from purge_expected),
-  'the purge reports how many links it deleted');
+-- Only purge_old is past the 12 months (no other test link is; the seed issues none).
+select is(private.job_secure_links_purge(), 'deleted=1', 'the purge reports how many links it deleted');
 select results_eq($$
   select t.name from t join public.secure_links l on l.id = t.id
    where t.name in ('purge_old', 'purge_recent', 'purge_revoked') order by 1
