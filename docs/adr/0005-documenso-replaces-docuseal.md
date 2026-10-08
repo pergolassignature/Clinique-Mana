@@ -7,6 +7,7 @@ Legacy signed contracts through DocuSeal; `docuseal-create-submission` could be 
 
 ## Decision
 - E-signature uses **Documenso**, on a **separate self-hosted instance for the clinic** (e.g. `sign.cliniquemana.com`), not Pergolas Signature's. The URL is in `signing_settings`, the API key and webhook secret are org secrets in Vault (ADR 0004), never in code.
+- **Hosting (2026-10-08, Jonathan):** the clinic's stack runs on the droplet that also hosts Pergolas Signature's (`documenso-sign`, Toronto, resized to 4 GB), as a **separate stack**: its own directory, database, signing certificate, secrets, admin, domain `sign.cliniquemana.com` and Resend sender on `gestion.cliniquemana.com`. Only the host, Docker and Caddy are shared. [Runbook](../runbooks/documenso-instance.md).
 - **No `signing-create` function.** Module functions call `createSignatureRequest` in `_shared/signing.ts` (Professionnels 4d), as `signing-test-document` does with the built-in test document. That module renders the PDF on the server (ADR 0008), so only request-creating functions import it; the webhook and the sync use the render-free `_shared/signing-events.ts`.
 - **Documenso sends the signing emails** (P3-3: `distributionMethod: EMAIL`, French, the template version's subject and message, sequential when there are several signers). The app sends no `contract.sent` email.
 - **Templates** (`document_templates`, versioned draft → published → archived) are created with `settings.manage`; versions are edited by the template's `edit_permission`.
@@ -27,6 +28,6 @@ Legacy signed contracts through DocuSeal; `docuseal-create-submission` could be 
 
 ## Alternatives
 - **Keep DocuSeal:** no hardened integration to port; legacy one had an authorization hole.
-- **Share PS Hub's Documenso instance:** mixes two companies' data and branding (Loi 25).
+- **Share PS Hub's Documenso instance:** mixes two companies' data and branding (Loi 25). Sharing the *droplet* with a separate stack (chosen) avoids both; its cost is shared fate: a host outage, a bad Docker or Caddy change, or a root compromise hits both companies.
 - **A generic `signing-create` function** (this ADR's first version): design §6.3 has each module's function call the shared library behind its own permission and module checks (plan inconsistency #13).
 - **Our own signing emails:** sequential signing would need our own relay of Documenso's turn-taking (P3-3).
