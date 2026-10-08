@@ -24,8 +24,8 @@ export function AuthCard({ title, subtitle, status, children, headingRef }: Auth
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-[360px] rounded-lg border border-border bg-card p-7">
-        {/* The SVG's viewBox is 2:1, so 26px high is 52px wide. */}
-        <img src={logoUrl} alt={t('app.name')} width={52} height={26} className="mb-5 block h-[26px] w-auto" />
+        {/* The SVG's viewBox is cropped to the wordmark (about 2.25:1), so 44px high is about 99px wide. */}
+        <img src={logoUrl} alt={t('app.name')} width={99} height={44} className="mb-5 block h-11 w-auto" />
         <h1 ref={headingRef} tabIndex={-1} className="text-lg font-semibold text-foreground outline-none">
           {title}
         </h1>

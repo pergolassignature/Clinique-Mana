@@ -36,9 +36,10 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
 
   return (
     <>
-      <div className={cn('flex h-12 shrink-0 items-center', collapsed ? 'justify-center' : 'px-2')}>
-        {/* The wordmark says MANA; the clinic's name is read out instead of a description of the image. */}
-        <img src={logoUrl} alt="" width={44} height={22} className="block h-[22px] w-auto max-w-full object-contain" />
+      <div className={cn('flex h-16 shrink-0 items-center', collapsed ? 'justify-center' : 'px-2')}>
+        {/* The wordmark says MANA; the clinic's name is read out instead of a description of the image.
+            Larger than the design system's 22 px at Jonathan's request (the script wordmark was unreadable). */}
+        <img src={logoUrl} alt="" width={81} height={36} className="block h-9 w-auto max-w-full object-contain" />
         <span className="sr-only">{org_name || t('app.name')}</span>
       </div>
 
