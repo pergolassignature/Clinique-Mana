@@ -94,7 +94,9 @@
       "verifying": "Vérification…",
       "otherUser": "Vous êtes connecté en tant que {name}. Ce lien concerne peut-être un autre compte.",
       "invalid": "Ce lien a expiré ou a déjà été utilisé.",
-      "requestNew": "Demander un nouveau lien"
+      "requestNew": "Demander un nouveau lien",
+      "emailChangeTitle": "Lien confirmé",
+      "emailChangeBody": "Votre demande a été confirmée. Si un second lien a été envoyé à l'autre adresse, ouvrez-le aussi pour terminer le changement."
     },
     "errors": {
       "invalidEmail": "Courriel invalide.",

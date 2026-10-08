@@ -253,11 +253,13 @@ describe('« Courriel »', () => {
     expect(within(status()).getByText(t('account.email.pendingTitle', { email: 'nouvelle@mana.test' }))).toBeInTheDocument()
   })
 
-  // From /connexion/confirmer (Phase 3): an email-change link just confirmed shows the same neutral
-  // notice as a request made here, never « en attente vers … ».
-  it('shows the neutral notice after an email-change link is confirmed', () => {
+  // From /connexion/confirmer: an email-change link just confirmed shows a neutral « Lien confirmé »
+  // notice, never « en attente vers … ».
+  it('shows the neutral « Lien confirmé » notice after an email-change link is confirmed', () => {
     renderPage({ session: session({ new_email: 'nouvelle@mana.test' }) }, { pathname: '/mon-compte', state: { emailChangeConfirmed: true } })
-    expect(within(status()).getByText(t('account.email.requested'))).toBeInTheDocument()
+    expect(within(status()).getByText(t('auth.confirm.emailChangeTitle'))).toBeInTheDocument()
+    expect(within(status()).getByText(t('auth.confirm.emailChangeBody'))).toBeInTheDocument()
+    expect(status()).not.toHaveTextContent(t('account.email.requestedTitle'))
     expect(status()).not.toHaveTextContent('nouvelle@mana.test')
   })
 

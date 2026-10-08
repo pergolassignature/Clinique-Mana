@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes, useLocation, type NavigateOptions, type To } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
@@ -109,12 +109,32 @@ describe('ConfirmPage — success', () => {
     expect(marker).toBeLessThan(log.indexOf('navigate:/reinitialiser-mot-de-passe'))
   })
 
-  it('email change: opens « Mon compte » with the neutral notice state', async () => {
-    confirmAt('?token_hash=h1&type=email_change', { verifyEmailLink: okWith(null) })
-    await userEvent.click(continueButton())
-    expect(await screen.findByText('/mon-compte')).toBeInTheDocument()
-    expect(JSON.parse(screen.getByTestId('state').textContent ?? 'null')).toEqual({ emailChangeConfirmed: true })
-    expect(setRecoveryMarker).not.toHaveBeenCalled()
+  describe.each([
+    ['signed out', null],
+    ['signed in as someone else', { user: { id: 'u1', email: 'conseillere@mana.test' } } as Session],
+  ])('email change, %s', (_label, session) => {
+    it('with a session: opens « Mon compte » with the neutral notice state', async () => {
+      confirmAt('?token_hash=h1&type=email_change', { session, verifyEmailLink: okWith('s3') })
+      await userEvent.click(continueButton())
+      expect(await screen.findByText('/mon-compte')).toBeInTheDocument()
+      expect(JSON.parse(screen.getByTestId('state').textContent ?? 'null')).toEqual({ emailChangeConfirmed: true })
+      expect(setRecoveryMarker).not.toHaveBeenCalled()
+    })
+
+    it('without a session (the first link): confirms on the page, neutrally, and stays', async () => {
+      const signOut = vi.fn()
+      confirmAt('?token_hash=h1&type=email_change', { session, signOut, verifyEmailLink: okWith(null) })
+      await userEvent.click(continueButton())
+      const heading = await screen.findByRole('heading', { name: t('auth.confirm.emailChangeTitle') })
+      expect(heading).toHaveFocus()
+      expect(screen.getByRole('status')).toHaveTextContent(t('auth.confirm.emailChangeBody'))
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+      expect(screen.queryByText(t('auth.confirm.invalid'))).not.toBeInTheDocument()
+      expect(where()).toBe('/connexion/confirmer')
+      expect(log.filter((entry) => entry.startsWith('navigate:') && entry !== 'navigate:/connexion/confirmer')).toEqual([])
+      expect(signOut).not.toHaveBeenCalled()
+      expect(setRecoveryMarker).not.toHaveBeenCalled()
+    })
   })
 
   it('magic link: goes to the same-origin `next`', async () => {
@@ -132,11 +152,49 @@ describe('ConfirmPage — success', () => {
   })
 })
 
+describe('ConfirmPage — while verifying', () => {
+  it('keeps focus on the soft-disabled button and ignores presses', async () => {
+    let resolve: (value: unknown) => void = () => {}
+    const verifyEmailLink = vi.fn().mockReturnValue(new Promise((r) => (resolve = r)))
+    confirmAt('?token_hash=h1&type=email', { verifyEmailLink })
+    await userEvent.click(continueButton())
+    const button = screen.getByRole('button', { name: t('auth.confirm.verifying') })
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).not.toBeDisabled()
+    expect(button).toHaveFocus()
+    await userEvent.click(button)
+    await userEvent.keyboard('{Enter}')
+    expect(verifyEmailLink).toHaveBeenCalledTimes(1)
+    resolve({ ok: true, sessionAccessToken: fakeAccessToken('s2') })
+    expect(await screen.findByText('/accueil')).toBeInTheDocument()
+  })
+
+  it('two clicks before the next render verify the token once', async () => {
+    const verifyEmailLink = okWith('s1')
+    confirmAt('?token_hash=h1&type=recovery', { verifyEmailLink })
+    const button = continueButton()
+    fireEvent.click(button)
+    fireEvent.click(button)
+    expect(await screen.findByText('RESET PAGE')).toBeInTheDocument()
+    expect(verifyEmailLink).toHaveBeenCalledTimes(1)
+  })
+
+  // Also once the link is used: the button stays inactive until the page has moved on.
+  it('a double click verifies the token once', async () => {
+    const verifyEmailLink = okWith('s1')
+    confirmAt('?token_hash=h1&type=recovery', { verifyEmailLink })
+    await userEvent.dblClick(continueButton())
+    expect(await screen.findByText('RESET PAGE')).toBeInTheDocument()
+    expect(verifyEmailLink).toHaveBeenCalledTimes(1)
+    expect(log.filter((entry) => entry === 'marker:s1')).toHaveLength(1)
+  })
+})
+
 describe('ConfirmPage — errors', () => {
   it.each([
     ['recovery', '/mot-de-passe-oublie'],
     ['email', '/connexion'],
-    ['email_change', '/connexion'],
+    ['email_change', '/mon-compte'],
   ])('%s: an expired or used link shows the message and « Demander un nouveau lien » → %s', async (type, target) => {
     confirmAt(`?token_hash=h1&type=${type}`, { verifyEmailLink: failWith('link_invalid') })
     await userEvent.click(continueButton())
@@ -160,12 +218,36 @@ describe('ConfirmPage — errors', () => {
     expect(await screen.findByText('RESET PAGE')).toBeInTheDocument()
   })
 
-  it('recovery without a session id never opens the reset page unmarked', async () => {
-    confirmAt('?token_hash=h1&type=recovery', { verifyEmailLink: okWith(null) })
+  it('recovery with a session but no session id: forgets that session here and shows the link as invalid', async () => {
+    const signOut = vi.fn().mockResolvedValue(undefined)
+    const verifyEmailLink = vi.fn().mockResolvedValue({ ok: true, sessionAccessToken: fakeAccessToken('x', { session_id: undefined }) })
+    confirmAt('?token_hash=h1&type=recovery', { signOut, verifyEmailLink })
     await userEvent.click(continueButton())
-    expect(await screen.findByRole('alert')).toHaveTextContent(t('auth.errors.unknown'))
+    expect(await screen.findByText(t('auth.confirm.invalid'))).toBeInTheDocument()
+    expect(signOut).toHaveBeenCalledExactlyOnceWith({ reload: false })
     expect(screen.queryByText('RESET PAGE')).not.toBeInTheDocument()
     expect(setRecoveryMarker).not.toHaveBeenCalled()
+  })
+
+  it('recovery with no session at all: shows the link as invalid and signs nobody out', async () => {
+    const signOut = vi.fn()
+    confirmAt('?token_hash=h1&type=recovery', { signOut, verifyEmailLink: okWith(null) })
+    await userEvent.click(continueButton())
+    expect(await screen.findByText(t('auth.confirm.invalid'))).toBeInTheDocument()
+    expect(signOut).not.toHaveBeenCalled()
+    expect(screen.queryByText('RESET PAGE')).not.toBeInTheDocument()
+    expect(setRecoveryMarker).not.toHaveBeenCalled()
+  })
+
+  it('a thrown error (not an AuthError) shows the generic message and gives the button back', async () => {
+    const verifyEmailLink = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    confirmAt('?token_hash=h1&type=email', { verifyEmailLink })
+    await userEvent.click(continueButton())
+    expect(await screen.findByRole('alert')).toHaveTextContent(t('auth.errors.unknown'))
+    expect(continueButton()).not.toHaveAttribute('aria-disabled')
+    verifyEmailLink.mockResolvedValue({ ok: true, sessionAccessToken: fakeAccessToken('s2') })
+    await userEvent.click(continueButton())
+    expect(await screen.findByText('/accueil')).toBeInTheDocument()
   })
 })
 

@@ -111,13 +111,14 @@ function EmailCard() {
   const user = useAccountUser()
   const queryClient = useQueryClient()
   const current = user?.email ?? ''
-  // Arriving from an email-change link just confirmed (/connexion/confirmer): the same neutral
-  // notice as after a request made here.
+  // Arriving from an email-change link just confirmed (/connexion/confirmer): a neutral « Lien
+  // confirmé » notice, the one that page shows when the link opens no session.
   const linkConfirmed = (useLocation().state as { emailChangeConfirmed?: boolean } | null)?.emailChangeConfirmed === true
-  // The last request from this page succeeded. Its notice is neutral: an address used by another
-  // account answers like a success (decision #38), so the page never names a change the server may
-  // not have recorded. Cleared on each new attempt, so a later failure doesn't sit next to it.
-  const [requested, setRequested] = useState(linkConfirmed)
+  // The notice: the link just confirmed, or the last request from this page succeeded. Both are
+  // neutral: an address used by another account answers like a success (decision #38), so the page
+  // never names a change the server may not have recorded. Cleared on each new attempt, so a later
+  // failure doesn't sit next to it.
+  const [notice, setNotice] = useState<'linkConfirmed' | 'requested' | null>(linkConfirmed ? 'linkConfirmed' : null)
   // A request from this page succeeded at least once. Never cleared: from then on, « en attente
   // vers … » stays hidden, even while a later attempt is in flight or after it fails, otherwise
   // new_email (recorded only for a real change) would show through.
@@ -137,7 +138,7 @@ function EmailCard() {
   const showPending = !askedHere && Boolean(pendingEmail) && pendingEmail?.toLowerCase() !== current.toLowerCase()
 
   const onSubmit = form.handleSubmit(async ({ email }) => {
-    setRequested(false)
+    setNotice(null)
     setError(null)
     if (email.toLowerCase() === current.toLowerCase()) {
       form.setError('email', { message: t('account.email.same') }, { shouldFocus: true })
@@ -153,7 +154,7 @@ function EmailCard() {
       setError(code)
       return
     }
-    setRequested(true)
+    setNotice('requested')
     setAskedHere(true)
     form.reset()
     void queryClient.invalidateQueries({ queryKey: accountKeys.all })
@@ -186,7 +187,14 @@ function EmailCard() {
       {/* Always rendered, so screen readers announce the notice when it appears inside. Empty, it
           takes no room (empty:!mt-0 cancels the card's spacing). */}
       <div role="status" className="empty:!mt-0">
-        {requested && (
+        {notice === 'linkConfirmed' && (
+          <Alert>
+            <MailCheck aria-hidden />
+            <AlertTitle>{t('auth.confirm.emailChangeTitle')}</AlertTitle>
+            <AlertDescription>{t('auth.confirm.emailChangeBody')}</AlertDescription>
+          </Alert>
+        )}
+        {notice === 'requested' && (
           <Alert>
             <MailCheck aria-hidden />
             <AlertTitle>{t('account.email.requestedTitle')}</AlertTitle>
