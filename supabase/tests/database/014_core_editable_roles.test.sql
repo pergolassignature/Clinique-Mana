@@ -5,11 +5,12 @@
 -- (refusals and success, the hold rule for non-admin managers, no self-grant, provider and
 -- admin locked), name normalization (whitespace, invisible characters, NFKC look-alikes),
 -- frozen role identity, protected admin rows, set_user_role with custom roles and the
--- org-default hold check, the override RPCs' org lock, list_org_users, other-org isolation,
--- the audit rows.
+-- org-default hold check, « Ce rôle n'existe plus. » (HINT role_missing) for unknown, deleted
+-- and other-org roles, the copy refusal's HINT copy_from, the override RPCs' org lock,
+-- list_org_users, other-org isolation, the audit rows.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(166);
+select plan(200);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -67,8 +68,8 @@ select results_eq($$ select role from public.role_permissions where permission_k
 
 select table_privs_are('public', 'org_role_permissions', 'anon', array[]::text[], 'anon: no privileges on org_role_permissions');
 select table_privs_are('public', 'org_role_permissions', 'authenticated', array['SELECT'], 'authenticated: select only on org_role_permissions');
-select table_privs_are('public', 'org_role_permissions', 'service_role', array['SELECT', 'REFERENCES', 'TRIGGER'],
-  'service_role: no insert, update, delete or truncate on org_role_permissions');
+select table_privs_are('public', 'org_role_permissions', 'service_role', array['SELECT'],
+  'service_role: select only on org_role_permissions');
 select table_privs_are('public', 'roles', 'authenticated', array['SELECT'], 'authenticated: still select only on roles');
 select col_is_null('public', 'roles', 'org_id', 'roles.org_id is nullable (null = base role)');
 select fk_ok('public', 'roles', 'org_id', 'public', 'organizations', 'id', 'roles.org_id references organizations');
@@ -105,6 +106,7 @@ select function_privs_are('public', 'rename_role',         array['text', 'text']
 select function_privs_are('public', 'delete_role',         array['text'],                    'service_role', array[]::text[], 'service_role has no grant on delete_role');
 select function_privs_are('private', 'assert_can_manage_roles',            array[]::text[],          'authenticated', array[]::text[], 'clients cannot call assert_can_manage_roles');
 select function_privs_are('private', 'valid_role_name',                    array['uuid', 'text', 'text'], 'authenticated', array[]::text[], 'clients cannot call valid_role_name');
+select function_privs_are('private', 'assert_org_role',                    array['uuid', 'text'],    'authenticated', array[]::text[], 'clients cannot call assert_org_role');
 select function_privs_are('private', 'check_role_org',                     array[]::text[],          'service_role',  array[]::text[], 'nobody can execute the role-org trigger function');
 select function_privs_are('private', 'seed_org_role_permissions',          array[]::text[],          'service_role',  array[]::text[], 'nobody can execute the org seeding trigger function');
 select function_privs_are('private', 'propagate_template_role_permission', array[]::text[],          'service_role',  array[]::text[], 'nobody can execute the template propagation trigger function');
@@ -121,6 +123,21 @@ select ok(
                     'public.clear_permission_override(uuid, text)'::regprocedure,
                     'public.clear_permission_overrides(uuid)'::regprocedure)),
   'the override RPCs lock the target''s profile, then the org, then check the caller''s permissions');
+-- The hints the UI keys on (throws_ok checks the code and message; the hint is checked here).
+select ok(
+  (select p.prosrc ~ 'Ce rôle n''''existe plus\.'' using errcode = ''P0001'', hint = ''role_missing''' from pg_proc p
+    where p.oid = 'private.assert_org_role(uuid, text)'::regprocedure),
+  'a missing role raises P0001 with HINT role_missing');
+select ok(
+  (select bool_and(p.prosrc ~ 'private\.assert_org_role\(') from pg_proc p
+    where p.oid in ('public.set_role_permission(text, text, boolean)'::regprocedure, 'public.create_role(text, text)'::regprocedure,
+                    'public.rename_role(text, text)'::regprocedure, 'public.delete_role(text)'::regprocedure,
+                    'public.set_user_role(uuid, text)'::regprocedure)),
+  'every RPC that names a role checks it with assert_org_role');
+select ok(
+  (select p.prosrc ~ 'copier un rôle qui donne des permissions que vous n''''avez pas\.''\s+using errcode = ''P0001'', hint = ''copy_from''' from pg_proc p
+    where p.oid = 'public.create_role(text, text)'::regprocedure),
+  'the copy refusal raises P0001 with HINT copy_from');
 
 -- =============================================================================
 -- Constraints (as postgres)
@@ -144,6 +161,12 @@ select throws_ok($$ insert into public.roles (key, name, org_id) values ('custom
   'a stored name has no zero-width character');
 select throws_ok($$ insert into public.roles (key, name, org_id) values ('custom_0123abcd', E'X\nY', 'b0000000-0000-0000-0000-00000000000a') $$,
   '23514', null, 'a stored name has no newline');
+select throws_ok($$ insert into public.roles (key, name, org_id) values ('custom_0123abcd', E'Accueil\u3164', 'b0000000-0000-0000-0000-00000000000a') $$,
+  '23514', 'new row for relation "roles" violates check constraint "roles_name_no_control_chars"',
+  'a stored name has no Hangul filler');
+select throws_ok($$ insert into public.roles (key, name, org_id) values ('custom_0123abcd', E'Accueil\U000E0041', 'b0000000-0000-0000-0000-00000000000a') $$,
+  '23514', 'new row for relation "roles" violates check constraint "roles_name_no_control_chars"',
+  'a stored name has no tag character (outside the BMP)');
 
 insert into public.roles (key, name, org_id) values ('custom_0000000b', 'Rôle B', 'b0000000-0000-0000-0000-00000000000b');
 select throws_ok($$ update public.user_roles set role = 'custom_0000000b' where user_id = 'a0000000-0000-0000-0000-000000000006' $$,
@@ -237,12 +260,51 @@ select throws_ok($$ select public.create_role(E'Copie\u200Badjointe') $$,
   'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', 'a zero-width space is refused');
 select throws_ok($$ select public.create_role(E'Copie adjointe\u200E') $$,
   'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', 'a bidi mark is refused');
+-- « Accueil » plus each kind of invisible character (it would otherwise be a new name).
+select throws_ok($$ select public.create_role(E'Accueil\u00AD') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a soft hyphen is refused');
+select throws_ok($$ select public.create_role(E'Accueil\u034F') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a combining grapheme joiner is refused');
+select throws_ok($$ select public.create_role(E'Accueil\u061C') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus an Arabic letter mark is refused');
+select throws_ok($$ select public.create_role(E'Accueil\u115F') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a Hangul choseong filler is refused');
+select throws_ok($$ select public.create_role(E'Accueil\u1160') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a Hangul jungseong filler is refused');
+select throws_ok($$ select public.create_role(E'Accueil\u180E') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a Mongolian vowel separator is refused');
+select throws_ok($$ select public.create_role(E'Accueil\u2061') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus an invisible function application is refused');
+select throws_ok($$ select public.create_role(E'Accueil\u2064') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus an invisible plus is refused');
+select throws_ok($$ select public.create_role(E'Accueil\u2066') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a left-to-right isolate is refused');
+select throws_ok($$ select public.create_role(E'Accueil\u2069') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a pop directional isolate is refused');
+select throws_ok($$ select public.create_role(E'Accueil\u206F') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a nominal digit shapes is refused');
+select throws_ok($$ select public.create_role(E'Accueil\u3164') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a Hangul filler is refused');
+select throws_ok($$ select public.create_role(E'Accueil\uFE00') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus variation selector 1 is refused');
+select throws_ok($$ select public.create_role(E'Accueil\uFE0F') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus variation selector 16 is refused');
+select throws_ok($$ select public.create_role(E'Accueil\uFFA0') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a halfwidth Hangul filler is refused');
+select throws_ok($$ select public.create_role(E'Accueil\U000E0001') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a language tag is refused');
+select throws_ok($$ select public.create_role(E'Accueil\U000E0041') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a tag letter is refused');
+select throws_ok($$ select public.create_role(E'Accueil\U000E007F') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', '« Accueil » plus a cancel tag is refused');
+select is_empty($$ select 1 from public.roles where name like 'Accueil%' $$, 'no « Accueil » look-alike was created');
 select throws_ok($$ select public.create_role(E'\uFF21dministrateur') $$,
   'P0001', 'Un rôle porte déjà ce nom.', 'a full-width look-alike of a base role''s name is refused (NFKC)');
 select throws_ok($$ select public.create_role(E'conseille\u0300re') $$,
   'P0001', 'Un rôle porte déjà ce nom.', 'a decomposed « è » matches the base role « Conseillère » (NFKC)');
-select throws_ok($$ select public.create_role('X', 'nope') $$, '22023', null, 'copying an unknown role is a technical error');
-select throws_ok($$ select public.create_role('X', 'custom_0000000b') $$, '22023', null, 'another org''s role cannot be copied');
+select throws_ok($$ select public.create_role('X', 'nope') $$, 'P0001', 'Ce rôle n''existe plus.', 'copying an unknown role: « Ce rôle n''existe plus. »');
+select throws_ok($$ select public.create_role('X', 'custom_0000000b') $$, 'P0001', 'Ce rôle n''existe plus.',
+  'another org''s role cannot be copied, with the same error (its existence is not revealed)');
 
 -- =============================================================================
 -- Admin A1: set_role_permission
@@ -264,9 +326,11 @@ select throws_ok($$ select public.set_role_permission('provider', 'professionals
 select throws_ok(format($$ select public.set_role_permission(%L, 'nope.view', true) $$, current_setting('test.k1')),
   '22023', null, 'an unknown permission is a technical error');
 select throws_ok($$ select public.set_role_permission('nope', 'audit.view', true) $$,
-  '22023', null, 'an unknown role is a technical error');
+  'P0001', 'Ce rôle n''existe plus.', 'an unknown role: « Ce rôle n''existe plus. »');
 select throws_ok($$ select public.set_role_permission('custom_0000000b', 'audit.view', true) $$,
-  '22023', null, 'another org''s custom role is unknown');
+  'P0001', 'Ce rôle n''existe plus.', 'another org''s custom role gets the same error');
+select throws_ok($$ select public.set_role_permission(null, 'audit.view', true) $$,
+  '22023', null, 'a null role is a technical error');
 select throws_ok(format($$ select public.set_role_permission(%L, 'audit.view', null) $$, current_setting('test.k1')),
   '22023', null, 'the granted flag is required');
 
@@ -300,7 +364,8 @@ select throws_ok(format($$ select public.rename_role(%L, 'copie ADJOINTE') $$, c
   'P0001', 'Un rôle porte déjà ce nom.', 'renaming onto another role''s name is refused');
 select throws_ok($$ select public.rename_role('counselor', 'Intervenante') $$,
   'P0001', 'Les rôles de base ne peuvent pas être renommés.', 'base roles cannot be renamed');
-select throws_ok($$ select public.rename_role('custom_0000000b', 'X') $$, '22023', null, 'another org''s role cannot be renamed');
+select throws_ok($$ select public.rename_role('custom_0000000b', 'X') $$, 'P0001', 'Ce rôle n''existe plus.', 'another org''s role cannot be renamed: « Ce rôle n''existe plus. »');
+select throws_ok($$ select public.rename_role('custom_ffffffff', 'X') $$, 'P0001', 'Ce rôle n''existe plus.', 'an unknown role cannot be renamed, with the same error');
 select throws_ok(format($$ select public.rename_role(%L, '') $$, current_setting('test.k1')),
   'P0001', 'Le nom du rôle est requis.', 'renaming to a blank name is refused');
 
@@ -313,7 +378,9 @@ select results_eq($$ select role, role_name from public.list_org_users() where u
   format($$ values (%L::text, 'stagiaire SENIOR'::text) $$, current_setting('test.k1')),
   'list_org_users returns the custom role''s name');
 select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000006', 'custom_0000000b') $$,
-  '22023', null, 'another org''s custom role cannot be given');
+  'P0001', 'Ce rôle n''existe plus.', 'another org''s custom role cannot be given: « Ce rôle n''existe plus. »');
+select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000006', null) $$,
+  '22023', null, 'set_user_role: a null role is a technical error');
 select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000006', 'provider') $$,
   'P0001', 'Le rôle Professionnel se gère dans le module Professionnels.', 'the provider role is still refused');
 
@@ -332,10 +399,19 @@ select throws_ok($$ select public.delete_role('counselor') $$,
   'P0001', 'Les rôles de base ne peuvent pas être supprimés.', 'base roles cannot be deleted');
 select throws_ok($$ select public.delete_role('admin') $$,
   'P0001', 'Les rôles de base ne peuvent pas être supprimés.', 'the admin role cannot be deleted');
-select throws_ok($$ select public.delete_role('custom_0000000b') $$, '22023', null, 'another org''s role cannot be deleted');
+select throws_ok($$ select public.delete_role('custom_0000000b') $$, 'P0001', 'Ce rôle n''existe plus.', 'another org''s role cannot be deleted: « Ce rôle n''existe plus. »');
 select lives_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000006', 'counselor') $$, 'E goes back to counselor');
 select lives_ok(format($$ select public.delete_role(%L) $$, current_setting('test.k1')), 'an unassigned custom role can be deleted');
 select is_empty($$ select 1 from public.roles where key = current_setting('test.k1') $$, 'the role is gone');
+-- A page still showing it (another manager deleted it): a message for each RPC, not a technical error.
+select throws_ok(format($$ select public.delete_role(%L) $$, current_setting('test.k1')), 'P0001', 'Ce rôle n''existe plus.', 'deleting it again: « Ce rôle n''existe plus. »');
+select throws_ok(format($$ select public.rename_role(%L, 'X') $$, current_setting('test.k1')), 'P0001', 'Ce rôle n''existe plus.', 'renaming the deleted role: « Ce rôle n''existe plus. »');
+select throws_ok(format($$ select public.set_role_permission(%L, 'audit.view', false) $$, current_setting('test.k1')), 'P0001', 'Ce rôle n''existe plus.',
+  'a cell of the deleted role: « Ce rôle n''existe plus. »');
+select throws_ok(format($$ select public.set_user_role('a0000000-0000-0000-0000-000000000006', %L) $$, current_setting('test.k1')), 'P0001', 'Ce rôle n''existe plus.',
+  'giving the deleted role: « Ce rôle n''existe plus. »');
+select throws_ok(format($$ select public.create_role('X', %L) $$, current_setting('test.k1')), 'P0001', 'Ce rôle n''existe plus.',
+  'copying the deleted role: « Ce rôle n''existe plus. »');
 reset role;
 select is_empty($$ select 1 from public.org_role_permissions where role = current_setting('test.k1') $$, 'its defaults are gone too');
 
@@ -428,11 +504,13 @@ select results_eq($$ select key from public.roles where org_id is not null $$,
   array['custom_0000000b'], 'admin B sees only org B''s custom role');
 select ok(private.has_permission('roles.manage'), 'admin B holds roles.manage');
 select throws_ok(format($$ select public.rename_role(%L, 'X') $$, current_setting('test.k2')),
-  '22023', null, 'admin B cannot rename an org A role');
+  'P0001', 'Ce rôle n''existe plus.', 'admin B cannot rename an org A role (« Ce rôle n''existe plus. »: not revealed)');
 select throws_ok(format($$ select public.set_role_permission(%L, 'audit.view', true) $$, current_setting('test.k2')),
-  '22023', null, 'admin B cannot edit an org A role');
+  'P0001', 'Ce rôle n''existe plus.', 'admin B cannot edit an org A role');
 select throws_ok(format($$ select public.delete_role(%L) $$, current_setting('test.k2')),
-  '22023', null, 'admin B cannot delete an org A role');
+  'P0001', 'Ce rôle n''existe plus.', 'admin B cannot delete an org A role');
+select throws_ok(format($$ select public.create_role('Copie de A', %L) $$, current_setting('test.k2')),
+  'P0001', 'Ce rôle n''existe plus.', 'admin B cannot copy an org A role');
 
 -- =============================================================================
 -- Template propagation (as postgres, as a module migration would)

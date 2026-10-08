@@ -113,7 +113,7 @@ select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-0000000
 select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000003', 'provider') $$,
   'P0001', 'Le rôle Professionnel se gère dans le module Professionnels.', 'the provider role cannot be given here');
 select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000003', 'staff') $$,
-  '22023', null, 'unknown role is a technical error');
+  'P0001', 'Ce rôle n''existe plus.', 'an unknown role: « Ce rôle n''existe plus. » (since core_editable_roles)');
 select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000005', 'counselor') $$,
   'P0001', 'Utilisateur introuvable.', 'a user of another org is not found');
 

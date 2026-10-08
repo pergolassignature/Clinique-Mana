@@ -36,7 +36,10 @@
 -- * Lock-out: the admin role cannot be edited, renamed or deleted, admins take no overrides
 --   and every org keeps an active admin (core_user_admin), so every org always has someone
 --   holding roles.manage and users.manage. Admin rows of org_role_permissions cannot be
---   deleted or changed except by cascade (trigger), and service_role cannot write the table.
+--   deleted or changed except by cascade (trigger), and service_role can only read the table.
+-- * A role that is unknown, just deleted or another org's is « Ce rôle n'existe plus. » (P0001,
+--   HINT role_missing) for every RPC that names one: the same error either way, so another
+--   org's role is not revealed, and the UI closes what showed the role and refetches the roles.
 -- * set_permission_override, clear_permission_override and clear_permission_overrides take
 --   the org lock after the target's profile, before checking the caller's own permissions,
 --   so they serialize with set_role_permission changing the caller's role.
@@ -78,11 +81,17 @@ alter table public.roles drop constraint roles_name_check;
 alter table public.roles add constraint roles_name_check
   check (char_length(name) between 1 and 60
          and name !~ '^ | $|  '
-         and name !~ '[\t\n\v\f\r\u0085   -     　]');
--- No control characters (C0, C1) nor invisible format characters (zero-width, bidi marks
--- and embeddings, word joiner, BOM): two names that look the same must be the same name.
+         and name !~ '[\t\n\v\f\r\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]');
+-- No control characters (C0, C1) nor invisible characters: two names that look the same must
+-- be the same name. Written as escapes (never literally: they would be invisible here too):
+-- soft hyphen (00AD), combining grapheme joiner (034F), Arabic letter mark (061C), Hangul
+-- fillers (115F, 1160, 3164, FFA0), Mongolian vowel separator (180E), zero-width characters
+-- and bidi marks (200B–200F), line/paragraph separators and bidi embeddings (2028–202F), word
+-- joiner and invisible operators (2060–2064), bidi isolates and deprecated format characters
+-- (2066–206F), variation selectors (FE00–FE0F), BOM (FEFF), tag characters (E0000–E007F).
+-- Keep it equal to the one in valid_role_name.
 alter table public.roles add constraint roles_name_no_control_chars
-  check (name !~ '[[:cntrl:]\u0080-\u009F​-‏ - ⁠﻿]');
+  check (name !~ '[[:cntrl:]\u0080-\u009F\u00AD\u034F\u061C\u115F\u1160\u180E\u200B-\u200F\u2028-\u202F\u2060-\u2064\u2066-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0\U000E0000-\U000E007F]');
 
 -- Unique name per org, compared like valid_role_name does (NFKC, case-insensitive); also
 -- the index of the org_id foreign key.
@@ -138,7 +147,9 @@ grant select on public.org_role_permissions to authenticated;
 -- Server code reads role defaults, never writes them: writes go through the role RPCs and
 -- the seeding/propagation triggers (SECURITY DEFINER, owned by postgres). Cascades from a
 -- deleted org, role or permission run as the table owner, so they are unaffected.
-revoke insert, update, delete, truncate on public.org_role_permissions from service_role;
+-- service_role keeps SELECT only: Supabase's default privileges grant it everything, and it
+-- needs neither REFERENCES nor TRIGGER (no server code creates objects on this table).
+revoke insert, update, delete, truncate, references, trigger on public.org_role_permissions from service_role;
 
 alter table public.org_role_permissions enable row level security;
 create policy org_role_permissions_select on public.org_role_permissions
@@ -414,7 +425,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_ws constant text := '[\t\n\v\f\r \u0085   -     　]+';
+  v_ws constant text := '[\t\n\v\f\r \u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+';
   v_name text;
 begin
   v_name := pg_catalog.regexp_replace(coalesce(p_name, ''), '^' || v_ws || '|' || v_ws || '$', '', 'g');
@@ -425,7 +436,7 @@ begin
   if pg_catalog.char_length(v_name) > 60 then
     raise exception 'Le nom du rôle ne peut pas dépasser 60 caractères.' using errcode = 'P0001';
   end if;
-  if v_name ~ '[[:cntrl:]\u0080-\u009F​-‏ - ⁠﻿]' then
+  if v_name ~ '[[:cntrl:]\u0080-\u009F\u00AD\u034F\u061C\u115F\u1160\u180E\u200B-\u200F\u2028-\u202F\u2060-\u2064\u2066-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0\U000E0000-\U000E007F]' then
     raise exception 'Le nom du rôle contient des caractères invisibles ou non permis.' using errcode = 'P0001';
   end if;
   if exists (
@@ -440,16 +451,44 @@ begin
 end;
 $$;
 
+-- Raises unless p_role is a base role or one of p_org's custom roles; returns whether it is a
+-- custom role. Unknown, just deleted or another org's: the same P0001, so another org's role is
+-- not revealed, and a manager whose page still shows a deleted role gets a message rather than
+-- a technical error. HINT role_missing: the UI keys on it, never on the text. A null role is a
+-- technical error (the UI always sends one).
+create function private.assert_org_role(p_org uuid, p_role text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_role_org uuid;
+begin
+  if p_role is null then
+    raise exception 'Valeur manquante' using errcode = '22023';
+  end if;
+  select ro.org_id into v_role_org
+    from public.roles ro
+   where ro.key = p_role and (ro.org_id is null or ro.org_id = p_org);
+  if not found then
+    raise exception 'Ce rôle n''existe plus.' using errcode = 'P0001', hint = 'role_missing';
+  end if;
+  return v_role_org is not null;
+end;
+$$;
+
 revoke all on function
   private.assert_can_manage_roles(),
-  private.valid_role_name(uuid, text, text)
+  private.valid_role_name(uuid, text, text),
+  private.assert_org_role(uuid, text)
 from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
 -- Role RPCs
 -- -----------------------------------------------------------------------------
--- Another org's custom role is reported like an unknown role (22023): its existence is not
--- revealed.
+-- A role that does not exist (any more) in the caller's org: private.assert_org_role.
 create function public.set_role_permission(p_role text, p_permission_key text, p_granted boolean)
 returns void
 language plpgsql
@@ -462,11 +501,7 @@ begin
   if p_granted is null then
     raise exception 'Valeur manquante' using errcode = '22023';
   end if;
-  if not exists (
-    select 1 from public.roles ro where ro.key = p_role and (ro.org_id is null or ro.org_id = v_org)
-  ) then
-    raise exception 'Rôle inconnu : %', p_role using errcode = '22023';
-  end if;
+  perform private.assert_org_role(v_org, p_role);
   if p_role = 'admin' then
     raise exception 'L''administrateur a toujours toutes les permissions.' using errcode = 'P0001';
   end if;
@@ -501,6 +536,8 @@ end;
 $$;
 
 -- Returns the new key. Starts empty, or with a copy of p_copy_from's defaults in this org.
+-- The copy refusal carries HINT copy_from, so the UI shows it on the copy field without
+-- matching its text (every other P0001 here is about the name, or role_missing).
 create function public.create_role(p_name text, p_copy_from text default null)
 returns text
 language plpgsql
@@ -514,17 +551,14 @@ declare
   v_try int := 0;
 begin
   if p_copy_from is not null then
-    if not exists (
-      select 1 from public.roles ro where ro.key = p_copy_from and (ro.org_id is null or ro.org_id = v_org)
-    ) then
-      raise exception 'Rôle inconnu : %', p_copy_from using errcode = '22023';
-    end if;
+    perform private.assert_org_role(v_org, p_copy_from);
     if not private.has_role('admin') and exists (
       select 1 from public.org_role_permissions rp
        where rp.org_id = v_org and rp.role = p_copy_from
          and not private.has_permission(rp.permission_key)
     ) then
-      raise exception 'Vous ne pouvez pas copier un rôle qui donne des permissions que vous n''avez pas.' using errcode = 'P0001';
+      raise exception 'Vous ne pouvez pas copier un rôle qui donne des permissions que vous n''avez pas.'
+        using errcode = 'P0001', hint = 'copy_from';
     end if;
   end if;
 
@@ -557,15 +591,9 @@ set search_path = ''
 as $$
 declare
   v_org uuid := private.assert_can_manage_roles();
-  v_role_org uuid;
   v_name text;
 begin
-  select ro.org_id into v_role_org
-    from public.roles ro where ro.key = p_role and (ro.org_id is null or ro.org_id = v_org);
-  if not found then
-    raise exception 'Rôle inconnu : %', p_role using errcode = '22023';
-  end if;
-  if v_role_org is null then
+  if not private.assert_org_role(v_org, p_role) then
     raise exception 'Les rôles de base ne peuvent pas être renommés.' using errcode = 'P0001';
   end if;
   v_name := private.valid_role_name(v_org, p_name, p_role);
@@ -584,15 +612,9 @@ set search_path = ''
 as $$
 declare
   v_org uuid := private.assert_can_manage_roles();
-  v_role_org uuid;
   v_holders int;
 begin
-  select ro.org_id into v_role_org
-    from public.roles ro where ro.key = p_role and (ro.org_id is null or ro.org_id = v_org);
-  if not found then
-    raise exception 'Rôle inconnu : %', p_role using errcode = '22023';
-  end if;
-  if v_role_org is null then
+  if not private.assert_org_role(v_org, p_role) then
     raise exception 'Les rôles de base ne peuvent pas être supprimés.' using errcode = 'P0001';
   end if;
   -- After the org lock: a concurrent set_user_role giving this role has committed or waits.
@@ -639,11 +661,8 @@ begin
   -- between the checks below and the write.
   perform 1 from public.organizations o where o.id = v_org for no key update;
 
-  if p_role is null or not exists (
-    select 1 from public.roles ro where ro.key = p_role and (ro.org_id is null or ro.org_id = v_org)
-  ) then
-    raise exception 'Rôle inconnu : %', p_role using errcode = '22023';
-  end if;
+  -- A role deleted meanwhile (or another org's): « Ce rôle n'existe plus. », like the role RPCs.
+  perform private.assert_org_role(v_org, p_role);
   if p_role = 'provider' or v_current = 'provider' then
     raise exception 'Le rôle Professionnel se gère dans le module Professionnels.' using errcode = 'P0001';
   end if;
