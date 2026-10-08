@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, type MemoryRouterProps } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { AuthContext, type AuthContextValue } from '@/core/auth/auth-context'
 import { AccessContext, type AccessContextValue } from '@/core/access/access-context'
@@ -23,7 +23,12 @@ export const testAccess: Access = {
 
 export function renderWithContexts(
   ui: ReactNode,
-  { auth = {}, access = {}, path = '/' }: { auth?: Partial<AuthContextValue>; access?: Partial<AccessContextValue>; path?: string } = {},
+  { auth = {}, access = {}, path = '/' }: {
+    auth?: Partial<AuthContextValue>
+    access?: Partial<AccessContextValue>
+    /** The router's first entry: a path, or a location with `state`. */
+    path?: NonNullable<MemoryRouterProps['initialEntries']>[number]
+  } = {},
 ) {
   const authValue: AuthContextValue = {
     session: { user: { id: 'u1' } } as Session,
@@ -38,6 +43,7 @@ export function renderWithContexts(
     updateEmail: async () => null,
     signOut: async () => {},
     signOutEverywhere: async () => null,
+    verifyEmailLink: async () => ({ ok: true, sessionAccessToken: null }),
     ...auth,
   }
   // `can` follows the effective access (an overridden one, or testAccess), unless overridden itself.

@@ -21,7 +21,7 @@ const CORE_PERMISSION_KEYS = [
   'settings.integrations_manage',
 ]
 describe('coreSettingsSections', () => {
-  it('registers the Phase 2 sections in menu order, with English ids and French paths', () => {
+  it('registers the sections in menu order, with English ids and French paths', () => {
     expect(coreSettingsSections.map((s) => [s.id, s.path, s.group])).toEqual([
       ['identity', 'identite', 'clinique'],
       ['tax', 'fiscalite', 'clinique'],
@@ -32,6 +32,8 @@ describe('coreSettingsSections', () => {
       ['users', 'utilisateurs', 'plateforme'],
       ['modules', 'modules', 'plateforme'],
       ['audit', 'journal', 'plateforme'],
+      ['jobs', 'taches-planifiees', 'plateforme'],
+      ['email', 'courriels', 'plateforme'],
     ])
   })
 
@@ -46,6 +48,8 @@ describe('coreSettingsSections', () => {
       'Utilisateurs et accès',
       'Modules',
       "Journal d'audit",
+      'Tâches planifiées',
+      'Courriels',
     ])
   })
 
@@ -61,6 +65,9 @@ describe('coreSettingsSections', () => {
       users: [['users.view', 'roles.manage'], ['users.manage', 'roles.manage']],
       modules: ['modules.manage', undefined],
       audit: ['audit.view', undefined],
+      jobs: ['settings.view', 'settings.manage'],
+      // Any of them: the sender and templates need settings.email_manage, the keys settings.integrations_manage.
+      email: ['settings.view', ['settings.email_manage', 'settings.integrations_manage']],
     })
   })
 

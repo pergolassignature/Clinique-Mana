@@ -43,6 +43,7 @@ function authValue(session: Session | null): AuthContextValue {
     updateEmail: async () => null,
     signOut: async () => {},
     signOutEverywhere: async () => null,
+    verifyEmailLink: async () => ({ ok: true, sessionAccessToken: null }),
   }
 }
 

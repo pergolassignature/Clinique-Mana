@@ -12,6 +12,13 @@ import { AuthenticatedApp } from './AuthenticatedApp'
 import { ALL_MODULES } from './modules'
 
 const mocks = vi.hoisted(() => ({ captureException: vi.fn() }))
+// The topbar bell (and Accueil) read the caller's notices: none here, and no network.
+vi.mock('@/core/notifications/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/notifications/api')>()),
+  countMyUnreadNotifications: async () => ({ total: 0, important: 0 }),
+  listMyNotifications: async () => ({ notices: [], hasMore: false }),
+  listImportantUnreadNotifications: async () => [],
+}))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 
 // The Modules section needs a query client and the Supabase client: it has its own tests.
@@ -70,7 +77,7 @@ const settingsLinks = () =>
 const ALL_SECTIONS = [
   'settings.sections.identity', 'settings.sections.tax', 'settings.sections.signatory', 'settings.sections.bank',
   'settings.sections.region', 'settings.sections.privacy', 'settings.sections.users', 'settings.sections.modules',
-  'settings.sections.audit',
+  'settings.sections.audit', 'settings.sections.jobs', 'settings.sections.email',
 ] as const
 
 const appAt = (path: string, access: Access = adminLike, auth: Parameters<typeof renderWithContexts>[1] = {}) => (
@@ -101,7 +108,7 @@ describe('AuthenticatedApp', () => {
   const counselorLike: Access = accessForRole('counselor', { display_name: 'Camille Admin', modules: ['professionals'] })
 
   // Decision #19: Paramètres follows the accessible sections.
-  it('shows Paramètres to the adjointe, with the clinic sections only, read-only', async () => {
+  it('shows Paramètres to the adjointe, with the clinic sections, « Tâches planifiées » and « Courriels », read-only', async () => {
     render(appAt('/parametres', assistantLike))
     expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.name'), t('nav.settings')])
     const readOnly = (key: (typeof ALL_SECTIONS)[number]) => `${t(key)} ${t('settings.navReadOnlyHint')}`
@@ -111,6 +118,8 @@ describe('AuthenticatedApp', () => {
       readOnly('settings.sections.signatory'),
       readOnly('settings.sections.region'),
       readOnly('settings.sections.privacy'),
+      readOnly('settings.sections.jobs'),
+      readOnly('settings.sections.email'),
     ])
     expect(await screen.findByRole('heading', { level: 2, name: t('settings.sections.identity') })).toBeInTheDocument()
     expect(screen.getByText(t('common.readOnlyNotice.body'))).toBeInTheDocument()
@@ -293,8 +302,8 @@ describe('AuthenticatedApp — idle prefetch', () => {
     const preloaded = spyOnPreloads()
     render(appAt('/accueil', accessForRole('admin_assistant', { modules: ['professionals'] })))
     runIdle()
-    // The adjointe's clinic sections (no bank, users, modules or audit), and Professionnels.
-    expect(preloaded()).toEqual(['identity', 'tax', 'signatory', 'region', 'privacy', 'professionals:/professionnels'])
+    // The adjointe's clinic sections (no bank, users, modules or audit), « Tâches planifiées », « Courriels », and Professionnels.
+    expect(preloaded()).toEqual(['identity', 'tax', 'signatory', 'region', 'privacy', 'jobs', 'email', 'professionals:/professionnels'])
   })
 
   it("skips a disabled module's pages and sections", () => {

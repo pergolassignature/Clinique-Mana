@@ -87,6 +87,17 @@
       "cancel": "Annuler et se déconnecter",
       "success": "Mot de passe mis à jour."
     },
+    "confirm": {
+      "title": "Confirmation",
+      "subtitle": "Cliquez sur « Continuer » pour poursuivre.",
+      "continue": "Continuer",
+      "verifying": "Vérification…",
+      "otherUser": "Vous êtes connecté en tant que {name}. Ce lien concerne peut-être un autre compte.",
+      "invalid": "Ce lien a expiré ou a déjà été utilisé.",
+      "requestNew": "Demander un nouveau lien",
+      "emailChangeTitle": "Lien confirmé",
+      "emailChangeBody": "Votre demande a été confirmée. Si un second lien a été envoyé à l'autre adresse, ouvrez-le aussi pour terminer le changement."
+    },
     "errors": {
       "invalidEmail": "Courriel invalide.",
       "required": "Champ requis.",
@@ -97,6 +108,7 @@
       "invalid_code": "Code invalide ou expiré.",
       "invalid_email": "Courriel invalide.",
       "rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
+      "link_invalid": "Ce lien a expiré ou a déjà été utilisé.",
       "unknown": "Une erreur est survenue. Réessayez."
     }
   },
@@ -173,6 +185,55 @@
     "account": "Mon compte"
   },
   "home": { "title": "Bienvenue", "body": "Les modules s'ajoutent ici au fur et à mesure qu'ils sont activés." },
+  "notifications": {
+    "bell": "Notifications",
+    "title": "Notifications",
+    "unreadOne": "1 non lue",
+    "unreadOther": "{count} non lues",
+    "importantOne": "dont 1 importante",
+    "importantOther": "dont {count} importantes",
+    "itemUnread": "non lue",
+    "itemImportant": "importante",
+    "important": "Important",
+    "empty": "Aucune notification.",
+    "loadError": "Impossible de charger les notifications.",
+    "loadMore": "Charger plus",
+    "loadingMore": "Chargement…",
+    "loadMoreError": "Impossible de charger la suite.",
+    "markAllRead": "Tout marquer comme lu",
+    "markError": "Impossible de mettre à jour les notifications. Réessayez dans un instant.",
+    "age": {
+      "now": "À l'instant",
+      "minutes": "Il y a {count} min",
+      "hours": "Il y a {count} h",
+      "yesterday": "Hier",
+      "days": "Il y a {count} j"
+    },
+    "watch": {
+      "title": "À surveiller",
+      "open": "Ouvrir",
+      "dismiss": "Marquer comme lu"
+    }
+  },
+  "email": {
+    "status": {
+      "queued": "En file",
+      "sent": "Envoyé",
+      "delivered": "Livré",
+      "delivery_delayed": "Retardé",
+      "bounced": "Adresse introuvable",
+      "complained": "Signalé comme indésirable",
+      "failed": "Échec"
+    },
+    "failure": {
+      "unknownOutcome": "Résultat inconnu",
+      "unknownOutcomeHint": "Le service d'envoi n'a pas confirmé l'envoi ; le statut peut encore changer.",
+      "invalidRecipient": "Adresse invalide",
+      "rejected": "Refusé par le service d'envoi",
+      "rateLimited": "Limite d'envoi atteinte"
+    },
+    "errorCode": "Code : {code}"
+  },
   "settings": {
     "title": "Paramètres",
     "navLabel": "Sections des paramètres",
@@ -187,7 +248,9 @@
       "privacy": "Confidentialité",
       "users": "Utilisateurs et accès",
       "modules": "Modules",
-      "audit": "Journal d'audit"
+      "audit": "Journal d'audit",
+      "jobs": "Tâches planifiées",
+      "email": "Courriels"
     },
     "navReadOnlyHint": "(lecture seule)",
     "menuButtonPrefix": "Section des paramètres :",
@@ -197,6 +260,255 @@
       "saved": "Modules mis à jour.",
       "error": "Impossible de modifier ce module.",
       "loadError": "Impossible de charger les modules."
+    },
+    "jobs": {
+      "description": "Les tâches que l'application exécute d'elle-même, et le résultat de leur dernière exécution. Les heures sont celles de la clinique.",
+      "loadError": "Impossible de charger les tâches planifiées.",
+      "empty": "Aucune tâche planifiée pour le moment.",
+      "columns": {
+        "job": "Tâche",
+        "schedule": "Fréquence",
+        "lastRun": "Dernière exécution",
+        "active": "Activation",
+        "actions": "Actions"
+      },
+      "never": "Jamais exécutée",
+      "alwaysOn": "Toujours active",
+      "enabled": "Activée",
+      "disabled": "Désactivée",
+      "toggleLabel": "Activer : {label}",
+      "enabledToast": "Tâche activée.",
+      "disabledToast": "Tâche désactivée.",
+      "toggleError": "Impossible de modifier cette tâche.",
+      "runNow": "Exécuter maintenant",
+      "runNowLabel": "Exécuter maintenant : {label}",
+      "started": "Tâche lancée. Son résultat paraîtra dans les dernières exécutions.",
+      "runError": "Impossible de lancer cette tâche.",
+      "enableFirst": "Activez d'abord cette tâche.",
+      "confirm": {
+        "title": "Exécuter « {label} » maintenant ?",
+        "body": "La tâche s'exécute tout de suite pour la clinique, en plus de son horaire habituel. Elle pourra être relancée dans quelques minutes.",
+        "run": "Exécuter"
+      },
+      "schedule": {
+        "hourly": "Toutes les heures",
+        "everyMinutes": "Toutes les {count} minutes",
+        "daily": "Tous les jours à {time}",
+        "localDaily": "Tous les jours à {time} (heure de la clinique)",
+        "custom": "Horaire personnalisé ({cron})",
+        "none": "Non planifiée"
+      },
+      "status": {
+        "ok": "Réussie",
+        "error": "Erreur",
+        "skipped": "Ignorée",
+        "running": "En cours"
+      },
+      "trigger": {
+        "cron": "Planifiée",
+        "manual": "Manuelle"
+      },
+      "detail": {
+        "configuration_missing": "Configuration manquante (voir Mise en service)",
+        "abandoned": "Interrompue : aucune fin après 15 minutes",
+        "timeout": "Délai dépassé",
+        "network": "Service injoignable",
+        "no_response": "Aucune réponse du service",
+        "sqlstate": "Erreur technique (code {code})",
+        "http": "Erreur technique (HTTP {status})",
+        "httpUnknown": "inconnu",
+        "other": "Erreur technique ({code})"
+      },
+      "runs": {
+        "title": "Dernières exécutions",
+        "columns": {
+          "date": "Début",
+          "job": "Tâche",
+          "trigger": "Déclenchement",
+          "status": "Statut"
+        },
+        "loadError": "Impossible de charger les dernières exécutions.",
+        "empty": {
+          "title": "Aucune exécution pour le moment.",
+          "body": "Chaque exécution d'une tâche, planifiée ou manuelle, paraîtra ici."
+        },
+        "countOne": "1 exécution",
+        "countOther": "{count} exécutions",
+        "loadMore": "Charger plus",
+        "loadingMore": "Chargement…",
+        "loadMoreError": "Impossible de charger la suite.",
+        "end": "Début de l'historique",
+        "scrollLabel": "Liste des dernières exécutions"
+      },
+      "scrollLabel": "Liste des tâches planifiées"
+    },
+    "secrets": {
+      "configured": "Configurée",
+      "configuredAt": "modifiée le {date}",
+      "notConfigured": "Non configurée",
+      "replace": "Remplacer : {label}",
+      "replaceShort": "Remplacer",
+      "add": "Ajouter : {label}",
+      "addShort": "Ajouter",
+      "newValue": "Nouvelle valeur : {label}",
+      "required": "Saisissez une valeur.",
+      "saved": "Valeur enregistrée.",
+      "saveError": "Impossible d'enregistrer cette valeur."
+    },
+    "email": {
+      "description": "Les courriels que l'application envoie au nom de la clinique : l'expéditeur, les textes et l'historique d'envoi.",
+      "tabs": {
+        "settings": "Réglages",
+        "templates": "Modèles",
+        "log": "Historique d'envoi"
+      },
+      "sender": {
+        "title": "Expéditeur",
+        "description": "Le nom et l'adresse qui figurent sur les courriels de la clinique, et l'adresse où arrivent les réponses.",
+        "fromName": "Nom de l'expéditeur",
+        "fromAddress": "Adresse d'envoi",
+        "fromAddressHelp": "Seule la partie avant le @ se modifie ici : le domaine est {domain}.",
+        "replyTo": "Adresse de réponse",
+        "replyToHelp": "Les réponses arrivent à cette adresse. Laissée vide, le courriel de la clinique (Identité légale) est utilisé.",
+        "saved": "Expéditeur enregistré.",
+        "loadError": "Impossible de charger l'expéditeur."
+      },
+      "keys": {
+        "title": "Envoi et webhook",
+        "description": "Le domaine d'envoi et les clés du service d'envoi (Resend). Une clé enregistrée n'est jamais affichée.",
+        "readOnlyDescription": "Le domaine d'envoi et les clés du service d'envoi (Resend). Seule une personne qui gère les clés d'intégration peut les modifier.",
+        "apiKey": "Clé d'API Resend",
+        "apiKeyHelp": "Une clé d'envoi seulement, limitée au domaine d'envoi.",
+        "webhookSecret": "Secret du webhook",
+        "webhookSecretHelp": "Le secret de signature (whsec_…) du webhook créé chez Resend.",
+        "webhookUrl": "Adresse du webhook",
+        "webhookUrlHelp": "À indiquer chez Resend pour recevoir les confirmations de livraison.",
+        "copy": "Copier",
+        "webhookCopied": "Adresse copiée.",
+        "webhookCopyError": "Impossible de copier l'adresse. Sélectionnez-la pour la copier.",
+        "lastEvent": "Dernier événement reçu le {date}",
+        "noEvent": "Aucun événement reçu",
+        "lastEventError": "Impossible de vérifier le dernier événement reçu.",
+        "secretsLoadError": "Impossible de charger l'état des clés.",
+        "domain": {
+          "label": "Domaine d'envoi",
+          "help": "Le domaine vérifié chez Resend.",
+          "confirmTitle": "Changer le domaine d'envoi ?",
+          "confirmBody": "Changer le domaine change aussi l'adresse d'envoi.",
+          "confirm": "Changer le domaine",
+          "saved": "Domaine d'envoi enregistré."
+        }
+      },
+      "templates": {
+        "coreGroup": "Plateforme",
+        "scrollLabel": "Liste des modèles de courriel",
+        "columns": {
+          "template": "Modèle",
+          "state": "Texte",
+          "lastChange": "Dernière modification"
+        },
+        "custom": "Personnalisé",
+        "default": "Par défaut",
+        "changedBy": "{date} par {name}",
+        "loadError": "Impossible de charger les modèles.",
+        "empty": "Aucun modèle de courriel pour le moment."
+      },
+      "editor": {
+        "subject": "Objet",
+        "body": "Texte",
+        "bodyHelp": "Paragraphes séparés par une ligne vide ; **gras** et listes à puces (« - » en début de ligne) permis.",
+        "button": "Libellé du bouton",
+        "buttonHelp": "Le lien du bouton est fourni par l'application et ne peut pas être modifié. Laissé vide, aucun bouton n'est affiché.",
+        "variables": "Variables",
+        "variablesHelp": "« Insérer » place la variable au curseur du dernier champ utilisé ; elle est remplacée à l'envoi.",
+        "variablesReadOnly": "Chaque variable est remplacée à l'envoi.",
+        "insert": "Insérer « {label} »",
+        "insertShort": "Insérer",
+        "saved": "Modèle enregistré.",
+        "saveError": "Impossible d'enregistrer ce modèle.",
+        "sendTest": "M'envoyer un test",
+        "sendingTest": "Envoi…",
+        "testSent": "Courriel test envoyé à {email}",
+        "reset": "Rétablir le texte par défaut",
+        "resetTitle": "Rétablir le texte par défaut ?",
+        "resetBody": "Le texte de la clinique pour ce modèle sera remplacé par le texte d'origine. Les modifications non enregistrées seront perdues.",
+        "resetConfirm": "Rétablir",
+        "resetDone": "Texte par défaut rétabli."
+      },
+      "preview": {
+        "title": "Aperçu",
+        "widthLabel": "Largeur de l'aperçu",
+        "desktop": "Ordinateur",
+        "phone": "Téléphone",
+        "subject": "Objet :",
+        "frameTitle": "Aperçu du courriel",
+        "paused": "Aperçu en pause : {reason}",
+        "updating": "Mise à jour de l'aperçu…",
+        "linksDisabled": "Les liens sont désactivés dans l'aperçu."
+      },
+      "log": {
+        "title": "Historique d'envoi",
+        "scrollLabel": "Liste des courriels envoyés",
+        "columns": {
+          "date": "Date",
+          "template": "Modèle",
+          "recipient": "Destinataire",
+          "status": "Statut"
+        },
+        "anonymised": "Adresse retirée",
+        "filters": {
+          "label": "Filtres de l'historique d'envoi",
+          "template": "Modèle",
+          "templatesError": "La liste des modèles n'a pas pu être chargée ; seul « Tous les modèles » est proposé.",
+          "allTemplates": "Tous les modèles",
+          "status": "Statut",
+          "allStatuses": "Tous les statuts",
+          "period": "Période",
+          "periods": {
+            "7d": "7 derniers jours",
+            "30d": "30 jours",
+            "all": "Tout"
+          }
+        },
+        "loadError": "Impossible de charger l'historique d'envoi.",
+        "empty": {
+          "title": "Aucun courriel envoyé.",
+          "body": "Chaque courriel envoyé par l'application paraîtra ici, avec son statut de livraison."
+        },
+        "countOne": "1 courriel",
+        "countOther": "{count} courriels",
+        "loadMore": "Charger plus",
+        "loadMoreError": "Impossible de charger la suite.",
+        "end": "Début de l'historique"
+      },
+      "errors": {
+        "not_configured": "L'envoi de courriels n'est pas encore configuré.",
+        "rate_limited": "Trop d'envois en peu de temps. Réessayez dans quelques minutes.",
+        "provider_error": "Le service d'envoi n'a pas répondu. Réessayez.",
+        "module_disabled": "Ce module est désactivé pour la clinique.",
+        "not_found": "Ce modèle n'existe plus. Rechargez la page.",
+        "unauthenticated": "Votre session a expiré. Reconnectez-vous, puis réessayez.",
+        "network": "Le service est injoignable. Vérifiez votre connexion et réessayez.",
+        "invalid_request": "Le texte n'a pas pu être vérifié. Vérifiez l'objet, le texte et le libellé du bouton.",
+        "tooLarge": "Ce courriel est trop long pour être prévisualisé.",
+        "invalidRecipient": "Votre adresse courriel n'est pas valide pour l'envoi d'un test."
+      },
+      "validation": {
+        "unknownVariable": "Variable inconnue : {variable}",
+        "unclosedBraces": "Accolades non fermées dans le texte.",
+        "subjectRequired": "L'objet est obligatoire.",
+        "subjectTooLong": "L'objet ne peut pas dépasser 200 caractères.",
+        "subjectOneLine": "L'objet doit tenir sur une seule ligne.",
+        "bodyRequired": "Le texte est obligatoire.",
+        "bodyTooLong": "Le texte ne peut pas dépasser 10 000 caractères.",
+        "buttonTooLong": "Le libellé du bouton ne peut pas dépasser 60 caractères.",
+        "fromNameChars": "Le nom ne peut pas contenir les caractères < > ou \".",
+        "fromLocalRequired": "Indiquez la partie avant le @.",
+        "fromLocalChars": "Utilisez seulement des lettres, des chiffres, des points, des tirets et des traits de soulignement.",
+        "fromAddressTooLong": "Adresse trop longue.",
+        "mailbox": "Une seule adresse, sans nom (ex. : info@cliniquemana.ca).",
+        "domain": "Domaine invalide (ex. : gestion.cliniquemana.com)."
+      }
     },
     "organization": {
       "loadError": "Impossible de charger les renseignements de la clinique."
@@ -582,7 +894,11 @@
       "org_module_settings": "Paramètres de module",
       "org_secrets": "Secrets",
       "tax_rates": "Taux de taxes",
-      "organization_bank_details": "Coordonnées bancaires"
+      "organization_bank_details": "Coordonnées bancaires",
+      "org_scheduled_jobs": "Tâches planifiées",
+      "email_settings": "Expéditeur des courriels",
+      "email_templates": "Modèles de courriel",
+      "email_template_versions": "Versions des modèles de courriel"
     },
     "commonFields": {
       "id": "Identifiant",
@@ -667,6 +983,27 @@
         "account_number": "Numéro de compte",
         "account_last4": "Fin du numéro de compte",
         "etransfer_email": "Courriel Interac"
+      },
+      "org_scheduled_jobs": {
+        "job_key": "Tâche",
+        "enabled": "Activée"
+      },
+      "email_settings": {
+        "from_name": "Nom de l'expéditeur",
+        "from_address": "Adresse d'envoi",
+        "reply_to": "Adresse de réponse",
+        "sending_domain": "Domaine d'envoi"
+      },
+      "email_templates": {
+        "key": "Modèle",
+        "subject": "Objet",
+        "body": "Texte",
+        "button_label": "Libellé du bouton",
+        "version": "Version"
+      },
+      "email_template_versions": {
+        "key": "Modèle",
+        "last_version": "Dernière version"
       }
     },
     "actions": {

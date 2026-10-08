@@ -48,6 +48,464 @@ export type Database = {
         }
         Relationships: []
       }
+      document_template_versions: {
+        Row: {
+          archived_at: string | null
+          body: Json
+          created_at: string
+          created_by: string | null
+          email_message: string
+          email_subject: string
+          id: string
+          org_id: string
+          published_at: string | null
+          published_by: string | null
+          signers: Json
+          status: string
+          template_id: string
+          updated_at: string
+          variables: Json
+          version: number
+        }
+        Insert: {
+          archived_at?: string | null
+          body?: Json
+          created_at?: string
+          created_by?: string | null
+          email_message?: string
+          email_subject?: string
+          id?: string
+          org_id: string
+          published_at?: string | null
+          published_by?: string | null
+          signers?: Json
+          status?: string
+          template_id: string
+          updated_at?: string
+          variables?: Json
+          version: number
+        }
+        Update: {
+          archived_at?: string | null
+          body?: Json
+          created_at?: string
+          created_by?: string | null
+          email_message?: string
+          email_subject?: string
+          id?: string
+          org_id?: string
+          published_at?: string | null
+          published_by?: string | null
+          signers?: Json
+          status?: string
+          template_id?: string
+          updated_at?: string
+          variables?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_template_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "document_template_versions_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "document_template_versions_template_id_org_id_fkey"
+            columns: ["template_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "document_templates"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      document_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          edit_permission: string
+          id: string
+          is_active: boolean
+          key: string
+          module_key: string
+          org_id: string
+          title: string
+          updated_at: string
+          view_permission: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          edit_permission: string
+          id?: string
+          is_active?: boolean
+          key: string
+          module_key: string
+          org_id: string
+          title: string
+          updated_at?: string
+          view_permission: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          edit_permission?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          module_key?: string
+          org_id?: string
+          title?: string
+          updated_at?: string
+          view_permission?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "document_templates_edit_permission_module_key_fkey"
+            columns: ["edit_permission", "module_key"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key", "module_key"]
+          },
+          {
+            foreignKeyName: "document_templates_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "document_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_templates_view_permission_module_key_fkey"
+            columns: ["view_permission", "module_key"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key", "module_key"]
+          },
+        ]
+      }
+      email_log: {
+        Row: {
+          attachment_count: number
+          attempts: number
+          created_at: string
+          error_code: string | null
+          id: string
+          last_event_at: string | null
+          module_key: string
+          org_id: string
+          resend_id: string | null
+          sent_at: string | null
+          sent_by: string | null
+          status: string
+          subject_id: string
+          subject_type: string
+          template_key: string
+          template_version: number
+          to_email: string | null
+          to_profile_id: string | null
+          view_permission: string
+        }
+        Insert: {
+          attachment_count?: number
+          attempts?: number
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          last_event_at?: string | null
+          module_key: string
+          org_id: string
+          resend_id?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          subject_id: string
+          subject_type: string
+          template_key: string
+          template_version: number
+          to_email?: string | null
+          to_profile_id?: string | null
+          view_permission: string
+        }
+        Update: {
+          attachment_count?: number
+          attempts?: number
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          last_event_at?: string | null
+          module_key?: string
+          org_id?: string
+          resend_id?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          subject_id?: string
+          subject_type?: string
+          template_key?: string
+          template_version?: number
+          to_email?: string | null
+          to_profile_id?: string | null
+          view_permission?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_log_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "email_log_template_key_fkey"
+            columns: ["template_key"]
+            isOneToOne: false
+            referencedRelation: "email_template_defaults"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "email_log_to_profile_id_fkey"
+            columns: ["to_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "email_log_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      email_settings: {
+        Row: {
+          from_address: string
+          from_name: string
+          org_id: string
+          reply_to: string | null
+          sending_domain: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          from_address: string
+          from_name: string
+          org_id: string
+          reply_to?: string | null
+          sending_domain?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          from_address?: string
+          from_name?: string
+          org_id?: string
+          reply_to?: string | null
+          sending_domain?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      email_template_defaults: {
+        Row: {
+          allows_attachments: boolean
+          body: string
+          button_label: string | null
+          description: string
+          key: string
+          label: string
+          module_key: string
+          recipient_mode: string
+          subject: string
+          updated_at: string
+          variables: Json
+          view_permission: string
+          why_line: string
+        }
+        Insert: {
+          allows_attachments?: boolean
+          body: string
+          button_label?: string | null
+          description: string
+          key: string
+          label: string
+          module_key: string
+          recipient_mode?: string
+          subject: string
+          updated_at?: string
+          variables?: Json
+          view_permission: string
+          why_line: string
+        }
+        Update: {
+          allows_attachments?: boolean
+          body?: string
+          button_label?: string | null
+          description?: string
+          key?: string
+          label?: string
+          module_key?: string
+          recipient_mode?: string
+          subject?: string
+          updated_at?: string
+          variables?: Json
+          view_permission?: string
+          why_line?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_template_defaults_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "email_template_defaults_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      email_template_versions: {
+        Row: {
+          key: string
+          last_version: number
+          org_id: string
+        }
+        Insert: {
+          key: string
+          last_version: number
+          org_id: string
+        }
+        Update: {
+          key?: string
+          last_version?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_template_versions_key_fkey"
+            columns: ["key"]
+            isOneToOne: false
+            referencedRelation: "email_template_defaults"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "email_template_versions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          body: string
+          button_label: string | null
+          key: string
+          org_id: string
+          subject: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          body: string
+          button_label?: string | null
+          key: string
+          org_id: string
+          subject: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          body?: string
+          button_label?: string | null
+          key?: string
+          org_id?: string
+          subject?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_key_fkey"
+            columns: ["key"]
+            isOneToOne: false
+            referencedRelation: "email_template_defaults"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "email_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_templates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       module_dependencies: {
         Row: {
           depends_on: string
@@ -95,6 +553,125 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      notification_reads: {
+        Row: {
+          notification_id: string
+          org_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          notification_id: string
+          org_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          notification_id?: string
+          org_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_reads_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_reads_user_id_org_id_fkey"
+            columns: ["user_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          dedupe_key: string | null
+          expires_at: string | null
+          id: string
+          importance: string
+          kind: string
+          link_path: string | null
+          module_key: string
+          org_id: string
+          recipient_permission: string
+          recipient_user_id: string | null
+          subject_id: string | null
+          subject_type: string | null
+          title: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          expires_at?: string | null
+          id?: string
+          importance?: string
+          kind: string
+          link_path?: string | null
+          module_key: string
+          org_id: string
+          recipient_permission: string
+          recipient_user_id?: string | null
+          subject_id?: string | null
+          subject_type?: string | null
+          title: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          expires_at?: string | null
+          id?: string
+          importance?: string
+          kind?: string
+          link_path?: string | null
+          module_key?: string
+          org_id?: string
+          recipient_permission?: string
+          recipient_user_id?: string | null
+          subject_id?: string | null
+          subject_type?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "notifications_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_permission_fkey"
+            columns: ["recipient_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_user_id_org_id_fkey"
+            columns: ["recipient_user_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+        ]
       }
       org_module_settings: {
         Row: {
@@ -377,6 +954,7 @@ export type Database = {
           gst_number: string | null
           id: string
           legal_name: string | null
+          logo_file_id: string | null
           name: string
           neq: string | null
           phone: string | null
@@ -387,8 +965,10 @@ export type Database = {
           province: string | null
           qst_number: string | null
           record_retention_years: number | null
+          signatory_email: string | null
           signatory_name: string | null
           signatory_title: string | null
+          signature_file_id: string | null
           timezone: string
           updated_at: string
           website: string | null
@@ -405,6 +985,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           legal_name?: string | null
+          logo_file_id?: string | null
           name: string
           neq?: string | null
           phone?: string | null
@@ -415,8 +996,10 @@ export type Database = {
           province?: string | null
           qst_number?: string | null
           record_retention_years?: number | null
+          signatory_email?: string | null
           signatory_name?: string | null
           signatory_title?: string | null
+          signature_file_id?: string | null
           timezone?: string
           updated_at?: string
           website?: string | null
@@ -433,6 +1016,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           legal_name?: string | null
+          logo_file_id?: string | null
           name?: string
           neq?: string | null
           phone?: string | null
@@ -443,13 +1027,30 @@ export type Database = {
           province?: string | null
           qst_number?: string | null
           record_retention_years?: number | null
+          signatory_email?: string | null
           signatory_name?: string | null
           signatory_title?: string | null
+          signature_file_id?: string | null
           timezone?: string
           updated_at?: string
           website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "organizations_logo_file_id_fkey"
+            columns: ["logo_file_id"]
+            isOneToOne: false
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizations_signature_file_id_fkey"
+            columns: ["signature_file_id"]
+            isOneToOne: false
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       permissions: {
         Row: {
@@ -598,6 +1199,54 @@ export type Database = {
           },
         ]
       }
+      scheduled_job_dispatches: {
+        Row: {
+          dispatched_at: string
+          id: number
+          job_key: string
+          org_id: string | null
+          outcome: string | null
+          reconciled_at: string | null
+          request_id: number
+          trigger: string
+        }
+        Insert: {
+          dispatched_at?: string
+          id?: never
+          job_key: string
+          org_id?: string | null
+          outcome?: string | null
+          reconciled_at?: string | null
+          request_id: number
+          trigger: string
+        }
+        Update: {
+          dispatched_at?: string
+          id?: never
+          job_key?: string
+          org_id?: string | null
+          outcome?: string | null
+          reconciled_at?: string | null
+          request_id?: number
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_job_dispatches_job_key_fkey"
+            columns: ["job_key"]
+            isOneToOne: false
+            referencedRelation: "scheduled_jobs"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "scheduled_job_dispatches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_job_runs: {
         Row: {
           detail: string | null
@@ -655,6 +1304,7 @@ export type Database = {
           cron_job_name: string | null
           description: string
           function_name: string | null
+          is_active: boolean
           is_maintenance: boolean
           key: string
           kind: string
@@ -668,6 +1318,7 @@ export type Database = {
           cron_job_name?: string | null
           description: string
           function_name?: string | null
+          is_active?: boolean
           is_maintenance?: boolean
           key: string
           kind: string
@@ -681,6 +1332,7 @@ export type Database = {
           cron_job_name?: string | null
           description?: string
           function_name?: string | null
+          is_active?: boolean
           is_maintenance?: boolean
           key?: string
           kind?: string
@@ -695,6 +1347,605 @@ export type Database = {
             columns: ["module_key"]
             isOneToOne: false
             referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      secure_link_purposes: {
+        Row: {
+          accept_rpc: string | null
+          created_at: string
+          creates_account: boolean
+          default_ttl: string
+          key: string
+          max_ttl: string
+          max_uses: number
+          module_key: string
+          requires_session: boolean
+          resolve_rpc: string
+          view_permission: string
+        }
+        Insert: {
+          accept_rpc?: string | null
+          created_at?: string
+          creates_account?: boolean
+          default_ttl: string
+          key: string
+          max_ttl: string
+          max_uses?: number
+          module_key: string
+          requires_session?: boolean
+          resolve_rpc: string
+          view_permission: string
+        }
+        Update: {
+          accept_rpc?: string | null
+          created_at?: string
+          creates_account?: boolean
+          default_ttl?: string
+          key?: string
+          max_ttl?: string
+          max_uses?: number
+          module_key?: string
+          requires_session?: boolean
+          resolve_rpc?: string
+          view_permission?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secure_link_purposes_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "secure_link_purposes_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      secure_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          last_opened_at: string | null
+          max_uses: number
+          org_id: string
+          purpose: string
+          revoked_at: string | null
+          revoked_by: string | null
+          scope: Json
+          subject_id: string
+          subject_type: string
+          token_hash: string
+          updated_at: string
+          use_count: number
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          last_opened_at?: string | null
+          max_uses: number
+          org_id: string
+          purpose: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope?: Json
+          subject_id: string
+          subject_type: string
+          token_hash: string
+          updated_at?: string
+          use_count?: number
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          last_opened_at?: string | null
+          max_uses?: number
+          org_id?: string
+          purpose?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope?: Json
+          subject_id?: string
+          subject_type?: string
+          token_hash?: string
+          updated_at?: string
+          use_count?: number
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secure_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "secure_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "secure_links_purpose_fkey"
+            columns: ["purpose"]
+            isOneToOne: false
+            referencedRelation: "secure_link_purposes"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "secure_links_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      signature_request_signers: {
+        Row: {
+          created_at: string
+          documenso_recipient_id: string | null
+          email: string
+          id: string
+          name: string
+          org_id: string
+          rejected_at: string | null
+          request_id: string
+          role: string
+          signed_at: string | null
+          signing_order: number
+          status: string
+          updated_at: string
+          viewed_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          documenso_recipient_id?: string | null
+          email: string
+          id?: string
+          name: string
+          org_id: string
+          rejected_at?: string | null
+          request_id: string
+          role: string
+          signed_at?: string | null
+          signing_order: number
+          status?: string
+          updated_at?: string
+          viewed_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          documenso_recipient_id?: string | null
+          email?: string
+          id?: string
+          name?: string
+          org_id?: string
+          rejected_at?: string | null
+          request_id?: string
+          role?: string
+          signed_at?: string | null
+          signing_order?: number
+          status?: string
+          updated_at?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_request_signers_request_id_org_id_fkey"
+            columns: ["request_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "signature_requests"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      signature_requests: {
+        Row: {
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          documenso_document_id: string | null
+          envelope_id: string | null
+          expired_at: string | null
+          expires_at: string | null
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          module_key: string
+          org_id: string
+          purpose: string
+          rejected_at: string | null
+          rejection_reason: string | null
+          sent_at: string | null
+          sent_by: string | null
+          signed_file_id: string | null
+          signed_sha256: string | null
+          source_file_id: string | null
+          status: string
+          subject_id: string
+          subject_type: string
+          template_version_id: string | null
+          title: string
+          updated_at: string
+          view_permission: string
+          viewed_at: string | null
+        }
+        Insert: {
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          documenso_document_id?: string | null
+          envelope_id?: string | null
+          expired_at?: string | null
+          expires_at?: string | null
+          id?: string
+          idempotency_key: string
+          last_error?: string | null
+          module_key: string
+          org_id: string
+          purpose: string
+          rejected_at?: string | null
+          rejection_reason?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          signed_file_id?: string | null
+          signed_sha256?: string | null
+          source_file_id?: string | null
+          status?: string
+          subject_id: string
+          subject_type: string
+          template_version_id?: string | null
+          title: string
+          updated_at?: string
+          view_permission: string
+          viewed_at?: string | null
+        }
+        Update: {
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          documenso_document_id?: string | null
+          envelope_id?: string | null
+          expired_at?: string | null
+          expires_at?: string | null
+          id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          module_key?: string
+          org_id?: string
+          purpose?: string
+          rejected_at?: string | null
+          rejection_reason?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          signed_file_id?: string | null
+          signed_sha256?: string | null
+          source_file_id?: string | null
+          status?: string
+          subject_id?: string
+          subject_type?: string
+          template_version_id?: string | null
+          title?: string
+          updated_at?: string
+          view_permission?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_requests_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "signature_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_sent_by_org_id_fkey"
+            columns: ["sent_by", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+          {
+            foreignKeyName: "signature_requests_signed_file_id_fkey"
+            columns: ["signed_file_id"]
+            isOneToOne: false
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_source_file_id_fkey"
+            columns: ["source_file_id"]
+            isOneToOne: false
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_template_version_id_org_id_fkey"
+            columns: ["template_version_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "document_template_versions"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "signature_requests_view_permission_module_key_fkey"
+            columns: ["view_permission", "module_key"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key", "module_key"]
+          },
+        ]
+      }
+      signing_settings: {
+        Row: {
+          base_url: string | null
+          expiry_days: number
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          base_url?: string | null
+          expiry_days?: number
+          org_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          base_url?: string | null
+          expiry_days?: number
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signing_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signing_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      staff_invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_user_id: string | null
+          created_at: string
+          display_name: string
+          email: string
+          id: string
+          invited_by: string | null
+          org_id: string
+          role: string | null
+          secure_link_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_user_id?: string | null
+          created_at?: string
+          display_name: string
+          email: string
+          id?: string
+          invited_by?: string | null
+          org_id: string
+          role?: string | null
+          secure_link_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_user_id?: string | null
+          created_at?: string
+          display_name?: string
+          email?: string
+          id?: string
+          invited_by?: string | null
+          org_id?: string
+          role?: string | null
+          secure_link_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_invitations_accepted_user_id_fkey"
+            columns: ["accepted_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "staff_invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "staff_invitations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_invitations_role_fkey"
+            columns: ["role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "staff_invitations_secure_link_id_fkey"
+            columns: ["secure_link_id"]
+            isOneToOne: true
+            referencedRelation: "secure_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stored_files: {
+        Row: {
+          bucket: string
+          confirmed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          ext: string
+          id: string
+          mime_type: string
+          module_key: string
+          object_path: string
+          org_id: string
+          original_name: string
+          owner_permission: string | null
+          owner_profile_id: string | null
+          purpose: string
+          retain_until: string | null
+          sha256: string | null
+          size_bytes: number
+          status: string
+          subject_id: string
+          subject_type: string
+          updated_at: string
+          uploaded_by: string | null
+          view_permission: string | null
+        }
+        Insert: {
+          bucket: string
+          confirmed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          ext: string
+          id?: string
+          mime_type: string
+          module_key: string
+          object_path: string
+          org_id: string
+          original_name: string
+          owner_permission?: string | null
+          owner_profile_id?: string | null
+          purpose: string
+          retain_until?: string | null
+          sha256?: string | null
+          size_bytes: number
+          status?: string
+          subject_id: string
+          subject_type: string
+          updated_at?: string
+          uploaded_by?: string | null
+          view_permission?: string | null
+        }
+        Update: {
+          bucket?: string
+          confirmed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          ext?: string
+          id?: string
+          mime_type?: string
+          module_key?: string
+          object_path?: string
+          org_id?: string
+          original_name?: string
+          owner_permission?: string | null
+          owner_profile_id?: string | null
+          purpose?: string
+          retain_until?: string | null
+          sha256?: string | null
+          size_bytes?: number
+          status?: string
+          subject_id?: string
+          subject_type?: string
+          updated_at?: string
+          uploaded_by?: string | null
+          view_permission?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stored_files_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "stored_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stored_files_owner_permission_fkey"
+            columns: ["owner_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "stored_files_owner_profile_id_org_id_fkey"
+            columns: ["owner_profile_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+          {
+            foreignKeyName: "stored_files_purpose_module_key_bucket_fkey"
+            columns: ["purpose", "module_key", "bucket"]
+            isOneToOne: false
+            referencedRelation: "upload_purposes"
+            referencedColumns: ["key", "module_key", "bucket"]
+          },
+          {
+            foreignKeyName: "stored_files_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "stored_files_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
             referencedColumns: ["key"]
           },
         ]
@@ -744,6 +1995,77 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      upload_purposes: {
+        Row: {
+          bucket: string
+          created_at: string
+          key: string
+          max_bytes: number
+          max_image_side: number | null
+          mime_types: string[]
+          module_key: string
+          owner_permission: string | null
+          retain_days: number | null
+          upload_permission: string
+          view_permission: string | null
+        }
+        Insert: {
+          bucket: string
+          created_at?: string
+          key: string
+          max_bytes: number
+          max_image_side?: number | null
+          mime_types: string[]
+          module_key: string
+          owner_permission?: string | null
+          retain_days?: number | null
+          upload_permission: string
+          view_permission?: string | null
+        }
+        Update: {
+          bucket?: string
+          created_at?: string
+          key?: string
+          max_bytes?: number
+          max_image_side?: number | null
+          mime_types?: string[]
+          module_key?: string
+          owner_permission?: string | null
+          retain_days?: number | null
+          upload_permission?: string
+          view_permission?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "upload_purposes_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "upload_purposes_owner_permission_fkey"
+            columns: ["owner_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "upload_purposes_upload_permission_fkey"
+            columns: ["upload_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "upload_purposes_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
           },
         ]
       }
@@ -896,10 +2218,42 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_staff_invitation: {
+        Args: { p_payload: Json; p_token_hash: string; p_user_id: string }
+        Returns: Json
+      }
       add_tax_rate: {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
         Returns: string
       }
+      apply_email_event: {
+        Args: {
+          p_at: string
+          p_email_log_id: string
+          p_org_id: string
+          p_resend_id: string
+          p_status: string
+        }
+        Returns: string
+      }
+      apply_signing_event: {
+        Args: {
+          p_at: string
+          p_documenso_document_id: string
+          p_event: string
+          p_org_id: string
+          p_reason: string
+          p_recipient_id: string
+          p_request_id: string
+        }
+        Returns: {
+          module_key: string
+          needs_download: boolean
+          outcome: string
+          request_id: string
+        }[]
+      }
+      archive_template_version: { Args: { p_id: string }; Returns: undefined }
       claim_webhook_event: {
         Args: {
           p_event_id: string
@@ -923,9 +2277,21 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: number
       }
+      complete_signature_request: {
+        Args: {
+          p_id: string
+          p_signed_file_id: string
+          p_signed_sha256: string
+        }
+        Returns: undefined
+      }
       complete_webhook_event: {
         Args: { p_claim_token: string; p_id: string }
         Returns: boolean
+      }
+      confirm_stored_file: {
+        Args: { p_file_id: string; p_sha256: string; p_size_bytes: number }
+        Returns: undefined
       }
       consume_rate_limit: {
         Args: {
@@ -940,13 +2306,91 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      count_my_unread_notifications: {
+        Args: never
+        Returns: {
+          important: number
+          total: number
+        }[]
+      }
+      count_org_emails_today: { Args: { p_org_id: string }; Returns: number }
+      create_document_template: {
+        Args: {
+          p_description: string
+          p_edit_permission: string
+          p_key: string
+          p_module_key: string
+          p_title: string
+          p_view_permission: string
+        }
+        Returns: string
+      }
+      create_notification: {
+        Args: {
+          p_body: string
+          p_dedupe_key?: string
+          p_expires_at?: string
+          p_importance: string
+          p_kind: string
+          p_link_path: string
+          p_module_key: string
+          p_org_id: string
+          p_recipient_permission: string
+          p_recipient_user_id?: string
+          p_subject_id: string
+          p_subject_type: string
+          p_title: string
+        }
+        Returns: string
+      }
+      create_pending_upload: {
+        Args: {
+          p_mime_type: string
+          p_original_name: string
+          p_purpose: string
+          p_size_bytes: number
+          p_subject_id: string
+          p_subject_type: string
+        }
+        Returns: {
+          bucket: string
+          file_id: string
+          object_path: string
+        }[]
+      }
       create_role: {
         Args: { p_copy_from?: string; p_name: string }
+        Returns: string
+      }
+      create_signature_request: {
+        Args: { p: Json }
+        Returns: {
+          existing: boolean
+          id: string
+          status: string
+        }[]
+      }
+      create_staff_invitation: {
+        Args: {
+          p_actor: string
+          p_display_name: string
+          p_email: string
+          p_role: string
+          p_token_hash: string
+        }
+        Returns: {
+          expires_at: string
+          id: string
+        }[]
+      }
+      create_template_version: {
+        Args: { p_template_id: string }
         Returns: string
       }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_role: { Args: { p_role: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
+      expire_signature_request: { Args: { p_id: string }; Returns: boolean }
       fail_webhook_event: {
         Args: { p_claim_token: string; p_error: string; p_id: string }
         Returns: boolean
@@ -966,10 +2410,48 @@ export type Database = {
           updated_by_name: string
         }[]
       }
+      get_email_context: {
+        Args: { p_org_id: string; p_template_key: string }
+        Returns: Json
+      }
       get_my_access: { Args: never; Returns: Json }
       get_org_secret: {
         Args: { p_key: string; p_org_id: string }
         Returns: string
+      }
+      get_pending_upload: {
+        Args: { p_file_id: string }
+        Returns: {
+          bucket: string
+          max_bytes: number
+          max_image_side: number
+          mime_type: string
+          object_path: string
+          size_bytes: number
+        }[]
+      }
+      get_signature_request: {
+        Args: { p_id: string }
+        Returns: {
+          completed_at: string
+          documenso_document_id: string
+          envelope_id: string
+          expires_at: string
+          id: string
+          last_error: string
+          module_key: string
+          org_id: string
+          purpose: string
+          sent_at: string
+          status: string
+          subject_id: string
+          subject_type: string
+          title: string
+        }[]
+      }
+      get_signing_context: {
+        Args: { p_org_id: string; p_template_version_id: string }
+        Returns: Json
       }
       last_webhook_event_at: { Args: { p_provider: string }; Returns: string }
       list_audit_actors: {
@@ -1001,6 +2483,74 @@ export type Database = {
           table_name: string
         }[]
       }
+      list_document_templates: {
+        Args: { p_module_key?: string }
+        Returns: {
+          can_edit: boolean
+          description: string
+          draft_version_id: string
+          edit_permission: string
+          id: string
+          is_active: boolean
+          key: string
+          module_key: string
+          published_at: string
+          published_version: number
+          published_version_id: string
+          title: string
+          updated_at: string
+          view_permission: string
+        }[]
+      }
+      list_email_log: {
+        Args: {
+          p_before?: string
+          p_before_id?: string
+          p_from?: string
+          p_limit?: number
+          p_status?: string
+          p_template_key?: string
+          p_to?: string
+        }
+        Returns: {
+          created_at: string
+          error_code: string
+          id: string
+          last_event_at: string
+          sent_at: string
+          status: string
+          subject_id: string
+          subject_type: string
+          template_key: string
+          template_label: string
+          to_email: string
+        }[]
+      }
+      list_email_templates: {
+        Args: never
+        Returns: {
+          body: string
+          button_label: string
+          description: string
+          is_custom: boolean
+          key: string
+          label: string
+          module_key: string
+          subject: string
+          updated_at: string
+          updated_by_name: string
+          variables: Json
+          version: number
+        }[]
+      }
+      list_files_to_purge: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          bucket: string
+          id: string
+          object_path: string
+        }[]
+      }
       list_job_orgs: { Args: { p_key: string }; Returns: string[] }
       list_modules: {
         Args: never
@@ -1009,6 +2559,28 @@ export type Database = {
           enabled: boolean
           key: string
           name: string
+        }[]
+      }
+      list_my_notifications: {
+        Args: {
+          p_before?: string
+          p_before_id?: string
+          p_importance?: string
+          p_limit?: number
+          p_unread_only?: boolean
+        }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          importance: string
+          is_read: boolean
+          kind: string
+          link_path: string
+          module_key: string
+          subject_id: string
+          subject_type: string
+          title: string
         }[]
       }
       list_org_secret_keys: {
@@ -1032,7 +2604,12 @@ export type Database = {
         }[]
       }
       list_scheduled_job_runs: {
-        Args: { p_before?: string; p_job_key?: string; p_limit?: number }
+        Args: {
+          p_before?: string
+          p_before_id?: string
+          p_job_key?: string
+          p_limit?: number
+        }
         Returns: {
           detail: string
           finished_at: string
@@ -1059,17 +2636,188 @@ export type Database = {
           schedule: string
         }[]
       }
+      list_signature_requests_to_reconcile: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          action: string
+          documenso_document_id: string
+          envelope_id: string
+          expires_at: string
+          id: string
+          module_key: string
+          status: string
+        }[]
+      }
+      list_staff_invitations: {
+        Args: never
+        Returns: {
+          created_at: string
+          display_name: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by_name: string
+          is_expired: boolean
+          last_email_at: string
+          last_email_error_code: string
+          last_email_status: string
+          role: string
+          role_name: string
+          status: string
+        }[]
+      }
+      list_subject_emails: {
+        Args: { p_limit?: number; p_subject_id: string; p_subject_type: string }
+        Returns: {
+          created_at: string
+          error_code: string
+          id: string
+          last_event_at: string
+          sent_at: string
+          sent_by: string
+          sent_by_name: string
+          status: string
+          template_key: string
+          template_label: string
+          to_email: string
+        }[]
+      }
+      list_subject_signature_requests: {
+        Args: {
+          p_before?: string
+          p_before_id?: string
+          p_limit?: number
+          p_subject_id: string
+          p_subject_type: string
+        }
+        Returns: {
+          cancelled_at: string
+          completed_at: string
+          created_at: string
+          expired_at: string
+          expires_at: string
+          id: string
+          last_error: string
+          module_key: string
+          purpose: string
+          rejected_at: string
+          rejection_reason: string
+          sent_at: string
+          sent_by: string
+          signed_file_id: string
+          signers: Json
+          status: string
+          template_version: number
+          template_version_id: string
+          title: string
+          viewed_at: string
+        }[]
+      }
+      mark_all_notifications_read: { Args: never; Returns: undefined }
+      mark_email_failed: {
+        Args: { p_attempts: number; p_error_code: string; p_id: string }
+        Returns: undefined
+      }
+      mark_email_sent: {
+        Args: { p_attempts: number; p_id: string; p_resend_id: string }
+        Returns: undefined
+      }
+      mark_files_purged: {
+        Args: { p_ids: string[]; p_org_id: string }
+        Returns: number
+      }
+      mark_notifications_read: { Args: { p_ids: string[] }; Returns: undefined }
+      mark_signature_request_failed: {
+        Args: {
+          p_documenso_document_id?: string
+          p_envelope_id?: string
+          p_error_code: string
+          p_id: string
+        }
+        Returns: undefined
+      }
+      mark_signature_request_sent: {
+        Args: {
+          p_documenso_document_id: string
+          p_envelope_id: string
+          p_expires_at: string
+          p_id: string
+          p_signer_recipients: Json
+          p_source_file_id: string
+        }
+        Returns: undefined
+      }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
       }
+      peek_secure_link: {
+        Args: { p_mark_opened: boolean; p_token_hash: string }
+        Returns: Json
+      }
+      publish_template_version: { Args: { p_id: string }; Returns: undefined }
+      queue_email: {
+        Args: {
+          p_attachment_count: number
+          p_org_id: string
+          p_sent_by: string
+          p_subject_id: string
+          p_subject_type: string
+          p_template_key: string
+          p_template_version: number
+          p_to_email: string
+          p_to_profile_id: string
+          p_view_permission: string
+        }
+        Returns: string
+      }
+      register_system_file: {
+        Args: {
+          p_bucket: string
+          p_mime_type: string
+          p_module_key: string
+          p_org_id: string
+          p_original_name: string
+          p_purpose: string
+          p_sha256: string
+          p_size_bytes: number
+          p_subject_id: string
+          p_subject_type: string
+          p_view_permission: string
+        }
+        Returns: {
+          file_id: string
+          object_path: string
+        }[]
+      }
+      reject_stored_file: { Args: { p_file_id: string }; Returns: undefined }
       rename_role: {
         Args: { p_name: string; p_role: string }
         Returns: undefined
       }
+      renew_staff_invitation: {
+        Args: { p_actor: string; p_id: string; p_token_hash: string }
+        Returns: {
+          display_name: string
+          email: string
+          expires_at: string
+        }[]
+      }
+      reset_email_template: { Args: { p_key: string }; Returns: undefined }
+      resolve_staff_invitation: { Args: { p_link_id: string }; Returns: Json }
       reveal_bank_account_number: { Args: never; Returns: string }
+      revoke_staff_invitation: { Args: { p_id: string }; Returns: undefined }
       run_scheduled_job_now: { Args: { p_key: string }; Returns: undefined }
+      save_email_template: {
+        Args: {
+          p_body: string
+          p_button_label: string
+          p_key: string
+          p_subject: string
+        }
+        Returns: undefined
+      }
       set_bank_details: {
         Args: {
           p_account_number: string
@@ -1079,8 +2827,24 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_email_sender: {
+        Args: {
+          p_from_address: string
+          p_from_name: string
+          p_reply_to: string
+        }
+        Returns: undefined
+      }
+      set_email_sending_domain: {
+        Args: { p_domain: string }
+        Returns: undefined
+      }
       set_module_enabled: {
         Args: { p_enabled: boolean; p_key: string }
+        Returns: undefined
+      }
+      set_org_asset: {
+        Args: { p_file_id: string; p_kind: string }
         Returns: undefined
       }
       set_org_secret: {
@@ -1103,6 +2867,10 @@ export type Database = {
         Args: { p_enabled: boolean; p_key: string }
         Returns: undefined
       }
+      set_signing_settings: {
+        Args: { p_base_url: string; p_expiry_days: number }
+        Returns: undefined
+      }
       set_user_role: {
         Args: { p_role: string; p_user_id: string }
         Returns: undefined
@@ -1116,6 +2884,17 @@ export type Database = {
         Returns: string
       }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
+      update_template_version: {
+        Args: {
+          p_body: Json
+          p_email_message: string
+          p_email_subject: string
+          p_id: string
+          p_signers: Json
+          p_variables: Json
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

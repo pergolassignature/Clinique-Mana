@@ -28,6 +28,15 @@ import {
 } from '@supabase/supabase-js'
 import { timingSafeEqual } from './timing-safe-equal.ts'
 
+/**
+ * Error codes stay English; the UI maps each one to a French text (P3-28).
+ * Usual statuses: `invalid_request` 400 (413 for a body over the cap),
+ * `missing_variable` 400 (a template value is missing), `unauthenticated`
+ * 401, `forbidden` / `module_disabled` 403, `not_found` 404, `conflict` 409,
+ * `link_invalid` / `link_expired` / `link_used` 410, `rate_limited` 429,
+ * `server_misconfigured` / `internal` 500, `provider_error` 502,
+ * `auth_unavailable` / `not_configured` 503.
+ */
 export type ErrorCode =
   | 'unauthenticated'
   | 'forbidden'
@@ -35,6 +44,16 @@ export type ErrorCode =
   | 'server_misconfigured'
   | 'auth_unavailable'
   | 'internal'
+  | 'rate_limited'
+  | 'invalid_request'
+  | 'link_invalid'
+  | 'link_expired'
+  | 'link_used'
+  | 'conflict'
+  | 'not_found'
+  | 'provider_error'
+  | 'not_configured'
+  | 'missing_variable'
 
 // ---------------------------------------------------------------------------
 // CORS and responses
@@ -57,6 +76,8 @@ export function corsHeaders(req?: Request): Record<string, string> {
     'Access-Control-Allow-Headers':
       'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    // A 429's `Retry-After` must be readable by the app (« Réessayez dans … »).
+    'Access-Control-Expose-Headers': 'Retry-After',
   }
   const allowed = allowedOrigins()
   if (allowed === null) {
@@ -126,6 +147,8 @@ function misconfigured(what: string, req?: Request): Response {
 export interface CallerAccess {
   user_id: string
   org_id: string
+  /** `profiles.email` (copied from Auth): the caller's own address. */
+  email: string
   status: 'active'
   role: string | null
   permissions: string[]
@@ -183,6 +206,7 @@ export function evaluateAccess(
     Array.isArray(a) ||
     typeof a.user_id !== 'string' ||
     typeof a.org_id !== 'string' ||
+    typeof a.email !== 'string' ||
     !Array.isArray(a.permissions) ||
     !Array.isArray(a.modules)
   ) {
@@ -283,7 +307,8 @@ export async function authorizeCaller(
 /**
  * Verifies the caller's JWT, requires an active profile, and optionally a
  * permission key and an enabled module. Returns AuthResult, or a Response to
- * return immediately.
+ * return immediately. `makeClient` builds the caller's client (a handler
+ * passes `deps.userClient`); it defaults to `getUserClient`.
  *
  * @example
  * const auth = await verifyAuth(req, { permission: 'professionals.view', module: 'professionals' })
@@ -292,6 +317,8 @@ export async function authorizeCaller(
 export async function verifyAuth(
   req: Request,
   options: AccessOptions = {},
+  makeClient: (token: string) => SupabaseClient | Response = (token) =>
+    getUserClient(token, req),
 ): Promise<AuthResult | Response> {
   const token = bearerToken(req)
   if (!token) {
@@ -302,7 +329,7 @@ export async function verifyAuth(
       req,
     )
   }
-  const client = getUserClient(token, req)
+  const client = makeClient(token)
   if (client instanceof Response) return client
   return await authorizeCaller(client, token, options, req)
 }
@@ -340,10 +367,17 @@ export function serviceKeys(): string[] {
 }
 
 /**
- * For internal-only functions (cron, other functions). Contract: the caller
- * sends `Authorization: Bearer <key>` with one of `serviceKeys()`.
+ * For internal-only functions called by a holder of a service key (another
+ * function, an operator script). Contract: the caller sends
+ * `Authorization: Bearer <key>` with one of `serviceKeys()`.
  * Returns null when authorised, otherwise a Response. Fails closed (500) when
  * no key is configured. Every key is compared in constant time.
+ *
+ * **Never for `pg_net` callers** (cron, « Exécuter maintenant »): pg_net keeps
+ * queued request headers in `net.http_request_queue`, readable by every
+ * database role, so a bearer sent from SQL leaks. Scheduled jobs verify a
+ * short-lived `X-Job-Signature` instead (`runJob` in `jobs.ts`). No function
+ * calls this one today.
  */
 export function verifyServiceRoleAuth(req: Request): Response | null {
   const keys = serviceKeys()

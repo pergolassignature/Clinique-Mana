@@ -1,8 +1,10 @@
 import {
   Blocks,
   Building2,
+  CalendarClock,
   Globe,
   Landmark,
+  Mail,
   PenLine,
   Percent,
   ScrollText,
@@ -102,5 +104,27 @@ export const coreSettingsSections: SettingsSection[] = [
     permission: 'audit.view',
     group: 'plateforme',
     component: lazyPage(() => import('./pages/AuditLogPage'), 'AuditLogPage'),
+  },
+  {
+    id: 'jobs',
+    path: 'taches-planifiees',
+    labelKey: 'settings.sections.jobs',
+    icon: CalendarClock,
+    permission: 'settings.view',
+    editPermission: 'settings.manage',
+    group: 'plateforme',
+    component: lazyPage(() => import('./pages/ScheduledJobsSettingsPage'), 'ScheduledJobsSettingsPage'),
+  },
+  {
+    id: 'email',
+    path: 'courriels',
+    labelKey: 'settings.sections.email',
+    icon: Mail,
+    permission: 'settings.view',
+    // Any of them: the sender and templates follow settings.email_manage, the keys
+    // settings.integrations_manage (EmailSettingsPage); read-only (the lock) only without either.
+    editPermission: ['settings.email_manage', 'settings.integrations_manage'],
+    group: 'plateforme',
+    component: lazyPage(() => import('./pages/EmailSettingsPage'), 'EmailSettingsPage'),
   },
 ]

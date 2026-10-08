@@ -51,6 +51,9 @@ const absolute = (path: string) => `${window.location.origin}${path}`
 /** Where an explicit sign-out lands (decision #17). */
 const LOGIN_PATH = '/connexion'
 
+// TRANSITION (Phase 3, ADR 0006 amendment): emails now link to /connexion/confirmer?token_hash=…
+// Remove this reader one release after the new templates are live on staging.
+//
 // auth-js emits PASSWORD_RECOVERY once, possibly before our listener is registered, so the
 // recovery link's URL hash (implicit flow) is read when this module is evaluated. That is always
 // before auth-js strips it: auth-js clears the hash only after awaiting the server (auth-js 2.90).
@@ -245,6 +248,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         forgetSessionState()
         setReloadToLogin(true)
         return null
+      },
+      // The page sets the recovery marker from the returned token: PASSWORD_RECOVERY (emitted by
+      // verifyOtp for type 'recovery') reaches this tab only, possibly after the guard has run.
+      verifyEmailLink: async (tokenHash, type) => {
+        const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
+        if (!error) return { ok: true, sessionAccessToken: data.session?.access_token ?? null }
+        // GoTrue answers 403 otp_expired for an expired, used or unknown token alike.
+        const code = error.code === 'otp_expired' || (!error.code && error.status === 403) ? 'link_invalid' : (toCode(error) ?? 'unknown')
+        return { ok: false, code }
       },
     }
   }, [session, isLoading, isRecovery, signedOutHere])

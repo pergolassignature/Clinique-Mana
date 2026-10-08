@@ -2,18 +2,46 @@
   "version": "5",
   "specifiers": {
     "jsr:@std/assert@1.0.19": "1.0.19",
+    "jsr:@std/assert@^1.0.19": "1.0.19",
+    "jsr:@std/fs@^1.0.24": "1.0.24",
     "jsr:@std/internal@^1.0.12": "1.0.14",
-    "npm:@supabase/supabase-js@2.90.1": "2.90.1"
+    "jsr:@std/internal@^1.0.14": "1.0.14",
+    "jsr:@std/path@^1.1.5": "1.1.6",
+    "jsr:@std/path@^1.1.6": "1.1.6",
+    "jsr:@std/testing@1.0.21": "1.0.21",
+    "npm:@supabase/supabase-js@2.90.1": "2.90.1",
+    "npm:zod@4.3.5": "4.3.5"
   },
   "jsr": {
     "@std/assert@1.0.19": {
       "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
       "dependencies": [
-        "jsr:@std/internal"
+        "jsr:@std/internal@^1.0.12"
+      ]
+    },
+    "@std/fs@1.0.24": {
+      "integrity": "f3061b45b81673a2bece689da041df32d174be064c89eb6397fb5718d3fb7877",
+      "dependencies": [
+        "jsr:@std/path@^1.1.5"
       ]
     },
     "@std/internal@1.0.14": {
       "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    },
+    "@std/path@1.1.6": {
+      "integrity": "c68485c2a4dfbb5ae3cc74fae4e8c4e5d874cf8a8ed12927917235c758b46cbe",
+      "dependencies": [
+        "jsr:@std/internal@^1.0.14"
+      ]
+    },
+    "@std/testing@1.0.21": {
+      "integrity": "a0d14b2519005242821565091127c7d6fa96ca1b330e84e9249afcd602ee764f",
+      "dependencies": [
+        "jsr:@std/assert@^1.0.19",
+        "jsr:@std/fs",
+        "jsr:@std/internal@^1.0.14",
+        "jsr:@std/path@^1.1.6"
+      ]
     }
   },
   "npm": {
@@ -87,12 +115,17 @@
     },
     "ws@8.22.0": {
       "integrity": "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg=="
+    },
+    "zod@4.3.5": {
+      "integrity": "sha512-k7Nwx6vuWx1IJ9Bjuf4Zt1PEllcwe7cls3VNzm4CQ1/hgtFUK2bRNG3rvnpPUhFjmqJKAKtjV576KnUkHocg/g=="
     }
   },
   "workspace": {
     "dependencies": [
       "jsr:@std/assert@1.0.19",
-      "npm:@supabase/supabase-js@2.90.1"
+      "jsr:@std/testing@1.0.21",
+      "npm:@supabase/supabase-js@2.90.1",
+      "npm:zod@4.3.5"
     ]
   }
 }

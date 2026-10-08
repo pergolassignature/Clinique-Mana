@@ -50,14 +50,18 @@ minimum_password_length = 10
 # `[auth] enable_signup = false` (GOTRUE_DISABLE_SIGNUP); accounts come from invitations.
 enable_signup = true
 # Sends a confirmation email to both the old and the new address on an email change.
-# Locally (autoconfirm on) the new-address link alone completed the change: two-address
-# enforcement is NOT proven here and must be verified on staging (plan Task 1.21).
+# Locally (autoconfirm on) ONE link completes the change: the new-address link alone (Task 1.21),
+# and the old-address link alone (Task 3.16, through /connexion/confirmer); the other link is then
+# refused. Two-address enforcement is NOT proven here and must be verified on staging.
 # Keep the same value on staging/production.
 double_confirm_changes = true
 secure_password_change = true
 enable_confirmations = false
 
 # Auth email templates, in French with the clinic's identity (supabase/templates/).
+# All but invite.html are GENERATED from supabase/functions/_shared/email/auth-templates.ts
+# (npm run build:auth-templates; CI checks they match). Edit the source, not the HTML.
+# The subjects below must equal AUTH_SUBJECTS there (the build checks it).
 # Staging/production: paste the same subject + HTML in Dashboard → Authentication → Emails
 # → Templates (config.toml is not pushed to remote projects). Keep both in sync.
 [auth.email.template.recovery]
@@ -95,3 +99,12 @@ sql_paths = ["./seed.sql"]
 
 [analytics]
 enabled = false
+
+# Edge functions. `verify_jwt = false` only for functions that authenticate themselves
+# (verifyAuth, a webhook signature or X-Job-Signature; CLAUDE.md §7).
+[functions.email-preview]
+verify_jwt = false
+[functions.email-test-send]
+verify_jwt = false
+[functions.resend-webhook]
+verify_jwt = false

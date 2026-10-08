@@ -1,9 +1,15 @@
 {
   "imports": {
     "@std/assert": "jsr:@std/assert@1.0.19",
-    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.90.1"
+    "@std/testing": "jsr:@std/testing@1.0.21",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.90.1",
+    "zod": "npm:zod@4.3.5"
+  },
+  "lint": {
+    "exclude": ["_shared/pdf/vendor/pdfmake.js"]
   },
   "fmt": {
+    "exclude": ["_shared/pdf/vendor/pdfmake.js"],
     "semiColons": false,
     "singleQuote": true,
     "indentWidth": 2,
