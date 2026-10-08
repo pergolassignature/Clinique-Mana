@@ -1,5 +1,7 @@
 import { Controller } from 'react-hook-form'
 import { t } from '@/i18n'
+import { addressAutofill } from '@/core/address/autofill'
+import { AddressAutocomplete } from '@/core/address/components/AddressAutocomplete'
 import { PROVINCE_OPTIONS } from '@/core/settings/organization/provinces'
 import {
   addressSchema,
@@ -17,6 +19,15 @@ import { Select } from '@/shared/ui/select'
 import { OrganizationCard } from '../components/OrganizationCard'
 import { OrgAssetCard } from '../components/OrgAssetCard'
 import { OrganizationSettingsPage } from '../components/OrganizationSettingsPage'
+
+/** The address card's fields, for the Google suggestions' autofill (P4-222). */
+const ADDRESS_FIELDS = {
+  line1: 'address_line1',
+  line2: 'address_line2',
+  city: 'city',
+  province: 'province',
+  postalCode: 'postal_code',
+} as const
 
 /** Full width in the card's two-column grid (long values); the others share a row from `md` up. */
 const WIDE = 'md:col-span-2'
@@ -73,11 +84,19 @@ export function IdentitySettingsPage() {
                 <div className={GRID}>
                   <div className={WIDE}>
                     <FormField label={t('settings.identity.fields.addressLine1')} error={errors.address_line1?.message}>
-                      {(field) => <Input {...field} {...register('address_line1')} autoComplete="address-line1" />}
+                      {(field) => (
+                        // Google suggestions with manual override (P4-220); the other fields stay plain inputs.
+                        <AddressAutocomplete
+                          {...field}
+                          {...register('address_line1')}
+                          autofill={addressAutofill(form, ADDRESS_FIELDS)}
+                          placeholder={t('address.line1Placeholder')}
+                        />
+                      )}
                     </FormField>
                   </div>
                   <FormField label={t('settings.identity.fields.addressLine2')} error={errors.address_line2?.message}>
-                    {(field) => <Input {...field} {...register('address_line2')} autoComplete="address-line2" />}
+                    {(field) => <Input {...field} {...register('address_line2')} placeholder={t('address.line2Placeholder')} autoComplete="address-line2" />}
                   </FormField>
                   <FormField label={t('settings.identity.fields.city')} error={errors.city?.message}>
                     {(field) => <Input {...field} {...register('city')} autoComplete="address-level2" />}

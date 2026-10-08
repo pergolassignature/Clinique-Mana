@@ -138,3 +138,6 @@ verify_jwt = false
 verify_jwt = false
 [functions.signing-test-document]
 verify_jwt = false
+# Address suggestions (Google Places, P4-220): verifyAuth, any active profile.
+[functions.places]
+verify_jwt = false

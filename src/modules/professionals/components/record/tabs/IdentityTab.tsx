@@ -2,6 +2,8 @@ import { useRef } from 'react'
 import { Controller } from 'react-hook-form'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
+import { addressAutofill } from '@/core/address/autofill'
+import { AddressAutocomplete } from '@/core/address/components/AddressAutocomplete'
 import { rpcErrorCode, rpcErrorHint } from '@/core/modules/errors'
 import { PROVINCE_OPTIONS } from '@/core/settings/organization/provinces'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
@@ -34,6 +36,8 @@ const I = 'modules.professionals.record.identity'
 /** Full width in the card's two-column grid; the other fields share a row from `md` up. */
 const WIDE = 'md:col-span-2'
 const GRID = 'grid gap-3 md:grid-cols-2'
+/** The home address fields, for the Google suggestions' autofill (P4-222). */
+const ADDRESS_FIELDS = { line1: 'addressLine1', line2: 'addressLine2', city: 'city', province: 'province', postalCode: 'postalCode' } as const
 
 // Module level: ProfessionalCard memoises on them.
 const toIdentity = (record: ProfessionalRecord) => toIdentityFormValues(record.professional)
@@ -111,11 +115,19 @@ export function IdentityTab() {
               </FormField>
               <div className={WIDE}>
                 <FormField label={t(`${I}.contact.addressLine1`)} error={errors.addressLine1?.message}>
-                  {(field) => <Input {...field} {...register('addressLine1')} autoComplete="off" />}
+                  {(field) => (
+                    // Google suggestions with manual override (P4-220, replaces P4-12's manual-only entry).
+                    <AddressAutocomplete
+                      {...field}
+                      {...register('addressLine1')}
+                      autofill={addressAutofill(form, ADDRESS_FIELDS)}
+                      placeholder={t('address.line1Placeholder')}
+                    />
+                  )}
                 </FormField>
               </div>
               <FormField label={t(`${I}.contact.addressLine2`)} error={errors.addressLine2?.message}>
-                {(field) => <Input {...field} {...register('addressLine2')} autoComplete="off" />}
+                {(field) => <Input {...field} {...register('addressLine2')} placeholder={t('address.line2Placeholder')} autoComplete="off" />}
               </FormField>
               <FormField label={t(`${I}.contact.city`)} error={errors.city?.message}>
                 {(field) => <Input {...field} {...register('city')} autoComplete="off" />}

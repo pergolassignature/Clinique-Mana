@@ -127,6 +127,18 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `places` (address suggestions and the chosen place's address), per
+   * caller: every call is a billed Google request. The field asks after a
+   * pause in typing (250 ms, 3 characters at least), so one address takes a
+   * handful of calls; 600 an hour covers a long data-entry session and caps
+   * what one account can spend (P4-221).
+   */
+  placesUser: {
+    bucket: 'places.user',
+    max: 600,
+    windowSeconds: 3_600,
+  },
+  /**
    * `resend-webhook`, per IP, before the org's secret is read (anyone can
    * post there). Generous: Resend (Svix) delivers a clinic's bursts from a
    * few addresses, and a refusal only delays the event (Resend retries).

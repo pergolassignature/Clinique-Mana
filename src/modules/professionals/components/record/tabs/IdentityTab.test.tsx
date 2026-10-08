@@ -6,6 +6,7 @@ import type { ProfessionalRecord } from '../../../api/parse'
 import type { ProfessionalPatch } from '../../../api/record'
 import { recordFixture } from '../../../test/fixtures-domain'
 import { renderRecordTab } from '../../../test/record-tab'
+import { resetSuggestionsPause } from '@/core/address/availability'
 import { IdentityTab } from './IdentityTab'
 
 const mocks = vi.hoisted(() => ({
@@ -17,7 +18,9 @@ const mocks = vi.hoisted(() => ({
     setProfessions: vi.fn(),
   },
   toast: { success: vi.fn(), error: vi.fn() },
+  address: { fetchAddressSuggestions: vi.fn(), fetchPlaceAddress: vi.fn() },
 }))
+vi.mock('@/core/address/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/address/api')>()), ...mocks.address }))
 vi.mock('../../../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/record')>()), ...mocks.record }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
@@ -26,6 +29,8 @@ const I = 'modules.professionals.record.identity'
 let stored: ProfessionalRecord
 
 beforeEach(() => {
+  resetSuggestionsPause()
+  mocks.address.fetchAddressSuggestions.mockResolvedValue([])
   stored = recordFixture()
   mocks.record.fetchProfessionalRecord.mockImplementation(async () => stored)
   mocks.record.updateProfessional.mockImplementation(async (_id: string, patch: ProfessionalPatch) => {
@@ -83,6 +88,46 @@ describe('IdentityTab', () => {
         city: 'Montréal',
         province: 'QC',
         postalCode: 'G1R 4P5',
+      }),
+    )
+  })
+
+  it('fills the home address from a Google suggestion (unit into an empty line 2), keyboard only, then saves it', async () => {
+    mocks.address.fetchAddressSuggestions.mockResolvedValue([
+      { placeId: 'ChIJfakeUnit00000007', mainText: '402-3450 Rue Drummond', secondaryText: 'Montréal, QC, Canada' },
+      { placeId: 'ChIJfakePlateau000001', mainText: '1234 Rue Saint-Denis', secondaryText: 'Montréal, QC, Canada' },
+    ])
+    mocks.address.fetchPlaceAddress.mockResolvedValue({
+      line1: '3450, rue Drummond',
+      line2: '402',
+      city: 'Montréal',
+      province: 'QC',
+      postalCode: 'H3G 1Y2',
+      country: 'CA',
+    })
+    renderRecordTab(<IdentityTab />, { record: stored })
+    const contact = card(t(`${I}.contact.title`))
+    const address = within(contact).getByRole('combobox', { name: t(`${I}.contact.addressLine1`) })
+    expect(address).toHaveValue('123, rue Saint-Denis')
+    await userEvent.clear(address)
+    await userEvent.type(address, '3450 drummond')
+    await screen.findByRole('listbox')
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+
+    await waitFor(() => expect(address).toHaveValue('3450, rue Drummond'))
+    expect(mocks.address.fetchPlaceAddress).toHaveBeenCalledWith('ChIJfakeUnit00000007', expect.any(String), expect.any(AbortSignal))
+    expect(within(contact).getByRole('textbox', { name: t(`${I}.contact.addressLine2`) })).toHaveValue('402')
+    expect(within(contact).getByRole('textbox', { name: t(`${I}.contact.postalCode`) })).toHaveValue('H3G 1Y2')
+    await save(contact)
+
+    await waitFor(() =>
+      expect(mocks.record.updateProfessional).toHaveBeenCalledExactlyOnceWith(stored.professional.id, {
+        personalPhone: '+15145551234',
+        addressLine1: '3450, rue Drummond',
+        addressLine2: '402',
+        city: 'Montréal',
+        province: 'QC',
+        postalCode: 'H3G 1Y2',
       }),
     )
   })

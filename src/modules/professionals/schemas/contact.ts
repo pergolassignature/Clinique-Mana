@@ -7,7 +7,8 @@ import type { Professional } from '../api/parse'
 
 /**
  * « Coordonnées » (`professionals.manage`), as `professionals_*_check` and
- * `private.professional_email` check them. The address is entered by hand in 4a (P4-12).
+ * `private.professional_email` check them. The address is typed with Google suggestions and stays
+ * editable by hand (P4-220, which replaces P4-12's manual-only entry).
  */
 
 /** The login and invitation address: trimmed, lower-cased (stored so), 254 characters at most. */
