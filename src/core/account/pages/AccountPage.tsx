@@ -13,6 +13,7 @@ import { PageHeader } from '@/shared/components/PageHeader'
 import { FormActions } from '@/shared/components/FormActions'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { SettingsCard } from '@/shared/components/SettingsCard'
+import { emailSchema } from '@/shared/lib/email'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { useSettingsForm } from '@/shared/lib/use-settings-form'
 import { useConfirmLeave, useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
@@ -96,12 +97,12 @@ function NameCard() {
 
 // ── Courriel ────────────────────────────────────────────────────────────────────────────────────
 
-const emailSchema = z.object({
+const emailFormSchema = z.object({
   email: z
     .string()
     .trim()
     .min(1, { error: t('auth.errors.required') })
-    .pipe(z.email({ error: t('auth.errors.invalidEmail') })),
+    .pipe(emailSchema(t('auth.errors.invalidEmail'))),
 })
 
 function EmailCard() {
@@ -118,8 +119,8 @@ function EmailCard() {
   // new_email (recorded only for a real change) would show through.
   const [askedHere, setAskedHere] = useState(false)
   const [error, setError] = useState<AuthErrorCode | null>(null)
-  const form = useForm<z.input<typeof emailSchema>, unknown, z.output<typeof emailSchema>>({
-    resolver: zodResolver(emailSchema),
+  const form = useForm<z.input<typeof emailFormSchema>, unknown, z.output<typeof emailFormSchema>>({
+    resolver: zodResolver(emailFormSchema),
     defaultValues: { email: '' },
   })
   const { errors, isDirty, isSubmitting } = form.formState
