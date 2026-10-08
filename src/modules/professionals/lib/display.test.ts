@@ -40,6 +40,9 @@ describe('clienteleLabel', () => {
   it.each([
     [{ name: 'Enfants', minAge: 0, maxAge: 12 }, 'Enfants (0 à 12 ans)'],
     [{ name: 'Aînés', minAge: 65, maxAge: null }, 'Aînés (65 ans et plus)'],
+    // The ages run on from the name: lower-case inside the brackets (agesLabel alone stays capitalised).
+    [{ name: 'Nourrissons', minAge: 0, maxAge: 0 }, 'Nourrissons (moins de 1 an)'],
+    [{ name: 'Individus', minAge: 0, maxAge: null }, 'Individus (tous les âges)'],
     // Not an age group: its name says it all.
     [{ name: 'Couples', minAge: null, maxAge: null }, 'Couples'],
   ])('%o → %s', (clientele, label) => {

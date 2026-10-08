@@ -41,10 +41,15 @@ export function agesLabel({ minAge, maxAge }: AgeBounds): string {
   return t(`${A}.range`, { min: String(minAge), max: String(maxAge), unit: years(maxAge) })
 }
 
-/** « Enfants (0 à 12 ans) », « Aînés (65 ans et plus) », « Couples » (not an age group: the name alone). */
+/**
+ * « Enfants (0 à 12 ans) », « Aînés (65 ans et plus) », « Couples » (not an age group: the name alone).
+ * Inside the brackets the ages run on from the name, so they start lower-case: « Nourrissons (moins
+ * de 1 an) », « Individus (tous les âges) ».
+ */
 export function clienteleLabel(c: { name: string } & AgeBounds): string {
   if (c.minAge === null) return c.name
-  return t('modules.professionals.display.withAges', { name: c.name, ages: agesLabel(c) })
+  const ages = agesLabel(c)
+  return t('modules.professionals.display.withAges', { name: c.name, ages: ages.charAt(0).toLocaleLowerCase('fr-CA') + ages.slice(1) })
 }
 
 /** « FR · EN »: the codes of the held languages, in the catalogue's order. Unknown ids are skipped. */
