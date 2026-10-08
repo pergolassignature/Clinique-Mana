@@ -569,6 +569,15 @@ This only checks that `pg_net` reaches Kong (`select status_code from net._http_
 
 **Commit:** `feat(db): scheduled jobs catalogue, per-org switch, run log, pg_cron and pg_net`.
 
+**Review follow-ups** (same migration, never pushed; `list_job_orgs` / `start_job_run` / `finish_job_run` signatures unchanged):
+- **Signed dispatch, no bearer.** pg_net's tables grant PUBLIC everything, so a queued request's headers are readable by any role. `invoke_job_function` sends no `Authorization` header, only:
+  `X-Job-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256(key = internal_function_secret, message = '<t>.<job_key>.<org_id or empty>.<trigger>')>`
+  (`org_id` as canonical lowercase uuid text, empty for a cron post). `_shared/jobs.ts` (Lane F) checks it: ±300 s, constant-time compare, signed fields equal to the body. Job functions are `verify_jwt = false`. Residual risk: replayable for 5 min, for the same job/org/trigger only. pg_net timeout: 150 000 ms (edge wall clock).
+- **Reconcile.** Each post's request id goes to `scheduled_job_dispatches` (service role only, operational log). `core.scheduled_jobs_reconcile` (SQL, `*/5 * * * *`) turns non-2xx / timeout / network responses (and no response after 1 h) into `error` runs (`http_<status>`, `timeout`, `network`, `no_response`) unless the function logged a run after the dispatch. It marks `running` runs older than 15 min `abandoned` (a local-hour run keeps its day: no double send) and deletes reconciled dispatches after 7 days.
+- **Retention.** `core.scheduled_job_runs_purge` (SQL, daily `20 8 * * *`): runs older than 90 days, `cron.job_run_details` older than 14 days (`skipped` if the platform refuses).
+- **`private.job_due(tz, local_hour, at, last_local_date)`** (P3-22 catch-up): due once the local hour is `>= local_hour` and no cron run exists for that local date. A 25 h day runs once, a missing hour runs at the next one, a missed tick catches up the same day. `start_job_run` re-checks it (no next-day stamp after midnight) and refuses a second run while one started < 15 min ago is `running` (advisory lock).
+- Also: `scheduled_jobs.is_active` (retire = `is_active = false` + `cron.unschedule` in one migration); `list_scheduled_job_runs(p_job_key, p_limit, p_before, p_before_id uuid)` keyset on `(started_at, id)`, hiding disabled modules and retired jobs; `set_scheduled_job_enabled` treats a disabled module's job as unknown (22023) and refuses a null value (22023 « Valeur manquante. »).
+
 ---
 
 ## Task 3.4: Shared function foundations

@@ -13,21 +13,55 @@
 --   loops over `list_job_orgs` and logs its own runs through `start_job_run` / `finish_job_run`,
 --   supabase/functions/_shared/jobs.ts).
 -- * Schedules live here (`cron.schedule` with an existing name updates it). A business job at a
---   clinic-local hour (P3-22) is scheduled hourly; `list_job_orgs` keeps the orgs whose local
---   hour matches and that have no cron run yet for that local date, and the unique index on
---   (job_key, org_id, run_local_date) makes `start_job_run` answer null on a second cron run.
---   A manual run never sets `run_local_date`, so it does not use up the clinic day.
+--   clinic-local hour (P3-22) is scheduled hourly. `private.job_due` decides, per org, with a
+--   catch-up rule: due once the clinic-local hour is >= `local_hour` and no cron run exists yet
+--   for that local date. So a 25-hour day (hour 1 twice) runs once, a 23-hour day whose
+--   `local_hour` does not exist (2:00 on the spring-forward day) runs at 3:00, and a missed tick
+--   (cron down, dispatch failed, run skipped by the overlap guard) catches up at a later tick the
+--   same day. The unique index on (job_key, org_id, run_local_date) makes `start_job_run` answer
+--   null on a second cron run. A manual run never sets `run_local_date`, so it does not use up
+--   the clinic day. Enabling a job after its hour runs it at the next tick that day.
+-- * `start_job_run` re-checks `job_due` at its own time (same signature as `list_job_orgs`, so
+--   lane F's runner is unchanged): a run listed at 23:59 and started at 0:00 the next day is
+--   refused instead of being stamped with the next day. It also refuses a second run while one
+--   started less than 15 minutes ago is still `running` for the same job and org (manual +
+--   cron), under an advisory lock so two concurrent calls cannot both pass.
 -- * `org_scheduled_jobs` is the per-clinic switch (audited). A row exists for every org × job
 --   (triggers on both parents): maintenance jobs start enabled and cannot be switched off,
 --   business jobs start disabled.
--- * `scheduled_job_runs` is an operational log (no audit trigger, 000_invariants list); its
---   `detail` holds counts or an error code (SQLSTATE, never `sqlerrm`), at most 500 characters.
--- * No secret in a table: `invoke_job_function` reads the Vault secrets `project_url` and
---   `internal_function_secret` at call time (pg_net's queue holds the request only until it is
---   sent). A missing secret is logged as an `error` run (`configuration_missing`), not raised.
+-- * `scheduled_job_runs` and `scheduled_job_dispatches` are operational logs (no audit trigger,
+--   000_invariants list). `detail` holds counts or an error code (SQLSTATE, never `sqlerrm`), at
+--   most 500 characters. Runs are purged after 90 days (`core.scheduled_job_runs_purge`, which
+--   also trims `cron.job_run_details` after 14 days).
+-- * Dispatch auth. No secret in a table: `invoke_job_function` reads the Vault secrets
+--   `project_url` and `internal_function_secret` at call time and sends
+--     X-Job-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256(key = internal_function_secret,
+--                      message = '<t>.<job_key>.<org_id or empty>.<trigger>')>
+--   `org_id` is the canonical lowercase uuid text, empty for a cron post. The raw secret is never
+--   sent: pg_net's tables grant PUBLIC everything, so any role can read a queued request's
+--   headers. `_shared/jobs.ts` checks the signature (±300 s, constant-time) and that the signed
+--   fields equal the body. Residual risk: a signature read from the queue can be replayed for
+--   5 minutes, for that same job, org and trigger only; `start_job_run` (once per clinic day,
+--   overlap guard) bounds what a replay can do. Job functions are `verify_jwt = false`
+--   (plan Tasks 3.10 / 3.26, design §10), so no bearer token is needed at the gateway.
+--   A missing secret is logged as an `error` run (`configuration_missing`), not raised.
 --   Deviation from PS Hub (invoke_internal_edge_function): the project URL comes from Vault, not
---   from code, and a dedicated internal secret is sent instead of the service-role key (PS Hub's
+--   from code, and a dedicated internal secret is used instead of the service-role key (PS Hub's
 --   Vault copy of that key drifted after a rotation and every call got a 401).
+-- * HTTP outcomes. pg_net is asynchronous: each post's request id is kept in
+--   `scheduled_job_dispatches`, and `core.scheduled_jobs_reconcile` (every 5 minutes) reads
+--   `net._http_response` for dispatches older than 1 minute. A non-2xx status, a timeout or a
+--   network error becomes an `error` run (`http_<status>`, `timeout`, `network`) unless the
+--   function already logged a run for that job (and org) after the dispatch; no response after
+--   1 hour (pg_net keeps responses 6 hours) becomes `no_response`. These error runs carry no
+--   `run_local_date`, so a failed cron dispatch catches up at the next tick. The same job marks
+--   `running` runs older than 15 minutes (edge wall clock: 150 s) as `error` / `abandoned`; an
+--   abandoned local-hour run keeps its `run_local_date` and still counts for the day: the
+--   function may have sent part of its batch, and a second run would send it twice.
+-- * Retiring a job: never delete its row (runs and switches cascade from it). In a new
+--   migration, `update public.scheduled_jobs set is_active = false where key = '<key>'` and
+--   `select cron.unschedule('<cron_job_name>')`, both in the same migration. Inactive jobs are
+--   skipped by every runner and RPC and hidden from both lists.
 -- =============================================================================
 
 create extension if not exists pg_cron with schema pg_catalog;
@@ -47,6 +81,8 @@ create table public.scheduled_jobs (
   cron_job_name text unique,
   local_hour smallint check (local_hour between 0 and 23),
   is_maintenance boolean not null default false,
+  -- False once retired (see the header): skipped everywhere, hidden from the lists.
+  is_active boolean not null default true,
   created_at timestamptz not null default now(),
   -- `<module>.<name>`, like permission keys.
   check (pg_catalog.split_part(key, '.', 1) = module_key),
@@ -147,7 +183,8 @@ from public, anon, authenticated, service_role;
 create table public.scheduled_job_runs (
   id uuid primary key default gen_random_uuid(),
   job_key text not null references public.scheduled_jobs(key) on delete cascade,
-  -- Null for a database-wide run (SQL maintenance jobs, a function job that could not be posted).
+  -- Null for a database-wide run (SQL maintenance jobs, a function job that could not be posted
+  -- or whose cron post failed).
   org_id uuid references public.organizations(id) on delete cascade,
   trigger text not null check (trigger in ('cron', 'manual')),
   started_at timestamptz not null default now(),
@@ -158,14 +195,17 @@ create table public.scheduled_job_runs (
   -- The clinic's local date of a cron run of a local-hour job (P3-22); null otherwise.
   run_local_date date
 );
--- Serves the job FK, list_scheduled_job_runs(p_job_key) and the last run per job.
-create index scheduled_job_runs_job_started_idx on public.scheduled_job_runs (job_key, started_at desc);
+-- Serves the job FK, list_scheduled_job_runs(p_job_key) (keyset on started_at, id), the last run
+-- per job and the overlap guard of start_job_run.
+create index scheduled_job_runs_job_started_idx on public.scheduled_job_runs (job_key, started_at desc, id desc);
 -- Serves the org FK and the RLS predicate.
 create index scheduled_job_runs_org_started_idx on public.scheduled_job_runs (org_id, started_at desc);
--- Serves list_scheduled_job_runs without a job: own-org and database-wide rows (an OR the org
--- index cannot order), newest first.
-create index scheduled_job_runs_started_idx on public.scheduled_job_runs (started_at desc);
--- Once per clinic day (P3-22).
+-- Serves list_scheduled_job_runs without a job (own-org and database-wide rows: an OR the org
+-- index cannot order), newest first, and the 90-day purge.
+create index scheduled_job_runs_started_idx on public.scheduled_job_runs (started_at desc, id desc);
+-- The reconcile job's « running for over 15 minutes » scan.
+create index scheduled_job_runs_running_idx on public.scheduled_job_runs (started_at) where status = 'running';
+-- Once per clinic day (P3-22); also serves the last local date per job and org (job_due).
 create unique index scheduled_job_runs_local_date_key
   on public.scheduled_job_runs (job_key, org_id, run_local_date)
   where run_local_date is not null;
@@ -181,27 +221,76 @@ create policy scheduled_job_runs_select on public.scheduled_job_runs
   );
 
 -- -----------------------------------------------------------------------------
+-- Dispatches (one row per pg_net post; read by core.scheduled_jobs_reconcile)
+-- -----------------------------------------------------------------------------
+-- Service role only: RLS on, no policy, no client privilege.
+create table public.scheduled_job_dispatches (
+  id bigint generated always as identity primary key,
+  job_key text not null references public.scheduled_jobs(key) on delete cascade,
+  -- Null for a cron post (the function lists the orgs).
+  org_id uuid references public.organizations(id) on delete cascade,
+  trigger text not null check (trigger in ('cron', 'manual')),
+  -- net.http_post's id, which is also net._http_response.id.
+  request_id bigint not null,
+  dispatched_at timestamptz not null default now(),
+  reconciled_at timestamptz,
+  -- `ok`, `http_<status>`, `timeout`, `network` or `no_response`, once reconciled.
+  outcome text check (outcome ~ '^[a-z0-9_]{1,40}$'),
+  check ((reconciled_at is null) = (outcome is null))
+);
+create index scheduled_job_dispatches_job_key_idx on public.scheduled_job_dispatches (job_key);
+create index scheduled_job_dispatches_org_id_idx on public.scheduled_job_dispatches (org_id);
+create index scheduled_job_dispatches_pending_idx
+  on public.scheduled_job_dispatches (dispatched_at) where reconciled_at is null;
+create index scheduled_job_dispatches_reconciled_idx
+  on public.scheduled_job_dispatches (dispatched_at) where reconciled_at is not null;
+
+alter table public.scheduled_job_dispatches enable row level security;
+revoke all on public.scheduled_job_dispatches from anon, authenticated;
+
+-- -----------------------------------------------------------------------------
+-- Due rule (P3-22)
+-- -----------------------------------------------------------------------------
+-- Is a local-hour job due for a clinic at `p_at`? Catch-up rule: once the clinic-local hour is
+-- at or past `p_local_hour`, and no cron run exists yet for that local date
+-- (`p_last_local_date` is the latest `run_local_date`, null when none). False on a null input.
+create function private.job_due(p_tz text, p_local_hour int, p_at timestamptz, p_last_local_date date)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(
+    extract(hour from p_at at time zone p_tz) >= p_local_hour
+    and (p_last_local_date is null or p_last_local_date < (p_at at time zone p_tz)::date),
+    false)
+$$;
+
+-- -----------------------------------------------------------------------------
 -- Runners (cron and run_scheduled_job_now; no role may call them)
 -- -----------------------------------------------------------------------------
 -- Runs a SQL job database-wide and logs it. A failure is logged with its SQLSTATE and does not
--- raise, so the cron entry itself always succeeds.
+-- raise, so the cron entry itself always succeeds. An inactive (retired) job does nothing.
 create function private.run_sql_job(p_key text, p_trigger text default 'cron')
 returns void
 language plpgsql
 set search_path = ''
 as $$
 declare
-  v_fn text;
+  v_job public.scheduled_jobs%rowtype;
   v_proc regprocedure;
   v_run uuid;
   v_detail text;
 begin
-  select j.sql_function into v_fn
+  select * into v_job
     from public.scheduled_jobs j
    where j.key = p_key and j.kind = 'sql';
-  v_proc := pg_catalog.to_regprocedure(v_fn || '()');
+  v_proc := pg_catalog.to_regprocedure(v_job.sql_function || '()');
   if v_proc is null or p_trigger is null or p_trigger not in ('cron', 'manual') then
     raise exception 'Unknown SQL job or invalid trigger' using errcode = '22023';
+  end if;
+  if not v_job.is_active then
+    return;
   end if;
 
   insert into public.scheduled_job_runs (job_key, org_id, trigger)
@@ -216,6 +305,9 @@ begin
      where r.id = v_run;
   exception when others then
     -- The SQLSTATE only: `sqlerrm` can quote row values.
+    -- `others` does not catch query_canceled (57014: statement_timeout, pg_cancel_backend): the
+    -- whole statement rolls back, run row included, so a cancelled job leaves no run (the
+    -- cron.job_run_details row still records it).
     update public.scheduled_job_runs r
        set status = 'error', detail = sqlstate, finished_at = pg_catalog.clock_timestamp()
      where r.id = v_run;
@@ -223,23 +315,31 @@ begin
 end;
 $$;
 
--- Posts `{ job_key, org_id, trigger }` to the job's edge function (asynchronous, pg_net). The
--- function logs its runs; this only logs a missing configuration.
+-- Posts `{ job_key, org_id, trigger }` to the job's edge function (asynchronous, pg_net), signed
+-- with X-Job-Signature (format in the header), and records the dispatch for the reconcile job.
+-- The function logs its runs; this only logs a missing configuration. An inactive job is not
+-- posted.
 create function private.invoke_job_function(p_key text, p_org_id uuid default null, p_trigger text default 'cron')
 returns void
 language plpgsql
 set search_path = ''
 as $$
 declare
-  v_fn text;
+  v_job public.scheduled_jobs%rowtype;
   v_url text;
   v_secret text;
+  v_t bigint;
+  v_signature text;
+  v_request bigint;
 begin
-  select j.function_name into v_fn
+  select * into v_job
     from public.scheduled_jobs j
    where j.key = p_key and j.kind = 'function';
-  if v_fn is null or p_trigger is null or p_trigger not in ('cron', 'manual') then
+  if not found or p_trigger is null or p_trigger not in ('cron', 'manual') then
     raise exception 'Unknown function job or invalid trigger' using errcode = '22023';
+  end if;
+  if not v_job.is_active then
+    return;
   end if;
 
   select s.decrypted_secret into v_url from vault.decrypted_secrets s where s.name = 'project_url';
@@ -250,19 +350,33 @@ begin
     return;
   end if;
 
-  perform net.http_post(
-    url := pg_catalog.rtrim(v_url, '/') || '/functions/v1/' || v_fn,
+  v_t := pg_catalog.floor(extract(epoch from pg_catalog.clock_timestamp()))::bigint;
+  v_signature := pg_catalog.encode(
+    extensions.hmac(
+      pg_catalog.convert_to(v_t::text || '.' || p_key || '.' || coalesce(p_org_id::text, '') || '.' || p_trigger, 'UTF8'),
+      pg_catalog.convert_to(v_secret, 'UTF8'),
+      'sha256'),
+    'hex');
+
+  v_request := net.http_post(
+    url := pg_catalog.rtrim(v_url, '/') || '/functions/v1/' || v_job.function_name,
     headers := pg_catalog.jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || v_secret
+      'X-Job-Signature', 't=' || v_t::text || ',v1=' || v_signature
     ),
     body := pg_catalog.jsonb_build_object('job_key', p_key, 'org_id', p_org_id, 'trigger', p_trigger),
-    timeout_milliseconds := 10000
+    -- The edge runtime's wall clock (150 s): a slow job is not reported as a timeout while its
+    -- function is still allowed to run.
+    timeout_milliseconds := 150000
   );
+
+  insert into public.scheduled_job_dispatches (job_key, org_id, trigger, request_id)
+  values (p_key, p_org_id, p_trigger, v_request);
 end;
 $$;
 
 revoke all on function
+  private.job_due(text, int, timestamptz, date),
   private.run_sql_job(text, text),
   private.invoke_job_function(text, uuid, text)
 from public, anon, authenticated, service_role;
@@ -270,13 +384,14 @@ from public, anon, authenticated, service_role;
 -- -----------------------------------------------------------------------------
 -- Service-role RPCs (supabase/functions/_shared/jobs.ts)
 -- -----------------------------------------------------------------------------
--- The orgs a cron run of a function job covers: job and module enabled; for a local-hour job,
--- only orgs at that local hour with no cron run yet for their local date.
-create function public.list_job_orgs(p_key text)
+-- The bodies take the time as an argument (tests); the public RPCs pass now().
+
+-- The orgs a cron run of a function job covers at `p_at`: job active, job and module enabled;
+-- for a local-hour job, only orgs for which `job_due` holds.
+create function private.list_job_orgs_at(p_key text, p_at timestamptz)
 returns setof uuid
 language plpgsql
 stable
-security definer
 set search_path = ''
 as $$
 declare
@@ -286,35 +401,36 @@ begin
   if not found then
     raise exception 'Unknown function job' using errcode = '22023';
   end if;
+  if not v_job.is_active then
+    return;
+  end if;
   return query
     select o.id
       from public.organizations o
       join public.org_scheduled_jobs s on s.org_id = o.id and s.job_key = v_job.key and s.enabled
      where public.module_enabled_for_org(o.id, v_job.module_key)
        and (v_job.local_hour is null
-            or (extract(hour from pg_catalog.now() at time zone o.timezone) = v_job.local_hour
-                and not exists (
-                  select 1 from public.scheduled_job_runs r
-                   where r.job_key = v_job.key
-                     and r.org_id = o.id
-                     and r.run_local_date = (pg_catalog.now() at time zone o.timezone)::date)))
+            or private.job_due(o.timezone, v_job.local_hour, p_at,
+                 (select pg_catalog.max(r.run_local_date) from public.scheduled_job_runs r
+                   where r.job_key = v_job.key and r.org_id = o.id and r.run_local_date is not null)))
      order by o.id;
 end;
 $$;
 
--- Starts one org's run of a function job; null when it must not run: the job or its module is
--- disabled for the org, or (cron, local-hour job) it already ran for the clinic's local date.
-create function public.start_job_run(p_key text, p_org_id uuid, p_trigger text)
+-- Starts one org's run of a function job at `p_at`; null when it must not run: the job is
+-- inactive, it or its module is disabled for the org, a run of it for the org started less than
+-- 15 minutes ago is still running, or (cron, local-hour job) it is not due (job_due).
+create function private.start_job_run_at(p_key text, p_org_id uuid, p_trigger text, p_at timestamptz)
 returns uuid
 language plpgsql
 volatile
-security definer
 set search_path = ''
 as $$
 declare
   v_job public.scheduled_jobs%rowtype;
   v_tz text;
   v_date date;
+  v_last date;
   v_id uuid;
 begin
   if p_trigger is null or p_trigger not in ('cron', 'manual') then
@@ -329,21 +445,65 @@ begin
     raise exception 'Unknown organization' using errcode = '22023';
   end if;
 
-  if not exists (select 1 from public.org_scheduled_jobs s
-                  where s.org_id = p_org_id and s.job_key = p_key and s.enabled)
+  if not v_job.is_active
+     or not exists (select 1 from public.org_scheduled_jobs s
+                     where s.org_id = p_org_id and s.job_key = p_key and s.enabled)
      or not public.module_enabled_for_org(p_org_id, v_job.module_key) then
     return null;
   end if;
-  if v_job.local_hour is not null and p_trigger = 'cron' then
-    v_date := (pg_catalog.now() at time zone v_tz)::date;
+
+  -- Serializes concurrent starts for one job and org (manual + cron), so the checks below and
+  -- the insert are seen as one step. Released at commit.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('scheduled_job_run:' || p_key || ':' || p_org_id::text, 0));
+
+  if exists (select 1 from public.scheduled_job_runs r
+              where r.job_key = p_key and r.org_id = p_org_id
+                and r.status = 'running' and r.started_at > p_at - interval '15 minutes') then
+    return null;
   end if;
 
-  insert into public.scheduled_job_runs (job_key, org_id, trigger, run_local_date)
-  values (p_key, p_org_id, p_trigger, v_date)
+  if v_job.local_hour is not null and p_trigger = 'cron' then
+    select pg_catalog.max(r.run_local_date) into v_last
+      from public.scheduled_job_runs r
+     where r.job_key = p_key and r.org_id = p_org_id and r.run_local_date is not null;
+    if not private.job_due(v_tz, v_job.local_hour, p_at, v_last) then
+      return null;
+    end if;
+    v_date := (p_at at time zone v_tz)::date;
+  end if;
+
+  insert into public.scheduled_job_runs (job_key, org_id, trigger, started_at, run_local_date)
+  values (p_key, p_org_id, p_trigger, p_at, v_date)
   on conflict (job_key, org_id, run_local_date) where run_local_date is not null do nothing
   returning id into v_id;
   return v_id;
 end;
+$$;
+
+revoke all on function
+  private.list_job_orgs_at(text, timestamptz),
+  private.start_job_run_at(text, uuid, text, timestamptz)
+from public, anon, authenticated, service_role;
+
+create function public.list_job_orgs(p_key text)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select private.list_job_orgs_at(p_key, pg_catalog.now())
+$$;
+
+create function public.start_job_run(p_key text, p_org_id uuid, p_trigger text)
+returns uuid
+language sql
+volatile
+security definer
+set search_path = ''
+as $$
+  select private.start_job_run_at(p_key, p_org_id, p_trigger, pg_catalog.now())
 $$;
 
 -- Finishes a running run with its outcome.
@@ -382,8 +542,8 @@ to service_role;
 -- -----------------------------------------------------------------------------
 -- User RPCs (« Tâches planifiées », Task 3.5)
 -- -----------------------------------------------------------------------------
--- The jobs of the caller's org (jobs of a disabled module are hidden), with their schedule,
--- switch and last run.
+-- The active jobs of the caller's org (jobs of a disabled module are hidden), with their
+-- schedule, switch and last run.
 create function public.list_scheduled_jobs()
 returns table (
   key text,
@@ -421,19 +581,23 @@ begin
         select r.started_at, r.status, r.detail
           from public.scheduled_job_runs r
          where r.job_key = j.key and (r.org_id = v_org or r.org_id is null)
-         order by r.started_at desc
+         order by r.started_at desc, r.id desc
          limit 1
       ) lr on true
-     where public.module_enabled_for_org(v_org, j.module_key)
+     where j.is_active
+       and public.module_enabled_for_org(v_org, j.module_key)
      order by j.is_maintenance, j.label;
 end;
 $$;
 
--- Recent runs visible to the caller (own org and database-wide), newest first (RLS applies).
+-- Recent runs visible to the caller (own org and database-wide; RLS applies), newest first,
+-- keyset-paged on (started_at, id): pass the last row's started_at and id. Runs of an inactive
+-- job or of a module disabled for the caller's org are hidden.
 create function public.list_scheduled_job_runs(
   p_job_key text default null,
   p_limit int default 20,
-  p_before timestamptz default null
+  p_before timestamptz default null,
+  p_before_id uuid default null
 )
 returns table (
   id uuid,
@@ -452,8 +616,13 @@ as $$
   select r.id, r.job_key, r.trigger, r.status, r.started_at, r.finished_at, r.detail
     from public.scheduled_job_runs r
    where (p_job_key is null or r.job_key = p_job_key)
-     and (p_before is null or r.started_at < p_before)
-   order by r.started_at desc, r.id
+     -- A semi-join on the catalogue's primary key, memoized per job (10 000 rows: < 1 ms).
+     and r.job_key in (select j.key from public.scheduled_jobs j
+                        where j.is_active and public.module_enabled(j.module_key))
+     -- With no id, the nil uuid (the smallest) makes this `started_at < p_before`.
+     and (p_before is null
+          or (r.started_at, r.id) < (p_before, coalesce(p_before_id, '00000000-0000-0000-0000-000000000000'::uuid)))
+   order by r.started_at desc, r.id desc
    limit least(greatest(coalesce(p_limit, 20), 1), 100)
 $$;
 
@@ -466,16 +635,21 @@ set search_path = ''
 as $$
 declare
   v_org uuid := private.current_user_org_id();
-  v_maintenance boolean;
+  v_job public.scheduled_jobs%rowtype;
 begin
   if not private.has_permission('settings.manage') then
     raise exception 'Permission refusée : settings.manage' using errcode = '42501';
   end if;
-  select j.is_maintenance into v_maintenance from public.scheduled_jobs j where j.key = p_key;
-  if not found or p_enabled is null then
+  if p_enabled is null then
+    raise exception 'Valeur manquante.' using errcode = '22023';
+  end if;
+  -- An inactive job, or one of a module disabled for the org, is unknown to the org (as in
+  -- list_scheduled_jobs and run_scheduled_job_now).
+  select * into v_job from public.scheduled_jobs j where j.key = p_key and j.is_active;
+  if not found or not public.module_enabled_for_org(v_org, v_job.module_key) then
     raise exception 'Tâche inconnue : %', p_key using errcode = '22023';
   end if;
-  if v_maintenance then
+  if v_job.is_maintenance then
     raise exception 'Les tâches d''entretien restent toujours actives.' using errcode = 'P0001';
   end if;
 
@@ -502,7 +676,7 @@ begin
   if not private.has_permission('settings.manage') then
     raise exception 'Permission refusée : settings.manage' using errcode = '42501';
   end if;
-  select * into v_job from public.scheduled_jobs j where j.key = p_key;
+  select * into v_job from public.scheduled_jobs j where j.key = p_key and j.is_active;
   if not found or not public.module_enabled_for_org(v_org, v_job.module_key) then
     raise exception 'Tâche inconnue : %', p_key using errcode = '22023';
   end if;
@@ -521,6 +695,9 @@ begin
   end if;
 
   if v_job.kind = 'sql' then
+    -- A SQL job is a maintenance job and runs database-wide: the run is logged with org null and
+    -- its counts cover every clinic. Kept on purpose: acceptable for a single clinic, and the
+    -- detail holds counts only. The rate limit is still per org.
     perform private.run_sql_job(p_key, 'manual');
   else
     perform private.invoke_job_function(p_key, v_org, 'manual');
@@ -530,13 +707,13 @@ $$;
 
 revoke all on function
   public.list_scheduled_jobs(),
-  public.list_scheduled_job_runs(text, int, timestamptz),
+  public.list_scheduled_job_runs(text, int, timestamptz, uuid),
   public.set_scheduled_job_enabled(text, boolean),
   public.run_scheduled_job_now(text)
 from public, anon, authenticated, service_role;
 grant execute on function
   public.list_scheduled_jobs(),
-  public.list_scheduled_job_runs(text, int, timestamptz),
+  public.list_scheduled_job_runs(text, int, timestamptz, uuid),
   public.set_scheduled_job_enabled(text, boolean),
   public.run_scheduled_job_now(text)
 to authenticated;
@@ -586,9 +763,109 @@ begin
 end;
 $$;
 
+-- Every 5 minutes (header, « HTTP outcomes »):
+-- 1. `running` runs older than 15 minutes → `error` / `abandoned` (a local-hour run keeps its
+--    run_local_date: it still counts for the clinic day, so its batch is never sent twice);
+-- 2. dispatches older than 1 minute with a pg_net response (or none after 1 hour) are
+--    reconciled; a failure becomes an `error` run unless the function logged a run for that job
+--    (and org) after the dispatch;
+-- 3. reconciled dispatches older than 7 days are deleted.
+create function private.job_scheduled_jobs_reconcile()
+returns text
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_abandoned bigint;
+  v_reconciled bigint;
+  v_failed bigint;
+  v_deleted bigint;
+begin
+  update public.scheduled_job_runs r
+     set status = 'error', detail = 'abandoned', finished_at = pg_catalog.clock_timestamp()
+   where r.status = 'running' and r.started_at < pg_catalog.now() - interval '15 minutes';
+  get diagnostics v_abandoned = row_count;
+
+  with pending as (
+    select d.id,
+           case
+             when resp.id is null then
+               case when d.dispatched_at < pg_catalog.now() - interval '1 hour' then 'no_response' end
+             when resp.timed_out then 'timeout'
+             when resp.error_msg is not null then 'network'
+             when resp.status_code between 200 and 299 then 'ok'
+             else 'http_' || coalesce(resp.status_code::text, 'unknown')
+           end as outcome
+      from public.scheduled_job_dispatches d
+      left join net._http_response resp on resp.id = d.request_id
+     where d.reconciled_at is null
+       and d.dispatched_at < pg_catalog.now() - interval '1 minute'
+       for update of d skip locked
+  ),
+  marked as (
+    update public.scheduled_job_dispatches d
+       set reconciled_at = pg_catalog.clock_timestamp(), outcome = p.outcome
+      from pending p
+     where d.id = p.id and p.outcome is not null
+    returning d.job_key, d.org_id, d.trigger, d.dispatched_at, d.outcome
+  ),
+  failed as (
+    insert into public.scheduled_job_runs (job_key, org_id, trigger, started_at, finished_at, status, detail)
+    select m.job_key, m.org_id, m.trigger, m.dispatched_at, pg_catalog.clock_timestamp(), 'error', m.outcome
+      from marked m
+     where m.outcome <> 'ok'
+       and not exists (select 1 from public.scheduled_job_runs r
+                        where r.job_key = m.job_key
+                          and (m.org_id is null or r.org_id = m.org_id)
+                          and r.started_at >= m.dispatched_at)
+    returning 1
+  )
+  select (select pg_catalog.count(*) from marked), (select pg_catalog.count(*) from failed)
+    into v_reconciled, v_failed;
+
+  delete from public.scheduled_job_dispatches d
+   where d.reconciled_at is not null and d.dispatched_at < pg_catalog.now() - interval '7 days';
+  get diagnostics v_deleted = row_count;
+
+  return 'abandoned=' || v_abandoned || ' reconciled=' || v_reconciled
+      || ' failed=' || v_failed || ' deleted=' || v_deleted;
+end;
+$$;
+
+-- Daily: runs older than 90 days (scheduled_job_runs_started_idx), and pg_cron's own history
+-- older than 14 days. `postgres` may delete from cron.job_run_details locally and on hosted
+-- Supabase; should a platform change revoke that, the trim reports `skipped` instead of failing
+-- the job.
+create function private.job_scheduled_job_runs_purge()
+returns text
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_deleted bigint;
+  v_cron bigint;
+  v_cron_text text;
+begin
+  delete from public.scheduled_job_runs r where r.started_at < pg_catalog.now() - interval '90 days';
+  get diagnostics v_deleted = row_count;
+
+  begin
+    delete from cron.job_run_details d where d.start_time < pg_catalog.now() - interval '14 days';
+    get diagnostics v_cron = row_count;
+    v_cron_text := v_cron::text;
+  exception when insufficient_privilege then
+    v_cron_text := 'skipped';
+  end;
+
+  return 'deleted=' || v_deleted || ' cron_details_deleted=' || v_cron_text;
+end;
+$$;
+
 revoke all on function
   private.job_rate_limits_cleanup(),
-  private.job_webhook_events_purge()
+  private.job_webhook_events_purge(),
+  private.job_scheduled_jobs_reconcile(),
+  private.job_scheduled_job_runs_purge()
 from public, anon, authenticated, service_role;
 
 insert into public.scheduled_jobs
@@ -599,10 +876,20 @@ values
    'sql', 'private.job_rate_limits_cleanup', 'core.rate_limits_cleanup', true),
   ('core.webhook_events_purge', 'core', 'Purge des événements reçus',
    'Efface le contenu des événements reçus des services externes une fois traités (après 7 jours en cas d''échec), et les supprime après 90 jours.',
-   'sql', 'private.job_webhook_events_purge', 'core.webhook_events_purge', true)
+   'sql', 'private.job_webhook_events_purge', 'core.webhook_events_purge', true),
+  ('core.scheduled_jobs_reconcile', 'core', 'Suivi des tâches planifiées',
+   'Inscrit dans l''historique les appels de tâches restés sans réponse ou en échec, et clôt les exécutions interrompues depuis plus de 15 minutes.',
+   'sql', 'private.job_scheduled_jobs_reconcile', 'core.scheduled_jobs_reconcile', true),
+  ('core.scheduled_job_runs_purge', 'core', 'Purge de l''historique des tâches',
+   'Supprime l''historique des tâches planifiées de plus de 90 jours.',
+   'sql', 'private.job_scheduled_job_runs_purge', 'core.scheduled_job_runs_purge', true)
 on conflict do nothing;
 
 select cron.schedule('core.rate_limits_cleanup', '7 * * * *',
   $$select private.run_sql_job('core.rate_limits_cleanup')$$);
 select cron.schedule('core.webhook_events_purge', '10 8 * * *',
   $$select private.run_sql_job('core.webhook_events_purge')$$);
+select cron.schedule('core.scheduled_jobs_reconcile', '*/5 * * * *',
+  $$select private.run_sql_job('core.scheduled_jobs_reconcile')$$);
+select cron.schedule('core.scheduled_job_runs_purge', '20 8 * * *',
+  $$select private.run_sql_job('core.scheduled_job_runs_purge')$$);

@@ -598,6 +598,54 @@ export type Database = {
           },
         ]
       }
+      scheduled_job_dispatches: {
+        Row: {
+          dispatched_at: string
+          id: number
+          job_key: string
+          org_id: string | null
+          outcome: string | null
+          reconciled_at: string | null
+          request_id: number
+          trigger: string
+        }
+        Insert: {
+          dispatched_at?: string
+          id?: never
+          job_key: string
+          org_id?: string | null
+          outcome?: string | null
+          reconciled_at?: string | null
+          request_id: number
+          trigger: string
+        }
+        Update: {
+          dispatched_at?: string
+          id?: never
+          job_key?: string
+          org_id?: string | null
+          outcome?: string | null
+          reconciled_at?: string | null
+          request_id?: number
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_job_dispatches_job_key_fkey"
+            columns: ["job_key"]
+            isOneToOne: false
+            referencedRelation: "scheduled_jobs"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "scheduled_job_dispatches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_job_runs: {
         Row: {
           detail: string | null
@@ -655,6 +703,7 @@ export type Database = {
           cron_job_name: string | null
           description: string
           function_name: string | null
+          is_active: boolean
           is_maintenance: boolean
           key: string
           kind: string
@@ -668,6 +717,7 @@ export type Database = {
           cron_job_name?: string | null
           description: string
           function_name?: string | null
+          is_active?: boolean
           is_maintenance?: boolean
           key: string
           kind: string
@@ -681,6 +731,7 @@ export type Database = {
           cron_job_name?: string | null
           description?: string
           function_name?: string | null
+          is_active?: boolean
           is_maintenance?: boolean
           key?: string
           kind?: string
@@ -1032,7 +1083,12 @@ export type Database = {
         }[]
       }
       list_scheduled_job_runs: {
-        Args: { p_before?: string; p_job_key?: string; p_limit?: number }
+        Args: {
+          p_before?: string
+          p_before_id?: string
+          p_job_key?: string
+          p_limit?: number
+        }
         Returns: {
           detail: string
           finished_at: string

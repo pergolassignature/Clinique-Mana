@@ -58,8 +58,9 @@ select is_empty($$
    where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
      -- Operational logs, exempt on purpose (conventions §7): auditing them would copy recipient
      -- addresses and payloads into the append-only audit_log forever (Loi 25). Phase 3 design §2.5.
+     -- scheduled_job_dispatches: one row per pg_net post, purged after 7 days; no business data.
      and c.relname not in ('audit_log', 'webhook_events', 'email_log', 'scheduled_job_runs',
-                           'notifications', 'notification_reads')
+                           'scheduled_job_dispatches', 'notifications', 'notification_reads')
      and not exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
                       where t.tgrelid = c.oid and p.proname = 'audit_trigger')
 $$, 'every org-scoped table is audited');

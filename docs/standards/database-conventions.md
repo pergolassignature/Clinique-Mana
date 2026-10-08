@@ -147,7 +147,7 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 - `source` defaults to `app.audit_source` if set, else `app` (authenticated), `service` (service role) or `system`. RPCs that log explicitly use `rpc:<function_name>`; seeds set `seed`.
 - Changes invisible to the row diff (e.g. a Vault value) get an explicit row from the RPC — see `set_org_secret`. Reads of `*_private` data are logged by their RPCs.
 - Catalogue tables changed only by migrations (`modules`, `permissions`, `role_permissions`) are not audited: git is their history.
-- **Operational logs are not audited either**, even with an `org_id`: `webhook_events`, `email_log`, `scheduled_job_runs`, `notifications`, `notification_reads` (and `rate_limits`, which has no `org_id`). They are written by the service role or by RPCs, hold recipient addresses or provider payloads, and are purged; auditing them would copy that data into the append-only `audit_log` forever (Loi 25; Phase 3 design §2.5). The list lives in `000_invariants` (§12): a new operational log is added there with its reason, never by disabling the check.
+- **Operational logs are not audited either**, even with an `org_id`: `webhook_events`, `email_log`, `scheduled_job_runs`, `scheduled_job_dispatches`, `notifications`, `notification_reads` (and `rate_limits`, which has no `org_id`). They are written by the service role or by RPCs, hold recipient addresses or provider payloads, and are purged; auditing them would copy that data into the append-only `audit_log` forever (Loi 25; Phase 3 design §2.5). The list lives in `000_invariants` (§12): a new operational log is added there with its reason, never by disabling the check.
 - `roles` is audited since custom roles exist (`…_core_editable_roles.sql`): admins create, rename and delete them through RPCs. `org_id` comes from the row and is null for the shared base roles. `org_role_permissions` (each clinic's role defaults) is audited like any org-scoped table.
 
 ## 8. Secrets and sensitive data
@@ -235,7 +235,7 @@ These hold for every current and future object; a violation fails CI.
 | No `public` / `private` function is executable by `anon` or `PUBLIC` | `revoke all on function … from public, anon` |
 | Every function in `public` / `private` has `set search_path = ''` | add it, qualify names (§6) |
 | Every foreign key has an index whose first column is the FK's first column | add the index (§4) |
-| Every table with an `org_id` column has an `audit_trigger`, except `audit_log` and the operational logs `webhook_events`, `email_log`, `scheduled_job_runs`, `notifications`, `notification_reads` (they hold addresses and payloads that must not be copied into `audit_log` forever, §7) | attach it (§7) |
+| Every table with an `org_id` column has an `audit_trigger`, except `audit_log` and the operational logs `webhook_events`, `email_log`, `scheduled_job_runs`, `scheduled_job_dispatches`, `notifications`, `notification_reads` (they hold addresses and payloads that must not be copied into `audit_log` forever, §7) | attach it (§7) |
 | Every view is `security_invoker = true` | §5b |
 | `admin` holds every permission in every org (`org_role_permissions`) | add the `('admin', '<permission>')` row to `role_permissions` in the migration that adds the permission (§9) |
 
