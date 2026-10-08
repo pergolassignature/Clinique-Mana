@@ -14,7 +14,7 @@
 -- audit noise, personal fields redacted).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(234);
+select plan(235);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
@@ -356,6 +356,10 @@ select results_eq($$ with u as (update public.professional_matching_profiles set
 select throws_ok($$ update public.professional_matching_profiles set availability_periods = array['am', 'am']
                      where professional_id = current_setting('test.p1')::uuid $$,
   '23514', null, 'availability periods are distinct');
+select results_eq($$ with u as (update public.professional_matching_profiles set availability_periods = array['pm', 'end_of_day']
+                                  where professional_id = current_setting('test.p1')::uuid returning availability_periods)
+                    select * from u $$,
+  $$ values (array['pm', 'end_of_day']::text[]) $$, '« Fin de journée » (end_of_day) is a period (P4-250)');
 select results_eq($$ with u as (update public.professional_matching_profiles set min_client_age = 14, women_only = true
                                   where professional_id = current_setting('test.p1')::uuid
                                   returning min_client_age::int, women_only)

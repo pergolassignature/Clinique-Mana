@@ -171,7 +171,7 @@ declare
                 "deficit_attention_hyperactivite", "troubles_difficultes_apprentissage", "douance", "trouble_spectre_autisme",
                 "identite_diversite_orientation_lgbtq", "intimidation",
                 "violence_victime", "deuil"],
-     "accepting": true, "periods": ["pm", "evening"],
+     "accepting": true, "periods": ["pm", "end_of_day", "evening"],
      "bio": "Camille accompagne les adolescentes et les jeunes femmes, en français, en anglais ou en espagnol. Elle prend le temps de comprendre ce que la personne vit à l'école, en famille ou avec ses amies.",
      "approach": "Thérapie comportementale dialectique (DBT) et TCC, avec des outils concrets pour mieux traverser les émotions intenses.",
      "public_email": "c.roy@exemple.test", "public_phone": "+15145550103"},

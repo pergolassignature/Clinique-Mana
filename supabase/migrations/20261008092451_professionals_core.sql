@@ -202,6 +202,7 @@ create table public.professional_matching_profiles (
   org_id uuid not null,
   accepting_new_clients boolean not null default true,
   -- General periods until Rendez-vous brings slots (P4-4); same values as a demande's preferences.
+  -- end_of_day: « Fin de journée » (« FDJ » at the clinic), between the afternoon and the evening (P4-250).
   availability_periods text[] not null default '{}',
   availability_note text,
   -- Who the professional sees, beyond the clientèles (P4-245): the youngest client age they take
@@ -214,7 +215,7 @@ create table public.professional_matching_profiles (
   constraint professional_matching_profiles_professional_fkey foreign key (org_id, professional_id)
     references public.professionals (org_id, id) on delete cascade,
   constraint professional_matching_profiles_availability_periods_check check (
-    availability_periods <@ array['am', 'pm', 'evening', 'weekend'] and private.has_no_duplicates(availability_periods)),
+    availability_periods <@ array['am', 'pm', 'end_of_day', 'evening', 'weekend'] and private.has_no_duplicates(availability_periods)),
   constraint professional_matching_profiles_availability_note_check check (char_length(availability_note) <= 500 and btrim(availability_note, E' \t\r\n') <> ''),
   constraint professional_matching_profiles_min_client_age_check check (min_client_age between 0 and 120)
 );
