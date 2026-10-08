@@ -158,7 +158,11 @@ function Missing({ record }: { record: ProfessionalRecord }) {
           {record.readiness.items
             .filter((item) => !item.done)
             .map((item) => (
-              <li key={item.key}>{t(`${A}.missing`, { item: readinessItemLabel(item.key), missing: listLabel(item.missing.map(missingLabel)) })}</li>
+              <li key={item.key}>
+                {item.missing.length
+                  ? t(`${A}.missing`, { item: readinessItemLabel(item.key), missing: listLabel(item.missing.map(missingLabel)) })
+                  : readinessItemLabel(item.key)}
+              </li>
             ))}
         </ul>
       </AlertDescription>

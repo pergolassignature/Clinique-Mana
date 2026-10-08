@@ -107,6 +107,11 @@ select functions_are('public', array[
   'set_compensation_default', 'delete_compensation_default', 'set_professional_margin', 'delete_professional_margin',
   'set_recognition_rule', 'delete_recognition_rule', 'set_professional_recognition', 'delete_professional_recognition',
   'get_professional_compensation',
+  'create_professional_invitation', 'revoke_professional_invitation', 'request_professional_update',
+  'resolve_professional_invitation', 'link_professional_account', 'list_professional_invitation_states', 'get_professional_onboarding',
+  'get_my_submission', 'save_my_submission_draft', 'save_my_submission_private', 'sign_my_consent', 'submit_my_submission',
+  'get_my_professional_private', 'start_my_profile_update',
+  'get_submission_review', 'apply_professional_submission', 'reject_professional_submission',
   'set_user_preference', 'delete_user_preference'
 ], 'public schema exposes exactly the intended RPCs');
 

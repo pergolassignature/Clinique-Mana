@@ -361,9 +361,12 @@ begin
       perform public.set_professional_payer_number(v_id, 'ivac', p ->> 'ivac');
     end if;
 
-    -- Status: activation runs the readiness check (no override: every file is complete).
+    -- Status: activation runs the readiness check. Since 4b.1 a complete file also has an account
+    -- and an approved questionnaire, which no seeded file has: they are activated as imported files
+    -- are (P4-20, P4-179), with the override reason, which activate_professional drops for a
+    -- complete file.
     if p ->> 'status' in ('active', 'inactive') then
-      perform public.activate_professional(v_id);
+      perform public.activate_professional(v_id, 'Dossier complété hors application');
     end if;
     if p ->> 'status' = 'inactive' then
       perform public.deactivate_professional(

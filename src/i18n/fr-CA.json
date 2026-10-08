@@ -1213,7 +1213,9 @@
       },
       "readiness": {
         "items": {
-          "matching_profile": "Profil de jumelage complet"
+          "matching_profile": "Profil de jumelage complet",
+          "account_created": "Compte créé (invitation acceptée)",
+          "submission_approved": "Questionnaire approuvé"
         },
         "missing": {
           "profession": "un titre professionnel",
@@ -1232,7 +1234,8 @@
           "complete": "Compléter",
           "readyToActivate": "Le dossier est prêt à être activé.",
           "readyToReactivate": "Le dossier peut être réactivé.",
-          "nothingToDo": "Rien à faire. Le dossier est complet."
+          "nothingToDo": "Rien à faire. Le dossier est complet.",
+          "awaitingOnboarding": "Le profil de jumelage est complet. Il reste l'accès du professionnel et son questionnaire."
         }
       },
       "watch": {

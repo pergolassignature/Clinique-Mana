@@ -68,4 +68,22 @@ describe('nextAction', () => {
   ])('%s', (_, missing, status, keys, expected) => {
     expect(nextAction(withReadiness(missing, status), can(...keys))).toEqual(expected)
   })
+
+  it('matching done, account and questionnaire missing (4b.1): the sentence alone, no tab', () => {
+    const record = withReadiness([], 'invited')
+    const incomplete: ProfessionalRecord = {
+      ...record,
+      readiness: {
+        ...record.readiness,
+        complete: false,
+        items: [...record.readiness.items, { key: 'account_created', done: false, missing: [] }, { key: 'submission_approved', done: false, missing: [] }],
+      },
+    }
+    expect(nextAction(incomplete, can('professionals.manage', 'professionals.matching'))).toEqual({
+      message: T('modules.professionals.readiness.nextAction.awaitingOnboarding'),
+      action: null,
+    })
+    expect(readinessItemLabel('account_created')).toBe('Compte créé (invitation acceptée)')
+    expect(readinessItemLabel('submission_approved')).toBe('Questionnaire approuvé')
+  })
 })

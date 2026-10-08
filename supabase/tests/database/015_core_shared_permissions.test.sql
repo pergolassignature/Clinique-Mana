@@ -122,8 +122,9 @@ select is(public.get_my_access() -> 'permissions', to_jsonb(private.current_perm
   'admin A: get_my_access permissions read the same source');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select is(private.current_permission_keys(), array['professionals.manage', 'professionals.matching', 'settings.manage', 'settings.view'],
-  'adjointe D: role defaults, plus the granted override, minus the revoked one');
+select is(private.current_permission_keys(), array['professionals.invite', 'professionals.manage', 'professionals.matching',
+                                                  'professionals.review', 'settings.manage', 'settings.view'],
+  'adjointe D: role defaults (professionals.invite and .review since 4b.1), plus the granted override, minus the revoked one');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is(private.current_permission_keys(), array['professionals.matching', 'professionals.view'],

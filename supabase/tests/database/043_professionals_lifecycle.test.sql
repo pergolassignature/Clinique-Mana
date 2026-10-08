@@ -16,7 +16,7 @@
 -- module off).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(173);
+select plan(174);
 
 -- The HINT of the error `p_sql` raises (null when it raises none or succeeds): throws_ok checks the
 -- code and the message only; the activation and deactivation dialogs route refusals by HINT (4a.14).
@@ -108,6 +108,9 @@ insert into public.professional_clienteles (org_id, professional_id, clientele_i
   ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002', current_setting('test.adults')::uuid, true);
 insert into public.professional_specialties (org_id, professional_id, specialty_id) values
   ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002', current_setting('test.cbt')::uuid);
+-- Since 4b.1 a complete file also has an account (P2 has one) and an approved onboarding questionnaire.
+insert into public.professional_submissions (org_id, professional_id, kind, status, requested_sections, submitted_at, reviewed_at, applied_fields)
+values ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002', 'onboarding', 'approved', array['personal'], now(), now(), '{}');
 
 -- P1, P4, P5 through the RPC, as the adjointe (1:1 rows and French come with it).
 set local role authenticated;
@@ -172,18 +175,20 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select results_eq($$ select r.matching_complete, r.ready from public.professionals_readiness r where r.professional_id = current_setting('test.p1')::uuid $$,
   $$ values (false, false) $$, 'P1 (title, licence, French) is not ready');
 select is(public.get_professional_readiness(current_setting('test.p1')::uuid),
-  '{"complete": false, "done": 0, "total": 1, "items": [{"key": "matching_profile", "done": false, "missing": ["clientele", "motif"]}], "warnings": []}'::jsonb,
-  'P1 misses a clientèle and a motif');
+  '{"complete": false, "done": 0, "total": 3, "items": [{"key": "matching_profile", "done": false, "missing": ["clientele", "motif"]},
+    {"key": "account_created", "done": false, "missing": []}, {"key": "submission_approved", "done": false, "missing": []}], "warnings": []}'::jsonb,
+  'P1 misses a clientèle and a motif, an account and an approved questionnaire (4b.1)');
 select is(public.get_professional_readiness(current_setting('test.p4')::uuid) -> 'items' -> 0 -> 'missing',
   '["profession", "clientele", "motif"]'::jsonb, 'without a title, the profession is missing too');
 select is(public.get_professional_readiness(current_setting('test.p2')::uuid),
-  '{"complete": true, "done": 1, "total": 1, "items": [{"key": "matching_profile", "done": true, "missing": []}], "warnings": []}'::jsonb,
+  '{"complete": true, "done": 3, "total": 3, "items": [{"key": "matching_profile", "done": true, "missing": []},
+    {"key": "account_created", "done": true, "missing": []}, {"key": "submission_approved", "done": true, "missing": []}], "warnings": []}'::jsonb,
   'P2 is complete');
 
 -- P5 (naturopathe, no licence needed) completes its matching profile.
 select public.set_professional_clienteles(current_setting('test.p5')::uuid, jsonb_build_array(jsonb_build_object('id', current_setting('test.adults'))));
 select public.set_professional_motifs(current_setting('test.p5')::uuid, array[current_setting('test.anxiete')::uuid]);
-select is((select r.ready from public.professionals_readiness r where r.professional_id = current_setting('test.p5')::uuid), true,
+select is((select r.matching_complete from public.professionals_readiness r where r.professional_id = current_setting('test.p5')::uuid), true,
   'a title without an order needs no licence');
 
 -- The title becomes regulated afterwards: the licence is missing.
@@ -225,7 +230,7 @@ update public.motifs set is_active = true, is_restricted = false where id = curr
 update public.professionals set email = 'pia.autre@exemple.ca' where id = current_setting('test.p2')::uuid;
 set local role authenticated;
 select is(public.get_professional_readiness(current_setting('test.p2')::uuid) - 'items',
-  '{"complete": true, "done": 1, "total": 1, "warnings": ["login_email_mismatch"]}'::jsonb,
+  '{"complete": true, "done": 3, "total": 3, "warnings": ["login_email_mismatch"]}'::jsonb,
   'a login email mismatch is a warning; the file stays complete');
 select is((select l.email_matches_login from public.professionals_list l where l.id = current_setting('test.p2')::uuid), false,
   'the list flags the mismatch');
@@ -326,21 +331,28 @@ select throws_ok($$ select public.deactivate_professional(current_setting('test.
 select is(private.test_error_hint($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.leave')::uuid) $$), 'status',
   'already inactive: HINT status');
 
--- P1 completes its profile (couples, deuil): the adjointe reactivates it without a reason.
+-- P1 completes its matching profile (couples, deuil). Without an account and an approved
+-- questionnaire (4b.1) the file is still incomplete: the adjointe cannot reactivate it, the admin
+-- does with the override reason. (P2's reactivations below show a complete file needs no reason.)
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select public.set_professional_clienteles(current_setting('test.p1')::uuid, jsonb_build_array(jsonb_build_object('id', current_setting('test.couples'))));
 select public.set_professional_motifs(current_setting('test.p1')::uuid, array[current_setting('test.deuil')::uuid]);
-select is((select r.ready from public.professionals_readiness r where r.professional_id = current_setting('test.p1')::uuid), true,
-  'P1 is ready once a clientèle and a motif are set');
-select is(public.get_professional_readiness(current_setting('test.p1')::uuid) -> 'complete', 'true'::jsonb, 'the checklist says complete');
+select is((select r.matching_complete from public.professionals_readiness r where r.professional_id = current_setting('test.p1')::uuid), true,
+  'P1''s matching profile is complete once a clientèle and a motif are set');
+select is(public.get_professional_readiness(current_setting('test.p1')::uuid) -> 'items' -> 0 -> 'done', 'true'::jsonb,
+  'the checklist says the matching profile is done');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select results_eq($$ select * from public.activate_professional(current_setting('test.p1')::uuid, 'Raison inutile ici') $$,
-  $$ values ('active'::text, null::text, null::uuid) $$, 'the adjointe reactivates a complete file');
+select throws_ok($$ select public.activate_professional(current_setting('test.p1')::uuid, 'Raison inutile ici') $$,
+  'P0001', 'Le dossier n''est pas complet. Seule l''administration peut activer un dossier incomplet.',
+  'no account and no approved questionnaire: the adjointe cannot reactivate (4b.1)');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select results_eq($$ select * from public.activate_professional(current_setting('test.p1')::uuid, 'Dossier complété hors application') $$,
+  $$ values ('active'::text, null::text, null::uuid) $$, 'the admin reactivates it with the override reason');
 reset role;
 select results_eq($$ select p.status, p.activation_override_reason, p.deactivation_reason_id, p.deactivation_note
                        from public.professionals p where p.id = current_setting('test.p1')::uuid $$,
-  $$ values ('active'::text, null::text, null::uuid, null::text) $$,
-  'a complete file stores no override reason; the deactivation is cleared');
+  $$ values ('active'::text, 'Dossier complété hors application'::text, null::uuid, null::text) $$,
+  'the override reason is stored; the deactivation is cleared');
 select ok(exists (select 1 from public.audit_log a
                    where a.table_name = 'professionals' and a.record_id = current_setting('test.p1') and a.action = 'update'
                      and a.changed_fields -> 'status' ->> 'after' = 'inactive'

@@ -88,13 +88,14 @@ $$, $$ values ('professionals.activate_override'::text, 'professionals'::text),
 
 select results_eq($$ select permission_key from public.role_permissions
                       where role = 'admin' and permission_key like 'professionals.%' order by 1 $$,
-  array['professionals.activate_override', 'professionals.compensation', 'professionals.manage', 'professionals.matching',
-        'professionals.private', 'professionals.self', 'professionals.settings', 'professionals.view'],
-  'template: admin holds every professionals permission');
+  array['professionals.activate_override', 'professionals.compensation', 'professionals.invite', 'professionals.manage',
+        'professionals.matching', 'professionals.private', 'professionals.review', 'professionals.self', 'professionals.settings',
+        'professionals.view'],
+  'template: admin holds every professionals permission (4b.1 adds invite and review)');
 select results_eq($$ select permission_key from public.role_permissions
                       where role = 'admin_assistant' and permission_key like 'professionals.%' order by 1 $$,
-  array['professionals.manage', 'professionals.matching', 'professionals.view'],
-  'template: the adjointe manages records and matching');
+  array['professionals.invite', 'professionals.manage', 'professionals.matching', 'professionals.review', 'professionals.view'],
+  'template: the adjointe manages records and matching (4b.1: invites and reviews too)');
 select results_eq($$ select permission_key from public.role_permissions
                       where role = 'counselor' and permission_key like 'professionals.%' order by 1 $$,
   array['professionals.matching', 'professionals.view'],
