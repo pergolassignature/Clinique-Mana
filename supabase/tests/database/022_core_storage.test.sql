@@ -109,12 +109,11 @@ $$, $$ values
   ('private.soft_delete_stored_file(uuid,uuid)', false, false, false)
 $$, 'the storage helpers are callable by no client role (can_read_object is gone: P3-33)');
 
+-- Every storage policy, whatever it names: a policy whose expression does not spell a bucket
+-- (`bucket_id = any (…)`, a helper function, `true`) would open the core buckets just as well.
 select is_empty($$
-  select 1 from pg_policy p
-   where p.polrelid = 'storage.objects'::regclass
-     and (coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), ''))
-         ~ '(org-assets|documents|signed-documents|can_read_object)'
-$$, 'no policy at all on storage.objects for the core buckets: no client reads, signs or writes an object (P3-33)');
+  select tablename, policyname from pg_policies where schemaname = 'storage'
+$$, 'no policy at all in the storage schema: no client reads, signs or writes an object, nor lists a bucket (P3-33)');
 
 select results_eq($$
   select indexname::text collate "default" from pg_indexes

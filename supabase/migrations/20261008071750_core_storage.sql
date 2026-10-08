@@ -1,5 +1,5 @@
 -- =============================================================================
--- Storage: private buckets, file registry, one object read policy, org logo and signature
+-- Storage: private buckets, file registry (no client policy on objects), org logo and signature
 -- =============================================================================
 -- Design:  docs/plans/2026-10-08-phase-3-shared-services-design.md §7
 -- Plan:    docs/plans/2026-10-08-phase-3-shared-services-plan.md, Task 3.24 (P3-14, P3-17, P3-20,
@@ -101,7 +101,12 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
                                                                  'application/msword',
                                                                  'application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
   ('signed-documents', 'signed-documents', false, 20971520, array['application/pdf'])
-on conflict (id) do nothing;
+-- A bucket made by hand before this migration (same id) is brought to these settings: never left
+-- public, nor with other limits.
+on conflict (id) do update
+  set public = false,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
 
 -- The object extension of an accepted MIME type, null for any other value. Must equal FORMATS in
 -- supabase/functions/_shared/storage.ts (_shared/storage-map.test.ts checks it).
