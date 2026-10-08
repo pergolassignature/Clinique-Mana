@@ -5,12 +5,14 @@
 -- primary, promotion, row ids kept, licence format and order pattern, archived titles, the
 -- deferred primary check, restricted motifs kept consistent); the clientèle, approach, motif and
 -- language sets (replace, specialized flags, archived and restricted rules, org of the ids);
--- IVAC numbers; email changes and the profile → professional email sync;
--- private.current_professional_id(); provider RLS and the module gate; org isolation; usage
--- counts; audit rows (record ids prefixed by the professional's id, no audit noise).
+-- IVAC numbers; email changes and the profile → professional email sync (a conflict leaves the
+-- professional's email, neutrally); private.current_professional_id(); provider RLS and the
+-- module gate; every RPC refused to disabled staff and with the module off; org isolation; usage
+-- counts (settings without view); audit rows (record ids prefixed by the professional's id, no
+-- audit noise, personal fields redacted).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(175);
+select plan(213);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
@@ -180,6 +182,7 @@ select function_privs_are('public', 'set_professional_payer_number', array['uuid
 select function_privs_are('public', 'set_professional_payer_number', array['uuid', 'text', 'text'], 'authenticated', array['EXECUTE'], 'authenticated may call set_professional_payer_number');
 select function_privs_are('public', 'list_professionals_reference_usage', array[]::text[], 'anon', array[]::text[], 'anon cannot call list_professionals_reference_usage');
 select function_privs_are('public', 'list_professionals_reference_usage', array[]::text[], 'authenticated', array['EXECUTE'], 'authenticated may call list_professionals_reference_usage');
+select is_definer('public', 'list_professionals_reference_usage', array[]::text[], 'list_professionals_reference_usage is security definer (true counts without view)');
 select function_privs_are('private', 'current_professional_id', array[]::text[], 'anon', array[]::text[], 'anon cannot call private.current_professional_id');
 select function_privs_are('private', 'current_professional_id', array[]::text[], 'authenticated', array['EXECUTE'], 'policies may call private.current_professional_id');
 select function_privs_are('private', 'lock_professional', array['uuid'], 'authenticated', array[]::text[], 'clients cannot call private.lock_professional');
@@ -244,6 +247,20 @@ select throws_ok($$ select public.create_professional('Xavier', 'X', 'x') $$,
 select throws_ok($$ select public.create_professional('   ', 'Vide', 'vide@exemple.ca') $$,
   'P0001', 'Le prénom est obligatoire.', 'a blank first name is refused');
 
+-- No active system language (hand-repaired data): refused, nothing created.
+reset role;
+savepoint no_language;
+update public.languages set is_active = false where id = current_setting('test.fr')::uuid;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok($$ select public.create_professional('Lina', 'Sans', 'lina@exemple.ca') $$,
+  'P0001', 'Aucune langue active n''est disponible.', 'no active system language: creation is refused');
+rollback to savepoint no_language;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select is((select count(*)::int from public.professionals p where p.email = 'lina@exemple.ca'), 0,
+  'the refused creation leaves no record without a language');
+
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select throws_ok($$ select public.create_professional('Con', 'Seil', 'cs@exemple.ca') $$,
   '42501', null, 'the conseillère cannot create a professional');
@@ -255,6 +272,12 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select results_eq($$ with u as (update public.professionals set city = 'Lévis' where id = current_setting('test.p1')::uuid returning 1)
                     select count(*)::int from u $$,
   array[1], 'the adjointe updates an identity column');
+select results_eq($$ with u as (update public.professionals
+                                   set personal_phone = '+15145550101', address_line1 = '123 rue Principale',
+                                       address_line2 = 'App. 4', postal_code = 'G6V 1A1', gender = 'female'
+                                 where id = current_setting('test.p1')::uuid returning 1)
+                    select count(*)::int from u $$,
+  array[1], 'the adjointe updates the personal fields');
 select throws_ok($$ update public.professionals set status = 'active' where id = current_setting('test.p1')::uuid $$,
   '42501', null, 'status has no column grant');
 select results_eq($$ with u as (update public.professional_public_profiles set bio = 'Approche chaleureuse.'
@@ -294,6 +317,29 @@ select results_eq($$ select x.profession_title_id, x.licence_number, x.is_primar
 select is((select pp.id::text from public.professional_professions pp
             where pp.professional_id = current_setting('test.p1')::uuid and pp.profession_title_id = current_setting('test.psy')::uuid),
   current_setting('test.p1_psy_row'), 'the psychologue row keeps its id');
+-- At most two titles: re-sending the two held titles is no third one (the guard's count ignores
+-- the row's own title; the upsert's BEFORE INSERT fires before the conflict is found).
+select results_eq($$ select x.profession_title_id, x.licence_number, x.is_primary
+                      from public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
+                        jsonb_build_object('title_id', current_setting('test.psy'), 'licence_number', 'OPQ-1'),
+                        jsonb_build_object('title_id', current_setting('test.sexo'), 'licence_number', 'S-2', 'is_primary', true))) x
+                     order by x.is_primary desc $$,
+  $$ values (current_setting('test.sexo')::uuid, 'S-2'::text, true), (current_setting('test.psy')::uuid, 'OPQ-1'::text, false) $$,
+  'the same two titles re-sent are accepted');
+select results_eq($$ select x.profession_title_id, x.is_primary
+                      from public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
+                        jsonb_build_object('title_id', current_setting('test.psy'), 'licence_number', 'OPQ-1', 'is_primary', true),
+                        jsonb_build_object('title_id', current_setting('test.sexo'), 'licence_number', 'S-2'))) x
+                     order by x.is_primary desc $$,
+  $$ values (current_setting('test.psy')::uuid, true), (current_setting('test.sexo')::uuid, false) $$,
+  'the primary moves between the two held titles');
+select results_eq($$ select x.profession_title_id, x.is_primary
+                      from public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
+                        jsonb_build_object('title_id', current_setting('test.psy'), 'licence_number', 'OPQ-1'),
+                        jsonb_build_object('title_id', current_setting('test.sexo'), 'licence_number', 'S-2', 'is_primary', true))) x
+                     order by x.is_primary desc $$,
+  $$ values (current_setting('test.sexo')::uuid, true), (current_setting('test.psy')::uuid, false) $$,
+  'and back');
 select throws_ok($$ select public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
                      jsonb_build_object('title_id', current_setting('test.psy'), 'licence_number', 'OPQ-1'),
                      jsonb_build_object('title_id', current_setting('test.sexo'), 'licence_number', 'S-2'),
@@ -327,7 +373,8 @@ select results_eq($$ select x.id, x.profession_title_id, x.licence_number, x.is_
   'removing the primary promotes the remaining title (same row)');
 select throws_ok($$ select public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
                      jsonb_build_object('title_id', current_setting('test.orient'), 'licence_number', 'abc'))) $$,
-  'P0001', 'Le numéro de permis n''a pas le format attendu par l''ordre.', 'the order''s licence pattern applies');
+  'P0001', 'Le numéro de permis pour Conseiller.ère en orientation n''a pas le bon format.',
+  'the order''s licence pattern applies, and the message names the title');
 select throws_ok($$ select public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
                      jsonb_build_object('title_id', current_setting('test.psyed'), 'licence_number', 'P-1'))) $$,
   'P0001', 'Ce titre est archivé.', 'an archived title cannot be added');
@@ -337,6 +384,8 @@ select throws_ok($$ select public.set_professional_professions(current_setting('
   'a licence with other characters is refused with a French message');
 select throws_ok($$ select public.set_professional_professions(current_setting('test.p1')::uuid, '{"title_id": null}'::jsonb) $$,
   '22023', null, 'the items must be a JSON array');
+select throws_ok($$ select public.set_professional_professions(current_setting('test.p1')::uuid, '[{"title_id": "pas-un-uuid"}]'::jsonb) $$,
+  '22023', null, 'a malformed title id gives 22023, not 22P02');
 
 -- =============================================================================
 -- set_professional_clienteles / _specialties (conseillère A, P1)
@@ -357,6 +406,8 @@ select is((select count(*)::int from public.set_professional_clienteles(current_
 select throws_ok($$ select public.set_professional_clienteles(current_setting('test.p1')::uuid,
                      jsonb_build_array(jsonb_build_object('id', current_setting('test.b_adults')))) $$,
   '22023', null, 'a clientèle of another clinic is refused');
+select throws_ok($$ select public.set_professional_clienteles(current_setting('test.p1')::uuid, '[{"id": "12345"}]'::jsonb) $$,
+  '22023', null, 'a malformed clientèle id gives 22023, not 22P02');
 select results_eq($$ select x.specialty_id, x.is_specialized from public.set_professional_specialties(current_setting('test.p1')::uuid,
                         jsonb_build_array(jsonb_build_object('id', current_setting('test.cbt'), 'specialized', true),
                                           jsonb_build_object('id', current_setting('test.emdr')))) x
@@ -472,6 +523,20 @@ reset role;
 update auth.users set email = 'Provider.New@A.test' where id = 'a0000000-0000-0000-0000-000000000003';
 select is((select p.email from public.professionals p where p.id = current_setting('test.p2')::uuid), 'provider.new@a.test',
   'the linked professional''s email follows the account (lower-cased)');
+-- Conflict: the new login address is P1's (unlinked, same clinic). The login change succeeds and
+-- reveals nothing (#38); P2 keeps its email.
+select lives_ok($$ update auth.users set email = 'New.Email@Exemple.ca' where id = 'a0000000-0000-0000-0000-000000000003' $$,
+  'a login email used by an unlinked professional of the clinic still changes');
+select is((select pr.email from public.profiles pr where pr.user_id = 'a0000000-0000-0000-0000-000000000003'), 'New.Email@Exemple.ca',
+  'the profile follows the account');
+select results_eq($$ select p.id, p.email from public.professionals p
+                     where p.id in (current_setting('test.p1')::uuid, current_setting('test.p2')::uuid) order by p.id $$,
+  $$ values (current_setting('test.p1')::uuid, 'new.email@exemple.ca'::text), (current_setting('test.p2')::uuid, 'provider.new@a.test'::text) $$,
+  'on conflict the linked professional keeps its email, the other one is untouched');
+-- Without conflict it syncs again.
+update auth.users set email = 'provider.again@a.test' where id = 'a0000000-0000-0000-0000-000000000003';
+select is((select p.email from public.professionals p where p.id = current_setting('test.p2')::uuid), 'provider.again@a.test',
+  'without conflict the email syncs again');
 
 -- =============================================================================
 -- private.current_professional_id()
@@ -510,8 +575,56 @@ select is((select count(*)::int from public.professionals), 0, 'module off: the 
 select is((select count(*)::int from public.professional_motifs), 0, 'module off: no junction row for the provider');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select is((select count(*)::int from public.professionals), 0, 'module off: the conseillère sees nothing');
+select throws_ok($$ select public.set_professional_clienteles(current_setting('test.p1')::uuid, '[]'::jsonb) $$,
+  '42501', null, 'module off: set_professional_clienteles is refused');
+select throws_ok($$ select public.set_professional_specialties(current_setting('test.p1')::uuid, '[]'::jsonb) $$,
+  '42501', null, 'module off: set_professional_specialties is refused');
+select throws_ok($$ select public.set_professional_motifs(current_setting('test.p1')::uuid, array[]::uuid[]) $$,
+  '42501', null, 'module off: set_professional_motifs is refused');
+select throws_ok($$ select public.set_professional_languages(current_setting('test.p1')::uuid, array[current_setting('test.fr')::uuid]) $$,
+  '42501', null, 'module off: set_professional_languages is refused');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok($$ select public.create_professional('Off', 'Module', 'off@exemple.ca') $$,
+  '42501', null, 'module off: create_professional is refused (admin)');
+select throws_ok($$ select public.set_professional_email(current_setting('test.p1')::uuid, 'off@exemple.ca') $$,
+  '42501', null, 'module off: set_professional_email is refused');
+select throws_ok($$ select public.set_professional_professions(current_setting('test.p1')::uuid, '[]'::jsonb) $$,
+  '42501', null, 'module off: set_professional_professions is refused');
+select throws_ok($$ select public.set_professional_payer_number(current_setting('test.p1')::uuid, 'ivac', '999999') $$,
+  '42501', null, 'module off: set_professional_payer_number is refused');
+select throws_ok($$ select * from public.list_professionals_reference_usage() $$,
+  '42501', null, 'module off: list_professionals_reference_usage is refused');
 reset role;
 update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
+
+-- =============================================================================
+-- Disabled staff: every RPC refuses them (rolled back)
+-- =============================================================================
+savepoint disabled_staff;
+update public.profiles set status = 'disabled'
+ where user_id in ('a0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000004');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok($$ select public.create_professional('Dis', 'Abled', 'disabled@exemple.ca') $$,
+  '42501', null, 'disabled adjointe: create_professional is refused');
+select throws_ok($$ select public.set_professional_email(current_setting('test.p1')::uuid, 'disabled@exemple.ca') $$,
+  '42501', null, 'disabled adjointe: set_professional_email is refused');
+select throws_ok($$ select public.set_professional_professions(current_setting('test.p1')::uuid, '[]'::jsonb) $$,
+  '42501', null, 'disabled adjointe: set_professional_professions is refused');
+select throws_ok($$ select public.set_professional_payer_number(current_setting('test.p1')::uuid, 'ivac', '999999') $$,
+  '42501', null, 'disabled adjointe: set_professional_payer_number is refused');
+select throws_ok($$ select * from public.list_professionals_reference_usage() $$,
+  '42501', null, 'disabled adjointe: list_professionals_reference_usage is refused');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select throws_ok($$ select public.set_professional_clienteles(current_setting('test.p1')::uuid, '[]'::jsonb) $$,
+  '42501', null, 'disabled conseillère: set_professional_clienteles is refused');
+select throws_ok($$ select public.set_professional_specialties(current_setting('test.p1')::uuid, '[]'::jsonb) $$,
+  '42501', null, 'disabled conseillère: set_professional_specialties is refused');
+select throws_ok($$ select public.set_professional_motifs(current_setting('test.p1')::uuid, array[]::uuid[]) $$,
+  '42501', null, 'disabled conseillère: set_professional_motifs is refused');
+select throws_ok($$ select public.set_professional_languages(current_setting('test.p1')::uuid, array[current_setting('test.fr')::uuid]) $$,
+  '42501', null, 'disabled conseillère: set_professional_languages is refused');
+rollback to savepoint disabled_staff;
 
 -- =============================================================================
 -- Isolation (admin B)
@@ -553,22 +666,44 @@ select is((select count(*)::int from public.list_professionals_reference_usage()
   'nothing of another clinic is counted');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select throws_ok($$ select * from public.list_professionals_reference_usage() $$,
-  '42501', null, 'usage counts need professionals.manage');
+  '42501', null, 'usage counts need professionals.settings or professionals.manage');
+
+-- The conseillère given professionals.settings and denied professionals.view (overrides, rolled
+-- back; she never holds manage): the counts are the clinic's, not hidden by RLS.
+reset role;
+savepoint settings_only;
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'professionals.settings', true),
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'professionals.view',     false);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select is((select count(*)::int from public.professional_motifs), 0, 'settings only: the junction rows are not readable');
+select results_eq($$ select u.kind, u.usage from public.list_professionals_reference_usage() u
+                     where u.id in (current_setting('test.anxiete')::uuid, current_setting('test.psychose')::uuid)
+                     order by u.usage desc $$,
+  $$ values ('motifs'::text, 2), ('motifs'::text, 1) $$,
+  'settings only: the counts are still the clinic''s');
+select is((select count(*)::int from public.list_professionals_reference_usage() u where u.id = current_setting('test.b_anxiete')::uuid), 0,
+  'settings only: nothing of another clinic is counted');
+rollback to savepoint settings_only;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 
 -- =============================================================================
 -- Audit (as postgres)
 -- =============================================================================
 -- Re-sending the same set writes nothing.
 reset role;
-select set_config('test.audit_count', (select count(*)::text from public.audit_log), true);
+select set_config('test.audit_count', (select count(*)::text from public.audit_log a
+                                         where left(a.record_id, 36) = current_setting('test.p1')), true);
 set local role authenticated;
 select public.set_professional_motifs(current_setting('test.p1')::uuid,
   array[current_setting('test.psychose')::uuid, current_setting('test.anxiete')::uuid]);
 select public.set_professional_languages(current_setting('test.p1')::uuid,
   array[current_setting('test.en')::uuid, current_setting('test.fr')::uuid]);
 reset role;
-select is((select count(*)::text from public.audit_log), current_setting('test.audit_count'),
-  'unchanged sets write no audit row');
+select is((select count(*)::text from public.audit_log a where left(a.record_id, 36) = current_setting('test.p1')),
+  current_setting('test.audit_count'), 'unchanged sets write no audit row');
 
 select results_eq($$ select distinct a.table_name from public.audit_log a
                      where left(a.record_id, 36) = current_setting('test.p1') order by 1 $$,
@@ -590,6 +725,29 @@ select results_eq($$ select a.action, a.actor_id from public.audit_log a
                      where a.table_name = 'professionals' and a.record_id = current_setting('test.marie') $$,
   $$ values ('insert'::text, 'a0000000-0000-0000-0000-000000000002'::uuid) $$,
   'the creation is audited with the adjointe as actor');
+
+-- Redaction (Loi 25): the history says the personal fields changed, never their values.
+select results_eq($$ select a.changed_fields -> 'personal_phone', a.changed_fields -> 'address_line1', a.changed_fields -> 'address_line2',
+                            a.changed_fields -> 'postal_code', a.changed_fields -> 'gender'
+                       from public.audit_log a
+                      where a.table_name = 'professionals' and a.record_id = current_setting('test.p1') and a.action = 'update'
+                        and a.changed_fields ? 'postal_code' $$,
+  $$ values ('"[redacted]"'::jsonb, '"[redacted]"'::jsonb, '"[redacted]"'::jsonb, '"[redacted]"'::jsonb, '"[redacted]"'::jsonb) $$,
+  'phone, address lines, postal code and gender are redacted in the audit log');
+select results_eq($$ select a.changed_fields -> 'city' from public.audit_log a
+                      where a.table_name = 'professionals' and a.record_id = current_setting('test.p1') and a.action = 'update'
+                        and a.changed_fields ? 'city' $$,
+  $$ values ('"[redacted]"'::jsonb) $$,
+  'the city is redacted too');
+select is((select count(*)::int from public.audit_log a
+            where a.record_id = current_setting('test.p1')
+              and a.changed_fields::text ~ '5145550101|Principale|App\. 4|G6V 1A1|Lévis|female'), 0,
+  'no personal value of P1 reaches the audit log');
+select results_eq($$ select a.changed_fields -> 'gender', a.changed_fields -> 'first_name'
+                       from public.audit_log a
+                      where a.table_name = 'professionals' and a.record_id = current_setting('test.marie') and a.action = 'insert' $$,
+  $$ values ('"[redacted]"'::jsonb, '"Marie"'::jsonb) $$,
+  'an insert row is redacted the same way; the name stays');
 
 select * from finish();
 rollback;

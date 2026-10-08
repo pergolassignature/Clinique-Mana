@@ -23,10 +23,15 @@
 --   refuses them without one, set_professional_professions refuses to remove the last one while
 --   they are held.
 -- * Email: lower-cased, unique among the clinic's professionals and profiles only (P4-34). Once
---   the account exists, profiles.email (from auth.users) is the source: a trigger copies it.
+--   the account exists, profiles.email (from auth.users) is the source: a trigger copies it,
+--   unless an unlinked professional of the clinic already uses the address (then it is left as
+--   is: the login change must succeed and reveal nothing, decision #38).
 -- * Providers read their own record through private.current_professional_id() and
---   professionals.self; every policy keeps a permission term (module gate).
--- * No SIN or bank data here (4a.17, professional_private): nothing to redact in this migration.
+--   professionals.self; every policy keeps a permission term (module gate). That includes
+--   deactivation_note and activation_override_reason (Loi 25 right of access): staff write
+--   those notes knowing the professional can read them.
+-- * Audit redaction (Loi 25): the home address, personal phone and gender of professionals.
+--   No SIN or bank data here (4a.17, professional_private).
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:professionals_core', true);
@@ -70,6 +75,8 @@ create table public.professionals (
   status_changed_at timestamptz not null default now(),
   status_changed_by uuid references public.profiles(user_id) on delete set null,
   deactivation_reason_id uuid,
+  -- Both notes are readable by the professional (professionals_select_self, Loi 25 right of
+  -- access): staff write them as the professional may read them.
   deactivation_note text,
   deactivation_disabled_account boolean not null default false,
   activation_override_reason text,
@@ -141,8 +148,12 @@ create policy professionals_update on public.professionals
 
 create trigger professionals_set_updated_at before update on public.professionals
   for each row execute function private.set_updated_at();
+-- Personal data stays out of audit_log (Loi 25: the log outlives the record and its readers).
+-- The history shows that the field changed, not its values. Province and years of experience
+-- are not personal enough to hide; names and email are what the history is about.
 create trigger professionals_audit after insert or update or delete on public.professionals
-  for each row execute function private.audit_trigger();
+  for each row execute function private.audit_trigger('personal_phone', 'address_line1', 'address_line2', 'city',
+                                                      'postal_code', 'gender');
 
 -- Lock one professional of the caller's clinic, or say it does not exist there.
 create function private.lock_professional(p_id uuid)
@@ -274,9 +285,10 @@ as $$
 declare
   v_order uuid;
   v_pattern text;
+  v_title text;
 begin
   new.licence_number := nullif(pg_catalog.btrim(new.licence_number, E' \t\r\n'), '');
-  select t.order_id, o.licence_pattern into v_order, v_pattern
+  select t.order_id, o.licence_pattern, t.name into v_order, v_pattern, v_title
     from public.profession_titles t
     left join public.professional_orders o on o.org_id = t.org_id and o.id = t.order_id
    where t.org_id = new.org_id and t.id = new.profession_title_id;
@@ -288,7 +300,7 @@ begin
       using errcode = 'P0001';
   end if;
   if v_pattern is not null and new.licence_number is not null and new.licence_number !~ v_pattern then
-    raise exception 'Le numéro de permis n''a pas le format attendu par l''ordre.' using errcode = 'P0001';
+    raise exception 'Le numéro de permis pour % n''a pas le bon format.', v_title using errcode = 'P0001';
   end if;
   if tg_op = 'INSERT' and (
     select count(*) from public.professional_professions pp
@@ -514,6 +526,13 @@ end;
 $$;
 
 -- Once linked, the account's email (auth.users → profiles) is the professional's email.
+-- Conflict: the new login address is already the email of an unlinked professional of the clinic
+-- (professionals_org_email_key). Raising here would fail GoTrue's email-change confirmation, and
+-- « Mon compte » answers every email change neutrally: it never reveals that an address is used
+-- (decision #38, ADR 0006). So the login change goes through and professionals.email keeps its
+-- old value; nothing is raised or shown. The two addresses then differ; 4a.4 readiness or a
+-- staff notification can flag the mismatch later. No UI pre-check either: it would reveal the
+-- address.
 create function private.professionals_email_from_profile()
 returns trigger
 language plpgsql
@@ -521,8 +540,13 @@ security definer
 set search_path = ''
 as $$
 begin
-  update public.professionals p set email = pg_catalog.lower(new.email)
-   where p.profile_id = new.user_id and p.email is distinct from pg_catalog.lower(new.email);
+  begin
+    update public.professionals p set email = pg_catalog.lower(new.email)
+     where p.profile_id = new.user_id and p.email is distinct from pg_catalog.lower(new.email);
+  exception when unique_violation then
+    -- Only professionals_org_email_key can be violated: the statement changes email alone.
+    null;
+  end;
   return null;
 end;
 $$;
@@ -590,12 +614,16 @@ begin
   returning id into v_id;
   insert into public.professional_public_profiles (org_id, professional_id) values (v_org, v_id);
   insert into public.professional_matching_profiles (org_id, professional_id) values (v_org, v_id);
-  -- French: the clinic's system language (P4-42), which cannot be archived.
+  -- French: the clinic's system language (P4-42), which cannot be archived. Without one (data
+  -- repaired by hand), refuse rather than create a record no language can match.
   insert into public.professional_languages (org_id, professional_id, language_id)
   select v_org, v_id, l.id from public.languages l
    where l.org_id = v_org and l.is_system and l.is_active
    order by l.sort_order
    limit 1;
+  if not found then
+    raise exception 'Aucune langue active n''est disponible.' using errcode = 'P0001';
+  end if;
   if p_profession_title_id is not null then
     -- The guard trims the licence and applies the order's rules.
     insert into public.professional_professions (org_id, professional_id, profession_title_id, licence_number, is_primary)
@@ -643,7 +671,9 @@ $$;
 -- unnest(a, b) zips arrays; it is FROM-clause syntax, so it is never written pg_catalog.unnest.
 -- -----------------------------------------------------------------------------
 -- [{"id": uuid, "specialized"?: boolean}, …] → distinct ids (sorted) and their flags; a repeated
--- id is specialized when any of its items says so. At most 500 items (no list holds more).
+-- id is specialized when any of its items says so. At most 500 items (no list holds more). Ids are
+-- checked against the canonical uuid form before the cast, so a malformed one gives 22023 (not
+-- 22P02 from the cast).
 create function private.parse_specialized_items(p_items jsonb, out ids uuid[], out flags boolean[])
 language plpgsql
 immutable
@@ -657,6 +687,7 @@ begin
     select 1 from pg_catalog.jsonb_array_elements(p_items) as e(v)
      where pg_catalog.jsonb_typeof(e.v) <> 'object'
         or pg_catalog.jsonb_typeof(e.v -> 'id') is distinct from 'string'
+        or (e.v ->> 'id') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         or coalesce(pg_catalog.jsonb_typeof(e.v -> 'specialized'), 'null') not in ('boolean', 'null')
   ) then
     raise exception 'Élément invalide : {"id": uuid, "specialized": booléen facultatif} attendu.' using errcode = '22023';
@@ -914,6 +945,7 @@ begin
     select 1 from pg_catalog.jsonb_array_elements(p_items) as e(v)
      where pg_catalog.jsonb_typeof(e.v) <> 'object'
         or pg_catalog.jsonb_typeof(e.v -> 'title_id') is distinct from 'string'
+        or (e.v ->> 'title_id') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'  -- before the cast below: 22023, not 22P02
         or coalesce(pg_catalog.jsonb_typeof(e.v -> 'licence_number'), 'null') not in ('string', 'null')
         or coalesce(pg_catalog.jsonb_typeof(e.v -> 'is_primary'), 'null') not in ('boolean', 'null')
   ) then
@@ -1028,22 +1060,24 @@ $$;
 
 -- -----------------------------------------------------------------------------
 -- Usage counts for the settings lists (archive warnings): one union of grouped counts.
--- Security invoker: the tables' RLS scopes it to the caller's clinic, as does the org filter
--- (which also lets each count use its (org_id, <x>_id) index).
+-- For professionals.settings (who edits the lists) or professionals.manage. Security definer, so
+-- a holder without professionals.view (an override) still gets true counts, not RLS-filtered
+-- ones; every count is scoped explicitly to the caller's org (which also lets each use its
+-- (org_id, <x>_id) index). Only counts per reference id leave the function.
 -- -----------------------------------------------------------------------------
 create function public.list_professionals_reference_usage()
 returns table (kind text, id uuid, usage int)
 language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
 #variable_conflict use_column
 declare
   v_org uuid := private.current_user_org_id();
 begin
-  if not private.has_permission('professionals.manage') then
-    raise exception 'Permission refusée : professionals.manage' using errcode = '42501';
+  if not (private.has_permission('professionals.settings') or private.has_permission('professionals.manage')) then
+    raise exception 'Permission refusée : professionals.settings' using errcode = '42501';
   end if;
   return query
     select 'motifs'::text, x.motif_id, count(*)::int
