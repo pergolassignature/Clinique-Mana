@@ -11,6 +11,7 @@ import { fixedClock } from '../_shared/testing/fixed-clock.ts'
 import { captureConsole, withEnv } from '../_shared/testing/env.ts'
 import { accessFixture } from '../_shared/testing/email-fixtures.ts'
 import {
+  LOCAL_APP_URL,
   sentRequest,
   SIGNING_ORG,
 } from '../_shared/testing/signing-fixtures.ts'
@@ -65,7 +66,12 @@ function setup(
     },
   })
   const deps: Deps = {
-    env: (key) => key === 'INTERNAL_FUNCTION_SECRET' ? SECRET : undefined,
+    env: (key) =>
+      key === 'INTERNAL_FUNCTION_SECRET'
+        ? SECRET
+        : key === 'APP_URL'
+        ? LOCAL_APP_URL
+        : undefined,
     fetch: fake.fetch,
     now: clock.now,
     serviceClient: () => service.client,

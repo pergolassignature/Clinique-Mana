@@ -2924,10 +2924,7 @@ export type Database = {
         Args: { p_enabled: boolean; p_key: string }
         Returns: undefined
       }
-      set_signing_settings: {
-        Args: { p_base_url: string; p_expiry_days: number }
-        Returns: undefined
-      }
+      set_signing_settings: { Args: { p: Json }; Returns: Json }
       set_user_role: {
         Args: { p_role: string; p_user_id: string }
         Returns: undefined

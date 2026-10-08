@@ -75,13 +75,14 @@ function renderPage(
     lastEvent = '2026-10-08T12:00:00Z' as string | null,
     lastTest = null as SignatureRequestRow | null,
     templates = [TEMPLATE] as DocumentTemplate[],
+    secretKeys = [{ key: 'documenso_api_key', updated_at: '2026-10-08T12:00:00Z' }] as { key: string; updated_at: string }[],
   } = {},
 ) {
   mocks.signing.fetchSigningSettings.mockResolvedValue(settings)
   mocks.signing.lastDocumensoEventAt.mockResolvedValue(lastEvent)
   mocks.signing.lastSigningTest.mockResolvedValue(lastTest)
   mocks.signing.listDocumentTemplates.mockResolvedValue(templates)
-  mocks.secrets.listOrgSecretKeys.mockResolvedValue([{ key: 'documenso_api_key', updated_at: '2026-10-08T12:00:00Z' }])
+  mocks.secrets.listOrgSecretKeys.mockResolvedValue(secretKeys)
   const readOnly = !permissions.includes('settings.integrations_manage')
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
@@ -105,6 +106,13 @@ const plain = (text: string) => text.replace(/\u00a0/g, ' ')
 /** A field by its label, whatever follows it (the required marker). */
 const labelled = (label: string) => new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
 const baseUrl = () => within(connection()).findByLabelText(labelled(t('settings.signing.connection.baseUrl')))
+/** The text of the field's help and error (`aria-describedby`). */
+const description = (field: HTMLElement) =>
+  (field.getAttribute('aria-describedby') ?? '')
+    .split(' ')
+    .map((id) => document.getElementById(id)?.textContent ?? '')
+    .join(' ')
+    .trim()
 const expiry = () => within(sending()).findByLabelText(labelled(t('settings.signing.send.expiry')))
 
 describe('SigningSettingsPage', () => {
@@ -143,7 +151,7 @@ describe('SigningSettingsPage', () => {
 
     it('saves the instance address, normalised, with the stored expiry', async () => {
       const user = userEvent.setup()
-      mocks.signing.setSigningSettings.mockResolvedValue(undefined)
+      mocks.signing.setSigningSettings.mockResolvedValue({ api_key_cleared: false })
       renderPage(ADMIN)
       const field = await baseUrl()
       await user.clear(field)
@@ -153,6 +161,48 @@ describe('SigningSettingsPage', () => {
         expect(mocks.signing.setSigningSettings).toHaveBeenCalledExactlyOnceWith({ base_url: 'https://signature.cliniquemana.com', expiry_days: 7 }),
       )
       expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.signing.connection.saved'))
+    })
+
+    it('warns, while the address changes, that saving it clears the stored API key; then says so and reads the key again', async () => {
+      const user = userEvent.setup()
+      mocks.signing.setSigningSettings.mockResolvedValue({ api_key_cleared: true })
+      renderPage(ADMIN)
+      const field = await baseUrl()
+      const warning = plain(t('settings.signing.connection.keyClearedWarning'))
+      await within(connection()).findByRole('button', { name: t('settings.secrets.replace', { label: t('settings.signing.connection.apiKey') }) })
+      expect(description(field)).toBe(t('settings.signing.connection.baseUrlHelp'))
+      await user.clear(field)
+      await user.type(field, 'https://autre.cliniquemana.com')
+      expect(plain(description(field))).toContain(warning)
+      expect(mocks.secrets.listOrgSecretKeys).toHaveBeenCalledTimes(1)
+      mocks.secrets.listOrgSecretKeys.mockResolvedValue([])
+      await user.click(within(connection()).getByRole('button', { name: t('common.save') }))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.signing.connection.savedKeyCleared')))
+      expect(mocks.secrets.listOrgSecretKeys).toHaveBeenCalledTimes(2)
+      expect(
+        await within(connection()).findByRole('button', { name: t('settings.secrets.add', { label: t('settings.signing.connection.apiKey') }) }),
+      ).toBeInTheDocument()
+    })
+
+    it('does not warn about the key when none is stored', async () => {
+      const user = userEvent.setup()
+      renderPage(ADMIN, { secretKeys: [] })
+      const field = await baseUrl()
+      await within(connection()).findByRole('button', { name: t('settings.secrets.add', { label: t('settings.signing.connection.apiKey') }) })
+      await user.clear(field)
+      await user.type(field, 'https://autre.cliniquemana.com')
+      expect(description(field)).toBe(t('settings.signing.connection.baseUrlHelp'))
+    })
+
+    it('refuses an IP address or an internal name in the browser (P3-34)', async () => {
+      const user = userEvent.setup()
+      renderPage(ADMIN)
+      const field = await baseUrl()
+      await user.clear(field)
+      await user.type(field, 'https://127.0.0.1')
+      await user.click(within(connection()).getByRole('button', { name: t('common.save') }))
+      expect(await within(connection()).findByText(t('settings.signing.connection.publicHost'))).toBeInTheDocument()
+      expect(mocks.signing.setSigningSettings).not.toHaveBeenCalled()
     })
 
     it('refuses an http:// address in the browser, focused, with the SQL rule’s message', async () => {
@@ -170,7 +220,7 @@ describe('SigningSettingsPage', () => {
 
     it('saves the expiry with the stored address, and refuses one outside 1–60', async () => {
       const user = userEvent.setup()
-      mocks.signing.setSigningSettings.mockResolvedValue(undefined)
+      mocks.signing.setSigningSettings.mockResolvedValue({ api_key_cleared: false })
       renderPage(ADMIN)
       const field = await expiry()
       await user.clear(field)
@@ -207,7 +257,7 @@ describe('SigningSettingsPage', () => {
       it('drops the outcome once another address is saved (it no longer applies)', async () => {
         const user = userEvent.setup()
         mocks.signing.testSigningConnection.mockResolvedValue({ ok: true })
-        mocks.signing.setSigningSettings.mockResolvedValue(undefined)
+        mocks.signing.setSigningSettings.mockResolvedValue({ api_key_cleared: false })
         renderPage(ADMIN)
         await user.click(await within(connection()).findByRole('button', { name: t('settings.signing.connection.test') }))
         expect(await within(connection()).findByText(t('settings.signing.connection.success'))).toBeInTheDocument()

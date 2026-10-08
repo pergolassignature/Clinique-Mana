@@ -49,16 +49,16 @@ const PENDING_OUTLINE = cn(softDisabledClasses, 'aria-disabled:hover:border-bord
 export function SigningConnectionCard({ readOnly }: CardProps) {
   const settings = useSigningSettings()
   const secrets = useOrgSecretKeys()
+  const apiKeyAt = secrets.data?.find((secret) => secret.key === 'documenso_api_key')?.updated_at ?? null
   // What the test reads; a new address or key makes the last outcome stale: the test remounts, empty.
-  const tested =
-    settings.data && secrets.data ? `${settings.data.base_url}|${secrets.data.find((secret) => secret.key === 'documenso_api_key')?.updated_at}` : null
+  const tested = settings.data && secrets.data ? `${settings.data.base_url}|${apiKeyAt}` : null
   return (
     <SettingsCard
       as="section"
       title={t('settings.signing.connection.title')}
       description={t(readOnly ? 'settings.signing.connection.readOnlyDescription' : 'settings.signing.connection.description')}
     >
-      <SettingsLoad query={settings}>{(data) => <BaseUrlForm settings={data} readOnly={readOnly} />}</SettingsLoad>
+      <SettingsLoad query={settings}>{(data) => <BaseUrlForm settings={data} readOnly={readOnly} hasApiKey={apiKeyAt !== null} />}</SettingsLoad>
       <DocumensoSecret
         secretKey="documenso_api_key"
         label={t('settings.signing.connection.apiKey')}
@@ -130,8 +130,11 @@ function DocumensoSecret({ secretKey, label, help, readOnly }: { secretKey: stri
 /** Read-only: Enter in the field would still submit the form implicitly; nothing may be saved. */
 const preventSubmit = (event: FormEvent<HTMLFormElement>) => event.preventDefault()
 
-/** « Adresse de l'instance », saved with the stored expiry. */
-function BaseUrlForm({ settings, readOnly }: { settings: SigningSettings; readOnly: boolean }) {
+/**
+ * « Adresse de l'instance », saved with the stored expiry. A new address origin deletes the stored
+ * API key (P3-34): while the address is being changed and a key is stored, the help says so.
+ */
+function BaseUrlForm({ settings, readOnly, hasApiKey }: { settings: SigningSettings; readOnly: boolean; hasApiKey: boolean }) {
   const values = useMemo(() => toBaseUrlFormValues(settings), [settings])
   const { form, cancel, handleSave } = useSettingsForm({ schema: baseUrlSchema, values })
   const mutation = useSetSigningSettings(t('settings.signing.connection.saved'))
@@ -141,10 +144,16 @@ function BaseUrlForm({ settings, readOnly }: { settings: SigningSettings; readOn
   const onSubmit = handleSave(({ base_url }, onSaved) =>
     mutation.mutate({ base_url, expiry_days: settings.expiry_days }, { onSuccess: () => onSaved({ base_url: base_url ?? '' }) }),
   )
+  const help = t('settings.signing.connection.baseUrlHelp')
 
   return (
     <form onSubmit={readOnly ? preventSubmit : (event) => void onSubmit(event)} noValidate aria-busy={mutation.isPending || undefined} className="space-y-2">
-      <FormField label={t('settings.signing.connection.baseUrl')} help={t('settings.signing.connection.baseUrlHelp')} error={errors.base_url?.message} readOnly={readOnly}>
+      <FormField
+        label={t('settings.signing.connection.baseUrl')}
+        help={isDirty && hasApiKey && !readOnly ? `${help} ${t('settings.signing.connection.keyClearedWarning')}` : help}
+        error={errors.base_url?.message}
+        readOnly={readOnly}
+      >
         {(field) => (
           <Input {...field} {...form.register('base_url')} type="url" inputMode="url" placeholder="https://" autoComplete="off" spellCheck={false} />
         )}

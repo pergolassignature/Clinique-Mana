@@ -52,6 +52,7 @@ Jonathan, 2026-10-08: « You will go on without asking me questions you have pha
 | P3-30 | `stored_files` has a fifth status, `purged` (object removed, row kept); `signature_requests` gains `last_error`; `document_templates` gains `view_permission`; `signature_requests.template_version_id` may be null only for the built-in test document; `signing_settings.base_url` accepts `https://…`, or `http://host.docker.internal:<port>` for the local fake. | Gaps found while planning (see the next section). |
 | P3-31 | Accepting an invitation re-checks the inviter's standing; an invitation from someone who has since been disabled or lost the right answers like an invalid link. Delegated decision, 2026-10-08, revisable. | Found in the Task 3.18 review: otherwise a manager disabled or demoted after inviting could still bring someone in. Nothing is written and the invitation stays pending, so an admin sees it and revokes or re-sends it herself. |
 | P3-33 | **Clients never mint signed read URLs.** There is no client policy on `storage.objects` for the core buckets (no select either), so `createSignedUrl` from the browser fails. The `storage-sign` function (lane F) takes `{ file_id, download? }`, selects the `stored_files` row with the **user** client (its RLS decides readability), then signs a 5-min URL with the service role and returns `{ url, expires_at }`. Delegated decision, 2026-10-08, revisable. | Found in the Task 3.26 review: a client holding a select policy can sign a URL for any readable path itself, outside any check or rate limit the function applies; one read path is simpler to audit. |
+| P3-34 | **The Documenso address must be public, and a new address needs its key again.** `signing_settings.base_url` is `https://` to a public DNS name only (no IP literal, all-digit or hex-looking host, IPv6 literal, single label, `localhost`, `.localhost`, `.internal` or `.local`: `private.signing_base_url_valid`), or exactly `http://host.docker.internal:<port>` for the local fake, which the functions refuse unless `APP_URL` is local (`isLocalAppUrl`). Every Documenso request is sent with `redirect: 'manual'` (a 3xx is a `provider_error`), and outside local dev the host's A and AAAA records are resolved first: a private, loopback, link-local, CGNAT, multicast, reserved or unspecified address (IPv4-mapped IPv6 included) refuses the request. `set_signing_settings` takes a jsonb patch (each card sends only its field) and deletes the `documenso_api_key` org secret in the same transaction when the address's origin (scheme, host, port) changes; the UI says « Changer l'adresse efface la clé d'API ; saisissez-la de nouveau. ». Delegated decision, 2026-10-08, revisable. | Found in the Task 3.34 review: a `settings.integrations_manage` holder could point the address at an internal service or at their own host, and the server would fetch it, follow redirects and send the stored key there (SSRF and key exfiltration). Clearing the key on a new origin means a key is only ever sent where it was typed for. What remains is the DNS-rebinding window between the check and `fetch`'s own lookup (documented in `_shared/documenso.ts`): https and no redirects narrow it to a service holding a valid certificate for the attacker's name. |
 
 ### Design inconsistencies resolved here
 
@@ -2078,10 +2079,10 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 **Tables** (design §6.2 + P3-30):
 - **`signing_settings`**:
   - `org_id pk`;
-  - `base_url text null`, `check (base_url ~ '^https://[a-z0-9.-]+(:[0-9]+)?(/.*)?$' or base_url ~ '^http://host\.docker\.internal:[0-9]+(/.*)?$')`, with a comment: the second form is the local fake only, since it resolves only on dev machines;
+  - `base_url text null`, `check (base_url ~ '^https://[a-z0-9.-]+(:[0-9]+)?(/.*)?$' or base_url ~ '^http://host\.docker\.internal:[0-9]+(/.*)?$')`, with a comment: the second form is the local fake only, since it resolves only on dev machines (P3-34 narrows the https form to public DNS names: `private.signing_base_url_valid`);
   - `expiry_days int not null default 7 check (between 1 and 60)`, `updated_at`, `updated_by`;
   - created per org by trigger + backfill;
-  - select with `settings.view`; written by `set_signing_settings(p_base_url, p_expiry_days)` (`settings.integrations_manage`);
+  - select with `settings.view`; written by `set_signing_settings(p jsonb)` (`settings.integrations_manage`; a patch of `base_url` and/or `expiry_days`, and a new address origin deletes `documenso_api_key`, P3-34);
   - audited.
 - **`document_templates`**:
   - `id, org_id, key (unique per org; must start with module_key || '.'), module_key → modules, title, description, view_permission → permissions, edit_permission → permissions, is_active, timestamps`;
@@ -2330,6 +2331,8 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 **Commit:** `feat(settings): Signature électronique section`.
 
+**Review follow-ups (P3-34):** no redirect is followed and, outside local dev, the Documenso host must resolve to public addresses only (before every request); the database refuses IP literals and private names; a new address origin clears the API key; each card saves only its own field (`set_signing_settings` patch); « Actualiser l'état » shows its outcome inline (« État à jour. » when nothing changed) in the block's one status region; nothing the page loads is announced; the read-only notice names `settings.integrations_manage` and the cards do not repeat it.
+
 ---
 
 ## Task 3.35: ADR 0005 status and ADR 0008
@@ -2459,6 +2462,7 @@ Nothing below is needed to build or test Phase 3. Each item is done by Jonathan,
 | 16c | **Outlook desktop** (Task 3.16) | Only if the clinic uses classic Outlook for Windows | GoTrue strips HTML comments, so auth emails lose the `<!--[if mso]>` 560 px table and span the window. Readable; the full fix is a Supabase Send Email Hook that sends auth emails through our layout and Resend (a later decision). |
 | 16d | **Auth password rules** (Task 3.20 review) | Dashboard → Auth | Admin-created accounts (accept-invite) bypass dashboard password rules: if staging adds character classes or the leaked-password check, mirror them in `password-schema.ts` and accept-invite's Zod rule. Also confirm `delete from auth.sessions` / `auth.users` by the migration owner works on hosted (P3-32, orphan purge). |
 | 16e | **Loi 25 note: Resend keeps bodies** | With item 15 | Invitation emails (and their link) are readable in the Resend dashboard until the link expires or is used; list it in the EFVP. |
+| 16f | **Documenso reach on hosted functions** (P3-34) | After deploy, « Tester la connexion » | Check that `Deno.resolveDns` works in the hosted edge runtime (the test answers « Connexion réussie » with the real instance); if it is unavailable every Documenso call fails closed (`provider_error`), so tell the agent. `APP_URL` must be the https app URL there (item 9): a local `APP_URL` would allow `host.docker.internal` and skip the address check. |
 | 17 | **Merge = deploy** | GitHub | Push, PR and merge each need his go-ahead. After the merge, run the staging smoke test of design §11 step by step, each with a go-ahead |
 
 ---

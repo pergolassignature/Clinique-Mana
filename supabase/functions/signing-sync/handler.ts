@@ -50,6 +50,7 @@ import { runJob } from '../_shared/jobs.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 import {
+  documensoReach,
   orgSigning,
   RECONCILE_TIMEOUT_MS,
   reconcileOrg,
@@ -71,7 +72,7 @@ const rowSchema = z.object({
 
 /** The sync handler (job or user mode); see the module comment. */
 export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
-  const perOrg = reconcileOrg(deps, FN)
+  const perOrg = reconcileOrg({ ...deps, reach: documensoReach(deps) }, FN)
   return async (req) => {
     if (req.headers.has('X-Job-Signature')) {
       return await runJob(deps, req, JOB, perOrg, {
@@ -126,7 +127,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
 
     try {
-      const signing = await orgSigning(service, orgId, deps.fetch, req.signal)
+      const signing = await orgSigning(
+        service,
+        orgId,
+        deps.fetch,
+        documensoReach(deps),
+        req.signal,
+      )
       if (!signing) {
         return errorResponse(
           'not_configured',

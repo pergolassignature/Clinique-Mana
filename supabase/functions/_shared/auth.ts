@@ -78,6 +78,17 @@ const LOCAL_HOSTS: ReadonlySet<string> = new Set([
   '[::1]',
 ])
 
+/**
+ * True when `appUrl` is a local `http` URL (`http://localhost:5173`): local
+ * dev. Gates what only a dev machine may do (the console email transport,
+ * the local Documenso fake, P3-34).
+ */
+export function isLocalAppUrl(appUrl: string | undefined): boolean {
+  if (!appUrl || !URL.canParse(appUrl.trim())) return false
+  const url = new URL(appUrl.trim())
+  return url.protocol === 'http:' && LOCAL_HOSTS.has(url.hostname)
+}
+
 /** True when `APP_URL` is set and is not a local origin. */
 function deployedAppUrl(): boolean {
   const appUrl = Deno.env.get('APP_URL')

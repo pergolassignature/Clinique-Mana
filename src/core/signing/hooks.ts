@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
 import { moduleErrorMessage } from '@/core/modules/errors'
+import { secretKeys } from '@/core/settings/secrets/hooks'
 import { toast } from '@/shared/ui/sonner'
 import {
   fetchSigningSettings,
@@ -13,7 +14,7 @@ import {
   setSigningSettings,
   syncSignatureRequest,
   testSigningConnection,
-  type SigningSettings,
+  type SigningSettingsPatch,
 } from './api'
 import { signingErrorMessage } from './errors'
 
@@ -31,14 +32,21 @@ export function useSigningSettings() {
   return useQuery({ queryKey: signingKeys.settings(), queryFn: fetchSigningSettings, staleTime: 60_000 })
 }
 
-/** Saves both settings; `saved` is the toast of the card that saved. */
+/**
+ * Saves one card's field (a patch: the other card's field is left as stored); `saved` is that
+ * card's toast. A new address clears the API key (P3-34): the key's state is read again and the
+ * toast says to type it again.
+ */
 export function useSetSigningSettings(saved: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (settings: SigningSettings) => setSigningSettings(settings),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: signingKeys.all })
-      toast.success(saved)
+    mutationFn: (patch: SigningSettingsPatch) => setSigningSettings(patch),
+    onSuccess: async ({ api_key_cleared }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: signingKeys.all }),
+        api_key_cleared && queryClient.invalidateQueries({ queryKey: secretKeys.all }),
+      ])
+      toast.success(api_key_cleared ? t('settings.signing.connection.savedKeyCleared') : saved)
     },
     onError: (error) => {
       toast.error(moduleErrorMessage(error, t('common.errors.generic'), 'settings'))

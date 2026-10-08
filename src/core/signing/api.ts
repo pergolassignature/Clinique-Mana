@@ -62,14 +62,23 @@ export async function fetchSigningSettings(): Promise<SigningSettings> {
   return data
 }
 
-/** Saves both settings (`settings.integrations_manage`; a value the checks refuse → 23514). */
-export async function setSigningSettings(settings: SigningSettings): Promise<void> {
-  const { error } = await supabase.rpc('set_signing_settings', {
-    // Empty clears it (the RPC stores null).
-    p_base_url: settings.base_url ?? '',
-    p_expiry_days: settings.expiry_days,
-  })
+/** The fields one save changes; a field left out keeps its stored value (P3-34). */
+export type SigningSettingsPatch = Partial<SigningSettings>
+
+const setResultSchema = z.object({ api_key_cleared: z.boolean() })
+/** What a save did besides storing the fields. */
+export type SetSigningSettingsResult = z.infer<typeof setResultSchema>
+
+/**
+ * Saves only the fields given (`set_signing_settings` takes a patch: each card sends its own, so
+ * one card never writes back a stale copy of the other's). `settings.integrations_manage`; a
+ * value the checks refuse → 23514. A new address origin deletes the stored API key in the same
+ * transaction (`api_key_cleared`, P3-34).
+ */
+export async function setSigningSettings(patch: SigningSettingsPatch): Promise<SetSigningSettingsResult> {
+  const { data, error } = await supabase.rpc('set_signing_settings', { p: patch })
   if (error) throw error
+  return setResultSchema.parse(data)
 }
 
 /** When the caller's org last received a Documenso event; null when never (`settings.view`). */

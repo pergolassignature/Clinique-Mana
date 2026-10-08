@@ -14,6 +14,7 @@ Legacy signed contracts through DocuSeal; `docuseal-create-submission` could be 
 - Jonathan provisions and operates the clinic instance (owner action, Phase 0).
 - Signing functions use `verifyAuth(req, { permission, module })`. The webhook is `verify_jwt = false` with a signature check; it has no user, so it resolves the org from the stored `signature_requests` row and calls `requireModuleForOrg()` before acting.
 - DocuSeal code stays in `_legacy/` only as a reference.
+- The configured URL is a place the server sends the API key, so it is constrained (P3-34, Task 3.34 review): `https://` to a public DNS name only (the database refuses IP literals and private names), no redirect followed, the host resolved before every request and refused when any address is private, loopback, link-local, CGNAT, multicast or unspecified (local dev excepted: the fake at `host.docker.internal`, only when `APP_URL` is local). Changing the address's origin deletes the stored key, so it is typed again for the new instance. A DNS-rebinding window remains between that check and `fetch`'s own lookup; https and no redirects narrow it.
 
 ## Alternatives
 - **Keep DocuSeal:** no hardened integration to port; legacy one had an authorization hole.

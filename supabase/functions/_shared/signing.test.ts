@@ -22,6 +22,7 @@ import { fixedClock } from './testing/fixed-clock.ts'
 import { captureConsole, withEnv } from './testing/env.ts'
 import {
   CLINIC_EMAIL,
+  LOCAL_REACH,
   MINIMAL_PDF,
   sentRequest,
   SIGNER_EMAIL,
@@ -200,7 +201,13 @@ function setup(options: SetupOptions = {}) {
     order.push(`documenso ${req.method} ${new URL(req.url).pathname}`)
     return fake.fetch(req)
   }
-  const deps = { client: supabase.client, fetch, now: clock.now, renderer }
+  const deps = {
+    client: supabase.client,
+    fetch,
+    reach: LOCAL_REACH,
+    now: clock.now,
+    renderer,
+  }
   return { clock, order, fake, db, supabase, deps, rendered }
 }
 

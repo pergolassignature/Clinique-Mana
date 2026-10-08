@@ -56,20 +56,25 @@ describe('settings', () => {
     expect(mocks.select).toHaveBeenCalledWith('base_url, expiry_days')
   })
 
-  it('saves both through set_signing_settings (empty address clears it)', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: null })
-    await setSigningSettings({ base_url: 'https://sign.cliniquemana.com', expiry_days: 14 })
-    await setSigningSettings({ base_url: null, expiry_days: 7 })
+  it('sends only the fields given, as a patch (null clears the address), and returns whether the key was cleared', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { api_key_cleared: true }, error: null }).mockResolvedValueOnce({ data: { api_key_cleared: false }, error: null })
+    await expect(setSigningSettings({ base_url: 'https://sign.cliniquemana.com' })).resolves.toEqual({ api_key_cleared: true })
+    await expect(setSigningSettings({ expiry_days: 14 })).resolves.toEqual({ api_key_cleared: false })
     expect(mocks.rpc.mock.calls).toEqual([
-      ['set_signing_settings', { p_base_url: 'https://sign.cliniquemana.com', p_expiry_days: 14 }],
-      ['set_signing_settings', { p_base_url: '', p_expiry_days: 7 }],
+      ['set_signing_settings', { p: { base_url: 'https://sign.cliniquemana.com' } }],
+      ['set_signing_settings', { p: { expiry_days: 14 } }],
     ])
   })
 
   it('throws the RPC error', async () => {
     const error = { code: '42501', message: 'Permission refusée' }
     mocks.rpc.mockResolvedValue({ data: null, error })
-    await expect(setSigningSettings({ base_url: null, expiry_days: 7 })).rejects.toBe(error)
+    await expect(setSigningSettings({ base_url: null })).rejects.toBe(error)
+  })
+
+  it('refuses an unexpected answer', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: null })
+    await expect(setSigningSettings({ expiry_days: 7 })).rejects.toThrow()
   })
 })
 

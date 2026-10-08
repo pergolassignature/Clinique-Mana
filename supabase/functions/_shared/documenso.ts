@@ -17,6 +17,18 @@
  *   Documenso quotes addresses in its messages. Transport errors (while
  *   connecting or while reading a body) are reduced to their kind (`timed
  *   out`, `aborted`, `unreachable`): the raw error can quote the URL.
+ * - **Reach (P3-34, SSRF):** the key goes only where the clinic's admin
+ *   pointed it, and never inside our network. Every request is sent with
+ *   `redirect: 'manual'`, and any 3xx is a `provider_error` (a redirect would
+ *   carry the key elsewhere). Outside local dev (`DocumensoReach.local`), the
+ *   URL must be `https://` to a name that is not `localhost`, `.localhost`,
+ *   `.internal` or `.local`, and before every request its A and AAAA records
+ *   are resolved: a private, loopback, link-local, CGNAT, multicast, reserved
+ *   or unspecified address (IPv4, IPv6, IPv4-mapped IPv6) refuses the request
+ *   (`provider_error`, status null, the address never quoted). Local dev
+ *   allows the fake's `http://host.docker.internal:<port>` and checks no
+ *   address. `signing_settings` refuses IP literals and the rest in the
+ *   database (private.signing_base_url_valid).
  * - **Limits:** each request, body included, is cut after `timeoutMs` (20 s
  *   by default) and stops at once when the caller's `signal` aborts. A signed
  *   PDF over `maxDownloadBytes` (25 MB) is refused while it streams; a JSON
@@ -215,8 +227,38 @@ export interface DocumensoClient {
   ping(): Promise<{ ok: true } | { ok: false; status: number }>
 }
 
+/** `Deno.resolveDns` for one record type; tests inject a fake (P3-34). */
+export type ResolveDns = (
+  host: string,
+  type: 'A' | 'AAAA',
+  signal: AbortSignal,
+) => Promise<string[]>
+
+/** Where the client may send requests (P3-34). */
+export interface DocumensoReach {
+  /**
+   * True only when `APP_URL` is a local http URL (`isLocalAppUrl`): the local
+   * fake (`http://host.docker.internal:<port>`) is allowed and no address is
+   * checked. False everywhere else.
+   */
+  local: boolean
+  resolveDns: ResolveDns
+}
+
+/** The runtime's resolver. */
+export const denoResolveDns: ResolveDns = (host, type, signal) =>
+  Deno.resolveDns(host, type, { signal })
+
+/** The default reach: not local, the runtime's resolver (fails closed). */
+const DEPLOYED_REACH: DocumensoReach = {
+  local: false,
+  resolveDns: denoResolveDns,
+}
+
 /** Client tuning; tests shorten the timeout. */
 export interface DocumensoClientOptions {
+  /** Where requests may go (default: deployed, `Deno.resolveDns`). */
+  reach?: DocumensoReach
   /** Per-request timeout (default 20 s). */
   timeoutMs?: number
   /** The caller's signal (e.g. `req.signal`): aborting it stops the request. */
@@ -291,6 +333,130 @@ export function documensoEventId(
   return TERMINAL_EVENTS.has(event)
     ? prefix
     : `${prefix}:${version ?? 'unversioned'}`
+}
+
+/** Four octets, or null when `text` is not a dotted-quad IPv4 address. */
+function parseIPv4(text: string): number[] | null {
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(text)
+  if (!match) return null
+  const octets = match.slice(1).map(Number)
+  return octets.every((o) => o <= 255) ? octets : null
+}
+
+/** Eight 16-bit groups, or null when `text` is not an IPv6 address (brackets and zone allowed). */
+function parseIPv6(text: string): number[] | null {
+  let s = text.replace(/^\[(.*)\]$/, '$1').replace(/%.*$/, '').toLowerCase()
+  let tail: number[] = []
+  const dotted = /^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/.exec(s)
+  if (dotted) {
+    const v4 = parseIPv4(dotted[2])
+    if (!v4) return null
+    tail = [(v4[0] << 8) | v4[1], (v4[2] << 8) | v4[3]]
+    s = dotted[1].endsWith('::') ? dotted[1] : dotted[1].slice(0, -1)
+  }
+  const halves = s.split('::')
+  if (halves.length > 2) return null
+  const groups = (part: string) => (part === '' ? [] : part.split(':'))
+  const head = groups(halves[0])
+  const rest = halves.length === 2 ? groups(halves[1]) : []
+  if (![...head, ...rest].every((g) => /^[0-9a-f]{1,4}$/.test(g))) return null
+  const count = head.length + rest.length + tail.length
+  if (halves.length === 1 ? count !== 8 : count > 7) return null
+  const hex = (part: string[]) => part.map((g) => parseInt(g, 16))
+  return [
+    ...hex(head),
+    ...new Array(halves.length === 2 ? 8 - count : 0).fill(0),
+    ...hex(rest),
+    ...tail,
+  ]
+}
+
+/**
+ * Not unspecified (0/8), private (10/8, 172.16/12, 192.168/16), CGNAT
+ * (100.64/10), loopback (127/8), link-local (169.254/16), IETF protocol
+ * (192.0.0/24), benchmarking (198.18/15), multicast (224/4) or reserved
+ * and broadcast (240/4).
+ */
+function publicIPv4([a, b, c]: number[]): boolean {
+  return !(
+    a === 0 || a === 10 || a === 127 || a >= 224 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 192 && b === 0 && c === 0) ||
+    (a === 198 && (b === 18 || b === 19))
+  )
+}
+
+/**
+ * Global unicast (2000::/3) only, so not unspecified, loopback, unique local
+ * (fc00::/7), link-local (fe80::/10), site-local or multicast (ff00::/8). An
+ * address that carries an IPv4 one (IPv4-mapped ::ffff:0:0/96,
+ * IPv4-compatible ::/96, NAT64 64:ff9b::/96, 6to4 2002::/16) is judged by
+ * that IPv4 address. Documentation (2001:db8::/32) and Teredo (2001::/32,
+ * whose IPv4 is obfuscated) are refused.
+ */
+function publicIPv6(h: number[]): boolean {
+  const v4At = (
+    i: number,
+  ) => [h[i] >> 8, h[i] & 255, h[i + 1] >> 8, h[i + 1] & 255]
+  const zeros = (from: number, to: number) =>
+    h.slice(from, to).every((g) => g === 0)
+  if (zeros(0, 5) && (h[5] === 0 || h[5] === 0xffff)) return publicIPv4(v4At(6))
+  if (h[0] === 0x64 && h[1] === 0xff9b && zeros(2, 6)) {
+    return publicIPv4(v4At(6))
+  }
+  if (h[0] === 0x2002) return publicIPv4(v4At(1))
+  if (h[0] === 0x2001 && (h[1] === 0 || h[1] === 0xdb8)) return false
+  return (h[0] & 0xe000) === 0x2000
+}
+
+/** True for a public unicast IPv4 or IPv6 address; false for anything else (P3-34). */
+export function isPublicAddress(text: string): boolean {
+  const v4 = parseIPv4(text)
+  if (v4) return publicIPv4(v4)
+  const v6 = parseIPv6(text)
+  return v6 !== null && publicIPv6(v6)
+}
+
+/** Names that never leave the machine or the private network. */
+const PRIVATE_NAME = /(^localhost|\.localhost|\.internal|\.local)\.?$/
+
+/**
+ * Whether a request to `url` may go out (P3-34, module comment): true in
+ * local dev; otherwise `https:`, a public name, and every A and AAAA record
+ * public. Throws when nothing resolves (or on abort): the caller reports the
+ * failure's kind.
+ *
+ * DNS rebinding: `fetch` resolves the name again on its own, so a name with a
+ * zero TTL can answer a public address here and a private one to `fetch`.
+ * Deno's fetch cannot be pinned to the address checked here (no resolver
+ * hook; TLS needs the name). What is left of that window is narrow: the URL
+ * is https only and no redirect is followed, so an internal service would
+ * also have to present a valid certificate for the attacker's name before the
+ * key is sent; the database refuses IP literals and private names first.
+ */
+async function reachable(
+  url: URL,
+  reach: DocumensoReach,
+  signal: AbortSignal,
+): Promise<boolean> {
+  if (reach.local) return true
+  const host = url.hostname
+  if (url.protocol !== 'https:') return false
+  if (host.startsWith('[') || parseIPv4(host)) return isPublicAddress(host)
+  if (!host.includes('.') || PRIVATE_NAME.test(host)) return false
+  const answers = await Promise.allSettled([
+    reach.resolveDns(host, 'A', signal),
+    reach.resolveDns(host, 'AAAA', signal),
+  ])
+  signal.throwIfAborted()
+  const addresses = answers.flatMap((a) =>
+    a.status === 'fulfilled' ? a.value : []
+  )
+  if (addresses.length === 0) throw new Error('unresolved')
+  return addresses.every(isPublicAddress)
 }
 
 const createdSchema = z.object({
@@ -447,8 +613,8 @@ async function readJson(
 /**
  * A Documenso client for one instance. Throws `DocumensoError`
  * (`not_configured`) when `apiKey` is empty or `baseUrl` is not an http(s)
- * URL; the `https://` rule for real instances is enforced by
- * `signing_settings` (P3-30).
+ * URL. Where requests may go (`options.reach`, P3-34) is checked before each
+ * one: a refusal is a `provider_error` (module comment).
  */
 export function documensoClient(
   baseUrl: string,
@@ -469,6 +635,8 @@ export function documensoClient(
   }
   const timeoutMs = options.timeoutMs ?? TIMEOUT_MS
   const maxDownloadBytes = options.maxDownloadBytes ?? MAX_DOWNLOAD_BYTES
+  const reach = options.reach ?? DEPLOYED_REACH
+  const target = new URL(base)
 
   /** One request; the response is returned whatever its status. */
   async function send(
@@ -495,19 +663,45 @@ export function documensoClient(
         }`,
       )
     }
-    const headers: Record<string, string> = { Authorization: apiKey }
-    if (init.json !== undefined) headers['Content-Type'] = 'application/json'
+    let allowed: boolean
     try {
-      const res = await fetchFn(`${base}${path}`, {
-        method: init.method,
-        headers,
-        body: init.json !== undefined ? JSON.stringify(init.json) : init.body,
-        signal,
-      })
-      return { operation, res, failure }
+      allowed = await reachable(target, reach, signal)
     } catch {
       throw failure()
     }
+    if (!allowed) {
+      throw new DocumensoError(
+        'provider_error',
+        null,
+        `Documenso ${operation} refused: not a public address`,
+      )
+    }
+    const headers: Record<string, string> = { Authorization: apiKey }
+    if (init.json !== undefined) headers['Content-Type'] = 'application/json'
+    let res: Response
+    try {
+      res = await fetchFn(`${base}${path}`, {
+        method: init.method,
+        headers,
+        body: init.json !== undefined ? JSON.stringify(init.json) : init.body,
+        // Never followed: a redirect would carry the key to another host.
+        redirect: 'manual',
+        signal,
+      })
+    } catch {
+      throw failure()
+    }
+    if (
+      res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)
+    ) {
+      await res.body?.cancel().catch(() => {})
+      throw new DocumensoError(
+        'provider_error',
+        res.status || null,
+        `Documenso ${operation} redirected (not followed)`,
+      )
+    }
+    return { operation, res, failure }
   }
 
   /** A request that must succeed; the body is left to the caller. */

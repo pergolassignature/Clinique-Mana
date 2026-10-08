@@ -52,11 +52,15 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import { isLocalAppUrl } from './auth.ts'
 import {
+  denoResolveDns,
   type DocumensoClient,
   documensoClient,
   type DocumensoDocumentState,
   DocumensoError,
+  type DocumensoReach,
+  type ResolveDns,
 } from './documenso.ts'
 import type { PerOrg } from './jobs.ts'
 import { reportError } from './report.ts'
@@ -336,6 +340,22 @@ export async function markDraftFailed(
   }
 }
 
+/**
+ * Where an org's Documenso client may send requests (P3-34): local dev only
+ * when `APP_URL` is a local http URL (`isLocalAppUrl`), so the fake at
+ * `http://host.docker.internal` is refused on a deployed project; the
+ * resolver is the deps' (tests inject a fake), else `Deno.resolveDns`.
+ */
+export function documensoReach(deps: {
+  env: (key: string) => string | undefined
+  resolveDns?: ResolveDns
+}): DocumensoReach {
+  return {
+    local: isLocalAppUrl(deps.env('APP_URL')),
+    resolveDns: deps.resolveDns ?? denoResolveDns,
+  }
+}
+
 /** An org's Documenso client and its request expiry. */
 export interface OrgSigning {
   documenso: DocumensoClient
@@ -352,12 +372,14 @@ const settingsSchema = z.object({
 /**
  * The org's Documenso (`signing_settings` and the Vault key, read in
  * parallel), or null when the URL or the key is not set. Downloads are
- * capped at `SIGNED_PDF_MAX_BYTES`.
+ * capped at `SIGNED_PDF_MAX_BYTES`; requests go only where `reach` allows
+ * (`documensoReach`).
  */
 export async function orgSigning(
   client: SupabaseClient,
   orgId: string,
   fetchFn: typeof fetch,
+  reach: DocumensoReach,
   signal?: AbortSignal,
 ): Promise<OrgSigning | null> {
   const [context, secret] = await Promise.all([
@@ -380,6 +402,7 @@ export async function orgSigning(
     documenso: documensoClient(base_url, secret.data, fetchFn, {
       signal,
       maxDownloadBytes: SIGNED_PDF_MAX_BYTES,
+      reach,
     }),
     expiryDays: expiry_days,
   }
@@ -852,6 +875,8 @@ export function reconcileOrg(
   deps: {
     fetch: typeof fetch
     now: () => Date
+    /** Where Documenso requests may go (`documensoReach`). */
+    reach: DocumensoReach
     softDeadlineMs?: number
     /** Elapsed time in ms (default `performance.now`). */
     elapsed?: () => number
@@ -871,7 +896,7 @@ export function reconcileOrg(
     if (rows.data.length === 0) return 'Aucune demande à suivre'
 
     const signing = rows.data.some((r) => r.action !== 'abandon')
-      ? await orgSigning(client, orgId, deps.fetch, signal)
+      ? await orgSigning(client, orgId, deps.fetch, deps.reach, signal)
       : null
     const ctx: SyncContext | null = signing && {
       client,

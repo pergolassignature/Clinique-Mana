@@ -8,8 +8,10 @@
  * 3. The org's URL and key (`orgSigning`): either missing → 503
  *    `not_configured`.
  * 4. `ping()` → 200 `{ ok: true }`, or `{ ok: false, status }` with
- *    Documenso's HTTP status (401: the key is refused). Nothing answered, or
- *    not Documenso → 502 `provider_error`.
+ *    Documenso's HTTP status (401: the key is refused). Nothing answered, not
+ *    Documenso, a redirect (never followed), or an address that is not public
+ *    (`documensoReach`, P3-34: the URL is the one place an admin can send the
+ *    key) → 502 `provider_error`.
  *
  * The answer never holds the key or the URL. Status codes: 200; 401 / 403 /
  * 503 from `verifyAuth`; 405; 429; 502; 503 `not_configured`; 500
@@ -25,7 +27,7 @@ import type { Deps } from '../_shared/deps.ts'
 import { DocumensoError } from '../_shared/documenso.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
-import { orgSigning } from '../_shared/signing-events.ts'
+import { documensoReach, orgSigning } from '../_shared/signing-events.ts'
 
 const FN = 'signing-test-connection'
 
@@ -57,7 +59,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (limited) return limited
 
     try {
-      const signing = await orgSigning(service, orgId, deps.fetch, req.signal)
+      const signing = await orgSigning(
+        service,
+        orgId,
+        deps.fetch,
+        documensoReach(deps),
+        req.signal,
+      )
       if (!signing) {
         return errorResponse(
           'not_configured',
