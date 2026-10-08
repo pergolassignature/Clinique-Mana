@@ -125,6 +125,38 @@ describe('history — the record row', () => {
     )
   })
 
+  it('reads the places offered as a number, never their stamp (P4-382)', () => {
+    const event = only([
+      row('professional_matching_profiles', 'update', {
+        new_client_places: { before: 3, after: 4 },
+        new_client_places_set_at: { before: '2026-10-01T12:00:00+00:00', after: TX },
+      }),
+    ])
+    expect(event.sentence).toBe('a modifié le nombre de places offertes\u00a0: 3 → 4')
+    expect(event.lines).toEqual([])
+    expect(only([row('professional_matching_profiles', 'update', { new_client_places: { before: 2, after: null }, new_client_places_set_at: { before: TX, after: null } })]).sentence).toBe(
+      `a modifié le nombre de places offertes\u00a0: 2 → ${t('audit.values.empty')}`,
+    )
+  })
+
+  it('says the note « Bon à savoir » was added, changed or removed, never its text (P4-385)', () => {
+    const note = (action: HistoryEntry['action'], fields: HistoryEntry['changedFields']) => row('professional_matching_notes', action, fields)
+    const list = events([
+      note('delete', { org_id: ORG, professional_id: P, note: '[redacted]', created_at: TX, updated_at: TX }),
+      // Even a row that carried the text (it never does: the trigger redacts it) prints none of it.
+      note('update', { note: { before: 'Ancien texte', after: 'Écrire avant de réserver.' } }),
+      note('insert', { org_id: ORG, professional_id: P, note: '[redacted]', created_at: TX, updated_at: TX }),
+    ])
+    expect(list.map((e) => e.sentence)).toEqual([
+      t(`${H}.sentences.matchingNote.removed`),
+      t(`${H}.sentences.matchingNote.changed`),
+      t(`${H}.sentences.matchingNote.added`),
+    ])
+    expect(t(`${H}.sentences.matchingNote.changed`)).toBe('a modifié la note Bon à savoir')
+    expect(list.every((e) => e.lines.length === 0 && e.groups.length === 0 && e.kind === 'change')).toBe(true)
+    expect(printed(list)).not.toMatch(/réserver|Ancien|redacted|masqué/)
+  })
+
   it('formats the public phone', () => {
     expect(only([row('professional_public_profiles', 'update', { public_phone: { before: null, after: '+15145550101' } })]).sentence).toBe(
       `a modifié le téléphone public\u00a0: ${t('audit.values.empty')} → 514 555-0101`,

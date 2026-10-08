@@ -6,7 +6,7 @@ import type { PublicFee } from '../api/fiche'
 import type { ProfessionalRecord } from '../api/parse'
 import type { CatalogView } from '../lib/catalog-view'
 import { MANA_LOGO_URL } from './brand'
-import { buildFicheContent } from './fiche-content'
+import { buildFicheContent, type FicheOptions } from './fiche-content'
 import { FicheDocument } from './FicheDocument'
 import { loadFicheFonts } from './fonts'
 import { bundledImageDataUrl, storedImageDataUrl } from './load-images'
@@ -27,10 +27,12 @@ export interface FicheRequest {
   organization: Pick<Organization, 'name' | 'phone' | 'email' | 'website' | 'logo_file_id'>
   /** The title's client prices in force today (`fetchPublicFees`); empty → « À confirmer ». */
   fees: readonly PublicFee[]
+  /** The clinic's render options (Paramètres → Fiche PDF, P4-353). */
+  options: FicheOptions
 }
 
 /** Renders the fiche as a PDF Blob, in the browser. */
-export async function renderFichePdf({ record, catalog, titleId, organization, fees }: FicheRequest): Promise<Blob> {
+export async function renderFichePdf({ record, catalog, titleId, organization, fees, options }: FicheRequest): Promise<Blob> {
   const [canDraw, logo, brandLogo] = await Promise.all([
     loadFicheFonts(),
     storedImageDataUrl(organization.logo_file_id),
@@ -47,6 +49,7 @@ export async function renderFichePdf({ record, catalog, titleId, organization, f
     photo: null,
     fees,
     generatedOn: formatInClinicTimezone(new Date(), 'd MMMM yyyy'),
+    options,
     canDraw,
   })
   // Let the menu's busy state paint before the render holds the main thread.

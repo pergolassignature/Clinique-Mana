@@ -8,6 +8,7 @@ import {
   parseRpc,
   recordPayload,
   settingsPayload,
+  signinSyncPayload,
   statusChangePayload,
 } from './parse'
 import { CATALOG_JSON, HISTORY_ROW_JSON, IDS, LIST_ROW_JSON, READINESS_JSON, RECORD_JSON } from '../test/fixtures'
@@ -95,8 +96,11 @@ describe('recordPayload', () => {
       availabilityNote: null,
       minClientAge: null,
       womenOnly: false,
+      newClientPlaces: null,
+      newClientPlacesSetAt: null,
       updatedAt: '2026-10-08T12:00:00+00:00',
     })
+    expect(record?.matchingNote).toBeNull()
     expect(record?.professions).toEqual([{ id: IDS.professionRow, titleId: IDS.psychologue, licenceNumber: '12345', isPrimary: true }])
     expect(record?.clienteles).toEqual([{ id: IDS.couples, specialized: true }])
     expect(record?.motifIds).toEqual([IDS.anxiete])
@@ -113,6 +117,16 @@ describe('recordPayload', () => {
 
   it('is null when the caller cannot read the professional', () => {
     expect(parseRpc(recordPayload, null)).toBeNull()
+  })
+
+  it('reads the places offered with their date, and the staff note « Bon à savoir » (P4-382, P4-384)', () => {
+    const record = parseRpc(recordPayload, {
+      ...RECORD_JSON,
+      matching_profile: { ...RECORD_JSON.matching_profile, new_client_places: 4, new_client_places_set_at: '2026-10-08T14:00:00+00:00' },
+      matching_note: { note: 'Écrire avant de réserver.', updated_at: '2026-10-08T15:00:00+00:00' },
+    })
+    expect(record?.matchingProfile).toMatchObject({ newClientPlaces: 4, newClientPlacesSetAt: '2026-10-08T14:00:00+00:00' })
+    expect(record?.matchingNote).toEqual({ note: 'Écrire avant de réserver.', updatedAt: '2026-10-08T15:00:00+00:00' })
   })
 
   it('ignores columns added by later batches', () => {
@@ -199,13 +213,29 @@ describe('historyEntryPayload', () => {
 })
 
 describe('settingsPayload', () => {
-  it('maps the module settings, the invitation ones included (4b.1)', () => {
-    expect(parseRpc(settingsPayload, { collect_sin: false, invitation_expiry_days: 7, invitation_reminder_after_days: 3 })).toEqual({
+  it('maps the module settings, the invitation (4b.1) and fiche (P4-353) ones included', () => {
+    const json = {
+      collect_sin: false,
+      invitation_expiry_days: 7,
+      invitation_reminder_after_days: 3,
+      fiche_show_pro_contact: true,
+      fiche_show_clinic_footer: false,
+      fiche_show_closing: true,
+    }
+    expect(parseRpc(settingsPayload, json)).toEqual({
       collectSin: false,
       invitationExpiryDays: 7,
       invitationReminderAfterDays: 3,
+      ficheShowProContact: true,
+      ficheShowClinicFooter: false,
+      ficheShowClosing: true,
     })
-    expect(parseRpc(settingsPayload, { collect_sin: true, invitation_expiry_days: 14, invitation_reminder_after_days: null }).invitationReminderAfterDays).toBeNull()
+    expect(parseRpc(settingsPayload, { ...json, collect_sin: true, invitation_expiry_days: 14, invitation_reminder_after_days: null }).invitationReminderAfterDays).toBeNull()
+  })
+
+  it('refuses settings without the invitation or fiche options', () => {
+    expect(() => parseRpc(settingsPayload, { collect_sin: false })).toThrow(new Error(SHAPE_ERROR))
+    expect(() => parseRpc(settingsPayload, { collect_sin: false, invitation_expiry_days: 7, invitation_reminder_after_days: 3 })).toThrow(new Error(SHAPE_ERROR))
   })
 })
 
@@ -267,21 +297,32 @@ describe('invitationStateRowPayload', () => {
   })
 })
 
-describe('statusChangePayload', () => {
-  it('reads the null account change and profile the generated types call non-null', () => {
-    expect(parseRpc(statusChangePayload, [{ status: 'active', account_change: null, profile_id: null }])).toEqual({
+describe('statusChangePayload (professionals-set-status)', () => {
+  it('reads the status, the account change, its profile and whether the sign-in ban followed', () => {
+    expect(parseRpc(statusChangePayload, { status: 'active', account_change: null, profile_id: null, signin_synced: true })).toEqual({
       status: 'active',
       accountChange: null,
       profileId: null,
+      signinSynced: true,
     })
-    expect(parseRpc(statusChangePayload, [{ status: 'inactive', account_change: 'disabled', profile_id: IDS.admin }])).toEqual({
+    expect(parseRpc(statusChangePayload, { status: 'inactive', account_change: 'disabled', profile_id: IDS.admin, signin_synced: false })).toEqual({
       status: 'inactive',
       accountChange: 'disabled',
       profileId: IDS.admin,
+      signinSynced: false,
     })
   })
 
-  it('refuses anything but one row', () => {
-    expect(() => parseRpc(statusChangePayload, [])).toThrow(SHAPE_ERROR)
+  it('refuses the RPC rows the function used to pass on, or an answer without signin_synced', () => {
+    expect(() => parseRpc(statusChangePayload, [{ status: 'active', account_change: null, profile_id: null }])).toThrow(SHAPE_ERROR)
+    expect(() => parseRpc(statusChangePayload, { status: 'active', account_change: null, profile_id: null })).toThrow(SHAPE_ERROR)
+  })
+})
+
+describe('signinSyncPayload (« Réessayer »)', () => {
+  it('reads the account status (null without an account) and whether the ban follows it', () => {
+    expect(parseRpc(signinSyncPayload, { account_status: 'disabled', signin_synced: true })).toEqual({ accountStatus: 'disabled', signinSynced: true })
+    expect(parseRpc(signinSyncPayload, { account_status: null, signin_synced: true })).toEqual({ accountStatus: null, signinSynced: true })
+    expect(() => parseRpc(signinSyncPayload, { account_status: 'banned', signin_synced: true })).toThrow(SHAPE_ERROR)
   })
 })

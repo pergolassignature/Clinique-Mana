@@ -29,7 +29,7 @@ let stored: ProfessionalRecord
 /** The database after a successful activation (what the refetch reads). */
 function activated(): StatusChange {
   stored = { ...stored, professional: { ...stored.professional, status: 'active' } }
-  return { status: 'active', accountChange: null, profileId: null }
+  return { status: 'active', accountChange: null, profileId: null, signinSynced: true }
 }
 
 beforeEach(() => {

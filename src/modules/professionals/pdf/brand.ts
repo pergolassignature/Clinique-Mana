@@ -1,7 +1,7 @@
 // Clinique MANA's brand on the fiche (P4-214): the website's colours (docs/standards/
 // business-context.md §6), the full logo lockup the design system keeps for the fiche
 // (docs/design-system/assets/logo.png, « fiche PDF, marketing »: a hashed asset Vite emits only
-// for this chunk) and the « Mana » wordmark (assets/logo-header.svg) for the running header.
+// for this chunk) and the « Mana » wordmark (assets/logo-header.svg, drawn in wine) for the footer.
 import manaLogo from '../../../../docs/design-system/assets/logo.png?url'
 
 export const MANA_LOGO_URL: string = manaLogo
@@ -10,13 +10,13 @@ export const MANA_LOGO_URL: string = manaLogo
 export const BRAND = {
   wine: '#9B1B3C',
   charcoal: '#4D4D4F',
-  /** Charcoal at a lighter step, for secondary lines (#4D4D4F at ~75 % on white). */
-  charcoalSoft: '#737375',
+  /** The secondary grey of the v2 design (P4-355): meta lines, the running header, the footer, the legend. */
+  meta: '#6B6B6E',
   teal: '#249D95',
   tealLight: '#46ACA5',
   mint: '#E2F1EB',
-  /** A deeper mint, for hairlines drawn on white. */
-  mintLine: '#C9E4D9',
+  /** A deeper mint, for hairlines drawn on white (the v2 design's #C7E4D8). */
+  mintLine: '#C7E4D8',
   pink: '#FCCAD8',
   yellow: '#FFEFAA',
   offWhite: '#F8F8F9',

@@ -16,7 +16,7 @@
 --   the actor is the person who runs it.
 -- * Data errors never raise: {status: 'error', errors: [{field, message}]}, every error of the row
 --   at once (P4-122). Fields are the client schemas' names (firstName, lastName, email,
---   personalPhone, city, province, postalCode, yearsExperience, minClientAge, ivac),
+--   personalPhone, city, province, postalCode, yearsExperience, gender, minClientAge, ivac),
 --   professions.<i>.titleId / .licenceNumber like the professions editor, the import keys for the
 --   sets (languages, clienteles, motifs), activate, or null for the whole row. Keys are resolved first
 --   (« Motif inconnu : anxite »); then every write step runs in its own sub-block, so a refusal
@@ -45,6 +45,10 @@
 --   report never lists a wall of keys.
 -- * A dry run checks the deferred constraints too (set constraints all immediate before its
 --   rollback), so it refuses what the commit of a real run would refuse.
+-- * gender (P4-388): optional, the stored values ('female', 'male', 'unspecified'; the script maps
+--   the CSV's femme / homme / autre), written with the « Coordonnées » fields as Identité writes it
+--   (column grant, professionals.manage). Absent or blank: not set, as before. It picks the
+--   title's form (P4-342) and serves a client's stated preference (P4-5).
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:professionals_import', true);
@@ -66,14 +70,14 @@ begin
   end if;
   select k into v_key from pg_catalog.jsonb_object_keys(p_row) as k
    where k <> all (array['first_name', 'last_name', 'email', 'personal_phone', 'city', 'province', 'postal_code',
-                         'years_experience', 'min_client_age', 'women_only', 'professions', 'languages',
+                         'years_experience', 'gender', 'min_client_age', 'women_only', 'professions', 'languages',
                          'clienteles', 'motifs', 'ivac', 'activate'])
    limit 1;
   if v_key is not null then
     raise exception 'Clé inconnue : %', v_key using errcode = '22023';
   end if;
   select k into v_key from pg_catalog.unnest(array['first_name', 'last_name', 'email', 'personal_phone', 'city',
-                                                   'province', 'postal_code', 'ivac']) as k
+                                                   'province', 'postal_code', 'gender', 'ivac']) as k
    where pg_catalog.jsonb_typeof(p_row -> k) not in ('string', 'null')
    limit 1;
   if v_key is not null then
@@ -163,7 +167,7 @@ $$;
 -- The record's plain fields, as the « Coordonnées », « Expérience » and Jumelage « Clientèle »
 -- cards check them
 -- -----------------------------------------------------------------------------
--- {"values": {personal_phone, city, province, postal_code, years_experience},
+-- {"values": {personal_phone, city, province, postal_code, years_experience, gender},
 --  "matching": {min_client_age, women_only}, "errors": [...]}. Absent or blank → null (province:
 -- null keeps the column default, QC; women_only: null is false). The bracket classes below hold a
 -- hyphen, an en dash (U+2013) and an em dash (U+2014), as the forms accept them.
@@ -184,6 +188,7 @@ declare
   v_years_int int;
   v_min_age numeric := (p_row ->> 'min_client_age')::numeric;
   v_min_age_int int;
+  v_gender text := nullif(pg_catalog.lower(pg_catalog.btrim(p_row ->> 'gender', E' \t\r\n')), '');
 begin
   -- parsePhone (src/shared/lib/format.ts): digits and the usual separators; 10 digits, or 11 led
   -- by 1; with a leading +, exactly +1 and 10 digits.
@@ -221,6 +226,11 @@ begin
   else
     v_years_int := v_years;   -- 12.0 → 12
   end if;
+  -- professionals_gender_check; the script sends these values for femme / homme / autre (P4-388).
+  if v_gender is not null and v_gender <> all (array['female', 'male', 'unspecified']) then
+    v_errors := v_errors || pg_catalog.jsonb_build_object('field', 'gender', 'message', 'Genre invalide : femme, homme ou autre.');
+    v_gender := null;
+  end if;
   -- The youngest client age the professional takes (professional_matching_profiles_min_client_age_check).
   if v_min_age is not null and (v_min_age <> pg_catalog.trunc(v_min_age) or v_min_age not between 0 and 120) then
     v_errors := v_errors || pg_catalog.jsonb_build_object('field', 'minClientAge', 'message', 'Entre 0 et 120 ans.');
@@ -229,7 +239,8 @@ begin
   end if;
   return pg_catalog.jsonb_build_object(
     'values', pg_catalog.jsonb_build_object('personal_phone', v_phone, 'city', v_city, 'province', v_province,
-                                            'postal_code', v_postal, 'years_experience', v_years_int),
+                                            'postal_code', v_postal, 'years_experience', v_years_int,
+                                            'gender', v_gender),
     'matching', pg_catalog.jsonb_build_object('min_client_age', v_min_age_int,
                                               'women_only', coalesce((p_row ->> 'women_only')::boolean, false)),
     'errors', v_errors);
@@ -367,12 +378,13 @@ begin
            city = p_contact -> 'values' ->> 'city',
            province = coalesce(p_contact -> 'values' ->> 'province', p.province),
            postal_code = p_contact -> 'values' ->> 'postal_code',
-           years_experience = (p_contact -> 'values' ->> 'years_experience')::smallint
+           years_experience = (p_contact -> 'values' ->> 'years_experience')::smallint,
+           gender = p_contact -> 'values' ->> 'gender'
      where p.id = import_professional_apply.id;
     get diagnostics v_rows = row_count;
     if v_rows <> 1 then
       errors := errors || pg_catalog.jsonb_build_object('field', null,
-        'message', 'Les coordonnées (téléphone, ville, province, code postal, années d''expérience) n''ont pas pu être enregistrées.');
+        'message', 'Les coordonnées (téléphone, ville, province, code postal, années d''expérience, genre) n''ont pas pu être enregistrées.');
     end if;
   end if;
 
@@ -465,7 +477,7 @@ $$;
 -- import_professional
 -- -----------------------------------------------------------------------------
 -- p_row: {first_name, last_name, email, personal_phone?, city?, province?, postal_code?,
--- years_experience?, min_client_age?, women_only?, professions?: [{title_key, licence_number?,
+-- years_experience?, gender?, min_client_age?, women_only?, professions?: [{title_key, licence_number?,
 -- is_primary?}], languages?: [code], clienteles?: [{key, specialized?}], motifs?: [key], ivac?,
 -- activate?}. Returns {status: ok | skipped | error, dry_run, id, …}: ok adds activated, complete
 -- and missing (what the real run does or did), skipped adds reason, error adds errors.

@@ -1,10 +1,11 @@
 -- Professionnels: the fiche PDF, download (migration *_professionals_fiche.sql, plan Phase 4
 -- Task 4c.5). Covers: the stamp column (no client grant) and mark_professional_fiche_generated
 -- (conseillère, adjointe on a draft, provider refused, another clinic, unknown id, module off, the
--- audit row and its actor).
+-- audit row and its actor); the fiche's render options in the module settings (P4-353: defaults,
+-- the conseillère reads them, only professionals.settings changes them, booleans never null).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(27);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B with
@@ -97,6 +98,39 @@ select throws_ok($$ select public.mark_professional_fiche_generated('c0000000-00
   '42501', null, 'module off: refused');
 reset role;
 update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
+
+-- =============================================================================
+-- The fiche's render options (module settings, P4-353)
+-- =============================================================================
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select is(public.get_professionals_settings() - array['collect_sin', 'invitation_expiry_days', 'invitation_reminder_after_days'],
+  '{"fiche_show_pro_contact": true, "fiche_show_clinic_footer": true, "fiche_show_closing": true}'::jsonb,
+  'the conseillère reads the fiche options, all on by default');
+select throws_ok($$ select public.set_professionals_settings('{"fiche_show_closing": false}') $$,
+  '42501', null, 'the conseillère cannot change them');
+
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(public.set_professionals_settings('{"fiche_show_pro_contact": false, "fiche_show_closing": false}')
+            - array['collect_sin', 'invitation_expiry_days', 'invitation_reminder_after_days'],
+  '{"fiche_show_pro_contact": false, "fiche_show_clinic_footer": true, "fiche_show_closing": false}'::jsonb,
+  'the admin turns two off; the effective settings come back');
+select throws_ok($$ select public.set_professionals_settings('{"fiche_show_clinic_footer": "non"}') $$,
+  '22023', 'Réglage fiche_show_clinic_footer invalide : true ou false attendu.', 'a fiche option is a boolean');
+select throws_ok($$ select public.set_professionals_settings('{"fiche_show_closing": null}') $$,
+  '22023', 'Réglage fiche_show_closing invalide : true ou false attendu.', 'a fiche option is never null');
+select throws_ok($$ select public.set_professionals_settings('{"fiche_show_pro_contact": 1}') $$,
+  '22023', 'Réglage fiche_show_pro_contact invalide : true ou false attendu.', 'a number is not a boolean');
+
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select is(public.get_professionals_settings() -> 'fiche_show_closing', 'false'::jsonb, 'the conseillère''s next fiche reads the change');
+
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+select is(public.get_professionals_settings() -> 'fiche_show_closing', 'true'::jsonb, 'the other clinic keeps its default');
+reset role;
+
+select lives_ok($$ select private.validate_professionals_setting(d.key, d.value) from jsonb_each(private.professionals_settings_defaults()) d $$,
+  'every default passes its own rule (defaults and validator in step)');
 
 select * from finish();
 rollback;

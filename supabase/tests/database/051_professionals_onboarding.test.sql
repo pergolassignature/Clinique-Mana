@@ -278,7 +278,7 @@ select has_index('public', 'professional_submissions', 'professional_submissions
 -- =============================================================================
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select is(public.get_professionals_settings(), '{"collect_sin": false, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3}'::jsonb,
+select is(public.get_professionals_settings(), '{"collect_sin": false, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3, "fiche_show_pro_contact": true, "fiche_show_clinic_footer": true, "fiche_show_closing": true}'::jsonb,
   'the invitation settings and their defaults');
 select throws_ok($$ select public.set_professionals_settings('{"invitation_expiry_days": 31}') $$, '22023', null, 'expiry: at most 30 days');
 select throws_ok($$ select public.set_professionals_settings('{"invitation_expiry_days": 2.5}') $$, '22023', null, 'expiry: whole days');

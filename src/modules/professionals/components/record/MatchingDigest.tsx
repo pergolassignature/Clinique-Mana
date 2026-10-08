@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import type { ProfessionalRecord } from '../../api/parse'
 import type { CatalogView } from '../../lib/catalog-view'
-import { minClientAgeLabel } from '../../lib/display'
+import { minClientAgeLabel, placesLabel } from '../../lib/display'
 import { matchingDigest, type DigestItem, type MatchingDigest as Digest } from '../../lib/matching-digest'
 import { MotifsSummary } from './MotifsSummary'
 import { TabLink } from './TabLink'
@@ -19,7 +19,11 @@ interface MatchingDigestProps {
   canEdit: boolean
 }
 
-/** Aperçu « Profil de jumelage »: a read-only digest of what matching reads; edited in Jumelage. */
+/**
+ * Aperçu « Profil de jumelage »: a read-only digest of what matching reads, the places offered
+ * (« 4 places offertes · depuis le 8 oct. », P4-382) and the staff note « Bon à savoir » (P4-384);
+ * edited in Jumelage.
+ */
 export function MatchingDigest({ record, catalog, canEdit }: MatchingDigestProps) {
   const digest = useMemo(() => matchingDigest(record, catalog), [record, catalog])
   return (
@@ -49,7 +53,20 @@ export function MatchingDigest({ record, catalog, canEdit }: MatchingDigestProps
           </Row>
           <Row label={t(`${M}.availability`)}>{digest.periods || <Empty>{t(`${M}.empty.availability`)}</Empty>}</Row>
           <Row label={t(`${M}.accepting`)}>{t(digest.acceptingNewClients ? `${M}.yes` : `${M}.no`)}</Row>
+          <Row label={t(`${M}.places`)}>
+            {digest.newClientPlaces === null ? (
+              <Empty>{placesLabel(null, null, Date.now())}</Empty>
+            ) : (
+              placesLabel(digest.newClientPlaces, digest.newClientPlacesSetAt, Date.now())
+            )}
+          </Row>
           {digest.note && <Row label={t(`${M}.note`)}>{digest.note}</Row>}
+          {/* Staff only (P4-384): the record carries it for professionals.view, never for the provider. */}
+          {digest.matchingNote && (
+            <Row label={t(`${M}.matchingNote`)}>
+              <span className="whitespace-pre-line">{digest.matchingNote}</span>
+            </Row>
+          )}
         </dl>
       </CardContent>
     </Card>

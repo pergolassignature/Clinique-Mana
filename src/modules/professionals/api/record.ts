@@ -1,17 +1,23 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
 import type { TablesUpdate } from '@/core/supabase/database.types'
+import { invokeFunction } from '@/core/supabase/functions'
 import type { PayerType } from '../lib/constants'
+import { asRpcRefusal } from './function-errors'
 import {
+  matchingNotePayload,
   parseRpc,
   professionRowPayload,
   recordPayload,
+  signinSyncPayload,
   statusChangePayload,
+  type MatchingNote,
   type MatchingProfile,
   type Professional,
   type ProfessionalRecord,
   type ProfessionRow,
   type PublicProfile,
+  type SigninSync,
   type SpecializedRef,
   type StatusChange,
 } from './parse'
@@ -93,13 +99,14 @@ const MATCHING_PROFILE_COLUMNS = {
   availabilityNote: 'availability_note',
   minClientAge: 'min_client_age',
   womenOnly: 'women_only',
+  newClientPlaces: 'new_client_places',
 } as const satisfies Partial<Record<keyof MatchingProfile, keyof TablesUpdate<'professional_matching_profiles'>>>
 
 /** Identity, contact and experience (`professionals.manage`). Any other column is a compile error. */
 export type ProfessionalPatch = Partial<Pick<Professional, keyof typeof PROFESSIONAL_COLUMNS>>
 /** Portrait and public contact (`professionals.manage`). */
 export type PublicProfilePatch = Partial<Pick<PublicProfile, keyof typeof PUBLIC_PROFILE_COLUMNS>>
-/** General availability, new clients and the client limits (`professionals.matching`). */
+/** General availability, new clients, the client limits and the places offered (`professionals.matching`). */
 export type MatchingProfilePatch = Partial<Pick<MatchingProfile, keyof typeof MATCHING_PROFILE_COLUMNS>>
 
 type PatchTable = 'professionals' | 'professional_public_profiles' | 'professional_matching_profiles'
@@ -181,31 +188,68 @@ export async function setPayerNumber(id: string, type: PayerType, value: string 
   if (error) throw error
 }
 
+/**
+ * « Bon à savoir » (P4-384, `professionals.matching`): the note, trimmed by the RPC; empty or null
+ * deletes it. Resolves with the stored note, or null once there is none.
+ */
+export async function setMatchingNote(id: string, note: string | null): Promise<MatchingNote | null> {
+  const { data, error } = await supabase.rpc('set_professional_matching_note', { p_id: id, p_note: note ?? '' })
+  if (error) throw error
+  return parseRpc(matchingNotePayload, data)
+}
+
 /** Changes the login email while no account exists (then « Mon compte » owns it). */
 export async function setProfessionalEmail(id: string, email: string): Promise<void> {
   const { error } = await supabase.rpc('set_professional_email', { p_id: id, p_email: email })
   if (error) throw error
 }
 
-// --- Status --------------------------------------------------------------------------------------
+// --- Status (professionals-set-status, Task 4b.6) ------------------------------------------------
+
+const STATUS_FUNCTION = 'professionals-set-status'
+
+/**
+ * One call to `professionals-set-status`, its answer parsed. The function runs the status RPC as
+ * the caller, then the Auth ban when the call changed the provider's account; its refusals are
+ * thrown as the RPC errors they pass on (`asRpcRefusal`: P0001 with its HINT, 42501, 40001).
+ */
+async function callStatusFunction<S extends z.ZodType>(body: Record<string, unknown>, schema: S): Promise<z.output<S>> {
+  let data: unknown
+  try {
+    data = await invokeFunction(STATUS_FUNCTION, body)
+  } catch (error) {
+    throw asRpcRefusal(error)
+  }
+  return parseRpc(schema, data)
+}
 
 /**
  * Activates (or reactivates) the professional. A complete file needs no reason; an incomplete one
  * needs `professionals.activate_override` and a reason of at least 5 characters. Re-enables the
- * account this module disabled (`accountChange: 'enabled'`).
+ * account this module disabled (`accountChange: 'enabled'`) and lifts its sign-in ban
+ * (`signinSynced: false` when Auth refused: « Réessayer » is `syncProfessionalSignin`).
  */
-export async function activateProfessional(id: string, overrideReason?: string): Promise<StatusChange> {
-  const { data, error } = await supabase.rpc('activate_professional', { p_id: id, ...(overrideReason !== undefined && { p_override_reason: overrideReason }) })
-  if (error) throw error
-  return parseRpc(statusChangePayload, data)
+export function activateProfessional(id: string, overrideReason?: string): Promise<StatusChange> {
+  return callStatusFunction(
+    { action: 'activate', professional_id: id, ...(overrideReason !== undefined && { override_reason: overrideReason }) },
+    statusChangePayload,
+  )
 }
 
 /**
  * Deactivates with an active reason of the clinic; the note is required when the reason says so.
- * A reason that disables the account disables the provider's profile (`accountChange: 'disabled'`).
+ * A reason that disables the account disables the provider's profile, which ends their open
+ * sessions at once (`accountChange: 'disabled'`), and bans new sign-ins (`signinSynced: false`
+ * when Auth refused the ban: « Réessayer » is `syncProfessionalSignin`).
  */
-export async function deactivateProfessional(id: string, reasonId: string, note?: string | null): Promise<StatusChange> {
-  const { data, error } = await supabase.rpc('deactivate_professional', { p_id: id, p_reason_id: reasonId, ...(note != null && { p_note: note }) })
-  if (error) throw error
-  return parseRpc(statusChangePayload, data)
+export function deactivateProfessional(id: string, reasonId: string, note?: string | null): Promise<StatusChange> {
+  return callStatusFunction(
+    { action: 'deactivate', professional_id: id, reason_id: reasonId, ...(note != null && { note }) },
+    statusChangePayload,
+  )
+}
+
+/** « Réessayer »: the sign-in ban made to follow the provider account's status (P4-381). */
+export function syncProfessionalSignin(id: string): Promise<SigninSync> {
+  return callStatusFunction({ action: 'sync_signin', professional_id: id }, signinSyncPayload)
 }

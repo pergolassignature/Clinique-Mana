@@ -193,6 +193,8 @@ const matchingProfileRowPayload = z
     availability_note: z.string().nullable(),
     min_client_age: z.number().nullable(),
     women_only: z.boolean(),
+    new_client_places: z.number().int().nullable(),
+    new_client_places_set_at: z.string().nullable(),
     updated_at: z.string(),
   })
   .transform((r) => ({
@@ -203,9 +205,20 @@ const matchingProfileRowPayload = z
     minClientAge: r.min_client_age,
     /** Women clients only (« Femmes exclusivement », P4-245). */
     womenOnly: r.women_only,
+    /** « Places offertes » (0–99), null when not tracked (P4-382). The places left are Demandes'. */
+    newClientPlaces: r.new_client_places,
+    /** When the number was last (re)declared: the database stamps it when the number changes; null with it. */
+    newClientPlacesSetAt: r.new_client_places_set_at,
     updatedAt: r.updated_at,
   }))
 export type MatchingProfile = z.output<typeof matchingProfileRowPayload>
+
+/** « Bon à savoir » (P4-384): staff only; null without a note (and always for the provider). */
+export const matchingNotePayload = z
+  .object({ note: z.string(), updated_at: z.string() })
+  .transform((r) => ({ note: r.note, updatedAt: r.updated_at }))
+  .nullable()
+export type MatchingNote = NonNullable<z.output<typeof matchingNotePayload>>
 
 /**
  * One of the professional's titles (at most two, exactly one primary). Shared by the record and
@@ -246,6 +259,7 @@ export const recordPayload = z
     professional: professionalPayload,
     public_profile: publicProfileRowPayload,
     matching_profile: matchingProfileRowPayload,
+    matching_note: matchingNotePayload,
     professions: z.array(professionRowPayload),
     clienteles: z.array(specializedRefPayload),
     motif_ids: z.array(z.string()),
@@ -257,6 +271,7 @@ export const recordPayload = z
     professional: r.professional,
     publicProfile: r.public_profile,
     matchingProfile: r.matching_profile,
+    matchingNote: r.matching_note,
     professions: r.professions,
     clienteles: r.clienteles,
     motifIds: r.motif_ids,
@@ -446,36 +461,54 @@ export const historyEntryPayload = z
   }))
 export type HistoryEntry = z.output<typeof historyEntryPayload>
 
-// --- Status changes (activate_professional, deactivate_professional) -----------------------------
+// --- Status changes (professionals-set-status, Task 4b.6) -----------------------------------------
 
 /**
- * The one row the status RPCs return. `accountChange` is set only when the call disabled or
- * re-enabled the provider's account (4b.6 then bans or unbans it); `profileId` is null without
- * an account. The generated types call both non-null.
+ * `professionals-set-status`'s answer to « Activer » / « Désactiver »: the status RPC's row and
+ * whether the sign-in ban followed. `accountChange` is set only when the call disabled or
+ * re-enabled the provider's account (the function then bans or unbans it); `profileId` is null
+ * without an account change. `signinSynced` is false when Auth refused the ban or the unban
+ * (P4-381): the status change stands, and « Réessayer » sends `sync_signin`.
  */
 export const statusChangePayload = z
-  .tuple([
-    z.object({
-      status: z.enum(PROFESSIONAL_STATUSES),
-      account_change: z.enum(['disabled', 'enabled']).nullable(),
-      profile_id: z.string().nullable(),
-    }),
-  ])
-  .transform(([r]) => ({ status: r.status, accountChange: r.account_change, profileId: r.profile_id }))
+  .object({
+    status: z.enum(PROFESSIONAL_STATUSES),
+    account_change: z.enum(['disabled', 'enabled']).nullable(),
+    profile_id: z.string().nullable(),
+    signin_synced: z.boolean(),
+  })
+  .transform((r) => ({ status: r.status, accountChange: r.account_change, profileId: r.profile_id, signinSynced: r.signin_synced }))
 export type StatusChange = z.output<typeof statusChangePayload>
+
+/** `sync_signin`: the provider account's status (null without one) and whether the ban now follows it. */
+export const signinSyncPayload = z
+  .object({ account_status: z.enum(['active', 'disabled']).nullable(), signin_synced: z.boolean() })
+  .transform((r) => ({ accountStatus: r.account_status, signinSynced: r.signin_synced }))
+export type SigninSync = z.output<typeof signinSyncPayload>
 
 // --- Module settings (get_professionals_settings) ------------------------------------------------
 
 /**
  * `collectSin` is off until an admin turns it on after the accountant confirms (P4-7). The
  * invitation's lifetime (1–30 days) and its reminder delay (1–29 days, null for no reminder; shorter
- * than the lifetime, P4-308) are « Invitations »'s (4b.1).
+ * than the lifetime, P4-308) are « Invitations »'s (4b.1). The fiche's render options (P4-353) are
+ * on by default.
  */
 export const settingsPayload = z
-  .object({ collect_sin: z.boolean(), invitation_expiry_days: z.number().int(), invitation_reminder_after_days: z.number().int().nullable() })
+  .object({
+    collect_sin: z.boolean(),
+    invitation_expiry_days: z.number().int(),
+    invitation_reminder_after_days: z.number().int().nullable(),
+    fiche_show_pro_contact: z.boolean(),
+    fiche_show_clinic_footer: z.boolean(),
+    fiche_show_closing: z.boolean(),
+  })
   .transform((s) => ({
     collectSin: s.collect_sin,
     invitationExpiryDays: s.invitation_expiry_days,
     invitationReminderAfterDays: s.invitation_reminder_after_days,
+    ficheShowProContact: s.fiche_show_pro_contact,
+    ficheShowClinicFooter: s.fiche_show_clinic_footer,
+    ficheShowClosing: s.fiche_show_closing,
   }))
 export type ProfessionalsSettings = z.output<typeof settingsPayload>
