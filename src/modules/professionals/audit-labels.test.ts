@@ -21,6 +21,7 @@ const COLUMNS = {
     'id', 'org_id', 'profile_id', 'first_name', 'last_name', 'email', 'personal_phone', 'address_line1', 'address_line2', 'city', 'province',
     'postal_code', 'country', 'years_experience', 'gender', 'status', 'status_changed_at', 'status_changed_by', 'deactivation_reason_id',
     'deactivation_note', 'deactivation_disabled_account', 'activation_override_reason', 'created_at', 'created_by', 'updated_at',
+    'fiche_generated_at',
   ],
   professional_public_profiles: ['org_id', 'professional_id', 'bio', 'approach', 'public_email', 'public_phone', 'created_at', 'updated_at'],
   professional_matching_profiles: ['org_id', 'professional_id', 'accepting_new_clients', 'availability_periods', 'availability_note', 'created_at', 'updated_at'],

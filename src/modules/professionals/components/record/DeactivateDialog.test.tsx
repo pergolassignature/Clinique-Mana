@@ -71,8 +71,8 @@ describe('DeactivateDialog', () => {
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
     expect(mocks.record.deactivateProfessional).toHaveBeenCalledExactlyOnceWith(ID, IDS.leave, null)
     expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.toasts.deactivated'))
-    // Inactive and incomplete: no « Réactiver » without the override, no menu.
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    // Inactive and incomplete: no « Réactiver » without the override, no menu; « Fiche PDF » stays.
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([t('modules.professionals.fiche.menu.trigger')])
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: HARNESS_HEADING })).toHaveFocus())
   })
 

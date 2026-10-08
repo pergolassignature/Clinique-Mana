@@ -145,3 +145,16 @@ export function formatMegabytes(bytes: number): string {
 export function formatPixels(pixels: number): string {
   return new Intl.NumberFormat('fr-CA').format(pixels)
 }
+
+/** Hands the browser a Blob made in the page (a PDF) to save under `fileName`. */
+export function saveBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.append(link)
+  link.click()
+  link.remove()
+  // Some browsers read the URL after click() returns.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}

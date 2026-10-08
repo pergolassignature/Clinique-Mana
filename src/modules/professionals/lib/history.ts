@@ -37,6 +37,8 @@ const TECHNICAL = new Set([
   'updated_by',
   'status_changed_at',
   'status_changed_by',
+  // The fiche's last download or email (P4-203): bookkeeping, not a change to the file.
+  'fiche_generated_at',
 ])
 /** Free texts: shown in the details only, never inside a sentence. */
 const LONG_TEXT = new Set(['bio', 'approach', 'availability_note', 'deactivation_note', 'activation_override_reason'])

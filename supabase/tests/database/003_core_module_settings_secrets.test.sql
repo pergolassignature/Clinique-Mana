@@ -107,7 +107,8 @@ select functions_are('public', array[
   'set_compensation_default', 'delete_compensation_default', 'set_professional_margin', 'delete_professional_margin',
   'set_recognition_rule', 'delete_recognition_rule', 'set_professional_recognition', 'delete_professional_recognition',
   'get_professional_compensation',
-  'set_user_preference', 'delete_user_preference'
+  'set_user_preference', 'delete_user_preference',
+  'mark_professional_fiche_generated'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

@@ -233,7 +233,7 @@ describe('ProfessionalRecordPage', () => {
     expect(screen.getByRole('button', { name: t(`${S}.allOverall`, { count: '72' }) })).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('shows the status actions in the header for staff who manage files, none for the counselor', async () => {
+  it('shows the status actions in the header for staff who manage files, « Fiche PDF » only for the counselor', async () => {
     renderPage({ role: 'admin' })
     await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })
     const header = screen.getByRole('heading', { level: 1 }).closest('header') as HTMLElement
@@ -242,7 +242,8 @@ describe('ProfessionalRecordPage', () => {
     cleanup()
     renderPage()
     await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })
-    expect(within(screen.getByRole('heading', { level: 1 }).closest('header') as HTMLElement).queryByRole('button')).not.toBeInTheDocument()
+    const counselorHeader = screen.getByRole('heading', { level: 1 }).closest('header') as HTMLElement
+    expect(within(counselorHeader).getAllByRole('button').map((b) => b.textContent)).toEqual([t('modules.professionals.fiche.menu.trigger')])
   })
 
   it('moves focus to the name once a deactivation leaves no action to return to', async () => {

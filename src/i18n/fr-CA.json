@@ -1861,6 +1861,32 @@
         "catalogError": "Les titres n'ont pas pu être chargés.",
         "licenceNowRequired": "Ce titre demande maintenant un numéro de permis. Saisissez-le dans le champ ajouté, puis créez le dossier."
       },
+      "fiche": {
+        "menu": {
+          "trigger": "Fiche PDF",
+          "download": "Télécharger",
+          "downloadTitle": "Télécharger la fiche ({title})"
+        },
+        "errors": {
+          "render": "La fiche n'a pas pu être préparée. Rechargez la page, puis réessayez.",
+          "appUpdated": "Une nouvelle version de l'application est disponible. Rechargez la page, puis réessayez."
+        },
+        "pdf": {
+          "documentTitle": "Fiche de {name}",
+          "order": "{name} ({acronym})",
+          "clienteles": "Clientèles",
+          "approaches": "Approches thérapeutiques",
+          "languages": "Langues",
+          "fees": "Honoraires",
+          "feesPending": "À confirmer",
+          "specialized": "Domaine de spécialisation",
+          "presentation": "Présentation",
+          "approach": "Approche",
+          "motifs": "Motifs de consultation",
+          "all": "Tous",
+          "footer": "Fiche à jour le {date} · Page {page} de {total}"
+        }
+      },
       "toasts": {
         "saved": "Modifications enregistrées.",
         "created": "Professionnel créé.",
@@ -2527,7 +2553,8 @@
         "deactivation_reason_id": "Raison de la désactivation",
         "deactivation_note": "Note de désactivation",
         "deactivation_disabled_account": "Compte désactivé avec le dossier",
-        "activation_override_reason": "Raison de l'activation d'un dossier incomplet"
+        "activation_override_reason": "Raison de l'activation d'un dossier incomplet",
+        "fiche_generated_at": "Fiche PDF générée le"
       },
       "professional_public_profiles": {
         "professional_id": "Professionnel",
