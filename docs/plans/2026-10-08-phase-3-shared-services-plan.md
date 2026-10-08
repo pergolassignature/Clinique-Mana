@@ -1150,6 +1150,8 @@ Record the outputs (status codes only) in the task report.
 
 ## Task 3.13: Notifications UI and the shared helper
 
+**From the Task 3.12 review:** always pass **both** cursor fields to `list_my_notifications` (`p_before` = last row's `created_at`, `p_before_id` = its `id`); notices created in one transaction share `created_at`, and the DB now refuses `p_before` without `p_before_id`. Accueil « À surveiller » uses `p_importance: 'important', p_unread_only: true, p_limit: 5` (bounded to 90 days, like the count).
+
 **Lane:** U (after Task 3.12 merges); the Deno helper in lane F.
 
 **Files:**

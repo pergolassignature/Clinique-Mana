@@ -2127,9 +2127,11 @@ Kinds (`module_key 'professionals'`; French `title` / `body` with names and date
 | Kind | Importance | Recipient permission | Title / body | Link | Dedupe key |
 |---|---|---|---|---|---|
 | `professionals.submission_received` | normal | `professionals.review` | « Profil à réviser » / « {Prénom Nom} a envoyé son profil. » | `/professionnels/:id/documents` | `submission:<submission_id>` |
-| `professionals.insurance_expiring` | important | `professionals.manage` | « Assurance bientôt échue » / « L'assurance de {Prénom Nom} prend fin le {date}. » | `/professionnels/:id/documents` | `insurance:<document_id>:expiring` |
+| `professionals.insurance_expiring` | important | `professionals.manage` | « Assurance bientôt échue » / « L'assurance de {Prénom Nom} prend fin le {date}. » | `/professionnels/:id/documents` | `insurance:<document_id>:<expires_on>:expiring` (the date is in the key so a corrected expiry raises a new notice instead of returning the old, possibly expired one: Task 3.12 review) |
 | `professionals.insurance_expired` | important | `professionals.manage` | « Assurance expirée » / « L'assurance de {Prénom Nom} est échue depuis le {date}. Le professionnel reste actif. » | same | `insurance:<document_id>:expired` |
 | `professionals.document_to_review` | normal | `professionals.documents.review` | « Document à vérifier » / « {Prénom Nom} a téléversé {type}. » | same | `document:<document_id>:uploaded` |
+
+*Resolution (Task 3.12 review):* permission-addressed work notices must not stay unread for every reviewer after one acts. `apply_professional_submission` / `reject…` expire `professionals.submission_received` for that submission, and `verify_professional_document` / `reject_professional_document` expire `professionals.document_to_review` for that document, through `private.expire_notifications(org, subject_type, subject_id, kinds)`. Module notices are addressed only by `professionals.*` permissions (the notifications module gate requires the recipient permission to belong to the notice's module).
 
 - Dates in `body` are date-only values formatted with the same rule as `formatDateOnly` (`_shared/format.ts`, Phase 3 Task 3.30), never shifted by time zone.
 - `expires_at` on `insurance_*`: 60 days after creation, so stale notices leave the bell; verifying a new valid insurance also stops new ones (no due notice any more).
