@@ -10,6 +10,13 @@ import { renderWithContexts } from '@/test/contexts'
 import { AppShell, type ShellNavItem } from './AppShell'
 import type { CommandPalette } from './shell/CommandPalette'
 
+// The topbar bell (and Accueil) read the caller's notices: none here, and no network.
+vi.mock('@/core/notifications/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/notifications/api')>()),
+  countMyUnreadNotifications: async () => ({ total: 0, important: 0 }),
+  listMyNotifications: async () => [],
+  listImportantUnreadNotifications: async () => [],
+}))
 // A stand-in palette whose close event fires only when the test says so: it lets a close event
 // go missing, which the real Radix dialog never does in jsdom.
 vi.mock('./shell/CommandPalette', () => ({

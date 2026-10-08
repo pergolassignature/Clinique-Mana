@@ -16,6 +16,13 @@ import { AppShell, type ShellNavItem } from './AppShell'
 import { SIDEBAR_COLLAPSED_KEY } from './shell/use-sidebar-collapsed'
 
 const mocks = vi.hoisted(() => ({ fetchOrgRoles: vi.fn() }))
+// The topbar bell (and Accueil) read the caller's notices: none here, and no network.
+vi.mock('@/core/notifications/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/notifications/api')>()),
+  countMyUnreadNotifications: async () => ({ total: 0, important: 0 }),
+  listMyNotifications: async () => ({ notices: [], hasMore: false }),
+  listImportantUnreadNotifications: async () => [],
+}))
 // The shell names a custom role from the clinic's roles (get_my_access returns only its key).
 vi.mock('@/core/access/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/access/api')>()), fetchOrgRoles: mocks.fetchOrgRoles }))
 

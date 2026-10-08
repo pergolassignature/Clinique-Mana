@@ -7,7 +7,9 @@ import type { Access } from '@/core/access/access'
 import type { SettingsSection } from '@/core/modules/types'
 import { isSectionReadOnly } from '@/core/settings/section-context'
 import { coreSettingsSections } from '@/core/settings/sections'
+import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
+import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { accessForRole } from '@/test/role-fixtures'
 import { renderInSettingsSection } from '@/test/settings-section'
 import { testCatalog, testRoleDefaults, testRoles, testUsers } from '@/test/users-fixtures'
@@ -229,6 +231,58 @@ describe('UsersSettingsPage', () => {
     // Tab then goes into the panel. (happy-dom keeps the old, hidden panel in the DOM, which
     // userEvent.tab() does not skip; the browser check covers the real order.)
     expect(screen.getByRole('tabpanel')).toHaveAttribute('tabindex', '0')
+  })
+
+  describe('changing tabs with unsaved edits on the page', () => {
+    /** A dirty form elsewhere on the page (the guard is page-wide). */
+    function DirtyForm() {
+      useUnsavedChanges(true)
+      return null
+    }
+    function renderDirty() {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      render(
+        renderInSettingsSection(
+          <QueryClientProvider client={queryClient}>
+            <UnsavedChangesProvider>
+              <DirtyForm />
+              <UsersSettingsPage />
+            </UnsavedChangesProvider>
+          </QueryClientProvider>,
+          { section: usersSection, readOnly: false, access: { access: adminCaller } },
+        ),
+      )
+    }
+    const usersTab = () => screen.getByRole('tab', { name: t('settings.users.tabs.users') })
+    const rolesTab = () => screen.getByRole('tab', { name: t('settings.users.tabs.roles') })
+
+    it('asks first, and « Rester » keeps the current tab (focus back on the tab asks nothing)', async () => {
+      const user = userEvent.setup()
+      renderDirty()
+      await screen.findByRole('table', { name: t('settings.users.tableLabel') })
+      await user.click(rolesTab())
+      const dialog = await screen.findByRole('alertdialog')
+      await user.click(within(dialog).getByRole('button', { name: t('common.unsaved.stay') }))
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+      expect(usersTab()).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByRole('table', { name: t('settings.users.tableLabel') })).toBeInTheDocument()
+    })
+
+    it('the arrow keys only move focus; Entrée asks, then « Quitter sans enregistrer » switches', async () => {
+      const user = userEvent.setup()
+      renderDirty()
+      await screen.findByRole('table', { name: t('settings.users.tableLabel') })
+      screen.getByRole('heading', { level: 2, name: t('settings.sections.users') }).focus()
+      await user.tab()
+      await user.keyboard('{ArrowRight}')
+      expect(rolesTab()).toHaveFocus()
+      expect(usersTab()).toHaveAttribute('aria-selected', 'true')
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      await user.keyboard('{Enter}')
+      await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('common.unsaved.leave') }))
+      expect(rolesTab()).toHaveAttribute('aria-selected', 'true')
+      expect(await screen.findByRole('table', { name: t('settings.users.matrix.tableLabel') })).toBeInTheDocument()
+    })
   })
 
   it('a click that ends a text selection does not open the sheet', async () => {

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useId } from 'react'
+import { createContext, useContext, useEffect, useId, type FocusEvent, type KeyboardEvent } from 'react'
 
 /**
  * Unsaved-changes guard. The app uses `BrowserRouter`, so React Router's `useBlocker` is not
@@ -42,9 +42,41 @@ const proceedAtOnce = (proceed: () => void) => proceed()
 
 /**
  * `confirmLeave` for leaving the page by other means than a link (e.g. a programmatic navigation
- * after « Annuler »). Not for closing a sheet or dialog: see the note at the top of this file.
- * Outside a provider it proceeds at once.
+ * after « Annuler », or a page tab that unmounts the current tab's forms: `useGuardedTabs`). Not
+ * for closing a sheet or dialog: see the note at the top of this file. Outside a provider it
+ * proceeds at once.
  */
 export function useConfirmLeave(): (proceed: () => void) => void {
   return useContext(UnsavedChangesContext)?.confirmLeave ?? proceedAtOnce
+}
+
+/**
+ * Page tabs (`@/shared/ui/tabs`) whose panels unmount, and with them their forms' edits: a switch
+ * asks first while a form is dirty. `onValueChange` goes on `Tabs`, `triggerProps(value)` on each
+ * `TabsTrigger`. While nothing is dirty the tabs behave as usual (the arrow keys switch views).
+ * While a form is dirty:
+ * - focus does not activate a tab (Radix skips its handler once the default is prevented): the
+ *   arrow keys only move focus, and focus coming back to the tab after « Rester » asks nothing;
+ * - Entrée / Espace ask with their default prevented: Radix activates tabs on keydown, and the
+ *   key's own click would otherwise land on the dialog's « Rester », which takes focus at once.
+ */
+export function useGuardedTabs<T extends string>(current: T, isTab: (value: string) => value is T, select: (value: T) => void) {
+  const context = useContext(UnsavedChangesContext)
+  const confirmLeave = context?.confirmLeave ?? proceedAtOnce
+  const isDirty = () => context?.isDirty() ?? false
+  const onValueChange = (value: string) => {
+    if (isTab(value) && value !== current) confirmLeave(() => select(value))
+  }
+  const triggerProps = (value: T) => ({
+    onFocus: (event: FocusEvent<HTMLElement>) => {
+      if (isDirty()) event.preventDefault()
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      if ((event.key === 'Enter' || event.key === ' ') && isDirty()) {
+        event.preventDefault()
+        onValueChange(value)
+      }
+    },
+  })
+  return { onValueChange, triggerProps }
 }
