@@ -29,8 +29,8 @@
 --   no section, no helper, not in the history list; set_professional_specialties and
 --   get_professional_record are left as 4a built them. No motif or clientèle key is named here.
 --   Status draft → submitted → approved; a rejection returns the submission to draft with the
---   reviewer's note (P4-170). At most one open (draft or submitted)
---   submission per professional. `prefill` is a snapshot of the record at creation; `submitted_values`
+--   reviewer's note (P4-170); `cancelled` closes it without review (P4-241). At most one open
+--   (draft or submitted) submission per professional. `prefill` is a snapshot of the record at creation; `submitted_values`
 --   holds the provider's answers per section, normalised, never a SIN or an account number.
 -- * Private answers (P4-38) are encrypted at once in professional_submission_private, under the
 --   rules of conventions §8: one key version per row (a save re-encrypts the kept ciphertexts from
@@ -60,6 +60,23 @@
 -- * Audit: every table is audited. professional_submissions redacts `prefill` and `submitted_values`
 --   (phone and address, as professionals does); the private step shows through `private_saved_at`.
 --   The history adds submissions and consents, never the private table.
+-- * Security review (P4-240 … P4-248):
+--   - The invitation is bound to the file's address: the link's scope holds {"email": …} (lower
+--     case, private.issue_professional_invitation_link, which 4b.2's re-issue calls too); both
+--     handlers refuse a link whose address is no longer the file's (resolve: null; accept:
+--     link_invalid, the consumption rolled back), and set_professional_email (4a) revokes the live
+--     link (P4-240).
+--   - Private answers never outlive the submission (Loi 25, P4-241, P4-242): an open submission is
+--     closed as `cancelled` (its private row deleted) when the invitation is revoked, the file is
+--     deactivated or its account is removed; the maintenance job professionals.submission_private_purge
+--     deletes the private row of a draft not saved for 90 days.
+--   - A save stores only the keys it was given, merged into the section; a field is answered only
+--     when its key is present, and applying never touches a field that was not answered (P4-176).
+--   - Inactive files: the provider RPCs, update requests, apply and acceptance refuse (P4-243).
+--     Self-review is refused (P4-244). Apply re-checks the consent version and the insurance's
+--     expiry (P4-245); the SIN is not an available field while collect_sin is off (P4-182).
+--   - Staged files must belong to this submission (subject), drafts of the consent text are read
+--     by staff only, and the reminder must leave before the link expires (P4-246 … P4-248).
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:professionals_onboarding', true);
@@ -134,6 +151,67 @@ begin
     else
       raise exception 'Réglage inconnu : %', coalesce(p_key, '(null)') using errcode = '22023';
   end case;
+end;
+$$;
+
+-- The rules that span keys, on the effective settings a patch would leave (P4-248): a reminder
+-- leaves before the link expires (otherwise it would re-issue an already expired invitation). A
+-- user-facing P0001 with the field as HINT: each value is valid alone, the pair is not.
+create function private.validate_professionals_settings(p_settings jsonb)
+returns void
+language plpgsql
+immutable
+set search_path = ''
+as $$
+begin
+  if pg_catalog.jsonb_typeof(p_settings -> 'invitation_reminder_after_days') = 'number'
+     and (p_settings ->> 'invitation_reminder_after_days')::numeric >= (p_settings ->> 'invitation_expiry_days')::numeric then
+    raise exception 'Le rappel doit partir avant la fin de validité du lien : choisissez un délai plus court que sa durée de validité.'
+      using errcode = 'P0001', hint = 'invitation_reminder_after_days';
+  end if;
+end;
+$$;
+revoke all on function private.validate_professionals_settings(jsonb) from public, anon, authenticated, service_role;
+
+-- 4a.2's RPC (same signature, grants, checks and result), plus the rules across keys checked on
+-- the merged result under the org row's lock (two patches cannot each pass alone).
+create or replace function public.set_professionals_settings(p_patch jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid := private.current_user_org_id();
+  v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
+  r record;
+begin
+  if not private.has_permission('professionals.settings') then
+    raise exception 'Permission refusée : professionals.settings' using errcode = '42501';
+  end if;
+  if p_patch is null or pg_catalog.jsonb_typeof(p_patch) <> 'object' then
+    raise exception 'Réglages invalides : objet JSON attendu' using errcode = '22023';
+  end if;
+  for r in select e.key, e.value from pg_catalog.jsonb_each(p_patch) e loop
+    perform private.validate_professionals_setting(r.key, r.value);
+  end loop;
+  if p_patch ? 'collect_sin' and not private.has_permission('professionals.private') then
+    raise exception 'Permission refusée : professionals.private' using errcode = '42501';
+  end if;
+
+  if p_patch <> '{}'::jsonb then
+    perform 1 from public.organizations o where o.id = v_org for no key update;
+    perform private.validate_professionals_settings(private.professionals_settings(v_org) || p_patch);
+    -- The table's audit trigger records the change under this RPC's name.
+    perform pg_catalog.set_config('app.audit_source', 'rpc:set_professionals_settings', true);
+    insert into public.org_module_settings as s (org_id, module_key, settings, updated_by)
+    values (v_org, 'professionals', p_patch, auth.uid())
+    on conflict (org_id, module_key) do update
+      set settings = s.settings || excluded.settings,
+          updated_by = excluded.updated_by;
+    perform pg_catalog.set_config('app.audit_source', coalesce(v_prev_source, ''), true);
+  end if;
+  return private.professionals_settings(v_org);
 end;
 $$;
 
@@ -336,7 +414,8 @@ create table public.professional_submissions (
   constraint professional_submissions_reviewed_by_fkey foreign key (reviewed_by)
     references public.profiles (user_id) on delete set null,
   constraint professional_submissions_kind_check check (kind in ('onboarding', 'update')),
-  constraint professional_submissions_status_check check (status in ('draft', 'submitted', 'approved')),
+  -- cancelled: closed without review (invitation revoked, file deactivated, account removed, P4-241).
+  constraint professional_submissions_status_check check (status in ('draft', 'submitted', 'approved', 'cancelled')),
   constraint professional_submissions_requested_sections_check check (
     pg_catalog.cardinality(requested_sections) between 1 and 11
     and requested_sections <@ array['personal', 'professional', 'portrait', 'languages', 'clienteles',
@@ -356,7 +435,7 @@ create table public.professional_submissions (
                             'availability_periods', 'availability_note', 'photo', 'insurance', 'business_number',
                             'gst_number', 'qst_number', 'bank_institution', 'bank_transit', 'bank_account', 'sin',
                             'consent']),
-  constraint professional_submissions_submitted_check check (status = 'draft' or submitted_at is not null),
+  constraint professional_submissions_submitted_check check (status in ('draft', 'cancelled') or submitted_at is not null),
   constraint professional_submissions_approved_check check (
     status <> 'approved' or (reviewed_at is not null and applied_fields is not null))
 );
@@ -469,6 +548,97 @@ as $$
 $$;
 
 -- -----------------------------------------------------------------------------
+-- Private answers never outlive the submission (Loi 25; P4-241, P4-242)
+-- -----------------------------------------------------------------------------
+-- Closes the professional's open submission without review: status `cancelled`, its private row
+-- deleted (audited, every value redacted). Called with the professional locked, by
+-- revoke_professional_invitation, deactivate_professional and the account-removal trigger. Returns
+-- the submission's id, or null when none was open. The answers in submitted_values stay (the
+-- record's own data; redacted from the audit).
+create function private.cancel_open_submission(p_org uuid, p_pid uuid)
+returns uuid
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+begin
+  update public.professional_submissions s set status = 'cancelled'
+   where s.professional_id = p_pid and s.org_id = p_org and s.status in ('draft', 'submitted')
+  returning s.id into v_id;
+  if v_id is not null then
+    delete from public.professional_submission_private sp where sp.submission_id = v_id and sp.org_id = p_org;
+  end if;
+  return v_id;
+end;
+$$;
+
+-- An account removed (profiles row deleted: professionals.profile_id set null by its FK) abandons
+-- the open submission: whoever gets the next invitation must never see the previous person's
+-- answers or masks. The FK action locks the profile, then the professional (4a.4's order).
+create function private.professionals_cancel_submission_on_unlink()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform private.cancel_open_submission(new.org_id, new.id);
+  return null;
+end;
+$$;
+create trigger professionals_cancel_submission_on_unlink
+  after update on public.professionals
+  for each row when (old.profile_id is not null and new.profile_id is null)
+  execute function private.professionals_cancel_submission_on_unlink();
+
+-- Maintenance (Phase 3 jobs, run database-wide by private.run_sql_job): deletes the private row of
+-- every draft not saved for 90 days (the submission's updated_at, which every save moves) and,
+-- as a safety net, of any submission no longer open (approval and cancellation delete theirs). The
+-- draft stays; its private step is empty again (private_saved_at cleared) and the provider enters
+-- it anew. Returns a count only.
+create function private.job_professionals_submission_private_purge()
+returns text
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_ids uuid[];
+begin
+  with gone as (
+    delete from public.professional_submission_private sp
+     using public.professional_submissions s
+     where s.id = sp.submission_id and s.professional_id = sp.professional_id
+       and (s.status not in ('draft', 'submitted')
+            or (s.status = 'draft' and greatest(s.updated_at, sp.updated_at) < pg_catalog.now() - interval '90 days'))
+    returning sp.submission_id
+  )
+  select coalesce(pg_catalog.array_agg(gone.submission_id), '{}') into v_ids from gone;
+  update public.professional_submissions s set private_saved_at = null
+   where s.id = any (v_ids) and s.status = 'draft' and s.private_saved_at is not null;
+  return 'deleted=' || pg_catalog.cardinality(v_ids);
+end;
+$$;
+
+revoke all on function
+  private.cancel_open_submission(uuid, uuid),
+  private.professionals_cancel_submission_on_unlink(),
+  private.job_professionals_submission_private_purge()
+from public, anon, authenticated, service_role;
+
+insert into public.scheduled_jobs
+  (key, module_key, label, description, kind, sql_function, cron_job_name, is_maintenance)
+values
+  ('professionals.submission_private_purge', 'professionals', 'Purge des renseignements fiscaux non envoyés',
+   'Supprime les renseignements fiscaux et bancaires saisis dans un questionnaire resté en brouillon 90 jours sans '
+   || 'enregistrement. Le brouillon reste : la personne les saisira de nouveau.',
+   'sql', 'private.job_professionals_submission_private_purge', 'professionals.submission_private_purge', true)
+on conflict do nothing;
+
+select cron.schedule('professionals.submission_private_purge', '10 9 * * *',
+  $$select private.run_sql_job('professionals.submission_private_purge')$$);
+
+-- -----------------------------------------------------------------------------
 -- consent_versions: the image-rights text, versioned per clinic (4c.3 edits it)
 -- -----------------------------------------------------------------------------
 create table public.consent_versions (
@@ -495,10 +665,12 @@ create index consent_versions_published_by_idx on public.consent_versions (publi
 revoke all on public.consent_versions from anon, authenticated;
 grant select on public.consent_versions to authenticated;
 alter table public.consent_versions enable row level security;
--- The text is not secret: whoever reads the lists reads it (staff and the provider who signs).
+-- The text is not secret: whoever reads the lists reads it (staff and the provider who signs). A
+-- draft version (4c.3) is read by staff only (professionals.view), never by the provider (P4-247).
 create policy consent_versions_select on public.consent_versions
   for select to authenticated
-  using (org_id = (select private.current_user_org_id()) and (select private.can_read_professionals_reference()));
+  using (org_id = (select private.current_user_org_id()) and (select private.can_read_professionals_reference())
+         and (published_at is not null or (select private.has_permission('professionals.view'))));
 
 create trigger consent_versions_set_updated_at before update on public.consent_versions
   for each row execute function private.set_updated_at();
@@ -1231,10 +1403,13 @@ end;
 $$;
 
 -- A staged upload of the questionnaire: the provider's own (p_uploader), of the purpose
--- professional_submission_file, ready and not past its retain_until, of the clinic, and of the
--- accepted types and size. « Fichier introuvable » reveals nothing about another file.
+-- professional_submission_file, uploaded for this submission (its subject, P4-246: a file staged for
+-- another submission, or already attached to the record, is not reused), ready and not past its
+-- retain_until, of the clinic, and of the accepted types and size. « Fichier introuvable » reveals
+-- nothing about another file.
 create function private.assert_submission_file(
-  p_org uuid, p_uploader uuid, p_file_id uuid, p_mime_types text[], p_max_bytes int, p_hint text, p_message text)
+  p_org uuid, p_uploader uuid, p_submission_id uuid, p_file_id uuid, p_mime_types text[], p_max_bytes int,
+  p_hint text, p_message text)
 returns void
 language plpgsql
 stable
@@ -1247,6 +1422,7 @@ begin
   select f.mime_type, f.size_bytes into v_mime, v_size
     from public.stored_files f
    where f.id = p_file_id and f.org_id = p_org and f.purpose = 'professional_submission_file'
+     and f.subject_type = 'professional_submission' and f.subject_id = p_submission_id
      and f.uploaded_by = p_uploader and f.status = 'ready'
      and (f.retain_until is null or f.retain_until > pg_catalog.now());
   if not found then
@@ -1258,11 +1434,13 @@ begin
 end;
 $$;
 
--- One section's answers as stored: every key known to the section, every value of the right JSON
--- type (22023 otherwise, without echoing it), every rule the record's forms and tables apply (P0001
--- with the field's HINT). Needs no lock; the sets' rules against the clinic's lists run in the dry
--- run below, the files' against stored_files. tax_bank and consent have their own RPCs.
-create function private.normalize_submission_section(p_org uuid, p_uploader uuid, p_section text, p_values jsonb)
+-- One section's answers as stored: only the keys given (a key absent is a field not answered,
+-- P4-176; the save merges them into the section), every key known to the section, every value of
+-- the right JSON type (22023 otherwise, without echoing it), every rule the record's forms and
+-- tables apply (P0001 with the field's HINT). Needs no lock; the sets' rules against the clinic's
+-- lists run in the dry run below, the files' against stored_files in save_my_submission_draft
+-- (private.assert_submission_file, under the lock). tax_bank and consent have their own RPCs.
+create function private.normalize_submission_section(p_section text, p_values jsonb)
 returns jsonb
 language plpgsql
 stable
@@ -1378,19 +1556,10 @@ begin
       'availability_note', private.submission_long_text(private.submission_string(v, 'availability_note'), 'La note', 500, 'availability_note'));
 
   when 'photo' then
-    v_file := private.submission_uuid(v -> 'file_id', 'photo');
-    if v_file is not null then
-      perform private.assert_submission_file(p_org, p_uploader, v_file, array['image/jpeg', 'image/png'], 5242880, 'photo',
-        'La photo doit être une image JPEG ou PNG de 5 Mo au plus.');
-    end if;
-    v_out := pg_catalog.jsonb_build_object('file_id', v_file);
+    v_out := pg_catalog.jsonb_build_object('file_id', private.submission_uuid(v -> 'file_id', 'photo'));
 
   when 'insurance' then
     v_file := private.submission_uuid(v -> 'file_id', 'insurance');
-    if v_file is not null then
-      perform private.assert_submission_file(p_org, p_uploader, v_file, array['application/pdf', 'image/jpeg', 'image/png'], 10485760,
-        'insurance', 'La preuve d''assurance doit être un fichier PDF, JPEG ou PNG de 10 Mo au plus.');
-    end if;
     v_text := private.submission_string(v, 'expires_on');
     if v_text is not null then
       if v_text !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
@@ -1411,11 +1580,13 @@ begin
     end if;
     v_out := pg_catalog.jsonb_build_object('file_id', v_file, 'expires_on', v_date);
   end case;
-  return v_out;
+  -- Only the keys given: a field left out keeps whatever the section already holds (P4-176).
+  return coalesce((select pg_catalog.jsonb_object_agg(e.key, e.value) from pg_catalog.jsonb_each(v_out) e
+                    where p_values ? e.key), '{}'::jsonb);
 end;
 $$;
 
--- Applies the set sections of p_values (a would-be submitted_values) to the professional with the
+-- Applies the answered set fields of p_values (a would-be submitted_values) to the professional with the
 -- staff write paths, checks the restricted-motif rule once on the result, then rolls everything back
 -- (SQLSTATE PRDRY). Only p_sections are run: the section being saved, plus professions with motifs
 -- (the rule spans both). Any refusal of those paths propagates as is (P4-174). Call it with the
@@ -1431,19 +1602,19 @@ declare
   v_flags boolean[];
 begin
   begin
-    if 'professional' = any (p_sections) and p_values ? 'professional' then
+    if 'professional' = any (p_sections) and (p_values -> 'professional') ? 'professions' then
       select * into v_items from private.parse_profession_items(coalesce(p_values #> '{professional,professions}', '[]'));
       perform private.apply_professional_professions(p_org, p_id, v_items.titles, v_items.licences, v_items.primary_flags, false);
     end if;
-    if 'languages' = any (p_sections) and p_values ? 'languages' then
+    if 'languages' = any (p_sections) and (p_values -> 'languages') ? 'language_ids' then
       perform private.apply_professional_languages(p_org, p_id,
         private.submission_uuid_array(p_values #> '{languages,language_ids}', 'language_ids'));
     end if;
-    if 'clienteles' = any (p_sections) and p_values ? 'clienteles' then
+    if 'clienteles' = any (p_sections) and (p_values -> 'clienteles') ? 'clienteles' then
       select x.ids, x.flags into v_ids, v_flags from private.parse_specialized_items(coalesce(p_values #> '{clienteles,clienteles}', '[]')) x;
       perform private.apply_professional_clienteles(p_org, p_id, v_ids, v_flags);
     end if;
-    if 'motifs' = any (p_sections) and p_values ? 'motifs' then
+    if 'motifs' = any (p_sections) and (p_values -> 'motifs') ? 'motif_ids' then
       perform private.apply_professional_motifs(p_org, p_id,
         private.submission_uuid_array(p_values #> '{motifs,motif_ids}', 'motif_ids'), false);
     end if;
@@ -1464,8 +1635,8 @@ revoke all on function
   private.submission_phone(text, text),
   private.submission_uuid(jsonb, text),
   private.submission_uuid_array(jsonb, text),
-  private.assert_submission_file(uuid, uuid, uuid, text[], int, text, text),
-  private.normalize_submission_section(uuid, uuid, text, jsonb),
+  private.assert_submission_file(uuid, uuid, uuid, uuid, text[], int, text, text),
+  private.normalize_submission_section(text, jsonb),
   private.dry_run_submission_sets(uuid, uuid, jsonb, text[])
 from public, anon, authenticated, service_role;
 
@@ -1505,10 +1676,12 @@ as $$
        when 'photo' then exists (
          select 1 from public.stored_files f
           where f.id = (v.j #>> '{photo,file_id}')::uuid and f.org_id = p_sub.org_id and f.status = 'ready'
+            and f.subject_type = 'professional_submission' and f.subject_id = p_sub.id
             and (f.retain_until is null or f.retain_until > pg_catalog.now()))
        when 'insurance' then (v.j #>> '{insurance,expires_on}')::date >= private.clinic_today() and exists (
          select 1 from public.stored_files f
           where f.id = (v.j #>> '{insurance,file_id}')::uuid and f.org_id = p_sub.org_id and f.status = 'ready'
+            and f.subject_type = 'professional_submission' and f.subject_id = p_sub.id
             and (f.retain_until is null or f.retain_until > pg_catalog.now()))
        when 'tax_bank' then exists (select 1 from sp)
          and coalesce((select sp.bank_institution from sp), (select pp.bank_institution from pp)) is not null
@@ -1525,9 +1698,12 @@ revoke all on function private.submission_gaps(public.professional_submissions) 
 -- -----------------------------------------------------------------------------
 -- Invitation states (list and record; A2.5 precedence)
 -- -----------------------------------------------------------------------------
--- Per professional of p_org (one, or all when p_id is null), in one statement: the latest invitation
--- link's state — used > revoked > expired > opened > sent —, its times, the open submission and
--- whether an onboarding was approved. Rows only for professionals with a link or a submission.
+-- Per professional of p_org (one, or all when p_id is null), in one statement: the state of the
+-- invitation link that matters — used > revoked > expired > opened > sent —, its times, the open
+-- submission and whether an onboarding was approved. Rows only for professionals with a link or a
+-- submission. The link that matters, deterministically: the used one (the account came from it),
+-- else the live one (at most one: secure_links_live_key), else the newest; links issued in one
+-- transaction share created_at, so the id breaks the last tie.
 create function private.professional_onboarding_states(p_org uuid, p_id uuid)
 returns table (
   professional_id uuid, state text, sent_at timestamptz, expires_at timestamptz, opened_at timestamptz,
@@ -1544,7 +1720,7 @@ as $$
       from public.secure_links x
      where x.org_id = p_org and x.purpose = 'professional_invite' and x.subject_type = 'professional'
        and (p_id is null or x.subject_id = p_id)
-     order by x.subject_id, x.created_at desc, x.id desc
+     order by x.subject_id, (x.use_count > 0) desc, (x.revoked_at is null) desc, x.created_at desc, x.id desc
   ), s as (
     select x.professional_id as pid, x.id, x.kind, x.status, x.submitted_at
       from public.professional_submissions x
@@ -1713,10 +1889,11 @@ as $$
 $$;
 
 -- -----------------------------------------------------------------------------
--- Deactivation revokes the open invitation link (4a.4 / 4a.14 « for later tasks »)
+-- Deactivation revokes the open invitation link (4a.4 / 4a.14 « for later tasks ») and closes the
+-- open submission (P4-241)
 -- -----------------------------------------------------------------------------
 -- Same signature, grants, checks and result as *_professionals_lifecycle.sql, plus the revocation
--- (professional, then links: the module's lock order).
+-- and the cancellation (professional, then links and submission: the module's lock order).
 create or replace function public.deactivate_professional(p_id uuid, p_reason_id uuid, p_note text default null)
 returns table (status text, account_change text, profile_id uuid)
 language plpgsql
@@ -1763,8 +1940,10 @@ begin
          status_changed_at = pg_catalog.now(), status_changed_by = auth.uid()
    where p.id = p_id;
 
-  -- An open invitation link stops working (the dialog says so, 4b.3).
+  -- An open invitation link stops working (the dialog says so, 4b.3), and the open submission is
+  -- closed with its private answers deleted (Loi 25, P4-241).
   perform private.revoke_secure_links(v_org, 'professional_invite', 'professional', p_id, auth.uid());
+  perform private.cancel_open_submission(v_org, p_id);
 
   return query select 'inactive'::text, v_change, case when v_change is not null then v_row.profile_id end;
 end;
@@ -1773,9 +1952,61 @@ $$;
 -- -----------------------------------------------------------------------------
 -- Invitation RPCs
 -- -----------------------------------------------------------------------------
+-- Issues a file's invitation link (P4-240): the clinic's lifetime (invitation_expiry_days), the
+-- file's address bound in the scope ({"email": …}, lower case) and the previous live link revoked
+-- (issue_secure_link). The handlers refuse the link once the file's address differs. Call it with
+-- the professional locked; every issuer of professional_invite links goes through it (4b.2's
+-- re-issue for the reminders too).
+create function private.issue_professional_invitation_link(p_org uuid, p_id uuid, p_token_hash bytea, p_created_by uuid)
+returns uuid
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_email text;
+begin
+  select pg_catalog.lower(p.email) into v_email from public.professionals p where p.id = p_id and p.org_id = p_org;
+  if v_email is null then
+    raise exception 'Professionnel introuvable.' using errcode = 'P0001';
+  end if;
+  return private.issue_secure_link(p_org, 'professional_invite', 'professional', p_id, p_token_hash, p_created_by,
+    pg_catalog.make_interval(days => (private.professionals_setting(p_org, 'invitation_expiry_days'))::int),
+    pg_catalog.jsonb_build_object('email', v_email));
+end;
+$$;
+revoke all on function private.issue_professional_invitation_link(uuid, uuid, bytea, uuid)
+  from public, anon, authenticated, service_role;
+
+-- Locks one professional of the caller's clinic (private.lock_professional) and returns the locked
+-- row; P0001 HINT status when the file is inactive (P4-243): nothing is asked of, sent by or
+-- applied to an inactive file. p_self picks the provider's wording. Read after the lock, so a
+-- deactivation committed meanwhile is seen.
+create function private.lock_active_professional(p_id uuid, p_self boolean)
+returns public.professionals
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_row public.professionals;
+begin
+  perform private.lock_professional(p_id);
+  select * into v_row from public.professionals p where p.id = p_id;
+  if v_row.status = 'inactive' then
+    if p_self then
+      raise exception 'Votre dossier est inactif : communiquez avec la clinique pour le réactiver.'
+        using errcode = 'P0001', hint = 'status';
+    end if;
+    raise exception 'Ce dossier est inactif : réactivez-le d''abord.' using errcode = 'P0001', hint = 'status';
+  end if;
+  return v_row;
+end;
+$$;
+revoke all on function private.lock_active_professional(uuid, boolean) from public, anon, authenticated, service_role;
+
 -- Service role only (professionals-invite, p_actor = the verified caller): issues a link for a file
 -- of the actor's clinic without an account (any status but inactive, P4-171), revoking the previous
--- one, with the clinic's lifetime (invitation_expiry_days); a draft becomes `invited`; the onboarding
+-- one, with the clinic's lifetime (invitation_expiry_days) and the file's address bound (P4-240); a
+-- draft becomes `invited`; the onboarding
 -- submission is created (prefill from the record) or reused, pointed at the new link. Returns what
 -- the email needs: {link_id, submission_id, email, first_name, expires_at}.
 create function public.create_professional_invitation(p_actor uuid, p_id uuid, p_token_hash bytea)
@@ -1788,7 +2019,6 @@ declare
   v_org uuid;
   v_keys text[];
   v_row public.professionals;
-  v_days int;
   v_link uuid;
   v_sub uuid;
   v_expires timestamptz;
@@ -1817,12 +2047,10 @@ begin
     raise exception 'Un dossier inactif ne peut pas recevoir d''invitation.' using errcode = 'P0001', hint = 'status';
   end if;
 
-  v_days := (private.professionals_setting(v_org, 'invitation_expiry_days'))::int;
   perform pg_catalog.set_config('app.audit_source', 'rpc:create_professional_invitation', true);
   perform pg_catalog.set_config('app.audit_actor', p_actor::text, true);
 
-  v_link := private.issue_secure_link(v_org, 'professional_invite', 'professional', p_id, p_token_hash, p_actor,
-                                      pg_catalog.make_interval(days => v_days));
+  v_link := private.issue_professional_invitation_link(v_org, p_id, p_token_hash, p_actor);
   if v_row.status = 'draft' then
     update public.professionals p
        set status = 'invited', status_changed_at = pg_catalog.now(), status_changed_by = p_actor
@@ -1851,7 +2079,8 @@ end;
 $$;
 
 -- « Révoquer l'invitation »: the live link stops working; an invited file without an account is
--- « À inviter » again (P4-171). Its onboarding draft is kept for the next link.
+-- « À inviter » again (P4-171). Its open submission is closed (`cancelled`, private answers
+-- deleted, P4-241); the next link starts a new onboarding draft.
 create function public.revoke_professional_invitation(p_id uuid)
 returns void
 language plpgsql
@@ -1875,6 +2104,7 @@ begin
        set status = 'draft', status_changed_at = pg_catalog.now(), status_changed_by = auth.uid()
      where p.id = p_id and p.org_id = v_org;
   end if;
+  perform private.cancel_open_submission(v_org, p_id);
 end;
 $$;
 
@@ -1896,8 +2126,7 @@ begin
     raise exception 'Permission refusée : professionals.invite' using errcode = '42501';
   end if;
   v_sections := private.normalize_submission_sections(p_sections);
-  perform private.lock_professional(p_id);
-  select * into v_row from public.professionals p where p.id = p_id and p.org_id = v_org;
+  v_row := private.lock_active_professional(p_id, false);
   if v_row.profile_id is null then
     raise exception 'Ce professionnel n''a pas encore de compte.' using errcode = 'P0001', hint = 'account';
   end if;
@@ -1914,8 +2143,9 @@ $$;
 -- Purpose handlers (service role: resolve-link, accept-invite; P3-16)
 -- -----------------------------------------------------------------------------
 -- What /invitation shows for a live link: the clinic, the professional's own name and address (the
--- token proves the address), the expiry. Null when the link is no longer live or the file already
--- has an account (resolve-link then answers link_invalid).
+-- token proves the address), the expiry. Null when the link is no longer live, the file already
+-- has an account, is inactive, or no longer has the address the link was sent to (P4-240) —
+-- resolve-link then answers link_invalid.
 create function public.resolve_professional_invitation(p_link_id uuid)
 returns jsonb
 language sql
@@ -1933,7 +2163,8 @@ as $$
     join public.organizations o on o.id = l.org_id
    where l.id = p_link_id and l.purpose = 'professional_invite' and l.subject_type = 'professional'
      and l.revoked_at is null and l.use_count < l.max_uses and l.expires_at > pg_catalog.now()
-     and p.profile_id is null
+     and p.profile_id is null and p.status <> 'inactive'
+     and l.scope ->> 'email' = pg_catalog.lower(p.email)
 $$;
 
 -- accept-invite's accept_rpc, after it created p_user_id with the address resolve returned. One
@@ -1941,8 +2172,9 @@ $$;
 -- address, create the profile (active, role provider) and link it. Answers
 --   {"status": "accepted", "org_id": …, "redirect": "/mon-profil/questionnaire"}
 --   {"status": "link_used" | "link_expired" | "link_invalid"}   the function deletes the user
--- link_invalid also when the inviter no longer holds professionals.invite in the clinic (the
--- consumption is rolled back; staff re-send it). A file that has meanwhile got an account answers
+-- link_invalid also when the inviter no longer holds professionals.invite in the clinic, when the
+-- file's address is no longer the one the link was sent to (P4-240) and when the file is inactive
+-- (P4-243): the consumption is rolled back; staff re-send it. A file that has meanwhile got an account answers
 -- link_used (its link is spent). 22023 (all rolled back) when p_user_id is not an auth user with the
 -- professional's address; 23505 when it already has a profile. p_payload is unused.
 create function public.link_professional_account(p_token_hash bytea, p_user_id uuid, p_payload jsonb)
@@ -1986,6 +2218,13 @@ begin
     if not ('professionals.invite' = any (private.permission_keys_for(v_link.created_by)))
        or not exists (select 1 from public.profiles p where p.user_id = v_link.created_by and p.org_id = v_org) then
       raise exception 'Inviter without professionals.invite' using errcode = 'P0001';
+    end if;
+    -- The address the link was sent to must still be the file's (read under the lock above).
+    if (v_link.scope ->> 'email') is distinct from pg_catalog.lower(v_row.email) then
+      raise exception 'Invitation sent to another address' using errcode = 'P0001';
+    end if;
+    if v_row.status = 'inactive' then
+      raise exception 'Inactive file' using errcode = 'P0001';
     end if;
   exception
     when raise_exception then
@@ -2115,8 +2354,10 @@ end;
 $$;
 
 -- Saves one section of the draft (autosave): the values are normalised and checked as the staff
--- forms and RPCs would (sets through a rolled-back run of the staff write paths, P4-174). Returns
--- the submission's updated_at.
+-- forms and RPCs would (sets through a rolled-back run of the staff write paths, P4-174), then
+-- merged into the section: only the keys given are stored, the others keep what the section holds
+-- (P4-176: a key never sent is a field not answered). A file must be the provider's own upload for
+-- this submission (P4-246). Returns the submission's updated_at.
 create function public.save_my_submission_draft(p_section text, p_values jsonb)
 returns timestamptz
 language plpgsql
@@ -2129,20 +2370,30 @@ declare
   v_sub public.professional_submissions;
   v_values jsonb;
   v_all jsonb;
+  v_file uuid;
   v_updated timestamptz;
 begin
   v_pid := private.my_professional_id();
   if p_section is null or not (p_section = any (private.submission_sections())) then
     raise exception 'Section inconnue.' using errcode = '22023';
   end if;
-  v_values := private.normalize_submission_section(v_org, auth.uid(), p_section, p_values);
+  v_values := private.normalize_submission_section(p_section, p_values);
 
-  perform private.lock_professional(v_pid);
+  perform private.lock_active_professional(v_pid, true);
   v_sub := private.lock_my_draft(v_org, v_pid);
   if not (p_section = any (v_sub.requested_sections)) then
     raise exception 'Cette section n''est pas demandée.' using errcode = '22023';
   end if;
-  v_all := v_sub.submitted_values || pg_catalog.jsonb_build_object(p_section, v_values);
+  v_file := (v_values ->> 'file_id')::uuid;
+  if v_file is not null and p_section = 'photo' then
+    perform private.assert_submission_file(v_org, auth.uid(), v_sub.id, v_file, array['image/jpeg', 'image/png'], 5242880,
+      'photo', 'La photo doit être une image JPEG ou PNG de 5 Mo au plus.');
+  elsif v_file is not null and p_section = 'insurance' then
+    perform private.assert_submission_file(v_org, auth.uid(), v_sub.id, v_file, array['application/pdf', 'image/jpeg', 'image/png'],
+      10485760, 'insurance', 'La preuve d''assurance doit être un fichier PDF, JPEG ou PNG de 10 Mo au plus.');
+  end if;
+  v_all := v_sub.submitted_values
+           || pg_catalog.jsonb_build_object(p_section, coalesce(v_sub.submitted_values -> p_section, '{}'::jsonb) || v_values);
   if p_section in ('professional', 'languages', 'clienteles', 'motifs') then
     perform private.dry_run_submission_sets(v_org, v_pid, v_all,
       case when p_section in ('professional', 'motifs') then array['professional', 'motifs'] else array[p_section] end);
@@ -2217,7 +2468,7 @@ begin
     end if;
   end if;
 
-  perform private.lock_professional(v_pid);
+  perform private.lock_active_professional(v_pid, true);
   v_sub := private.lock_my_draft(v_org, v_pid);
   if not ('tax_bank' = any (v_sub.requested_sections)) then
     raise exception 'Cette section n''est pas demandée.' using errcode = '22023';
@@ -2320,7 +2571,7 @@ begin
     raise exception 'Le nom saisi ne correspond pas au nom du dossier.' using errcode = 'P0001', hint = 'signer_name';
   end if;
 
-  perform private.lock_professional(v_pid);
+  perform private.lock_active_professional(v_pid, true);
   v_sub := private.lock_my_draft(v_org, v_pid);
   if not ('consent' = any (v_sub.requested_sections)) then
     raise exception 'Cette section n''est pas demandée.' using errcode = '22023';
@@ -2360,7 +2611,7 @@ declare
   v_now timestamptz := pg_catalog.now();
 begin
   v_pid := private.my_professional_id();
-  perform private.lock_professional(v_pid);
+  perform private.lock_active_professional(v_pid, true);
   v_sub := private.lock_my_draft(v_org, v_pid);
   v_gaps := private.submission_gaps(v_sub);
   if pg_catalog.cardinality(v_gaps) > 0 then
@@ -2436,7 +2687,7 @@ declare
 begin
   v_pid := private.my_professional_id();
   v_sections := private.normalize_submission_sections(p_sections);
-  perform private.lock_professional(v_pid);
+  perform private.lock_active_professional(v_pid, true);
   if exists (select 1 from public.professional_submissions s
               where s.professional_id = v_pid and s.org_id = v_org and s.status in ('draft', 'submitted')) then
     raise exception 'Une soumission est déjà en cours.' using errcode = 'P0001', hint = 'submission';
@@ -2448,9 +2699,10 @@ $$;
 -- -----------------------------------------------------------------------------
 -- Review (professionals.review)
 -- -----------------------------------------------------------------------------
--- The fields a submission can apply, in registry order: a saved plain or set field (a null answer
--- for province or accepting_new_clients is no answer: their columns are never null), a file with a
--- file id, a signed consent, a private value entered.
+-- The fields a submission can apply, in registry order: a plain or set field whose key was saved
+-- (P4-176: a key never sent is no answer; a null answer for province or accepting_new_clients is
+-- none either: their columns are never null), a file with a file id, a signed consent, a private
+-- value entered (the SIN only while collect_sin is on, P4-182).
 create function private.submission_available_fields(p_sub public.professional_submissions)
 returns text[]
 language sql
@@ -2463,20 +2715,23 @@ as $$
     from private.submission_fields() f
    where f.section = any (p_sub.requested_sections)
      and case f.kind
-           when 'plain' then p_sub.submitted_values ? f.section
+           when 'plain' then coalesce((p_sub.submitted_values -> f.section) ? f.field, false)
                              and not (f.field in ('province', 'accepting_new_clients')
                                       and coalesce(p_sub.submitted_values -> f.section -> f.field, 'null'::jsonb) = 'null'::jsonb)
-           when 'set' then p_sub.submitted_values ? f.section
+           when 'set' then coalesce((p_sub.submitted_values -> f.section) ? f.field, false)
            when 'file' then (p_sub.submitted_values -> f.section ->> 'file_id') is not null
            when 'consent' then p_sub.submitted_values ? 'consent'
            when 'private' then coalesce((select (sp.j -> f.field) <> 'null'::jsonb from sp), false)
+                               and (f.field <> 'sin'
+                                    or coalesce((private.professionals_setting(p_sub.org_id, 'collect_sin'))::boolean, false))
          end
 $$;
 revoke all on function private.submission_available_fields(public.professional_submissions)
   from public, anon, authenticated, service_role;
 
--- Per requested section, per field: {field, label_key, kind, current, submitted, changed}; private
--- fields only {field, label_key, kind, changed} (never a value, P4-175). Ids as the record gives
+-- Per requested section, per field: {field, label_key, kind, answered, current, submitted, changed};
+-- private fields only {field, label_key, kind, answered, changed} (never a value, P4-175). answered:
+-- the field can be applied (its key was saved, P4-176); an unanswered field is never applied. Ids as the record gives
 -- them (labels from the cached catalogue). Null for another clinic's or an unknown submission.
 create function public.get_submission_review(p_submission_id uuid)
 returns jsonb
@@ -2548,12 +2803,13 @@ begin
                          case when f.kind = 'private' then
                            pg_catalog.jsonb_build_object(
                              'field', f.field, 'label_key', 'modules.professionals.submission.fields.' || f.field, 'kind', f.kind,
+                             'answered', f.available,
                              'changed', f.available and (f.field in ('bank_account', 'sin')
                                                          or (select sp.j -> f.field from sp) is distinct from (select pp.j -> f.field from pp)))
                          else
                            pg_catalog.jsonb_build_object(
                              'field', f.field, 'label_key', 'modules.professionals.submission.fields.' || f.field, 'kind', f.kind,
-                             'current', f.cur, 'submitted', f.sub,
+                             'answered', f.available, 'current', f.cur, 'submitted', f.sub,
                              'changed', f.available and case f.kind
                                when 'file' then true
                                when 'consent' then true
@@ -2652,10 +2908,14 @@ revoke all on function private.apply_submission_private(uuid, uuid, uuid, text[]
 
 -- « Appliquer la sélection »: every available field (p_fields null) or the chosen ones, in one
 -- transaction through the staff write paths (P4-174, P4-176): a refusal of any field rolls back the
--- whole call. Professions and motifs skip the restricted-motif rule, checked once on the result. The
--- staged photo and insurance are attached to the professional (4c creates their documents); the
--- consent becomes a professional_consents row. Then approved, with the fields applied; the
--- submission's private row is deleted. An empty selection approves without changing the record.
+-- whole call; a field never answered is never applied (its column keeps its value). Professions and
+-- motifs skip the restricted-motif rule, checked once on the result. The staged photo and insurance
+-- are attached to the professional (4c creates their documents); the consent becomes a
+-- professional_consents row. Then approved, with the fields applied; the submission's private row
+-- is deleted. An empty selection approves without changing the record. Refused: an inactive file
+-- (P4-243), the reviewer's own file (P4-244), a consent signed on a version that is no longer the
+-- latest published one and an insurance that has expired since it was sent (P4-245), the SIN while
+-- collect_sin is off (P4-182).
 create function public.apply_professional_submission(p_submission_id uuid, p_fields text[] default null)
 returns void
 language plpgsql
@@ -2691,15 +2951,21 @@ begin
   if not found then
     raise exception 'Soumission introuvable.' using errcode = 'P0001';
   end if;
-  perform private.lock_professional(v_pid);
+  v_row := private.lock_active_professional(v_pid, false);
+  if v_row.profile_id = auth.uid() then
+    raise exception 'Vous ne pouvez pas réviser votre propre profil.' using errcode = 'P0001', hint = 'submission';
+  end if;
   select * into v_sub from public.professional_submissions s
    where s.id = p_submission_id and s.org_id = v_org and s.professional_id = v_pid
      for update;
   if v_sub.status <> 'submitted' then
     raise exception 'Cette soumission n''attend pas de révision.' using errcode = 'P0001', hint = 'status';
   end if;
-  select * into v_row from public.professionals p where p.id = v_pid and p.org_id = v_org;
 
+  if 'sin' = any (coalesce(p_fields, '{}'))
+     and not coalesce((private.professionals_setting(v_org, 'collect_sin'))::boolean, false) then
+    raise exception 'La collecte du NAS n''est pas activée.' using errcode = 'P0001', hint = 'sin';
+  end if;
   v_available := private.submission_available_fields(v_sub);
   if p_fields is not null and not (p_fields <@ v_available) then
     raise exception 'Champ non soumis.' using errcode = '22023';
@@ -2708,6 +2974,17 @@ begin
                           from private.submission_fields() f
                          where f.field = any (coalesce(p_fields, v_available))), '{}');
   v_values := v_sub.submitted_values;
+
+  -- What may have changed since the provider sent it (P4-245).
+  if 'consent' = any (v_fields)
+     and (v_values #>> '{consent,consent_version_id}')::uuid is distinct from private.current_consent_version(v_org, 'image_rights') then
+    raise exception 'Le texte du consentement a changé depuis la signature.'
+      using errcode = 'P0001', hint = 'Refusez la soumission : le professionnel signera la nouvelle version.';
+  end if;
+  if 'insurance' = any (v_fields) and (v_values #>> '{insurance,expires_on}')::date < private.clinic_today() then
+    raise exception 'Cette assurance est échue depuis l''envoi du profil.'
+      using errcode = 'P0001', hint = 'Refusez la soumission : le professionnel joindra une preuve en vigueur.';
+  end if;
   perform pg_catalog.set_config('app.audit_source', 'rpc:apply_professional_submission', true);
 
   -- Plain fields (values normalised when saved; the tables' checks are a backstop).
@@ -2797,7 +3074,8 @@ end;
 $$;
 
 -- « Refuser »: the submission goes back to the provider as a draft with the note (P4-170); a
--- refused onboarding puts an in_review file back to invited (completing its questionnaire).
+-- refused onboarding puts an in_review file back to invited (completing its questionnaire). Not
+-- for the reviewer's own file (P4-244).
 create function public.reject_professional_submission(p_submission_id uuid, p_note text)
 returns void
 language plpgsql
@@ -2809,6 +3087,7 @@ declare
   v_note text := nullif(pg_catalog.btrim(p_note, E' \t\r\n'), '');
   v_pid uuid;
   v_sub public.professional_submissions;
+  v_row public.professionals;
 begin
   if not private.has_permission('professionals.review') then
     raise exception 'Permission refusée : professionals.review' using errcode = '42501';
@@ -2825,7 +3104,10 @@ begin
   if not found then
     raise exception 'Soumission introuvable.' using errcode = 'P0001';
   end if;
-  perform private.lock_professional(v_pid);
+  v_row := private.lock_active_professional(v_pid, false);
+  if v_row.profile_id = auth.uid() then
+    raise exception 'Vous ne pouvez pas réviser votre propre profil.' using errcode = 'P0001', hint = 'submission';
+  end if;
   select * into v_sub from public.professional_submissions s
    where s.id = p_submission_id and s.org_id = v_org and s.professional_id = v_pid
      for update;
