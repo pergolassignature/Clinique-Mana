@@ -1,5 +1,5 @@
 import { t } from '@/i18n'
-import type { ProfessionalStatus } from './constants'
+import type { ProfessionalStatus, RecordTab } from './constants'
 import type { ProfessionalRecord } from '../api/parse'
 
 /**
@@ -9,6 +9,12 @@ import type { ProfessionalRecord } from '../api/parse'
  * (danger). Inactive files are not watched.
  */
 export type WatchFlagKey = 'matching_incomplete' | 'login_email_mismatch'
+
+/** Where Aperçu « À surveiller » sends each flag: the tab that fixes it. */
+export const WATCH_TAB: Readonly<Record<WatchFlagKey, RecordTab>> = {
+  matching_incomplete: 'jumelage',
+  login_email_mismatch: 'identite',
+}
 
 export interface WatchFlag {
   key: WatchFlagKey

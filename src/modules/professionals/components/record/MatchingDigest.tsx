@@ -1,0 +1,91 @@
+import { useMemo, type ReactNode } from 'react'
+import { t } from '@/i18n'
+import { Button } from '@/shared/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
+import type { ProfessionalRecord } from '../../api/parse'
+import type { CatalogView } from '../../lib/catalog-view'
+import { matchingDigest, type DigestItem } from '../../lib/matching-digest'
+import { MotifsSummary } from './MotifsSummary'
+import { TabLink } from './TabLink'
+
+const M = 'modules.professionals.record.overview.matching'
+
+interface MatchingDigestProps {
+  record: ProfessionalRecord
+  catalog: CatalogView
+  /** `professionals.matching`: « Modifier » opens Jumelage. */
+  canEdit: boolean
+}
+
+/** Aperçu « Profil de jumelage »: a read-only digest of what matching reads; edited in Jumelage. */
+export function MatchingDigest({ record, catalog, canEdit }: MatchingDigestProps) {
+  const digest = useMemo(() => matchingDigest(record, catalog), [record, catalog])
+  return (
+    <Card className="min-w-0">
+      <CardHeader className="flex-row items-center justify-between gap-3">
+        <CardTitle>{t(`${M}.title`)}</CardTitle>
+        {canEdit && (
+          <Button asChild variant="outline" size="sm">
+            <TabLink id={record.professional.id} tab="jumelage" unstyled>
+              {t(`${M}.edit`)}
+            </TabLink>
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent>
+        <dl className="divide-y divide-border-light">
+          <Row label={t(`${M}.clienteles`)}>
+            <Items items={digest.clienteles} empty={t(`${M}.empty.clienteles`)} />
+          </Row>
+          <Row label={t(`${M}.approaches`)}>
+            <Items items={digest.approaches} empty={t(`${M}.empty.approaches`)} />
+          </Row>
+          <Row label={t(`${M}.motifs`)}>
+            {digest.motifs.selected + digest.motifs.archived.length === 0 ? <Empty>{t(`${M}.empty.motifs`)}</Empty> : <MotifsSummary summary={digest.motifs} />}
+          </Row>
+          <Row label={t(`${M}.languages`)}>
+            <Items items={digest.languages} empty={t(`${M}.empty.languages`)} />
+          </Row>
+          <Row label={t(`${M}.availability`)}>{digest.periods || <Empty>{t(`${M}.empty.availability`)}</Empty>}</Row>
+          <Row label={t(`${M}.accepting`)}>{t(digest.acceptingNewClients ? `${M}.yes` : `${M}.no`)}</Row>
+          {digest.note && <Row label={t(`${M}.note`)}>{digest.note}</Row>}
+        </dl>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** Label above the value on phones, beside it from `sm` up. */
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-x-4 gap-y-0.5 py-2 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,160px)_minmax(0,1fr)]">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words text-foreground">{children}</dd>
+    </div>
+  )
+}
+
+function Empty({ children }: { children: ReactNode }) {
+  return <span className="text-muted-foreground">{children}</span>
+}
+
+function Items({ items, empty }: { items: DigestItem[]; empty: string }) {
+  return items.length === 0 ? <Empty>{empty}</Empty> : <Joined items={items} />
+}
+
+/** « ★ Couples · Enfants (0 à 12 ans) · Ancien motif (archivé) »: one line that wraps. */
+function Joined({ items }: { items: DigestItem[] }) {
+  return items.map((item, index) => (
+    <span key={item.id}>
+      {index > 0 && ' · '}
+      {item.specialized && (
+        <span aria-hidden className="text-warning">
+          ★{' '}
+        </span>
+      )}
+      {item.label}
+      {item.specialized && <span className="sr-only"> {t(`${M}.specialized`)}</span>}
+      {item.archived && <span className="text-muted-foreground"> ({t(`${M}.archived`)})</span>}
+    </span>
+  ))
+}

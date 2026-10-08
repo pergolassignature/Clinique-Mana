@@ -5,11 +5,9 @@ import { lazyPage } from '@/shared/lib/lazy-page'
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. Every page is a
 // lazyPage; the API, hooks and schemas load with them.
 
-/** Until 4a.11 replaces it: one lazyPage per entry, so each lane changes its own line. */
-const placeholder = () => lazyPage(() => import('./pages/ProfessionalsPlaceholderPage'), 'ProfessionalsPlaceholderPage')
 
-/** The record page, also preloaded by the list (row hover or focus). 4a.11: ProfessionalRecordPage. */
-export const professionalRecordPage = placeholder()
+/** The record page, also preloaded by the list (row hover or focus). */
+export const professionalRecordPage = lazyPage(() => import('./pages/ProfessionalRecordPage'), 'ProfessionalRecordPage')
 
 /**
  * The lists are seen by whoever manages records (the adjointe, read-only) or edits the lists
