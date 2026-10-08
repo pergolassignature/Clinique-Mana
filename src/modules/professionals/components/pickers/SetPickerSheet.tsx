@@ -95,22 +95,25 @@ function usePickerDraft({ groups, selected, withStars, requiredMessage }: Pick<P
   const [ordered] = useState(() => (withStars ? groups.map((g) => ({ ...g, items: heldFirst(g.items, selected) })) : [...groups]))
   const [draft, setDraft] = useState<PickerSelection>(() => new Map(selected))
   const [refusal, setRefusal] = useState<string | null>(null)
-  const change = (next: PickerSelection) => {
-    setDraft(next)
+  // Functional updates: two changes before a re-render (fast clicks) both apply.
+  const change = (update: (prev: PickerSelection) => PickerSelection) => {
+    setDraft(update)
     setRefusal(null)
   }
   const edits: Pick<PickerRowsContext, 'locked' | 'onToggle' | 'onStar'> = {
     locked: requiredMessage && draft.size === 1 ? { id: [...draft.keys()][0] ?? '', reason: requiredMessage } : null,
-    onToggle: (item: PickerItem, checked: boolean) => {
-      const next = new Map(draft)
-      if (checked) next.set(item.id, { specialized: false })
-      else next.delete(item.id)
-      change(next)
-    },
-    onStar: (id: string) => {
-      const entry = draft.get(id)
-      if (entry) change(new Map(draft).set(id, { specialized: !entry.specialized }))
-    },
+    onToggle: (item: PickerItem, checked: boolean) =>
+      change((prev) => {
+        const next = new Map(prev)
+        if (checked) next.set(item.id, { specialized: false })
+        else next.delete(item.id)
+        return next
+      }),
+    onStar: (id: string) =>
+      change((prev) => {
+        const entry = prev.get(id)
+        return entry ? new Map(prev).set(id, { specialized: !entry.specialized }) : prev
+      }),
   }
   return { ordered, draft, change, edits, dirty: !sameSelection(draft, initial), refusal, setRefusal }
 }
@@ -128,6 +131,7 @@ function PickerPanel({ title, subject, groups, selected, withStars = false, sear
 
   const grouped = ordered.length > 1
   const allItems = useMemo(() => ordered.flatMap((g) => g.items), [ordered])
+  const allByGroup = useMemo(() => new Map(ordered.map((g) => [g.key, g.items])), [ordered])
   const searchable = grouped || allItems.length > SEARCH_FROM_ITEMS
   const words = useMemo(() => searchWords(query), [query])
   const filtering = words.length > 0 || only !== null
@@ -197,7 +201,8 @@ function PickerPanel({ title, subject, groups, selected, withStars = false, sear
             searching={words.length > 0}
             expanded={expanded}
             onExpandedChange={setExpanded}
-            onGroupAction={(group, action) => change(applyGroupAction(draft, group.items, action))}
+            allItems={allByGroup}
+            onGroupAction={(items, action) => change((prev) => applyGroupAction(prev, items, action))}
             rows={{ draft, words, withStars, ...edits }}
           />
         </SheetBody>
@@ -263,14 +268,16 @@ interface PickerBodyProps {
   grouped: boolean
   filtering: boolean
   searching: boolean
+  /** Each category's full item list, by key (counts and bulk actions ignore the filter). */
+  allItems: ReadonlyMap<string, readonly PickerItem[]>
   expanded: ReadonlySet<string>
   onExpandedChange: (update: (prev: ReadonlySet<string>) => ReadonlySet<string>) => void
-  onGroupAction: (group: PickerGroup, action: 'select' | 'deselect') => void
+  onGroupAction: (items: readonly PickerItem[], action: 'select' | 'deselect') => void
   rows: PickerRowsContext
 }
 
 /** The list: categories (folding unless filtering), a flat list, or the two-line empty state of a filter. */
-function PickerBody({ visible, grouped, filtering, searching, expanded, onExpandedChange, onGroupAction, rows }: PickerBodyProps) {
+function PickerBody({ visible, grouped, filtering, searching, allItems, expanded, onExpandedChange, onGroupAction, rows }: PickerBodyProps) {
   if (visible.length === 0) {
     return searching ? (
       <EmptyState title={t(`${P}.noResults.title`)} body={t(`${P}.noResults.body`)} />
@@ -283,10 +290,10 @@ function PickerBody({ visible, grouped, filtering, searching, expanded, onExpand
     <PickerGroupSection
       key={group.key}
       group={group}
+      allItems={allItems.get(group.key) ?? group.items}
       filtering={filtering}
       open={expanded.has(group.key)}
       onOpenChange={(open) => onExpandedChange((prev) => toggled(prev, group.key, open))}
-      // Shown only while nothing filters: `group` is then the whole category.
       onGroupAction={onGroupAction}
       {...rows}
     />

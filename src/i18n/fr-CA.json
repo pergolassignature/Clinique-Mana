@@ -1279,7 +1279,7 @@
             "description": "Les besoins pour lesquels un client peut être jumelé à ce dossier.",
             "edit": "Modifier les motifs",
             "empty": "Aucun motif choisi",
-            "search": "Rechercher un motif ou une catégorie…",
+            "search": "Motif ou catégorie…",
             "blocked": "Réservé aux professionnels qui ont un titre d'un ordre professionnel. Ajoutez d'abord un tel titre dans « Identité et permis »."
           },
           "languages": {
@@ -1343,11 +1343,14 @@
             "specialized": "(spécialisé)",
             "archived": "archivé",
             "motifSummary": {
-              "all": "Tous ({count})",
+              "all": "Tous",
               "allOverall": "Tous les motifs ({count})",
               "allBut": "Tous sauf {names}",
               "allButOverall": "Tous sauf {names} ({selected} sur {total})",
-              "count": "{selected} sur {total}",
+              "countShort": "{selected} / {total}",
+              "countSr": "({selected} sur {total})",
+              "openAll": "Ouvrir tout",
+              "closeAll": "Fermer tout",
               "archivedOne": "Motif archivé : {name}",
               "archivedOther": "Motifs archivés : {names}"
             },

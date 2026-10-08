@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import { Button } from '@/shared/ui/button'
@@ -106,6 +106,17 @@ describe('SetPickerSheet — draft and save', () => {
     expect(onSave).not.toHaveBeenCalled()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
+  it('applies two ticks made before a re-render (fast clicks)', async () => {
+    renderPicker()
+    const dialog = await open()
+    await userEvent.click(groupToggle('Relations et famille'))
+    act(() => {
+      within(dialog).getByRole('checkbox', { name: 'Couple' }).click()
+      within(dialog).getByRole('checkbox', { name: 'Adoption' }).click()
+    })
+    expect(within(dialog).getByRole('checkbox', { name: 'Couple' })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: 'Adoption' })).toBeChecked()
+  })
 })
 
 describe('SetPickerSheet — closing', () => {
@@ -184,6 +195,8 @@ describe('SetPickerSheet — categories', () => {
     expect(within(dialog).getByText('Anxiété', { selector: 'mark' })).toBeInTheDocument()
     expect(within(dialog).queryByRole('checkbox', { name: 'Couple' })).not.toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: /^Vie intérieure/ })).not.toBeInTheDocument()
+    // The category still counts all its motifs, not the matches.
+    expect(within(dialog).getByRole('heading', { level: 3, name: /Vie intérieure/ })).toHaveTextContent(t(`${P}.groupCount`, { selected: '0', total: '2' }))
     await userEvent.clear(screen.getByRole('searchbox'))
     await userEvent.type(screen.getByRole('searchbox'), 'zzz')
     expect(within(dialog).getByText(t(`${P}.noResults.title`))).toBeInTheDocument()

@@ -25,6 +25,7 @@ function renderOverview(change: (record: ProfessionalRecord) => ProfessionalReco
   )
 }
 
+const panelOf = (button: HTMLElement) => document.getElementById(button.getAttribute('aria-controls') ?? '') as HTMLElement
 const card = (title: string) => screen.getByRole('heading', { level: 3, name: title }).closest('.rounded-lg') as HTMLElement
 /** The digest's value for a label (`<dt>` → `<dd>`). */
 const value = (label: string) => within(card(t(`${O}.matching.title`))).getByText(label, { selector: 'dt' }).nextElementSibling?.textContent
@@ -48,15 +49,19 @@ describe('OverviewTab — Profil de jumelage', () => {
     }))
     const M = `${O}.matching`
     expect(value(t(`${M}.clienteles`))).toBe(`★ Couples ${t(`${M}.specialized`)} · Enfants (0 à 12 ans)`)
-    const motifs = within(card(t(`${M}.title`))).getAllByRole('listitem').map((li) => li.textContent)
-    expect(motifs).toEqual(['Vie intérieure\u00a0: Anxiété', 'Autres\u00a0: Sans catégorie'])
+    // Each category's name on its own line, its few motifs named under it, nothing to unfold.
+    const motifs = within(card(t(`${M}.title`))).getAllByRole('listitem')
+    expect(motifs).toHaveLength(2)
+    expect(motifs[0]).toHaveTextContent(/^Vie intérieure1 \/ 2.*Anxiété$/)
+    expect(motifs[1]).toHaveTextContent(/^Autres1 \/ 2.*Sans catégorie$/)
+    expect(within(card(t(`${M}.title`))).queryAllByRole('button')).toEqual([])
     expect(value(t(`${M}.languages`))).toBe('Français · Anglais')
     expect(value(t(`${M}.availability`))).toBe('Matin · Soir')
     expect(value(t(`${M}.accepting`))).toBe(t(`${M}.yes`))
     expect(value(t(`${M}.note`))).toBe('Pas le vendredi.')
   })
 
-  it('keeps 72 held motifs to one line that unfolds to every name, archived ones marked', async () => {
+  it('keeps 72 held motifs to one line that unfolds to eight folded categories, each to its motifs in a list', async () => {
     const big = seventyTwoMotifsCatalog()
     renderOverview((r) => ({ ...r, motifIds: big.motifs.map((m) => m.id) }), 'counselor', big)
     const S = `${O}.matching.motifSummary`
@@ -65,55 +70,69 @@ describe('OverviewTab — Profil de jumelage', () => {
     const toggle = within(digest).getByRole('button', { name: t(`${S}.allOverall`, { count: '72' }) })
     expect(within(digest).getAllByRole('button')).toEqual([toggle])
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    const panel = document.getElementById(toggle.getAttribute('aria-controls') ?? '') as HTMLElement
+    const panel = panelOf(toggle)
     expect(panel).not.toBeVisible()
     await userEvent.click(toggle)
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(panel).toBeVisible()
-    const lines = within(panel).getAllByRole('listitem').map((li) => li.textContent)
-    const category = (c: number) => `Catégorie ${c}\u00a0: ${Array.from({ length: 9 }, (_, m) => `Motif ${c}.${m + 1}`).join(' · ')}`
-    expect(lines).toEqual([`${category(1)} · Ancien motif (${t(`${O}.matching.archived`)})`, ...[2, 3, 4, 5, 6, 7, 8].map(category)])
+    // Eight calm rows: name, « 9 / 9 », « Tous »; no motif name in view yet.
+    const categories = within(panel).getAllByRole('button', { expanded: false })
+    expect(categories).toHaveLength(8)
+    categories.forEach((button, c) => expect(button).toHaveTextContent(new RegExp(`^Catégorie ${c + 1}9 / 9.*${t(`${S}.all`)}$`)))
+    expect(within(panel).getByText('Motif 1.1')).not.toBeVisible()
+    expect(within(panel).getByRole('button', { name: t(`${S}.openAll`) })).toBeInTheDocument()
+    // One category open: its motifs one per line, the archived one marked.
+    await userEvent.click(categories[0] as HTMLElement)
+    const list = panelOf(categories[0] as HTMLElement)
+    expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      ...Array.from({ length: 9 }, (_, m) => `Motif 1.${m + 1}`),
+      `Ancien motif (${t(`${O}.matching.archived`)})`,
+    ])
+    await userEvent.click(within(panel).getByRole('button', { name: t(`${S}.openAll`) }))
+    expect(within(panel).getAllByRole('button', { expanded: true })).toHaveLength(8)
+    expect(within(panel).getByRole('button', { name: t(`${S}.closeAll`) })).toBeInTheDocument()
     await userEvent.click(toggle)
     expect(panel).not.toBeVisible()
   })
 
-  it('reads « Tous sauf … » with a few missing, unfolding to the whole list', async () => {
+  it('reads « Tous sauf … » with a few missing, unfolding to the categories', async () => {
     const big = seventyTwoMotifsCatalog()
     const S = `${O}.matching.motifSummary`
     const missing = ['m-0-0', 'm-3-4']
     renderOverview((r) => ({ ...r, motifIds: big.motifs.filter((m) => m.isActive && !missing.includes(m.id)).map((m) => m.id) }), 'counselor', big)
     const toggle = screen.getByRole('button', { name: t(`${S}.allButOverall`, { names: 'Motif 1.1 et Motif 4.5', selected: '70', total: '72' }) })
     await userEvent.click(toggle)
-    const panel = document.getElementById(toggle.getAttribute('aria-controls') ?? '') as HTMLElement
-    expect(within(panel).getAllByRole('listitem')).toHaveLength(8)
-    expect(within(panel).getAllByRole('listitem')[0]).toHaveTextContent(/^Catégorie 1\s: Motif 1\.2 · .* · Motif 1\.9$/)
+    const categories = within(panelOf(toggle)).getAllByRole('button', { expanded: false })
+    expect(categories).toHaveLength(8)
+    expect(categories[0]).toHaveTextContent(new RegExp(`^Catégorie 18 / 9.*${t(`${S}.allBut`, { names: 'Motif 1.1' })}$`))
+    expect(categories[1]).toHaveTextContent(new RegExp(`^Catégorie 29 / 9.*${t(`${S}.all`)}$`))
   })
 
-  it('gives every summarised category line a disclosure that reveals its names, and none to a named one', async () => {
+  it('gives every summarised category a disclosure over its motifs, and none to a named one', async () => {
     const big = seventyTwoMotifsCatalog()
     const S = `${O}.matching.motifSummary`
     // Category 1: all nine; 2: four of nine; 3: two (named); 4: seven of nine.
     const ids = [...big.motifs.slice(0, 9).map((m) => m.id), 'm-1-0', 'm-1-1', 'm-1-2', 'm-1-3', 'm-2-5', 'm-2-6', ...big.motifs.slice(27, 34).map((m) => m.id)]
     renderOverview((r) => ({ ...r, motifIds: ids }), 'counselor', big)
     const digest = card(t(`${O}.matching.title`))
-    const motifNames = (c: number, n: number) => Array.from({ length: n }, (_, m) => `Motif ${c}.${m + 1}`).join(' · ')
-    const expected: [string, string][] = [
-      [`Catégorie 1\u00a0: ${t(`${S}.all`, { count: '9' })}`, motifNames(1, 9)],
-      [`Catégorie 2\u00a0: ${t(`${S}.count`, { selected: '4', total: '9' })}`, motifNames(2, 4)],
-      [`Catégorie 4\u00a0: ${t(`${S}.allBut`, { names: 'Motif 4.8 et Motif 4.9' })}`, motifNames(4, 7)],
+    const motifNames = (c: number, ms: number[]) => ms.map((m) => `Motif ${c}.${m}`)
+    const expected: [RegExp, string[]][] = [
+      [new RegExp(`^Catégorie 19 / 9.*${t(`${S}.all`)}$`), motifNames(1, [1, 2, 3, 4, 5, 6, 7, 8, 9])],
+      [/^Catégorie 24 \/ 9.*$/, motifNames(2, [1, 2, 3, 4])],
+      [new RegExp(`^Catégorie 47 / 9.*${t(`${S}.allBut`, { names: 'Motif 4.8 et Motif 4.9' })}$`), motifNames(4, [1, 2, 3, 4, 5, 6, 7])],
     ]
-    const buttons = within(digest).getAllByRole('button')
-    expect(buttons.map((b) => b.textContent)).toEqual(expected.map(([label]) => label))
+    const buttons = within(digest).getAllByRole('button', { expanded: false })
+    expect(buttons).toHaveLength(3)
     for (const [index, button] of buttons.entries()) {
-      const panel = document.getElementById(button.getAttribute('aria-controls') ?? '') as HTMLElement
-      expect(button).toHaveAttribute('aria-expanded', 'false')
+      const [label, names] = expected[index] ?? [/$^/, []]
+      expect(button).toHaveTextContent(label)
+      const panel = panelOf(button)
       expect(panel).not.toBeVisible()
       await userEvent.click(button)
       expect(button).toHaveAttribute('aria-expanded', 'true')
-      expect(panel).toBeVisible()
-      expect(panel).toHaveTextContent(expected[index]?.[1] ?? '')
+      expect(within(panel).getAllByRole('listitem').map((li) => li.textContent)).toEqual(names)
     }
-    expect(value(t(`${O}.matching.motifs`))).toContain('Catégorie 3\u00a0: Motif 3.6 · Motif 3.7')
+    // The named category: its two motifs under its name, no disclosure.
+    expect(value(t(`${O}.matching.motifs`))).toContain('Catégorie 32 / 9(2 sur 9)Motif 3.6 et Motif 3.7')
   })
 
   it('names the archived motifs held apart, singular and plural', () => {

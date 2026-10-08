@@ -1,53 +1,44 @@
-import { Fragment, useId, useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
+import { Button } from '@/shared/ui/button'
 import { focusRing } from '@/shared/ui/field-classes'
 import { listLabel } from '../../lib/display'
-import type { HeldMotif, MotifGroupSummary, MotifSummary } from '../../lib/motif-summary'
+import type { MotifSummary, MotifSummaryGroup } from '../../lib/motif-summary'
+import { CategoryIcon } from '../CategoryIcon'
 
 const S = 'modules.professionals.record.overview.matching.motifSummary'
 const M = 'modules.professionals.record.overview.matching'
 
 /**
- * The professional's motifs in a few lines (P4-73): one line when nearly all are held, else one
- * per category (the names, « Tous (9) », « Tous sauf … » or « 4 sur 9 »). Every summarised line
- * is a disclosure that unfolds in place to the names it stands for: the overall line to the whole
- * list by category, a category line to its names. A line showing its names has nothing to unfold.
+ * The professional's motifs, light at any density (P4-73). Each category is a header row (icon,
+ * name, « 6 / 16 ») over its short summary: the names when up to three are held, else « Tous »,
+ * « Tous sauf … » or the count alone. A summarised category is a disclosure that unfolds to its
+ * motifs, one per line in 1 to 3 columns (by the box's width, container queries). When nearly every
+ * motif is held, one line (« Tous les motifs (72) ») unfolds to the categories, each still folded:
+ * eight calm rows, never 72 names at once. Panels stay mounted under `hidden`, so `aria-controls`
+ * always points at an element.
  */
 export function MotifsSummary({ summary }: { summary: MotifSummary }) {
   const { overall, archived } = summary
+  const categories = <CategoryList groups={summary.groups} />
   return (
-    <div className="space-y-1">
-      {overall && (
+    <div className="container-inline space-y-2 text-sm">
+      {overall ? (
         <Disclosure
           label={
-            <Linkish>
+            <span className="text-link underline-offset-[3px] group-hover:underline">
               {overall.kind === 'all'
                 ? t(`${S}.allOverall`, { count: String(summary.total) })
                 : t(`${S}.allButOverall`, { names: listLabel(overall.missing), selected: String(summary.selected), total: String(summary.total) })}
-            </Linkish>
+            </span>
           }
         >
-          <ul className="space-y-1 border-l border-border-light pl-3">
-            {summary.full.map((group) => (
-              <li key={group.key}>
-                <Named name={group.name}>
-                  <Motifs motifs={group.motifs} />
-                </Named>
-              </li>
-            ))}
-          </ul>
+          {categories}
         </Disclosure>
-      )}
-      {!overall && summary.groups.length > 0 && (
-        <ul className="space-y-1">
-          {summary.groups.map((group) => (
-            <li key={group.key}>
-              <GroupLine name={group.name} summary={group.summary} />
-            </li>
-          ))}
-        </ul>
+      ) : (
+        categories
       )}
       {archived.length > 0 && (
         <p className="text-muted-foreground">
@@ -58,15 +49,12 @@ export function MotifsSummary({ summary }: { summary: MotifSummary }) {
   )
 }
 
-/**
- * A button that unfolds its panel in place. The panel stays mounted (`hidden` while closed), so
- * `aria-controls` always points at an element.
- */
+/** A button that unfolds its panel in place (the overall line). */
 function Disclosure({ label, children }: { label: ReactNode; children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
   return (
-    <>
+    <div>
       <button
         type="button"
         aria-expanded={open}
@@ -74,63 +62,113 @@ function Disclosure({ label, children }: { label: ReactNode; children: ReactNode
         onClick={() => setOpen((value) => !value)}
         className={cn('group inline-flex max-w-full items-start gap-1 rounded-sm text-left', focusRing)}
       >
-        <ChevronRight
-          aria-hidden
-          className={cn('mt-[3px] h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none', open && 'rotate-90')}
-        />
+        <Chevron open={open} />
         <span className="min-w-0">{label}</span>
       </button>
-      <div id={panelId} hidden={!open} className="mt-1 pl-[18px]">
+      <div id={panelId} hidden={!open} className="mt-2">
         {children}
       </div>
-    </>
+    </div>
   )
 }
 
-/** The summarised words of a disclosure, drawn as a link (underlined on hover of the whole line). */
-function Linkish({ children }: { children: ReactNode }) {
-  return <span className="text-link underline-offset-[3px] group-hover:underline">{children}</span>
+const Chevron = ({ open }: { open: boolean }) => (
+  <ChevronRight
+    aria-hidden
+    className={cn('mt-[3px] size-3.5 shrink-0 text-subtle transition-transform motion-reduce:transition-none', open && 'rotate-90')}
+  />
+)
+
+/** The categories, hairlines between them, with « Ouvrir tout / Fermer tout » when several fold. */
+function CategoryList({ groups }: { groups: MotifSummaryGroup[] }) {
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
+  const foldable = groups.filter((g) => g.summary.kind !== 'names').map((g) => g.key)
+  const allOpen = foldable.length > 0 && foldable.every((key) => open.has(key))
+  return (
+    <div>
+      {foldable.length > 1 && (
+        <Button type="button" variant="ghost" size="sm" className="-ml-2 mb-1 px-2" onClick={() => setOpen(allOpen ? new Set() : new Set(foldable))}>
+          {t(allOpen ? `${S}.closeAll` : `${S}.openAll`)}
+        </Button>
+      )}
+      <ul className="divide-y divide-border-light border-y border-border-light">
+        {groups.map((group) => (
+          <li key={group.key} className="py-2">
+            <CategoryRow
+              group={group}
+              open={open.has(group.key)}
+              onOpenChange={(value) =>
+                setOpen((prev) => {
+                  const next = new Set(prev)
+                  if (value) next.add(group.key)
+                  else next.delete(group.key)
+                  return next
+                })
+              }
+            />
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
-function Named({ name, children }: { name: string; children: ReactNode }) {
+/** The short summary under a category's name; none for « N sur M » (the count says it). */
+function shortSummary({ summary }: MotifSummaryGroup): string | null {
+  switch (summary.kind) {
+    case 'names':
+      return listLabel(summary.names)
+    case 'all':
+      return t(`${S}.all`)
+    case 'allBut':
+      return t(`${S}.allBut`, { names: listLabel(summary.missing) })
+    case 'count':
+      return null
+  }
+}
+
+/**
+ * One category: the name on its own line (13/600) with the count at the right, the short summary
+ * under it. Named categories (up to three held) have nothing to unfold; the others are a
+ * disclosure over their motifs.
+ */
+function CategoryRow({ group, open, onOpenChange }: { group: MotifSummaryGroup; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const panelId = useId()
+  const summary = shortSummary(group)
+  const header = (
+    <>
+      <span className="flex items-center gap-2">
+        {group.icon ? <CategoryIcon icon={group.icon} className="size-3.5 shrink-0 text-subtle" /> : <span aria-hidden className="size-3.5 shrink-0" />}
+        <span className="min-w-0 flex-1 break-words font-semibold text-foreground">{group.name}</span>
+        <span className="shrink-0 text-xs tabular text-muted-foreground">
+          <span aria-hidden>{t(`${S}.countShort`, { selected: String(group.selected), total: String(group.total) })}</span>
+          <span className="sr-only">{t(`${S}.countSr`, { selected: String(group.selected), total: String(group.total) })}</span>
+        </span>
+      </span>
+      {summary && <span className="mt-0.5 block pl-[22px] text-muted-foreground">{summary}</span>}
+    </>
+  )
+  if (group.summary.kind === 'names') return <div className="pl-[18px]">{header}</div>
   return (
     <>
-      <span className="font-medium">{name}</span>
-      {' : '}
-      {children}
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => onOpenChange(!open)}
+        className={cn('flex w-full items-start gap-1 rounded-sm text-left', focusRing)}
+      >
+        <Chevron open={open} />
+        <span className="min-w-0 flex-1">{header}</span>
+      </button>
+      <ul id={panelId} hidden={!open} className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 pl-[40px] cq-480:grid-cols-2 cq-720:grid-cols-3">
+        {group.motifs.map((motif) => (
+          <li key={`${motif.archived ? 'a' : 'm'}:${motif.name}`} className="min-w-0 break-words text-foreground">
+            {motif.name}
+            {motif.archived && <span className="text-muted-foreground"> ({t(`${M}.archived`)})</span>}
+          </li>
+        ))}
+      </ul>
     </>
-  )
-}
-
-/** « Motif 1.1 · Ancien motif (archivé) »: text nodes in the parent, archived ones marked. */
-function Motifs({ motifs }: { motifs: HeldMotif[] }) {
-  return motifs.map((motif, index) => (
-    <Fragment key={`${motif.archived ? 'a' : 'm'}:${motif.name}`}>
-      {index > 0 && ' · '}
-      {motif.name}
-      {motif.archived && <span className="text-muted-foreground"> ({t(`${M}.archived`)})</span>}
-    </Fragment>
-  ))
-}
-
-/** One category: its names, or « Tous (9) », « Tous sauf … », « 4 sur 9 » unfolding to the names. */
-function GroupLine({ name, summary }: { name: string; summary: MotifGroupSummary }) {
-  if (summary.kind === 'names') return <Named name={name}>{summary.names.join(' · ')}</Named>
-  const value =
-    summary.kind === 'all'
-      ? t(`${S}.all`, { count: String(summary.names.length) })
-      : summary.kind === 'allBut'
-        ? t(`${S}.allBut`, { names: listLabel(summary.missing) })
-        : t(`${S}.count`, { selected: String(summary.selected), total: String(summary.total) })
-  return (
-    <Disclosure
-      label={
-        <Named name={name}>
-          <Linkish>{value}</Linkish>
-        </Named>
-      }
-    >
-      <p className="text-muted-foreground">{summary.names.join(' · ')}</p>
-    </Disclosure>
   )
 }

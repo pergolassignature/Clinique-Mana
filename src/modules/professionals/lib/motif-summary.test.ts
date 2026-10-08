@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FEW_EXCEPTIONS, summarizeMotifs } from './motif-summary'
+import { FEW_EXCEPTIONS, summarizeMotifs, type MotifSummaryGroup } from './motif-summary'
 import { buildCatalogView, OTHER_MOTIF_GROUP } from './catalog-view'
 import { CATALOG, CATALOG_VIEW, motifsCatalog, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
@@ -10,15 +10,16 @@ const ALL = motifs.map((m) => m.id)
 const except = (...ids: string[]) => ALL.filter((id) => !ids.includes(id))
 const names = (c: number, ...ms: number[]) => ms.map((m) => `Motif ${c}.${m}`)
 const range = (n: number) => Array.from({ length: n }, (_, i) => i + 1)
+const brief = (g: MotifSummaryGroup) => ({ key: g.key, name: g.name, summary: g.summary })
 
 describe('summarizeMotifs — 72 motifs', () => {
   it('says « Tous » once for a professional holding every motif, the full list behind it', () => {
     const summary = summarizeMotifs(ALL, BIG)
     expect(summary).toMatchObject({ selected: 72, total: 72, overall: { kind: 'all' }, archived: [] })
     expect(summary.groups.every((g) => g.summary.kind === 'all' && g.summary.names.length === 9)).toBe(true)
-    // What « Tous les motifs (72) » unfolds to: every name, by category.
-    expect(summary.full).toHaveLength(8)
-    expect(summary.full.flatMap((g) => g.motifs.map((m) => m.name))).toEqual(motifs.map((m) => m.name))
+    // What « Tous les motifs (72) » unfolds to: eight categories (« 9 / 9 »), each unfolding to its names.
+    expect(summary.groups.map((g) => [g.selected, g.total, g.icon])).toEqual(Array.from({ length: 8 }, () => [9, 9, 'Brain']))
+    expect(summary.groups.flatMap((g) => g.motifs.map((m) => m.name))).toEqual(motifs.map((m) => m.name))
   })
 
   it('reads « Tous sauf … » when a few motifs are missing overall', () => {
@@ -50,18 +51,19 @@ describe('summarizeMotifs — 72 motifs', () => {
     expect(summary).toMatchObject({ selected: 22, total: 72 })
   })
 
-  it('keeps archived motifs out of the counts, names them apart and marks them in the full list', () => {
+  it('keeps archived motifs out of the counts, names them apart and marks them last in their category', () => {
     const summary = summarizeMotifs([...ALL, 'm-archived'], BIG)
     expect(summary).toMatchObject({ selected: 72, total: 72, overall: { kind: 'all' }, archived: ['Ancien motif'] })
-    expect(summary.full[0]?.motifs.at(-1)).toEqual({ name: 'Ancien motif', archived: true })
-    expect(summary.full[0]?.motifs[0]).toEqual({ name: 'Motif 1.1', archived: false })
+    expect(summary.groups[0]?.motifs.at(-1)).toEqual({ name: 'Ancien motif', archived: true })
+    expect(summary.groups[0]?.motifs[0]).toEqual({ name: 'Motif 1.1', archived: false })
+    expect(summary.groups[0]).toMatchObject({ selected: 9, total: 9 })
   })
 })
 
 describe('summarizeMotifs — small categories and thresholds', () => {
   it('names the motif of a one-motif category, never « Tous »', () => {
     const summary = summarizeMotifs(['m-0-0'], motifsCatalog([1, 9]))
-    expect(summary.groups).toEqual([{ key: 'cat_0', name: 'Catégorie 1', summary: { kind: 'names', names: ['Motif 1.1'] } }])
+    expect(summary.groups.map(brief)).toEqual([{ key: 'cat_0', name: 'Catégorie 1', summary: { kind: 'names', names: ['Motif 1.1'] } }])
     expect(summary.overall).toBeNull()
   })
 
@@ -76,12 +78,13 @@ describe('summarizeMotifs — small categories and thresholds', () => {
   it('names a single custom motif under « Autres », never « Tous »', () => {
     const catalog = buildCatalogView({ ...CATALOG, motifs: CATALOG.motifs.filter((m) => m.id !== IDS.deuil) })
     const summary = summarizeMotifs([IDS.orphan], catalog)
-    expect(summary.groups).toEqual([{ key: OTHER_MOTIF_GROUP, name: 'Autres', summary: { kind: 'names', names: ['Sans catégorie'] } }])
+    expect(summary.groups.map(brief)).toEqual([{ key: OTHER_MOTIF_GROUP, name: 'Autres', summary: { kind: 'names', names: ['Sans catégorie'] } }])
   })
 
   it('fills « Autres » from an archived category', () => {
     const summary = summarizeMotifs([IDS.deuil, IDS.orphan], CATALOG_VIEW)
-    expect(summary.groups).toEqual([{ key: OTHER_MOTIF_GROUP, name: 'Autres', summary: { kind: 'names', names: ['Deuil', 'Sans catégorie'] } }])
+    expect(summary.groups.map(brief)).toEqual([{ key: OTHER_MOTIF_GROUP, name: 'Autres', summary: { kind: 'names', names: ['Deuil', 'Sans catégorie'] } }])
+    expect(summary.groups[0]?.icon).toBeNull()
     expect(summary.archived).toEqual([])
   })
 
@@ -114,6 +117,6 @@ describe('summarizeMotifs — a few motifs', () => {
   })
 
   it('is empty without motifs', () => {
-    expect(summarizeMotifs([], CATALOG_VIEW)).toMatchObject({ selected: 0, overall: null, groups: [], full: [] })
+    expect(summarizeMotifs([], CATALOG_VIEW)).toMatchObject({ selected: 0, overall: null, groups: [], archived: [] })
   })
 })

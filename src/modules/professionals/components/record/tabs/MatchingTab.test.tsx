@@ -73,14 +73,19 @@ describe('MatchingTab — what is held', () => {
     expect(screen.queryByText(t(`${M}.readOnly`))).not.toBeInTheDocument()
   })
 
-  it('keeps 72 held motifs to one line that unfolds, and the picker to eight folded categories', async () => {
+  it('keeps 72 held motifs to one line over eight folded categories, and the picker to eight folded categories', async () => {
     const big = seventyTwoMotifsCatalog()
     renderTab({ catalog: big, change: (r) => ({ ...r, motifIds: big.motifs.filter((m) => m.isActive).map((m) => m.id) }) })
     const motifs = card(t(`${M}.motifs.title`))
     const line = within(motifs).getByRole('button', { name: t('modules.professionals.record.overview.matching.motifSummary.allOverall', { count: '72' }) })
     expect(line).toHaveAttribute('aria-expanded', 'false')
     await userEvent.click(line)
-    expect(within(motifs).getByText('Motif 8.9', { exact: false })).toBeVisible()
+    // Eight folded categories; one opened lists its motifs.
+    const categories = within(motifs).getAllByRole('button', { expanded: false })
+    expect(categories.filter((b) => b.textContent?.startsWith('Catégorie'))).toHaveLength(8)
+    expect(within(motifs).getByText('Motif 8.9')).not.toBeVisible()
+    await userEvent.click(within(motifs).getByRole('button', { name: /^Catégorie 8/ }))
+    expect(within(motifs).getByText('Motif 8.9')).toBeVisible()
     const dialog = await openPicker('motifs')
     expect(within(dialog).getByText(t(`${P}.count`, { selected: '72', total: '72' }))).toBeInTheDocument()
     expect(within(dialog).getAllByRole('button', { expanded: false })).toHaveLength(8)

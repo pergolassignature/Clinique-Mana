@@ -26,12 +26,15 @@ export interface PickerRowsContext {
 }
 
 interface PickerGroupSectionProps extends PickerRowsContext {
+  /** The rows to show (the matches, while filtering). */
   group: PickerGroup
+  /** Every item of the category: what its count and « Tout sélectionner » are about, filtered or not. */
+  allItems: readonly PickerItem[]
   /** Searching or « Sélectionnés seulement »: the matches show under a plain heading, nothing folds. */
   filtering: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
-  onGroupAction: (group: PickerGroup, action: 'select' | 'deselect') => void
+  onGroupAction: (items: readonly PickerItem[], action: 'select' | 'deselect') => void
 }
 
 /**
@@ -40,10 +43,10 @@ interface PickerGroupSectionProps extends PickerRowsContext {
  * `hidden` so `aria-controls` always points at them. Folded, a category is one calm line even when
  * all its motifs are ticked. While filtering, the matches show under a plain heading.
  */
-export function PickerGroupSection({ group, filtering, open, onOpenChange, onGroupAction, ...rows }: PickerGroupSectionProps) {
+export function PickerGroupSection({ group, allItems, filtering, open, onOpenChange, onGroupAction, ...rows }: PickerGroupSectionProps) {
   const panelId = useId()
-  const { selected, total } = selectionCount(group.items, rows.draft)
-  const action = filtering ? null : groupAction(group.items, rows.draft)
+  const { selected, total } = selectionCount(allItems, rows.draft)
+  const action = filtering ? null : groupAction(allItems, rows.draft)
   const heading = (
     <>
       {group.icon && <CategoryIcon icon={group.icon} className="size-3.5 shrink-0 text-subtle" />}
@@ -78,7 +81,7 @@ export function PickerGroupSection({ group, filtering, open, onOpenChange, onGro
           )}
         </h3>
         {action && (
-          <Button type="button" variant="ghost" size="sm" className="shrink-0 px-2 text-link" onClick={() => onGroupAction(group, action)}>
+          <Button type="button" variant="ghost" size="sm" className="shrink-0 px-2 text-link" onClick={() => onGroupAction(allItems, action)}>
             {t(action === 'select' ? `${P}.selectAll` : `${P}.deselectAll`)}
             <span className="sr-only"> {t(`${P}.inGroup`, { group: group.label })}</span>
           </Button>
