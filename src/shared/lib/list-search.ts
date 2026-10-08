@@ -1,10 +1,13 @@
-import { foldSearch } from './filters'
-
 /**
- * The settings lists' search (« Rechercher… »): accent- and case-insensitive words, each of which
- * must appear somewhere in the row (its name, or a column's text such as a code), and the ranges
- * to highlight in the original text, accents kept.
+ * A list's search (« Rechercher… »): accent- and case-insensitive words, each of which must appear
+ * somewhere in the row (its name, or a column's text such as a code), and the ranges to highlight
+ * in the original text, accents kept (`HighlightedText`).
  */
+
+/** Lower case without accents (NFD, combining marks removed): « Hélène » matches « helene ». */
+export function foldSearch(text: string): string {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('fr-CA')
+}
 
 /** The search's words, folded (accents removed, lower case). Empty for a blank search. */
 export function searchWords(query: string): string[] {

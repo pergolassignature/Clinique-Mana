@@ -15,7 +15,7 @@ const COLUMNS: ReferenceColumn<'languages'>[] = [
   },
 ]
 
-/** « Code »: typed when adding (two letters, lower-cased on save), then fixed (the RPC refuses a change). */
+/** « Code »: typed when adding (two letters, lower-cased on save), then read-only (the RPC refuses a change). */
 function LanguageFields({ form, row }: ReferenceFormProps<'languages'>) {
   const adding = row === null
   return (
@@ -26,14 +26,15 @@ function LanguageFields({ form, row }: ReferenceFormProps<'languages'>) {
       help={t(adding ? `${L}.codeHelp` : `${L}.codeLocked`)}
       error={form.formState.errors.code?.message}
     >
-      {(field) => <Input {...field} {...form.register('code')} autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={4} className="max-w-[120px]" />}
+      {(field) => <Input {...field} {...form.register('code')} autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={2} className="max-w-[120px]" />}
     </FormField>
   )
 }
 
 /**
- * Paramètres → Langues: the consultation languages. French is offered by everyone (a system row:
- * it cannot be archived). A language's code is chosen when it is added and never changes.
+ * Paramètres → Langues: the consultation languages. French is added to every new record by default
+ * (a system row: it cannot be archived). A language's code is chosen when it is added and never
+ * changes.
  */
 export function LanguagesSettingsPage() {
   return (

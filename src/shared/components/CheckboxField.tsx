@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { forwardRef, useId } from 'react'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Label } from '@/shared/ui/label'
 
@@ -14,8 +14,14 @@ interface CheckboxFieldProps {
 /**
  * A checkbox with its label to the right, then its help and error, read through
  * `aria-describedby` (as FormField). Toggling changes the form's draft only (decision #36).
+ *
+ * The ref reaches the checkbox itself: pass react-hook-form's `field.ref` so a failed submit
+ * focuses it (and its error is read with it).
  */
-export function CheckboxField({ label, help, error, checked, onCheckedChange, onBlur }: CheckboxFieldProps) {
+export const CheckboxField = forwardRef<HTMLButtonElement, CheckboxFieldProps>(function CheckboxField(
+  { label, help, error, checked, onCheckedChange, onBlur },
+  ref,
+) {
   const id = useId()
   const helpId = help ? `${id}-help` : undefined
   const errorId = error ? `${id}-error` : undefined
@@ -23,6 +29,7 @@ export function CheckboxField({ label, help, error, checked, onCheckedChange, on
   return (
     <div className="flex items-start gap-2.5">
       <Checkbox
+        ref={ref}
         id={id}
         checked={checked}
         onCheckedChange={(value) => onCheckedChange(value === true)}
@@ -46,4 +53,4 @@ export function CheckboxField({ label, help, error, checked, onCheckedChange, on
       </div>
     </div>
   )
-}
+})

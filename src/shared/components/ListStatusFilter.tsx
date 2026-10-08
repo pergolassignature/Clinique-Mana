@@ -38,7 +38,7 @@ export function ListStatusFilter({ value, counts, onChange }: ListStatusFilterPr
   return (
     <div
       role="toolbar"
-      aria-label={t('modules.professionals.settings.list.filter.label')}
+      aria-label={t('common.listFilter.label')}
       className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-muted p-0.5"
     >
       {LIST_STATUS_FILTERS.map((option, index) => {
@@ -59,8 +59,8 @@ export function ListStatusFilter({ value, counts, onChange }: ListStatusFilterPr
               selected ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            {t('modules.professionals.settings.list.filter.option', {
-              label: t(`modules.professionals.settings.list.filter.${option}`),
+            {t('common.listFilter.option', {
+              label: t(`common.listFilter.${option}`),
               count: String(counts[option]),
             })}
           </button>

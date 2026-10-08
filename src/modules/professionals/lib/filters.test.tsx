@@ -7,7 +7,6 @@ import {
   DEFAULT_FILTERS,
   filterProfessionals,
   filtersToSearchParams,
-  foldSearch,
   isDefaultFilters,
   paginate,
   parseProfessionalsFilters,
@@ -80,12 +79,6 @@ describe('isDefaultFilters', () => {
     expect(isDefaultFilters(filters({ q: ' ' }))).toBe(true)
     expect(isDefaultFilters(filters({ q: ' a' }))).toBe(false)
     expect(isDefaultFilters(filters({ motifIds: [IDS.anxiete] }))).toBe(false)
-  })
-})
-
-describe('foldSearch', () => {
-  it('ignores case and accents', () => {
-    expect(foldSearch('Hélène CÔTÉ')).toBe('helene cote')
   })
 })
 

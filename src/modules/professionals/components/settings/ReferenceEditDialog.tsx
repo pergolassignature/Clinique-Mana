@@ -35,6 +35,8 @@ interface ReferenceEditDialogProps<K extends ReferenceKind> {
   description?: string
   /** The list's own fields, under « Nom ». */
   renderForm?: (props: ReferenceFormProps<K>) => ReactNode
+  /** Values a new row starts with, over the empty ones (e.g. the category a list is filtered on). Ignored when editing. */
+  createDefaults?: Partial<ReferenceFormValues[K]>
   onOpenChange: (open: boolean) => void
   /** Saved (the row's id), just before the dialog closes. */
   onSaved: (id: string) => void
@@ -57,6 +59,7 @@ export function ReferenceEditDialog<K extends ReferenceKind>({
   title,
   description,
   renderForm,
+  createDefaults,
   onOpenChange,
   onSaved,
   onCloseAutoFocus,
@@ -102,7 +105,16 @@ export function ReferenceEditDialog<K extends ReferenceKind>({
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
-        <ReferenceForm kind={kind} row={row} rows={rows} renderForm={renderForm} pending={save.isPending} refusal={refusal} onSubmit={submit} />
+        <ReferenceForm
+          kind={kind}
+          row={row}
+          rows={rows}
+          renderForm={renderForm}
+          createDefaults={createDefaults}
+          pending={save.isPending}
+          refusal={refusal}
+          onSubmit={submit}
+        />
       </DialogContent>
     </Dialog>
   )
@@ -113,12 +125,13 @@ interface ReferenceFormComponentProps<K extends ReferenceKind> {
   row: ReferenceRow<K> | null
   rows: readonly ReferenceRow<K>[]
   renderForm?: (props: ReferenceFormProps<K>) => ReactNode
+  createDefaults?: Partial<ReferenceFormValues[K]>
   pending: boolean
   refusal: string | null
   onSubmit: (values: ReferenceFields<K>) => void
 }
 
-function ReferenceForm<K extends ReferenceKind>({ kind, row, rows, renderForm, pending, refusal, onSubmit }: ReferenceFormComponentProps<K>) {
+function ReferenceForm<K extends ReferenceKind>({ kind, row, rows, renderForm, createDefaults, pending, refusal, onSubmit }: ReferenceFormComponentProps<K>) {
   // Built once per opening (the form remounts with each one): the database refuses a duplicate
   // that another manager adds meanwhile.
   const [resolver] = useState(
@@ -126,7 +139,8 @@ function ReferenceForm<K extends ReferenceKind>({ kind, row, rows, renderForm, p
   )
   const form = useForm<ReferenceFormValues[K], unknown, ReferenceFields<K>>({
     resolver,
-    defaultValues: toReferenceFormValues(kind, row) as DefaultValues<ReferenceFormValues[K]>,
+    // A new row starts from `createDefaults`: they are the form's defaults, so it is not dirty yet.
+    defaultValues: (row ? toReferenceFormValues(kind, row) : { ...toReferenceFormValues(kind, null), ...createDefaults }) as DefaultValues<ReferenceFormValues[K]>,
   })
   // Every list has a name: the shared field reads the form through that one key.
   const nameForm = form as unknown as UseFormReturn<{ name: string }>

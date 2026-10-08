@@ -2,7 +2,10 @@ import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Archive, ArchiveRestore, ArrowDown, ArrowUp, Lock, MoreHorizontal, Pencil, Plus, Search } from 'lucide-react'
 import { t } from '@/i18n'
 import { EmptyState } from '@/shared/components/EmptyState'
+import { HighlightedText } from '@/shared/components/HighlightedText'
+import { ListStatusFilter, type ListStatusFilterValue } from '@/shared/components/ListStatusFilter'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
+import { matchesSearch, searchWords } from '@/shared/lib/list-search'
 import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
@@ -13,11 +16,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip'
 import { usageKey, type ReferenceKind, type ReferenceRow } from '../../api/catalog'
 import { useReorderReference } from '../../hooks/use-reference-mutations'
-import { matchesSearch, searchWords } from '../../lib/list-search'
 import { moveRow } from '../../lib/reorder'
+import type { ReferenceFormValues } from '../../schemas/reference'
 import { ArchiveReferenceDialog } from './ArchiveReferenceDialog'
-import { HighlightedText } from './HighlightedText'
-import { ListStatusFilter, type ListStatusFilterValue } from './ListStatusFilter'
 import { ReferenceEditDialog, type ReferenceFormProps } from './ReferenceEditDialog'
 
 export type { ReferenceFormProps } from './ReferenceEditDialog'
@@ -35,8 +36,17 @@ export interface ReferenceColumn<K extends ReferenceKind> {
   cell: (row: ReferenceRow<K>, context: ReferenceCellContext) => ReactNode
   /** Text the search also looks in (a code, a sigle). The name is always searched. */
   searchText?: (row: ReferenceRow<K>) => string
-  /** Classes of the header and the cells (e.g. `max-sm:hidden`, `whitespace-nowrap`). */
+  /** Classes of the header and the cells (e.g. `max-sm:hidden` for a secondary column, `whitespace-nowrap`). */
   className?: string
+}
+
+/** A group of rows (`groupBy`): a header row in the table. */
+export interface ReferenceGroup {
+  /** Same id = same group. */
+  id: string
+  label: string
+  /** Groups show in ascending order; `Infinity` (« Autres ») goes last. Equal orders keep their first appearance. */
+  order: number
 }
 
 /** The texts a list may change; each has a generic default. */
@@ -50,13 +60,13 @@ export interface ReferenceListLabels {
   systemNote: string
   /** « Utilisé par » for a count above 0 (default « 3 professionnels »; parents count their children). */
   usage: (count: number) => string
-  /** The archive confirmation's body (default « 3 professionnels utilisent « nom ». … »). */
+  /** The archive confirmation's body (default « Cet élément est utilisé par 3 professionnels. … »). */
   archiveBody: (name: string, count: number) => string
 }
 
 export interface ReferenceListCardProps<K extends ReferenceKind> {
   kind: K
-  /** Names the card (a heading) and the search. */
+  /** Names the card (a heading), its table and its search. */
   title: string
   description?: string
   /** The page holds this list alone and its header already says it: the heading is for screen readers only. */
@@ -68,7 +78,28 @@ export interface ReferenceListCardProps<K extends ReferenceKind> {
   columns?: readonly ReferenceColumn<K>[]
   /** The dialog's fields after « Nom » (the form is the list's `referenceSchema`). */
   renderForm?: (props: ReferenceFormProps<K>) => ReactNode
-  /** « Monter » / « Descendre » on each row, saved at once (`reorderReference`, every id). */
+  /** Values « Ajouter » starts with (e.g. the category the list is filtered on). Not used when editing. */
+  createDefaults?: Partial<ReferenceFormValues[K]>
+  /** The list's own controls (a view toggle, a category filter), in the header after the search. */
+  toolbar?: ReactNode
+  /**
+   * The list's own filter (e.g. one category), applied first: the « Actifs · Archivés · Tous »
+   * counts, the search and the empty states only see the rows it keeps (the counts are those of
+   * what can be shown). Pass it only while it filters (undefined otherwise): while it is set,
+   * « Monter / Descendre » are hidden, as during a search. The dialogs still check names against
+   * the whole list.
+   */
+  filterRow?: (row: ReferenceRow<K>) => boolean
+  /**
+   * Shows the rows under group header rows, in one table (one `<tbody>` per group): groups in
+   * `order`, rows in their list order within a group. With `reorderable`, a row moves within its
+   * group only, and its announced position is its group's.
+   */
+  groupBy?: (row: ReferenceRow<K>) => ReferenceGroup
+  /**
+   * « Monter » / « Descendre » on each row, saved at once (`reorderReference`, every id). Shown
+   * under « Actifs » or « Tous » only, with no search and no `filterRow`.
+   */
   reorderable?: boolean
   /** `useSettingsSection().readOnly === false`. Without it: no « Ajouter », no actions, no reorder. */
   canEdit: boolean
@@ -87,12 +118,12 @@ const DEFAULT_LABELS: ReferenceListLabels = {
   systemNote: t('modules.professionals.settings.list.system'),
   usage: (count) =>
     count === 1 ? t('modules.professionals.settings.list.usage.one') : t('modules.professionals.settings.list.usage.other', { count: String(count) }),
-  archiveBody: (name, count) =>
+  archiveBody: (_name, count) =>
     count === 0
       ? t('modules.professionals.settings.list.archive.bodyNone')
       : count === 1
-        ? t('modules.professionals.settings.list.archive.bodyOne', { name })
-        : t('modules.professionals.settings.list.archive.bodyOther', { name, count: String(count) }),
+        ? t('modules.professionals.settings.list.archive.bodyOne')
+        : t('modules.professionals.settings.list.archive.bodyOther', { count: String(count) }),
 }
 
 const KEEP_FILTER: Record<ListStatusFilterValue, (row: { isActive: boolean }) => boolean> = {
@@ -100,6 +131,9 @@ const KEEP_FILTER: Record<ListStatusFilterValue, (row: { isActive: boolean }) =>
   archived: (row) => !row.isActive,
   all: () => true,
 }
+
+/** The name cell (`<th scope="row">`) looks like the other cells. */
+const ROW_HEADER = 'tabular h-10 max-w-[320px] whitespace-normal px-3 py-2 text-left align-middle font-normal'
 
 /** One stable callback ref per key (an inline one would detach and reattach on every render). */
 function useElementMap<E extends HTMLElement>() {
@@ -119,20 +153,46 @@ function useElementMap<E extends HTMLElement>() {
   return { elements: elements.current, refFor }
 }
 
+interface RowGroup<K extends ReferenceKind> {
+  group: ReferenceGroup | null
+  rows: ReferenceRow<K>[]
+}
+
+/** The rows shown, split by `groupBy` (groups in `order`, « Autres » last), or one unnamed group. */
+function groupRows<K extends ReferenceKind>(rows: readonly ReferenceRow<K>[], groupBy?: (row: ReferenceRow<K>) => ReferenceGroup): RowGroup<K>[] {
+  if (!groupBy) return [{ group: null, rows: [...rows] }]
+  const groups = new Map<string, RowGroup<K>>()
+  for (const row of rows) {
+    const group = groupBy(row)
+    const entry = groups.get(group.id)
+    if (entry) entry.rows.push(row)
+    else groups.set(group.id, { group, rows: [row] })
+  }
+  // Not `a - b`: Infinity - Infinity is NaN. The sort is stable, so equal orders keep their first appearance.
+  const order = (entry: RowGroup<K>) => entry.group?.order ?? 0
+  return [...groups.values()].sort((a, b) => (order(a) === order(b) ? 0 : order(a) < order(b) ? -1 : 1))
+}
+
 /**
  * A per-clinic list of « Paramètres → Professionnels » (langues, raisons, approches, titres…):
  * the pattern every list section uses (4a.6–4a.9).
  *
  * - Header: title and description; « Actifs · Archivés · Tous » with counts (one tab stop, arrows
  *   move, Enter / Space select); a search on the name and the columns' `searchText`, accents
- *   ignored, the match highlighted; « + Ajouter ».
- * - Table: « Nom » (lock on system rows, « Archivé » on archived ones, muted), the list's columns,
- *   « Utilisé par », then the row's « Monter / Descendre » and « … » menu (Modifier, Archiver or
- *   Restaurer; never Archiver on a system row).
+ *   ignored, the match highlighted; the list's `toolbar`; « + Ajouter ».
+ * - Table (named by the title): « Nom » (the row header; lock on system rows, « Archivé » on
+ *   archived ones, muted), the list's columns, « Utilisé par » (hidden at phone width), then the
+ *   row's « Monter / Descendre » and « … » menu (Modifier, Archiver or Restaurer; never Archiver on
+ *   a system row). With `groupBy`, group header rows. The scroll wrapper is a tab stop only while
+ *   the table is wider than the card.
+ * - `filterRow` narrows the list before the counts; `createDefaults` seeds « Ajouter ».
  * - Dialogs: `ReferenceEditDialog` (add, edit) and `ArchiveReferenceDialog` (archive, restore);
- *   their refusals show inside them. Focus goes back to the row's menu, else to « Ajouter ».
- * - Reorder: moves among the rows shown, sends the whole list (archived rows included),
- *   optimistic with rollback (`useReorderReference`); focus stays on the button pressed.
+ *   their refusals show inside them. Focus goes back to the row's menu (the new row's after
+ *   « Ajouter »), else to « Ajouter ».
+ * - Reorder: moves among the rows shown (within the group), sends the whole list (archived rows
+ *   included), optimistic with rollback (`useReorderReference`); focus stays on the button
+ *   pressed, the new position is announced (« « Congé » : position 2 sur 3 »). One move at a
+ *   time: while it saves, the buttons are `aria-disabled` and the table `aria-busy`.
  * - Read-only (`canEdit` false): the rows, filters and search only.
  */
 export function ReferenceListCard<K extends ReferenceKind>({
@@ -144,6 +204,10 @@ export function ReferenceListCard<K extends ReferenceKind>({
   usage,
   columns = [],
   renderForm,
+  createDefaults,
+  toolbar,
+  filterRow,
+  groupBy,
   reorderable = false,
   canEdit,
   addVariant = 'default',
@@ -172,6 +236,8 @@ export function ReferenceListCard<K extends ReferenceKind>({
   }
 
   const reorder = useReorderReference()
+  // What a move says (polite live region): the row's new position among the rows it moved within.
+  const [moveAnnouncement, setMoveAnnouncement] = useState('')
   // The move button pressed: the row moves in the DOM, which can drop focus to <body>.
   const movedButton = useRef<string | null>(null)
   useLayoutEffect(() => {
@@ -182,19 +248,24 @@ export function ReferenceListCard<K extends ReferenceKind>({
   }, [rows, moveButtons.elements])
 
   const words = searchWords(query)
+  // The list's own filter comes first: the counts are those of the rows it keeps.
+  const listed = filterRow ? rows.filter(filterRow) : rows
   const counts = {
-    active: rows.filter(KEEP_FILTER.active).length,
-    archived: rows.filter(KEEP_FILTER.archived).length,
-    all: rows.length,
+    active: listed.filter(KEEP_FILTER.active).length,
+    archived: listed.filter(KEEP_FILTER.archived).length,
+    all: listed.length,
   }
-  const shown = rows.filter(
+  const shown = listed.filter(
     (row) =>
       KEEP_FILTER[filter](row) &&
       matchesSearch([row.name, ...columns.flatMap((column) => (column.searchText ? [column.searchText(row)] : []))], words),
   )
+  const groups = groupRows(shown, groupBy)
   const highlight = (text: string) => <HighlightedText text={text} words={words} />
   const showActions = canEdit
-  const showReorder = canEdit && reorderable
+  // Moving among a subset (archived only, a search, the list's filter) would be hard to follow.
+  const showReorder = canEdit && reorderable && filter !== 'archived' && words.length === 0 && !filterRow
+  const columnCount = 2 + columns.length + (showActions ? 1 : 0)
 
   const openEdit = (row: ReferenceRow<K> | null) => {
     focusRow.current = row?.id ?? null
@@ -206,33 +277,142 @@ export function ReferenceListCard<K extends ReferenceKind>({
     setStatusRow(row)
     setStatusOpen(true)
   }
-  const move = (row: ReferenceRow<K>, direction: 'up' | 'down') => {
+  /** Moves `row` past its neighbour among `scope` (the rows shown, or its group's). */
+  const move = (row: ReferenceRow<K>, direction: 'up' | 'down', scope: readonly ReferenceRow<K>[]) => {
     // One move at a time (as PS Hub's reorder): the next one starts from the saved order.
     if (reorder.isPending) return
+    const scopeIds = scope.map((r) => r.id)
     const ids = moveRow(
       rows.map((r) => r.id),
-      shown.map((r) => r.id),
+      scopeIds,
       row.id,
       direction,
     )
     if (!ids) return
+    const position = ids.filter((id) => scopeIds.includes(id)).indexOf(row.id) + 1
+    setMoveAnnouncement(
+      t('modules.professionals.settings.list.actions.moved', { name: row.name, position: String(position), count: String(scopeIds.length) }),
+    )
     movedButton.current = `${row.id}:${direction}`
-    reorder.mutate({ kind, ids }, { onSettled: () => (movedButton.current = null) })
+    reorder.mutate(
+      { kind, ids },
+      {
+        // Rolled back: the toast says why, the position announced no longer holds.
+        onError: () => setMoveAnnouncement(''),
+        onSettled: () => (movedButton.current = null),
+      },
+    )
+  }
+
+  const renderRow = (row: ReferenceRow<K>, index: number, scope: readonly ReferenceRow<K>[]) => {
+    const count = usage.get(usageKey(kind, row.id)) ?? 0
+    return (
+      <TableRow key={row.id} className={cn(!row.isActive && 'text-muted-foreground')}>
+        <th scope="row" className={ROW_HEADER}>
+          <span className="flex min-w-0 items-center gap-2">
+            <span data-name className={cn('min-w-0 break-words', row.isActive && 'font-medium')}>
+              {highlight(row.name)}
+            </span>
+            {row.isSystem && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span role="img" aria-label={labels.systemNote} tabIndex={0} className={`inline-flex shrink-0 rounded-sm text-subtle ${focusRing}`}>
+                    <Lock aria-hidden className="size-3.5" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{labels.systemNote}</TooltipContent>
+              </Tooltip>
+            )}
+            {!row.isActive && <Badge variant="secondary">{t('modules.professionals.settings.list.archived')}</Badge>}
+          </span>
+        </th>
+        {columns.map((column) => (
+          <TableCell key={column.id} className={column.className}>
+            {column.cell(row, { highlight })}
+          </TableCell>
+        ))}
+        <TableCell className={cn('max-sm:hidden', count === 0 && 'text-subtle')}>
+          {count === 0 ? (
+            <>
+              <span aria-hidden>{t('modules.professionals.settings.list.usage.none')}</span>
+              <span className="sr-only">{t('modules.professionals.settings.list.usage.noneLabel')}</span>
+            </>
+          ) : (
+            labels.usage(count)
+          )}
+        </TableCell>
+        {showActions && (
+          <TableCell className="w-0 py-1 text-right">
+            <span className="inline-flex items-center gap-0.5">
+              {showReorder && (
+                <>
+                  <MoveButton
+                    buttonRef={moveButtons.refFor(`${row.id}:up`)}
+                    label={t('modules.professionals.settings.list.actions.moveUp', { name: row.name })}
+                    icon={<ArrowUp aria-hidden />}
+                    inactive={index === 0 || reorder.isPending}
+                    onMove={() => move(row, 'up', scope)}
+                  />
+                  <MoveButton
+                    buttonRef={moveButtons.refFor(`${row.id}:down`)}
+                    label={t('modules.professionals.settings.list.actions.moveDown', { name: row.name })}
+                    icon={<ArrowDown aria-hidden />}
+                    inactive={index === scope.length - 1 || reorder.isPending}
+                    onMove={() => move(row, 'down', scope)}
+                  />
+                </>
+              )}
+              <RowMenu
+                name={row.name}
+                buttonRef={menus.refFor(row.id)}
+                onEdit={() => openEdit(row)}
+                onArchive={row.isActive && !row.isSystem ? () => openStatus(row) : undefined}
+                onRestore={row.isActive ? undefined : () => openStatus(row)}
+              />
+            </span>
+          </TableCell>
+        )}
+      </TableRow>
+    )
   }
 
   let body: ReactNode
   if (rows.length === 0) {
-    body = <EmptyState title={t('modules.professionals.settings.list.empty.title')} body={canEdit ? t('modules.professionals.settings.list.empty.body') : undefined} />
+    body = (
+      <EmptyState
+        title={t('modules.professionals.settings.list.empty.title')}
+        body={t(canEdit ? 'modules.professionals.settings.list.empty.body' : 'modules.professionals.settings.list.empty.bodyReadOnly')}
+      />
+    )
   } else if (shown.length === 0) {
-    body =
-      words.length > 0 ? (
-        <EmptyState title={t('modules.professionals.settings.list.empty.noMatchTitle')} body={t('modules.professionals.settings.list.empty.noMatchBody')} />
-      ) : (
-        <EmptyState title={t(filter === 'archived' ? 'modules.professionals.settings.list.empty.noArchived' : 'modules.professionals.settings.list.empty.noActive')} />
+    if (words.length > 0 || listed.length === 0) {
+      body = (
+        <EmptyState
+          title={t('modules.professionals.settings.list.empty.noMatchTitle')}
+          body={t(filterRow ? 'modules.professionals.settings.list.empty.noMatchFilteredBody' : 'modules.professionals.settings.list.empty.noMatchBody')}
+        />
       )
+    } else if (filter === 'archived') {
+      body = (
+        <EmptyState
+          title={t('modules.professionals.settings.list.empty.noArchived')}
+          body={t('modules.professionals.settings.list.empty.noArchivedBody')}
+        />
+      )
+    } else {
+      body = (
+        <EmptyState title={t('modules.professionals.settings.list.empty.noActive')} body={t('modules.professionals.settings.list.empty.noActiveBody')} />
+      )
+    }
   } else {
     body = (
-      <Table scrollLabel={t('modules.professionals.settings.list.table', { list: title })} className="whitespace-nowrap">
+      <Table
+        aria-labelledby={titleId}
+        aria-busy={reorder.isPending || undefined}
+        scrollLabel={t('modules.professionals.settings.list.table', { list: title })}
+        scrollFocus="overflow"
+        className="whitespace-nowrap"
+      >
         <TableHeader>
           <TableRow>
             <TableHead scope="col">{t('modules.professionals.settings.list.columns.name')}</TableHead>
@@ -241,7 +421,9 @@ export function ReferenceListCard<K extends ReferenceKind>({
                 {column.header}
               </TableHead>
             ))}
-            <TableHead scope="col">{t('modules.professionals.settings.list.columns.usage')}</TableHead>
+            <TableHead scope="col" className="max-sm:hidden">
+              {t('modules.professionals.settings.list.columns.usage')}
+            </TableHead>
             {showActions && (
               <TableHead scope="col">
                 <span className="sr-only">{t('modules.professionals.settings.list.columns.actions')}</span>
@@ -249,79 +431,20 @@ export function ReferenceListCard<K extends ReferenceKind>({
             )}
           </TableRow>
         </TableHeader>
-        <TableBody>
-          {shown.map((row, index) => {
-            const count = usage.get(usageKey(kind, row.id)) ?? 0
-            return (
-              <TableRow key={row.id} className={cn(!row.isActive && 'text-muted-foreground')}>
-                <TableCell className="max-w-[320px] whitespace-normal">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span data-name className={cn('min-w-0 break-words', row.isActive && 'font-medium')}>
-                      {highlight(row.name)}
-                    </span>
-                    {row.isSystem && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span role="img" aria-label={labels.systemNote} tabIndex={0} className={`inline-flex shrink-0 rounded-sm text-subtle ${focusRing}`}>
-                            <Lock aria-hidden className="size-3.5" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>{labels.systemNote}</TooltipContent>
-                      </Tooltip>
-                    )}
-                    {!row.isActive && <Badge variant="secondary">{t('modules.professionals.settings.list.archived')}</Badge>}
-                  </span>
-                </TableCell>
-                {columns.map((column) => (
-                  <TableCell key={column.id} className={column.className}>
-                    {column.cell(row, { highlight })}
-                  </TableCell>
-                ))}
-                <TableCell className={cn(count === 0 && 'text-subtle')}>
-                  {count === 0 ? (
-                    <>
-                      <span aria-hidden>{t('modules.professionals.settings.list.usage.none')}</span>
-                      <span className="sr-only">{t('modules.professionals.settings.list.usage.noneLabel')}</span>
-                    </>
-                  ) : (
-                    labels.usage(count)
-                  )}
-                </TableCell>
-                {showActions && (
-                  <TableCell className="w-0 py-1 text-right">
-                    <span className="inline-flex items-center gap-0.5">
-                      {showReorder && (
-                        <>
-                          <MoveButton
-                            buttonRef={moveButtons.refFor(`${row.id}:up`)}
-                            label={t('modules.professionals.settings.list.actions.moveUp', { name: row.name })}
-                            icon={<ArrowUp aria-hidden />}
-                            inactive={index === 0}
-                            onMove={() => move(row, 'up')}
-                          />
-                          <MoveButton
-                            buttonRef={moveButtons.refFor(`${row.id}:down`)}
-                            label={t('modules.professionals.settings.list.actions.moveDown', { name: row.name })}
-                            icon={<ArrowDown aria-hidden />}
-                            inactive={index === shown.length - 1}
-                            onMove={() => move(row, 'down')}
-                          />
-                        </>
-                      )}
-                      <RowMenu
-                        name={row.name}
-                        buttonRef={menus.refFor(row.id)}
-                        onEdit={() => openEdit(row)}
-                        onArchive={row.isActive && !row.isSystem ? () => openStatus(row) : undefined}
-                        onRestore={row.isActive ? undefined : () => openStatus(row)}
-                      />
-                    </span>
-                  </TableCell>
-                )}
+        {groups.map(({ group, rows: members }) =>
+          group === null ? (
+            <TableBody key="">{members.map((row, index) => renderRow(row, index, members))}</TableBody>
+          ) : (
+            <TableBody key={group.id} className="border-t border-border first-of-type:border-t-0">
+              <TableRow className="hover:bg-transparent">
+                <th scope="rowgroup" colSpan={columnCount} className="bg-muted px-3 py-1.5 text-left text-xs font-medium text-muted-foreground">
+                  {group.label}
+                </th>
               </TableRow>
-            )
-          })}
-        </TableBody>
+              {members.map((row, index) => renderRow(row, index, members))}
+            </TableBody>
+          ),
+        )}
       </Table>
     )
   }
@@ -350,6 +473,7 @@ export function ReferenceListCard<K extends ReferenceKind>({
               className="pl-[30px]"
             />
           </div>
+          {toolbar}
           {canEdit && (
             <Button ref={addRef} type="button" variant={addVariant} className="sm:ml-auto" onClick={() => openEdit(null)}>
               <Plus aria-hidden />
@@ -363,6 +487,10 @@ export function ReferenceListCard<K extends ReferenceKind>({
             ? t('modules.professionals.settings.list.results.one')
             : t('modules.professionals.settings.list.results.other', { count: String(shown.length) })}
         </p>
+        {/* Says where a moved row now stands. */}
+        <p aria-live="polite" className="sr-only">
+          {moveAnnouncement}
+        </p>
         {body}
         {canEdit && (
           <>
@@ -373,6 +501,7 @@ export function ReferenceListCard<K extends ReferenceKind>({
               rows={rows}
               title={editRow ? labels.editTitle : labels.createTitle}
               renderForm={renderForm}
+              createDefaults={createDefaults}
               onOpenChange={setEditOpen}
               onSaved={(id) => (focusRow.current = id)}
               onCloseAutoFocus={returnFocus}

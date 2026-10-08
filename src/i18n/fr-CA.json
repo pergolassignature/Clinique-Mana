@@ -35,6 +35,7 @@
     "save": "Enregistrer",
     "saving": "Enregistrement…",
     "cancel": "Annuler",
+    "listFilter": { "label": "Afficher", "option": "{label} ({count})", "active": "Actifs", "archived": "Archivés", "all": "Tous" },
     "form": { "required": "(requis)" },
     "status": { "complete": "(terminé)", "pending": "(en attente)", "warning": "(à vérifier)" },
     "toast": { "region": "Notifications", "close": "Fermer la notification" },
@@ -1006,14 +1007,14 @@
         },
         "languages": {
           "title": "Langues",
-          "description": "Le français est offert par tous. Ajoutez les autres langues de consultation.",
+          "description": "Le français est ajouté par défaut à chaque nouveau dossier. Ajoutez les autres langues de consultation.",
           "add": "Ajouter une langue",
           "createTitle": "Ajouter une langue",
           "editTitle": "Modifier la langue",
           "code": "Code",
           "codeHelp": "Deux lettres, par exemple « pt » pour le portugais.",
           "codeLocked": "Le code ne change pas une fois la langue ajoutée.",
-          "system": "Offert par tous : ne peut pas être archivé."
+          "system": "Ajoutée par défaut à chaque nouveau dossier : ne peut pas être archivée."
         },
         "deactivationReasons": {
           "title": "Raisons de désactivation",
@@ -1032,13 +1033,6 @@
         "list": {
           "loadError": "La liste n'a pas pu être chargée.",
           "table": "Tableau « {list} »",
-          "filter": {
-            "label": "Afficher",
-            "option": "{label} ({count})",
-            "active": "Actifs",
-            "archived": "Archivés",
-            "all": "Tous"
-          },
           "search": {
             "label": "Rechercher dans « {list} »",
             "placeholder": "Rechercher…"
@@ -1067,15 +1061,20 @@
             "archive": "Archiver",
             "restore": "Restaurer",
             "moveUp": "Monter « {name} »",
-            "moveDown": "Descendre « {name} »"
+            "moveDown": "Descendre « {name} »",
+            "moved": "« {name} » : position {position} sur {count}"
           },
           "empty": {
             "title": "Aucun élément",
             "body": "Ajoutez le premier élément de cette liste.",
+            "bodyReadOnly": "Rien n'a encore été ajouté à cette liste.",
             "noMatchTitle": "Aucun résultat",
             "noMatchBody": "Modifiez la recherche.",
+            "noMatchFilteredBody": "Modifiez la recherche ou les filtres.",
             "noActive": "Aucun élément actif",
-            "noArchived": "Aucun élément archivé"
+            "noActiveBody": "Les éléments archivés sont sous « Archivés ».",
+            "noArchived": "Aucun élément archivé",
+            "noArchivedBody": "Un élément archivé reste sur les dossiers, mais ne peut plus être choisi."
           },
           "dialog": {
             "createTitle": "Ajouter un élément",
@@ -1087,14 +1086,14 @@
           "archive": {
             "title": "Archiver « {name} » ?",
             "bodyNone": "Personne n'utilise cet élément. Il ne pourra plus être choisi.",
-            "bodyOne": "1 professionnel utilise « {name} ». Il reste sur son dossier mais ne pourra plus être choisi.",
-            "bodyOther": "{count} professionnels utilisent « {name} ». Il reste sur leur dossier mais ne pourra plus être choisi.",
+            "bodyOne": "Cet élément est utilisé par 1 professionnel. Il reste sur son dossier mais ne pourra plus être choisi.",
+            "bodyOther": "Cet élément est utilisé par {count} professionnels. Il reste sur leur dossier mais ne pourra plus être choisi.",
             "confirm": "Archiver",
             "pending": "Archivage…"
           },
           "restore": {
             "title": "Restaurer « {name} » ?",
-            "body": "« {name} » pourra de nouveau être choisi.",
+            "body": "Cet élément pourra de nouveau être choisi.",
             "confirm": "Restaurer",
             "pending": "Restauration…"
           }

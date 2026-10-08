@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { highlightRanges, matchesSearch, searchWords } from './list-search'
+import { foldSearch, highlightRanges, matchesSearch, searchWords } from './list-search'
+
+describe('foldSearch', () => {
+  it('ignores case and accents', () => {
+    expect(foldSearch('Hélène CÔTÉ')).toBe('helene cote')
+  })
+})
 
 describe('searchWords', () => {
   it('folds accents and case, and splits on spaces', () => {

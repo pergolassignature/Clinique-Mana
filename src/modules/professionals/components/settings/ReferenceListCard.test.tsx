@@ -10,7 +10,7 @@ import type { DeactivationReason, ProfessionalsCatalog } from '../../api/parse'
 import { CATALOG } from '../../test/fixtures-domain'
 import { IDS } from '../../test/fixtures'
 import { setupQueryClient } from '../../test/query-client'
-import { ReferenceListCard } from './ReferenceListCard'
+import { ReferenceListCard, type ReferenceListCardProps } from './ReferenceListCard'
 
 const mocks = vi.hoisted(() => ({
   api: {
@@ -54,8 +54,10 @@ beforeEach(() => {
   mocks.api.fetchProfessionalsCatalog.mockImplementation(async () => serverCatalog)
 })
 
+type CardProps = Partial<Omit<ReferenceListCardProps<'deactivation_reasons'>, 'kind' | 'rows'>>
+
 /** The card as a page uses it: rows from the cached catalogue. */
-function Harness({ canEdit }: { canEdit: boolean }) {
+function Harness(props: CardProps) {
   const { data } = useProfessionalsCatalog()
   if (!data) return null
   return (
@@ -64,19 +66,20 @@ function Harness({ canEdit }: { canEdit: boolean }) {
       title={TITLE}
       rows={data.deactivationReasons}
       usage={USAGE}
-      canEdit={canEdit}
+      canEdit
       reorderable
       columns={[{ id: 'note', header: 'Note requise', cell: (row) => (row.requiresNote ? 'Oui' : 'Non') }]}
+      {...props}
     />
   )
 }
 
-function renderCard({ canEdit = true, rows = catalog }: { canEdit?: boolean; rows?: ProfessionalsCatalog } = {}) {
+function renderCard({ rows = catalog, ...props }: CardProps & { rows?: ProfessionalsCatalog } = {}) {
   const client = setupQueryClient()
   client.queryClient.setQueryData(professionalCatalogKeys.catalog(), rows)
   render(
     <QueryClientProvider client={client.queryClient}>
-      <Harness canEdit={canEdit} />
+      <Harness {...props} />
     </QueryClientProvider>,
   )
   return client
@@ -85,14 +88,16 @@ function renderCard({ canEdit = true, rows = catalog }: { canEdit?: boolean; row
 const card = () => screen.getByRole('region', { name: TITLE })
 const filter = (name: 'active' | 'archived' | 'all', count: number) =>
   within(card()).getByRole('button', {
-    name: t('modules.professionals.settings.list.filter.option', { label: t(`modules.professionals.settings.list.filter.${name}`), count: String(count) }),
+    name: t('common.listFilter.option', { label: t(`common.listFilter.${name}`), count: String(count) }),
   })
-/** The names in the table, in order. */
+/** The names in the table, in order (each row's header). */
 const names = () =>
   within(card())
     .getAllByRole('row')
-    .slice(1)
-    .map((row) => within(row).getAllByRole('cell')[0]?.querySelector('[data-name]')?.textContent)
+    .flatMap((row) => {
+      const name = row.querySelector('th[scope="row"] [data-name]')?.textContent
+      return name === undefined || name === null ? [] : [name]
+    })
 const rowOf = (name: string) => {
   const row = within(card())
     .getAllByRole('row')
@@ -173,14 +178,123 @@ describe('ReferenceListCard: filters and search', () => {
     expect(within(card()).getByText(t('modules.professionals.settings.list.empty.title'))).toBeInTheDocument()
   })
 
-  it('says « Aucun élément archivé » when every row is active', async () => {
+  it('says « Aucun élément archivé » when every row is active, with a second line', async () => {
     renderCard({ rows: CATALOG })
     await userEvent.click(filter('archived', 0))
     expect(within(card()).getByText(t('modules.professionals.settings.list.empty.noArchived'))).toBeInTheDocument()
+    expect(within(card()).getByText(t('modules.professionals.settings.list.empty.noArchivedBody'))).toBeInTheDocument()
+  })
+
+  it('says « Aucun élément actif » when every row is archived, and where they are', () => {
+    renderCard({ rows: { ...catalog, deactivationReasons: [retired] } })
+    expect(within(card()).getByText(t('modules.professionals.settings.list.empty.noActive'))).toBeInTheDocument()
+    expect(within(card()).getByText(t('modules.professionals.settings.list.empty.noActiveBody'))).toBeInTheDocument()
+  })
+
+  it('read-only: an empty list says so without asking to add', () => {
+    renderCard({ canEdit: false, rows: { ...catalog, deactivationReasons: [] } })
+    expect(within(card()).getByText(t('modules.professionals.settings.list.empty.bodyReadOnly'))).toBeInTheDocument()
+    expect(within(card()).queryByText(t('modules.professionals.settings.list.empty.body'))).not.toBeInTheDocument()
+  })
+})
+
+describe('ReferenceListCard: slots', () => {
+  it('shows the list’s toolbar in the header, after the search', () => {
+    renderCard({ toolbar: <button type="button">Par catégorie</button> })
+    const toolbar = within(card()).getByRole('button', { name: 'Par catégorie' })
+    const search = within(card()).getByRole('searchbox')
+    expect(search.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('filterRow narrows the rows first: the counts are those of the rows it keeps, and reorder is hidden', async () => {
+    // Keeps the reasons that close the account: Fin de collaboration (active), Retraite (archived).
+    renderCard({ filterRow: (row) => row.disablesAccount })
+    expect(filter('active', 1)).toHaveAttribute('aria-pressed', 'true')
+    expect(filter('archived', 1)).toBeInTheDocument()
+    expect(filter('all', 2)).toBeInTheDocument()
+    expect(names()).toEqual(['Fin de collaboration'])
+    expect(within(card()).queryByRole('button', { name: /^(Monter|Descendre)/ })).not.toBeInTheDocument()
+    await userEvent.click(filter('all', 2))
+    expect(names()).toEqual(['Fin de collaboration', 'Retraite'])
+  })
+
+  it('filterRow that keeps nothing: « Aucun résultat » and a hint about the filters', () => {
+    renderCard({ filterRow: () => false })
+    expect(filter('all', 0)).toBeInTheDocument()
+    expect(within(card()).getByText(t('modules.professionals.settings.list.empty.noMatchTitle'))).toBeInTheDocument()
+    expect(within(card()).getByText(t('modules.professionals.settings.list.empty.noMatchFilteredBody'))).toBeInTheDocument()
+  })
+
+  it('groupBy shows group header rows in order, « Autres » last, in one table', async () => {
+    renderCard({
+      groupBy: (row) =>
+        row.isSystem
+          ? { id: 'none', label: 'Autres', order: Infinity }
+          : row.disablesAccount
+            ? { id: 'closes', label: 'Ferme le compte', order: 1 }
+            : { id: 'keeps', label: 'Garde le compte', order: 2 },
+    })
+    await userEvent.click(filter('all', 4))
+    expect(within(card()).getAllByRole('table')).toHaveLength(1)
+    const groupHeaders = within(card())
+      .getAllByRole('rowheader')
+      .filter((cell) => cell.getAttribute('scope') === 'rowgroup')
+      .map((cell) => cell.textContent)
+    expect(groupHeaders).toEqual(['Ferme le compte', 'Garde le compte', 'Autres'])
+    expect(names()).toEqual(['Fin de collaboration', 'Retraite', 'Congé', 'Autre'])
+    // Each group is a row group (<tbody>) that starts with its header.
+    const closes = within(card()).getByRole('rowheader', { name: 'Ferme le compte' }).closest('tbody')
+    expect(closes).toHaveTextContent('Fin de collaboration')
+    expect(closes).toHaveTextContent('Retraite')
+    expect(closes).not.toHaveTextContent('Congé')
+  })
+
+  it('groupBy with reorder: a row moves within its group only', async () => {
+    renderCard({ groupBy: (row) => (row.isSystem ? { id: 'none', label: 'Autres', order: Infinity } : { id: 'all', label: 'Raisons', order: 1 }) })
+    mocks.api.reorderReference.mockResolvedValue(undefined)
+    // « Fin de collaboration » is the last of its group: « Autre » is in another one.
+    expect(screen.getByRole('button', { name: t('modules.professionals.settings.list.actions.moveDown', { name: 'Fin de collaboration' }) })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: t('modules.professionals.settings.list.actions.moveUp', { name: 'Autre' }) })).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(screen.getByRole('button', { name: t('modules.professionals.settings.list.actions.moveUp', { name: 'Fin de collaboration' }) }))
+    expect(mocks.api.reorderReference).toHaveBeenCalledWith('deactivation_reasons', [IDS.ended, IDS.leave, IDS.other, RETIRED])
+    expect(screen.getByText(t('modules.professionals.settings.list.actions.moved', { name: 'Fin de collaboration', position: '1', count: '2' }))).toBeInTheDocument()
+  })
+
+  it('createDefaults seeds « Ajouter » (not « Modifier »)', async () => {
+    renderCard({ createDefaults: { requiresNote: true } })
+    mocks.api.saveReference.mockResolvedValue('00000000-0000-4000-8000-000000000398')
+    await userEvent.click(addButton())
+    await userEvent.type(nameField(), 'Retraite anticipée')
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: t('modules.professionals.settings.list.dialog.create') }))
+    await waitFor(() =>
+      expect(mocks.api.saveReference).toHaveBeenCalledWith('deactivation_reasons', {
+        id: null,
+        name: 'Retraite anticipée',
+        requiresNote: true,
+        disablesAccount: false,
+      }),
+    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    mocks.api.saveReference.mockResolvedValue(IDS.leave)
+    await chooseAction('Congé', 'edit')
+    await userEvent.type(nameField(), ' prolongé')
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.saveReference).toHaveBeenLastCalledWith('deactivation_reasons', expect.objectContaining({ id: IDS.leave, requiresNote: false })))
   })
 })
 
 describe('ReferenceListCard: rows', () => {
+  it('names the table by the list, and each row by its name (a row header)', () => {
+    renderCard()
+    const table = within(card()).getByRole('table', { name: TITLE })
+    expect(within(table).getByRole('rowheader', { name: 'Congé' })).toHaveAttribute('scope', 'row')
+    // The table fits (jsdom has no layout): its scroll wrapper adds no tab stop.
+    expect(table.parentElement).not.toHaveAttribute('tabindex')
+  })
+
   it('shows the usage counts, « — » when nobody uses a row', () => {
     renderCard()
     expect(within(rowOf('Congé')).getByText('3 professionnels')).toBeInTheDocument()
@@ -214,19 +328,23 @@ describe('ReferenceListCard: archive and restore', () => {
     mocks.api.setReferenceActive.mockResolvedValue(undefined)
     await chooseAction('Congé', 'archive')
     const dialog = await screen.findByRole('alertdialog')
-    expect(dialog).toHaveTextContent(t('modules.professionals.settings.list.archive.bodyOther', { count: '3', name: 'Congé' }))
+    expect(dialog).toHaveTextContent(t('modules.professionals.settings.list.archive.bodyOther', { count: '3' }))
     await userEvent.click(within(dialog).getByRole('button', { name: t('modules.professionals.settings.list.archive.confirm') }))
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
     expect(mocks.api.setReferenceActive).toHaveBeenCalledWith('deactivation_reasons', IDS.leave, false)
     expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.toasts.archived'))
   })
 
-  it('says nobody uses a row before archiving it', async () => {
+  it('says one professional uses a row before archiving it', async () => {
     renderCard()
     await chooseAction('Fin de collaboration', 'archive')
-    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
-      t('modules.professionals.settings.list.archive.bodyOne', { name: 'Fin de collaboration' }),
-    )
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(t('modules.professionals.settings.list.archive.bodyOne'))
+  })
+
+  it('says nobody uses a row before archiving it', async () => {
+    renderCard({ usage: new Map() })
+    await chooseAction('Congé', 'archive')
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(t('modules.professionals.settings.list.archive.bodyNone'))
   })
 
   it('shows a refusal in the confirmation and keeps it open', async () => {
@@ -248,7 +366,7 @@ describe('ReferenceListCard: archive and restore', () => {
     await userEvent.click(filter('archived', 1))
     await chooseAction('Retraite', 'restore')
     const dialog = await screen.findByRole('alertdialog')
-    expect(dialog).toHaveTextContent(t('modules.professionals.settings.list.restore.body', { name: 'Retraite' }))
+    expect(dialog).toHaveTextContent(t('modules.professionals.settings.list.restore.body'))
     await userEvent.click(within(dialog).getByRole('button', { name: t('modules.professionals.settings.list.restore.confirm') }))
     await waitFor(() => expect(mocks.api.setReferenceActive).toHaveBeenCalledWith('deactivation_reasons', RETIRED, true))
   })
@@ -270,6 +388,46 @@ describe('ReferenceListCard: reorder', () => {
     await waitFor(() => expect(moveDown('Congé')).toHaveFocus())
     const cached = queryClient.getQueryData<ProfessionalsCatalog>(professionalCatalogKeys.catalog())
     expect(cached?.deactivationReasons.map((r) => r.id)).toEqual([IDS.ended, IDS.leave, IDS.other, RETIRED])
+  })
+
+  it('announces the new position politely', async () => {
+    renderCard()
+    mocks.api.reorderReference.mockResolvedValue(undefined)
+    await userEvent.click(moveDown('Congé'))
+    const announcement = screen.getByText(t('modules.professionals.settings.list.actions.moved', { name: 'Congé', position: '2', count: '3' }))
+    expect(announcement).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('one move at a time: while it saves, the buttons are aria-disabled, the table busy, and a press does nothing', async () => {
+    renderCard()
+    let finish: () => void = () => {}
+    mocks.api.reorderReference.mockReturnValue(new Promise<void>((resolve) => (finish = resolve)))
+    await userEvent.click(moveDown('Congé'))
+    await waitFor(() => expect(within(card()).getByRole('table')).toHaveAttribute('aria-busy', 'true'))
+    expect(moveUp('Autre')).toHaveAttribute('aria-disabled', 'true')
+    // Soft-disabled, so the button pressed keeps focus.
+    expect(moveDown('Congé')).toHaveAttribute('aria-disabled', 'true')
+    expect(moveDown('Congé')).toHaveFocus()
+    await userEvent.click(moveUp('Autre'))
+    expect(mocks.api.reorderReference).toHaveBeenCalledTimes(1)
+    finish()
+    await waitFor(() => expect(within(card()).getByRole('table')).not.toHaveAttribute('aria-busy'))
+    expect(moveUp('Autre')).not.toHaveAttribute('aria-disabled')
+  })
+
+  it('shows the move buttons under « Actifs » and « Tous » only, and never during a search', async () => {
+    renderCard()
+    expect(moveDown('Congé')).toBeInTheDocument()
+    await userEvent.click(filter('all', 4))
+    expect(moveDown('Retraite')).toBeInTheDocument()
+    await userEvent.click(filter('archived', 1))
+    expect(within(card()).queryByRole('button', { name: /^(Monter|Descendre)/ })).not.toBeInTheDocument()
+    await userEvent.click(filter('active', 3))
+    await userEvent.type(within(card()).getByRole('searchbox'), 'con')
+    expect(names()).toEqual(['Congé'])
+    expect(within(card()).queryByRole('button', { name: /^(Monter|Descendre)/ })).not.toBeInTheDocument()
+    // The row menu stays.
+    expect(menuButton('Congé')).toBeInTheDocument()
   })
 
   it('cannot move the first row up or the last shown row down', async () => {
@@ -300,6 +458,19 @@ describe('ReferenceListCard: add and edit', () => {
     const dialog = screen.getByRole('dialog', { name: t('modules.professionals.settings.list.dialog.createTitle') })
     expect(nameField()).toHaveFocus()
     expect(within(dialog).getByRole('button', { name: t('common.close') })).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('after « Ajouter », focus goes to the new row’s menu', async () => {
+    renderCard()
+    const NEW = '00000000-0000-4000-8000-000000000398'
+    mocks.api.saveReference.mockResolvedValue(NEW)
+    // The refetch after the save brings the new row.
+    serverCatalog = { ...catalog, deactivationReasons: [...catalog.deactivationReasons, { ...retired, id: NEW, key: 'early', name: 'Retraite anticipée', isActive: true }] }
+    await userEvent.click(addButton())
+    await userEvent.type(nameField(), 'Retraite anticipée')
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: t('modules.professionals.settings.list.dialog.create') }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(menuButton('Retraite anticipée')).toHaveFocus())
   })
 
   it('shows a refusal of the save in the dialog, which stays open', async () => {

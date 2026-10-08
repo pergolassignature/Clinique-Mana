@@ -4,22 +4,51 @@ import { focusRing } from './field-classes'
 
 interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   /**
-   * Names the horizontal scroll wrapper, not the table (name the table with a `TableCaption`).
-   * With it, the wrapper becomes a focusable region, so keyboard users can scroll a wide table with
-   * the arrow keys; without it, the wrapper stays out of the tab order.
+   * Names the horizontal scroll wrapper, not the table (name the table with a `TableCaption` or
+   * `aria-labelledby`). With it, the wrapper becomes a focusable region, so keyboard users can
+   * scroll a wide table with the arrow keys; without it, the wrapper stays out of the tab order.
    */
   scrollLabel?: string
+  /**
+   * With `scrollLabel`: `always` (default) keeps the wrapper a tab stop; `overflow` makes it one
+   * only while the table is wider than it (there is something to scroll), so a table that fits
+   * adds no empty tab stop.
+   */
+  scrollFocus?: 'always' | 'overflow'
+}
+
+/** Whether the wrapper's content is wider than the wrapper; follows resizes of both. */
+function useOverflowing(wrapper: React.RefObject<HTMLDivElement | null>, enabled: boolean) {
+  const [overflowing, setOverflowing] = React.useState(false)
+  React.useLayoutEffect(() => {
+    const element = wrapper.current
+    if (!enabled || !element) return
+    const update = () => setOverflowing(element.scrollWidth > element.clientWidth + 1)
+    update()
+    if (typeof ResizeObserver !== 'function') return
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    if (element.firstElementChild) observer.observe(element.firstElementChild)
+    return () => observer.disconnect()
+  }, [wrapper, enabled])
+  return overflowing
 }
 
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
-  ({ className, scrollLabel, ...props }, ref) => (
-    <div
-      className={`relative w-full overflow-x-auto rounded-lg ${focusRing}`}
-      {...(scrollLabel ? { role: 'region', 'aria-label': scrollLabel, tabIndex: 0 } : {})}
-    >
-      <table ref={ref} className={cn('w-full caption-bottom text-sm text-foreground', className)} {...props} />
-    </div>
-  )
+  ({ className, scrollLabel, scrollFocus = 'always', ...props }, ref) => {
+    const wrapper = React.useRef<HTMLDivElement>(null)
+    const overflowing = useOverflowing(wrapper, Boolean(scrollLabel) && scrollFocus === 'overflow')
+    const focusable = Boolean(scrollLabel) && (scrollFocus === 'always' || overflowing)
+    return (
+      <div
+        ref={wrapper}
+        className={`relative w-full overflow-x-auto rounded-lg ${focusRing}`}
+        {...(focusable ? { role: 'region', 'aria-label': scrollLabel, tabIndex: 0 } : {})}
+      >
+        <table ref={ref} className={cn('w-full caption-bottom text-sm text-foreground', className)} {...props} />
+      </div>
+    )
+  }
 )
 Table.displayName = 'Table'
 

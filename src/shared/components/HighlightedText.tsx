@@ -1,4 +1,4 @@
-import { highlightRanges } from '../../lib/list-search'
+import { highlightRanges } from '@/shared/lib/list-search'
 
 /** `text` with the search's words marked (`<mark>`, soft teal), accents and case kept. */
 export function HighlightedText({ text, words }: { text: string; words: readonly string[] }) {

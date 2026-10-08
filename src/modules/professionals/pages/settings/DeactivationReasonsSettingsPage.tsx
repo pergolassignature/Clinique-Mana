@@ -1,6 +1,6 @@
 import { Controller } from 'react-hook-form'
 import { t } from '@/i18n'
-import { CheckboxField } from '../../components/settings/CheckboxField'
+import { CheckboxField } from '@/shared/components/CheckboxField'
 import { ReferenceListCard, type ReferenceColumn, type ReferenceFormProps } from '../../components/settings/ReferenceListCard'
 import { ReferenceSettingsPage } from '../../components/settings/ReferenceSettingsPage'
 
@@ -9,11 +9,12 @@ const R = 'modules.professionals.settings.deactivationReasons'
 const yesNo = (value: boolean) => t(value ? `${R}.yes` : `${R}.no`)
 
 const COLUMNS: ReferenceColumn<'deactivation_reasons'>[] = [
-  { id: 'requires-note', header: t(`${R}.requiresNote`), cell: (row) => yesNo(row.requiresNote) },
-  { id: 'disables-account', header: t(`${R}.disablesAccount`), cell: (row) => yesNo(row.disablesAccount) },
+  // Secondary at phone width: the dialog shows them, and the row keeps room for its actions.
+  { id: 'requires-note', header: t(`${R}.requiresNote`), cell: (row) => yesNo(row.requiresNote), className: 'max-sm:hidden' },
+  { id: 'disables-account', header: t(`${R}.disablesAccount`), cell: (row) => yesNo(row.disablesAccount), className: 'max-sm:hidden' },
 ]
 
-/** The two flags: a note asked at deactivation; the account closed with it. */
+/** The two flags: a note asked at deactivation; the account closed with it. A failed save focuses the checkbox in error (`field.ref`). */
 function ReasonFields({ form }: ReferenceFormProps<'deactivation_reasons'>) {
   return (
     <div className="grid gap-3">
@@ -22,6 +23,7 @@ function ReasonFields({ form }: ReferenceFormProps<'deactivation_reasons'>) {
         name="requiresNote"
         render={({ field, fieldState }) => (
           <CheckboxField
+            ref={field.ref}
             label={t(`${R}.requiresNote`)}
             help={t(`${R}.requiresNoteHelp`)}
             error={fieldState.error?.message}
@@ -36,6 +38,7 @@ function ReasonFields({ form }: ReferenceFormProps<'deactivation_reasons'>) {
         name="disablesAccount"
         render={({ field, fieldState }) => (
           <CheckboxField
+            ref={field.ref}
             label={t(`${R}.disablesAccount`)}
             help={t(`${R}.disablesAccountHelp`)}
             error={fieldState.error?.message}

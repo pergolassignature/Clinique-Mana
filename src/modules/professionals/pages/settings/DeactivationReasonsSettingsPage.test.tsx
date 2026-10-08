@@ -40,11 +40,11 @@ const rowOf = (name: string) => {
   if (!row) throw new Error(`no row ${name}`)
   return row
 }
-/** A row's cells after the name: note, account, usage. */
+/** A row's cells after its header (the name): note, account. */
 const flags = (name: string) =>
   within(rowOf(name))
     .getAllByRole('cell')
-    .slice(1, 3)
+    .slice(0, 2)
     .map((cell) => cell.textContent)
 const checkbox = (key: 'requiresNote' | 'disablesAccount') => within(dialog()).getByRole('checkbox', { name: t(`${R}.${key}`) })
 async function openEdit(name: string) {
@@ -98,6 +98,22 @@ describe('DeactivationReasonsSettingsPage', () => {
       `${t(`${R}.requiresNoteHelp`)} ${t('modules.professionals.validation.otherReasonNote')}`,
     )
     expect(mocks.api.saveReference).not.toHaveBeenCalled()
+  })
+
+  it('focuses the checkbox in error after a failed save, its error read with it', async () => {
+    await renderPage()
+    await openEdit('Autre')
+    await userEvent.click(checkbox('requiresNote'))
+    await userEvent.click(within(dialog()).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(checkbox('requiresNote')).toHaveFocus())
+    expect(checkbox('requiresNote')).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('hides the two flag columns at phone width, so the actions stay visible', async () => {
+    await renderPage()
+    expect(screen.getByRole('columnheader', { name: t(`${R}.requiresNote`) })).toHaveClass('max-sm:hidden')
+    expect(screen.getByRole('columnheader', { name: t(`${R}.disablesAccount`) })).toHaveClass('max-sm:hidden')
+    expect(screen.getByRole('columnheader', { name: t('modules.professionals.settings.list.columns.usage') })).toHaveClass('max-sm:hidden')
   })
 
   it('edits a reason with its saved flags', async () => {

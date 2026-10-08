@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { foldSearch } from '@/shared/lib/list-search'
 import { MAX_SET_SIZE, PAGE_SIZE, PROFESSIONAL_STATUSES, type ProfessionalStatus } from './constants'
 import type { CatalogView } from './catalog-view'
 import { watchFlags } from './watch'
@@ -143,11 +144,6 @@ export function useProfessionalsFilters() {
   const reset = useCallback(() => update(() => DEFAULT_FILTERS, true), [update])
 
   return { filters, setFilters, toggleMotif, setPage, reset }
-}
-
-/** Lower case without accents (NFD, combining marks removed): « Hélène » matches « helene ». */
-export function foldSearch(text: string): string {
-  return text.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('fr-CA')
 }
 
 /** A known id, else null (no filter). */
