@@ -1,6 +1,7 @@
 import {
   Blocks,
   Building2,
+  CalendarClock,
   Globe,
   Landmark,
   PenLine,
@@ -102,5 +103,15 @@ export const coreSettingsSections: SettingsSection[] = [
     permission: 'audit.view',
     group: 'plateforme',
     component: lazyPage(() => import('./pages/AuditLogPage'), 'AuditLogPage'),
+  },
+  {
+    id: 'jobs',
+    path: 'taches-planifiees',
+    labelKey: 'settings.sections.jobs',
+    icon: CalendarClock,
+    permission: 'settings.view',
+    editPermission: 'settings.manage',
+    group: 'plateforme',
+    component: lazyPage(() => import('./pages/ScheduledJobsSettingsPage'), 'ScheduledJobsSettingsPage'),
   },
 ]
