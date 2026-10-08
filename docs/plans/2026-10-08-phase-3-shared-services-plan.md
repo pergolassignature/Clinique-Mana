@@ -1413,19 +1413,25 @@ git commit -m "docs(adr): 0006 amendment, auth links land on /connexion/confirme
   on conflict do nothing;
   ```
 
+**The inviter never learns the token.** The link proves the invitee controls the address only if nobody else knows the token. If a manager could pass a hash of her choosing, she could invite any address and accept the invitation herself. So `create_staff_invitation` and `renew_staff_invitation` are **service role only**, take the actor explicitly as `p_actor uuid` (first argument), and the `staff-invite` function (Task 3.20) is their only caller. It generates the token, passes `p_actor` = the user `verifyAuth` verified, and never returns the token. `revoke_staff_invitation` and `list_staff_invitations` involve no token and stay user RPCs.
+
 **RPCs:**
-- `create_staff_invitation(p_email text, p_display_name text, p_role text, p_token_hash bytea) returns uuid` (authenticated, definer):
-  - checks `users.manage` first;
+- `create_staff_invitation(p_actor uuid, p_email text, p_display_name text, p_role text, p_token_hash bytea) returns uuid` (**service role only**, definer). Every check is made **as `p_actor`**:
+  - the actor holds `users.manage` (`private.permission_keys_for(p_actor)`): a null, unknown, disabled or role-less actor, or one without it → `42501`;
+  - the org is the actor's profile's, never an argument;
   - locks the org row (`for no key update`);
   - `provider` → P0001 « Le rôle Professionnel est attribué par le module Professionnels. »;
   - an unknown role, or another org's custom role → `22023`;
-  - `admin` while the caller is not admin → P0001 « Seul un administrateur peut inviter un administrateur. » (same rule as `set_user_role`);
+  - `admin` while the actor is not admin → P0001 « Seul un administrateur peut inviter un administrateur. » (same rule as `set_user_role`);
+  - a non-admin actor inviting to a role that carries a permission she lacks → P0001 (hold rule, as `set_user_role`);
   - an address with a profile in this org → P0001 « Cette personne a déjà un accès. »;
   - a pending invitation for that address → P0001 « Une invitation est déjà en attente pour cette adresse. Utilisez « Renvoyer ». »;
-  - then `private.issue_secure_link(org, 'staff_invite', 'staff_invitation', id, p_token_hash, auth.uid())`, and inserts the invitation with the link id.
-- `renew_staff_invitation(p_id uuid, p_token_hash bytea) returns table (email text, display_name text, expires_at timestamptz)` (`users.manage`): for a pending invitation in the org, issues a new link (which revokes the old one) and returns what the email needs.
-- `revoke_staff_invitation(p_id)` (`users.manage`): status `revoked`, plus `private.revoke_secure_links`.
-- `list_staff_invitations()` (`users.view`, definer, **one query**):
+  - then `private.issue_secure_link(org, 'staff_invite', 'staff_invitation', id, p_token_hash, p_actor)`, and inserts the invitation with the link id and `invited_by = p_actor`.
+- `renew_staff_invitation(p_actor uuid, p_id uuid, p_token_hash bytea) returns table (email text, display_name text, expires_at timestamptz)` (**service role only**, the same actor checks and role guards as create): for a pending invitation in the actor's org, issues a new link (which revokes the old one, `revoked_by = p_actor`) and returns what the email needs.
+- **Shared permission source:** `private.permission_keys_for(p_user uuid)` holds the body of `current_permission_keys()` with the user as a parameter (no client role may call it). `current_permission_keys()` becomes a plpgsql wrapper, `return private.permission_keys_for(auth.uid())`, with the same result, grants, volatility and cost per call. `has_permission` is unchanged.
+- **Audit:** under the service role `auth.uid()` is null, so create and renew set `app.audit_actor = p_actor` and `app.audit_source = rpc:<name>` around their writes, and restore both afterwards. `private.audit_trigger` reads `app.audit_actor` only when `auth.uid()` is null.
+- `revoke_staff_invitation(p_id)` (authenticated, `users.manage`): status `revoked`, plus `private.revoke_secure_links`.
+- `list_staff_invitations()` (authenticated, `users.view`, definer, **one query**):
   - returns id, email, display_name, role, role_name, status, `expires_at` (from the link), `is_expired`, invited_by_name, created_at, and `last_email_status` / `last_email_at` (lateral `limit 1` on `email_log_subject_idx`);
   - pending invitations only.
 - `resolve_staff_invitation(p_link_id uuid) returns jsonb` (service role): `{ clinic_name, display_name, email, expires_at }`.
@@ -1438,13 +1444,17 @@ git commit -m "docs(adr): 0006 amendment, auth links land on /connexion/confirme
 - **Interaction with Task 2.20:** `delete_role` also refuses a role used by pending invitations: P0001 « Ce rôle est utilisé par {n} invitation(s) en attente. ». Re-create the function with this extra check; inconsistency #15.
 
 **Tests:**
-- **Privileges:** `staff_invitations` is select-only for `authenticated`; the service RPCs are service role only.
-- **`create_staff_invitation` as admin A:**
+- **Privileges:** `staff_invitations` is select-only for `authenticated`; create, renew and the purpose handlers are service role only, so `authenticated` has no EXECUTE on create or renew (`function_privs_are`; never call them as `authenticated`); revoke and list are `authenticated` only.
+- **`permission_keys_for(u)` = `current_permission_keys()` as u**, for every fixture user (and null); the `has_permission` parity in 015 stays green.
+- **`create_staff_invitation` by the service with `p_actor` = admin A:**
   - succeeds, with a link row whose subject is the invitation;
   - provider → the P0001 text; an admin by a non-admin manager (the adjointe with `users.manage`) → the P0001 text; an org custom role → succeeds (#40);
   - an existing member's email (mixed case, spaces) → « Cette personne a déjà un accès. »;
   - a duplicate pending → the « Renvoyer » message;
-  - the conseillère → `42501`;
+  - the actor is `p_actor`, never the JWT's user; `invited_by` and the link's `created_by` = `p_actor`;
+  - an actor without `users.manage` (the conseillère), a disabled actor, a null or unknown actor → `42501`;
+  - the admin-only and hold rules are enforced for the actor (the adjointe);
+  - an actor from org B can neither renew org A's invitation nor use org A's role, and her invitation lands in org B;
   - org B cannot see org A's invitations.
 - **Renew:** the old link is revoked, a new link is live, and the expiry has moved.
 - **Revoke:** the link is revoked; `peek` → invalid.
@@ -1455,7 +1465,7 @@ git commit -m "docs(adr): 0006 amendment, auth links land on /connexion/confirme
   - `get_my_access()` as the new user lists the role's permissions.
 - **`list_staff_invitations`:** `is_expired` is true after expiry (set `expires_at` in the past as postgres); `last_email_status` reflects an `email_log` row.
 - **`delete_role`** of a custom role with a pending invitation → the new message.
-- The audit rows exist for create, renew and accept.
+- The audit rows exist for create, renew (actor = `p_actor`, source `rpc:create_staff_invitation` / `rpc:renew_staff_invitation`) and accept; `app.audit_actor` is restored after each call and never overrides an authenticated user.
 
 **Commit:** `feat(db): staff invitations with secure links and acceptance`.
 
@@ -1531,8 +1541,8 @@ verify_jwt = false
 **`staff-invite`:**
 1. `verifyAuth(req, { permission: 'users.manage' })`.
 2. Body `{ email, display_name, role }`, or `{ invitation_id }` (« Renvoyer »).
-3. `generateToken`, `hashToken`.
-4. With the **user client**: `create_staff_invitation(...)` or `renew_staff_invitation(id, hash)`, so RLS and the guards apply. P0001 → 400 with the message (`invalid_request`, the message passed through for the UI, as `moduleErrorMessage` shows P0001).
+3. `generateToken`, `hashToken`, in memory. The token is never logged, stored or returned.
+4. With the **service client**: `create_staff_invitation({ p_actor: auth.access.user_id, p_email, p_display_name, p_role, p_token_hash })` or `renew_staff_invitation({ p_actor: auth.access.user_id, p_id, p_token_hash })` (Task 3.18). `p_actor` is always the user `verifyAuth` verified, never a value from the body. The RPC re-checks `users.manage` and every guard as that actor, in the actor's org. P0001 → 400 with the message (`invalid_request`, the message passed through for the UI, as `moduleErrorMessage` shows P0001). `42501` → 403.
 5. `sendTemplatedEmail`:
    - template `core.staff_invite`; subject `staff_invitation` / id;
    - values `{ invitee: { display_name }, inviter: { display_name: auth.access.display_name }, clinic: { name }, invitation: { expires_at } }`;
@@ -1541,7 +1551,7 @@ verify_jwt = false
 6. Email failure → 502 `provider_error` (or 503 `not_configured`) with `{ invitation_id }`, so the UI shows « Invitation créée, mais le courriel n'a pas pu être envoyé. Utilisez « Renvoyer ». ».
 7. 200 `{ invitation_id }`.
 
-The raw token is never returned (P3-7).
+The raw token is never returned to the browser (P3-7). The browser cannot call create or renew at all (service role only), so the inviter never knows a token for her invitation.
 
 **`users-set-status`:**
 1. `verifyAuth(req, { permission: 'users.manage' })`.
@@ -1570,6 +1580,7 @@ The raw token is never returned (P3-7).
   - the conseillère → 403;
   - a P0001 from the RPC → 400 with that message;
   - the token in the email URL hashes to the `p_token_hash` passed to the RPC;
+  - the RPC is called with the service client and `p_actor` = the verified user's id, even when the body carries another id;
   - the response body has no token;
   - « Renvoyer » sets `explicitResend`.
 - **`users-set-status`:** disable → RPC then `updateUserById(ban_duration '876000h')`; a ban failure → 200 `sessions_ended: false`; enable → `'none'`.
@@ -1627,7 +1638,7 @@ The raw token is never returned (P3-7).
 ## Task 3.22: « Utilisateurs et accès »: invite, pending invitations, ending sessions
 
 **Lane:** U (after Task 3.20 merges). **Files:**
-- Modify: `src/core/users/api.ts` (+ test): `inviteStaff`, `resendInvitation`, `revokeInvitation`, `listStaffInvitations`, `setUserStatus` (now via `users-set-status`)
+- Modify: `src/core/users/api.ts` (+ test): `inviteStaff`, `resendInvitation`, `revokeInvitation`, `listStaffInvitations`, `setUserStatus` (now via `users-set-status`). `inviteStaff` and `resendInvitation` go through the `staff-invite` function only: the browser never calls `create_staff_invitation` / `renew_staff_invitation` (service role only), and never sees a token. `revokeInvitation` and `listStaffInvitations` call their RPCs directly.
 - Modify: `src/core/users/hooks.ts`, `src/core/settings/pages/UsersSettingsPage.tsx` + test
 - Create: `src/core/users/components/InviteDialog.tsx` + test, `PendingInvitationRows.tsx`
 - Modify: `fr-CA.json`: `settings.users.invite.*`; remove `settings.users.addNote` and its usage
@@ -1649,7 +1660,7 @@ The raw token is never returned (P3-7).
 - the admin confirmation;
 - a P0001 message is shown in the dialog;
 - the pending row shows « Expirée » when `is_expired`;
-- « Renvoyer » calls `resendInvitation(id)`;
+- « Renvoyer » calls `resendInvitation(id)` (the `staff-invite` function, never an RPC);
 - « Révoquer » asks for confirmation;
 - both list queries start before either resolves;
 - the disable warning.

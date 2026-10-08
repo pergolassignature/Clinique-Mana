@@ -1,22 +1,28 @@
 -- Staff invitations (migration *_core_staff_invitations.sql, plan Phase 3 Task 3.18, design §4,
 -- P3-7, P3-8, P3-16, inconsistency #15).
 -- Covers: privileges (staff_invitations select-only for authenticated, nothing for anon and
--- service_role; the user RPCs for authenticated only, the purpose handlers for service_role
--- only, all definer); the staff_invite purpose seed; indexes; create_staff_invitation (address
--- and name normalisation, the link it issues, every guard and its French message: provider,
--- missing or another org's role, admin by a non-admin, the hold rule, an existing member, a
--- pending duplicate, bad input; an org custom role accepted; an address with an account elsewhere
--- accepted like any other: nothing reveals it); refusals for a counselor, a disabled admin and
--- another org; list_staff_invitations (fields, is_expired, the last email); renew (old link
--- revoked, new link live, expiry moved; the admin and hold guards apply again); revoke;
+-- service_role; create / renew for service_role only, so the inviter never learns the token;
+-- revoke / list for authenticated only; the purpose handlers for service_role only; all definer;
+-- the private helpers for no client role); permission_keys_for(u) = current_permission_keys() as
+-- u, for every fixture user; create_staff_invitation as the service with p_actor (address and
+-- name normalisation, the link it issues, invited_by and created_by = the actor, every guard and
+-- its French message: provider, missing or another org's role, admin by a non-admin actor, the
+-- hold rule for the actor, an existing member, a pending duplicate, bad input; an org custom role
+-- accepted; an address with an account elsewhere accepted like any other: nothing reveals it);
+-- the actor is p_actor, never the JWT's user; refusals (42501) for a counselor, a disabled admin,
+-- a null or unknown actor; an actor of another org works in her own org only;
+-- list_staff_invitations (fields, is_expired, the last email); renew (old link revoked by the
+-- actor, new link live, expiry moved; the admin and hold guards apply again); revoke;
 -- resolve_staff_invitation; accept_staff_invitation (profile, role, accepted; single use; after a
 -- revoke, an expired link or an unknown hash answers link_used / link_invalid / link_expired as
--- peek would; an address mismatch rolls back and leaves the link usable; the new user's access); delete_role refusing a role with pending invitations; audit rows.
+-- peek would; an address mismatch rolls back and leaves the link usable; the new user's access);
+-- delete_role refusing a role with pending invitations; audit rows (the service RPCs name the
+-- actor and their source, and restore app.audit_actor; app.audit_actor never overrides a JWT).
 -- The whole file is one transaction, so now() is constant. Token hashes are computed as
 -- _shared/links.ts does: SHA-256 over the token string's UTF-8 bytes.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(84);
+select plan(100);
 
 -- =============================================================================
 -- Privileges, purpose, indexes
@@ -38,18 +44,34 @@ select results_eq($$
    order by 1
 $$, $$ values
   ('accept_staff_invitation(bytea,uuid,jsonb)'::text, false, false, true, true),
-  ('create_staff_invitation(text,text,text,bytea)', false, true, false, true),
+  ('create_staff_invitation(uuid,text,text,text,bytea)', false, false, true, true),
   ('list_staff_invitations()', false, true, false, true),
-  ('renew_staff_invitation(uuid,bytea)', false, true, false, true),
+  ('renew_staff_invitation(uuid,uuid,bytea)', false, false, true, true),
   ('resolve_staff_invitation(uuid)', false, false, true, true),
   ('revoke_staff_invitation(uuid)', false, true, false, true)
-$$, 'user RPCs for authenticated only, purpose handlers for service_role only, all definer');
-select is_empty($$
-  select p.oid::regprocedure::text from pg_proc p
-   where p.pronamespace = 'private'::regnamespace and p.proname = 'assert_can_invite_to_role'
-     and (has_function_privilege('authenticated', p.oid, 'execute')
-          or has_function_privilege('service_role', p.oid, 'execute'))
-$$, 'the private invitation guard is callable by no client role');
+$$, 'create / renew and the purpose handlers for service_role only, revoke / list for authenticated only, all definer');
+select function_privs_are('public', 'create_staff_invitation', array['uuid', 'text', 'text', 'text', 'bytea'],
+  'authenticated', array[]::text[], 'authenticated cannot create an invitation (it would choose the token)');
+select function_privs_are('public', 'renew_staff_invitation', array['uuid', 'uuid', 'bytea'],
+  'authenticated', array[]::text[], 'authenticated cannot renew an invitation (it would choose the token)');
+select results_eq($$
+  select p.proname::text collate "default" from pg_proc p
+   where p.pronamespace = 'private'::regnamespace
+     and p.proname in ('assert_can_invite_to_role', 'staff_inviter', 'permission_keys_for')
+     and not has_function_privilege('anon', p.oid, 'execute')
+     and not has_function_privilege('authenticated', p.oid, 'execute')
+     and not has_function_privilege('service_role', p.oid, 'execute')
+     and p.prosecdef
+   order by 1
+$$, array['assert_can_invite_to_role', 'permission_keys_for', 'staff_inviter'],
+  'the private invitation helpers and permission_keys_for are definer and callable by no client role');
+select results_eq($$
+  select l.lanname::text collate "default", p.provolatile::text collate "default", p.prosecdef,
+         p.prosrc ~ 'permission_keys_for\(auth\.uid\(\)\)'
+    from pg_proc p join pg_language l on l.oid = p.prolang
+   where p.oid = 'private.current_permission_keys()'::regprocedure
+$$, $$ values ('plpgsql'::text, 's'::text, true, true) $$,
+  'current_permission_keys is a stable definer plpgsql wrapper over permission_keys_for(auth.uid())');
 
 select results_eq($$
   select key, module_key, default_ttl, max_ttl, max_uses, requires_session, creates_account,
@@ -121,30 +143,57 @@ insert into public.org_role_permissions (org_id, role, permission_key) values
   ('b0000000-0000-0000-0000-00000000000a', 'custom_0000000a', 'settings.view'),
   ('b0000000-0000-0000-0000-00000000000a', 'custom_0000000c', 'roles.manage');
 
+-- permission_keys_for(u) is current_permission_keys() as u: overrides (D), a module on (C), no
+-- role default (P), disabled (X), another org (B), no profile (O), unknown, null.
+create temp table keys_mismatches (user_id uuid) on commit drop;
+do $$
+declare
+  v_user uuid;
+begin
+  foreach v_user in array array[
+    'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002',
+    'a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000004',
+    'a0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000006',
+    'a0000000-0000-0000-0000-000000000007', 'a0000000-0000-0000-0000-0000000000ff', null]::uuid[]
+  loop
+    perform set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
+    if private.permission_keys_for(v_user) is distinct from private.current_permission_keys() then
+      insert into keys_mismatches values (v_user);
+    end if;
+  end loop;
+end $$;
+select is_empty('select * from keys_mismatches', 'permission_keys_for(u) equals current_permission_keys() as u, for every fixture user');
+select ok(private.permission_keys_for('a0000000-0000-0000-0000-000000000002') @> array['users.manage', 'users.view']
+          and not ('roles.manage' = any (private.permission_keys_for('a0000000-0000-0000-0000-000000000002')))
+          and private.permission_keys_for(null) = '{}',
+  'permission_keys_for: D holds users.manage by override but not roles.manage; a null user holds nothing');
+
 create temp table t (name text primary key, hash bytea not null) on commit drop;
 grant select on t to authenticated, service_role;
 insert into t (name, hash)
 select n, extensions.digest(convert_to(n, 'UTF8'), 'sha256')
   from unnest(array['inv1', 'custom', 'neutral_b', 'orphan', 'adm', 'by_d', 'temp', 'refused',
-                    'renew1', 'renew_refused', 'unknown']) n;
+                    'renew1', 'renew_refused', 'unknown', 'by_b']) n;
 
 -- =============================================================================
--- create_staff_invitation as admin A
+-- create_staff_invitation by the service, for actor A
+-- As the staff-invite function's service client: a service-role JWT, no user.
 -- =============================================================================
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
-select set_config('test.inv1', public.create_staff_invitation('  Nouvelle@Mana.TEST ', E' Marie Tremblay\t',
-  'counselor', (select hash from t where name = 'inv1'))::text, true);
+select set_config('test.inv1', public.create_staff_invitation('a0000000-0000-0000-0000-000000000001',
+  '  Nouvelle@Mana.TEST ', E' Marie Tremblay\t', 'counselor', (select hash from t where name = 'inv1'))::text, true);
+select is(coalesce(current_setting('app.audit_actor', true), ''), '', 'create restores app.audit_actor');
+
+reset role;
 select results_eq($$
   select org_id, email, display_name, role, status, invited_by, accepted_user_id, accepted_at
     from public.staff_invitations where id = current_setting('test.inv1')::uuid
 $$, $$ values ('b0000000-0000-0000-0000-00000000000a'::uuid, 'nouvelle@mana.test'::text, 'Marie Tremblay'::text,
                'counselor'::text, 'pending'::text, 'a0000000-0000-0000-0000-000000000001'::uuid,
                null::uuid, null::timestamptz) $$,
-  'A invites: the address is trimmed and lowercased, the name trimmed, the invitation pending');
-
-reset role;
+  'for A: A''s org, the address trimmed and lowercased, the name trimmed, pending, invited_by A');
 select results_eq($$
   select l.org_id, l.purpose, l.subject_type, l.subject_id, l.token_hash, l.expires_at, l.max_uses, l.created_by
     from public.secure_links l join public.staff_invitations i on i.secure_link_id = l.id
@@ -152,84 +201,122 @@ select results_eq($$
 $$, $$ values ('b0000000-0000-0000-0000-00000000000a'::uuid, 'staff_invite'::text, 'staff_invitation'::text,
                current_setting('test.inv1')::uuid, (select hash from t where name = 'inv1'), now() + interval '7 days', 1,
                'a0000000-0000-0000-0000-000000000001'::uuid) $$,
-  'the invitation''s link: staff_invite, its subject is the invitation, 7 days, single use, by A');
-set local role authenticated;
+  'the invitation''s link: staff_invite, its subject is the invitation, 7 days, single use, created by A');
+set local role service_role;
 
-select throws_ok($$ select public.create_staff_invitation('pro@mana.test', 'Pro', 'provider', (select hash from t where name = 'refused')) $$,
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', 'pro@mana.test', 'Pro', 'provider', (select hash from t where name = 'refused')) $$,
   'P0001', 'Le rôle Professionnel est attribué par le module Professionnels.', 'provider is refused');
-select throws_ok($$ select public.create_staff_invitation('x1@mana.test', 'X', 'nope', (select hash from t where name = 'refused')) $$,
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', 'x1@mana.test', 'X', 'nope', (select hash from t where name = 'refused')) $$,
   'P0001', 'Ce rôle n''existe plus.', 'an unknown role: « Ce rôle n''existe plus. »');
-select throws_ok($$ select public.create_staff_invitation('x1@mana.test', 'X', 'custom_0000000b', (select hash from t where name = 'refused')) $$,
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', 'x1@mana.test', 'X', 'custom_0000000b', (select hash from t where name = 'refused')) $$,
   'P0001', 'Ce rôle n''existe plus.', 'another org''s custom role: the same answer');
-select throws_ok($$ select public.create_staff_invitation(' C@A.Test  ', 'C', 'counselor', (select hash from t where name = 'refused')) $$,
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', ' C@A.Test  ', 'C', 'counselor', (select hash from t where name = 'refused')) $$,
   'P0001', 'Cette personne a déjà un accès.', 'a member''s address (mixed case, spaces): « Cette personne a déjà un accès. »');
-select throws_ok($$ select public.create_staff_invitation('x@a.test', 'X', 'counselor', (select hash from t where name = 'refused')) $$,
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', 'x@a.test', 'X', 'counselor', (select hash from t where name = 'refused')) $$,
   'P0001', 'Cette personne a déjà un accès.', 'a disabled member''s address too');
-select throws_ok($$ select public.create_staff_invitation(' NOUVELLE@mana.test', 'Autre nom', 'admin_assistant', (select hash from t where name = 'refused')) $$,
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', ' NOUVELLE@mana.test', 'Autre nom', 'admin_assistant', (select hash from t where name = 'refused')) $$,
   'P0001', 'Une invitation est déjà en attente pour cette adresse. Utilisez « Renvoyer ».', 'a pending duplicate: the « Renvoyer » message');
-select throws_ok($$ select public.create_staff_invitation('pas-un-courriel', 'X', 'counselor', (select hash from t where name = 'refused')) $$,
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', 'pas-un-courriel', 'X', 'counselor', (select hash from t where name = 'refused')) $$,
   'P0001', 'Adresse courriel invalide.', 'a malformed address');
-select throws_ok($$ select public.create_staff_invitation(null, 'X', 'counselor', (select hash from t where name = 'refused')) $$,
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', null, 'X', 'counselor', (select hash from t where name = 'refused')) $$,
   'P0001', 'Adresse courriel invalide.', 'a missing address');
-select throws_ok($$ select public.create_staff_invitation('x1@mana.test', E' \t ', 'counselor', (select hash from t where name = 'refused')) $$,
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', 'x1@mana.test', E' \t ', 'counselor', (select hash from t where name = 'refused')) $$,
   'P0001', 'Le nom doit contenir de 1 à 80 caractères.', 'a blank name');
-select throws_ok($$ select public.create_staff_invitation('x1@mana.test', repeat('n', 81), 'counselor', (select hash from t where name = 'refused')) $$,
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', 'x1@mana.test', repeat('n', 81), 'counselor', (select hash from t where name = 'refused')) $$,
   'P0001', 'Le nom doit contenir de 1 à 80 caractères.', 'a name over 80 characters');
-select throws_ok($$ select public.create_staff_invitation('x2@mana.test', 'X', 'counselor', (select hash from t where name = 'inv1')) $$,
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', 'x2@mana.test', 'X', 'counselor', (select hash from t where name = 'inv1')) $$,
   '23505', null, 'a token hash is never reused');
 
-select set_config('test.inv_custom', public.create_staff_invitation('accueil@mana.test', 'Accueil', 'custom_0000000a',
-  (select hash from t where name = 'custom'))::text, true);
+-- Claims naming counselor C (no users.manage) change nothing: the RPC acts for p_actor only.
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"service_role"}', true);
+select set_config('test.inv_custom', public.create_staff_invitation('a0000000-0000-0000-0000-000000000001',
+  'accueil@mana.test', 'Accueil', 'custom_0000000a', (select hash from t where name = 'custom'))::text, true);
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+reset role;
 select is((select role from public.staff_invitations where id = current_setting('test.inv_custom')::uuid), 'custom_0000000a',
-  'an org custom role can be invited to (#40)');
+  'an org custom role can be invited to (#40), whatever user the JWT names');
+set local role service_role;
 -- Neutral (P3-8, decision #38): an address with an account elsewhere is invited like any other.
-select lives_ok($$ select set_config('test.inv_neutral_b', public.create_staff_invitation('admin@b.test', 'B', 'counselor',
-  (select hash from t where name = 'neutral_b'))::text, true) $$,
+select lives_ok($$ select set_config('test.inv_neutral_b', public.create_staff_invitation('a0000000-0000-0000-0000-000000000001',
+  'admin@b.test', 'B', 'counselor', (select hash from t where name = 'neutral_b'))::text, true) $$,
   'another org''s member''s address is accepted: nothing reveals the account');
-select lives_ok($$ select set_config('test.inv_orphan', public.create_staff_invitation('orphan@a.test', 'O', 'admin_assistant',
-  (select hash from t where name = 'orphan'))::text, true) $$,
+select lives_ok($$ select set_config('test.inv_orphan', public.create_staff_invitation('a0000000-0000-0000-0000-000000000001',
+  'orphan@a.test', 'O', 'admin_assistant', (select hash from t where name = 'orphan'))::text, true) $$,
   'an address with an auth account but no profile is accepted too');
-select lives_ok($$ select set_config('test.inv_admin', public.create_staff_invitation('adm@mana.test', 'Adm', 'admin',
-  (select hash from t where name = 'adm'))::text, true) $$,
-  'an admin invites an admin');
+select lives_ok($$ select set_config('test.inv_admin', public.create_staff_invitation('a0000000-0000-0000-0000-000000000001',
+  'adm@mana.test', 'Adm', 'admin', (select hash from t where name = 'adm'))::text, true) $$,
+  'an admin actor invites an admin');
 
 -- =============================================================================
--- The non-admin manager D, the counselor C, the disabled admin X, org B
+-- Other actors (still the service): the non-admin manager D, the counselor C, the disabled
+-- admin X, no actor, an unknown actor, org B's admin
 -- =============================================================================
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select throws_ok($$ select public.create_staff_invitation('adm2@mana.test', 'Adm', 'admin', (select hash from t where name = 'refused')) $$,
-  'P0001', 'Seul un administrateur peut inviter un administrateur.', 'D cannot invite an admin');
-select throws_ok($$ select public.create_staff_invitation('rm@mana.test', 'RM', 'custom_0000000c', (select hash from t where name = 'refused')) $$,
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000002', 'adm2@mana.test', 'Adm', 'admin', (select hash from t where name = 'refused')) $$,
+  'P0001', 'Seul un administrateur peut inviter un administrateur.', 'actor D cannot invite an admin');
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000002', 'rm@mana.test', 'RM', 'custom_0000000c', (select hash from t where name = 'refused')) $$,
   'P0001', 'Vous ne pouvez pas inviter à un rôle qui donne des permissions que vous n''avez pas.',
-  'hold rule: D cannot invite to a role carrying roles.manage, which she lacks');
-select lives_ok($$ select set_config('test.inv_d', public.create_staff_invitation('d-invite@mana.test', 'Par D', 'custom_0000000a',
-  (select hash from t where name = 'by_d'))::text, true) $$,
-  'D invites to a role whose permissions she holds');
-select throws_ok(format($$ select public.renew_staff_invitation(%L, (select hash from t where name = 'renew_refused')) $$,
+  'hold rule for the actor: D cannot invite to a role carrying roles.manage, which she lacks');
+select lives_ok($$ select set_config('test.inv_d', public.create_staff_invitation('a0000000-0000-0000-0000-000000000002',
+  'd-invite@mana.test', 'Par D', 'custom_0000000a', (select hash from t where name = 'by_d'))::text, true) $$,
+  'actor D invites to a role whose permissions she holds');
+select throws_ok(format($$ select public.renew_staff_invitation('a0000000-0000-0000-0000-000000000002', %L, (select hash from t where name = 'renew_refused')) $$,
   current_setting('test.inv_admin')),
-  'P0001', 'Seul un administrateur peut inviter un administrateur.', 'D cannot renew an admin''s invitation (she would choose its token)');
+  'P0001', 'Seul un administrateur peut inviter un administrateur.', 'actor D cannot renew an admin''s invitation');
+reset role;
+select is((select invited_by from public.staff_invitations where id = current_setting('test.inv_d')::uuid),
+  'a0000000-0000-0000-0000-000000000002'::uuid, 'D''s invitation: invited_by D');
+set local role service_role;
+
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000003', 'c2@mana.test', 'C', 'counselor', (select hash from t where name = 'refused')) $$,
+  '42501', 'Permission refusée : users.manage', 'an actor without users.manage (counselor C) cannot invite');
+select throws_ok(format($$ select * from public.renew_staff_invitation('a0000000-0000-0000-0000-000000000003', %L, (select hash from t where name = 'renew_refused')) $$,
+  current_setting('test.inv1')), '42501', null, 'an actor without users.manage cannot renew');
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000005', 'x3@mana.test', 'X', 'counselor', (select hash from t where name = 'refused')) $$,
+  '42501', null, 'a disabled admin actor cannot invite');
+select throws_ok(format($$ select * from public.renew_staff_invitation('a0000000-0000-0000-0000-000000000005', %L, (select hash from t where name = 'renew_refused')) $$,
+  current_setting('test.inv1')), '42501', null, 'a disabled admin actor cannot renew');
+select throws_ok($$ select public.create_staff_invitation(null, 'x4@mana.test', 'X', 'counselor', (select hash from t where name = 'refused')) $$,
+  '42501', null, 'no actor: refused');
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000007', 'x5@mana.test', 'X', 'counselor', (select hash from t where name = 'refused')) $$,
+  '42501', null, 'an actor without a profile: refused');
+
+-- Org B's admin: her own org only. Org A's invitation is not hers to renew, org A's role is not
+-- hers to use, and her invitation lands in org B.
+select throws_ok(format($$ select * from public.renew_staff_invitation('a0000000-0000-0000-0000-000000000006', %L, (select hash from t where name = 'renew_refused')) $$,
+  current_setting('test.inv1')),
+  'P0001', 'Cette invitation n''est plus en attente.', 'actor B cannot renew org A''s invitation');
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000006', 'x6@mana.test', 'X', 'custom_0000000a', (select hash from t where name = 'refused')) $$,
+  'P0001', 'Ce rôle n''existe plus.', 'actor B cannot invite to org A''s custom role');
+select set_config('test.inv_b', public.create_staff_invitation('a0000000-0000-0000-0000-000000000006',
+  'nouvelle@mana.test', 'Pour B', 'counselor', (select hash from t where name = 'by_b'))::text, true);
+reset role;
+select results_eq($$
+  select i.org_id, i.invited_by, l.org_id from public.staff_invitations i join public.secure_links l on l.id = i.secure_link_id
+   where i.id = current_setting('test.inv_b')::uuid
+$$, $$ values ('b0000000-0000-0000-0000-00000000000b'::uuid, 'a0000000-0000-0000-0000-000000000006'::uuid,
+               'b0000000-0000-0000-0000-00000000000b'::uuid) $$,
+  'actor B''s invitation (an address pending in org A too) and its link are org B''s: the org is the actor''s');
+select is((select count(*)::int from public.staff_invitations where org_id = 'b0000000-0000-0000-0000-00000000000a'), 6,
+  'org A still has its 6 invitations');
+
+-- =============================================================================
+-- The user RPCs: D lists, C is refused, org B sees only its own
+-- =============================================================================
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select is((select count(*)::int from public.list_staff_invitations()), 6, 'D (users.view by override) lists the 6 pending invitations');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select throws_ok($$ select public.create_staff_invitation('c2@mana.test', 'C', 'counselor', (select hash from t where name = 'refused')) $$,
-  '42501', null, 'a counselor cannot invite');
-select throws_ok(format($$ select * from public.renew_staff_invitation(%L, (select hash from t where name = 'renew_refused')) $$,
-  current_setting('test.inv1')), '42501', null, 'a counselor cannot renew');
 select throws_ok(format($$ select public.revoke_staff_invitation(%L) $$, current_setting('test.inv1')),
   '42501', null, 'a counselor cannot revoke');
 select throws_ok($$ select * from public.list_staff_invitations() $$, '42501', null, 'a counselor cannot list invitations');
 select is_empty($$ select 1 from public.staff_invitations $$, 'a counselor reads no invitation row');
 
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
-select throws_ok($$ select public.create_staff_invitation('x3@mana.test', 'X', 'counselor', (select hash from t where name = 'refused')) $$,
-  '42501', null, 'a disabled admin cannot invite');
-
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
-select is_empty($$ select 1 from public.list_staff_invitations() $$, 'org B lists none of org A''s invitations');
-select is_empty($$ select 1 from public.staff_invitations $$, 'org B reads none of org A''s invitation rows');
-select throws_ok(format($$ select * from public.renew_staff_invitation(%L, (select hash from t where name = 'renew_refused')) $$,
-  current_setting('test.inv1')),
-  'P0001', 'Cette invitation n''est plus en attente.', 'org B cannot renew org A''s invitation');
+select set_eq($$ select id from public.list_staff_invitations() $$, array[current_setting('test.inv_b')]::uuid[],
+  'org B lists its own invitation and none of org A''s');
+select set_eq($$ select id from public.staff_invitations $$, array[current_setting('test.inv_b')]::uuid[],
+  'org B reads none of org A''s invitation rows');
 select throws_ok(format($$ select public.revoke_staff_invitation(%L) $$, current_setting('test.inv1')),
   'P0001', 'Cette invitation n''est plus en attente.', 'org B cannot revoke org A''s invitation');
 
@@ -277,12 +364,14 @@ $$, $$ values (now() - interval '1 day', true, 'bounced'::text, now() - interval
 reset role;
 select set_config('test.inv1_old_link', (select secure_link_id::text from public.staff_invitations
   where id = current_setting('test.inv1')::uuid), true);
-set local role authenticated;
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
-select results_eq(format($$ select * from public.renew_staff_invitation(%L, (select hash from t where name = 'renew1')) $$,
-  current_setting('test.inv1')),
+select results_eq(format($$ select * from public.renew_staff_invitation('a0000000-0000-0000-0000-000000000001', %L,
+  (select hash from t where name = 'renew1')) $$, current_setting('test.inv1')),
   $$ values ('nouvelle@mana.test'::text, 'Marie Tremblay'::text, now() + interval '7 days') $$,
-  'renew returns what the email needs, with the new expiry');
+  'renew for actor A returns what the email needs, with the new expiry');
+select is(coalesce(current_setting('app.audit_actor', true), ''), '', 'renew restores app.audit_actor');
 
 reset role;
 select results_eq($$
@@ -300,14 +389,18 @@ select is(public.peek_secure_link((select hash from t where name = 'inv1'), fals
   'the old token is invalid');
 reset role;
 set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select is((select is_expired from public.list_staff_invitations() where id = current_setting('test.inv1')::uuid), false,
   'the renewed invitation is no longer expired');
 
 -- =============================================================================
 -- revoke_staff_invitation as admin A
 -- =============================================================================
+-- A stray app.audit_actor never overrides the JWT's user in the audit log.
+select set_config('app.audit_actor', 'a0000000-0000-0000-0000-000000000002', true);
 select lives_ok(format($$ select public.revoke_staff_invitation(%L) $$, current_setting('test.inv_orphan')),
   'A revokes an invitation');
+select set_config('app.audit_actor', '', true);
 select is((select status from public.staff_invitations where id = current_setting('test.inv_orphan')::uuid), 'revoked',
   'the invitation is revoked');
 select ok(not exists (select 1 from public.list_staff_invitations() where id = current_setting('test.inv_orphan')::uuid),
@@ -320,8 +413,13 @@ reset role;
 set local role authenticated;
 select throws_ok(format($$ select public.revoke_staff_invitation(%L) $$, current_setting('test.inv_orphan')),
   'P0001', 'Cette invitation n''est plus en attente.', 'revoking twice: « Cette invitation n''est plus en attente. »');
-select throws_ok(format($$ select * from public.renew_staff_invitation(%L, (select hash from t where name = 'renew_refused')) $$,
-  current_setting('test.inv_orphan')),
+reset role;
+select is((select actor_id from public.audit_log
+            where table_name = 'staff_invitations' and record_id = current_setting('test.inv_orphan') and action = 'update'),
+  'a0000000-0000-0000-0000-000000000001'::uuid, 'the revoke is audited as A (the JWT), not as a stray app.audit_actor');
+set local role service_role;
+select throws_ok(format($$ select * from public.renew_staff_invitation('a0000000-0000-0000-0000-000000000001', %L,
+  (select hash from t where name = 'renew_refused')) $$, current_setting('test.inv_orphan')),
   'P0001', 'Cette invitation n''est plus en attente.', 'a revoked invitation cannot be renewed');
 
 -- =============================================================================
@@ -403,14 +501,21 @@ select results_eq($$ select public.get_my_access() ->> 'role', public.get_my_acc
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select ok(not exists (select 1 from public.list_staff_invitations() where id = current_setting('test.inv1')::uuid),
   'an accepted invitation is no longer listed');
-select throws_ok($$ select public.create_staff_invitation('Nouvelle@mana.test', 'M', 'counselor', (select hash from t where name = 'refused')) $$,
+reset role;
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select throws_ok($$ select public.create_staff_invitation('a0000000-0000-0000-0000-000000000001', 'Nouvelle@mana.test', 'M', 'counselor',
+  (select hash from t where name = 'refused')) $$,
   'P0001', 'Cette personne a déjà un accès.', 'the accepted address now has access');
 
 -- =============================================================================
 -- delete_role and pending invitations (inconsistency #15), as admin A
 -- =============================================================================
-select set_config('test.inv_temp', public.create_staff_invitation('temp@mana.test', 'Temp', 'custom_0000000d',
-  (select hash from t where name = 'temp'))::text, true);
+select set_config('test.inv_temp', public.create_staff_invitation('a0000000-0000-0000-0000-000000000001',
+  'temp@mana.test', 'Temp', 'custom_0000000d', (select hash from t where name = 'temp'))::text, true);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select throws_ok($$ select public.delete_role('custom_0000000d') $$,
   'P0001', 'Ce rôle est utilisé par 1 invitation(s) en attente.', 'a role with a pending invitation cannot be deleted');
 select lives_ok(format($$ select public.revoke_staff_invitation(%L) $$, current_setting('test.inv_temp')),
@@ -444,14 +549,22 @@ select throws_ok($$ insert into public.staff_invitations (org_id, email, display
 -- =============================================================================
 select results_eq($$
   select action, coalesce(changed_fields -> 'status' ->> 'after', changed_fields ->> 'status'),
-         changed_fields ? 'secure_link_id', actor_id
+         changed_fields ? 'secure_link_id', actor_id, actor_role, source
     from public.audit_log
    where table_name = 'staff_invitations' and record_id = current_setting('test.inv1')
    order by id
-$$, $$ values ('insert'::text, 'pending'::text, true, 'a0000000-0000-0000-0000-000000000001'::uuid),
-              ('update', null, true, 'a0000000-0000-0000-0000-000000000001'::uuid),
-              ('update', 'accepted', false, null::uuid) $$,
-  'create, renew (new link, by A) and accept (by the service) are audited');
+$$, $$ values ('insert'::text, 'pending'::text, true, 'a0000000-0000-0000-0000-000000000001'::uuid, 'admin'::text,
+               'rpc:create_staff_invitation'::text),
+              ('update', null, true, 'a0000000-0000-0000-0000-000000000001'::uuid, 'admin', 'rpc:renew_staff_invitation'),
+              ('update', 'accepted', false, null::uuid, null, 'rpc:accept_staff_invitation') $$,
+  'create and renew (the service, for actor A) are audited as A with their RPC; accept as the service');
+select results_eq($$
+  select l.action, l.actor_id, l.source
+    from public.audit_log l
+   where l.table_name = 'secure_links'
+     and l.record_id = (select secure_link_id::text from public.staff_invitations where id = current_setting('test.inv_d')::uuid)
+$$, $$ values ('insert'::text, 'a0000000-0000-0000-0000-000000000002'::uuid, 'rpc:create_staff_invitation'::text) $$,
+  'the link issued for actor D is audited as D');
 select ok(exists (select 1 from public.audit_log where table_name = 'user_roles' and action = 'insert'
                    and record_id = 'a0000000-0000-0000-0000-000000000010'),
   'the new role assignment is audited');

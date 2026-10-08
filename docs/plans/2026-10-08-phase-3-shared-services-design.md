@@ -254,7 +254,7 @@ Accounts are created only when the invitee accepts. No random passwords, no Supa
 - **Constraints:** a partial unique index on `(org_id, lower(email)) where status = 'pending'`. Audited.
 - **Access:** read with `users.view`. Expiry is derived from the link, as « Expirée » when `expires_at` has passed.
 - **RPCs:**
-  - `create_staff_invitation(p_email, p_display_name, p_role, p_token_hash)` (user-scoped, `users.manage`). It locks the org row and applies the decision #28 guards: `provider` is refused (owned by Professionnels); system roles and the org's custom roles are accepted (#40); inviting an admin asks for confirmation in the UI (#36). It refuses an address that already has a profile in the org with a plain message (« Cette personne a déjà un accès. »), since `users.view` already lists them (Q8 for cross-org). It then creates the link and the invitation and returns the id.
+  - `create_staff_invitation(p_actor, p_email, p_display_name, p_role, p_token_hash)` and `renew_staff_invitation(p_actor, p_id, p_token_hash)` (**service role only**; every check is made as `p_actor`, in the actor's org). The inviter must never learn the token, otherwise she could accept an invitation to an address she does not control (plan Task 3.18). Each requires `users.manage` for the actor. It locks the org row and applies the decision #28 guards: `provider` is refused (owned by Professionnels); system roles and the org's custom roles are accepted (#40); inviting an admin asks for confirmation in the UI (#36). It refuses an address that already has a profile in the org with a plain message (« Cette personne a déjà un accès. »), since `users.view` already lists them (Q8 for cross-org). It then creates the link and the invitation and returns the id.
   - `revoke_staff_invitation(p_id)` revokes the link too. `list_staff_invitations()`.
   - `accept_staff_invitation(p_token_hash, p_user_id)` (service role) consumes the link, inserts `profiles` (org, display name, `active`) and `user_roles`, and marks the invitation `accepted`, in one transaction.
 
@@ -262,7 +262,7 @@ Accounts are created only when the invitee accepts. No random passwords, no Supa
 
 1. « Inviter » (`users.manage`) opens a dialog with « Nom », « Courriel » and « Rôle ».
 2. The **`staff-invite`** function (`verifyAuth(req, { permission: 'users.manage' })`):
-   - generates the token and calls `create_staff_invitation` with the user client, so RLS and the guards apply;
+   - generates the token and calls `create_staff_invitation` with the service client and `p_actor` = the verified user, so the guards apply to her while the token never reaches the browser;
    - sends `core.staff_invite` through `_shared/email.ts`.
 
    « Renvoyer » runs the same function with `{ invitation_id }`: new token, previous link revoked, new email.

@@ -1681,6 +1681,7 @@ export type Database = {
       }
       create_staff_invitation: {
         Args: {
+          p_actor: string
           p_display_name: string
           p_email: string
           p_role: string
@@ -1947,7 +1948,7 @@ export type Database = {
         Returns: undefined
       }
       renew_staff_invitation: {
-        Args: { p_id: string; p_token_hash: string }
+        Args: { p_actor: string; p_id: string; p_token_hash: string }
         Returns: {
           display_name: string
           email: string
