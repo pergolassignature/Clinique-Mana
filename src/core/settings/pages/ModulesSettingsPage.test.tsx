@@ -53,7 +53,7 @@ describe('ModulesSettingsPage', () => {
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.modules.saved')))
     expect(mocks.setModuleEnabled).toHaveBeenCalledWith('billing', true)
     expect(screen.getByRole('switch', { name: 'Facturation' })).toBeChecked()
-    expect(screen.getByRole('switch', { name: 'Facturation' })).toBeEnabled()
+    expect(screen.getByRole('switch', { name: 'Facturation' })).not.toHaveAttribute('aria-disabled')
     expect(mocks.toast.error).not.toHaveBeenCalled()
   })
 
@@ -93,15 +93,26 @@ describe('ModulesSettingsPage', () => {
     expect(await screen.findByRole('switch', { name: 'Professionnels' })).toBeInTheDocument()
   })
 
-  it('shows the requested state at once and disables the switches while saving', async () => {
+  it('shows the requested state at once and makes every switch inactive while saving, keeping focus', async () => {
     mocks.fetchModules.mockResolvedValue(rows)
     mocks.setModuleEnabled.mockReturnValue(new Promise(() => {}))
     renderPage()
     await userEvent.click(await screen.findByRole('switch', { name: 'Facturation' }))
     const billing = screen.getByRole('switch', { name: 'Facturation' })
-    await waitFor(() => expect(billing).toBeDisabled())
+    const professionals = screen.getByRole('switch', { name: 'Professionnels' })
+    await waitFor(() => expect(billing).toHaveAttribute('aria-disabled', 'true'))
     expect(billing).toBeChecked()
-    expect(screen.getByRole('switch', { name: 'Professionnels' })).toBeDisabled()
-    expect(screen.getByRole('switch', { name: 'Professionnels' })).toBeChecked()
+    expect(billing).toHaveFocus()
+    expect(professionals).toHaveAttribute('aria-disabled', 'true')
+    // A press while saving changes nothing.
+    await userEvent.click(professionals)
+    expect(professionals).toBeChecked()
+    expect(mocks.setModuleEnabled).toHaveBeenCalledTimes(1)
+  })
+
+  it('titles the page with the section name', async () => {
+    mocks.fetchModules.mockResolvedValue(rows)
+    renderPage()
+    expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.modules') })).toHaveAttribute('tabindex', '-1')
   })
 })
