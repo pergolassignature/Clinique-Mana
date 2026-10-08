@@ -10,9 +10,15 @@ import path from 'path'
  */
 function preloadInterLatin(): Plugin {
   const FONT = /^assets\/inter-latin-wght-normal-[\w-]+\.woff2$/
+  // The public base the build serves assets from ('/' unless `base` is set): the bundle's file names
+  // are relative to it.
+  let base = '/'
   return {
     name: 'mana:preload-inter-latin',
     apply: 'build',
+    configResolved(config) {
+      base = config.base
+    },
     transformIndexHtml: {
       order: 'post',
       handler(_html, { bundle }) {
@@ -22,7 +28,7 @@ function preloadInterLatin(): Plugin {
           {
             tag: 'link',
             // crossorigin: fonts are fetched in CORS mode; without it the preload is not reused.
-            attrs: { rel: 'preload', href: `/${file}`, as: 'font', type: 'font/woff2', crossorigin: '' },
+            attrs: { rel: 'preload', href: `${base}${file}`, as: 'font', type: 'font/woff2', crossorigin: '' },
             injectTo: 'head',
           },
         ]
@@ -41,6 +47,8 @@ export default defineConfig({
     },
   },
   build: {
+    // No sourcemaps (Vite's default): even `hidden` ones would be served from /assets. They come
+    // with the Sentry upload at « Mise en service », which deletes them after uploading.
     // Just above the largest chunk (react, ~217 kB): a new heavy dependency should be noticed.
     chunkSizeWarningLimit: 230,
     rollupOptions: {

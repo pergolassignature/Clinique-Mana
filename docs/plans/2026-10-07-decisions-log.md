@@ -23,7 +23,7 @@ Jonathan asked for the work to continue without questions until a local version 
 | 17 | Explicit sign-out | Lands on plain `/connexion` (no return to the previous user's page); an expired session keeps the return target | Shared reception PCs. |
 | 18 | Local address | `http://localhost:5173` only (not `127.0.0.1`) | Vite listens on `localhost`; one origin avoids split sessions. |
 | 19 | Settings visibility | « Paramètres » (nav item and `parametres/*` route) follows the accessible sections: shown when the user can access at least one settings section, otherwise no menu item and the route shows « accès refusé » | `settings.view` alone led staff to an empty page; the menu should never offer a place with nothing in it. |
-| 20 | Node version | Node 22 pinned (`.nvmrc`, `engines: >=22 <23`), matching CI | One runtime everywhere. The Vercel project setting must be switched to Node.js 22.x at deploy time (release sequence step 2). |
+| 20 | Node version | Node 22 pinned (`.nvmrc`, `engines: >=22.12 <23`), matching CI. 22.12 is the floor `@vitejs/plugin-react-swc` 4 requires | One runtime everywhere. The Vercel project setting must be switched to Node.js 22.x at deploy time (release sequence step 2). |
 | 21 | Auth email templates | French, clinic-branded templates for the 6 auth emails, versioned in `supabase/templates/` + `config.toml`, pasted identically in the staging dashboard | First real email landed in Gmail spam: Supabase's default English two-line template looks like phishing. Links on the clinic's own domain follow in Phase 3. |
 
 ## Phase 2 decisions (with Jonathan, 2026-10-07)
