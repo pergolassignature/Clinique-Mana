@@ -4,6 +4,7 @@ import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
 import { useRoleLabel } from '@/core/access/org-roles'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
+import { useShellCrumbLabel } from '@/shared/lib/shell-crumb'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +16,7 @@ import {
 import { focusRing } from '@/shared/ui/field-classes'
 import { NotificationBell } from './NotificationBell'
 import { isApplePlatform, paletteShortcutLabel } from './platform'
-import type { ShellTitle } from './shell-pages'
+import type { ShellPage, ShellTitle } from './shell-pages'
 import { TopbarIconButton } from './TopbarIconButton'
 import { UserAvatar } from './UserAvatar'
 
@@ -34,9 +35,28 @@ interface TopbarProps {
   searchButtonRef: RefObject<HTMLButtonElement | null>
 }
 
+/** A breadcrumb step before the last one: a guarded link, then the separator. */
+function CrumbLink({ page }: { page: ShellPage }) {
+  return (
+    <li className="flex shrink-0 items-center gap-2">
+      <GuardedNavLink
+        to={page.path}
+        end
+        className={`rounded-sm text-muted-foreground transition-colors duration-120 hover:text-foreground ${focusRing}`}
+      >
+        {t(page.labelKey)}
+      </GuardedNavLink>
+      <span className="text-subtle" aria-hidden>
+        /
+      </span>
+    </li>
+  )
+}
+
 /**
  * The page's banner, 48 px: sidebar toggle, breadcrumb and title; page search, the notification
- * bell and the user menu.
+ * bell and the user menu. A detail page adds its own last crumb (`useShellCrumb`): the nav page
+ * before it becomes a link back.
  */
 export function Topbar({
   title,
@@ -52,6 +72,7 @@ export function Topbar({
 }: TopbarProps) {
   const { display_name, role } = useReadyAccess()
   const roleText = useRoleLabel(role)
+  const crumb = useShellCrumbLabel()
   const avatarButtonRef = useRef<HTMLButtonElement>(null)
   // A menu action runs once the menu has closed and focus is back on the avatar, so the
   // unsaved-changes dialog it may open returns focus there after « Rester ».
@@ -90,23 +111,11 @@ export function Topbar({
         {title && (
           <nav aria-label={t('nav.breadcrumb')} className="min-w-0">
             <ol className="flex min-w-0 items-center gap-2 text-sm">
-              {title.parent && (
-                <li className="flex shrink-0 items-center gap-2">
-                  <GuardedNavLink
-                    to={title.parent.path}
-                    end
-                    className={`rounded-sm text-muted-foreground transition-colors duration-120 hover:text-foreground ${focusRing}`}
-                  >
-                    {t(title.parent.labelKey)}
-                  </GuardedNavLink>
-                  <span className="text-subtle" aria-hidden>
-                    /
-                  </span>
-                </li>
-              )}
+              {title.parent && <CrumbLink page={title.parent} />}
+              {crumb !== null && <CrumbLink page={title.current} />}
               <li className="min-w-0">
                 <span aria-current="page" className="block truncate font-medium text-foreground">
-                  {t(title.current.labelKey)}
+                  {crumb ?? t(title.current.labelKey)}
                 </span>
               </li>
             </ol>
