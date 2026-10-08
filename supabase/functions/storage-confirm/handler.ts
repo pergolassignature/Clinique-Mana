@@ -52,6 +52,7 @@ import {
   errorResponse,
   handleCors,
   jsonResponse,
+  refusalResponse,
   verifyAuth,
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
@@ -188,17 +189,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       if (rejected.error) {
         if (rejected.error.code === '22023') return conflict()
         await report('reject_failed')
-        return errorResponse('invalid_request', message, 400, req)
+        return refusalResponse(message, req)
       }
       const removed = await objects.remove([file.object_path])
       if (removed.error) await report('object_remove_failed')
-      return errorResponse('invalid_request', message, 400, req)
+      return refusalResponse(message, req)
     }
 
     const info = await objects.info(file.object_path)
     if (info.error) {
       return isMissingObject(info.error)
-        ? errorResponse('invalid_request', NOT_RECEIVED, 400, req)
+        ? refusalResponse(NOT_RECEIVED, req)
         : await fail('object_info_failed')
     }
     if (info.data.contentType !== file.mime_type) {
@@ -211,7 +212,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const download = await objects.download(file.object_path).asStream()
     if (download.error || !download.data) {
       return isMissingObject(download.error)
-        ? errorResponse('invalid_request', NOT_RECEIVED, 400, req)
+        ? refusalResponse(NOT_RECEIVED, req)
         : await fail('object_download_failed')
     }
     const kind = file.max_image_side ? IMAGE_KINDS[file.mime_type] : undefined

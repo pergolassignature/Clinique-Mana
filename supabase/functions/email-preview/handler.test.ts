@@ -144,6 +144,7 @@ Deno.test('email-preview: unclosed braces → 400 invalid_request « Accolades n
         status: 400,
         code: 'invalid_request',
         message: 'Accolades non fermées dans le texte.',
+        refusal: true,
       }, JSON.stringify(over))
     }
     assertEquals(service.calls, [])

@@ -26,6 +26,7 @@ import {
   errorResponse,
   handleCors,
   jsonResponse,
+  refusalResponse,
   verifyAuth,
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
@@ -75,7 +76,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       input.body,
       input.button_label,
     )
-    if (braces) return errorResponse('invalid_request', braces, 400, req)
+    if (braces) return refusalResponse(braces, req)
 
     const orgId = auth.access.org_id
     const report = (code: string) =>

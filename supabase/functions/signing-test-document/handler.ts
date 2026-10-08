@@ -37,6 +37,7 @@ import {
   errorResponse,
   handleCors,
   jsonResponse,
+  refusalResponse,
   verifyAuth,
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
@@ -128,10 +129,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           req,
         )
       }
-      const message =
-        result.code === 'invalid_request' || result.code === 'send_in_progress'
-          ? result.message
-          : 'The test document could not be sent'
+      // The database's French refusal (P0001), shown as is.
+      if (result.code === 'invalid_request') {
+        return refusalResponse(result.message, req)
+      }
+      const message = result.code === 'send_in_progress'
+        ? result.message
+        : 'The test document could not be sent'
       return errorResponse(
         result.code === 'send_in_progress' ? 'conflict' : result.code,
         message,

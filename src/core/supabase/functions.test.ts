@@ -1,6 +1,6 @@
 import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { FunctionCallError, invokeFunction } from './functions'
+import { FunctionCallError, invokeFunction, refusalMessage } from './functions'
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }))
 vi.mock('@/core/supabase/client', () => ({ supabase: { functions: { invoke: mocks.invoke } } }))
@@ -62,5 +62,38 @@ describe('invokeFunction', () => {
     await expect(invokeFunction('x', {})).rejects.toMatchObject({ code: 'internal', status: 504 })
     mocks.invoke.mockResolvedValueOnce({ data: null, error: new FunctionsFetchError(new TypeError('offline')) })
     await expect(invokeFunction('x', {})).rejects.toMatchObject({ code: 'network', status: 0 })
+  })
+})
+
+describe('refusalMessage', () => {
+  const refusal = (extra: Record<string, unknown>, status = 400, code = 'invalid_request', message = 'Cette personne a déjà un accès.') =>
+    new FunctionCallError(code, status, message, extra)
+
+  it('passes on the French message of a 400 the function flagged refusal: true', () => {
+    expect(refusalMessage(refusal({ refusal: true }))).toBe('Cette personne a déjà un accès.')
+  })
+
+  it('reads the flag from the answer as invokeFunction parses it', async () => {
+    mocks.invoke.mockResolvedValue({
+      data: null,
+      error: httpError(400, { error: { code: 'invalid_request', message: "Ce fichier n'est pas du type annoncé.", refusal: true } }),
+    })
+    const error = (await invokeFunction('storage-confirm', {}).catch((e: unknown) => e)) as FunctionCallError
+    expect(refusalMessage(error)).toBe("Ce fichier n'est pas du type annoncé.")
+  })
+
+  it('returns null for any 400 without the flag, whatever its message', () => {
+    expect(refusalMessage(refusal({}))).toBeNull()
+    expect(refusalMessage(refusal({}, 400, 'invalid_request', 'Invalid request body'))).toBeNull()
+    expect(refusalMessage(refusal({}, 400, 'invalid_request', 'A manual run needs org_id'))).toBeNull()
+    expect(refusalMessage(refusal({ refusal: 'true' }))).toBeNull()
+    expect(refusalMessage(refusal({ field: 'email' }))).toBeNull()
+  })
+
+  it('returns null for another status or code, even flagged', () => {
+    expect(refusalMessage(refusal({ refusal: true }, 409, 'conflict'))).toBeNull()
+    expect(refusalMessage(refusal({ refusal: true }, 500, 'internal'))).toBeNull()
+    expect(refusalMessage(refusal({ refusal: true }, 400, 'weak_password'))).toBeNull()
+    expect(refusalMessage(refusal({ refusal: true }, 400, 'invalid_request', ''))).toBeNull()
   })
 })

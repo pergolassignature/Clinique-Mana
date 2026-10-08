@@ -166,6 +166,7 @@ Deno.test('storage-upload: a P0001 is passed through with its French message; no
       status: 400,
       code: 'invalid_request',
       message,
+      refusal: true,
     })
     assertEquals(service.storageCalls, [])
   })

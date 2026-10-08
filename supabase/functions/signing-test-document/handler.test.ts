@@ -5,7 +5,10 @@ import type { Deps } from '../_shared/deps.ts'
 import { DOCUMENSO_PATHS } from '../_shared/documenso.ts'
 import { fakeDocumenso } from '../_shared/testing/fake-documenso.ts'
 import { fakeSigningDb } from '../_shared/testing/fake-signing-db.ts'
-import { fakeSupabase } from '../_shared/testing/fake-supabase.ts'
+import {
+  fakeSupabase,
+  type RpcRoute,
+} from '../_shared/testing/fake-supabase.ts'
 import { fixedClock } from '../_shared/testing/fixed-clock.ts'
 import { captureConsole, withEnv } from '../_shared/testing/env.ts'
 import {
@@ -23,7 +26,11 @@ const URL_ = 'http://fn.test/functions/v1/signing-test-document'
 const KEY = '9b1c1b2e-3d4a-4b5c-8d9e-0f1a2b3c4d5e'
 
 function setup(
-  options: { permissions?: string[]; apiKey?: string | null } = {},
+  options: {
+    permissions?: string[]
+    apiKey?: string | null
+    rpc?: Record<string, RpcRoute>
+  } = {},
 ) {
   const clock = fixedClock('2026-10-08T12:00:00.000Z')
   const fake = fakeDocumenso()
@@ -32,7 +39,11 @@ function setup(
     now: clock.now,
     apiKey: options.apiKey,
   })
-  const service = fakeSupabase({ rpc: db.rpc, storage: db.storage })
+  const service = fakeSupabase({
+    // db.rpc itself unless overridden: a test may swap one of its routes later.
+    rpc: options.rpc ? { ...db.rpc, ...options.rpc } : db.rpc,
+    storage: db.storage,
+  })
   const user = fakeSupabase({
     user: { id: ADMIN_ID },
     rpc: {
@@ -215,6 +226,24 @@ Deno.test('signing-test-document: not configured → 503; Documenso down → 502
     assertEquals(res.status, 400)
     res = await setup().handler(post({ idempotency_key: 'a b' }))
     assertEquals(res.status, 400)
+  })
+})
+
+Deno.test('signing-test-document: a database refusal (P0001) → 400 with its French message, flagged refusal: true', async () => {
+  await run(async () => {
+    const message = 'Chaque signataire doit avoir sa propre adresse courriel.'
+    const s = setup({
+      rpc: {
+        create_signature_request: { error: { code: 'P0001', message } },
+      },
+    })
+    const res = await s.handler(post())
+    assertEquals(res.status, 400)
+    assertEquals((await res.json()).error, {
+      code: 'invalid_request',
+      message,
+      refusal: true,
+    })
   })
 })
 

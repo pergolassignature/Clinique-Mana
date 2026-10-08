@@ -29,8 +29,13 @@ describe('signingErrorMessage', () => {
   })
 
   it("passes a database refusal's French message on as is", () => {
-    const error = new FunctionCallError('invalid_request', 400, 'Les signataires ne correspondent pas à la demande existante.')
+    const error = new FunctionCallError('invalid_request', 400, 'Les signataires ne correspondent pas à la demande existante.', { refusal: true })
     expect(signingErrorMessage(error)).toBe('Les signataires ne correspondent pas à la demande existante.')
+  })
+
+  it('never shows the message of a 400 the function did not flag a refusal', () => {
+    expect(signingErrorMessage(new FunctionCallError('invalid_request', 400, 'Invalid request body'))).toBe(t('common.errors.generic'))
+    expect(mocks.captureException).toHaveBeenCalledOnce()
   })
 
   it('reports anything else (code and message only) and shows the generic text', () => {

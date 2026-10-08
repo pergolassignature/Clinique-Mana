@@ -22,6 +22,7 @@ Deno.test('rpcErrorResponse: P0001 passes its French message; 42501 → 403; 220
     [400, {
       code: 'invalid_request',
       message: 'Cette personne a déjà un accès.',
+      refusal: true,
     }],
   )
   assertEquals(

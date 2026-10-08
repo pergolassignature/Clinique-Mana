@@ -9,7 +9,8 @@ vi.mock('@sentry/react', () => ({ captureException }))
 
 afterEach(() => vi.clearAllMocks())
 
-const fnError = (code: string, status: number, message = 'x', retryAfter: number | null = null) => new FunctionCallError(code, status, message, {}, retryAfter)
+const fnError = (code: string, status: number, message = 'x', retryAfter: number | null = null, extra: Record<string, unknown> = {}) =>
+  new FunctionCallError(code, status, message, extra, retryAfter)
 
 describe('uploadErrorMessage', () => {
   it.each([
@@ -18,13 +19,14 @@ describe('uploadErrorMessage', () => {
     ["Le fichier n'a pas été reçu."],
     ['Cette image dépasse la taille permise (4 000 pixels de côté).'],
   ])('shows the French refusal of the functions as is: %s', (message) => {
-    expect(uploadErrorMessage(fnError('invalid_request', 400, message))).toBe(message)
+    expect(uploadErrorMessage(fnError('invalid_request', 400, message, null, { refusal: true }))).toBe(message)
     expect(captureException).not.toHaveBeenCalled()
   })
 
-  it('never shows a technical 400; reports it', () => {
+  it('never shows a 400 the function did not flag a refusal, whatever its message; reports it', () => {
     expect(uploadErrorMessage(fnError('invalid_request', 400, 'Invalid request body'))).toBe(t('common.errors.generic'))
-    expect(captureException).toHaveBeenCalledTimes(1)
+    expect(uploadErrorMessage(fnError('invalid_request', 400, "Le fichier n'a pas été reçu."))).toBe(t('common.errors.generic'))
+    expect(captureException).toHaveBeenCalledTimes(2)
   })
 
   it('a 429 says so, with the delay, and is not reported', () => {

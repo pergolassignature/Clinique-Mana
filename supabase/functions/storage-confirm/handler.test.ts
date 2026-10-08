@@ -208,6 +208,7 @@ const WRONG_TYPE = {
   status: 400,
   code: 'invalid_request',
   message: "Ce fichier n'est pas du type annoncé.",
+  refusal: true,
 }
 /** Rejected first, then removed. */
 const REFUSED = ['reject_stored_file', `remove:${JSON.stringify([PNG_PATH])}`]
@@ -364,6 +365,7 @@ Deno.test('storage-confirm: a real size above the purpose limit → refused with
       status: 400,
       code: 'invalid_request',
       message: 'Ce fichier dépasse la taille permise (2 Mo).',
+      refusal: true,
     }
     // Caught from storage's size, before any download.
     const early = harness({ object: { bytes, contentType: 'image/png' } })
@@ -436,6 +438,7 @@ Deno.test('storage-confirm: an image over max_image_side (either side) → refus
         code: 'invalid_request',
         message:
           'Cette image dépasse la taille permise (4 000 pixels de côté).',
+        refusal: true,
       }, `${width} × ${height}`)
       assertEquals(events, REFUSED)
     }
@@ -477,6 +480,7 @@ Deno.test('storage-confirm: an image whose size cannot be read, or is zero, → 
         status: 400,
         code: 'invalid_request',
         message: 'Cette image ne peut pas être lue.',
+        refusal: true,
       }, name)
       assertEquals(events, REFUSED, name)
     }
@@ -611,6 +615,7 @@ Deno.test('storage-confirm: the object is not there yet → 400 « pas reçu »,
       status: 400,
       code: 'invalid_request',
       message: "Le fichier n'a pas été reçu.",
+      refusal: true,
     })
     assertEquals(events, [])
   })

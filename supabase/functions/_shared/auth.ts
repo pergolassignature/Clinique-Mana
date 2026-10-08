@@ -175,6 +175,26 @@ export function errorResponse(
 }
 
 /**
+ * A refusal the user can act on: 400 (or `status`) `invalid_request` whose
+ * French `message` the browser shows as is, flagged `refusal: true`
+ * (`src/core/supabase/functions.ts` `refusalMessage` shows nothing else). For
+ * a P0001 relayed from an RPC (`rpcErrorResponse`, `createSignatureRequest`)
+ * or a function's own French sentence (`storage-confirm`). Every other
+ * `invalid_request` carries an English message, never shown.
+ */
+export function refusalResponse(
+  message: string,
+  req?: Request,
+  status = 400,
+): Response {
+  return jsonResponse(
+    { error: { code: 'invalid_request', message, refusal: true } },
+    status,
+    req,
+  )
+}
+
+/**
  * Call first in every browser-facing handler: answers the CORS preflight,
  * cacheable for 10 minutes (`Access-Control-Max-Age: 600`).
  */

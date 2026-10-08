@@ -389,7 +389,7 @@ describe('IdentitySettingsPage', () => {
 
     it("shows the functions' refusal in the card, and keeps the logo", async () => {
       const { FunctionCallError } = await import('@/core/supabase/functions')
-      mocks.storage.uploadFile.mockRejectedValue(new FunctionCallError('invalid_request', 400, "Ce fichier n'est pas du type annoncé."))
+      mocks.storage.uploadFile.mockRejectedValue(new FunctionCallError('invalid_request', 400, "Ce fichier n'est pas du type annoncé.", { refusal: true }))
       await renderPage({ organization: withLogo })
       await userEvent.upload(fileInput(), new File([PNG], 'a.png', { type: 'image/png' }))
       expect(await within(logoCard()).findByRole('alert')).toHaveTextContent("Ce fichier n'est pas du type annoncé.")

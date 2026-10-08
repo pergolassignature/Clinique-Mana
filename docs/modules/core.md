@@ -331,7 +331,7 @@ All of it is data seeded by the module's own migration (core never imports modul
 - `src/core/users/`: users list and sheet (`UserSheet`: role, status, one switch per permission), role matrix (`RoleMatrix`, `RoleNameDialog`, `DeleteRoleDialog`), `permissions.ts` (mirrors the database guards so the UI hides what the server would refuse).
 - `src/core/audit/`: journal api/hooks, `labels.ts` (French field names and values), `period.ts`.
 - Phase 3:
-  - `src/core/supabase/functions.ts`: `invokeFunction(name, body, { signal })` and `FunctionCallError` (`code`, `status`, `field`, `extra`, `retryAfter`), `refusalMessage` (a French refusal passed on by a function); every edge-function call goes through it;
+  - `src/core/supabase/functions.ts`: `invokeFunction(name, body, { signal })` and `FunctionCallError` (`code`, `status`, `field`, `extra`, `retryAfter`), `refusalMessage` (the French text of a 400 the function flagged `refusal: true`, else null); every edge-function call goes through it;
   - `src/core/email/`: « Courriels » (sender, keys, templates with preview and test, send log), `status.ts` (`emailStatusLabel`);
   - `src/core/jobs/`: « Tâches planifiées » (`jobKeys`, labels, schedule text);
   - `src/core/notifications/`: the bell's count (polled), list and « À surveiller » (`notificationKeys`); `src/app/shell/NotificationBell.tsx`, `src/app/HomeImportantNotices.tsx`;

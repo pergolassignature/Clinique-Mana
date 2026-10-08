@@ -248,10 +248,11 @@ Deno.test('staff-invite: a P0001 from the RPC â†’ 400 with its message; 42501 â†
       rpc: { create_staff_invitation: { error: { code: 'P0001', message } } },
     })
     const error = await errorOf(await p0001.handler(post(INVITE)))
-    assertEquals([error.status, error.code, error.message], [
+    assertEquals([error.status, error.code, error.message, error.refusal], [
       400,
       'invalid_request',
       message,
+      true,
     ])
     assertEquals(p0001.http.calls, [])
 

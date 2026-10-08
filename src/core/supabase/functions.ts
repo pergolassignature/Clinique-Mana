@@ -29,19 +29,14 @@ export class FunctionCallError extends Error {
 }
 
 /**
- * The messages of the fieldless 400s a function writes itself (a body it cannot read, 22023):
- * nothing else tells them from a P0001's French message, and they are never shown. A body check
- * that concerns a field carries its `field` instead.
- */
-const TECHNICAL_MESSAGES = new Set(['Invalid request', 'Invalid request body', 'Invalid JSON body'])
-
-/**
- * The French text of a refusal the user can act on: a 400 `invalid_request` with no `field`
- * whose message is not a technical one, i.e. an RPC's P0001 passed on, or a function's own French
- * message (« Ce fichier n'est pas du type annoncé. »). Null otherwise.
+ * The French text of a refusal the user can act on, or null: a 400 `invalid_request` that the
+ * function flagged `refusal: true` (`refusalResponse` in `supabase/functions/_shared/auth.ts`): an
+ * RPC's P0001 passed on, or a function's own French sentence (« Ce fichier n'est pas du type
+ * annoncé. »). Any other 400 carries an English message, which the caller replaces with its
+ * generic text.
  */
 export function refusalMessage(error: FunctionCallError): string | null {
-  return error.status === 400 && error.code === 'invalid_request' && error.field === undefined && !TECHNICAL_MESSAGES.has(error.message)
+  return error.status === 400 && error.code === 'invalid_request' && error.extra.refusal === true && error.message !== ''
     ? error.message
     : null
 }

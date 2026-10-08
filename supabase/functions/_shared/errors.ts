@@ -4,7 +4,7 @@
  * wrappers (e.g. an RPC error in `webhooks.ts`), and `rpcErrorResponse`, the
  * answer for a user-facing RPC's error.
  */
-import { type ErrorCode, errorResponse } from './auth.ts'
+import { type ErrorCode, errorResponse, refusalResponse } from './auth.ts'
 
 export type { ErrorCode }
 
@@ -21,8 +21,8 @@ export class FunctionError extends Error {
 
 /**
  * The answer for an RPC error, by SQLSTATE (plan « Error codes in SQL »):
- * P0001 → 400 `invalid_request` with the RPC's French message, for the UI to
- * show; 42501 → 403 `forbidden`; 22023 → 400 `invalid_request` (its message
+ * P0001 → 400 `invalid_request` with the RPC's French message, flagged
+ * `refusal: true` for the UI to show (`refusalResponse`); 42501 → 403 `forbidden`; 22023 → 400 `invalid_request` (its message
  * may hold an argument: not passed through); anything else → 500 `internal`,
  * which the caller reports.
  */
@@ -32,12 +32,9 @@ export function rpcErrorResponse(
 ): Response {
   switch (error.code) {
     case 'P0001':
-      return errorResponse(
-        'invalid_request',
-        error.message ?? 'Invalid request',
-        400,
-        req,
-      )
+      return error.message
+        ? refusalResponse(error.message, req)
+        : errorResponse('invalid_request', 'Invalid request', 400, req)
     case '42501':
       return errorResponse('forbidden', 'Not allowed', 403, req)
     case '22023':

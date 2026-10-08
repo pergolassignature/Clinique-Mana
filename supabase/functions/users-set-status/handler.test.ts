@@ -217,6 +217,8 @@ Deno.test('users-set-status: an RPC refusal → its answer, and Auth is never ca
         await handler(post({ user_id: TARGET, status: 'active' })),
       )
       assertEquals([body.status, body.code], [status, code])
+      // Only the P0001 is flagged a refusal (its French message is shown).
+      assertEquals(body.refusal, error.code === 'P0001' ? true : undefined)
       if (error.code === 'P0001') assertEquals(body.message, message)
       assertEquals(service.adminCalls, [])
     }

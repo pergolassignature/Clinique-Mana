@@ -289,7 +289,7 @@ describe('inviteStaff and resendInvitation (the staff-invite function only)', ()
   )
 
   it('passes an RPC refusal on as that RPC error: P0001 with its French message, 42501', async () => {
-    invokeFunction.mockRejectedValue(new FunctionCallError('invalid_request', 400, 'Cette personne a déjà un accès.'))
+    invokeFunction.mockRejectedValue(new FunctionCallError('invalid_request', 400, 'Cette personne a déjà un accès.', { refusal: true }))
     await expect(inviteStaff({ email: 'a@b.ca', displayName: 'A', role: 'counselor' })).rejects.toEqual({ code: 'P0001', message: 'Cette personne a déjà un accès.' })
     invokeFunction.mockRejectedValue(new FunctionCallError('forbidden', 403, 'Not allowed'))
     await expect(resendInvitation('i1')).rejects.toEqual({ code: '42501', message: 'Not allowed' })
@@ -300,6 +300,8 @@ describe('inviteStaff and resendInvitation (the staff-invite function only)', ()
       // A French-looking message does not make a field refusal a P0001: the field decides.
       new FunctionCallError('invalid_request', 400, 'Courriel refusé', { field: 'email' }),
       new FunctionCallError('invalid_request', 400, 'Invalid request body'),
+      // Nor does a French message without the function's refusal flag.
+      new FunctionCallError('invalid_request', 400, 'Cette personne a déjà un accès.'),
       new FunctionCallError('rate_limited', 429, 'Too many attempts'),
       new FunctionCallError('network', 0, 'Function unreachable'),
     ]) {
@@ -336,7 +338,7 @@ describe('setUserStatus (the users-set-status function)', () => {
   })
 
   it('passes the guards on as RPC errors; an unban failure stays a FunctionCallError', async () => {
-    invokeFunction.mockRejectedValue(new FunctionCallError('invalid_request', 400, failure.message))
+    invokeFunction.mockRejectedValue(new FunctionCallError('invalid_request', 400, failure.message, { refusal: true }))
     await expect(setUserStatus('u2', 'disabled')).rejects.toEqual(failure)
     const unban = new FunctionCallError('provider_error', 502, 'Account could not be re-enabled')
     invokeFunction.mockRejectedValue(unban)
