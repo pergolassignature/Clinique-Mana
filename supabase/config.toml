@@ -108,3 +108,13 @@ verify_jwt = false
 verify_jwt = false
 [functions.resend-webhook]
 verify_jwt = false
+# Public token functions: the anon key is required, no user; the token in the body authorizes
+# (CLAUDE.md §7, plan inconsistency #14).
+[functions.resolve-link]
+verify_jwt = true
+[functions.accept-invite]
+verify_jwt = true
+[functions.staff-invite]
+verify_jwt = false
+[functions.users-set-status]
+verify_jwt = false

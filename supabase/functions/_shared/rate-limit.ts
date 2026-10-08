@@ -8,6 +8,7 @@
  * with `reason: 'unavailable'`: answer it 503 `not_configured`, not 429.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { errorResponse } from './auth.ts'
 import { byteaHex } from './bytea.ts'
 import { reportError } from './report.ts'
 
@@ -54,6 +55,15 @@ export const LIMITS = {
   inviteAcceptLink: {
     bucket: 'links.accept_link',
     max: 5,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `staff-invite` (invite and « Renvoyer »), per caller: each call issues a
+   * link and sends an email, on top of the email limits.
+   */
+  staffInviteUser: {
+    bucket: 'invites.staff_user',
+    max: 30,
     windowSeconds: 3_600,
   },
 } as const satisfies Record<string, RateLimit>
@@ -222,4 +232,26 @@ export async function consume(
     hits: row.hits,
     retryAfter: row.retry_after_seconds,
   }
+}
+
+/**
+ * The answer for a refused hit, or null when allowed: 429 `rate_limited`
+ * with `Retry-After`, or 503 `not_configured` when the limiter itself failed.
+ */
+export function limitResponse(
+  result: RateLimitResult,
+  req?: Request,
+): Response | null {
+  if (result.allowed) return null
+  if (result.reason === 'unavailable') {
+    return errorResponse(
+      'not_configured',
+      'Rate limiting is unavailable',
+      503,
+      req,
+    )
+  }
+  const res = errorResponse('rate_limited', 'Too many attempts', 429, req)
+  res.headers.set('Retry-After', String(result.retryAfter))
+  return res
 }
