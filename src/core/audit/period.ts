@@ -19,7 +19,11 @@ function shiftDay(date: string, days: number): string {
  * « Tout ». `p_from` is a timestamptz, so a clinic date is never sent as is.
  */
 export function periodStart(period: AuditPeriod, now: Date = new Date()): string | null {
+  return periodStartOn(period, getClinicDateString(now))
+}
+
+/** `periodStart` from the clinic's date (`yyyy-MM-dd`, e.g. `useClinicDate()`). */
+export function periodStartOn(period: AuditPeriod, today: string): string | null {
   if (period === 'all') return null
-  const firstDay = shiftDay(getClinicDateString(now), 1 - PERIOD_DAYS[period])
-  return clinicTimeToUTC(firstDay, '00:00')
+  return clinicTimeToUTC(shiftDay(today, 1 - PERIOD_DAYS[period]), '00:00')
 }

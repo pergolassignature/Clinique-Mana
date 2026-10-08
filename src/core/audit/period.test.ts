@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { resetClinicTimezone, setClinicTimezone } from '@/shared/lib/timezone'
-import { AUDIT_PERIODS, periodStart } from './period'
+import { AUDIT_PERIODS, periodStart, periodStartOn } from './period'
 
 afterEach(() => resetClinicTimezone())
 
@@ -40,5 +40,10 @@ describe('periodStart (America/Toronto)', () => {
   it('uses the configured clinic timezone', () => {
     setClinicTimezone('America/Vancouver')
     expect(periodStart('today', now)).toBe('2026-10-07T07:00:00.000Z')
+  })
+
+  it('also starts from a clinic date', () => {
+    expect(periodStartOn('7d', '2026-10-07')).toBe('2026-10-01T04:00:00.000Z')
+    expect(periodStartOn('all', '2026-10-07')).toBeNull()
   })
 })

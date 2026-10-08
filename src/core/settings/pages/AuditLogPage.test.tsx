@@ -9,12 +9,19 @@ import { AuditLogPage } from './AuditLogPage'
 
 const mocks = vi.hoisted(() => ({
   api: { fetchAuditEntries: vi.fn(), fetchAuditActors: vi.fn(), fetchAuditCatalog: vi.fn(), AUDIT_PAGE_SIZE: 2 },
+  /** The clinic date the page sees; null = the real one (from the possibly faked clock). */
+  clinicDate: { value: null as string | null },
 }))
 vi.mock('@/core/audit/api', () => mocks.api)
+vi.mock('@/shared/lib/use-clinic-date', async () => {
+  const { getClinicDateString } = await vi.importActual<typeof import('@/shared/lib/timezone')>('@/shared/lib/timezone')
+  return { useClinicDate: () => mocks.clinicDate.value ?? getClinicDateString(new Date()) }
+})
 
 afterEach(() => {
   vi.clearAllMocks()
   vi.useRealTimers()
+  mocks.clinicDate.value = null
 })
 
 const NB = ' '
@@ -66,7 +73,10 @@ const SEED = entry({
   source: 'seed',
 })
 
-async function renderPage({ pages = [[UPDATE, BANK_READ]] as AuditEntry[][] } = {}) {
+/** The app's defaults: queries are fresh for 2 minutes and kept 5 (App.tsx). */
+const appQueryClient = () => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 2 * 60_000, gcTime: 5 * 60_000 } } })
+
+async function renderPage({ pages = [[UPDATE, BANK_READ]] as AuditEntry[][], queryClient = appQueryClient() } = {}) {
   for (const page of pages) mocks.api.fetchAuditEntries.mockResolvedValueOnce(page)
   mocks.api.fetchAuditEntries.mockResolvedValue([])
   mocks.api.fetchAuditActors.mockResolvedValue([
@@ -77,9 +87,10 @@ async function renderPage({ pages = [[UPDATE, BANK_READ]] as AuditEntry[][] } = 
     permissions: [{ key: 'audit.view', description: "Consulter le journal d'audit" }],
     modules: [{ key: 'professionals', name: 'Professionnels' }],
   })
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={queryClient}>{renderInSettingsSection(<AuditLogPage />)}</QueryClientProvider>)
+  const ui = () => <QueryClientProvider client={queryClient}>{renderInSettingsSection(<AuditLogPage />)}</QueryClientProvider>
+  const result = render(ui())
   await waitFor(() => expect(screen.queryByText(t('common.loading'))).not.toBeInTheDocument())
+  return { ...result, rerenderPage: () => result.rerender(ui()), queryClient, ui }
 }
 
 const table = () => screen.getByRole('table')
@@ -279,13 +290,78 @@ describe('AuditLogPage', () => {
     expect(live).toBeEmptyDOMElement()
     await user.selectOptions(filter('Section'), 'Secrets')
     await waitFor(() => expect(screen.getByText(t('audit.emptyFiltered.title'), { selector: 'p:not([data-testid])' })).toBeInTheDocument())
-    expect(live).toHaveTextContent(t('audit.emptyFiltered.title'))
+    await waitFor(() => expect(live).toHaveTextContent(t('audit.emptyFiltered.title')))
     // Heard once: the visible title is hidden from screen readers, the live region says it.
     expect(screen.getByText(t('audit.emptyFiltered.title'), { selector: 'p:not([data-testid])' })).toHaveAttribute('aria-hidden', 'true')
     await user.click(screen.getByRole('button', { name: t('audit.filters.reset') }))
     expect(filter('Section')).toHaveValue('')
     expect(filter('Section')).toHaveFocus()
     await waitFor(() => expect(mocks.api.fetchAuditEntries).toHaveBeenLastCalledWith(NO_FILTERS, null))
+  })
+
+  it('empties the live region on every filter change, so a second empty result is announced again', async () => {
+    const user = userEvent.setup()
+    await renderPage({ pages: [[UPDATE], [], []] })
+    const live = screen.getByTestId('audit-live')
+    await user.selectOptions(filter('Section'), 'Secrets')
+    await waitFor(() => expect(live).toHaveTextContent(t('audit.emptyFiltered.title')))
+    await user.selectOptions(filter('Période'), "Aujourd'hui")
+    expect(live).toBeEmptyDOMElement()
+    await waitFor(() => expect(live).toHaveTextContent(t('audit.emptyFiltered.title')))
+  })
+
+  it('shows a new entry when the person comes back to the page, loading one fresh page', async () => {
+    const { unmount, ui, queryClient } = await renderPage({ pages: [[BANK_READ, BANK_UPDATE], [SEED]] })
+    await userEvent.setup().click(screen.getByRole('button', { name: t('audit.loadMore') }))
+    await waitFor(() => expect(rows()).toHaveLength(3))
+    unmount()
+    mocks.api.fetchAuditEntries.mockClear()
+    mocks.api.fetchAuditEntries.mockResolvedValueOnce([UPDATE, BANK_READ])
+    render(ui())
+    // UPDATE (14:30) was written while the person was away.
+    await waitFor(() => expect(toggle('07 oct. 2026 à 14:30')).toBeInTheDocument())
+    expect(rows()).toHaveLength(2)
+    // One page, not every page loaded before.
+    expect(mocks.api.fetchAuditEntries.mock.calls).toEqual([[NO_FILTERS, null]])
+    expect(queryClient.getQueryCache().findAll({ queryKey: ['audit', 'entries'] })).toHaveLength(1)
+  })
+
+  it('at the clinic’s midnight, closes the open rows and moves « Aujourd’hui » to the new day', async () => {
+    mocks.clinicDate.value = '2026-10-07'
+    const user = userEvent.setup()
+    const { rerenderPage } = await renderPage({ pages: [[UPDATE, BANK_READ], [UPDATE, BANK_READ], [UPDATE, BANK_READ]] })
+    await user.selectOptions(filter('Période'), "Aujourd'hui")
+    await waitFor(() => expect(mocks.api.fetchAuditEntries).toHaveBeenLastCalledWith({ ...NO_FILTERS, from: '2026-10-07T04:00:00.000Z' }, null))
+    await waitFor(() => expect(rows()).toHaveLength(2))
+    await user.click(toggle('07 oct. 2026 à 14:30'))
+    expect(toggle('07 oct. 2026 à 14:30')).toHaveAttribute('aria-expanded', 'true')
+    mocks.clinicDate.value = '2026-10-08'
+    rerenderPage()
+    await waitFor(() => expect(mocks.api.fetchAuditEntries).toHaveBeenLastCalledWith({ ...NO_FILTERS, from: '2026-10-08T04:00:00.000Z' }, null))
+    await waitFor(() => expect(rows()).toHaveLength(2))
+    expect(toggle('07 oct. 2026 à 14:30')).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('announces the count of loaded rows, and names each row button by its action and section', async () => {
+    await renderPage()
+    expect(screen.getByRole('status')).toHaveTextContent('2 entrées affichées')
+    // (The person's name follows: on a phone it is shown in the button; CSS is not applied here.)
+    expect(toggle('07 oct. 2026 à 14:30').textContent).toMatch(/^07 oct\. 2026 à 14:30 Détails.: Modification, Clinique/)
+    expect(screen.getByRole('button', { name: t('audit.loadMore') })).toHaveClass('max-sm:h-11')
+  })
+
+  it('says when the people cannot be loaded, and « Réessayer » loads them', async () => {
+    const user = userEvent.setup()
+    mocks.api.fetchAuditActors.mockRejectedValueOnce(new Error('boom'))
+    mocks.api.fetchAuditEntries.mockResolvedValue([UPDATE])
+    mocks.api.fetchAuditCatalog.mockResolvedValue({ permissions: [], modules: [] })
+    render(<QueryClientProvider client={appQueryClient()}>{renderInSettingsSection(<AuditLogPage />)}</QueryClientProvider>)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(t('audit.filters.actorsError'))
+    mocks.api.fetchAuditActors.mockResolvedValue([{ actor_id: 'a2', actor_name: 'Julie Roy' }])
+    await user.click(within(alert).getByRole('button', { name: t('common.retry') }))
+    await waitFor(() => expect(within(filter('Personne')).getAllByRole('option')).toHaveLength(2))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('offers to retry when the journal cannot be loaded', async () => {

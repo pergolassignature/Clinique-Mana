@@ -477,6 +477,7 @@
       "allTables": "Toutes les sections",
       "actor": "Personne",
       "allActors": "Toutes les personnes",
+      "actorsError": "La liste des personnes n'a pas pu être chargée.",
       "period": "Période",
       "periods": {
         "today": "Aujourd'hui",
@@ -495,7 +496,7 @@
     },
     "scrollLabel": "Entrées du journal d'audit",
     "row": {
-      "toggle": "Détails"
+      "toggle": "Détails : {action}, {section}"
     },
     "details": {
       "record": "Élément : {id}",

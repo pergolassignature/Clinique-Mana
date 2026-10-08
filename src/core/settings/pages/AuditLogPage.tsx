@@ -14,12 +14,12 @@ import {
   sourceLabel,
   tableLabel,
 } from '@/core/audit/labels'
-import { AUDIT_PERIODS, periodStart, type AuditPeriod } from '@/core/audit/period'
+import { AUDIT_PERIODS, periodStartOn, type AuditPeriod } from '@/core/audit/period'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
-import { useNow } from '@/shared/lib/use-now'
+import { useClinicDate } from '@/shared/lib/use-clinic-date'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { focusRing } from '@/shared/ui/field-classes'
@@ -31,6 +31,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 const PHONE_TABLE = 'max-sm:[&_td]:px-2 max-sm:[&_th]:px-2'
 
 const COLUMN_COUNT = 5
+
+const NO_ROWS: ReadonlySet<number> = new Set()
+
+/** How long the live region stays empty before it says the result, so the same text is announced again. */
+const ANNOUNCE_DELAY_MS = 150
 
 /** Fills a `{name}` template from `t` with nodes (a value may carry its full form in `title`). */
 function fillTemplate(template: string, parts: Record<string, ReactNode>): ReactNode[] {
@@ -75,21 +80,25 @@ export function AuditLogPage() {
   const [table, setTable] = useState('')
   const [actor, setActor] = useState('')
   const [period, setPeriod] = useState<AuditPeriod>('all')
-  const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set())
   const sectionFilterRef = useRef<HTMLSelectElement>(null)
   const endRef = useRef<HTMLParagraphElement>(null)
-  const loadMoreClicked = useRef(false)
   const detailsIdPrefix = useId()
 
-  // Ticks every minute: the period's first day follows the clinic's date while the page stays open.
-  const now = useNow(60_000)
-  const from = periodStart(period, new Date(now))
+  // Changes at the clinic's midnight (one timer, no tick): the period's first day follows it.
+  const clinicDate = useClinicDate()
+  const from = periodStartOn(period, clinicDate)
   const filters = useMemo<AuditFilters>(() => ({ table: table || null, actor: actor || null, from }), [table, actor, from])
   const hasFilters = table !== '' || actor !== '' || period !== 'all'
+  // What the rows on screen belong to. A new filter or a new clinic day closes every row and drops
+  // a pending « Charger plus » focus move: both are keyed by it.
+  const view = `${clinicDate}|${table}|${actor}|${period}`
+  const [opened, setOpened] = useState<{ view: string; ids: ReadonlySet<number> }>({ view, ids: NO_ROWS })
+  const expanded = opened.view === view ? opened.ids : NO_ROWS
+  const loadMoreView = useRef<string | null>(null)
 
   const { data, isPending, isError, isFetching, refetch, hasNextPage, fetchNextPage, isFetchingNextPage, isFetchNextPageError } =
     useAuditEntries(filters)
-  const { data: actors } = useAuditActors()
+  const { data: actors, isError: actorsFailed, isFetching: actorsFetching, refetch: refetchActors } = useAuditActors()
   const { data: catalog } = useAuditCatalog()
   // Names for the ids and keys in the details; each falls back to the raw value while missing.
   const lookups = useMemo<AuditLookups>(
@@ -103,37 +112,37 @@ export function AuditLogPage() {
   const entries = data?.pages.flat() ?? []
 
   // Once a « Charger plus » fetch settles: on the last page the button goes away, so its focus
-  // moves to « Début du journal ». Only after a press (never after a background refetch).
+  // moves to « Début du journal ». Only after a press in this view (never after a refetch).
   useEffect(() => {
-    if (isFetchingNextPage || !loadMoreClicked.current) return
-    loadMoreClicked.current = false
-    if (!hasNextPage) endRef.current?.focus()
-  }, [hasNextPage, isFetchingNextPage])
-
-  /** Applies a filter change: a new query from the newest page, every row closed. */
-  const changeFilter = (apply: () => void) => {
-    apply()
-    loadMoreClicked.current = false
-    setExpanded(new Set())
-  }
+    if (isFetchingNextPage || loadMoreView.current === null) return
+    const pressedHere = loadMoreView.current === view
+    loadMoreView.current = null
+    if (pressedHere && !hasNextPage) endRef.current?.focus()
+  }, [hasNextPage, isFetchingNextPage, view])
 
   const resetFilters = () => {
-    changeFilter(() => {
-      setTable('')
-      setActor('')
-      setPeriod('all')
-    })
+    setTable('')
+    setActor('')
+    setPeriod('all')
     sectionFilterRef.current?.focus()
   }
 
   const toggle = (id: number) =>
-    setExpanded((current) => {
-      const next = new Set(current)
-      if (!next.delete(id)) next.add(id)
-      return next
+    setOpened((current) => {
+      const ids = new Set(current.view === view ? current.ids : NO_ROWS)
+      if (!ids.delete(id)) ids.add(id)
+      return { view, ids }
     })
 
   const emptyAfterFilter = hasFilters && !isPending && !isError && entries.length === 0
+  // The live region is emptied on every filter change, then says the result a moment later: a
+  // second empty result (even one already cached) is announced again.
+  const [announcedView, setAnnouncedView] = useState<string | null>(null)
+  useEffect(() => {
+    if (!emptyAfterFilter) return
+    const id = setTimeout(() => setAnnouncedView(view), ANNOUNCE_DELAY_MS)
+    return () => clearTimeout(id)
+  }, [emptyAfterFilter, view])
 
   let content
   if (isPending) {
@@ -208,7 +217,7 @@ export function AuditLogPage() {
                         />
                         <span>
                           {date}
-                          <span className="sr-only"> {t('audit.row.toggle')}</span>
+                          <span className="sr-only"> {t('audit.row.toggle', { action, section })}</span>
                           <span className="block text-xs text-muted-foreground sm:hidden">{who}</span>
                         </span>
                       </button>
@@ -250,7 +259,8 @@ export function AuditLogPage() {
           </TableBody>
         </Table>
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-          <p>{entries.length === 1 ? t('audit.countOne') : t('audit.countOther', { count: String(entries.length) })}</p>
+          {/* A status: the new count is announced when « Charger plus » adds rows. */}
+          <p role="status">{entries.length === 1 ? t('audit.countOne') : t('audit.countOther', { count: String(entries.length) })}</p>
           {hasNextPage ? (
             <div className="flex flex-wrap items-center gap-2">
               {isFetchNextPageError && !isFetchingNextPage && <p role="alert">{t('audit.loadMoreError')}</p>}
@@ -260,10 +270,10 @@ export function AuditLogPage() {
                 size="sm"
                 aria-disabled={isFetchingNextPage || undefined}
                 onClick={ignoreWhenInactive(isFetchingNextPage, () => {
-                  loadMoreClicked.current = true
+                  loadMoreView.current = view
                   void fetchNextPage()
                 })}
-                className={cn(softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
+                className={cn(softDisabledClasses, 'max-sm:h-11 aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
               >
                 {isFetchingNextPage ? t('audit.loadingMore') : t('audit.loadMore')}
               </Button>
@@ -284,7 +294,7 @@ export function AuditLogPage() {
       <div role="group" aria-label={t('audit.filters.label')} className="grid gap-3 sm:max-w-form sm:grid-cols-3">
         <FormField label={t('audit.filters.table')}>
           {(field) => (
-            <Select {...field} ref={sectionFilterRef} value={table} onChange={(event) => changeFilter(() => setTable(event.target.value))}>
+            <Select {...field} ref={sectionFilterRef} value={table} onChange={(event) => setTable(event.target.value)}>
               <option value="">{t('audit.filters.allTables')}</option>
               {AUDITED_TABLES.map((name) => (
                 <option key={name} value={name}>
@@ -294,24 +304,35 @@ export function AuditLogPage() {
             </Select>
           )}
         </FormField>
-        <FormField label={t('audit.filters.actor')}>
-          {(field) => (
-            <Select {...field} value={actor} onChange={(event) => changeFilter(() => setActor(event.target.value))}>
-              <option value="">{t('audit.filters.allActors')}</option>
-              {actors?.map((person) => (
-                <option key={person.actor_id} value={person.actor_id}>
-                  {person.actor_name}
-                </option>
-              ))}
-            </Select>
+        <div>
+          <FormField label={t('audit.filters.actor')}>
+            {(field) => (
+              <Select {...field} value={actor} onChange={(event) => setActor(event.target.value)}>
+                <option value="">{t('audit.filters.allActors')}</option>
+                {actors?.map((person) => (
+                  <option key={person.actor_id} value={person.actor_id}>
+                    {person.actor_name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </FormField>
+          {/* Without the list, only « Toutes les personnes » can be chosen: say so, and offer to retry. */}
+          {actorsFailed && !actors && (
+            <div role="alert" className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              <p>{t('audit.filters.actorsError')}</p>
+              <Button type="button" variant="link" className="text-xs" disabled={actorsFetching} onClick={() => void refetchActors()}>
+                {t('common.retry')}
+              </Button>
+            </div>
           )}
-        </FormField>
+        </div>
         <FormField label={t('audit.filters.period')}>
           {(field) => (
             <Select
               {...field}
               value={period}
-              onChange={(event) => changeFilter(() => setPeriod(event.target.value as AuditPeriod))}
+              onChange={(event) => setPeriod(event.target.value as AuditPeriod)}
             >
               {AUDIT_PERIODS.map((key) => (
                 <option key={key} value={key}>
@@ -324,7 +345,7 @@ export function AuditLogPage() {
       </div>
       {/* Always in the page, so screen readers hear the text when it appears. */}
       <p data-testid="audit-live" aria-live="polite" className="sr-only">
-        {emptyAfterFilter ? t('audit.emptyFiltered.title') : ''}
+        {emptyAfterFilter && announcedView === view ? t('audit.emptyFiltered.title') : ''}
       </p>
       {content}
     </div>

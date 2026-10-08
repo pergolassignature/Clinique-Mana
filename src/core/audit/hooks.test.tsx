@@ -47,6 +47,38 @@ describe('useAuditEntries', () => {
     expect(result.current.hasNextPage).toBe(false)
   })
 
+  it('refetches the loaded pages in turn, each from the last id of the page before, with no gap', async () => {
+    mocks.api.fetchAuditEntries.mockResolvedValueOnce([entry(9), entry(8), entry(7)]).mockResolvedValueOnce([entry(6)])
+    const { wrapper } = setup()
+    const { result } = renderHook(() => useAuditEntries(FILTERS), { wrapper })
+    // Reading `data` here makes React Query re-render this hook when it changes (tracked properties).
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(1))
+    await act(() => result.current.fetchNextPage())
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2))
+
+    // Entry 10 was written meanwhile: the first page now ends at 8, so the second starts before 8.
+    mocks.api.fetchAuditEntries.mockClear()
+    mocks.api.fetchAuditEntries.mockResolvedValueOnce([entry(10), entry(9), entry(8)]).mockResolvedValueOnce([entry(7), entry(6)])
+    await act(() => result.current.refetch())
+    expect(mocks.api.fetchAuditEntries.mock.calls).toEqual([
+      [FILTERS, null],
+      [FILTERS, 8],
+    ])
+    await waitFor(() => expect(result.current.data?.pages.flat().map((e) => e.id)).toEqual([10, 9, 8, 7, 6]))
+  })
+
+  it('is always stale, never refetched on focus, and dropped once unused', async () => {
+    mocks.api.fetchAuditEntries.mockResolvedValue([])
+    const { wrapper, queryClient } = setup()
+    const { result, unmount } = renderHook(() => useAuditEntries(FILTERS), { wrapper })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const query = queryClient.getQueryCache().find({ queryKey: auditKeys.entries(FILTERS) })!
+    expect(result.current.isStale).toBe(true)
+    expect(query.observers[0]?.options.refetchOnWindowFocus).toBe(false)
+    unmount()
+    await waitFor(() => expect(queryClient.getQueryCache().find({ queryKey: auditKeys.entries(FILTERS) })).toBeUndefined())
+  })
+
   it('keys each filter combination apart, so a new filter starts again from the newest page', async () => {
     mocks.api.fetchAuditEntries.mockResolvedValue([])
     const { wrapper } = setup()

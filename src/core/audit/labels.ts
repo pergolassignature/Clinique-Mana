@@ -1,5 +1,6 @@
 import { t, type TranslationKey } from '@/i18n'
 import { roleLabel } from '@/core/access/roles'
+import { formatRate } from '@/shared/lib/format'
 import { formatClinicDateTime, formatDateOnlyShort } from '@/shared/lib/timezone'
 import type { AuditEntry } from './api'
 
@@ -66,24 +67,38 @@ export function sourceLabel(source: string): string {
 /** The value `private.audit_trigger` writes in place of a redacted column (decision #31). */
 export const REDACTED = '[redacted]'
 
-/** A timestamptz as `to_jsonb` writes it (`2026-10-07T23:58:45.949486+00:00`). */
-const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}(:?\d{2})?)$/
-/** A `date` column (`2026-10-07`). */
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+/** Columns holding a calendar date (`date`): shown without any timezone conversion. */
+const DATE_ONLY_COLUMNS = new Set(['effective_from', 'effective_to'])
+/** Columns holding an instant (`timestamptz`): shown in the clinic's timezone. */
+const INSTANT_COLUMNS = new Set(['created_at', 'updated_at', 'last_sign_in_at'])
+
+/** Runs a date formatter; the raw string when the date is invalid (never throws). */
+function formatDateSafely(value: string, format: (value: string) => string): string {
+  try {
+    const text = format(value)
+    // The timezone helpers print « — » for a date they cannot read.
+    return text === '—' ? value : text
+  } catch {
+    return value
+  }
+}
 
 /**
- * One value of `changed_fields`, for reading: null or empty → « (vide) », booleans → « Oui » /
- * « Non », a redacted value → « (masqué) », instants in the clinic's timezone, dates as they are
- * (no timezone), objects and arrays → compact JSON, the rest as is.
+ * One value of `changed_fields` in `table.column`, for reading: null or empty → « (vide) »,
+ * booleans → « Oui » / « Non », a redacted value → « (masqué) », objects and arrays → compact
+ * JSON. Only the columns known to hold them are read as dates (`effective_from` / `effective_to`
+ * as calendar dates, `created_at` / `updated_at` / `last_sign_in_at` in the clinic's timezone) and
+ * as a rate (`tax_rates.rate`); any other value, a date-shaped name included, is shown as is.
  */
-export function formatAuditValue(value: unknown): string {
+export function formatAuditValue(value: unknown, table = '', column = ''): string {
   if (value === null || value === undefined || value === '') return t('audit.values.empty')
   if (value === true) return t('audit.values.yes')
   if (value === false) return t('audit.values.no')
   if (value === REDACTED) return t('audit.values.redacted')
   if (typeof value === 'object') return JSON.stringify(value)
-  if (typeof value === 'string' && INSTANT.test(value)) return formatClinicDateTime(value)
-  if (typeof value === 'string' && DATE_ONLY.test(value)) return formatDateOnlyShort(value)
+  if (typeof value === 'string' && DATE_ONLY_COLUMNS.has(column)) return formatDateSafely(value, formatDateOnlyShort)
+  if (typeof value === 'string' && INSTANT_COLUMNS.has(column)) return formatDateSafely(value, formatClinicDateTime)
+  if (table === 'tax_rates' && column === 'rate' && Number.isFinite(Number(value))) return formatRate(Number(value))
   return String(value)
 }
 
@@ -127,7 +142,7 @@ const PROFILE_STATUSES = new Set(['active', 'disabled'])
  * Everything else goes through `formatAuditValue`.
  */
 export function auditValue(table: string, column: string, value: unknown, lookups: AuditLookups = {}): AuditValue {
-  if (typeof value !== 'string' || value === '' || value === REDACTED) return { text: formatAuditValue(value) }
+  if (typeof value !== 'string' || value === '' || value === REDACTED) return { text: formatAuditValue(value, table, column) }
   if (PERSON_COLUMNS.has(column)) {
     const name = lookups.people?.get(value)
     return name !== undefined ? { text: name, title: value } : { text: shortRecordId(value), title: value }
@@ -141,7 +156,7 @@ export function auditValue(table: string, column: string, value: unknown, lookup
   }
   if (column === 'module_key') return { text: lookups.modules?.get(value) ?? value }
   if (column === 'permission_key') return { text: lookups.permissions?.get(value) ?? value }
-  return { text: formatAuditValue(value) }
+  return { text: formatAuditValue(value, table, column) }
 }
 
 /** One line of an entry's details. */

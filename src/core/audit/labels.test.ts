@@ -141,12 +141,33 @@ describe('formatAuditValue', () => {
     expect(formatAuditValue(7)).toBe('7')
   })
 
-  it('shows instants in the clinic timezone, and dates without any conversion', () => {
+  it('formats instants (clinic timezone) and dates (no conversion) only in the columns that hold them', () => {
     // timestamptz as PostgreSQL writes it into jsonb: 19:58 in the clinic (EDT).
-    expect(formatAuditValue('2026-10-07T23:58:45.949486+00:00')).toBe('07 oct. 2026 à 19:58')
-    expect(formatAuditValue('2026-10-07T23:58:45Z')).toBe('07 oct. 2026 à 19:58')
-    // A date-only column (tax_rates.effective_from) stays on its day.
-    expect(formatAuditValue('2026-01-01')).toBe('1 janv. 2026')
+    expect(formatAuditValue('2026-10-07T23:58:45.949486+00:00', 'profiles', 'updated_at')).toBe('07 oct. 2026 à 19:58')
+    expect(formatAuditValue('2026-10-07T23:58:45Z', 'tax_rates', 'created_at')).toBe('07 oct. 2026 à 19:58')
+    expect(formatAuditValue('2026-10-07T23:58:45Z', 'profiles', 'last_sign_in_at')).toBe('07 oct. 2026 à 19:58')
+    // A date-only column stays on its day.
+    expect(formatAuditValue('2026-01-01', 'tax_rates', 'effective_from')).toBe('1 janv. 2026')
+    expect(formatAuditValue('2026-01-01', 'tax_rates', 'effective_to')).toBe('1 janv. 2026')
+  })
+
+  it('shows a date-shaped value in any other column as text', () => {
+    expect(formatAuditValue('2026-01-01', 'organizations', 'legal_name')).toBe('2026-01-01')
+    expect(formatAuditValue('2026-10-07T23:58:45Z', 'profiles', 'display_name')).toBe('2026-10-07T23:58:45Z')
+    expect(formatAuditValue('2026-13-45', 'profiles', 'display_name')).toBe('2026-13-45')
+  })
+
+  it('never throws on an invalid date in a date column: the raw string', () => {
+    expect(formatAuditValue('2026-13-45', 'tax_rates', 'effective_from')).toBe('2026-13-45')
+    expect(formatAuditValue('2026-13-45T25:00:00Z', 'profiles', 'updated_at')).toBe('2026-13-45T25:00:00Z')
+    expect(formatAuditValue('pas une date', 'profiles', 'created_at')).toBe('pas une date')
+  })
+
+  it('formats tax rates as percentages', () => {
+    expect(formatAuditValue(0.09975, 'tax_rates', 'rate')).toBe('9,975\u00a0%')
+    expect(formatAuditValue(0.05, 'tax_rates', 'rate')).toBe('5\u00a0%')
+    // Any other number stays as is.
+    expect(formatAuditValue(0.09975, 'organizations', 'record_retention_years')).toBe('0.09975')
   })
 
   it('shows objects and arrays as compact JSON', () => {
@@ -195,7 +216,7 @@ describe('auditDetailLines', () => {
   })
 
   it('lists the fields of an insert or a delete', () => {
-    expect(lines(entry('insert', 'tax_rates', { tax: 'qst', rate: 0.09975 }))).toEqual([`Taxe${NB}: TVQ`, `Taux${NB}: 0.09975`])
+    expect(lines(entry('insert', 'tax_rates', { tax: 'qst', rate: 0.09975 }))).toEqual([`Taxe${NB}: TVQ`, `Taux${NB}: 9,975${NB}%`])
     expect(lines(entry('delete', 'user_roles', { role: 'counselor' }))).toEqual([`Rôle${NB}: Conseillère`])
   })
 
@@ -214,6 +235,24 @@ describe('auditDetailLines', () => {
       const action = fields !== null && typeof fields === 'object' && 'fields' in fields ? 'read' : 'update'
       expect(lines(entry(action, 'organizations', fields))).toEqual(['Aucun détail.'])
     }
+  })
+
+  it('shows an org_secrets insert with its masked Vault id', () => {
+    expect(lines(entry('insert', 'org_secrets', { key: 'stripe_secret_key', vault_secret_id: '[redacted]', version: 1 }))).toEqual([
+      `Clé${NB}: stripe_secret_key`,
+      `Secret${NB}: (masqué)`,
+      `Version${NB}: 1`,
+    ])
+  })
+
+  it('renders date-shaped names as text, without crashing', () => {
+    expect(
+      lines(entry('update', 'profiles', { display_name: { before: '2026-13-45', after: 'Marie' } })),
+    ).toEqual([`Nom${NB}: 2026-13-45 → Marie`])
+    expect(lines(entry('update', 'organizations', { legal_name: { before: null, after: '2026-01-01' } }))).toEqual([
+      `Raison sociale${NB}: (vide) → 2026-01-01`,
+    ])
+    expect(lines(entry('insert', 'tax_rates', { effective_from: '2026-01-01' }))).toEqual([`En vigueur du${NB}: 1 janv. 2026`])
   })
 
   it('shows a secret rotation as « Secret remplacé », never the raw JSON', () => {
