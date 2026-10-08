@@ -2,6 +2,7 @@ import { forwardRef, useRef, useState, type RefObject } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { t } from '@/i18n'
+import { SENSITIVE_INPUT_PROPS } from '@/shared/lib/sensitive-input'
 import { Button } from '@/shared/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
@@ -117,14 +118,8 @@ function SinForm({ fieldRef, pending, refusal, onSubmit }: SinFormProps) {
               fieldRef.current = element
             }}
             inputMode="numeric"
-            autoComplete="off"
-            // Password managers ignore autocomplete="off": keep them from saving or filling it.
-            data-1p-ignore
-            data-lpignore="true"
-            data-bwignore="true"
-            data-form-type="other"
-            spellCheck={false}
-            translate="no"
+            // Password managers ignore autocomplete="off": their own attributes keep them away too.
+            {...SENSITIVE_INPUT_PROPS}
             maxLength={20}
           />
         )}

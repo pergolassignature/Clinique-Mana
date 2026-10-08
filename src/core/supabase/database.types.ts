@@ -5525,7 +5525,7 @@ export type Database = {
       }
       sign_my_consent: {
         Args: { p_signer_name: string; p_version_id: string }
-        Returns: undefined
+        Returns: string
       }
       start_job_run: {
         Args: { p_key: string; p_org_id: string; p_trigger: string }

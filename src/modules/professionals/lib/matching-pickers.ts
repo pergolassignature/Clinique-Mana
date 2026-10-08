@@ -26,9 +26,14 @@ export function languageGroups(catalog: CatalogView, held: PickerSelection): Pic
 /**
  * Motifs by category. A restricted motif reads « Réservé »; without a title from a professional
  * order it cannot be added, and says why (P4-16, P4-55: one already held can still be removed).
+ * `blocked` words the reason for the reader (the record's by default; the questionnaire's names its step).
  */
-export function motifGroups(catalog: CatalogView, held: PickerSelection, hasRegulatedTitle: boolean): PickerGroup[] {
-  const blocked = t('modules.professionals.record.matching.motifs.blocked')
+export function motifGroups(
+  catalog: CatalogView,
+  held: PickerSelection,
+  hasRegulatedTitle: boolean,
+  blocked: string = t('modules.professionals.record.matching.motifs.blocked'),
+): PickerGroup[] {
   return catalog.motifGroups
     .map((group) => ({
       key: group.key,

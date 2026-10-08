@@ -6,6 +6,7 @@ import { EmptyState } from '@/shared/components/EmptyState'
 import { FormActions } from '@/shared/components/FormActions'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
+import { SENSITIVE_INPUT_PROPS } from '@/shared/lib/sensitive-input'
 import { useSettingsForm } from '@/shared/lib/use-settings-form'
 import { Button } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
@@ -237,14 +238,8 @@ function BankForm({ professionalId, data, onClose }: BankCardProps & { onClose: 
               {...field}
               {...form.register('account')}
               inputMode="numeric"
-              autoComplete="off"
-              // Password managers ignore autocomplete="off": keep them from saving or filling it.
-              data-1p-ignore
-              data-lpignore="true"
-              data-bwignore="true"
-              data-form-type="other"
-              spellCheck={false}
-              translate="no"
+              // Password managers ignore autocomplete="off": their own attributes keep them away too.
+              {...SENSITIVE_INPUT_PROPS}
               placeholder={hasAccount ? t(`${P2}.fields.accountUnchanged`) : undefined}
             />
           )}

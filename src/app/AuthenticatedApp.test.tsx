@@ -112,6 +112,8 @@ const PROFESSIONALS_SECTION_IDS = [...PROFESSIONALS_LIST_SECTION_IDS, 'professio
 const PROFESSIONALS_ROUTES = ['professionals:/professionnels', 'professionals:/professionnels/:id/:onglet?']
 /** « Révision mensuelle »: professionals.compensation only (admin by default). */
 const PROFESSIONALS_REVIEW_ROUTE = 'professionals:/professionnels/revision-mensuelle'
+/** The provider's questionnaire (`professionals.self`; the test's admin-like access holds every key). */
+const PROFESSIONALS_QUESTIONNAIRE_ROUTE = 'professionals:/mon-profil/questionnaire'
 
 const appAt = (path: string, access: Access = adminLike, auth: Parameters<typeof renderWithContexts>[1] = {}) => (
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -352,7 +354,7 @@ describe('AuthenticatedApp — idle prefetch', () => {
     render(appAt('/accueil'))
     expect(preloaded()).toEqual([])
     runIdle()
-    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES, PROFESSIONALS_REVIEW_ROUTE])
+    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES, PROFESSIONALS_REVIEW_ROUTE, PROFESSIONALS_QUESTIONNAIRE_ROUTE])
   })
 
   it('skips the pages the user may not open', () => {

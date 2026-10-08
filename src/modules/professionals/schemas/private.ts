@@ -13,14 +13,14 @@ import type { BankInput, ProfessionalPrivate, TaxNumbersInput } from '../api/pri
 
 /** What the database strips from every number: `[ \t\r\n-]`. */
 const SEPARATORS = /[ \t\r\n-]/g
-const strip = (v: string) => v.replace(SEPARATORS, '')
+export const strip = (v: string) => v.replace(SEPARATORS, '')
 
-const BUSINESS_NUMBER = /^[0-9]{9}$/
-const GST = /^[0-9]{9}RT[0-9]{4}$/
-const QST = /^[0-9]{10}TQ[0-9]{4}$/
-const INSTITUTION = /^[0-9]{3}$/
-const TRANSIT = /^[0-9]{5}$/
-const ACCOUNT = /^[0-9]{7,12}$/
+export const BUSINESS_NUMBER = /^[0-9]{9}$/
+export const GST = /^[0-9]{9}RT[0-9]{4}$/
+export const QST = /^[0-9]{10}TQ[0-9]{4}$/
+export const INSTITUTION = /^[0-9]{3}$/
+export const TRANSIT = /^[0-9]{5}$/
+export const ACCOUNT = /^[0-9]{7,12}$/
 const SIN = /^[0-9]{9}$/
 
 // --- Fiscalité ---------------------------------------------------------------------------------------

@@ -19,6 +19,7 @@ describe('professionalsManifest', () => {
       ['professionnels', 'professionals.view'],
       ['professionnels/:id/:onglet?', 'professionals.view'],
       ['professionnels/revision-mensuelle', 'professionals.compensation'],
+      ['mon-profil/questionnaire', 'professionals.self'],
     ])
   })
 

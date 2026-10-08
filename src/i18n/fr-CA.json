@@ -2714,6 +2714,300 @@
         "saved": "Séances enregistrées pour {count} professionnel(s).",
         "stale": "Les séances de {name} ont été modifiées entre-temps. Vérifiez-les, puis enregistrez de nouveau.",
         "refusedFor": "{name} : {message}"
+      },
+      "questionnaire": {
+        "title": {
+          "onboarding": "Compléter mon profil",
+          "update": "Mettre mon profil à jour"
+        },
+        "intro": {
+          "onboarding": "Quelques étapes pour présenter votre pratique à la clinique. Vos réponses sont enregistrées au fur et à mesure : vous pouvez faire une pause et revenir quand vous voulez.",
+          "updateOne": "La clinique vous demande de revoir une section de votre profil. Vos réponses sont enregistrées au fur et à mesure.",
+          "updateMany": "La clinique vous demande de revoir {count} sections de votre profil. Vos réponses sont enregistrées au fur et à mesure."
+        },
+        "stepsLabel": "Étapes du questionnaire",
+        "stepOf": "Étape {current} sur {total}",
+        "stepNumber": "Étape {n} :",
+        "doneCount": "{done} sur {total} terminées",
+        "showSteps": "Voir toutes les étapes",
+        "hideSteps": "Masquer les étapes",
+        "stepState": {
+          "complete": "(terminée)",
+          "current": "(étape en cours)",
+          "todo": "(à compléter)",
+          "refused": "(modification refusée)"
+        },
+        "steps": {
+          "personal": {
+            "title": "Renseignements personnels",
+            "description": "Pour vous joindre et préparer votre contrat. Ces renseignements ne paraissent pas sur votre fiche."
+          },
+          "professional": {
+            "title": "Profil professionnel",
+            "description": "Vos titres, vos numéros de permis et vos années d'expérience."
+          },
+          "portrait": {
+            "title": "Portrait",
+            "description": "Ce que les clients liront sur votre fiche."
+          },
+          "languages": {
+            "title": "Langues",
+            "description": "Les langues dans lesquelles vous pouvez offrir vos rencontres."
+          },
+          "clienteles": {
+            "title": "Clientèles",
+            "description": "Les personnes que vous accompagnez. L'étoile marque une spécialisation."
+          },
+          "motifs": {
+            "title": "Motifs",
+            "description": "Les besoins pour lesquels la clinique peut vous proposer des clients."
+          },
+          "availability": {
+            "title": "Disponibilités générales",
+            "description": "Les moments de la semaine où vous recevez habituellement des clients."
+          },
+          "photo": {
+            "title": "Photo",
+            "description": "La photo de votre fiche."
+          },
+          "insurance": {
+            "title": "Assurance",
+            "description": "Votre preuve d'assurance responsabilité professionnelle en vigueur."
+          },
+          "tax_bank": {
+            "title": "Fiscalité et banque",
+            "description": "Pour vous payer par dépôt direct."
+          },
+          "consent": {
+            "title": "Consentement",
+            "description": "L'utilisation de votre image et de votre nom par la clinique."
+          },
+          "review": {
+            "title": "Révision et envoi",
+            "description": "Vérifiez vos réponses, puis envoyez votre profil à la clinique."
+          }
+        },
+        "actions": {
+          "back": "Retour",
+          "continue": "Continuer",
+          "saving": "Enregistrement…"
+        },
+        "autosave": {
+          "saving": "Enregistrement…",
+          "savedAt": "Enregistré à {time}",
+          "savedOn": "Enregistré le {date}",
+          "unsaved": "Des modifications ne sont pas enregistrées.",
+          "onContinue": "Cette étape est enregistrée quand vous continuez.",
+          "saveDraft": "Enregistrer le brouillon",
+          "failed": "Vos dernières modifications n'ont pas été enregistrées. Vérifiez votre connexion.",
+          "retry": "Réessayer",
+          "notSaved": "Cette modification n'a pas pu être enregistrée."
+        },
+        "refused": {
+          "titleOne": "Une modification n'a pas été enregistrée",
+          "titleMany": "Des modifications n'ont pas été enregistrées"
+        },
+        "states": {
+          "loadError": "Le questionnaire n'a pas pu être chargé.",
+          "none": {
+            "pageTitle": "Mon questionnaire",
+            "title": "Rien à compléter pour l'instant.",
+            "body": "La clinique vous écrira si elle a besoin d'une mise à jour de votre profil.",
+            "closed": "La clinique a fermé votre questionnaire : vos dernières modifications n'ont pas été enregistrées.",
+            "home": "Retour à l'accueil"
+          },
+          "submitted": {
+            "pageTitle": "Profil envoyé",
+            "sentOn": "Envoyé le {date}.",
+            "thanks": "Merci ! L'équipe de la clinique va réviser votre profil. Vous recevrez un courriel si une précision est nécessaire.",
+            "summary": "Vos réponses"
+          },
+          "returned": {
+            "title": "La clinique vous demande des précisions",
+            "body": "Corrigez les étapes concernées, puis envoyez votre profil de nouveau."
+          }
+        },
+        "personal": {
+          "name": "Nom",
+          "nameHelp": "Pour corriger votre nom, écrivez à la clinique.",
+          "loginEmail": "Courriel de connexion",
+          "loginEmailHelp": "Il se change dans « Mon compte ».",
+          "phone": "Téléphone",
+          "phoneHelp": "Le numéro où la clinique peut vous joindre.",
+          "address": "Adresse",
+          "addressLine1": "Adresse",
+          "addressLine2": "Appartement ou bureau",
+          "city": "Ville",
+          "province": "Province",
+          "postalCode": "Code postal"
+        },
+        "professional": {
+          "titles": "Titres professionnels",
+          "titlesHelp": "Deux titres au plus, dont un principal. Le numéro de permis est demandé pour un titre d'un ordre professionnel.",
+          "noTitle": "Aucun titre pour l'instant.",
+          "years": "Années d'expérience",
+          "yearsHelp": "Facultatif. De 0 à 60."
+        },
+        "portrait": {
+          "bio": "Présentation",
+          "bioHelp": "Quelques phrases sur votre pratique, écrites pour les clients.",
+          "approach": "Approche",
+          "approachHelp": "Facultatif. Votre façon de travailler, dans vos mots.",
+          "counter": "{count} / {max} caractères.",
+          "publicTitle": "Coordonnées publiques",
+          "publicHelp": "Facultatif. Laissez vide pour ne pas les afficher sur votre fiche.",
+          "publicEmail": "Courriel public",
+          "publicPhone": "Téléphone public"
+        },
+        "sets": {
+          "languages": {
+            "empty": "Aucune langue choisie.",
+            "choose": "Choisir mes langues",
+            "change": "Modifier mes langues",
+            "search": "Rechercher une langue…"
+          },
+          "clienteles": {
+            "empty": "Aucune clientèle choisie.",
+            "choose": "Choisir mes clientèles",
+            "change": "Modifier mes clientèles",
+            "search": "Rechercher une clientèle…",
+            "required": "Choisissez au moins une clientèle."
+          },
+          "motifs": {
+            "empty": "Aucun motif choisi.",
+            "choose": "Choisir mes motifs",
+            "change": "Modifier mes motifs",
+            "search": "Motif ou catégorie…",
+            "required": "Choisissez au moins un motif.",
+            "blocked": "Réservé aux titres d'un ordre professionnel. Ajoutez d'abord un tel titre à l'étape « Profil professionnel »."
+          }
+        },
+        "limits": {
+          "title": "Limites de clientèle",
+          "description": "Facultatif. Ce que la clinique doit éviter de vous proposer.",
+          "minAge": "Âge minimum de vos clients",
+          "minAgeHelp": "Par exemple 8 si vous recevez les enfants à partir de 8 ans. Laissez vide s'il n'y en a pas.",
+          "womenOnly": "Femmes seulement",
+          "womenOnlyHelp": "Activez si vous recevez uniquement des femmes."
+        },
+        "availability": {
+          "periods": "Moments de la semaine",
+          "periodsHelp": "Cochez tous ceux qui vous conviennent habituellement.",
+          "accepting": "J'accepte de nouveaux clients",
+          "acceptingHelp": "Désactivez si vous ne prenez pas de nouveaux clients pour l'instant.",
+          "note": "Précision",
+          "noteHelp": "Facultatif.",
+          "notePlaceholder": "Par exemple : pas le vendredi."
+        },
+        "files": {
+          "choosePhoto": "Choisir une photo",
+          "replacePhoto": "Remplacer la photo",
+          "removePhoto": "Retirer la photo",
+          "photoHint": "JPEG ou PNG, 5 Mo au plus. Une photo de face, sur fond neutre, convient le mieux.",
+          "photoAlt": "Votre photo",
+          "photoNone": "Aucune photo pour l'instant.",
+          "photoReceived": "Photo reçue.",
+          "photoRequired": "Ajoutez une photo pour continuer.",
+          "chooseInsurance": "Choisir le fichier",
+          "replaceInsurance": "Remplacer le fichier",
+          "removeInsurance": "Retirer le fichier",
+          "insuranceHint": "PDF, JPEG ou PNG, 10 Mo au plus.",
+          "insuranceProof": "Preuve d'assurance",
+          "insuranceNone": "Aucune preuve pour l'instant.",
+          "insuranceReceived": "Preuve d'assurance reçue.",
+          "insuranceRequired": "Ajoutez votre preuve d'assurance pour continuer.",
+          "open": "Ouvrir le fichier",
+          "removing": "Retrait…",
+          "expiry": "Date d'échéance",
+          "expiryHelp": "Proposée au 31 mars, la fin habituelle des polices. Modifiez-la au besoin."
+        },
+        "taxBank": {
+          "privacy": "Le numéro de compte et le NAS sont chiffrés dès l'enregistrement. Ils ne s'affichent plus jamais en entier.",
+          "onFileError": "Impossible d'afficher les renseignements déjà fournis.",
+          "errors": {
+            "network": "Vos renseignements n'ont pas été enregistrés. Vérifiez votre connexion, puis réessayez.",
+            "failed": "Vos renseignements n'ont pas pu être enregistrés. Réessayez dans un instant."
+          },
+          "bankTitle": "Dépôt direct",
+          "bankHelp": "Les numéros figurent sur un spécimen de chèque ou dans votre institution en ligne.",
+          "institution": "Institution",
+          "transit": "Transit",
+          "account": "Numéro de compte",
+          "accountSaved": "Enregistré (•••• {last4}). Laissez vide pour le garder.",
+          "accountOnFile": "Déjà fourni (•••• {last4}). Laissez vide pour le garder.",
+          "taxTitle": "Taxes",
+          "taxHelp": "Facultatif : seulement si vous êtes inscrit.",
+          "businessNumber": "Numéro d'entreprise (NE)",
+          "gstNumber": "Numéro de TPS",
+          "qstNumber": "Numéro de TVQ",
+          "sinTitle": "Numéro d'assurance sociale",
+          "sinHelp": "La clinique le demande pour vos relevés fiscaux.",
+          "sin": "NAS",
+          "sinSaved": "Enregistré (••• {last3}). Laissez vide pour le garder.",
+          "sinOnFile": "Déjà fourni (••• {last3}). Laissez vide pour le garder."
+        },
+        "consent": {
+          "version": "Version {version}",
+          "none": "La clinique n'a pas encore publié ce texte. Vous pourrez le signer, puis envoyer votre profil, dès qu'elle l'aura publié.",
+          "signed": "Signé le {date} par {name}.",
+          "newVersion": "Le texte a changé depuis votre signature. Relisez-le, puis signez de nouveau.",
+          "agree": "J'ai lu et j'accepte ce consentement.",
+          "agreeRequired": "Cochez la case pour accepter.",
+          "name": "Votre nom complet",
+          "nameHelp": "Écrivez « {name} », tel qu'à votre dossier.",
+          "nameRequired": "Écrivez votre nom complet.",
+          "nameMismatch": "Le nom saisi ne correspond pas au nom du dossier.",
+          "signAndContinue": "Signer et continuer"
+        },
+        "review": {
+          "ready": "Toutes les étapes sont complètes. Vérifiez vos réponses, puis envoyez votre profil.",
+          "missingOne": "Il reste une étape à compléter avant l'envoi :",
+          "missingMany": "Il reste {count} étapes à compléter avant l'envoi :",
+          "serverMissing": "La clinique indique que ces étapes sont incomplètes :",
+          "complete": "Complète",
+          "incomplete": "À compléter",
+          "toConfirm": "À confirmer",
+          "edit": "Modifier",
+          "completeAction": "Compléter",
+          "confirmAction": "Confirmer",
+          "editLabel": "Modifier : {step}",
+          "completeActionLabel": "Compléter : {step}",
+          "confirmActionLabel": "Confirmer : {step}",
+          "submit": "Envoyer mon profil",
+          "submitting": "Envoi…",
+          "notAnswered": "Non indiqué",
+          "notSigned": "Pas encore signé.",
+          "signedVersion": "Signé (version {version}) le {date} par {name}.",
+          "yes": "Oui",
+          "no": "Non",
+          "primary": "principal",
+          "years": "{count} ans",
+          "masked4": "•••• {last4}",
+          "masked3": "••• {last3}",
+          "errors": {
+            "network": "Impossible de joindre la clinique. Vérifiez votre connexion, puis réessayez.",
+            "submitFailed": "Votre profil n'a pas pu être envoyé. Réessayez dans un instant.",
+            "refusedOne": "Corrigez d'abord l'étape « {step} » : une modification y a été refusée.",
+            "refusedMany": "Corrigez d'abord ces étapes : une modification y a été refusée.",
+            "goToStep": "Ouvrir l'étape"
+          }
+        },
+        "validation": {
+          "phoneRequired": "Saisissez votre numéro de téléphone.",
+          "addressRequired": "Saisissez votre adresse.",
+          "cityRequired": "Saisissez la ville.",
+          "postalCodeRequired": "Saisissez le code postal.",
+          "titleRequired": "Ajoutez au moins un titre.",
+          "bioRequired": "Écrivez votre présentation.",
+          "expiryRequired": "Indiquez la date d'échéance.",
+          "dateInvalid": "Date invalide.",
+          "expiryPast": "Cette date est passée : joignez une preuve en vigueur.",
+          "expiryTooFar": "La date doit être au plus tard le 31 décembre 2100.",
+          "institutionRequired": "Saisissez le numéro d'institution.",
+          "transitRequired": "Saisissez le numéro de transit.",
+          "accountRequired": "Saisissez votre numéro de compte.",
+          "sinRequired": "Saisissez votre NAS."
+        }
       }
     }
   },
