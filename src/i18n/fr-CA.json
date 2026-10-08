@@ -112,6 +112,32 @@
       "unknown": "Une erreur est survenue. Réessayez."
     }
   },
+  "invitation": {
+    "title": "Invitation",
+    "welcome": "Bienvenue chez {clinic}",
+    "subtitle": "Choisissez un mot de passe pour activer votre compte.",
+    "checking": "Vérification du lien…",
+    "name": "Nom",
+    "email": "Courriel",
+    "expires": "Cette invitation expire le {date}.",
+    "password": "Mot de passe",
+    "confirm": "Confirmer le mot de passe",
+    "submit": "Activer mon compte",
+    "submitting": "Activation…",
+    "otherUser": "Vous êtes connecté en tant que {name}. Ce compte sera déconnecté de ce navigateur quand vous activerez le vôtre.",
+    "states": {
+      "link_invalid": "Ce lien n'est pas valide.",
+      "link_expired": "Ce lien a expiré. Demandez une nouvelle invitation à la clinique.",
+      "link_used": "Ce lien a déjà été utilisé. Connectez-vous.",
+      "conflict": "Ce lien ne peut plus être utilisé. Communiquez avec la clinique.",
+      "rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
+      "error": "Le lien n'a pas pu être vérifié. Vérifiez votre connexion et réessayez."
+    },
+    "latestEmailHint": "Si vous avez reçu plus d'un courriel d'invitation, utilisez le courriel le plus récent : chaque nouvel envoi remplace le lien précédent.",
+    "signIn": "Se connecter",
+    "activated": "Votre compte est activé. Connectez-vous avec votre courriel et votre mot de passe.",
+    "errors": { "generic": "Votre compte n'a pas pu être activé. Réessayez dans un instant." }
+  },
   "account": {
     "title": "Mon compte",
     "description": "Votre nom, votre courriel de connexion et votre mot de passe.",

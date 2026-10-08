@@ -25,6 +25,8 @@ const fake = vi.hoisted(() => {
     /** The session a verified email link signs in (null: the link is expired or used). */
     linkSession: null as { access_token: string; user: { id: string; email?: string } } | null,
     respond: undefined as ((userId: string) => RpcResult) | undefined,
+    /** Edge function calls (name, body), and the URL hash at the time of each. */
+    functionCalls: [] as { name: string; body: unknown; hash: string }[],
   }
   const emit = (event: string, session: typeof state.session) => {
     state.session = session
@@ -55,6 +57,13 @@ const fake = vi.hoisted(() => {
         if (!session) return { data: { session: null, user: null }, error: { name: 'AuthApiError', status: 403, code: 'otp_expired', message: 'x' } }
         emit(params.type === 'recovery' ? 'PASSWORD_RECOVERY' : 'SIGNED_IN', session)
         return { data: { session, user: session.user }, error: null }
+      },
+    },
+    functions: {
+      invoke: async (name: string, { body }: { body: unknown }) => {
+        state.functionCalls.push({ name, body, hash: window.location.hash })
+        const display = { clinic_name: 'Clinique MANA', display_name: 'Nouvelle', email: 'nouvelle@mana.test', expires_at: '2026-10-15T16:00:00Z' }
+        return { data: { purpose: 'staff_invite', display }, error: null }
       },
     },
     rpc: async (name: string) => {
@@ -93,6 +102,7 @@ function resetFake() {
   fake.state.updateUserCalls = []
   fake.state.verifyOtpCalls = []
   fake.state.linkSession = null
+  fake.state.functionCalls = []
   fake.state.respond = grantAccess
 }
 resetFake()
@@ -290,6 +300,16 @@ describe('App — password recovery', () => {
     expect(await screen.findByRole('button', { name: t('auth.confirm.continue') })).toBeInTheDocument()
     expect(where()).toBe('/connexion/confirmer')
     expect(fake.state.verifyOtpCalls).toEqual([])
+  })
+
+  // The staff invitation link (Task 3.21): public, and the token leaves the URL before any call.
+  it('serves /invitation without a session, removing the token from the URL before resolving it', async () => {
+    const token = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8'
+    await openAt(`/invitation#t=${token}`)
+    expect(await screen.findByRole('heading', { name: t('invitation.welcome', { clinic: 'Clinique MANA' }) })).toBeInTheDocument()
+    expect(where()).toBe('/invitation')
+    expect(window.location.hash).toBe('')
+    expect(fake.state.functionCalls).toEqual([{ name: 'resolve-link', body: { token }, hash: '' }])
   })
 
   it('keeps a signed-in colleague signed in when the link has expired', async () => {
