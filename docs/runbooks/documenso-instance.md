@@ -1,6 +1,6 @@
 # Runbook — Clinique MANA's Documenso instance
 
-**Status:** Steps 1–4 and 8 done on 2026-10-08 (`https://sign.cliniquemana.com` live, Documenso 2.20.0); steps 5–7 next. · **ADR:** [0005](../adr/0005-documenso-replaces-docuseal.md) · **Status doc:** [Mise en service, item 4](../plans/2026-10-07-status.md#mise-en-service-phase-3-jonathan) · **Files:** [`ops/documenso/`](../../ops/documenso/)
+**Status:** Steps 1–6 and 8 done on 2026-10-08 (`https://sign.cliniquemana.com` live, Documenso 2.20.0). Left: the logo upload and 2FA (step 5–6, Jonathan), then step 7. · **ADR:** [0005](../adr/0005-documenso-replaces-docuseal.md) · **Status doc:** [Mise en service, item 4](../plans/2026-10-07-status.md#mise-en-service-phase-3-jonathan) · **Files:** [`ops/documenso/`](../../ops/documenso/)
 
 > **This droplet also runs Pergolas Signature's production Documenso.** Every step that changes the server (resize, Caddy, `docker compose`, cron) waits for Jonathan's go-ahead in chat. **Secrets never pass through chat or git.** `setup.sh` generates them on the server, and Jonathan types the Resend key at its silent prompt.
 
@@ -63,14 +63,22 @@ Check: `curl -sI https://sign.cliniquemana.com` returns 200 or a redirect with a
 4. Turn on two-factor authentication for the admin (Profile → Security).
 
 ### 6. Organisation settings (Jonathan in the UI; agent for the claim flags)
+*Done 2026-10-08 (agent, in the browser with Jonathan's go-ahead).* The admin is `info@cliniquemana.com`. The clinic's work happens in the organisation **« Clinique MANA »** (`org_sduaarmnmsunmwvt`, type ORGANISATION) and its team **`clinique-mana`** (open to every org member), not in the account's personal organisation, which is limited to one member and one team. As set and checked in the database:
+- **Admin → Organizations → Clinique MANA:** teams and members unlimited (0); flags `unlimitedDocuments`, `allowCustomBranding`, `hidePoweredBy`. « Allow Legacy Envelopes » stays off: it only shows the old upload button and does not gate the API. In 2.20 the admin panel does this, so no SQL is needed.
+- **Preferences → General:** language `fr`, timezone `America/Toronto`, format `yyyy-MM-dd HH:mm`; signatures typed, drawn or uploaded.
+- **Certificates:** signing certificate **and audit log** included in the downloaded PDF.
+- **Branding:** on; site `https://cliniquemana.com`; colours from the app's tokens (primary teal-600 `#1e837c` with white text, focus ring teal-400 `#46aca5`). Since 2.x the signing-page colours can be set; PS Hub's « green cannot be changed » finding no longer applies. **Logo still to upload** (Jonathan: Branding → « Choose File » → `docs/design-system/assets/logo.png`).
+- **Email:** Reply-To `info@cliniquemana.com`; default notifications unchanged.
+
+Original checklist:
 - Organisation: name « Clinique MANA ». Document preferences: language **Français**, timezone `America/Toronto`, include the signing certificate **and the audit log**.
 - Branding: logo, `https://cliniquemana.com`, company details. Custom branding and « hide Powered by » need claim flags. PS Hub set them in SQL (`OrganisationClaim.flags`: `allowCustomBranding`, `hidePoweredBy`). Use the admin panel if this version has one, otherwise run the same update with go-ahead after reading the row.
 - The accent colour of emails and the signing page cannot be changed (PS Hub finding).
 
 ### 7. API token and webhook (Jonathan; values go straight into the app)
-1. Documenso → organisation or team settings → API tokens → create `clinique-mana-app`, with no expiry or with a renewal date set in the calendar. Paste it in the app: Paramètres → Signature électronique → « Clé d'API ». Never paste it in chat.
+1. Documenso → **team `clinique-mana`** → API Tokens → create `clinique-mana-app`, with no expiry or with a renewal date set in the calendar. Paste it in the app: Paramètres → Signature électronique → « Clé d'API ». Never paste it in chat.
 2. App, same section: « Adresse de l'instance » = `https://sign.cliniquemana.com`. Copy « Adresse du webhook » (it ends in `/functions/v1/signing-webhook?org=<org_id>`).
-3. Generate a secret locally with `openssl rand -hex 32`. In Documenso → Webhooks → create: URL = the copied address; events `DOCUMENT_OPENED`, `DOCUMENT_SIGNED`, `DOCUMENT_RECIPIENT_COMPLETED`, `DOCUMENT_COMPLETED`, `DOCUMENT_REJECTED`, `DOCUMENT_CANCELLED`; secret = that value. Paste the same value in the app's « Secret ».
+3. Generate a secret locally with `openssl rand -hex 32`. In Documenso → team `clinique-mana` → Webhooks → create: URL = the copied address; events `DOCUMENT_OPENED`, `DOCUMENT_SIGNED`, `DOCUMENT_RECIPIENT_COMPLETED`, `DOCUMENT_COMPLETED`, `DOCUMENT_REJECTED`, `DOCUMENT_CANCELLED`; secret = that value. Paste the same value in the app's « Secret ».
 4. « Tester la connexion », then « Envoyer un document test », sign it, and check that the signed PDF appears. Then go through the `VERIFY` list in ADR 0005 (Consequences) against `https://sign.cliniquemana.com/api/v2/openapi.json`.
 
 ### 8. Hardening of the shared droplet (agent, with go-ahead; decision 2026-10-08)
