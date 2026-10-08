@@ -1017,6 +1017,7 @@
             "licenceLabelHelp": "Le nom du numéro sur la fiche du professionnel. Laissez vide pour « N° de permis ».",
             "licencePattern": "Format du permis",
             "licencePatternHelp": "Expression régulière, par exemple ^[0-9]{5}$. Laissez vide pour accepter tout numéro.",
+            "licencePatternChange": "Un format modifié s'applique à chaque dossier la prochaine fois qu'il est modifié.",
             "archive": {
               "bodyNone": "Aucun titre actif ne relève de cet ordre. Il ne pourra plus être choisi pour un titre.",
               "bodyOne": "1 titre actif relève de cet ordre : archivez-le d'abord.",
@@ -1050,6 +1051,7 @@
             "orderOption": "{name} ({acronym})",
             "archivedCategory": "{name} (archivée)",
             "archivedOrder": "{name} (archivé)",
+            "archivedOrderOption": "{name} ({acronym}), archivé",
             "licenceNote": "Les professionnels qui ont ce titre devront fournir un numéro de permis.",
             "archive": {
               "bodyNone": "Personne n'a ce titre. Il ne pourra plus être choisi.",

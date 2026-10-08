@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
+import { usageKey } from '../../api/catalog'
 import type { ProfessionalOrder, ProfessionCategory, ProfessionTitle } from '../../api/parse'
 import {
   ReferenceListCard,
@@ -74,7 +75,10 @@ const ORDER_COLUMNS: ReferenceColumn<'professional_orders'>[] = [
 /** « Libellé du permis » starts filled: the database would store this one for an empty label anyway. */
 const ORDER_DEFAULTS = { licenceLabel: t(`${P}.orders.licenceLabelDefault`) }
 
-/** Upper-cases an input as it is typed, keeping the caret where it was. */
+/**
+ * Upper-cases an input as it is typed, keeping the caret where it was. Not while an input method
+ * composes (rewriting the value would break the composition): `compositionend` does it then.
+ */
 function upperCaseInPlace(input: HTMLInputElement) {
   const upper = input.value.toUpperCase()
   if (upper === input.value) return
@@ -83,8 +87,12 @@ function upperCaseInPlace(input: HTMLInputElement) {
   input.setSelectionRange(selectionStart, selectionEnd)
 }
 
-/** Sigle (upper-cased as typed), « Libellé du permis », « Format du permis » (checked like the database reads it). */
-function OrderFields({ form }: ReferenceFormProps<'professional_orders'>) {
+/**
+ * Sigle (upper-cased as typed), « Libellé du permis », « Format du permis » (checked like the
+ * database reads it; when editing, the help says a new format applies to each record the next
+ * time it is edited, since nothing re-checks the saved numbers).
+ */
+function OrderFields({ form, row }: ReferenceFormProps<'professional_orders'>) {
   const { errors } = form.formState
   const acronym = form.register('acronym')
   return (
@@ -95,8 +103,13 @@ function OrderFields({ form }: ReferenceFormProps<'professional_orders'>) {
             {...field}
             {...acronym}
             onChange={(event) => {
-              upperCaseInPlace(event.target)
+              if (!(event.nativeEvent as InputEvent).isComposing) upperCaseInPlace(event.target)
               void acronym.onChange(event)
+            }}
+            onCompositionEnd={(event) => {
+              upperCaseInPlace(event.currentTarget)
+              // The form reads the field's value: tell it about the upper-cased one.
+              void acronym.onChange({ target: event.currentTarget, type: 'change' })
             }}
             autoComplete="off"
             autoCapitalize="characters"
@@ -109,7 +122,11 @@ function OrderFields({ form }: ReferenceFormProps<'professional_orders'>) {
       <FormField label={t(`${P}.orders.licenceLabel`)} help={t(`${P}.orders.licenceLabelHelp`)} error={errors.licenceLabel?.message}>
         {(field) => <Input {...field} {...form.register('licenceLabel')} autoComplete="off" maxLength={60} />}
       </FormField>
-      <FormField label={t(`${P}.orders.licencePattern`)} help={t(`${P}.orders.licencePatternHelp`)} error={errors.licencePattern?.message}>
+      <FormField
+        label={t(`${P}.orders.licencePattern`)}
+        help={row ? `${t(`${P}.orders.licencePatternHelp`)} ${t(`${P}.orders.licencePatternChange`)}` : t(`${P}.orders.licencePatternHelp`)}
+        error={errors.licencePattern?.message}
+      >
         {(field) => (
           <Input
             {...field}
@@ -132,11 +149,9 @@ function OrderFields({ form }: ReferenceFormProps<'professional_orders'>) {
 const categoryText = (category: ProfessionCategory) => (category.isActive ? category.name : t(`${P}.titles.archivedCategory`, { name: category.name }))
 /** An order in the title's row: its acronym, « (archivé) » when it is. */
 const orderCellText = (order: ProfessionalOrder) => (order.isActive ? order.acronym : t(`${P}.titles.archivedOrder`, { name: order.acronym }))
-/** An order in the title dialog: its name and acronym, « (archivé) » when it is. */
-const orderOptionText = (order: ProfessionalOrder) => {
-  const text = t(`${P}.titles.orderOption`, { name: order.name, acronym: order.acronym })
-  return order.isActive ? text : t(`${P}.titles.archivedOrder`, { name: text })
-}
+/** An order in the title dialog: « Nom (SIGLE) », « Nom (SIGLE), archivé » when it is. */
+const orderOptionText = (order: ProfessionalOrder) =>
+  t(order.isActive ? `${P}.titles.orderOption` : `${P}.titles.archivedOrderOption`, { name: order.name, acronym: order.acronym })
 
 function titleColumns(catalog: CatalogView): ReferenceColumn<'profession_titles'>[] {
   const category = (row: ProfessionTitle) => catalog.byId.categories.get(row.categoryId)
@@ -180,14 +195,21 @@ function titleColumns(catalog: CatalogView): ReferenceColumn<'profession_titles'
  * Catégorie* and Ordre (« Aucun ordre » first, sent as null). Only active rows are offered; the
  * archived category or order a title already has stays shown, marked, so saving a rename keeps it
  * (the RPC accepts a row keeping its archived parent). A title that gains an order makes its
- * professionals' licence number required: the note says so before saving.
+ * professionals' licence number required: when someone has the title, the note says so before
+ * saving.
  */
-function TitleFields({ form, row, catalog }: ReferenceFormProps<'profession_titles'> & { catalog: CatalogView }) {
+function TitleFields({
+  form,
+  row,
+  catalog,
+  usage,
+}: ReferenceFormProps<'profession_titles'> & { catalog: CatalogView; usage: ReadonlyMap<string, number> }) {
   const { errors } = form.formState
   const categories = catalog.categories.filter((category) => category.isActive || category.id === row?.categoryId)
   const orders = catalog.orders.filter((order) => order.isActive || order.id === row?.orderId)
   const orderId = useWatch({ control: form.control, name: 'orderId' })
-  const gainsOrder = row !== null && row.orderId === null && orderId !== ''
+  const holders = row === null ? 0 : (usage.get(usageKey('profession_titles', row.id)) ?? 0)
+  const gainsOrder = row !== null && row.orderId === null && orderId !== '' && holders > 0
   return (
     <>
       <FormField label={t(`${P}.titles.category`)} required error={errors.categoryId?.message}>
@@ -237,7 +259,8 @@ function TitleFields({ form, row, catalog }: ReferenceFormProps<'profession_titl
  *   « Format du permis ». « Utilisé par » counts their active titles.
  * - Catégories: name only (Services et tarifs prices by category); same count.
  * - Titres: their category and order (« — » without one: no licence required); « Utilisé par »
- *   counts professionals.
+ *   counts professionals. Reorderable (the catalogue's order, which the title pickers follow),
+ *   since a new title always lands last.
  * The database refuses archiving a parent with active titles, and restoring a title before its
  * category and order: the confirmation shows its message.
  */
@@ -276,7 +299,8 @@ export function ProfessionsSettingsPage() {
             rows={catalog.titles}
             usage={usage}
             columns={titleColumns(catalog)}
-            renderForm={(props) => <TitleFields {...props} catalog={catalog} />}
+            renderForm={(props) => <TitleFields {...props} catalog={catalog} usage={usage} />}
+            reorderable
             canEdit={canEdit}
             addVariant="outline"
             labels={TITLE_LABELS}

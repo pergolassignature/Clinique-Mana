@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import { usageKey } from '../../api/catalog'
@@ -35,6 +35,7 @@ const USAGE = new Map([
   [usageKey('professional_orders', IDS.opq), 1],
   [usageKey('profession_categories', IDS.psychologie), 2],
   [usageKey('profession_titles', IDS.psychologue), 3],
+  [usageKey('profession_titles', IDS.naturopathe), 2],
 ])
 
 /**
@@ -150,6 +151,20 @@ describe('ProfessionsSettingsPage', () => {
     expect(rowOf('titles', 'Psychologue').querySelector('mark')?.textContent).toBe('OPQ')
   })
 
+  it('searches titles on their category name and their order name', async () => {
+    await renderPage()
+    const search = within(card('titles')).getByRole('searchbox')
+    // « Psychologie » is the category, not the title's name.
+    await userEvent.type(search, 'psychologie')
+    expect(within(card('titles')).queryByText('Naturopathe')).not.toBeInTheDocument()
+    expect(within(rowOf('titles', 'Psychologue')).getAllByRole('cell')[0]?.querySelector('mark')?.textContent).toBe('Psychologie')
+    // The order's full name, which the row shows as its acronym.
+    await userEvent.clear(search)
+    await userEvent.type(search, 'québec')
+    expect(within(card('titles')).queryByText('Naturopathe')).not.toBeInTheDocument()
+    expect(rowOf('titles', 'Psychologue')).toBeInTheDocument()
+  })
+
   it('adds an order: acronym upper-cased as typed, « N° de permis » by default', async () => {
     await renderPage()
     mocks.api.saveReference.mockResolvedValue(NEW_ID)
@@ -177,6 +192,35 @@ describe('ProfessionsSettingsPage', () => {
     })
   })
 
+  it('upper-cases the acronym mid-string without moving the caret', async () => {
+    await renderPage()
+    await add('orders')
+    const acronym = textbox(t(`${P}.orders.acronym`)) as HTMLInputElement
+    await userEvent.type(acronym, 'oq')
+    await userEvent.type(acronym, 'p', { initialSelectionStart: 1, initialSelectionEnd: 1 })
+    expect(acronym).toHaveValue('OPQ')
+    expect(acronym.selectionStart).toBe(2)
+    expect(acronym.selectionEnd).toBe(2)
+  })
+
+  it('leaves the acronym alone while an input method composes, and upper-cases it once composed', async () => {
+    await renderPage()
+    await add('orders')
+    const acronym = textbox(t(`${P}.orders.acronym`)) as HTMLInputElement
+    fireEvent.compositionStart(acronym)
+    fireEvent.input(acronym, { target: { value: 'op' }, isComposing: true })
+    expect(acronym).toHaveValue('op')
+    fireEvent.input(acronym, { target: { value: 'opq' }, isComposing: true })
+    expect(acronym).toHaveValue('opq')
+    fireEvent.compositionEnd(acronym)
+    expect(acronym).toHaveValue('OPQ')
+    // The form holds the upper-cased value too: saving sends it.
+    mocks.api.saveReference.mockResolvedValue(NEW_ID)
+    await userEvent.type(textbox('Nom'), 'Ordre test')
+    await submit(t(`${LIST}.dialog.create`))
+    await waitFor(() => expect(mocks.api.saveReference).toHaveBeenCalledWith('professional_orders', expect.objectContaining({ acronym: 'OPQ' })))
+  })
+
   it('refuses a licence format the browser cannot check like the database', async () => {
     await renderPage()
     await add('orders')
@@ -195,6 +239,10 @@ describe('ProfessionsSettingsPage', () => {
     expect(screen.getByRole('dialog', { name: t(`${P}.orders.editTitle`) })).toBeInTheDocument()
     expect(textbox(t(`${P}.orders.acronym`))).toHaveValue('OPQ')
     expect(textbox(t(`${P}.orders.licencePattern`))).toHaveValue('^[0-9]{5}$')
+    // A changed format is checked on each record the next time it is edited.
+    expect(textbox(t(`${P}.orders.licencePattern`))).toHaveAccessibleDescription(
+      `${t(`${P}.orders.licencePatternHelp`)} ${t(`${P}.orders.licencePatternChange`)}`,
+    )
   })
 
   it('adds a category (name only)', async () => {
@@ -249,11 +297,26 @@ describe('ProfessionsSettingsPage', () => {
     ])
     const order = combobox(t(`${P}.titles.order`))
     expect(order).toHaveValue(ARCHIVED_ORDER)
-    expect(options(order)).toEqual([
-      t(`${P}.titles.noOrder`),
-      'Ordre des psychologues du Québec (OPQ)',
-      t(`${P}.titles.archivedOrder`, { name: 'Ancien ordre (AO)' }),
-    ])
+    expect(options(order)).toEqual([t(`${P}.titles.noOrder`), 'Ordre des psychologues du Québec (OPQ)', 'Ancien ordre (AO), archivé'])
+  })
+
+  it('saves a renamed title with the archived category and order it keeps', async () => {
+    mocks.api.fetchProfessionalsCatalog.mockResolvedValue(catalogWithArchivedParents())
+    await renderPage()
+    mocks.api.saveReference.mockResolvedValue(IDS.archivedTitle)
+    await userEvent.click(within(card('titles')).getByRole('button', { name: /^Archivés/ }))
+    await chooseAction('Ancien titre', 'edit')
+    await userEvent.clear(textbox('Nom'))
+    await userEvent.type(textbox('Nom'), 'Titre retiré')
+    await submit(t('common.save'))
+    await waitFor(() =>
+      expect(mocks.api.saveReference).toHaveBeenCalledWith('profession_titles', {
+        id: IDS.archivedTitle,
+        name: 'Titre retiré',
+        categoryId: ARCHIVED_CATEGORY,
+        orderId: ARCHIVED_ORDER,
+      }),
+    )
   })
 
   it('warns that a licence will be required when a title gains an order', async () => {
@@ -262,8 +325,11 @@ describe('ProfessionsSettingsPage', () => {
     await chooseAction('Naturopathe', 'edit')
     const order = combobox(t(`${P}.titles.order`))
     expect(within(dialog()).queryByText(t(`${P}.titles.licenceNote`))).not.toBeInTheDocument()
+    // The live region is there before the note, so the note is announced when it appears.
+    const live = dialog().querySelector('[aria-live="polite"]')
+    expect(live).toBeEmptyDOMElement()
     await userEvent.selectOptions(order, IDS.opq)
-    expect(within(dialog()).getByText(t(`${P}.titles.licenceNote`))).toBeInTheDocument()
+    expect(within(dialog()).getByText(t(`${P}.titles.licenceNote`)).closest('[aria-live]')).toBe(live)
     await userEvent.selectOptions(order, '')
     expect(within(dialog()).queryByText(t(`${P}.titles.licenceNote`))).not.toBeInTheDocument()
     await userEvent.selectOptions(order, IDS.opq)
@@ -276,6 +342,14 @@ describe('ProfessionsSettingsPage', () => {
         orderId: IDS.opq,
       }),
     )
+  })
+
+  it('no licence note when nobody has the title', async () => {
+    mocks.api.fetchReferenceUsage.mockResolvedValue(new Map([...USAGE].filter(([key]) => key !== usageKey('profession_titles', IDS.naturopathe))))
+    await renderPage()
+    await chooseAction('Naturopathe', 'edit')
+    await userEvent.selectOptions(combobox(t(`${P}.titles.order`)), IDS.opq)
+    expect(within(dialog()).queryByText(t(`${P}.titles.licenceNote`))).not.toBeInTheDocument()
   })
 
   it('no licence note for a title that already has an order', async () => {
@@ -295,6 +369,29 @@ describe('ProfessionsSettingsPage', () => {
     expect(await within(confirm).findByRole('alert')).toHaveTextContent("Archivez d'abord les titres de cette catégorie.")
     expect(mocks.api.setReferenceActive).toHaveBeenCalledWith('profession_categories', IDS.psychologie, false)
     expect(mocks.toast.error).not.toHaveBeenCalled()
+  })
+
+  it('says an order has one active title, and shows the refusal of the database', async () => {
+    await renderPage()
+    mocks.api.setReferenceActive.mockRejectedValue({ code: 'P0001', message: "Archivez d'abord les titres de cet ordre." })
+    await chooseAction('Ordre des psychologues du Québec', 'archive')
+    const confirm = await screen.findByRole('alertdialog')
+    expect(within(confirm).getByText(t(`${P}.orders.archive.bodyOne`))).toBeInTheDocument()
+    await userEvent.click(within(confirm).getByRole('button', { name: t(`${LIST}.archive.confirm`) }))
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent("Archivez d'abord les titres de cet ordre.")
+    expect(mocks.api.setReferenceActive).toHaveBeenCalledWith('professional_orders', IDS.opq, false)
+  })
+
+  it('reorders titles, sending the whole list (archived included)', async () => {
+    await renderPage()
+    mocks.api.reorderReference.mockResolvedValue(undefined)
+    // Only the titles move: orders and categories keep their order.
+    expect(within(card('orders')).queryByRole('button', { name: /^Descendre/ })).not.toBeInTheDocument()
+    expect(within(card('categories')).queryByRole('button', { name: /^Descendre/ })).not.toBeInTheDocument()
+    await userEvent.click(within(card('titles')).getByRole('button', { name: t(`${LIST}.actions.moveDown`, { name: 'Psychologue' }) }))
+    await waitFor(() =>
+      expect(mocks.api.reorderReference).toHaveBeenCalledWith('profession_titles', [IDS.naturopathe, IDS.psychologue, IDS.archivedTitle]),
+    )
   })
 
   it('archives an unused category, and says a title keeps its professionals', async () => {
