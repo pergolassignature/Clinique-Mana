@@ -972,13 +972,27 @@
         "licenceLabelTooLong": "Le libellé du permis ne peut pas dépasser 60 caractères.",
         "licencePatternTooLong": "Le format de permis ne peut pas dépasser 200 caractères.",
         "licencePattern": "Format de permis invalide.",
+        "licencePatternSyntax": "Ce format utilise une syntaxe non prise en charge.",
         "categoryRequired": "Choisissez une catégorie.",
         "ages": "Les âges vont de 0 à 120 ans.",
         "maxAgeNeedsMin": "Un âge maximum demande un âge minimum.",
         "maxAgeBelowMin": "L'âge maximum doit être supérieur ou égal à l'âge minimum.",
         "descriptionTooLong": "La description ne peut pas dépasser 300 caractères.",
         "icon": "Icône inconnue.",
-        "languageCode": "Code de langue : deux lettres (ISO 639-1)."
+        "languageCode": "Code de langue : deux lettres (ISO 639-1).",
+        "clienteleKind": "Cette clientèle garde son type (groupe d'âge ou non).",
+        "otherReasonNote": "La raison « Autre » demande toujours une note.",
+        "nameTaken": {
+          "professional_orders": "Un ordre porte déjà ce nom (il est peut-être archivé).",
+          "profession_categories": "Une catégorie porte déjà ce nom (elle est peut-être archivée).",
+          "profession_titles": "Un titre porte déjà ce nom (il est peut-être archivé).",
+          "clienteles": "Une clientèle porte déjà ce nom (elle est peut-être archivée).",
+          "specialties": "Une approche porte déjà ce nom (elle est peut-être archivée).",
+          "motif_categories": "Une catégorie porte déjà ce nom (elle est peut-être archivée).",
+          "motifs": "Un motif porte déjà ce nom (il est peut-être archivé).",
+          "languages": "Une langue porte déjà ce nom (elle est peut-être archivée).",
+          "deactivation_reasons": "Une raison porte déjà ce nom (elle est peut-être archivée)."
+        }
       },
       "settings": {
         "professions": {

@@ -2,7 +2,8 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { t } from '@/i18n'
 import { CREATE_PROFESSIONAL_DEFAULTS, createProfessionalSchema } from './create'
 import type { NewProfessional } from '../api/record'
-import { CATALOG_VIEW } from '../test/fixtures-domain'
+import { CATALOG, CATALOG_VIEW } from '../test/fixtures-domain'
+import { buildCatalogView } from '../lib/catalog-view'
 import { IDS } from '../test/fixtures'
 import { errorAt } from '../test/schema-helpers'
 
@@ -44,6 +45,15 @@ describe('createProfessionalSchema', () => {
       t('modules.professionals.validation.licenceOrderFormat', { title: 'Psychologue' }),
     )
     expect(schema.parse(values({ titleId: IDS.psychologue, licenceNumber: ' 12345 ' }))).toMatchObject({ titleId: IDS.psychologue, licenceNumber: '12345' })
+  })
+
+  it('refuses an archived title (a stale draft)', () => {
+    expect(errorAt(schema, values({ titleId: IDS.archivedTitle }), 'titleId')).toBe(t('modules.professionals.validation.titleArchived'))
+  })
+
+  it('leaves an order format JavaScript reads differently to the database', () => {
+    const catalog = buildCatalogView({ ...CATALOG, orders: CATALOG.orders.map((o) => ({ ...o, licencePattern: '^[[:digit:]]{5}$' })) })
+    expect(createProfessionalSchema(catalog).parse(values({ titleId: IDS.psychologue, licenceNumber: 'abc' }))).toMatchObject({ licenceNumber: 'abc' })
   })
 
   it('needs no licence for a title without an order', () => {

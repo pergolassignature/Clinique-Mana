@@ -1637,6 +1637,45 @@ Test (`manifest.test.tsx`): every route and section component has `preload`; sec
 
 **Step 7: Checks and commit** (`feat(professionals): module API, hooks, schemas and manifest`), staging the files above by path.
 
+**As built (the code is the reference where this sketch differs):**
+- **Section visibility.** The five list sections are seen with `professionals.manage` **or** `professionals.settings` and edited with `professionals.settings` (`LIST_SECTION` in `manifest.ts`). The sketch said `.manage` only, but then a user given `.settings` by override could not open the lists they edit. `list_professionals_reference_usage` already serves both. « Rémunération » (4a.18) is not registered yet.
+- **Narrow invalidation**, not `professionalKeys.all` after every change. There are three key roots (`professionalKeys`, `professionalCatalogKeys`, `professionalsSettingsKeys`), and the table in `hooks/keys.ts` says what each change refetches:
+  - a record change refetches `record(id)`, `lists()` and `history(id)`; a set or status change also refetches `usage()`;
+  - a creation refetches `lists()` and `usage()`;
+  - a saved list row refetches `catalog()` and `usage()`, plus `professionalKeys.all` for titles and motifs (they change the licence and restricted-motif rules);
+  - an archive or restore refetches `catalog()`, `usage()` and `professionalKeys.all`;
+  - a reorder is optimistic on `catalog()` and rolled back on error.
+  
+  Records and list rows hold ids, never labels, so a rename refetches the catalogue only. A `42501` refetches the caller's access and `professionalCatalogKeys.all`, because the catalogue is nine empty lists without a professionals permission.
+- **Activate / deactivate return shape.** `activateProfessional` and `deactivateProfessional` resolve with `StatusChange = { status, accountChange: 'disabled' | 'enabled' | null, profileId: string | null }`, not `void`. Both nullable fields are typed `| null` against the generated types (4a.4 note). The hooks write the status into the cached record the way the RPCs write it:
+  - activation clears the deactivation reason, note and account claim, and keeps the trimmed override reason only when the file is incomplete;
+  - deactivation sets the reason and the trimmed note, clears the override reason, and claims the account when `accountChange` is `'disabled'`.
+- **`watchFlags(subject)`** (`lib/watch.ts`) takes a `WatchSubject` (`status`, `matchingComplete`, `emailMatchesLogin`), not `(row, catalog)`. A list row has those fields; a record goes through `recordWatchSubject`.
+  - The 4a flags are `matching_incomplete` and `login_email_mismatch` « Courriel de connexion différent », both muted. `login_email_mismatch` comes from the readiness warning (4a.4) or the list's `email_matches_login`.
+  - Inactive files have no flag.
+- **`setPayerNumber(id, type, value: string | null)`**: `null` (or blank) deletes the number. The sketch had `value: string`. `useSetPayerNumber` removes it from the cached record.
+- **View wrappers.** The API wraps only what this module's pages read: `get_professionals_catalog`, `professionals_list`, `list_professionals`, `get_professional_record`, the history, and the write RPCs.
+  - Readiness comes from the record bundle through a selector, with no extra request. `fetchProfessionalReadiness` was removed, along with `fetchProfessionalPublicProfile` and its parser: no 4a page reads `get_professional_public_profile` (4a.13 edits `record.publicProfile`, and 4c.5 builds the fiche server-side).
+  - The published contract (`professionals_directory`, the catalogue views, `get_professional_public_profile`) belongs to its consumers (Demandes), which read it through their own `api/` layer. The removed parser is in commit `1d69f6c` if one wants it.
+- **Licence formats** are PostgreSQL regular expressions, and the client runs them as JavaScript. `lib/licence-pattern.ts` (`hasPostgresOnlySyntax`) finds the syntax the two read differently:
+  - `***` prefixes, `[[:class:]]`, `[[.x.]]`, `[[=x=]]`, and a `]` first in a bracket;
+  - every `(?` group;
+  - `\m`, `\M`, `\y`, `\Y`, `\A`, `\Z`, `\b`, `\B`, and back-references.
+  
+  The order dialog refuses such a format (« Ce format utilise une syntaxe non prise en charge. »). The professions editor and the creation dialog skip their client format check for a stored format that has it, and leave the decision to the database.
+- **List-dialog checks against the catalogue.** `referenceSchema(kind, { rows, current })` wraps `referenceSchemas[kind]` and adds:
+  - a name another row holds, archived ones included, compared as `normalize('NFKC').toLowerCase()`, with the RPC's message;
+  - a system clientèle keeping its kind (age group or not);
+  - the system reason « Autre » keeping its required note.
+  
+  The RPCs stay authoritative, since a concurrent save can still collide. The creation dialog also refuses an archived title.
+- **Filters.**
+  - The setters compute the next filters from the current URL (a ref that follows every render and every write), so two changes in one event both apply. react-router 6 hands `setSearchParams`'s updater the params of the last render, so the updater alone would not do it.
+  - A search of spaces alone is no filter.
+  - **« profession »:** the client filter (`filterProfessionals`) matches the **primary** title, since a `professionals_list` row carries only that one. `list_professionals` (server pages) matches **any** of the professional's titles. 4a.10 picks one and labels the filter to match (« Titre principal » for the client filter).
+  - **Remembered filters are not in 4a.5.** PS Hub's `useCrmUrlState` restores each user's last search through `usePersistedSearch`, which stores it per user in `user_search_preferences`. The Professionnels list gets the same per-user model in 4a.10. It is stored server-side in a core `user_preferences` table (DB lane), never in `localStorage` (decision #10), and restored when the same person signs in on any computer. See « Écarts par rapport à PS Hub » in `docs/modules/professionals.md`.
+- **Public email** is capped at 254 characters, like the column check.
+
 ---
 
 ## Task 4a.6: Settings — the reference-list pattern, « Langues », « Raisons de désactivation » (lane B)
@@ -1732,6 +1771,10 @@ Three `ReferenceListCard`s on one page:
 **Page (design §5.1, design system §4):**
 - `usePageTitle(t('modules.professionals.name'))`. `PageHeader` « Professionnels », subtitle « {n} professionnels · {m} actifs », teal « + Ajouter » with `professionals.manage`.
 - **Filter bar:** search (« Rechercher par nom, courriel ou permis… », max 280); Statut select (Tous les statuts, À inviter, Invité, À réviser, Actif, Inactif); « Filtres » popover: Profession, Langue, Clientèle, Motif (multi, searchable command list), « Accepte de nouveaux clients », « À surveiller »; active filters as removable chips; « N résultats » on the right. All state in the URL (`useProfessionalsFilters`).
+- **Remembered filters (per user, PS Hub `usePersistedSearch` model, P4-39):** the list remembers each person's last search and filters, so they come back when the same person signs in on any computer.
+  - **Storage:** server-side, one row per user, in a new core table `user_preferences (user_id uuid references profiles(user_id) on delete cascade, key text, value jsonb, updated_at timestamptz, primary key (user_id, key))`. RLS lets each user select, insert, update and delete only their own rows (`user_id = auth.uid()`). `key` is checked against a pattern (`^[a-z0-9_.]{1,64}$`) and `value` is capped in size (e.g. 4 KB). Key here: `professionals.list_filters`; the value is the filters without the page. **DB-lane item (lane A), before 4a.10:** no per-user preferences table exists yet. PS Hub's equivalent is `user_search_preferences (user_id, page_key, search_state jsonb)`.
+  - **Never `localStorage`** (decision #10, shared reception computers). PS Hub also keeps a `localStorage` copy; we don't. The preference is a React Query entry keyed by user, so it is cleared with the cache when the user changes.
+  - **Flow:** the URL stays the source of truth. On arrival with no filter parameter, the saved filters are written into the URL (`replace`). A link or reload that carries filters wins and is not overwritten. Changes are saved with a debounce (≈ 1.5 s), and « Réinitialiser » saves the empty state.
 - **Table** in a Card (padding 0), columns `minmax(0,2fr) minmax(0,1.6fr) 96px 120px minmax(0,1.4fr)`: Nom (avatar 24 with initials, name 13/500, email 12 secondary), Profession (primary title + « OPQ 12345 »), Langues (« FR · EN »), Statut (dot + word), À surveiller (first flag of `watchFlags`, red when `danger`, else « — »). Rows 40 px, the whole row is a link to `/professionnels/:id/apercu` (an `<a>` so Ctrl-click opens a tab; hover/focus prefetches the record and the record page chunk).
 - **Footer:** « {x} sur {n} professionnels » and « ‹ Page 1 sur 2 › » (`PAGE_SIZE` 25, page in the URL).
 - **Data:** `useProfessionalsList()` + `useProfessionalsCatalog()` in parallel; filtering is client-side and memoised on `(rows, filters, catalog)`. When `truncated`, an Alert: « Plus de 500 professionnels : affinez la recherche. »
@@ -1746,6 +1789,7 @@ Three `ReferenceListCard`s on one page:
 - « + Ajouter » hidden for the conseillère;
 - the licence field appears for `psychologue`, not for `naturopathe`; duplicate email shows under the field; success navigates;
 - truncated alert at 501 rows.
+- remembered filters: restored into an empty URL, not over a URL that carries filters, saved after a change (debounced), cleared by « Réinitialiser »; nothing written to `localStorage`.
 
 **Browser check** (desktop and 375 px): the table never scrolls horizontally (ellipses), the filter popover is usable by keyboard.
 

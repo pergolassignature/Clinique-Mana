@@ -10,7 +10,7 @@ import { personNameField } from './identity'
  * « Ajouter un professionnel » (design §5.2, P4-35), as `create_professional` checks it: names,
  * the login email (lower-cased), an optional title, and its licence: required when the title has
  * an order, in that order's format. A licence without a title is dropped (the RPC refuses it).
- * The title select lists active titles only.
+ * The title select lists active titles only; an archived one (a stale draft) is refused.
  */
 export function createProfessionalSchema(catalog: CatalogView) {
   return z
@@ -22,7 +22,11 @@ export function createProfessionalSchema(catalog: CatalogView) {
       licenceNumber: licenceNumberField(),
     })
     .superRefine((v, ctx) => {
-      if (v.titleId !== null) checkLicence(catalog, v.titleId, v.licenceNumber, ctx, ['licenceNumber'])
+      if (v.titleId === null) return
+      if (catalog.byId.titles.get(v.titleId)?.isActive === false) {
+        ctx.addIssue({ code: 'custom', path: ['titleId'], message: t('modules.professionals.validation.titleArchived') })
+      }
+      checkLicence(catalog, v.titleId, v.licenceNumber, ctx, ['licenceNumber'])
     })
     .transform((v): NewProfessional => ({ ...v, licenceNumber: v.titleId === null ? null : v.licenceNumber }))
 }

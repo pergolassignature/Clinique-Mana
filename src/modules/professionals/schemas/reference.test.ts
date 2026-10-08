@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { referenceSchemas, toReferenceFormValues } from './reference'
+import { referenceSchema, referenceSchemas, toReferenceFormValues } from './reference'
 import { CATALOG } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
 import { errorAt } from '../test/schema-helpers'
@@ -34,6 +34,18 @@ describe('professional_orders', () => {
 
   it.each(['O', 'O1', 'ABCDEFGHIJK'])('refuses the acronym %s', (acronym) => {
     expect(errorAt(schema, { ...base, acronym }, 'acronym')).toBe(V('modules.professionals.validation.acronym'))
+  })
+
+  it.each(['^[[:digit:]]{5}$', '(?i)^ab$', '^\\m[0-9]+\\M$', '^\\y[0-9]{5}$', '^\\A[0-9]+\\Z$', '^([0-9])\\1$'])(
+    'refuses %s: PostgreSQL and JavaScript read it differently',
+    (licencePattern) => {
+      expect(errorAt(schema, { ...base, licencePattern }, 'licencePattern')).toBe(V('modules.professionals.validation.licencePatternSyntax'))
+    },
+  )
+
+  it('gives one message for a pattern in PostgreSQL-only syntax that JavaScript cannot read', () => {
+    const result = schema.safeParse({ ...base, licencePattern: '(?' })
+    expect(result.success ? [] : result.error.issues.map((i) => i.message)).toEqual([V('modules.professionals.validation.licencePatternSyntax')])
   })
 
   it('refuses an unreadable pattern and over-long label or pattern', () => {
@@ -85,6 +97,40 @@ describe('motif_categories, motifs, languages, deactivation_reasons', () => {
 
   it('deactivation reason: the two flags', () => {
     expect(referenceSchemas.deactivation_reasons.parse({ name: 'Congé', requiresNote: false, disablesAccount: true })).toEqual({ name: 'Congé', requiresNote: false, disablesAccount: true })
+  })
+})
+
+describe('referenceSchema: checks against the list (the RPC stays authoritative)', () => {
+  const [children, seniors, couples] = CATALOG.clienteles
+  const clienteles = (current: (typeof CATALOG.clienteles)[number] | null) => referenceSchema('clienteles', { rows: CATALOG.clienteles, current })
+
+  it('refuses a name another row holds, archived ones included, as lower(normalize(name, NFKC))', () => {
+    expect(errorAt(clienteles(null), { name: ' aînés ', minAge: '65', maxAge: '' }, 'name')).toBe(V('modules.professionals.validation.nameTaken.clienteles'))
+    // NFKC folds the full-width letters and the composed « î » the same way the index does.
+    expect(errorAt(clienteles(null), { name: 'Ａi\u0302nés', minAge: '65', maxAge: '' }, 'name')).toBe(V('modules.professionals.validation.nameTaken.clienteles'))
+    const titles = referenceSchema('profession_titles', { rows: CATALOG.titles, current: null })
+    expect(errorAt(titles, { name: 'ANCIEN TITRE', categoryId: IDS.psychologie, orderId: '' }, 'name')).toBe(V('modules.professionals.validation.nameTaken.profession_titles'))
+  })
+
+  it('lets a row keep its own name', () => {
+    expect(clienteles(seniors!).parse({ name: 'Aînés', minAge: '60', maxAge: '' })).toEqual({ name: 'Aînés', minAge: 60, maxAge: null })
+  })
+
+  it('keeps a system clientèle’s kind (age group or not)', () => {
+    expect(errorAt(clienteles(children!), { name: 'Enfants', minAge: '', maxAge: '' }, 'minAge')).toBe(V('modules.professionals.validation.clienteleKind'))
+    expect(errorAt(clienteles(couples!), { name: 'Couples', minAge: '18', maxAge: '' }, 'minAge')).toBe(V('modules.professionals.validation.clienteleKind'))
+    expect(clienteles(children!).safeParse({ name: 'Enfants', minAge: '0', maxAge: '11' }).success).toBe(true)
+    const custom = { ...couples!, id: 'custom', name: 'Groupes', isSystem: false }
+    expect(referenceSchema('clienteles', { rows: [custom], current: custom }).safeParse({ name: 'Groupes', minAge: '18', maxAge: '' }).success).toBe(true)
+  })
+
+  it('keeps the note on « Autre »', () => {
+    const reasons = (current: (typeof CATALOG.deactivationReasons)[number]) => referenceSchema('deactivation_reasons', { rows: CATALOG.deactivationReasons, current })
+    const other = CATALOG.deactivationReasons.find((r) => r.key === 'other')!
+    const leave = CATALOG.deactivationReasons.find((r) => r.key === 'leave')!
+    expect(errorAt(reasons(other), { name: 'Autre', requiresNote: false, disablesAccount: false }, 'requiresNote')).toBe(V('modules.professionals.validation.otherReasonNote'))
+    expect(reasons(other).safeParse({ name: 'Autre', requiresNote: true, disablesAccount: false }).success).toBe(true)
+    expect(reasons(leave).safeParse({ name: 'Congé', requiresNote: false, disablesAccount: false }).success).toBe(true)
   })
 })
 

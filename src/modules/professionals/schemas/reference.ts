@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
 import { MOTIF_CATEGORY_ICONS, type MotifCategoryIcon, type ReferenceKind } from '../lib/constants'
+import { hasPostgresOnlySyntax } from '../lib/licence-pattern'
 import type { ReferenceFields, ReferenceRow } from '../api/catalog'
 import { tidy, tidyText } from './text'
 
@@ -8,7 +9,9 @@ import { tidy, tidyText } from './text'
  * The settings lists' dialogs (4a.6–4a.9), one schema per list, as the `save_*` RPCs check them
  * (20261008084945_professionals_reference_settings.sql): names 1–120, tidy; an acronym and a
  * language code normalised as typed; ages 0–120 with max ≥ min and no max without a min. The
- * output is what `saveReference(kind, { id, ...output })` sends.
+ * output is what `saveReference(kind, { id, ...output })` sends. `referenceSchema(kind, …)` adds
+ * the checks that need the list: a name already taken (NFKC, ignoring case), a system clientèle
+ * keeping its kind, « Autre » keeping its note. The RPCs stay authoritative (a concurrent save).
  */
 
 const M = {
@@ -18,6 +21,7 @@ const M = {
   licenceLabelTooLong: t('modules.professionals.validation.licenceLabelTooLong'),
   licencePatternTooLong: t('modules.professionals.validation.licencePatternTooLong'),
   licencePattern: t('modules.professionals.validation.licencePattern'),
+  licencePatternSyntax: t('modules.professionals.validation.licencePatternSyntax'),
   categoryRequired: t('modules.professionals.validation.categoryRequired'),
   ages: t('modules.professionals.validation.ages'),
   maxAgeNeedsMin: t('modules.professionals.validation.maxAgeNeedsMin'),
@@ -25,6 +29,8 @@ const M = {
   descriptionTooLong: t('modules.professionals.validation.descriptionTooLong'),
   icon: t('modules.professionals.validation.icon'),
   languageCode: t('modules.professionals.validation.languageCode'),
+  clienteleKind: t('modules.professionals.validation.clienteleKind'),
+  otherReasonNote: t('modules.professionals.validation.otherReasonNote'),
 } as const
 
 const name = () => tidyText({ max: 120, requiredMessage: M.nameRequired, tooLongMessage: M.nameTooLong })
@@ -54,9 +60,11 @@ const orderSchema = z.object({
     .transform((v) => tidy(v).toUpperCase())
     .refine((v) => /^[A-Z]{2,10}$/.test(v), { error: M.acronym }),
   licenceLabel: tidyText({ max: 60, tooLongMessage: M.licenceLabelTooLong }),
-  licencePattern: tidyText({ max: 200, tooLongMessage: M.licencePatternTooLong, fold: false }).refine((v) => v === null || isReadablePattern(v), {
-    error: M.licencePattern,
-  }),
+  licencePattern: tidyText({ max: 200, tooLongMessage: M.licencePatternTooLong, fold: false })
+    // The licence checks run the format in the browser too: refuse what the two dialects read
+    // differently (PostgreSQL may accept it), then what JavaScript cannot read at all.
+    .refine((v) => v === null || !hasPostgresOnlySyntax(v), { error: M.licencePatternSyntax, abort: true })
+    .refine((v) => v === null || isReadablePattern(v), { error: M.licencePattern }),
 })
 
 const nameOnlySchema = z.object({ name: name() })
@@ -124,6 +132,41 @@ export const referenceSchemas = {
   languages: languageSchema,
   deactivation_reasons: deactivationReasonSchema,
 } as const satisfies { [K in ReferenceKind]: z.ZodType<ReferenceFields<K>, ReferenceFormValues[K]> }
+
+/** The duplicate comparison of the save RPCs and the unique indexes: lower(normalize(name, NFKC)). */
+const nameKey = (name: string) => name.normalize('NFKC').toLowerCase()
+
+/** The row being edited (null for a new one) and the list it belongs to, archived rows included. */
+export interface ReferenceContext<K extends ReferenceKind> {
+  rows: readonly ReferenceRow<K>[]
+  current: ReferenceRow<K> | null
+}
+
+type SystemRule<K extends ReferenceKind> = (value: ReferenceFields<K>, row: ReferenceRow<K>, ctx: z.RefinementCtx) => void
+
+/** What a system row keeps (P4-42): matching relies on a clientèle's kind, « Autre » says nothing without a note. */
+const SYSTEM_RULES: { [K in ReferenceKind]?: SystemRule<K> } = {
+  clienteles: (value, row, ctx) => {
+    if ((row.minAge === null) !== (value.minAge === null)) ctx.addIssue({ code: 'custom', path: ['minAge'], message: M.clienteleKind })
+  },
+  deactivation_reasons: (value, row, ctx) => {
+    if (row.key === 'other' && !value.requiresNote) ctx.addIssue({ code: 'custom', path: ['requiresNote'], message: M.otherReasonNote })
+  },
+}
+
+/**
+ * A dialog's schema: `referenceSchemas[kind]` plus the checks against the list. A name another
+ * row holds (archived included) gets the RPC's message.
+ */
+export function referenceSchema<K extends ReferenceKind>(kind: K, { rows, current }: ReferenceContext<K>): z.ZodType<ReferenceFields<K>, ReferenceFormValues[K]> {
+  const base = referenceSchemas[kind] as unknown as z.ZodType<ReferenceFields<K>, ReferenceFormValues[K]>
+  const systemRule = SYSTEM_RULES[kind] as SystemRule<K> | undefined
+  const taken = new Set(rows.filter((r) => r.id !== current?.id).map((r) => nameKey(r.name)))
+  return base.superRefine((value, ctx) => {
+    if (taken.has(nameKey(value.name))) ctx.addIssue({ code: 'custom', path: ['name'], message: t(`modules.professionals.validation.nameTaken.${kind}`) })
+    if (current?.isSystem && systemRule) systemRule(value, current, ctx)
+  })
+}
 
 const str = (v: string | number | null) => (v === null ? '' : String(v))
 /** The icon of a new category: the column's default. */

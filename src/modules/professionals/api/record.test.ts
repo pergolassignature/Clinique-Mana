@@ -3,8 +3,6 @@ import {
   activateProfessional,
   createProfessional,
   deactivateProfessional,
-  fetchProfessionalPublicProfile,
-  fetchProfessionalReadiness,
   fetchProfessionalRecord,
   setClienteles,
   setLanguages,
@@ -19,7 +17,7 @@ import {
   type ProfessionalPatch,
 } from './record'
 import { UNEXPECTED_SHAPE } from './parse'
-import { IDS, PUBLIC_PROFILE_JSON, READINESS_JSON, RECORD_JSON } from '../test/fixtures'
+import { IDS, RECORD_JSON } from '../test/fixtures'
 
 const mocks = vi.hoisted(() => {
   const select = vi.fn()
@@ -54,18 +52,6 @@ describe('reads', () => {
   it('fetchProfessionalRecord: shape error', async () => {
     ok({ professional: {} })
     await expect(fetchProfessionalRecord(ID)).rejects.toThrow(UNEXPECTED_SHAPE)
-  })
-
-  it('fetchProfessionalReadiness', async () => {
-    ok(READINESS_JSON)
-    await expect(fetchProfessionalReadiness(ID)).resolves.toMatchObject({ complete: false, total: 1 })
-    expect(mocks.rpc).toHaveBeenCalledWith('get_professional_readiness', { p_id: ID })
-  })
-
-  it('fetchProfessionalPublicProfile', async () => {
-    ok(PUBLIC_PROFILE_JSON)
-    await expect(fetchProfessionalPublicProfile(ID)).resolves.toMatchObject({ primaryTitleName: 'Psychologue' })
-    expect(mocks.rpc).toHaveBeenCalledWith('get_professional_public_profile', { p_id: ID })
   })
 
   it('throws the RPC error unchanged', async () => {

@@ -219,8 +219,6 @@ const readinessShape = z.object({
 export type Readiness = z.output<typeof readinessShape>
 export type ReadinessItem = Readiness['items'][number]
 
-/** `get_professional_readiness`: null when the caller cannot read the professional. */
-export const readinessPayload = readinessShape.nullable()
 
 /** `get_professional_record`: the record page in one payload, null when the caller cannot read it. */
 export const recordPayload = z
@@ -250,43 +248,6 @@ export const recordPayload = z
   }))
   .nullable()
 export type ProfessionalRecord = NonNullable<z.output<typeof recordPayload>>
-
-// --- Public profile (get_professional_public_profile) --------------------------------------------
-
-/** What Demandes' profile dialog and the fiche show: names, not ids. Motif groups end with « Autres ». */
-export const publicProfilePayload = z
-  .object({
-    first_name: z.string(),
-    last_name: z.string(),
-    bio: z.string().nullable(),
-    approach: z.string().nullable(),
-    public_email: z.string().nullable(),
-    public_phone: z.string().nullable(),
-    primary_title_name: z.string().nullable(),
-    order_acronym: z.string().nullable(),
-    licence_number: z.string().nullable(),
-    motif_groups: z.array(
-      z.object({ category_key: z.string(), category_name: z.string(), icon: z.enum(MOTIF_CATEGORY_ICONS).nullable(), motifs: z.array(z.string()) }),
-    ),
-    clienteles: z.array(z.object({ name: z.string(), min_age: z.number().nullable(), max_age: z.number().nullable(), specialized: z.boolean() })),
-    approaches: z.array(z.object({ name: z.string(), specialized: z.boolean() })),
-  })
-  .transform((p) => ({
-    firstName: p.first_name,
-    lastName: p.last_name,
-    bio: p.bio,
-    approach: p.approach,
-    publicEmail: p.public_email,
-    publicPhone: p.public_phone,
-    primaryTitleName: p.primary_title_name,
-    orderAcronym: p.order_acronym,
-    licenceNumber: p.licence_number,
-    motifGroups: p.motif_groups.map((g) => ({ categoryKey: g.category_key, categoryName: g.category_name, icon: g.icon, motifs: g.motifs })),
-    clienteles: p.clienteles.map((c) => ({ name: c.name, minAge: c.min_age, maxAge: c.max_age, specialized: c.specialized })),
-    approaches: p.approaches,
-  }))
-  .nullable()
-export type ProfessionalPublicView = NonNullable<z.output<typeof publicProfilePayload>>
 
 // --- List (professionals_list, list_professionals) -----------------------------------------------
 

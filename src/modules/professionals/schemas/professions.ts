@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
 import { titleOrder, type CatalogView } from '../lib/catalog-view'
+import { hasPostgresOnlySyntax } from '../lib/licence-pattern'
 import type { ProfessionInput } from '../api/record'
 import type { ProfessionRow } from '../api/parse'
 
@@ -24,10 +25,11 @@ export const licenceNumberField = () =>
 
 /**
  * Whether `licence` fits the order's format. The format is a PostgreSQL regular expression; one
- * JavaScript cannot read is left to the database (true here).
+ * JavaScript cannot read, or would read differently (`hasPostgresOnlySyntax`), is left to the
+ * database (true here).
  */
 export function matchesOrderPattern(pattern: string | null, licence: string): boolean {
-  if (pattern === null) return true
+  if (pattern === null || hasPostgresOnlySyntax(pattern)) return true
   try {
     return new RegExp(pattern).test(licence)
   } catch {

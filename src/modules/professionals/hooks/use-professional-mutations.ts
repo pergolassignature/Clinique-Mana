@@ -202,9 +202,18 @@ export function useSetPayerNumber(feedback?: MutationFeedback) {
 
 // --- Status --------------------------------------------------------------------------------------
 
-const withStatus = (record: ProfessionalRecord, change: StatusChange): ProfessionalRecord => ({
+/** The RPCs trim notes and reasons this way (`btrim(…, E' \t\r\n')`, empty → null). */
+const trimmed = (text: string | null | undefined) => text?.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '') || null
+
+/**
+ * The record after a status change, as the RPCs write it: activation clears the deactivation
+ * reason, note and account claim (and keeps an override reason only for an incomplete file);
+ * deactivation sets the reason and note, clears the override reason, and claims the account
+ * when it disabled it.
+ */
+const withStatus = (record: ProfessionalRecord, change: StatusChange, fields: Partial<ProfessionalRecord['professional']>): ProfessionalRecord => ({
   ...record,
-  professional: { ...record.professional, status: change.status },
+  professional: { ...record.professional, ...fields, status: change.status },
 })
 
 /** Resolves with the status change (`accountChange`: the provider's account was re-enabled). */
@@ -212,7 +221,13 @@ export function useActivateProfessional(feedback?: MutationFeedback) {
   return useRecordMutation(
     {
       mutationFn: ({ id, overrideReason }: { id: string; overrideReason?: string }) => activateProfessional(id, overrideReason),
-      apply: withStatus,
+      apply: (record, change, { overrideReason }) =>
+        withStatus(record, change, {
+          deactivationReasonId: null,
+          deactivationNote: null,
+          deactivationDisabledAccount: false,
+          activationOverrideReason: record.readiness.complete ? null : trimmed(overrideReason),
+        }),
       touchesUsage: true,
       successMessage: t('modules.professionals.toasts.activated'),
     },
@@ -225,7 +240,13 @@ export function useDeactivateProfessional(feedback?: MutationFeedback) {
   return useRecordMutation(
     {
       mutationFn: ({ id, reasonId, note }: { id: string; reasonId: string; note?: string | null }) => deactivateProfessional(id, reasonId, note),
-      apply: withStatus,
+      apply: (record, change, { reasonId, note }) =>
+        withStatus(record, change, {
+          deactivationReasonId: reasonId,
+          deactivationNote: trimmed(note),
+          deactivationDisabledAccount: change.accountChange === 'disabled',
+          activationOverrideReason: null,
+        }),
       touchesUsage: true,
       successMessage: t('modules.professionals.toasts.deactivated'),
     },

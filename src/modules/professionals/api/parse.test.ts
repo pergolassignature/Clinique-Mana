@@ -4,13 +4,11 @@ import {
   historyEntryPayload,
   listRowPayload,
   parseRpc,
-  publicProfilePayload,
-  readinessPayload,
   recordPayload,
   settingsPayload,
   statusChangePayload,
 } from './parse'
-import { CATALOG_JSON, HISTORY_ROW_JSON, IDS, LIST_ROW_JSON, PUBLIC_PROFILE_JSON, READINESS_JSON, RECORD_JSON } from '../test/fixtures'
+import { CATALOG_JSON, HISTORY_ROW_JSON, IDS, LIST_ROW_JSON, READINESS_JSON, RECORD_JSON } from '../test/fixtures'
 
 const SHAPE_ERROR = 'professionals: unexpected RPC shape'
 
@@ -125,10 +123,12 @@ describe('recordPayload', () => {
   })
 })
 
-describe('readinessPayload', () => {
+describe('record readiness', () => {
+  const withReadiness = (readiness: unknown) => parseRpc(recordPayload, { ...RECORD_JSON, readiness })?.readiness
+
   it('reads warnings and a complete file', () => {
     expect(
-      parseRpc(readinessPayload, {
+      withReadiness({
         ...READINESS_JSON,
         complete: true,
         done: 1,
@@ -138,38 +138,8 @@ describe('readinessPayload', () => {
     ).toMatchObject({ complete: true, done: 1, warnings: ['login_email_mismatch'] })
   })
 
-  it('is null for a professional the caller cannot read', () => {
-    expect(parseRpc(readinessPayload, null)).toBeNull()
-  })
-
   it('refuses an unknown gap', () => {
-    expect(() => parseRpc(readinessPayload, { ...READINESS_JSON, items: [{ key: 'matching_profile', done: false, missing: ['photo'] }] })).toThrow(SHAPE_ERROR)
-  })
-})
-
-describe('publicProfilePayload', () => {
-  it('maps names, groups and approaches', () => {
-    expect(parseRpc(publicProfilePayload, PUBLIC_PROFILE_JSON)).toEqual({
-      firstName: 'Marie',
-      lastName: 'Tremblay',
-      bio: 'Vingt ans de pratique.',
-      approach: null,
-      publicEmail: null,
-      publicPhone: null,
-      primaryTitleName: 'Psychologue',
-      orderAcronym: 'OPQ',
-      licenceNumber: '12345',
-      motifGroups: [
-        { categoryKey: 'inner_life', categoryName: 'Vie intérieure', icon: 'Brain', motifs: ['Anxiété'] },
-        { categoryKey: 'autres', categoryName: 'Autres', icon: null, motifs: ['Deuil'] },
-      ],
-      clienteles: [{ name: 'Couples', minAge: null, maxAge: null, specialized: true }],
-      approaches: [{ name: 'Thérapie cognitivo-comportementale (TCC)', specialized: false }],
-    })
-  })
-
-  it('is null when the caller cannot read the professional', () => {
-    expect(parseRpc(publicProfilePayload, null)).toBeNull()
+    expect(() => withReadiness({ ...READINESS_JSON, items: [{ key: 'matching_profile', done: false, missing: ['photo'] }] })).toThrow(SHAPE_ERROR)
   })
 })
 

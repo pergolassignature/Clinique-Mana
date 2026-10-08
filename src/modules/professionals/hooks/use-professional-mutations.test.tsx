@@ -149,12 +149,45 @@ describe('status', () => {
     expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.toasts.activated'))
   })
 
+  it('useActivateProfessional clears the cached deactivation; an incomplete file keeps the trimmed override reason', async () => {
+    const { wrapper, queryClient, cached } = setup()
+    const record = recordFixture()
+    queryClient.setQueryData(professionalKeys.record(ID), {
+      ...record,
+      professional: { ...record.professional, status: 'inactive', deactivationReasonId: IDS.ended, deactivationNote: 'Départ', deactivationDisabledAccount: true },
+    })
+    mocks.api.activateProfessional.mockResolvedValue({ status: 'active', accountChange: 'enabled', profileId: 'u1' })
+    await run(() => useActivateProfessional(), { id: ID, overrideReason: '  Dossier complété hors application \n' }, wrapper)
+    expect(cached()?.professional).toMatchObject({
+      status: 'active',
+      deactivationReasonId: null,
+      deactivationNote: null,
+      deactivationDisabledAccount: false,
+      activationOverrideReason: 'Dossier complété hors application',
+    })
+  })
+
+  it('useActivateProfessional stores no override reason for a complete file', async () => {
+    const { wrapper, queryClient, cached } = setup()
+    const record = recordFixture()
+    queryClient.setQueryData(professionalKeys.record(ID), { ...record, readiness: { ...record.readiness, complete: true } })
+    mocks.api.activateProfessional.mockResolvedValue({ status: 'active', accountChange: null, profileId: null })
+    await run(() => useActivateProfessional(), { id: ID, overrideReason: 'Inutile' }, wrapper)
+    expect(cached()?.professional.activationOverrideReason).toBeNull()
+  })
+
   it('useDeactivateProfessional', async () => {
     const { wrapper, cached } = setup()
     mocks.api.deactivateProfessional.mockResolvedValue({ status: 'inactive', accountChange: 'disabled', profileId: 'u1' })
     await run(() => useDeactivateProfessional(), { id: ID, reasonId: IDS.other, note: 'Départ' }, wrapper)
     expect(mocks.api.deactivateProfessional).toHaveBeenCalledWith(ID, IDS.other, 'Départ')
-    expect(cached()?.professional.status).toBe('inactive')
+    expect(cached()?.professional).toMatchObject({
+      status: 'inactive',
+      deactivationReasonId: IDS.other,
+      deactivationNote: 'Départ',
+      deactivationDisabledAccount: true,
+      activationOverrideReason: null,
+    })
     expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.toasts.deactivated'))
   })
 })
@@ -189,7 +222,7 @@ describe('errors', () => {
     await run(() => useSetMotifs(), { id: ID, motifIds: [] }, wrapper)
     expect(mocks.toast.error).toHaveBeenCalledWith(t('common.errors.forbidden'))
     expect(mocks.captureException).not.toHaveBeenCalled()
-    expect(invalidated()).toEqual([accessKeys.all])
+    expect(invalidated()).toEqual([accessKeys.all, professionalCatalogKeys.all])
   })
 
   it('reports other codes and shows the module fallback', async () => {

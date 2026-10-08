@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { t } from '@/i18n'
 import { optionalEmail, optionalPhone } from '@/shared/lib/field-schemas'
 import type { PublicProfile } from '../api/parse'
 import { longText } from './text'
@@ -10,8 +11,10 @@ import { longText } from './text'
 export const publicProfileSchema = z.object({
   bio: longText(4000),
   approach: longText(4000),
-  // Stored lower-cased (the check compares with lower()).
-  publicEmail: optionalEmail().transform((v) => v?.toLowerCase() ?? null),
+  // Stored lower-cased (the check compares with lower()), 254 characters at most.
+  publicEmail: optionalEmail()
+    .transform((v) => v?.toLowerCase() ?? null)
+    .refine((v) => v === null || v.length <= 254, { error: t('auth.errors.invalidEmail') }),
   publicPhone: optionalPhone(),
 })
 export type PublicProfileValues = z.input<typeof publicProfileSchema>

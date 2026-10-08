@@ -5,17 +5,13 @@ import type { PayerType } from '../lib/constants'
 import {
   parseRpc,
   professionRowPayload,
-  publicProfilePayload,
-  readinessPayload,
   recordPayload,
   statusChangePayload,
   type MatchingProfile,
   type Professional,
-  type ProfessionalPublicView,
   type ProfessionalRecord,
   type ProfessionRow,
   type PublicProfile,
-  type Readiness,
   type SpecializedRef,
   type StatusChange,
 } from './parse'
@@ -34,20 +30,6 @@ export async function fetchProfessionalRecord(id: string): Promise<ProfessionalR
   const { data, error } = await supabase.rpc('get_professional_record', { p_id: id })
   if (error) throw error
   return parseRpc(recordPayload, data)
-}
-
-/** Readiness alone (the record bundle already holds it); null outside the caller's reach. */
-export async function fetchProfessionalReadiness(id: string): Promise<Readiness | null> {
-  const { data, error } = await supabase.rpc('get_professional_readiness', { p_id: id })
-  if (error) throw error
-  return parseRpc(readinessPayload, data)
-}
-
-/** The public profile with names (fiche, Demandes); null outside the caller's reach. */
-export async function fetchProfessionalPublicProfile(id: string): Promise<ProfessionalPublicView | null> {
-  const { data, error } = await supabase.rpc('get_professional_public_profile', { p_id: id })
-  if (error) throw error
-  return parseRpc(publicProfilePayload, data)
 }
 
 // --- Creation ------------------------------------------------------------------------------------

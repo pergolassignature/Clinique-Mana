@@ -29,4 +29,10 @@ describe('publicProfileSchema', () => {
   it('refuses an invalid email', () => {
     expect(errorAt(publicProfileSchema, { ...empty, publicEmail: 'x@y' }, 'publicEmail')).toBe(t('auth.errors.invalidEmail'))
   })
+
+  it('caps the email at 254 characters, as the column check does', () => {
+    const at254 = `${'a'.repeat(249)}@x.ca`
+    expect(publicProfileSchema.parse({ ...empty, publicEmail: at254 }).publicEmail).toBe(at254)
+    expect(errorAt(publicProfileSchema, { ...empty, publicEmail: `a${at254}` }, 'publicEmail')).toBe(t('auth.errors.invalidEmail'))
+  })
 })

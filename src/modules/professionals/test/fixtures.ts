@@ -142,24 +142,6 @@ export const RECORD_JSON = {
   readiness: READINESS_JSON,
 }
 
-export const PUBLIC_PROFILE_JSON = {
-  first_name: 'Marie',
-  last_name: 'Tremblay',
-  bio: 'Vingt ans de pratique.',
-  approach: null,
-  public_email: null,
-  public_phone: null,
-  primary_title_name: 'Psychologue',
-  order_acronym: 'OPQ',
-  licence_number: '12345',
-  motif_groups: [
-    { category_key: 'inner_life', category_name: 'Vie intérieure', icon: 'Brain', motifs: ['Anxiété'] },
-    { category_key: 'autres', category_name: 'Autres', icon: null, motifs: ['Deuil'] },
-  ],
-  clienteles: [{ name: 'Couples', min_age: null, max_age: null, specialized: true }],
-  approaches: [{ name: 'Thérapie cognitivo-comportementale (TCC)', specialized: false }],
-}
-
 export const LIST_ROW_JSON = {
   id: IDS.professional,
   first_name: 'Marie',

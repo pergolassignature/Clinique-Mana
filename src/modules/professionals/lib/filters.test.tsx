@@ -64,6 +64,11 @@ describe('filtersToSearchParams', () => {
     expect(filtersToSearchParams(DEFAULT_FILTERS).toString()).toBe('')
   })
 
+  it('writes no search made of spaces alone, and keeps a real one as typed', () => {
+    expect(filtersToSearchParams(filters({ q: '   ' })).toString()).toBe('')
+    expect(filtersToSearchParams(filters({ q: 'marie ' })).get('q')).toBe('marie ')
+  })
+
   it('keeps the parameters it does not own', () => {
     expect(filtersToSearchParams(filters({ watch: true }), new URLSearchParams('x=1&statut=actif')).toString()).toBe('x=1&surveiller=1')
   })
@@ -72,7 +77,8 @@ describe('filtersToSearchParams', () => {
 describe('isDefaultFilters', () => {
   it('ignores the page', () => {
     expect(isDefaultFilters(filters({ page: 4 }))).toBe(true)
-    expect(isDefaultFilters(filters({ q: ' ' }))).toBe(false)
+    expect(isDefaultFilters(filters({ q: ' ' }))).toBe(true)
+    expect(isDefaultFilters(filters({ q: ' a' }))).toBe(false)
     expect(isDefaultFilters(filters({ motifIds: [IDS.anxiete] }))).toBe(false)
   })
 })
@@ -182,6 +188,24 @@ describe('useProfessionalsFilters', () => {
     act(() => hook.result.current.setFilters({ q: 'marie' }))
     expect(location().search).toBe('?x=1&q=marie')
     expect(hook.result.current.filters).toMatchObject({ q: 'marie', page: 1 })
+  })
+
+  it('applies two changes made in the same event, each from the URL the previous one wrote', () => {
+    const { hook, location } = setup('?page=2')
+    act(() => {
+      hook.result.current.setFilters({ q: 'marie' })
+      hook.result.current.toggleMotif(IDS.anxiete)
+      hook.result.current.toggleMotif(IDS.deuil)
+    })
+    expect(location().search).toBe(`?q=marie&motif=${IDS.anxiete}&motif=${IDS.deuil}`)
+  })
+
+  it('a setter kept from an older render still starts from the current URL', () => {
+    const { hook, location } = setup('')
+    const { setFilters } = hook.result.current
+    act(() => hook.result.current.toggleMotif(IDS.anxiete))
+    act(() => setFilters({ watch: true }))
+    expect(location().search).toBe(`?motif=${IDS.anxiete}&surveiller=1`)
   })
 
   it('toggles a motif in and out', () => {

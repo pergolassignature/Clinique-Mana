@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { MAX_SET_SIZE, PAGE_SIZE, PROFESSIONAL_STATUSES, type ProfessionalStatus } from './constants'
 import type { CatalogView } from './catalog-view'
@@ -79,7 +79,7 @@ export function parseProfessionalsFilters(params: URLSearchParams): Professional
 export function filtersToSearchParams(filters: ProfessionalsFilters, base: URLSearchParams = new URLSearchParams()): URLSearchParams {
   const params = new URLSearchParams(base)
   for (const name of PARAMS) params.delete(name)
-  if (filters.q !== '') params.set('q', filters.q)
+  if (filters.q.trim() !== '') params.set('q', filters.q)
   if (filters.status) params.set('statut', STATUS_PARAMS[filters.status])
   if (filters.titleId) params.set('profession', filters.titleId)
   if (filters.languageId) params.set('langue', filters.languageId)
@@ -91,7 +91,7 @@ export function filtersToSearchParams(filters: ProfessionalsFilters, base: URLSe
   return params
 }
 
-/** Whether nothing narrows the list (the page aside): « Réinitialiser » shows otherwise. */
+/** Whether nothing narrows the list (the page aside; spaces alone are no search): « Réinitialiser » shows otherwise. */
 export function isDefaultFilters(filters: ProfessionalsFilters): boolean {
   return filtersToSearchParams({ ...filters, page: 1 }).toString() === ''
 }
@@ -100,25 +100,47 @@ export function isDefaultFilters(filters: ProfessionalsFilters): boolean {
  * The URL's filters and their setters. A filter change goes back to page 1 and replaces the
  * history entry (typing must not stack entries); a page change pushes one, so Back returns to the
  * previous page.
+ *
+ * Each setter computes the next filters from the current URL, not from the filters of the last
+ * render, so two changes in one event (or a setter held by an older closure) both apply. The
+ * current URL is `latest`, not `setSearchParams`'s updater argument: react-router 6 hands that
+ * updater the search params of its last render, so a second call in the same tick would undo the
+ * first. `latest` follows every render (Back, links) and every write made here.
  */
 export function useProfessionalsFilters() {
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = useMemo(() => parseProfessionalsFilters(searchParams), [searchParams])
+  const latest = useRef(searchParams)
+  useLayoutEffect(() => {
+    latest.current = searchParams
+  }, [searchParams])
 
-  const write = useCallback(
-    (next: ProfessionalsFilters, replace: boolean) => setSearchParams((current) => filtersToSearchParams(next, current), { replace }),
+  const update = useCallback(
+    (change: (current: ProfessionalsFilters) => ProfessionalsFilters, replace: boolean) => {
+      const next = filtersToSearchParams(change(parseProfessionalsFilters(latest.current)), latest.current)
+      latest.current = next
+      setSearchParams(next, { replace })
+    },
     [setSearchParams],
   )
   const setFilters = useCallback(
-    (patch: Partial<Omit<ProfessionalsFilters, 'page'>>) => write({ ...filters, ...patch, page: 1 }, true),
-    [filters, write],
+    (patch: Partial<Omit<ProfessionalsFilters, 'page'>>) => update((current) => ({ ...current, ...patch, page: 1 }), true),
+    [update],
   )
   const toggleMotif = useCallback(
-    (id: string) => setFilters({ motifIds: filters.motifIds.includes(id) ? filters.motifIds.filter((m) => m !== id) : [...filters.motifIds, id] }),
-    [filters.motifIds, setFilters],
+    (id: string) =>
+      update(
+        (current) => ({
+          ...current,
+          motifIds: current.motifIds.includes(id) ? current.motifIds.filter((m) => m !== id) : [...current.motifIds, id],
+          page: 1,
+        }),
+        true,
+      ),
+    [update],
   )
-  const setPage = useCallback((page: number) => write({ ...filters, page }, false), [filters, write])
-  const reset = useCallback(() => write(DEFAULT_FILTERS, true), [write])
+  const setPage = useCallback((page: number) => update((current) => ({ ...current, page }), false), [update])
+  const reset = useCallback(() => update(() => DEFAULT_FILTERS, true), [update])
 
   return { filters, setFilters, toggleMotif, setPage, reset }
 }
