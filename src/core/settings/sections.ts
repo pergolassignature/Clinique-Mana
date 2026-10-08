@@ -66,7 +66,11 @@ export const coreSettingsSections: SettingsSection[] = [
     icon: Landmark,
     permission: 'settings.bank_manage',
     group: 'clinique',
-    component: ComingSoonSection,
+    component: lazy(() =>
+      import('./pages/BankSettingsPage').then((m) => ({
+        default: m.BankSettingsPage,
+      }))
+    ),
   },
   {
     id: 'region',

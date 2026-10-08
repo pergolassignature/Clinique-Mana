@@ -35,7 +35,7 @@ const NEQ = /^[0-9]{10}$/
 const GST = /^[0-9]{9}RT[0-9]{4}$/
 const QST = /^[0-9]{10}TQ[0-9]{4}$/
 const POSTAL_CODE = /^[A-Z][0-9][A-Z] [0-9][A-Z][0-9]$/
-const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+export const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 const HTTPS_URL = /^https:\/\/\S+$/
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i
 /**
@@ -92,7 +92,7 @@ function isWebAddress(url: string): boolean {
  * Trims, then refuses control characters before anything else (abort: no second, misleading
  * format message). A pasted tab or line break at either end is trimmed, not refused.
  */
-const withoutControlChars = <T extends z.ZodType<unknown, string>>(schema: T) =>
+export const withoutControlChars = <T extends z.ZodType<unknown, string>>(schema: T) =>
   z.string().trim().refine((v) => !CONTROL_CHARS.test(v), { error: MESSAGES.controlChar, abort: true }).pipe(schema)
 
 const optionalEmail = () => withoutControlChars(optionalPattern(EMAIL, MESSAGES.email))

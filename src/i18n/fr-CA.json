@@ -268,6 +268,53 @@
       },
       "validation": { "rate": "Taux invalide.", "date": "Date requise.", "afterOpen": "Le nouveau taux doit commencer après le {date}." }
     },
+    "bank": {
+      "description": "Visibles par les administrateurs seulement. Chaque affichage du numéro de compte est inscrit au journal d'audit.",
+      "loadError": "Impossible de charger les coordonnées bancaires.",
+      "title": "Compte de la clinique",
+      "empty": {
+        "title": "Aucune coordonnée bancaire",
+        "body": "Ajoutez le compte où la clinique reçoit ses paiements.",
+        "add": "Ajouter"
+      },
+      "display": {
+        "institution": "Institution",
+        "transit": "Transit",
+        "account": "Compte",
+        "email": "Courriel Interac",
+        "none": "—",
+        "masked": "Numéro masqué, se terminant par {last4}",
+        "show": "Afficher",
+        "showLabel": "Afficher le numéro de compte",
+        "hide": "Masquer",
+        "hideLabel": "Masquer le numéro de compte",
+        "autoHide": "Masqué de nouveau dans une minute.",
+        "updated": "Modifié le {date} par {name}",
+        "updatedNoName": "Modifié le {date}",
+        "edit": "Modifier",
+        "editLabel": "Modifier les coordonnées bancaires"
+      },
+      "fields": {
+        "institution": "Numéro d'institution",
+        "institutionHelp": "3 chiffres",
+        "transit": "Numéro de transit",
+        "transitHelp": "5 chiffres",
+        "account": "Numéro de compte",
+        "accountHelp": "7 à 12 chiffres",
+        "accountKeepHelp": "7 à 12 chiffres. Laissez vide pour garder le numéro actuel.",
+        "accountUnchanged": "Inchangé",
+        "email": "Courriel Interac",
+        "emailHelp": "L'adresse où la clinique reçoit les virements Interac."
+      },
+      "saved": "Coordonnées bancaires enregistrées.",
+      "validation": {
+        "institution": "Le numéro d'institution compte 3 chiffres.",
+        "transit": "Le numéro de transit compte 5 chiffres.",
+        "account": "Le numéro de compte compte de 7 à 12 chiffres.",
+        "accountRequired": "Le numéro de compte est requis.",
+        "email": "Courriel Interac invalide."
+      }
+    },
     "provinces": {
       "AB": "Alberta",
       "BC": "Colombie-Britannique",
