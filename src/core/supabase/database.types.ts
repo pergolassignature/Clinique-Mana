@@ -4670,6 +4670,7 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_my_professional_record: { Args: never; Returns: Json }
       get_my_submission: { Args: never; Returns: Json }
       get_org_secret: {
         Args: { p_key: string; p_org_id: string }
@@ -4954,6 +4955,7 @@ export type Database = {
         Args: { p_limit?: number; p_org: string }
         Returns: string[]
       }
+      list_professional_submissions: { Args: { p_id: string }; Returns: Json }
       list_professionals: {
         Args: {
           p_accepting_new_clients?: boolean

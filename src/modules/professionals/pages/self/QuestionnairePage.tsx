@@ -29,6 +29,7 @@ import type { OnFilePrivate, StepContext } from '../../components/questionnaire/
 import { useProfessionalsCatalog } from '../../hooks/use-catalog'
 import { useMyProfessionalPrivate, useMySubmission, useQuestionnaireAutosave } from '../../hooks/use-my-submission'
 import type { CatalogView } from '../../lib/catalog-view'
+import { MY_PROFILE_PATH } from '../../lib/my-profile'
 import {
   effectiveSection,
   incompleteSections,
@@ -104,7 +105,7 @@ function NothingToComplete({ closed }: { closed: string | null }) {
         body={t(`${Q}.states.none.body`)}
         action={
           <Button asChild variant="outline" size="sm">
-            <Link to="/accueil">{t(`${Q}.states.none.home`)}</Link>
+            <Link to={MY_PROFILE_PATH}>{t(`${Q}.states.none.myProfile`)}</Link>
           </Button>
         }
       />
@@ -156,7 +157,7 @@ function SentProfile({ submission, catalog }: { submission: MySubmission; catalo
         />
       </section>
       <Button asChild variant="outline" size="sm">
-        <Link to="/accueil">{t(`${Q}.states.none.home`)}</Link>
+        <Link to={MY_PROFILE_PATH}>{t(`${Q}.states.none.myProfile`)}</Link>
       </Button>
     </div>
   )

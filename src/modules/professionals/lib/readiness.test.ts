@@ -154,11 +154,12 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
     const draft: Onboarding = { invitation: null, submission: { id: 's1', kind: 'onboarding', status: 'draft', submittedAt: null }, onboardingApproved: false }
     expect(nextAction(onboardingFile('user-1'), draft, can(...INVITE), NOW).message).toBe(t(`${N}.questionnaireInProgress`, { firstName: 'Marie' }))
     const submitted: Onboarding = { ...draft, submission: { id: 's1', kind: 'onboarding', status: 'submitted', submittedAt: '2026-10-10T15:00:00Z' } }
-    // No button until 4b.5 sets REVIEW_TAB, even for a reviewer.
+    // « Réviser le profil » leads reviewers to Documents (Task 4b.5); others read the sentence alone.
     expect(nextAction(onboardingFile('user-1', 'in_review'), submitted, can('professionals.review'), NOW)).toEqual({
       message: t(`${N}.reviewOnboarding`, { firstName: 'Marie', date: '10 oct.' }),
-      action: null,
+      action: { kind: 'tab', label: t(`${N}.review`), tab: 'documents' },
     })
+    expect(nextAction(onboardingFile('user-1', 'in_review'), submitted, can(...INVITE), NOW).action).toBeNull()
   })
 
   it('an update waiting for review comes first, even on an active file', () => {

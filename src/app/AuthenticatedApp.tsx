@@ -60,9 +60,13 @@ export function AuthenticatedApp() {
     return idle.cancel
   }, [visibleSections, routeComponents])
 
+  // Accueil's module cards this user may see (each loads its own chunk when it renders).
+  const homeCards = useMemo(() => modules.flatMap((m) => (m.homeCards ?? []).filter((card) => can(card.permission))), [modules, can])
+
   const navItems = useMemo<ShellNavItem[]>(() => {
     const moduleItems = modules
-      .flatMap((m) => (m.nav && can(m.nav.permission) ? [m.nav] : []))
+      .flatMap((m) => [m.nav ?? []].flat())
+      .filter((item) => can(item.permission) && !(item.hiddenWith && can(item.hiddenWith)))
       .sort((a, b) => a.order - b.order)
     return [
       { path: '/accueil', labelKey: 'nav.home', icon: Home },
@@ -88,7 +92,7 @@ export function AuthenticatedApp() {
             with the old zone are formatted again (AccessProvider sets the zone before this renders). */}
         <Routes key={org_timezone}>
           <Route index element={<Navigate to="/accueil" replace />} />
-          <Route path="accueil" element={<HomePage />} />
+          <Route path="accueil" element={<HomePage cards={homeCards} />} />
           {/* « Mon compte »: outside Paramètres, so every role reaches it (ACCOUNT_PAGE in the shell). */}
           <Route
             path="mon-compte"

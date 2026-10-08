@@ -14,7 +14,7 @@ describe('ALL_MODULES', () => {
   it('uses relative route paths and absolute nav paths', () => {
     for (const m of ALL_MODULES) {
       for (const r of m.routes) expect(r.path).not.toMatch(/^\//)
-      if (m.nav) expect(m.nav.path).toMatch(/^\//)
+      for (const item of [m.nav ?? []].flat()) expect(item.path).toMatch(/^\//)
     }
   })
 

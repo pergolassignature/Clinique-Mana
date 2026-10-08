@@ -34,11 +34,11 @@ type Can = (permission: string) => boolean
 const TAB_PERMISSION: Partial<Record<RecordTab, string>> = { identite: 'professionals.manage', jumelage: 'professionals.matching' }
 
 /**
- * Where a submission is reviewed (the review's entry point): « Questionnaire et mises à jour » in
- * « Documents », which Task 4b.5 adds; it sets this to `'documents'` with the tab. Until then
- * « Prochaine action » says the profile waits for its review, without a button.
+ * Where a submission is reviewed (the review's entry point, Task 4b.5): « Questionnaire et mises à
+ * jour » in « Documents ». « Prochaine action »'s « Réviser le profil » and « À surveiller »'s
+ * review flags link there; so does the in-app notice (`/professionnels/:id/documents`, P4-271).
  */
-export const REVIEW_TAB: RecordTab | null = null
+export const REVIEW_TAB: RecordTab = 'documents'
 
 /**
  * The button of « Prochaine action »: a link to a tab (the one that fixes a gap, or the review's),
@@ -81,7 +81,7 @@ export function nextAction(record: NextActionSubject, onboarding: Onboarding | n
     const key = submission.kind === 'onboarding' ? 'reviewOnboarding' : 'reviewUpdate'
     return {
       message: date ? t(`${N}.${key}`, { firstName, date }) : t(`${N}.${key}Undated`, { firstName }),
-      action: REVIEW_TAB && can('professionals.review') ? { kind: 'tab', label: t(`${N}.review`), tab: REVIEW_TAB } : null,
+      action: can('professionals.review') ? { kind: 'tab', label: t(`${N}.review`), tab: REVIEW_TAB } : null,
     }
   }
   if (professional.status === 'inactive') return readinessStep(record, can) ?? activationStep(record, can)

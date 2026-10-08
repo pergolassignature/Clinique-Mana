@@ -2951,7 +2951,7 @@ begin
                       else private.encrypt_pii(private.decrypt_pii(s.sin, s.key_version), v_version) end;
   exception when sqlstate '39000' or sqlstate '55000' then
     raise exception 'Les renseignements transmis ne peuvent pas être lus avec la clé de cet environnement.'
-      using errcode = 'P0001', hint = 'Refusez la soumission : le professionnel saisira ces renseignements de nouveau.';
+      using errcode = 'P0001', hint = 'Renvoyez le profil au professionnel : il saisira ces renseignements de nouveau.';
   end;
 
   begin
@@ -3064,11 +3064,11 @@ begin
   if 'consent' = any (v_fields)
      and (v_values #>> '{consent,consent_version_id}')::uuid is distinct from private.current_consent_version(v_org, 'image_rights') then
     raise exception 'Le texte du consentement a changé depuis la signature.'
-      using errcode = 'P0001', hint = 'Refusez la soumission : le professionnel signera la nouvelle version.';
+      using errcode = 'P0001', hint = 'Renvoyez le profil au professionnel : il signera la nouvelle version.';
   end if;
   if 'insurance' = any (v_fields) and (v_values #>> '{insurance,expires_on}')::date < private.clinic_today() then
     raise exception 'Cette assurance est échue depuis l''envoi du profil.'
-      using errcode = 'P0001', hint = 'Refusez la soumission : le professionnel joindra une preuve en vigueur.';
+      using errcode = 'P0001', hint = 'Renvoyez le profil au professionnel : il joindra une preuve en vigueur.';
   end if;
   perform pg_catalog.set_config('app.audit_source', 'rpc:apply_professional_submission', true);
 

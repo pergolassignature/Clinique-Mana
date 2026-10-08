@@ -124,7 +124,8 @@ describe('QuestionnairePage — states', () => {
     current = null
     renderPage()
     expect(await screen.findByText(t(`${Q}.states.none.title`))).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: t(`${Q}.states.none.home`) })).toHaveAttribute('href', '/accueil')
+    // « Mon profil » since 4b.5 (P4-334).
+    expect(screen.getByRole('link', { name: t(`${Q}.states.none.myProfile`) })).toHaveAttribute('href', '/mon-profil')
   })
 
   it('shows a sent profile read-only, with the thanks', async () => {

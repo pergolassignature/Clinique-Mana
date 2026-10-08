@@ -9,9 +9,9 @@ const tabsOf = (permissions: readonly string[]) => visibleRecordTabs((p) => perm
 
 describe('visibleRecordTabs', () => {
   it.each<[FixtureRole, string[]]>([
-    ['admin', ['apercu', 'jumelage', 'profil-public', 'identite', 'remuneration', 'historique']],
-    ['admin_assistant', ['apercu', 'jumelage', 'profil-public', 'identite', 'historique']],
-    ['counselor', ['apercu', 'jumelage', 'profil-public', 'identite', 'historique']],
+    ['admin', ['apercu', 'jumelage', 'profil-public', 'identite', 'documents', 'remuneration', 'historique']],
+    ['admin_assistant', ['apercu', 'jumelage', 'profil-public', 'identite', 'documents', 'historique']],
+    ['counselor', ['apercu', 'jumelage', 'profil-public', 'identite', 'documents', 'historique']],
   ])('shows the %s their tabs', (role, tabs) => {
     expect(tabsOf(ROLE_PERMISSIONS[role])).toEqual(tabs)
   })
@@ -56,5 +56,13 @@ describe('visibleRecordTabs', () => {
     await def?.prefetch?.(queryClient, 'p1', () => true)
     expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual([professionalKeys.emails('p1')])
     expect(infinite).toHaveBeenCalledOnce()
+  })
+
+  it('prefetches the file’s submissions with « Documents » (Task 4b.5)', async () => {
+    const queryClient = new QueryClient()
+    const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined)
+    const def = RECORD_TAB_DEFS.find((d) => d.tab === 'documents')
+    await def?.prefetch?.(queryClient, 'p1', () => true)
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual([professionalKeys.submissions('p1')])
   })
 })

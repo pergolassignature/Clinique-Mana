@@ -33,6 +33,10 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * | consent, the submission                  | private step also `myPrivate()`)                               |
  * | a clinic grid or other rate (P4-185)     | `compensationTermsKeys.terms()`, every `compensation(…)` and   |
  * |                                          | `review(…)` (the suggestions follow the grids)                 |
+ * | a submission applied or sent back (4b.5) | `record(id)` (its onboarding and submissions too), `lists()`,  |
+ * |                                          | `history(id)` (first page), its `submissionReview` (refetched  |
+ * |                                          | in place after a refusal)                                      |
+ * | « Mettre mon profil à jour » (4b.5)      | `mySubmission()`, `myRecord()`                                 |
  *
  * Labels never live in records or list rows (ids only), so a rename touches the catalogue alone.
  */
@@ -53,6 +57,13 @@ export const professionalKeys = {
    * under `record(id)`, so every record refresh refreshes it.
    */
   onboarding: (id: string) => [...professionalKeys.record(id), 'onboarding'] as const,
+  /**
+   * « Questionnaire et mises à jour » (`list_professional_submissions`, Task 4b.5): under
+   * `record(id)`, so every record refresh (an invitation, an apply, a refusal) refreshes it.
+   */
+  submissions: (id: string) => [...professionalKeys.record(id), 'submissions'] as const,
+  /** One submission's review (`get_submission_review`), read when its sheet opens; dropped once decided. */
+  submissionReview: (submissionId: string) => [...professionalKeys.all, 'submission-review', submissionId] as const,
   history: (id: string) => [...professionalKeys.all, 'history', id] as const,
   /** The emails about the professional (`list_subject_emails`): under `history(id)`, refreshed with it. */
   emails: (id: string) => [...professionalKeys.history(id), 'emails'] as const,
@@ -74,6 +85,8 @@ export const professionalKeys = {
   mySubmission: () => [...professionalKeys.all, 'my-submission'] as const,
   /** The signed-in professional's private data on file, masked (`get_my_professional_private`). */
   myPrivate: () => [...professionalKeys.all, 'my-private'] as const,
+  /** « Mon profil » (4b.5): the signed-in professional's own record (`get_my_professional_record`). */
+  myRecord: () => [...professionalKeys.all, 'my-record'] as const,
 }
 
 /** The nine lists (one cached payload) and their usage counts. */

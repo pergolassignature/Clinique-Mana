@@ -5,7 +5,7 @@ import { formatPhone, formatTaxNumber } from '@/shared/lib/format'
 import { formatClinicDateTime, formatDateOnly } from '@/shared/lib/timezone'
 import type { MySubmission, SectionValues } from '../../api/self'
 import type { CatalogView } from '../../lib/catalog-view'
-import { AVAILABILITY_PERIODS } from '../../lib/constants'
+import { AVAILABILITY_PERIODS, type Gender } from '../../lib/constants'
 import { clienteleLabel, minClientAgeLabel, periodsLabel, professionLine } from '../../lib/display'
 import { held, starredFirst } from '../../lib/matching-digest'
 import { summarizeMotifs } from '../../lib/motif-summary'
@@ -54,22 +54,25 @@ function Rows({ rows }: { rows: Row[] }) {
 
 const yesNo = (value: boolean) => t(value ? `${R}.yes` : `${R}.no`)
 
-interface SummaryProps {
-  section: SubmissionSection
+/** The sections the record itself holds (no file, private value or signature): « Mon profil » shows them too. */
+export const PROFILE_SECTIONS = ['personal', 'professional', 'portrait', 'languages', 'clienteles', 'motifs', 'availability'] as const
+export type ProfileSection = (typeof PROFILE_SECTIONS)[number]
+const isProfileSection = (section: SubmissionSection): section is ProfileSection => (PROFILE_SECTIONS as readonly string[]).includes(section)
+
+interface ProfileSummaryProps {
+  section: ProfileSection
   values: SectionValues
-  submission: MySubmission
   catalog: CatalogView
-  onFile: OnFilePrivate
+  /** The professional's gender: the titles read in her form (P4-342). */
+  gender: Gender | null
 }
 
 /**
- * One section's answers in words, as the review and the sent profile show them: what the section
- * holds now (prefill and answers), ids named from the catalogue, motifs by category and by name
- * (P4-249), private values as masks only (or why the record's cannot be shown), dates in the
- * clinic's time (date-only values as is); a signature of an older text names its version.
+ * A section the record holds, in words: ids named from the catalogue, motifs by category and by
+ * name (P4-249), the titles in the professional's form. The questionnaire's summaries and
+ * « Mon profil » (Task 4b.5) show the same words.
  */
-export function SectionSummary({ section, values, submission, catalog, onFile }: SummaryProps) {
-  const onFilePrivate = onFile.data
+export function ProfileSectionSummary({ section, values, catalog, gender }: ProfileSummaryProps) {
   switch (section) {
     case 'personal': {
       const province = text(values, 'province')
@@ -97,7 +100,7 @@ export function SectionSummary({ section, values, submission, catalog, onFile }:
                   <ul>
                     {professions.map((p) => (
                       <li key={p.title_id}>
-                        {professionLine({ titleId: p.title_id, licenceNumber: p.licence_number }, catalog, null)}
+                        {professionLine({ titleId: p.title_id, licenceNumber: p.licence_number }, catalog, gender)}
                         {professions.length > 1 && p.is_primary && <span className="text-muted-foreground"> ({t(`${R}.primary`)})</span>}
                       </li>
                     ))}
@@ -157,6 +160,28 @@ export function SectionSummary({ section, values, submission, catalog, onFile }:
         />
       )
     }
+  }
+}
+
+interface SummaryProps {
+  section: SubmissionSection
+  values: SectionValues
+  submission: MySubmission
+  catalog: CatalogView
+  onFile: OnFilePrivate
+}
+
+/**
+ * One section's answers in words, as the review and the sent profile show them: what the section
+ * holds now (prefill and answers); the record's sections as `ProfileSectionSummary` says them (the
+ * titles in the provider's form, her gender, P4-367), private values as masks only (or why the
+ * record's cannot be shown), dates in the clinic's time (date-only values as is); a signature of
+ * an older text names its version.
+ */
+export function SectionSummary({ section, values, submission, catalog, onFile }: SummaryProps) {
+  if (isProfileSection(section)) return <ProfileSectionSummary section={section} values={values} catalog={catalog} gender={submission.professional.gender} />
+  const onFilePrivate = onFile.data
+  switch (section) {
     case 'photo':
       return <p className="text-sm text-foreground">{text(values, 'file_id') ? t(`${L}.files.photoReceived`) : t(`${L}.files.photoNone`)}</p>
     case 'insurance': {

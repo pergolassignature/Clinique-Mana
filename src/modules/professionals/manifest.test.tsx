@@ -14,21 +14,27 @@ describe('professionalsManifest', () => {
   it('uses the English module key and French URLs', () => {
     expect(professionalsManifest.key).toBe('professionals')
     expect(professionalsManifest.dependsOn).toEqual([])
-    expect(professionalsManifest.nav).toMatchObject({ path: '/professionnels', permission: 'professionals.view' })
+    expect(professionalsManifest.nav).toEqual([
+      expect.objectContaining({ path: '/professionnels', permission: 'professionals.view', order: 10 }),
+      // « Mon profil » right after Accueil, for professionals only (P4-361).
+      expect.objectContaining({ path: '/mon-profil', permission: 'professionals.self', hiddenWith: 'professionals.view', order: 5 }),
+    ])
     expect(professionalsManifest.routes.map((r) => [r.path, r.permission])).toEqual([
       ['professionnels', 'professionals.view'],
       ['professionnels/:id/:onglet?', 'professionals.view'],
       ['professionnels/revision-mensuelle', 'professionals.compensation'],
+      ['mon-profil', 'professionals.self'],
       ['mon-profil/questionnaire', 'professionals.self'],
     ])
+    expect(professionalsManifest.homeCards?.map((c) => [c.id, c.permission])).toEqual([['professionals-profile', 'professionals.self']])
   })
 
   it('has route paths relative to the app root', () => {
     for (const route of professionalsManifest.routes) expect(route.path.startsWith('/')).toBe(false)
   })
 
-  it('code-splits every route and section (each can be preloaded)', () => {
-    for (const page of [...professionalsManifest.routes, ...sections].map((x) => x.component)) {
+  it('code-splits every route, section and Accueil card (each can be preloaded)', () => {
+    for (const page of [...professionalsManifest.routes, ...sections, ...(professionalsManifest.homeCards ?? [])].map((x) => x.component)) {
       expect(typeof page.preload).toBe('function')
       expect(typeof page.isLoaded).toBe('function')
     }

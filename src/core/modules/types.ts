@@ -19,8 +19,22 @@ export interface ModuleNavItem {
   labelKey: TranslationKey
   icon: LucideIcon
   permission: string
+  /**
+   * Not shown to whoever holds this permission as well: « Mon profil » (`professionals.self`) is a
+   * professional's page, and admins hold that key by default without a file of their own.
+   */
+  hiddenWith?: string
   /** Lower comes first in the menu. */
   order: number
+}
+
+/** A card a module adds to Accueil, for whoever holds its permission (it renders nothing when it has nothing to say). */
+export interface ModuleHomeCard {
+  /** Stable English identifier, unique across modules (React key, error scope). */
+  id: string
+  permission: string
+  /** A lazyPage(): Accueil does not load the module's code for users who cannot see the card. */
+  component: LazyPage
 }
 
 export type SettingsGroup = 'clinique' | 'plateforme' | 'modules' | 'compte'
@@ -56,8 +70,11 @@ export interface ModuleManifest {
   labelKey: TranslationKey
   /** Keys of the modules this one requires (mirrors public.module_dependencies). Never lists 'core', which is implicit. */
   dependsOn: string[]
-  nav?: ModuleNavItem
+  /** Its menu entries: one, or several (Professionnels and « Mon profil »). */
+  nav?: ModuleNavItem | readonly ModuleNavItem[]
   routes: ModuleRoute[]
+  /** Cards on Accueil, in this order, between the greeting and the important notices. */
+  homeCards?: readonly ModuleHomeCard[]
   /** The shell adds `moduleKey: key` to each (AuthenticatedApp). */
   settingsSections: Omit<SettingsSection, 'moduleKey'>[]
 }

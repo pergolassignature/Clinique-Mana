@@ -1096,7 +1096,7 @@ set local role authenticated;
 select throws_ok($$ select public.apply_professional_submission(current_setting('test.u3')::uuid, array['sin']) $$,
   'P0001', 'Les renseignements transmis ne peuvent pas être lus avec la clé de cet environnement.', 'apply: an unreadable SIN');
 select is(private.test_error_hint($$ select public.apply_professional_submission(current_setting('test.u3')::uuid, array['sin']) $$),
-  'Refusez la soumission : le professionnel saisira ces renseignements de nouveau.', '… with a hint');
+  'Renvoyez le profil au professionnel : il saisira ces renseignements de nouveau.', '… with a hint');
 reset role;
 update public.professional_submission_private set sin = private.encrypt_pii('046454286', 1)
  where submission_id = current_setting('test.u3')::uuid;

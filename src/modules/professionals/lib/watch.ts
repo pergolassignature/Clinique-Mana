@@ -20,10 +20,12 @@ export type WatchFlagKey =
 
 /**
  * Where Aperçu « À surveiller » sends each flag: the tab that fixes it. The invitation flags are
- * settled on Aperçu itself (« Prochaine action », the header's menu), the review ones in
- * « Documents » once 4b.5 adds it: plain text until then.
+ * settled on Aperçu itself (« Prochaine action », the header's menu): plain text; the review ones
+ * in « Documents » (Task 4b.5).
  */
 export const WATCH_TAB: Readonly<Partial<Record<WatchFlagKey, RecordTab>>> = {
+  submission_to_review: 'documents',
+  update_to_review: 'documents',
   matching_incomplete: 'jumelage',
   login_email_mismatch: 'identite',
 }

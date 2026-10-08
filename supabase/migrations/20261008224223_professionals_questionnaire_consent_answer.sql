@@ -12,6 +12,8 @@
 -- * `get_my_submission` adds `signed_consent_version`: the version number of the text the draft's
 --   signature names (null when unsigned), so a profile sent before the clinic published a newer text
 --   reads « Signé (version n) », not « Pas encore signé ». Compared as text: the draft holds JSON.
+-- * `get_my_submission`'s `professional` adds `gender` (Task 4b.5, P4-367): the questionnaire's
+--   summaries write the provider's titles in her form (titleLabel, P4-342), as « Mon profil » does.
 -- =============================================================================
 
 drop function public.sign_my_consent(uuid, text);
@@ -68,8 +70,8 @@ revoke all on function public.sign_my_consent(uuid, text) from public, anon, aut
 grant execute on function public.sign_my_consent(uuid, text) to authenticated;
 
 -- The open submission (null when none: « Rien à compléter »): requested sections, prefill, answers,
--- the private step as masks, the consent text to sign, the version signed, collect_sin and the name
--- to type.
+-- the private step as masks, the consent text to sign, the version signed, collect_sin, the name
+-- to type and the gender (the titles' form).
 create or replace function public.get_my_submission()
 returns jsonb
 language plpgsql
@@ -109,7 +111,8 @@ begin
                                          where c.org_id = v_org
                                            and c.id::text = s.submitted_values -> 'consent' ->> 'consent_version_id'),
              'collect_sin', coalesce((private.professionals_setting(v_org, 'collect_sin'))::boolean, false),
-             'professional', pg_catalog.jsonb_build_object('first_name', p.first_name, 'last_name', p.last_name, 'email', p.email))
+             'professional', pg_catalog.jsonb_build_object('first_name', p.first_name, 'last_name', p.last_name, 'email', p.email,
+                                                           'gender', p.gender))
       from public.professional_submissions s
       join public.professionals p on p.id = s.professional_id and p.org_id = s.org_id
      where s.professional_id = v_pid and s.org_id = v_org and s.status in ('draft', 'submitted'));

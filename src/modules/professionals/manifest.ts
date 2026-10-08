@@ -1,4 +1,4 @@
-import { Compass, GraduationCap, HandCoins, Languages, Send, Tags, UserMinus, Users } from 'lucide-react'
+import { CircleUser, Compass, GraduationCap, HandCoins, Languages, Send, Tags, UserMinus, Users } from 'lucide-react'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
@@ -23,7 +23,19 @@ export const professionalsManifest: ModuleManifest = {
   key: 'professionals',
   labelKey: 'modules.professionals.name',
   dependsOn: [],
-  nav: { path: '/professionnels', labelKey: 'modules.professionals.name', icon: Users, permission: 'professionals.view', order: 10 },
+  nav: [
+    { path: '/professionnels', labelKey: 'modules.professionals.name', icon: Users, permission: 'professionals.view', order: 10 },
+    // The professional's own file (Task 4b.5), right after Accueil. Hidden from staff who read every
+    // record (admins hold professionals.self by default, without a file of their own: P4-361).
+    {
+      path: '/mon-profil',
+      labelKey: 'modules.professionals.myProfile.nav',
+      icon: CircleUser,
+      permission: 'professionals.self',
+      hiddenWith: 'professionals.view',
+      order: 5,
+    },
+  ],
   routes: [
     { path: 'professionnels', permission: 'professionals.view', component: lazyPage(() => import('./pages/ProfessionalsListPage'), 'ProfessionalsListPage') },
     // The tab is a URL segment: apercu, jumelage… (RECORD_TABS)
@@ -35,12 +47,22 @@ export const professionalsManifest: ModuleManifest = {
       permission: 'professionals.compensation',
       component: lazyPage(() => import('./pages/RetentionReviewPage'), 'RetentionReviewPage'),
     },
+    // « Mon profil » (4b.5): the professional's own file, read-only, and « Mettre mon profil à jour ».
+    { path: 'mon-profil', permission: 'professionals.self', component: lazyPage(() => import('./pages/self/MyProfilePage'), 'MyProfilePage') },
     // The provider's questionnaire (4b.4): where an accepted invitation lands (P4-266) and where an
-    // update request leads. No nav item: « Mon profil » (4b.5) and Accueil link to it.
+    // update request leads. No nav item of its own: « Mon profil » and Accueil link to it.
     {
       path: 'mon-profil/questionnaire',
       permission: 'professionals.self',
       component: lazyPage(() => import('./pages/self/QuestionnairePage'), 'QuestionnairePage'),
+    },
+  ],
+  // Accueil « Complétez votre profil » (P4-319): the professional's open questionnaire, if any.
+  homeCards: [
+    {
+      id: 'professionals-profile',
+      permission: 'professionals.self',
+      component: lazyPage(() => import('./components/self/ProfileHomeCard'), 'ProfileHomeCard'),
     },
   ],
   settingsSections: [

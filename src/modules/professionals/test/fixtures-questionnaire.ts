@@ -24,7 +24,7 @@ export const MY_SUBMISSION_JSON = {
   consent: { id: '00000000-0000-4000-8000-00000000c001', version: 1, title: 'Consentement au droit à l’image', body: 'Texte' },
   signed_consent_version: null,
   collect_sin: false,
-  professional: { first_name: 'Félix', last_name: 'Gauthier', email: 'provider@mana.test' },
+  professional: { first_name: 'Félix', last_name: 'Gauthier', email: 'provider@mana.test', gender: null },
 }
 
 

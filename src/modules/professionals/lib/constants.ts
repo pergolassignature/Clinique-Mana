@@ -30,6 +30,55 @@ export type SubmissionKind = (typeof SUBMISSION_KINDS)[number]
 export const OPEN_SUBMISSION_STATUSES = ['draft', 'submitted'] as const
 export type OpenSubmissionStatus = (typeof OPEN_SUBMISSION_STATUSES)[number]
 
+/**
+ * `professional_submissions_status_check`: being filled in (or sent back), sent for review,
+ * applied, or closed without review (P4-301).
+ */
+export const SUBMISSION_STATUSES = ['draft', 'submitted', 'approved', 'cancelled'] as const
+export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number]
+
+/**
+ * `private.submission_fields()`: the thirty fields a submission can answer, in the questionnaire's
+ * order (the review lists them so, `apply_professional_submission` applies them so).
+ */
+export const SUBMISSION_FIELDS = [
+  'personal_phone',
+  'address_line1',
+  'address_line2',
+  'city',
+  'province',
+  'postal_code',
+  'professions',
+  'years_experience',
+  'bio',
+  'approach',
+  'public_email',
+  'public_phone',
+  'language_ids',
+  'clienteles',
+  'min_client_age',
+  'women_only',
+  'motif_ids',
+  'accepting_new_clients',
+  'availability_periods',
+  'availability_note',
+  'photo',
+  'insurance',
+  'business_number',
+  'gst_number',
+  'qst_number',
+  'bank_institution',
+  'bank_transit',
+  'bank_account',
+  'sin',
+  'consent',
+] as const
+export type SubmissionField = (typeof SUBMISSION_FIELDS)[number]
+
+/** A field's kind in `private.submission_fields()`: how its value is shaped and applied. */
+export const SUBMISSION_FIELD_KINDS = ['plain', 'set', 'file', 'private', 'consent'] as const
+export type SubmissionFieldKind = (typeof SUBMISSION_FIELD_KINDS)[number]
+
 /** `private.submission_sections()`: the questionnaire's eleven sections, in its order (P4-276). */
 export const SUBMISSION_SECTIONS = [
   'personal',

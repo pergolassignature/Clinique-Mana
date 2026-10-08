@@ -12,7 +12,7 @@ import { getClinicTimezone, resetClinicTimezone, setClinicTimezone } from '@/sha
 import { AuthenticatedApp } from './AuthenticatedApp'
 import { ALL_MODULES } from './modules'
 
-const mocks = vi.hoisted(() => ({ captureException: vi.fn(), accountMounts: 0 }))
+const mocks = vi.hoisted(() => ({ captureException: vi.fn(), accountMounts: 0, mySubmission: null as unknown }))
 // The topbar bell (and Accueil) read the caller's notices: none here, and no network.
 vi.mock('@/core/notifications/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/notifications/api')>()),
@@ -21,6 +21,12 @@ vi.mock('@/core/notifications/api', async (importOriginal) => ({
   listImportantUnreadNotifications: async () => [],
 }))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
+// Accueil's « Complétez votre profil » (professionals.self) reads the professional's questionnaire:
+// none unless a test sets one, and no network.
+vi.mock('@/modules/professionals/api/self', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/modules/professionals/api/self')>()),
+  fetchMySubmission: async () => mocks.mySubmission,
+}))
 
 // The Modules section needs a query client and the Supabase client: it has its own tests.
 vi.mock('@/core/settings/pages/ModulesSettingsPage', () => ({ ModulesSettingsPage: () => <p>MODULES PAGE</p> }))
@@ -82,6 +88,7 @@ beforeAll(async () => {
 afterEach(() => {
   vi.restoreAllMocks()
   mocks.captureException.mockReset()
+  mocks.mySubmission = null
 })
 
 const adminLike: Access = accessForRole('admin', { display_name: 'Camille Admin', modules: ['professionals'] })
@@ -114,6 +121,8 @@ const PROFESSIONALS_ROUTES = ['professionals:/professionnels', 'professionals:/p
 const PROFESSIONALS_REVIEW_ROUTE = 'professionals:/professionnels/revision-mensuelle'
 /** The provider's questionnaire (`professionals.self`; the test's admin-like access holds every key). */
 const PROFESSIONALS_QUESTIONNAIRE_ROUTE = 'professionals:/mon-profil/questionnaire'
+// « Mon profil » (4b.5, professionals.self).
+const PROFESSIONALS_MY_PROFILE_ROUTE = 'professionals:/mon-profil'
 
 const appAt = (path: string, access: Access = adminLike, auth: Parameters<typeof renderWithContexts>[1] = {}) => (
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -212,9 +221,31 @@ describe('AuthenticatedApp', () => {
   })
 
   it('hides an enabled module the user may not view, and refuses its route', () => {
-    render(appAt('/professionnels', { ...adminLike, permissions: adminLike.permissions.filter((p) => p !== 'professionals.view') }))
+    // Without professionals.self too: « Mon profil » is the module's other menu entry.
+    const hidden = new Set(['professionals.view', 'professionals.self'])
+    render(appAt('/professionnels', { ...adminLike, permissions: adminLike.permissions.filter((p) => !hidden.has(p)) }))
     expect(menuLinks()).toEqual([t('nav.home'), t('nav.settings')])
     expect(screen.getByText(t('access.forbidden.title'))).toBeInTheDocument()
+  })
+
+  // Task 4b.5 (P4-361): « Mon profil » right after Accueil for a professional, never for staff who read every record.
+  it('shows « Mon profil » to a professional, after Accueil, and not to an admin who holds professionals.self', () => {
+    render(appAt('/accueil', accessForRole('provider', { display_name: 'Félix Gauthier', modules: ['professionals'] })))
+    expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.myProfile.nav')])
+    expect(screen.getByRole('link', { name: t('modules.professionals.myProfile.nav') })).toHaveAttribute('href', '/mon-profil')
+    cleanup()
+    render(appAt('/accueil'))
+    expect(adminLike.permissions).toContain('professionals.self')
+    expect(menuLinks()).not.toContain(t('modules.professionals.myProfile.nav'))
+  })
+
+  // P4-319 (Task 4b.5): the module's Accueil card, for whoever holds professionals.self.
+  it('shows a professional « Complétez votre profil » on Accueil while her questionnaire is open', async () => {
+    const { mySubmission } = await import('@/modules/professionals/test/fixtures-questionnaire')
+    mocks.mySubmission = mySubmission()
+    render(appAt('/accueil', accessForRole('provider', { display_name: 'Félix Gauthier', modules: ['professionals'] })))
+    expect(await screen.findByRole('heading', { name: t('modules.professionals.myProfile.home.onboarding.title') })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t('modules.professionals.myProfile.home.onboarding.action') })).toHaveAttribute('href', '/mon-profil/questionnaire')
   })
 
   // Outside Paramètres: a role with no settings section (here a provider) still reaches it.
@@ -354,7 +385,7 @@ describe('AuthenticatedApp — idle prefetch', () => {
     render(appAt('/accueil'))
     expect(preloaded()).toEqual([])
     runIdle()
-    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES, PROFESSIONALS_REVIEW_ROUTE, PROFESSIONALS_QUESTIONNAIRE_ROUTE])
+    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES, PROFESSIONALS_REVIEW_ROUTE, PROFESSIONALS_MY_PROFILE_ROUTE, PROFESSIONALS_QUESTIONNAIRE_ROUTE])
   })
 
   it('skips the pages the user may not open', () => {

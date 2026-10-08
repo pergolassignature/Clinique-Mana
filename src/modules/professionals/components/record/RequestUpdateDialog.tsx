@@ -1,15 +1,13 @@
-import { useId, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { t } from '@/i18n'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { Checkbox } from '@/shared/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
-import { Label } from '@/shared/ui/label'
 import { useRequestUpdate } from '../../hooks/use-invitations'
-import { SUBMISSION_SECTIONS, type SubmissionSection } from '../../lib/constants'
 import { fullName } from '../../lib/display'
-import { sectionLabel } from '../../lib/onboarding'
+import { SectionChecklist } from '../SectionChecklist'
+import { useSectionChoice } from '../use-section-choice'
 import { useRecordData } from './record-context'
 import type { StatusDialogProps } from './status-dialog'
 import { DialogRefusal } from './StatusDialogParts'
@@ -27,35 +25,23 @@ const U = 'modules.professionals.onboarding.requestUpdate'
 export function RequestUpdateDialog({ onClose, onCloseAutoFocus }: StatusDialogProps) {
   const { record } = useRecordData()
   const { professional } = record
-  const [chosen, setChosen] = useState<ReadonlySet<SubmissionSection>>(new Set())
-  const [missing, setMissing] = useState(false)
+  const choice = useSectionChoice()
   const [refusal, setRefusal] = useState<string | null>(null)
   const mutation = useRequestUpdate({ onErrorMessage: (message) => setRefusal(message) })
   const pending = mutation.isPending
   const first = useRef<HTMLButtonElement>(null)
   // One call at a time: a second press before the first renders as pending is ignored.
   const calling = useRef(false)
-  const errorId = useId()
-
-  const toggle = (section: SubmissionSection, checked: boolean) => {
-    const next = new Set(chosen)
-    if (checked) next.add(section)
-    else next.delete(section)
-    setChosen(next)
-    if (next.size > 0) setMissing(false)
-  }
 
   const submit = () => {
     setRefusal(null)
-    if (chosen.size === 0) {
-      setMissing(true)
+    const sections = choice.sections()
+    if (!sections) {
       first.current?.focus()
       return
     }
     if (calling.current) return
     calling.current = true
-    // The questionnaire's order, whatever the order of the clicks.
-    const sections = SUBMISSION_SECTIONS.filter((section) => chosen.has(section))
     mutation.mutate(
       { id: professional.id, sections, email: professional.email, firstName: professional.firstName },
       {
@@ -81,30 +67,7 @@ export function RequestUpdateDialog({ onClose, onCloseAutoFocus }: StatusDialogP
           <DialogTitle>{t(`${U}.title`, { name: fullName(professional) })}</DialogTitle>
           <DialogDescription>{t(`${U}.body`, { firstName: professional.firstName, email: professional.email })}</DialogDescription>
         </DialogHeader>
-        <fieldset disabled={pending} aria-describedby={missing ? errorId : undefined} className="min-w-0">
-          <legend className="mb-2 text-sm font-medium text-foreground">{t(`${U}.legend`)}</legend>
-          <ul className="grid gap-x-4 gap-y-2.5 sm:grid-cols-2">
-            {SUBMISSION_SECTIONS.map((section, index) => (
-              <li key={section} className="flex items-center gap-2.5">
-                <Checkbox
-                  ref={index === 0 ? first : undefined}
-                  id={`${errorId}-${section}`}
-                  checked={chosen.has(section)}
-                  onCheckedChange={(value) => toggle(section, value === true)}
-                  aria-invalid={missing || undefined}
-                />
-                <Label htmlFor={`${errorId}-${section}`} className="font-normal">
-                  {sectionLabel(section)}
-                </Label>
-              </li>
-            ))}
-          </ul>
-          {missing && (
-            <p id={errorId} role="alert" className="mt-2 text-xs text-destructive">
-              {t(`${U}.required`)}
-            </p>
-          )}
-        </fieldset>
+        <SectionChecklist choice={choice} legend={t(`${U}.legend`)} requiredMessage={t(`${U}.required`)} disabled={pending} firstRef={first} />
         <DialogRefusal message={refusal ?? undefined} />
         <DialogFooter>
           <Button
