@@ -33,6 +33,7 @@ describe('coreSettingsSections', () => {
       ['modules', 'modules', 'plateforme'],
       ['audit', 'journal', 'plateforme'],
       ['jobs', 'taches-planifiees', 'plateforme'],
+      ['email', 'courriels', 'plateforme'],
     ])
   })
 
@@ -48,6 +49,7 @@ describe('coreSettingsSections', () => {
       'Modules',
       "Journal d'audit",
       'Tâches planifiées',
+      'Courriels',
     ])
   })
 
@@ -64,6 +66,8 @@ describe('coreSettingsSections', () => {
       modules: ['modules.manage', undefined],
       audit: ['audit.view', undefined],
       jobs: ['settings.view', 'settings.manage'],
+      // Any of them: the sender and templates need settings.email_manage, the keys settings.integrations_manage.
+      email: ['settings.view', ['settings.email_manage', 'settings.integrations_manage']],
     })
   })
 

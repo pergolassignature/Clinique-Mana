@@ -39,6 +39,9 @@ const COLUMNS: Record<(typeof AUDITED_TABLES)[number], string[]> = {
     'updated_at', 'updated_by',
   ],
   org_scheduled_jobs: ['enabled', 'job_key', 'org_id', 'updated_at', 'updated_by'],
+  email_settings: ['from_address', 'from_name', 'org_id', 'reply_to', 'sending_domain', 'updated_at', 'updated_by'],
+  email_templates: ['body', 'button_label', 'key', 'org_id', 'subject', 'updated_at', 'updated_by', 'version'],
+  email_template_versions: ['key', 'last_version', 'org_id'],
 }
 
 describe('tableLabel', () => {
@@ -56,6 +59,9 @@ describe('tableLabel', () => {
       'Taux de taxes',
       'Coordonnées bancaires',
       'Tâches planifiées',
+      'Expéditeur des courriels',
+      'Modèles de courriel',
+      'Versions des modèles de courriel',
     ])
   })
 

@@ -58,8 +58,9 @@ const fake = vi.hoisted(() => {
       },
     },
     rpc: async (name: string) => {
-      // The Modules settings section (admins land on it under /parametres) lists the org's modules.
-      if (name === 'list_modules') return { data: [], error: null }
+      // The Modules settings section (admins land on it under /parametres) lists the org's modules;
+      // the shell's bell and Accueil read the notices. Neither is about access: not logged.
+      if (name === 'list_modules' || name.endsWith('_notifications')) return { data: [], error: null }
       const userId = state.session?.user.id
       state.rpcCalls.push({ name, userId })
       return state.respond?.(userId ?? '') ?? { data: null, error: null }
@@ -106,9 +107,10 @@ async function openAt(path: string, session: typeof fake.state.session = null) {
 }
 
 // Warm the module transform once: the first cold import of the whole app can
-// exceed the 5 s test timeout on a loaded machine.
+// exceed the 5 s test timeout on a loaded machine, and the first cold load of the
+// lazy signed-in chunk the 1 s of a findBy.
 beforeAll(async () => {
-  await import('./App')
+  await Promise.all([import('./App'), import('./AuthenticatedApp')])
 }, 30_000)
 
 const emit = (event: string, session: typeof fake.state.session) => act(() => fake.emit(event, session))
