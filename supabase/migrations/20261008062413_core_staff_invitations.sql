@@ -68,7 +68,13 @@
 --   accepted in one transaction. A link that cannot be consumed answers its state as peek would
 --   (link_used / link_expired / link_invalid: the accept function's 410 codes) and writes nothing;
 --   the function then deletes the auth user it created. An auth user whose address is not the
---   invitation's raises 22023, so the consumption rolls back too.
+--   invitation's raises 22023, so the consumption rolls back too. Accepting also removes the
+--   orphan marker `invite_link_id` from the account's app_metadata (accept-invite sets it; the
+--   job core.invite_orphans_purge, *_core_staff_access_followups.sql, deletes marked accounts
+--   without a profile): an accepted account is never an orphan, even if its profile goes later.
+--   Best effort: should the migration owner lose UPDATE on auth.users (hosted), acceptance goes
+--   on (insufficient_privilege is swallowed), and the purge still skips an account that has
+--   signed in.
 -- * Locks: every writer of an org's invitations takes the org row first (FOR NO KEY UPDATE).
 --   Under it, create issues the link (issue_secure_link's advisory lock and row updates), then
 --   inserts the invitation; renew and revoke lock the invitation row, then the link(s) (renew:
@@ -685,6 +691,14 @@ begin
   update public.staff_invitations i
      set status = 'accepted', accepted_user_id = p_user_id, accepted_at = pg_catalog.now()
    where i.id = v_inv.id;
+  -- The orphan marker has done its job (header).
+  begin
+    update auth.users u set raw_app_meta_data = u.raw_app_meta_data - 'invite_link_id'
+     where u.id = p_user_id and u.raw_app_meta_data ? 'invite_link_id';
+  exception
+    when insufficient_privilege then
+      null;
+  end;
   perform pg_catalog.set_config('app.audit_source', coalesce(v_prev_source, ''), true);
   perform pg_catalog.set_config('app.audit_actor', coalesce(v_prev_actor, ''), true);
 

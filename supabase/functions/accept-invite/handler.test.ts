@@ -198,7 +198,7 @@ Deno.test('accept-invite: accept_rpc answers a link state → the created user i
   })
 })
 
-Deno.test('accept-invite: accept_rpc errors (or answers nonsense) → the user is deleted, 500', async () => {
+Deno.test('accept-invite: accept_rpc errors with a SQLSTATE (rolled back) or answers nonsense → the user is deleted, 500', async () => {
   await run(async () => {
     for (
       const route of [
@@ -222,65 +222,35 @@ Deno.test('accept-invite: accept_rpc errors (or answers nonsense) → the user i
   })
 })
 
-Deno.test('accept-invite: an accept_rpc transport error, the link now used → the user is kept (the reply was lost), reported, 500', async () => {
+Deno.test('accept-invite: an accept_rpc transport error → the user is kept for the orphan job (the reply may be lost after a commit), reported, 500, no re-peek', async () => {
   await run(async () => {
-    const { handler, events } = harness({
-      rpc: {
-        peek_secure_link: peekThen({ state: 'used', purpose: 'staff_invite' }),
-        accept_staff_invitation: lostReply,
-      },
-    })
-    const logged = await captureConsole('error', async () => {
-      const error = await errorOf(await handler(accept()))
-      assertEquals([error.status, error.code], [500, 'internal'])
-    })
-    assertEquals(events.slice(-3), [
-      'createUser',
-      'accept_staff_invitation',
-      'peek_secure_link',
-    ])
-    assert(!events.includes('deleteUser'))
-    assertEquals(logged.map((l) => JSON.parse(String(l[0]))), [{
-      fn: 'accept-invite',
-      code: 'accept_outcome_unknown',
-      ids: { link_id: LINK_ID, user_id: NEW_USER },
-    }])
-  })
-})
-
-Deno.test('accept-invite: an accept_rpc transport error and a failed re-peek → the user is kept, reported', async () => {
-  await run(async () => {
-    const { handler, events } = harness({
-      rpc: {
-        peek_secure_link: peekThen(null),
-        accept_staff_invitation: lostReply,
-      },
-    })
-    const logged = await captureConsole('error', async () => {
-      assertEquals((await handler(accept())).status, 500)
-    })
-    assert(!events.includes('deleteUser'))
-    assertEquals(
-      JSON.parse(String(logged.at(-1)?.[0])).code,
-      'accept_outcome_unknown',
-    )
-  })
-})
-
-Deno.test('accept-invite: an accept_rpc transport error, the link still valid → the user is deleted, accept_failed', async () => {
-  await run(async () => {
-    const { handler, events } = harness({
-      rpc: { accept_staff_invitation: lostReply },
-    })
-    const logged = await captureConsole('error', async () => {
-      assertEquals((await handler(accept())).status, 500)
-    })
-    assertEquals(events.slice(-3), [
-      'accept_staff_invitation',
-      'peek_secure_link',
-      'deleteUser',
-    ])
-    assertEquals(JSON.parse(String(logged.at(-1)?.[0])).code, 'accept_failed')
+    for (const later of ['used', 'valid'] as const) {
+      const { handler, events } = harness({
+        rpc: {
+          peek_secure_link: peekThen({ state: later, purpose: 'staff_invite' }),
+          // No SQLSTATE: a lost reply, or a gateway / PostgREST error.
+          accept_staff_invitation: later === 'used'
+            ? lostReply
+            : { error: { code: 'PGRST003', message: 'Timed out' } },
+        },
+      })
+      const logged = await captureConsole('error', async () => {
+        const error = await errorOf(await handler(accept()))
+        assertEquals([error.status, error.code], [500, 'internal'])
+      })
+      assertEquals(events.slice(-2), ['createUser', 'accept_staff_invitation'])
+      assert(!events.includes('deleteUser'), later)
+      assertEquals(
+        events.filter((e) => e === 'peek_secure_link').length,
+        1,
+        'only the first peek: a later one cannot settle a commit still on its way',
+      )
+      assertEquals(logged.map((l) => JSON.parse(String(l[0]))), [{
+        fn: 'accept-invite',
+        code: 'accept_outcome_unknown',
+        ids: { link_id: LINK_ID, user_id: NEW_USER },
+      }])
+    }
   })
 })
 

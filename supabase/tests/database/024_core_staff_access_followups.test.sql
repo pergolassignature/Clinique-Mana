@@ -6,11 +6,12 @@
 -- nobody else's; re-enabling restores nothing; disabling an already disabled user still ends a
 -- session left; a refused call deletes nothing; core.invite_orphans_purge is a catalogued hourly
 -- maintenance SQL job whose function no client role may call; it deletes the marked auth users
--- with no profile older than 1 hour (their identities and sessions cascade) and keeps a recent
--- one, one with a profile and an unmarked one; run_sql_job logs its run.
+-- with no profile, never signed in, older than 1 hour (their identities and sessions cascade)
+-- and keeps a recent one, one with a profile, one that signed in and an unmarked one;
+-- run_sql_job logs its run; accept_staff_invitation's owner may clear the marker.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(21);
+select plan(22);
 
 -- =============================================================================
 -- Privileges, owners, job
@@ -31,6 +32,9 @@ select ok((select has_table_privilege(p.proowner, 'auth.sessions', 'delete')
 select ok((select has_table_privilege(p.proowner, 'auth.users', 'delete')
              from pg_proc p where p.oid = 'private.job_invite_orphans_purge()'::regprocedure),
   'the purge''s owner may delete from auth.users');
+select ok((select has_table_privilege(p.proowner, 'auth.users', 'update')
+             from pg_proc p where p.oid = 'public.accept_staff_invitation(bytea, uuid, jsonb)'::regprocedure),
+  'accept_staff_invitation''s owner may clear the orphan marker on auth.users');
 select results_eq($$
   select j.key, j.module_key, j.kind, j.sql_function, j.is_maintenance, c.schedule, c.command
     from public.scheduled_jobs j join cron.job c on c.jobname = j.cron_job_name
@@ -43,7 +47,8 @@ $$, $$ values ('core.invite_orphans_purge'::text, 'core'::text, 'sql'::text, 'pr
 -- Fixtures (as postgres)
 -- Org A: admin A, counselor C, counselor E. Sessions: C two (with refresh tokens), A one.
 -- Orphan candidates (auth users): O1 marked, no profile, 2 h old; O2 marked, no profile, 30 min
--- old; O3 marked, with a profile, 2 h old; O4 unmarked, no profile, 2 h old.
+-- old; O3 marked, with a profile, 2 h old; O4 unmarked, no profile, 2 h old; O5 marked, no
+-- profile, 2 h old, but signed in once (its profile went later).
 -- =============================================================================
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -58,6 +63,10 @@ values
    '{"provider":"email","invite_link_id":"c0000000-0000-0000-0000-000000000003"}', '{}', now() - interval '2 hours', now()),
   ('a0000000-0000-0000-0000-0000000000e4', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'o4@a.test', '', null,
    '{"provider":"email"}', '{}', now() - interval '2 hours', now());
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, last_sign_in_at)
+values
+  ('a0000000-0000-0000-0000-0000000000e5', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'o5@a.test', '', now(),
+   '{"provider":"email","invite_link_id":"c0000000-0000-0000-0000-000000000005"}', '{}', now() - interval '2 hours', now(), now() - interval '90 minutes');
 insert into auth.identities (provider_id, user_id, identity_data, provider, created_at, updated_at)
 values ('a0000000-0000-0000-0000-0000000000e1', 'a0000000-0000-0000-0000-0000000000e1',
         '{"sub":"a0000000-0000-0000-0000-0000000000e1","email":"o1@a.test"}', 'email', now(), now());
@@ -135,11 +144,12 @@ select is(private.job_invite_orphans_purge(), 'deleted=1', 'the purge reports ho
 select results_eq($$
   select u.id from auth.users u
    where u.id in ('a0000000-0000-0000-0000-0000000000e1', 'a0000000-0000-0000-0000-0000000000e2',
-                  'a0000000-0000-0000-0000-0000000000e3', 'a0000000-0000-0000-0000-0000000000e4')
+                  'a0000000-0000-0000-0000-0000000000e3', 'a0000000-0000-0000-0000-0000000000e4',
+                  'a0000000-0000-0000-0000-0000000000e5')
    order by u.id
 $$, $$ values ('a0000000-0000-0000-0000-0000000000e2'::uuid), ('a0000000-0000-0000-0000-0000000000e3'::uuid),
-              ('a0000000-0000-0000-0000-0000000000e4'::uuid) $$,
-  'the marked user with no profile older than 1 hour is deleted; a recent one, one with a profile and an unmarked one are kept');
+              ('a0000000-0000-0000-0000-0000000000e4'::uuid), ('a0000000-0000-0000-0000-0000000000e5'::uuid) $$,
+  'the marked user with no profile, never signed in, older than 1 hour is deleted; a recent one, one with a profile, one that signed in and an unmarked one are kept');
 select is((select count(*)::int from auth.identities where user_id = 'a0000000-0000-0000-0000-0000000000e1')
           + (select count(*)::int from auth.sessions where user_id = 'a0000000-0000-0000-0000-0000000000e1'), 0,
   'the orphan''s identity and session cascade');

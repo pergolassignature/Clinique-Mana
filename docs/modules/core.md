@@ -235,7 +235,7 @@ Service-role RPCs are called by edge functions only (`grant execute … to servi
 | `core.email_log_stale_queued` | sql | `*/5 * * * *` | fails rows `queued` for over 15 min as `provider_unavailable` (outcome unknown) |
 | `core.notifications_purge` | sql | `0 9 * * *` | notices older than 12 months, or expired more than 30 days ago |
 | `core.secure_links_purge` | sql | `25 8 * * *` | links 12 months after their last event (use, revocation, expiry) |
-| `core.invite_orphans_purge` | sql | `17 * * * *` | auth users created by `accept-invite` (`app_metadata.invite_link_id`) with no profile after 1 h |
+| `core.invite_orphans_purge` | sql | `17 * * * *` | auth users created by `accept-invite` (`app_metadata.invite_link_id`, removed on acceptance) with no profile and no sign-in after 1 h; also the account kept after an ambiguous `accept_rpc` error |
 | `core.storage_cleanup` | function `storage-cleanup` | `40 8 * * *` | purges files by the rules below, objects first (batches of 100), then rows `purged` |
 | `core.signing_reconcile` | function `signing-sync` | `50 8 * * *` | syncs requests silent for over a day, expires overdue ones, settles stale drafts (4 at a time per org) |
 

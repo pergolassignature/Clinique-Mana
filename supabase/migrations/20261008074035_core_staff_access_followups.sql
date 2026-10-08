@@ -22,8 +22,12 @@
 --   compensating delete fails, the auth user stays without a profile, and the invitee can never
 --   accept again (createUser answers `email_exists`). The maintenance SQL job
 --   `core.invite_orphans_purge` (hourly, minute 17) deletes the `auth.users` rows that carry the
---   marker, have no `public.profiles` row and are more than 1 hour old. Their identities,
---   sessions and other `auth` children cascade. Same owner check as above.
+--   marker, have no `public.profiles` row, have never signed in and are more than 1 hour old.
+--   Their identities, sessions and other `auth` children cascade. Same owner check as above.
+--   accept_staff_invitation removes the marker on acceptance, and an account that ever signed
+--   in is real: neither is deleted, even if its profile goes later (final Phase 3 review).
+--   accept-invite also leaves an account to this job after an ambiguous accept_rpc error (the
+--   reply may be lost after a commit): if the acceptance did commit, its profile keeps it.
 -- * `create_staff_invitation` returns `(id, expires_at)` like `renew_staff_invitation`, so
 --   `staff-invite` sends the email without a second read. The return type changes, so the
 --   function is dropped and created again with the same body and grants (service_role only).
@@ -76,6 +80,7 @@ declare
 begin
   delete from auth.users u
    where u.raw_app_meta_data ? 'invite_link_id'
+     and u.last_sign_in_at is null
      and u.created_at < pg_catalog.now() - interval '1 hour'
      and not exists (select 1 from public.profiles p where p.user_id = u.id);
   get diagnostics v_deleted = row_count;

@@ -28,22 +28,26 @@
  *    losing insert with a database error rather than `email_exists`) → 410
  *    `link_used`, not reported; otherwise 500, nothing consumed.
  *    Orphan marker: `app_metadata.invite_link_id` marks an account created
- *    here. A maintenance job (DB lane) deletes auth users that carry it,
- *    have no profile and are older than 1 hour, so an account left behind by
- *    a failed compensation (step 11) cannot block the invitation for good:
- *    once it is gone, the invitee can accept again.
+ *    here; `accept_staff_invitation` removes it on acceptance. The job
+ *    `core.invite_orphans_purge` deletes auth users that carry it, have no
+ *    profile, never signed in and are older than 1 hour, so an account left
+ *    behind (step 11) cannot block the invitation for good: once it is gone,
+ *    the invitee can accept again.
  * 10. `accept_rpc(p_token_hash, p_user_id, p_payload)`: it consumes the link
  *    and does the purpose's work in one transaction.
  * 11. Compensation: any status but `accepted` deletes the user just created;
  *    a link state (`link_used` / `link_expired` / `link_invalid`) answers 410
- *    with it, an unknown answer 500. An RPC (transport) error is ambiguous:
- *    the transaction may have committed and only the reply been lost. The
- *    link is peeked first: deleted only when the peek shows it still not
- *    used (`accept_failed`, 500); when it is `used`, or the peek fails, the
- *    account may be real and is kept (`accept_outcome_unknown`, reported
- *    with the link and user ids, 500; the orphan job removes it if no
- *    profile was made). A failed delete is reported with the user id;
- *    nothing is retried.
+ *    with it, an unknown answer 500, and so does a database error (a
+ *    SQLSTATE: the transaction rolled back). Any other RPC error (transport,
+ *    gateway, no SQLSTATE) is ambiguous:
+ *    the transaction may have committed and only the reply been lost, and a
+ *    peek cannot settle it (a commit can land after the peek). The account
+ *    is never deleted here: `accept_outcome_unknown` is reported with the
+ *    link and user ids and the answer is 500. If the acceptance committed,
+ *    the profile keeps the account; if not, the orphan job removes it within
+ *    about two hours, and until then a new attempt answers 409 `conflict`
+ *    (the address has an account). A failed delete is reported with the
+ *    user id; nothing is retried.
  * 12. 200 `{ status: 'accepted', email }`: the token holder already knows
  *    the address, and the page signs in with it.
  *
@@ -223,23 +227,28 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     // Compensation: the account exists only with an accepted link.
     const userIds = { ...ids, user_id: userId }
-    if (accepted.error) {
-      // The reply may be lost after a commit: never delete a real account.
-      const peeked = await peekSecureLink(client, tokenHash, false)
-      if (!peeked || peeked.state === 'used') {
-        return failed('accept_outcome_unknown', userIds)
-      }
-      const answer = await failed('accept_failed', userIds)
-      await deleteCreatedUser(client, userIds, report)
-      return answer
+    if (accepted.error && !SQLSTATE.test(accepted.error.code ?? '')) {
+      // The reply may be lost after a commit: never delete here; the orphan
+      // job removes the account if no profile was made (step 11).
+      return failed('accept_outcome_unknown', userIds)
     }
     const answer = isLinkGoneCode(status)
       ? linkGoneResponse(status, req)
-      : await failed('accept_invalid', userIds)
+      : await failed(
+        accepted.error ? 'accept_failed' : 'accept_invalid',
+        userIds,
+      )
     await deleteCreatedUser(client, userIds, report)
     return answer
   }
 }
+
+/**
+ * A PostgreSQL error code: the database answered, so the accept transaction
+ * rolled back. PostgREST's own codes (`PGRST…`) and transport failures have
+ * none (step 11).
+ */
+const SQLSTATE = /^[0-9A-Z]{5}$/
 
 /** Deletes the account created for a link that was not accepted; reports a failure. */
 async function deleteCreatedUser(
