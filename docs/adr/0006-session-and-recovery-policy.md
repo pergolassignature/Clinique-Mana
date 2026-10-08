@@ -1,6 +1,6 @@
 # 0006 — Session and recovery policy
 
-**Status:** Accepted · **Date:** 2026-10-07 · **Decisions log:** [#9–17, #32–33, #38](../plans/2026-10-07-decisions-log.md) · **Code:** `src/core/auth/AuthProvider.tsx`, `src/core/auth/recovery.ts`, `src/core/access/AccessProvider.tsx`, `src/core/access/guards.tsx`
+**Status:** Accepted · **Date:** 2026-10-07 · **Decisions log:** [#9–17, #32–33, #38](../plans/2026-10-07-decisions-log.md) · **Code:** `src/core/auth/AuthProvider.tsx`, `src/core/auth/recovery.ts`, `src/core/account/pages/AccountPage.tsx`, `src/core/access/AccessProvider.tsx`, `src/core/access/guards.tsx`
 
 ## Context
 Reception computers are shared, staff also sign in on their phones, and a password-reset link signs the user in. auth-js emits `PASSWORD_RECOVERY` only once, in the tab that opened the link. Auth messages must not reveal whether an account exists (Loi 25, enumeration).
@@ -17,8 +17,13 @@ Reception computers are shared, staff also sign in on their phones, and a passwo
 ## Consequences
 - These behaviours are covered by `AuthProvider`, `AccessProvider`, guard and app-level tests; change them only with a new decision.
 - « Se déconnecter de tous les appareils » takes up to an hour (`jwt_expiry`) to reach a device that is in use. Lowering `jwt_expiry` would shorten that window at the cost of more refreshes.
-- There is no exception to the enumeration rule any more (#32 is reversed by #38). A user who mistypes their new address, or asks for one already in use, sees the same notice and simply receives no link; a request repeated within the throttle window sends nothing either.
-- The UI is neutral, GoTrue's API is not: `PUT /auth/v1/user` still answers 422 `email_exists` (visible in the browser's network tab), and `new_email` is recorded only for a real change, so a later visit shows « en attente » only then. Closing that needs a server-side change (e.g. an edge function in front of the email change).
+- There is no exception to the enumeration rule any more (#32 is reversed by #38). A user who asks for an address already in use (for example a typo matching a colleague's) sees the same notice and receives no link; a request repeated within the throttle window sends nothing either.
+- **UI neutrality stops casual discovery, not a determined signed-in user.** The answer still shows elsewhere:
+  - **The user's own inbox:** with `double_confirm_changes`, a real change emails the current address too, and a taken address emails nothing, whatever the UI shows.
+  - **A remount:** navigating away from « Mon compte » and back remounts `EmailCard`, which shows « en attente vers … » from `new_email`, recorded only for a real change.
+  - **The API:** `PUT /auth/v1/user` still answers 422 `email_exists`, visible in the browser's network tab.
+  A server-side change (e.g. an edge function in front of the email change) could hide the last two, but would close the inbox signal only by also sending a decoy email for a taken address.
+- Two weaker residual signals are accepted under #16: **timing** (a real change sends two emails before GoTrue answers, so « Envoi… » lasts longer) and **outage asymmetry** (an SMTP failure or `email_address_not_authorized` can only happen for a free address, so it shows `unknown`, while a taken address shows success).
 - Staging must allow `/reinitialiser-mot-de-passe` as a redirect URL (plan amendment A4).
 
 ## Alternatives

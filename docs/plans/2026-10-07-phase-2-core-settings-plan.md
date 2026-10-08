@@ -621,7 +621,7 @@ Read decisions #9–17 and ADR 0006 first: sign-out and recovery behaviours must
 - `sendReauthenticationCode(): Promise<AuthErrorCode | null>` calls `supabase.auth.reauthenticate()`.
 - `updateEmail(email): Promise<AuthErrorCode | null>` calls `updateUser({ email }, { emailRedirectTo: `${window.location.origin}/mon-compte` })`.
   New codes, mapped in `toCode` with their i18n messages:
-  - `email_exists` → « Ce courriel est déjà utilisé par un autre compte. »
+  - ~~`email_exists` → « Ce courriel est déjà utilisé par un autre compte. »~~ **Superseded by decision #38:** `email_exists` is answered neutrally, like a success.
   - `email_address_invalid` → `invalid_email`
   - `reauthentication_not_valid` → `invalid_code`, « Code invalide ou expiré. »
 - `signOutEverywhere(): Promise<AuthErrorCode | null>` calls `supabase.auth.signOut({ scope: 'global' })`.
