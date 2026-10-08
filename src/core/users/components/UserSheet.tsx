@@ -6,6 +6,7 @@ import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { useOrgRoles } from '@/core/access/org-roles'
 import { roleLabel } from '@/core/access/roles'
 import { FormActions } from '@/shared/components/FormActions'
+import { LoadError, Loading } from '@/shared/components/LoadState'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { initialsOf } from '@/shared/lib/format'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
@@ -55,7 +56,6 @@ import {
   type PermissionOverride,
 } from '../permissions'
 import { permissionGroupName } from './group-name'
-import { LoadError, Loading } from './LoadState'
 
 const SECTION_TITLE = 'text-base font-semibold tracking-tight'
 

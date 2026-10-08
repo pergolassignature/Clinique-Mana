@@ -5,6 +5,7 @@ import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import type { OrgRole } from '@/core/access/api'
 import { useOrgRoles } from '@/core/access/org-roles'
 import { roleLabel } from '@/core/access/roles'
+import { LoadError, Loading } from '@/shared/components/LoadState'
 import { cn } from '@/shared/lib/utils'
 import {
   AlertDialog,
@@ -40,7 +41,6 @@ import {
 } from '../permissions'
 import { DeleteRoleDialog } from './DeleteRoleDialog'
 import { permissionGroupName } from './group-name'
-import { LoadError, Loading } from './LoadState'
 import { RoleNameDialog } from './RoleNameDialog'
 
 /** The sticky first column: it stays put while the role columns scroll under it (phones). */
