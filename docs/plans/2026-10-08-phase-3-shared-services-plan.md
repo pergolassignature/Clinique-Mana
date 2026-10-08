@@ -1677,7 +1677,7 @@ Content, 15–30 lines:
 
 ## Task 3.24: Storage (database)
 
-**From lane F (Task 3.25, `_shared/storage.ts`, commit 40fea35), match these:** MIME → extension map `application/pdf→pdf`, `image/png→png`, `image/jpeg→jpg`, `image/webp→webp`, `application/msword→doc`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document→docx` (exact MIME strings, no aliases); `stored_files.sha256` and `confirm_stored_file(p_sha256 text)` take **64 lower-case hex characters** (not `\x…` bytea); object paths `{org_id}/{module_key}/{subject_id}/{file_id}.{ext}` with canonical lower-case UUIDs; the DB stays the source of truth for the path.
+**From lane F (Task 3.25, `_shared/storage.ts`, commit 40fea35), match these:** MIME → extension map `application/pdf→pdf`, `image/png→png`, `image/jpeg→jpg`, `image/webp→webp`, `application/msword→doc`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document→docx` (exact MIME strings, no aliases); `stored_files.sha256` and `confirm_stored_file(p_sha256 text)` take **64 lower-case hex characters** (not `\x…` bytea); object paths `{org_id}/{module_key}/{subject_id}/{file_id}.{ext}` with canonical lower-case UUIDs; the DB stays the source of truth for the path. `get_pending_upload` also returns the purpose's `max_bytes` (the size cap `inspectStream` enforces). Allow `application/msword` only for purposes that truly need it (OLE sniffing accepts any compound file); Phase 4 purposes default to PDF and images.
 
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_storage.sql`
@@ -1876,6 +1876,8 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string>
 ---
 
 ## Task 3.27: Upload widget, logo, signatory email and signature image
+
+**From the Task 3.25 review:** about 7 % of real `.jpg` files are really PNG or WebP, and browsers derive `file.type` from the extension. The widget sniffs the first bytes on the client (same signatures as `_shared/storage.ts`) and sends the sniffed MIME when it is allowed for the purpose, so a misnamed image is not refused with « Ce fichier n'est pas du type annoncé ».
 
 **Lane:** U (after Task 3.26 merges). **Files:**
 - Create: `src/core/storage/api.ts` + test: `uploadFile({ purpose, subjectType, subjectId, file }): Promise<{ fileId }>`. It calls `storage-upload` → `supabase.storage.from(bucket).uploadToSignedUrl(path, token, file)` → `storage-confirm`. Also `signedFileUrl(fileId, { download?: boolean })`: reads `stored_files` (`object_path, bucket, original_name`) for one id, then `createSignedUrl(path, 300, download ? { download: original_name } : undefined)`.
