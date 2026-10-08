@@ -1,0 +1,173 @@
+import { describe, expect, it } from 'vitest'
+import {
+  allowedOverrideStates,
+  assignableRoles,
+  effectivePermissions,
+  groupPermissionsByModule,
+  orderRoles,
+  overrideStateOf,
+  roleGrants,
+} from './permissions'
+
+const ROLE_PERMISSIONS = [
+  { role: 'admin', permission_key: 'settings.view' },
+  { role: 'admin', permission_key: 'settings.manage' },
+  { role: 'admin', permission_key: 'audit.view' },
+  { role: 'admin', permission_key: 'professionals.view' },
+  { role: 'admin_assistant', permission_key: 'settings.view' },
+  { role: 'admin_assistant', permission_key: 'professionals.view' },
+  { role: 'counselor', permission_key: 'professionals.view' },
+]
+
+describe('roleGrants', () => {
+  it("gives the role's defaults only", () => {
+    expect(roleGrants('admin_assistant', ROLE_PERMISSIONS)).toEqual(new Set(['settings.view', 'professionals.view']))
+    expect(roleGrants('counselor', ROLE_PERMISSIONS)).toEqual(new Set(['professionals.view']))
+  })
+
+  it('is empty for a role without defaults or no role', () => {
+    expect(roleGrants('provider', ROLE_PERMISSIONS)).toEqual(new Set())
+    expect(roleGrants(null, ROLE_PERMISSIONS)).toEqual(new Set())
+  })
+})
+
+describe('effectivePermissions', () => {
+  const counselor = roleGrants('counselor', ROLE_PERMISSIONS)
+
+  it('is the role defaults without overrides', () => {
+    expect(effectivePermissions(counselor, [])).toEqual(new Set(['professionals.view']))
+  })
+
+  it('adds a grant outside the role', () => {
+    expect(effectivePermissions(counselor, [{ permission_key: 'audit.view', granted: true }])).toEqual(
+      new Set(['professionals.view', 'audit.view']),
+    )
+  })
+
+  it('removes a revoked role default', () => {
+    expect(effectivePermissions(counselor, [{ permission_key: 'professionals.view', granted: false }])).toEqual(new Set())
+  })
+
+  it('a revoke wins over a grant of the same key, and a redundant grant changes nothing', () => {
+    expect(
+      effectivePermissions(counselor, [
+        { permission_key: 'professionals.view', granted: true },
+        { permission_key: 'audit.view', granted: false },
+      ]),
+    ).toEqual(new Set(['professionals.view']))
+  })
+
+  it('never mutates the role set', () => {
+    effectivePermissions(counselor, [{ permission_key: 'professionals.view', granted: false }])
+    expect(counselor).toEqual(new Set(['professionals.view']))
+  })
+})
+
+describe('overrideStateOf', () => {
+  const overrides = [
+    { permission_key: 'audit.view', granted: true },
+    { permission_key: 'professionals.view', granted: false },
+  ]
+  it('reads granted, revoked, or role when there is no override', () => {
+    expect(overrideStateOf('audit.view', overrides)).toBe('granted')
+    expect(overrideStateOf('professionals.view', overrides)).toBe('revoked')
+    expect(overrideStateOf('settings.view', overrides)).toBe('role')
+  })
+})
+
+describe('allowedOverrideStates', () => {
+  const holds = (keys: string[]) => (key: string) => keys.includes(key)
+
+  it('an admin may choose every state', () => {
+    expect(allowedOverrideStates({ callerIsAdmin: true, callerCan: holds([]), permissionKey: 'audit.view', current: 'revoked' })).toEqual(
+      new Set(['role', 'granted', 'revoked']),
+    )
+  })
+
+  it('a manager holding the permission may choose every state', () => {
+    expect(
+      allowedOverrideStates({ callerIsAdmin: false, callerCan: holds(['audit.view']), permissionKey: 'audit.view', current: 'revoked' }),
+    ).toEqual(new Set(['role', 'granted', 'revoked']))
+  })
+
+  it('a manager lacking it may revoke, or clear a grant, but never grant', () => {
+    expect(
+      allowedOverrideStates({ callerIsAdmin: false, callerCan: holds([]), permissionKey: 'audit.view', current: 'granted' }),
+    ).toEqual(new Set(['role', 'revoked']))
+    expect(allowedOverrideStates({ callerIsAdmin: false, callerCan: holds([]), permissionKey: 'audit.view', current: 'role' })).toEqual(
+      new Set(['role', 'revoked']),
+    )
+  })
+
+  it('a manager lacking it may not clear a revoke (it could give the permission back)', () => {
+    expect(
+      allowedOverrideStates({ callerIsAdmin: false, callerCan: holds([]), permissionKey: 'audit.view', current: 'revoked' }),
+    ).toEqual(new Set(['revoked']))
+  })
+})
+
+describe('assignableRoles', () => {
+  const holds = (keys: string[]) => (key: string) => keys.includes(key)
+
+  it('an admin may assign admin, counselor and admin_assistant (never provider)', () => {
+    expect(assignableRoles({ callerIsAdmin: true, callerCan: holds([]), rolePermissions: ROLE_PERMISSIONS })).toEqual(
+      new Set(['admin', 'counselor', 'admin_assistant']),
+    )
+  })
+
+  it('a manager may assign only the non-admin roles whose defaults they hold', () => {
+    expect(
+      assignableRoles({ callerIsAdmin: false, callerCan: holds(['professionals.view']), rolePermissions: ROLE_PERMISSIONS }),
+    ).toEqual(new Set(['counselor']))
+    expect(
+      assignableRoles({
+        callerIsAdmin: false,
+        callerCan: holds(['professionals.view', 'settings.view', 'settings.manage', 'audit.view']),
+        rolePermissions: ROLE_PERMISSIONS,
+      }),
+    ).toEqual(new Set(['counselor', 'admin_assistant']))
+  })
+})
+
+describe('orderRoles', () => {
+  it('lists the known roles first in a fixed order, then the others by name', () => {
+    const roles = [
+      { key: 'provider', name: 'Professionnel' },
+      { key: 'zeta', name: 'Zêta' },
+      { key: 'counselor', name: 'Conseillère' },
+      { key: 'admin', name: 'Administrateur' },
+      { key: 'alpha', name: 'Éducatrice' },
+      { key: 'admin_assistant', name: 'Adjointe administrative' },
+    ]
+    expect(orderRoles(roles).map((r) => r.key)).toEqual(['admin', 'counselor', 'admin_assistant', 'provider', 'alpha', 'zeta'])
+  })
+})
+
+describe('groupPermissionsByModule', () => {
+  const permissions = [
+    { key: 'users.view', module_key: 'core', description: 'Voir les utilisateurs' },
+    { key: 'billing.view', module_key: 'billing', description: 'Voir la facturation' },
+    { key: 'audit.view', module_key: 'core', description: "Consulter le journal d'audit" },
+    { key: 'professionals.view', module_key: 'professionals', description: 'Voir les professionnels' },
+    { key: 'agenda.view', module_key: 'agenda', description: "Voir l'agenda" },
+  ]
+  const modules = [
+    { key: 'core', name: 'Noyau' },
+    { key: 'professionals', name: 'Professionnels' },
+    { key: 'billing', name: 'Facturation' },
+    { key: 'agenda', name: 'Agenda' },
+  ]
+
+  it('puts core first, then the enabled modules by name; permissions by key; disabled modules left out', () => {
+    const groups = groupPermissionsByModule(permissions, modules, ['professionals', 'agenda'])
+    expect(groups.map((g) => [g.key, g.name, g.permissions.map((p) => p.key)])).toEqual([
+      ['core', 'Noyau', ['audit.view', 'users.view']],
+      ['agenda', 'Agenda', ['agenda.view']],
+      ['professionals', 'Professionnels', ['professionals.view']],
+    ])
+  })
+
+  it('leaves out an enabled module without permissions', () => {
+    expect(groupPermissionsByModule(permissions.filter((p) => p.module_key === 'core'), modules, ['agenda']).map((g) => g.key)).toEqual(['core'])
+  })
+})

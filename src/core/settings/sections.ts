@@ -104,7 +104,11 @@ export const coreSettingsSections: SettingsSection[] = [
     permission: 'users.view',
     editPermission: 'users.manage',
     group: 'plateforme',
-    component: ComingSoonSection,
+    component: lazy(() =>
+      import('./pages/UsersSettingsPage').then((m) => ({
+        default: m.UsersSettingsPage,
+      }))
+    ),
   },
   {
     id: 'modules',

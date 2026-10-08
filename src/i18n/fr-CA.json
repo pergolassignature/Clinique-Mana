@@ -296,6 +296,62 @@
         "retentionYearsHelp": "Les notes cliniques ne sont pas conservées dans l'application."
       }
     },
+    "users": {
+      "description": "Qui utilise l'application, avec quel rôle et quelles permissions.",
+      "tabs": { "users": "Utilisateurs", "roles": "Rôles" },
+      "addNote": "Pour ajouter une personne, contactez l'administrateur technique. Les invitations par courriel arriveront bientôt.",
+      "tableLabel": "Utilisateurs de la clinique",
+      "columns": { "name": "Nom", "email": "Courriel", "role": "Rôle", "status": "Statut", "lastSignIn": "Dernière connexion" },
+      "status": { "active": "Actif", "disabled": "Désactivé" },
+      "never": "Jamais",
+      "noRole": "Aucun rôle",
+      "countOne": "1 utilisateur",
+      "countOther": "{count} utilisateurs",
+      "loadError": "La liste des utilisateurs n'a pas pu être chargée.",
+      "sheet": {
+        "lastSignIn": "Dernière connexion : {date}",
+        "selfBefore": "Modifiez votre compte dans",
+        "selfLink": "Mon compte",
+        "adminOnly": "Seul un administrateur peut modifier un administrateur.",
+        "role": {
+          "label": "Rôle",
+          "provider": "Géré dans le module Professionnels",
+          "managerLimit": "Vous ne pouvez attribuer qu'un rôle dont vous avez toutes les permissions.",
+          "saved": "Rôle modifié."
+        },
+        "status": {
+          "label": "Compte actif",
+          "reenableAdminOnly": "Seul un administrateur peut réactiver un compte.",
+          "confirmTitle": "Désactiver ce compte ?",
+          "confirmBody": "{name} ne pourra plus se connecter.",
+          "confirm": "Désactiver",
+          "disabledSaved": "Compte désactivé.",
+          "enabledSaved": "Compte réactivé."
+        },
+        "permissions": {
+          "title": "Permissions",
+          "description": "Chaque personne a les permissions de son rôle. Accordez ou retirez une permission pour une exception.",
+          "admin": "Un administrateur a toutes les permissions.",
+          "managerLimit": "Vous ne pouvez accorder que les permissions que vous avez.",
+          "coreGroup": "Général",
+          "byRole": "Selon le rôle ({value})",
+          "yes": "Oui",
+          "no": "Non",
+          "granted": "Accordée",
+          "revoked": "Retirée",
+          "saved": "Permission mise à jour.",
+          "loadError": "Les permissions n'ont pas pu être chargées."
+        }
+      },
+      "matrix": {
+        "note": "Les rôles par défaut sont fixés par la clinique. Pour une exception, modifiez la personne.",
+        "tableLabel": "Permissions par rôle",
+        "permission": "Permission",
+        "yes": "Oui",
+        "no": "Non",
+        "loadError": "Les rôles n'ont pas pu être chargés."
+      }
+    },
     "provinces": {
       "AB": "Alberta",
       "BC": "Colombie-Britannique",

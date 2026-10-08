@@ -1,0 +1,95 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { t } from '@/i18n'
+import { renderWithContexts, testAccess } from '@/test/contexts'
+import { testCatalog } from '@/test/users-fixtures'
+import { RoleMatrix } from './RoleMatrix'
+
+const mocks = vi.hoisted(() => ({ fetchPermissionCatalog: vi.fn() }))
+vi.mock('../api', () => ({ fetchPermissionCatalog: mocks.fetchPermissionCatalog }))
+vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
+
+function renderMatrix() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    renderWithContexts(
+      <QueryClientProvider client={queryClient}>
+        <RoleMatrix />
+      </QueryClientProvider>,
+      { access: { access: { ...testAccess, modules: ['professionals'] } } },
+    ),
+  )
+}
+
+/** What a permission's row says per role (the screen-reader word; the ✓ / — marks are hidden). */
+function rowValues(description: string) {
+  const row = screen.getByRole('rowheader', { name: description }).closest('tr')
+  if (!row) throw new Error(`no row for ${description}`)
+  return within(row)
+    .getAllByRole('cell')
+    .map((cell) => cell.querySelector('.sr-only')?.textContent)
+}
+
+afterEach(() => vi.clearAllMocks())
+
+describe('RoleMatrix', () => {
+  it('shows the note and the roles as columns, in a fixed order', async () => {
+    mocks.fetchPermissionCatalog.mockResolvedValue(testCatalog)
+    renderMatrix()
+    expect(await screen.findByRole('table', { name: t('settings.users.matrix.tableLabel') })).toBeInTheDocument()
+    expect(screen.getByText(t('settings.users.matrix.note'))).toBeInTheDocument()
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+      t('settings.users.matrix.permission'),
+      'Administrateur',
+      'Conseillère',
+      'Adjointe administrative',
+      'Professionnel',
+    ])
+  })
+
+  it('marks settings.view for admin and admin_assistant only', async () => {
+    mocks.fetchPermissionCatalog.mockResolvedValue(testCatalog)
+    renderMatrix()
+    await screen.findByRole('rowheader', { name: 'Voir les paramètres' })
+    const yes = t('settings.users.matrix.yes')
+    const no = t('settings.users.matrix.no')
+    expect(rowValues('Voir les paramètres')).toEqual([yes, no, yes, no])
+    expect(rowValues('Voir les professionnels')).toEqual([yes, yes, yes, no])
+  })
+
+  it('groups the rows by module, core first, and leaves out disabled modules', async () => {
+    mocks.fetchPermissionCatalog.mockResolvedValue(testCatalog)
+    renderMatrix()
+    await screen.findByRole('rowheader', { name: 'Voir les paramètres' })
+    const bodies = screen.getAllByRole('rowgroup').slice(1)
+    const firstCells = bodies.flatMap((body) =>
+      within(body)
+        .getAllByRole('row')
+        .map((row) => row.querySelector('th')?.textContent),
+    )
+    expect(bodies).toHaveLength(2)
+    expect(firstCells).toEqual([
+      t('settings.users.sheet.permissions.coreGroup'),
+      "Consulter le journal d'audit",
+      'Activer ou désactiver des modules',
+      'Voir et modifier les coordonnées bancaires de la clinique',
+      'Modifier les paramètres de la clinique',
+      'Voir les paramètres',
+      'Inviter et gérer les utilisateurs',
+      'Voir les utilisateurs',
+      'Professionnels',
+      'Voir les professionnels',
+    ])
+    expect(screen.queryByText('Voir la facturation')).not.toBeInTheDocument()
+  })
+
+  it('shows a load error with a retry', async () => {
+    mocks.fetchPermissionCatalog.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(testCatalog)
+    renderMatrix()
+    expect(await screen.findByText(t('settings.users.matrix.loadError'))).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: t('common.retry') }))
+    expect(await screen.findByRole('rowheader', { name: 'Voir les paramètres' })).toBeInTheDocument()
+  })
+})
