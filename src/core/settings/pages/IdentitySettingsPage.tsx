@@ -88,8 +88,9 @@ export function IdentitySettingsPage() {
                   </FormField>
                   <FormField label={t('settings.identity.fields.province')} error={errors.province?.message}>
                     {(field) => (
-                      // Controlled, so the read-only Select can show the chosen province's name. No default:
-                      // the clinic chooses (null shows the placeholder, which also clears the choice).
+                      // Controlled, so the read-only Select can show the chosen province's name. No default
+                      // here: the database defaults to QC (…_core_org_province_default_qc.sql), so the form
+                      // shows what is stored. Null (only after « Aucune ») shows the placeholder.
                       <Controller
                         control={control}
                         name="province"

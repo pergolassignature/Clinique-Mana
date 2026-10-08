@@ -74,7 +74,7 @@ New nullable columns on `organizations`. Each has a column-level `update` grant;
 
 | Group | Columns | Database check |
 |---|---|---|
-| Identité | `legal_name`, `neq`, `address_line1`, `address_line2`, `city`, `province`, `postal_code`, `country` (default `CA`), `phone`, `email`, `website` | NEQ `^\d{10}$`; province ∈ 13 Canadian codes; postal code `^[A-Z]\d[A-Z] \d[A-Z]\d$` (stored normalised); website starts with `https://`; email has one `@` |
+| Identité | `legal_name`, `neq`, `address_line1`, `address_line2`, `city`, `province` (default `QC`, decision #38), `postal_code`, `country` (default `CA`), `phone`, `email`, `website` | NEQ `^\d{10}$`; province ∈ 13 Canadian codes; postal code `^[A-Z]\d[A-Z] \d[A-Z]\d$` (stored normalised); website starts with `https://`; email has one `@` |
 | Fiscalité | `gst_number`, `qst_number` | `^\d{9}RT\d{4}$`, `^\d{10}TQ\d{4}$` |
 | Signataire | `signatory_name`, `signatory_title` | non-blank when set |
 | Confidentialité | `privacy_officer_name`, `privacy_officer_email`, `privacy_policy_url`, `record_retention_years` | retention 1–50 |
