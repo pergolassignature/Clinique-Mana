@@ -652,6 +652,26 @@
           "orphanCompleted": "Documenso indique un document signé qui n'a pas pu être rattaché à cette demande."
         }
       },
+      "unverified": {
+        "title": "Demandes non vérifiées",
+        "description": "Ces demandes n'ont pas pu être vérifiées auprès de Documenso depuis plus de 6 heures. Si l'une d'elles a été signée, le document n'existe peut-être que sur la VM Documenso, qui n'est pas sauvegardée. Si toutes les demandes en cours sont ici, vérifiez la connexion : l'adresse, la clé d'API ou l'instance n'est peut-être pas la bonne.",
+        "loadError": "Impossible de charger les demandes non vérifiées.",
+        "hiddenTitle": "Demande du module {module} (vous ne pouvez pas la consulter)",
+        "lastSuccess": "Dernière vérification réussie",
+        "failingSince": "En échec depuis",
+        "reason": "Raison",
+        "never": "Jamais",
+        "failures": {
+          "none": "Pas encore reprise par le suivi des signatures",
+          "provider_not_found": "Document introuvable dans Documenso (supprimé, ou connexion à une autre instance ou équipe)",
+          "provider_rejected": "Documenso a refusé la demande",
+          "provider_unreachable": "Documenso est injoignable",
+          "provider_error": "Documenso a répondu par une erreur ou une réponse inattendue",
+          "not_configured": "Connexion incomplète, ou clé d'API refusée par Documenso",
+          "signing_foreign_document": "Documenso contient un autre document sous ce numéro (autre instance ?)",
+          "other": "Erreur technique (code {code})"
+        }
+      },
       "templates": {
         "description": "Les documents que les modules envoient à signer. La version publiée d'un modèle est celle qui est envoyée.",
         "empty": "Aucun modèle de document pour le moment.",

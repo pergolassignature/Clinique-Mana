@@ -4220,6 +4220,18 @@ export type Database = {
           viewed_at: string
         }[]
       }
+      list_unverified_signature_requests: {
+        Args: never
+        Returns: {
+          error_code: string
+          failing_since: string
+          id: string
+          module_key: string
+          sent_at: string
+          synced_at: string
+          title: string
+        }[]
+      }
       mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_email_failed: {
         Args: { p_attempts: number; p_error_code: string; p_id: string }

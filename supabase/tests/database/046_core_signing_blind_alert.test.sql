@@ -20,11 +20,15 @@
 --   once the module is enabled again; a later switch-off is a new notice. Not under 6 hours.
 -- * Each case in its own block: one that fails is logged by its SQLSTATE, the others still run.
 -- * The job's description; its counts in the run detail.
+-- * The org_modules.disabled_at backfill of modules already disabled (the migration's own
+--   statement, replayed on rows as they were before it).
+-- * list_unverified_signature_requests: settings.integrations_manage only, the caller's org, the
+--   same condition as the notice, a request's title only for those who may see the request.
 -- The whole file is one transaction, so now() is constant: an `ok` run « after » a notice is
 -- written with a finished_at in the future.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(35);
 
 select ok((select description like '%aucun passage réussi, demande qui ne peut pas être vérifiée, ou module désactivé%'
                   and description like '%n''est pas sauvegardée%'
@@ -185,7 +189,9 @@ select ok((select bool_and(body like '%VM Documenso, qui n''est pas sauvegardée
                            'core.signing_requests_unverified')),
   'French notices that say why, and name no one (a request''s title may)');
 select results_eq($$
-  select kind, title, body like '%injoignable ou refuse la clé%', body like '%n''ont pas pu être vérifiées%',
+  select kind, title,
+         body like '%Documenso est peut-être injoignable, ou l''adresse, la clé d''API ou l''instance configurée n''est pas la bonne%',
+         body like '%n''ont pas pu être vérifiées%',
          body like '%Le module « Professionnels »%' and body like '%Demandez à une personne qui gère les modules%'
     from public.notifications
    where kind in ('core.signing_reconcile_failing', 'core.signing_module_disabled', 'core.signing_requests_unverified')
@@ -196,7 +202,12 @@ $$, $$ values
   ('core.signing_module_disabled'::text, 'Des signatures en cours ne sont plus suivies'::text, false, false, true),
   ('core.signing_reconcile_failing', 'Le suivi des signatures électroniques ne fonctionne plus', true, false, false),
   ('core.signing_requests_unverified', 'Des demandes de signature n''ont pas pu être vérifiées', false, true, false)
-$$, 'titles; only the outage blames Documenso or the key; the module one names the module and says whom to ask');
+$$, 'titles; only the outage blames Documenso, the address, the key or the instance; the module one names the module and says whom to ask');
+select ok((select bool_and(body like '%La liste des demandes concernées, avec la raison de chaque échec, est dans « Signature électronique »%'
+                           and body not like '%Tâches planifiées%' and body not like '%même si%'
+                           and link_path = '/parametres/signature-electronique')
+             from public.notifications where kind = 'core.signing_requests_unverified'),
+  'the unverified notice points where it links (the list in « Signature électronique »), and never claims the reconcile works');
 
 -- =============================================================================
 -- No repeat while the condition holds
@@ -336,6 +347,122 @@ select results_eq($$
 $$, $$ values ('ok'::text,
   'notified=0 cleared=0 stalled=0 resumed=0 unverified=0 verified=0 module_disabled=0 module_cleared=0 syncs_purged=0'::text) $$,
   'and logs an ok run with every count');
+
+
+-- =============================================================================
+-- The disabled_at backfill: the migration's own statement (supabase_migrations keeps it), replayed
+-- on rows as they were before it (no column value, no trigger, no check)
+-- =============================================================================
+alter table public.org_modules drop constraint org_modules_disabled_at_check;
+alter table public.org_modules disable trigger user;
+update public.org_modules set disabled_at = null, updated_at = '2026-09-01 12:00:00+00'
+ where org_id = 'b0000000-0000-0000-0000-00000000001b' and module_key = 'professionals';
+insert into public.org_modules (org_id, module_key, enabled, updated_at)
+values ('b0000000-0000-0000-0000-00000000000c', 'professionals', true, '2026-09-02 12:00:00+00');
+select is((select count(*)::int
+             from supabase_migrations.schema_migrations m, unnest(m.statements) st
+            where m.version = '20261008130552' and st ~ 'set disabled_at = updated_at where not enabled'), 1,
+  'the migration holds one backfill statement');
+do $$
+begin
+  execute (select st from supabase_migrations.schema_migrations m, unnest(m.statements) st
+            where m.version = '20261008130552' and st ~ 'set disabled_at = updated_at where not enabled');
+end $$;
+select results_eq($$
+  select org_id, enabled, disabled_at from public.org_modules
+   where (org_id, module_key) in (('b0000000-0000-0000-0000-00000000001b', 'professionals'),
+                                  ('b0000000-0000-0000-0000-00000000000c', 'professionals'))
+   order by org_id
+$$, $$ values ('b0000000-0000-0000-0000-00000000000c'::uuid, true, null::timestamptz),
+              ('b0000000-0000-0000-0000-00000000001b', false, '2026-09-01 12:00:00+00'::timestamptz) $$,
+  'a module already disabled takes its updated_at as its switch-off time; an enabled one none');
+alter table public.org_modules enable trigger user;
+alter table public.org_modules
+  add constraint org_modules_disabled_at_check check ((disabled_at is null) = enabled);
+
+-- =============================================================================
+-- list_unverified_signature_requests (« Signature électronique »)
+-- Org M: an admin; an adjointe granted settings.integrations_manage and refused professionals.view;
+-- a plain adjointe. m1 (core, last read 8 h ago, 404 since 7 h), m2 (Professionnels, never read),
+-- m3 (core, read 1 h ago: verified). Org K's unverified request is another org's.
+-- =============================================================================
+select results_eq($$
+  select p.prosecdef, has_function_privilege('anon', p.oid, 'execute'),
+         has_function_privilege('authenticated', p.oid, 'execute'), has_function_privilege('service_role', p.oid, 'execute'),
+         (select has_function_privilege('authenticated', q.oid, 'execute') or has_function_privilege('service_role', q.oid, 'execute')
+            from pg_proc q where q.oid = 'private.signing_unverified_requests(uuid)'::regprocedure)
+    from pg_proc p where p.oid = 'public.list_unverified_signature_requests()'::regprocedure
+$$, $$ values (true, false, true, false, false) $$,
+  'the list: definer, authenticated only; its condition helper: no role');
+
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data,
+  raw_user_meta_data, created_at, updated_at)
+select x.id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', x.email, '', now(), '{}', '{}',
+       now(), now()
+  from (values ('a3000000-0000-0000-0000-000000000001'::uuid, 'admin@m.test'),
+               ('a3000000-0000-0000-0000-000000000002', 'integrations@m.test'),
+               ('a3000000-0000-0000-0000-000000000003', 'adjointe@m.test')) x (id, email);
+insert into public.organizations (id, name, timezone)
+values ('b0000000-0000-0000-0000-00000000003a', 'Org M', 'America/Toronto');
+insert into public.profiles (user_id, org_id, display_name, email, status) values
+  ('a3000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000003a', 'Admin M', 'admin@m.test', 'active'),
+  ('a3000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000003a', 'Intégrations M', 'integrations@m.test', 'active'),
+  ('a3000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000003a', 'Adjointe M', 'adjointe@m.test', 'active');
+insert into public.user_roles (user_id, org_id, role) values
+  ('a3000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000003a', 'admin'),
+  ('a3000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000003a', 'admin_assistant'),
+  ('a3000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000003a', 'admin_assistant');
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
+  ('a3000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000003a', 'settings.integrations_manage', true),
+  ('a3000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000003a', 'professionals.view', false);
+insert into public.org_modules (org_id, module_key, enabled)
+values ('b0000000-0000-0000-0000-00000000003a', 'professionals', true);
+insert into public.document_templates (id, org_id, key, module_key, title, view_permission, edit_permission)
+values ('d0000000-0000-0000-0000-00000000003a', 'b0000000-0000-0000-0000-00000000003a', 'professionals.service_contract',
+        'professionals', 'Contrat', 'professionals.view', 'professionals.manage');
+insert into public.document_template_versions (id, template_id, org_id, version)
+values ('d1000000-0000-0000-0000-00000000003a', 'd0000000-0000-0000-0000-00000000003a',
+        'b0000000-0000-0000-0000-00000000003a', 1);
+insert into public.signature_requests (id, org_id, module_key, purpose, template_version_id, subject_type, subject_id,
+  title, status, documenso_document_id, envelope_id, idempotency_key, view_permission, created_at, sent_at, expires_at)
+select x.id, 'b0000000-0000-0000-0000-00000000003a', x.module, x.purpose, x.version, 'signing_test',
+       'a0000000-0000-0000-0000-000000000001', x.title, 'sent', x.doc, 'envelope_' || x.doc, 'key-' || x.id, x.perm,
+       now() - interval '3 days', now() - interval '3 days', now() + interval '4 days'
+  from (values
+    ('c3000000-0000-0000-0000-0000000000a1'::uuid, 'core', 'core.signing_test', null::uuid, 'Document test', '901',
+     'settings.integrations_manage'),
+    ('c3000000-0000-0000-0000-0000000000a2', 'professionals', 'professionals.service_contract',
+     'd1000000-0000-0000-0000-00000000003a', 'Contrat de Jeanne Exemple', '902', 'professionals.view'),
+    ('c3000000-0000-0000-0000-0000000000a3', 'core', 'core.signing_test', null, 'Autre document test', '903',
+     'settings.integrations_manage')
+  ) as x (id, module, purpose, version, title, doc, perm);
+insert into public.signature_request_syncs (request_id, org_id, attempted_at, synced_at, error_code, failing_since)
+values
+  ('c3000000-0000-0000-0000-0000000000a1', 'b0000000-0000-0000-0000-00000000003a', now() - interval '1 hour',
+   now() - interval '8 hours', 'provider_not_found', now() - interval '7 hours'),
+  ('c3000000-0000-0000-0000-0000000000a3', 'b0000000-0000-0000-0000-00000000003a', now() - interval '1 hour',
+   now() - interval '1 hour', null, null);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a3000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select results_eq($$ select id, module_key, title, sent_at, synced_at, failing_since, error_code
+                       from public.list_unverified_signature_requests() $$,
+  $$ values ('c3000000-0000-0000-0000-0000000000a2'::uuid, 'professionals'::text, 'Contrat de Jeanne Exemple'::text,
+             now() - interval '3 days', null::timestamptz, null::timestamptz, null::text),
+            ('c3000000-0000-0000-0000-0000000000a1', 'core', 'Document test', now() - interval '3 days',
+             now() - interval '8 hours', now() - interval '7 hours', 'provider_not_found') $$,
+  'an admin: the org''s requests no read reaches, oldest successful read first, with their titles (not m3, read 1 h ago; not org K''s)');
+
+select set_config('request.jwt.claims', '{"sub":"a3000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select results_eq($$ select id, title from public.list_unverified_signature_requests() $$,
+  $$ values ('c3000000-0000-0000-0000-0000000000a2'::uuid, null::text),
+            ('c3000000-0000-0000-0000-0000000000a1', 'Document test') $$,
+  'an integration manager who may not see a request: listed, its title withheld');
+
+select set_config('request.jwt.claims', '{"sub":"a3000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select throws_ok($$ select * from public.list_unverified_signature_requests() $$, '42501',
+  'Permission refusée : settings.integrations_manage', 'without settings.integrations_manage: refused');
+reset role;
 
 select * from finish();
 rollback;

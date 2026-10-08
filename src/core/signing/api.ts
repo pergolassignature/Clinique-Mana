@@ -40,6 +40,23 @@ const requestSchema = z.object({
 })
 export type SignatureRequestRow = z.infer<typeof requestSchema>
 
+/**
+ * A request the signing reconcile has not read successfully for over 6 hours
+ * (`list_unverified_signature_requests`, `settings.integrations_manage`): its title only when the
+ * caller may see the request (null otherwise), its last successful read and since when it fails
+ * (null: never), and the failure's code (null: the runs have not reached it).
+ */
+const unverifiedSchema = z.object({
+  id: z.string(),
+  module_key: z.string(),
+  title: z.string().nullable(),
+  sent_at: z.string().nullable(),
+  synced_at: z.string().nullable(),
+  failing_since: z.string().nullable(),
+  error_code: z.string().nullable(),
+})
+export type UnverifiedSignatureRequest = z.infer<typeof unverifiedSchema>
+
 /** `signing-test-connection`: Documenso answered, or its HTTP status when it refused. */
 const connectionSchema = z.union([z.object({ ok: z.literal(true) }), z.object({ ok: z.literal(false), status: z.number() })])
 export type ConnectionResult = z.infer<typeof connectionSchema>
@@ -108,6 +125,13 @@ export async function listDocumentTemplates(): Promise<DocumentTemplate[]> {
   const { data, error } = await supabase.rpc('list_document_templates')
   if (error) throw error
   return z.array(templateSchema).parse(data)
+}
+
+/** The caller's org's requests no read reaches, oldest successful read first (`settings.integrations_manage`). */
+export async function listUnverifiedSignatureRequests(): Promise<UnverifiedSignatureRequest[]> {
+  const { data, error } = await supabase.rpc('list_unverified_signature_requests')
+  if (error) throw error
+  return z.array(unverifiedSchema).parse(data)
 }
 
 /** « Tester la connexion » (`settings.integrations_manage`): one authenticated read at the stored instance. */

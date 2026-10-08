@@ -25,11 +25,15 @@
 -- * `core.signing_reconcile_failing` (one notice per org and outage): the org has a sent or viewed
 --   request of an enabled module, sent over 6 hours ago, and core.signing_reconcile has no `ok`
 --   run for the org that started in the last 6 hours (or none at all). A run is `ok` as soon as
---   it could read Documenso, even when some requests failed (signing-events.ts: a real outage is
---   « no request could be read, and Documenso was unreachable or refused the key »); so this case
---   means Documenso unreachable or the key refused (`reconcile_failed`), the function down
---   (`http_*`, `no_response`, `configuration_missing`, logged with org null), or pg_net stuck. A
---   healthy run always logs `ok`, even with nothing to follow, so a quiet clinic never trips it.
+--   it read one request's own document at Documenso, even when other requests failed
+--   (signing-events.ts). It fails when nothing was read and either Documenso was unreachable or
+--   refused the key (`reconcile_failed`), or at least two requests failed and every one of them
+--   with a client error or another document under its id (`reconcile_documents_missing`: a key of
+--   another Documenso team, an instance rebuilt without its documents; a single 404 stays a
+--   partial run). So this case means one of those, the function down (`http_*`, `no_response`,
+--   `configuration_missing`, logged with org null), or pg_net stuck; the notice says the address,
+--   the key or the instance may be wrong. A healthy run always logs `ok`, even with nothing to
+--   follow, so a quiet clinic never trips it.
 --   The request must itself be over 6 hours old: a completion cannot have been invisible longer
 --   than the request has been out.
 --   Dedupe key = the id of the org's last `ok` run (`none` when there is none): it does not change
@@ -43,7 +47,12 @@
 --   (signature_request_syncs.synced_at, else its send) is over 6 hours old, or a draft that fails
 --   to settle for over 6 hours (failing_since; `orphan_completed` is the unsaved case). Either a
 --   request fails on its own (deleted at Documenso → 404, a signed PDF over 20 MB, another
---   instance's document), or the runs never reach it. Dedupe key = `after:<id of the org's
+--   instance's document), or the runs never reach it, or (a clinic with a single open request)
+--   the address, the key or the instance is wrong: the notice does not claim the reconcile works.
+--   The condition is private.signing_unverified_requests, shared by the post, the expiry and the
+--   list « Signature électronique » shows (list_unverified_signature_requests): the notice points
+--   there, and the list names each request (its title for those who may see it), its last
+--   successful read, since when it fails and why. Dedupe key = `after:<id of the org's
 --   previous notice of this kind>` (`first` when none): posted only when that previous notice has
 --   expired (or is over 90 days old, gone from « À surveiller »: a reminder), so once per episode,
 --   and two concurrent runs compute the same key. It expires once no
@@ -64,6 +73,11 @@
 -- * No notice names a person or a request (titles may name one), and only the unsaved one has a
 --   subject. Expiry is bounded to notices of the last 90 days, the window « À surveiller » shows,
 --   like the existing clean-up.
+-- * list_unverified_signature_requests (definer, settings.integrations_manage, the caller's org):
+--   the requests behind the unverified notice, oldest successful read first, 100 at most (open
+--   requests are bounded, see 20261008124818). A request's title is returned only when its
+--   view_permission is among the caller's keys (null otherwise: the UI names the module instead),
+--   since a title may name a person. Codes only, never a provider message.
 -- * Cost, per hourly run: the open requests (bounded, see 20261008124818) with one primary-key
 --   probe each into signature_request_syncs, grouped by org; for each such org the latest `ok`
 --   reconcile run (scheduled_job_runs_org_started_idx, newest first, stops at the first `ok`; at
@@ -110,6 +124,82 @@ revoke all on function private.org_modules_track_disabled() from public, anon, a
 create trigger org_modules_disabled_at
   before insert or update on public.org_modules
   for each row execute function private.org_modules_track_disabled();
+
+-- -----------------------------------------------------------------------------
+-- The requests no read reaches (one condition for the notice and the list)
+-- -----------------------------------------------------------------------------
+-- The open requests of an enabled module, with a Documenso document and no known completion (that
+-- is the unsaved case), not read successfully for 6 hours: a sent or viewed one whose last
+-- successful read (signature_request_syncs.synced_at, else its send) is over 6 hours old, or a
+-- draft failing to settle for over 6 hours (failing_since; `orphan_completed` is the unsaved
+-- case). `p_org_id` null: every org (the alert job). Invoker, granted to no role: called by the job
+-- and by list_unverified_signature_requests (definer, after its permission check).
+create function private.signing_unverified_requests(p_org_id uuid)
+returns table (
+  request_id uuid,
+  org_id uuid,
+  synced_at timestamptz,
+  failing_since timestamptz,
+  error_code text
+)
+language sql
+stable
+set search_path = ''
+as $$
+  select r.id, r.org_id, s.synced_at, s.failing_since, s.error_code
+    from public.signature_requests r
+    left join public.signature_request_syncs s on s.request_id = r.id
+   where (p_org_id is null or r.org_id = p_org_id)
+     and r.documenso_document_id is not null
+     and r.completed_event_at is null
+     and ((r.status in ('sent', 'viewed')
+           and coalesce(s.synced_at, r.sent_at) < pg_catalog.now() - interval '6 hours')
+          or (r.status = 'draft'
+              and coalesce(r.last_error, '') not in ('abandoned', 'orphan_completed')
+              and s.failing_since < pg_catalog.now() - interval '6 hours'))
+     and public.module_enabled_for_org(r.org_id, r.module_key)
+$$;
+
+revoke all on function private.signing_unverified_requests(uuid) from public, anon, authenticated, service_role;
+
+-- « Signature électronique » (settings.integrations_manage): the caller's org's requests no read
+-- reaches (header), oldest successful read first. `title` is null unless the caller may see the
+-- request (its view_permission). 42501 without the permission.
+create function public.list_unverified_signature_requests()
+returns table (
+  id uuid,
+  module_key text,
+  title text,
+  sent_at timestamptz,
+  synced_at timestamptz,
+  failing_since timestamptz,
+  error_code text
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid := private.current_user_org_id();
+  v_keys text[] := private.current_permission_keys();
+begin
+  if v_org is null or not ('settings.integrations_manage' = any (v_keys)) then
+    raise exception 'Permission refusée : settings.integrations_manage' using errcode = '42501';
+  end if;
+  return query
+  select r.id, r.module_key,
+         case when r.view_permission = any (v_keys) then r.title end,
+         r.sent_at, u.synced_at, u.failing_since, u.error_code
+    from private.signing_unverified_requests(v_org) u
+    join public.signature_requests r on r.id = u.request_id
+   order by coalesce(u.synced_at, r.sent_at, r.created_at), r.id
+   limit 100;
+end;
+$$;
+
+revoke all on function public.list_unverified_signature_requests() from public, anon, authenticated, service_role;
+grant execute on function public.list_unverified_signature_requests() to authenticated;
 
 -- -----------------------------------------------------------------------------
 -- core.signing_unsaved_alert (private.run_sql_job), four cases and the retention
@@ -173,10 +263,11 @@ begin
              s.org_id, 'core', 'core.signing_reconcile_failing', 'important',
              'Le suivi des signatures électroniques ne fonctionne plus',
              'Depuis plus de 6 heures, le suivi des signatures électroniques échoue alors que des demandes '
-               || 'sont en cours : Documenso est peut-être injoignable ou refuse la clé d''API. Un document '
-               || 'signé pendant ce temps n''existe peut-être que sur la VM Documenso, qui n''est pas '
-               || 'sauvegardée. Vérifiez la connexion dans « Signature électronique » et le suivi des '
-               || 'signatures dans « Tâches planifiées ».',
+               || 'sont en cours : Documenso est peut-être injoignable, ou l''adresse, la clé d''API ou '
+               || 'l''instance configurée n''est pas la bonne (une clé d''une autre équipe, une '
+               || 'instance reconstruite sans ses documents). Un document signé pendant ce temps n''existe '
+               || 'peut-être que sur la VM Documenso, qui n''est pas sauvegardée. Vérifiez la connexion dans '
+               || '« Signature électronique » et le suivi dans « Tâches planifiées ».',
              '/parametres/signature-electronique', null, null,
              'settings.integrations_manage', null, s.episode, null))
       into v_posted
@@ -218,37 +309,29 @@ begin
     v_parts := v_parts || ('failing_error=' || sqlstate);
   end;
 
-  -- 3. Requests no read reaches: the reconcile works, but a request has not been read for 6 hours.
-  --    The request condition is written twice (post, expire): keep them equal.
+  -- 3. Requests no read reaches: the reconcile works, but a request has not been read for 6 hours
+  --    (private.signing_unverified_requests, the list « Signature électronique » shows).
   begin
     select pg_catalog.count(private.notify(
              u.org_id, 'core', 'core.signing_requests_unverified', 'important',
              'Des demandes de signature n''ont pas pu être vérifiées',
              'Depuis plus de 6 heures, une ou plusieurs demandes de signature électronique n''ont pas pu '
-               || 'être vérifiées auprès de Documenso, même si le suivi des signatures fonctionne. Si l''une '
-               || 'd''elles a été signée, le document n''existe peut-être que sur la VM Documenso, qui n''est '
-               || 'pas sauvegardée. Vérifiez les demandes en cours et le suivi des signatures dans '
-               || '« Tâches planifiées ».',
+               || 'être vérifiées auprès de Documenso. Si l''une d''elles a été signée, le document n''existe '
+               || 'peut-être que sur la VM Documenso, qui n''est pas sauvegardée. La liste des demandes '
+               || 'concernées, avec la raison de chaque échec, est dans « Signature électronique ». Si toutes '
+               || 'les demandes en cours y figurent, vérifiez aussi la connexion : l''adresse, la clé d''API '
+               || 'ou l''instance n''est peut-être pas la bonne.',
              '/parametres/signature-electronique', null, null,
              'settings.integrations_manage', null, u.episode, null))
       into v_posted
       from (select o.org_id, coalesce('after:' || prev.id::text, 'first') as episode
-              from (select distinct r.org_id
-                      from public.signature_requests r
-                      left join public.signature_request_syncs s on s.request_id = r.id
-                     where r.documenso_document_id is not null
-                       and r.completed_event_at is null
-                       and ((r.status in ('sent', 'viewed')
-                             and coalesce(s.synced_at, r.sent_at) < pg_catalog.now() - interval '6 hours')
-                            or (r.status = 'draft'
-                                and coalesce(r.last_error, '') not in ('abandoned', 'orphan_completed')
-                                and s.failing_since < pg_catalog.now() - interval '6 hours'))
-                       and public.module_enabled_for_org(r.org_id, r.module_key)) o
+              from (select distinct x.org_id from private.signing_unverified_requests(null) x) o
               left join lateral (
                 select n.id, n.created_at, n.expires_at
                   from public.notifications n
                  where n.org_id = o.org_id and n.kind = 'core.signing_requests_unverified'
-                 order by n.created_at desc, n.id desc
+                 -- An open one wins a tie (two notices of one transaction share created_at).
+                 order by n.created_at desc, n.expires_at is null desc, n.id desc
                  limit 1) prev on true
              where v_watching
                -- After 90 days the previous one has left « À surveiller »: a reminder.
@@ -256,25 +339,18 @@ begin
                     or prev.created_at <= pg_catalog.now() - interval '90 days')
                and exists (select 1 from public.scheduled_job_runs x
                             where x.org_id = o.org_id and x.job_key = 'core.signing_reconcile'
-                              and x.status = 'ok' and x.started_at >= pg_catalog.now() - interval '6 hours')) u;
+                              and x.status = 'ok' and x.started_at >= pg_catalog.now() - interval '6 hours')) u
+     -- Counted only when new (private.notify returns the existing id on a dedupe).
+     where not exists (select 1 from public.notifications n
+                        where n.org_id = u.org_id and n.kind = 'core.signing_requests_unverified'
+                          and n.dedupe_key = u.episode);
 
     update public.notifications n
        set expires_at = pg_catalog.now()
      where n.kind = 'core.signing_requests_unverified'
        and n.created_at > pg_catalog.now() - interval '90 days'
        and n.expires_at is null
-       and not exists (select 1
-                         from public.signature_requests r
-                         left join public.signature_request_syncs s on s.request_id = r.id
-                        where r.org_id = n.org_id
-                          and r.documenso_document_id is not null
-                          and r.completed_event_at is null
-                          and ((r.status in ('sent', 'viewed')
-                                and coalesce(s.synced_at, r.sent_at) < pg_catalog.now() - interval '6 hours')
-                               or (r.status = 'draft'
-                                   and coalesce(r.last_error, '') not in ('abandoned', 'orphan_completed')
-                                   and s.failing_since < pg_catalog.now() - interval '6 hours'))
-                          and public.module_enabled_for_org(r.org_id, r.module_key));
+       and not exists (select 1 from private.signing_unverified_requests(n.org_id));
     get diagnostics v_ended = row_count;
     v_parts := v_parts || ('unverified=' || v_posted) || ('verified=' || v_ended);
   exception when others then

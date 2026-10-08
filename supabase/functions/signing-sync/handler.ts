@@ -33,7 +33,11 @@
  *    without settling drafts: a draft whose send may be under way is never
  *    cancelled from a click (only a completed one is recovered, once
  *    claimed).
- * 7. 200 `{ request_id, outcome }` (`signed`, `updated`, `unchanged`,
+ * 7. For a sent or viewed request, the attempt is recorded like the
+ *    reconcile's (`record_signature_sync`, best effort, nothing reported): a
+ *    successful « Synchroniser » clears the request's « non vérifiée » state
+ *    (`…_core_signing_blind_alert`), a failure records its code.
+ * 8. 200 `{ request_id, outcome }` (`signed`, `updated`, `unchanged`,
  *    `orphan_completed`, `sending`).
  *
  * User-mode status codes: 200; 400 body; 401 / 403 / 503 from `verifyAuth`;
@@ -57,9 +61,12 @@ import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 import {
   documensoReach,
+  failureCode,
+  type OrgSigning,
   orgSigning,
   RECONCILE_TIMEOUT_MS,
   reconcileOrg,
+  recordAttempt,
   syncRequest,
 } from '../_shared/signing-events.ts'
 
@@ -103,6 +110,20 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       await reportError({ fn: FN, code, ids }, deps.fetch)
       return errorResponse('internal', 'Sync failed', 500, req)
     }
+    const failure = async (error: unknown) => {
+      if (error instanceof DocumensoError) {
+        return error.code === 'not_configured'
+          ? errorResponse(
+            'not_configured',
+            'Documenso refused the key',
+            503,
+            req,
+          )
+          : errorResponse('provider_error', 'Documenso failed', 502, req)
+      }
+      const code = (error as { code?: unknown }).code
+      return await fail(typeof code === 'string' ? code : 'sync_failed')
+    }
 
     const limited = limitResponse(
       await consume(service, LIMITS.signingSyncUser, [orgId, auth.user.id]),
@@ -132,22 +153,35 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       )
     }
 
+    let signing: OrgSigning | null
     try {
-      const signing = await orgSigning(
+      signing = await orgSigning(
         service,
         orgId,
         deps.fetch,
         documensoReach(deps),
         req.signal,
       )
-      if (!signing) {
-        return errorResponse(
-          'not_configured',
-          'Signing is not configured',
-          503,
-          req,
-        )
-      }
+    } catch (error) {
+      return await failure(error)
+    }
+    if (!signing) {
+      return errorResponse(
+        'not_configured',
+        'Signing is not configured',
+        503,
+        req,
+      )
+    }
+    // A sent or viewed request's read is recorded like the reconcile's
+    // (`record_signature_sync`, nothing reported): a successful click clears
+    // its « non vérifiée » state, a failed one counts. A draft's state is its
+    // settle's, which a click never runs.
+    const record = (code: string | null) =>
+      row.data.status === 'draft'
+        ? Promise.resolve()
+        : recordAttempt(service, orgId, row.data.id, code, [], deps.fetch)
+    try {
       const outcome = await syncRequest(
         {
           client: service,
@@ -160,20 +194,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         row.data,
         { settleDrafts: false },
       )
+      await record(null)
       return jsonResponse({ request_id: row.data.id, outcome }, 200, req)
     } catch (error) {
-      if (error instanceof DocumensoError) {
-        return error.code === 'not_configured'
-          ? errorResponse(
-            'not_configured',
-            'Documenso refused the key',
-            503,
-            req,
-          )
-          : errorResponse('provider_error', 'Documenso failed', 502, req)
-      }
-      const code = (error as { code?: unknown }).code
-      return await fail(typeof code === 'string' ? code : 'sync_failed')
+      await record(failureCode(error))
+      return await failure(error)
     }
   }
 }
