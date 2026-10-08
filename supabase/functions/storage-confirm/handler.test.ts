@@ -122,6 +122,9 @@ function harness(opts: {
   remove?: FakeResult
   reject?: FakeResult
   confirm?: FakeResult
+  /** The idempotency read of `stored_files` (no row by default). */
+  lookup?: FakeResult
+  limit?: RpcRoute
 } = {}) {
   /** The service client's writes, in order. */
   const events: string[] = []
@@ -142,7 +145,10 @@ function harness(opts: {
     },
   })
   const service = fakeSupabase({
+    tables: { stored_files: () => opts.lookup ?? { data: null } },
     rpc: {
+      consume_rate_limit: opts.limit ??
+        { data: [{ allowed: true, hits: 1, retry_after_seconds: 0 }] },
       confirm_stored_file: () => {
         events.push('confirm_stored_file')
         return opts.confirm ?? { data: null }
@@ -182,7 +188,11 @@ function harness(opts: {
 }
 
 const run = (fn: () => Promise<void>) =>
-  withEnv({ SENTRY_DSN: undefined, ALLOWED_ORIGINS: undefined }, fn)
+  withEnv({
+    SENTRY_DSN: undefined,
+    ALLOWED_ORIGINS: undefined,
+    INTERNAL_FUNCTION_SECRET: 'local-dev-internal-function-secret',
+  }, fn)
 
 async function errorOf(res: Response) {
   return { status: res.status, ...(await res.json()).error }
@@ -199,7 +209,15 @@ const WRONG_TYPE = {
   code: 'invalid_request',
   message: "Ce fichier n'est pas du type annoncé.",
 }
-const REFUSED = [`remove:${JSON.stringify([PNG_PATH])}`, 'reject_stored_file']
+/** Rejected first, then removed. */
+const REFUSED = ['reject_stored_file', `remove:${JSON.stringify([PNG_PATH])}`]
+/** The idempotency read: by id, the caller's org, uploaded by the caller, ready. */
+const LOOKUP = {
+  table: 'stored_files',
+  columns: 'id',
+  eq: { id: FILE_ID, org_id: ORG_ID, uploaded_by: ADMIN_ID, status: 'ready' },
+  single: true,
+}
 
 Deno.test('storage-confirm: a PNG within its caps → confirm_stored_file with its SHA-256 and real size → 200', async () => {
   await run(async () => {
@@ -223,6 +241,7 @@ Deno.test('storage-confirm: a PNG within its caps → confirm_stored_file with i
       ]],
     )
     assertEquals(events, ['confirm_stored_file'])
+    assertEquals(service.tableCalls, [])
     assertEquals(service.calls.at(-1)?.args, {
       p_file_id: FILE_ID,
       p_sha256: sha256Hex(bytes),
@@ -269,7 +288,7 @@ Deno.test('storage-confirm: a PDF (no image cap) and a JPEG whose frame header i
   })
 })
 
-Deno.test('storage-confirm: a PNG declared as a PDF → remove + reject_stored_file + 400', async () => {
+Deno.test('storage-confirm: a PNG declared as a PDF → reject_stored_file, then remove, then 400', async () => {
   await run(async () => {
     const { handler, events, service } = harness({
       pending: {
@@ -291,6 +310,7 @@ Deno.test('storage-confirm: a PNG declared as a PDF → remove + reject_stored_f
       fn: 'reject_stored_file',
       args: { p_file_id: FILE_ID },
     })
+    assertEquals(service.storageCalls.at(-1)?.args, [[PNG_PATH]])
   })
 })
 
@@ -458,12 +478,12 @@ Deno.test('storage-confirm: an image whose size cannot be read, or is zero, → 
         code: 'invalid_request',
         message: 'Cette image ne peut pas être lue.',
       }, name)
-      assertEquals(events.at(-1), 'reject_stored_file', name)
+      assertEquals(events, REFUSED, name)
     }
   })
 })
 
-Deno.test("storage-confirm: another user's (or an unknown, expired, confirmed) file → 404, nothing downloaded", async () => {
+Deno.test("storage-confirm: another user's (or an unknown, expired, rejected) file → 404, nothing downloaded", async () => {
   await run(async () => {
     const { handler, service } = harness({ pending: { data: [] } })
     assertEquals(await errorOf(await handler(post({ file_id: FILE_ID }))), {
@@ -472,7 +492,115 @@ Deno.test("storage-confirm: another user's (or an unknown, expired, confirmed) f
       message: 'Upload not found',
     })
     assertEquals(service.storageCalls, [])
-    assertEquals(service.calls, [])
+    assertEquals(service.calls.map((c) => c.fn), ['consume_rate_limit'])
+    // Ready and uploaded by the caller, in the caller's org, or nothing.
+    assertEquals(service.tableCalls, [LOOKUP])
+  })
+})
+
+Deno.test('storage-confirm: a retry after a lost answer (already ready, uploaded by the caller) → 200, nothing downloaded or written', async () => {
+  await run(async () => {
+    const { handler, service, events } = harness({
+      pending: { data: [] },
+      lookup: { data: { id: FILE_ID } },
+    })
+    const res = await handler(post({ file_id: FILE_ID }))
+    assertEquals(res.status, 200)
+    assertEquals(await res.json(), { file_id: FILE_ID })
+    assertEquals(service.tableCalls, [LOOKUP])
+    assertEquals(service.storageCalls, [])
+    assertEquals(events, [])
+  })
+})
+
+Deno.test('storage-confirm: a concurrent confirm got there first (confirm_stored_file 22023) → 200 when ready by the caller, else 409; not reported', async () => {
+  await run(async () => {
+    const won = harness({
+      confirm: { error: { code: '22023' } },
+      lookup: { data: { id: FILE_ID } },
+    })
+    const lost = harness({ confirm: { error: { code: '22023' } } })
+    const logged = await reports(async () => {
+      const res = await won.handler(post({ file_id: FILE_ID }))
+      assertEquals(res.status, 200)
+      assertEquals(await res.json(), { file_id: FILE_ID })
+      assertEquals(
+        await errorOf(await lost.handler(post({ file_id: FILE_ID }))),
+        {
+          status: 409,
+          code: 'conflict',
+          message: 'Upload already settled',
+        },
+      )
+    })
+    assertEquals(logged, [])
+    assertEquals(won.service.tableCalls, [LOOKUP])
+    assertEquals(lost.service.tableCalls, [LOOKUP])
+    assertEquals(lost.events, ['confirm_stored_file'])
+  })
+})
+
+Deno.test('storage-confirm: a refusal whose reject finds the row no longer pending (22023) → 409, the object is kept; not reported', async () => {
+  await run(async () => {
+    const { handler, events } = harness({
+      object: { bytes: png(10, 10), contentType: 'image/jpeg' },
+      reject: { error: { code: '22023' } },
+    })
+    const logged = await reports(async () => {
+      assertEquals(
+        (await errorOf(await handler(post({ file_id: FILE_ID })))).code,
+        'conflict',
+      )
+    })
+    assertEquals(logged, [])
+    assertEquals(events, ['reject_stored_file'])
+  })
+})
+
+Deno.test('storage-confirm: a reject failure is reported and removes nothing → 400 (the pending row is purged with its object)', async () => {
+  await run(async () => {
+    const { handler, events } = harness({
+      object: { bytes: png(10, 10), contentType: 'image/jpeg' },
+      reject: { error: { code: 'XX000' } },
+    })
+    const logged = await reports(async () => {
+      assertEquals(
+        await errorOf(await handler(post({ file_id: FILE_ID }))),
+        WRONG_TYPE,
+      )
+    })
+    assertEquals(events, ['reject_stored_file'])
+    assertEquals(logged, [{
+      fn: 'storage-confirm',
+      code: 'reject_failed',
+      ids: { org_id: ORG_ID, file_id: FILE_ID },
+    }])
+  })
+})
+
+Deno.test("storage-confirm: over the caller's limit → 429 with Retry-After; the limiter down → 503; nothing read", async () => {
+  await run(async () => {
+    const refused = harness({
+      limit: { data: [{ allowed: false, hits: 121, retry_after_seconds: 90 }] },
+    })
+    const res = await refused.handler(post({ file_id: FILE_ID }))
+    assertEquals(await errorOf(res), {
+      status: 429,
+      code: 'rate_limited',
+      message: 'Too many attempts',
+    })
+    assertEquals(res.headers.get('Retry-After'), '90')
+    assertEquals(refused.user.calls.map((c) => c.fn), ['get_my_access'])
+    assertEquals(refused.service.calls.map((c) => c.args.p_bucket), [
+      'storage.confirm_user',
+    ])
+
+    const down = harness({ limit: { error: { code: 'XX000' } } })
+    await reports(async () => {
+      assertEquals((await down.handler(post({ file_id: FILE_ID }))).status, 503)
+    })
+    assertEquals(down.user.calls.map((c) => c.fn), ['get_my_access'])
+    assertEquals(down.service.storageCalls, [])
   })
 })
 
@@ -532,7 +660,15 @@ Deno.test('storage-confirm: storage or RPC failures → 500, reported with ids o
         }),
       }],
       ['object_read_failed', { download: () => ({ data: failing }) }],
-      ['confirm_failed', { confirm: { error: { code: '22023' } } }],
+      ['confirm_failed', { confirm: { error: { code: 'XX000' } } }],
+      ['file_lookup_failed', {
+        pending: { data: [] },
+        lookup: { error: { code: 'XX000' } },
+      }],
+      ['file_lookup_failed', {
+        confirm: { error: { code: '22023' } },
+        lookup: { error: { code: 'XX000' } },
+      }],
     ]
     for (const [code, opts] of cases) {
       const { handler, events } = harness(opts)

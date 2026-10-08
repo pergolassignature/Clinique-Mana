@@ -417,3 +417,15 @@ export function buildObjectPath(parts: ObjectPathParts): string {
   if (!ext) throw new TypeError('buildObjectPath: MIME type not accepted')
   return `${parts.orgId}/${parts.moduleKey}/${parts.subjectId}/${parts.fileId}.${ext}`
 }
+
+/**
+ * Whether a storage-js error means the object does not exist (storage-js
+ * `exists` uses the same test: status 400 or 404, or `statusCode` '404').
+ */
+export function isMissingObject(error: unknown): boolean {
+  const { status, statusCode } = (error ?? {}) as {
+    status?: unknown
+    statusCode?: unknown
+  }
+  return status === 400 || status === 404 || statusCode === '404'
+}

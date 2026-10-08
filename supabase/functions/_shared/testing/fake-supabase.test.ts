@@ -107,3 +107,40 @@ Deno.test('fakeSupabase: auth.admin methods are routed by name, in a call log', 
     'fake: no auth.admin.updateUserById',
   )
 })
+
+Deno.test('fakeSupabase: from(table) reads are routed by table, with columns and eq filters logged', async () => {
+  const { client, tableCalls } = fakeSupabase({
+    tables: {
+      stored_files: (q) => ({
+        data: q.eq.id === 'f1' ? { bucket: 'b' } : null,
+      }),
+    },
+  })
+  const found = await client.from('stored_files').select('bucket').eq(
+    'id',
+    'f1',
+  )
+    .eq('status', 'ready').maybeSingle()
+  assertEquals(found.data, { bucket: 'b' })
+  assertEquals(found.error, null)
+  const listed = await client.from('stored_files').select('bucket').eq(
+    'id',
+    'f2',
+  )
+  assertEquals(listed.data, null)
+  assertEquals(tableCalls, [
+    {
+      table: 'stored_files',
+      columns: 'bucket',
+      eq: { id: 'f1', status: 'ready' },
+      single: true,
+    },
+    {
+      table: 'stored_files',
+      columns: 'bucket',
+      eq: { id: 'f2' },
+      single: false,
+    },
+  ])
+  assertThrows(() => client.from('profiles'), Error, 'fake: no table profiles')
+})

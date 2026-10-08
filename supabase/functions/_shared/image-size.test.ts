@@ -156,6 +156,23 @@ Deno.test('imageSizeReader: stops at the frame header; later bytes are ignored',
   assertEquals(reader.result(), { width: 12, height: 34 })
 })
 
+Deno.test('imageSizeReader: extra bytes between JPEG segments are skipped up to the next marker', () => {
+  const stray = jpeg(800, 600, [
+    segment(0xe0, 14),
+    new Uint8Array([0x00, 0x00, 0x12, 0x34]), // stray bytes after APP0
+    segment(0xe1, 2000),
+    new Uint8Array([0xff, 0x00, 0x7f]), // FF 00 is not a marker either
+    segment(0xdb, 67),
+  ])
+  for (const size of [1, 2, 3, 4096, stray.length]) {
+    assertEquals(
+      chunked('jpeg', stray, size),
+      { width: 800, height: 600 },
+      `jpeg / ${size}`,
+    )
+  }
+})
+
 Deno.test('imageSize: null for a missing, truncated or malformed header', () => {
   const cases: [string, ImageKind, Uint8Array][] = [
     ['empty PNG', 'png', new Uint8Array()],
@@ -177,9 +194,9 @@ Deno.test('imageSize: null for a missing, truncated or malformed header', () => 
     ],
     ['JPEG cut inside the frame header', 'jpeg', jpeg(5, 5).subarray(0, 24)],
     [
-      'JPEG with a byte that is not a marker',
+      'JPEG with extra bytes and no marker after them',
       'jpeg',
-      new Uint8Array([0xff, 0xd8, 0x00, 0xe0]),
+      new Uint8Array([0xff, 0xd8, 0x00, 0xe0, 0x12, 0x34]),
     ],
     [
       'JPEG with a segment length under 2',

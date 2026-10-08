@@ -75,6 +75,24 @@ export const LIMITS = {
     max: 60,
     windowSeconds: 3_600,
   },
+  /**
+   * `storage-confirm`, per caller: each call may download and hash an object
+   * of up to the purpose's size cap. Retries after a lost answer count too.
+   */
+  storageConfirmUser: {
+    bucket: 'storage.confirm_user',
+    max: 120,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `storage-sign`, per caller: each call mints a 5-minute read URL. A page
+   * of previews signs one per file (the client caches each for 4 minutes).
+   */
+  storageSignUser: {
+    bucket: 'storage.sign_user',
+    max: 120,
+    windowSeconds: 3_600,
+  },
 } as const satisfies Record<string, RateLimit>
 
 /**

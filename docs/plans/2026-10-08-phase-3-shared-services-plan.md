@@ -1866,7 +1866,7 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string>
   2. Body `{ purpose, subject_type, subject_id, original_name, mime_type, size_bytes }`.
   3. `create_pending_upload` with the **user client** (P0001 → 400 with the message).
   4. Service client `storage.from(bucket).createSignedUploadUrl(object_path)`.
-  5. 200 `{ file_id, signed_url, token, path }`.
+  5. 200 `{ file_id, bucket, path, token }` (no `signed_url`: the function builds it from its internal API URL; the client calls `uploadToSignedUrl(path, token, file)` on its own Supabase URL).
 - **`storage-confirm`:**
   1. `verifyAuth`; body `{ file_id }`.
   2. `get_pending_upload` with the user client: the uploader and `pending` only, else 404 `not_found`.
@@ -1903,7 +1903,7 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string>
 **From the Task 3.25 review:** about 7 % of real `.jpg` files are really PNG or WebP, and browsers derive `file.type` from the extension. The widget sniffs the first bytes on the client (same signatures as `_shared/storage.ts`) and sends the sniffed MIME when it is allowed for the purpose, so a misnamed image is not refused with « Ce fichier n'est pas du type annoncé ».
 
 **Lane:** U (after Task 3.26 merges). **Files:**
-- Create: `src/core/storage/api.ts` + test: `uploadFile({ purpose, subjectType, subjectId, file }): Promise<{ fileId }>`. It calls `storage-upload` → `supabase.storage.from(bucket).uploadToSignedUrl(path, token, file)` → `storage-confirm`. Also `signedFileUrl(fileId, { download?: boolean })`: reads `stored_files` (`object_path, bucket, original_name`) for one id, then `createSignedUrl(path, 300, download ? { download: original_name } : undefined)`.
+- Create: `src/core/storage/api.ts` + test: `uploadFile({ purpose, subjectType, subjectId, file }): Promise<{ fileId }>`. It calls `storage-upload` (→ `{ file_id, bucket, path, token }`, no URL) → `supabase.storage.from(bucket).uploadToSignedUrl(path, token, file)` → `storage-confirm` (a 200 on retry when the file is already confirmed; 409 `conflict` when a concurrent call settled it otherwise). Also `signedFileUrl(fileId, { download?: boolean })`: calls the `storage-sign` function with `{ file_id, download }` → `{ url, expires_at }` (P3-33: the client never calls `createSignedUrl` itself; the URL lives 300 s; 404 when the file is not readable). A 429 `rate_limited` (120 an hour per user) is shown as an error, not retried.
 - Create: `src/core/storage/hooks.ts` (`storageKeys`, `useSignedFileUrl(fileId)` with `staleTime: 240_000`, so a 5-min URL is refreshed before it expires), `src/shared/components/FileDropzone.tsx` + test (accept list, size check before upload, progress, the error text from the functions)
 - Modify: `src/core/settings/pages/IdentitySettingsPage.tsx` (+ test): a « Logo » card (preview, « Remplacer », « Retirer » with confirmation → `set_org_asset('logo', …)`)
 - Modify: `src/core/settings/pages/SignatorySettingsPage.tsx` (+ test): « Courriel du signataire » (in the existing signatory card, Zod email) and an « Image de signature » card (PNG with transparency recommended; help text « Utilisée pour la signature de la clinique sur les documents. »)

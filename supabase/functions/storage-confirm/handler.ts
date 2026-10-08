@@ -4,10 +4,14 @@
  * type, the purpose's size cap and image cap are checked against the object
  * itself before the file becomes `ready`.
  *
- * 1. CORS; `POST` only; `verifyAuth`. Body `{ file_id }`.
+ * 1. CORS; `POST` only; `verifyAuth`. Body `{ file_id }`. One hit on
+ *    `LIMITS.storageConfirmUser` (120 an hour per caller): each call may
+ *    download and hash an object of up to the purpose's size cap.
  * 2. `get_pending_upload` with the **caller's** client: the uploader's own
  *    `pending` file (under 24 h, upload permission still held), with the
- *    purpose's `max_bytes` and `max_image_side`; else 404 `not_found`.
+ *    purpose's `max_bytes` and `max_image_side`. No row: when the file is
+ *    already `ready` and was uploaded by the caller (a retry after a lost
+ *    answer), 200 `{ file_id }`; else 404 `not_found`.
  * 3. Service `info(path)`: a missing object → 400 « Le fichier n'a pas été
  *    reçu. » (the row stays pending: the client may finish and retry). The
  *    content type storage recorded (set by the client on the signed upload)
@@ -18,16 +22,29 @@
  *    stream is cancelled once `max_bytes` is passed). When `max_image_side`
  *    is set, an image's width and height are read from its header on the way
  *    (`imageSizeReader`), without decoding it.
- * 5. Any mismatch → `remove([path])` and `reject_stored_file` (in parallel;
- *    a failed removal is reported, and the rejected row's object is purged
- *    after 30 days), then 400 with a French message.
+ * 5. Any mismatch → `reject_stored_file` first, then `remove([path])`, then
+ *    400 with a French message. The object is removed only once the row is
+ *    `deleted`, so a concurrent confirm that already made it `ready` never
+ *    loses its object: a reject refused as no longer pending (22023) answers
+ *    409 `conflict` and removes nothing. A failed reject (another error) is
+ *    reported and removes nothing (the pending row and its object are purged
+ *    after 24 h); a failed removal is reported (the object is purged with the
+ *    deleted row after 30 days).
  * 6. Otherwise `confirm_stored_file(file_id, sha256, real size)` → `ready`.
+ *    Refused as no longer pending (22023: a concurrent confirm got there
+ *    first): 200 `{ file_id }` when the row is now `ready` and was uploaded
+ *    by the caller, else 409 `conflict`; neither is reported.
+ *
+ * The idempotency checks read `stored_files` with the service client, by id,
+ * the caller's org, `uploaded_by` = the caller and `status = 'ready'`.
  *
  * Status mapping: 200 `{ file_id }`; 400 `invalid_request` (body; not
  * received; wrong type, too large, image too large or unreadable: French
  * message, file refused); 401 / 403 / 503 from `verifyAuth`; 403 `forbidden`
- * (42501); 404 `not_found`; 405; 413; 500 `internal` (an RPC or storage
- * failure, reported with the org and file ids only; nothing is refused) or
+ * (42501); 404 `not_found`; 405; 409 `conflict` (settled by a concurrent
+ * call); 413; 429 `rate_limited` with `Retry-After`; 503 `not_configured`
+ * (the limiter is down); 500 `internal` (an RPC or storage failure, reported
+ * with the org and file ids only; nothing is refused) or
  * `server_misconfigured`.
  */
 import { z } from 'zod'
@@ -41,8 +58,13 @@ import type { Deps } from '../_shared/deps.ts'
 import { rpcErrorResponse } from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
 import { type ImageKind, imageSizeReader } from '../_shared/image-size.ts'
+import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
-import { inspectStream, sniffMatchesMime } from '../_shared/storage.ts'
+import {
+  inspectStream,
+  isMissingObject,
+  sniffMatchesMime,
+} from '../_shared/storage.ts'
 
 const FN = 'storage-confirm'
 
@@ -78,15 +100,6 @@ function imageTooLarge(maxSide: number): string {
   return `Cette image dépasse la taille permise (${side} pixels de côté).`
 }
 
-/** A storage error for a missing object (storage-js `exists` uses the same test). */
-function isMissing(error: unknown): boolean {
-  const { status, statusCode } = (error ?? {}) as {
-    status?: unknown
-    statusCode?: unknown
-  }
-  return status === 400 || status === 404 || statusCode === '404'
-}
-
 /** Passes chunks through, feeding each to `push`. */
 function tap(push: (chunk: Uint8Array) => void) {
   return new TransformStream<Uint8Array, Uint8Array>({
@@ -112,8 +125,15 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const service = deps.serviceClient()
     if (service instanceof Response) return service
 
+    const orgId = auth.access.org_id
+    const limited = limitResponse(
+      await consume(service, LIMITS.storageConfirmUser, [orgId, auth.user.id]),
+      req,
+    )
+    if (limited) return limited
+
     const fileId = input.file_id
-    const ids = { org_id: auth.access.org_id, file_id: fileId }
+    const ids = { org_id: orgId, file_id: fileId }
     const report = (code: string) =>
       reportError({ fn: FN, code, ids }, deps.fetch)
     const fail = async (code: string) => {
@@ -124,6 +144,20 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         500,
         req,
       )
+    }
+    const confirmedResponse = () => jsonResponse({ file_id: fileId }, 200, req)
+    const conflict = () =>
+      errorResponse('conflict', 'Upload already settled', 409, req)
+    /** Whether the file is `ready` and the caller uploaded it; null on error. */
+    const readyByCaller = async (): Promise<boolean | null> => {
+      const { data, error } = await service.from('stored_files')
+        .select('id')
+        .eq('id', fileId)
+        .eq('org_id', orgId)
+        .eq('uploaded_by', auth.user.id)
+        .eq('status', 'ready')
+        .maybeSingle()
+      return error ? null : data !== null
     }
 
     const pending = await auth.client.rpc('get_pending_upload', {
@@ -139,23 +173,31 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (!parsed.success) return await fail('unexpected_pending_upload')
     const file = parsed.data[0]
     if (!file) {
-      return errorResponse('not_found', 'Upload not found', 404, req)
+      const ready = await readyByCaller()
+      if (ready === null) return await fail('file_lookup_failed')
+      return ready
+        ? confirmedResponse()
+        : errorResponse('not_found', 'Upload not found', 404, req)
     }
 
     const objects = service.storage.from(file.bucket)
     const refuse = async (message: string) => {
-      const [removed, rejected] = await Promise.all([
-        objects.remove([file.object_path]),
-        service.rpc('reject_stored_file', { p_file_id: fileId }),
-      ])
+      const rejected = await service.rpc('reject_stored_file', {
+        p_file_id: fileId,
+      })
+      if (rejected.error) {
+        if (rejected.error.code === '22023') return conflict()
+        await report('reject_failed')
+        return errorResponse('invalid_request', message, 400, req)
+      }
+      const removed = await objects.remove([file.object_path])
       if (removed.error) await report('object_remove_failed')
-      if (rejected.error) await report('reject_failed')
       return errorResponse('invalid_request', message, 400, req)
     }
 
     const info = await objects.info(file.object_path)
     if (info.error) {
-      return isMissing(info.error)
+      return isMissingObject(info.error)
         ? errorResponse('invalid_request', NOT_RECEIVED, 400, req)
         : await fail('object_info_failed')
     }
@@ -168,7 +210,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     const download = await objects.download(file.object_path).asStream()
     if (download.error || !download.data) {
-      return isMissing(download.error)
+      return isMissingObject(download.error)
         ? errorResponse('invalid_request', NOT_RECEIVED, 400, req)
         : await fail('object_download_failed')
     }
@@ -208,7 +250,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       p_sha256: inspection.sha256,
       p_size_bytes: inspection.size,
     })
-    if (confirmed.error) return await fail('confirm_failed')
-    return jsonResponse({ file_id: fileId }, 200, req)
+    if (confirmed.error) {
+      if (confirmed.error.code !== '22023') return await fail('confirm_failed')
+      const ready = await readyByCaller()
+      if (ready === null) return await fail('file_lookup_failed')
+      return ready ? confirmedResponse() : conflict()
+    }
+    return confirmedResponse()
   }
 }

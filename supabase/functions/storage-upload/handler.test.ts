@@ -98,7 +98,7 @@ async function reports(fn: () => Promise<void>) {
   return logged.map((args) => JSON.parse(String(args[0])))
 }
 
-Deno.test('storage-upload: create_pending_upload as the caller, then a signed upload URL for the RPC path → 200', async () => {
+Deno.test('storage-upload: create_pending_upload as the caller, then a signed upload URL for the RPC path → 200 (path and token, no URL)', async () => {
   await run(async () => {
     const { handler, user, service } = harness()
     const res = await handler(post(BODY))
@@ -108,7 +108,6 @@ Deno.test('storage-upload: create_pending_upload as the caller, then a signed up
       bucket: 'org-assets',
       path: PATH,
       token: 'local-dev-upload-token',
-      signed_url: SIGNED_URL,
     })
     assertEquals(user.calls[1], {
       fn: 'create_pending_upload',
@@ -187,10 +186,33 @@ Deno.test('storage-upload: 42501 (no upload permission) → 403; 22023 → 400; 
   })
 })
 
+Deno.test('storage-upload: a check violation of stored_files (23514) → 400, not reported; nothing is signed', async () => {
+  await run(async () => {
+    const { handler, service } = harness({
+      pending: {
+        error: {
+          code: '23514',
+          message:
+            'violates check constraint "stored_files_original_name_check"',
+        },
+      },
+    })
+    const logged = await reports(async () => {
+      assertEquals(await errorOf(await handler(post(BODY))), {
+        status: 400,
+        code: 'invalid_request',
+        message: 'Invalid request',
+      })
+    })
+    assertEquals(logged, [])
+    assertEquals(service.storageCalls, [])
+  })
+})
+
 Deno.test('storage-upload: another RPC error → 500, reported with ids only', async () => {
   await run(async () => {
     const { handler, service } = harness({
-      pending: { error: { code: '23514', message: 'check violated' } },
+      pending: { error: { code: 'XX000', message: 'internal error' } },
     })
     const logged = await reports(async () => {
       assertEquals((await handler(post(BODY))).status, 500)
@@ -215,6 +237,16 @@ Deno.test('storage-upload: the body takes no path, bucket or org; a bad field �
       { ...BODY, original_name: 'tab\there.png' },
       { ...BODY, original_name: 'del\u007f.png' },
       { ...BODY, original_name: 'nel\u0085.png' },
+      // Bidirectional formatting: « facture\u202Egnp.exe » shows as « factureexe.png ».
+      { ...BODY, original_name: 'facture\u202Egnp.exe' },
+      { ...BODY, original_name: 'lrm\u200E.png' },
+      { ...BODY, original_name: 'rlm\u200F.png' },
+      { ...BODY, original_name: 'lre\u202A.png' },
+      { ...BODY, original_name: 'pdf\u202C.png' },
+      { ...BODY, original_name: 'lri\u2066.png' },
+      { ...BODY, original_name: 'pdi\u2069.png' },
+      { ...BODY, original_name: 'line\u2028sep.png' },
+      { ...BODY, original_name: 'para\u2029sep.png' },
       { ...BODY, original_name: '   ' },
       { ...BODY, original_name: 'x'.repeat(201) },
       { ...BODY, subject_id: 'not-a-uuid' },
@@ -233,6 +265,27 @@ Deno.test('storage-upload: the body takes no path, bucket or org; a bad field �
         user.calls.map((c) => c.fn),
         ['get_my_access'],
         JSON.stringify(body),
+      )
+    }
+  })
+})
+
+Deno.test('storage-upload: characters next to the refused ranges are accepted (ZWJ, NNBSP, word joiner)', async () => {
+  await run(async () => {
+    for (
+      const name of [
+        'zwj\u200D.png', // U+200D, before LRM
+        'nnbsp\u202F.png', // U+202F, after RLO
+        'wj\u2060.png', // U+2060, before LRI
+        'fsi\u206A.png', // U+206A, after PDI
+        'Reçu « mars » — 2026.png',
+      ]
+    ) {
+      const { handler } = harness()
+      assertEquals(
+        (await handler(post({ ...BODY, original_name: name }))).status,
+        200,
+        JSON.stringify(name),
       )
     }
   })

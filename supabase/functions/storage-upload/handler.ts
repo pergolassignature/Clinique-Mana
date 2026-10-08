@@ -7,7 +7,9 @@
  *    permission, and so its module, is checked by the RPC, as the caller.
  * 2. Body `{ purpose, subject_type, subject_id, original_name, mime_type,
  *    size_bytes }`, strict: no path, bucket or org is ever taken from the
- *    client. The name is checked like `stored_files.original_name`.
+ *    client. The name is checked like `stored_files.original_name` (no
+ *    control, line or paragraph separator, or bidirectional formatting
+ *    character, which could disguise its extension when displayed).
  * 3. One hit on `LIMITS.storageUploadUser` (60 an hour per caller): each
  *    call signs an upload of up to the purpose's size cap.
  * 4. `create_pending_upload` with the **caller's** client: permission, size
@@ -18,12 +20,14 @@
  * 6. Service client `createSignedUploadUrl(path)` (no upsert: the object can
  *    be written once; the token is valid for 2 hours).
  *
- * The client then uploads with `uploadToSignedUrl(path, token, file)` (its
- * own Supabase URL; `signed_url` carries the function's), setting the
- * declared MIME type as the content type, and calls `storage-confirm`.
+ * The client then uploads with `uploadToSignedUrl(path, token, file)` on its
+ * own Supabase URL (no signed URL is returned: the function's is built from
+ * its internal API URL), setting the declared MIME type as the content type,
+ * and calls `storage-confirm`.
  *
- * Status mapping: 200 `{ file_id, bucket, path, token, signed_url }`; 400
- * `invalid_request` (body; P0001 with its French message; 22023); 401 / 403
+ * Status mapping: 200 `{ file_id, bucket, path, token }`; 400
+ * `invalid_request` (body; P0001 with its French message; 22023; 23514, the
+ * name check of `stored_files` as a safety net); 401 / 403
  * / 503 from `verifyAuth`; 403 `forbidden` (42501: no upload permission);
  * 405; 413; 429 `rate_limited` with `Retry-After`; 503 `not_configured` (the
  * limiter is down); 500 `internal` (another RPC error, an unexpected path, or the
@@ -49,11 +53,21 @@ const FN = 'storage-upload'
 /** The core buckets (Task 3.24); nothing else is ever signed. */
 const BUCKETS = ['org-assets', 'documents', 'signed-documents']
 
-/** A character `stored_files.original_name` refuses: `/`, `\`, C0, DEL or C1. */
+/**
+ * A character `stored_files.original_name` refuses: `/`, `\`, C0, DEL, C1,
+ * the line and paragraph separators (U+2028–U+2029) and the bidirectional
+ * formatting characters: LRM / RLM (U+200E–U+200F), embeddings and overrides
+ * (U+202A–U+202E), isolates (U+2066–U+2069). « facture\u202Egnp.exe » shows as
+ * « factureexe.png ».
+ */
 function forbiddenNameChar(char: string): boolean {
   const code = char.codePointAt(0)!
   return char === '/' || char === '\\' || code < 0x20 ||
-    (code >= 0x7f && code <= 0x9f)
+    (code >= 0x7f && code <= 0x9f) ||
+    (code >= 0x200e && code <= 0x200f) ||
+    (code >= 0x2028 && code <= 0x2029) ||
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2066 && code <= 0x2069)
 }
 
 /** `stored_files.original_name`: 1–200 characters, not blank, no forbidden character. */
@@ -118,6 +132,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       p_size_bytes: input.size_bytes,
     })
     if (pending.error) {
+      // 23514: a check of stored_files refused the row (the name, in
+      // practice): the body check above should have caught it first.
+      if (pending.error.code === '23514') {
+        return errorResponse('invalid_request', 'Invalid request', 400, req)
+      }
       if (!['P0001', '42501', '22023'].includes(pending.error.code ?? '')) {
         return await fail('create_pending_failed')
       }
@@ -142,13 +161,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return await fail('signed_upload_failed', fileId)
     }
     return jsonResponse(
-      {
-        file_id: fileId,
-        bucket,
-        path,
-        token: signed.data.token,
-        signed_url: signed.data.signedUrl,
-      },
+      { file_id: fileId, bucket, path, token: signed.data.token },
       200,
       req,
     )

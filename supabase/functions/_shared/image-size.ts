@@ -8,7 +8,8 @@
  * - **JPEG:** the first frame header (SOF0–SOF15 except DHT, JPG and DAC),
  *   found by walking the segments after SOI. EXIF and ICC segments can push
  *   it past 100 KB, so the reader skips segment payloads by their length
- *   instead of keeping them.
+ *   instead of keeping them. Extra bytes between segments are skipped up to
+ *   the next `0xFF` marker, as libjpeg does.
  * - **WebP:** the first chunk's header: `VP8 ` (lossy), `VP8L` (lossless) or
  *   `VP8X` (extended: the canvas size).
  *
@@ -110,10 +111,20 @@ export function imageSizeReader(kind: ImageKind): ImageSizeReader {
   const walkJpeg = (b: Uint8Array) => {
     let i = 0
     while (i + 2 <= b.length) {
-      if (b[i] !== 0xff) return finish(null)
+      if (b[i] !== 0xff) {
+        // Extra bytes between segments (some encoders and editors leave
+        // them): skip to the next marker, as libjpeg does.
+        const next = b.indexOf(0xff, i)
+        i = next === -1 ? b.length : next
+        continue
+      }
       const marker = b[i + 1]
       if (marker === 0xff) { // fill byte
         i++
+        continue
+      }
+      if (marker === 0x00) { // FF 00 is not a marker: extra bytes too
+        i += 2
         continue
       }
       if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { // TEM, RSTn: no length
