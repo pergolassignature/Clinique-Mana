@@ -1,9 +1,10 @@
 import { Suspense } from 'react'
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { matchPath } from 'react-router-dom'
+import { matchPath, Route, Routes } from 'react-router-dom'
 import { t } from '@/i18n'
 import { coreSettingsSections } from '@/core/settings/sections'
+import { renderWithContexts } from '@/test/contexts'
 import { professionalsManifest } from './index'
 import { professionalRecordPage } from './manifest'
 
@@ -67,17 +68,27 @@ describe('professionalsManifest', () => {
     expect(new Set(paths).size).toBe(paths.length)
   })
 
-  it('renders the placeholder page for the record until 4a.11', async () => {
+  it('renders the record page at the record route', async () => {
     const route = professionalsManifest.routes[1]
     if (!route) throw new Error('no route')
     const Page = route.component
+    // Not a record id: « introuvable » without a request.
     render(
-      <Suspense fallback={null}>
-        <Page />
-      </Suspense>,
+      renderWithContexts(
+        <Routes>
+          <Route
+            path="/professionnels/:id/:onglet?"
+            element={
+              <Suspense fallback={null}>
+                <Page />
+              </Suspense>
+            }
+          />
+        </Routes>,
+        { path: '/professionnels/0b6c/apercu' },
+      ),
     )
-    expect(await screen.findByText(t('modules.professionals.placeholder'))).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: t('modules.professionals.name') })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: t('modules.professionals.record.notFound.title') })).toBeInTheDocument()
   })
 
   it('renders the settings placeholder until 4a.9', async () => {

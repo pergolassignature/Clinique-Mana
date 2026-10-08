@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { agesLabel, clienteleLabel, fullName, genderLabel, languagesLabel, periodsLabel, primaryProfession, professionLine, statusLabel } from './display'
+import { agesLabel, clienteleLabel, fullName, genderLabel, languagesLabel, periodsLabel, listLabel, primaryProfession, professionLine, statusLabel, statusTone } from './display'
+import { PROFESSIONAL_STATUSES } from './constants'
 import { CATALOG_VIEW, recordFixture } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
 
@@ -95,5 +96,19 @@ describe('labels', () => {
     expect(genderLabel('unspecified')).toBe('Autre / non précisé')
     expect(periodsLabel(['evening', 'am'])).toBe('Matin · Soir')
     expect(periodsLabel([])).toBe('')
+  })
+})
+
+describe('statusTone', () => {
+  it('colours the dot by status (P4-43: « À réviser » yellow)', () => {
+    expect(PROFESSIONAL_STATUSES.map(statusTone)).toEqual(['secondary', 'secondary', 'warning', 'success', 'error'])
+  })
+})
+
+describe('listLabel', () => {
+  it('joins names the French way', () => {
+    expect(listLabel(['Anxiété'])).toBe('Anxiété')
+    expect(listLabel(['Anxiété', 'Deuil'])).toBe('Anxiété et Deuil')
+    expect(listLabel(['Anxiété', 'Deuil', 'Psychose'])).toBe('Anxiété, Deuil et Psychose')
   })
 })

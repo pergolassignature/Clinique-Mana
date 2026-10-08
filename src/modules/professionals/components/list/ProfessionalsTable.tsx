@@ -4,12 +4,12 @@ import { t } from '@/i18n'
 import { initialsOf } from '@/shared/lib/format'
 import { cn } from '@/shared/lib/utils'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
-import { Badge, type BadgeProps } from '@/shared/ui/badge'
+import { Badge } from '@/shared/ui/badge'
 import { Skeleton } from '@/shared/ui/skeleton'
 import type { ProfessionalListRow } from '../../api/parse'
 import { titleOrder, type CatalogView } from '../../lib/catalog-view'
-import { recordPath, type ProfessionalStatus } from '../../lib/constants'
-import { fullName, languagesLabel, statusLabel } from '../../lib/display'
+import { recordPath } from '../../lib/constants'
+import { fullName, languagesLabel, statusLabel, statusTone } from '../../lib/display'
 import { watchFlags } from '../../lib/watch'
 
 const T = 'modules.professionals.list.table'
@@ -35,15 +35,6 @@ const CELL = 'min-w-0 px-3 py-2'
 
 /** How long the pointer rests on a row before its record is prefetched. */
 const HOVER_INTENT_MS = 120
-
-const STATUS_TONE: Readonly<Record<ProfessionalStatus, NonNullable<BadgeProps['variant']>>> = {
-  draft: 'secondary',
-  invited: 'secondary',
-  // P4-43: waiting for a review (4b splits off « En préparation », neutral).
-  in_review: 'warning',
-  active: 'success',
-  inactive: 'error',
-}
 
 interface ProfessionalsTableProps {
   /** The page's rows; null while loading (skeleton rows). */
@@ -151,7 +142,7 @@ const ProfessionalRow = memo(function ProfessionalRow({
         {languagesLabel(row.languageIds, catalog) || <Nothing />}
       </div>
       <div role="cell" className={cn(CELL, 'flex')}>
-        <Badge variant={STATUS_TONE[row.status]}>{statusLabel(row.status)}</Badge>
+        <Badge variant={statusTone(row.status)}>{statusLabel(row.status)}</Badge>
       </div>
       <div role="cell" className={cn(CELL, 'truncate text-xs', WATCH_COLUMN, flag?.tone === 'danger' ? 'text-destructive' : 'text-muted-foreground')}>
         {flag ? flag.label : <Nothing label={t(`${T}.nothingToWatch`)} />}

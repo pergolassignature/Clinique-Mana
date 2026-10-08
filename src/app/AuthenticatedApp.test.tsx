@@ -75,7 +75,7 @@ beforeAll(async () => {
   await Promise.all([
     import('@/core/settings/pages/IdentitySettingsPage'),
     import('@/core/settings/pages/TaxSettingsPage'),
-    import('@/modules/professionals/pages/ProfessionalsPlaceholderPage'),
+    import('@/modules/professionals/pages/ProfessionalRecordPage'),
   ])
 })
 
@@ -190,16 +190,16 @@ describe('AuthenticatedApp', () => {
     expect(await screen.findByText('MODULES PAGE')).toBeInTheDocument()
   })
 
-  it('renders the module placeholder at its route (the record, until 4a.11)', async () => {
+  it('renders a module page at its route (the record; not a record id, so « introuvable » without a request)', async () => {
     render(appAt('/professionnels/0b6c/apercu'))
-    expect(await screen.findByText(t('modules.professionals.placeholder'))).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: t('modules.professionals.record.notFound.title') })).toBeInTheDocument()
   })
 
   it('hides a disabled module and does not route to it', () => {
     render(appAt('/professionnels', { ...adminLike, modules: [] }))
     expect(menuLinks()).toEqual([t('nav.home'), t('nav.settings')])
     expect(screen.getByText(t('common.notFound.title'))).toBeInTheDocument()
-    expect(screen.queryByText(t('modules.professionals.placeholder'))).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: t('modules.professionals.name') })).not.toBeInTheDocument()
   })
 
   it('hides an enabled module the user may not view, and refuses its route', () => {

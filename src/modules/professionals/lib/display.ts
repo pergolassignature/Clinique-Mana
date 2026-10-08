@@ -1,4 +1,5 @@
 import { t } from '@/i18n'
+import type { BadgeProps } from '@/shared/ui/badge'
 import { AVAILABILITY_PERIODS, type AvailabilityPeriod, type Gender, type ProfessionalStatus } from './constants'
 import { titleOrder, type CatalogView } from './catalog-view'
 import type { ProfessionalRecord, ProfessionRow } from '../api/parse'
@@ -13,6 +14,20 @@ export function fullName(p: { firstName: string; lastName: string }): string {
 /** « À inviter », « Invité », « À réviser », « Actif », « Inactif ». */
 export function statusLabel(status: ProfessionalStatus): string {
   return t(`modules.professionals.status.${status}`)
+}
+
+const STATUS_TONE: Readonly<Record<ProfessionalStatus, NonNullable<BadgeProps['variant']>>> = {
+  draft: 'secondary',
+  invited: 'secondary',
+  // P4-43: waiting for a review (4b splits off « En préparation », neutral).
+  in_review: 'warning',
+  active: 'success',
+  inactive: 'error',
+}
+
+/** The status dot's colour (Badge variant), the same in the list and the record. */
+export function statusTone(status: ProfessionalStatus): NonNullable<BadgeProps['variant']> {
+  return STATUS_TONE[status]
 }
 
 export function genderLabel(gender: Gender): string {
@@ -59,6 +74,13 @@ export function languagesLabel(languageIds: readonly string[], catalog: CatalogV
     .filter((l) => held.has(l.id))
     .map((l) => l.code.toUpperCase())
     .join(SEPARATOR)
+}
+
+const LIST = new Intl.ListFormat('fr-CA', { style: 'long', type: 'conjunction' })
+
+/** « Anxiété, Deuil et Psychose »: names inside a sentence. */
+export function listLabel(names: readonly string[]): string {
+  return LIST.format(names)
 }
 
 /** « Matin · Soir », in the fixed period order. */

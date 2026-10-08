@@ -1128,7 +1128,6 @@
   "modules": {
     "professionals": {
       "name": "Professionnels",
-      "placeholder": "Le module Professionnels est en préparation. Il sera disponible ici sous peu.",
       "settingsPlaceholder": "Cette section est en préparation. Elle sera disponible ici sous peu.",
       "status": {
         "draft": "À inviter",
@@ -1188,6 +1187,76 @@
       "watch": {
         "matching_incomplete": "Profil de jumelage incomplet",
         "login_email_mismatch": "Courriel de connexion différent"
+      },
+      "record": {
+        "loadError": "Le dossier n'a pas pu être chargé.",
+        "notFound": {
+          "title": "Professionnel introuvable",
+          "body": "Ce dossier n'existe pas ou vous n'y avez pas accès.",
+          "back": "Retour à la liste"
+        },
+        "tabs": {
+          "label": "Sections du dossier",
+          "apercu": "Aperçu",
+          "jumelage": "Jumelage",
+          "profil-public": "Profil public",
+          "identite": "Identité et permis",
+          "documents": "Documents",
+          "remuneration": "Rémunération et fiscalité",
+          "historique": "Historique"
+        },
+        "tabInPreparation": "Cet onglet est en préparation. Il sera disponible ici sous peu.",
+        "header": {
+          "languages": "Langues :",
+          "notAccepting": "N'accepte pas de nouveaux clients"
+        },
+        "overview": {
+          "matching": {
+            "title": "Profil de jumelage",
+            "edit": "Modifier",
+            "clienteles": "Clientèles",
+            "approaches": "Approches",
+            "motifs": "Motifs",
+            "languages": "Langues",
+            "availability": "Disponibilités générales",
+            "accepting": "Accepte de nouveaux clients",
+            "note": "Note",
+            "yes": "Oui",
+            "no": "Non",
+            "specialized": "(spécialisé)",
+            "archived": "archivé",
+            "motifSummary": {
+              "all": "Tous",
+              "allOverall": "Tous les motifs ({count})",
+              "allBut": "Tous sauf {names}",
+              "allButOverall": "Tous sauf {names} ({selected} sur {total})",
+              "count": "{selected} sur {total}",
+              "archived": "Motifs archivés : {names}",
+              "showAll": "Voir les {count} motifs",
+              "hideAll": "Masquer la liste"
+            },
+            "empty": {
+              "clienteles": "Aucune clientèle choisie",
+              "approaches": "Aucune approche choisie",
+              "motifs": "Aucun motif choisi",
+              "languages": "Aucune langue choisie",
+              "availability": "Aucune disponibilité indiquée"
+            }
+          },
+          "readiness": {
+            "title": "Dossier",
+            "complete": "Dossier complet",
+            "override": "Activé sans dossier complet : {reason}",
+            "missing": "Il manque :"
+          },
+          "watch": {
+            "title": "À surveiller",
+            "nothing": "Rien à signaler."
+          },
+          "nextAction": {
+            "title": "Prochaine action"
+          }
+        }
       },
       "list": {
         "countOne": "{count} professionnel",
