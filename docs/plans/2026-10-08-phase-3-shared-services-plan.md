@@ -36,7 +36,7 @@ Jonathan, 2026-10-08: « You will go on without asking me questions you have pha
 | P3-14 (Q14) | No antivirus scan of uploads. Uploads are size-limited, type-limited and content-sniffed (Task 3.25). | Only staff and known professionals upload. Revisit before the client portal. |
 | P3-15 | **In-app notifications are in Phase 3** (batch 3b, Tasks 3.12–3.13): a core `notifications` table addressed by permission (optionally narrowed to one user), normal or important, with a link and per-user read state; the topbar bell; « À surveiller » on Accueil. This settles the conflict between design §1 (« out of scope ») and Professionnels §7 (« please add it »). | Professionnels 4b and 4c both need it, and it is core plumbing like email. |
 | P3-16 | **Pluggable purpose handlers through the catalogue.** `secure_link_purposes` names a service-role `resolve_rpc` and `accept_rpc`. `accept-invite` (core) creates the auth user, then calls the purpose's `accept_rpc`, which consumes the link and does the module's work in one transaction. If the RPC fails, the function deletes the user it created. | Professionnels plugs in `link_professional_account` without core importing module code (ADR 0003). |
-| P3-17 | **Staged uploads:** `stored_files.retain_until`. A module stages a file under a submission with a deadline. On approval its RPC calls `private.attach_stored_file(…)` to re-point the row, which clears the deadline. The object path never moves: paths are opaque, and only the first segment (org) is ever parsed. `storage-cleanup` soft-deletes files whose deadline has passed. | Fixes legacy leak A3.7 with no copy or move. |
+| P3-17 | **Staged uploads:** `stored_files.retain_until`. A module stages a file under a submission with a deadline. On approval its RPC calls `private.attach_stored_file(…)` to re-point the row, which clears the deadline. The object path never moves: paths are opaque, and only the first segment (org) is ever parsed. `storage-cleanup` purges a staged file whose deadline has passed directly (object removed, row marked `purged`), with no soft-delete step. | Fixes legacy leak A3.7 with no copy or move. |
 | P3-18 | **Attachments and free recipients are catalogue flags** on `email_template_defaults`: `recipient_mode` (`subject` \| `free`) and `allows_attachments` (PDF only, at most 3, 10 MB in total). `_shared/email` refuses anything else. A free-recipient send is limited to 20 per user per hour. | `professionals.fiche` (any address, with a PDF) without opening a generic relay. |
 | P3-19 | **One PDF path:** `_shared/pdf/` (`renderPdf(doc, assets) → { bytes, pageCount, fields }`) serves both signing (3f) and the Phase 4c fiche. Images (logo, signature) are read from storage by the service role. | Professionnels §7 asks for one rendering path. |
 | P3-20 | Where the two designs differ, **the Phase 3 design wins and Phase 4 aligns**: storage paths are `{org_id}/{module_key}/{subject_id}/{file_id}.{ext}` with no file name (Professionnels §7 said `{uuid}-{name}`); signed read URLs last 5 min (not 1 h); template keys use the module key, `professionals.*` (not `professional.*`), including document templates. | Loi 25 (no names in URLs), the A4 Change, and the key-prefix rule shared with permissions. |
@@ -51,6 +51,7 @@ Jonathan, 2026-10-08: « You will go on without asking me questions you have pha
 | P3-29 | **Error reports** from functions use `_shared/report.ts`, ported from PS Hub's `_shared/sentry.ts`. It sends only the function name, an error code and row ids, never an address, token or body. With no `SENTRY_DSN` it logs a structured line. | The design asks for Sentry alerts from functions, and none exist yet. |
 | P3-30 | `stored_files` has a fifth status, `purged` (object removed, row kept); `signature_requests` gains `last_error`; `document_templates` gains `view_permission`; `signature_requests.template_version_id` may be null only for the built-in test document; `signing_settings.base_url` accepts `https://…`, or `http://host.docker.internal:<port>` for the local fake. | Gaps found while planning (see the next section). |
 | P3-31 | Accepting an invitation re-checks the inviter's standing; an invitation from someone who has since been disabled or lost the right answers like an invalid link. Delegated decision, 2026-10-08, revisable. | Found in the Task 3.18 review: otherwise a manager disabled or demoted after inviting could still bring someone in. Nothing is written and the invitation stays pending, so an admin sees it and revokes or re-sends it herself. |
+| P3-33 | **Clients never mint signed read URLs.** There is no client policy on `storage.objects` for the core buckets (no select either), so `createSignedUrl` from the browser fails. The `storage-sign` function (lane F) takes `{ file_id, download? }`, selects the `stored_files` row with the **user** client (its RLS decides readability), then signs a 5-min URL with the service role and returns `{ url, expires_at }`. Delegated decision, 2026-10-08, revisable. | Found in the Task 3.26 review: a client holding a select policy can sign a URL for any readable path itself, outside any check or rate limit the function applies; one read path is simpler to audit. |
 
 ### Design inconsistencies resolved here
 
@@ -1562,7 +1563,7 @@ The raw token is never returned to the browser (P3-7). The browser cannot call c
 2. Body `{ user_id, status: 'active' | 'disabled' }`.
 3. `set_user_status` with the **user client** (Phase 2 guards).
 4. Service client `auth.admin.updateUserById(user_id, { ban_duration: status === 'disabled' ? '876000h' : 'none' })`.
-5. A ban failure after a successful disable → 200 `{ sessions_ended: false }`, plus `reportError`. The UI warns « Accès bloqué. Les sessions ouvertes se fermeront d'ici une heure. »
+5. A ban failure after a successful disable → 200 `{ status: 'disabled', signin_blocked: false }`, plus `reportError`. `signin_blocked` (formerly `sessions_ended`) says only whether the Auth ban was applied: since P3-32, `set_user_status` itself ends the sessions in the same transaction, so the ban is the one thing that can fail. The UI warns « Compte désactivé. Le blocage de connexion n'a pas pu être appliqué ; réessayez. »; a retry is the same call (the ban is always attempted again, even for an already-disabled user).
 6. An unban failure on re-enable → 502, and the UI says « Réessayez »: a still-banned user cannot sign in.
 
 **Tests** (fake deps):
@@ -1587,7 +1588,7 @@ The raw token is never returned to the browser (P3-7). The browser cannot call c
   - the RPC is called with the service client and `p_actor` = the verified user's id, even when the body carries another id;
   - the response body has no token;
   - « Renvoyer » sets `explicitResend`.
-- **`users-set-status`:** disable → RPC then `updateUserById(ban_duration '876000h')`; a ban failure → 200 `sessions_ended: false`; enable → `'none'`.
+- **`users-set-status`:** disable → RPC then `updateUserById(ban_duration '876000h')`; a ban failure → 200 `signin_blocked: false` (the Auth ban only, P3-32); disabling an already-disabled user retries the ban; enable → `'none'`.
 
 **Live probe (DB token)**, local stack, `functions serve`, `npm run dev`, Mailpit:
 1. **Round trip:** as admin, `staff-invite` (curl with the admin JWT) for `nouvelle@mana.test`, role `counselor` → Mailpit email → link → `resolve-link` → `accept-invite` with a password → sign in with `signInWithPassword` → `get_my_access` shows `counselor`.
@@ -1597,6 +1598,13 @@ The raw token is never returned to the browser (P3-7). The browser cannot call c
 **Commit:** `feat(functions): resolve-link, accept-invite, staff-invite and users-set-status`.
 
 ---
+
+## Task 3.20b: DB follow-ups from the Task 3.20 review (DB lane)
+
+- **P3-32 (delegated, 2026-10-08, revisable): disabling a user ends their sessions in the database.** `set_user_status(…, 'disabled')` also runs `delete from auth.sessions where user_id = p_user_id` in the same transaction (refresh tokens go with it through `session_id`), so a refresh token taken from a compromised device does not come back to life on re-enable. The Auth ban stays (it blocks new sign-ins). Reason: supabase-js `auth.admin.signOut` takes the user's JWT, not an id, so there is no admin "sign out user X" call. Check that the migration owner may delete from `auth.sessions` locally and record the staging check in Mise en service. Test: a disabled user's sessions are gone; re-enable does not restore them.
+- **Orphan auth users:** a maintenance SQL job `core.invite_orphans_purge` (hourly) deletes `auth.users` rows whose `raw_app_meta_data ? 'invite_link_id'`, that have no `public.profiles` row, and that are older than 1 hour (accept-invite sets the marker; a killed function or a failed delete otherwise blocks the invitation with `email_exists` forever). Verify the owner may delete from `auth.users` locally; test with a fixture row.
+- `create_staff_invitation` returns `(id, expires_at)` like `renew` (removes the extra peek in `staff-invite`: done, `staff-invite` uses the RPC's `expires_at`).
+- `list_staff_invitations` also returns `last_email_error_code` (the last email's `error_code`), so lane U shows « Résultat inconnu » instead of « Échec » for `failed` + `provider_unavailable`.
 
 ## Task 3.21: `/invitation` page
 
@@ -1655,7 +1663,7 @@ The raw token is never returned to the browser (P3-7). The browser cannot call c
 - **Pending invitations** are rows in the same table (one combined list, sorted after active users):
   - status « Invitation envoyée » (or « Expirée », or « Adresse introuvable » when `last_email_status = 'bounced'`) and « Expire le {formatClinicDateShort} »;
   - actions « Renvoyer » and « Révoquer » (AlertDialog confirm), hidden without `users.manage`.
-- **Disable / enable** goes through `users-set-status`. When `sessions_ended: false`, show the warning toast.
+- **Disable / enable** goes through `users-set-status`. When `signin_blocked: false` (the Auth ban failed; the sessions already ended in the database, P3-32), show the warning toast with « Réessayez ».
 - **Queries:** `listOrgUsers` and `listStaffInvitations` run **in parallel**; the table renders when both resolve. Mutations invalidate `userKeys.all`.
 
 **Tests:**
@@ -1701,6 +1709,8 @@ Content, 15–30 lines:
 ## Task 3.24: Storage (database)
 
 **From lane F (Task 3.25, `_shared/storage.ts`, commit 40fea35), match these:** MIME → extension map `application/pdf→pdf`, `image/png→png`, `image/jpeg→jpg`, `image/webp→webp`, `application/msword→doc`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document→docx` (exact MIME strings, no aliases); `stored_files.sha256` and `confirm_stored_file(p_sha256 text)` take **64 lower-case hex characters** (not `\x…` bytea); object paths `{org_id}/{module_key}/{subject_id}/{file_id}.{ext}` with canonical lower-case UUIDs; the DB stays the source of truth for the path. `get_pending_upload` also returns the purpose's `max_bytes` (the size cap `inspectStream` enforces). Allow `application/msword` only for purposes that truly need it (OLE sniffing accepts any compound file); Phase 4 purposes default to PDF and images.
+
+**Review follow-ups (applied in the migration):** P3-33 removed the `storage.objects` select policy and `private.can_read_object` below (reads go through `storage-sign`; `stored_files` RLS is the only read check); a `deleted` file that was never confirmed (a rejected upload) is purged after 24 h, not 30 days (the 2-hour upload token can upload to its path again); module purposes and files name only their module's permissions; `attach_stored_file` takes `p_purposes`.
 
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_storage.sql`
@@ -1796,7 +1806,7 @@ create policy core_objects_select on storage.objects for select to authenticated
   - `list_files_to_purge(p_limit int default 500)`: `pending` older than 24 h, `deleted` older than 30 days, and `ready` with `retain_until < now()` (staged and abandoned). Ordered by `created_at`, clamped;
   - `mark_files_purged(p_ids uuid[])` → `purged` (≤ 500 ids).
 - **For module RPCs (P3-17):**
-  - `private.attach_stored_file(p_file_id uuid, p_subject_type text, p_subject_id uuid, p_view_permission text, p_owner_profile_id uuid, p_owner_permission text) returns void`: same org, `ready` only; clears `retain_until`;
+  - `private.attach_stored_file(p_file_id uuid, p_purposes text[], p_subject_type text, p_subject_id uuid, p_view_permission text, p_owner_profile_id uuid, p_owner_permission text, p_uploaded_by uuid default null) returns void`: same org, `ready` only, not past `retain_until`, purpose in `p_purposes`, uploaded by `p_uploaded_by` when given (« Fichier introuvable. » otherwise); a module file's permissions must be the module's (review follow-up); clears `retain_until`;
   - `private.soft_delete_stored_file(p_file_id, p_by uuid)`.
 - `set_org_asset(p_kind text, p_file_id uuid)` (`settings.manage`):
   - `p_kind in ('logo','signature')` (`22023`);
@@ -1865,32 +1875,35 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string>
   1. `verifyAuth(req)` (permission and module are checked by the RPC through the user client).
   2. Body `{ purpose, subject_type, subject_id, original_name, mime_type, size_bytes }`.
   3. `create_pending_upload` with the **user client** (P0001 → 400 with the message).
-  4. Service client `storage.from(bucket).createSignedUploadUrl(object_path)`.
-  5. 200 `{ file_id, signed_url, token, path }`.
+  4. **Structural path check** before signing: `create_pending_upload` returns `(file_id, bucket, object_path)`, not the module key, so the function checks the shape only: `{caller's org_id}/{module segment}/{uuid}/{file_id}.{ext}`, with the first segment the caller's org, the last the returned `file_id` and the extension `extensionForMime(mime_type)` (`buildObjectPath` rules: canonical lower-case uuids, `[a-z_]` module segment). Any mismatch → 500, nothing signed.
+  5. Service client `storage.from(bucket).createSignedUploadUrl(object_path)`.
+  6. 200 `{ file_id, bucket, path, token }` (no `signed_url`: the function builds it from its internal API URL; the client calls `uploadToSignedUrl(path, token, file)` on its own Supabase URL).
+  - **Rate limit:** `consume_rate_limit` per user before the RPC (`storage.upload_user`, 60 an hour per user; 429 `rate_limited` « Trop de téléversements. Réessayez dans quelques minutes. »), so a client cannot fill the registry with pending rows.
 - **`storage-confirm`:**
   1. `verifyAuth`; body `{ file_id }`.
   2. `get_pending_upload` with the user client: the uploader and `pending` only, else 404 `not_found`.
   3. Service `download(object_path)`; a missing object → 400 « Le fichier n'a pas été reçu. »
-  4. Real size within the purpose limit; `sniff` matches the declared MIME type.
+  4. Real size within the purpose limit; `sniff` matches the declared MIME type; for an image, **enforce `max_image_side`** (from `get_pending_upload`): width and height read from the header, either above the cap → the same mismatch path with « Cette image est trop grande (4000 pixels au plus par côté). » (the logo and signature use 4000 px).
   5. Mismatch → `remove([path])`, `reject_stored_file`, then 400 « Ce fichier n'est pas du type annoncé. »
   6. Success → `confirm_stored_file(file_id, sha256Hex, size)` → 200 `{ file_id }`.
 - **`storage-cleanup`:**
-  - `runJob('core.storage_cleanup')`, but database-wide: it runs once with org null, because `list_files_to_purge` is global;
-  - in a loop, up to 5 pages of 500: group the rows by bucket; `remove(paths)` in chunks of 100 (**no per-file call**); `mark_files_purged(ids)` for the paths whose removal succeeded;
+  - `runJob('core.storage_cleanup')`, **per org** like every function job (Task 3.24 deviation): `list_files_to_purge(p_org_id, p_limit)` and `mark_files_purged(p_org_id, p_ids)` take the org, a run is logged per org, and « Exécuter maintenant » cleans the caller's clinic only;
+  - for each org, in a loop, up to 5 pages of 500: group the rows by bucket; `remove(paths)` in chunks of 100 (**no per-file call**); `mark_files_purged(org, ids)` for the paths whose removal succeeded (removal first, then marking: the race is benign, see the migration header);
   - detail `« {n} fichiers supprimés »` (counts only).
 
 **Tests:**
-- **Upload:** a P0001 is passed through; the signed URL is created with the RPC's path, never a client path; the body has no `path` field accepted.
+- **Upload:** a P0001 is passed through; the signed URL is created with the RPC's path, never a client path; the body has no `path` field accepted; a returned path of another org, another file id or the wrong extension → 500 with nothing signed; the rate limit → 429 with no RPC call.
 - **Confirm:**
   - a PNG declared as PDF → `remove` + `reject_stored_file` + 400;
   - a real size above the limit → 400;
+  - a 4001 px wide PNG for `org_logo` → `remove` + `reject_stored_file` + 400;
   - success → `confirm_stored_file` with the correct SHA-256;
   - another user's `file_id` → 404 with no download.
-- **Cleanup:** 250 rows over two buckets → 3 `remove` calls (100 + 100 + 50, grouped by bucket) and 1 `mark_files_purged`; a failed chunk is not marked.
+- **Cleanup:** per org (two orgs → two runs, each listing and marking its own org only); 250 rows over two buckets → 3 `remove` calls (100 + 100 + 50, grouped by bucket) and 1 `mark_files_purged`; a failed chunk is not marked.
 
 **Live probe (DB token):**
 1. As admin, through the UI or curl: upload `org_logo` → signed upload (`curl -X PUT` with the token) → confirm → `ready`.
-2. `createSignedUrl(path, 300)` as the conseillère works (view null); as an org B user (create one in a scratch SQL session) it fails.
+2. `storage-sign` (`{ file_id }`) as the conseillère returns a working URL (view null); as an org B user (create one in a scratch SQL session) it answers 404; `createSignedUrl(path, 300)` from the user client fails for both (P3-33).
 3. A `.txt` renamed `.png` → rejected, and the object is gone from storage.
 4. `select private.invoke_job_function('core.storage_cleanup')` → a run `ok`.
 
@@ -1903,7 +1916,7 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string>
 **From the Task 3.25 review:** about 7 % of real `.jpg` files are really PNG or WebP, and browsers derive `file.type` from the extension. The widget sniffs the first bytes on the client (same signatures as `_shared/storage.ts`) and sends the sniffed MIME when it is allowed for the purpose, so a misnamed image is not refused with « Ce fichier n'est pas du type annoncé ».
 
 **Lane:** U (after Task 3.26 merges). **Files:**
-- Create: `src/core/storage/api.ts` + test: `uploadFile({ purpose, subjectType, subjectId, file }): Promise<{ fileId }>`. It calls `storage-upload` → `supabase.storage.from(bucket).uploadToSignedUrl(path, token, file)` → `storage-confirm`. Also `signedFileUrl(fileId, { download?: boolean })`: reads `stored_files` (`object_path, bucket, original_name`) for one id, then `createSignedUrl(path, 300, download ? { download: original_name } : undefined)`.
+- Create: `src/core/storage/api.ts` + test: `uploadFile({ purpose, subjectType, subjectId, file }): Promise<{ fileId }>`. It calls `storage-upload` (→ `{ file_id, bucket, path, token }`, no URL) → `supabase.storage.from(bucket).uploadToSignedUrl(path, token, file)` → `storage-confirm` (a 200 on retry when the file is already confirmed; 409 `conflict` when a concurrent call settled it otherwise). Also `signedFileUrl(fileId, { download?: boolean })`: calls the `storage-sign` function with `{ file_id, download }` → `{ url, expires_at }` (P3-33: the client never calls `createSignedUrl` itself; the URL lives 300 s; 404 when the file is not readable). A 429 `rate_limited` (120 an hour per user) is shown as an error, not retried. **Reads always go through `storage-sign`** (there is no client policy on `storage.objects`).
 - Create: `src/core/storage/hooks.ts` (`storageKeys`, `useSignedFileUrl(fileId)` with `staleTime: 240_000`, so a 5-min URL is refreshed before it expires), `src/shared/components/FileDropzone.tsx` + test (accept list, size check before upload, progress, the error text from the functions)
 - Modify: `src/core/settings/pages/IdentitySettingsPage.tsx` (+ test): a « Logo » card (preview, « Remplacer », « Retirer » with confirmation → `set_org_asset('logo', …)`)
 - Modify: `src/core/settings/pages/SignatorySettingsPage.tsx` (+ test): « Courriel du signataire » (in the existing signatory card, Zod email) and an « Image de signature » card (PNG with transparency recommended; help text « Utilisée pour la signature de la clinique sur les documents. »)
@@ -2418,6 +2431,8 @@ Nothing below is needed to build or test Phase 3. Each item is done by Jonathan,
 | 16 | **Inter TTF** (only if the spike needed it) | Download from the official Inter release | Requires Jonathan's OK (download rule); the agent then regenerates `_shared/pdf/fonts.ts` |
 | 16b | **Email change on staging** (Task 3.16) | After item 7 | Check that an email change needs **both** links on hosted GoTrue (locally one link of either address completes it). Then, one release after the new templates are live, remove the old `#…` link reader in `AuthProvider.tsx` (TRANSITION comment). |
 | 16c | **Outlook desktop** (Task 3.16) | Only if the clinic uses classic Outlook for Windows | GoTrue strips HTML comments, so auth emails lose the `<!--[if mso]>` 560 px table and span the window. Readable; the full fix is a Supabase Send Email Hook that sends auth emails through our layout and Resend (a later decision). |
+| 16d | **Auth password rules** (Task 3.20 review) | Dashboard → Auth | Admin-created accounts (accept-invite) bypass dashboard password rules: if staging adds character classes or the leaked-password check, mirror them in `password-schema.ts` and accept-invite's Zod rule. Also confirm `delete from auth.sessions` / `auth.users` by the migration owner works on hosted (P3-32, orphan purge). |
+| 16e | **Loi 25 note: Resend keeps bodies** | With item 15 | Invitation emails (and their link) are readable in the Resend dashboard until the link expires or is used; list it in the EFVP. |
 | 17 | **Merge = deploy** | GitHub | Push, PR and merge each need his go-ahead. After the merge, run the staging smoke test of design §11 step by step, each with a go-ahead |
 
 ---

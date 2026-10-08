@@ -42,6 +42,23 @@ Deno.test('fakeSupabase: storage methods are routed by name, with the bucket log
   }])
 })
 
+Deno.test('fakeSupabase: download(...).asStream() resolves to the same routed result', async () => {
+  const stream = new Blob(['%PDF']).stream()
+  const { client, storageCalls } = fakeSupabase({
+    storage: { download: () => ({ data: stream }) },
+  })
+  const { data, error } = await client.storage.from('documents').download(
+    'a.pdf',
+  ).asStream()
+  assertEquals(data, stream)
+  assertEquals(error, null)
+  assertEquals(storageCalls, [{
+    bucket: 'documents',
+    method: 'download',
+    args: ['a.pdf'],
+  }])
+})
+
 Deno.test('fakeSupabase: an unrouted storage method throws, naming it', () => {
   const { client, storageCalls } = fakeSupabase({
     storage: { remove: () => ({ data: null }) },
@@ -89,4 +106,41 @@ Deno.test('fakeSupabase: auth.admin methods are routed by name, in a call log', 
     Error,
     'fake: no auth.admin.updateUserById',
   )
+})
+
+Deno.test('fakeSupabase: from(table) reads are routed by table, with columns and eq filters logged', async () => {
+  const { client, tableCalls } = fakeSupabase({
+    tables: {
+      stored_files: (q) => ({
+        data: q.eq.id === 'f1' ? { bucket: 'b' } : null,
+      }),
+    },
+  })
+  const found = await client.from('stored_files').select('bucket').eq(
+    'id',
+    'f1',
+  )
+    .eq('status', 'ready').maybeSingle()
+  assertEquals(found.data, { bucket: 'b' })
+  assertEquals(found.error, null)
+  const listed = await client.from('stored_files').select('bucket').eq(
+    'id',
+    'f2',
+  )
+  assertEquals(listed.data, null)
+  assertEquals(tableCalls, [
+    {
+      table: 'stored_files',
+      columns: 'bucket',
+      eq: { id: 'f1', status: 'ready' },
+      single: true,
+    },
+    {
+      table: 'stored_files',
+      columns: 'bucket',
+      eq: { id: 'f2' },
+      single: false,
+    },
+  ])
+  assertThrows(() => client.from('profiles'), Error, 'fake: no table profiles')
 })

@@ -8,15 +8,18 @@
  *    read or anything is looked up.
  * 3. Body `{ token }` (1 KB at most): a token that is not well formed answers
  *    exactly like an unknown one, and is never hashed.
- * 4. `peek_secure_link(hash, p_mark_opened: true)` (« opened », at most once
- *    an hour).
+ * 4. `peek_secure_link(hash, p_mark_opened: false)`: nothing is written yet.
  * 5. `invalid` → 410 `link_invalid`; `expired` → 410 `link_expired`; `used` →
  *    410 `link_used`.
  * 6. Module gate on the link's org and the purpose's module: disabled →
- *    `link_invalid`, indistinguishable on purpose.
- * 7. The purpose's `resolve_rpc(p_link_id)`. Null (revoked or renewed since
+ *    `link_invalid`, indistinguishable on purpose, and the link is **not**
+ *    marked opened (a disabled module opens nothing).
+ * 7. `peek_secure_link(hash, p_mark_opened: true)` (« opened », at most once
+ *    an hour): a second peek, only past the gate. A state that changed in
+ *    between (revoked, used, expired) answers as in step 5.
+ * 8. The purpose's `resolve_rpc(p_link_id)`. Null (revoked or renewed since
  *    the peek) → `link_invalid`.
- * 8. 200 `{ purpose, display }`: `display` as the purpose RPC returns it (it
+ * 9. 200 `{ purpose, display }`: `display` as the purpose RPC returns it (it
  *    owns its minimisation).
  *
  * Status mapping: 200; 400 / 413 `invalid_request` (not JSON, over 1 KB);
@@ -83,11 +86,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return errorResponse('internal', 'Link lookup failed', 500, req)
     }
 
-    const peek = await peekSecureLink(
-      client,
-      await hashToken(input.token),
-      true,
-    )
+    const tokenHash = await hashToken(input.token)
+    const peek = await peekSecureLink(client, tokenHash, false)
     if (!peek) return failed('peek_failed')
     if (peek.state !== 'valid') {
       return linkGoneResponse(LINK_STATE_CODE[peek.state], req)
@@ -100,6 +100,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return gate.status === 403
         ? linkGoneResponse('link_invalid', req)
         : failed('module_check_failed', ids)
+    }
+
+    // Past the gate only: the link is marked opened.
+    const opened = await peekSecureLink(client, tokenHash, true)
+    if (!opened) return failed('peek_failed', ids)
+    if (opened.state !== 'valid') {
+      return linkGoneResponse(LINK_STATE_CODE[opened.state], req)
     }
 
     const { data, error } = await client.rpc(peek.resolve_rpc, {

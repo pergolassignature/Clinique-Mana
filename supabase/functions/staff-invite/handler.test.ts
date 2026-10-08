@@ -19,7 +19,6 @@ import {
 import {
   INVITATION_ID,
   INVITEE_EMAIL,
-  peekValid,
 } from '../_shared/testing/link-fixtures.ts'
 
 const URL_ = 'http://fn.test/functions/v1/staff-invite'
@@ -78,7 +77,9 @@ function harness(opts: {
           }],
         }
       },
-      create_staff_invitation: { data: INVITATION_ID },
+      create_staff_invitation: {
+        data: [{ id: INVITATION_ID, expires_at: '2026-10-15T15:00:00+00:00' }],
+      },
       renew_staff_invitation: {
         data: [{
           email: INVITEE_EMAIL,
@@ -86,7 +87,6 @@ function harness(opts: {
           expires_at: '2026-10-15T15:00:00+00:00',
         }],
       },
-      peek_secure_link: { data: peekValid() },
       get_email_context: { data: emailContextFixture() },
       queue_email: { data: LOG_ID },
       mark_email_sent: { data: null },
@@ -173,10 +173,8 @@ Deno.test('staff-invite: invite → service create with the verified actor, emai
     const token = emailedToken(http.calls[0].body)
     assertEquals(await hashToken(token), created.p_token_hash)
     assert(!text.includes(token))
-    assertEquals(args(service.calls, 'peek_secure_link'), {
-      p_token_hash: created.p_token_hash,
-      p_mark_opened: false,
-    })
+    // The expiry comes from create: no peek.
+    assertEquals(args(service.calls, 'peek_secure_link'), undefined)
 
     const queued = args(service.calls, 'queue_email')!
     assertEquals(queued.p_to_email, INVITEE_EMAIL)
@@ -399,16 +397,21 @@ Deno.test('staff-invite: an email failure keeps the invitation id: 502 provider_
   })
 })
 
-Deno.test('staff-invite: the peek after create fails → 500 with the invitation id, nothing sent', async () => {
+Deno.test('staff-invite: create answers another shape → 500, reported create_invalid; nothing sent', async () => {
   await run(async () => {
-    const { handler, http } = harness({
-      rpc: { peek_secure_link: { data: { state: 'invalid' } } },
-    })
-    await captureConsole('error', async () => {
-      const res = await handler(post(INVITE))
-      assertEquals(res.status, 500)
-      assertEquals((await res.json()).invitation_id, INVITATION_ID)
-    })
-    assertEquals(http.calls, [])
+    for (const data of [INVITATION_ID, [], [{ id: INVITATION_ID }]]) {
+      const { handler, http } = harness({
+        rpc: { create_staff_invitation: { data } },
+      })
+      const logged = await captureConsole('error', async () => {
+        const error = await errorOf(await handler(post(INVITE)))
+        assertEquals([error.status, error.code], [500, 'internal'])
+      })
+      assertEquals(
+        JSON.parse(String(logged.at(-1)?.[0])).code,
+        'create_invalid',
+      )
+      assertEquals(http.calls, [])
+    }
   })
 })

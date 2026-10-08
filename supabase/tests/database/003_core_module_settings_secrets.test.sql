@@ -87,7 +87,14 @@ select functions_are('public', array[
   'mark_all_notifications_read',
   'peek_secure_link',
   'create_staff_invitation', 'renew_staff_invitation', 'revoke_staff_invitation', 'list_staff_invitations',
-  'resolve_staff_invitation', 'accept_staff_invitation'
+  'resolve_staff_invitation', 'accept_staff_invitation',
+  'create_pending_upload', 'get_pending_upload', 'confirm_stored_file', 'reject_stored_file', 'register_system_file',
+  'list_files_to_purge', 'mark_files_purged', 'set_org_asset',
+  'set_signing_settings', 'create_document_template', 'create_template_version', 'update_template_version',
+  'publish_template_version', 'archive_template_version', 'list_document_templates',
+  'list_subject_signature_requests', 'get_signature_request',
+  'get_signing_context', 'create_signature_request', 'mark_signature_request_sent', 'mark_signature_request_failed',
+  'apply_signing_event', 'complete_signature_request', 'list_signature_requests_to_reconcile', 'expire_signature_request'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

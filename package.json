@@ -19,7 +19,7 @@
     "lint:migrations": "node scripts/check-migration-timestamps.mjs",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:functions": "deno test --frozen --allow-env --allow-read=supabase/functions --config supabase/functions/deno.json supabase/functions/",
+    "test:functions": "deno test --frozen --allow-env --allow-read=supabase/functions,supabase/migrations --config supabase/functions/deno.json supabase/functions/",
     "check:functions": "deno check --frozen --config supabase/functions/deno.json supabase/functions/",
     "lint:functions": "deno lint --config supabase/functions/deno.json supabase/functions/",
     "build:pdf-fonts": "deno run --no-config --allow-read=node_modules/@fontsource/inter --allow-write=supabase/functions/_shared/pdf/fonts.ts,supabase/functions/_shared/pdf/OFL-Inter.txt scripts/build-pdf-fonts.ts",

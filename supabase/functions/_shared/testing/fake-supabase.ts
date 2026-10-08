@@ -1,9 +1,12 @@
 /**
  * A Supabase client double for function tests. Functions reach the database
- * only through `rpc` and `storage` (plan « Conventions »), so the fake is a
- * router over those two, with a call log, plus `auth.getUser` for a caller's
+ * through `rpc` and `storage` (plan « Conventions »), so the fake is a
+ * router over those two, with a call log (a storage call also answers
+ * `.asStream()`, for `download`), plus `auth.getUser` for a caller's
  * client (`verifyAuth`) and the `auth.admin` methods a service client uses
- * (`createUser`, `deleteUser`, `updateUserById`). Test-only: never deployed.
+ * (`createUser`, `deleteUser`, `updateUserById`). The few table reads a
+ * function makes (`from(t).select(…).eq(…).maybeSingle()`, see CLAUDE.md §7)
+ * are routed by table, with their filters logged. Test-only: never deployed.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -24,6 +27,19 @@ export type StorageRoute = (
   ...args: unknown[]
 ) => FakeResult | Promise<FakeResult>
 
+/** A `from(table)` read: its select list, its `eq` filters, `maybeSingle`. */
+export interface TableQuery {
+  table: string
+  columns: string
+  eq: Record<string, unknown>
+  single: boolean
+}
+
+/** Handles a `from(table)` read; an unrouted table throws. */
+export type TableRoute = (
+  query: TableQuery,
+) => FakeResult | Promise<FakeResult>
+
 /** Handles `auth.admin.<method>(...args)`; an unrouted method throws. */
 export type AdminRoute = (
   ...args: unknown[]
@@ -37,6 +53,8 @@ export interface FakeSupabase {
   authCalls: string[]
   /** The `auth.admin` calls, in order. */
   adminCalls: Array<{ method: string; args: unknown[] }>
+  /** The `from(table)` reads, in order (logged when awaited). */
+  tableCalls: TableQuery[]
 }
 
 const normalise = (r: FakeResult) => ({
@@ -75,6 +93,7 @@ export function fakeSupabase(
     rpc?: Record<string, RpcRoute>
     storage?: Record<string, StorageRoute>
     admin?: Record<string, AdminRoute>
+    tables?: Record<string, TableRoute>
     user?: { id: string }
   },
 ): FakeSupabase {
@@ -82,7 +101,36 @@ export function fakeSupabase(
   const storageCalls: FakeSupabase['storageCalls'] = []
   const authCalls: string[] = []
   const adminCalls: FakeSupabase['adminCalls'] = []
+  const tableCalls: TableQuery[] = []
   const client = {
+    from: (table: string) => {
+      const route = routes.tables?.[table]
+      if (route === undefined) throw new Error(`fake: no table ${table}`)
+      const query: TableQuery = { table, columns: '*', eq: {}, single: false }
+      const run = async () => {
+        tableCalls.push(query)
+        return normalise(await route(query))
+      }
+      const builder = {
+        select: (columns = '*') => {
+          query.columns = columns
+          return builder
+        },
+        eq: (column: string, value: unknown) => {
+          query.eq[column] = value
+          return builder
+        },
+        maybeSingle: () => {
+          query.single = true
+          return run()
+        },
+        then: <T>(
+          resolve: (r: Awaited<ReturnType<typeof run>>) => T,
+          reject?: (e: unknown) => T,
+        ) => run().then(resolve, reject),
+      }
+      return builder
+    },
     auth: {
       admin: routedMethods(
         'auth.admin',
@@ -121,9 +169,12 @@ export function fakeSupabase(
         routedMethods(
           'storage',
           routes.storage,
-          (method, route: StorageRoute) => async (...args: unknown[]) => {
+          (method, route: StorageRoute) => (...args: unknown[]) => {
             storageCalls.push({ bucket, method, args })
-            return normalise(await route(bucket, ...args))
+            const result =
+              (async () => normalise(await route(bucket, ...args)))()
+            // `download(path).asStream()`: the route returns the stream as data.
+            return Object.assign(result, { asStream: () => result })
           },
         ),
     },
@@ -134,5 +185,6 @@ export function fakeSupabase(
     storageCalls,
     authCalls,
     adminCalls,
+    tableCalls,
   }
 }
