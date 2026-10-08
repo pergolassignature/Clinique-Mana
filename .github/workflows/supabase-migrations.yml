@@ -48,6 +48,7 @@ jobs:
           fi
 
       - name: Link project
+        id: link
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Apply migrations
@@ -64,59 +65,15 @@ jobs:
           echo "All migrations applied."
 
       - name: PII key health check
-        # ADR 0004 « Before Phase 4 »: every canary row of private.pii_canary must decrypt with its
-        # Vault key (public.pii_health_check() prints `t`), or the job fails. The check is read-only
-        # and runs after the push and the drift check, so it can never stop a push halfway: a red
-        # job here means the migrations ARE applied but encrypted data may be unreadable. Follow
-        # docs/runbooks/pii-key-escrow.md (« La vérification du déploiement échoue ») before anyone
-        # enters a SIN or bank number. Nothing is echoed: the password stays in PGPASSWORD (a
-        # masked secret) and psql reads the connection from the environment.
+        # ADR 0004 « Before Phase 4 »: public.pii_health_check() must print `t` (every canary of
+        # private.pii_canary decrypts with its Vault key, and every key version that holds data has
+        # its key and a canary), or this job turns red. It is an alarm, not a gate: Vercel deploys
+        # the app regardless, and the check is read-only, so it never stops a push halfway. It runs
+        # whenever the project is linked, even after a failed push or drift check (a broken key
+        # must not hide behind another failure). The same script runs every day in pii-health.yml.
+        # A red check: docs/runbooks/pii-key-escrow.md (« La vérification échoue ») before anyone
+        # enters a SIN or bank number.
+        if: ${{ !cancelled() && steps.link.outcome == 'success' }}
         env:
           SUPABASE_DB_POOLER_URL: ${{ secrets.SUPABASE_DB_POOLER_URL }}
-        run: |
-          if ! command -v psql >/dev/null 2>&1; then
-            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client >/dev/null
-          fi
-
-          export PGPASSWORD="$SUPABASE_DB_PASSWORD" PGSSLMODE=require PGCONNECT_TIMEOUT=20 \
-            PGAPPNAME=deploy-pii-health-check
-          conn=()
-          if [ -n "${SUPABASE_DB_POOLER_URL:-}" ]; then
-            # The secret is masked as a whole; mask its password part too, in case libpq quotes a
-            # fragment of a malformed URL. The URL may omit the password (PGPASSWORD supplies it).
-            case "$SUPABASE_DB_POOLER_URL" in
-              *://*:*@*)
-                password="${SUPABASE_DB_POOLER_URL#*://}"
-                password="${password%%@*}"
-                password="${password#*:}"
-                if [ -n "$password" ]; then echo "::add-mask::$password"; fi
-                unset password
-                ;;
-            esac
-            conn=(--dbname="$SUPABASE_DB_POOLER_URL")
-          else
-            export PGHOST="$SUPABASE_DB_POOLER_HOST" PGPORT=5432 PGDATABASE=postgres \
-              PGUSER="postgres.$SUPABASE_PROJECT_ID"
-            # Cross-check with the host `supabase link` resolved for this project, when it wrote one.
-            linked=$(sed -E 's#^[a-z]+://[^@/]*@([^:/]+).*#\1#' supabase/.temp/pooler-url 2>/dev/null || true)
-            if [ -n "$linked" ] && [ "$linked" != "$PGHOST" ]; then
-              echo "::warning title=PII key health check::supabase link resolved the pooler host $linked, but SUPABASE_DB_POOLER_HOST is $PGHOST. Update the workflow env."
-            fi
-          fi
-
-          fail() {
-            echo "::error title=PII key health check::$1 Migrations are applied; do not enter any SIN or bank number on staging until this is fixed (docs/runbooks/pii-key-escrow.md)."
-            echo "### PII key health check failed" >> "$GITHUB_STEP_SUMMARY"
-            echo "$1" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          }
-
-          if ! result=$(psql "${conn[@]}" --no-psqlrc --quiet --tuples-only --no-align \
-                          --set ON_ERROR_STOP=1 --command 'select public.pii_health_check()'); then
-            fail "Could not run public.pii_health_check() on staging (connection or SQL error above)."
-          fi
-          if [ "$result" != "t" ]; then
-            fail "public.pii_health_check() returned '$result', expected 't': a canary does not decrypt with its Vault key."
-          fi
-          echo "PII key health check passed."
-          echo "### PII key health check passed" >> "$GITHUB_STEP_SUMMARY"
+        run: bash scripts/pii-health-check.sh

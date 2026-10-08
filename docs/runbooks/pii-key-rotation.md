@@ -1,6 +1,6 @@
 # Runbook — Rotation de la clé PII
 
-**Statut :** procédure prête, jamais exécutée sur un environnement distant. Le chemin complet (nouvelle clé, témoin, re-chiffrement, retrait de l'ancienne version) est rejoué par le test pgTAP `047_core_pii_key_versions`. · **Écrit :** 2026-10-08 (Phase 4, Task 4a.16) · **ADR :** [0004, « Before Phase 4 »](../adr/0004-secrets-in-vault.md#before-phase-4-sin) · **Conventions :** [§8, « Key versions »](../standards/database-conventions.md#8-secrets-and-sensitive-data) · **Voir aussi :** [copie de sécurité de la clé](pii-key-escrow.md)
+**Statut :** procédure prête, jamais exécutée sur un environnement distant. Le chemin complet (nouvelle clé, témoin, re-chiffrement, relance du lot, retour en arrière, retrait de l'ancienne version) est rejoué par le test pgTAP `047_core_pii_key_versions`, avec les blocs SQL de ce runbook tels quels. · **Écrit :** 2026-10-08 (Phase 4, Task 4a.16) · **ADR :** [0004, « Before Phase 4 »](../adr/0004-secrets-in-vault.md#before-phase-4-sin) · **Conventions :** [§8, « Key versions »](../standards/database-conventions.md#8-secrets-and-sensitive-data) · **Voir aussi :** [copie de sécurité de la clé](pii-key-escrow.md)
 
 > Seul le propriétaire (Jonathan ou Christine) fait une rotation, lui-même, dans le SQL Editor du projet. **Un agent ne l'exécute jamais.** Aucune valeur de clé n'est tapée ni affichée ici : la nouvelle clé est générée dans la base, puis copiée dans le gestionnaire de mots de passe avec le [runbook de copie](pii-key-escrow.md).
 
@@ -12,14 +12,15 @@
 
 ## Principe
 
-- **Versions :** la version 1 est le secret Vault `pii_encryption_key` ; la version n ≥ 2 est `pii_encryption_key_v<n>`. Chaque ligne chiffrée garde la version avec laquelle elle a été écrite (`key_version`).
+- **Noms des secrets Vault :** la version 1 est `pii_encryption_key`, **sans suffixe** ; la version 2 est `pii_encryption_key_v2`, la version 3 `pii_encryption_key_v3`, et ainsi de suite (`pii_encryption_key_v<n>` pour n ≥ 2). Il n'existe pas de `pii_encryption_key_v1`.
+- **Une version par ligne :** chaque ligne chiffrée garde la version avec laquelle **toutes** ses colonnes chiffrées ont été écrites (`key_version`). Une écriture de l'app re-chiffre toute la ligne avec la version courante (conventions §8).
 - **Écriture :** les nouvelles valeurs sont chiffrées avec la version la plus haute qui a un **témoin** dans `private.pii_canary` (`private.pii_current_key_version()`). Ajouter le témoin d'une nouvelle clé est donc le geste qui fait basculer les écritures vers elle.
 - **Lecture :** chaque ligne se déchiffre avec sa propre version. Les deux clés coexistent le temps du re-chiffrement.
-- **Vérification :** `public.pii_health_check()` doit rester `true` à chaque étape ; le job de déploiement la relance à chaque fusion.
+- **Vérification :** `select public.pii_health_check();` doit donner `true` à la fin de chaque étape (sauf pendant un retour en arrière, voir plus bas). Elle vérifie que chaque témoin se déchiffre **et** que chaque version qui chiffre des données a sa clé et son témoin. GitHub la lance aussi après chaque push de migrations et chaque jour (workflows « Apply Supabase migrations » et « PII key health check ») : un job rouge est une alerte, il ne bloque rien (Vercel déploie l'app quand même).
 
-Les étapes ci-dessous passent de la version 1 à la version 2. Pour une rotation suivante, remplacer 1 par la version courante et 2 par la suivante.
+Les étapes ci-dessous passent de la version 1 à la version 2. Pour une rotation suivante, remplacer 1 par la version courante et 2 par la suivante, dans les nombres **et** dans les noms de secrets.
 
-**Tables chiffrées** (à tenir à jour : toute nouvelle table chiffrée s'ajoute ici et à la requête d'inventaire, conventions §8) :
+**Tables chiffrées.** La liste qui fait foi est la fonction `private.pii_encrypted_values()` (une branche par colonne chiffrée) : la vérification et l'inventaire la lisent. Toute nouvelle colonne chiffrée s'y ajoute, et ici, dans le même changement (conventions §8) :
 
 | Table | Colonnes chiffrées | Clé de ligne |
 |---|---|---|
@@ -31,15 +32,9 @@ Les étapes ci-dessous passent de la version 1 à la version 2. Pour une rotatio
 1. La copie de la version courante est à jour dans le gestionnaire (empreinte vérifiée, [copie](pii-key-escrow.md#copier-la-clé-export), étapes 5 et 6).
 2. Une sauvegarde récente existe (Tableau de bord → Database → Backups).
 3. `select public.pii_health_check();` → `true`.
-4. Inventaire des versions en usage :
+4. Inventaire des versions qui chiffrent des données (nombre de valeurs chiffrées par table et par version) :
    ```sql
-   select 'organization_bank_details' as table_name, key_version, count(*)
-     from public.organization_bank_details
-    group by key_version
-   -- à partir de la Task 4a.17 :
-   -- union all
-   -- select 'professional_private', key_version, count(*) from public.professional_private group by key_version
-    order by 1, 2;
+   select * from private.pii_key_versions_in_use() order by 1, 2;
    ```
 
 ## Étapes
@@ -63,40 +58,57 @@ Suivre le [runbook de copie](pii-key-escrow.md#copier-la-clé-export) pour `pii_
 ### 3. Ajouter le témoin de la version 2 (les écritures basculent)
 
 ```sql
-insert into private.pii_canary (key_version, ciphertext)
-values (2, private.encrypt_pii('mana-pii-canary', 2));
-
+select private.pii_seed_canary(2);          -- true
 select private.pii_current_key_version();   -- 2
 select public.pii_health_check();           -- true
 ```
+`pii_seed_canary` ne crée le témoin que si la clé existe et lit toutes les valeurs déjà chiffrées avec cette version (aucune, pour une clé neuve). `false` : lire l'avertissement, ne pas aller plus loin.
 
 ### 4. Re-chiffrer les lignes existantes, par lots
 
-Chaque exécution traite au plus 500 lignes, dans sa propre transaction (le SQL Editor exécute le bloc d'un seul tenant). **Relancer le bloc jusqu'à ce que l'`update` touche 0 ligne.** Pas de fonction : une fonction ferait tous les lots dans une seule transaction.
+Chaque exécution traite au plus 500 lignes par table, dans sa propre transaction (le SQL Editor exécute le texte d'un seul tenant). **Relancer le tout jusqu'à ce que l'inventaire affiché à la fin ne montre plus que la version 2.** Pas de fonction : une fonction ferait tous les lots dans une seule transaction.
 
-`organization_bank_details` :
 ```sql
-select set_config('app.audit_source', 'runbook:pii-key-rotation', true);
-update public.organization_bank_details b
-   set account_number = private.encrypt_pii(private.decrypt_pii(b.account_number, b.key_version), 2),
-       key_version = 2
- where b.org_id in (select x.org_id from public.organization_bank_details x
-                     where x.key_version < 2 order by x.org_id limit 500);
+do $$
+declare
+  v_target constant integer := 2;   -- la version vers laquelle re-chiffrer
+  v_count integer;
+begin
+  if private.pii_current_key_version() <> v_target then
+    raise exception 'La version d''écriture est %, pas % : rien n''est re-chiffré.', private.pii_current_key_version(), v_target;
+  end if;
+  perform pg_catalog.set_config('app.audit_source', 'runbook:pii-key-rotation', true);
+
+  update public.organization_bank_details b
+     set account_number = private.encrypt_pii(private.decrypt_pii(b.account_number, b.key_version), v_target),
+         key_version = v_target
+   where b.org_id in (select x.org_id from public.organization_bank_details x
+                       where x.key_version <> v_target order by x.org_id limit 500);
+  get diagnostics v_count = row_count;
+  raise notice 'organization_bank_details : % ligne(s) re-chiffrée(s)', v_count;
+
+  -- À partir de la Task 4a.17 (une valeur absente reste absente) :
+  -- update public.professional_private p
+  --    set sin = private.encrypt_pii(private.decrypt_pii(p.sin, p.key_version), v_target),
+  --        bank_account = private.encrypt_pii(private.decrypt_pii(p.bank_account, p.key_version), v_target),
+  --        key_version = v_target
+  --  where p.professional_id in (select x.professional_id from public.professional_private x
+  --                               where x.key_version <> v_target order by x.professional_id limit 500);
+  -- get diagnostics v_count = row_count;
+  -- raise notice 'professional_private : % ligne(s) re-chiffrée(s)', v_count;
+end;
+$$;
+
+select * from private.pii_key_versions_in_use() order by 1, 2;
 ```
 
-`professional_private` (à partir de la Task 4a.17 ; une valeur absente reste absente) :
-```sql
-select set_config('app.audit_source', 'runbook:pii-key-rotation', true);
-update public.professional_private p
-   set sin = private.encrypt_pii(private.decrypt_pii(p.sin, p.key_version), 2),
-       bank_account = private.encrypt_pii(private.decrypt_pii(p.bank_account, p.key_version), 2),
-       key_version = 2
- where p.professional_id in (select x.professional_id from public.professional_private x
-                              where x.key_version < 2 order by x.professional_id limit 500);
-```
+**Relancer sans risque.** Le bloc peut être exécuté autant de fois qu'il le faut, même interrompu ou en même temps que l'app :
+- il ne prend que les lignes qui ne sont pas encore en version 2 : une fois tout re-chiffré, il ne touche plus **aucune** ligne (rien n'est réécrit, aucune ligne d'historique) ;
+- chaque ligne se déchiffre avec **sa** version, lue dans la même instruction : une ligne enregistrée entre-temps par l'app (déjà en version 2) est au pire re-chiffrée en version 2, jamais abîmée ;
+- il refuse de tourner (exception, rien d'écrit) si la version d'écriture n'est pas celle visée : par exemple avant l'étape 3, ou avec un `v_target` mal tapé ;
+- une exécution qui échoue est annulée en entier : rien n'est à moitié re-chiffré.
 
 À savoir :
-- Chaque ligne se déchiffre avec **sa** version : le bloc reste juste si quelqu'un enregistre en même temps (la ligne, déjà en version 2, est simplement re-chiffrée en version 2).
 - Chaque ligne re-chiffrée écrit une ligne d'historique (`source = 'runbook:pii-key-rotation'`) : la valeur chiffrée y est masquée (« [redacted] »), `key_version` passe de 1 à 2.
 - La date « Modifié le » des coordonnées bancaires prend la date de la rotation.
 
@@ -106,27 +118,53 @@ update public.professional_private p
 2. `select public.pii_health_check();` → `true`.
 3. Dans l'app : Paramètres → Coordonnées bancaires → « Afficher » montre le bon numéro (et, après la Task 4a.17, le compte d'un professionnel).
 
-### 6. Garder l'ancienne version
+### 6. Garder l'ancienne version un temps
 
-Garder `pii_encryption_key` (version 1), son témoin **et** sa copie dans le gestionnaire jusqu'à ce que les deux conditions soient vraies :
-- chaque ligne est en version 2 (étape 5) ;
-- les sauvegardes prises avant la fin de l'étape 4 ont expiré : la plus ancienne sauvegarde de Database → Backups (et de la restauration à un instant donné, si elle est active) est postérieure à la fin de l'étape 4. Restaurer une sauvegarde plus ancienne exige la version 1.
+- **Le secret Vault `pii_encryption_key`** (version 1) et son témoin restent jusqu'à ce que chaque valeur soit en version 2 (étape 5) et qu'aucun retour en arrière ne soit plus envisagé (quelques jours d'usage normal). Les sauvegardes ne l'imposent pas : une restauration dans le **même** projet (sauvegarde quotidienne ou PITR) ramène sa propre copie de Vault, avec les secrets tels qu'ils étaient au moment de la sauvegarde, version 1 comprise.
+- **L'entrée « (staging) » du gestionnaire de mots de passe** (version 1), elle, reste tant qu'une sauvegarde, un export ou une archive pris avant la fin de l'étape 4 existe : restaurer ces données dans un **nouveau** projet exigera la version 1 depuis le gestionnaire ([copie](pii-key-escrow.md#cas-b--nouveau-projet-restauration-vers-un-nouveau-projet-production-sinistre)). La marquer comme retirée, avec la date, sans la supprimer avant.
 
 ### 7. Retirer l'ancienne version
 
-La seule suppression de clé prévue. D'abord le témoin, puis le secret, en vérifiant après chaque geste :
+La seule suppression de clé prévue. **Un seul bloc**, à exécuter tel quel : il vérifie tout avant de supprimer quoi que ce soit, et la moindre vérification ratée annule le bloc en entier (rien n'est supprimé).
+
 ```sql
--- Rien ne doit rester en version 1 (inventaire) :
-select count(*) from public.organization_bank_details where key_version = 1;   -- 0
--- à partir de la Task 4a.17 : select count(*) from public.professional_private where key_version = 1;   -- 0
+do $$
+declare
+  v_old constant integer := 1;   -- la version à retirer
+  -- version 1 : pii_encryption_key (sans suffixe) ; version n ≥ 2 : pii_encryption_key_v<n>
+  v_name constant text := case when v_old = 1 then 'pii_encryption_key' else 'pii_encryption_key_v' || v_old end;
+  v_deleted integer;
+begin
+  if v_old = private.pii_current_key_version() then
+    raise exception 'La version % est la version d''écriture : rien n''est retiré.', v_old;
+  end if;
+  if exists (select 1 from private.pii_key_versions_in_use() u where u.key_version = v_old) then
+    raise exception 'Des valeurs sont encore chiffrées avec la version % (étape 4) : rien n''est retiré.', v_old;
+  end if;
+  if not public.pii_health_check() then
+    raise exception 'pii_health_check() est déjà faux : rien n''est retiré.';
+  end if;
 
-delete from private.pii_canary where key_version = 1;
-select public.pii_health_check();   -- true
+  delete from private.pii_canary where key_version = v_old;
+  if not public.pii_health_check() then
+    raise exception 'pii_health_check() serait faux sans le témoin de la version % : rien n''est retiré.', v_old;
+  end if;
 
-delete from vault.secrets where name = 'pii_encryption_key';
+  delete from vault.secrets where name = v_name;
+  get diagnostics v_deleted = row_count;
+  if v_deleted <> 1 then
+    raise exception 'Secret % introuvable : rien n''est retiré.', v_name;
+  end if;
+  if not public.pii_health_check() then
+    raise exception 'pii_health_check() serait faux sans le secret % : rien n''est retiré.', v_name;
+  end if;
+  raise notice 'Version % retirée (témoin et secret %).', v_old, v_name;
+end;
+$$;
+
 select public.pii_health_check();   -- true
 ```
-Les fonctions à un argument (`encrypt_pii(text)`, `decrypt_pii(bytea)`) sont la version 1 : elles cessent de fonctionner ici. Le code n'utilise que les formes versionnées (conventions §8) ; le coordinateur le confirme avant l'étape 7. Marquer l'entrée « (staging) » du gestionnaire comme retirée, avec la date, sans la supprimer tant qu'une archive ou un export antérieur peut contenir des données de version 1.
+Une erreur (« … rien n'est retiré ») : lire le message, corriger (souvent : finir l'étape 4), relancer le bloc. Les fonctions à un argument (`encrypt_pii(text)`, `decrypt_pii(bytea)`) sont la version 1 : elles cessent de fonctionner ici. Le code n'utilise que les formes versionnées (conventions §8) ; le coordinateur le confirme avant l'étape 7. Pour l'entrée du gestionnaire, voir l'étape 6.
 
 ## Revenir en arrière (avant l'étape 7)
 
@@ -134,8 +172,9 @@ Les fonctions à un argument (`encrypt_pii(text)`, `decrypt_pii(bytea)`) sont la
    ```sql
    delete from private.pii_canary where key_version = 2;
    ```
-2. Re-chiffrer vers la version 1 les lignes déjà en version 2 : les blocs de l'étape 4 avec `2` remplacé par `1` dans `encrypt_pii(…, 1)` et `key_version = 1`, et la condition `x.key_version <> 1`.
-3. `select public.pii_health_check();` → `true`. Le secret `pii_encryption_key_v2` peut rester (sans témoin, il ne sert à rien) ; ne le supprimer qu'une fois l'inventaire entièrement en version 1.
+   Dès ce moment, `pii_health_check()` est **faux** (la version 2 chiffre encore des données mais n'a plus de témoin) : c'est attendu, et le job quotidien serait rouge. Faire le point 2 tout de suite.
+2. Re-chiffrer vers la version 1 les lignes déjà en version 2 : le bloc de l'étape 4 avec `v_target constant integer := 1`, relancé jusqu'à ce que l'inventaire ne montre plus que la version 1.
+3. `select public.pii_health_check();` → `true`. Le secret `pii_encryption_key_v2` peut rester (sans témoin, il ne sert à rien). Pour le supprimer, une fois l'inventaire entièrement en version 1 : le bloc de l'étape 7 avec `v_old constant integer := 2` (il refuse tant qu'une valeur est chiffrée en version 2). Garder son entrée du gestionnaire comme à l'étape 6.
 
 ## Après la rotation
 
