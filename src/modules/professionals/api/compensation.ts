@@ -25,8 +25,8 @@ const duration = z.union([z.literal(60), z.literal(50), z.literal(30)])
 export const DECISIONS = ['initial', 'suggested', 'maintained', 'custom'] as const
 export type Decision = (typeof DECISIONS)[number]
 
-/** P4-188: computed by `private.retention_overview`. */
-export const RETENTION_STATUSES = ['gap', 'conforme', 'floor', 'maintained', 'custom', 'profession_unconfirmed'] as const
+/** P4-188: computed by `private.retention_overview`; `no_rate` (no decision yet) is P4-197. */
+export const RETENTION_STATUSES = ['gap', 'no_rate', 'conforme', 'floor', 'maintained', 'custom', 'profession_unconfirmed'] as const
 export type RetentionStatus = (typeof RETENTION_STATUSES)[number]
 
 const tierPayload = z

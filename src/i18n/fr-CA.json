@@ -1356,7 +1356,13 @@
             "tier": "Palier de {range}",
             "next": "prochain palier à {tier} ({rate})",
             "maxTier": "palier maximum",
-            "pay": "Versé au professionnel par séance (taux en vigueur → suggéré)",
+            "pay": "Versé au professionnel par séance",
+            "payTable": {
+              "duration": "Durée",
+              "clientPrice": "Prix client",
+              "today": "Aujourd’hui",
+              "from": "Dès le {date}"
+            },
             "otherRates": "Autres services, taux de la clinique : {rates}",
             "rateHistory": "Historique des taux",
             "monthHistory": "Séances par mois",
@@ -2035,13 +2041,18 @@
         "sessionsCount": { "one": "{count} séance", "other": "{count} séances" },
         "tierRange": "{from} à {to}",
         "tierRangeOpen": "{from} et plus",
-        "retentionStatus": {
-          "gap": "Écart à valider",
+        "tierShort": "{from}–{to}",
+        "tierShortOpen": "{from} et +",
+        "status": {
+          "newTier": "Nouveau palier atteint",
+          "gridGap": "Taux différent de la grille",
+          "noRate": "Taux de départ à fixer",
+          "increaseDecided": "Augmentation décidée",
+          "floor": "Palier maximum",
           "conforme": "Conforme",
-          "floor": "Palier maximum atteint",
           "maintained": "Maintenu",
           "custom": "Taux particulier",
-          "profession_unconfirmed": "Profession à confirmer"
+          "professionUnconfirmed": "Profession à confirmer"
         },
         "decisions": {
           "initial": "Taux de départ",
@@ -2051,29 +2062,29 @@
         },
         "decision": {
           "action": {
-            "initial": "Fixer le taux de départ",
-            "suggested": "Appliquer la suggestion",
-            "maintained": "Maintenir",
-            "custom": "Taux particulier"
+            "apply": "Appliquer {rate}",
+            "setTo": "Fixer à {rate}",
+            "maintain": "Maintenir {rate}",
+            "other": "Autre taux…"
           },
           "title": {
-            "initial": "Fixer le taux de départ",
-            "suggested": "Appliquer la suggestion",
-            "maintained": "Maintenir le taux",
-            "custom": "Fixer un taux particulier"
+            "initial": "Taux de départ",
+            "custom": "Taux particulier"
           },
-          "titleFor": {
-            "initial": "Taux de départ — {name}",
-            "suggested": "Appliquer la suggestion — {name}",
-            "maintained": "Maintenir le taux — {name}",
-            "custom": "Taux particulier — {name}"
-          },
+          "titleFor": "{title} — {name}",
           "describe": {
-            "suggested": "La retenue de la clinique passe de {from} à {to} (palier de {tier}).",
-            "suggestedFirst": "La retenue de la clinique sera de {to} (palier de {tier}).",
-            "maintained": "La retenue reste à {rate} au palier de {tier}. L’écart sera signalé de nouveau au prochain palier.",
+            "suggested": "La retenue de la clinique passe de {from} à {to} : le cumul est dans le palier de {tier}.",
+            "suggestedFirst": "La retenue de la clinique sera de {to}, celle du palier de {tier}.",
+            "maintained": "La retenue reste à {rate}, même si la grille propose {suggested} au palier de {tier}. L’écart sera signalé de nouveau au prochain palier.",
             "custom": "Signalé de nouveau au prochain palier, sauf au palier maximum. Indiquez-en la raison.",
-            "initial": "Le taux appliqué jusqu’ici, avant le suivi dans l’application."
+            "initial": "La retenue appliquée jusqu’ici, avant le suivi dans l’application."
+          },
+          "pay": {
+            "title": "Versé au professionnel par séance",
+            "meeting": "Rencontre {duration} :",
+            "paid": "versé",
+            "becomes": "devient",
+            "unchanged": "(inchangé)"
           },
           "rate": "Retenue de la clinique (%)",
           "fromHelp": "Le taux actuel se terminera la veille de cette date.",
@@ -2081,12 +2092,6 @@
           "confirm": "Confirmer",
           "confirming": "Enregistrement…",
           "stale": "Le taux de ce professionnel vient d’être modifié par une autre personne. Vérifiez la situation à jour, puis décidez de nouveau."
-        },
-        "pay": {
-          "suggestedPrefix": "suggéré :",
-          "clientPrice": "Prix client : {price}",
-          "minutes": "{duration} min",
-          "upcoming": "À venir dès le {date} : {amount}"
         }
       },
       "settings": {
@@ -2382,47 +2387,57 @@
       },
       "review": {
         "title": "Révision mensuelle",
-        "description": "Les séances du mois, le taux appliqué et la suggestion de la grille, pour chaque professionnel actif.",
+        "description": "Les séances du mois de chaque professionnel actif, et la retenue à décider quand le cumul atteint un nouveau palier.",
         "loadError": "La révision du mois n’a pas pu être chargée.",
         "month": "Mois",
-        "monthHelp": "Format AAAA-MM (ex. 2026-09).",
-        "monthPlaceholder": "AAAA-MM",
+        "monthPrevious": "Mois précédent",
+        "monthNext": "Mois suivant",
         "filter": "Afficher",
         "filters": {
+          "todo": "À décider ({count})",
           "all": "Tous ({count})",
-          "status": "{status} ({count})"
+          "conforme": "Conformes ({count})",
+          "floor": "Palier maximum ({count})",
+          "kept": "Maintenus ou taux particuliers ({count})",
+          "profession_unconfirmed": "Profession à confirmer ({count})"
         },
-        "legend": "Jaune : écart à valider · vert : augmentation décidée pour le mois suivant · bleu : palier maximum.",
+        "todoGap": { "one": "{count} écart à valider", "other": "{count} écarts à valider" },
+        "todoNoRate": { "one": "{count} taux de départ à fixer", "other": "{count} taux de départ à fixer" },
+        "legend": "Retenue = part conservée par la clinique.",
+        "help": "Cumul = séances depuis le début du suivi. Une rencontre de 30 min compte pour ½ séance : un cumul de 100,5 reste dans le palier qui se termine à 100.",
         "listLabel": "Professionnels, {month}",
         "columns": {
           "professional": "Professionnel",
           "sessions": "Séances du mois",
           "cumulative": "Cumul",
-          "rates": "Taux",
-          "pay": "Versé par séance",
-          "status": "Statut"
+          "tier": "Palier",
+          "retention": "Retenue",
+          "status": "Statut / décision"
         },
-        "long": "50/60 min",
-        "short": "30 min",
-        "longLabel": "Séances de 50 ou 60 min de {name}",
-        "shortLabel": "Séances de 30 min de {name}",
-        "before": "{count} avant le mois",
+        "long": "50/60",
+        "short": "30",
+        "halfHint": "30 min = ½ séance",
+        "longLabel": "Séances de 50/60 min — {name}",
+        "shortLabel": "Séances de 30 min — {name}",
+        "breakdown": "({before} + {month})",
+        "breakdownLong": "{before} avant + {month} ce mois-ci",
         "adjustment": "Ajustement {value}",
         "importedBalance": "Solde importé : {count} avant le suivi",
         "unsaved": "(non enregistré)",
-        "applied": "Appliqué",
-        "suggested": "Suggéré",
-        "tier": "palier de {range}",
+        "recalculated": "Recalculé à l’enregistrement",
+        "newTier": "nouveau",
+        "newTierLong": "nouveau palier ce mois-ci",
+        "retentionChange": "{from} actuellement, {to} proposé par la grille",
+        "retentionFirst": "aucune retenue fixée, {to} proposé par la grille",
+        "grid": "Grille : {rate}",
+        "startsOn": "Dès le {date}",
+        "comesBack": "Revient au prochain palier ({count})",
+        "staysAtFloor": "Reste en place au palier maximum",
+        "noGrid": "Aucune grille pour cette profession",
         "noTitle": "Aucune profession",
         "agreements": "{count} entente(s) particulière(s)",
-        "increaseDecided": "Augmentation décidée pour le mois suivant.",
-        "decisionLabel": {
-          "suggested": "Appliquer la suggestion pour {name}",
-          "maintained": "Maintenir le taux de {name}",
-          "custom": "Taux particulier pour {name}",
-          "initial": "Fixer le taux de départ de {name}"
-        },
-        "noGap": "Aucun écart à valider ce mois-ci.",
+        "decisionFor": "{action} pour {name}",
+        "noTodo": "Rien à décider pour {month}.",
         "empty": "Aucun professionnel dans ce filtre.",
         "changes": "{count} professionnel(s) modifié(s).",
         "invalid": "Corrigez les nombres signalés.",

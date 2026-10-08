@@ -64,7 +64,7 @@ export const COMPENSATION_JSON = {
 /**
  * On 2026-10-08 (the tests' clinic date): a psychologist with 55,5 sessions (July's opening
  * balance and September's sessions), 28 % applied since 2026-07-01 (entered long ago, not
- * deletable), 27,5 % suggested: « Écart à valider ». One client agreement, created today.
+ * deletable), 27,5 % suggested: « Nouveau palier atteint » (`gap`). One client agreement, created today.
  */
 export function compensationFixture(overrides: Partial<ProfessionalCompensation> = {}): ProfessionalCompensation {
   return {

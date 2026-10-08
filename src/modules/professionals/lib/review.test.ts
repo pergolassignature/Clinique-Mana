@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ReviewRow } from '../api/compensation'
-import { changedEntries, countByStatus, draftCount, filterRows, invalidRows, isChanged, isImportedBalance, liveTotal, onlyImportedBalances, shownCounts } from './review'
+import { changedEntries, countByFilter, countByStatus, draftCount, filterRows, invalidRows, isChanged, isImportedBalance, liveTotal, onlyImportedBalances, shownCounts } from './review'
 
 const row = (id: string, over: Partial<ReviewRow> = {}): ReviewRow => ({
   id,
@@ -61,11 +61,15 @@ describe('the review’s drafts (P4-190)', () => {
     expect(liveTotal(stored, {})).toBe(55.5)
   })
 
-  it('filters by status and keeps a row being edited visible', () => {
-    expect(filterRows([stored, empty], 'gap', {}).map((r) => r.id)).toEqual(['a'])
-    expect(filterRows([stored, empty], 'gap', { b: { long: '1', short: '', version: null } }).map((r) => r.id)).toEqual(['a', 'b'])
+  it('filters « À décider » (gaps and starting rates) and keeps a row being edited visible', () => {
+    const noRate = row('c', { status: 'no_rate' })
+    const kept = row('d', { status: 'maintained' })
+    expect(filterRows([stored, empty, noRate, kept], 'todo', {}).map((r) => r.id)).toEqual(['a', 'c'])
+    expect(filterRows([stored, empty], 'todo', { b: { long: '1', short: '', version: null } }).map((r) => r.id)).toEqual(['a', 'b'])
+    expect(filterRows([stored, empty, noRate, kept], 'kept', {}).map((r) => r.id)).toEqual(['d'])
     expect(filterRows([stored, empty], 'all', {})).toHaveLength(2)
-    expect(countByStatus([stored, empty])).toMatchObject({ gap: 1, conforme: 1, floor: 0 })
+    expect(countByFilter([stored, empty, noRate, kept])).toEqual({ todo: 2, all: 4, conforme: 1, floor: 0, kept: 1, profession_unconfirmed: 0 })
+    expect(countByStatus([stored, empty, noRate])).toMatchObject({ gap: 1, no_rate: 1, conforme: 1, floor: 0 })
   })
 })
 

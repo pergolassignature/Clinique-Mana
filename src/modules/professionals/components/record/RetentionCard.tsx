@@ -10,6 +10,7 @@ import { useDeleteRetention } from '../../hooks/use-compensation'
 import {
   canDeleteDated,
   datedStatus,
+  decisionActionLabel,
   earliestStart,
   formatPercent,
   formatSessions,
@@ -17,6 +18,7 @@ import {
   monthLabel,
   monthOf,
   periodLabel,
+  retentionDisplay,
   sessionsLabel,
   shiftMonth,
   tierRangeLabel,
@@ -24,7 +26,7 @@ import {
 } from '../../lib/compensation'
 import { ConfirmDeleteDialog, DatedStatusBadge } from '../compensation/DatedRowParts'
 import { DecisionDialog, type DecisionTarget } from '../compensation/DecisionDialog'
-import { Item, PayList, RetentionStatusBadge } from '../compensation/RetentionParts'
+import { Item, PayTable, RetentionStatusBadge } from '../compensation/RetentionParts'
 import { AgreementsSection } from './AgreementsSection'
 import { Disclosure } from './MotifsSummary'
 import { SessionsDialog } from './SessionsDialog'
@@ -50,9 +52,10 @@ function decisionsFor(data: ProfessionalCompensation): Decision[] {
 /**
  * « Rétention » (`professionals.compensation`, P4-180…): the professional's cumulative sessions
  * (« Ajouter les séances du mois »), the applied rate and how it was decided, the grid's
- * suggestion and next tier, the status, the pay per duration, the decisions, the client
- * agreements, the clinic's other rates, and the histories of rates and months. The retention is
- * internal: nothing here is ever shown to the professional.
+ * suggestion and next tier, the status (P4-197), the pay per duration (a small table, P4-198), the
+ * decisions (their buttons carry the value, P4-197), the client agreements, the clinic's other
+ * rates, and the histories of rates and months. The retention is internal: nothing here is ever
+ * shown to the professional.
  */
 export function RetentionCard({ professionalId, data }: RetentionCardProps) {
   const now = useNow(60_000)
@@ -81,12 +84,13 @@ export function RetentionCard({ professionalId, data }: RetentionCardProps) {
       // The record's count runs through the current month (P4-194), as shown.
       countMonth: monthOf(data.on),
       expectedOpenId: applied?.id ?? null,
+      pay: data.pay,
     })
 
   return (
     <SettingsCard as="section" title={t(`${R}.title`)} description={t(`${R}.description`)}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <RetentionStatusBadge status={data.status} />
+        <RetentionStatusBadge display={retentionDisplay(data)} />
         {data.title && <span className="text-xs text-muted-foreground">{t(`${R}.grid`, { title: data.title.name })}</span>}
       </div>
       {data.status === 'profession_unconfirmed' && <p className="text-sm text-muted-foreground">{t(`${R}.noGrid`)}</p>}
@@ -130,20 +134,19 @@ export function RetentionCard({ professionalId, data }: RetentionCardProps) {
         <SessionsDialog ref={sessionsButton} professionalId={professionalId} rows={data.sessionRows} total={data.sessionsTotal} />
         {data.grid &&
           decisionsFor(data).map((kind) => (
-            <Button key={kind} type="button" variant={kind === 'suggested' && data.status === 'gap' ? 'default' : 'outline'} size="sm" onClick={() => openDecision(kind)}>
-              {t(`${W}.decision.action.${kind}`)}
+            <Button
+              key={kind}
+              type="button"
+              variant={kind === 'suggested' && (data.status === 'gap' || data.status === 'no_rate') ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => openDecision(kind)}
+            >
+              {decisionActionLabel(kind, applied?.pct ?? null, suggested?.pct ?? null)}
             </Button>
           ))}
       </div>
 
-      {data.pay.length > 0 && (
-        <div>
-          <h4 className="text-xs text-muted-foreground">{t(`${R}.pay`)}</h4>
-          <div className="mt-1">
-            <PayList pay={data.pay} upcomingFrom={upcoming ? applied.effectiveFrom : null} />
-          </div>
-        </div>
-      )}
+      {data.pay.length > 0 && <PayTable pay={data.pay} upcomingFrom={upcoming ? applied.effectiveFrom : null} caption={t(`${R}.pay`)} />}
 
       <AgreementsSection professionalId={professionalId} rows={data.agreementRows} today={today} now={now} />
 

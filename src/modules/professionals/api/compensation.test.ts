@@ -74,6 +74,12 @@ describe('fetchProfessionalCompensation', () => {
     mocks.from.mockImplementation(() => builder({ data: [], error: null }).chain)
     await expect(fetchProfessionalCompensation(IDS.professional)).rejects.toThrow(UNEXPECTED_SHAPE)
   })
+
+  it('reads « no_rate », a starting rate to fix (P4-197)', async () => {
+    mocks.rpc.mockResolvedValue({ data: { ...COMPENSATION_JSON, applied: null, status: 'no_rate' }, error: null })
+    mocks.from.mockImplementation(() => builder({ data: [], error: null }).chain)
+    await expect(fetchProfessionalCompensation(IDS.professional)).resolves.toMatchObject({ status: 'no_rate', applied: null })
+  })
 })
 
 describe('writes', () => {

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   canDeleteDated,
   datedStatus,
+  decisionActionLabel,
+  decisionTitle,
   earliestStart,
   formatCents,
   formatPercent,
@@ -12,13 +14,16 @@ import {
   parseDollars,
   parsePercent,
   parseSessions,
+  payChanges,
   percentInput,
   periodLabel,
+  retentionDisplay,
   retentionTone,
   rowsOf,
   sessionsLabel,
   shiftMonth,
   tierRangeLabel,
+  tierShortLabel,
   withRunningTotals,
   type DatedRow,
 } from './compensation'
@@ -116,11 +121,13 @@ describe('tiers and counts as the clinic reads them', () => {
     expect(sessionsLabel(237.5)).toBe('237,5 séances')
   })
 
-  it('reads a tier as the sheet’s range, exact with half sessions', () => {
-    expect(tierRangeLabel(0, 51)).toBe('0 à 50,5 séances')
-    expect(tierRangeLabel(51, 101)).toBe('51 à 100,5 séances')
+  it('reads a tier as the sheet’s range in whole sessions (P4-198)', () => {
+    expect(tierRangeLabel(0, 51)).toBe('0 à 50 séances')
+    expect(tierRangeLabel(51, 101)).toBe('51 à 100 séances')
     expect(tierRangeLabel(501, null)).toBe('501 séances et plus')
-    expect(tierRangeLabel(0, 1)).toBe('0 à 0,5 séance')
+    expect(tierRangeLabel(0, 2)).toBe('0 à 1 séance')
+    expect(tierShortLabel(101, 151)).toBe('101–150')
+    expect(tierShortLabel(501, null)).toBe('501 et +')
   })
 
   it('puts a stored percent back in a rate field', () => {
@@ -130,13 +137,53 @@ describe('tiers and counts as the clinic reads them', () => {
   })
 })
 
-describe('colour cues (P4-190)', () => {
-  it('yellow for a gap, green for a decided increase, blue for the floor, plain otherwise', () => {
-    expect(retentionTone('gap', true)).toBe('warning')
-    expect(retentionTone('conforme', true)).toBe('success')
+describe('statuses as plain sentences (P4-197)', () => {
+  const applied = (pct: number, tierThreshold: number | null) => ({ pct, tierThreshold })
+  it('splits a gap: a new tier reached, or a rate that differs from the grid', () => {
+    expect(retentionDisplay({ status: 'gap', applied: applied(27.5, 101), suggested: { threshold: 101, pct: 27 } })).toBe('newTier')
+    expect(retentionDisplay({ status: 'gap', applied: applied(27, 51), suggested: { threshold: 101, pct: 27 } })).toBe('newTier')
+    expect(retentionDisplay({ status: 'gap', applied: applied(26, null), suggested: { threshold: 0, pct: 30 } })).toBe('gridGap')
+  })
+
+  it('names a missing starting rate, a decided increase and the others', () => {
+    expect(retentionDisplay({ status: 'no_rate', applied: null, suggested: { threshold: 0, pct: 30 } })).toBe('noRate')
+    expect(retentionDisplay({ status: 'conforme', applied: applied(28.5, 151), suggested: { threshold: 151, pct: 28.5 } }, true)).toBe('increaseDecided')
+    expect(retentionDisplay({ status: 'floor', applied: applied(25, 301), suggested: { threshold: 301, pct: 25 } })).toBe('floor')
+    expect(retentionDisplay({ status: 'profession_unconfirmed', applied: null, suggested: null })).toBe('professionUnconfirmed')
+  })
+
+  it('yellow for a gap, green for a decided increase, blue for the floor, plain otherwise (P4-190)', () => {
+    expect(retentionTone('newTier')).toBe('warning')
+    expect(retentionTone('gridGap')).toBe('warning')
+    expect(retentionTone('increaseDecided')).toBe('success')
     expect(retentionTone('floor')).toBe('info')
+    expect(retentionTone('noRate')).toBe('default')
     expect(retentionTone('maintained')).toBe('default')
-    expect(retentionTone('custom')).toBe('default')
+  })
+})
+
+describe('decisions that say what they do (P4-197, P4-198)', () => {
+  it('puts the value on the button and in the title', () => {
+    expect(decisionActionLabel('suggested', 27.5, 27)).toBe(`Appliquer 27${NBSP}%`)
+    expect(decisionActionLabel('suggested', null, 30)).toBe(`Fixer à 30${NBSP}%`)
+    expect(decisionActionLabel('maintained', 27.5, 27)).toBe(`Maintenir 27,5${NBSP}%`)
+    expect(decisionActionLabel('custom', 27.5, 27)).toBe('Autre taux…')
+    expect(decisionActionLabel('initial', null, 30)).toBe('Autre taux…')
+    expect(decisionTitle('suggested', 27.5, 27)).toBe(`Appliquer 27${NBSP}%`)
+    expect(decisionTitle('custom', 27.5, 27)).toBe('Taux particulier')
+  })
+
+  it('shows the pay before and after from the database’s amounts', () => {
+    const pay = [
+      { duration: 50 as const, clientPriceCents: 17500, appliedCents: 12688, suggestedCents: 12775, upcomingCents: null },
+      { duration: 30 as const, clientPriceCents: 13000, appliedCents: null, suggestedCents: 9100, upcomingCents: null },
+    ]
+    expect(payChanges('suggested', pay)).toEqual([
+      { duration: 50, beforeCents: 12688, afterCents: 12775 },
+      { duration: 30, beforeCents: null, afterCents: 9100 },
+    ])
+    expect(payChanges('maintained', pay)).toEqual([{ duration: 50, beforeCents: 12688, afterCents: 12688 }])
+    expect(payChanges('custom', pay)).toEqual([])
   })
 })
 
