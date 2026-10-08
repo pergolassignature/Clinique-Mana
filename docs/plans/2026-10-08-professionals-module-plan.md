@@ -1857,6 +1857,9 @@ Three `ReferenceListCard`s on one page:
 
 ## Task 4a.11: Record shell and « Aperçu » (lane C)
 
+> **Motif density (Jonathan, 2026-10-08) — applies to 4a.11, 4a.12, 4a.13, the list filters and every later view of a professional's motifs.** Some professionals select a great many motifs, sometimes nearly all 72. Every display must stay light and easy to scan when everything is selected, never a wall of chips or a long « · » run of names. Summarise per category: « Tous » when every active motif of the category is selected, the names when there are few (≤ 3), otherwise « N sur M » with the names behind a disclosure; overall, « Tous sauf … » when most are selected; the full list on demand. The Jumelage picker stays searchable, grouped and collapsible, with « Tout sélectionner » per category and a running count. Tests and the browser check cover a professional with all 72 motifs.
+
+
 **Files:**
 - Create: `pages/ProfessionalRecordPage.tsx` + test, `components/record/RecordHeader.tsx` + test, `components/record/RecordTabs.tsx`, `components/record/tabs/OverviewTab.tsx` + test, `components/record/MatchingDigest.tsx`, `components/record/ReadinessCard.tsx`, `components/record/WatchCard.tsx`, `components/record/NextActionCard.tsx`
 - Modify: `fr-CA.json`
