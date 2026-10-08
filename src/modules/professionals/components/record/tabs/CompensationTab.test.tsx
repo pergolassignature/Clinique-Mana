@@ -15,10 +15,12 @@ const mocks = vi.hoisted(() => ({
   record: { fetchProfessionalRecord: vi.fn() },
   compensation: {
     fetchProfessionalCompensation: vi.fn(),
-    setProfessionalMargin: vi.fn(),
-    deleteProfessionalMargin: vi.fn(),
-    setProfessionalRecognition: vi.fn(),
-    deleteProfessionalRecognition: vi.fn(),
+    recordMonthlySessions: vi.fn(),
+    decideRetention: vi.fn(),
+    deleteProfessionalRetention: vi.fn(),
+    setClientAgreement: vi.fn(),
+    endClientAgreement: vi.fn(),
+    deleteClientAgreement: vi.fn(),
   },
   private: {
     fetchProfessionalPrivate: vi.fn(),
@@ -85,7 +87,7 @@ describe('CompensationTab — cards per permission', () => {
     expect(mocks.compensation.fetchProfessionalCompensation).toHaveBeenCalledWith(id)
     expect(mocks.private.fetchProfessionalPrivate).toHaveBeenCalledWith(id)
     expect(mocks.settings.fetchProfessionalsSettings).toHaveBeenCalledOnce()
-    for (const title of [`${C}.margin.title`, `${C}.recognition.title`, `${C}.sin.title`, `${C}.bank.title`] as const) {
+    for (const title of [`${C}.retention.title`, `${C}.agreements.title`, `${C}.sin.title`, `${C}.bank.title`] as const) {
       expect(await screen.findByRole('region', { name: t(title) })).toBeInTheDocument()
     }
     expect(screen.getByRole('form', { name: t(`${C}.taxNumbers.title`) })).toBeInTheDocument()
@@ -94,7 +96,7 @@ describe('CompensationTab — cards per permission', () => {
 
   it('shows only the compensation cards without professionals.private (and reads nothing private)', async () => {
     render({ permissions: ['professionals.view', 'professionals.compensation'] })
-    expect(await screen.findByRole('region', { name: t(`${C}.margin.title`) })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: t(`${C}.retention.title`) })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: t(`${C}.sin.title`) })).not.toBeInTheDocument()
     expect(screen.queryByRole('form', { name: t(`${C}.taxNumbers.title`) })).not.toBeInTheDocument()
     expect(mocks.private.fetchProfessionalPrivate).not.toHaveBeenCalled()
@@ -103,7 +105,7 @@ describe('CompensationTab — cards per permission', () => {
   it('shows only the private cards without professionals.compensation', async () => {
     render({ permissions: ['professionals.view', 'professionals.private'] })
     expect(await screen.findByRole('region', { name: t(`${C}.bank.title`) })).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: t(`${C}.margin.title`) })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: t(`${C}.retention.title`) })).not.toBeInTheDocument()
     expect(mocks.compensation.fetchProfessionalCompensation).not.toHaveBeenCalled()
   })
 })
@@ -369,108 +371,173 @@ describe('CompensationTab — private cards', () => {
   })
 })
 
-describe('CompensationTab — compensation cards', () => {
-  it('reads the margin in force, the default range and a coming margin with its date-only start', async () => {
-    render({ permissions: ['professionals.view', 'professionals.compensation'] })
-    const margin = await screen.findByRole('region', { name: t(`${C}.margin.title`) })
-    const rows = within(margin).getAllByRole('row')
-    expect(rows[1]).toHaveTextContent('Consultation')
-    expect(rows[1]).toHaveTextContent('25–30 % (par défaut)')
-    expect(rows[1]).toHaveTextContent('Prévue : 28 % dès le 1 nov. 2026')
-  })
+describe('CompensationTab — « Rétention » (P4-180…)', () => {
+  const W = 'modules.professionals.compensation'
+  const COMPENSATION_ONLY = { permissions: ['professionals.view', 'professionals.compensation'] }
+  const retention = () => screen.findByRole('region', { name: t(`${C}.retention.title`) })
 
-  it('sends a new margin’s date string unchanged and warns outside the default range', async () => {
-    mocks.compensation.setProfessionalMargin.mockResolvedValue({ id: 'm2', warning: true })
-    render({ permissions: ['professionals.view', 'professionals.compensation'] })
-    const margin = await screen.findByRole('region', { name: t(`${C}.margin.title`) })
-    await userEvent.click(within(margin).getByRole('button', { name: t(`${C}.margin.add`) }))
-    const dialog = screen.getByRole('dialog', { name: t(`${C}.margin.dialog.title`) })
-    await userEvent.type(within(dialog).getByRole('textbox', { name: `${t(`${C}.margin.dialog.margin`)} ${t('common.form.required')}` }), '35')
+  it('reads the status, the count, the applied and suggested rates, the pay and the other rates', async () => {
+    render(COMPENSATION_ONLY)
+    const card = await retention()
+    expect(within(card).getByText(t(`${W}.retentionStatus.gap`))).toBeInTheDocument()
     // jest-dom reads a no-break space as a space.
-    expect(within(dialog).getAllByRole('status')[0]).toHaveTextContent('Hors de la fourchette par défaut (25–30 %).')
-    // The open Consultation margin starts on 2026-11-01: the next one must start later.
-    fireEvent.change(within(dialog).getByLabelText(new RegExp(t('modules.professionals.compensation.from'))), { target: { value: '2026-12-01' } })
-    await userEvent.click(within(dialog).getByRole('button', { name: t('modules.professionals.compensation.add') }))
-    await waitFor(() =>
-      expect(mocks.compensation.setProfessionalMargin).toHaveBeenCalledExactlyOnceWith(id, { kind: 'consultation', marginPct: 35, effectiveFrom: '2026-12-01', note: null }),
-    )
-    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.margin.savedOutside`)))
+    expect(card).toHaveTextContent('Séances cumulées55,5')
+    expect(card).toHaveTextContent('28 % Taux de départ')
+    expect(card).toHaveTextContent('27,5 %Palier de 51 séances · prochain palier à 101 séances (27 %)')
+    expect(card).toHaveTextContent('50 min 126,00 $ →suggéré : 126,88 $')
+    expect(card).toHaveTextContent('Prix client : 175,00 $')
+    expect(card).toHaveTextContent('Ateliers et conférences 25 % · Annulation tardive 30 %')
   })
 
-  it('checks the start date against the open margin refetched while the dialog is open', async () => {
-    const { queryClient } = render({ permissions: ['professionals.view', 'professionals.compensation'] })
-    const margin = await screen.findByRole('region', { name: t(`${C}.margin.title`) })
-    await userEvent.click(within(margin).getByRole('button', { name: t(`${C}.margin.add`) }))
-    const dialog = screen.getByRole('dialog', { name: t(`${C}.margin.dialog.title`) })
-    // Someone else added a Consultation margin from 2027-01-01 meanwhile.
-    const previous = storedCompensation.marginRows[0]
-    if (!previous) throw new Error('fixture')
-    storedCompensation = compensationFixture({
-      marginRows: [
-        { ...previous, id: 'm-next', marginPct: 29, effectiveFrom: '2027-01-01', effectiveTo: null },
-        { ...previous, effectiveTo: '2026-12-31' },
-      ],
-    })
-    await act(() => queryClient.refetchQueries({ queryKey: professionalKeys.compensation(id) }))
-    await userEvent.type(within(dialog).getByRole('textbox', { name: `${t(`${C}.margin.dialog.margin`)} ${t('common.form.required')}` }), '30')
-    const date = within(dialog).getByLabelText(new RegExp(t('modules.professionals.compensation.from')))
-    fireEvent.change(date, { target: { value: '2026-12-01' } })
-    await userEvent.click(within(dialog).getByRole('button', { name: t('modules.professionals.compensation.add') }))
-    await waitFor(() => expect(date).toHaveAccessibleDescription(expect.stringContaining('1 janv. 2027')))
-    expect(mocks.compensation.setProfessionalMargin).not.toHaveBeenCalled()
+  it('applies the suggestion from the first day of next month; the toast says it is an increase', async () => {
+    mocks.compensation.decideRetention.mockResolvedValue({ id: 'r2', pct: 27.5, decreased: true })
+    const { invalidated } = render(COMPENSATION_ONLY)
+    const card = await retention()
+    await userEvent.click(within(card).getByRole('button', { name: t(`${W}.decision.action.suggested`) }))
+    const dialog = screen.getByRole('dialog', { name: t(`${W}.decision.title.suggested`) })
+    expect(dialog).toHaveTextContent('La retenue de la clinique passe de 28 % à 27,5 % (palier de 51 séances).')
+    expect(within(dialog).getByLabelText(new RegExp(t(`${W}.from`)))).toHaveValue('2026-11-01')
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.decision.confirm`) }))
+    await waitFor(() =>
+      expect(mocks.compensation.decideRetention).toHaveBeenCalledExactlyOnceWith(id, { decision: 'suggested', pct: null, effectiveFrom: '2026-11-01', note: null }),
+    )
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.decision.savedDecreased`)))
+    expect(invalidated()).toContainEqual(professionalKeys.compensation(id))
+    expect(invalidated()).toContainEqual(professionalKeys.history(id))
+    expect(invalidated()).toContainEqual(professionalKeys.reviews())
+    expect(invalidated()).not.toContainEqual(professionalKeys.lists())
+  })
+
+  it('wants a reason for a custom rate', async () => {
+    mocks.compensation.decideRetention.mockResolvedValue({ id: 'r2', pct: 26, decreased: true })
+    render(COMPENSATION_ONLY)
+    const card = await retention()
+    await userEvent.click(within(card).getByRole('button', { name: t(`${W}.decision.action.custom`) }))
+    const dialog = screen.getByRole('dialog', { name: t(`${W}.decision.title.custom`) })
+    await userEvent.type(within(dialog).getByRole('textbox', { name: `${t(`${W}.decision.rate`)} ${t('common.form.required')}` }), '26')
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.decision.confirm`) }))
+    expect(await within(dialog).findByText(t(`${W}.validation.customNote`))).toBeInTheDocument()
+    expect(mocks.compensation.decideRetention).not.toHaveBeenCalled()
+    await userEvent.type(within(dialog).getByRole('textbox', { name: `${t(`${W}.note`)} ${t('common.form.required')}` }), 'Entente fictive')
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.decision.confirm`) }))
+    await waitFor(() =>
+      expect(mocks.compensation.decideRetention).toHaveBeenCalledExactlyOnceWith(id, { decision: 'custom', pct: 26, effectiveFrom: '2026-11-01', note: 'Entente fictive' }),
+    )
   })
 
   it('puts a date refusal (HINT effective_from) under the date field', async () => {
-    mocks.compensation.setProfessionalMargin.mockRejectedValue({ code: 'P0001', message: 'La nouvelle marge doit commencer après le 2026-11-01.', hint: 'effective_from' })
-    render({ permissions: ['professionals.view', 'professionals.compensation'] })
-    const margin = await screen.findByRole('region', { name: t(`${C}.margin.title`) })
-    await userEvent.click(within(margin).getByRole('button', { name: t(`${C}.margin.add`) }))
-    const dialog = screen.getByRole('dialog', { name: t(`${C}.margin.dialog.title`) })
-    await userEvent.selectOptions(within(dialog).getByRole('combobox'), 'workshop')
-    await userEvent.type(within(dialog).getByRole('textbox', { name: `${t(`${C}.margin.dialog.margin`)} ${t('common.form.required')}` }), '25')
-    const date = within(dialog).getByLabelText(new RegExp(t('modules.professionals.compensation.from')))
-    // No open Atelier margin: the RPCs' bounds only.
-    expect(date).toHaveAttribute('min', '2000-01-01')
-    expect(date).toHaveAttribute('max', '2100-12-31')
-    fireEvent.change(date, { target: { value: '2026-12-01' } })
-    await userEvent.click(within(dialog).getByRole('button', { name: t('modules.professionals.compensation.add') }))
-    await waitFor(() => expect(date).toHaveAccessibleDescription(expect.stringContaining('La nouvelle marge doit commencer après le 2026-11-01.')))
+    mocks.compensation.decideRetention.mockRejectedValue({ code: 'P0001', message: 'Le nouveau taux doit commencer après le 2026-11-01.', hint: 'effective_from' })
+    render(COMPENSATION_ONLY)
+    const card = await retention()
+    await userEvent.click(within(card).getByRole('button', { name: t(`${W}.decision.action.maintained`) }))
+    const dialog = screen.getByRole('dialog', { name: t(`${W}.decision.title.maintained`) })
+    const date = within(dialog).getByLabelText(new RegExp(t(`${W}.from`)))
+    // The open rate started on 2026-07-01: the next one from the 2nd.
+    expect(date).toHaveAttribute('min', '2026-07-02')
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.decision.confirm`) }))
+    await waitFor(() => expect(date).toHaveAccessibleDescription(expect.stringContaining('Le nouveau taux doit commencer après le 2026-11-01.')))
     expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('deletes the coming margin created today, after confirmation', async () => {
-    mocks.compensation.deleteProfessionalMargin.mockResolvedValue(undefined)
-    render({ permissions: ['professionals.view', 'professionals.compensation'] })
-    const margin = await screen.findByRole('region', { name: t(`${C}.margin.title`) })
-    await userEvent.click(within(margin).getByRole('button', { name: t(`${C}.margin.historyLabel`, { kind: 'Consultation' }) }))
-    await userEvent.click(within(margin).getByRole('button', { name: /Supprimer la marge Consultation/ }))
-    const confirm = screen.getByRole('alertdialog', { name: t(`${C}.margin.deleteTitle`) })
-    await userEvent.click(within(confirm).getByRole('button', { name: t('modules.professionals.compensation.delete') }))
-    await waitFor(() => expect(mocks.compensation.deleteProfessionalMargin).toHaveBeenCalledExactlyOnceWith(storedCompensation.marginRows[0]?.id))
-  })
-
-  it('says amounts are not computed and the cap is unconfirmed; the level entered long ago cannot be deleted', async () => {
-    render({ permissions: ['professionals.view', 'professionals.compensation'] })
-    const recognition = await screen.findByRole('region', { name: t(`${C}.recognition.title`) })
-    expect(within(recognition).getByText(t(`${C}.recognition.notComputed`))).toBeInTheDocument()
-    expect(within(recognition).getByText('Interprétation du plafond de 25 % à confirmer.')).toBeInTheDocument()
-    await userEvent.click(within(recognition).getByRole('button', { name: t(`${C}.recognition.historyLabel`) }))
-    expect(within(recognition).queryByRole('button', { name: /Supprimer le niveau/ })).not.toBeInTheDocument()
-  })
-
-  it('refetches the terms and the history’s first page after a save', async () => {
-    mocks.compensation.setProfessionalRecognition.mockResolvedValue(undefined)
-    const { invalidated } = render({ permissions: ['professionals.view', 'professionals.compensation'] })
-    const recognition = await screen.findByRole('region', { name: t(`${C}.recognition.title`) })
-    await userEvent.click(within(recognition).getByRole('button', { name: t(`${C}.recognition.update`) }))
-    const dialog = screen.getByRole('dialog', { name: t(`${C}.recognition.dialog.title`) })
-    await userEvent.type(within(dialog).getByRole('textbox', { name: `${t(`${C}.recognition.level`)} ${t('common.form.required')}` }), '3')
-    await userEvent.type(within(dialog).getByRole('textbox', { name: `${t(`${C}.recognition.sessions`)} ${t('common.form.required')}` }), '160')
-    fireEvent.change(within(dialog).getByLabelText(new RegExp(t('modules.professionals.compensation.from'))), { target: { value: '2027-01-01' } })
+  it('opens « Ajouter les séances du mois » on last month, prefilled, and sends the version read', async () => {
+    mocks.compensation.recordMonthlySessions.mockResolvedValue(undefined)
+    render(COMPENSATION_ONLY)
+    const card = await retention()
+    await userEvent.click(within(card).getByRole('button', { name: t(`${C}.sessions.add`) }))
+    const dialog = screen.getByRole('dialog', { name: t(`${C}.sessions.dialog.title`) })
+    expect(within(dialog).getByLabelText(new RegExp(t(`${C}.sessions.dialog.month`)))).toHaveValue('2026-09')
+    const long = within(dialog).getByRole('textbox', { name: t(`${C}.sessions.dialog.long`) })
+    expect(long).toHaveValue('20')
+    await userEvent.clear(long)
+    await userEvent.type(long, '24')
+    // 55,5 − September's 22 + 24 + 2.
+    expect(dialog).toHaveTextContent('Nouveau cumul : 59,5 séances.')
     await userEvent.click(within(dialog).getByRole('button', { name: t('common.save') }))
-    await waitFor(() => expect(mocks.compensation.setProfessionalRecognition).toHaveBeenCalledExactlyOnceWith(id, { level: 3, sessions: 160, effectiveFrom: '2027-01-01', note: null }))
-    await waitFor(() => expect(invalidated()).toContainEqual(professionalKeys.compensation(id)))
-    expect(invalidated()).toContainEqual(professionalKeys.history(id))
-    expect(invalidated()).not.toContainEqual(professionalKeys.lists())
+    await waitFor(() =>
+      expect(mocks.compensation.recordMonthlySessions).toHaveBeenCalledExactlyOnceWith('2026-09-01', [
+        { professionalId: id, long: 24, short: 4, adjustment: 0, note: null, expectedUpdatedAt: '2026-10-02T14:00:00.123456+00:00' },
+      ]),
+    )
+  })
+
+  it('a new month starts empty, with no version; a stale refusal takes the newer one for the next save', async () => {
+    const staleSessions = { code: 'P0001', message: 'Les séances de ce mois ont été modifiées depuis leur affichage.', hint: 'stale', details: id }
+    mocks.compensation.recordMonthlySessions.mockRejectedValueOnce(staleSessions).mockResolvedValueOnce(undefined)
+    render(COMPENSATION_ONLY)
+    const card = await retention()
+    await userEvent.click(within(card).getByRole('button', { name: t(`${C}.sessions.add`) }))
+    const dialog = screen.getByRole('dialog', { name: t(`${C}.sessions.dialog.title`) })
+    fireEvent.change(within(dialog).getByLabelText(new RegExp(t(`${C}.sessions.dialog.month`))), { target: { value: '2026-10' } })
+    const long = within(dialog).getByRole('textbox', { name: t(`${C}.sessions.dialog.long`) })
+    await waitFor(() => expect(long).toHaveValue(''))
+    await userEvent.type(long, '5')
+    // Someone else entered October meanwhile.
+    storedCompensation = compensationFixture({
+      sessionRows: [{ id: 'oct', month: '2026-10-01', long: 3, short: 0, adjustment: 0, note: null, updatedAt: NEW_VERSION }, ...compensationFixture().sessionRows],
+    })
+    await userEvent.click(within(dialog).getByRole('button', { name: t('common.save') }))
+    expect(await within(dialog).findByText(t(`${C}.sessions.stale`))).toBeInTheDocument()
+    expect(mocks.compensation.recordMonthlySessions.mock.calls[0]?.[1]).toEqual([expect.objectContaining({ expectedUpdatedAt: null })])
+    // The refetched month replaces the draft: check, then save again.
+    await waitFor(() => expect(long).toHaveValue('3'))
+    await userEvent.clear(long)
+    await userEvent.type(long, '6')
+    await userEvent.click(within(dialog).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.compensation.recordMonthlySessions).toHaveBeenCalledTimes(2))
+    expect(mocks.compensation.recordMonthlySessions.mock.calls[1]?.[1]).toEqual([expect.objectContaining({ long: 6, expectedUpdatedAt: NEW_VERSION })])
+  })
+
+  it('lists the client agreements with both amounts; a new one refuses a pay above the client price', async () => {
+    mocks.compensation.setClientAgreement.mockResolvedValue(undefined)
+    render(COMPENSATION_ONLY)
+    const agreements = await screen.findByRole('region', { name: t(`${C}.agreements.title`) })
+    expect(agreements).toHaveTextContent('D-1042 · 50 min')
+    expect(agreements).toHaveTextContent('Prix client 120,00 $ · Versé au professionnel 85,00 $')
+    await userEvent.click(within(agreements).getByRole('button', { name: t(`${C}.agreements.add`) }))
+    const dialog = screen.getByRole('dialog', { name: t(`${C}.agreements.dialog.title`) })
+    expect(within(dialog).getByText(t(`${C}.agreements.dialog.clientHelp`))).toBeInTheDocument()
+    const req = (key: string) => `${t(key as never)} ${t('common.form.required')}`
+    await userEvent.type(within(dialog).getByRole('textbox', { name: req(`${C}.agreements.dialog.client`) }), 'AB')
+    await userEvent.type(within(dialog).getByRole('textbox', { name: req(`${C}.agreements.dialog.clientPrice`) }), '100')
+    await userEvent.type(within(dialog).getByRole('textbox', { name: req(`${C}.agreements.dialog.professionalAmount`) }), '110')
+    fireEvent.change(within(dialog).getByLabelText(new RegExp(t(`${W}.from`))), { target: { value: '2026-11-01' } })
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.add`) }))
+    expect(await within(dialog).findByText(t(`${W}.validation.amountAbovePrice`))).toBeInTheDocument()
+    const amount = within(dialog).getByRole('textbox', { name: req(`${C}.agreements.dialog.professionalAmount`) })
+    await userEvent.clear(amount)
+    await userEvent.type(amount, '70,50')
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.add`) }))
+    await waitFor(() =>
+      expect(mocks.compensation.setClientAgreement).toHaveBeenCalledExactlyOnceWith(id, {
+        clientLabel: 'AB',
+        duration: 50,
+        professionalAmountCents: 7050,
+        clientPriceCents: 10000,
+        effectiveFrom: '2026-11-01',
+        note: null,
+      }),
+    )
+  })
+
+  it('offers « Supprimer » on the agreement created today, never on the rate entered long ago', async () => {
+    mocks.compensation.deleteClientAgreement.mockResolvedValue(undefined)
+    render(COMPENSATION_ONLY)
+    const card = await retention()
+    await userEvent.click(within(card).getByRole('button', { name: t(`${C}.retention.rateHistory`) }))
+    expect(within(card).queryByRole('button', { name: /Supprimer le taux/ })).not.toBeInTheDocument()
+    await userEvent.click(within(card).getByRole('button', { name: /Supprimer l’entente D-1042/ }))
+    const confirm = screen.getByRole('alertdialog', { name: t(`${C}.agreements.deleteTitle`) })
+    await userEvent.click(within(confirm).getByRole('button', { name: t(`${W}.delete`) }))
+    await waitFor(() => expect(mocks.compensation.deleteClientAgreement).toHaveBeenCalledExactlyOnceWith(storedCompensation.agreementRows[0]?.id))
+  })
+
+  it('reads « Profession à confirmer » and offers no decision without a grid', async () => {
+    storedCompensation = compensationFixture({ grid: null, suggested: null, next: null, status: 'profession_unconfirmed', pay: [] })
+    render(COMPENSATION_ONLY)
+    const card = await retention()
+    expect(within(card).getByText(t(`${W}.retentionStatus.profession_unconfirmed`))).toBeInTheDocument()
+    expect(within(card).getByText(t(`${C}.retention.noGrid`))).toBeInTheDocument()
+    expect(within(card).queryByRole('button', { name: t(`${W}.decision.action.suggested`) })).not.toBeInTheDocument()
+    expect(within(card).getByRole('button', { name: t(`${C}.sessions.add`) })).toBeInTheDocument()
   })
 })

@@ -30,18 +30,27 @@ const COLUMNS = {
   professional_motifs: ['org_id', 'professional_id', 'motif_id', 'created_at'],
   professional_languages: ['org_id', 'professional_id', 'language_id', 'created_at'],
   professional_payer_numbers: ['org_id', 'professional_id', 'payer_type', 'number', 'created_at', 'updated_at'],
-  // 4a.17 (labels added by 4a.18): the private data (every value redacted in the log) and the four dated compensation tables.
+  // 4a.17 (labels added by 4a.18): the private data (every value redacted in the log).
   professional_private: [
     'professional_id', 'org_id', 'sin', 'sin_last3', 'business_number', 'gst_number', 'qst_number', 'bank_institution', 'bank_transit',
     'bank_account', 'bank_account_last4', 'key_version', 'created_at', 'updated_at', 'updated_by',
   ],
-  compensation_defaults: ['id', 'org_id', 'kind', 'margin_min_pct', 'margin_max_pct', 'effective_from', 'effective_to', 'created_at', 'created_by'],
-  professional_compensation: ['id', 'org_id', 'professional_id', 'kind', 'margin_pct', 'effective_from', 'effective_to', 'note', 'created_at', 'created_by'],
-  recognition_rules: [
-    'id', 'org_id', 'effective_from', 'effective_to', 'step_sessions', 'bonus_per_50min_cents', 'bonus_per_30min_cents', 'cap_pct', 'cap_basis',
+  // The retention program (P4-180…): the clinic's grids and other rates, and each professional's months, rates and agreements.
+  compensation_rates: ['id', 'org_id', 'kind', 'retention_pct', 'effective_from', 'effective_to', 'created_at', 'created_by'],
+  retention_grids: ['id', 'org_id', 'title_id', 'effective_from', 'effective_to', 'note', 'created_at', 'created_by'],
+  retention_grid_tiers: ['org_id', 'grid_id', 'threshold_sessions', 'retention_pct'],
+  retention_grid_prices: ['org_id', 'grid_id', 'duration', 'client_price_cents'],
+  professional_session_counts: [
+    'id', 'org_id', 'professional_id', 'month', 'sessions_50_60', 'sessions_30', 'adjustment', 'note', 'created_at', 'created_by', 'updated_at', 'updated_by',
+  ],
+  professional_retention: [
+    'id', 'org_id', 'professional_id', 'retention_pct', 'decision', 'tier_threshold', 'suggested_pct', 'sessions_total', 'effective_from', 'effective_to',
     'note', 'created_at', 'created_by',
   ],
-  professional_recognition: ['id', 'org_id', 'professional_id', 'level', 'sessions_counted', 'effective_from', 'effective_to', 'note', 'created_at', 'created_by'],
+  professional_client_agreements: [
+    'id', 'org_id', 'professional_id', 'client_label', 'client_id', 'duration', 'professional_amount_cents', 'client_price_cents', 'effective_from',
+    'effective_to', 'note', 'created_at', 'created_by',
+  ],
 } as const
 
 type ModuleTable = keyof typeof COLUMNS

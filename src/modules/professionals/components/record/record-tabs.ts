@@ -45,15 +45,9 @@ async function prefetchCompensationTab(queryClient: QueryClient, id: string, can
   ])
 }
 
-/**
- * Historique: its first page, and the compensation kinds that name margin rows (P4-161). Rejects
- * only when the compensation hooks' chunk does not load.
- */
-async function prefetchHistoryTab(queryClient: QueryClient, id: string, can: Can): Promise<void> {
-  await Promise.all([
-    prefetchProfessionalHistory(queryClient, id),
-    can('professionals.compensation') && compensationHooks().then((hooks) => hooks.prefetchCompensationKinds(queryClient)),
-  ])
+/** Historique: its first page (its compensation rows need no other list, P4-193). */
+async function prefetchHistoryTab(queryClient: QueryClient, id: string): Promise<void> {
+  await prefetchProfessionalHistory(queryClient, id)
 }
 
 /**

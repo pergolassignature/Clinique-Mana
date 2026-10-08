@@ -1263,58 +1263,6 @@
           "loadError": "Les conditions de rémunération n'ont pas pu être chargées.",
           "privateLoadError": "Les renseignements fiscaux et bancaires n'ont pas pu être chargés.",
           "stale": "Ces renseignements ont été modifiés entre-temps. Vérifiez-les, puis enregistrez de nouveau.",
-          "margin": {
-            "title": "Marge clinique",
-            "description": "La part de la clinique, par type de service. Sans marge propre au professionnel, la fourchette par défaut s'applique.",
-            "type": "Type",
-            "current": "Marge en vigueur",
-            "since": "Depuis",
-            "actions": "Actions",
-            "none": "Aucune marge",
-            "sinceLine": "Depuis le {date}",
-            "outside": "Hors de la fourchette par défaut ({range}).",
-            "upcoming": "Prévue : {margin} dès le {date}",
-            "historyLabel": "Historique de la marge {kind}",
-            "add": "Nouvelle marge",
-            "deleteLabel": "Supprimer la marge {kind} de {margin} dès le {date}",
-            "deleteTitle": "Supprimer cette marge ?",
-            "deleteBody": "La marge {kind} de {margin} dès le {date} sera supprimée. La marge précédente, ou la fourchette par défaut, s'appliquera de nouveau.",
-            "deleted": "Marge supprimée.",
-            "dialog": {
-              "title": "Nouvelle marge",
-              "description": "La marge s'applique à partir de la date choisie.",
-              "margin": "Marge (%)",
-              "fromHelp": "La marge actuelle de ce type se terminera la veille de cette date."
-            },
-            "saved": "Marge enregistrée.",
-            "savedOutside": "Marge enregistrée. Elle est hors de la fourchette par défaut."
-          },
-          "recognition": {
-            "title": "Programme de reconnaissance",
-            "description": "Le niveau atteint par le professionnel, inscrit à la main.",
-            "notComputed": "Calcul automatique à venir. Les montants ne sont pas encore calculés.",
-            "capUnconfirmed": "Interprétation du plafond de {cap} à confirmer.",
-            "level": "Niveau",
-            "sessions": "Séances comptées",
-            "since": "Depuis",
-            "none": "Aucun niveau inscrit",
-            "noneBody": "Inscrivez le niveau atteint avec « Mettre à jour ».",
-            "rule": "Règle en vigueur : palier de {step} séances, {bonus50} par séance de 50 min, {bonus30} par séance de 30 min, plafond de {cap}.",
-            "upcoming": "Prévu : niveau {level} dès le {date}",
-            "historyLabel": "Historique des niveaux",
-            "historyRow": "Niveau {level} · {sessions} séances",
-            "update": "Mettre à jour",
-            "deleteLabel": "Supprimer le niveau {level} dès le {date}",
-            "deleteTitle": "Supprimer ce niveau ?",
-            "deleteBody": "Le niveau {level} inscrit dès le {date} sera supprimé. Le niveau précédent s'appliquera de nouveau.",
-            "deleted": "Niveau supprimé.",
-            "dialog": {
-              "title": "Mettre à jour le niveau",
-              "description": "Le nouveau niveau s'applique à partir de la date choisie.",
-              "fromHelp": "Le niveau actuel se terminera la veille de cette date."
-            },
-            "saved": "Niveau enregistré."
-          },
           "taxNumbers": {
             "title": "Fiscalité",
             "description": "Les numéros inscrits sur les factures du professionnel. Laissez un champ vide pour le retirer.",
@@ -1374,6 +1322,92 @@
             "removing": "Retrait…",
             "removed": "Numéro de compte retiré.",
             "saved": "Coordonnées bancaires enregistrées."
+          },
+          "retention": {
+            "title": "Rétention",
+            "description": "La part de la clinique sur les consultations. Elle baisse avec le nombre de séances cumulées, selon la grille de la profession. Interne : elle n’est jamais transmise au professionnel.",
+            "grid": "Grille : {title}",
+            "noGrid": "Aucune grille pour la profession principale de ce professionnel : ajoutez-en une dans Paramètres, section Rémunération.",
+            "sessions": "Séances cumulées",
+            "applied": "Taux appliqué",
+            "suggested": "Taux suggéré",
+            "noRate": "Aucun taux",
+            "since": "Depuis le {date}",
+            "upcoming": "Dès le {date} · aujourd’hui : {rate}",
+            "tier": "Palier de {tier} séances",
+            "next": "prochain palier à {tier} séances ({rate})",
+            "maxTier": "palier maximum",
+            "pay": "Versé au professionnel par séance (taux appliqué → suggéré)",
+            "otherRates": "Autres services, taux de la clinique : {rates}",
+            "rateHistory": "Historique des taux",
+            "monthHistory": "Séances par mois",
+            "snapshot": "À la décision : {sessions} séances, {rate} suggéré",
+            "snapshotNoGrid": "À la décision : {sessions} séances, aucune grille",
+            "monthRow": "{long} de 50 ou 60 min · {short} de 30 min",
+            "adjustment": "Ajustement {value}",
+            "monthTotal": "+{count} · cumul {total}",
+            "deleteLabel": "Supprimer le taux de {rate} dès le {date}",
+            "deleteTitle": "Supprimer ce taux ?",
+            "deleteBody": "Le taux de {rate} dès le {date} sera supprimé. Le taux précédent s’appliquera de nouveau."
+          },
+          "rate": {
+            "deleted": "Taux supprimé."
+          },
+          "decision": {
+            "saved": "Taux enregistré.",
+            "savedDecreased": "Taux enregistré : la retenue baisse, une augmentation pour le professionnel."
+          },
+          "sessions": {
+            "add": "Ajouter les séances du mois",
+            "saved": "Séances enregistrées.",
+            "stale": "Les séances de ce mois ont été modifiées entre-temps. Vérifiez-les, puis enregistrez de nouveau.",
+            "dialog": {
+              "title": "Séances du mois",
+              "description": "Une séance de 50 ou 60 minutes compte pour 1, une séance de 30 minutes pour 0,5. Un mois déjà saisi est remplacé.",
+              "month": "Mois",
+              "monthEntered": "Ce mois est déjà saisi : ses valeurs sont affichées.",
+              "long": "Séances de 50 ou 60 min",
+              "longHelp": "Couples compris.",
+              "short": "Séances de 30 min",
+              "shortHelp": "Comptent pour une demi-séance.",
+              "adjustment": "Ajustement (facultatif)",
+              "adjustmentHelp": "Un solde d’ouverture ou une correction, par demi-séance (ex. 237,5 ou -2).",
+              "newTotal": "Nouveau cumul : {total} séances."
+            }
+          },
+          "agreements": {
+            "title": "Ententes particulières",
+            "description": "Pour un client et une durée : un montant fixe versé au professionnel par séance. La retenue ne s’y applique pas.",
+            "none": "Aucune entente particulière.",
+            "client": "{client} · {duration}",
+            "amounts": "Prix client {price} · Versé au professionnel {amount}",
+            "add": "Nouvelle entente",
+            "end": "Mettre fin",
+            "ending": "Enregistrement…",
+            "endLabel": "Mettre fin à l’entente {client} ({duration})",
+            "deleteLabel": "Supprimer l’entente {client} ({duration}) dès le {date}",
+            "deleteTitle": "Supprimer cette entente ?",
+            "deleteBody": "L’entente {client} ({duration}) dès le {date} sera supprimée.",
+            "saved": "Entente enregistrée.",
+            "ended": "Fin de l’entente enregistrée.",
+            "deleted": "Entente supprimée.",
+            "dialog": {
+              "title": "Nouvelle entente particulière",
+              "description": "Un montant fixe par séance, convenu pour un client. Une nouvelle entente pour le même client et la même durée remplace la précédente à sa date.",
+              "client": "Référence du client",
+              "clientHelp": "Numéro de dossier ou initiales, pas le nom complet.",
+              "duration": "Durée",
+              "clientPrice": "Prix client ($)",
+              "professionalAmount": "Versé au professionnel ($)",
+              "professionalAmountHelp": "Par séance, au plus le prix client.",
+              "fromHelp": "La première séance visée par l’entente."
+            },
+            "endDialog": {
+              "title": "Mettre fin à l’entente",
+              "description": "L’entente {client} ({duration}) prendra fin ; la grille s’appliquera de nouveau.",
+              "to": "Fin de l’entente le",
+              "toHelp": "L’entente s’applique jusqu’à la veille de cette date."
+            }
           }
         },
         "header": {
@@ -1658,12 +1692,20 @@
           "privateReadOther": "a consulté des données privées",
           "other": "a modifié une autre section du dossier",
           "otherRead": "a consulté une section du dossier",
-          "marginSet": "a fixé la marge {kind} à {margin} dès le {date}",
-          "marginDeleted": "a supprimé la marge {kind} de {margin} (dès le {date})",
-          "marginChanged": "a modifié la marge {kind}",
-          "levelSet": "a fixé le niveau de reconnaissance à {level} dès le {date}",
-          "levelDeleted": "a supprimé le niveau de reconnaissance {level} (dès le {date})",
-          "levelChanged": "a modifié le niveau de reconnaissance"
+          "rateSet": {
+            "initial": "a fixé le taux de départ à {rate} dès le {date}",
+            "suggested": "a appliqué le taux suggéré de {rate} dès le {date}",
+            "maintained": "a maintenu le taux à {rate} au palier de {tier} séances, dès le {date}",
+            "custom": "a fixé un taux particulier de {rate} dès le {date}"
+          },
+          "rateDeleted": "a supprimé le taux de {rate} (dès le {date})",
+          "rateChanged": "a modifié un taux de retenue",
+          "agreementAdded": "a ajouté une entente particulière ({duration}) dès le {date}",
+          "agreementDeleted": "a supprimé une entente particulière ({duration}, dès le {date})",
+          "agreementChanged": "a modifié une entente particulière",
+          "sessionsSet": "a saisi les séances de {month}",
+          "sessionsChanged": "a modifié les séances d’un mois",
+          "sessionsDeleted": "a retiré les séances de {month}"
         },
         "sets": {
           "professional_motifs": {
@@ -1749,8 +1791,7 @@
             "specialty": "Approche archivée",
             "language": "Langue archivée",
             "title": "Titre archivé",
-            "reason": "Raison archivée",
-            "kind": "(type inconnu)"
+            "reason": "Raison archivée"
           },
           "hidden": "(valeur non affichable)",
           "payers": {
@@ -1778,6 +1819,10 @@
         "emptyFiltered": {
           "title": "Aucune modification à afficher",
           "body": "Choisissez « Tout » pour voir tout l'historique."
+        },
+        "moneyFields": {
+          "client_price_cents": "Prix client",
+          "professional_amount_cents": "Versé au professionnel"
         }
       },
       "list": {
@@ -1844,7 +1889,8 @@
           "body": "Ajoutez le premier professionnel de la clinique.",
           "bodyReadOnly": "Les professionnels de la clinique s'afficheront ici."
         },
-        "noMatch": { "title": "Aucun professionnel ne correspond", "body": "Modifiez la recherche ou les filtres." }
+        "noMatch": { "title": "Aucun professionnel ne correspond", "body": "Modifiez la recherche ou les filtres." },
+        "review": "Révision mensuelle"
       },
       "create": {
         "heading": "Ajouter un professionnel",
@@ -1945,7 +1991,6 @@
           "between": "Du {from} au {to}",
           "until": "Jusqu'au {date}"
         },
-        "byDefault": "{range} (par défaut)",
         "delete": "Supprimer",
         "deleting": "Suppression…",
         "history": "Historique",
@@ -1959,20 +2004,85 @@
         "validation": {
           "date": "Date requise.",
           "dateBounds": "La date doit être comprise entre le 1 janv. 2000 et le 31 déc. 2100.",
-          "afterOpen": {
-            "margin": "La nouvelle marge doit commencer après le {date}.",
-            "range": "La nouvelle fourchette doit commencer après le {date}.",
-            "level": "Le nouveau niveau doit commencer après le {date}.",
-            "rule": "La nouvelle règle doit commencer après le {date}."
-          },
           "kind": "Choisissez un type.",
           "percent": "Indiquez un pourcentage entre 0 et 100.",
-          "minMax": "La marge minimale ne peut pas dépasser la marge maximale.",
-          "level": "Le niveau est un nombre entier entre 0 et 1 000.",
-          "sessions": "Le nombre de séances est un nombre entier entre 0 et 100 000.",
-          "step": "Le palier est un nombre entier de 1 à 1 000 séances.",
-          "bonus": "Le boni est compris entre 0 et 100 $.",
-          "cap": "Le plafond est compris entre 0 et 100 %."
+          "afterOpen": {
+            "rate": "Le nouveau taux doit commencer après le {date}.",
+            "grid": "La nouvelle grille doit commencer après le {date}."
+          },
+          "month": "Choisissez un mois.",
+          "monthFuture": "Les séances d’un mois à venir ne peuvent pas être saisies.",
+          "sessionsLong": "Un nombre entier de séances, de 0 à 2 000.",
+          "sessionsShort": "Un nombre entier de séances, de 0 à 2 000.",
+          "adjustment": "Un nombre de séances par demi-séance (ex. 12,5 ou -3), entre -100 000 et 100 000.",
+          "customNote": "Indiquez la raison du taux particulier.",
+          "clientLabel": "Indiquez la référence du client.",
+          "duration": "Choisissez une durée.",
+          "money": "Un montant entre 0,01 $ et 1 000 $.",
+          "amountAbovePrice": "Le montant versé ne peut pas dépasser le prix client.",
+          "endAfterStart": "La fin doit suivre le début ({date}).",
+          "threshold": "Un nombre entier de séances, de 0 à 100 000.",
+          "tiersRequired": "Ajoutez au moins un palier.",
+          "tiersDistinct": "Deux paliers ont le même seuil.",
+          "tiersFromZero": "Le premier palier commence à 0 séance.",
+          "tiersDecreasing": "Un palier plus élevé ne peut pas retenir davantage que le précédent.",
+          "pricesRequired": "Indiquez au moins un prix."
+        },
+        "durations": {
+          "60": "60 min / couple",
+          "50": "50 min",
+          "30": "30 min"
+        },
+        "retentionStatus": {
+          "gap": "Écart à valider",
+          "conforme": "Conforme",
+          "floor": "Palier maximum atteint",
+          "maintained": "Maintenu",
+          "custom": "Taux particulier",
+          "profession_unconfirmed": "Profession à confirmer"
+        },
+        "decisions": {
+          "initial": "Taux de départ",
+          "suggested": "Suggestion appliquée",
+          "maintained": "Taux maintenu",
+          "custom": "Taux particulier"
+        },
+        "decision": {
+          "action": {
+            "initial": "Fixer le taux de départ",
+            "suggested": "Appliquer la suggestion",
+            "maintained": "Maintenir",
+            "custom": "Taux particulier"
+          },
+          "title": {
+            "initial": "Fixer le taux de départ",
+            "suggested": "Appliquer la suggestion",
+            "maintained": "Maintenir le taux",
+            "custom": "Fixer un taux particulier"
+          },
+          "titleFor": {
+            "initial": "Taux de départ — {name}",
+            "suggested": "Appliquer la suggestion — {name}",
+            "maintained": "Maintenir le taux — {name}",
+            "custom": "Taux particulier — {name}"
+          },
+          "describe": {
+            "suggested": "La retenue de la clinique passe de {from} à {to} (palier de {tier} séances).",
+            "suggestedFirst": "La retenue de la clinique sera de {to} (palier de {tier} séances).",
+            "maintained": "La retenue reste à {rate} au palier de {tier} séances. L’écart sera signalé de nouveau au prochain palier.",
+            "custom": "Un taux particulier n’est plus signalé comme un écart. Indiquez-en la raison.",
+            "initial": "Le taux appliqué jusqu’ici, avant le suivi dans l’application."
+          },
+          "rate": "Retenue de la clinique (%)",
+          "fromHelp": "Le taux actuel se terminera la veille de cette date.",
+          "customNoteHelp": "Sur une ligne : la raison du taux particulier.",
+          "confirm": "Confirmer",
+          "confirming": "Enregistrement…"
+        },
+        "pay": {
+          "suggestedPrefix": "suggéré :",
+          "clientPrice": "Prix client : {price}",
+          "minutes": "{duration} min"
         }
       },
       "settings": {
@@ -2136,64 +2246,8 @@
         },
         "compensation": {
           "title": "Rémunération",
-          "description": "Les conditions communes à tous les professionnels : les marges par défaut et le programme de reconnaissance. La marge et le niveau de chacun s'inscrivent dans son dossier.",
+          "description": "Les conditions communes à tous les professionnels : les grilles de rétention par profession et les taux des autres services. Chaque changement est daté.",
           "loadError": "Les conditions de rémunération n'ont pas pu être chargées.",
-          "defaults": {
-            "title": "Marges par défaut",
-            "description": "La fourchette qui s'applique à un professionnel sans marge propre, par type de service.",
-            "range": "Fourchette",
-            "from": "Du",
-            "to": "Au",
-            "status": "Statut",
-            "actions": "Actions",
-            "empty": "Aucune fourchette enregistrée.",
-            "add": "Nouvelle fourchette",
-            "deleteLabel": "Supprimer la fourchette {kind} de {range} dès le {date}",
-            "deleteTitle": "Supprimer cette fourchette ?",
-            "deleteBody": "La fourchette {kind} de {range} dès le {date} sera supprimée. La fourchette précédente s'appliquera de nouveau.",
-            "deleted": "Fourchette supprimée.",
-            "dialog": {
-              "title": "Nouvelle fourchette",
-              "description": "La fourchette s'applique à partir de la date choisie.",
-              "min": "Marge minimale (%)",
-              "max": "Marge maximale (%)",
-              "fromHelp": "La fourchette actuelle de ce type se terminera la veille de cette date."
-            },
-            "saved": "Fourchette enregistrée."
-          },
-          "rules": {
-            "title": "Programme de reconnaissance",
-            "description": "Les règles du programme, datées. Les montants ne sont pas encore calculés : les règles sont inscrites telles que le contrat les donne.",
-            "rule": "Règle",
-            "from": "Du",
-            "status": "Statut",
-            "actions": "Actions",
-            "summary": "Palier de {step} séances · {bonus50} par séance de 50 min · {bonus30} par séance de 30 min",
-            "cap": "Plafond de {cap} · base : {basis}",
-            "bases": {
-              "unconfirmed": "À confirmer",
-              "margin_reduction": "Réduction de la marge",
-              "fee_increase": "Augmentation des honoraires"
-            },
-            "empty": "Aucune règle enregistrée.",
-            "add": "Nouvelle règle",
-            "deleteLabel": "Supprimer la règle dès le {date}",
-            "deleteTitle": "Supprimer cette règle ?",
-            "deleteBody": "La règle dès le {date} sera supprimée. La règle précédente s'appliquera de nouveau.",
-            "deleted": "Règle supprimée.",
-            "dialog": {
-              "title": "Nouvelle règle",
-              "description": "La règle s'applique à partir de la date choisie.",
-              "step": "Palier (séances)",
-              "bonus50": "Boni par séance de 50 min ($)",
-              "bonus30": "Boni par séance de 30 min ($)",
-              "cap": "Plafond (%)",
-              "basis": "Base du plafond",
-              "basisHelp": "Comment lire « jusqu'à concurrence de … » dans le contrat.",
-              "fromHelp": "La règle actuelle se terminera la veille de cette date."
-            },
-            "saved": "Règle enregistrée."
-          },
           "sin": {
             "title": "Renseignements fiscaux",
             "description": "Ce que le dossier des professionnels peut recueillir.",
@@ -2204,6 +2258,64 @@
             "confirmBody": "Activez seulement si votre comptable confirme que le NAS est requis (T4A / relevé).",
             "confirm": "Activer",
             "confirming": "Activation…"
+          },
+          "grids": {
+            "title": "Grilles de rétention",
+            "description": "Par profession : la retenue de la clinique selon les séances cumulées, et le prix client de chaque durée. Une modification crée une nouvelle version datée.",
+            "summary": "De {first} à {floor} (dès {tier} séances)",
+            "none": "Aucune grille : les professionnels de cette profession sont « Profession à confirmer ».",
+            "coming": "Nouvelle version dès le {date}.",
+            "details": "Paliers et prix ({count} version(s))",
+            "range": "{from} à {to}",
+            "rangeOpen": "{from} et plus",
+            "sessions": "Séances cumulées",
+            "retention": "Retenue",
+            "prices": "Prix client",
+            "tiersLabel": "Paliers de {title} dès le {date}",
+            "newVersion": "Nouvelle version",
+            "newVersionLabel": "Nouvelle version de la grille {title}",
+            "create": "Créer la grille",
+            "createLabel": "Créer la grille {title}",
+            "deleteLabel": "Supprimer la grille {title} dès le {date}",
+            "deleteTitle": "Supprimer cette version ?",
+            "deleteBody": "La grille {title} dès le {date} sera supprimée avec ses paliers et ses prix. La version précédente s’appliquera de nouveau.",
+            "saved": "Grille enregistrée.",
+            "deleted": "Grille supprimée.",
+            "dialog": {
+              "title": "Grille — {title}",
+              "description": "La nouvelle version s’applique à partir de la date choisie.",
+              "fromHelp": "La version actuelle se terminera la veille de cette date.",
+              "tiers": "Paliers",
+              "tiersHelp": "À partir du seuil de séances cumulées, la clinique retient ce pourcentage. Le premier palier commence à 0.",
+              "threshold": "Seuil du palier {index} (séances)",
+              "retention": "Retenue du palier {index} (%)",
+              "removeTier": "Retirer le palier {index}",
+              "addTier": "Ajouter un palier",
+              "prices": "Prix client ($)",
+              "pricesHelp": "Laissez vide une durée qui n’est pas offerte."
+            }
+          },
+          "rates": {
+            "title": "Autres services",
+            "description": "La retenue de la clinique sur les ateliers et conférences, les annulations tardives et les autres frais : la même pour tous les professionnels.",
+            "rate": "Retenue",
+            "from": "Du",
+            "to": "Au",
+            "status": "Statut",
+            "actions": "Actions",
+            "empty": "Aucun taux enregistré.",
+            "add": "Nouveau taux",
+            "deleteLabel": "Supprimer le taux {kind} de {rate} dès le {date}",
+            "deleteTitle": "Supprimer ce taux ?",
+            "deleteBody": "Le taux {kind} de {rate} dès le {date} sera supprimé. Le taux précédent s’appliquera de nouveau.",
+            "saved": "Taux enregistré.",
+            "deleted": "Taux supprimé.",
+            "dialog": {
+              "title": "Nouveau taux",
+              "description": "Le taux s’applique à partir de la date choisie.",
+              "rate": "Retenue (%)",
+              "fromHelp": "Le taux actuel de ce type se terminera la veille de cette date."
+            }
           }
         },
         "list": {
@@ -2274,6 +2386,55 @@
             "pending": "Restauration…"
           }
         }
+      },
+      "review": {
+        "title": "Révision mensuelle",
+        "description": "Les séances du mois, le taux appliqué et la suggestion de la grille, pour chaque professionnel actif.",
+        "loadError": "La révision du mois n’a pas pu être chargée.",
+        "month": "Mois",
+        "filter": "Afficher",
+        "filters": {
+          "all": "Tous ({count})",
+          "status": "{status} ({count})"
+        },
+        "legend": "Jaune : écart à valider · vert : augmentation décidée pour le mois suivant · bleu : palier maximum.",
+        "listLabel": "Professionnels, {month}",
+        "columns": {
+          "professional": "Professionnel",
+          "sessions": "Séances du mois",
+          "cumulative": "Cumul",
+          "rates": "Taux",
+          "pay": "Versé par séance",
+          "status": "Statut"
+        },
+        "long": "50/60 min",
+        "short": "30 min",
+        "longLabel": "Séances de 50 ou 60 min de {name}",
+        "shortLabel": "Séances de 30 min de {name}",
+        "before": "{count} avant le mois",
+        "adjustment": "Ajustement {value}",
+        "unsaved": "(non enregistré)",
+        "applied": "Appliqué",
+        "suggested": "Suggéré",
+        "tier": "palier {tier}",
+        "noTitle": "Aucune profession",
+        "agreements": "{count} entente(s) particulière(s)",
+        "increaseDecided": "Augmentation décidée pour le mois suivant.",
+        "decisionLabel": {
+          "suggested": "Appliquer la suggestion pour {name}",
+          "maintained": "Maintenir le taux de {name}",
+          "custom": "Taux particulier pour {name}",
+          "initial": "Fixer le taux de départ de {name}"
+        },
+        "noGap": "Aucun écart à valider ce mois-ci.",
+        "empty": "Aucun professionnel dans ce filtre.",
+        "changes": "{count} professionnel(s) modifié(s).",
+        "invalid": "Corrigez les nombres signalés.",
+        "discard": "Annuler les changements",
+        "save": "Enregistrer les séances",
+        "saved": "Séances enregistrées pour {count} professionnel(s).",
+        "stale": "Les séances de {name} ont été modifiées entre-temps. Vérifiez-les, puis enregistrez de nouveau.",
+        "refusedFor": "{name} : {message}"
       }
     }
   },
@@ -2321,10 +2482,13 @@
       "professional_languages": "Langues des professionnels",
       "professional_payer_numbers": "Numéros de payeurs des professionnels",
       "professional_private": "Données privées des professionnels",
-      "professional_compensation": "Marges des professionnels",
-      "professional_recognition": "Niveaux de reconnaissance des professionnels",
-      "compensation_defaults": "Marges par défaut",
-      "recognition_rules": "Règles du programme de reconnaissance"
+      "compensation_rates": "Taux des autres services",
+      "retention_grids": "Grilles de rétention",
+      "retention_grid_tiers": "Paliers des grilles de rétention",
+      "retention_grid_prices": "Prix des grilles de rétention",
+      "professional_session_counts": "Séances des professionnels",
+      "professional_retention": "Taux de retenue des professionnels",
+      "professional_client_agreements": "Ententes particulières"
     },
     "commonFields": {
       "id": "Identifiant",
@@ -2584,35 +2748,54 @@
         "bank_account_last4": "Numéro de compte (4 derniers chiffres)",
         "key_version": "Version de la clé de chiffrement"
       },
-      "professional_compensation": {
-        "professional_id": "Professionnel",
+      "compensation_rates": {
         "kind": "Type",
-        "margin_pct": "Marge (%)",
-        "effective_from": "En vigueur du",
-        "effective_to": "Fin (exclue)",
-        "note": "Note"
-      },
-      "professional_recognition": {
-        "professional_id": "Professionnel",
-        "level": "Niveau",
-        "sessions_counted": "Séances comptées",
-        "effective_from": "En vigueur du",
-        "effective_to": "Fin (exclue)",
-        "note": "Note"
-      },
-      "compensation_defaults": {
-        "kind": "Type",
-        "margin_min_pct": "Marge minimale (%)",
-        "margin_max_pct": "Marge maximale (%)",
+        "retention_pct": "Retenue (%)",
         "effective_from": "En vigueur du",
         "effective_to": "Fin (exclue)"
       },
-      "recognition_rules": {
-        "step_sessions": "Palier (séances)",
-        "bonus_per_50min_cents": "Boni par séance de 50 min (¢)",
-        "bonus_per_30min_cents": "Boni par séance de 30 min (¢)",
-        "cap_pct": "Plafond (%)",
-        "cap_basis": "Base du plafond",
+      "retention_grids": {
+        "title_id": "Profession",
+        "effective_from": "En vigueur du",
+        "effective_to": "Fin (exclue)",
+        "note": "Note"
+      },
+      "retention_grid_tiers": {
+        "grid_id": "Grille",
+        "threshold_sessions": "Seuil (séances)",
+        "retention_pct": "Retenue (%)"
+      },
+      "retention_grid_prices": {
+        "grid_id": "Grille",
+        "duration": "Durée (min)",
+        "client_price_cents": "Prix client (¢)"
+      },
+      "professional_session_counts": {
+        "professional_id": "Professionnel",
+        "month": "Mois",
+        "sessions_50_60": "Séances de 50 ou 60 min",
+        "sessions_30": "Séances de 30 min",
+        "adjustment": "Ajustement (séances)",
+        "note": "Note"
+      },
+      "professional_retention": {
+        "professional_id": "Professionnel",
+        "retention_pct": "Retenue (%)",
+        "decision": "Décision",
+        "tier_threshold": "Palier (séances)",
+        "suggested_pct": "Taux suggéré (%)",
+        "sessions_total": "Séances cumulées",
+        "effective_from": "En vigueur du",
+        "effective_to": "Fin (exclue)",
+        "note": "Note"
+      },
+      "professional_client_agreements": {
+        "professional_id": "Professionnel",
+        "client_label": "Référence du client",
+        "client_id": "Client",
+        "duration": "Durée (min)",
+        "professional_amount_cents": "Versé au professionnel (¢)",
+        "client_price_cents": "Prix client (¢)",
         "effective_from": "En vigueur du",
         "effective_to": "Fin (exclue)",
         "note": "Note"

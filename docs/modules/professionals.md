@@ -15,6 +15,17 @@ Migration `20261008100634_professionals_lifecycle.sql` (Task 4a.4) links a profe
 
 « Profil de jumelage complet » (`professionals_readiness`, `get_professional_readiness`) counts only active reference rows: titles, motifs, clientèles and languages. Matching ignores archived rows, so a professional whose only clientèle was archived is incomplete again (`missing` holds `clientele`). An archived title is neither a profession nor a missing licence, and an archived restricted motif requires no regulated title.
 
+## Programme de reconnaissance (rétention)
+
+The clinic's program (P4-180–P4-194, the plan's « The retention program »), in migration `20261008170703_professionals_compensation_private.sql`:
+
+- **Grids.** One grid per profession title and period (`retention_grids`, with `retention_grid_tiers` and `retention_grid_prices`), seeded from 2026-07-01 with the clinic's eight grids. The retention starts at 28 % (Psychologie, Psychothérapie) or 30 % and drops by 0.5 point per 50 cumulative sessions, down to 25 %. A change is a new dated version (Paramètres → Rémunération). The professional's **primary** title picks the grid; without one, the professional reads « Profession à confirmer ».
+- **Sessions.** `professional_session_counts`: one row per professional and month; a 50/60-minute session counts 1, a 30-minute one 0.5, and an adjustment carries an opening balance or a correction. The cumulative count is their sum, computed on read.
+- **Applied rate.** `professional_retention`: dated decisions (« Taux de départ », « Appliquer la suggestion », « Maintenir », « Taux particulier »). The grid only suggests; staff decide. Status: « Écart à valider », « Conforme », « Palier maximum atteint », « Maintenu », « Taux particulier », « Profession à confirmer » (`private.retention_overview`).
+- **Pay.** Client price × (1 − retention), to the cent, in the database (`private.retention_pay_cents`). « Ententes particulières » (`professional_client_agreements`) are fixed amounts for one client and duration; the retention does not apply to them. `client_id` waits for the Clients module (FK and backfill then).
+- **Other kinds.** `compensation_rates`: « Ateliers et conférences » 25 %, « Annulation tardive » 30 %, « Autres frais » 15 %, per clinic, dated.
+- **Pages.** The record's « Rémunération et fiscalité » → « Rétention »; « Révision mensuelle » (`/professionnels/revision-mensuelle`); Paramètres → Rémunération. Everything needs `professionals.compensation` (admin by default) and is internal: never shown to the professional (`professionals.self`). The notice email to the professional arrives with 4b (P4-191).
+
 ## Écarts par rapport à PS Hub
 
 PS Hub (`NEW PS Hub`, read-only) settles uncertain choices (P4-39). Where this module differs, the reason is below.

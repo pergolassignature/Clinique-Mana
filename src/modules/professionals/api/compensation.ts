@@ -4,84 +4,101 @@ import { parseRpc } from './parse'
 import { sqlArgs } from './sql-args'
 
 /**
- * Compensation terms (4a.17, `professionals.compensation`): what is in force for a professional
- * (`get_professional_compensation`, the read model 4d and Facturation share), the dated rows
- * behind it (read from the tables, RLS-scoped to the clinic), and the clinic's defaults and
- * recognition rules. Percents are `numeric(5, 2)` (JSON numbers), bonuses are cents, dates are
- * date-only `yyyy-MM-dd` strings (shown with `formatDateOnly*`, never through a timezone).
+ * The retention program (P4-180…P4-194, `professionals.compensation`): what a professional has
+ * (`get_professional_compensation`, the read model 4d and Facturation share), the dated rows behind
+ * it (read from the tables, RLS-scoped to the clinic), the monthly review
+ * (`list_retention_review`) and the clinic's grids and other rates. Percents are `numeric(5, 2)`
+ * and session counts `numeric` (JSON numbers), money is cents, dates are date-only `yyyy-MM-dd`
+ * strings (shown with `formatDateOnly*`, never through a timezone). Every amount is computed by the
+ * database: the page only shows it.
  */
 
 /** Rows read per series. A professional has a handful; the cap only bounds the payload. */
 export const COMPENSATION_ROWS_MAX = 200
 
-export const CAP_BASES = ['unconfirmed', 'margin_reduction', 'fee_increase'] as const
-export type CapBasis = (typeof CAP_BASES)[number]
+/** The grid's services: « 60 min / couple », « 50 min », « 30 min ». */
+export const DURATIONS = [60, 50, 30] as const
+export type Duration = (typeof DURATIONS)[number]
+const duration = z.union([z.literal(60), z.literal(50), z.literal(30)])
 
-const marginInForcePayload = z
-  .object({
-    kind: z.string(),
-    name: z.string(),
-    source: z.enum(['professional', 'default', 'none']),
-    margin_pct: z.number().nullable(),
-    min: z.number().nullable(),
-    max: z.number().nullable(),
-    effective_from: z.string().nullable(),
-    id: z.string().nullable(),
-    note: z.string().nullable(),
-  })
-  .transform((m) => ({
-    kind: m.kind,
-    name: m.name,
-    /** `professional`: the professional's margin; `default`: the clinic's range applies; `none`: neither. */
-    source: m.source,
-    marginPct: m.margin_pct,
-    /** The default range in force, given even when the professional has a margin. */
-    min: m.min,
-    max: m.max,
-    effectiveFrom: m.effective_from,
-    note: m.note,
-  }))
-export type MarginInForce = z.output<typeof marginInForcePayload>
+/** How the applied rate was set (P4-187). */
+export const DECISIONS = ['initial', 'suggested', 'maintained', 'custom'] as const
+export type Decision = (typeof DECISIONS)[number]
 
-const rulePayload = z
+/** P4-188: computed by `private.retention_overview`. */
+export const RETENTION_STATUSES = ['gap', 'conforme', 'floor', 'maintained', 'custom', 'profession_unconfirmed'] as const
+export type RetentionStatus = (typeof RETENTION_STATUSES)[number]
+
+const tierPayload = z
+  .object({ threshold_sessions: z.number(), retention_pct: z.number() })
+  .transform((t) => ({ threshold: t.threshold_sessions, pct: t.retention_pct }))
+export type Tier = z.output<typeof tierPayload>
+
+const appliedPayload = z
   .object({
     id: z.string(),
-    step_sessions: z.number(),
-    bonus_per_50min_cents: z.number(),
-    bonus_per_30min_cents: z.number(),
-    cap_pct: z.number(),
-    cap_basis: z.enum(CAP_BASES),
+    retention_pct: z.number(),
+    decision: z.enum(DECISIONS),
     effective_from: z.string(),
+    tier_threshold: z.number().nullable(),
+    note: z.string().nullable(),
   })
-  .transform((r) => ({
-    id: r.id,
-    stepSessions: r.step_sessions,
-    bonusPer50MinCents: r.bonus_per_50min_cents,
-    bonusPer30MinCents: r.bonus_per_30min_cents,
-    capPct: r.cap_pct,
-    capBasis: r.cap_basis,
-    effectiveFrom: r.effective_from,
-  }))
-export type RecognitionRuleInForce = z.output<typeof rulePayload>
+  .transform((a) => ({ id: a.id, pct: a.retention_pct, decision: a.decision, effectiveFrom: a.effective_from, tierThreshold: a.tier_threshold, note: a.note }))
+export type AppliedRate = z.output<typeof appliedPayload>
+
+const payPayload = z
+  .object({ duration, client_price_cents: z.number(), applied_cents: z.number().nullable(), suggested_cents: z.number().nullable() })
+  .transform((p) => ({ duration: p.duration, clientPriceCents: p.client_price_cents, appliedCents: p.applied_cents, suggestedCents: p.suggested_cents }))
+export type PayLine = z.output<typeof payPayload>
+
+/** What both read models say about one professional's retention. */
+const stateColumns = {
+  sessions_total: z.number(),
+  applied: appliedPayload.nullable(),
+  previous_pct: z.number().nullable(),
+  in_force_pct: z.number().nullable(),
+  suggested: tierPayload.nullable(),
+  next: tierPayload.nullable(),
+  status: z.enum(RETENTION_STATUSES),
+  pay: z.array(payPayload),
+}
+const state = (s: {
+  sessions_total: number
+  applied: AppliedRate | null
+  previous_pct: number | null
+  in_force_pct: number | null
+  suggested: Tier | null
+  next: Tier | null
+  status: RetentionStatus
+  pay: PayLine[]
+}) => ({
+  sessionsTotal: s.sessions_total,
+  applied: s.applied,
+  previousPct: s.previous_pct,
+  inForcePct: s.in_force_pct,
+  suggested: s.suggested,
+  next: s.next,
+  status: s.status,
+  pay: s.pay,
+})
+export type RetentionState = ReturnType<typeof state>
 
 const compensationPayload = z
   .object({
     on: z.string(),
-    margins: z.array(marginInForcePayload),
-    recognition: z.object({
-      id: z.string().nullable(),
-      level: z.number().nullable(),
-      sessions_counted: z.number().nullable(),
-      effective_from: z.string().nullable(),
-      note: z.string().nullable(),
-      rule: rulePayload.nullable(),
-    }),
+    title: z.object({ id: z.string(), name: z.string() }).nullable(),
+    grid: z
+      .object({ id: z.string(), effective_from: z.string(), floor_pct: z.number().nullable(), tiers: z.array(tierPayload) })
+      .transform((g) => ({ id: g.id, effectiveFrom: g.effective_from, floorPct: g.floor_pct, tiers: g.tiers }))
+      .nullable(),
+    ...stateColumns,
+    other_rates: z.array(
+      z
+        .object({ kind: z.string(), name: z.string(), retention_pct: z.number().nullable(), effective_from: z.string().nullable() })
+        .transform((r) => ({ kind: r.kind, name: r.name, pct: r.retention_pct, effectiveFrom: r.effective_from })),
+    ),
   })
-  .transform(({ on, margins, recognition: r }) => ({
-    on,
-    margins,
-    recognition: { level: r.level, sessionsCounted: r.sessions_counted, effectiveFrom: r.effective_from, note: r.note, rule: r.rule },
-  }))
+  .transform(({ on, title, grid, other_rates, ...rest }) => ({ on, title, grid, otherRates: other_rates, ...state(rest) }))
 
 const datedColumns = { id: z.string(), effective_from: z.string(), effective_to: z.string().nullable(), created_at: z.string() }
 const dated = (r: { id: string; effective_from: string; effective_to: string | null; created_at: string }) => ({
@@ -91,97 +108,198 @@ const dated = (r: { id: string; effective_from: string; effective_to: string | n
   createdAt: r.created_at,
 })
 
-const marginRowsPayload = z.array(
+const retentionRowsPayload = z.array(
   z
-    .object({ ...datedColumns, kind: z.string(), margin_pct: z.number(), note: z.string().nullable() })
-    .transform((r) => ({ ...dated(r), kind: r.kind, marginPct: r.margin_pct, note: r.note })),
+    .object({
+      ...datedColumns,
+      retention_pct: z.number(),
+      decision: z.enum(DECISIONS),
+      tier_threshold: z.number().nullable(),
+      suggested_pct: z.number().nullable(),
+      sessions_total: z.number().nullable(),
+      note: z.string().nullable(),
+    })
+    .transform((r) => ({
+      ...dated(r),
+      pct: r.retention_pct,
+      decision: r.decision,
+      tierThreshold: r.tier_threshold,
+      suggestedPct: r.suggested_pct,
+      sessionsTotal: r.sessions_total,
+      note: r.note,
+    })),
 )
-export type MarginRow = z.output<typeof marginRowsPayload>[number]
+export type RetentionRow = z.output<typeof retentionRowsPayload>[number]
 
-const levelRowsPayload = z.array(
+const sessionRowsPayload = z.array(
   z
-    .object({ ...datedColumns, level: z.number(), sessions_counted: z.number(), note: z.string().nullable() })
-    .transform((r) => ({ ...dated(r), level: r.level, sessionsCounted: r.sessions_counted, note: r.note })),
+    .object({
+      id: z.string(),
+      month: z.string(),
+      sessions_50_60: z.number(),
+      sessions_30: z.number(),
+      adjustment: z.number(),
+      note: z.string().nullable(),
+      updated_at: z.string(),
+    })
+    .transform((r) => ({
+      id: r.id,
+      month: r.month,
+      long: r.sessions_50_60,
+      short: r.sessions_30,
+      adjustment: r.adjustment,
+      note: r.note,
+      updatedAt: r.updated_at,
+    })),
 )
-export type LevelRow = z.output<typeof levelRowsPayload>[number]
+export type SessionRow = z.output<typeof sessionRowsPayload>[number]
+
+const agreementRowsPayload = z.array(
+  z
+    .object({
+      ...datedColumns,
+      client_label: z.string(),
+      duration,
+      professional_amount_cents: z.number(),
+      client_price_cents: z.number(),
+      note: z.string().nullable(),
+    })
+    .transform((r) => ({
+      ...dated(r),
+      clientLabel: r.client_label,
+      duration: r.duration,
+      professionalAmountCents: r.professional_amount_cents,
+      clientPriceCents: r.client_price_cents,
+      note: r.note,
+    })),
+)
+export type AgreementRow = z.output<typeof agreementRowsPayload>[number]
 
 const DATED = 'id, effective_from, effective_to, created_at'
 
 /**
- * The « Rémunération » cards of a record in one cache entry: the terms in force on the clinic's
- * today and the professional's dated margins and levels, read in parallel.
+ * The « Rétention » card of a record in one cache entry: the state on the clinic's today and the
+ * professional's dated rates, months and client agreements, read in parallel.
  */
 export async function fetchProfessionalCompensation(id: string) {
-  const [inForce, margins, levels] = await Promise.all([
+  const [inForce, rates, months, agreements] = await Promise.all([
     supabase.rpc('get_professional_compensation', { p_id: id }),
     supabase
-      .from('professional_compensation')
-      .select(`${DATED}, kind, margin_pct, note`)
+      .from('professional_retention')
+      .select(`${DATED}, retention_pct, decision, tier_threshold, suggested_pct, sessions_total, note`)
       .eq('professional_id', id)
       .order('effective_from', { ascending: false })
       .limit(COMPENSATION_ROWS_MAX),
     supabase
-      .from('professional_recognition')
-      .select(`${DATED}, level, sessions_counted, note`)
+      .from('professional_session_counts')
+      .select('id, month, sessions_50_60, sessions_30, adjustment, note, updated_at')
+      .eq('professional_id', id)
+      .order('month', { ascending: false })
+      .limit(COMPENSATION_ROWS_MAX),
+    supabase
+      .from('professional_client_agreements')
+      .select(`${DATED}, client_label, duration, professional_amount_cents, client_price_cents, note`)
       .eq('professional_id', id)
       .order('effective_from', { ascending: false })
       .limit(COMPENSATION_ROWS_MAX),
   ])
   if (inForce.error) throw inForce.error
-  if (margins.error) throw margins.error
-  if (levels.error) throw levels.error
+  if (rates.error) throw rates.error
+  if (months.error) throw months.error
+  if (agreements.error) throw agreements.error
   return {
     ...parseRpc(compensationPayload, inForce.data),
-    marginRows: parseRpc(marginRowsPayload, margins.data),
-    levelRows: parseRpc(levelRowsPayload, levels.data),
+    rateRows: parseRpc(retentionRowsPayload, rates.data),
+    sessionRows: parseRpc(sessionRowsPayload, months.data),
+    agreementRows: parseRpc(agreementRowsPayload, agreements.data),
   }
 }
 export type ProfessionalCompensation = Awaited<ReturnType<typeof fetchProfessionalCompensation>>
 
-export interface MarginInput {
-  kind: string
-  marginPct: number
-  /** `yyyy-MM-dd`, sent as typed. */
+// --- Sessions -------------------------------------------------------------------------------------
+
+export interface SessionEntryInput {
+  professionalId: string
+  long: number
+  short: number
+  /** Omitted: the month's stored adjustment is kept. */
+  adjustment?: number
+  /** Omitted: the month's stored note is kept. */
+  note?: string | null
+  /** The month's `updated_at` as read, or null when the month had no row (P4-186). */
+  expectedUpdatedAt: string | null
+}
+
+/** One month's sessions for one professional or many, all or nothing. `month`: `yyyy-MM-01`. */
+export async function recordMonthlySessions(month: string, entries: readonly SessionEntryInput[]): Promise<void> {
+  const { error } = await supabase.rpc('record_monthly_sessions', {
+    p_month: month,
+    p_entries: entries.map((e) => ({
+      professional_id: e.professionalId,
+      sessions_50_60: e.long,
+      sessions_30: e.short,
+      ...(e.adjustment === undefined ? {} : { adjustment: e.adjustment }),
+      ...(e.note === undefined ? {} : { note: e.note }),
+      expected_updated_at: e.expectedUpdatedAt,
+    })),
+  })
+  if (error) throw error
+}
+
+// --- Decisions --------------------------------------------------------------------------------------
+
+export interface DecisionInput {
+  decision: Decision
+  /** For `initial` and `custom` only; the others are computed. */
+  pct: number | null
   effectiveFrom: string
   note: string | null
 }
 
-/** A new margin for a kind (closes the open one). `warning`: outside the default range on that date. */
-export async function setProfessionalMargin(id: string, input: MarginInput): Promise<{ id: string; warning: boolean }> {
+/** `decreased`: the rate went down (an « augmentation » for the professional). */
+export async function decideRetention(id: string, input: DecisionInput): Promise<{ id: string; pct: number; decreased: boolean }> {
   const { data, error } = await supabase.rpc(
-    'set_professional_margin',
-    sqlArgs<'set_professional_margin'>({
+    'decide_retention',
+    sqlArgs<'decide_retention'>({
       p_id: id,
-      p_kind: input.kind,
-      p_margin_pct: input.marginPct,
+      p_decision: input.decision,
+      p_retention_pct: input.pct,
       p_effective_from: input.effectiveFrom,
       p_note: input.note,
     }),
   )
   if (error) throw error
-  return parseRpc(z.object({ id: z.string(), warning: z.boolean() }), data)
+  return parseRpc(
+    z.object({ id: z.string(), retention_pct: z.number(), decreased: z.boolean() }).transform((r) => ({ id: r.id, pct: r.retention_pct, decreased: r.decreased })),
+    data,
+  )
 }
 
-export async function deleteProfessionalMargin(rowId: string): Promise<void> {
-  const { error } = await supabase.rpc('delete_professional_margin', { p_row_id: rowId })
+export async function deleteProfessionalRetention(rowId: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_professional_retention', { p_row_id: rowId })
   if (error) throw error
 }
 
-export interface LevelInput {
-  level: number
-  sessions: number
+// --- Client agreements -----------------------------------------------------------------------------
+
+export interface AgreementInput {
+  clientLabel: string
+  duration: Duration
+  professionalAmountCents: number
+  clientPriceCents: number
   effectiveFrom: string
   note: string | null
 }
 
-/** A new recognition level, entered by hand (P4-8): closes the open one. */
-export async function setProfessionalRecognition(id: string, input: LevelInput): Promise<void> {
+export async function setClientAgreement(id: string, input: AgreementInput): Promise<void> {
   const { error } = await supabase.rpc(
-    'set_professional_recognition',
-    sqlArgs<'set_professional_recognition'>({
+    'set_professional_client_agreement',
+    sqlArgs<'set_professional_client_agreement'>({
       p_id: id,
-      p_level: input.level,
-      p_sessions: input.sessions,
+      p_client_label: input.clientLabel,
+      p_duration: input.duration,
+      p_professional_amount_cents: input.professionalAmountCents,
+      p_client_price_cents: input.clientPriceCents,
       p_effective_from: input.effectiveFrom,
       p_note: input.note,
     }),
@@ -189,9 +307,57 @@ export async function setProfessionalRecognition(id: string, input: LevelInput):
   if (error) throw error
 }
 
-export async function deleteProfessionalRecognition(rowId: string): Promise<void> {
-  const { error } = await supabase.rpc('delete_professional_recognition', { p_row_id: rowId })
+/** Ends an agreement on `effectiveTo` (exclusive), or reopens it with null. */
+export async function endClientAgreement(rowId: string, effectiveTo: string | null): Promise<void> {
+  const { error } = await supabase.rpc('end_professional_client_agreement', sqlArgs<'end_professional_client_agreement'>({ p_row_id: rowId, p_effective_to: effectiveTo }))
   if (error) throw error
+}
+
+export async function deleteClientAgreement(rowId: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_professional_client_agreement', { p_row_id: rowId })
+  if (error) throw error
+}
+
+// --- « Révision mensuelle » ---------------------------------------------------------------------------
+
+const reviewRowPayload = z
+  .object({
+    id: z.string(),
+    first_name: z.string(),
+    last_name: z.string(),
+    title_name: z.string().nullable(),
+    entry: z
+      .object({ sessions_50_60: z.number(), sessions_30: z.number(), adjustment: z.number(), note: z.string().nullable(), updated_at: z.string() })
+      .transform((e) => ({ long: e.sessions_50_60, short: e.sessions_30, adjustment: e.adjustment, note: e.note, updatedAt: e.updated_at }))
+      .nullable(),
+    sessions_before: z.number(),
+    floor_pct: z.number().nullable(),
+    increase_decided: z.boolean(),
+    agreements: z.number(),
+    ...stateColumns,
+  })
+  .transform(({ id, first_name, last_name, title_name, entry, sessions_before, floor_pct, increase_decided, agreements, ...rest }) => ({
+    id,
+    firstName: first_name,
+    lastName: last_name,
+    titleName: title_name,
+    entry,
+    sessionsBefore: sessions_before,
+    floorPct: floor_pct,
+    increaseDecided: increase_decided,
+    agreements,
+    ...state(rest),
+  }))
+export type ReviewRow = z.output<typeof reviewRowPayload>
+
+const reviewPayload = z.object({ month: z.string(), on: z.string(), rows: z.array(reviewRowPayload) })
+export type RetentionReview = z.output<typeof reviewPayload>
+
+/** Every active professional for one month (`yyyy-MM-01`), in one read. */
+export async function fetchRetentionReview(month: string): Promise<RetentionReview> {
+  const { data, error } = await supabase.rpc('list_retention_review', { p_month: month })
+  if (error) throw error
+  return parseRpc(reviewPayload, data)
 }
 
 // --- The clinic's terms (Paramètres → Rémunération) ------------------------------------------------
@@ -201,111 +367,97 @@ const kindsPayload = z.array(
 )
 export type CompensationKind = z.output<typeof kindsPayload>[number]
 
-/** The kinds (global, changed by migration), in their order. */
+/** The other kinds (global, changed by migration), in their order. */
 export async function fetchCompensationKinds(): Promise<CompensationKind[]> {
   const { data, error } = await supabase.from('compensation_kinds').select('key, name, sort_order').order('sort_order').order('key')
   if (error) throw error
   return parseRpc(kindsPayload, data)
 }
 
-const defaultRowsPayload = z.array(
-  z
-    .object({ ...datedColumns, kind: z.string(), margin_min_pct: z.number(), margin_max_pct: z.number() })
-    .transform((r) => ({ ...dated(r), kind: r.kind, min: r.margin_min_pct, max: r.margin_max_pct })),
+const rateRowsPayload = z.array(
+  z.object({ ...datedColumns, kind: z.string(), retention_pct: z.number() }).transform((r) => ({ ...dated(r), kind: r.kind, pct: r.retention_pct })),
 )
-export type DefaultRangeRow = z.output<typeof defaultRowsPayload>[number]
+export type RateRow = z.output<typeof rateRowsPayload>[number]
 
-const ruleRowsPayload = z.array(
+const gridRowsPayload = z.array(
   z
     .object({
       ...datedColumns,
-      step_sessions: z.number(),
-      bonus_per_50min_cents: z.number(),
-      bonus_per_30min_cents: z.number(),
-      cap_pct: z.number(),
-      cap_basis: z.enum(CAP_BASES),
+      title_id: z.string(),
       note: z.string().nullable(),
+      retention_grid_tiers: z.array(tierPayload),
+      retention_grid_prices: z.array(
+        z.object({ duration, client_price_cents: z.number() }).transform((p) => ({ duration: p.duration, clientPriceCents: p.client_price_cents })),
+      ),
     })
-    .transform((r) => ({
-      ...dated(r),
-      stepSessions: r.step_sessions,
-      bonusPer50MinCents: r.bonus_per_50min_cents,
-      bonusPer30MinCents: r.bonus_per_30min_cents,
-      capPct: r.cap_pct,
-      capBasis: r.cap_basis,
-      note: r.note,
+    .transform((g) => ({
+      ...dated(g),
+      titleId: g.title_id,
+      note: g.note,
+      tiers: [...g.retention_grid_tiers].sort((a, b) => a.threshold - b.threshold),
+      prices: [...g.retention_grid_prices].sort((a, b) => b.duration - a.duration),
     })),
 )
-export type RecognitionRuleRow = z.output<typeof ruleRowsPayload>[number]
+export type GridRow = z.output<typeof gridRowsPayload>[number]
 
-/** The clinic's dated default ranges and recognition rules, newest start first, read in parallel. */
-export async function fetchCompensationTerms(): Promise<{ defaults: DefaultRangeRow[]; rules: RecognitionRuleRow[] }> {
-  const [defaults, rules] = await Promise.all([
+/** The clinic's dated grids (with their tiers and prices) and other rates, newest start first. */
+export async function fetchCompensationTerms(): Promise<{ grids: GridRow[]; rates: RateRow[] }> {
+  const [grids, rates] = await Promise.all([
     supabase
-      .from('compensation_defaults')
-      .select(`${DATED}, kind, margin_min_pct, margin_max_pct`)
+      .from('retention_grids')
+      .select(`${DATED}, title_id, note, retention_grid_tiers(threshold_sessions, retention_pct), retention_grid_prices(duration, client_price_cents)`)
       .order('effective_from', { ascending: false })
       .limit(COMPENSATION_ROWS_MAX),
     supabase
-      .from('recognition_rules')
-      .select(`${DATED}, step_sessions, bonus_per_50min_cents, bonus_per_30min_cents, cap_pct, cap_basis, note`)
+      .from('compensation_rates')
+      .select(`${DATED}, kind, retention_pct`)
       .order('effective_from', { ascending: false })
       .limit(COMPENSATION_ROWS_MAX),
   ])
-  if (defaults.error) throw defaults.error
-  if (rules.error) throw rules.error
-  return { defaults: parseRpc(defaultRowsPayload, defaults.data), rules: parseRpc(ruleRowsPayload, rules.data) }
+  if (grids.error) throw grids.error
+  if (rates.error) throw rates.error
+  return { grids: parseRpc(gridRowsPayload, grids.data), rates: parseRpc(rateRowsPayload, rates.data) }
 }
 
-export interface DefaultRangeInput {
+export interface RateInput {
   kind: string
-  min: number
-  max: number
+  pct: number
   effectiveFrom: string
 }
 
-export async function setCompensationDefault(input: DefaultRangeInput): Promise<void> {
-  const { error } = await supabase.rpc('set_compensation_default', {
-    p_kind: input.kind,
-    p_min: input.min,
-    p_max: input.max,
-    p_effective_from: input.effectiveFrom,
-  })
+export async function setCompensationRate(input: RateInput): Promise<void> {
+  const { error } = await supabase.rpc('set_compensation_rate', { p_kind: input.kind, p_retention_pct: input.pct, p_effective_from: input.effectiveFrom })
   if (error) throw error
 }
 
-export async function deleteCompensationDefault(id: string): Promise<void> {
-  const { error } = await supabase.rpc('delete_compensation_default', { p_id: id })
+export async function deleteCompensationRate(id: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_compensation_rate', { p_id: id })
   if (error) throw error
 }
 
-export interface RecognitionRuleInput {
-  stepSessions: number
-  bonusPer50MinCents: number
-  bonusPer30MinCents: number
-  capPct: number
-  capBasis: CapBasis
+export interface GridInput {
+  titleId: string
   effectiveFrom: string
+  tiers: readonly Tier[]
+  prices: readonly { duration: Duration; clientPriceCents: number }[]
   note: string | null
 }
 
-export async function setRecognitionRule(input: RecognitionRuleInput): Promise<void> {
+export async function setRetentionGrid(input: GridInput): Promise<void> {
   const { error } = await supabase.rpc(
-    'set_recognition_rule',
-    sqlArgs<'set_recognition_rule'>({
-      p_step_sessions: input.stepSessions,
-      p_bonus_per_50min_cents: input.bonusPer50MinCents,
-      p_bonus_per_30min_cents: input.bonusPer30MinCents,
-      p_cap_pct: input.capPct,
-      p_cap_basis: input.capBasis,
+    'set_retention_grid',
+    sqlArgs<'set_retention_grid'>({
+      p_title_id: input.titleId,
       p_effective_from: input.effectiveFrom,
+      p_tiers: input.tiers.map((tier) => ({ threshold_sessions: tier.threshold, retention_pct: tier.pct })),
+      p_prices: input.prices.map((price) => ({ duration: price.duration, client_price_cents: price.clientPriceCents })),
       p_note: input.note,
     }),
   )
   if (error) throw error
 }
 
-export async function deleteRecognitionRule(id: string): Promise<void> {
-  const { error } = await supabase.rpc('delete_recognition_rule', { p_id: id })
+export async function deleteRetentionGrid(id: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_retention_grid', { p_id: id })
   if (error) throw error
 }

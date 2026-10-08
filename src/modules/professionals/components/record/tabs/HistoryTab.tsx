@@ -1,6 +1,5 @@
 import { memo, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { t } from '@/i18n'
-import { useAccess } from '@/core/access/access-context'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
@@ -9,7 +8,6 @@ import { formatClinicTime } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent } from '@/shared/ui/card'
-import { useCompensationKinds } from '../../../hooks/use-compensation'
 import { useProfessionalHistory } from '../../../hooks/use-professional-record'
 import {
   buildHistoryEvents,
@@ -37,11 +35,6 @@ const H = 'modules.professionals.history'
  */
 export function HistoryTab() {
   const { record, catalog } = useRecordData()
-  const { can } = useAccess()
-  // Margin rows reach the history only for compensation holders (P4-144): their kinds are named
-  // from the global list, read once per session.
-  const kinds = useCompensationKinds(can('professionals.compensation'))
-  const kindNames = useMemo(() => new Map((kinds.data ?? []).map((kind) => [kind.key, kind.name])), [kinds.data])
   const { data, isPending, isError, isFetching, refetch, hasNextPage, fetchNextPage, isFetchingNextPage, isFetchNextPageError } =
     useProfessionalHistory(record.professional.id)
   const [filter, setFilter] = useState<HistoryFilter>('all')
@@ -52,8 +45,8 @@ export function HistoryTab() {
   const rows = useMemo(() => pages?.flat() ?? [], [pages])
   const settled = useMemo(() => settledHistoryRows(rows, hasNextPage), [rows, hasNextPage])
   const events = useMemo(
-    () => buildHistoryEvents(settled, { catalog, titleByRow: professionTitlesByRow(rows, record), kindNames }),
-    [settled, rows, catalog, record, kindNames],
+    () => buildHistoryEvents(settled, { catalog, titleByRow: professionTitlesByRow(rows, record) }),
+    [settled, rows, catalog, record],
   )
   const days = useMemo(() => groupHistoryByDay(filterHistory(events, filter)), [events, filter])
 
@@ -78,8 +71,7 @@ export function HistoryTab() {
   }, [hasNextPage, isFetchingNextPage, readsOn])
 
   let content: ReactNode
-  // A failed kinds read is not waited for: margin rows then read « (type inconnu) ».
-  if (isPending || kinds.isLoading || (chaining && events.length === 0)) {
+  if (isPending || (chaining && events.length === 0)) {
     content = <Loading />
   } else if (isError && !data) {
     content = <LoadError message={t(`${H}.loadError`)} retrying={isFetching} onRetry={() => void refetch()} />

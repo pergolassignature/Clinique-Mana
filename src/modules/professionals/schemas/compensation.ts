@@ -1,18 +1,18 @@
 import { z } from 'zod'
-import { t } from '@/i18n'
+import { t, type TranslationKey } from '@/i18n'
 import { isCalendarDate } from '@/core/settings/tax/schemas'
 import { formatDateOnlyShort, shiftCalendarDay } from '@/shared/lib/timezone'
-import { CAP_BASES, type CapBasis, type DefaultRangeInput, type LevelInput, type MarginInput, type RecognitionRuleInput } from '../api/compensation'
-import { parseDollars, parsePercent } from '../lib/compensation'
+import { DURATIONS, type AgreementInput, type Decision, type Duration, type GridInput, type RateInput } from '../api/compensation'
+import { parseDollars, parsePercent, parseSessions } from '../lib/compensation'
 import { tidyText } from './text'
 
 /**
- * The compensation dialogs (4a.18), mirroring 4a.17's RPCs: percents 0–100 to two decimals,
- * bonuses 0–100 $ (stored in cents), whole numbers in their bounds, a one-line note of at most
- * 500 characters, and a start date that is a real calendar day within 2000-01-01 … 2100-12-31
- * (P4-150), after the series' open row (`minDate`, its day after). The date stays the typed
- * `yyyy-MM-dd` string: never through a timezone. The database still decides (another person may
- * have added a row meanwhile); its date refusals carry HINT `effective_from`.
+ * The retention dialogs (P4-180…), mirroring the RPCs of 20261008170703: percents 0–100 to two
+ * decimals, sessions in whole numbers (adjustments in half sessions), money 0,01 $ to 1 000 $ in
+ * cents, a one-line note of at most 500 characters, a client reference of at most 40, and dates
+ * that are real calendar days within 2000-01-01 … 2100-12-31 (P4-150), after the series' open row
+ * (`minDate`, its day after). Dates stay the typed `yyyy-MM-dd` strings: never through a timezone.
+ * The database still decides; its refusals carry a HINT naming the field.
  */
 
 const V = 'modules.professionals.compensation.validation'
@@ -21,19 +21,17 @@ const V = 'modules.professionals.compensation.validation'
 export const FIRST_DATE = '2000-01-01'
 export const LAST_DATE = '2100-12-31'
 
-const effectiveFrom = z
+const calendarDate = z
   .string()
   .trim()
   .refine(isCalendarDate, { error: t(`${V}.date`), abort: true })
   .refine((v) => v >= FIRST_DATE && v <= LAST_DATE, { error: t(`${V}.dateBounds`) })
 
-/** The open row's start is the day before `minDate`: the RPC wants the new row strictly later. */
-type Series = 'margin' | 'range' | 'level' | 'rule'
-function afterOpen(series: Series, minDate: string | null) {
+/** A start date strictly after the open row's (`minDate` is its day after), when there is one. */
+function afterOpen(minDate: string | null, message: TranslationKey) {
   return (values: { effectiveFrom: string }, ctx: z.RefinementCtx) => {
     if (minDate !== null && values.effectiveFrom < minDate) {
-      const date = formatDateOnlyShort(shiftCalendarDay(minDate, -1))
-      ctx.addIssue({ code: 'custom', path: ['effectiveFrom'], message: t(`${V}.afterOpen.${series}`, { date }) })
+      ctx.addIssue({ code: 'custom', path: ['effectiveFrom'], message: t(message, { date: formatDateOnlyShort(shiftCalendarDay(minDate, -1)) }) })
     }
   }
 }
@@ -48,98 +46,208 @@ const percent = (message: string) =>
     return value
   })
 
-const wholeNumber = (min: number, max: number, message: string) =>
+const money = (message: string) =>
   z.string().transform((v, ctx) => {
-    const compact = v.replace(/\s/g, '')
-    const value = /^[0-9]{1,7}$/.test(compact) ? Number(compact) : Number.NaN
-    if (!(value >= min && value <= max)) {
+    const value = parseDollars(v)
+    if (value === null || value < 1 || value > 100_000) {
       ctx.addIssue({ code: 'custom', message })
       return z.NEVER
     }
     return value
   })
 
-const cents = z.string().transform((v, ctx) => {
-  const value = parseDollars(v)
-  if (value === null || value > 10_000) {
-    ctx.addIssue({ code: 'custom', message: t(`${V}.bonus`) })
-    return z.NEVER
-  }
-  return value
-})
-
 const note = tidyText({ max: 500 })
-const kind = z.string().refine((v) => v !== '', { error: t(`${V}.kind`) })
 
-// --- A professional's margin -------------------------------------------------------------------
+// --- Sessions of a month ---------------------------------------------------------------------------
 
-export type MarginFormValues = { kind: string; marginPct: string; effectiveFrom: string; note: string }
-
-/** `minDateFor(kind)`: the earliest start for that kind (the day after its open margin), or null. */
-export function marginSchema(minDateFor: (kind: string) => string | null): z.ZodType<MarginInput, MarginFormValues> {
-  return z
-    .object({ kind, marginPct: percent(t(`${V}.percent`)), effectiveFrom, note })
-    .superRefine((values, ctx) => afterOpen('margin', minDateFor(values.kind))(values, ctx))
+export type SessionsFormValues = { month: string; long: string; short: string; adjustment: string; note: string }
+export interface SessionsInput {
+  /** `yyyy-MM-01`. */
+  month: string
+  long: number
+  short: number
+  adjustment: number
+  note: string | null
 }
 
-// --- A professional's recognition level ---------------------------------------------------------
+const count = (message: string) =>
+  z.string().transform((v, ctx) => {
+    const value = v.trim() === '' ? 0 : parseSessions(v, { signed: false, half: false })
+    if (value === null || value > 2000) {
+      ctx.addIssue({ code: 'custom', message })
+      return z.NEVER
+    }
+    return value
+  })
 
-export type LevelFormValues = { level: string; sessions: string; effectiveFrom: string; note: string }
+/** `currentMonth`: the clinic's month (`yyyy-MM-01`); a later month is refused, as the RPC does. */
+export function sessionsSchema(currentMonth: string): z.ZodType<SessionsInput, SessionsFormValues> {
+  return z.object({
+    month: z
+      .string()
+      .trim()
+      .refine((v) => /^[0-9]{4}-[0-9]{2}$/.test(v) && isCalendarDate(`${v}-01`), { error: t(`${V}.month`), abort: true })
+      .transform((v) => `${v}-01`)
+      .refine((v) => v >= FIRST_DATE && v <= currentMonth, { error: t(`${V}.monthFuture`) }),
+    long: count(t(`${V}.sessionsLong`)),
+    short: count(t(`${V}.sessionsShort`)),
+    adjustment: z.string().transform((v, ctx) => {
+      const value = v.trim() === '' ? 0 : parseSessions(v, { signed: true, half: true })
+      if (value === null || Math.abs(value) > 100_000) {
+        ctx.addIssue({ code: 'custom', message: t(`${V}.adjustment`) })
+        return z.NEVER
+      }
+      return value
+    }),
+    note,
+  })
+}
 
-export function levelSchema(minDate: string | null): z.ZodType<LevelInput, LevelFormValues> {
+// --- A decision on the applied rate --------------------------------------------------------------------
+
+export type DecisionFormValues = { pct: string; effectiveFrom: string; note: string }
+export interface DecisionFormOutput {
+  pct: number | null
+  effectiveFrom: string
+  note: string | null
+}
+
+/** The rate is typed for `initial` and `custom` only; a custom rate needs its reason (P4-187). */
+export function decisionSchema(decision: Decision, minDate: string | null): z.ZodType<DecisionFormOutput, DecisionFormValues> {
+  const typed = decision === 'initial' || decision === 'custom'
   return z
     .object({
-      level: wholeNumber(0, 1000, t(`${V}.level`)),
-      sessions: wholeNumber(0, 100_000, t(`${V}.sessions`)),
-      effectiveFrom,
-      note,
+      pct: typed ? percent(t(`${V}.percent`)) : z.string().transform(() => null),
+      effectiveFrom: calendarDate,
+      note: decision === 'custom' ? tidyText({ max: 500, requiredMessage: t(`${V}.customNote`) }) : note,
     })
-    .superRefine(afterOpen('level', minDate))
+    .superRefine(afterOpen(minDate, `${V}.afterOpen.rate`))
 }
 
-// --- The clinic's default range --------------------------------------------------------------------
+// --- A client agreement ----------------------------------------------------------------------------------
 
-export type DefaultRangeFormValues = { kind: string; min: string; max: string; effectiveFrom: string }
-
-export function defaultRangeSchema(minDateFor: (kind: string) => string | null): z.ZodType<DefaultRangeInput, DefaultRangeFormValues> {
-  return z
-    .object({ kind, min: percent(t(`${V}.percent`)), max: percent(t(`${V}.percent`)), effectiveFrom })
-    .superRefine((values, ctx) => {
-      if (values.min > values.max) ctx.addIssue({ code: 'custom', path: ['max'], message: t(`${V}.minMax`) })
-      afterOpen('range', minDateFor(values.kind))(values, ctx)
-    })
-}
-
-// --- The clinic's recognition rule -------------------------------------------------------------------
-
-export type RuleFormValues = {
-  stepSessions: string
-  bonusPer50Min: string
-  bonusPer30Min: string
-  capPct: string
-  capBasis: string
+export type AgreementFormValues = {
+  clientLabel: string
+  duration: string
+  professionalAmount: string
+  clientPrice: string
   effectiveFrom: string
   note: string
 }
 
-const capBasis = z.enum(CAP_BASES)
-
-export function ruleSchema(minDate: string | null): z.ZodType<RecognitionRuleInput, RuleFormValues> {
+export function agreementSchema(): z.ZodType<AgreementInput, AgreementFormValues> {
   return z
     .object({
-      stepSessions: wholeNumber(1, 1000, t(`${V}.step`)),
-      bonusPer50Min: cents,
-      bonusPer30Min: cents,
-      capPct: percent(t(`${V}.cap`)),
-      capBasis: z.string().pipe(capBasis),
-      effectiveFrom,
+      clientLabel: tidyText({ max: 40, requiredMessage: t(`${V}.clientLabel`) }),
+      duration: z
+        .string()
+        .refine((v) => (DURATIONS as readonly number[]).includes(Number(v)), { error: t(`${V}.duration`) })
+        .transform((v) => Number(v) as Duration),
+      professionalAmount: money(t(`${V}.money`)),
+      clientPrice: money(t(`${V}.money`)),
+      effectiveFrom: calendarDate,
       note,
     })
-    .superRefine(afterOpen('rule', minDate))
-    .transform(({ bonusPer50Min, bonusPer30Min, capBasis: basis, ...rest }) => ({
-      ...rest,
-      bonusPer50MinCents: bonusPer50Min,
-      bonusPer30MinCents: bonusPer30Min,
-      capBasis: basis as CapBasis,
+    .superRefine((values, ctx) => {
+      if (values.professionalAmount > values.clientPrice) {
+        ctx.addIssue({ code: 'custom', path: ['professionalAmount'], message: t(`${V}.amountAbovePrice`) })
+      }
+    })
+    .transform((v) => ({
+      clientLabel: v.clientLabel,
+      duration: v.duration,
+      professionalAmountCents: v.professionalAmount,
+      clientPriceCents: v.clientPrice,
+      effectiveFrom: v.effectiveFrom,
+      note: v.note,
+    }))
+}
+
+/** An agreement's end: a real day after its start (`minDate` is the start's day after). */
+export function agreementEndSchema(minDate: string): z.ZodType<{ effectiveTo: string }, { effectiveTo: string }> {
+  return z.object({ effectiveTo: calendarDate }).superRefine((values, ctx) => {
+    if (values.effectiveTo < minDate) {
+      ctx.addIssue({ code: 'custom', path: ['effectiveTo'], message: t(`${V}.endAfterStart`, { date: formatDateOnlyShort(shiftCalendarDay(minDate, -1)) }) })
+    }
+  })
+}
+
+// --- The clinic's other kinds' rates -------------------------------------------------------------------
+
+export type RateFormValues = { kind: string; pct: string; effectiveFrom: string }
+
+/** `minDateFor(kind)`: the earliest start for that kind (the day after its open rate), or null. */
+export function rateSchema(minDateFor: (kind: string) => string | null): z.ZodType<RateInput, RateFormValues> {
+  return z
+    .object({ kind: z.string().refine((v) => v !== '', { error: t(`${V}.kind`) }), pct: percent(t(`${V}.percent`)), effectiveFrom: calendarDate })
+    .superRefine((values, ctx) => afterOpen(minDateFor(values.kind), `${V}.afterOpen.rate`)(values, ctx))
+}
+
+// --- A grid version ----------------------------------------------------------------------------------------
+
+export type GridFormValues = {
+  effectiveFrom: string
+  tiers: { threshold: string; pct: string }[]
+  prices: Record<`${Duration}`, string>
+  note: string
+}
+
+/**
+ * A new version of a title's grid (P4-185): at least one tier, one at 0 sessions, whole distinct
+ * thresholds, rates 0–100 that never rise with the threshold; at least one price, 0,01 $ to
+ * 1 000 $ (a blank duration is not offered).
+ */
+export function gridSchema(titleId: string, minDate: string | null): z.ZodType<GridInput, GridFormValues> {
+  return z
+    .object({
+      effectiveFrom: calendarDate,
+      tiers: z
+        .array(
+          z.object({
+            threshold: z.string().transform((v, ctx) => {
+              const value = parseSessions(v, { signed: false, half: false })
+              if (value === null || value > 100_000) {
+                ctx.addIssue({ code: 'custom', message: t(`${V}.threshold`) })
+                return z.NEVER
+              }
+              return value
+            }),
+            pct: percent(t(`${V}.percent`)),
+          }),
+        )
+        .min(1, { error: t(`${V}.tiersRequired`) })
+        .superRefine((tiers, ctx) => {
+          const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold)
+          if (new Set(tiers.map((tier) => tier.threshold)).size !== tiers.length) ctx.addIssue({ code: 'custom', message: t(`${V}.tiersDistinct`) })
+          else if (sorted[0]?.threshold !== 0) ctx.addIssue({ code: 'custom', message: t(`${V}.tiersFromZero`) })
+          else if (sorted.some((tier, i) => i > 0 && tier.pct > (sorted[i - 1]?.pct ?? Infinity))) ctx.addIssue({ code: 'custom', message: t(`${V}.tiersDecreasing`) })
+        }),
+      prices: z.object({ 60: z.string(), 50: z.string(), 30: z.string() }).transform((prices, ctx) => {
+        const out: { duration: Duration; clientPriceCents: number }[] = []
+        for (const duration of DURATIONS) {
+          const typed = prices[duration].trim()
+          if (typed === '') continue
+          const cents = parseDollars(typed)
+          if (cents === null || cents < 1 || cents > 100_000) {
+            ctx.addIssue({ code: 'custom', path: [String(duration)], message: t(`${V}.money`) })
+            return z.NEVER
+          }
+          out.push({ duration, clientPriceCents: cents })
+        }
+        if (out.length === 0) {
+          ctx.addIssue({ code: 'custom', path: ['50'], message: t(`${V}.pricesRequired`) })
+          return z.NEVER
+        }
+        return out
+      }),
+      note,
+    })
+    .superRefine(afterOpen(minDate, `${V}.afterOpen.grid`))
+    .transform((v) => ({
+      titleId,
+      effectiveFrom: v.effectiveFrom,
+      tiers: [...v.tiers].sort((a, b) => a.threshold - b.threshold),
+      prices: v.prices,
+      note: v.note,
     }))
 }

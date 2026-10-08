@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, TriangleAlert } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { CalendarCheck, ChevronLeft, ChevronRight, TriangleAlert } from 'lucide-react'
 import { t, type TranslationKey } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { EmptyState } from '@/shared/components/EmptyState'
@@ -81,7 +82,21 @@ export function ProfessionalsListPage() {
         level={1}
         title={t('modules.professionals.name')}
         description={rows ? subtitle(rows) : undefined}
-        actions={can('professionals.manage') ? <CreateProfessionalDialog /> : undefined}
+        actions={
+          can('professionals.manage') || can('professionals.compensation') ? (
+            <>
+              {can('professionals.compensation') && (
+                <Button asChild variant="outline">
+                  <Link to="/professionnels/revision-mensuelle">
+                    <CalendarCheck aria-hidden />
+                    {t(`${L}.review`)}
+                  </Link>
+                </Button>
+              )}
+              {can('professionals.manage') && <CreateProfessionalDialog />}
+            </>
+          ) : undefined
+        }
       />
       {failed.length > 0 ? (
         <LoadError
