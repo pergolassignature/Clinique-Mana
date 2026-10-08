@@ -20,7 +20,7 @@
       ]
     },
     {
-      "source": "/(invitation|connexion/confirmer)",
+      "source": "/(invitation/?|connexion/confirmer/?)",
       "headers": [
         { "key": "Referrer-Policy", "value": "no-referrer" },
         { "key": "X-Robots-Tag", "value": "noindex" }
