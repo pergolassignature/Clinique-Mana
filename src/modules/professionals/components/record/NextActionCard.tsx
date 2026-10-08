@@ -1,27 +1,23 @@
 import { useRef, useState } from 'react'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
-import type { ProfessionalRecord } from '../../api/parse'
 import { nextAction } from '../../lib/readiness'
 import { ActivateDialog } from './ActivateDialog'
 import { useRecordData } from './record-context'
 import { focusAfterClose } from './status-dialog'
 import { TabLink } from './TabLink'
 
-interface NextActionCardProps {
-  record: Pick<ProfessionalRecord, 'professional' | 'readiness'>
-  can: (permission: string) => boolean
-}
-
 /**
  * Aperçu « Prochaine action »: one sentence and at most one small outline button (`nextAction`):
  * a link to the tab that fixes the first gap, or « Activer » / « Réactiver », which opens the same
  * dialog as the header's teal button (P4-74 closed by 4a.14).
  */
-export function NextActionCard({ record, can }: NextActionCardProps) {
+export function NextActionCard() {
+  const { record, focusHeading } = useRecordData()
+  const { can } = useAccess()
   const { message, action } = nextAction(record, can)
-  const { focusHeading } = useRecordData()
   const [activating, setActivating] = useState(false)
   const activateButton = useRef<HTMLButtonElement>(null)
   return (

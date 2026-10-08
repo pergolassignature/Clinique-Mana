@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import type { FixtureRole } from '@/test/role-fixtures'
@@ -57,5 +57,36 @@ describe('RecordActions', () => {
     screen.getByRole('button', { name: MORE }).focus()
     await userEvent.keyboard('{Enter}')
     expect(await screen.findByRole('menuitem', { name: t('modules.professionals.record.actions.deactivate') })).toHaveFocus()
+  })
+
+  it('forgets a « Désactiver » when the menu opens again before its close came through', async () => {
+    renderActions('active', true, 'admin_assistant')
+    const more = screen.getByRole('button', { name: MORE })
+    await userEvent.click(more)
+    const item = await screen.findByRole('menuitem', { name: t('modules.professionals.record.actions.deactivate') })
+    // Chosen, then the menu reopened in the same moment: Radix runs the first close's autofocus
+    // (where the dialog would open) in a timer, after the menu is open again.
+    fireEvent.click(item)
+    fireEvent.keyDown(more, { key: 'Enter' })
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+
+    // Closing this menu without choosing opens nothing either.
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(more).toHaveFocus())
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('opens the deactivation once the menu has closed, and again after a cancel', async () => {
+    renderActions('active', true, 'admin_assistant')
+    for (let round = 0; round < 2; round++) {
+      await userEvent.click(screen.getByRole('button', { name: MORE }))
+      await userEvent.click(await screen.findByRole('menuitem', { name: t('modules.professionals.record.actions.deactivate') }))
+      expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: t('common.cancel') }))
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    }
   })
 })

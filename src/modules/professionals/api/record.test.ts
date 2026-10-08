@@ -220,7 +220,7 @@ describe('status RPCs', () => {
   })
 
   it('throws the refusal unchanged', async () => {
-    const error = { code: 'P0001', message: 'Ce professionnel est déjà actif.' }
+    const error = { code: 'P0001', message: 'Ce dossier est déjà actif.' }
     fail(error)
     await expect(activateProfessional(ID)).rejects.toBe(error)
   })

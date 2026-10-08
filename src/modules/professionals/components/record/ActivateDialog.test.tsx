@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
+import { accessKeys } from '@/core/access/access-context'
 import type { ProfessionalRecord, StatusChange } from '../../api/parse'
 import { professionalKeys } from '../../hooks/keys'
 import { recordWithStatus } from '../../test/fixtures-domain'
@@ -15,10 +16,11 @@ import { RecordActions } from './RecordActions'
 const mocks = vi.hoisted(() => ({
   record: { fetchProfessionalRecord: vi.fn(), activateProfessional: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
+  captureException: vi.fn(),
 }))
 vi.mock('../../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/record')>()), ...mocks.record }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
-vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
+vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 
 const A = 'modules.professionals.record.activate'
 const ID = IDS.professional
@@ -149,19 +151,59 @@ describe('ActivateDialog — override (incomplete file)', () => {
     expect(within(dialog()).queryByRole('alert')).not.toBeInTheDocument()
     expect(mocks.toast.error).not.toHaveBeenCalled()
   })
+
+  it('while saving: the reason and the suggestion inert (a disabled fieldset, as the deactivation)', async () => {
+    let finish: (change: StatusChange) => void = () => {}
+    mocks.record.activateProfessional.mockImplementation(() => new Promise<StatusChange>((resolve) => (finish = resolve)))
+    renderActions(recordWithStatus('draft', false), 'admin')
+    await userEvent.click(button(t('modules.professionals.record.actions.activate')))
+    await userEvent.type(reasonField(), 'Validé par téléphone')
+    await userEvent.click(within(dialog()).getByRole('button', { name: t(`${A}.confirmOverride`) }))
+
+    expect(within(dialog()).getByRole('button', { name: t(`${A}.pending`) })).toHaveAttribute('aria-disabled', 'true')
+    expect(within(dialog()).getByRole('group')).toBeDisabled()
+    expect(reasonField()).toBeDisabled()
+    expect(reasonField()).toHaveValue('Validé par téléphone')
+    expect(within(dialog()).getByRole('button', { name: t(`${A}.suggestionText`) })).toBeDisabled()
+
+    finish(activated())
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+  })
+
+  it('a `readiness` refusal (the override withdrawn meanwhile): above the buttons, the access refetched, then only « Fermer »', async () => {
+    mocks.record.activateProfessional.mockRejectedValue(
+      refusal({ message: "Le dossier n'est pas complet. Seule l'administration peut activer un dossier incomplet.", hint: 'readiness' }),
+    )
+    const { invalidated, setRole } = renderActions(recordWithStatus('draft', false), 'admin')
+    await userEvent.click(button(t('modules.professionals.record.actions.activate')))
+    await userEvent.click(within(dialog()).getByRole('button', { name: t(`${A}.suggestionText`) }))
+    await userEvent.click(within(dialog()).getByRole('button', { name: t(`${A}.confirmOverride`) }))
+
+    expect(await within(dialog()).findByRole('alert')).toHaveTextContent("Seule l'administration peut activer un dossier incomplet.")
+    expect(reasonField()).not.toHaveAccessibleDescription(expect.stringContaining('Seule'))
+    expect(invalidated()).toContainEqual(professionalKeys.record(ID))
+    expect(invalidated()).toContainEqual(accessKeys.all)
+
+    // The refetched access no longer holds the override: nothing left to retry.
+    setRole('admin_assistant')
+    await waitFor(() => expect(within(dialog()).queryByRole('textbox')).not.toBeInTheDocument())
+    expect(within(dialog()).getByText(t(`${A}.incomplete`))).toBeInTheDocument()
+    expect(within(dialog()).getAllByRole('button').map((b) => b.textContent)).toEqual([t('common.close')])
+    expect(mocks.record.activateProfessional).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('ActivateDialog — refusals that change the dialog', () => {
   it('« déjà actif » (HINT status): the message above the buttons, the record refetched, then only « Fermer »', async () => {
     mocks.record.activateProfessional.mockImplementation(async () => {
       stored = { ...stored, professional: { ...stored.professional, status: 'active' } }
-      throw refusal({ message: 'Ce professionnel est déjà actif.', hint: 'status' })
+      throw refusal({ message: 'Ce dossier est déjà actif.', hint: 'status' })
     })
     const { invalidated } = renderActions(recordWithStatus('draft', true))
     await userEvent.click(button(t('modules.professionals.record.actions.activate')))
     await userEvent.click(within(dialog()).getByRole('button', { name: t(`${A}.confirm`) }))
 
-    expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Ce professionnel est déjà actif.')
+    expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Ce dossier est déjà actif.')
     expect(invalidated()).toContainEqual(professionalKeys.record(ID))
     await waitFor(() => expect(within(dialog()).queryByRole('button', { name: t(`${A}.confirm`) })).not.toBeInTheDocument())
     await userEvent.click(within(dialog()).getByRole('button', { name: t('common.close') }))
@@ -201,6 +243,26 @@ describe('ActivateDialog — refusals that change the dialog', () => {
   })
 })
 
+describe('ActivateDialog — failures without a HINT', () => {
+  it.each([
+    ['42501: the generic refusal, the access refetched', { code: '42501', message: 'Permission refusée : professionals.manage' }, t('common.errors.forbidden'), accessKeys.all, false],
+    ['40001: the record changed, the professionals refetched', { code: '40001', message: 'Le dossier vient de changer. Réessayez.' }, t('modules.professionals.errors.recordChanged'), professionalKeys.all, false],
+    ['a failure: the generic message, reported', { code: 'XX000', message: 'boom' }, t('modules.professionals.errors.saveFailed'), professionalKeys.record(ID), true],
+  ])('%s, above the buttons, the dialog still confirmable', async (_, error, message, key, reported) => {
+    mocks.record.activateProfessional.mockRejectedValue(error)
+    const { invalidated } = renderActions(recordWithStatus('draft', true))
+    await userEvent.click(button(t('modules.professionals.record.actions.activate')))
+    await userEvent.click(within(dialog()).getByRole('button', { name: t(`${A}.confirm`) }))
+
+    expect(await within(dialog()).findByRole('alert')).toHaveTextContent(message)
+    expect(invalidated()).toContainEqual(key)
+    expect(invalidated()).toContainEqual(professionalKeys.record(ID))
+    expect(mocks.captureException).toHaveBeenCalledTimes(reported ? 1 : 0)
+    expect(mocks.toast.error).not.toHaveBeenCalled()
+    expect(within(dialog()).getByRole('button', { name: t(`${A}.confirm`) })).not.toHaveAttribute('aria-disabled')
+  })
+})
+
 describe('ActivateDialog — reactivation', () => {
   it('names the deactivation, says the account comes back, and confirms « Réactiver »', async () => {
     const record = recordWithStatus('inactive', true)
@@ -215,6 +277,15 @@ describe('ActivateDialog — reactivation', () => {
     expect(dialog()).toHaveAccessibleDescription(expect.stringContaining(t(`${A}.deactivatedFor`, { reason: 'Fin de collaboration — Fin du contrat' })))
     await userEvent.click(within(dialog()).getByRole('button', { name: t(`${A}.confirmReactivate`) }))
     await waitFor(() => expect(mocks.record.activateProfessional).toHaveBeenCalledExactlyOnceWith(ID, undefined))
+  })
+
+  it('reads « Réactivation… » while it saves', async () => {
+    mocks.record.activateProfessional.mockImplementation(() => new Promise<StatusChange>(() => {}))
+    renderActions(recordWithStatus('inactive', true))
+    await userEvent.click(button(t('modules.professionals.record.actions.reactivate')))
+    await userEvent.click(within(dialog()).getByRole('button', { name: t(`${A}.confirmReactivate`) }))
+    expect(within(dialog()).getByRole('button', { name: t(`${A}.pendingReactivate`) })).toHaveAttribute('aria-disabled', 'true')
+    expect(within(dialog()).queryByRole('button', { name: t(`${A}.pending`) })).not.toBeInTheDocument()
   })
 
   it('says nothing about the account when this module did not disable it; « Réactiver quand même » with the override', async () => {

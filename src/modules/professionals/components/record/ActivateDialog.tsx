@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { TriangleAlert } from 'lucide-react'
 import { t, type TranslationKey } from '@/i18n'
-import { useAccess } from '@/core/access/access-context'
+import { accessKeys, useAccess } from '@/core/access/access-context'
 import { rpcErrorHint } from '@/core/modules/errors'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { cn } from '@/shared/lib/utils'
@@ -33,6 +33,9 @@ const CONFIRM = {
   override: { activate: `${A}.confirmOverride`, reactivate: `${A}.confirmOverrideReactivate` },
 } as const satisfies Record<'confirm' | 'override', Record<'activate' | 'reactivate', TranslationKey>>
 
+/** The confirm button while saving: « Activation… » / « Réactivation… ». */
+const PENDING = { activate: `${A}.pending`, reactivate: `${A}.pendingReactivate` } as const satisfies Record<'activate' | 'reactivate', TranslationKey>
+
 /**
  * « Activer » / « Réactiver » (4a.14, design §5.3): a complete file is confirmed as is; an incomplete
  * one, with `professionals.activate_override`, lists what is missing and asks why (« Activer quand
@@ -47,15 +50,22 @@ export function ActivateDialog({ onClose, onCloseAutoFocus }: StatusDialogProps)
   const queryClient = useQueryClient()
   const reasonInput = useRef<HTMLTextAreaElement | null>(null)
   const form = useForm<OverrideValues, unknown, { reason: string }>({ resolver: zodResolver(overrideSchema), defaultValues: { reason: '' } })
+  // Runs when the call fails, from the latest render's closure (React Query hands a pending
+  // mutation the latest options): `mode` and `record`, declared below because they follow
+  // `saving`, are then what was confirmed (`useSettled` holds the record while saving).
   const mutation = useActivateProfessional({
     onErrorMessage: (message, error) => {
-      if (rpcErrorHint(error) === 'reason' && mode === 'override') {
+      const hint = rpcErrorHint(error)
+      if (hint === 'reason' && mode === 'override') {
         form.setError('reason', { message }, { shouldFocus: true })
         return
       }
       // A `reason` refusal without the field: the file became incomplete since the dialog opened.
-      form.setError('root.server', { message: rpcErrorHint(error) === 'reason' ? t(`${A}.nowIncomplete`) : message })
+      form.setError('root.server', { message: hint === 'reason' ? t(`${A}.nowIncomplete`) : message })
       void queryClient.invalidateQueries({ queryKey: professionalKeys.record(record.professional.id) })
+      // `readiness` in override mode: the override was withdrawn meanwhile. The refetched access
+      // turns the dialog to `blocked` (« Fermer » only) instead of offering a retry that fails again.
+      if (hint === 'readiness') void queryClient.invalidateQueries({ queryKey: accessKeys.all })
     },
   })
   const saving = mutation.isPending
@@ -111,7 +121,7 @@ export function ActivateDialog({ onClose, onCloseAutoFocus }: StatusDialogProps)
               onClick={ignoreWhenInactive(saving, confirm)}
               className={cn(softDisabledClasses, 'aria-disabled:hover:bg-primary aria-disabled:active:bg-primary')}
             >
-              {saving ? t(`${A}.pending`) : t(CONFIRM[mode][kind])}
+              {saving ? t(PENDING[kind]) : t(CONFIRM[mode][kind])}
             </Button>
           )}
         </AlertDialogFooter>
@@ -165,13 +175,16 @@ interface OverrideReasonProps {
   onSuggest: (text: string) => void
 }
 
-/** « Raison de l'activation »*, with the suggestion that fills it in one press. */
+/**
+ * « Raison de l'activation »*, with the suggestion that fills it in one press. A `fieldset disabled`
+ * while saving, as the deactivation's fields: what is being saved stays what shows.
+ */
 function OverrideReason({ registration, inputRef, error, saving, onSuggest }: OverrideReasonProps) {
   const suggestionLabel = useId()
   const suggestion = t(`${A}.suggestionText`)
   const { ref, ...field } = registration
   return (
-    <div className="grid gap-2">
+    <fieldset disabled={saving} className="grid min-w-0 gap-2">
       <FormField label={t(`${A}.reason`)} required help={t(`${A}.reasonHelp`)} error={error}>
         {(control) => (
           <Textarea
@@ -182,7 +195,6 @@ function OverrideReason({ registration, inputRef, error, saving, onSuggest }: Ov
               inputRef.current = element
             }}
             rows={3}
-            readOnly={saving}
             className="min-h-0"
           />
         )}
@@ -191,18 +203,10 @@ function OverrideReason({ registration, inputRef, error, saving, onSuggest }: Ov
         <span id={suggestionLabel} className="text-xs text-muted-foreground">
           {t(`${A}.suggestion`)}
         </span>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          aria-describedby={suggestionLabel}
-          aria-disabled={saving || undefined}
-          onClick={ignoreWhenInactive(saving, () => onSuggest(suggestion))}
-          className={cn('rounded-full', softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
-        >
+        <Button type="button" variant="outline" size="sm" aria-describedby={suggestionLabel} onClick={() => onSuggest(suggestion)} className="rounded-full">
           {suggestion}
         </Button>
       </div>
-    </div>
+    </fieldset>
   )
 }

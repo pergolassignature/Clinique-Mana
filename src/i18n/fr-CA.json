@@ -1279,6 +1279,7 @@
           "confirmOverride": "Activer quand même",
           "confirmOverrideReactivate": "Réactiver quand même",
           "pending": "Activation…",
+          "pendingReactivate": "Réactivation…",
           "nowIncomplete": "Le dossier n'est plus complet. Indiquez la raison de l'activation."
         },
         "deactivate": {
@@ -1574,13 +1575,14 @@
       "toasts": {
         "saved": "Modifications enregistrées.",
         "created": "Professionnel créé.",
-        "activated": "Professionnel activé.",
-        "deactivated": "Professionnel désactivé.",
+        "activated": "Dossier activé.",
+        "deactivated": "Dossier désactivé.",
         "archived": "Élément archivé.",
         "restored": "Élément restauré."
       },
       "errors": {
-        "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez dans un instant."
+        "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez dans un instant.",
+        "recordChanged": "Le dossier vient de changer. Réessayez."
       },
       "validation": {
         "firstNameRequired": "Prénom requis.",

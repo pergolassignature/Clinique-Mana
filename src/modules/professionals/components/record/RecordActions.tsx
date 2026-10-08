@@ -27,6 +27,8 @@ export function RecordActions() {
   const activateButton = useRef<HTMLButtonElement>(null)
   const menuButton = useRef<HTMLButtonElement>(null)
   // The menu item only asks; the dialog opens once the menu has closed (its focus handling done).
+  // Cleared each time the menu opens: a request whose close has not come through (the menu reopened
+  // first) can never open the dialog later.
   const deactivateAsked = useRef(false)
 
   const close = () => setDialog(null)
@@ -43,7 +45,7 @@ export function RecordActions() {
             </Button>
           )}
           {deactivate && (
-            <DropdownMenu>
+            <DropdownMenu onOpenChange={(open) => open && (deactivateAsked.current = false)}>
               <DropdownMenuTrigger asChild>
                 <Button ref={menuButton} type="button" variant="outline" size="icon" aria-label={t(`${R}.more`)}>
                   <MoreHorizontal aria-hidden />

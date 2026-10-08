@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
+import { accessKeys } from '@/core/access/access-context'
 import type { ProfessionalRecord, StatusChange } from '../../api/parse'
 import { professionalCatalogKeys, professionalKeys } from '../../hooks/keys'
 import { recordWithStatus } from '../../test/fixtures-domain'
@@ -13,10 +14,11 @@ import { RecordActions } from './RecordActions'
 const mocks = vi.hoisted(() => ({
   record: { fetchProfessionalRecord: vi.fn(), deactivateProfessional: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
+  captureException: vi.fn(),
 }))
 vi.mock('../../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/record')>()), ...mocks.record }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
-vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
+vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 
 const D = 'modules.professionals.record.deactivate'
 const ID = IDS.professional
@@ -46,6 +48,7 @@ const dialog = () => screen.getByRole('alertdialog')
 const reasonSelect = () => within(dialog()).getByRole('combobox', { name: `${t(`${D}.reason`)} ${REQUIRED}` })
 const noteField = () => within(dialog()).getByRole('textbox', { name: new RegExp(`^${t(`${D}.note`)}`) })
 const confirmButton = () => within(dialog()).getByRole('button', { name: t(`${D}.confirm`) })
+const fieldset = () => within(dialog()).getByRole('group')
 const accountWarning = (firstName = 'Marie') => t(`${D}.accountOff`, { firstName })
 const refusal = (message: string, hint: string) => ({ code: 'P0001', message, hint })
 
@@ -151,16 +154,63 @@ describe('DeactivateDialog', () => {
   it('« déjà inactif » (HINT status): above the buttons, the record refetched, then only « Fermer »', async () => {
     mocks.record.deactivateProfessional.mockImplementation(async () => {
       stored = { ...stored, professional: { ...stored.professional, status: 'inactive' } }
-      throw refusal('Ce professionnel est déjà inactif.', 'status')
+      throw refusal('Ce dossier est déjà inactif.', 'status')
     })
     const { invalidated } = await openDeactivate()
     await userEvent.selectOptions(reasonSelect(), 'Congé')
     await userEvent.click(confirmButton())
 
-    expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Ce professionnel est déjà inactif.')
+    expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Ce dossier est déjà inactif.')
     expect(invalidated()).toContainEqual(professionalKeys.record(ID))
     await waitFor(() => expect(within(dialog()).queryByRole('button', { name: t(`${D}.confirm`) })).not.toBeInTheDocument())
     expect(within(dialog()).getByRole('button', { name: t('common.close') })).toBeInTheDocument()
+    // Nothing left to confirm: nothing left to edit either.
+    expect(fieldset()).toBeDisabled()
+    expect(reasonSelect()).toBeDisabled()
+    expect(noteField()).toBeDisabled()
+  })
+
+  it.each([
+    ['42501: the generic refusal, the access refetched', { code: '42501', message: 'Permission refusée : professionals.manage' }, t('common.errors.forbidden'), accessKeys.all, false],
+    ['40001: the record changed, the professionals refetched', { code: '40001', message: 'Le dossier vient de changer. Réessayez.' }, t('modules.professionals.errors.recordChanged'), professionalKeys.all, false],
+    ['a failure: the generic message, reported', { code: 'XX000', message: 'boom' }, t('modules.professionals.errors.saveFailed'), professionalKeys.record(ID), true],
+  ])('%s, above the buttons, the dialog still confirmable', async (_, error, message, key, reported) => {
+    mocks.record.deactivateProfessional.mockRejectedValue(error)
+    const { invalidated } = await openDeactivate()
+    await userEvent.selectOptions(reasonSelect(), 'Congé')
+    await userEvent.click(confirmButton())
+
+    expect(await within(dialog()).findByRole('alert')).toHaveTextContent(message)
+    expect(invalidated()).toContainEqual(key)
+    expect(invalidated()).toContainEqual(professionalKeys.record(ID))
+    expect(mocks.captureException).toHaveBeenCalledTimes(reported ? 1 : 0)
+    expect(mocks.toast.error).not.toHaveBeenCalled()
+    expect(reasonSelect()).toBeEnabled()
+    expect(confirmButton()).not.toHaveAttribute('aria-disabled')
+  })
+
+  it('while saving: the fields inert, « Désactivation… », and neither « Annuler » nor Escape closes it', async () => {
+    let finish: (change: StatusChange) => void = () => {}
+    mocks.record.deactivateProfessional.mockImplementation(() => new Promise<StatusChange>((resolve) => (finish = resolve)))
+    await openDeactivate()
+    await userEvent.selectOptions(reasonSelect(), 'Congé')
+    await userEvent.type(noteField(), 'Retour en mars')
+    await userEvent.click(confirmButton())
+
+    expect(within(dialog()).getByRole('button', { name: t(`${D}.pending`) })).toHaveAttribute('aria-disabled', 'true')
+    expect(dialog()).toHaveAttribute('aria-busy', 'true')
+    expect(fieldset()).toBeDisabled()
+    expect(reasonSelect()).toBeDisabled()
+    expect(noteField()).toBeDisabled()
+    expect(noteField()).toHaveValue('Retour en mars')
+    await userEvent.click(within(dialog()).getByRole('button', { name: t('common.cancel') }))
+    await userEvent.keyboard('{Escape}')
+    expect(dialog()).toBeInTheDocument()
+
+    stored = { ...stored, professional: { ...stored.professional, status: 'inactive' } }
+    finish({ status: 'inactive', accountChange: null, profileId: null })
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(mocks.record.deactivateProfessional).toHaveBeenCalledExactlyOnceWith(ID, IDS.leave, 'Retour en mars')
   })
 
   it('returns focus to the « … » menu on « Annuler »', async () => {

@@ -41,6 +41,9 @@ export function DeactivateDialog({ onClose, onCloseAutoFocus }: StatusDialogProp
   const reasons = useMemo(() => catalog.deactivationReasons.filter((r) => r.isActive), [catalog])
   const schema = useMemo(() => deactivateSchema(reasons), [reasons])
   const form = useForm<DeactivateValues, unknown, DeactivateOutput>({ resolver: zodResolver(schema), defaultValues: { reasonId: '', note: '' } })
+  // Runs when the call fails, from the latest render's closure (React Query hands a pending
+  // mutation the latest options): `professional`, declared below because it follows `saving`, is
+  // then the one confirmed (`useSettled` holds it while saving).
   const mutation = useDeactivateProfessional({
     onErrorMessage: (message, error) => {
       const hint = rpcErrorHint(error)
@@ -83,8 +86,8 @@ export function DeactivateDialog({ onClose, onCloseAutoFocus }: StatusDialogProp
           <AlertDialogTitle>{t(`${D}.title`, { name: fullName(professional) })}</AlertDialogTitle>
           <AlertDialogDescription>{t(`${D}.body`, { firstName: professional.firstName })}</AlertDialogDescription>
         </AlertDialogHeader>
-        {/* Inert while saving: what is being saved stays what shows. */}
-        <fieldset disabled={saving} className="contents">
+        {/* Inert while saving (what is being saved stays what shows), and once only « Fermer » is left. */}
+        <fieldset disabled={saving || done} className="contents">
           <div>
             <FormField label={t(`${D}.reason`)} required error={errors.reasonId?.message}>
               {(control) => (

@@ -282,7 +282,7 @@ select results_eq($$ select p.status, p.activation_override_reason, p.status_cha
   'status, trimmed override reason and actor are stored');
 set local role authenticated;
 select throws_ok($$ select public.activate_professional(current_setting('test.p1')::uuid, 'Encore une fois') $$,
-  'P0001', 'Ce professionnel est déjà actif.', 'an active professional cannot be activated again');
+  'P0001', 'Ce dossier est déjà actif.', 'an active professional cannot be activated again');
 select is(private.test_error_hint($$ select public.activate_professional(current_setting('test.p1')::uuid, 'Encore une fois') $$), 'status',
   'already active: HINT status');
 
@@ -322,7 +322,7 @@ select results_eq($$ select p.status, p.deactivation_reason_id, p.deactivation_n
   'reason, trimmed note and actor are stored; the override reason is cleared');
 set local role authenticated;
 select throws_ok($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.leave')::uuid) $$,
-  'P0001', 'Ce professionnel est déjà inactif.', 'an inactive professional cannot be deactivated again');
+  'P0001', 'Ce dossier est déjà inactif.', 'an inactive professional cannot be deactivated again');
 select is(private.test_error_hint($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.leave')::uuid) $$), 'status',
   'already inactive: HINT status');
 

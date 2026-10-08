@@ -287,7 +287,7 @@ begin
   end if;
   v_row := private.lock_professional_with_account(p_id);
   if v_row.status = 'active' then
-    raise exception 'Ce professionnel est déjà actif.' using errcode = 'P0001', hint = 'status';
+    raise exception 'Ce dossier est déjà actif.' using errcode = 'P0001', hint = 'status';
   end if;
 
   select r.ready into v_ready from public.professionals_readiness r where r.professional_id = p_id;
@@ -340,7 +340,7 @@ begin
   end if;
   v_row := private.lock_professional_with_account(p_id);
   if v_row.status = 'inactive' then
-    raise exception 'Ce professionnel est déjà inactif.' using errcode = 'P0001', hint = 'status';
+    raise exception 'Ce dossier est déjà inactif.' using errcode = 'P0001', hint = 'status';
   end if;
 
   select * into v_reason from public.deactivation_reasons r
