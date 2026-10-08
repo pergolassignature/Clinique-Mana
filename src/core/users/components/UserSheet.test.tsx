@@ -8,12 +8,14 @@ import { accessKeys } from '@/core/access/access-context'
 import { userKeys } from '../hooks'
 import { renderWithContexts } from '@/test/contexts'
 import { accessForRole } from '@/test/role-fixtures'
-import { testCatalog, testUsers } from '@/test/users-fixtures'
+import { customRole, testCatalog, testRoleDefaults, testRoles, testUsers } from '@/test/users-fixtures'
 import type { OrgUser } from '../api'
 import { UserSheet } from './UserSheet'
 
 const mocks = vi.hoisted(() => ({
   fetchPermissionCatalog: vi.fn(),
+  fetchOrgRoles: vi.fn(),
+  fetchRoleDefaults: vi.fn(),
   fetchUserOverrides: vi.fn(),
   setUserRole: vi.fn(),
   setUserStatus: vi.fn(),
@@ -25,6 +27,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../api', () => ({
   fetchOrgUsers: vi.fn(),
   fetchPermissionCatalog: mocks.fetchPermissionCatalog,
+  fetchOrgRoles: mocks.fetchOrgRoles,
+  fetchRoleDefaults: mocks.fetchRoleDefaults,
   fetchUserOverrides: mocks.fetchUserOverrides,
   setUserRole: mocks.setUserRole,
   setUserStatus: mocks.setUserStatus,
@@ -101,6 +105,8 @@ const roleSelect = () => screen.getByRole('combobox', { name: L.role })
 
 beforeEach(() => {
   mocks.fetchPermissionCatalog.mockResolvedValue(testCatalog)
+  mocks.fetchOrgRoles.mockResolvedValue(testRoles)
+  mocks.fetchRoleDefaults.mockResolvedValue(testRoleDefaults)
   mocks.fetchUserOverrides.mockResolvedValue([])
 })
 afterEach(() => vi.clearAllMocks())
@@ -673,8 +679,8 @@ describe('UserSheet', () => {
       expect(role).toHaveAccessibleDescription(t('settings.users.sheet.role.managerLimit'))
     })
 
-    it('waits for the catalogue before offering roles, and shows its failure with a retry', async () => {
-      mocks.fetchPermissionCatalog.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(testCatalog)
+    it("waits for the clinic's role defaults before offering roles, and shows their failure with a retry", async () => {
+      mocks.fetchRoleDefaults.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(testRoleDefaults)
       renderSheet(conseillere, managerCaller)
       const role = await screen.findByRole('combobox', { name: L.role })
       expect(within(role).getByRole('option', { name: t('roles.admin_assistant') })).toBeDisabled()
@@ -687,8 +693,8 @@ describe('UserSheet', () => {
       expect(await screen.findByRole('switch', { name: P.audit })).toBeInTheDocument()
     })
 
-    it('shows a loading line while the catalogue loads', async () => {
-      mocks.fetchPermissionCatalog.mockReturnValue(new Promise(() => {}))
+    it('shows a loading line while the role defaults load', async () => {
+      mocks.fetchRoleDefaults.mockReturnValue(new Promise(() => {}))
       renderSheet(conseillere, managerCaller)
       await screen.findByRole('combobox', { name: L.role })
       expect(screen.getAllByRole('status').map((s) => s.textContent)).toContain(t('common.loading'))
@@ -781,6 +787,68 @@ describe('UserSheet', () => {
       expect(active).toHaveAccessibleDescription(t('settings.users.sheet.status.reenableAdminOnly'))
       await userEvent.click(active)
       expect(mocks.setUserStatus).not.toHaveBeenCalled()
+    })
+  })
+
+  describe("the clinic's roles (decision #40)", () => {
+    it('offers the custom roles after the base ones (never provider) and saves one', async () => {
+      mocks.fetchOrgRoles.mockResolvedValue([customRole, ...testRoles])
+      mocks.setUserRole.mockResolvedValue(undefined)
+      renderSheet(conseillere)
+      const role = await screen.findByRole('combobox', { name: L.role })
+      await waitFor(() => expect(within(role).getAllByRole('option')).toHaveLength(4))
+      expect(within(role).getAllByRole('option').map((o) => o.textContent)).toEqual([
+        t('roles.admin'),
+        t('roles.counselor'),
+        t('roles.admin_assistant'),
+        customRole.name,
+      ])
+      expect(within(role).getByRole('option', { name: customRole.name })).toBeEnabled()
+      await userEvent.selectOptions(role, customRole.key)
+      await userEvent.click(screen.getByRole('button', { name: L.save }))
+      await waitFor(() => expect(mocks.setUserRole).toHaveBeenCalledWith('u-conseillere', customRole.key))
+    })
+
+    it("shows a person's custom role by its name", async () => {
+      mocks.fetchOrgRoles.mockResolvedValue([...testRoles, customRole])
+      renderSheet({ ...conseillere, role: customRole.key, role_name: customRole.name })
+      const role = await screen.findByRole('combobox', { name: L.role })
+      expect(role).toHaveValue(customRole.key)
+      expect(within(role).getByRole('option', { name: customRole.name })).toBeInTheDocument()
+    })
+
+    it('a non-admin manager may assign a custom role only if she holds its defaults', async () => {
+      const reception = { ...customRole, key: 'custom_00000001', name: 'Réception' }
+      const billing = { ...customRole, key: 'custom_00000002', name: 'Comptabilité' }
+      mocks.fetchOrgRoles.mockResolvedValue([...testRoles, reception, billing])
+      mocks.fetchRoleDefaults.mockResolvedValue([
+        ...testRoleDefaults,
+        { role: reception.key, permission_key: 'professionals.view' },
+        { role: billing.key, permission_key: 'audit.view' },
+      ])
+      renderSheet(conseillere, managerCaller)
+      const role = await screen.findByRole('combobox', { name: L.role })
+      await waitFor(() => expect(within(role).getByRole('option', { name: 'Réception' })).toBeEnabled())
+      expect(within(role).getByRole('option', { name: 'Comptabilité' })).toBeDisabled()
+    })
+
+    it("shows the switches from the clinic's defaults, not the template", async () => {
+      mocks.setPermissionOverride.mockResolvedValue(undefined)
+      // This clinic gave audit.view to its counselors and took professionals.view away.
+      mocks.fetchRoleDefaults.mockResolvedValue([
+        ...testRoleDefaults.filter((d) => !(d.role === 'counselor' && d.permission_key === 'professionals.view')),
+        { role: 'counselor', permission_key: 'audit.view' },
+      ])
+      renderSheet(conseillere)
+      const audit = await screen.findByRole('switch', { name: P.audit })
+      expect(mocks.fetchRoleDefaults).toHaveBeenCalledWith('o1')
+      expect(audit).toBeChecked()
+      expect(permission(P.professionals)).not.toBeChecked()
+      expect(screen.queryByText(L.exception)).not.toBeInTheDocument()
+      // Off is now away from the role value: an exception (a revoke), not a cleared one.
+      await userEvent.click(audit)
+      await waitFor(() => expect(mocks.setPermissionOverride).toHaveBeenCalledWith('u-conseillere', 'audit.view', false))
+      expect(mocks.clearPermissionOverride).not.toHaveBeenCalled()
     })
   })
 })

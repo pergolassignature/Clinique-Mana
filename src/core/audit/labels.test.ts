@@ -26,6 +26,8 @@ const COLUMNS: Record<(typeof AUDITED_TABLES)[number], string[]> = {
   profiles: ['created_at', 'display_name', 'email', 'org_id', 'status', 'updated_at', 'user_id'],
   user_roles: ['created_at', 'org_id', 'role', 'user_id'],
   user_permission_overrides: ['created_at', 'created_by', 'granted', 'org_id', 'permission_key', 'user_id'],
+  roles: ['created_at', 'is_system', 'key', 'name', 'org_id'],
+  org_role_permissions: ['org_id', 'permission_key', 'role'],
   org_modules: ['enabled', 'module_key', 'org_id', 'updated_at', 'updated_by'],
   org_module_settings: ['module_key', 'org_id', 'settings', 'updated_at', 'updated_by'],
   org_secrets: ['key', 'org_id', 'updated_at', 'updated_by', 'vault_secret_id', 'version'],
@@ -41,8 +43,10 @@ describe('tableLabel', () => {
     expect(AUDITED_TABLES.map(tableLabel)).toEqual([
       'Clinique',
       'Utilisateurs',
-      'Rôles',
+      'Rôles attribués',
       'Exceptions de permissions',
+      'Rôles',
+      'Permissions des rôles',
       'Modules',
       'Paramètres de module',
       'Secrets',
@@ -286,6 +290,11 @@ describe('auditValue', () => {
   it('names roles, keeping an unknown role as is', () => {
     expect(auditValue('user_roles', 'role', 'admin_assistant').text).toBe('Adjointe administrative')
     expect(auditValue('user_roles', 'role', 'staff').text).toBe('staff')
+    // A custom role: its stored name from the lookups; its key without them.
+    const roles = new Map([['custom_0a1b2c3d', 'Réception']])
+    expect(auditValue('org_role_permissions', 'role', 'custom_0a1b2c3d', { roles }).text).toBe('Réception')
+    expect(auditValue('user_roles', 'role', 'custom_0a1b2c3d').text).toBe('custom_0a1b2c3d')
+    expect(auditValue('user_roles', 'role', 'counselor', { roles: new Map([['counselor', 'Autre']]) }).text).toBe('Conseillère')
   })
 
   it('names the profile statuses, keeping any other as is', () => {

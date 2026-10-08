@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { roleLabel } from './roles'
+import { isBaseRoleKey, roleLabel } from './roles'
 
 describe('roleLabel', () => {
   it('returns the French label of a known role', () => {
@@ -13,12 +13,20 @@ describe('roleLabel', () => {
     expect(roleLabel('counselor', 'Autre nom')).toBe('Conseillère')
   })
 
-  it('falls back to the database name for a role added later', () => {
+  it('falls back to the database name for a custom role', () => {
     expect(roleLabel('bookkeeper', 'Comptable')).toBe('Comptable')
   })
 
   it('falls back to the key when there is no database name', () => {
     expect(roleLabel('bookkeeper')).toBe('bookkeeper')
     expect(roleLabel('bookkeeper', null)).toBe('bookkeeper')
+  })
+})
+
+describe('isBaseRoleKey', () => {
+  it('is true for the four base roles only', () => {
+    expect(['admin', 'counselor', 'admin_assistant', 'provider'].every(isBaseRoleKey)).toBe(true)
+    expect(isBaseRoleKey('custom_0a1b2c3d')).toBe(false)
+    expect(isBaseRoleKey('toString')).toBe(false)
   })
 })

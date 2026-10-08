@@ -5,7 +5,8 @@ import { coreSettingsSections } from './sections'
 // Uniqueness across core and modules is checked in src/app/settings-sections.test.ts (core may not import app).
 
 // The core permission keys, mirroring public.permissions (module 'core') in the migrations
-// (20261007140517_core_access, 20261007192359_core_roles_split). A typo in the registry fails here.
+// (20261007140517_core_access, 20261007192359_core_roles_split, 20261008015825_core_editable_roles).
+// A typo in the registry fails here.
 const CORE_PERMISSION_KEYS = [
   'settings.view',
   'settings.manage',
@@ -14,6 +15,7 @@ const CORE_PERMISSION_KEYS = [
   'users.manage',
   'modules.manage',
   'audit.view',
+  'roles.manage',
 ]
 describe('coreSettingsSections', () => {
   it('registers the Phase 2 sections in menu order, with English ids and French paths', () => {

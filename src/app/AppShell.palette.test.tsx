@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLocation } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Home, Users } from 'lucide-react'
 import { t } from '@/i18n'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
@@ -39,11 +40,13 @@ function Location() {
 
 const shell = () =>
   renderWithContexts(
-    <UnsavedChangesProvider>
-      <AppShell navItems={navItems}>
-        <Location />
-      </AppShell>
-    </UnsavedChangesProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <UnsavedChangesProvider>
+        <AppShell navItems={navItems}>
+          <Location />
+        </AppShell>
+      </UnsavedChangesProvider>
+    </QueryClientProvider>,
     { path: '/accueil' },
   )
 

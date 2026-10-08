@@ -3,7 +3,7 @@ import { LogOut } from 'lucide-react'
 import logoUrl from '@/assets/logo-header.svg'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
-import { roleLabel } from '@/core/access/roles'
+import { useRoleLabel } from '@/core/users/hooks'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { cn } from '@/shared/lib/utils'
 import { focusRing } from '@/shared/ui/field-classes'
@@ -31,7 +31,7 @@ interface SidebarContentProps {
  */
 export function SidebarContent({ navItems, collapsed, variant, signingOut, onSignOut, onLinkClick }: SidebarContentProps) {
   const { org_name, display_name, role } = useReadyAccess()
-  const roleText = roleLabel(role)
+  const roleText = useRoleLabel(role)
   const touch = variant === 'sheet'
 
   return (

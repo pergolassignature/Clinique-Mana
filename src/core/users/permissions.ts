@@ -1,7 +1,8 @@
 /**
  * Permission helpers for « Utilisateurs et accès ». They mirror the database
- * (`private.has_permission` and the guards of `20261007211509_core_user_admin.sql`) so the UI
- * hides what the server would refuse; the server still decides, and its message is shown if it does.
+ * (`private.has_permission` and the guards of `20261007211509_core_user_admin.sql` and
+ * `20261008015825_core_editable_roles.sql`) so the UI hides what the server would refuse; the
+ * server still decides, and its message is shown if it does.
  */
 
 /** A user's stance on one permission: the role's default, or an override either way. */
@@ -17,10 +18,18 @@ export interface PermissionOverride {
   granted: boolean
 }
 
-/** The roles managed here; `provider` is owned by the Professionnels module (decision #28). */
+/** The base roles managed here; `provider` is owned by the Professionnels module (decision #28). */
 export const MANAGED_ROLES = ['admin', 'counselor', 'admin_assistant'] as const
 
-/** Menu and matrix order of the known roles; roles added later follow, by name. */
+/** The role given by the Professionnels module only: never offered, never assigned here. */
+export const PROVIDER_ROLE = 'provider'
+
+/** A clinic's own role (decision #40): renamed and deleted here. Base roles have no org. */
+export function isCustomRole(role: { org_id: string | null }): boolean {
+  return role.org_id !== null
+}
+
+/** Menu and matrix order of the base roles; the custom roles follow, by name. */
 const ROLE_ORDER = ['admin', 'counselor', 'admin_assistant', 'provider']
 
 /** What the role gives by default. */
@@ -63,6 +72,39 @@ export function canTogglePermission({ callerIsAdmin, callerCan, permissionKey, o
 }
 
 /**
+ * The roles whose defaults are never edited in the matrix: Administrateur always has every
+ * permission, and the professionals' permissions are managed by the Professionnels module.
+ */
+export const LOCKED_ROLES: ReadonlySet<string> = new Set(['admin', PROVIDER_ROLE])
+
+/** Why a matrix cell is read-only for the caller, or null when she may toggle it. */
+export type RoleCellLock = 'locked' | 'ownRole' | 'lacked'
+
+/**
+ * Whether the caller may toggle one role default (set_role_permission). Locked roles never; turning
+ * a default off is otherwise always allowed; a non-admin manager turns one on only if she holds
+ * that permission, and never in the role she has herself.
+ */
+export function roleCellLock({
+  callerIsAdmin,
+  callerCan,
+  callerRole,
+  role,
+  permissionKey,
+  on,
+}: CallerLimits & { callerRole: string; role: string; permissionKey: string; on: boolean }): RoleCellLock | null {
+  if (LOCKED_ROLES.has(role)) return 'locked'
+  if (on || callerIsAdmin) return null
+  if (role === callerRole) return 'ownRole'
+  return callerCan(permissionKey) ? null : 'lacked'
+}
+
+/** A role name as the database stores it: trimmed, inner runs of whitespace as one space. */
+export function normalizeRoleName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ')
+}
+
+/**
  * Whether the caller may remove all of a user's overrides (clear_permission_overrides): a
  * non-admin manager is refused if any revoke is on a permission they lack (clearing it could give
  * the permission back).
@@ -72,16 +114,33 @@ export function canResetOverrides({ callerIsAdmin, callerCan, overrides }: Calle
 }
 
 /**
- * The roles the caller may assign. Only an admin makes someone admin; a non-admin manager may
- * assign a role only if they hold every permission it gives by default (set_user_role).
+ * Whether the caller holds every default of `role` (the hold rule of set_user_role and
+ * create_role's copy): always for an admin; for a non-admin manager, each of its permissions.
  */
-export function assignableRoles({ callerIsAdmin, callerCan, rolePermissions }: CallerLimits & { rolePermissions: RolePermission[] }): Set<string> {
+export function holdsRoleDefaults({ callerIsAdmin, callerCan, role, rolePermissions }: CallerLimits & { role: string; rolePermissions: RolePermission[] }): boolean {
+  return callerIsAdmin || [...roleGrants(role, rolePermissions)].every((key) => callerCan(key))
+}
+
+/**
+ * The roles the caller may assign, among `roles` (provider left out). Only an admin makes someone
+ * admin; a non-admin manager may assign a role only if they hold every permission it gives by
+ * default (set_user_role).
+ */
+export function assignableRoles({
+  callerIsAdmin,
+  callerCan,
+  roles,
+  rolePermissions,
+}: CallerLimits & { roles: { key: string }[]; rolePermissions: RolePermission[] }): Set<string> {
   return new Set(
-    MANAGED_ROLES.filter((role) => {
-      if (callerIsAdmin) return true
-      if (role === 'admin') return false
-      return [...roleGrants(role, rolePermissions)].every((key) => callerCan(key))
-    }),
+    roles
+      .map((r) => r.key)
+      .filter((role) => {
+        if (role === PROVIDER_ROLE) return false
+        if (callerIsAdmin) return true
+        if (role === 'admin') return false
+        return holdsRoleDefaults({ callerIsAdmin, callerCan, role, rolePermissions })
+      }),
   )
 }
 

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
 import { roleLabel } from '@/core/access/roles'
 import { useSettingsSection } from '@/core/settings/section-context'
 import type { OrgUser } from '@/core/users/api'
@@ -24,18 +25,21 @@ const isTab = (value: string): value is Tab => (TABS as string[]).includes(value
 
 /**
  * Paramètres → Utilisateurs et accès: the clinic's users (tab « Utilisateurs ») and what each role
- * gives by default (tab « Rôles », read-only). With users.manage, a row opens the user's sheet
+ * gives by default (tab « Rôles », editable with roles.manage). With users.manage, a row opens the user's sheet
  * (role, status, permission overrides); with users.view only, the table is read-only. People are
  * added by hand until invitations exist (decision #22).
  */
 export function UsersSettingsPage() {
   const { readOnly } = useSettingsSection()
+  const { can } = useAccess()
+  // With roles.manage, only the users are read-only: the notice goes in their tab.
+  const usersOnlyReadOnly = readOnly && can('roles.manage')
   const [tab, setTab] = useState<Tab>('users')
 
   return (
     <div className="max-w-content space-y-5">
       <PageHeader title={t('settings.sections.users')} description={t('settings.users.description')} />
-      {readOnly && <ReadOnlyNotice />}
+      {readOnly && !usersOnlyReadOnly && <ReadOnlyNotice />}
       {/* Page-level views: real tabs, reachable by keyboard (decision #35). */}
       <Tabs value={tab} onValueChange={(value) => isTab(value) && setTab(value)}>
         <TabsList>
@@ -45,7 +49,8 @@ export function UsersSettingsPage() {
             </TabsTrigger>
           ))}
         </TabsList>
-        <TabsContent value="users" className="mt-5">
+        <TabsContent value="users" className="mt-5 space-y-5">
+          {usersOnlyReadOnly && <ReadOnlyNotice />}
           <UsersTab canManage={!readOnly} />
         </TabsContent>
         <TabsContent value="roles" className="mt-5">

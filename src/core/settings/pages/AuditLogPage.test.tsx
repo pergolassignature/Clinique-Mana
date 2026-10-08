@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -11,11 +11,17 @@ const mocks = vi.hoisted(() => ({
   api: { fetchAuditEntries: vi.fn(), fetchAuditActors: vi.fn(), fetchAuditCatalog: vi.fn(), AUDIT_PAGE_SIZE: 2 },
   /** The clinic date the page sees; null = the real one (from the possibly faked clock). */
   clinicDate: { value: null as string | null },
+  fetchOrgRoles: vi.fn(),
 }))
 vi.mock('@/core/audit/api', () => mocks.api)
+vi.mock('@/core/users/api', () => ({ fetchOrgRoles: mocks.fetchOrgRoles }))
 vi.mock('@/shared/lib/use-clinic-date', async () => {
   const { getClinicDateString } = await vi.importActual<typeof import('@/shared/lib/timezone')>('@/shared/lib/timezone')
   return { useClinicDate: () => mocks.clinicDate.value ?? getClinicDateString(new Date()) }
+})
+
+beforeEach(() => {
+  mocks.fetchOrgRoles.mockResolvedValue([{ key: 'custom_0a1b2c3d', name: 'Réception', org_id: 'o1' }])
 })
 
 afterEach(() => {
@@ -163,6 +169,14 @@ describe('AuditLogPage', () => {
     expect(screen.getByText('Marie Tremblay', { selector: 'li span' })).toHaveAttribute('title', MARIE)
   })
 
+  it("names a custom role from the clinic's roles", async () => {
+    const user = userEvent.setup()
+    const CUSTOM = entry({ table_name: 'org_role_permissions', action: 'insert', changed_fields: { role: 'custom_0a1b2c3d' } })
+    await renderPage({ pages: [[CUSTOM]] })
+    await user.click(toggle('07 oct. 2026 à 14:30'))
+    await waitFor(() => expect(screen.getByText(`Rôle${NB}: Réception`)).toBeInTheDocument())
+  })
+
   it('shows a secret rotation as « Secret remplacé »', async () => {
     const user = userEvent.setup()
     await renderPage({ pages: [[entry({ table_name: 'org_secrets', changed_fields: { value: { rotated: true } }, source: 'rpc:set_org_secret' })]] })
@@ -189,8 +203,10 @@ describe('AuditLogPage', () => {
       'Toutes les sections',
       'Clinique',
       'Utilisateurs',
-      'Rôles',
+      'Rôles attribués',
       'Exceptions de permissions',
+      'Rôles',
+      'Permissions des rôles',
       'Modules',
       'Paramètres de module',
       'Secrets',

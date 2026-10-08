@@ -9,12 +9,14 @@ import type { SettingsSection } from '@/core/modules/types'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { accessForRole } from '@/test/role-fixtures'
 import { renderInSettingsSection } from '@/test/settings-section'
-import { testCatalog, testUsers } from '@/test/users-fixtures'
+import { testCatalog, testRoleDefaults, testRoles, testUsers } from '@/test/users-fixtures'
 import { UsersSettingsPage } from './UsersSettingsPage'
 
 const mocks = vi.hoisted(() => ({
   fetchOrgUsers: vi.fn(),
   fetchPermissionCatalog: vi.fn(),
+  fetchOrgRoles: vi.fn(),
+  fetchRoleDefaults: vi.fn(),
   fetchUserOverrides: vi.fn(),
   setUserRole: vi.fn(),
   setUserStatus: vi.fn(),
@@ -71,6 +73,8 @@ const cell = (name: string, column: (typeof COLUMNS)[number]) => within(rowOf(na
 beforeEach(() => {
   mocks.fetchOrgUsers.mockResolvedValue(testUsers)
   mocks.fetchPermissionCatalog.mockResolvedValue(testCatalog)
+  mocks.fetchOrgRoles.mockResolvedValue(testRoles)
+  mocks.fetchRoleDefaults.mockResolvedValue(testRoleDefaults)
   mocks.fetchUserOverrides.mockResolvedValue([])
 })
 afterEach(() => vi.clearAllMocks())
@@ -161,6 +165,20 @@ describe('UsersSettingsPage', () => {
     expect(await screen.findByRole('table', { name: t('settings.users.matrix.tableLabel') })).toBeInTheDocument()
     expect(screen.getByRole('tabpanel')).toHaveAccessibleName(t('settings.users.tabs.roles'))
     expect(screen.queryByRole('table', { name: t('settings.users.tableLabel') })).not.toBeInTheDocument()
+  })
+
+  it('the « Rôles » tab follows roles.manage, not users.manage', async () => {
+    renderPage({ caller: { ...viewerCaller, permissions: [...viewerCaller.permissions, 'roles.manage'] }, readOnly: true })
+    await screen.findByRole('table', { name: t('settings.users.tableLabel') })
+    // The users stay read-only: the notice is in their tab only.
+    expect(within(screen.getByRole('tabpanel')).getByText(t('common.readOnlyNotice.title'))).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('tab', { name: t('settings.users.tabs.roles') }))
+    await screen.findByRole('table', { name: t('settings.users.matrix.tableLabel') })
+    expect(screen.queryByText(t('common.readOnlyNotice.title'))).not.toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: t('settings.users.matrix.cellLabel', { role: t('roles.counselor'), permission: 'Voir les paramètres' }) })).not.toHaveAttribute(
+      'aria-readonly',
+    )
+    expect(screen.getByRole('button', { name: t('settings.users.matrix.newRole') })).toBeInTheDocument()
   })
 
   it('the tabs are reachable by keyboard: one tab stop, the arrow keys switch views (decision #35)', async () => {

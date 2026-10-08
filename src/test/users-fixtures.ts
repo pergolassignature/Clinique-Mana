@@ -1,4 +1,5 @@
-import type { OrgUser, PermissionCatalog } from '@/core/users/api'
+import type { OrgRole, OrgUser, PermissionCatalog } from '@/core/users/api'
+import type { RolePermission } from '@/core/users/permissions'
 import { ROLE_PERMISSIONS } from './role-fixtures'
 
 /**
@@ -14,18 +15,9 @@ export const testCatalog: PermissionCatalog = {
     { key: 'settings.view', module_key: 'core', description: 'Voir les paramètres' },
     { key: 'users.manage', module_key: 'core', description: 'Inviter et gérer les utilisateurs' },
     { key: 'users.view', module_key: 'core', description: 'Voir les utilisateurs' },
+    { key: 'roles.manage', module_key: 'core', description: 'Gérer les rôles' },
     { key: 'professionals.view', module_key: 'professionals', description: 'Voir les professionnels' },
     { key: 'billing.view', module_key: 'billing', description: 'Voir la facturation' },
-  ],
-  rolePermissions: [
-    ...Object.entries(ROLE_PERMISSIONS).flatMap(([role, keys]) => keys.map((permission_key) => ({ role, permission_key }))),
-    { role: 'admin', permission_key: 'billing.view' },
-  ],
-  roles: [
-    { key: 'provider', name: 'Professionnel' },
-    { key: 'counselor', name: 'Conseillère' },
-    { key: 'admin_assistant', name: 'Adjointe administrative' },
-    { key: 'admin', name: 'Administrateur' },
   ],
   modules: [
     { key: 'core', name: 'Noyau' },
@@ -33,6 +25,23 @@ export const testCatalog: PermissionCatalog = {
     { key: 'billing', name: 'Facturation' },
   ],
 }
+
+/** The base roles, in the database's order (the UI orders them). */
+export const testRoles: OrgRole[] = [
+  { key: 'provider', name: 'Professionnel', org_id: null },
+  { key: 'counselor', name: 'Conseillère', org_id: null },
+  { key: 'admin_assistant', name: 'Adjointe administrative', org_id: null },
+  { key: 'admin', name: 'Administrateur', org_id: null },
+]
+
+/** A custom role of the test clinic (`o1`), with no defaults unless a test gives it some. */
+export const customRole: OrgRole = { key: 'custom_0a1b2c3d', name: 'Réception', org_id: 'o1' }
+
+/** The clinic's role defaults as seeded from the template (admin also holds `billing.view`). */
+export const testRoleDefaults: RolePermission[] = [
+  ...Object.entries(ROLE_PERMISSIONS).flatMap(([role, keys]) => keys.map((permission_key) => ({ role, permission_key }))),
+  { role: 'admin', permission_key: 'billing.view' },
+]
 
 /** The seeded users (supabase/seed.sql), `u-admin` being the test access's user. */
 export const testUsers: OrgUser[] = [

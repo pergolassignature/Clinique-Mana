@@ -14,6 +14,8 @@ export const AUDITED_TABLES = [
   'profiles',
   'user_roles',
   'user_permission_overrides',
+  'roles',
+  'org_role_permissions',
   'org_modules',
   'org_module_settings',
   'org_secrets',
@@ -121,6 +123,8 @@ export interface AuditLookups {
   permissions?: ReadonlyMap<string, string>
   /** module key → name (`modules` catalogue). */
   modules?: ReadonlyMap<string, string>
+  /** role key → stored name, for the clinic's custom roles (base roles use their i18n label). */
+  roles?: ReadonlyMap<string, string>
 }
 
 /** A value as shown: its text, and the full value in `title` when the text shortens it. */
@@ -136,7 +140,8 @@ const PERSON_COLUMNS = new Set(['user_id', 'actor_id', 'created_by', 'updated_by
 const PROFILE_STATUSES = new Set(['active', 'disabled'])
 
 /**
- * One value of `table.column`, for reading. Stored codes become French (`role`, `profiles.status`,
+ * One value of `table.column`, for reading. Stored codes become French (`role`, custom role names
+ * included, `profiles.status`,
  * `tax_rates.tax`, module and permission keys) and person ids become names, each falling back to
  * the raw value; a person not in `lookups.people` shows a short id, the full one in `title`.
  * Everything else goes through `formatAuditValue`.
@@ -147,7 +152,7 @@ export function auditValue(table: string, column: string, value: unknown, lookup
     const name = lookups.people?.get(value)
     return name !== undefined ? { text: name, title: value } : { text: shortRecordId(value), title: value }
   }
-  if (column === 'role') return { text: roleLabel(value) }
+  if (column === 'role') return { text: roleLabel(value, lookups.roles?.get(value)) }
   if (table === 'profiles' && column === 'status' && PROFILE_STATUSES.has(value)) {
     return { text: t(`audit.values.status.${value as 'active' | 'disabled'}`) }
   }

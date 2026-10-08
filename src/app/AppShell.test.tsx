@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLocation } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Home, Settings, Users } from 'lucide-react'
 import { t } from '@/i18n'
 import type { Access } from '@/core/access/access'
@@ -13,6 +14,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
 import { renderWithContexts, testAccess } from '@/test/contexts'
 import { AppShell, type ShellNavItem } from './AppShell'
 import { SIDEBAR_COLLAPSED_KEY } from './shell/use-sidebar-collapsed'
+
+const mocks = vi.hoisted(() => ({ fetchOrgRoles: vi.fn() }))
+// The shell names a custom role from the clinic's roles (get_my_access returns only its key).
+vi.mock('@/core/users/api', () => ({ fetchOrgRoles: mocks.fetchOrgRoles }))
 
 const navItems: ShellNavItem[] = [
   { path: '/accueil', labelKey: 'nav.home', icon: Home },
@@ -37,16 +42,21 @@ function DirtyForm() {
   return null
 }
 
-const shellAt = (path: string, { dirty = false, auth = {} }: { dirty?: boolean; auth?: Partial<AuthContextValue> } = {}) =>
+const shellAt = (
+  path: string,
+  { dirty = false, auth = {}, access = assistant }: { dirty?: boolean; auth?: Partial<AuthContextValue>; access?: Access } = {},
+) =>
   renderWithContexts(
-    <UnsavedChangesProvider>
-      <AppShell navItems={navItems}>
-        {dirty && <DirtyForm />}
-        <Location />
-        <button type="button">Bouton de la page</button>
-      </AppShell>
-    </UnsavedChangesProvider>,
-    { path, access: { access: assistant }, auth },
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <UnsavedChangesProvider>
+        <AppShell navItems={navItems}>
+          {dirty && <DirtyForm />}
+          <Location />
+          <button type="button">Bouton de la page</button>
+        </AppShell>
+      </UnsavedChangesProvider>
+    </QueryClientProvider>,
+    { path, access: { access }, auth },
   )
 
 const location = () => screen.getByTestId('location').textContent
@@ -118,6 +128,17 @@ describe('AppShell — sidebar', () => {
     render(shellAt('/accueil'))
     expect(within(sidebar()).getByText(NAME)).toBeInTheDocument()
     expect(within(sidebar()).getByText('Adjointe administrative')).toBeInTheDocument()
+    // A base role needs no request.
+    expect(mocks.fetchOrgRoles).not.toHaveBeenCalled()
+  })
+
+  it("shows a custom role's stored name, in the sidebar and the user menu", async () => {
+    mocks.fetchOrgRoles.mockResolvedValue([{ key: 'custom_0a1b2c3d', name: 'Réception', org_id: testAccess.org_id }])
+    render(shellAt('/accueil', { access: { ...assistant, role: 'custom_0a1b2c3d' } }))
+    expect(await within(sidebar()).findByText('Réception')).toBeInTheDocument()
+    expect(screen.queryByText('custom_0a1b2c3d')).not.toBeInTheDocument()
+    await userEvent.click(userMenuButton())
+    expect(await screen.findByRole('menu')).toHaveTextContent('Réception')
   })
 
   it('collapses the sidebar, keeps the links named, and remembers the choice', async () => {
@@ -296,9 +317,11 @@ describe('AppShell — command palette', () => {
 
   const shellWith = (children: ReactNode) =>
     renderWithContexts(
-      <UnsavedChangesProvider>
-        <AppShell navItems={navItems}>{children}</AppShell>
-      </UnsavedChangesProvider>,
+      <QueryClientProvider client={new QueryClient()}>
+        <UnsavedChangesProvider>
+          <AppShell navItems={navItems}>{children}</AppShell>
+        </UnsavedChangesProvider>
+      </QueryClientProvider>,
       { path: '/accueil', access: { access: assistant } },
     )
 

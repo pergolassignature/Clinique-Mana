@@ -32,8 +32,10 @@ import { Switch } from '@/shared/ui/switch'
 import type { CatalogPermission, OrgUser } from '../api'
 import {
   useIsSavingPermission,
+  useOrgRoles,
   usePermissionCatalog,
   useResetPermissions,
+  useRoleDefaults,
   useSetPermissionState,
   useSetUserRole,
   useSetUserStatus,
@@ -46,6 +48,8 @@ import {
   effectivePermission,
   groupPermissionsByModule,
   MANAGED_ROLES,
+  orderRoles,
+  PROVIDER_ROLE,
   roleGrants,
   stateForSwitch,
   type PermissionOverride,
@@ -217,11 +221,13 @@ interface SectionProps {
 /**
  * The role, in a small form with « Annuler / Enregistrer »: a closed select changes its value as
  * the arrow keys go through the options, so nothing is saved on change (decision #36). Making
- * someone admin, or removing the admin role, asks for confirmation first.
+ * someone admin, or removing the admin role, asks for confirmation first. The choices are the base
+ * roles but provider, then the clinic's custom roles once loaded (decision #40).
  */
 function RoleSection({ user, locked, callerIsAdmin, onDirtyChange }: SectionProps & { onDirtyChange: (dirty: boolean) => void }) {
   const { can } = useAccess()
-  const catalog = usePermissionCatalog()
+  const roles = useOrgRoles()
+  const defaults = useRoleDefaults()
   const setRole = useSetUserRole()
   const [draft, setDraft] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<'promote' | 'demote' | null>(null)
@@ -229,16 +235,20 @@ function RoleSection({ user, locked, callerIsAdmin, onDirtyChange }: SectionProp
   const isProvider = user.role === 'provider'
   const readOnly = locked || isProvider
   // A non-admin manager may assign only the roles whose defaults they hold, so their choices wait
-  // for the catalogue (with its loading and error states).
-  const needsCatalog = !callerIsAdmin && !readOnly
+  // for the clinic's defaults (with their loading and error states).
+  const needsDefaults = !callerIsAdmin && !readOnly
+  const choices: string[] = roles.data ? orderRoles(roles.data.filter((r) => r.key !== PROVIDER_ROLE)).map((r) => r.key) : [...MANAGED_ROLES]
+  const options = [...choices, ...(user.role && !choices.includes(user.role) ? [user.role] : [])]
+  const names = new Map(roles.data?.map((r) => [r.key, r.name]))
+  const label = (role: string) => roleLabel(role, names.get(role) ?? (role === user.role ? user.role_name : undefined))
   const assignable = callerIsAdmin
-    ? new Set<string>(MANAGED_ROLES)
-    : catalog.data
-      ? assignableRoles({ callerIsAdmin, callerCan: can, rolePermissions: catalog.data.rolePermissions })
+    ? new Set(choices)
+    : defaults.data
+      ? assignableRoles({ callerIsAdmin, callerCan: can, roles: choices.map((key) => ({ key })), rolePermissions: defaults.data })
       : new Set<string>()
+  const failed = [roles, ...(needsDefaults ? [defaults] : [])].filter((q) => q.isError && !q.data)
   const value = draft ?? user.role ?? ''
   const dirty = draft !== null && draft !== user.role
-  const options = [...MANAGED_ROLES, ...(user.role && !(MANAGED_ROLES as readonly string[]).includes(user.role) ? [user.role] : [])]
   // The page guard covers leaving the page (links, reload); the sheet asks on close (onDirtyChange).
   useUnsavedChanges(dirty)
   // Layout effect: the sheet knows at once, even for an Escape pressed right after a change.
@@ -273,7 +283,7 @@ function RoleSection({ user, locked, callerIsAdmin, onDirtyChange }: SectionProp
     <form onSubmit={onSubmit} noValidate aria-busy={setRole.isPending || undefined}>
       <FormField
         label={t('settings.users.sheet.role.label')}
-        help={isProvider ? t('settings.users.sheet.role.provider') : needsCatalog ? t('settings.users.sheet.role.managerLimit') : undefined}
+        help={isProvider ? t('settings.users.sheet.role.provider') : needsDefaults ? t('settings.users.sheet.role.managerLimit') : undefined}
         readOnly={readOnly}
       >
         {(field) => (
@@ -289,20 +299,24 @@ function RoleSection({ user, locked, callerIsAdmin, onDirtyChange }: SectionProp
           >
             {options.map((role) => (
               <option key={role} value={role} disabled={role !== user.role && !assignable.has(role)}>
-                {roleLabel(role, role === user.role ? user.role_name : undefined)}
+                {label(role)}
               </option>
             ))}
           </Select>
         )}
       </FormField>
-      {needsCatalog && catalog.isPending && (
+      {needsDefaults && (roles.isPending || defaults.isPending) && (
         <div className="mt-2">
           <Loading />
         </div>
       )}
-      {needsCatalog && catalog.isError && !catalog.data && (
+      {!readOnly && failed.length > 0 && (
         <div className="mt-2">
-          <LoadError message={t('settings.users.sheet.role.loadError')} onRetry={() => void catalog.refetch()} retrying={catalog.isFetching} />
+          <LoadError
+            message={t('settings.users.sheet.role.loadError')}
+            onRetry={() => failed.forEach((q) => void q.refetch())}
+            retrying={failed.some((q) => q.isFetching)}
+          />
         </div>
       )}
       {!readOnly && (
@@ -325,7 +339,7 @@ function RoleSection({ user, locked, callerIsAdmin, onDirtyChange }: SectionProp
             <AlertDialogDescription>
               {confirm === 'promote'
                 ? promoteBody
-                : t('settings.users.sheet.role.demote.body', { name: user.display_name, role: draft ? roleLabel(draft) : '' })}
+                : t('settings.users.sheet.role.demote.body', { name: user.display_name, role: draft ? label(draft) : '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -410,6 +424,8 @@ function PermissionsSection({ user, locked, callerIsAdmin }: SectionProps) {
   const titleId = useId()
   const { can, access } = useAccess()
   const catalog = usePermissionCatalog()
+  // The clinic's defaults (org_role_permissions), what has_permission evaluates (decision #40).
+  const defaults = useRoleDefaults()
   const isAdmin = user.role === 'admin'
   const overrides = useUserOverrides(isAdmin ? undefined : user.user_id)
   const reset = useResetPermissions()
@@ -417,21 +433,21 @@ function PermissionsSection({ user, locked, callerIsAdmin }: SectionProps) {
   let body
   if (isAdmin) {
     body = <p className="text-sm text-muted-foreground">{t('settings.users.sheet.permissions.admin')}</p>
-  } else if (catalog.isPending || overrides.isPending) {
+  } else if (catalog.isPending || defaults.isPending || overrides.isPending) {
     body = <Loading />
-  } else if ((catalog.isError && !catalog.data) || (overrides.isError && !overrides.data)) {
+  } else if (!catalog.data || !defaults.data || !overrides.data) {
+    const queries = [catalog, defaults, overrides]
     body = (
       <LoadError
         message={t('settings.users.sheet.permissions.loadError')}
-        retrying={catalog.isFetching || overrides.isFetching}
+        retrying={queries.some((q) => q.isFetching)}
         onRetry={() => {
-          if (catalog.isError) void catalog.refetch()
-          if (overrides.isError) void overrides.refetch()
+          for (const q of queries) if (q.isError) void q.refetch()
         }}
       />
     )
   } else {
-    const roleSet = roleGrants(user.role, catalog.data.rolePermissions)
+    const roleSet = roleGrants(user.role, defaults.data)
     const groups = groupPermissionsByModule(catalog.data.permissions, catalog.data.modules, access?.modules ?? [])
     // The permissions of disabled modules have no row, but their exceptions stay (and the reset clears them).
     const shown = new Set(groups.flatMap((group) => group.permissions.map((p) => p.key)))
