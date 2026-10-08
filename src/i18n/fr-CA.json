@@ -997,7 +997,66 @@
       },
       "settings": {
         "professions": {
-          "title": "Professions et ordres"
+          "title": "Professions et ordres",
+          "description": "Les titres que portent les professionnels, leur catégorie et l'ordre qui délivre leur permis.",
+          "titleCount": {
+            "one": "1 titre",
+            "other": "{count} titres",
+            "none": "Aucun titre"
+          },
+          "orders": {
+            "title": "Ordres professionnels",
+            "description": "Un titre rattaché à un ordre demande un numéro de permis.",
+            "add": "Ajouter un ordre",
+            "createTitle": "Ajouter un ordre",
+            "editTitle": "Modifier l'ordre",
+            "acronym": "Sigle",
+            "acronymHelp": "2 à 10 lettres, par exemple « OPQ ».",
+            "licenceLabel": "Libellé du permis",
+            "licenceLabelDefault": "N° de permis",
+            "licenceLabelHelp": "Le nom du numéro sur la fiche du professionnel. Laissez vide pour « N° de permis ».",
+            "licencePattern": "Format du permis",
+            "licencePatternHelp": "Expression régulière, par exemple ^[0-9]{5}$. Laissez vide pour accepter tout numéro.",
+            "archive": {
+              "bodyNone": "Aucun titre actif ne relève de cet ordre. Il ne pourra plus être choisi pour un titre.",
+              "bodyOne": "1 titre actif relève de cet ordre : archivez-le d'abord.",
+              "bodyOther": "{count} titres actifs relèvent de cet ordre : archivez-les d'abord."
+            }
+          },
+          "categories": {
+            "title": "Catégories",
+            "description": "Services et tarifs fixe les prix par catégorie.",
+            "add": "Ajouter une catégorie",
+            "createTitle": "Ajouter une catégorie",
+            "editTitle": "Modifier la catégorie",
+            "archive": {
+              "bodyNone": "Aucun titre actif n'est dans cette catégorie. Elle ne pourra plus être choisie pour un titre.",
+              "bodyOne": "1 titre actif est dans cette catégorie : archivez-le d'abord.",
+              "bodyOther": "{count} titres actifs sont dans cette catégorie : archivez-les d'abord."
+            }
+          },
+          "titles": {
+            "title": "Titres",
+            "description": "Le titre affiché sur la fiche de chaque professionnel. Un titre sans ordre ne demande pas de permis.",
+            "add": "Ajouter un titre",
+            "createTitle": "Ajouter un titre",
+            "editTitle": "Modifier le titre",
+            "category": "Catégorie",
+            "categoryPlaceholder": "Choisir une catégorie…",
+            "order": "Ordre",
+            "noOrder": "Aucun ordre",
+            "noOrderLabel": "Aucun ordre : permis non requis",
+            "orderHelp": "Sans ordre, aucun numéro de permis n'est demandé.",
+            "orderOption": "{name} ({acronym})",
+            "archivedCategory": "{name} (archivée)",
+            "archivedOrder": "{name} (archivé)",
+            "licenceNote": "Les professionnels qui ont ce titre devront fournir un numéro de permis.",
+            "archive": {
+              "bodyNone": "Personne n'a ce titre. Il ne pourra plus être choisi.",
+              "bodyOne": "1 professionnel a ce titre. Il reste sur son dossier mais ne pourra plus être choisi.",
+              "bodyOther": "{count} professionnels ont ce titre. Il reste sur leur dossier mais ne pourra plus être choisi."
+            }
+          }
         },
         "specialties": {
           "title": "Spécialités"

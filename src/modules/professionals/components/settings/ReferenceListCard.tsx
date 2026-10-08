@@ -60,6 +60,8 @@ export interface ReferenceListLabels {
   systemNote: string
   /** « Utilisé par » for a count above 0 (default « 3 professionnels »; parents count their children). */
   usage: (count: number) => string
+  /** What « — » (a count of 0) says to screen readers (default « Personne »; parents: « Aucun titre »). */
+  usageNone: string
   /** The archive confirmation's body (default « Cet élément est utilisé par 3 professionnels. … »). */
   archiveBody: (name: string, count: number) => string
 }
@@ -118,6 +120,7 @@ const DEFAULT_LABELS: ReferenceListLabels = {
   systemNote: t('modules.professionals.settings.list.system'),
   usage: (count) =>
     count === 1 ? t('modules.professionals.settings.list.usage.one') : t('modules.professionals.settings.list.usage.other', { count: String(count) }),
+  usageNone: t('modules.professionals.settings.list.usage.noneLabel'),
   archiveBody: (_name, count) =>
     count === 0
       ? t('modules.professionals.settings.list.archive.bodyNone')
@@ -335,7 +338,7 @@ export function ReferenceListCard<K extends ReferenceKind>({
           {count === 0 ? (
             <>
               <span aria-hidden>{t('modules.professionals.settings.list.usage.none')}</span>
-              <span className="sr-only">{t('modules.professionals.settings.list.usage.noneLabel')}</span>
+              <span className="sr-only">{labels.usageNone}</span>
             </>
           ) : (
             labels.usage(count)

@@ -31,8 +31,14 @@ export const professionalsManifest: ModuleManifest = {
     { path: 'professionnels/:id/:onglet?', permission: 'professionals.view', component: placeholder() },
   ],
   settingsSections: [
-    // 4a.7
-    { id: 'professions', path: 'professions', labelKey: 'modules.professionals.settings.professions.title', icon: GraduationCap, ...LIST_SECTION, component: settingsPlaceholder() },
+    {
+      id: 'professions',
+      path: 'professions',
+      labelKey: 'modules.professionals.settings.professions.title',
+      icon: GraduationCap,
+      ...LIST_SECTION,
+      component: lazyPage(() => import('./pages/settings/ProfessionsSettingsPage'), 'ProfessionsSettingsPage'),
+    },
     // 4a.8 (clientèles and approaches)
     { id: 'specialties', path: 'specialites', labelKey: 'modules.professionals.settings.specialties.title', icon: Compass, ...LIST_SECTION, component: settingsPlaceholder() },
     // 4a.9
