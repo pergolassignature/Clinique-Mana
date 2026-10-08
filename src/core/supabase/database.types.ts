@@ -2492,6 +2492,14 @@ export type Database = {
         Args: { p_org_id: string; p_template_version_id: string }
         Returns: Json
       }
+      get_signing_credentials: {
+        Args: { p_org_id: string }
+        Returns: {
+          api_key: string
+          base_url: string
+          expiry_days: number
+        }[]
+      }
       get_signing_request: {
         Args: { p_id: string; p_org_id: string }
         Returns: Json

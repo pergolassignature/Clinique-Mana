@@ -9,11 +9,13 @@
 -- the draft's own recorded document (another document id, or a draft without one, is refused),
 -- and refuses anything else; discard_system_file soft-deletes a staged signing system file of the
 -- org only (never a file a request took, a client upload, another purpose's, another org's, a
--- pending one), and is idempotent.
+-- pending one), and is idempotent; get_signing_credentials returns the address, the Vault key
+-- (only the secret named after its org_secrets row) and the expiry in one row, none for an
+-- unknown org.
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(30);
 
 -- =============================================================================
 -- Privileges
@@ -25,12 +27,14 @@ select results_eq($$
     from pg_proc p
    where p.oid in ('public.get_signing_request(uuid, uuid)'::regprocedure,
                    'public.recover_signature_request(uuid, uuid, text, text, jsonb)'::regprocedure,
-                   'public.discard_system_file(uuid, uuid)'::regprocedure)
+                   'public.discard_system_file(uuid, uuid)'::regprocedure,
+                   'public.get_signing_credentials(uuid)'::regprocedure)
    order by 1
 $$, $$ values ('discard_system_file(uuid,uuid)'::text, false, false, true, true),
+              ('get_signing_credentials(uuid)'::text, false, false, true, true),
               ('get_signing_request(uuid,uuid)'::text, false, false, true, true),
               ('recover_signature_request(uuid,uuid,text,text,jsonb)'::text, false, false, true, true) $$,
-  'get_signing_request, recover_signature_request and discard_system_file: service role only, definer');
+  'get_signing_request, recover_signature_request, discard_system_file and get_signing_credentials: service role only, definer');
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -218,6 +222,36 @@ select lives_ok($$ select public.complete_signature_request('c0000000-0000-0000-
 reset role;
 select is((select status from public.signature_requests where id = 'c0000000-0000-0000-0000-0000000000a3'), 'signed',
   'signed without a source file: the signed PDF is what matters');
+
+-- =============================================================================
+-- get_signing_credentials
+-- =============================================================================
+-- Org A: an address and its key (a Vault secret named after the row, as set_org_secret names it).
+-- Org B: an address, then a forged org_secrets row.
+update public.signing_settings set base_url = 'https://sign.a.test', expiry_days = 9
+ where org_id = 'b0000000-0000-0000-0000-00000000000a';
+update public.signing_settings set base_url = 'https://sign.b.test'
+ where org_id = 'b0000000-0000-0000-0000-00000000000b';
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values ('b0000000-0000-0000-0000-00000000000a', 'documenso_api_key',
+        vault.create_secret('test-key-a', 'org:b0000000-0000-0000-0000-00000000000a:documenso_api_key'));
+set local role service_role;
+select results_eq($$ select * from public.get_signing_credentials('b0000000-0000-0000-0000-00000000000a') $$,
+  $$ values ('https://sign.a.test'::text, 'test-key-a'::text, 9) $$,
+  'credentials: the address, its key and the expiry in one row');
+select results_eq($$ select * from public.get_signing_credentials('b0000000-0000-0000-0000-00000000000b') $$,
+  $$ values ('https://sign.b.test'::text, null::text, 7) $$, 'credentials: no key stored → api_key null');
+select is_empty($$ select * from public.get_signing_credentials('b0000000-0000-0000-0000-0000000000ff') $$,
+  'credentials: an unknown org → no row');
+reset role;
+-- A row whose Vault secret is not named after it (another org's, or any other secret).
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values ('b0000000-0000-0000-0000-00000000000b', 'documenso_api_key',
+        vault.create_secret('test-other', 'test:not-an-org-secret'));
+set local role service_role;
+select results_eq($$ select api_key from public.get_signing_credentials('b0000000-0000-0000-0000-00000000000b') $$,
+  $$ values (null::text) $$, 'credentials: a row pointing at a Vault secret not named after it reads nothing');
+reset role;
 
 select * from finish();
 rollback;

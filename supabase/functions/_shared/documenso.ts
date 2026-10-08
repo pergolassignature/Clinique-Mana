@@ -318,18 +318,23 @@ const TERMINAL_EVENTS = new Set([
 ])
 
 /**
- * The webhook claim id (design §2.7, PS Hub `idempotency.ts`). `event` is
+ * The webhook claim id (design §2.7, PS Hub `idempotency.ts`):
+ * `<org id>:<event>:<document id>[:<version>]`. The org comes first because
+ * claims are unique per provider, while Documenso ids are per instance and
+ * each clinic has its own: two clinics' document 12 are two documents, and
+ * one's event must never be taken for a duplicate of the other's. `event` is
  * Documenso's name (`DOCUMENT_COMPLETED`). A terminal event happens once per
  * document, so its id has no version: a replay with a new envelope timestamp
  * stays a duplicate. Other events add the version (the webhook's `createdAt`,
  * else the document's `updatedAt`), or `unversioned`.
  */
 export function documensoEventId(
+  orgId: string,
   event: string,
   documentId: string,
   version: string | null,
 ): string {
-  const prefix = `${event}:${documentId}`
+  const prefix = `${orgId}:${event}:${documentId}`
   return TERMINAL_EVENTS.has(event)
     ? prefix
     : `${prefix}:${version ?? 'unversioned'}`

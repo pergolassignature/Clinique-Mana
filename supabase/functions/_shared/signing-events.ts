@@ -28,9 +28,14 @@
  *   (`mark_signature_request_failed` with the code).
  * - **Only the request's own document** is acted on: Documenso holds it
  *   under the request's id (`externalId`, set at creation). Another document
- *   under the draft's recorded id (an org that changed Documenso instance) is
+ *   under a draft's recorded id (an org that changed Documenso instance) is
  *   reported `signing_foreign_document` (ids only), never recovered nor
- *   cancelled, and otherwise treated as one Documenso no longer has.
+ *   cancelled, and otherwise treated as one Documenso no longer has. For a
+ *   sent request, another document fails the sync with
+ *   `signing_foreign_document` before any event is applied, and a signed
+ *   PDF is only downloaded for the document the request still records.
+ *   (`set_signing_settings` refuses an instance change while a request is
+ *   open, so this is a last guard.)
  * - **A settle reads under its claim:** the draft is re-read
  *   (`get_signing_request`) once claimed, and settled against its current
  *   document (a send may have recorded another one since the list), read
@@ -219,15 +224,16 @@ const applyRowSchema = z.object({
 })
 
 /**
- * Applies `events` in order (they lock one row, so never in parallel). The
- * first call finds the row by `ref`; the next ones by the request id it
- * answered. `retry` and `not_found` stop at once. `applied` when any call
- * changed the row; `needsDownload` when any asked for the signed PDF.
+ * Applies `events` in order (they lock one row, so never in parallel), each
+ * to the request `ref.requestId` (the document's `externalId`: never found
+ * by document id alone). `retry` and `not_found` stop at once. `applied`
+ * when any call changed the row; `needsDownload` when any asked for the
+ * signed PDF.
  */
 export async function applyEvents(
   client: SupabaseClient,
   orgId: string,
-  ref: { requestId: string | null; documentId: string | null },
+  ref: { requestId: string; documentId: string | null },
   events: SigningEvent[],
 ): Promise<ApplyResult> {
   const result: ApplyResult = {
@@ -238,7 +244,7 @@ export async function applyEvents(
   for (const e of events) {
     const { data, error } = await client.rpc('apply_signing_event', {
       p_org_id: orgId,
-      p_request_id: result.requestId,
+      p_request_id: ref.requestId,
       p_documenso_document_id: ref.documentId,
       p_event: e.event,
       p_recipient_id: e.recipientId,
@@ -362,18 +368,43 @@ export interface OrgSigning {
   expiryDays: number
 }
 
-const settingsSchema = z.object({
-  settings: z.object({
-    base_url: z.string().nullable(),
-    expiry_days: z.number().int().positive(),
-  }),
+const credentialsSchema = z.object({
+  base_url: z.string().nullable(),
+  api_key: z.string().nullable(),
+  expiry_days: z.number().int().positive(),
 })
 
+/** What `get_signing_credentials` answered for an org. */
+export type SigningCredentials = z.infer<typeof credentialsSchema>
+
 /**
- * The org's Documenso (`signing_settings` and the Vault key, read in
- * parallel), or null when the URL or the key is not set. Downloads are
- * capped at `SIGNED_PDF_MAX_BYTES`; requests go only where `reach` allows
- * (`documensoReach`).
+ * The org's Documenso address, API key and expiry, read together in one
+ * statement (`get_signing_credentials`): a key is only ever paired with the
+ * address it was typed for (`set_signing_settings` deletes it in the same
+ * transaction as an origin change; two separate reads could pair the new
+ * address with the old key). Throws `signing_config_failed` on an RPC error
+ * or an unexpected answer (no row: an org without signing settings).
+ */
+export async function signingCredentials(
+  client: SupabaseClient,
+  orgId: string,
+): Promise<SigningCredentials> {
+  const { data, error } = await client.rpc('get_signing_credentials', {
+    p_org_id: orgId,
+  })
+  const parsed = credentialsSchema.safeParse(
+    Array.isArray(data) ? data[0] : null,
+  )
+  if (error || !parsed.success) {
+    throw new SigningFailure('signing_config_failed')
+  }
+  return parsed.data
+}
+
+/**
+ * The org's Documenso (`signingCredentials`), or null when the URL or the key
+ * is not set. Downloads are capped at `SIGNED_PDF_MAX_BYTES`; requests go
+ * only where `reach` allows (`documensoReach`).
  */
 export async function orgSigning(
   client: SupabaseClient,
@@ -382,24 +413,13 @@ export async function orgSigning(
   reach: DocumensoReach,
   signal?: AbortSignal,
 ): Promise<OrgSigning | null> {
-  const [context, secret] = await Promise.all([
-    client.rpc('get_signing_context', {
-      p_org_id: orgId,
-      p_template_version_id: null,
-    }),
-    client.rpc('get_org_secret', {
-      p_org_id: orgId,
-      p_key: 'documenso_api_key',
-    }),
-  ])
-  const parsed = settingsSchema.safeParse(context.data)
-  if (context.error || secret.error || !parsed.success) {
-    throw new SigningFailure('signing_config_failed')
-  }
-  const { base_url, expiry_days } = parsed.data.settings
-  if (!base_url || typeof secret.data !== 'string' || !secret.data) return null
+  const { base_url, api_key, expiry_days } = await signingCredentials(
+    client,
+    orgId,
+  )
+  if (!base_url || !api_key) return null
   return {
-    documenso: documensoClient(base_url, secret.data, fetchFn, {
+    documenso: documensoClient(base_url, api_key, fetchFn, {
       signal,
       maxDownloadBytes: SIGNED_PDF_MAX_BYTES,
       reach,
@@ -612,6 +632,11 @@ export async function syncRequest(
     return await settleDraft(ctx, row, documentId, state, options.settleDrafts)
   }
   const state = await documenso.get(documentId)
+  // Only the request's own document (module comment): checked before any
+  // event is applied.
+  if (!ownsDocument(state, row.id)) {
+    throw new SigningFailure('signing_foreign_document', row.id)
+  }
   const result = await applyEvents(ctx.client, ctx.orgId, {
     requestId: row.id,
     documentId,
@@ -621,6 +646,10 @@ export async function syncRequest(
   }
   if (result.needsDownload) {
     const request = await requireRequest(ctx, row.id)
+    // And the document the request records now, read before downloading.
+    if (request.documenso_document_id !== documentId) {
+      throw new SigningFailure('signing_foreign_document', row.id)
+    }
     await storeSignedPdf(ctx.client, documenso, ctx.orgId, {
       id: row.id,
       documentId,

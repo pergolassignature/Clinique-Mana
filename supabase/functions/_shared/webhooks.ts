@@ -26,7 +26,7 @@ export function webhookResponse(status: number, body?: unknown): Response {
 /** One provider event to claim. */
 export interface ClaimInput {
   provider: 'resend' | 'documenso'
-  /** Resend: the `svix-id`; Documenso: `<event>:<document_id>` (design §2.7). */
+  /** Resend: the `svix-id`; Documenso: `<org_id>:<event>:<document_id>` (design §2.7, `documensoEventId`). */
   eventId: string
   /** From a database row, never from the payload. */
   orgId: string

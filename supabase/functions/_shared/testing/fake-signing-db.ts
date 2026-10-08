@@ -211,22 +211,10 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
     return full
   }
 
-  /** The row for `p_request_id`, else by document id, in the org (apply_signing_event). */
-  function findForEvent(
-    org: string,
-    id: unknown,
-    documentId: unknown,
-  ): FakeSignatureRequest | null {
-    let row = typeof id === 'string' ? requests.get(id) ?? null : null
-    if (row && row.org_id !== org) row = null
-    if (!row && typeof documentId === 'string') {
-      row = [...requests.values()].find((r) =>
-        r.org_id === org && r.documenso_document_id === documentId
-      ) ?? null
-    }
-    if (!row) return null
-    if (typeof id === 'string' && row.id !== id) return null
-    return row
+  /** The row for `p_request_id` in the org, never by document id (apply_signing_event). */
+  function findForEvent(org: string, id: string): FakeSignatureRequest | null {
+    const row = requests.get(id) ?? null
+    return row && row.org_id === org ? row : null
   }
 
   const stagedSourceOf = (r: FakeSignatureRequest) =>
@@ -267,6 +255,20 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
           logo: options.logo ?? null,
           signature: options.signature ?? null,
         },
+      }
+    },
+    get_signing_credentials: (a) => {
+      if (a.p_org_id !== orgId) return { data: [] }
+      return {
+        data: [{
+          base_url: options.baseUrl === undefined
+            ? 'http://host.docker.internal:55390'
+            : options.baseUrl,
+          api_key: options.apiKey === undefined
+            ? 'local-dev-documenso-key'
+            : options.apiKey,
+          expiry_days: options.expiryDays ?? 7,
+        }],
       }
     },
     get_org_secret: (a) => {
@@ -494,11 +496,8 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       return { data: null }
     },
     apply_signing_event: (a) => {
-      const row = findForEvent(
-        String(a.p_org_id),
-        a.p_request_id,
-        a.p_documenso_document_id,
-      )
+      if (typeof a.p_request_id !== 'string') return E22023
+      const row = findForEvent(String(a.p_org_id), a.p_request_id)
       const answer = (outcome: string, download = false) => ({
         data: [{
           outcome,

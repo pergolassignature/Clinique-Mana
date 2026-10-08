@@ -5,7 +5,7 @@
 -- private helpers for no client role); indexes; the signing_source / signing_signed purposes;
 -- the core.signing_reconcile job; signing_settings (seeded per org, base_url forms: public https
 -- only, P3-34; the per-field patch; the API key cleared when the origin changes; expiry
--- range, permission, visibility); document templates (create needs settings.manage, the module
+-- range, permission, visibility; no origin change while a request is open); document templates (create needs settings.manage, the module
 -- gate of their permissions, visibility through view_permission, a disabled module's template
 -- invisible, set_document_template_active); versions (one draft, one published, publish
 -- archives the previous one, draft-only edits, undeclared placeholders in any body string,
@@ -17,14 +17,15 @@
 -- mark_signature_request_sent (recipients keyed by role) / _failed (both release the claim; a
 -- re-send's earlier document superseded); apply_signing_event (monotonic transitions, terminal
 -- states, drafts: retry or ignored, a superseded document ignored, a disabled module, another
--- org, unknown events, nothing undoes a completion); complete_signature_request; list_subject_signature_requests (visibility, signers
+-- org, unknown events, nothing undoes a completion; the request id required: no lookup by
+-- document id alone); complete_signature_request; list_subject_signature_requests (visibility, signers
 -- without addresses, keyset paging); get_signature_request; list_signature_requests_to_reconcile,
 -- expire_signature_request and cancel_signature_request; audit rows (signers' email and name,
 -- requests' title, versions' body redacted).
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(290);
+select plan(297);
 
 -- =============================================================================
 -- Privileges, indexes, purposes, job
@@ -892,11 +893,11 @@ $$, $$ values ('viewed'::text, now(), '[["signed", true, true], ["pending", fals
 
 set local role service_role;
 select results_eq($$ select outcome, request_id, needs_download from public.apply_signing_event(
-    'b0000000-0000-0000-0000-00000000000a', null, '11', 'DOCUMENT_COMPLETED', null, now(), null) $$,
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r1'), '11', 'DOCUMENT_COMPLETED', null, now(), null) $$,
   $$ select 'applied'::text, (select id from t where step = 'r1'), true $$,
-  'completed (found by document id) → needs_download');
+  'completed → needs_download');
 select results_eq($$ select outcome, needs_download from public.apply_signing_event(
-    'b0000000-0000-0000-0000-00000000000a', null, '11', 'DOCUMENT_COMPLETED', null, now(), null) $$,
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r1'), '11', 'DOCUMENT_COMPLETED', null, now(), null) $$,
   $$ values ('applied'::text, true) $$, 'completed again before the download is stored → needs_download again');
 insert into t (step, id)
 select 'signed_r1', f.file_id
@@ -914,7 +915,7 @@ select lives_ok($$ select public.complete_signature_request((select id from t wh
 select lives_ok($$ select public.complete_signature_request((select id from t where step = 'r1'),
                      (select id from t where step = 'signed_r1'), repeat('d', 64)) $$, 'complete is idempotent');
 select results_eq($$ select outcome, needs_download from public.apply_signing_event(
-    'b0000000-0000-0000-0000-00000000000a', null, '11', 'DOCUMENT_COMPLETED', null, now(), null) $$,
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r1'), '11', 'DOCUMENT_COMPLETED', null, now(), null) $$,
   $$ values ('ignored'::text, false) $$, 'completed after signed → ignored');
 reset role;
 select results_eq($$
@@ -939,9 +940,9 @@ select results_eq($$ select outcome from public.apply_signing_event(
 select results_eq($$ select outcome from public.apply_signing_event(
     'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r3'), '13', 'DOCUMENT_OPENED', '301', now(), null) $$,
   $$ values ('ignored'::text) $$, 'a cancelled request ignores later events');
-select results_eq($$ select outcome, request_id from public.apply_signing_event(
-    'b0000000-0000-0000-0000-00000000000a', null, '900', 'DOCUMENT_OPENED', null, now(), null) $$,
-  $$ values ('not_found'::text, null::uuid) $$, 'another org''s document id → not_found');
+select throws_ok($$ select * from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', null, '11', 'DOCUMENT_OPENED', null, now(), null) $$,
+  '22023', null, 'the request id is required: no lookup by document id alone (ids are per Documenso instance)');
 select results_eq($$ select outcome from public.apply_signing_event(
     'b0000000-0000-0000-0000-00000000000b', (select id from t where step = 'r2'), null, 'DOCUMENT_OPENED', null, now(), null) $$,
   $$ values ('not_found'::text) $$, 'a request of another org than the hinted one → not_found');
@@ -961,7 +962,7 @@ reset role;
 update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
 set local role service_role;
 select results_eq($$ select outcome, module_key from public.apply_signing_event(
-    'b0000000-0000-0000-0000-00000000000a', null, '15', 'DOCUMENT_OPENED', '501', now(), null) $$,
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'rp'), '15', 'DOCUMENT_OPENED', '501', now(), null) $$,
   $$ values ('ignored'::text, 'professionals'::text) $$, 'a disabled module → ignored');
 reset role;
 update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
@@ -1227,7 +1228,7 @@ select results_eq($$ select outcome from public.apply_signing_event(
 
 -- x4: the sync first finds the lost DOCUMENT_COMPLETED; from then on nothing undoes it.
 select results_eq($$ select outcome, needs_download from public.apply_signing_event(
-    'b0000000-0000-0000-0000-00000000000a', null, '604', 'DOCUMENT_COMPLETED', null, now(), null) $$,
+    'b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000004', '604', 'DOCUMENT_COMPLETED', null, now(), null) $$,
   $$ values ('applied'::text, true) $$, 'the overdue request''s lost completion, applied by the sync');
 select results_eq($$ select action from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a')
                       where id = 'c0000000-0000-0000-0000-000000000004' $$,
@@ -1235,10 +1236,10 @@ select results_eq($$ select action from public.list_signature_requests_to_reconc
 select ok(not public.expire_signature_request('c0000000-0000-0000-0000-000000000004'),
   'a request Documenso completed is not expired, even overdue');
 select results_eq($$ select outcome from public.apply_signing_event(
-    'b0000000-0000-0000-0000-00000000000a', null, '604', 'DOCUMENT_CANCELLED', null, now(), null) $$,
+    'b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000004', '604', 'DOCUMENT_CANCELLED', null, now(), null) $$,
   $$ values ('ignored'::text) $$, 'completed, then cancelled → ignored');
 select results_eq($$ select outcome from public.apply_signing_event(
-    'b0000000-0000-0000-0000-00000000000a', null, '604', 'DOCUMENT_REJECTED', null, now(), 'Non') $$,
+    'b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000004', '604', 'DOCUMENT_REJECTED', null, now(), 'Non') $$,
   $$ values ('ignored'::text) $$, 'completed, then rejected → ignored');
 select throws_ok($$ select public.cancel_signature_request('c0000000-0000-0000-0000-000000000004', null) $$,
   'P0001', 'Ce document a déjà été signé : la demande ne peut plus être annulée.',
@@ -1306,6 +1307,48 @@ select ok(exists (
   select 1 from public.audit_log l
    where l.table_name = 'signing_settings' and l.record_id = 'b0000000-0000-0000-0000-00000000000a' and l.action = 'update'
      and l.changed_fields -> 'expiry_days' = '{"before": 7, "after": 14}'), 'signing_settings is audited');
+
+-- =============================================================================
+-- No origin change while a request is open at the current instance (final Phase 3 review)
+-- =============================================================================
+-- Org B: an address, and one test document sent there (its earlier requests closed first).
+update public.signing_settings set base_url = 'https://sign.b.test' where org_id = 'b0000000-0000-0000-0000-00000000000b';
+update public.signature_requests set status = 'cancelled', cancelled_at = now()
+ where org_id = 'b0000000-0000-0000-0000-00000000000b' and status in ('draft', 'sent', 'viewed');
+insert into public.signature_requests (id, org_id, module_key, purpose, subject_type, subject_id, title, status,
+  documenso_document_id, idempotency_key, view_permission, sent_at, expires_at)
+values ('c0000000-0000-0000-0000-0000000000e9', 'b0000000-0000-0000-0000-00000000000b', 'core', 'core.signing_test',
+        'signing_test', 'a0000000-0000-0000-0000-000000000006', 'Document test', 'sent', '71', 'key-b9',
+        'settings.integrations_manage', now(), now() + interval '7 days');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+select throws_ok($$ select public.set_signing_settings('{"base_url": "https://autre.b.test"}') $$, 'P0001',
+  'Des demandes de signature sont encore en cours avec l''instance actuelle. Changez l''adresse une fois qu''elles sont signées, refusées, annulées ou expirées.',
+  'a sent request blocks another origin');
+select throws_ok($$ select public.set_signing_settings('{"base_url": null}') $$, 'P0001', null,
+  'a sent request blocks clearing the address');
+select is(public.set_signing_settings('{"base_url": "https://sign.b.test/api", "expiry_days": 10}'),
+  '{"api_key_cleared": false}'::jsonb, 'the same origin and the expiry stay editable');
+reset role;
+update public.signature_requests set status = 'draft', sent_at = null, expires_at = null, last_error = 'provider_error'
+ where id = 'c0000000-0000-0000-0000-0000000000e9';
+set local role authenticated;
+select throws_ok($$ select public.set_signing_settings('{"base_url": "https://autre.b.test"}') $$, 'P0001', null,
+  'a draft holding a Documenso document blocks it');
+reset role;
+update public.signature_requests set last_error = 'abandoned' where id = 'c0000000-0000-0000-0000-0000000000e9';
+set local role authenticated;
+select is(public.set_signing_settings('{"base_url": "https://autre.b.test"}'), '{"api_key_cleared": false}'::jsonb,
+  'an abandoned draft does not (its document was cancelled)');
+reset role;
+update public.signature_requests set last_error = null, documenso_document_id = null
+ where id = 'c0000000-0000-0000-0000-0000000000e9';
+set local role authenticated;
+select is(public.set_signing_settings('{"base_url": "https://sign.b.test"}'), '{"api_key_cleared": false}'::jsonb,
+  'nor does a draft without a document');
+reset role;
+select results_eq($$ select base_url, expiry_days from public.signing_settings where org_id = 'b0000000-0000-0000-0000-00000000000b' $$,
+  $$ values ('https://sign.b.test'::text, 10) $$, 'only the allowed changes were applied');
 
 select * from finish();
 rollback;

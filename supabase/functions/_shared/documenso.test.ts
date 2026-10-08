@@ -1054,28 +1054,43 @@ Deno.test('ping: no answer at all → provider_error', async () => {
 // ---------------------------------------------------------------------------
 // documensoEventId
 // ---------------------------------------------------------------------------
+const ORG_A = '00000000-0000-0000-0000-00000000000a'
+const ORG_B = '00000000-0000-0000-0000-00000000000b'
+
 Deno.test('documensoEventId: terminal events ignore the version', () => {
   assertEquals(
-    documensoEventId('DOCUMENT_COMPLETED', '12', 'x'),
-    'DOCUMENT_COMPLETED:12',
+    documensoEventId(ORG_A, 'DOCUMENT_COMPLETED', '12', 'x'),
+    `${ORG_A}:DOCUMENT_COMPLETED:12`,
   )
   assertEquals(
-    documensoEventId('DOCUMENT_REJECTED', '12', '2026-10-08T14:00:00Z'),
-    'DOCUMENT_REJECTED:12',
+    documensoEventId(ORG_A, 'DOCUMENT_REJECTED', '12', '2026-10-08T14:00:00Z'),
+    `${ORG_A}:DOCUMENT_REJECTED:12`,
   )
   assertEquals(
-    documensoEventId('DOCUMENT_CANCELLED', '12', null),
-    'DOCUMENT_CANCELLED:12',
+    documensoEventId(ORG_A, 'DOCUMENT_CANCELLED', '12', null),
+    `${ORG_A}:DOCUMENT_CANCELLED:12`,
   )
 })
 
 Deno.test('documensoEventId: other events include the version (or « unversioned »)', () => {
   assertEquals(
-    documensoEventId('DOCUMENT_OPENED', '12', '2026-10-08T14:00:00.000Z'),
-    'DOCUMENT_OPENED:12:2026-10-08T14:00:00.000Z',
+    documensoEventId(
+      ORG_A,
+      'DOCUMENT_OPENED',
+      '12',
+      '2026-10-08T14:00:00.000Z',
+    ),
+    `${ORG_A}:DOCUMENT_OPENED:12:2026-10-08T14:00:00.000Z`,
   )
   assertEquals(
-    documensoEventId('DOCUMENT_SIGNED', '12', null),
-    'DOCUMENT_SIGNED:12:unversioned',
+    documensoEventId(ORG_A, 'DOCUMENT_SIGNED', '12', null),
+    `${ORG_A}:DOCUMENT_SIGNED:12:unversioned`,
   )
+})
+
+Deno.test('documensoEventId: the same document id at two clinics (two instances) is two events', () => {
+  const a = documensoEventId(ORG_A, 'DOCUMENT_COMPLETED', '12', null)
+  const b = documensoEventId(ORG_B, 'DOCUMENT_COMPLETED', '12', null)
+  assertEquals(a === b, false)
+  assertEquals(b, `${ORG_B}:DOCUMENT_COMPLETED:12`)
 })

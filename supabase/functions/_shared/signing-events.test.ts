@@ -166,14 +166,14 @@ Deno.test('webhookEvents: only what the event says, with the webhook time as a f
 // ---------------------------------------------------------------------------
 // applyEvents
 // ---------------------------------------------------------------------------
-Deno.test('applyEvents: in order, the first call by document id, the next by request id', async () => {
+Deno.test('applyEvents: in order, each call by the request id', async () => {
   const { fake, db, supabase } = setup()
   const row = await sentRequest(fake, db)
   const recipient = row.signers[0].recipient_id
   const result = await applyEvents(
     supabase.client,
     SIGNING_ORG,
-    { requestId: null, documentId: row.documenso_document_id },
+    { requestId: row.id, documentId: row.documenso_document_id },
     [
       {
         event: 'DOCUMENT_OPENED',
@@ -194,7 +194,7 @@ Deno.test('applyEvents: in order, the first call by document id, the next by req
     requestId: row.id,
     needsDownload: false,
   })
-  assertEquals(supabase.calls.map((c) => c.args.p_request_id), [null, row.id])
+  assertEquals(supabase.calls.map((c) => c.args.p_request_id), [row.id, row.id])
   assertEquals(db.requests.get(row.id)!.signers[0].status, 'signed')
 })
 
@@ -217,17 +217,18 @@ Deno.test('applyEvents: retry and not_found stop at once; nothing to apply is ig
   assertEquals(supabase.calls.length, 1)
   assertEquals(
     (await applyEvents(supabase.client, SIGNING_ORG, {
-      requestId: null,
-      documentId: '999',
+      requestId: 'r-unknown',
+      documentId: '77',
     }, [event])).outcome,
     'not_found',
+    'a document id alone finds nothing: r1 holds document 77, but under another id',
   )
   assertEquals(
     await applyEvents(supabase.client, SIGNING_ORG, {
-      requestId: null,
+      requestId: 'r-unknown',
       documentId: '999',
     }, []),
-    { outcome: 'ignored', requestId: null, needsDownload: false },
+    { outcome: 'ignored', requestId: 'r-unknown', needsDownload: false },
   )
 })
 
@@ -252,7 +253,7 @@ Deno.test('applyEvents: an RPC error throws a coded failure', async () => {
 // ---------------------------------------------------------------------------
 // orgSigning
 // ---------------------------------------------------------------------------
-Deno.test('orgSigning: the settings and the key in parallel; either missing → null', async () => {
+Deno.test('orgSigning: the address, the key and the expiry in one read; either missing → null', async () => {
   const clock = fixedClock(NOW)
   for (
     const [baseUrl, apiKey, configured] of [
@@ -275,8 +276,60 @@ Deno.test('orgSigning: the settings and the key in parallel; either missing → 
       LOCAL_REACH,
     )
     assertEquals(signing !== null, configured)
-    assertEquals(rpcNames(supabase), ['get_signing_context', 'get_org_secret'])
-    assertEquals(supabase.calls[0].args.p_template_version_id, null)
+    assertEquals(rpcNames(supabase), ['get_signing_credentials'])
+    assertEquals(supabase.calls[0].args, { p_org_id: SIGNING_ORG })
+  }
+})
+
+Deno.test('orgSigning: the key goes to the address read with it (one snapshot), never one read apart', async () => {
+  const supabase = fakeSupabase({
+    rpc: {
+      get_signing_credentials: {
+        data: [{
+          base_url: 'http://host.docker.internal:55390',
+          api_key: 'key-for-this-address',
+          expiry_days: 9,
+        }],
+      },
+      // A separate read would see another address: never called.
+      get_signing_context: {
+        data: { settings: { base_url: 'https://other.test', expiry_days: 1 } },
+      },
+      get_org_secret: { data: 'another-key' },
+    },
+  })
+  const seen: { url: string; key: string | null }[] = []
+  const signing = await orgSigning(
+    supabase.client,
+    SIGNING_ORG,
+    (input, init) => {
+      seen.push({
+        url: String(input),
+        key: new Headers(
+          (init as { headers?: HeadersInit } | undefined)?.headers,
+        )
+          .get('Authorization'),
+      })
+      return Promise.resolve(Response.json({ data: [] }))
+    },
+    LOCAL_REACH,
+  )
+  assertEquals(signing!.expiryDays, 9)
+  await signing!.documenso.ping()
+  assertEquals(seen, [{
+    url: 'http://host.docker.internal:55390/api/v2/document?perPage=1',
+    key: 'key-for-this-address',
+  }])
+  assertEquals(rpcNames(supabase), ['get_signing_credentials'])
+})
+
+Deno.test('orgSigning: an RPC error or no row → signing_config_failed', async () => {
+  for (const route of [{ error: { code: '57014' } }, { data: [] }]) {
+    const supabase = fakeSupabase({ rpc: { get_signing_credentials: route } })
+    const error = await assertRejects(() =>
+      orgSigning(supabase.client, SIGNING_ORG, fetch, LOCAL_REACH)
+    )
+    assertEquals((error as { code: string }).code, 'signing_config_failed')
   }
 })
 
@@ -436,6 +489,70 @@ Deno.test('syncRequest: an opened document → viewed; nothing new → unchanged
     await syncRequest(ctx, db.requests.get(row.id)!, { settleDrafts: false }),
     'unchanged',
   )
+})
+
+Deno.test('syncRequest: a sent request whose document is held under another externalId → signing_foreign_document before any event or download', async () => {
+  for (const externalId of [null, 'another-request']) {
+    const { fake, db, supabase, ctx } = setup()
+    const row = await sentRequest(fake, db)
+    const doc = row.documenso_document_id!
+    fake.complete(doc)
+    fake.documents.get(doc)!.externalId = externalId
+    const error = await assertRejects(() =>
+      syncRequest(ctx, row, { settleDrafts: true })
+    )
+    assertEquals(
+      [
+        (error as { code: string }).code,
+        (error as { requestId: string }).requestId,
+      ],
+      ['signing_foreign_document', row.id],
+    )
+    assertEquals(rpcNames(supabase), [], 'nothing applied')
+    assertEquals(
+      fake.calls.map((c) => c.method),
+      ['GET'],
+      'one read, no download',
+    )
+    assertEquals(db.requests.get(row.id)!.status, 'sent')
+  }
+})
+
+Deno.test('syncRequest: completed, but the request now records another document → signing_foreign_document, nothing downloaded', async () => {
+  const { fake, db, ctx } = setup()
+  const row = await sentRequest(fake, db)
+  fake.complete(row.documenso_document_id!)
+  const listed = { ...row }
+  // Recorded since the list was read (the read before the download is fresh),
+  // while the completion was applied for the listed document all the same.
+  db.requests.get(row.id)!.documenso_document_id = '999'
+  const supabase = fakeSupabase({
+    rpc: {
+      ...db.rpc,
+      apply_signing_event: {
+        data: [{
+          outcome: 'applied',
+          request_id: row.id,
+          module_key: 'core',
+          needs_download: true,
+        }],
+      },
+    },
+    storage: db.storage,
+  })
+  const error = await assertRejects(() =>
+    syncRequest({ ...ctx, client: supabase.client }, listed, {
+      settleDrafts: false,
+    })
+  )
+  assertEquals((error as { code: string }).code, 'signing_foreign_document')
+  // Two events (signers, then completion), then the fresh read.
+  assertEquals(rpcNames(supabase).at(-1), 'get_signing_request')
+  assertEquals(
+    rpcNames(supabase).filter((n) => n !== 'apply_signing_event'),
+    ['get_signing_request'],
+  )
+  assertEquals(fake.calls.filter((c) => c.url.includes('/download')), [])
 })
 
 Deno.test('syncRequest: a request with no Documenso document → unchanged, no call', async () => {

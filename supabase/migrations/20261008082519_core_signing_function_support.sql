@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Signing function support: one request read for the service role, recovering a draft Documenso
--- completed, discarding a signing system file
+-- completed, discarding a signing system file, the org's Documenso credentials
 -- =============================================================================
 -- Plan:    docs/plans/2026-10-08-phase-3-shared-services-plan.md, Task 3.33 (the signing
 --          functions), follow-up of Task 3.31 (core_signing) and Task 3.24 (core_storage)
@@ -49,7 +49,14 @@
 --   staged (`retain_until` set). A file a request or a module RPC took (retain_until cleared) is
 --   never touched; nor is a client upload or another purpose's file. The object (if any) is
 --   removed by storage-cleanup like any deleted file.
--- * All three are service role only (security definer, set search_path = '').
+-- * get_signing_credentials(p_org_id) → one row (base_url, api_key, expiry_days), none for an
+--   org without signing settings; api_key null when none is stored. The address and the Vault key
+--   come from one statement, so one snapshot (final Phase 3 review): set_signing_settings deletes
+--   the key in the same transaction as an origin change, and two separate reads (the functions
+--   read get_signing_context and get_org_secret in parallel before) could pair the new address
+--   with the old key, sending it where it was never typed for. The key is matched to its Vault
+--   secret by name, as get_org_secret does (20261007205802_core_bank_details.sql).
+-- * All four are service role only (security definer, set search_path = '').
 -- =============================================================================
 select pg_catalog.set_config('app.audit_source', 'migration:core_signing_function_support', true);
 
@@ -192,13 +199,33 @@ begin
 end;
 $$;
 
+-- The org's Documenso address, API key and invitation expiry, in one statement (header).
+create function public.get_signing_credentials(p_org_id uuid)
+returns table (base_url text, api_key text, expiry_days int)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.base_url, ds.decrypted_secret, s.expiry_days
+    from public.signing_settings s
+    left join public.org_secrets k
+      on k.org_id = s.org_id and k.key = 'documenso_api_key'
+    left join vault.decrypted_secrets ds
+      on ds.id = k.vault_secret_id
+     and ds.name = pg_catalog.format('org:%s:%s', k.org_id, k.key)
+   where s.org_id = p_org_id
+$$;
+
 revoke all on function
   public.get_signing_request(uuid, uuid),
   public.recover_signature_request(uuid, uuid, text, text, jsonb),
-  public.discard_system_file(uuid, uuid)
+  public.discard_system_file(uuid, uuid),
+  public.get_signing_credentials(uuid)
 from public, anon, authenticated;
 grant execute on function
   public.get_signing_request(uuid, uuid),
   public.recover_signature_request(uuid, uuid, text, text, jsonb),
-  public.discard_system_file(uuid, uuid)
+  public.discard_system_file(uuid, uuid),
+  public.get_signing_credentials(uuid)
 to service_role;

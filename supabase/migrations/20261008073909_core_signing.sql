@@ -103,6 +103,11 @@
 --     before every request). set_signing_settings takes a jsonb patch (each card sends its own
 --     field: no lost update between them), and deletes the `documenso_api_key` org secret when
 --     the address's origin changes, so a new address always needs its key typed again.
+--   - Final Phase 3 review: Documenso ids are per instance, so a request is only ever matched to
+--     a document by its own id (Documenso's `externalId`): apply_signing_event takes the request
+--     id and has no lookup by document id alone, and set_signing_settings refuses an origin
+--     change while a request is open at the current instance (P0001). The functions check the
+--     `externalId` of every document they read (_shared/signing-events.ts `ownsDocument`).
 -- =============================================================================
 select pg_catalog.set_config('app.audit_source', 'migration:core_signing', true);
 
@@ -553,6 +558,12 @@ create policy signature_request_signers_select on public.signature_request_signe
 -- Another key, or no key → 22023; a value the checks refuse → 23514 (the form mirrors them).
 -- When the origin (scheme, host, port) of the address changes, the `documenso_api_key` org secret
 -- is deleted in the same transaction: a key is only ever sent to the address it was typed for.
+-- An origin change (clearing the address included) is refused (P0001) while the org has a
+-- signature request open at the current instance: a draft holding a Documenso document (not
+-- abandoned), or a sent or viewed request, the built-in test document included. Documenso ids
+-- are per instance: the new one could number another document the same, and the open requests
+-- could no longer be followed. They end by being signed, refused, cancelled or expired (the
+-- daily reconcile). The settings row's lock serializes this with a concurrent change.
 -- Returns `{"api_key_cleared": bool}` (true when a stored key was deleted).
 create function public.set_signing_settings(p jsonb)
 returns jsonb
@@ -602,6 +613,16 @@ begin
       raise exception 'Le délai d''expiration est un nombre entier de jours.' using errcode = '23514';
     end if;
     v_expiry := (p ->> 'expiry_days')::int;
+  end if;
+
+  if private.signing_base_url_origin(v_base_url) is distinct from private.signing_base_url_origin(v_old)
+     and exists (select 1 from public.signature_requests r
+                  where r.org_id = v_org
+                    -- signature_requests_open_idx's predicate, then a draft only with a document.
+                    and (r.status in ('sent', 'viewed') or (r.status = 'draft' and coalesce(r.last_error, '') <> 'abandoned'))
+                    and (r.status <> 'draft' or r.documenso_document_id is not null)) then
+    raise exception 'Des demandes de signature sont encore en cours avec l''instance actuelle. Changez l''adresse une fois qu''elles sont signées, refusées, annulées ou expirées.'
+      using errcode = 'P0001';
   end if;
 
   update public.signing_settings s
@@ -1519,8 +1540,11 @@ end;
 $$;
 
 -- Applies a Documenso event (signing-webhook, signing-sync) under Documenso's raw event names.
--- The row is found by id (the document's externalId) within p_org_id, else by document id
--- within p_org_id. Returns `not_found` (no row in the org, or a sent or closed request whose
+-- The row is found by id only (the document's externalId: Documenso holds our documents under
+-- the request id), within p_org_id; a null p_request_id → 22023. There is no lookup by document
+-- id alone: Documenso ids are per instance, so a document another instance numbered the same
+-- (an org that changed address) must never act on this org's request. Returns `not_found` (no
+-- row in the org, or a sent or closed request whose
 -- document id is another one, neither current nor superseded), `ignored` (a superseded document
 -- of the request: a re-send cancelled it; a disabled module, an abandoned draft, a terminal
 -- request, an unknown event, or nothing to change), `retry` (a draft not abandoned whose
@@ -1560,21 +1584,14 @@ declare
   v_changed bigint := 0;
   v_count bigint;
 begin
-  if p_org_id is null or p_event is null then
-    raise exception 'Organization and event are required' using errcode = '22023';
+  if p_org_id is null or p_request_id is null or p_event is null then
+    raise exception 'Organization, request and event are required' using errcode = '22023';
   end if;
 
-  if p_request_id is not null then
-    select * into v_row from public.signature_requests r
-     where r.id = p_request_id and r.org_id = p_org_id
-       for update;
-  end if;
-  if v_row.id is null and p_documenso_document_id is not null then
-    select * into v_row from public.signature_requests r
-     where r.org_id = p_org_id and r.documenso_document_id = p_documenso_document_id
-       for update;
-  end if;
-  if v_row.id is null or (p_request_id is not null and v_row.id <> p_request_id) then
+  select * into v_row from public.signature_requests r
+   where r.id = p_request_id and r.org_id = p_org_id
+     for update;
+  if v_row.id is null then
     return query select 'not_found'::text, null::uuid, null::text, false;
     return;
   end if;

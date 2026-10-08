@@ -52,17 +52,30 @@ function setup(
       throw new Error('no user client in a webhook')
     },
   }
-  const handler = createHandler(deps, {
+  const inner = createHandler(deps, {
     timingSafeEqual: (a, b) => {
       compared.push([a, b])
       return timingSafeEqual(a, b)
     },
   })
+  // `consume` (the per-IP limit) reads its HMAC key from the env.
+  const handler = async (req: Request): Promise<Response> => {
+    let res: Response | undefined
+    await withEnv(
+      { INTERNAL_FUNCTION_SECRET: 'local-dev-test-secret' },
+      async () => {
+        res = await inner(req)
+      },
+    )
+    return res!
+  }
   return { clock, fake, db, supabase, handler, compared }
 }
 
 const run = (fn: () => Promise<void>) => withEnv({ SENTRY_DSN: undefined }, fn)
-const rpcNames = (s: { calls: { fn: string }[] }) => s.calls.map((c) => c.fn)
+/** The calls after the per-IP limit (its own tests check it). */
+const rpcNames = (s: { calls: { fn: string }[] }) =>
+  s.calls.map((c) => c.fn).filter((fn) => fn !== 'consume_rate_limit')
 
 /** A raw webhook body with the given secret header. */
 const post = (
@@ -109,7 +122,7 @@ Deno.test("signing-webhook: no secret header → 401 before any read; another or
   await run(async () => {
     const s = setup()
     assertEquals((await s.handler(post('{}', null))).status, 401)
-    assertEquals(s.supabase.calls.length, 0)
+    assertEquals(s.supabase.calls.length, 0, 'not even the rate limit')
     await captureConsole('warn', async () => {
       const other =
         `http://fn.test/functions/v1/signing-webhook?org=${OTHER_ORG}`
@@ -154,6 +167,53 @@ Deno.test('signing-webhook: method, org hint, size and payload checks', async ()
 // ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
+Deno.test('signing-webhook: no externalId that is a request id (a document made outside the app) → 200 ignored before the claim, no lookup by document id', async () => {
+  await run(async () => {
+    const s = setup()
+    const row = await sentRequest(s.fake, s.db)
+    const doc = row.documenso_document_id!
+    s.fake.complete(doc)
+    for (const externalId of [undefined, null, 'not-a-uuid']) {
+      s.supabase.calls.length = 0
+      s.fake.documents.get(doc)!.externalId = externalId
+      const lines = await captureConsole('error', async () => {
+        const res = await s.handler(
+          s.fake.webhookRequest(URL_, 'DOCUMENT_COMPLETED', doc),
+        )
+        assertEquals(await outcome(res), { status: 200, outcome: 'ignored' })
+      })
+      assertEquals(lines, [], 'not reported')
+      assertEquals(rpcNames(s.supabase), ['get_org_secret'])
+    }
+    assertEquals(s.db.requests.get(row.id)!.status, 'sent')
+    assertEquals(s.db.events.size, 0)
+  })
+})
+
+Deno.test("signing-webhook: an externalId naming another request than the document's → not_found, nothing applied", async () => {
+  await run(async () => {
+    const s = setup()
+    const a = await sentRequest(s.fake, s.db)
+    const b = await sentRequest(s.fake, s.db)
+    // Document a, under b's id (another instance numbering a document alike).
+    s.fake.documents.get(a.documenso_document_id!)!.externalId = b.id
+    s.fake.complete(a.documenso_document_id!)
+    await captureConsole('error', async () => {
+      const res = await s.handler(
+        s.fake.webhookRequest(
+          URL_,
+          'DOCUMENT_COMPLETED',
+          a.documenso_document_id!,
+        ),
+      )
+      assertEquals(await outcome(res), { status: 200, outcome: 'not_found' })
+    })
+    assertEquals(s.db.requests.get(a.id)!.status, 'sent')
+    assertEquals(s.db.requests.get(b.id)!.status, 'sent')
+    assertEquals(s.db.files.size, 0, 'nothing downloaded')
+  })
+})
+
 Deno.test('signing-webhook: completed → claimed (ids only), signed PDF downloaded, registered, completed with its SHA-256', async () => {
   await run(async () => {
     const s = setup()
@@ -166,7 +226,10 @@ Deno.test('signing-webhook: completed → claimed (ids only), signed PDF downloa
     assertEquals(await outcome(res), { status: 200, outcome: 'signed' })
     const claim = s.supabase.calls.find((c) => c.fn === 'claim_webhook_event')!
     assertEquals(claim.args.p_provider, 'documenso')
-    assertEquals(claim.args.p_event_id, `DOCUMENT_COMPLETED:${doc}`)
+    assertEquals(
+      claim.args.p_event_id,
+      `${SIGNING_ORG}:DOCUMENT_COMPLETED:${doc}`,
+    )
     assertEquals(claim.args.p_org_id, SIGNING_ORG)
     assertEquals(claim.args.p_payload, {
       event: 'DOCUMENT_COMPLETED',
@@ -221,7 +284,7 @@ Deno.test('signing-webhook: opened → viewed (version from the webhook time); s
     const claim = s.supabase.calls.find((c) => c.fn === 'claim_webhook_event')!
     assertEquals(
       claim.args.p_event_id,
-      `DOCUMENT_OPENED:${doc}:2026-01-01T12:00:04.000Z`,
+      `${SIGNING_ORG}:DOCUMENT_OPENED:${doc}:2026-01-01T12:00:04.000Z`,
     )
     assertEquals(s.db.requests.get(row.id)!.status, 'viewed')
     assertEquals(s.db.requests.get(row.id)!.signers[0].status, 'viewed')

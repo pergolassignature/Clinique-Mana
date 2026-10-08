@@ -16,14 +16,22 @@
  *    statuses only: their addresses, names and tokens are never kept.
  * 6. The event name in Documenso's raw form (`document.completed`, PS Hub's
  *    form, becomes `DOCUMENT_COMPLETED`).
- * 7. `claimEvent('documenso', documensoEventId(event, document id,
+ * 6b. **No `externalId` that is a request id → 200 `{ outcome: 'ignored' }`,
+ *    before the claim:** a document this app did not create (sent from
+ *    Documenso's own screens), acked with no report and no row. Documenso
+ *    ids are per instance, so a request is only ever found by its own id,
+ *    never by document id alone (an org that changed instance could see
+ *    another document under the same number).
+ * 7. `claimEvent('documenso', documensoEventId(org, event, document id,
  *    createdAt ?? updatedAt))` with `{ event, document_id, external_id }`:
  *    `duplicate` → 200, `in_progress` → 409, an RPC error → 500. A terminal
- *    event has no version, so a replay is a duplicate whatever its time.
+ *    event has no version, so a replay is a duplicate whatever its time; the
+ *    org is in the id, since two clinics' instances number documents alike.
  * 8. `apply_signing_event` for what the event says (`webhookEvents`), the
- *    row found by `externalId` (our request id), else by document id, in
- *    the hinted org only. The module gate is in the same RPC (`ignored` for
- *    a disabled module, like a terminal request).
+ *    row found by `externalId` (our request id) in the hinted org only; a
+ *    sent request whose recorded document is another one is `not_found`.
+ *    The module gate is in the same RPC (`ignored` for a disabled module,
+ *    like a terminal request).
  *    - `needs_download` → the signed PDF is stored (`storeSignedPdf`: the
  *      org's Documenso, the request's view permission) → 200 `signed`;
  *    - `retry` (a draft whose send is under way, or failed part way) →
@@ -163,7 +171,10 @@ export function createHandler(
     const documentId = String(parsed.payload.id)
     if (!event || !DOCUMENT_ID.test(documentId)) return webhookResponse(400)
     const externalId = parsed.payload.externalId ?? ''
-    const requestId = UUID.test(externalId) ? externalId.toLowerCase() : null
+    if (!UUID.test(externalId)) {
+      return webhookResponse(200, { outcome: 'ignored' })
+    }
+    const requestId = externalId.toLowerCase()
     ids.document_id = documentId
 
     let claim
@@ -171,6 +182,7 @@ export function createHandler(
       claim = await claimEvent(client, {
         provider: 'documenso',
         eventId: documensoEventId(
+          orgId.toLowerCase(),
           event,
           documentId,
           parsed.createdAt ?? parsed.payload.updatedAt ?? null,

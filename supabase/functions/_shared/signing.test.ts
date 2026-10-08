@@ -271,7 +271,7 @@ Deno.test('createSignatureRequest: the happy path, in order', async () => {
     assertEquals(result.existing, false)
     assertEquals(s.order, [
       'get_signing_context',
-      'get_org_secret',
+      'get_signing_credentials',
       'create_signature_request',
       'begin_signature_request_send',
       'download o/logo.png',
@@ -398,7 +398,7 @@ Deno.test('createSignatureRequest: idempotency, an existing sent row → returne
     })
     assertEquals(s.order, [
       'get_signing_context',
-      'get_org_secret',
+      'get_signing_credentials',
       'create_signature_request',
     ])
     assertEquals(s.fake.documents.size, 1)
@@ -700,7 +700,44 @@ Deno.test('createSignatureRequest: no key or no URL → not_configured, no row',
       requestId: null,
     })
     assertEquals(s.db.requests.size, 0)
-    assertEquals(s.order, ['get_signing_context', 'get_org_secret'])
+    assertEquals(s.order, ['get_signing_context', 'get_signing_credentials'])
+  })
+})
+
+Deno.test('createSignatureRequest: the address and the key come from one read (get_signing_credentials), not the context read beside it', async () => {
+  await run(async () => {
+    const s = setup({
+      rpc: {
+        get_signing_context: (args: Record<string, unknown>) => {
+          const answer = s.db.rpc.get_signing_context as (
+            a: Record<string, unknown>,
+          ) => { data: Record<string, unknown> }
+          const { data } = answer(args)
+          // The context says another address (a change between two reads).
+          return {
+            data: {
+              ...data,
+              settings: { base_url: 'https://elsewhere.test', expiry_days: 1 },
+            },
+          }
+        },
+      },
+    })
+    const result = await createSignatureRequest(s.deps, input())
+    assert(result.ok)
+    assert(s.fake.calls.length > 0)
+    assert(
+      s.fake.calls.every((c) =>
+        c.url.startsWith('http://host.docker.internal:55390/')
+      ),
+      'every Documenso call went to the credentials address',
+    )
+    const row = s.db.requests.get(result.requestId!)!
+    assertEquals(
+      Date.parse(row.expires_at!) - Date.parse(NOW),
+      7 * 86_400_000,
+      "the credentials' expiry",
+    )
   })
 })
 

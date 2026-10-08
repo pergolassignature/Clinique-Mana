@@ -9,8 +9,10 @@
  * `signing-events.ts` (`pdf/isolation.test.ts`).
  *
  * Order:
- * 1. `get_signing_context` ∥ `get_org_secret('documenso_api_key')`: a disabled
- *    module → `module_disabled`; no URL or key → `not_configured`; no row.
+ * 1. `get_signing_context` ∥ `get_signing_credentials` (the address and the
+ *    key from one statement, so a key is only paired with the address it was
+ *    typed for; the address used is that one): a disabled module →
+ *    `module_disabled`; no URL or key → `not_configured`; no row.
  * 2. The template is filled (`fillTemplate`, the clinic identity over the
  *    caller's values; the invitation's subject and message too): a missing
  *    value → `missing_variable`, no row. The built-in test document comes
@@ -90,6 +92,7 @@ import {
   readDraftDocument,
   recoverCompletedDraft,
   SIGNED_PDF_MAX_BYTES,
+  signingCredentials,
   SigningFailure,
   STALE_SEND_MS,
   storeSystemFile,
@@ -276,25 +279,30 @@ export async function createSignatureRequest(
   input: CreateSignatureRequestInput,
 ): Promise<CreateSignatureRequestResult> {
   const { client } = deps
-  const [contextResult, secret] = await Promise.all([
+  const [contextResult, credentials] = await Promise.all([
     client.rpc('get_signing_context', {
       p_org_id: input.orgId,
       p_template_version_id: input.templateVersionId,
     }),
-    client.rpc('get_org_secret', {
-      p_org_id: input.orgId,
-      p_key: 'documenso_api_key',
-    }),
+    signingCredentials(client, input.orgId).catch(() => null),
   ])
   const parsed = contextSchema.safeParse(contextResult.data)
-  if (contextResult.error || secret.error || !parsed.success) {
+  if (contextResult.error || !credentials || !parsed.success) {
     throw new SigningFailure('signing_context_failed')
   }
-  const context = parsed.data
+  // The address and the expiry come with the key (one snapshot), not from
+  // the context read beside it.
+  const context: SigningContext = {
+    ...parsed.data,
+    settings: {
+      base_url: credentials.base_url,
+      expiry_days: credentials.expiry_days,
+    },
+  }
   if (!context.module_enabled) {
     return { ok: false, code: 'module_disabled', requestId: null }
   }
-  const apiKey = typeof secret.data === 'string' ? secret.data : ''
+  const apiKey = credentials.api_key ?? ''
   if (!context.settings.base_url || !apiKey) {
     return { ok: false, code: 'not_configured', requestId: null }
   }
