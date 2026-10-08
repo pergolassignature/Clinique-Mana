@@ -234,6 +234,7 @@
       "runNowLabel": "Exécuter maintenant : {label}",
       "started": "Tâche lancée. Son résultat paraîtra dans les dernières exécutions.",
       "runError": "Impossible de lancer cette tâche.",
+      "enableFirst": "Activez d'abord cette tâche.",
       "confirm": {
         "title": "Exécuter « {label} » maintenant ?",
         "body": "La tâche s'exécute tout de suite pour la clinique, en plus de son horaire habituel. Elle pourra être relancée dans quelques minutes.",
@@ -675,7 +676,8 @@
       "org_module_settings": "Paramètres de module",
       "org_secrets": "Secrets",
       "tax_rates": "Taux de taxes",
-      "organization_bank_details": "Coordonnées bancaires"
+      "organization_bank_details": "Coordonnées bancaires",
+      "org_scheduled_jobs": "Tâches planifiées"
     },
     "commonFields": {
       "id": "Identifiant",
@@ -760,6 +762,10 @@
         "account_number": "Numéro de compte",
         "account_last4": "Fin du numéro de compte",
         "etransfer_email": "Courriel Interac"
+      },
+      "org_scheduled_jobs": {
+        "job_key": "Tâche",
+        "enabled": "Activée"
       }
     },
     "actions": {

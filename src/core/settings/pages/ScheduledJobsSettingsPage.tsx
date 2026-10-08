@@ -1,7 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { t } from '@/i18n'
 import type { JobRun, ScheduledJob } from '@/core/jobs/api'
-import { useRunScheduledJobNow, useScheduledJobRuns, useScheduledJobs, useSetScheduledJobEnabled } from '@/core/jobs/hooks'
+import {
+  useRunningScheduledJobs,
+  useRunScheduledJobNow,
+  useScheduledJobRuns,
+  useScheduledJobs,
+  useSetScheduledJobEnabled,
+} from '@/core/jobs/hooks'
 import { runDetailLabel, runStatusLabel, runStatusTone, runTriggerLabel } from '@/core/jobs/labels'
 import { scheduleLabel } from '@/core/jobs/schedule-label'
 import { useSettingsSection } from '@/core/settings/section-context'
@@ -47,13 +53,16 @@ function RunStatus({ status, detail }: { status: string; detail: string | null }
 interface JobsTableProps {
   jobs: ScheduledJob[]
   readOnly: boolean
-  onConfirmRun: (job: ScheduledJob) => void
-  runningKey: string | undefined
+  /** `trigger`: the row's « Exécuter maintenant », where focus returns when the dialog closes. */
+  onConfirmRun: (job: ScheduledJob, trigger: HTMLButtonElement) => void
+  /** The jobs whose « Exécuter maintenant » is pending. */
+  running: ReadonlySet<string>
 }
 
-function JobsTable({ jobs, readOnly, onConfirmRun, runningKey }: JobsTableProps) {
+function JobsTable({ jobs, readOnly, onConfirmRun, running }: JobsTableProps) {
   const setEnabled = useSetScheduledJobEnabled()
   const saving = setEnabled.isPending ? setEnabled.variables : undefined
+  const idBase = useId()
 
   return (
     <div className="rounded-lg border border-border">
@@ -71,7 +80,11 @@ function JobsTable({ jobs, readOnly, onConfirmRun, runningKey }: JobsTableProps)
           {jobs.map((job) => {
             const schedule = scheduleLabel(job.schedule, job.local_hour)
             const lastRun = job.last_started_at ? formatClinicDateTime(job.last_started_at) : t('settings.jobs.never')
-            const running = runningKey === job.key
+            const isRunning = running.has(job.key)
+            // A disabled business job can't be run now (the server refuses it too).
+            const needsEnabling = !job.is_maintenance && !job.enabled
+            const alwaysOnId = `${idBase}-${job.key}-always-on`
+            const enableFirstId = `${idBase}-${job.key}-enable-first`
             return (
               <TableRow key={job.key}>
                 <TableCell className="py-2 align-top sm:min-w-56">
@@ -102,6 +115,7 @@ function JobsTable({ jobs, readOnly, onConfirmRun, runningKey }: JobsTableProps)
                         checked={saving?.key === job.key ? saving.enabled : job.enabled}
                         // Maintenance jobs always run (the server refuses the change too).
                         disabled={job.is_maintenance}
+                        aria-describedby={job.is_maintenance ? alwaysOnId : undefined}
                         aria-disabled={(!job.is_maintenance && setEnabled.isPending) || undefined}
                         className={cn(setEnabled.isPending && 'cursor-progress')}
                         aria-label={t('settings.jobs.toggleLabel', { label: job.label })}
@@ -110,7 +124,9 @@ function JobsTable({ jobs, readOnly, onConfirmRun, runningKey }: JobsTableProps)
                         }}
                       />
                       {job.is_maintenance && (
-                        <span className="whitespace-nowrap text-xs text-muted-foreground max-sm:hidden">{t('settings.jobs.alwaysOn')}</span>
+                        <span id={alwaysOnId} className="whitespace-nowrap text-xs text-muted-foreground">
+                          {t('settings.jobs.alwaysOn')}
+                        </span>
                       )}
                     </span>
                   )}
@@ -122,12 +138,21 @@ function JobsTable({ jobs, readOnly, onConfirmRun, runningKey }: JobsTableProps)
                       variant="outline"
                       size="sm"
                       aria-label={t('settings.jobs.runNowLabel', { label: job.label })}
-                      aria-disabled={running || undefined}
-                      onClick={ignoreWhenInactive(running, () => onConfirmRun(job))}
+                      aria-disabled={isRunning || needsEnabling || undefined}
+                      aria-describedby={needsEnabling ? enableFirstId : undefined}
+                      onClick={(event) => {
+                        const trigger = event.currentTarget
+                        ignoreWhenInactive(isRunning || needsEnabling, () => onConfirmRun(job, trigger))(event)
+                      }}
                       className={cn(softDisabledClasses, 'max-sm:h-11 aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
                     >
                       {t('settings.jobs.runNow')}
                     </Button>
+                    {needsEnabling && (
+                      <span id={enableFirstId} className="mt-1 block text-xs text-muted-foreground">
+                        {t('settings.jobs.enableFirst')}
+                      </span>
+                    )}
                   </TableCell>
                 )}
               </TableRow>
@@ -139,7 +164,8 @@ function JobsTable({ jobs, readOnly, onConfirmRun, runningKey }: JobsTableProps)
   )
 }
 
-function RunsSection({ labels }: { labels: ReadonlyMap<string, string> }) {
+/** `labels`: job key → label; null while the jobs load, so a run never shows its raw key meanwhile. */
+function RunsSection({ labels }: { labels: ReadonlyMap<string, string> | null }) {
   const headingId = useId()
   const endRef = useRef<HTMLParagraphElement>(null)
   const pressedLoadMore = useRef(false)
@@ -155,7 +181,7 @@ function RunsSection({ labels }: { labels: ReadonlyMap<string, string> }) {
   }, [hasNextPage, isFetchingNextPage])
 
   let content
-  if (isPending) {
+  if (isPending || labels === null) {
     content = <Loading />
   } else if (isError && !data) {
     content = <LoadError message={t('settings.jobs.runs.loadError')} retrying={isFetching} onRetry={() => void refetch()} />
@@ -241,8 +267,12 @@ export function ScheduledJobsSettingsPage() {
   const { readOnly } = useSettingsSection()
   const { data: jobs, isPending, isError, isFetching, refetch } = useScheduledJobs()
   const runNow = useRunScheduledJobNow()
+  const running = useRunningScheduledJobs()
   const [confirming, setConfirming] = useState<ScheduledJob | null>(null)
-  const labels = useMemo(() => new Map(jobs?.map((job) => [job.key, job.label])), [jobs])
+  // The row's « Exécuter maintenant » that opened the confirmation: focus returns there.
+  const runTriggerRef = useRef<HTMLButtonElement | null>(null)
+  // Until the jobs load, none; if they fail, the runs fall back to the raw keys.
+  const labels = useMemo(() => (isPending ? null : new Map(jobs?.map((job) => [job.key, job.label]))), [isPending, jobs])
 
   let content
   if (isPending) {
@@ -256,8 +286,11 @@ export function ScheduledJobsSettingsPage() {
       <JobsTable
         jobs={jobs}
         readOnly={readOnly}
-        onConfirmRun={setConfirming}
-        runningKey={runNow.isPending ? runNow.variables : undefined}
+        onConfirmRun={(job, trigger) => {
+          runTriggerRef.current = trigger
+          setConfirming(job)
+        }}
+        running={running}
       />
     )
   }
@@ -270,7 +303,14 @@ export function ScheduledJobsSettingsPage() {
       <RunsSection labels={labels} />
       {!readOnly && (
         <AlertDialog open={confirming !== null} onOpenChange={(open) => !open && setConfirming(null)}>
-          <AlertDialogContent>
+          <AlertDialogContent
+            onCloseAutoFocus={(event) => {
+              // Back to the row's « Exécuter maintenant », cancelled or confirmed.
+              event.preventDefault()
+              const trigger = runTriggerRef.current
+              if (trigger?.isConnected) trigger.focus()
+            }}
+          >
             {confirming && (
               <>
                 <AlertDialogHeader>

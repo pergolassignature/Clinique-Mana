@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CalendarClock } from 'lucide-react'
@@ -26,6 +26,8 @@ vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => mocks.sentry)
 
 afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
   vi.resetAllMocks()
   mocks.api.JOB_RUNS_PAGE_SIZE = 2
 })
@@ -179,6 +181,26 @@ describe('ScheduledJobsSettingsPage — reading', () => {
     expect(screen.getByText(t('settings.jobs.runs.end'))).toBeInTheDocument()
   })
 
+  it('waits for the jobs before listing the runs, so a run never shows its raw key', async () => {
+    let resolveJobs: (jobs: ScheduledJob[]) => void = () => {}
+    mocks.api.listScheduledJobs.mockReturnValue(new Promise((resolve) => (resolveJobs = resolve)))
+    mocks.api.listScheduledJobRuns.mockResolvedValue([RUN_1])
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        {renderInSettingsSection(<ScheduledJobsSettingsPage />, { section })}
+      </QueryClientProvider>,
+    )
+    await waitFor(() => expect(mocks.api.listScheduledJobRuns).toHaveBeenCalled())
+    // Let the runs resolve while the jobs are still loading.
+    await act(async () => {})
+    expect(screen.queryByText(RUN_1.job_key)).not.toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: t('settings.jobs.runs.title') })).not.toBeInTheDocument()
+    resolveJobs([MAINTENANCE])
+    expect(await within(await screen.findByRole('table', { name: t('settings.jobs.runs.title') })).findByText(MAINTENANCE.label)).toBeInTheDocument()
+    expect(screen.queryByText(RUN_1.job_key)).not.toBeInTheDocument()
+  })
+
   it('says so when nothing has run yet', async () => {
     renderPage({ runs: [[]] })
     expect(await screen.findByText(t('settings.jobs.runs.empty.title'))).toBeInTheDocument()
@@ -230,13 +252,23 @@ describe('ScheduledJobsSettingsPage — with settings.manage', () => {
     expect(mocks.api.listScheduledJobs).toHaveBeenCalledTimes(2)
   })
 
-  it('shows a refusal from the server in a toast', async () => {
+  it('shows a refusal from the server in a toast (a business job: permission withdrawn meanwhile)', async () => {
     const user = userEvent.setup()
-    mocks.api.setScheduledJobEnabled.mockRejectedValue({ code: 'P0001', message: "Les tâches d'entretien restent toujours actives." })
+    mocks.api.setScheduledJobEnabled.mockRejectedValue({ code: '42501', message: 'Permission refusée : settings.manage' })
     renderPage()
     await loaded()
     await user.click(switchOf(BUSINESS.label))
-    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith("Les tâches d'entretien restent toujours actives."))
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith(t('common.errors.forbidden')))
+    expect(mocks.sentry.captureException).not.toHaveBeenCalled()
+  })
+
+  it('says why a maintenance switch is disabled, on every screen size', async () => {
+    renderPage()
+    await loaded()
+    expect(switchOf(MAINTENANCE.label)).toHaveAccessibleDescription(t('settings.jobs.alwaysOn'))
+    const reason = within(jobRow(MAINTENANCE.label)).getByText(t('settings.jobs.alwaysOn'))
+    expect(reason.className).not.toMatch(/hidden/)
+    expect(switchOf(NEVER_RAN.label)).not.toHaveAccessibleDescription()
   })
 
   it('runs a job now after a confirmation, then reloads the runs', async () => {
@@ -268,6 +300,91 @@ describe('ScheduledJobsSettingsPage — with settings.manage', () => {
     await user.click(runNowOf(MAINTENANCE.label))
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('common.cancel') }))
     expect(mocks.api.runScheduledJobNow).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['cancelled', () => t('common.cancel')],
+    ['confirmed', () => t('settings.jobs.confirm.run')],
+  ])('returns focus to the row’s « Exécuter maintenant » when the dialog is %s', async (_label, buttonName) => {
+    const user = userEvent.setup()
+    mocks.api.runScheduledJobNow.mockResolvedValue(undefined)
+    renderPage()
+    await loaded()
+    await user.click(runNowOf(NEVER_RAN.label))
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: buttonName() }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(runNowOf(NEVER_RAN.label)).toHaveFocus()
+  })
+
+  it('keeps « Exécuter maintenant » inactive on a disabled business job, and says why', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await loaded()
+    const button = runNowOf(BUSINESS.label)
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).toBeEnabled()
+    expect(button).toHaveAccessibleDescription(t('settings.jobs.enableFirst'))
+    await user.click(button)
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    // An enabled job and a maintenance job have no such reason.
+    expect(runNowOf(NEVER_RAN.label)).not.toHaveAttribute('aria-disabled')
+    expect(runNowOf(NEVER_RAN.label)).not.toHaveAccessibleDescription()
+    expect(runNowOf(MAINTENANCE.label)).not.toHaveAccessibleDescription()
+  })
+
+  it('reloads the runs again about 4 s after a run (a function job’s run appears late)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mocks.api.runScheduledJobNow.mockResolvedValue(undefined)
+    renderPage()
+    await loaded()
+    await user.click(runNowOf(NEVER_RAN.label))
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('settings.jobs.confirm.run') }))
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.jobs.started')))
+    // The immediate reload has settled.
+    await waitFor(() => expect(mocks.api.listScheduledJobRuns).toHaveBeenCalledTimes(2))
+    const invalidate = vi.spyOn(QueryClient.prototype, 'invalidateQueries')
+    await act(() => vi.advanceTimersByTimeAsync(3000))
+    expect(invalidate).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTimeAsync(1500))
+    expect(invalidate).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(mocks.api.listScheduledJobRuns).toHaveBeenCalledTimes(3))
+  })
+
+  it('cancels the delayed reload when the page goes away', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mocks.api.runScheduledJobNow.mockResolvedValue(undefined)
+    const { unmount } = renderPage()
+    await loaded()
+    await user.click(runNowOf(NEVER_RAN.label))
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('settings.jobs.confirm.run') }))
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.jobs.started')))
+    const invalidate = vi.spyOn(QueryClient.prototype, 'invalidateQueries')
+    unmount()
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+    expect(invalidate).not.toHaveBeenCalled()
+  })
+
+  it('starting a second job keeps the first one inactive while it is still starting', async () => {
+    const user = userEvent.setup()
+    const finish = new Map<string, () => void>()
+    mocks.api.runScheduledJobNow.mockImplementation((key: string) => new Promise<void>((resolve) => finish.set(key, resolve)))
+    renderPage()
+    await loaded()
+    const start = async (label: string) => {
+      await user.click(runNowOf(label))
+      await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('settings.jobs.confirm.run') }))
+      await waitFor(() => expect(runNowOf(label)).toHaveAttribute('aria-disabled', 'true'))
+    }
+    await start(MAINTENANCE.label)
+    await start(NEVER_RAN.label)
+    expect(runNowOf(MAINTENANCE.label)).toHaveAttribute('aria-disabled', 'true')
+    finish.get(NEVER_RAN.key)?.()
+    await waitFor(() => expect(runNowOf(NEVER_RAN.label)).not.toHaveAttribute('aria-disabled'))
+    expect(runNowOf(MAINTENANCE.label)).toHaveAttribute('aria-disabled', 'true')
+    finish.get(MAINTENANCE.key)?.()
+    await waitFor(() => expect(runNowOf(MAINTENANCE.label)).not.toHaveAttribute('aria-disabled'))
   })
 
   it('shows the P0001 message of a refused run in a toast', async () => {

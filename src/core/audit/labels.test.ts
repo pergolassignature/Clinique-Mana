@@ -38,6 +38,7 @@ const COLUMNS: Record<(typeof AUDITED_TABLES)[number], string[]> = {
     'account_last4', 'account_number', 'etransfer_email', 'institution_number', 'org_id', 'transit_number',
     'updated_at', 'updated_by',
   ],
+  org_scheduled_jobs: ['enabled', 'job_key', 'org_id', 'updated_at', 'updated_by'],
 }
 
 describe('tableLabel', () => {
@@ -54,6 +55,7 @@ describe('tableLabel', () => {
       'Secrets',
       'Taux de taxes',
       'Coordonnées bancaires',
+      'Tâches planifiées',
     ])
   })
 
