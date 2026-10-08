@@ -68,7 +68,7 @@ import {
   type ResolveDns,
 } from './documenso.ts'
 import type { PerOrg } from './jobs.ts'
-import { reportError } from './report.ts'
+import { type ErrorReport, reportError, type ReportIds } from './report.ts'
 import { sha256Hex, sniff } from './storage.ts'
 
 /** A failure with a safe code (`runJob` records it; webhooks fail the claim with it). */
@@ -81,6 +81,29 @@ export class SigningFailure extends Error {
     super(code)
     this.name = 'SigningFailure'
   }
+}
+
+/**
+ * Where a request's reports go: `reportError`, or, when `report` is set (the
+ * reconcile), a collector that sends them once `record_signature_sync` says
+ * the code was not reported for that request in the last day.
+ */
+export interface SigningReporter {
+  fn: string
+  orgId: string
+  fetch: typeof fetch
+  report?: (report: ErrorReport) => void
+}
+
+/** Reports `code` for a request through `to` (`SigningReporter`). */
+async function reportRequest(
+  to: SigningReporter,
+  code: string,
+  ids: ReportIds,
+): Promise<void> {
+  const report = { fn: to.fn, code, ids }
+  if (to.report) to.report(report)
+  else await reportError(report, to.fetch)
 }
 
 /** One `apply_signing_event` call. */
@@ -326,7 +349,7 @@ export async function claimDraft(
  */
 export async function markDraftFailed(
   client: SupabaseClient,
-  report: { fn: string; orgId: string; fetch: typeof fetch },
+  report: SigningReporter,
   id: string,
   code: string,
   ids: { documentId?: string | null; envelopeId?: string | null } = {},
@@ -338,11 +361,10 @@ export async function markDraftFailed(
     p_envelope_id: ids.envelopeId ?? null,
   })
   if (error) {
-    await reportError({
-      fn: report.fn,
-      code: 'mark_failed_failed',
-      ids: { org_id: report.orgId, signature_request_id: id },
-    }, report.fetch)
+    await reportRequest(report, 'mark_failed_failed', {
+      org_id: report.orgId,
+      signature_request_id: id,
+    })
   }
 }
 
@@ -530,7 +552,7 @@ export async function storeSignedPdf(
 }
 
 /** Everything one org's sync needs. */
-export interface SyncContext {
+export interface SyncContext extends SigningReporter {
   client: SupabaseClient
   orgId: string
   signing: OrgSigning
@@ -586,7 +608,7 @@ export function ownsDocument(
  * recovered nor cancelled).
  */
 export async function readDraftDocument(
-  report: { fn: string; orgId: string; fetch: typeof fetch },
+  report: SigningReporter,
   documenso: DocumensoClient,
   requestId: string,
   documentId: string,
@@ -599,15 +621,11 @@ export async function readDraftDocument(
     throw error
   }
   if (ownsDocument(state, requestId)) return state
-  await reportError({
-    fn: report.fn,
-    code: 'signing_foreign_document',
-    ids: {
-      org_id: report.orgId,
-      signature_request_id: requestId,
-      document_id: documentId,
-    },
-  }, report.fetch)
+  await reportRequest(report, 'signing_foreign_document', {
+    org_id: report.orgId,
+    signature_request_id: requestId,
+    document_id: documentId,
+  })
   return null
 }
 
@@ -785,10 +803,7 @@ export async function recoverCompletedDraft(
   }
   const recipients = recipientsByOrder(request.signers, state.recipients)
   if (!recipients) {
-    await reportError(
-      { fn: ctx.fn, code: 'signing_orphan_completed', ids },
-      ctx.fetch,
-    )
+    await reportRequest(ctx, 'signing_orphan_completed', ids)
     // Released with a code that says why; the draft stays open.
     await markDraftFailed(ctx.client, ctx, row.id, 'orphan_completed')
     return 'orphan_completed'
@@ -803,10 +818,7 @@ export async function recoverCompletedDraft(
   if (recovered.error) throw new SigningFailure('recover_failed')
   if (recovered.data === null) {
     // The rendered PDF left staging: the signed one is what matters.
-    await reportError(
-      { fn: ctx.fn, code: 'signing_source_missing', ids },
-      ctx.fetch,
-    )
+    await reportRequest(ctx, 'signing_source_missing', ids)
   }
   const result = await applyEvents(ctx.client, ctx.orgId, {
     requestId: row.id,
@@ -891,14 +903,85 @@ function detail(counts: Map<SyncOutcome, number>): string {
   })`
 }
 
+/** A code `record_signature_sync` and the run log accept (like `runJob`'s). */
+const SAFE_CODE = /^[A-Za-z0-9_]{1,64}$/
+
+/** A failure's code, or `internal` when it has none safe to store. */
+function failureCode(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code
+  return typeof code === 'string' && SAFE_CODE.test(code) ? code : 'internal'
+}
+
+/**
+ * Whether a failure says Documenso cannot be used at all, rather than that
+ * one request is bad: not configured or the key refused (`not_configured`:
+ * no URL or key, 401, 403), no complete answer (network, timeout, an address
+ * `reach` refuses), a redirect, 408, 429 or a 5xx. A 404 (the document was
+ * deleted there), another 4xx, a signed PDF over the cap, or a failure of
+ * ours (`signing_foreign_document`, `apply_failed`, …) is the request's own.
+ */
+export function isDocumensoOutage(error: unknown): boolean {
+  if (error instanceof DocumensoError) {
+    const status = error.status
+    return error.code === 'not_configured' || status === null ||
+      (status >= 300 && status < 400) || status === 408 || status === 429 ||
+      status >= 500
+  }
+  return error instanceof SigningFailure && error.code === 'not_configured'
+}
+
+/**
+ * Records one request's attempt (`record_signature_sync`: the rotation, the
+ * last success, the failure code), then sends its reports whose code was
+ * not reported for that request in the last day, one per code. When the
+ * record fails, every report is sent: our own failure never silences one.
+ */
+async function recordAttempt(
+  client: SupabaseClient,
+  orgId: string,
+  id: string,
+  code: string | null,
+  reports: ErrorReport[],
+  fetchFn: typeof fetch,
+): Promise<void> {
+  const codes = [...new Set(reports.map((r) => r.code))]
+  let due = new Set(codes)
+  try {
+    const { data, error } = await client.rpc('record_signature_sync', {
+      p_org_id: orgId,
+      p_id: id,
+      p_error_code: code,
+      p_report_codes: codes,
+    })
+    if (!error && Array.isArray(data)) due = new Set(data.map(String))
+  } catch {
+    // Reported below, unthrottled.
+  }
+  const sent = new Set<string>()
+  for (const report of reports) {
+    if (!due.has(report.code) || sent.has(report.code)) continue
+    sent.add(report.code)
+    await reportError(report, fetchFn)
+  }
+}
+
 /**
  * The `core.signing_reconcile` job's work for one org (`runJob`'s
  * `perOrg`, capped at `RECONCILE_TIMEOUT_MS`): up to 100 listed requests,
- * 4 at a time. After `softDeadlineMs` (default
- * `RECONCILE_SOFT_DEADLINE_MS`) no new batch starts: the rest waits for the
- * next run, and the detail says how many. A request that fails is reported
- * (its id and the error code) and the others go on; then the run fails as
- * `reconcile_failed`, so « Tâches planifiées » shows it.
+ * 4 at a time, in the list's order (completed without their PDF first, then
+ * the least recently attempted: a fair rotation, `…_core_signing_capture`).
+ * After `softDeadlineMs` (default `RECONCILE_SOFT_DEADLINE_MS`) no new batch
+ * starts: the rest waits for the next run, and the detail says how many.
+ *
+ * Each attempted request is recorded (`recordAttempt`), success or failure;
+ * its reports (its failure, `signing_orphan_completed`, …) reach Sentry at
+ * most once a day per request and code. A request that fails does not fail
+ * the run: the others go on, the detail counts it (« non vérifiée »), and
+ * `core.signing_unsaved_alert` tells a person when a request stays
+ * unverified for 6 hours. Only a real outage fails the run as
+ * `reconcile_failed` (« Tâches planifiées », the outage notice after 6 h):
+ * no request needing Documenso could be read, and at least one failure says
+ * Documenso itself is unusable (`isDocumensoOutage`).
  */
 export function reconcileOrg(
   deps: {
@@ -927,16 +1010,10 @@ export function reconcileOrg(
     const signing = rows.data.some((r) => r.action !== 'abandon')
       ? await orgSigning(client, orgId, deps.fetch, deps.reach, signal)
       : null
-    const ctx: SyncContext | null = signing && {
-      client,
-      orgId,
-      signing,
-      now: deps.now,
-      fn,
-      fetch: deps.fetch,
-    }
     const counts = new Map<SyncOutcome, number>()
     let failed = 0
+    let unreachable = 0
+    let read = 0
     let done = 0
     for (
       let i = 0;
@@ -947,25 +1024,48 @@ export function reconcileOrg(
       done += batch.length
       await Promise.all(
         batch.map(async (row) => {
+          const reports: ErrorReport[] = []
+          const ctx: SyncContext | null = signing && {
+            client,
+            orgId,
+            signing,
+            now: deps.now,
+            fn,
+            fetch: deps.fetch,
+            report: (report) => reports.push(report),
+          }
+          let code: string | null = null
           try {
             const outcome = await reconcileRow(client, orgId, ctx, row)
             counts.set(outcome, (counts.get(outcome) ?? 0) + 1)
+            if (row.action !== 'abandon') read++
           } catch (error) {
             failed++
-            const code = (error as { code?: unknown }).code
-            await reportError({
+            if (isDocumensoOutage(error)) unreachable++
+            code = failureCode(error)
+            reports.push({
               fn,
-              code: typeof code === 'string' ? code : 'internal',
+              code,
               ids: { org_id: orgId, signature_request_id: row.id },
-            }, deps.fetch)
+            })
           }
+          await recordAttempt(client, orgId, row.id, code, reports, deps.fetch)
         }),
       )
     }
-    if (failed > 0) throw new SigningFailure('reconcile_failed')
+    if (unreachable > 0 && read === 0) {
+      throw new SigningFailure('reconcile_failed')
+    }
+    const parts = [detail(counts)]
+    if (failed > 0) {
+      parts.push(
+        `${failed} ${
+          failed > 1 ? 'demandes non vérifiées' : 'demande non vérifiée'
+        }`,
+      )
+    }
     const left = rows.data.length - done
-    return left > 0
-      ? `${detail(counts)} ; ${left} à reprendre au prochain passage`
-      : detail(counts)
+    if (left > 0) parts.push(`${left} à reprendre au prochain passage`)
+    return parts.join(' ; ')
   }
 }

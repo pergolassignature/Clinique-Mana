@@ -972,6 +972,7 @@ export type Database = {
       }
       org_modules: {
         Row: {
+          disabled_at: string | null
           enabled: boolean
           module_key: string
           org_id: string
@@ -979,6 +980,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          disabled_at?: string | null
           enabled?: boolean
           module_key: string
           org_id: string
@@ -986,6 +988,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          disabled_at?: string | null
           enabled?: boolean
           module_key?: string
           org_id?: string
@@ -2588,6 +2591,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "signature_request_signers_request_id_org_id_fkey"
+            columns: ["request_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "signature_requests"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      signature_request_syncs: {
+        Row: {
+          attempted_at: string
+          error_code: string | null
+          failing_since: string | null
+          org_id: string
+          reported: Json
+          request_id: string
+          synced_at: string | null
+        }
+        Insert: {
+          attempted_at: string
+          error_code?: string | null
+          failing_since?: string | null
+          org_id: string
+          reported?: Json
+          request_id: string
+          synced_at?: string | null
+        }
+        Update: {
+          attempted_at?: string
+          error_code?: string | null
+          failing_since?: string | null
+          org_id?: string
+          reported?: Json
+          request_id?: string
+          synced_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_request_syncs_request_id_org_id_fkey"
             columns: ["request_id", "org_id"]
             isOneToOne: false
             referencedRelation: "signature_requests"
@@ -4234,6 +4275,15 @@ export type Database = {
           p_view_permission: string
         }
         Returns: string
+      }
+      record_signature_sync: {
+        Args: {
+          p_error_code?: string
+          p_id: string
+          p_org_id: string
+          p_report_codes?: string[]
+        }
+        Returns: string[]
       }
       recover_signature_request: {
         Args: {

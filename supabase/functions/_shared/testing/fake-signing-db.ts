@@ -85,6 +85,16 @@ export interface FakeWebhookEvent {
   error: string | null
 }
 
+/** A `signature_request_syncs` row (`record_signature_sync`). */
+export interface FakeSync {
+  attempted_at: string
+  synced_at: string | null
+  error_code: string | null
+  failing_since: string | null
+  /** `{code: last report}`. */
+  reported: Record<string, string>
+}
+
 /** Options; the defaults are the local seed's (fake Documenso, 7 days). */
 export interface FakeSigningDbOptions {
   orgId: string
@@ -108,6 +118,8 @@ export interface FakeSigningDb {
   requests: Map<string, FakeSignatureRequest>
   files: Map<string, FakeStoredFile>
   events: Map<string, FakeWebhookEvent>
+  /** The reconcile's state per request id (`record_signature_sync`). */
+  syncs: Map<string, FakeSync>
   /** Uploaded objects by `bucket/path`. */
   objects: Map<string, Uint8Array>
   /** Inserts a request directly (as a test fixture). */
@@ -139,6 +151,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
   const requests = new Map<string, FakeSignatureRequest>()
   const files = new Map<string, FakeStoredFile>()
   const events = new Map<string, FakeWebhookEvent>()
+  const syncs = new Map<string, FakeSync>()
   const objects = new Map<string, Uint8Array>()
   const modules = new Set(['core', ...(options.modules ?? [])])
   let sequence = 0
@@ -653,15 +666,40 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
     list_signature_requests_to_reconcile: (a) => {
       const dayAgo = new Date(now().getTime() - DAY_MS).toISOString()
       const hourAgo = new Date(now().getTime() - DAY_MS / 24).toISOString()
+      const action = (r: FakeSignatureRequest) =>
+        r.status === 'draft'
+          ? r.documenso_document_id === null ? 'abandon' : 'sync'
+          : r.completed_event_at !== null
+          ? 'sync'
+          : r.expires_at !== null && r.expires_at < iso()
+          ? 'expire'
+          : 'sync'
+      // The SQL's order: completed without the PDF, never or least recently
+      // attempted, expire/abandon, expiry, creation.
+      const key = (r: FakeSignatureRequest) => [
+        r.status !== 'draft' && r.completed_event_at !== null ? 0 : 1,
+        syncs.get(r.id)?.attempted_at ?? '',
+        ['expire', 'abandon'].includes(action(r)) ? 0 : 1,
+        r.expires_at ?? '9999',
+        r.created_at,
+        r.id,
+      ]
+      const compare = (x: FakeSignatureRequest, y: FakeSignatureRequest) => {
+        const [a1, b1] = [key(x), key(y)]
+        for (let i = 0; i < a1.length; i++) {
+          if (a1[i] < b1[i]) return -1
+          if (a1[i] > b1[i]) return 1
+        }
+        return 0
+      }
       const rows = [...requests.values()]
         .filter((r) =>
           r.org_id === a.p_org_id && open(r) && modules.has(r.module_key) &&
-          (r.status === 'draft'
-            ? (r.last_send_at ?? r.created_at) <
-              (r.documenso_document_id === null ? dayAgo : hourAgo)
-            : (r.sent_at !== null && r.sent_at < dayAgo) ||
-              (r.expires_at !== null && r.expires_at < iso()))
+          (r.status !== 'draft' ||
+            (r.last_send_at ?? r.created_at) <
+              (r.documenso_document_id === null ? dayAgo : hourAgo))
         )
+        .sort(compare)
         .map((r) => ({
           id: r.id,
           module_key: r.module_key,
@@ -669,15 +707,35 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
           documenso_document_id: r.documenso_document_id,
           envelope_id: r.envelope_id,
           expires_at: r.expires_at,
-          action: r.status === 'draft'
-            ? r.documenso_document_id === null ? 'abandon' : 'sync'
-            : r.completed_event_at !== null
-            ? 'sync'
-            : r.expires_at !== null && r.expires_at < iso()
-            ? 'expire'
-            : 'sync',
+          action: action(r),
         }))
       return { data: rows.slice(0, Number(a.p_limit ?? 100)) }
+    },
+    record_signature_sync: (a) => {
+      const r = requests.get(String(a.p_id))
+      if (!r || r.org_id !== a.p_org_id) return { data: [] }
+      const code = a.p_error_code == null ? null : String(a.p_error_code)
+      const row: FakeSync = syncs.get(r.id) ?? {
+        attempted_at: iso(),
+        synced_at: null,
+        error_code: null,
+        failing_since: null,
+        reported: {},
+      }
+      row.attempted_at = iso()
+      if (code === null) {
+        row.synced_at = iso()
+        row.failing_since = null
+      } else {
+        row.failing_since ??= iso()
+      }
+      row.error_code = code
+      syncs.set(r.id, row)
+      const dayAgo = new Date(now().getTime() - DAY_MS).toISOString()
+      const due = [...new Set((a.p_report_codes ?? []) as string[])].sort()
+        .filter((c) => !(c in row.reported) || row.reported[c] <= dayAgo)
+      for (const c of due) row.reported[c] = iso()
+      return { data: due }
     },
     expire_signature_request: (a) => {
       const r = requests.get(String(a.p_id))
@@ -759,6 +817,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
     requests,
     files,
     events,
+    syncs,
     objects,
     insertRequest,
     insertFile,
