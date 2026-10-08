@@ -653,7 +653,7 @@ Expected: `ok | N passed | 0 failed`.
 
 ## Task 3.6: Email schema
 
-**From lane F (Task 3.7 review):** the placeholder rule is `\{\{([^{}\n]*)\}\}` with the captured path trimmed in code (linear; no newline inside a placeholder). `save_email_template`'s placeholder check in SQL must use exactly this rule so validation and rendering agree; probe it with `{{` + 10 000 spaces (must return fast). `get_email_context` must return `why_line`. Lane F's compose step maps `unknown_variable` → `missing_variable` and reports an invalid clinic timezone as a configuration error.
+**From lane F (Task 3.7 review):** the placeholder rule is `\{\{([^{}\r\n]*)\}\}` (exported as `PLACEHOLDER_SOURCE` in `_shared/email/render.ts`) with the captured path trimmed in code (linear; no newline inside a placeholder). `save_email_template`'s placeholder check in SQL must use exactly this rule so validation and rendering agree; probe it with `{{` + 10 000 spaces (must return fast). `get_email_context` must return `why_line`. Lane F's compose step maps `unknown_variable` → `missing_variable` and reports an invalid clinic timezone as a configuration error.
 
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_email.sql`
