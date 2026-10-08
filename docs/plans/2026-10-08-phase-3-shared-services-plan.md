@@ -50,6 +50,7 @@ Jonathan, 2026-10-08: « You will go on without asking me questions you have pha
 | P3-28 | Edge-function error **codes** stay English. The UI maps each code to a French i18n text (`link_expired` → « Ce lien a expiré… »). New codes: `rate_limited` 429, `invalid_request` 400, `link_invalid` / `link_expired` / `link_used` 410, `conflict` 409, `not_found` 404, `provider_error` 502, `not_configured` 503. | Keeps today's `ErrorCode` pattern. `provider_error`, `not_found` and `not_configured` are added to the design's list: a Resend or Documenso failure and missing configuration must be distinguishable from `internal`. |
 | P3-29 | **Error reports** from functions use `_shared/report.ts`, ported from PS Hub's `_shared/sentry.ts`. It sends only the function name, an error code and row ids, never an address, token or body. With no `SENTRY_DSN` it logs a structured line. | The design asks for Sentry alerts from functions, and none exist yet. |
 | P3-30 | `stored_files` has a fifth status, `purged` (object removed, row kept); `signature_requests` gains `last_error`; `document_templates` gains `view_permission`; `signature_requests.template_version_id` may be null only for the built-in test document; `signing_settings.base_url` accepts `https://…`, or `http://host.docker.internal:<port>` for the local fake. | Gaps found while planning (see the next section). |
+| P3-31 | Accepting an invitation re-checks the inviter's standing; an invitation from someone who has since been disabled or lost the right answers like an invalid link. Delegated decision, 2026-10-08, revisable. | Found in the Task 3.18 review: otherwise a manager disabled or demoted after inviting could still bring someone in. Nothing is written and the invitation stays pending, so an admin sees it and revokes or re-sends it herself. |
 
 ### Design inconsistencies resolved here
 
@@ -1419,9 +1420,9 @@ git commit -m "docs(adr): 0006 amendment, auth links land on /connexion/confirme
 - `create_staff_invitation(p_actor uuid, p_email text, p_display_name text, p_role text, p_token_hash bytea) returns uuid` (**service role only**, definer). Every check is made **as `p_actor`**:
   - the actor holds `users.manage` (`private.permission_keys_for(p_actor)`): a null, unknown, disabled or role-less actor, or one without it → `42501`;
   - the org is the actor's profile's, never an argument;
-  - locks the org row (`for no key update`);
+  - locks the org row (`for no key update`) **before** these checks: it reads the actor's org unlocked, locks it, then evaluates her permissions and the guards (`private.staff_inviter`), and answers `42501` if her org changed meanwhile; renew and revoke do the same;
   - `provider` → P0001 « Le rôle Professionnel est attribué par le module Professionnels. »;
-  - an unknown role, or another org's custom role → `22023`;
+  - an unknown role, or another org's custom role → P0001 « Ce rôle n'existe plus. » (HINT `role_missing`, as every role RPC since Task 2.20);
   - `admin` while the actor is not admin → P0001 « Seul un administrateur peut inviter un administrateur. » (same rule as `set_user_role`);
   - a non-admin actor inviting to a role that carries a permission she lacks → P0001 (hold rule, as `set_user_role`);
   - an address with a profile in this org → P0001 « Cette personne a déjà un accès. »;
@@ -1429,18 +1430,20 @@ git commit -m "docs(adr): 0006 amendment, auth links land on /connexion/confirme
   - then `private.issue_secure_link(org, 'staff_invite', 'staff_invitation', id, p_token_hash, p_actor)`, and inserts the invitation with the link id and `invited_by = p_actor`.
 - `renew_staff_invitation(p_actor uuid, p_id uuid, p_token_hash bytea) returns table (email text, display_name text, expires_at timestamptz)` (**service role only**, the same actor checks and role guards as create): for a pending invitation in the actor's org, issues a new link (which revokes the old one, `revoked_by = p_actor`) and returns what the email needs.
 - **Shared permission source:** `private.permission_keys_for(p_user uuid)` holds the body of `current_permission_keys()` with the user as a parameter (no client role may call it). `current_permission_keys()` becomes a plpgsql wrapper, `return private.permission_keys_for(auth.uid())`, with the same result, grants, volatility and cost per call. `has_permission` is unchanged.
-- **Audit:** under the service role `auth.uid()` is null, so create and renew set `app.audit_actor = p_actor` and `app.audit_source = rpc:<name>` around their writes, and restore both afterwards. `private.audit_trigger` reads `app.audit_actor` only when `auth.uid()` is null.
+- **Audit:** under the service role `auth.uid()` is null, so create and renew set `app.audit_actor = p_actor` and `app.audit_source = rpc:<name>` around their writes, and restore both afterwards (accept sets `app.audit_actor = p_user_id`). `private.audit_trigger` prefers `app.audit_actor` whenever `auth.role()` is not `authenticated`; under a user's JWT the actor is always `auth.uid()`.
 - `revoke_staff_invitation(p_id)` (authenticated, `users.manage`): status `revoked`, plus `private.revoke_secure_links`.
 - `list_staff_invitations()` (authenticated, `users.view`, definer, **one query**):
   - returns id, email, display_name, role, role_name, status, `expires_at` (from the link), `is_expired`, invited_by_name, created_at, and `last_email_status` / `last_email_at` (lateral `limit 1` on `email_log_subject_idx`);
   - pending invitations only.
 - `resolve_staff_invitation(p_link_id uuid) returns jsonb` (service role): `{ clinic_name, display_name, email, expires_at }`.
 - `accept_staff_invitation(p_token_hash bytea, p_user_id uuid, p_payload jsonb) returns jsonb` (service role). In one transaction:
-  1. `private.consume_secure_link(p_token_hash, 'staff_invite')`: null → `{"status":"link_used"}`;
-  2. the pending invitation for that link: none → `{"status":"link_used"}` (revoked meanwhile);
-  3. insert `profiles (user_id, org_id, display_name, status 'active')` (the email comes from `auth.users` by the existing trigger) and `user_roles (user_id, org_id, role)`;
-  4. the invitation becomes `accepted` with the user and the date;
-  5. returns `{"status":"accepted","org_id":…}`.
+  1. reads the link's org unlocked and locks the org row; then `private.consume_secure_link(p_token_hash, 'staff_invite')`: null → the state peek would answer, `{"status":"link_used"}`, `{"status":"link_expired"}` or `{"status":"link_invalid"}` (unknown, or revoked: a revoked or renewed invitation's link); nothing written;
+  2. locks the pending invitation for that link;
+  3. re-checks the inviter (`invited_by`, P3-31): still an active member of the org holding `users.manage` (`private.permission_keys_for`), and still allowed to invite to the invitation's role (admin and hold rules). Otherwise `{"status":"link_invalid"}`: the consumption is rolled back, nothing is written, and the invitation stays pending for an admin to revoke or re-send;
+  4. an auth user whose address is not the invitation's → `22023` (everything rolled back, the link stays usable);
+  5. insert `profiles (user_id, org_id, display_name, status 'active')` (the email comes from `auth.users` by the existing trigger) and `user_roles (user_id, org_id, role)`;
+  6. the invitation becomes `accepted` with the user and the date; these writes are audited as the new account (`app.audit_actor = p_user_id`, restored afterwards);
+  7. returns `{"status":"accepted","org_id":…}`.
 - **Interaction with Task 2.20:** `delete_role` also refuses a role used by pending invitations: P0001 « Ce rôle est utilisé par {n} invitation(s) en attente. ». Re-create the function with this extra check; inconsistency #15.
 
 **Tests:**
@@ -1461,7 +1464,8 @@ git commit -m "docs(adr): 0006 amendment, auth links land on /connexion/confirme
 - **Accept** (as service role):
   - creates the profile (active, `display_name`), the role and `accepted`;
   - a second accept with the same hash → `link_used`, and no second profile;
-  - accepting after a revoke → `link_used`;
+  - accepting after a revoke → `link_invalid`; an expired link → `link_expired`;
+  - an inviter disabled, without `users.manage`, or without a permission the role carries → `link_invalid`, nothing written; an inviter in good standing → accepted (P3-31);
   - `get_my_access()` as the new user lists the role's permissions.
 - **`list_staff_invitations`:** `is_expired` is true after expiry (set `expires_at` in the past as postgres); `last_email_status` reflects an `email_log` row.
 - **`delete_role`** of a custom role with a pending invitation → the new message.

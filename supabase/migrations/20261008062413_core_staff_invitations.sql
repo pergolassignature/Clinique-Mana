@@ -35,39 +35,67 @@
 --   function answers for any user, so no client role may call it.
 -- * Audit attribution: auth.uid() is null under the service role, so the two service RPCs set
 --   `app.audit_actor` (and `app.audit_source` = rpc:<name>) for their own statements and restore
---   them before returning. private.audit_trigger uses app.audit_actor only when auth.uid() is
---   null, so an authenticated caller cannot be misattributed. The rest of its body is unchanged.
+--   them before returning; accept_staff_invitation sets app.audit_actor to the new account
+--   (p_user_id), so its profile, role and the accepted invitation are attributed to it.
+--   private.audit_trigger uses app.audit_actor whenever the session is not an authenticated
+--   user's (auth.role() is not 'authenticated': the service role, postgres): under a user's JWT
+--   the actor is always auth.uid(), so an authenticated caller cannot be misattributed, and a
+--   service JWT that happens to carry a `sub` cannot attribute the write to that sub. The rest of
+--   its body is unchanged.
 -- * Guards, the same as set_user_role's (decision #28, Task 2.20), evaluated for the actor and
 --   applied by create AND renew (a renewal is a new link to that role): users.manage; the role
 --   must be a base role or one of the org's custom roles (« Ce rôle n'existe plus. », HINT
 --   role_missing, private.assert_org_role); provider is the Professionnels module's; only an
 --   admin invites an admin; a non-admin never invites to a role carrying a permission she lacks
---   (hold rule, on the org's defaults; a disabled module's permissions count as lacking).
--- * Neutral (P3-8, decision #38): only an address with a profile in THIS org is refused (users.view
---   already lists it). An address with an account elsewhere is invited like any other; the
---   accept-invite function meets it at createUser and answers the generic « Ce lien ne peut plus
---   être utilisé… ». Nothing here reads auth.users at invitation time.
+--   (hold rule, on the org's defaults; a disabled module's permissions count as lacking). They are
+--   evaluated AFTER the org lock (read the actor's org unlocked, lock it, then
+--   private.staff_inviter; 42501 if her org changed meanwhile), so a permission or status change
+--   committed while the RPC waited for the lock is seen. revoke does the same for auth.uid().
+-- * The inviter's standing is re-checked at acceptance (P3-31): under the org lock, after the
+--   link is consumed, the inviter (invited_by) must still be an active member of the org holding
+--   users.manage and still be allowed to invite to the invitation's role (the same admin and hold
+--   rules). Otherwise accept answers link_invalid and writes nothing (the consumption is rolled
+--   back); the invitation stays pending, so an admin sees it and revokes or re-sends it herself.
+-- * Neutral (P3-8, decision #38): only an address with a profile in THIS org is refused. Such an
+--   address is no secret to an inviter who also holds users.view (the user list shows it), but
+--   users.manage without users.view is possible, so this refusal can tell her an address belongs
+--   to a member of her own clinic; never anything about another clinic. An address with an
+--   account elsewhere is invited like any other; the accept-invite function meets it at
+--   createUser and answers the generic « Ce lien ne peut plus être utilisé… ». Nothing here reads
+--   auth.users at invitation time.
 -- * The account exists only once accepted. accept_staff_invitation (service role, the purpose's
 --   accept_rpc) consumes the link, creates the profile and the role, and marks the invitation
 --   accepted in one transaction. A link that cannot be consumed answers its state as peek would
 --   (link_used / link_expired / link_invalid: the accept function's 410 codes) and writes nothing;
 --   the function then deletes the auth user it created. An auth user whose address is not the
 --   invitation's raises 22023, so the consumption rolls back too.
--- * Locks: every writer takes the org row first (FOR NO KEY UPDATE), then the link
---   (issue_secure_link's advisory lock and row updates), then the invitation row. accept reads
---   the link's org without a lock, locks the org, then consumes; so renew, revoke, accept and
---   delete_role serialize per org and cannot deadlock. No existing profile is locked.
+-- * Locks: every writer of an org's invitations takes the org row first (FOR NO KEY UPDATE).
+--   Under it, create issues the link (issue_secure_link's advisory lock and row updates), then
+--   inserts the invitation; renew and revoke lock the invitation row, then the link(s) (renew:
+--   the advisory lock, the old link's revocation, the new link; revoke: revoke_secure_links);
+--   accept reads the link's org unlocked, locks the org, consumes the link, then locks the
+--   invitation. Invitation-then-link and link-then-invitation coexist, but only under the org
+--   lock, so create, renew, revoke, accept and delete_role serialize per org and cannot deadlock
+--   with each other. The purge job (core.secure_links_purge) takes no org lock: it deletes links
+--   whose last event is more than 12 months old, then ON DELETE SET NULL updates their
+--   invitations (link, then invitation). It can meet renew or revoke only on a pending invitation
+--   whose current link expired over a year ago; Postgres then detects the deadlock and aborts one
+--   side, which can be retried. No existing profile is locked.
 -- * `role` is set null when its custom role is deleted, for non-pending invitations only:
 --   delete_role refuses a role with pending invitations with a French message (inconsistency #15).
 --   A trigger (private.check_role_org) keeps the role in the invitation's org.
 -- * Expiry is the link's (« Expirée » when expires_at has passed); a pending invitation stays
 --   pending until accepted or revoked, and « Renvoyer » renews it.
--- * Deviations from the plan: an unknown or another org's role is « Ce rôle n'existe plus. »
---   (P0001, as every role RPC since Task 2.20) instead of 22023; malformed input gets French P0001
---   messages; create and renew are service-role RPCs with p_actor (above), not user RPCs; renew
---   applies the role guards and refuses an address that has gained access; service_role has no
---   privilege on the table (RPCs only, like secure_links); the purpose key is `staff_invite`
---   (purpose keys have no dot; `core.staff_invite` is the email template).
+-- * Deviations from the plan (the plan's Task 3.18 now states these answers): an unknown or
+--   another org's role is « Ce rôle n'existe plus. » (P0001, as every role RPC since Task 2.20)
+--   instead of 22023; malformed input gets French P0001 messages; create and renew are
+--   service-role RPCs with p_actor (above), not user RPCs; renew applies the role guards and
+--   refuses an address that has gained access; accept answers link_invalid / link_expired /
+--   link_used as peek would (not always link_used; a revoked invitation's link is link_invalid),
+--   re-checks the inviter's standing (P3-31, link_invalid), and raises 22023 for an auth user
+--   whose address is not the invitation's; service_role has no privilege on the table (RPCs
+--   only, like secure_links); the purpose key is `staff_invite` (purpose keys have no dot;
+--   `core.staff_invite` is the email template).
 -- * No PS Hub equivalent (it creates staff accounts directly with admin-create-user).
 -- =============================================================================
 select pg_catalog.set_config('app.audit_source', 'migration:core_staff_invitations', true);
@@ -203,8 +231,10 @@ $$;
 -- -----------------------------------------------------------------------------
 -- Audit actor for service RPCs acting for a user
 -- -----------------------------------------------------------------------------
--- Same signature, grants and body as *_core_audit.sql, except the actor: auth.uid(), else
--- app.audit_actor (set by create / renew_staff_invitation, which run under the service role).
+-- Same signature, grants and body as *_core_audit.sql, except the actor. Under a user's JWT
+-- (auth.role() = 'authenticated') it is auth.uid(), always. Otherwise (the service role, postgres)
+-- app.audit_actor when set (by create / renew / accept_staff_invitation), else auth.uid() as
+-- before: a service JWT carrying some `sub` never outranks the actor the RPC names.
 create or replace function private.audit_trigger()
 returns trigger
 language plpgsql
@@ -219,7 +249,10 @@ declare
   v_org uuid;
   v_record_id text;
   -- A service RPC acting for a user names her in app.audit_actor; never consulted for a user's JWT.
-  v_actor uuid := coalesce(auth.uid(), nullif(pg_catalog.current_setting('app.audit_actor', true), '')::uuid);
+  v_actor uuid := case
+    when auth.role() is not distinct from 'authenticated' then auth.uid()
+    else coalesce(nullif(pg_catalog.current_setting('app.audit_actor', true), '')::uuid, auth.uid())
+  end;
   v_actor_role text;
   i int;
 begin
@@ -356,6 +389,7 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_org uuid;
   v_actor record;
   v_email text := pg_catalog.lower(pg_catalog.btrim(p_email, E' \t\r\n'));
   v_name text := pg_catalog.btrim(p_display_name, E' \t\r\n');
@@ -364,8 +398,14 @@ declare
   v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
   v_prev_actor text := pg_catalog.current_setting('app.audit_actor', true);
 begin
+  -- The actor's org unlocked, the org lock, then her permissions and guards: a change committed
+  -- while this waited for the lock is seen (lock before checks, like the role RPCs).
+  select p.org_id into v_org from public.profiles p where p.user_id = p_actor;
+  perform 1 from public.organizations o where o.id = v_org for no key update;
   select * into v_actor from private.staff_inviter(p_actor);
-  perform 1 from public.organizations o where o.id = v_actor.org_id for no key update;
+  if v_actor.org_id is distinct from v_org then
+    raise exception 'Permission refusée : users.manage' using errcode = '42501';
+  end if;
 
   if v_email is null or pg_catalog.length(v_email) > 254 or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
     raise exception 'Adresse courriel invalide.' using errcode = 'P0001';
@@ -404,14 +444,20 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
+  v_org uuid;
   v_actor record;
   v_inv public.staff_invitations%rowtype;
   v_link uuid;
   v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
   v_prev_actor text := pg_catalog.current_setting('app.audit_actor', true);
 begin
+  -- Lock before checks, as in create.
+  select p.org_id into v_org from public.profiles p where p.user_id = p_actor;
+  perform 1 from public.organizations o where o.id = v_org for no key update;
   select * into v_actor from private.staff_inviter(p_actor);
-  perform 1 from public.organizations o where o.id = v_actor.org_id for no key update;
+  if v_actor.org_id is distinct from v_org then
+    raise exception 'Permission refusée : users.manage' using errcode = '42501';
+  end if;
 
   select * into v_inv from public.staff_invitations i
    where i.id = p_id and i.org_id = v_actor.org_id and i.status = 'pending'
@@ -456,12 +502,15 @@ set search_path = ''
 as $$
 declare
   v_org uuid;
+  v_actor record;
 begin
-  if not private.has_permission('users.manage') then
+  -- Lock before checks, as in create.
+  select p.org_id into v_org from public.profiles p where p.user_id = auth.uid();
+  perform 1 from public.organizations o where o.id = v_org for no key update;
+  select * into v_actor from private.staff_inviter(auth.uid());
+  if v_actor.org_id is distinct from v_org then
     raise exception 'Permission refusée : users.manage' using errcode = '42501';
   end if;
-  v_org := private.current_user_org_id();
-  perform 1 from public.organizations o where o.id = v_org for no key update;
 
   update public.staff_invitations i set status = 'revoked'
    where i.id = p_id and i.org_id = v_org and i.status = 'pending';
@@ -557,13 +606,18 @@ as $$
 $$;
 
 -- Called by accept-invite after it created p_user_id (auth.admin.createUser with the invitation's
--- address). One transaction: consume the link, create the profile and the role, accept. Answers
+-- address). One transaction: consume the link, re-check the inviter, create the profile and the
+-- role, accept. Answers
 --   {"status": "accepted", "org_id": …}
 --   {"status": "link_used" | "link_expired" | "link_invalid"}   nothing written; the function
 --                                                               deletes the user it created
--- p_payload is unused (staff invitations take no form data). 22023 (everything rolled back, the
--- link stays usable) when p_user_id is not an auth user with the invitation's address; 23505 when
--- it already has a profile.
+-- link_invalid also when the inviter has since lost her standing (P3-31): she is no longer an
+-- active member of the org holding users.manage, or may no longer invite to the role (admin and
+-- hold rules). The consumption is rolled back and the invitation stays pending, for an admin to
+-- revoke or re-send. p_payload is unused (staff invitations take no form data). 22023
+-- (everything rolled back, the link stays usable) when p_user_id is not an auth user with the
+-- invitation's address; 23505 when it already has a profile. The writes are audited as the new
+-- account (app.audit_actor = p_user_id), restored before returning.
 create function public.accept_staff_invitation(p_token_hash bytea, p_user_id uuid, p_payload jsonb)
 returns jsonb
 language plpgsql
@@ -574,9 +628,12 @@ declare
   v_org uuid;
   v_link public.secure_links%rowtype;
   v_inv public.staff_invitations%rowtype;
+  v_inviter record;
   v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
+  v_prev_actor text := pg_catalog.current_setting('app.audit_actor', true);
 begin
-  -- Lock order org → link → invitation, like renew and revoke: read the link's org unlocked first.
+  -- Read the link's org unlocked, lock the org, then consume the link and lock the invitation
+  -- (the header's « Locks »).
   select l.org_id into v_org from public.secure_links l
    where l.token_hash = p_token_hash and l.purpose = 'staff_invite';
   if not found then
@@ -584,25 +641,43 @@ begin
   end if;
   perform 1 from public.organizations o where o.id = v_org for no key update;
 
-  v_link := private.consume_secure_link(p_token_hash, 'staff_invite');
-  if v_link.id is null then
-    -- Expired, used or revoked since the function's peek: answer what peek would now.
-    return pg_catalog.jsonb_build_object('status',
-      case public.peek_secure_link(p_token_hash, false) ->> 'state'
-        when 'used' then 'link_used' when 'expired' then 'link_expired' else 'link_invalid' end);
-  end if;
+  -- A block, so that a failed inviter re-check rolls the consumption back.
+  begin
+    v_link := private.consume_secure_link(p_token_hash, 'staff_invite');
+    if v_link.id is null then
+      -- Expired, used or revoked since the function's peek: answer what peek would now.
+      return pg_catalog.jsonb_build_object('status',
+        case public.peek_secure_link(p_token_hash, false) ->> 'state'
+          when 'used' then 'link_used' when 'expired' then 'link_expired' else 'link_invalid' end);
+    end if;
 
-  select * into v_inv from public.staff_invitations i
-   where i.secure_link_id = v_link.id and i.status = 'pending'
-     for update;
-  if not found then
-    raise exception 'Lien sans invitation en attente' using errcode = '22023';
-  end if;
+    select * into v_inv from public.staff_invitations i
+     where i.secure_link_id = v_link.id and i.status = 'pending'
+       for update;
+    if not found then
+      raise exception 'Lien sans invitation en attente' using errcode = '22023';
+    end if;
+
+    -- The inviter's standing now, under the org lock (P3-31): the create guards, for invited_by.
+    -- staff_inviter raises 42501 (null, disabled, role-less, no users.manage), as does a move to
+    -- another org; assert_can_invite_to_role raises P0001 (provider, admin, hold rule). Nothing
+    -- else in this block raises either code.
+    select * into v_inviter from private.staff_inviter(v_inv.invited_by);
+    if v_inviter.org_id is distinct from v_inv.org_id then
+      raise exception 'Permission refusée : users.manage' using errcode = '42501';
+    end if;
+    perform private.assert_can_invite_to_role(v_inv.org_id, v_inv.role, v_inviter.role, v_inviter.keys);
+  exception
+    when insufficient_privilege or raise_exception then
+      return '{"status": "link_invalid"}'::jsonb;
+  end;
+
   if not exists (select 1 from auth.users u where u.id = p_user_id and pg_catalog.lower(u.email) = v_inv.email) then
     raise exception 'Le compte ne correspond pas à l''invitation' using errcode = '22023';
   end if;
 
   perform pg_catalog.set_config('app.audit_source', 'rpc:accept_staff_invitation', true);
+  perform pg_catalog.set_config('app.audit_actor', p_user_id::text, true);
   -- profiles.email is copied from auth.users by profiles_email_from_auth.
   insert into public.profiles (user_id, org_id, display_name, email, status)
   values (p_user_id, v_inv.org_id, v_inv.display_name, v_inv.email, 'active');
@@ -611,6 +686,7 @@ begin
      set status = 'accepted', accepted_user_id = p_user_id, accepted_at = pg_catalog.now()
    where i.id = v_inv.id;
   perform pg_catalog.set_config('app.audit_source', coalesce(v_prev_source, ''), true);
+  perform pg_catalog.set_config('app.audit_actor', coalesce(v_prev_actor, ''), true);
 
   return pg_catalog.jsonb_build_object('status', 'accepted', 'org_id', v_inv.org_id);
 end;
