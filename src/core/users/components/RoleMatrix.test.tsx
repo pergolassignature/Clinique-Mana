@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import type { Access } from '@/core/access/access'
 import { accessKeys } from '@/core/access/access-context'
+import { roleKeys } from '@/core/access/org-roles'
 import { renderWithContexts, testAccess } from '@/test/contexts'
 import { accessForRole } from '@/test/role-fixtures'
 import { customRole, testCatalog, testRoleDefaults, testRoles } from '@/test/users-fixtures'
@@ -19,18 +20,20 @@ const mocks = vi.hoisted(() => ({
   renameRole: vi.fn(),
   deleteRole: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
+  captureException: vi.fn(),
 }))
 vi.mock('../api', () => ({
   fetchPermissionCatalog: mocks.fetchPermissionCatalog,
-  fetchOrgRoles: mocks.fetchOrgRoles,
   fetchRoleDefaults: mocks.fetchRoleDefaults,
   setRolePermission: mocks.setRolePermission,
   createRole: mocks.createRole,
   renameRole: mocks.renameRole,
   deleteRole: mocks.deleteRole,
 }))
+// The clinic's roles come from the access module (shared with the shell and the audit log).
+vi.mock('@/core/access/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/access/api')>()), fetchOrgRoles: mocks.fetchOrgRoles }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
-vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
+vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 
 /** Read-only: the test access (adjointe, settings.view only). */
 const viewer: Access = { ...testAccess, modules: ['professionals'] }
@@ -68,6 +71,9 @@ function rowValues(description: string) {
     .getAllByRole('cell')
     .map((c) => c.querySelector('.sr-only')?.textContent)
 }
+
+/** « Ce rôle n'existe plus. »: what every role RPC raises for a role deleted meanwhile. */
+const roleMissing = { code: 'P0001', message: "Ce rôle n'existe plus.", details: '', hint: 'role_missing' }
 
 /** A promise settled from the test, to see the optimistic state while the save runs. */
 function deferred() {
@@ -261,6 +267,228 @@ describe('RoleMatrix — editing a cell', () => {
   })
 })
 
+describe('RoleMatrix — concurrent saves', () => {
+  it('two cells save at once: when one fails, only that one goes back', async () => {
+    const settings = deferred()
+    const audit = deferred()
+    mocks.setRolePermission.mockImplementation((_role: string, key: string) => (key === 'settings.view' ? settings.promise : audit.promise))
+    renderMatrix(adminCaller)
+    await userEvent.click(await findCell(roleName.counselor, P.settings))
+    await userEvent.click(cell(roleName.counselor, P.audit))
+    expect(mocks.setRolePermission).toHaveBeenCalledTimes(2)
+    expect(cell(roleName.counselor, P.settings)).toBeChecked()
+    expect(cell(roleName.counselor, P.audit)).toBeChecked()
+
+    settings.reject({ code: 'P0001', message: 'Refusé par la base.' })
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith('Refusé par la base.'))
+    expect(cell(roleName.counselor, P.settings)).not.toBeChecked()
+    // The other is still saving: it keeps its new value, and nothing refetched over it.
+    expect(cell(roleName.counselor, P.audit)).toBeChecked()
+    expect(cell(roleName.counselor, P.audit)).toHaveAttribute('aria-disabled', 'true')
+    expect(mocks.fetchRoleDefaults).toHaveBeenCalledTimes(1)
+
+    mocks.fetchRoleDefaults.mockResolvedValue([...testRoleDefaults, { role: 'counselor', permission_key: 'audit.view' }])
+    audit.resolve()
+    await waitFor(() => expect(mocks.fetchRoleDefaults).toHaveBeenCalledTimes(2))
+    expect(cell(roleName.counselor, P.audit)).toBeChecked()
+    expect(cell(roleName.counselor, P.settings)).not.toBeChecked()
+  })
+
+  it('refetches the defaults once, after the last save settles', async () => {
+    const first = deferred()
+    const second = deferred()
+    mocks.setRolePermission.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    renderMatrix(adminCaller)
+    await userEvent.click(await findCell(roleName.counselor, P.settings))
+    await userEvent.click(cell(roleName.assistant, P.professionals))
+    first.resolve()
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledTimes(1))
+    expect(mocks.fetchRoleDefaults).toHaveBeenCalledTimes(1)
+    mocks.fetchRoleDefaults.mockResolvedValue(
+      [...testRoleDefaults, { role: 'counselor', permission_key: 'settings.view' }].filter((d) => !(d.role === 'admin_assistant' && d.permission_key === 'professionals.view')),
+    )
+    second.resolve()
+    await waitFor(() => expect(mocks.fetchRoleDefaults).toHaveBeenCalledTimes(2))
+    expect(cell(roleName.counselor, P.settings)).toBeChecked()
+    expect(cell(roleName.assistant, P.professionals)).not.toBeChecked()
+  })
+
+  it('ignores a second toggle of the same cell before it re-renders', async () => {
+    mocks.setRolePermission.mockReturnValue(deferred().promise)
+    renderMatrix(adminCaller)
+    const settings = await findCell(roleName.counselor, P.settings)
+    // Two clicks in the same task: the second sees the same (stale) switch.
+    act(() => {
+      fireEvent.click(settings)
+      fireEvent.click(settings)
+    })
+    await waitFor(() => expect(settings).toBeChecked())
+    expect(mocks.setRolePermission).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not refetch the defaults on window focus while a cell saves, and does again after', async () => {
+    const save = deferred()
+    mocks.setRolePermission.mockReturnValue(save.promise)
+    renderMatrix(adminCaller)
+    await userEvent.click(await findCell(roleName.counselor, P.settings))
+    const refocus = () =>
+      act(() => {
+        focusManager.setFocused(false)
+        focusManager.setFocused(true)
+      })
+    try {
+      refocus()
+      expect(mocks.fetchRoleDefaults).toHaveBeenCalledTimes(1)
+      expect(cell(roleName.counselor, P.settings)).toBeChecked()
+      mocks.fetchRoleDefaults.mockResolvedValue([...testRoleDefaults, { role: 'counselor', permission_key: 'settings.view' }])
+      save.resolve()
+      await waitFor(() => expect(mocks.fetchRoleDefaults).toHaveBeenCalledTimes(2))
+      refocus()
+      await waitFor(() => expect(mocks.fetchRoleDefaults).toHaveBeenCalledTimes(3))
+    } finally {
+      focusManager.setFocused(undefined)
+    }
+  })
+})
+
+describe('RoleMatrix — a role deleted meanwhile', () => {
+  const openMenu = async (name: string) => userEvent.click(await screen.findByRole('button', { name: t('settings.users.matrix.roleActions', { role: name }) }))
+
+  it('a cell of it: the message, the cell back, the roles refetched (its column goes), not reported', async () => {
+    mocks.fetchOrgRoles.mockResolvedValue([...testRoles, customRole])
+    const save = deferred()
+    mocks.setRolePermission.mockReturnValue(save.promise)
+    renderMatrix(adminCaller)
+    await userEvent.click(await findCell(customRole.name, P.audit))
+    expect(cell(customRole.name, P.audit)).toBeChecked()
+    mocks.fetchOrgRoles.mockResolvedValue(testRoles)
+    save.reject(roleMissing)
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith("Ce rôle n'existe plus."))
+    await waitFor(() => expect(screen.queryByRole('columnheader', { name: new RegExp(customRole.name) })).not.toBeInTheDocument())
+    expect(mocks.fetchOrgRoles).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(mocks.fetchRoleDefaults).toHaveBeenCalledTimes(2))
+    expect(mocks.captureException).not.toHaveBeenCalled()
+  })
+
+  it('renaming it: the message as a toast, the dialog closed, the roles and defaults refetched', async () => {
+    mocks.fetchOrgRoles.mockResolvedValue([...testRoles, customRole])
+    mocks.renameRole.mockRejectedValue(roleMissing)
+    renderMatrix(adminCaller)
+    await openMenu(customRole.name)
+    await userEvent.click(await screen.findByRole('menuitem', { name: t('settings.users.matrix.rename') }))
+    const dialog = await screen.findByRole('dialog', { name: t('settings.users.roleDialog.renameTitle') })
+    const name = within(dialog).getByRole('textbox', { name: new RegExp(t('settings.users.roleDialog.name')) })
+    await userEvent.clear(name)
+    await userEvent.type(name, 'Accueil')
+    mocks.fetchOrgRoles.mockResolvedValue(testRoles)
+    await userEvent.click(within(dialog).getByRole('button', { name: t('settings.users.roleDialog.rename') }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mocks.toast.error).toHaveBeenCalledWith("Ce rôle n'existe plus.")
+    expect(mocks.toast.success).not.toHaveBeenCalled()
+    expect(mocks.fetchOrgRoles).toHaveBeenCalledTimes(2)
+    expect(mocks.fetchRoleDefaults).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('columnheader', { name: new RegExp(customRole.name) })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t('settings.users.matrix.newRole') })).toHaveFocus()
+    expect(mocks.captureException).not.toHaveBeenCalled()
+  })
+
+  it('deleting it: the message as a toast and the confirmation closed', async () => {
+    mocks.fetchOrgRoles.mockResolvedValue([...testRoles, customRole])
+    mocks.deleteRole.mockRejectedValue(roleMissing)
+    renderMatrix(adminCaller)
+    await openMenu(customRole.name)
+    await userEvent.click(await screen.findByRole('menuitem', { name: t('settings.users.matrix.delete') }))
+    const confirm = await screen.findByRole('alertdialog')
+    mocks.fetchOrgRoles.mockResolvedValue(testRoles)
+    await userEvent.click(within(confirm).getByRole('button', { name: t('settings.users.roleDelete.confirm') }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(mocks.toast.error).toHaveBeenCalledWith("Ce rôle n'existe plus.")
+    expect(mocks.toast.success).not.toHaveBeenCalled()
+    expect(screen.queryByRole('columnheader', { name: new RegExp(customRole.name) })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t('settings.users.matrix.newRole') })).toHaveFocus()
+  })
+
+  it('an open dialog closes when a refetch no longer lists its role', async () => {
+    mocks.fetchOrgRoles.mockResolvedValue([...testRoles, customRole])
+    const { queryClient } = renderMatrix(adminCaller)
+    await openMenu(customRole.name)
+    await userEvent.click(await screen.findByRole('menuitem', { name: t('settings.users.matrix.rename') }))
+    await screen.findByRole('dialog', { name: t('settings.users.roleDialog.renameTitle') })
+    // Another manager deleted it; this page learns it on a refetch (focus, another change…).
+    mocks.fetchOrgRoles.mockResolvedValue(testRoles)
+    await act(() => queryClient.invalidateQueries({ queryKey: roleKeys.list(testAccess.org_id) }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mocks.renameRole).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: t('settings.users.matrix.newRole') })).toHaveFocus()
+
+    // The same for the deletion's confirmation.
+    mocks.fetchOrgRoles.mockResolvedValue([...testRoles, customRole])
+    await act(() => queryClient.invalidateQueries({ queryKey: roleKeys.list(testAccess.org_id) }))
+    await openMenu(customRole.name)
+    await userEvent.click(await screen.findByRole('menuitem', { name: t('settings.users.matrix.delete') }))
+    await screen.findByRole('alertdialog')
+    mocks.fetchOrgRoles.mockResolvedValue(testRoles)
+    await act(() => queryClient.invalidateQueries({ queryKey: roleKeys.list(testAccess.org_id) }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(mocks.deleteRole).not.toHaveBeenCalled()
+  })
+
+  it('the copy source of a new role: the message on the copy field, which goes back to none', async () => {
+    mocks.fetchOrgRoles.mockResolvedValue([...testRoles, customRole])
+    mocks.createRole.mockRejectedValue(roleMissing)
+    renderMatrix(adminCaller)
+    await userEvent.click(await screen.findByRole('button', { name: t('settings.users.matrix.newRole') }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.type(within(dialog).getByRole('textbox', { name: new RegExp(t('settings.users.roleDialog.name')) }), 'Accueil')
+    const copy = within(dialog).getByRole('combobox', { name: t('settings.users.roleDialog.copyFrom') })
+    await userEvent.selectOptions(copy, customRole.key)
+    mocks.fetchOrgRoles.mockResolvedValue(testRoles)
+    await userEvent.click(within(dialog).getByRole('button', { name: t('settings.users.roleDialog.create') }))
+    await waitFor(() => expect(copy).toHaveAccessibleDescription(expect.stringContaining("Ce rôle n'existe plus.")))
+    expect(copy).toHaveValue('')
+    expect(within(copy).queryByRole('option', { name: customRole.name })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+})
+
+describe('RoleMatrix — removing a managing permission from her own role', () => {
+  const MANAGE_ROLES = 'Gérer les rôles'
+  const ownRoleManages = [...testRoleDefaults, { role: 'admin_assistant', permission_key: 'roles.manage' }]
+
+  it('asks first; « Annuler » keeps it, « Retirer » removes it', async () => {
+    mocks.fetchRoleDefaults.mockResolvedValue(ownRoleManages)
+    mocks.setRolePermission.mockResolvedValue(undefined)
+    renderMatrix(managerCaller)
+    const manage = await findCell(roleName.assistant, MANAGE_ROLES)
+    expect(manage).toBeChecked()
+    await userEvent.click(manage)
+    const confirm = await screen.findByRole('alertdialog', { name: t('settings.users.matrix.selfRemove.title') })
+    expect(confirm).toHaveAccessibleDescription(t('settings.users.matrix.selfRemove.body', { permission: MANAGE_ROLES, role: roleName.assistant }))
+    expect(mocks.setRolePermission).not.toHaveBeenCalled()
+    await userEvent.click(within(confirm).getByRole('button', { name: t('common.cancel') }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(mocks.setRolePermission).not.toHaveBeenCalled()
+    expect(cell(roleName.assistant, MANAGE_ROLES)).toBeChecked()
+    expect(cell(roleName.assistant, MANAGE_ROLES)).toHaveFocus()
+
+    await userEvent.click(cell(roleName.assistant, MANAGE_ROLES))
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('settings.users.matrix.selfRemove.confirm') }))
+    expect(mocks.setRolePermission).toHaveBeenCalledWith('admin_assistant', 'roles.manage', false)
+    await waitFor(() => expect(cell(roleName.assistant, MANAGE_ROLES)).toHaveFocus())
+  })
+
+  it('does not ask for another permission of her role, nor for that permission in another role', async () => {
+    mocks.fetchRoleDefaults.mockResolvedValue([...ownRoleManages, { role: 'counselor', permission_key: 'roles.manage' }])
+    mocks.setRolePermission.mockResolvedValue(undefined)
+    renderMatrix(managerCaller)
+    await userEvent.click(await findCell(roleName.assistant, P.settings))
+    await userEvent.click(cell(roleName.counselor, MANAGE_ROLES))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(mocks.setRolePermission).toHaveBeenCalledWith('admin_assistant', 'settings.view', false)
+    expect(mocks.setRolePermission).toHaveBeenCalledWith('counselor', 'roles.manage', false)
+  })
+})
+
 describe('RoleMatrix — locked cells', () => {
   it('shows Administrateur checked and read-only, with its note', async () => {
     renderMatrix(adminCaller)
@@ -393,11 +621,15 @@ describe('RoleMatrix — custom roles', () => {
     expect(await within(dialog).findByText('Le nom du rôle contient des caractères non permis.')).toBeInTheDocument()
     expect(name).toHaveAccessibleDescription('Le nom du rôle contient des caractères non permis.')
 
-    mocks.createRole.mockRejectedValueOnce({ code: 'P0001', message: t('settings.users.roleDialog.validation.copyRefused') })
+    // The copy refusal goes on the copy field by its hint, whatever its text.
+    const copyRefused = "Vous ne pouvez pas copier un rôle qui donne des permissions que vous n'avez pas."
+    mocks.createRole.mockRejectedValueOnce({ code: 'P0001', message: copyRefused, hint: 'copy_from' })
     await userEvent.click(submit)
-    expect(await within(dialog).findByRole('combobox', { name: COPY })).toHaveAccessibleDescription(
-      expect.stringContaining(t('settings.users.roleDialog.validation.copyRefused')),
-    )
+    expect(await within(dialog).findByRole('combobox', { name: COPY })).toHaveAccessibleDescription(expect.stringContaining(copyRefused))
+    // Without the hint, the same text is a name refusal: the UI never reads the text.
+    mocks.createRole.mockRejectedValueOnce({ code: 'P0001', message: copyRefused })
+    await userEvent.click(submit)
+    await waitFor(() => expect(name).toHaveAccessibleDescription(copyRefused))
 
     mocks.createRole.mockRejectedValueOnce({ code: '22023', message: 'Rôle inconnu : x' })
     await userEvent.click(submit)
@@ -454,6 +686,21 @@ describe('RoleMatrix — custom roles', () => {
     expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.users.roleDelete.deleted', { name: customRole.name }))
     expect(screen.queryByRole('columnheader', { name: new RegExp(customRole.name) })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: t('settings.users.matrix.newRole') })).toHaveFocus()
+  })
+
+  it('a technical failure: the generic text in the confirmation, reported once however often it renders', async () => {
+    mocks.fetchOrgRoles.mockResolvedValue([...testRoles, customRole])
+    mocks.deleteRole.mockRejectedValue({ code: 'XX000', message: 'boom', details: '', hint: '' })
+    const { queryClient } = renderMatrix(adminCaller)
+    await openMenu(customRole.name)
+    await userEvent.click(await screen.findByRole('menuitem', { name: t('settings.users.matrix.delete') }))
+    const confirm = await screen.findByRole('alertdialog')
+    await userEvent.click(within(confirm).getByRole('button', { name: t('settings.users.roleDelete.confirm') }))
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent(t('common.errors.generic'))
+    // Re-renders (a refetch, the pointer) must not report it again.
+    await act(() => queryClient.invalidateQueries({ queryKey: roleKeys.all }))
+    await userEvent.hover(within(confirm).getByRole('button', { name: t('common.cancel') }))
+    expect(mocks.captureException).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the confirmation open with the database message when someone has the role', async () => {

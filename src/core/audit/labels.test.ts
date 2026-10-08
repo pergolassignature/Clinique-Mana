@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { t } from '@/i18n'
 import type { AuditEntry } from './api'
 import {
   actionLabel,
@@ -8,6 +9,7 @@ import {
   auditValue,
   fieldLabel,
   formatAuditValue,
+  roleNamesFromEntries,
   shortRecordId,
   sourceLabel,
   tableLabel,
@@ -290,10 +292,13 @@ describe('auditValue', () => {
   it('names roles, keeping an unknown role as is', () => {
     expect(auditValue('user_roles', 'role', 'admin_assistant').text).toBe('Adjointe administrative')
     expect(auditValue('user_roles', 'role', 'staff').text).toBe('staff')
-    // A custom role: its stored name from the lookups; its key without them.
+    // A custom role: its stored name from the lookups; without it, a generic label (the key in title).
     const roles = new Map([['custom_0a1b2c3d', 'Réception']])
     expect(auditValue('org_role_permissions', 'role', 'custom_0a1b2c3d', { roles }).text).toBe('Réception')
-    expect(auditValue('user_roles', 'role', 'custom_0a1b2c3d').text).toBe('custom_0a1b2c3d')
+    expect(auditValue('user_roles', 'role', 'custom_0a1b2c3d')).toEqual({ text: t('access.customRole'), title: 'custom_0a1b2c3d' })
+    // The key of a `roles` row, too.
+    expect(auditValue('roles', 'key', 'custom_0a1b2c3d', { roles }).text).toBe('Réception')
+    expect(auditValue('roles', 'key', 'counselor').text).toBe('Conseillère')
     expect(auditValue('user_roles', 'role', 'counselor', { roles: new Map([['counselor', 'Autre']]) }).text).toBe('Conseillère')
   })
 
@@ -333,5 +338,29 @@ describe('auditValue', () => {
   it('keeps empty and redacted values as such, whatever the column', () => {
     expect(auditValue('tax_rates', 'created_by', null)).toEqual({ text: '(vide)' })
     expect(auditValue('organization_bank_details', 'updated_by', '[redacted]')).toEqual({ text: '(masqué)' })
+  })
+})
+
+describe('roleNamesFromEntries', () => {
+  const row = (action: string, record_id: string, changed_fields: unknown, table_name = 'roles') => ({ action, table_name, record_id, changed_fields })
+
+  it("reads a deleted role's name from its own rows, the newest first", () => {
+    const names = roleNamesFromEntries([
+      row('delete', 'custom_0a1b2c3d', { key: 'custom_0a1b2c3d', name: 'Accueil', org_id: 'o1', is_system: false }),
+      row('update', 'custom_0a1b2c3d', { name: { before: 'Réception', after: 'Accueil' } }),
+      row('insert', 'custom_0a1b2c3d', { key: 'custom_0a1b2c3d', name: 'Réception', org_id: 'o1', is_system: false }),
+      row('update', 'custom_99999999', { name: { before: 'Soir', after: 'Nuit' } }),
+    ])
+    expect(names).toEqual(new Map([['custom_0a1b2c3d', 'Accueil'], ['custom_99999999', 'Nuit']]))
+  })
+
+  it('ignores other tables and rows without a name', () => {
+    expect(
+      roleNamesFromEntries([
+        row('delete', 'x', { key: 'custom_0a1b2c3d', name: 'Accueil' }, 'user_roles'),
+        row('update', 'custom_0a1b2c3d', { is_system: { before: false, after: false } }),
+        row('delete', 'custom_0a1b2c3d', null),
+      ]),
+    ).toEqual(new Map())
   })
 })

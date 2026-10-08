@@ -1,15 +1,14 @@
-import { useIsMutating, useMutation, useMutationState, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { hashKey, useIsMutating, useMutation, useMutationState, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { accessKeys, useAccess } from '@/core/access/access-context'
-import { isBaseRoleKey, roleLabel } from '@/core/access/roles'
-import { moduleErrorMessage } from '@/core/modules/errors'
+import { roleKeys, useOrgId } from '@/core/access/org-roles'
+import { moduleErrorMessage, rpcErrorCode, rpcErrorHint } from '@/core/modules/errors'
 import { toast } from '@/shared/ui/sonner'
 import {
   clearPermissionOverride,
   clearPermissionOverrides,
   createRole,
   deleteRole,
-  fetchOrgRoles,
   fetchOrgUsers,
   fetchPermissionCatalog,
   fetchRoleDefaults,
@@ -34,16 +33,6 @@ export const permissionCatalogKeys = {
   all: ['permission-catalog'] as const,
 }
 
-/**
- * The clinic's roles and their defaults (decision #40), two queries so each change refetches only
- * what it touched: a cell → the defaults; a rename → the roles; a creation or a deletion → both.
- */
-export const roleKeys = {
-  all: ['roles'] as const,
-  list: (orgId: string) => [...roleKeys.all, orgId, 'list'] as const,
-  defaults: (orgId: string) => [...roleKeys.all, orgId, 'defaults'] as const,
-}
-
 /** Always fresh on mount: another manager may have changed someone meanwhile. */
 export function useOrgUsers() {
   return useQuery({ queryKey: userKeys.list(), queryFn: fetchOrgUsers, staleTime: 0 })
@@ -54,38 +43,50 @@ export function usePermissionCatalog() {
   return useQuery({ queryKey: permissionCatalogKeys.all, queryFn: fetchPermissionCatalog, staleTime: 5 * 60_000 })
 }
 
-/** The caller's org id ('' before access loads: the queries wait for it). */
-function useOrgId(): string {
-  return useAccess().access?.org_id ?? ''
-}
-
-/** The base roles and the clinic's custom roles (names change rarely: the app's default freshness). */
-export function useOrgRoles({ enabled = true }: { enabled?: boolean } = {}) {
-  const orgId = useOrgId()
-  return useQuery({ queryKey: roleKeys.list(orgId), queryFn: fetchOrgRoles, enabled: enabled && orgId !== '' })
-}
+/** The key of the role matrix's cell saves (useSetRolePermission). */
+const setRolePermissionKey = (orgId: string) => [...roleKeys.defaults(orgId), 'set'] as const
 
 /**
  * What each role gives by default in the clinic. Refetched on each mount (cached data shows
  * meanwhile): another manager may have changed a role, and the sheet's switches decide from these
- * defaults whether a change creates or removes an exception.
+ * defaults whether a change creates or removes an exception. Also refetched when the window
+ * regains focus, except while a matrix cell is saving: that refetch could land before the save
+ * and show the cell's old value until the next one.
  */
 export function useRoleDefaults() {
   const orgId = useOrgId()
-  return useQuery({ queryKey: roleKeys.defaults(orgId), queryFn: () => fetchRoleDefaults(orgId), enabled: orgId !== '', staleTime: 0 })
+  const queryClient = useQueryClient()
+  return useQuery({
+    queryKey: roleKeys.defaults(orgId),
+    queryFn: () => fetchRoleDefaults(orgId),
+    enabled: orgId !== '',
+    staleTime: 0,
+    refetchOnWindowFocus: () => queryClient.isMutating({ mutationKey: setRolePermissionKey(orgId) }) === 0,
+  })
 }
 
 /**
- * A role's label: the i18n label of a base role, the stored name of a custom role (`get_my_access`
- * returns only the key). Only a custom role loads the roles; its label is empty until they arrive,
- * and the key if they cannot be loaded.
+ * « Ce rôle n'existe plus. » (P0001, HINT role_missing): the role was deleted meanwhile (by another
+ * manager), or is another clinic's. Whatever showed it is out of date: the roles are refetched.
  */
-export function useRoleLabel(role: string): string {
-  const custom = !isBaseRoleKey(role)
-  const roles = useOrgRoles({ enabled: custom })
-  if (!custom) return roleLabel(role)
-  const name = roles.data?.find((r) => r.key === role)?.name
-  return name ?? (roles.isPending && roles.fetchStatus !== 'idle' ? '' : role)
+export function isRoleMissing(error: unknown): boolean {
+  return rpcErrorCode(error) === 'P0001' && rpcErrorHint(error) === 'role_missing'
+}
+
+/** The roles and their defaults, refetched (a role went missing). */
+function refetchRoles(queryClient: QueryClient, orgId: string) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: roleKeys.list(orgId) }),
+    queryClient.invalidateQueries({ queryKey: roleKeys.defaults(orgId) }),
+  ])
+}
+
+/**
+ * A `42501` means the caller's own rights changed elsewhere (e.g. their users.manage or
+ * roles.manage was revoked): their access payload is refetched.
+ */
+function refreshAccessOnRefusal(queryClient: QueryClient, error: unknown) {
+  if (rpcErrorCode(error) === '42501') void queryClient.invalidateQueries({ queryKey: accessKeys.all })
 }
 
 /** Refetched each time a sheet opens. */
@@ -109,14 +110,9 @@ function invalidateUser(queryClient: QueryClient, userId: string, callerId: stri
   return Promise.all(invalidations)
 }
 
-/**
- * The toast for a failed user-admin change. A `42501` means the caller's own rights changed
- * elsewhere (e.g. their users.manage was revoked): their access payload is refreshed too.
- */
+/** The toast for a failed user-admin change, and the caller's access after a `42501`. */
 function onUserMutationError(queryClient: QueryClient, error: unknown) {
-  if (typeof error === 'object' && error !== null && 'code' in error && error.code === '42501') {
-    void queryClient.invalidateQueries({ queryKey: accessKeys.all })
-  }
+  refreshAccessOnRefusal(queryClient, error)
   toast.error(moduleErrorMessage(error, t('common.errors.generic'), 'settings'))
 }
 
@@ -125,7 +121,11 @@ function onUserMutationError(queryClient: QueryClient, error: unknown) {
  * fresh state is cached). Toasts live in the mutation options so the outcome shows even if the
  * sheet closes first.
  */
-function useUserMutation<V extends { userId: string }>(mutationFn: (variables: V) => Promise<void>, successMessage: (variables: V) => string) {
+function useUserMutation<V extends { userId: string }>(
+  mutationFn: (variables: V) => Promise<void>,
+  successMessage: (variables: V) => string,
+  onError?: (error: unknown) => void,
+) {
   const queryClient = useQueryClient()
   const { access } = useAccess()
   return useMutation({
@@ -134,14 +134,23 @@ function useUserMutation<V extends { userId: string }>(mutationFn: (variables: V
       await invalidateUser(queryClient, variables.userId, access?.user_id)
       toast.success(successMessage(variables))
     },
-    onError: (error) => onUserMutationError(queryClient, error),
+    onError: (error) => {
+      onError?.(error)
+      onUserMutationError(queryClient, error)
+    },
   })
 }
 
+/** A role deleted meanwhile (« Ce rôle n'existe plus. »): the roles are refetched, so the choice goes. */
 export function useSetUserRole() {
+  const queryClient = useQueryClient()
+  const orgId = useOrgId()
   return useUserMutation(
     ({ userId, role }: { userId: string; role: string }) => setUserRole(userId, role),
     () => t('settings.users.sheet.role.saved'),
+    (error) => {
+      if (isRoleMissing(error)) void refetchRoles(queryClient, orgId)
+    },
   )
 }
 
@@ -258,8 +267,6 @@ export interface RolePermissionVariables {
   permissionLabel: string
 }
 
-const setRolePermissionKey = (orgId: string) => [...roleKeys.defaults(orgId), 'set'] as const
-
 /** The cells still saving, as `role:permission` (each ignores further toggles until it settles). */
 export function usePendingRolePermissions(): Set<string> {
   const orgId = useOrgId()
@@ -279,12 +286,13 @@ export function usePendingRolePermissions(): Set<string> {
  * not overwrite an optimistic state in flight; the last one to settle refetches after all of
  * them). They are what the user sheets read, so the people with this role show their new
  * effective permissions. When the role is the caller's own, their access (`get_my_access`) is
- * refetched too: what they may do has changed.
+ * refetched too: what they may do has changed. A role deleted meanwhile (« Ce rôle n'existe
+ * plus. ») refetches the roles at once, so its column goes; its defaults follow with the others.
  */
 export function useSetRolePermission() {
   const queryClient = useQueryClient()
   const { access } = useAccess()
-  const orgId = access?.org_id ?? ''
+  const orgId = useOrgId()
   const defaultsKey = roleKeys.defaults(orgId)
   const mutationKey = setRolePermissionKey(orgId)
   return useMutation({
@@ -303,6 +311,7 @@ export function useSetRolePermission() {
     },
     onError: (error, { role, permissionKey }, context) => {
       if (context) queryClient.setQueryData<RolePermission[]>(defaultsKey, (cached) => withDefault(cached ?? [], role, permissionKey, context.previous))
+      if (isRoleMissing(error)) void queryClient.invalidateQueries({ queryKey: roleKeys.list(orgId) })
       // The toast, and the caller's access after a 42501 (their roles.manage revoked elsewhere).
       onUserMutationError(queryClient, error)
     },
@@ -320,8 +329,8 @@ export function useSetRolePermission() {
  * Creating, renaming and deleting a role. The refusal is shown by the dialog that asked (it stays
  * open while the mutation runs); success is a toast. Whatever the outcome, the touched queries are
  * refetched before the mutation settles, so the dialog closes onto the updated table (a refusal
- * often means another manager changed the roles meanwhile). A `42501` refreshes the caller's
- * access as well.
+ * often means another manager changed the roles meanwhile); « Ce rôle n'existe plus. » refetches
+ * the roles and their defaults. A `42501` refreshes the caller's access as well.
  */
 function useRoleMutation<TVariables, TData>(
   mutationFn: (variables: TVariables) => Promise<TData>,
@@ -337,13 +346,14 @@ function useRoleMutation<TVariables, TData>(
     onSuccess: (_data, variables) => {
       toast.success(successMessage(variables))
     },
-    onError: (error) => {
-      if (typeof error === 'object' && error !== null && 'code' in error && error.code === '42501') {
-        void queryClient.invalidateQueries({ queryKey: accessKeys.all })
-      }
+    onError: (error) => refreshAccessOnRefusal(queryClient, error),
+    onSettled: (_data, error, variables) => {
+      const queryKeys = touches(orgId, variables)
+      if (isRoleMissing(error)) queryKeys.push(roleKeys.list(orgId), roleKeys.defaults(orgId))
+      // Each once: a second invalidation of the same query would cancel and restart its refetch.
+      const unique = new Map(queryKeys.map((queryKey) => [hashKey(queryKey), queryKey]))
+      return Promise.all([...unique.values()].map((queryKey) => queryClient.invalidateQueries({ queryKey })))
     },
-    onSettled: (_data, _error, variables) =>
-      Promise.all(touches(orgId, variables).map((queryKey) => queryClient.invalidateQueries({ queryKey }))),
   })
 }
 

@@ -17,15 +17,37 @@ import { t } from '@/i18n'
  * only, never the error object (see `rpcErrorReport`).
  */
 export function moduleErrorMessage(error: unknown, fallback: string, area = 'modules'): string {
-  const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
-  const message = typeof error === 'object' && error !== null && 'message' in error ? error.message : undefined
+  const code = rpcErrorCode(error)
+  const message = stringField(error, 'message')
 
   if (code === 'P0001' && typeof message === 'string' && message !== '') return message
   if (code === '42501') return t('common.errors.forbidden')
 
-  const reportedCode = typeof code === 'string' && code !== '' ? code : 'unknown'
+  const reportedCode = code !== undefined && code !== '' ? code : 'unknown'
   Sentry.captureException(rpcErrorReport(reportedCode, error instanceof Error ? error : (message ?? error)), { tags: { area, code: reportedCode } })
   return code === '23514' ? t('common.errors.invalidValue') : fallback
+}
+
+/** A string field of a failed RPC's error (a PostgREST error is a plain object or an Error with these fields). */
+function stringField(error: unknown, field: 'code' | 'message' | 'hint'): string | undefined {
+  if (typeof error !== 'object' || error === null || !(field in error)) return undefined
+  const value = (error as Record<string, unknown>)[field]
+  return typeof value === 'string' ? value : undefined
+}
+
+/** The SQLSTATE of a failed RPC (`P0001`, `42501`…), or undefined for an error without one. */
+export function rpcErrorCode(error: unknown): string | undefined {
+  return stringField(error, 'code')
+}
+
+/**
+ * The HINT of a failed RPC, for the caller to route a refusal without matching its French text
+ * (e.g. `role_missing`, `copy_from`); undefined when there is none. Only read here: Sentry never
+ * gets it (see `rpcErrorReport`).
+ */
+export function rpcErrorHint(error: unknown): string | undefined {
+  const hint = stringField(error, 'hint')
+  return hint === '' ? undefined : hint
 }
 
 /**

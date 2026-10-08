@@ -7,6 +7,8 @@ import {
   groupPermissionsByModule,
   holdsRoleDefaults,
   isCustomRole,
+  confirmsSelfRemoval,
+  foldRoleName,
   normalizeRoleName,
   orderRoles,
   roleCellLock,
@@ -131,6 +133,20 @@ describe('normalizeRoleName', () => {
   it('trims and collapses inner whitespace', () => {
     expect(normalizeRoleName('  Accueil \t  du   soir \n')).toBe('Accueil du soir')
   })
+
+  it('uses the database\'s whitespace (Unicode White_Space), not JavaScript\'s \\s', () => {
+    expect(normalizeRoleName('\u00A0Accueil\u3000du\u2003soir\u0085')).toBe('Accueil du soir')
+    // U+FEFF is not whitespace for the database (it refuses it as invisible): kept, so it is refused there.
+    expect(normalizeRoleName('Accueil\uFEFF')).toBe('Accueil\uFEFF')
+  })
+})
+
+describe('foldRoleName', () => {
+  it('compares like the unique index: normalized, NFKC, case folded', () => {
+    expect(foldRoleName(' RÉCEPTION ')).toBe(foldRoleName('réception'))
+    expect(foldRoleName('\uFF21dministrateur')).toBe('administrateur')
+    expect(foldRoleName('conseille\u0300re')).toBe(foldRoleName('Conseillère'))
+  })
 })
 
 describe('canResetOverrides', () => {
@@ -236,5 +252,19 @@ describe('groupPermissionsByModule', () => {
 
   it('leaves out an enabled module without permissions', () => {
     expect(groupPermissionsByModule(permissions.filter((p) => p.module_key === 'core'), modules, ['agenda']).map((g) => g.key)).toEqual(['core'])
+  })
+})
+
+describe('confirmsSelfRemoval', () => {
+  const own = { callerRole: 'admin_assistant', role: 'admin_assistant' }
+  it('asks before removing roles.manage or users.manage from the caller\'s own role', () => {
+    expect(confirmsSelfRemoval({ ...own, permissionKey: 'roles.manage', next: false })).toBe(true)
+    expect(confirmsSelfRemoval({ ...own, permissionKey: 'users.manage', next: false })).toBe(true)
+  })
+
+  it('does not ask for another permission, another role, or a grant', () => {
+    expect(confirmsSelfRemoval({ ...own, permissionKey: 'users.view', next: false })).toBe(false)
+    expect(confirmsSelfRemoval({ ...own, role: 'counselor', permissionKey: 'roles.manage', next: false })).toBe(false)
+    expect(confirmsSelfRemoval({ ...own, permissionKey: 'roles.manage', next: true })).toBe(false)
   })
 })

@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   fetchOrgRoles: vi.fn(),
 }))
 vi.mock('@/core/audit/api', () => mocks.api)
-vi.mock('@/core/users/api', () => ({ fetchOrgRoles: mocks.fetchOrgRoles }))
+vi.mock('@/core/access/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/access/api')>()), fetchOrgRoles: mocks.fetchOrgRoles }))
 vi.mock('@/shared/lib/use-clinic-date', async () => {
   const { getClinicDateString } = await vi.importActual<typeof import('@/shared/lib/timezone')>('@/shared/lib/timezone')
   return { useClinicDate: () => mocks.clinicDate.value ?? getClinicDateString(new Date()) }
@@ -175,6 +175,32 @@ describe('AuditLogPage', () => {
     await renderPage({ pages: [[CUSTOM]] })
     await user.click(toggle('07 oct. 2026 à 14:30'))
     await waitFor(() => expect(screen.getByText(`Rôle${NB}: Réception`)).toBeInTheDocument())
+  })
+
+  it('names a deleted custom role from its own deletion row, never by its key', async () => {
+    const user = userEvent.setup()
+    const DELETED = 'custom_0d0d0d0d'
+    const ASSIGNED = entry({ id: 2, table_name: 'user_roles', action: 'delete', changed_fields: { role: DELETED } })
+    const REMOVED = entry({
+      id: 3,
+      created_at: '2026-10-07T19:00:00Z',
+      table_name: 'roles',
+      record_id: DELETED,
+      action: 'delete',
+      changed_fields: { key: DELETED, name: 'Soutien', org_id: 'o1', is_system: false },
+    })
+    const UNKNOWN = entry({ id: 4, created_at: '2026-10-07T17:00:00Z', table_name: 'org_role_permissions', action: 'delete', changed_fields: { role: 'custom_0e0e0e0e' } })
+    await renderPage({ pages: [[REMOVED, ASSIGNED, UNKNOWN]] })
+    await user.click(toggle('07 oct. 2026 à 15:00'))
+    // The deletion row itself: its key reads as the role's name.
+    expect(await screen.findByText(`Clé${NB}: Soutien`)).toBeInTheDocument()
+    await user.click(toggle('07 oct. 2026 à 14:30'))
+    expect(screen.getByText(`Rôle${NB}: Soutien`)).toBeInTheDocument()
+    await user.click(toggle('07 oct. 2026 à 13:00'))
+    // A role whose name no row on screen carries: a generic label, its key in title only.
+    expect(screen.getByText(t('access.customRole'), { selector: 'li span' })).toHaveAttribute('title', 'custom_0e0e0e0e')
+    // The details never show the key (the record id column does: it is the row's identifier).
+    expect(screen.queryAllByText(/custom_0[de]/, { selector: 'li, li span' })).toEqual([])
   })
 
   it('shows a secret rotation as « Secret remplacé »', async () => {

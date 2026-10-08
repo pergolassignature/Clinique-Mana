@@ -99,9 +99,38 @@ export function roleCellLock({
   return callerCan(permissionKey) ? null : 'lacked'
 }
 
-/** A role name as the database stores it: trimmed, inner runs of whitespace as one space. */
+/** The permissions that let a manager manage people and roles: losing them locks her out of this page. */
+const MANAGING_PERMISSIONS: ReadonlySet<string> = new Set(['roles.manage', 'users.manage'])
+
+/**
+ * Whether turning a matrix cell to `next` asks for confirmation first: removing roles.manage or
+ * users.manage from the caller's own role. She would lose it (unless an exception keeps it), and
+ * could not put it back herself (no additions to her own role).
+ */
+export function confirmsSelfRemoval({ callerRole, role, permissionKey, next }: { callerRole: string; role: string; permissionKey: string; next: boolean }): boolean {
+  return !next && role === callerRole && MANAGING_PERMISSIONS.has(permissionKey)
+}
+
+/**
+ * Unicode White_Space, the class `private.valid_role_name` strips and collapses (migration
+ * 20261008015825_core_editable_roles.sql). Not JavaScript's `\s` (or `trim`), which differs: it
+ * lacks U+0085 and includes U+FEFF, which the database refuses as an invisible character.
+ */
+const ROLE_NAME_SPACES = /[\t\n\v\f\r \u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+/
+const EDGE_SPACES = new RegExp(`^${ROLE_NAME_SPACES.source}|${ROLE_NAME_SPACES.source}$`, 'g')
+const INNER_SPACES = new RegExp(ROLE_NAME_SPACES.source, 'g')
+
+/** A role name as the database stores it: whitespace stripped at the ends, inner runs as one space. */
 export function normalizeRoleName(name: string): string {
-  return name.trim().replace(/\s+/g, ' ')
+  return name.replace(EDGE_SPACES, '').replace(INNER_SPACES, ' ')
+}
+
+/**
+ * How role names compare (the unique index): the normalized name, NFKC, case folded. Catches the
+ * obvious duplicates before a request; the database still decides.
+ */
+export function foldRoleName(name: string): string {
+  return normalizeRoleName(name).normalize('NFKC').toLocaleLowerCase('fr-CA')
 }
 
 /**

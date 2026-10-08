@@ -3,7 +3,7 @@ import { LogOut } from 'lucide-react'
 import logoUrl from '@/assets/logo-header.svg'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
-import { useRoleLabel } from '@/core/users/hooks'
+import { useRoleLabel } from '@/core/access/org-roles'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { cn } from '@/shared/lib/utils'
 import { focusRing } from '@/shared/ui/field-classes'
@@ -72,7 +72,8 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
       <div className="shrink-0 pb-2.5 pt-2">
         <div
           className={cn('flex items-center gap-2 px-2 py-1.5', collapsed && 'justify-center')}
-          title={collapsed ? `${display_name} · ${roleText}` : undefined}
+          // The role is empty while a custom role's name loads: the name alone then.
+          title={collapsed ? (roleText ? `${display_name} · ${roleText}` : display_name) : undefined}
         >
           <UserAvatar name={display_name} />
           {/* Collapsed: the name and role stay readable by screen readers; sign-out is in the topbar menu. */}
@@ -80,7 +81,8 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
             <p className="truncate text-sm font-medium text-foreground" title={display_name}>
               {display_name}
             </p>
-            <p className="truncate text-xs text-muted-foreground">{roleText}</p>
+            {/* min-h-4: the line keeps its height while a custom role's name loads (no layout shift). */}
+            <p className="min-h-4 truncate text-xs text-muted-foreground">{roleText}</p>
           </div>
           {!collapsed && (
             <button

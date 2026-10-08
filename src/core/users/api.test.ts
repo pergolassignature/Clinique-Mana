@@ -4,7 +4,6 @@ import {
   clearPermissionOverrides,
   createRole,
   deleteRole,
-  fetchOrgRoles,
   fetchOrgUsers,
   fetchPermissionCatalog,
   fetchRoleDefaults,
@@ -124,24 +123,6 @@ describe('fetchPermissionCatalog', () => {
     mocks.results.set('permissions', { data: [], error: null })
     mocks.results.set('modules', { data: null, error })
     await expect(fetchPermissionCatalog()).rejects.toBe(error)
-  })
-})
-
-describe('fetchOrgRoles', () => {
-  it('reads the base roles and the clinic\'s custom roles (RLS), with their org', async () => {
-    const roles = [
-      { key: 'admin', name: 'Administrateur', org_id: null },
-      { key: 'custom_0a1b2c3d', name: 'Réception', org_id: 'o1' },
-    ]
-    mocks.results.set('roles', { data: roles, error: null })
-    await expect(fetchOrgRoles()).resolves.toEqual(roles)
-    expect(mocks.select).toHaveBeenCalledWith('roles', 'key, name, org_id')
-  })
-
-  it('throws the query error', async () => {
-    const error = { code: 'PGRST301', message: 'JWT expired' }
-    mocks.results.set('roles', { data: null, error })
-    await expect(fetchOrgRoles()).rejects.toBe(error)
   })
 })
 

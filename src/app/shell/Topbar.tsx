@@ -2,7 +2,7 @@ import { useRef, type ComponentProps, type RefObject } from 'react'
 import { LogOut, PanelLeft, Search, UserRound } from 'lucide-react'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
-import { useRoleLabel } from '@/core/users/hooks'
+import { useRoleLabel } from '@/core/access/org-roles'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { cn } from '@/shared/lib/utils'
 import {
@@ -155,7 +155,7 @@ export function Topbar({
           <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={runAfterClose}>
             <DropdownMenuLabel className="text-sm">
               <span className="block truncate font-medium text-foreground">{display_name}</span>
-              <span className="block truncate text-xs font-normal text-muted-foreground">{roleText}</span>
+              <span className="block min-h-4 truncate text-xs font-normal text-muted-foreground">{roleText}</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => (pendingAction.current = onOpenAccount)}>

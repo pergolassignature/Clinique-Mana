@@ -155,7 +155,8 @@
       "no_role": "Aucun rôle n'est attribué à votre compte. Contactez la clinique.",
       "signOut": "Se déconnecter"
     },
-    "forbidden": { "title": "Accès refusé", "body": "Vous n'avez pas la permission d'ouvrir cette page." }
+    "forbidden": { "title": "Accès refusé", "body": "Vous n'avez pas la permission d'ouvrir cette page." },
+    "customRole": "Rôle personnalisé"
   },
   "pageTitles": {
     "login": "Connexion",
@@ -396,7 +397,12 @@
         "roleActions": "Actions du rôle {role}",
         "newRole": "Nouveau rôle",
         "rename": "Renommer",
-        "delete": "Supprimer"
+        "delete": "Supprimer",
+        "selfRemove": {
+          "title": "Retirer cette permission de votre rôle ?",
+          "body": "« {permission} » sera retirée du rôle {role} : vous la perdrez, comme les autres personnes qui ont ce rôle, sauf exception. Vous ne pourrez pas la remettre vous-même.",
+          "confirm": "Retirer"
+        }
       },
       "roleDialog": {
         "createTitle": "Nouveau rôle",
@@ -417,8 +423,7 @@
         "validation": {
           "nameRequired": "Le nom du rôle est requis.",
           "nameTooLong": "Le nom du rôle ne peut pas dépasser 60 caractères.",
-          "nameTaken": "Un rôle porte déjà ce nom.",
-          "copyRefused": "Vous ne pouvez pas copier un rôle qui donne des permissions que vous n'avez pas."
+          "nameTaken": "Un rôle porte déjà ce nom."
         }
       },
       "roleDelete": {

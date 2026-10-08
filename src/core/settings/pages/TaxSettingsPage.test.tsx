@@ -217,6 +217,19 @@ describe('TaxSettingsPage', () => {
     expect(mocks.toast.error).not.toHaveBeenCalled()
   })
 
+  it('reports a technical delete failure once, however often the confirmation renders', async () => {
+    mocks.tax.deleteTaxRate.mockRejectedValue({ code: 'XX000', message: 'boom', details: '', hint: '' })
+    const { rerender } = await renderPage()
+    await userEvent.click(within(card('qst')).getByRole('button', { name: /supprimer/i }))
+    const confirm = screen.getByRole('alertdialog')
+    await userEvent.click(within(confirm).getByRole('button', { name: t('settings.tax.rates.delete') }))
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent(t('common.errors.generic'))
+    rerender(<TaxSettingsPage />)
+    rerender(<TaxSettingsPage />)
+    expect(within(screen.getByRole('alertdialog')).getByRole('alert')).toHaveTextContent(t('common.errors.generic'))
+    expect(mocks.captureException).toHaveBeenCalledTimes(1)
+  })
+
   describe('« Nouveau taux »', () => {
     it('opens on the rate field, and sends the fraction and the date unchanged on Enter', async () => {
       mocks.tax.addTaxRate.mockResolvedValue('new-id')
@@ -296,6 +309,19 @@ describe('TaxSettingsPage', () => {
       expect(await within(dialog()).findByRole('alert')).toHaveTextContent('Le nouveau taux doit commencer après le 2027-03-01.')
       expect(rateField()).toHaveValue('11')
       expect(mocks.toast.error).not.toHaveBeenCalled()
+    })
+
+    it('reports a technical failure once, while the dialog keeps rendering (typing)', async () => {
+      mocks.tax.addTaxRate.mockRejectedValue({ code: 'XX000', message: 'boom', details: '', hint: '' })
+      await renderPage()
+      await openAddDialog('qst')
+      await userEvent.type(rateField(), '11')
+      setDate('2027-02-01')
+      await userEvent.click(within(dialog()).getByRole('button', { name: t('settings.tax.dialog.submit') }))
+      expect(await within(dialog()).findByRole('alert')).toHaveTextContent(t('common.errors.generic'))
+      await userEvent.type(rateField(), '5')
+      expect(within(dialog()).getByRole('alert')).toBeInTheDocument()
+      expect(mocks.captureException).toHaveBeenCalledTimes(1)
     })
 
     it('cannot be closed nor submitted twice while the rate is being added', async () => {

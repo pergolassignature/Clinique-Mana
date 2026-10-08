@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('@/core/users/api', () => mocks)
+vi.mock('@/core/access/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/access/api')>()), fetchOrgRoles: mocks.fetchOrgRoles }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -179,6 +180,29 @@ describe('UsersSettingsPage', () => {
       'aria-readonly',
     )
     expect(screen.getByRole('button', { name: t('settings.users.matrix.newRole') })).toBeInTheDocument()
+  })
+
+  it('with roles.manage but not users.view: only « Rôles », opened at once, and the users are never asked for', async () => {
+    const rolesManager = accessForRole('admin_assistant', {
+      user_id: 'u-adjointe',
+      modules: ['professionals'],
+      permissions: ['settings.view', 'professionals.view', 'roles.manage'],
+    })
+    renderPage({ caller: rolesManager, readOnly: true })
+    expect(await screen.findByRole('table', { name: t('settings.users.matrix.tableLabel') })).toBeInTheDocument()
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([t('settings.users.tabs.roles')])
+    expect(screen.getByRole('tab', { name: t('settings.users.tabs.roles') })).toHaveAttribute('aria-selected', 'true')
+    // list_org_users needs users.view (42501 otherwise).
+    expect(mocks.fetchOrgUsers).not.toHaveBeenCalled()
+    expect(screen.queryByText(t('common.readOnlyNotice.title'))).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t('settings.users.matrix.newRole') })).toBeInTheDocument()
+  })
+
+  it('with users.view: « Utilisateurs » first, then « Rôles »', async () => {
+    renderPage({ caller: viewerCaller, readOnly: true })
+    await screen.findByRole('table', { name: t('settings.users.tableLabel') })
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([t('settings.users.tabs.users'), t('settings.users.tabs.roles')])
+    expect(screen.getByRole('tab', { name: t('settings.users.tabs.users') })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('the tabs are reachable by keyboard: one tab stop, the arrow keys switch views (decision #35)', async () => {

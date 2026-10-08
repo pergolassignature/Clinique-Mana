@@ -27,7 +27,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../api', () => ({
   fetchOrgUsers: vi.fn(),
   fetchPermissionCatalog: mocks.fetchPermissionCatalog,
-  fetchOrgRoles: mocks.fetchOrgRoles,
   fetchRoleDefaults: mocks.fetchRoleDefaults,
   fetchUserOverrides: mocks.fetchUserOverrides,
   setUserRole: mocks.setUserRole,
@@ -36,6 +35,8 @@ vi.mock('../api', () => ({
   clearPermissionOverride: mocks.clearPermissionOverride,
   clearPermissionOverrides: mocks.clearPermissionOverrides,
 }))
+// The clinic's roles come from the access module (shared with the shell and the audit log).
+vi.mock('@/core/access/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/access/api')>()), fetchOrgRoles: mocks.fetchOrgRoles }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -807,6 +808,20 @@ describe('UserSheet', () => {
       await userEvent.selectOptions(role, customRole.key)
       await userEvent.click(screen.getByRole('button', { name: L.save }))
       await waitFor(() => expect(mocks.setUserRole).toHaveBeenCalledWith('u-conseillere', customRole.key))
+    })
+
+    it('a role deleted meanwhile: the message, and the roles refetched so it leaves the choices', async () => {
+      mocks.fetchOrgRoles.mockResolvedValue([...testRoles, customRole])
+      mocks.setUserRole.mockRejectedValue({ code: 'P0001', message: "Ce rôle n'existe plus.", details: '', hint: 'role_missing' })
+      renderSheet(conseillere)
+      const role = await screen.findByRole('combobox', { name: L.role })
+      await waitFor(() => expect(within(role).getByRole('option', { name: customRole.name })).toBeInTheDocument())
+      await userEvent.selectOptions(role, customRole.key)
+      mocks.fetchOrgRoles.mockResolvedValue(testRoles)
+      await userEvent.click(screen.getByRole('button', { name: L.save }))
+      await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith("Ce rôle n'existe plus."))
+      await waitFor(() => expect(within(role).queryByRole('option', { name: customRole.name })).not.toBeInTheDocument())
+      expect(mocks.fetchOrgRoles).toHaveBeenCalledTimes(2)
     })
 
     it("shows a person's custom role by its name", async () => {

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Info } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
+import { useOrgRoles } from '@/core/access/org-roles'
 import { roleLabel } from '@/core/access/roles'
 import { FormActions } from '@/shared/components/FormActions'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
@@ -32,7 +33,6 @@ import { Switch } from '@/shared/ui/switch'
 import type { CatalogPermission, OrgUser } from '../api'
 import {
   useIsSavingPermission,
-  useOrgRoles,
   usePermissionCatalog,
   useResetPermissions,
   useRoleDefaults,

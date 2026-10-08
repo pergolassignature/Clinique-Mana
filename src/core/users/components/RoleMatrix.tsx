@@ -2,9 +2,21 @@ import { useCallback, useId, useRef, useState } from 'react'
 import { Check, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
+import type { OrgRole } from '@/core/access/api'
+import { useOrgRoles } from '@/core/access/org-roles'
 import { roleLabel } from '@/core/access/roles'
 import { cn } from '@/shared/lib/utils'
-import { Button } from '@/shared/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/alert-dialog'
+import { Button, buttonVariants } from '@/shared/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,9 +26,18 @@ import {
 } from '@/shared/ui/dropdown-menu'
 import { Switch } from '@/shared/ui/switch'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
-import type { CatalogPermission, OrgRole } from '../api'
-import { useOrgRoles, usePendingRolePermissions, usePermissionCatalog, useRoleDefaults, useSetRolePermission } from '../hooks'
-import { groupPermissionsByModule, isCustomRole, orderRoles, roleCellLock, roleGrants, type RoleCellLock, type RolePermission } from '../permissions'
+import type { CatalogPermission } from '../api'
+import { usePendingRolePermissions, usePermissionCatalog, useRoleDefaults, useSetRolePermission, type RolePermissionVariables } from '../hooks'
+import {
+  confirmsSelfRemoval,
+  groupPermissionsByModule,
+  isCustomRole,
+  orderRoles,
+  roleCellLock,
+  roleGrants,
+  type RoleCellLock,
+  type RolePermission,
+} from '../permissions'
 import { DeleteRoleDialog } from './DeleteRoleDialog'
 import { permissionGroupName } from './group-name'
 import { LoadError, Loading } from './LoadState'
@@ -95,9 +116,11 @@ interface MatrixTableProps {
  *   refusal), and ignores further toggles while it saves;
  * - Administrateur and Professionnel are read-only, with their note (the database refuses them);
  * - a non-admin manager turns a cell on only for a permission she holds, and never in her own
- *   role's column (the database's hold rule); turning one off is always allowed. A read-only
- *   cell names the reason through its description (the visible notes);
- * - « Nouveau rôle », and on each custom role's column a menu: « Renommer », « Supprimer ».
+ *   role's column (the database's hold rule); turning one off is always allowed, but removing
+ *   roles.manage or users.manage from her own role asks first. A read-only cell names the reason
+ *   through its description (the visible notes);
+ * - « Nouveau rôle », and on each custom role's column a menu: « Renommer », « Supprimer ». A
+ *   dialog whose role has gone (deleted by another manager, seen on a refetch) closes.
  * On narrow screens the permission column stays put and a fade on the right says more roles follow.
  */
 function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }: MatrixTableProps) {
@@ -108,7 +131,17 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
   const [more, trackScroll] = useMoreOnTheRight()
   const setPermission = useSetRolePermission()
   const pending = usePendingRolePermissions()
-  const [dialog, setDialogState] = useState<RoleDialog | null>(null)
+  // The cells saving, set synchronously: a second toggle before the re-render is ignored too.
+  const saving = useRef(new Set<string>())
+  // A removal waiting for « Retirer » (confirmsSelfRemoval); focus goes back to the last switch toggled.
+  const [removal, setRemoval] = useState<RolePermissionVariables | null>(null)
+  const toggledSwitch = useRef<HTMLElement | null>(null)
+  const [dialogState, setDialogState] = useState<RoleDialog | null>(null)
+  // A rename or deletion whose role is no longer listed closes, whoever deleted it, and stays
+  // closed (state adjusted while rendering, not in an effect: no frame shows it open).
+  const dialogRoleGone = dialogState !== null && dialogState.kind !== 'create' && !unordered.some((r) => r.key === dialogState.role.key)
+  if (dialogRoleGone) setDialogState(null)
+  const dialog = dialogRoleGone ? null : dialogState
   const newRoleRef = useRef<HTMLButtonElement>(null)
   const menuTriggers = useRef(new Map<string, HTMLButtonElement>())
   // The role whose menu opened the dialog: focus goes back there (the dialog state is gone by then).
@@ -132,6 +165,19 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
 
   const lockDescription = (role: string, lock: RoleCellLock | null) =>
     lock === null ? undefined : lock === 'locked' ? (role === 'admin' ? noteIds.admin : noteIds.provider) : noteIds[lock]
+
+  /** Saves one cell, unless it is already saving. */
+  const save = (variables: RolePermissionVariables) => {
+    const cell = `${variables.role}:${variables.permissionKey}`
+    if (saving.current.has(cell)) return
+    saving.current.add(cell)
+    // mutateAsync settles per call (mutate's own callbacks would only run for the latest cell).
+    // The hook shows the outcome: the rejection is handled there.
+    setPermission
+      .mutateAsync(variables)
+      .catch(() => undefined)
+      .finally(() => saving.current.delete(cell))
+  }
 
   return (
     <div className="space-y-3">
@@ -219,9 +265,18 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
                           aria-describedby={lockDescription(role.key, lock)}
                           aria-disabled={busy || undefined}
                           className={cn('align-middle', busy && 'cursor-progress')}
+                          // Click, Space and Enter all arrive as a click, before onCheckedChange (Safari
+                          // does not focus a clicked button, so document.activeElement would not do).
+                          onClick={(event) => {
+                            toggledSwitch.current = event.currentTarget
+                          }}
                           onCheckedChange={(next) => {
-                            if (busy) return
-                            setPermission.mutate({ role: role.key, permissionKey: permission.key, granted: next, roleName: name, permissionLabel: permission.description })
+                            const variables = { role: role.key, permissionKey: permission.key, granted: next, roleName: name, permissionLabel: permission.description }
+                            if (confirmsSelfRemoval({ callerRole, role: role.key, permissionKey: permission.key, next })) {
+                              setRemoval(variables)
+                            } else {
+                              save(variables)
+                            }
                           }}
                         />
                       </TableCell>
@@ -245,6 +300,33 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
             onCloseAutoFocus={returnFocus}
           />
           <DeleteRoleDialog role={dialog?.kind === 'delete' ? dialog.role : null} onClose={() => setDialog(null)} onCloseAutoFocus={returnFocus} />
+          <AlertDialog open={removal !== null} onOpenChange={(open) => !open && setRemoval(null)}>
+            <AlertDialogContent
+              onCloseAutoFocus={(event) => {
+                // Back to the switch (the dialog has no trigger).
+                event.preventDefault()
+                if (toggledSwitch.current?.isConnected) toggledSwitch.current.focus()
+              }}
+            >
+              {removal && (
+                <>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{t('settings.users.matrix.selfRemove.title')}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {t('settings.users.matrix.selfRemove.body', { permission: removal.permissionLabel, role: removal.roleName })}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    {/* Radix focuses Cancel first: keeping the permission is the safe default. */}
+                    <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+                    <AlertDialogAction className={buttonVariants({ variant: 'destructive' })} onClick={() => save(removal)}>
+                      {t('settings.users.matrix.selfRemove.confirm')}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </>
+              )}
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
     </div>
@@ -267,7 +349,15 @@ function RoleMenu({ role, registerTrigger, onRename, onDelete }: RoleMenuProps) 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button ref={registerTrigger} type="button" variant="ghost" size="icon-sm" className="shrink-0 normal-case tracking-normal" aria-label={t('settings.users.matrix.roleActions', { role: role.name })}>
+        {/* 28 px, with an invisible ::after making the hit area 32 × 32, like the switches. */}
+        <Button
+          ref={registerTrigger}
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="relative shrink-0 normal-case tracking-normal after:absolute after:-inset-0.5 after:content-['']"
+          aria-label={t('settings.users.matrix.roleActions', { role: role.name })}
+        >
           <MoreHorizontal aria-hidden />
         </Button>
       </DropdownMenuTrigger>

@@ -33,17 +33,6 @@ export interface PermissionCatalog {
   modules: { key: string; name: string }[]
 }
 
-/**
- * A role the clinic can use: a base role (`org_id` null: admin, counselor, admin_assistant,
- * provider) or one of the clinic's custom roles (`custom_` + 8 hex characters, decision #40).
- */
-export interface OrgRole {
-  key: string
-  /** French, stored (roles.name). Base roles show their i18n label instead (`roleLabel`). */
-  name: string
-  org_id: string | null
-}
-
 /** The caller's org users, active first then by name (users.view; raises 42501 otherwise). */
 export async function fetchOrgUsers(): Promise<OrgUser[]> {
   const { data, error } = await supabase.rpc('list_org_users')
@@ -71,13 +60,6 @@ export async function fetchPermissionCatalog(): Promise<PermissionCatalog> {
   return { permissions: permissions.data, modules: modules.data }
 }
 
-/** The base roles and the caller's clinic's custom roles (RLS on `roles` keeps the other clinics' out). */
-export async function fetchOrgRoles(): Promise<OrgRole[]> {
-  const { data, error } = await supabase.from('roles').select('key, name, org_id')
-  if (error) throw error
-  return data
-}
-
 /**
  * What each role gives by default in the caller's clinic (`org_role_permissions`, what
  * `has_permission` evaluates). Never `role_permissions`: that is the template for new clinics.
@@ -96,7 +78,8 @@ export async function fetchUserOverrides(userId: string): Promise<PermissionOver
 }
 
 // The writes raise the SQL error: French P0001 messages for the guards (own account, last active
-// admin, provider role, admin-only changes, permissions the caller lacks).
+// admin, provider role, admin-only changes, permissions the caller lacks, a role that no longer
+// exists: HINT role_missing).
 
 export async function setUserRole(userId: string, role: string): Promise<void> {
   const { error } = await supabase.rpc('set_user_role', { p_user_id: userId, p_role: role })
@@ -127,7 +110,9 @@ export async function clearPermissionOverrides(userId: string): Promise<number> 
 
 // The role RPCs (roles.manage, own clinic) raise French P0001 messages for their guards: the admin
 // role is never edited, base roles are never renamed or deleted, a role someone has is never
-// deleted, names are unique, and a non-admin manager never gives a permission she lacks.
+// deleted, names are unique, and a non-admin manager never gives a permission she lacks. Two carry
+// a HINT the UI keys on: `role_missing` (« Ce rôle n'existe plus. »: deleted meanwhile, or another
+// clinic's) and `copy_from` (create_role's copy refusal).
 
 export async function setRolePermission(role: string, permissionKey: string, granted: boolean): Promise<void> {
   const { error } = await supabase.rpc('set_role_permission', { p_role: role, p_permission_key: permissionKey, p_granted: granted })

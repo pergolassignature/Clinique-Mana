@@ -63,6 +63,28 @@ describe('SettingsLayout', () => {
     expect(screen.queryByText('MODULES PAGE')).not.toBeInTheDocument()
   })
 
+  it('routes to a section with several permissions when the user has any of them, and only then', async () => {
+    const usersSection: SettingsSection = {
+      id: 'users',
+      path: 'utilisateurs',
+      labelKey: 'settings.sections.users',
+      icon: Building2,
+      permission: ['users.view', 'roles.manage'],
+      group: 'plateforme',
+      component: page('USERS PAGE'),
+    }
+    const { unmount } = render(settingsAt('/parametres/utilisateurs', { access: { can: (p) => p === 'roles.manage' } }, [usersSection]))
+    expect(await screen.findByText('USERS PAGE')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t('settings.sections.users') })).toBeInTheDocument()
+    unmount()
+
+    // users.manage alone opens neither (it never comes without users.view in practice).
+    render(settingsAt('/parametres/utilisateurs', { access: { can: (p) => p === 'settings.view' || p === 'users.manage' } }, [usersSection, visibleSection]))
+    expect(await screen.findByText(t('common.notFound.title'))).toBeInTheDocument()
+    expect(screen.queryByText('USERS PAGE')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: t('settings.sections.users') })).not.toBeInTheDocument()
+  })
+
   it('opens an accessible section from its URL', async () => {
     render(settingsAt('/parametres/modules', { access: { can: (p) => p === 'modules.manage' } }))
     expect(await screen.findByText('MODULES PAGE')).toBeInTheDocument()

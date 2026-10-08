@@ -52,6 +52,9 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
   const { data, isPending, isError, isFetching, refetch } = useTaxRates()
   const remove = useDeleteTaxRate()
   const [toDelete, setToDelete] = useState<TaxRate | null>(null)
+  // The refusal shown in the confirmation: computed once, when the deletion fails (moduleErrorMessage
+  // may report to Sentry, so never on each render).
+  const [refusal, setRefusal] = useState<string | null>(null)
   // The row's « Supprimer » that opened the confirmation, and « Nouveau taux »: where focus returns.
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null)
   const addButtonRef = useRef<HTMLButtonElement>(null)
@@ -67,6 +70,7 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
   const closeConfirm = (open: boolean) => {
     if (open || remove.isPending) return
     remove.reset()
+    setRefusal(null)
     setToDelete(null)
   }
 
@@ -192,12 +196,10 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
                   })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              {remove.isError && (
+              {refusal !== null && (
                 <Alert variant="destructive" role="alert">
                   <CircleAlert aria-hidden />
-                  <AlertDescription className="text-foreground">
-                    {moduleErrorMessage(remove.error, t('common.errors.generic'), 'settings')}
-                  </AlertDescription>
+                  <AlertDescription className="text-foreground">{refusal}</AlertDescription>
                 </Alert>
               )}
               <AlertDialogFooter>
@@ -214,14 +216,16 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
                   type="button"
                   variant="destructive"
                   aria-disabled={remove.isPending || undefined}
-                  onClick={ignoreWhenInactive(remove.isPending, () =>
+                  onClick={ignoreWhenInactive(remove.isPending, () => {
+                    setRefusal(null)
                     remove.mutate(toDelete.id, {
                       onSuccess: () => {
                         remove.reset()
                         setToDelete(null)
                       },
-                    }),
-                  )}
+                      onError: (error) => setRefusal(moduleErrorMessage(error, t('common.errors.generic'), 'settings')),
+                    })
+                  })}
                   className={cn(softDisabledClasses, 'aria-disabled:hover:bg-destructive')}
                 >
                   {remove.isPending ? t('settings.tax.rates.deleting') : t('settings.tax.rates.delete')}
