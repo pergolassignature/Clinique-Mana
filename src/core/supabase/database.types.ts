@@ -1167,6 +1167,233 @@ export type Database = {
           },
         ]
       }
+      secure_link_purposes: {
+        Row: {
+          accept_rpc: string | null
+          created_at: string
+          creates_account: boolean
+          default_ttl: string
+          key: string
+          max_ttl: string
+          max_uses: number
+          module_key: string
+          requires_session: boolean
+          resolve_rpc: string
+          view_permission: string
+        }
+        Insert: {
+          accept_rpc?: string | null
+          created_at?: string
+          creates_account?: boolean
+          default_ttl: string
+          key: string
+          max_ttl: string
+          max_uses?: number
+          module_key: string
+          requires_session?: boolean
+          resolve_rpc: string
+          view_permission: string
+        }
+        Update: {
+          accept_rpc?: string | null
+          created_at?: string
+          creates_account?: boolean
+          default_ttl?: string
+          key?: string
+          max_ttl?: string
+          max_uses?: number
+          module_key?: string
+          requires_session?: boolean
+          resolve_rpc?: string
+          view_permission?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secure_link_purposes_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "secure_link_purposes_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      secure_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          last_opened_at: string | null
+          max_uses: number
+          org_id: string
+          purpose: string
+          revoked_at: string | null
+          revoked_by: string | null
+          scope: Json
+          subject_id: string
+          subject_type: string
+          token_hash: string
+          updated_at: string
+          use_count: number
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          last_opened_at?: string | null
+          max_uses: number
+          org_id: string
+          purpose: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope?: Json
+          subject_id: string
+          subject_type: string
+          token_hash: string
+          updated_at?: string
+          use_count?: number
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          last_opened_at?: string | null
+          max_uses?: number
+          org_id?: string
+          purpose?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope?: Json
+          subject_id?: string
+          subject_type?: string
+          token_hash?: string
+          updated_at?: string
+          use_count?: number
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secure_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "secure_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "secure_links_purpose_fkey"
+            columns: ["purpose"]
+            isOneToOne: false
+            referencedRelation: "secure_link_purposes"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "secure_links_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      staff_invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_user_id: string | null
+          created_at: string
+          display_name: string
+          email: string
+          id: string
+          invited_by: string | null
+          org_id: string
+          role: string | null
+          secure_link_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_user_id?: string | null
+          created_at?: string
+          display_name: string
+          email: string
+          id?: string
+          invited_by?: string | null
+          org_id: string
+          role?: string | null
+          secure_link_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_user_id?: string | null
+          created_at?: string
+          display_name?: string
+          email?: string
+          id?: string
+          invited_by?: string | null
+          org_id?: string
+          role?: string | null
+          secure_link_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_invitations_accepted_user_id_fkey"
+            columns: ["accepted_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "staff_invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "staff_invitations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_invitations_role_fkey"
+            columns: ["role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "staff_invitations_secure_link_id_fkey"
+            columns: ["secure_link_id"]
+            isOneToOne: true
+            referencedRelation: "secure_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tax_rates: {
         Row: {
           created_at: string
@@ -1364,6 +1591,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_staff_invitation: {
+        Args: { p_payload: Json; p_token_hash: string; p_user_id: string }
+        Returns: Json
+      }
       add_tax_rate: {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
         Returns: string
@@ -1446,6 +1677,16 @@ export type Database = {
       }
       create_role: {
         Args: { p_copy_from?: string; p_name: string }
+        Returns: string
+      }
+      create_staff_invitation: {
+        Args: {
+          p_actor: string
+          p_display_name: string
+          p_email: string
+          p_role: string
+          p_token_hash: string
+        }
         Returns: string
       }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
@@ -1635,6 +1876,23 @@ export type Database = {
           schedule: string
         }[]
       }
+      list_staff_invitations: {
+        Args: never
+        Returns: {
+          created_at: string
+          display_name: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by_name: string
+          is_expired: boolean
+          last_email_at: string
+          last_email_status: string
+          role: string
+          role_name: string
+          status: string
+        }[]
+      }
       list_subject_emails: {
         Args: { p_limit?: number; p_subject_id: string; p_subject_type: string }
         Returns: {
@@ -1666,6 +1924,10 @@ export type Database = {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
       }
+      peek_secure_link: {
+        Args: { p_mark_opened: boolean; p_token_hash: string }
+        Returns: Json
+      }
       queue_email: {
         Args: {
           p_attachment_count: number
@@ -1685,8 +1947,18 @@ export type Database = {
         Args: { p_name: string; p_role: string }
         Returns: undefined
       }
+      renew_staff_invitation: {
+        Args: { p_actor: string; p_id: string; p_token_hash: string }
+        Returns: {
+          display_name: string
+          email: string
+          expires_at: string
+        }[]
+      }
       reset_email_template: { Args: { p_key: string }; Returns: undefined }
+      resolve_staff_invitation: { Args: { p_link_id: string }; Returns: Json }
       reveal_bank_account_number: { Args: never; Returns: string }
+      revoke_staff_invitation: { Args: { p_id: string }; Returns: undefined }
       run_scheduled_job_now: { Args: { p_key: string }; Returns: undefined }
       save_email_template: {
         Args: {
