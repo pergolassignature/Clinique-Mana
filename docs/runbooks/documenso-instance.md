@@ -66,9 +66,9 @@ Check: `curl -sI https://sign.cliniquemana.com` returns 200 or a redirect with a
 *Done 2026-10-08 (agent, in the browser with Jonathan's go-ahead).* The admin is `info@cliniquemana.com`. The clinic's work happens in the organisation **« Clinique MANA »** (`org_sduaarmnmsunmwvt`, type ORGANISATION) and its team **`clinique-mana`** (open to every org member), not in the account's personal organisation, which is limited to one member and one team. As set and checked in the database:
 - **Admin → Organizations → Clinique MANA:** teams and members unlimited (0); flags `unlimitedDocuments`, `allowCustomBranding`, `hidePoweredBy`. « Allow Legacy Envelopes » stays off: it only shows the old upload button and does not gate the API. In 2.20 the admin panel does this, so no SQL is needed.
 - **Preferences → General:** language `fr`, timezone `America/Toronto`, format `yyyy-MM-dd HH:mm`; signatures typed, drawn or uploaded.
-- **Certificates:** signing certificate **and audit log** included in the downloaded PDF.
+- **Certificates:** signing certificate **and audit log** included in the downloaded PDF. « Ne pas désactiver : le PDF signé est la seule copie du certificat et du journal » ([envelope API plan](../plans/2026-10-08-documenso-envelope-api-plan.md), E-7): the app stores only that PDF.
 - **Branding:** on; site `https://cliniquemana.com`; colours from the app's tokens (primary teal-600 `#1e837c` with white text, focus ring teal-400 `#46aca5`). Since 2.x the signing-page colours can be set; PS Hub's « green cannot be changed » finding no longer applies. **Logo still to upload** (Jonathan: Branding → « Choose File » → `docs/design-system/assets/logo.png`).
-- **Email:** Reply-To `info@cliniquemana.com`; default notifications unchanged.
+- **Email:** Reply-To `info@cliniquemana.com`; default notifications unchanged. Envelopes the app creates carry their own email settings (the owner is not emailed when a signing link expires; the others on, Documenso's defaults: envelope API plan E-13), so a change here does not reach them.
 
 Original checklist:
 - Organisation: name « Clinique MANA ». Document preferences: language **Français**, timezone `America/Toronto`, include the signing certificate **and the audit log**.
@@ -79,7 +79,7 @@ Original checklist:
 1. Documenso → **team `clinique-mana`** → API Tokens → create `clinique-mana-app`, with no expiry or with a renewal date set in the calendar. Paste it in the app: Paramètres → Signature électronique → « Clé d'API ». Never paste it in chat.
 2. App, same section: « Adresse de l'instance » = `https://sign.cliniquemana.com`. Copy « Adresse du webhook » (it ends in `/functions/v1/signing-webhook?org=<org_id>`).
 3. Generate a secret locally with `openssl rand -hex 32`. In Documenso → team `clinique-mana` → Webhooks → create: URL = the copied address; events `DOCUMENT_OPENED`, `DOCUMENT_SIGNED`, `DOCUMENT_RECIPIENT_COMPLETED`, `DOCUMENT_COMPLETED`, `DOCUMENT_REJECTED`, `DOCUMENT_CANCELLED`; secret = that value. Paste the same value in the app's « Secret ».
-4. « Tester la connexion », then « Envoyer un document test », sign it, and check that the signed PDF appears. Then go through the `VERIFY` list in ADR 0005 (Consequences) against `https://sign.cliniquemana.com/api/v2/openapi.json`.
+4. « Tester la connexion », then « Envoyer un document test », sign it, and check that the signed PDF appears (with the certificate and audit-log pages). Then run the live checks of the [envelope API plan, §4](../plans/2026-10-08-documenso-envelope-api-plan.md#4-live-verification-against-signcliniquemanacom): they replace the old `VERIFY` list.
 
 ### 8. Hardening of the shared droplet (agent, with go-ahead; decision 2026-10-08)
 PS Hub's stack, found and fixed on 2026-10-08 (backup first: `/opt/documenso/backups/*-20261008-123939*`; about 20 s of downtime). Only the repo-doc secrets remain:

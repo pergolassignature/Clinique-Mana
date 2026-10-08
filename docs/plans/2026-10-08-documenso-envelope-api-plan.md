@@ -1,6 +1,6 @@
 # Documenso envelope API migration — plan
 
-**Date:** 2026-10-08 · **Status:** approved 2026-10-08 (Jonathan: E-3 single step, R3 → E-13) · **ADR:** [0005](../adr/0005-documenso-replaces-docuseal.md) (amended by this plan) · **Design:** [Phase 3 §6](2026-10-08-phase-3-shared-services-design.md#6-e-signature-coresigning) · **Plan:** [Tasks 3.31–3.33](2026-10-08-phase-3-shared-services-plan.md#task-331-signing-database) · **Instance:** `https://sign.cliniquemana.com`, Documenso 2.20.0
+**Date:** 2026-10-08 · **Status:** approved 2026-10-08 (Jonathan: E-3 single step, R3 → E-13); Batches 1–4 implemented 2026-10-08 (§6), Batch 5 (live checks) open · **ADR:** [0005](../adr/0005-documenso-replaces-docuseal.md) (amended by this plan) · **Design:** [Phase 3 §6](2026-10-08-phase-3-shared-services-design.md#6-e-signature-coresigning) · **Plan:** [Tasks 3.31–3.33](2026-10-08-phase-3-shared-services-plan.md#task-331-signing-database) · **Instance:** `https://sign.cliniquemana.com`, Documenso 2.20.0
 
 ## 1. Summary and decisions
 
@@ -8,11 +8,13 @@ The clinic's instance marks every `/api/v2/document/*` route deprecated. This pl
 
 Facts used below that the brief did not establish (from the instance's OpenAPI and server bundle, `server-build-2.20.js`):
 
-- **Envelope ids.** They are `envelope_` + 16 characters of `abcdefhiklmnorstuvwxyz` (`prefixedId` → `fancyId = customAlphabet("abcdefhiklmnorstuvwxyz", 16)`). The clinic's org id has the same shape: `org_sduaarmnmsunmwvt`, in the runbook §6.
+- **Envelope ids.** They are `envelope_` + 16 characters of `abcdefhiklmnorstuvwxyz` (`prefixedId` → `fancyId = customAlphabet("abcdefhiklmnorstuvwxyz", 16)`). The clinic's org id has the same shape: `org_sduaarmnmsunmwvt`, in the runbook §6. **Confirmed live** (staging, 2026-10-08): `envelope_hsnzzscbexaddcar`.
 - **`identifier` in an inline field** is the index of the file in `files`, or its name. Documenso's own embed client sends `identifier: itemIdToIndex.get(field.envelopeItemId)`.
 - **Expiry is per recipient.** The job is `internal.process-recipient-expired`, the audit entry is `DOCUMENT_RECIPIENT_EXPIRED`, recipients carry `expired` / `expiresAt`, and the owner gets an email. The envelope **stays PENDING**, and `redistribute` "refreshes the signing-link expiration… renewing any expired links".
 - **Error responses.** `GET /envelope/{id}` documents 404 `{ message, code, issues? }`. `cancel` and `delete` document only 200/400/401/403/500: their answer for a missing envelope is undocumented.
 - **Secrets in responses.** `GET /envelope/{id}` recipients carry `token`. `distribute` and `redistribute` answers carry `token` and `signingUrl` per recipient. These are never parsed or logged.
+- **Webhook header** (`execute-webhook-call.js`, confirmed live 2026-10-08): exactly `X-Documenso-Secret: <raw secret>`, as `signing-webhook` reads it.
+- **The deprecated document read embeds the file** (confirmed live on staging, 2026-10-08): `GET /api/v2/document/{id}` carries `documentData`, which with the database upload transport is the whole PDF in base64 (1,122,716 characters for the signed test document), over the client's 1 MB JSON cap (`MAX_JSON_BYTES`): `badResponse` → `signing-sync` 502. The envelope read carries only `envelopeItems[].documentDataId`, so the move fixes it; the client's `envelopeSchema` reads nothing of the file, and a test pins that an over-1 MB read is refused while unknown fields are dropped.
 - **Download content type.** `GET /envelope/item/{id}/download` declares `application/json` for its 200, but the OpenAPI text says `signed` "returns the completed document with all signatures and the audit trail". The client keeps checking `%PDF-`.
 
 ### Decisions
@@ -25,13 +27,13 @@ Facts used below that the brief did not establish (from the instance's OpenAPI a
 | E-4 | **Webhook matching: `externalId` first, then `envelopeId`.** An `externalId` that is not a uuid → 200 `ignored` before the claim (unchanged). Then `payload.envelopeId` is required and must pass `ENVELOPE_ID`, else 400. `apply_signing_event` finds the row by request id and compares the envelope with the recorded or superseded one (same outcomes as today). The legacy numeric `payload.id` and `payload.Recipient` are ignored. **Claim id** `<org>:<EVENT>:<envelopeId>[:<version>]`. The version is now ISO-normalised (`isoTime(createdAt) ?? isoTime(payload.updatedAt)`, else `unversioned`), which bounds the id at 36+1+64+1+73+1+24 = 200 characters, the `webhook_events.event_id` limit; with today's raw version (≤ 64) the worst case would be 240. Claim payload `{ event, envelope_id, external_id }`. **`webhook_events` needs no migration:** old ids (`…:<digits>`) and new ones (`…:envelope_…`) cannot collide, none exist on staging, and the retention job purges them. | The order keeps "a document made outside the app" free (no claim, no row) and keeps "Documenso ids are per instance" safe (matched by our own id, never by envelope alone). |
 | E-5 | **Fields go inline in `/envelope/create` (one call).** Each recipient carries `fields: [{ identifier: 0, type, page, positionX, positionY, width, height }]`; there is no `fieldMeta`, as today. `field/create-many` and `addFields` are dropped. The flow becomes **create → read (recipient ids by address, as today) → distribute**. **Simplification:** a refused field now fails the create, so there is no orphan draft to cancel, and there is one call fewer. | The recipient ids are not read from `distribute`'s answer: it carries tokens and signing URLs, and it arrives after the emails have left, so a bad answer would force cancelling a sent contract. |
 | E-6 | **Expiry:** keep sending `envelopeExpirationPeriod: { unit: 'day', amount: expiry_days }` (already sent today). **The daily `core.signing_reconcile` stays the authority:** expire here, then cancel there. It is not merely a backstop, because Documenso expires only the signing links and leaves the envelope PENDING. The cancel of an "expired" envelope is therefore expected to answer **200**, which inverts status-doc VERIFY 8. The existing 400 tolerance in `reconcileRow` stays (it covers a race with a completion or a rejection). | Without the job, an expired request would stay `sent` forever. |
-| E-7 | **Signed PDF:** `downloadSigned(envelopeId)` = `GET /envelope/{id}` → exactly one `envelopeItems` entry (else `provider_error`) → `GET /envelope/item/{itemId}/download?version=signed`. The item id is checked path-safe (`^[A-Za-z0-9_-]{1,100}$`) and **not stored** (one cheap read at completion, no schema change). **The audit log and certificate are not stored separately:** the org includes both in the downloaded PDF (runbook §6, "Certificates") and the OpenAPI says `signed` carries the audit trail. The runbook marks those two settings as "do not turn off". | Fewer files, one PDF per signed contract as today. |
+| E-7 | **Signed PDF:** `downloadSigned(envelopeId)` = `GET /envelope/{id}` → exactly one `envelopeItems` entry (else `provider_error`) → `GET /envelope/item/{itemId}/download?version=signed`. The item id is checked path-safe (`^[A-Za-z0-9_-]{1,100}$`) and **not stored** (one cheap read at completion, no schema change). The read is cheap because it carries no file data (live finding, §1: the deprecated document read embedded the PDF and overran the 1 MB cap). **The audit log and certificate are not stored separately:** the org includes both in the downloaded PDF (runbook §6, "Certificates") and the OpenAPI says `signed` carries the audit trail. The runbook marks those two settings as "do not turn off". | Fewer files, one PDF per signed contract as today. |
 | E-8 | **One cancel:** `cancel(envelopeId, { reason?, draft? })` POSTs `/envelope/cancel`. On a 400 it reads the envelope back: CANCELLED → done; DRAFT → `/envelope/delete` (Documenso's 404 `NOT_FOUND` → done); anything else → the cancel's error. `draft: true`, passed when the caller *read* DRAFT or never called `distribute`, goes straight to delete. **`/envelope/delete` is never sent to a non-draft envelope.** **Simplification:** callers no longer choose a route from "is the envelope id known" (`envelopeId: state.status === 'PENDING' ? … : null` disappears), and status-doc VERIFY 3 (document delete cancels a pending one) goes away. | One id for both routes. An ambiguous `distribute` failure (timed out, but done at Documenso) is handled by cancel-then-fallback, as the document delete did before. |
-| E-9 | **Ping:** `GET /api/v2/envelope?perPage=1`, with the same `{ data: [...] }` check. | The cheapest authenticated envelope read. |
+| E-9 | **Ping:** `GET /api/v2/envelope?perPage=1`, with the same `{ data: [...] }` check. | The cheapest authenticated envelope read. Every JSON read the client makes stays under `MAX_JSON_BYTES` only because none embeds file data (§1). |
 | E-10 | **Recipient ids stay numeric** (`signature_request_signers.documenso_recipient_id`, `signing_recipients_valid`: unchanged). `redistribute` sends `{ envelopeId, recipients: number[] }`. | The OpenAPI and the webhook payload. |
 | E-11 | **Names in code follow the id:** `createDocument` → `createEnvelope`, `DocumensoDocumentState` / `…Status` → `DocumensoEnvelopeState` / `…Status`, `DocumensoError.documentId` → `envelopeId`, `ownsDocument` → `ownsEnvelope`, `readDraftDocument` → `readDraftEnvelope`; report ids `document_id` → `envelope_id` (a valid `_id` key for `report.ts`). | Every call site changes anyway; stale names would invite numeric assumptions. |
 | E-12 | **The fake mirrors the envelope routes with realistic ids:** `envelope_` + 16 letters of Documenso's alphabet (counter encoded, `envelope_aaaaaaaaaaaaaaab`…), items `envelope_item_…`, recipients 101… Webhook payloads include the legacy numeric `id`, `Recipient` and recipient `token`s, and `distribute` answers include `signingUrl` / `token`, so tests prove these are ignored and never stored, claimed or reported. | A fake with `envelope_<digits>` ids would hide a leftover numeric assumption. |
-| E-13 | **No owner email when a signing link expires:** `createEnvelope` sends `meta.emailSettings.ownerRecipientExpired: false` (the other email settings keep the org defaults). **Help text:** the « Adresse de l'instance » example becomes `https://sign.cliniquemana.com` (`fr-CA.json` `baseUrlHelp`, and the `SigningSettingsPage` test value). | Jonathan, 2026-10-08 (R3): the app shows expired requests and its daily job closes them; a second notice in `info@` is noise. |
+| E-13 | **No owner email when a signing link expires:** `createEnvelope` sends `meta.emailSettings.ownerRecipientExpired: false`. **Correction (implementation):** the other settings do not keep the org's preferences: Documenso takes `meta.emailSettings \|\| org settings` and fills the missing keys with its defaults (all `true`, OpenAPI), so an app envelope gets every other email on. That equals the clinic's settings today (runbook §6: « default notifications unchanged »), and the runbook now says a change there does not reach app envelopes. **Help text:** the « Adresse de l'instance » example becomes `https://sign.cliniquemana.com` (`fr-CA.json` `baseUrlHelp`, and the `SigningSettingsPage` test value). | Jonathan, 2026-10-08 (R3): the app shows expired requests and its daily job closes them; a second notice in `info@` is noise. |
 
 ## 2. Changes per file
 
@@ -351,6 +353,25 @@ Batches 1–3 share one type graph (the migration's RPC names ↔ the Deno calls
 
 This replaces the VERIFY list in ADR 0005 and status doc l.157–165.
 
+### 4.0 Already confirmed live (2026-10-08, 2.20.0)
+
+- Envelope ids `envelope_` + 16 lowercase letters (`envelope_hsnzzscbexaddcar`): `ENVELOPE_ID`'s VERIFY marker is removed; the regex stays loose on purpose (E-1).
+- The webhook header is exactly `X-Documenso-Secret: <raw secret>`.
+- The deprecated document read embeds the PDF (`documentData`, 1,122,716 characters signed): over `MAX_JSON_BYTES`, `signing-sync` 502 on staging. The envelope read does not (§1).
+
+### 4.0b `// VERIFY` markers left in code (all in `supabase/functions/_shared/documenso.ts`)
+
+| Marker | Settled by |
+|---|---|
+| `DOCUMENSO_PATHS.create`: an inline field's `identifier` 0 names the file | §4.2 item 2 |
+| `DOCUMENSO_PATHS.cancel`: the answer for a draft or an already-cancelled envelope (R1) | §4.2 items 4 and 6 |
+| `DOCUMENSO_PATHS.download`: PDF bytes though JSON is declared; certificate and audit log inside | §4.3 items 9 and 11 |
+| `ITEM_ID`: the envelope item id format (R10) | §4.2 item 3 |
+| `notFoundSchema`: `NOT_FOUND` body from the read, the cancel and the delete (R2) | §4.2 item 5 |
+| `envelopeSchema.externalId`: the read carries `externalId` | §4.2 item 3 |
+
+The old `signing-events.ts` VERIFY (an expired envelope refuses the cancel) is replaced by E-6's comment: no marker.
+
 ### 4.1 Rules
 
 - **The token is never pasted in chat.** Jonathan types it in his terminal (`read -s DOCUMENSO_TOKEN; export DOCUMENSO_TOKEN`) and pastes it in the app's « Clé d'API ».
@@ -404,3 +425,20 @@ B=https://sign.cliniquemana.com/api/v2; H="Authorization: $DOCUMENSO_TOKEN"; PDF
 - **R8 — `subject` ≤ 254 / `message` ≤ 5000** are now refused before any request (`invalid_request`). Today the instance's 400 surfaces as `provider_error`. Open question: should template version editing enforce the same limits (Phase 4)?
 - **R9 — Deprecated columns** (`documenso_document_id`, `superseded_document_ids`, and the dead output columns of four read RPCs) need a cleanup migration. Schedule it at the start of Phase 4, with the regenerated types.
 - **R10 — Envelope item id format** is unknown until §4.2 item 3; `ITEM_ID` is deliberately loose. Several items in one envelope (never created by the app) → `provider_error` at download, reported, PDF not stored.
+
+## 6. Implementation notes (Batches 1–4, 2026-10-08)
+
+Commits on `claude/documenso-clinique-mana-62cb9d`: the migration and pgTAP (Batch 1), the client and fake (Batch 2), the signing libraries and functions (Batch 3), these docs (Batch 4). Deviations from §2–§3, each the safer or the only correct option:
+
+1. **check2 guard:** the migration compares `signature_requests_check2`'s exact definition, not a `like` pattern.
+2. **pgTAP `026`:** `apply_signing_event` keeps its argument types, so « the old signature is gone » is asserted on the parameter names (`proargnames`) of the four functions, one version each, plus `hasnt_function` for the three whose types changed.
+3. **`signing-fixtures.ts`** (`sentRequest` → `createEnvelope`) moved to Batch 2: `documenso.test.ts` and the fake tests import it.
+4. **Claim id bound:** `isoTime` in `signing-webhook` returns null for a time outside four-digit years (`toISOString` gives 27 characters there), so the id stays ≤ 200 (E-4); such a time falls back to `updatedAt`, then `unversioned`.
+5. **E-13:** see the correction in the decision row (a partial `emailSettings` replaces the org's preferences).
+6. **E-8:** when the read-back says DRAFT and the delete itself fails, the delete's error is thrown (`Documenso delete failed (…)`), not the cancel's 400.
+7. **The fake** refuses (400) a delete of a non-draft envelope and any download version but `signed`, so a test sees a call the client must never make; `fakeEnvelopeId(n)` names its envelopes in tests.
+8. **The parity test** (`ENVELOPE_ID equals the database check`) reads every `'^envelope_…'` literal of `*_core_signing.sql` and `*_core_signing_envelope.sql`.
+9. **Names:** `settleEarlierDocument` → `settleEarlierEnvelope` (E-11's rule); `DocumentSnapshot` / `documentEvents` keep their names (Documenso's events are `DOCUMENT_*`).
+10. **`CLAUDE.md` §7 is not edited by the implementing agent** (an agent cannot authorise a CLAUDE.md change): the §2.8 edit is left for Jonathan, as a ready patch.
+11. **`deno fmt --check`** failed on `main` already (two email tests): fixed in its own commit.
+
