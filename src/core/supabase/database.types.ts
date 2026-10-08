@@ -794,6 +794,7 @@ export type Database = {
           gst_number: string | null
           id: string
           legal_name: string | null
+          logo_file_id: string | null
           name: string
           neq: string | null
           phone: string | null
@@ -804,8 +805,10 @@ export type Database = {
           province: string | null
           qst_number: string | null
           record_retention_years: number | null
+          signatory_email: string | null
           signatory_name: string | null
           signatory_title: string | null
+          signature_file_id: string | null
           timezone: string
           updated_at: string
           website: string | null
@@ -822,6 +825,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           legal_name?: string | null
+          logo_file_id?: string | null
           name: string
           neq?: string | null
           phone?: string | null
@@ -832,8 +836,10 @@ export type Database = {
           province?: string | null
           qst_number?: string | null
           record_retention_years?: number | null
+          signatory_email?: string | null
           signatory_name?: string | null
           signatory_title?: string | null
+          signature_file_id?: string | null
           timezone?: string
           updated_at?: string
           website?: string | null
@@ -850,6 +856,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           legal_name?: string | null
+          logo_file_id?: string | null
           name?: string
           neq?: string | null
           phone?: string | null
@@ -860,13 +867,30 @@ export type Database = {
           province?: string | null
           qst_number?: string | null
           record_retention_years?: number | null
+          signatory_email?: string | null
           signatory_name?: string | null
           signatory_title?: string | null
+          signature_file_id?: string | null
           timezone?: string
           updated_at?: string
           website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "organizations_logo_file_id_fkey"
+            columns: ["logo_file_id"]
+            isOneToOne: false
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizations_signature_file_id_fkey"
+            columns: ["signature_file_id"]
+            isOneToOne: false
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       permissions: {
         Row: {
@@ -1394,6 +1418,137 @@ export type Database = {
           },
         ]
       }
+      stored_files: {
+        Row: {
+          bucket: string
+          confirmed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          ext: string
+          id: string
+          mime_type: string
+          module_key: string
+          object_path: string
+          org_id: string
+          original_name: string
+          owner_permission: string | null
+          owner_profile_id: string | null
+          purpose: string
+          retain_until: string | null
+          sha256: string | null
+          size_bytes: number
+          status: string
+          subject_id: string
+          subject_type: string
+          updated_at: string
+          uploaded_by: string | null
+          view_permission: string | null
+        }
+        Insert: {
+          bucket: string
+          confirmed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          ext: string
+          id?: string
+          mime_type: string
+          module_key: string
+          object_path: string
+          org_id: string
+          original_name: string
+          owner_permission?: string | null
+          owner_profile_id?: string | null
+          purpose: string
+          retain_until?: string | null
+          sha256?: string | null
+          size_bytes: number
+          status?: string
+          subject_id: string
+          subject_type: string
+          updated_at?: string
+          uploaded_by?: string | null
+          view_permission?: string | null
+        }
+        Update: {
+          bucket?: string
+          confirmed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          ext?: string
+          id?: string
+          mime_type?: string
+          module_key?: string
+          object_path?: string
+          org_id?: string
+          original_name?: string
+          owner_permission?: string | null
+          owner_profile_id?: string | null
+          purpose?: string
+          retain_until?: string | null
+          sha256?: string | null
+          size_bytes?: number
+          status?: string
+          subject_id?: string
+          subject_type?: string
+          updated_at?: string
+          uploaded_by?: string | null
+          view_permission?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stored_files_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "stored_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stored_files_owner_permission_fkey"
+            columns: ["owner_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "stored_files_owner_profile_id_org_id_fkey"
+            columns: ["owner_profile_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+          {
+            foreignKeyName: "stored_files_purpose_module_key_bucket_fkey"
+            columns: ["purpose", "module_key", "bucket"]
+            isOneToOne: false
+            referencedRelation: "upload_purposes"
+            referencedColumns: ["key", "module_key", "bucket"]
+          },
+          {
+            foreignKeyName: "stored_files_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "stored_files_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       tax_rates: {
         Row: {
           created_at: string
@@ -1439,6 +1594,77 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      upload_purposes: {
+        Row: {
+          bucket: string
+          created_at: string
+          key: string
+          max_bytes: number
+          max_image_side: number | null
+          mime_types: string[]
+          module_key: string
+          owner_permission: string | null
+          retain_days: number | null
+          upload_permission: string
+          view_permission: string | null
+        }
+        Insert: {
+          bucket: string
+          created_at?: string
+          key: string
+          max_bytes: number
+          max_image_side?: number | null
+          mime_types: string[]
+          module_key: string
+          owner_permission?: string | null
+          retain_days?: number | null
+          upload_permission: string
+          view_permission?: string | null
+        }
+        Update: {
+          bucket?: string
+          created_at?: string
+          key?: string
+          max_bytes?: number
+          max_image_side?: number | null
+          mime_types?: string[]
+          module_key?: string
+          owner_permission?: string | null
+          retain_days?: number | null
+          upload_permission?: string
+          view_permission?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "upload_purposes_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "upload_purposes_owner_permission_fkey"
+            columns: ["owner_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "upload_purposes_upload_permission_fkey"
+            columns: ["upload_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "upload_purposes_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
           },
         ]
       }
@@ -1636,6 +1862,10 @@ export type Database = {
         Args: { p_claim_token: string; p_id: string }
         Returns: boolean
       }
+      confirm_stored_file: {
+        Args: { p_file_id: string; p_sha256: string; p_size_bytes: number }
+        Returns: undefined
+      }
       consume_rate_limit: {
         Args: {
           p_bucket: string
@@ -1674,6 +1904,21 @@ export type Database = {
           p_title: string
         }
         Returns: string
+      }
+      create_pending_upload: {
+        Args: {
+          p_mime_type: string
+          p_original_name: string
+          p_purpose: string
+          p_size_bytes: number
+          p_subject_id: string
+          p_subject_type: string
+        }
+        Returns: {
+          bucket: string
+          file_id: string
+          object_path: string
+        }[]
       }
       create_role: {
         Args: { p_copy_from?: string; p_name: string }
@@ -1719,6 +1964,17 @@ export type Database = {
       get_org_secret: {
         Args: { p_key: string; p_org_id: string }
         Returns: string
+      }
+      get_pending_upload: {
+        Args: { p_file_id: string }
+        Returns: {
+          bucket: string
+          max_bytes: number
+          max_image_side: number
+          mime_type: string
+          object_path: string
+          size_bytes: number
+        }[]
       }
       last_webhook_event_at: { Args: { p_provider: string }; Returns: string }
       list_audit_actors: {
@@ -1789,6 +2045,14 @@ export type Database = {
           updated_by_name: string
           variables: Json
           version: number
+        }[]
+      }
+      list_files_to_purge: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          bucket: string
+          id: string
+          object_path: string
         }[]
       }
       list_job_orgs: { Args: { p_key: string }; Returns: string[] }
@@ -1918,6 +2182,10 @@ export type Database = {
         Args: { p_attempts: number; p_id: string; p_resend_id: string }
         Returns: undefined
       }
+      mark_files_purged: {
+        Args: { p_ids: string[]; p_org_id: string }
+        Returns: number
+      }
       mark_notifications_read: { Args: { p_ids: string[] }; Returns: undefined }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
@@ -1943,6 +2211,26 @@ export type Database = {
         }
         Returns: string
       }
+      register_system_file: {
+        Args: {
+          p_bucket: string
+          p_mime_type: string
+          p_module_key: string
+          p_org_id: string
+          p_original_name: string
+          p_purpose: string
+          p_sha256: string
+          p_size_bytes: number
+          p_subject_id: string
+          p_subject_type: string
+          p_view_permission: string
+        }
+        Returns: {
+          file_id: string
+          object_path: string
+        }[]
+      }
+      reject_stored_file: { Args: { p_file_id: string }; Returns: undefined }
       rename_role: {
         Args: { p_name: string; p_role: string }
         Returns: undefined
@@ -1992,6 +2280,10 @@ export type Database = {
       }
       set_module_enabled: {
         Args: { p_enabled: boolean; p_key: string }
+        Returns: undefined
+      }
+      set_org_asset: {
+        Args: { p_file_id: string; p_kind: string }
         Returns: undefined
       }
       set_org_secret: {
