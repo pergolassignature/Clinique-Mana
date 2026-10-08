@@ -7,8 +7,8 @@
  * - **Sniffing** reads the leading bytes for a signature, and the trailing
  *   bytes for the end structures that a complete file must carry (PDF
  *   `%%EOF`, PNG `IEND`, the ZIP end record), so a truncated upload is refused.
- *   A file whose leading bytes hold HTML or XML markup is refused whatever its
- *   signature (polyglots).
+ *   A file whose leading bytes hold HTML or script markup is refused whatever
+ *   its signature (polyglots). A docx carrying a VBA project is refused.
  * - **`inspectStream`** reads an upload once, chunk by chunk: it hashes it,
  *   keeps only the head and tail needed for sniffing, and stops (cancelling
  *   the stream) as soon as the size cap is passed.
@@ -34,8 +34,13 @@ export type SniffedType =
 type KnownType = Exclude<SniffedType, 'unknown'>
 
 /**
- * The accepted formats: the union of the bucket MIME lists (Task 3.24). The
- * same MIME → extension map is used by `create_pending_upload` in SQL.
+ * The accepted formats: the union of the bucket MIME lists (Task 3.24).
+ * The MIME → extension map that Task 3.24 writes in SQL (for the paths
+ * `create_pending_upload` and `register_system_file` build) must match this
+ * one exactly; a test there ties the two.
+ *
+ * `application/msword` should be allowed only for the purposes that need
+ * legacy Word files: its sniffing accepts any OLE compound file (see `isDoc`).
  */
 const FORMATS: Readonly<Record<KnownType, { mime: string; ext: string }>> = {
   pdf: { mime: 'application/pdf', ext: 'pdf' },
@@ -71,14 +76,21 @@ const TAIL_BYTES = 22 + 0xffff
 const PDF_EOF_WINDOW = 1024
 
 /**
- * Markup that makes a browser or XML parser treat bytes as a document that
- * can run script: an HTML document, a script or frame, SVG, or XML. Matched
- * case-insensitively anywhere in the leading bytes, and only when followed by
- * a tag-terminating character, so PDF `<<` dictionaries and `<hex>` strings
- * never match.
+ * HTML markup that a browser's content sniffing could take for a page that
+ * runs script: a doctype, a document element, a script, frame or embedded
+ * object. Matched case-insensitively anywhere in the leading bytes, and only
+ * when followed by a tag-terminating character, so PDF `<<` dictionaries and
+ * `<hex>` strings never match.
+ *
+ * SVG and XML are deliberately not listed. Legitimate files carry them near
+ * the top: C2PA content credentials in a PNG `caBX` chunk (`<svg`), a docx
+ * with stored entries (`<?xml`), uncompressed XMP in a PDF (`<?xml`). They
+ * are harmless here: the served Content-Type always comes from the fixed map
+ * (never from the file), and browsers never sniff SVG or XML out of a binary
+ * type such as `image/png` or `application/pdf`; only HTML sniffing matters.
  */
 const MARKUP =
-  /<(?:!doctype\s+html|html|head|body|script|iframe|svg|object|embed|\?xml)[\s/>]/i
+  /<(?:!doctype\s+html|html|head|body|script|iframe|object|embed)[\s/>]/i
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 /** The PNG `IHDR` chunk header: length 13, then the type. */
@@ -103,6 +115,8 @@ const ZIP_LOCAL = [0x50, 0x4b, 0x03, 0x04]
 const ZIP_CENTRAL = [0x50, 0x4b, 0x01, 0x02]
 const ZIP_END = [0x50, 0x4b, 0x05, 0x06]
 const DOCX_PARTS = ['[Content_Types].xml', 'word/document.xml']
+/** The VBA project of a macro-enabled document, compared in lower case. */
+const DOCX_MACROS = 'word/vbaproject.bin'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** The `modules.key` check (`20261007140517_core_access.sql`). */
@@ -166,8 +180,11 @@ function isWebp(head: Uint8Array, size: number): boolean {
 /**
  * An OLE compound file (legacy `.doc`): the signature, little-endian byte
  * order, a version 3 (512-byte sectors) or 4 (4096) header, and room for the
- * header, one FAT sector and one directory sector. The streams are not read,
- * so any OLE file (`.xls`, `.msi`) passes as `doc`.
+ * header, one FAT sector and one directory sector. The directory and streams
+ * are not read (the directory may sit anywhere in the file, outside the head
+ * and tail kept by `inspectStream`), so any compound file (`.xls`, `.msi`, a
+ * `.doc` with macros) passes as `doc`. Allow `application/msword` only for the
+ * purposes that need legacy Word files.
  */
 function isDoc(head: Uint8Array, size: number): boolean {
   if (!startsWith(head, OLE_SIGNATURE) || head.length < 32) return false
@@ -185,8 +202,10 @@ function isDoc(head: Uint8Array, size: number): boolean {
 /**
  * A ZIP that starts with a local header and whose central directory (found
  * from the end record, inside `tail`) lists `[Content_Types].xml` and
- * `word/document.xml`. Offsets must be consistent: no prepended or appended
- * data, one disk, no ZIP64 (a docx under the bucket limit never needs it).
+ * `word/document.xml`, and no `word/vbaProject.bin` (any case: a macro-enabled
+ * `.docm` renamed `.docx`). Offsets must be consistent: no prepended or
+ * appended data, one disk, no ZIP64 (a docx under the bucket limit never
+ * needs it).
  */
 function isDocx(head: Uint8Array, tail: Uint8Array, size: number): boolean {
   if (!startsWith(head, ZIP_LOCAL)) return false
@@ -204,7 +223,10 @@ function isDocx(head: Uint8Array, tail: Uint8Array, size: number): boolean {
   return false
 }
 
-/** Walks `entries` central-directory headers in `[start, end)`. */
+/**
+ * Walks `entries` central-directory headers in `[start, end)`: true when they
+ * fill the range exactly, list every docx part, and list no VBA project.
+ */
 function listsDocxParts(
   bytes: Uint8Array,
   start: number,
@@ -220,6 +242,7 @@ function listsDocxParts(
       u16(bytes, at + 32)
     if (next > end) return false
     const name = latin1(bytes.subarray(at + 46, at + 46 + nameLength))
+    if (name.toLowerCase() === DOCX_MACROS) return false
     if (DOCX_PARTS.includes(name)) found.add(name)
     at = next
   }
@@ -246,8 +269,9 @@ function classify(
  * The content type of a whole file in memory (design §7.2): a signature in
  * the first bytes, the end structure in the last ones (docx: the ZIP central
  * directory in the last 64 KB, without unzipping). An empty, truncated or
- * unrecognised file, or one whose first 1445 bytes hold HTML/SVG/XML markup,
- * is `unknown`. For an upload in storage, use `inspectStream`.
+ * unrecognised file, one whose first 1445 bytes hold HTML or script markup,
+ * or a docx with a VBA project, is `unknown`. For an upload in storage, use
+ * `inspectStream`.
  */
 export function sniff(bytes: Uint8Array): SniffedType {
   return classify(
@@ -291,8 +315,8 @@ export type Inspection =
  * Reads `stream` once (e.g. `blob.stream()` or a fetch body) and returns its
  * size, SHA-256 (64 lower-case hex digits) and sniffed type. Only the head
  * and tail that `sniff` needs are kept in memory. As soon as more than
- * `maxBytes` have arrived, the stream is cancelled and `too_large` returned.
- * A stream error propagates.
+ * `maxBytes` have arrived, the stream is cancelled and `too_large` returned
+ * (even if the cancel itself fails). A read error propagates.
  *
  * @param maxBytes the purpose's limit in bytes (a positive safe integer).
  * @throws TypeError when `maxBytes` is not a positive safe integer.
@@ -317,7 +341,8 @@ export async function inspectStream(
       if (done) break
       size += value.length
       if (size > maxBytes) {
-        await reader.cancel()
+        // The verdict does not depend on the source acknowledging the cancel.
+        await reader.cancel().catch(() => {})
         return { status: 'too_large' }
       }
       hash.update(value)
@@ -326,28 +351,35 @@ export async function inspectStream(
         head.set(take, headLength)
         headLength += take.length
       }
-      tail.push(value)
-      tailLength += value.length
-      while (tailLength - tail[0].length >= TAIL_BYTES) {
-        tailLength -= tail.shift()!.length
+      if (value.length >= TAIL_BYTES) {
+        // A copy of the last bytes only, so the large chunk is not retained.
+        tail.length = 0
+        tail.push(value.slice(-TAIL_BYTES))
+        tailLength = TAIL_BYTES
+      } else {
+        tail.push(value)
+        tailLength += value.length
+        while (tailLength - tail[0].length >= TAIL_BYTES) {
+          tailLength -= tail.shift()!.length
+        }
       }
     }
   } finally {
     reader.releaseLock()
   }
-  const kept = new Uint8Array(tailLength)
+  // Join only the last TAIL_BYTES: the first chunk may start earlier.
+  const kept = new Uint8Array(Math.min(tailLength, TAIL_BYTES))
+  let skip = tailLength - kept.length
   let at = 0
   for (const chunk of tail) {
-    kept.set(chunk, at)
-    at += chunk.length
+    const part = skip > 0 ? chunk.subarray(Math.min(skip, chunk.length)) : chunk
+    skip = Math.max(0, skip - chunk.length)
+    kept.set(part, at)
+    at += part.length
   }
   return {
     status: 'ok',
-    type: classify(
-      head.subarray(0, headLength),
-      kept.subarray(Math.max(0, tailLength - TAIL_BYTES)),
-      size,
-    ),
+    type: classify(head.subarray(0, headLength), kept, size),
     size,
     sha256: hash.digest('hex'),
   }

@@ -6,6 +6,7 @@ import {
   LIMITS,
   type RateLimit,
 } from './rate-limit.ts'
+import { byteaHex } from './bytea.ts'
 import { captureConsole, withEnv } from './testing/env.ts'
 import { fakeSupabase } from './testing/fake-supabase.ts'
 
@@ -101,7 +102,7 @@ Deno.test('consume: calls consume_rate_limit with the hex-encoded hash and maps 
     assertEquals(args.p_window_seconds, 60)
     assertEquals(
       args.p_key_hash,
-      `\\x${hex(await hashKey(['203.0.113.5'], SECRET))}`,
+      byteaHex(await hashKey(['203.0.113.5'], SECRET)),
     )
     assertMatch(String(args.p_key_hash), /^\\x[0-9a-f]{64}$/)
   })

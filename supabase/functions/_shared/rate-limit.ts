@@ -8,6 +8,7 @@
  * with `reason: 'unavailable'`: answer it 503 `not_configured`, not 429.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { byteaHex } from './bytea.ts'
 import { reportError } from './report.ts'
 
 /** A bucket and its starting limit: at most `max` hits per `windowSeconds`. */
@@ -164,13 +165,6 @@ export async function hashKey(
     encoder.encode(JSON.stringify(parts)),
   )
   return new Uint8Array(mac)
-}
-
-/** bytea input in hex format (`\x…`), which PostgREST passes through to the cast. */
-function byteaHex(bytes: Uint8Array): string {
-  return `\\x${
-    Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
-  }`
 }
 
 /**

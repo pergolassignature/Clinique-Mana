@@ -96,6 +96,15 @@ function u16BE(n: number): Uint8Array {
   return new Uint8Array([(n >>> 8) & 0xff, n & 0xff])
 }
 
+function u32BE(n: number): Uint8Array {
+  return new Uint8Array([
+    n >>> 24,
+    (n >>> 16) & 0xff,
+    (n >>> 8) & 0xff,
+    n & 0xff,
+  ])
+}
+
 function webp(): Uint8Array {
   const chunk = concat(ascii('VP8L'), u32(6), new Uint8Array(6))
   const body = concat(ascii('WEBP'), chunk)
@@ -396,8 +405,8 @@ Deno.test('sniff: polyglots with markup in the leading bytes are unknown', () =>
     'PDF with an iframe': pdf('<iframe src=x>\n'),
     'PDF with a doctype': pdf('<!doctype html>\n'),
     'JPEG with a script in a comment': jpeg(jpegComment('<script>x</script>')),
-    'PNG with an SVG in a text chunk': png(
-      pngChunk('tEXt', ascii('c\0<svg/onload=alert(1)>')),
+    'PNG with a script in a text chunk': png(
+      pngChunk('tEXt', ascii('c\0<script>alert(1)</script>')),
     ),
     'a small ZIP with markup in its comment': zip(DOCX_NAMES, {
       comment: '<html>',
@@ -406,6 +415,62 @@ Deno.test('sniff: polyglots with markup in the leading bytes are unknown', () =>
   for (const [name, bytes] of Object.entries(cases)) {
     assertEquals(sniff(bytes), 'unknown', name)
   }
+})
+
+Deno.test('sniff: SVG and XML in legitimate files are not refused', () => {
+  // C2PA content credentials: a JUMBF box in a `caBX` chunk, with an SVG.
+  const c2pa = png(
+    pngChunk(
+      'caBX',
+      concat(
+        u32BE(64),
+        ascii('jumb'),
+        u32BE(32),
+        ascii('jumdc2pa'),
+        new Uint8Array(16),
+        ascii('<svg width="716" height="716" viewBox="0 0 716 716">'),
+      ),
+    ),
+  )
+  assertEquals(sniff(c2pa), 'png', 'C2PA PNG')
+  // A docx whose first entry is stored, so its XML sits in the leading bytes.
+  const stored = zip(DOCX_NAMES, {
+    data: ascii(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/' +
+        'content-types"><Default Extension="xml" ContentType="application/' +
+        'xml"/></Types>',
+    ),
+  })
+  assertEquals(sniff(stored), 'docx', 'stored-entry docx')
+  // Uncompressed XMP metadata in the first KB of a PDF.
+  const xmp = pdf(
+    '2 0 obj\n<< /Type /Metadata /Subtype /XML /Length 200 >>\nstream\n' +
+      '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>\n' +
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF ' +
+      'xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"/></x:xmpmeta>\n' +
+      '<?xpacket end="w"?>\nendstream\nendobj\n',
+  )
+  assertEquals(sniff(xmp), 'pdf', 'PDF with XMP')
+})
+
+Deno.test('sniff: a PDF that is also an HTML page is still refused', () => {
+  const polyglot = pdf(
+    '<?xml version="1.0"?>\n<!DOCTYPE html><html><body>x</body></html>\n',
+  )
+  assertEquals(sniff(polyglot), 'unknown')
+})
+
+Deno.test('sniff: a docx with a VBA project (macros) is unknown', () => {
+  for (const name of ['word/vbaProject.bin', 'WORD/VBAPROJECT.BIN']) {
+    assertEquals(sniff(zip([...DOCX_NAMES, name])), 'unknown', name)
+  }
+  // Another .bin part (e.g. an embedded object) is not a VBA project.
+  assertEquals(
+    sniff(zip([...DOCX_NAMES, 'word/embeddings/oleObject1.bin'])),
+    'docx',
+  )
 })
 
 Deno.test('sniff: PDF dictionaries and hex strings are not markup', () => {
@@ -516,7 +581,8 @@ Deno.test('inspectStream: chunked input gives the same result as sniff', async (
   const big = zip(DOCX_NAMES, { data: new Uint8Array(150_000).fill(0x42) })
   const inputs = [...Object.values(FIXTURES).map((make) => make()), big]
   for (const bytes of inputs) {
-    for (const chunkSize of [1, 7, 4096, 65_536]) {
+    // 65_557 is the tail window; larger chunks replace the kept tail.
+    for (const chunkSize of [1, 7, 4096, 65_536, 65_557, 70_000, 200_000]) {
       if (chunkSize === 1 && bytes.length > 10_000) continue
       const result = await inspectStream(streamOf(bytes, chunkSize), 1_000_000)
       assertEquals(result, {
@@ -567,6 +633,18 @@ Deno.test('inspectStream: oversize stops reading and cancels the stream', async 
   })
   assert(cancelled)
   assert(pulls <= 13, `read ${pulls} chunks`)
+})
+
+Deno.test('inspectStream: oversize is too_large even if the cancel rejects', async () => {
+  const stubborn = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      controller.enqueue(new Uint8Array(1024))
+    },
+    cancel() {
+      return Promise.reject(new Error('cannot cancel'))
+    },
+  })
+  assertEquals(await inspectStream(stubborn, 1024), { status: 'too_large' })
 })
 
 Deno.test('inspectStream: one byte over the cap is too large', async () => {

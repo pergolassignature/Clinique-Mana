@@ -4,16 +4,21 @@
  * - A token is 32 bytes from `crypto.getRandomValues`, base64url without
  *   padding (43 characters). It exists only in the function's memory and in
  *   the email: it is never stored, logged, reported or returned to staff.
- * - The database stores only `sha256(token)` (`secure_links.token_hash bytea`,
- *   32 bytes, Task 3.17) and looks a link up by that hash. There is no
- *   comparison of secrets in code, so no timing oracle: an attacker would have
- *   to guess a 256-bit value.
- * - The link carries the token in the URL **fragment** (`#t=`), which browsers
- *   never send to the server, so it stays out of access logs and `Referer`.
+ * - The database stores only the token's hash (`secure_links.token_hash
+ *   bytea`, 32 bytes, Task 3.17): SHA-256 over the UTF-8 bytes of the
+ *   43-character token string, not over the 32 decoded random bytes. A link
+ *   is looked up by that hash. There is no comparison of secrets in code, so
+ *   no timing oracle: an attacker would have to guess a 256-bit value.
+ * - The link carries the token in the URL **fragment** (`#t=`), which
+ *   browsers never send to *our* server, so it stays out of our access logs
+ *   and the `Referer` header. Link rewriters in mail clients (Outlook Safe
+ *   Links, scanners) may still copy the whole URL, fragment included: the
+ *   fragment limits where the token travels, it does not keep it secret.
  *
  * Callers (public token functions, CLAUDE.md §7) check `isWellFormedToken`
  * first, and answer a malformed token exactly like an unknown one.
  */
+import { byteaHex } from './bytea.ts'
 import { FunctionError } from './errors.ts'
 
 /** Random bytes per token: 256 bits. */
@@ -61,9 +66,9 @@ export function isWellFormedToken(value: unknown): value is string {
 }
 
 /**
- * SHA-256 of the token's UTF-8 bytes, as the `\x…` hex literal (64 lowercase
- * hex digits) that PostgREST accepts for a `bytea` argument such as
- * `p_token_hash`.
+ * SHA-256 of the token string's UTF-8 bytes (not of the decoded base64url
+ * bytes), as the `\x…` hex literal (64 lowercase hex digits) that PostgREST
+ * accepts for a `bytea` argument such as `p_token_hash`.
  *
  * @throws TypeError when `token` is not well formed (the message never holds
  *   the value). Check `isWellFormedToken` first.
@@ -76,10 +81,7 @@ export async function hashToken(token: string): Promise<string> {
     'SHA-256',
     new TextEncoder().encode(token),
   )
-  return `\\x${
-    Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0'))
-      .join('')
-  }`
+  return byteaHex(new Uint8Array(digest))
 }
 
 /**
