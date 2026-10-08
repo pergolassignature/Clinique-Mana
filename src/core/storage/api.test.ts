@@ -1,7 +1,6 @@
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FunctionCallError } from '@/core/supabase/functions'
+import { forbiddenNameChar } from '../../../supabase/functions/_shared/file-name'
 import { registryName, signedFileUrl, uploadFile, UploadSendError } from './api'
 
 const mocks = vi.hoisted(() => {
@@ -188,24 +187,10 @@ describe('signedFileUrl', () => {
 })
 
 describe('registryName and storage-upload', () => {
-  /**
-   * The code points `forbiddenNameChar` in storage-upload's handler refuses, read from its source:
-   * its `char === '…'` literals, its `code < 0x…` bound and its `code >= 0x… && code <= 0x…` ranges.
-   */
-  function serverForbidden(): (code: number) => boolean {
-    const source = readFileSync(path.resolve(__dirname, '../../../supabase/functions/storage-upload/handler.ts'), 'utf8')
-    const body = /function forbiddenNameChar\([^)]*\)[^{]*\{([\s\S]*?)\n\}/.exec(source)?.[1]
-    if (!body) throw new Error('forbiddenNameChar not found in storage-upload/handler.ts')
-    const literals = [...body.matchAll(/char === '((?:\\\\|[^'\\]))'/g)].map(([, c]) => (c === '\\\\' ? 0x5c : (c ?? '').codePointAt(0)))
-    const below = [...body.matchAll(/code < (0x[0-9a-f]+)/gi)].map(([, n]) => Number(n))
-    const ranges = [...body.matchAll(/code >= (0x[0-9a-f]+) && code <= (0x[0-9a-f]+)/gi)].map(([, from, to]) => [Number(from), Number(to)] as const)
-    // The handler as written today: '/' and '\', C0, then DEL+C1, LRM/RLM, the separators, the embeddings and the isolates.
-    expect({ literals: literals.length, below: below.length, ranges: ranges.length }).toEqual({ literals: 2, below: 1, ranges: 5 })
-    return (code) => literals.includes(code) || below.some((n) => code < n) || ranges.some(([from, to]) => code >= from && code <= to)
-  }
-
+  // The three-way list (browser, function, SQL) is file-name-parity.test.ts; this checks that
+  // registryName replaces what the function refuses.
   it("replaces exactly the characters storage-upload refuses (the client's set is the server's)", () => {
-    const forbidden = serverForbidden()
+    const forbidden = (code: number) => forbiddenNameChar(String.fromCharCode(code))
     const mismatches: string[] = []
     for (let code = 0; code <= 0xffff; code++) {
       const name = `a${String.fromCharCode(code)}b`

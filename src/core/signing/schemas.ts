@@ -54,7 +54,7 @@ function storableBaseUrl(url: string): boolean {
  * As `set_signing_settings` stores it (trimmed, without trailing slashes), with the scheme and host
  * lowercased, and `https://` added when typed without a scheme. Empty stays empty (it clears).
  */
-function normalizeBaseUrl(value: string): string {
+export function normalizeBaseUrl(value: string): string {
   const url = value.replace(/\/+$/, '')
   if (url === '') return ''
   return (URL_SCHEME.test(url) ? url : `https://${url}`).replace(ORIGIN, (origin) => origin.toLowerCase())

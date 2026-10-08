@@ -8,7 +8,7 @@
  * 1. CORS (`ALLOWED_ORIGINS`); `POST` only.
  * 2. `links.accept_ip` (10 per hour) on `clientIp`, before the body is read.
  * 3. Body `{ token, password, payload? }` (8 KB at most): the password as
- *    GoTrue takes it (10 characters to 72 bytes, `password-schema.ts`), the
+ *    GoTrue takes it (10 characters to 72 bytes, `_shared/password.ts`), the
  *    payload an object of at most 4 KB. A token that is not well formed
  *    answers like an unknown one (410 `link_invalid`), never hashed.
  * 4. `peek_secure_link(hash, false)`: not valid → 410 with its code.
@@ -77,6 +77,7 @@ import {
   peekSecureLink,
 } from '../_shared/links.ts'
 import { requireModuleForOrg } from '../_shared/modules.ts'
+import { passwordRule } from '../_shared/password.ts'
 import {
   clientIp,
   consume,
@@ -90,16 +91,11 @@ const FN = 'accept-invite'
 /** Token, password and a 4 KB payload. */
 const MAX_BODY_BYTES = 8_192
 const MAX_PAYLOAD_BYTES = 4_096
-/** bcrypt uses the first 72 bytes only (`password-schema.ts`). */
-const MAX_PASSWORD_BYTES = 72
-
 const utf8Length = (value: string) => new TextEncoder().encode(value).length
 
 const bodySchema = z.object({
   token: z.unknown(),
-  password: z.string().min(10).refine((v) =>
-    utf8Length(v) <= MAX_PASSWORD_BYTES
-  ),
+  password: passwordRule,
   payload: z.record(z.string(), z.unknown())
     .refine((v) => utf8Length(JSON.stringify(v)) <= MAX_PAYLOAD_BYTES)
     .optional(),

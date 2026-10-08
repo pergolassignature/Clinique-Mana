@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
 import { FunctionCallError, invokeFunction, type InvokeOptions } from '@/core/supabase/functions'
 import type { UploadStep } from '@/shared/lib/files'
+import { FORBIDDEN_NAME_CHAR } from './file-name'
 
 /** The upload itself (`uploadToSignedUrl`) failed: storage's HTTP status, when it gave one. */
 export class UploadSendError extends Error {
@@ -23,13 +24,6 @@ const signedSchema = z.object({ url: z.url(), expires_at: z.string().min(1) })
 
 /** The longest name `stored_files.original_name` takes. */
 const MAX_NAME = 200
-
-/**
- * A character `stored_files.original_name` refuses (`storage-upload` checks the same set): `/`,
- * `\`, C0, DEL, C1, the line and paragraph separators and the bidirectional formatting characters.
- */
-// eslint-disable-next-line no-control-regex -- matching control characters is the point
-const FORBIDDEN_NAME_CHAR = /[/\\\u0000-\u001f\u007f-\u009f\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g
 
 /**
  * The file's name as the registry takes it: forbidden characters as `_`, trimmed, at most 200

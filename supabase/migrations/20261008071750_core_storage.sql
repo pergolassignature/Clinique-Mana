@@ -222,12 +222,15 @@ create table public.stored_files (
   owner_permission text references public.permissions(key),
   view_permission text references public.permissions(key),
   -- Shown and offered as the download name; never part of a path or URL. No slash, backslash,
-  -- control character or bidirectional control (U+200E-U+200F, U+202A-U+202E, U+2066-U+2069:
-  -- they can disguise a file's extension).
+  -- control character ([:cntrl:]: C0, DEL and C1 in the database's locale, 022 checks it), line
+  -- or paragraph separator (U+2028-U+2029, not in [:cntrl:]) or bidirectional control
+  -- (U+200E-U+200F, U+202A-U+202E, U+2066-U+2069: they can disguise a file's extension). The
+  -- browser (src/core/storage/file-name.ts) and storage-upload (_shared/file-name.ts) refuse the
+  -- same set: src/core/storage/file-name-parity.test.ts.
   original_name text not null check (
     pg_catalog.length(original_name) between 1 and 200
     and pg_catalog.btrim(original_name) <> ''
-    and original_name !~ '[/\\[:cntrl:]\u200e\u200f\u202a-\u202e\u2066-\u2069]'),
+    and original_name !~ '[/\\[:cntrl:]\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]'),
   mime_type text not null,
   ext text not null check (ext ~ '^[a-z0-9]{1,5}$'),
   size_bytes int not null check (size_bytes > 0),

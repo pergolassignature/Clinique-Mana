@@ -43,6 +43,7 @@ import {
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { rpcErrorResponse } from '../_shared/errors.ts'
+import { forbiddenNameChar } from '../_shared/file-name.ts'
 import { readJson } from '../_shared/http.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
@@ -52,23 +53,6 @@ const FN = 'storage-upload'
 
 /** The core buckets (Task 3.24); nothing else is ever signed. */
 const BUCKETS = ['org-assets', 'documents', 'signed-documents']
-
-/**
- * A character `stored_files.original_name` refuses: `/`, `\`, C0, DEL, C1,
- * the line and paragraph separators (U+2028–U+2029) and the bidirectional
- * formatting characters: LRM / RLM (U+200E–U+200F), embeddings and overrides
- * (U+202A–U+202E), isolates (U+2066–U+2069). « facture\u202Egnp.exe » shows as
- * « factureexe.png ».
- */
-function forbiddenNameChar(char: string): boolean {
-  const code = char.codePointAt(0)!
-  return char === '/' || char === '\\' || code < 0x20 ||
-    (code >= 0x7f && code <= 0x9f) ||
-    (code >= 0x200e && code <= 0x200f) ||
-    (code >= 0x2028 && code <= 0x2029) ||
-    (code >= 0x202a && code <= 0x202e) ||
-    (code >= 0x2066 && code <= 0x2069)
-}
 
 /** `stored_files.original_name`: 1–200 characters, not blank, no forbidden character. */
 const originalName = z.string().refine((name) => {

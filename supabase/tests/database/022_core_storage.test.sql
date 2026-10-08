@@ -22,7 +22,7 @@
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(141);
+select plan(143);
 
 -- =============================================================================
 -- Buckets and the MIME map
@@ -293,6 +293,30 @@ select throws_ok($$ insert into public.stored_files (id, org_id, bucket, object_
                       'core', 'test_core_doc', 'test_subject', 'd0000000-0000-0000-0000-000000000001',
                       'facture' || chr(8238) || 'fdp.exe', 'application/pdf', 'pdf', 1) $$,
   '23514', null, 'original_name has no right-to-left override (U+202E)');
+-- The same list as the browser and storage-upload (src/core/storage/file-name-parity.test.ts),
+-- read from the constraint itself and tried on every BMP code point, a stride of the others and
+-- the tag block: / \ C0 DEL C1, LRM RLM, the line and paragraph separators (not in [:cntrl:]),
+-- the embeddings and overrides, the isolates. No NUL (text holds none), no surrogate.
+select is_empty($$
+  with c as (
+    select substring(pg_get_constraintdef(oid) from $re$original_name !~ '(.*)'::text$re$) as re
+      from pg_constraint where conname = 'stored_files_original_name_check'
+  )
+  select to_hex(cp)
+    from c, (select generate_series(1, 65535) union all select generate_series(65536, 1114111, 4099)
+             union all select generate_series(917504, 917631)) g (cp)
+   where cp not between 55296 and 57343
+     and (chr(cp) ~ c.re) is distinct from (
+           cp in (47, 92) or cp between 1 and 31 or cp between 127 and 159 or cp between 8206 and 8207
+           or cp between 8232 and 8233 or cp between 8234 and 8238 or cp between 8294 and 8297)
+$$, 'original_name refuses exactly the browser''s and storage-upload''s characters ([:cntrl:] is C0, DEL and C1 here)');
+select throws_ok($$ insert into public.stored_files (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id,
+                      original_name, mime_type, ext, size_bytes)
+                    values ('e0000000-0000-0000-0000-0000000000ff', 'b0000000-0000-0000-0000-00000000000a', 'documents',
+                      'b0000000-0000-0000-0000-00000000000a/core/d0000000-0000-0000-0000-000000000001/e0000000-0000-0000-0000-0000000000ff.pdf',
+                      'core', 'test_core_doc', 'test_subject', 'd0000000-0000-0000-0000-000000000001',
+                      'ligne' || chr(8232) || 'suite.pdf', 'application/pdf', 'pdf', 1) $$,
+  '23514', null, 'original_name has no line separator (U+2028)');
 select throws_ok($$ insert into public.stored_files (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id,
                       original_name, mime_type, ext, size_bytes)
                     values ('e0000000-0000-0000-0000-0000000000ff', 'b0000000-0000-0000-0000-00000000000a', 'documents',
