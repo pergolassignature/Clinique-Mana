@@ -361,6 +361,125 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_reads: {
+        Row: {
+          notification_id: string
+          org_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          notification_id: string
+          org_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          notification_id?: string
+          org_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_reads_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_reads_user_id_org_id_fkey"
+            columns: ["user_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          dedupe_key: string | null
+          expires_at: string | null
+          id: string
+          importance: string
+          kind: string
+          link_path: string | null
+          module_key: string
+          org_id: string
+          recipient_permission: string
+          recipient_user_id: string | null
+          subject_id: string | null
+          subject_type: string | null
+          title: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          expires_at?: string | null
+          id?: string
+          importance?: string
+          kind: string
+          link_path?: string | null
+          module_key: string
+          org_id: string
+          recipient_permission: string
+          recipient_user_id?: string | null
+          subject_id?: string | null
+          subject_type?: string | null
+          title: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          expires_at?: string | null
+          id?: string
+          importance?: string
+          kind?: string
+          link_path?: string | null
+          module_key?: string
+          org_id?: string
+          recipient_permission?: string
+          recipient_user_id?: string | null
+          subject_id?: string | null
+          subject_type?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "notifications_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_permission_fkey"
+            columns: ["recipient_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_user_id_org_id_fkey"
+            columns: ["recipient_user_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+        ]
+      }
       org_module_settings: {
         Row: {
           module_key: string
@@ -1266,7 +1385,32 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      count_my_unread_notifications: {
+        Args: never
+        Returns: {
+          important: number
+          total: number
+        }[]
+      }
       count_org_emails_today: { Args: { p_org_id: string }; Returns: number }
+      create_notification: {
+        Args: {
+          p_body: string
+          p_dedupe_key?: string
+          p_expires_at?: string
+          p_importance: string
+          p_kind: string
+          p_link_path: string
+          p_module_key: string
+          p_org_id: string
+          p_recipient_permission: string
+          p_recipient_user_id?: string
+          p_subject_id: string
+          p_subject_type: string
+          p_title: string
+        }
+        Returns: string
+      }
       create_role: {
         Args: { p_copy_from?: string; p_name: string }
         Returns: string
@@ -1383,6 +1527,28 @@ export type Database = {
           name: string
         }[]
       }
+      list_my_notifications: {
+        Args: {
+          p_before?: string
+          p_before_id?: string
+          p_importance?: string
+          p_limit?: number
+          p_unread_only?: boolean
+        }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          importance: string
+          is_read: boolean
+          kind: string
+          link_path: string
+          module_key: string
+          subject_id: string
+          subject_type: string
+          title: string
+        }[]
+      }
       list_org_secret_keys: {
         Args: never
         Returns: {
@@ -1451,6 +1617,7 @@ export type Database = {
           to_email: string
         }[]
       }
+      mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_email_failed: {
         Args: { p_attempts: number; p_error_code: string; p_id: string }
         Returns: undefined
@@ -1459,6 +1626,7 @@ export type Database = {
         Args: { p_attempts: number; p_id: string; p_resend_id: string }
         Returns: undefined
       }
+      mark_notifications_read: { Args: { p_ids: string[] }; Returns: undefined }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
