@@ -2659,6 +2659,7 @@ export type Database = {
           invited_by_name: string
           is_expired: boolean
           last_email_at: string
+          last_email_error_code: string
           last_email_status: string
           role: string
           role_name: string
