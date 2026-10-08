@@ -27,6 +27,12 @@ export interface MatchingDigest {
   periods: string
   acceptingNewClients: boolean
   note: string | null
+  /** « Places offertes » (P4-382): null when not tracked. */
+  newClientPlaces: number | null
+  /** When the number was (re)declared (a timestamp), null with it. */
+  newClientPlacesSetAt: string | null
+  /** « Bon à savoir » (P4-384, staff only): null without one. */
+  matchingNote: string | null
 }
 
 interface Row {
@@ -80,5 +86,8 @@ export function matchingDigest(record: ProfessionalRecord, catalog: CatalogView)
     periods: periodsLabel(record.matchingProfile.availabilityPeriods),
     acceptingNewClients: record.matchingProfile.acceptingNewClients,
     note: note ? note : null,
+    newClientPlaces: record.matchingProfile.newClientPlaces,
+    newClientPlacesSetAt: record.matchingProfile.newClientPlacesSetAt,
+    matchingNote: record.matchingNote?.note ?? null,
   }
 }

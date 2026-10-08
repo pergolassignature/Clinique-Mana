@@ -150,9 +150,13 @@ export const RECORD_JSON = {
     availability_note: null,
     min_client_age: null,
     women_only: false,
+    new_client_places: null,
+    new_client_places_set_at: null,
     created_at: '2026-10-08T12:00:00+00:00',
     updated_at: '2026-10-08T12:00:00+00:00',
   },
+  // « Bon à savoir » (P4-384): none in the base record.
+  matching_note: null,
   professions: [{ id: IDS.professionRow, profession_title_id: IDS.psychologue, licence_number: '12345', is_primary: true }],
   clienteles: [{ id: IDS.couples, specialized: true }],
   motif_ids: [IDS.anxiete],

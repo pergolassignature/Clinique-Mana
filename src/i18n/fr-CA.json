@@ -1635,6 +1635,22 @@
             "womenOnly": "Femmes seulement",
             "womenOnlyHelp": "Le jumelage ne propose ce dossier qu'aux clientes."
           },
+          "places": {
+            "title": "Places offertes",
+            "description": "Pour les nouveaux clients. Laissez vide si les places ne sont pas suivies.",
+            "label": "Nombre de places",
+            "help": "Nombre de nouveaux clients que {firstName} peut accueillir. Les places restantes seront calculées par le module Demandes.",
+            "setOn": "Indiqué le {date} (la date change quand le nombre change).",
+            "notTracked": "Les places ne sont pas suivies."
+          },
+          "matchingNote": {
+            "title": "Bon à savoir",
+            "description": "Ce que l'équipe doit savoir au moment de jumeler. Réservé à l'équipe : jamais montré à {firstName}, ni sur la fiche, ni dans le profil public.",
+            "label": "Note",
+            "placeholder": "Par exemple : écrire avant de réserver ; pas de couples l'été.",
+            "help": "1000 caractères au maximum. Le texte n'apparaît pas dans l'historique.",
+            "empty": "Aucune note."
+          },
           "availability": {
             "title": "Disponibilités générales",
             "description": "Les moments de la semaine où les rencontres sont habituellement possibles.",
@@ -1688,6 +1704,11 @@
             "availability": "Disponibilités générales",
             "accepting": "Accepte de nouveaux clients",
             "note": "Note",
+            "places": "Places offertes",
+            "placesCount": { "none": "Aucune place offerte", "one": "1 place offerte", "other": "{count} places offertes" },
+            "placesSince": "{places} · depuis le {date}",
+            "placesNotTracked": "Non suivies",
+            "matchingNote": "Bon à savoir",
             "yes": "Oui",
             "no": "Non",
             "specialized": "(spécialisé)",
@@ -1816,6 +1837,11 @@
             "created": "a créé le profil de jumelage",
             "deleted": "a supprimé le profil de jumelage"
           },
+          "matchingNote": {
+            "added": "a ajouté la note Bon à savoir",
+            "changed": "a modifié la note Bon à savoir",
+            "removed": "a retiré la note Bon à savoir"
+          },
           "changedOne": "a modifié {field}",
           "changedValue": "a modifié {field} : {before} → {after}",
           "activated": "a activé le dossier",
@@ -1933,7 +1959,8 @@
             "availability_periods": "les disponibilités générales",
             "availability_note": "la note sur les disponibilités",
             "min_client_age": "l'âge minimum des clients",
-            "women_only": "« femmes seulement »"
+            "women_only": "« femmes seulement »",
+            "new_client_places": "le nombre de places offertes"
           }
         },
         "values": {
@@ -2147,7 +2174,16 @@
         "activated": "Dossier activé.",
         "deactivated": "Dossier désactivé.",
         "archived": "Élément archivé.",
-        "restored": "Élément restauré."
+        "restored": "Élément restauré.",
+        "signin": {
+          "deactivatedClosed": "Dossier désactivé. Le compte est fermé : ses sessions sont terminées et la connexion est bloquée.",
+          "reactivatedOpen": "Dossier réactivé. Le compte peut de nouveau se connecter.",
+          "notBlocked": "Dossier désactivé et sessions terminées, mais le blocage des nouvelles connexions n'a pas pu être appliqué. Réessayez.",
+          "notRestored": "Dossier réactivé, mais la connexion n'a pas pu être rétablie : le compte ne peut pas encore se connecter. Réessayez.",
+          "blocked": "Les nouvelles connexions sont bloquées.",
+          "restored": "La connexion est rétablie.",
+          "noAccount": "Ce dossier n'a plus de compte : il n'y a rien à bloquer ni à rétablir."
+        }
       },
       "errors": {
         "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez dans un instant.",
@@ -2195,6 +2231,7 @@
         "licencePatternSyntax": "Ce format utilise une syntaxe non prise en charge.",
         "categoryRequired": "Choisissez une catégorie.",
         "ages": "Les âges vont de 0 à 120 ans.",
+        "places": "Un nombre entier de 0 à 99.",
         "maxAgeNeedsMin": "Un âge maximum demande un âge minimum.",
         "maxAgeBelowMin": "L'âge maximum doit être supérieur ou égal à l'âge minimum.",
         "descriptionTooLong": "La description ne peut pas dépasser 300 caractères.",
@@ -3066,6 +3103,7 @@
       "professionals": "Professionnels",
       "professional_public_profiles": "Profils publics des professionnels",
       "professional_matching_profiles": "Profils de jumelage",
+      "professional_matching_notes": "Notes Bon à savoir",
       "professional_professions": "Titres des professionnels",
       "professional_clienteles": "Clientèles des professionnels",
       "professional_motifs": "Motifs des professionnels",
@@ -3292,7 +3330,13 @@
         "availability_periods": "Disponibilités générales",
         "availability_note": "Note sur les disponibilités",
         "min_client_age": "Âge minimum des clients",
-        "women_only": "Femmes seulement"
+        "women_only": "Femmes seulement",
+        "new_client_places": "Places offertes",
+        "new_client_places_set_at": "Places offertes indiquées le"
+      },
+      "professional_matching_notes": {
+        "professional_id": "Professionnel",
+        "note": "Bon à savoir"
       },
       "professional_professions": {
         "professional_id": "Professionnel",

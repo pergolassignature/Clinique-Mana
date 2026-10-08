@@ -1879,6 +1879,59 @@ export type Database = {
           },
         ]
       }
+      professional_matching_notes: {
+        Row: {
+          created_at: string
+          note: string
+          org_id: string
+          professional_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          note: string
+          org_id: string
+          professional_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          note?: string
+          org_id?: string
+          professional_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_matching_notes_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_matching_notes_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_matching_notes_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_matching_notes_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
       professional_matching_profiles: {
         Row: {
           accepting_new_clients: boolean
@@ -1886,6 +1939,8 @@ export type Database = {
           availability_periods: string[]
           created_at: string
           min_client_age: number | null
+          new_client_places: number | null
+          new_client_places_set_at: string | null
           org_id: string
           professional_id: string
           updated_at: string
@@ -1897,6 +1952,8 @@ export type Database = {
           availability_periods?: string[]
           created_at?: string
           min_client_age?: number | null
+          new_client_places?: number | null
+          new_client_places_set_at?: string | null
           org_id: string
           professional_id: string
           updated_at?: string
@@ -1908,6 +1965,8 @@ export type Database = {
           availability_periods?: string[]
           created_at?: string
           min_client_age?: number | null
+          new_client_places?: number | null
+          new_client_places_set_at?: string | null
           org_id?: string
           professional_id?: string
           updated_at?: string
@@ -4280,9 +4339,12 @@ export type Database = {
           insurance_status: string | null
           language_codes: string[] | null
           licence_number: string | null
+          matching_note: string | null
           min_client_age: number | null
           motif_ids: string[] | null
           motif_keys: string[] | null
+          new_client_places: number | null
+          new_client_places_set_at: string | null
           order_acronym: string | null
           org_id: string | null
           primary_title_id: string | null
@@ -4684,6 +4746,13 @@ export type Database = {
           mime_type: string
           object_path: string
           size_bytes: number
+        }[]
+      }
+      get_professional_account_status: {
+        Args: { p_id: string }
+        Returns: {
+          account_status: string
+          profile_id: string
         }[]
       }
       get_professional_compensation: {
@@ -5455,6 +5524,10 @@ export type Database = {
       set_professional_languages: {
         Args: { p_id: string; p_language_ids: string[] }
         Returns: string[]
+      }
+      set_professional_matching_note: {
+        Args: { p_id: string; p_note: string }
+        Returns: Json
       }
       set_professional_motifs: {
         Args: { p_id: string; p_motif_ids: string[] }

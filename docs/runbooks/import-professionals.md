@@ -1,6 +1,6 @@
 # Runbook — Import the existing professionals
 
-**Status:** Built and tested locally (plan Task 4a.19, 2026-10-08). **Not run on staging.** · **Plan:** [Task 4a.19](../plans/2026-10-08-professionals-module-plan.md#task-4a19-import-tooling-for-the-50-existing-professionals-lanes-a-and-d--running-it-on-staging-is-jonathans-go-ahead), decisions P4-20, P4-120–P4-130, P4-192 and P4-245, P4-247, P4-248, [Mise en service item 6](../plans/2026-10-08-professionals-module-plan.md#mise-en-service-jonathan) · **Code:** `scripts/import-professionals.mjs`, RPC `import_professional` (`supabase/migrations/20261008163932_professionals_import.sql`, replaced with the two retention keys by `20261008170703_professionals_compensation_private.sql`, P4-192), pgTAP `048_professionals_import`
+**Status:** Built and tested locally (plan Task 4a.19, 2026-10-08). **Not run on staging.** · **Plan:** [Task 4a.19](../plans/2026-10-08-professionals-module-plan.md#task-4a19-import-tooling-for-the-50-existing-professionals-lanes-a-and-d--running-it-on-staging-is-jonathans-go-ahead), decisions P4-20, P4-120–P4-130, P4-192 and P4-245, P4-247, P4-248, P4-388 (`genre`), [Mise en service item 6](../plans/2026-10-08-professionals-module-plan.md#mise-en-service-jonathan) · **Code:** `scripts/import-professionals.mjs`, RPC `import_professional` (`supabase/migrations/20261008163932_professionals_import.sql`, replaced with the two retention keys by `20261008170703_professionals_compensation_private.sql`, P4-192), pgTAP `048_professionals_import`
 
 > **Running it against staging is Jonathan's call, every time** (CLAUDE.md §11): first the staging dry run, then, after reviewing its report, the `--commit` run. **An agent never runs it against staging.** Jonathan runs it himself, in his own terminal, signed in with his own account.
 
@@ -11,7 +11,7 @@
 - **The report** is created before anything is asked or imported: an existing path stops the run at once (it is never replaced). It is readable by you only (mode 600). Each line is written to disk as its row completes, so an interrupted run keeps every line done. With `--commit` it holds the dry run's lines (`mode = essai`) and then the import's (`mode = import`). A report with no line (the run stopped before the first one, at the sign-in for example) is removed.
 - **Re-runs are safe:** an email the clinic's professionals already use is reported « ignoré » (Courriel déjà présent) and left as it is. The import never updates an existing record; corrections are made in the app.
 - **`activer = oui`** activates the record. A complete record is simply activated. An incomplete one is activated with the override reason « Dossier complété hors application ». Aperçu then reads « Activé sans dossier complet » and lists what is missing. This needs `professionals.activate_override`, which only the admin role has.
-- **Not imported in 4a** (complete them in the app): gender (until it is entered, the list, the record and the fiche show the title's name, « Travailleuse sociale ou travailleur social », not « Travailleuse sociale »: P4-345), address lines, presentation and the « Approche » text (Profil public), public contact, availability and « Accepte de nouveaux clients » (it defaults to yes), documents, the private data (SIN, bank account, tax numbers). Of the compensation, only today's retention rate and the cumulative sessions are imported (see « Rétention »); the « Ententes particulières » and the following months' sessions are entered in the app.
+- **Not imported** (complete them in the app): address lines, presentation and the « Approche » text (Profil public), public contact, availability and « Accepte de nouveaux clients » (it defaults to yes), « Places offertes » and « Bon à savoir » (Jumelage, P4-382, P4-384), documents, the private data (SIN, bank account, tax numbers). Of the compensation, only today's retention rate and the cumulative sessions are imported (see « Rétention »); the « Ententes particulières » and the following months' sessions are entered in the app.
 
 ## The CSV
 One line per professional, UTF-8 (« CSV UTF-8 » in Excel; Google Sheets exports UTF-8), separated by commas or by semicolons (French Excel). Header names are matched without case or accents (`Prénom` = `prenom`). An unknown column is refused, so a typo cannot be silently ignored. Empty columns may be left out, except the three required ones.
@@ -23,6 +23,7 @@ One line per professional, UTF-8 (« CSV UTF-8 » in Excel; Google Sheets export
 | `telephone` | | Personal phone, typed in any usual way | `514 555-0142` |
 | `ville`, `province`, `code_postal` | | Home city, province code (QC by default), postal code | `Montréal`, `QC`, `H2J 3K5` |
 | `annees_experience` | | Whole number, 0–60 | `14` |
+| `genre` | | `femme`, `homme` or `autre` (« Autre / non précisé »); empty = not set. It picks the title's form (« Travailleuse sociale ») and serves a client's stated preference. See « Genre » below | `femme` |
 | `titre_1`, `permis_1` | | Primary title (key) and its licence number (required when the title belongs to an order) | `psychologue`, `54321` |
 | `titre_2`, `permis_2` | | Second title, if any | `psychotherapeute`, `PT-12` |
 | `langues` | | Language codes, separated by `;`. Empty → French | `fr;en` |
@@ -36,6 +37,11 @@ One line per professional, UTF-8 (« CSV UTF-8 » in Excel; Google Sheets export
 | `seances_cumulees` | | Cumulative sessions through the end of last month, half sessions allowed, 0–100 000 | `1 237,5` |
 
 `scripts/fixtures/professionals-sample.csv` is a complete example (fictional people).
+
+### Genre (`genre`, P4-388)
+- Optional. `femme`, `homme` or `autre`, in any case and with or without accents; anything else (`f`, `Mme`, a name…) is refused on its column, without the cell being repeated. Empty sets nothing: the record shows the title's name (« Travailleuse sociale ou travailleur social », P4-341) until someone chooses the gender in « Identité ».
+- **Fill it from what the person shows, never from a first name:** the title form on the clinic's website (« Travailleuse sociale », « Psychoéducatrice » → `femme`; « Travailleur social » → `homme`), or a gendered title in the clinic's own records. An epicene title (« Psychologue », « Sexologue ») says nothing: leave the cell empty.
+- The terminal and the report say only that a line carries a gender (`genre`), never which one. The database stores it as Identité does (`female`, `male`, `unspecified`) and the history shows that it changed, never the value (redacted, Loi 25).
 
 ### Rétention (`retenue`, `seances_cumulees`)
 Both columns are optional (leave them out, or leave a cell empty, and nothing is written for that line) and are typed the Québec way: `27,5`, `27.5`, `27,5 %` for `retenue`; `237`, `237,5`, `237.5`, `1 237,5` for `seances_cumulees` (spaces only between groups of three digits). In a comma-separated file a cell holding a comma must be quoted (`"27,5 %"`); Excel and Google Sheets do it themselves. Anything else (letters, `1.237,5`, two separators) is refused on its column, without the value being repeated. The bounds (0–100 % with two decimals at most; 0–100 000 sessions, by half session) are checked by the database, with the app's messages.

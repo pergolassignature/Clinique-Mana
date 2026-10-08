@@ -9,6 +9,7 @@ import {
   buildRows,
   checkPublicKey,
   describe as describeRow,
+  GENRES,
   normalizeHeader,
   openReportFile,
   openTerminal,
@@ -107,6 +108,12 @@ describe('readRows', () => {
     expect(normalizeHeader('Séances cumulées')).toBe('seances_cumulees')
     expect(readRows('Prénom,Nom,Courriel,Retenue,Séances cumulées\nLéa,Roy,lea@example.test,"27,5 %","237,5"\n')).toEqual([
       { line: 2, values: { prenom: 'Léa', nom: 'Roy', courriel: 'lea@example.test', retenue: '27,5 %', seances_cumulees: '237,5' } },
+    ])
+  })
+
+  it('accepts the optional genre column, however its header is written (P4-388)', () => {
+    expect(readRows('Prénom,Nom,Courriel,Genre\nLéa,Roy,lea@example.test,Femme\n')).toEqual([
+      { line: 2, values: { prenom: 'Léa', nom: 'Roy', courriel: 'lea@example.test', genre: 'Femme' } },
     ])
   })
 
@@ -225,6 +232,33 @@ describe('rowToPayload', () => {
     expect(payload).not.toHaveProperty('cumulative_sessions')
   })
 
+  it('maps genre to the stored gender: femme, homme, autre, case and accents ignored; empty sets nothing (P4-388)', () => {
+    expect(GENRES).toEqual({ femme: 'female', homme: 'male', autre: 'unspecified' })
+    for (const [genre, gender] of [
+      ['femme', 'female'],
+      [' Femme ', 'female'],
+      ['HOMME', 'male'],
+      ['Autre', 'unspecified'],
+    ]) {
+      const { payload, errors } = rowToPayload(values({ genre }))
+      expect(errors, genre).toEqual([])
+      expect(payload.gender, genre).toBe(gender)
+    }
+    const { payload, errors } = rowToPayload(values({ genre: '' }))
+    expect(errors).toEqual([])
+    expect(payload).not.toHaveProperty('gender')
+  })
+
+  it('refuses any other genre on its column, without repeating the cell (no guess: f, h, F., a name…)', () => {
+    for (const genre of ['f', 'h', 'F.', 'féminin', 'female', 'Mme', 'Élodie']) {
+      const { payload, errors } = rowToPayload(values({ genre }))
+      expect(errors, genre).toEqual([{ field: 'gender', message: 'Indiquez femme, homme ou autre, ou laissez vide.' }])
+      expect(payload, genre).not.toHaveProperty('gender')
+    }
+    const [line] = describeRow({ line: 2, email: '', payload: {}, errors: rowToPayload(values({ genre: 'Élodie' })).errors }, null).details
+    expect(line).toBe('genre : Indiquez femme, homme ou autre, ou laissez vide.')
+  })
+
   it('refuses a number the CSV cannot read, on its column, without repeating the cell', () => {
     const retenue = 'Indiquez un pourcentage, par exemple 27,5 ou 27,5 %.'
     const seances = 'Indiquez un nombre de séances, par exemple 237 ou 237,5.'
@@ -312,6 +346,7 @@ describe('buildRows', () => {
     expect(rows).toHaveLength(6)
     expect(rows.flatMap((r) => r.errors)).toEqual([])
     expect(rows.every((r) => r.email.endsWith('@example.test'))).toBe(true)
+    expect(rows.map((r) => r.payload.gender)).toEqual(['female', 'male', 'female', undefined, 'unspecified', 'male'])
     expect(rows.map((r) => [r.payload.retention_pct, r.payload.cumulative_sessions])).toEqual([
       [25, 1237.5],
       [30, 642],
@@ -431,6 +466,13 @@ describe('describe (one row’s report entry)', () => {
       'retenue : Le taux de retenue est un pourcentage entre 0 et 100, à deux décimales au plus.',
       'seances_cumulees : Le nombre de séances cumulées est compris entre 0 et 100 000, par demi-séance.',
     ])
+  })
+
+  it('says a row carries a gender, never which one', () => {
+    const row = { line: 2, email: 'a@example.test', payload: { professions: [{}], gender: 'female' }, errors: [] }
+    const { details } = describeRow(row, { status: 'ok', activated: false, complete: false, missing: [] })
+    expect(details).toEqual(['1 titre, genre · non activé (« À inviter »)'])
+    expect(details.join('')).not.toMatch(/female|femme/)
   })
 
   it('says a row carries a retention and cumulative sessions, never their values', () => {

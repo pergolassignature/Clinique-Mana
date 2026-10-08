@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
-import { FunctionCallError, invokeFunction, refusalMessage } from '@/core/supabase/functions'
+import { FunctionCallError, invokeFunction } from '@/core/supabase/functions'
 import type { SubmissionSection } from '../lib/constants'
 import type { InviteAction } from '../lib/onboarding'
+import { asRpcRefusal } from './function-errors'
 import { invitationStateRowPayload, onboardingPayload, parseRpc, UNEXPECTED_SHAPE, type Onboarding } from './parse'
 
 /**
@@ -35,19 +36,6 @@ export interface InvitationResult {
 export interface UpdateRequestResult {
   submissionId: string
   emailProblem: EmailProblem | null
-}
-
-/**
- * The refusals the function passes on (P4-262): a P0001 as 400 `invalid_request` with `refusal`,
- * its French message and its HINT as `field` (`account`, `status`, `submission`, `invitation`); a
- * 42501 as 403 `forbidden`.
- */
-function asRpcRefusal(error: unknown): unknown {
-  if (!(error instanceof FunctionCallError)) return error
-  const refusal = refusalMessage(error)
-  if (refusal !== null) return { code: 'P0001', message: refusal, ...(error.field && { hint: error.field }) }
-  if (error.status === 403 && error.code === 'forbidden') return { code: '42501', message: error.message }
-  return error
 }
 
 /** The id an error answer carries when what the email was about was created (4b.2). */
