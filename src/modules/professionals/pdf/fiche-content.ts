@@ -1,8 +1,10 @@
 import { t } from '@/i18n'
 import { formatPhone } from '@/shared/lib/format'
+import type { PublicFee } from '../api/fiche'
 import type { ProfessionalRecord } from '../api/parse'
 import { titleOrder, type CatalogView } from '../lib/catalog-view'
-import { fullName } from '../lib/display'
+import { fullName, minClientAgeLabel } from '../lib/display'
+import { ficheProfession } from '../lib/fiche'
 import { matchingDigest } from '../lib/matching-digest'
 
 /**
@@ -63,16 +65,22 @@ export interface FicheContent {
   initials: string
   /**
    * « À propos »: the presentation of « Profil public », as paragraphs (blank lines split them);
-   * empty → not printed. The free-text approach is not printed (P4-216).
+   * empty → not printed. The free-text « Approche » is not printed (P4-216).
    */
   about: string[]
   motifs: FicheMotifGroup[]
+  /** The youngest held age group reads the youngest client age: « Adolescents (14 ans et +) » (P4-245). */
   clienteles: FicheItem[]
+  /**
+   * The client limits the website shows under the clientèles, in the record's words (P4-245):
+   * « Âge minimum : 14 ans » when no held age group carries the age, « Femmes seulement ».
+   */
+  clientLimits: string[]
   languages: string[]
   /**
-   * « Honoraires », one line per duration as the clinic's site words them (« Rencontre 50 min :
-   * 175 $ »), from the price grid of the professional's profession once it exists; null →
-   * « À confirmer » (P4-204).
+   * « Honoraires »: the clinic's public fees, one line per duration as the website words them
+   * (« Rencontre 50 min : 175 $ »), the client prices of the retention grid in force today for
+   * the fiche's title (P4-218); null → « À confirmer ». Never a retention or a pay.
    */
   fees: string[] | null
   /** « 8 octobre 2026 », the day it was made, in the clinic's timezone. */
@@ -90,7 +98,8 @@ export interface FicheInput {
   /** Clinique MANA's bundled lockup (`MANA_LOGO_URL`), printed when Settings has no logo. */
   brandLogo: string
   photo: string | null
-  fees: string[] | null
+  /** The client prices of the fiche's title (`get_professional_public_fees`); empty → « À confirmer ». */
+  fees: readonly PublicFee[]
   generatedOn: string
   /**
    * Whether the fonts can draw a character (`loadFicheFonts`). Others are dropped from every text
@@ -145,10 +154,30 @@ export function initialsOf(firstName: string, lastName: string): string {
   return (first(firstName) + first(lastName)).toLocaleUpperCase('fr-CA')
 }
 
+/** The website's order: the individual sessions, then the couple or family one. */
+const FEE_ORDER = [50, 30, 60] as const
+
+const wholeDollars = new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 0 })
+const centsDollars = new Intl.NumberFormat('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/** A public fee as the website writes it: `17500` → « 175 $ », `12177` → « 121,77 $ » (a no-break space before the sign). */
+export function formatPublicFee(cents: number): string {
+  const amount = cents % 100 === 0 ? wholeDollars.format(cents / 100) : centsDollars.format(cents / 100)
+  return `${amount}\u00a0$`
+}
+
+/** « Rencontre 50 min : 175 $ », 50 then 30 then 60 min; none → null (« À confirmer »). */
+export function feeLines(fees: readonly PublicFee[]): string[] | null {
+  const lines = FEE_ORDER.flatMap((duration) => {
+    const fee = fees.find((f) => f.duration === duration)
+    return fee ? [t(`${F}.feeLine`, { duration: t(`${F}.feeDurations.${duration}`), price: formatPublicFee(fee.clientPriceCents) })] : []
+  })
+  return lines.length > 0 ? lines : null
+}
+
 export function buildFicheContent({ record, catalog, titleId, clinic, logo, brandLogo, photo, fees, generatedOn, canDraw }: FicheInput): FicheContent {
   const clean = (s: string) => toPdfText(s, canDraw)
-  const profession =
-    record.professions.find((p) => p.titleId === titleId) ?? record.professions.find((p) => p.isPrimary) ?? record.professions[0] ?? null
+  const profession = ficheProfession(record, titleId)
   const title = profession ? (catalog.byId.titles.get(profession.titleId) ?? null) : null
   const order = profession ? titleOrder(catalog, profession.titleId) : null
   const credential = order
@@ -165,8 +194,7 @@ export function buildFicheContent({ record, catalog, titleId, clinic, logo, bran
   const publicContact = [publicEmail, publicPhone ? formatPhone(publicPhone) : null].filter(Boolean).join(SEPARATOR)
 
   const digest = matchingDigest(record, catalog)
-  // Archived items are the clinic's past wording: never printed for a client (P4-211). The
-  // « Approches » list is not printed: Jonathan is removing it from the app (P4-210).
+  // Archived items are the clinic's past wording: never printed for a client (P4-211).
   const current = (items: typeof digest.clienteles): FicheItem[] =>
     items.filter((i) => !i.archived).map((i) => ({ label: clean(i.label), specialized: i.specialized }))
   const motifs = digest.motifs.groups.map(
@@ -187,12 +215,18 @@ export function buildFicheContent({ record, catalog, titleId, clinic, logo, bran
     publicContact: publicContact ? clean(publicContact) : null,
     photo,
     initials: clean(initialsOf(record.professional.firstName, record.professional.lastName)),
-    // The free-text « Approche » is not printed: Jonathan removed approaches from the app (P4-216).
+    // The free-text « Approche » is not printed (P4-216).
     about: paragraphs(record.publicProfile.bio, clean),
     motifs,
     clienteles: current(digest.clienteles),
+    clientLimits: [
+      digest.minClientAge !== null ? minClientAgeLabel(digest.minClientAge) : null,
+      digest.womenOnly ? t('modules.professionals.display.womenOnly') : null,
+    ]
+      .filter((line): line is string => line !== null)
+      .map(clean),
     languages: digest.languages.filter((l) => !l.archived).map((l) => clean(l.label)),
-    fees: fees ? fees.map(clean) : null,
+    fees: feeLines(fees)?.map(clean) ?? null,
     generatedOn,
   }
 }

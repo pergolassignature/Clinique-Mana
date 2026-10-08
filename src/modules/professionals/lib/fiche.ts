@@ -1,4 +1,4 @@
-import type { ProfessionalRecord } from '../api/parse'
+import type { ProfessionalRecord, ProfessionRow } from '../api/parse'
 import type { CatalogView } from './catalog-view'
 
 /**
@@ -23,6 +23,14 @@ export function ficheTitles(record: Pick<ProfessionalRecord, 'professions'>, cat
       const title = catalog.byId.titles.get(row.titleId)
       return title ? [{ titleId: row.titleId, name: title.name }] : []
     })
+}
+
+/**
+ * The title row a fiche is for: the chosen one, else the primary one, else the first; null
+ * without a title. The content prints it and the public fees are read for it (P4-218).
+ */
+export function ficheProfession(record: Pick<ProfessionalRecord, 'professions'>, titleId: string | null): ProfessionRow | null {
+  return record.professions.find((p) => p.titleId === titleId) ?? record.professions.find((p) => p.isPrimary) ?? record.professions[0] ?? null
 }
 
 /** The longest name the email path attaches (`SAFE_FILENAME` in `_shared/email/send.ts`): 100 characters with « .pdf ». */

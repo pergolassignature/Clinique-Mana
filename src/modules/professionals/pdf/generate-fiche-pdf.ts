@@ -2,6 +2,7 @@ import { createElement, type ReactElement } from 'react'
 import { pdf, type DocumentProps } from '@react-pdf/renderer'
 import type { Organization } from '@/core/settings/organization/api'
 import { formatInClinicTimezone } from '@/shared/lib/timezone'
+import type { PublicFee } from '../api/fiche'
 import type { ProfessionalRecord } from '../api/parse'
 import type { CatalogView } from '../lib/catalog-view'
 import { MANA_LOGO_URL } from './brand'
@@ -24,10 +25,12 @@ export interface FicheRequest {
   titleId: string | null
   /** The clinic identity and logo from Settings (no hard-coded phone or URL; Clinique MANA's lockup without a logo). */
   organization: Pick<Organization, 'name' | 'phone' | 'email' | 'website' | 'logo_file_id'>
+  /** The title's client prices in force today (`fetchPublicFees`); empty → « À confirmer ». */
+  fees: readonly PublicFee[]
 }
 
 /** Renders the fiche as a PDF Blob, in the browser. */
-export async function renderFichePdf({ record, catalog, titleId, organization }: FicheRequest): Promise<Blob> {
+export async function renderFichePdf({ record, catalog, titleId, organization, fees }: FicheRequest): Promise<Blob> {
   const [canDraw, logo, brandLogo] = await Promise.all([
     loadFicheFonts(),
     storedImageDataUrl(organization.logo_file_id),
@@ -42,8 +45,7 @@ export async function renderFichePdf({ record, catalog, titleId, organization }:
     brandLogo,
     // The photo comes with 4c's documents (P4-202).
     photo: null,
-    // Services et tarifs is not built: « À confirmer » (P4-204).
-    fees: null,
+    fees,
     generatedOn: formatInClinicTimezone(new Date(), 'd MMMM yyyy'),
     canDraw,
   })

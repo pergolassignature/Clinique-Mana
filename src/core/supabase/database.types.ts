@@ -4344,6 +4344,10 @@ export type Database = {
           updated_by_name: string
         }[]
       }
+      get_professional_public_fees: {
+        Args: { p_id: string; p_title_id?: string }
+        Returns: Json
+      }
       get_professional_public_profile: { Args: { p_id: string }; Returns: Json }
       get_professional_readiness: { Args: { p_id: string }; Returns: Json }
       get_professional_record: { Args: { p_id: string }; Returns: Json }

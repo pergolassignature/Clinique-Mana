@@ -12,12 +12,13 @@ const mocks = vi.hoisted(() => ({
   renderFichePdf: vi.fn(),
   saveBlob: vi.fn(),
   markFicheGenerated: vi.fn(),
+  fetchPublicFees: vi.fn(),
   fetchOrganization: vi.fn(),
   toastError: vi.fn(),
 }))
 vi.mock('../../pdf/generate-fiche-pdf', () => ({ renderFichePdf: mocks.renderFichePdf }))
 vi.mock('@/shared/lib/files', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/shared/lib/files')>()), saveBlob: mocks.saveBlob }))
-vi.mock('../../api/fiche', () => ({ markFicheGenerated: mocks.markFicheGenerated }))
+vi.mock('../../api/fiche', () => ({ markFicheGenerated: mocks.markFicheGenerated, fetchPublicFees: mocks.fetchPublicFees }))
 vi.mock('@/core/settings/organization/api', () => ({ fetchOrganization: mocks.fetchOrganization }))
 vi.mock('@/shared/ui/sonner', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/shared/ui/sonner')>()),
@@ -28,6 +29,7 @@ vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 const M = 'modules.professionals.fiche.menu'
 const ORGANIZATION = { name: 'Clinique MANA', phone: null, email: null, website: null, logo_file_id: null }
 const PDF = new Blob(['%PDF-1.3'], { type: 'application/pdf' })
+const FEES = [{ duration: 50, clientPriceCents: 17500 }]
 
 afterEach(() => vi.resetAllMocks())
 
@@ -35,6 +37,7 @@ function renderMenu(record: ProfessionalRecord = recordWithStatus('active', true
   mocks.fetchOrganization.mockResolvedValue(ORGANIZATION)
   mocks.renderFichePdf.mockResolvedValue(PDF)
   mocks.markFicheGenerated.mockResolvedValue(undefined)
+  mocks.fetchPublicFees.mockResolvedValue(FEES)
   return renderRecordTab(<FicheMenu />, { record, role: 'counselor' })
 }
 
@@ -48,7 +51,8 @@ describe('FicheMenu', () => {
     await userEvent.click(await screen.findByRole('menuitem', { name: t(`${M}.download`) }))
 
     await waitFor(() => expect(mocks.markFicheGenerated).toHaveBeenCalledWith(IDS.professional))
-    expect(mocks.renderFichePdf).toHaveBeenCalledWith(expect.objectContaining({ record, titleId: IDS.psychologue, organization: ORGANIZATION }))
+    expect(mocks.fetchPublicFees).toHaveBeenCalledWith(IDS.professional, IDS.psychologue)
+    expect(mocks.renderFichePdf).toHaveBeenCalledWith(expect.objectContaining({ record, titleId: IDS.psychologue, organization: ORGANIZATION, fees: FEES }))
     expect(mocks.saveBlob).toHaveBeenCalledWith(PDF, 'Fiche - Marie Tremblay.pdf')
     const [saved, stamped] = [mocks.saveBlob.mock.invocationCallOrder[0], mocks.markFicheGenerated.mock.invocationCallOrder[0]]
     expect(saved).toBeLessThan(stamped ?? 0)
@@ -71,6 +75,18 @@ describe('FicheMenu', () => {
     ])
     await userEvent.click(items[1] as HTMLElement)
     await waitFor(() => expect(mocks.renderFichePdf).toHaveBeenCalledWith(expect.objectContaining({ titleId: IDS.naturopathe })))
+    // The fees follow the chosen title (P4-218).
+    expect(mocks.fetchPublicFees).toHaveBeenCalledWith(IDS.professional, IDS.naturopathe)
+  })
+
+  it('makes no fiche when the fees cannot be read: never a wrong « À confirmer » to a client', async () => {
+    renderMenu()
+    mocks.fetchPublicFees.mockRejectedValue(Object.assign(new Error('x'), { code: 'PGRST301' }))
+    await open()
+    await userEvent.click(await screen.findByRole('menuitem', { name: t(`${M}.download`) }))
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalled())
+    expect(mocks.saveBlob).not.toHaveBeenCalled()
+    expect(mocks.markFicheGenerated).not.toHaveBeenCalled()
   })
 
   it('makes a fiche for any status (a draft can be previewed)', async () => {

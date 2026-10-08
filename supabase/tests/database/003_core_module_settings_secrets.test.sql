@@ -109,7 +109,7 @@ select functions_are('public', array[
   'set_professional_client_agreement', 'end_professional_client_agreement', 'delete_professional_client_agreement',
   'get_professional_compensation', 'list_retention_review',
   'set_user_preference', 'delete_user_preference',
-  'mark_professional_fiche_generated', 'get_professional_fiche_upload'
+  'mark_professional_fiche_generated', 'get_professional_fiche_upload', 'get_professional_public_fees'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

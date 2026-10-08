@@ -46,7 +46,7 @@ async function render(over: Partial<Omit<FicheInput, 'canDraw'>> = {}) {
     logo: null,
     brandLogo: BRAND_LOGO,
     photo: null,
-    fees: null,
+    fees: [],
     generatedOn: '8 octobre 2026',
     ...over,
     canDraw,
@@ -188,13 +188,35 @@ describe('FicheDocument', () => {
     expect(primary).not.toContain('Naturopathe')
   })
 
-  it('reads « Honoraires : À confirmer » without Services et tarifs, the fees once they exist', async () => {
+  it('reads « Honoraires : À confirmer » without a grid, the client prices of the grid otherwise (P4-218)', async () => {
     const pending = all((await render()).pages)
     expect(pending).toContain(upper(t(`${P}.fees`)))
     expect(pending).toContain(t(`${P}.feesPending`))
-    const priced = all((await render({ fees: ['Individuel, 50 min : 120 $'] })).pages)
-    expect(priced).toContain('Individuel, 50 min : 120 $')
+    const fees = [
+      { duration: 60, clientPriceCents: 20000 },
+      { duration: 50, clientPriceCents: 17500 },
+      { duration: 30, clientPriceCents: 13000 },
+    ] as const
+    const priced = all((await render({ fees })).pages)
+    expect(priced).toContain('Rencontre 50 min\u00a0: 175\u00a0$')
+    expect(priced).toContain('Rencontre 30 min\u00a0: 130\u00a0$')
+    // The longest line wraps in its column; its words are all there.
+    expect(priced.replace(/\s+/g, ' ')).toContain('Rencontre 60 min (couple/famille) : 200 $')
     expect(priced).not.toContain(t(`${P}.feesPending`))
+  })
+
+  it('prints the client limits under the clientèles (P4-245)', async () => {
+    const limited = record({
+      clienteles: [{ id: IDS.children, specialized: false }],
+      matchingProfile: { ...recordFixture().matchingProfile, minClientAge: 8, womenOnly: true },
+    })
+    const text = all((await render({ record: limited })).pages)
+    expect(text).toContain('Enfants (8 ans et +)')
+    expect(text).toContain('Femmes seulement')
+    const alone = record({ clienteles: [], matchingProfile: { ...recordFixture().matchingProfile, minClientAge: 14, womenOnly: false } })
+    const aloneText = all((await render({ record: alone })).pages)
+    expect(aloneText).toContain(upper(t(`${P}.clienteles`)))
+    expect(aloneText).toContain('Âge minimum\u00a0: 14 ans')
   })
 
   it('marks specialised clientèles with the star and its legend', async () => {

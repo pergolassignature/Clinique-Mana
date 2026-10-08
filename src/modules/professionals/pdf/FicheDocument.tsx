@@ -14,8 +14,9 @@ import { FICHE_FONT_FAMILY } from './fonts'
  * - who: the photo (4c) in a round frame, else the initials in wine on mint, a soft pink disc
  *   offset behind it (the site's portraits sit on such a shape); the name, the title in wine,
  *   « Membre de l’OPQ · N° de permis … », the public contact;
- * - the facts on a mint card, the site's order: Langues, Honoraires (« À confirmer » until a price
- *   grid exists, P4-204), Clientèle (★ first, its legend under the list);
+ * - the facts on a mint card, the site's order: Langues, Honoraires (the title's client prices in
+ *   force, « À confirmer » without a grid, P4-218), Clientèle (★ first, the client limits under the
+ *   list, then the ★ legend);
  * - « À propos »: the presentation (no approach text, P4-216);
  * - « Motifs de consultation »: each category's name in wine, then every motif held in it, by name,
  *   down three columns (P4-211); a category is never split across pages;
@@ -33,6 +34,8 @@ const GUTTER = 18
 const COLUMNS = 3
 /** 504 pt of text on a 612 pt page, in three 156 pt columns. */
 const COLUMN = (612 - 2 * MARGIN - (COLUMNS - 1) * GUTTER) / COLUMNS
+/** The ★ column before the clientèles' names, when one is starred. */
+const STAR_GUTTER = 11
 /** The card's padding: it bleeds into the margin by as much, so its text sits on the grid. */
 const CARD_PAD = 18
 
@@ -124,7 +127,8 @@ const styles = StyleSheet.create({
   factPending: { fontSize: 9.5, fontWeight: 500, lineHeight: 1.5, color: BRAND.charcoalSoft },
   // Every item of a list with a ★ keeps the same gutter, so the names line up and wrap within the column.
   item: { flexDirection: 'row', alignItems: 'flex-start' },
-  starGutter: { width: 11, paddingTop: 3.6 },
+  starGutter: { width: STAR_GUTTER, paddingTop: 3.6 },
+  limitStarred: { marginLeft: STAR_GUTTER },
   itemText: { flex: 1, fontSize: 9.5, fontWeight: 500, lineHeight: 1.5 },
   legend: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
   legendText: { fontSize: 7.5, lineHeight: 1.4, color: BRAND.charcoalSoft, marginLeft: 4 },
@@ -271,12 +275,18 @@ function Facts({ content }: { content: FicheContent }) {
       </Fact>
     ),
   })
-  if (content.clienteles.length > 0) {
+  if (content.clienteles.length > 0 || content.clientLimits.length > 0) {
     facts.push({
       key: 'clienteles',
       node: (
         <Fact label={t(`${F}.clienteles`)}>
           <ItemList items={content.clienteles} starred={starred} />
+          {content.clientLimits.map((line) => (
+            // On the names' line when a ★ gutter is drawn.
+            <Text key={line} style={starred ? [styles.factLine, styles.limitStarred] : styles.factLine}>
+              {line}
+            </Text>
+          ))}
           {starred && (
             <View style={styles.legend}>
               <Star size={6} />

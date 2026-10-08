@@ -11,10 +11,10 @@ import { isChunkLoadError } from '@/shared/lib/app-update'
 import { saveBlob } from '@/shared/lib/files'
 import { retryInText } from '@/shared/lib/retry-after'
 import { toast } from '@/shared/ui/sonner'
-import { markFicheGenerated, sendFicheEmail } from '../api/fiche'
+import { fetchPublicFees, markFicheGenerated, sendFicheEmail } from '../api/fiche'
 import type { ProfessionalRecord } from '../api/parse'
 import type { CatalogView } from '../lib/catalog-view'
-import { ficheFileName } from '../lib/fiche'
+import { ficheFileName, ficheProfession } from '../lib/fiche'
 
 /**
  * « Fiche PDF » (Task 4c.5). The renderer is a chunk of its own (react-pdf, Raleway and the logo, P4-58),
@@ -35,15 +35,20 @@ export interface FicheTarget {
   titleId: string | null
 }
 
-/** The fiche as a PDF Blob and its file name, from the cached record and catalogue and the clinic's identity. */
+/**
+ * The fiche as a PDF Blob and its file name, from the cached record and catalogue, the clinic's
+ * identity and the public fees of the fiche's title, read fresh (a grid can change any day).
+ */
 export async function renderFiche(queryClient: QueryClient, { record, catalog, titleId }: FicheTarget): Promise<{ blob: Blob; fileName: string }> {
-  const [{ renderFichePdf }, organization] = await Promise.all([
+  const [{ renderFichePdf }, organization, fees] = await Promise.all([
     loadRenderer(),
     // The same entry as Settings' cards: fresh for a minute, so a fiche made right after an edit of
     // the clinic's identity in another tab may wait that long to show it.
     queryClient.fetchQuery({ queryKey: organizationKeys.current(), queryFn: fetchOrganization, staleTime: 60_000 }),
+    // The title the content prints (two titles: the chosen one), so the fees follow it (P4-218).
+    fetchPublicFees(record.professional.id, ficheProfession(record, titleId)?.titleId ?? null),
   ])
-  const blob = await renderFichePdf({ record, catalog, titleId, organization })
+  const blob = await renderFichePdf({ record, catalog, titleId, organization, fees })
   return { blob, fileName: ficheFileName(record.professional) }
 }
 

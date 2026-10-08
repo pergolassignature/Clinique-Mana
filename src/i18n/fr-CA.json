@@ -1949,6 +1949,12 @@
           "languages": "Langues",
           "fees": "Honoraires",
           "feesPending": "À confirmer",
+          "feeLine": "{duration} : {price}",
+          "feeDurations": {
+            "50": "Rencontre 50 min",
+            "30": "Rencontre 30 min",
+            "60": "Rencontre 60 min (couple/famille)"
+          },
           "specialized": "Domaine de spécialisation",
           "about": "À propos",
           "motifs": "Motifs de consultation",

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ProfessionalRecord } from '../api/parse'
 import { IDS } from '../test/fixtures'
 import { CATALOG_VIEW, motifsCatalog, recordFixture, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
-import { buildFicheContent, displayWebsite, initialsOf, toPdfText, type FicheInput } from './fiche-content'
+import { buildFicheContent, displayWebsite, feeLines, formatPublicFee, initialsOf, toPdfText, type FicheInput } from './fiche-content'
 
 const CLINIC = { name: 'Clinique MANA', phone: '+15145550000', email: 'bonjour@cliniquemana.ca', website: 'https://www.cliniquemana.ca/' }
 
@@ -15,7 +15,7 @@ function input(over: Partial<FicheInput> = {}, record: Partial<ProfessionalRecor
     logo: null,
     brandLogo: '/assets/logo.png',
     photo: null,
-    fees: null,
+    fees: [],
     generatedOn: '8 octobre 2026',
     ...over,
   }
@@ -86,7 +86,7 @@ describe('buildFicheContent', () => {
     expect(buildFicheContent(input({}, { publicProfile })).publicContact).toBe('marie@exemple.ca · 514 555-1234')
   })
 
-  it('lists clientèles ★ first, never an archived one, languages by name; no approaches (P4-210)', () => {
+  it('lists clientèles ★ first, never an archived one, languages by name', () => {
     const content = buildFicheContent(
       input({}, {
         clienteles: [
@@ -102,9 +102,24 @@ describe('buildFicheContent', () => {
       { label: 'Enfants (0 à 12 ans)', specialized: false },
       { label: 'Aînés (65 ans et plus)', specialized: false },
     ])
-    expect(content).not.toHaveProperty('approaches')
-    expect(JSON.stringify(content)).not.toContain('Thérapie cognitivo-comportementale')
+    expect(content.clientLimits).toEqual([])
     expect(content.languages).toEqual(['Français', 'Anglais'])
+  })
+
+  it('prints the client limits as the record words them (P4-245): the age on the youngest held age group, « Femmes seulement »', () => {
+    const limited = (minClientAge: number | null, womenOnly: boolean, clienteles: ProfessionalRecord['clienteles']) =>
+      buildFicheContent(input({}, { clienteles, matchingProfile: { ...recordFixture().matchingProfile, minClientAge, womenOnly } }))
+    const onGroup = limited(8, true, [
+      { id: IDS.seniors, specialized: false },
+      { id: IDS.children, specialized: false },
+    ])
+    expect(onGroup.clienteles.map((c) => c.label)).toEqual(['Enfants (8 ans et +)', 'Aînés (65 ans et plus)'])
+    expect(onGroup.clientLimits).toEqual(['Femmes seulement'])
+    // No held age group carries the age: its own line.
+    const alone = limited(14, false, [{ id: IDS.couples, specialized: true }])
+    expect(alone.clienteles).toEqual([{ label: 'Couples', specialized: true }])
+    expect(alone.clientLimits).toEqual(['Âge minimum\u00a0: 14 ans'])
+    expect(limited(null, false, []).clientLimits).toEqual([])
   })
 
   it('names all 72 held motifs under their category, never a summary (P4-211)', () => {
@@ -125,13 +140,18 @@ describe('buildFicheContent', () => {
     ])
   })
 
-  it('keeps « Honoraires » pending without fees, the initials in the photo slot without a photo', () => {
+  it('keeps « Honoraires » pending without a grid, the initials in the photo slot without a photo', () => {
     const content = buildFicheContent(input())
     expect(content.fees).toBeNull()
     expect(content.photo).toBeNull()
     expect(content.initials).toBe('MT')
-    expect(buildFicheContent(input({ fees: ['Individuel, 50 min : 120 $'], photo: 'data:image/png;base64,x' }))).toMatchObject({
-      fees: ['Individuel, 50 min : 120 $'],
+    const fees = [
+      { duration: 60, clientPriceCents: 20000 },
+      { duration: 30, clientPriceCents: 13000 },
+      { duration: 50, clientPriceCents: 17500 },
+    ] as const
+    expect(buildFicheContent(input({ fees, photo: 'data:image/png;base64,x' }))).toMatchObject({
+      fees: ['Rencontre 50 min\u00a0: 175\u00a0$', 'Rencontre 30 min\u00a0: 130\u00a0$', 'Rencontre 60 min (couple/famille)\u00a0: 200\u00a0$'],
       photo: 'data:image/png;base64,x',
     })
   })
@@ -142,6 +162,27 @@ describe('buildFicheContent', () => {
     const content = buildFicheContent(input({ canDraw }, { publicProfile, professional: { ...recordFixture().professional, firstName: 'Ǹadia' } }))
     expect(content.about).toEqual(['Bonjour  l’équipe\u00a0!'])
     expect(content.name).toBe('Ǹadia Tremblay')
+  })
+})
+
+describe('public fees (P4-218)', () => {
+  it.each([
+    [17500, '175\u00a0$'],
+    [16500, '165\u00a0$'],
+    [12177, '121,77\u00a0$'],
+    [6958, '69,58\u00a0$'],
+  ])('writes %i cents as the website does: « %s »', (cents, text) => expect(formatPublicFee(cents)).toBe(text))
+
+  it('groups thousands with a no-break space (the PDF text maps a narrow one)', () => {
+    expect(toPdfText(formatPublicFee(100000))).toBe('1\u00a0000\u00a0$')
+  })
+
+  it('lists 50, 30 then 60 min, only the durations the grid prices; none → null', () => {
+    expect(feeLines([{ duration: 30, clientPriceCents: 8000 }, { duration: 50, clientPriceCents: 12000 }])).toEqual([
+      'Rencontre 50 min\u00a0: 120\u00a0$',
+      'Rencontre 30 min\u00a0: 80\u00a0$',
+    ])
+    expect(feeLines([])).toBeNull()
   })
 })
 
