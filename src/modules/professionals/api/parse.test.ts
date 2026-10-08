@@ -195,8 +195,20 @@ describe('historyEntryPayload', () => {
 })
 
 describe('settingsPayload', () => {
-  it('maps the module settings', () => {
-    expect(parseRpc(settingsPayload, { collect_sin: false })).toEqual({ collectSin: false })
+  it('maps the module settings, the fiche options included (P4-353); the invitation keys are dropped', () => {
+    const json = {
+      collect_sin: false,
+      invitation_expiry_days: 7,
+      invitation_reminder_after_days: 3,
+      fiche_show_pro_contact: true,
+      fiche_show_clinic_footer: false,
+      fiche_show_closing: true,
+    }
+    expect(parseRpc(settingsPayload, json)).toEqual({ collectSin: false, ficheShowProContact: true, ficheShowClinicFooter: false, ficheShowClosing: true })
+  })
+
+  it('refuses settings without the fiche options', () => {
+    expect(() => parseRpc(settingsPayload, { collect_sin: false })).toThrow(new Error(SHAPE_ERROR))
   })
 })
 

@@ -16,12 +16,14 @@ const mocks = vi.hoisted(() => ({
   markFicheGenerated: vi.fn(),
   fetchPublicFees: vi.fn(),
   fetchOrganization: vi.fn(),
+  fetchProfessionalsSettings: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../../pdf/generate-fiche-pdf', () => ({ renderFichePdf: mocks.renderFichePdf }))
 vi.mock('../../api/fiche', () => ({ sendFicheEmail: mocks.sendFicheEmail, markFicheGenerated: mocks.markFicheGenerated, fetchPublicFees: mocks.fetchPublicFees }))
 vi.mock('@/core/storage/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/storage/api')>()), uploadFile: mocks.uploadFile }))
 vi.mock('@/core/settings/organization/api', () => ({ fetchOrganization: mocks.fetchOrganization }))
+vi.mock('../../api/settings', () => ({ fetchProfessionalsSettings: mocks.fetchProfessionalsSettings }))
 vi.mock('@/shared/ui/sonner', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/shared/ui/sonner')>()), toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -35,6 +37,7 @@ afterEach(() => vi.resetAllMocks())
 
 function renderMenu(record: ProfessionalRecord = recordWithStatus('active', true)) {
   mocks.fetchOrganization.mockResolvedValue({ name: 'Clinique MANA', phone: null, email: null, website: null, logo_file_id: null })
+  mocks.fetchProfessionalsSettings.mockResolvedValue({ collectSin: false, ficheShowProContact: true, ficheShowClinicFooter: true, ficheShowClosing: true })
   mocks.renderFichePdf.mockResolvedValue(PDF)
   mocks.fetchPublicFees.mockResolvedValue([])
   mocks.uploadFile.mockResolvedValue({ fileId: FILE_ID })

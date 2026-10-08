@@ -45,20 +45,21 @@ describe('professionalsManifest', () => {
     expect(matchPath(`/${record.path}`, '/professionnels')).toBeNull()
   })
 
-  it('declares the five list sections of 4a.6–4a.9, then « Rémunération » (4a.18), in the Modules group', () => {
+  it('declares the five list sections of 4a.6–4a.9, « Fiche PDF » (P4-353), then « Rémunération » (4a.18), in the Modules group', () => {
     expect(sections.map((s) => [s.id, s.path])).toEqual([
       ['professions', 'professions'],
       ['clienteles', 'clienteles'],
       ['motifs', 'motifs'],
       ['languages', 'langues'],
       ['deactivation-reasons', 'raisons-desactivation'],
+      ['fiche', 'fiche-pdf'],
       ['compensation', 'remuneration'],
     ])
     for (const s of sections) {
       expect(s.group).toBe('modules')
       expect(t(s.labelKey)).not.toBe(s.labelKey)
     }
-    for (const s of sections.slice(0, 5)) {
+    for (const s of sections.slice(0, 6)) {
       // Seen by whoever manages the records or the lists; changed only with professionals.settings.
       expect(s.permission).toEqual(['professionals.manage', 'professionals.settings'])
       expect(s.editPermission).toBe('professionals.settings')

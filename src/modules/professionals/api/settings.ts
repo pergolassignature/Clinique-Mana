@@ -5,7 +5,12 @@ import { parseRpc, settingsPayload, type ProfessionalsSettings } from './parse'
  * The module's settings (`org_module_settings`, module `professionals`). 4b and 4c add keys: each
  * one gets a field in `settingsPayload` and a column here.
  */
-const SETTING_KEYS = { collectSin: 'collect_sin' } as const satisfies Record<keyof ProfessionalsSettings, string>
+const SETTING_KEYS = {
+  collectSin: 'collect_sin',
+  ficheShowProContact: 'fiche_show_pro_contact',
+  ficheShowClinicFooter: 'fiche_show_clinic_footer',
+  ficheShowClosing: 'fiche_show_closing',
+} as const satisfies Record<keyof ProfessionalsSettings, string>
 
 /** The effective settings (stored values over the defaults). Open to any professionals permission. */
 export async function fetchProfessionalsSettings(): Promise<ProfessionalsSettings> {

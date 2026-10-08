@@ -374,6 +374,21 @@ export type StatusChange = z.output<typeof statusChangePayload>
 
 // --- Module settings (get_professionals_settings) ------------------------------------------------
 
-/** `collectSin` is off until an admin turns it on after the accountant confirms (P4-7). */
-export const settingsPayload = z.object({ collect_sin: z.boolean() }).transform((s) => ({ collectSin: s.collect_sin }))
+/**
+ * `collectSin` is off until an admin turns it on after the accountant confirms (P4-7). The fiche's
+ * render options (P4-353) are on by default; the invitation keys (4b) are read by the functions only.
+ */
+export const settingsPayload = z
+  .object({
+    collect_sin: z.boolean(),
+    fiche_show_pro_contact: z.boolean(),
+    fiche_show_clinic_footer: z.boolean(),
+    fiche_show_closing: z.boolean(),
+  })
+  .transform((s) => ({
+    collectSin: s.collect_sin,
+    ficheShowProContact: s.fiche_show_pro_contact,
+    ficheShowClinicFooter: s.fiche_show_clinic_footer,
+    ficheShowClosing: s.fiche_show_closing,
+  }))
 export type ProfessionalsSettings = z.output<typeof settingsPayload>

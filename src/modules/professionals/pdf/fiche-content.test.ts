@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ProfessionalRecord } from '../api/parse'
 import { IDS } from '../test/fixtures'
 import { CATALOG_VIEW, GENDERED_CATALOG_VIEW, motifsCatalog, recordFixture, seventyTwoMotifsCatalog, socialWorkerRecord } from '../test/fixtures-domain'
-import { buildFicheContent, displayWebsite, feeLines, formatPublicFee, initialsOf, toPdfText, type FicheInput } from './fiche-content'
+import { buildFicheContent, displayWebsite, feeLines, formatPublicFee, initialsOf, phoneText, toPdfText, type FicheInput } from './fiche-content'
 
 const CLINIC = { name: 'Clinique MANA', phone: '+15145550000', email: 'bonjour@cliniquemana.ca', website: 'https://www.cliniquemana.ca/' }
 
@@ -22,16 +22,38 @@ function input(over: Partial<FicheInput> = {}, record: Partial<ProfessionalRecor
 }
 
 describe('buildFicheContent', () => {
-  it('names the clinic from Settings: phone formatted, website without its scheme, empty ones left out', () => {
-    expect(buildFicheContent(input()).clinic).toEqual({
-      name: 'Clinique MANA',
-      contact: ['514 555-0000', 'bonjour@cliniquemana.ca', 'www.cliniquemana.ca'],
-      logo: { src: '/assets/logo.png', brand: true },
-      website: 'www.cliniquemana.ca',
+  it('takes the clinic\'s contact from Settings (P4-351): phone and website in the footer, all three in « Prochaine étape »', () => {
+    const content = buildFicheContent(input())
+    expect(content.clinic).toEqual({ name: 'Clinique MANA', logo: { src: '/assets/logo.png', brand: true } })
+    // The phone's spaces are no-break (P4-354); the website without its scheme.
+    expect(content.footerContact).toBe('514\u00a0555-0000 · www.cliniquemana.ca')
+    expect(content.closing).toEqual({
+      body: 'Pour planifier une première rencontre avec Marie, communiquez avec une conseillère de la Clinique\u00a0MANA.',
+      contact: ['514\u00a0555-0000', 'bonjour@cliniquemana.ca', 'www.cliniquemana.ca'],
     })
-    const bare = buildFicheContent(input({ clinic: { name: 'Clinique', phone: null, email: null, website: null } })).clinic
-    expect(bare.contact).toEqual([])
-    expect(bare.website).toBeNull()
+  })
+
+  it('falls back gracefully when Settings has no contact: no footer line, « Prochaine étape » without its contact row', () => {
+    const bare = buildFicheContent(input({ clinic: { name: 'Clinique', phone: null, email: null, website: null } }))
+    expect(bare.footerContact).toBeNull()
+    expect(bare.closing?.contact).toEqual([])
+    const emailOnly = buildFicheContent(input({ clinic: { name: 'Clinique', phone: null, email: 'info@cliniquemana.com', website: null } }))
+    // The footer names the phone and the website only.
+    expect(emailOnly.footerContact).toBeNull()
+    expect(emailOnly.closing?.contact).toEqual(['info@cliniquemana.com'])
+  })
+
+  it('follows the clinic\'s render options (P4-353): all shown by default, each one hidden on its own', () => {
+    const publicProfile = { ...recordFixture().publicProfile, publicEmail: 'marie@exemple.ca', publicPhone: '+15145551234' }
+    const shown = buildFicheContent(input({}, { publicProfile }))
+    expect([shown.publicContact, shown.footerContact, shown.closing]).not.toContain(null)
+    const hidden = buildFicheContent(input({ options: { showProContact: false, showClinicFooter: false, showClosing: false } }, { publicProfile }))
+    expect(hidden.publicContact).toBeNull()
+    expect(hidden.footerContact).toBeNull()
+    expect(hidden.closing).toBeNull()
+    expect(buildFicheContent(input({ options: { showProContact: true, showClinicFooter: true, showClosing: false } }, { publicProfile })).publicContact).toBe(
+      'marie@exemple.ca · 514\u00a0555-1234',
+    )
   })
 
   it('prints the logo uploaded in Settings, else Clinique MANA\'s lockup: never no logo (P4-214)', () => {
@@ -81,17 +103,20 @@ describe('buildFicheContent', () => {
     expect(content.credential).toBeNull()
   })
 
-  it('makes « À propos » of the presentation, as paragraphs, never the approach text (P4-216); empty prints nothing', () => {
-    const publicProfile = { ...recordFixture().publicProfile, bio: '  Premier.\n\n\nDeuxième,\nsuite.  ', approach: 'Mon approche.' }
-    expect(buildFicheContent(input({}, { publicProfile })).about).toEqual(['Premier.', 'Deuxième,\nsuite.'])
-    expect(JSON.stringify(buildFicheContent(input({}, { publicProfile })))).not.toContain('Mon approche.')
-    expect(buildFicheContent(input({}, { publicProfile: { ...publicProfile, bio: '   ' } })).about).toEqual([])
+  it('makes « À propos » of the presentation and « Approche » of the approach text (P4-350), as paragraphs; empty prints nothing', () => {
+    const publicProfile = { ...recordFixture().publicProfile, bio: '  Premier.\n\n\nDeuxième,\nsuite.  ', approach: 'Mon approche.\n\nEn deux temps.' }
+    const content = buildFicheContent(input({}, { publicProfile }))
+    expect(content.about).toEqual(['Premier.', 'Deuxième,\nsuite.'])
+    expect(content.approach).toEqual(['Mon approche.', 'En deux temps.'])
+    const empty = buildFicheContent(input({}, { publicProfile: { ...publicProfile, bio: '   ', approach: null } }))
+    expect(empty.about).toEqual([])
+    expect(empty.approach).toEqual([])
   })
 
   it('prints the public contact when set', () => {
     expect(buildFicheContent(input()).publicContact).toBeNull()
     const publicProfile = { ...recordFixture().publicProfile, publicEmail: 'marie@exemple.ca', publicPhone: '+15145551234' }
-    expect(buildFicheContent(input({}, { publicProfile })).publicContact).toBe('marie@exemple.ca · 514 555-1234')
+    expect(buildFicheContent(input({}, { publicProfile })).publicContact).toBe('marie@exemple.ca · 514\u00a0555-1234')
   })
 
   it('lists clientèles ★ first, never an archived one, languages by name', () => {
@@ -159,7 +184,7 @@ describe('buildFicheContent', () => {
       { duration: 50, clientPriceCents: 17500 },
     ] as const
     expect(buildFicheContent(input({ fees, photo: 'data:image/png;base64,x' }))).toMatchObject({
-      fees: ['Rencontre 50 min\u00a0: 175\u00a0$', 'Rencontre 30 min\u00a0: 130\u00a0$', 'Rencontre 60 min (couple/famille)\u00a0: 200\u00a0$'],
+      fees: ['Rencontre 50\u00a0min\u00a0: 175\u00a0$', 'Rencontre 30\u00a0min\u00a0: 130\u00a0$', 'Rencontre 60\u00a0min (couple/famille)\u00a0: 200\u00a0$'],
       photo: 'data:image/png;base64,x',
     })
   })
@@ -187,8 +212,8 @@ describe('public fees (P4-218)', () => {
 
   it('lists 50, 30 then 60 min, only the durations the grid prices; none → null', () => {
     expect(feeLines([{ duration: 30, clientPriceCents: 8000 }, { duration: 50, clientPriceCents: 12000 }])).toEqual([
-      'Rencontre 50 min\u00a0: 120\u00a0$',
-      'Rencontre 30 min\u00a0: 80\u00a0$',
+      'Rencontre 50\u00a0min\u00a0: 120\u00a0$',
+      'Rencontre 30\u00a0min\u00a0: 80\u00a0$',
     ])
     expect(feeLines([])).toBeNull()
   })
@@ -202,6 +227,12 @@ describe('toPdfText', () => {
   it('replaces a character the fonts lack by its base letter, or drops it', () => {
     const latinOnly = (codePoint: number) => codePoint <= 0xff
     expect(toPdfText('Łukasz ǹ ★ ok', latinOnly)).toBe('ukasz n  ok')
+  })
+})
+
+describe('phoneText', () => {
+  it('formats a stored phone with no-break spaces (P4-354)', () => {
+    expect(phoneText('+14189079754')).toBe('418\u00a0907-9754')
   })
 })
 

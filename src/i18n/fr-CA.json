@@ -1960,13 +1960,19 @@
           "feesPending": "À confirmer",
           "feeLine": "{duration} : {price}",
           "feeDurations": {
-            "50": "Rencontre 50 min",
-            "30": "Rencontre 30 min",
-            "60": "Rencontre 60 min (couple/famille)"
+            "50": "Rencontre 50 min",
+            "30": "Rencontre 30 min",
+            "60": "Rencontre 60 min (couple/famille)"
           },
           "specialized": "Domaine de spécialisation",
           "about": "À propos",
+          "approach": "Approche",
           "motifs": "Motifs de consultation",
+          "closing": {
+            "kicker": "Prochaine étape",
+            "lead": "Le plus difficile, c’est parfois de faire le premier pas.",
+            "body": "Pour planifier une première rencontre avec {firstName}, communiquez avec une conseillère de la Clinique MANA."
+          },
           "footer": "Fiche à jour le {date} · Page {page} de {total}"
         }
       },
@@ -2378,6 +2384,19 @@
               "fromHelp": "Le taux actuel de ce type se terminera la veille de cette date."
             }
           }
+        },
+        "fiche": {
+          "title": "Fiche PDF",
+          "description": "La fiche qu'une conseillère remet à un client, téléchargée ou envoyée par courriel. Ces choix valent pour toutes les fiches, dès la prochaine produite.",
+          "cardTitle": "Ce que la fiche affiche",
+          "cardDescription": "Le logo, le nom, le titre, les honoraires, la clientèle, « À propos », « Approche » et les motifs sont toujours affichés.",
+          "loadError": "Les réglages de la fiche n'ont pas pu être chargés.",
+          "showProContact": "Coordonnées du professionnel",
+          "showProContactHelp": "Le courriel et le téléphone publics du professionnel (Profil public), sous son nom. Désactivé, le client passe par la clinique.",
+          "showClinicFooter": "Coordonnées de la clinique au bas des pages",
+          "showClinicFooterHelp": "Le téléphone et le site Web de la clinique (Paramètres, Identité légale), à côté du logo, au bas de chaque page.",
+          "showClosing": "Bloc « Prochaine étape »",
+          "showClosingHelp": "À la fin de la fiche, une invitation à communiquer avec une conseillère pour planifier une première rencontre, avec le téléphone, le courriel et le site Web de la clinique."
         },
         "list": {
           "loadError": "La liste n'a pas pu être chargée.",

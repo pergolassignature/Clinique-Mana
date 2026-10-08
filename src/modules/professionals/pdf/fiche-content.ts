@@ -38,37 +38,60 @@ export interface FicheItem {
   specialized: boolean
 }
 
+/**
+ * What the clinic chooses to print (Paramètres → Professionnels → Fiche PDF, P4-353); every one
+ * on by default, as in the v2 design.
+ */
+export interface FicheOptions {
+  /** The professional's public email and phone under the order and licence. */
+  showProContact: boolean
+  /** The clinic's phone and website next to the wordmark in the footer. */
+  showClinicFooter: boolean
+  /** « Prochaine étape », the closing call to contact the clinic, at the end of the last page. */
+  showClosing: boolean
+}
+
+export const DEFAULT_FICHE_OPTIONS: FicheOptions = { showProContact: true, showClinicFooter: true, showClosing: true }
+
+/** « Prochaine étape » (P4-352): who to plan a first meeting with, and how to reach the clinic. */
+export interface FicheClosing {
+  /** « Pour planifier une première rencontre avec Geneviève, communiquez avec une conseillère de la Clinique MANA. » */
+  body: string
+  /** The clinic's phone, email and website from Settings, as printed (empty ones left out). */
+  contact: string[]
+}
+
 export interface FicheContent {
   clinic: {
     /** The clinic's name: the PDF's author metadata only; the logo stands for it on the page (P4-214). */
     name: string
-    /** Phone, email and website, as printed (empty ones left out). */
-    contact: string[]
     /**
-     * The logo printed in the band: the one uploaded in Settings (a data URL), else Clinique
-     * MANA's full lockup bundled with the renderer (`brand`: placed by its known margins). Never
-     * the clinic's name in text (P4-214).
+     * The logo printed atop page 1, alone (P4-351): the one uploaded in Settings (a data URL),
+     * else Clinique MANA's full lockup bundled with the renderer (`brand`: placed by its known
+     * margins). Never the clinic's name in text (P4-214).
      */
     logo: { src: string; brand: boolean }
-    /** The website without its scheme, for the footer. */
-    website: string | null
   }
+  /**
+   * The footer's clinic contact, beside the wordmark: « 418 907-9754 · cliniquemana.com » (phone
+   * and website from Settings, P4-351); null when hidden (`showClinicFooter`) or Settings has neither.
+   */
+  footerContact: string | null
   name: string
   /** The chosen title (one fiche per title, A2.19); null without one. */
   title: string | null
   /** « Membre de l’OPQ · N° de permis 08417 » (the clinic's public profiles); null for a title without an order. */
   credential: string | null
-  /** The public email and phone (« Profil public »), null when neither is set. */
+  /** The public email and phone (« Profil public »), null when neither is set or the clinic hides them (`showProContact`). */
   publicContact: string | null
   /** The photo as a data URL: the slot 4c fills (P4-202); null → the initials monogram. */
   photo: string | null
   /** « GT », the monogram drawn in the photo's place while there is none (P4-214). */
   initials: string
-  /**
-   * « À propos »: the presentation of « Profil public », as paragraphs (blank lines split them);
-   * empty → not printed. The free-text « Approche » is not printed (P4-216).
-   */
+  /** « À propos »: the presentation of « Profil public », as paragraphs (blank lines split them); empty → not printed. */
   about: string[]
+  /** « Approche »: the free-text approach of « Profil public », as paragraphs; empty → not printed (P4-350, reverses P4-216). */
+  approach: string[]
   motifs: FicheMotifGroup[]
   /** The youngest held age group reads the youngest client age: « Adolescents (14 ans et plus) » (P4-245). */
   clienteles: FicheItem[]
@@ -86,6 +109,8 @@ export interface FicheContent {
   fees: string[] | null
   /** « 8 octobre 2026 », the day it was made, in the clinic's timezone. */
   generatedOn: string
+  /** « Prochaine étape »; null when the clinic hides it (`showClosing`). */
+  closing: FicheClosing | null
 }
 
 export interface FicheInput {
@@ -102,6 +127,8 @@ export interface FicheInput {
   /** The client prices of the fiche's title (`get_professional_public_fees`); empty → « À confirmer ». */
   fees: readonly PublicFee[]
   generatedOn: string
+  /** The clinic's render options (Settings); omitted → `DEFAULT_FICHE_OPTIONS`. */
+  options?: FicheOptions
   /**
    * Whether the fonts can draw a character (`loadFicheFonts`). Others are dropped from every text
    * (after trying their base letter), so nothing falls back to a font that prints them garbled.
@@ -144,6 +171,11 @@ function paragraphs(text: string | null, clean: (s: string) => string): string[]
     .filter(Boolean)
 }
 
+/** « +14189079754 » → « 418 907-9754 », its spaces no-break (French typography: a number never splits, P4-354). */
+export function phoneText(e164: string): string {
+  return formatPhone(e164).replace(/ /g, '\u00a0')
+}
+
 /** « https://www.cliniquemana.ca/ » → « www.cliniquemana.ca ». */
 export function displayWebsite(url: string): string {
   return url.replace(/^https?:\/\//i, '').replace(/\/$/, '')
@@ -176,7 +208,19 @@ export function feeLines(fees: readonly PublicFee[]): string[] | null {
   return lines.length > 0 ? lines : null
 }
 
-export function buildFicheContent({ record, catalog, titleId, clinic, logo, brandLogo, photo, fees, generatedOn, canDraw }: FicheInput): FicheContent {
+export function buildFicheContent({
+  record,
+  catalog,
+  titleId,
+  clinic,
+  logo,
+  brandLogo,
+  photo,
+  fees,
+  generatedOn,
+  options = DEFAULT_FICHE_OPTIONS,
+  canDraw,
+}: FicheInput): FicheContent {
   const clean = (s: string) => toPdfText(s, canDraw)
   const profession = ficheProfession(record, titleId)
   const title = profession ? (catalog.byId.titles.get(profession.titleId) ?? null) : null
@@ -192,7 +236,7 @@ export function buildFicheContent({ record, catalog, titleId, clinic, logo, bran
     : null
 
   const { publicEmail, publicPhone } = record.publicProfile
-  const publicContact = [publicEmail, publicPhone ? formatPhone(publicPhone) : null].filter(Boolean).join(SEPARATOR)
+  const publicContact = options.showProContact ? [publicEmail, publicPhone ? phoneText(publicPhone) : null].filter(Boolean).join(SEPARATOR) : ''
 
   const digest = matchingDigest(record, catalog)
   // Archived items are the clinic's past wording: never printed for a client (P4-211).
@@ -202,14 +246,18 @@ export function buildFicheContent({ record, catalog, titleId, clinic, logo, bran
     (group): FicheMotifGroup => ({ name: clean(group.name), names: group.motifs.filter((m) => !m.archived).map((m) => clean(m.name)) }),
   )
 
-  const website = clinic.website ? displayWebsite(clinic.website) : null
+  // The clinic's contact from Settings (« Identité légale »), never hard-coded; empty ones left out.
+  const phone = clinic.phone ? clean(phoneText(clinic.phone)) : null
+  const email = clinic.email ? clean(clinic.email) : null
+  const website = clinic.website ? clean(displayWebsite(clinic.website)) : null
+  const present = (values: (string | null)[]) => values.filter((v): v is string => Boolean(v))
+  const footerContact = options.showClinicFooter ? present([phone, website]).join(SEPARATOR) : ''
   return {
     clinic: {
       name: clean(clinic.name),
-      contact: [clinic.phone ? formatPhone(clinic.phone) : null, clinic.email, website].filter((v): v is string => Boolean(v)).map(clean),
       logo: logo ? { src: logo, brand: false } : { src: brandLogo, brand: true },
-      website: website ? clean(website) : null,
     },
+    footerContact: footerContact || null,
     name: clean(fullName(record.professional)),
     // In the professional's form: « Travailleuse sociale » (P4-342).
     title: title ? clean(titleLabel(title, record.professional.gender)) : null,
@@ -217,8 +265,9 @@ export function buildFicheContent({ record, catalog, titleId, clinic, logo, bran
     publicContact: publicContact ? clean(publicContact) : null,
     photo,
     initials: clean(initialsOf(record.professional.firstName, record.professional.lastName)),
-    // The free-text « Approche » is not printed (P4-216).
     about: paragraphs(record.publicProfile.bio, clean),
+    // Printed again in v2 (P4-350, reverses P4-216): the professional's own words, under « À propos ».
+    approach: paragraphs(record.publicProfile.approach, clean),
     motifs,
     clienteles: current(digest.clienteles),
     clientLimits: [
@@ -230,5 +279,8 @@ export function buildFicheContent({ record, catalog, titleId, clinic, logo, bran
     languages: digest.languages.filter((l) => !l.archived).map((l) => clean(l.label)),
     fees: feeLines(fees)?.map(clean) ?? null,
     generatedOn,
+    closing: options.showClosing
+      ? { body: clean(t(`${F}.closing.body`, { firstName: record.professional.firstName.trim() })), contact: present([phone, email, website]) }
+      : null,
   }
 }

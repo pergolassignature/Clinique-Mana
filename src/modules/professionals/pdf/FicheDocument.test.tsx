@@ -42,7 +42,8 @@ async function render(over: Partial<Omit<FicheInput, 'canDraw'>> = {}) {
     record: record(),
     catalog: CATALOG_VIEW,
     titleId: null,
-    clinic: { name: 'Clinique MANA', phone: '+15145550000', email: 'bonjour@cliniquemana.ca', website: 'https://www.cliniquemana.ca' },
+    // Settings' name is never printed: « Clinique Réglages » stands for « Clinique MANA (local) ».
+    clinic: { name: 'Clinique Réglages', phone: '+15145550000', email: 'bonjour@cliniquemana.ca', website: 'https://www.cliniquemana.ca' },
     logo: null,
     brandLogo: BRAND_LOGO,
     photo: null,
@@ -55,37 +56,47 @@ async function render(over: Partial<Omit<FicheInput, 'canDraw'>> = {}) {
 }
 
 const all = (pages: string[]) => pages.join('\n')
+const lines = (page: string | undefined) => (page ?? '').split('\n')
+const C = `${P}.closing`
 /** An overline as printed (upper case). */
 const upper = (text: string) => text.toLocaleUpperCase('fr-CA')
 
 describe('FicheDocument', () => {
-  it('prints the clinic, the person, the facts and the footer on one Letter page, never the clinic name as a header', async () => {
-    const pdf = await render({ record: record({ publicProfile: { ...recordFixture().publicProfile, bio: 'Une présentation.', publicEmail: 'marie@exemple.ca', publicPhone: '+15145551234' } }) })
+  it('prints the logo, the person, the facts, « À propos », « Approche », « Prochaine étape » and the footer on one Letter page', async () => {
+    const publicProfile = { ...recordFixture().publicProfile, bio: 'Une présentation.', approach: 'Une approche.', publicEmail: 'marie@exemple.ca', publicPhone: '+15145551234' }
+    const pdf = await render({ record: record({ publicProfile }) })
     expect(pdf.pages).toHaveLength(1)
     const text = all(pdf.pages)
     for (const expected of [
-      '514 555-0000',
-      'bonjour@cliniquemana.ca',
-      'www.cliniquemana.ca',
       'MT',
       'Marie Tremblay',
       'Psychologue',
       'Membre de l’OPQ · N° de permis\u00a012345',
-      'marie@exemple.ca · 514 555-1234',
+      'marie@exemple.ca · 514\u00a0555-1234',
       upper(t(`${P}.clienteles`)),
       'Couples',
       upper(t(`${P}.languages`)),
       'Français',
       t(`${P}.about`),
       'Une présentation.',
+      t(`${P}.approach`),
+      'Une approche.',
       upper(t(`${P}.fees`)),
       t(`${P}.feesPending`),
+      // « Prochaine étape » (P4-352): the clinic's phone, email and website from Settings.
+      upper(t(`${C}.kicker`)),
+      t(`${C}.lead`),
+      '514\u00a0555-0000',
+      'bonjour@cliniquemana.ca',
+      // The footer (P4-351): the clinic's phone and website, the date and the page.
+      '514\u00a0555-0000 · www.cliniquemana.ca',
       'Fiche à jour le 8 octobre 2026 · Page 1 de 1',
     ]) {
       expect(text).toContain(expected)
     }
-    // The logo stands for the clinic: its name (« Clinique MANA (local) » on a local stack) is never printed.
-    expect(text).not.toContain('Clinique MANA')
+    expect(text.replace(/\s+/g, ' ')).toContain('Pour planifier une première rencontre avec Marie, communiquez avec une conseillère de la Clinique MANA.')
+    // The header is the logo alone (P4-351); Settings' clinic name is never printed.
+    expect(text).not.toContain('Clinique Réglages')
     // One page: no running header (it starts on page 2).
     expect(text.split('\n')).not.toContain('Marie Tremblay · Psychologue')
     expect(pdf.title).toBe('Fiche de Marie Tremblay')
@@ -124,6 +135,18 @@ describe('FicheDocument', () => {
     expect(pdf.fonts.every((font) => /\+Raleway-/.test(font))).toBe(true)
   })
 
+  it('follows the clinic\'s render options (P4-353): no professional contact, no clinic footer line, no « Prochaine étape »', async () => {
+    const publicProfile = { ...recordFixture().publicProfile, publicEmail: 'marie@exemple.ca', publicPhone: '+15145551234' }
+    const pdf = await render({ record: record({ publicProfile }), options: { showProContact: false, showClinicFooter: false, showClosing: false } })
+    const text = all(pdf.pages)
+    for (const hidden of ['marie@exemple.ca', '555-1234', '555-0000', 'www.cliniquemana.ca', 'bonjour@cliniquemana.ca', upper(t(`${C}.kicker`)), t(`${C}.lead`)]) {
+      expect(text, hidden).not.toContain(hidden)
+    }
+    // The wordmark, the date and the page stay.
+    expect(text).toContain('Fiche à jour le 8 octobre 2026 · Page 1 de 1')
+    expect(pdf.offPage).toBe(0)
+  })
+
   it('flows a long presentation over pages, the footer on each, the person named atop every page after the first', async () => {
     const paragraph = 'Elle accompagne les adultes dans les périodes où la vie pèse plus lourd : anxiété, deuil, transitions. '.repeat(5)
     const bio = Array.from({ length: 14 }, () => paragraph).join('\n\n')
@@ -132,11 +155,16 @@ describe('FicheDocument', () => {
     expect(pdf.offPage).toBe(0)
     pdf.pages.forEach((page, i) => {
       expect(page).toContain(`Page ${i + 1} de ${pdf.pages.length}`)
-      expect(page.split('\n')).toContain('www.cliniquemana.ca')
-      if (i > 0) expect(page.split('\n')).toContain('Marie Tremblay · Psychologue')
+      expect(lines(page)).toContain('514\u00a0555-0000 · www.cliniquemana.ca')
+      if (i > 0) expect(lines(page)).toContain('Marie Tremblay · Psychologue')
     })
-    // The free-text approach is not printed (P4-216).
-    expect(all(pdf.pages)).not.toContain('Approche intégrative.')
+    // The approach is printed again (P4-350, reverses P4-216), after the presentation.
+    const text = all(pdf.pages)
+    expect(text).toContain('Approche intégrative.')
+    expect(text.indexOf('Approche intégrative.')).toBeGreaterThan(text.lastIndexOf('Elle accompagne'))
+    // Without motifs, « Prochaine étape » closes the last page, with the approach's last paragraph.
+    expect(lines(pdf.pages.at(-1))).toContain(t(`${C}.lead`))
+    expect(lines(pdf.pages.at(-1))).toContain('Approche intégrative.')
   })
 
   it('names every one of 72 held motifs under its category, in columns, never « Tous » (P4-211)', async () => {
@@ -154,10 +182,33 @@ describe('FicheDocument', () => {
     for (const motif of held) expect(flat, motif.name).toContain(motif.name)
     expect(text).not.toMatch(/\bTous\b/)
     expect(text).not.toMatch(/\d+ sur \d+/)
-    const lines = text.split('\n')
-    for (let c = 1; c <= 8; c++) expect(lines, `Catégorie ${c}`).toContain(`Catégorie ${c}`)
+    const textLines = text.split('\n')
+    for (let c = 1; c <= 8; c++) expect(textLines, `Catégorie ${c}`).toContain(`Catégorie ${c}`)
     expect(pdf.offPage).toBe(0)
     expect(pdf.pages.length).toBeLessThanOrEqual(3)
+    // « Prochaine étape » closes the last page only, never alone: the last category is on its page (P4-352).
+    const closingPages = pdf.pages.map((page, i) => (lines(page).includes(t(`${C}.lead`)) ? i : -1)).filter((i) => i >= 0)
+    expect(closingPages).toEqual([pdf.pages.length - 1])
+    expect(lines(pdf.pages.at(-1))).toContain('Catégorie 8')
+  })
+
+  it('moves the last category with « Prochaine étape » when both do not fit, never the closing alone atop a page (P4-352)', async () => {
+    const catalog = seventyTwoMotifsCatalog()
+    const held = catalog.motifs.filter((m) => m.isActive).map((m) => m.id)
+    // Lengthen the presentation line by line until the closing no longer fits on the page of the
+    // category before the last one: from there, the last category goes over with it.
+    let moved = false
+    for (let extra = 0; extra < 60 && !moved; extra += 3) {
+      const bio = Array.from({ length: extra }, (_, i) => `Ligne ${i + 1} de la présentation.`).join('\n\n') || 'Une présentation.'
+      const pdf = await render({ catalog, record: record({ motifIds: held, publicProfile: { ...recordFixture().publicProfile, bio } }) })
+      expect(pdf.offPage).toBe(0)
+      const last = lines(pdf.pages.at(-1))
+      // Whatever the length, the closing's page holds a category above it.
+      expect(last).toContain(t(`${C}.lead`))
+      expect(last.some((line) => /^Catégorie \d$/.test(line))).toBe(true)
+      moved = lines(pdf.pages.at(-2)).includes('Catégorie 7') && last.includes('Catégorie 8') && !last.includes('Catégorie 7')
+    }
+    expect(moved, 'some length sends the last category over with the closing').toBe(true)
   })
 
   it("lists a category's motifs down three columns, its name on its own line above them", async () => {
@@ -198,8 +249,8 @@ describe('FicheDocument', () => {
       { duration: 30, clientPriceCents: 13000 },
     ] as const
     const priced = all((await render({ fees })).pages)
-    expect(priced).toContain('Rencontre 50 min\u00a0: 175\u00a0$')
-    expect(priced).toContain('Rencontre 30 min\u00a0: 130\u00a0$')
+    expect(priced).toContain('Rencontre 50\u00a0min\u00a0: 175\u00a0$')
+    expect(priced).toContain('Rencontre 30\u00a0min\u00a0: 130\u00a0$')
     // The longest line wraps in its column; its words are all there.
     expect(priced.replace(/\s+/g, ' ')).toContain('Rencontre 60 min (couple/famille) : 200 $')
     expect(priced).not.toContain(t(`${P}.feesPending`))
@@ -236,6 +287,6 @@ describe('FicheDocument', () => {
     const both = await render({ logo: PNG, photo: PHOTO })
     expect(both.images).toBe(2)
     expect(both.pages[0]?.split('\n')).not.toContain('MT')
-    for (const pdf of [brand, both]) expect(all(pdf.pages)).not.toContain('Clinique MANA')
+    for (const pdf of [brand, both]) expect(all(pdf.pages)).not.toContain('Clinique Réglages')
   })
 })
