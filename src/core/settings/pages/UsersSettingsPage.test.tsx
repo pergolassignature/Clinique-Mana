@@ -90,7 +90,7 @@ describe('UsersSettingsPage', () => {
     ])
 
     expect(cell('Conseillère Locale', 'email')).toHaveTextContent('conseillere@mana.test')
-    expect(cell('Conseillère Locale', 'role')).toHaveTextContent('Conseillère')
+    expect(cell('Conseillère Locale', 'role')).toHaveTextContent(t('roles.counselor'))
     expect(cell('Conseillère Locale', 'status')).toHaveTextContent(t('settings.users.status.active'))
     expect(cell('Conseillère Locale', 'lastSignIn')).toHaveTextContent(formatClinicDateTime('2026-10-06T13:05:00+00:00'))
     // Phones: the email under the name, the status under the role.
@@ -98,9 +98,9 @@ describe('UsersSettingsPage', () => {
     expect(within(cell('Conseillère Locale', 'role')).getByText(t('settings.users.status.active'))).toBeInTheDocument()
 
     expect(cell('Adjointe Locale', 'lastSignIn')).toHaveTextContent(t('settings.users.never'))
-    expect(cell('Adjointe Locale', 'role')).toHaveTextContent('Adjointe administrative')
+    expect(cell('Adjointe Locale', 'role')).toHaveTextContent(t('roles.admin_assistant'))
     expect(cell('Pro Local', 'status')).toHaveTextContent(t('settings.users.status.disabled'))
-    expect(cell('Pro Local', 'role')).toHaveTextContent('Professionnel')
+    expect(cell('Pro Local', 'role')).toHaveTextContent(t('roles.provider'))
     expect(screen.getByText(t('settings.users.countOther', { count: '4' }))).toBeInTheDocument()
   })
 
@@ -122,7 +122,7 @@ describe('UsersSettingsPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByRole('button', { name: 'Conseillère Locale' })).toHaveFocus())
 
-    await userEvent.click(within(rowOf('Pro Local')).getByText('Professionnel'))
+    await userEvent.click(within(rowOf('Pro Local')).getByText(t('roles.provider')))
     expect(await screen.findByRole('dialog', { name: 'Pro Local' })).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(screen.getByRole('button', { name: 'Pro Local' })).toHaveFocus())
@@ -133,7 +133,7 @@ describe('UsersSettingsPage', () => {
     await screen.findByRole('table', { name: t('settings.users.tableLabel') })
     expect(screen.getByText(t('common.readOnlyNotice.title'))).toBeInTheDocument()
     expect(within(table()).queryByRole('button')).not.toBeInTheDocument()
-    await userEvent.click(within(rowOf('Conseillère Locale')).getByText('Conseillère'))
+    await userEvent.click(within(rowOf('Conseillère Locale')).getByText(t('roles.counselor')))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
@@ -147,21 +147,50 @@ describe('UsersSettingsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Conseillère Locale' }))
     const role = await screen.findByRole('combobox', { name: t('settings.users.sheet.role.label') })
     await userEvent.selectOptions(role, 'admin_assistant')
+    await userEvent.click(screen.getByRole('button', { name: t('common.save') }))
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.users.sheet.role.saved')))
     expect(screen.getByRole('combobox', { name: t('settings.users.sheet.role.label') })).toHaveValue('admin_assistant')
-    expect(cell('Conseillère Locale', 'role')).toHaveTextContent('Adjointe administrative')
+    expect(cell('Conseillère Locale', 'role')).toHaveTextContent(t('roles.admin_assistant'))
   })
 
-  it('shows the role matrix in the « Rôles » tab; the tabs stay out of the tab order', async () => {
+  it('shows the role matrix in the « Rôles » tab', async () => {
     renderPage()
     await screen.findByRole('table', { name: t('settings.users.tableLabel') })
-    const rolesTab = screen.getByRole('tab', { name: t('settings.users.tabs.roles') })
-    expect(rolesTab).toHaveAttribute('tabindex', '-1')
     expect(screen.getByRole('tab', { name: t('settings.users.tabs.users') })).toHaveAttribute('aria-selected', 'true')
-    await userEvent.click(rolesTab)
+    await userEvent.click(screen.getByRole('tab', { name: t('settings.users.tabs.roles') }))
     expect(await screen.findByRole('table', { name: t('settings.users.matrix.tableLabel') })).toBeInTheDocument()
     expect(screen.getByRole('tabpanel')).toHaveAccessibleName(t('settings.users.tabs.roles'))
     expect(screen.queryByRole('table', { name: t('settings.users.tableLabel') })).not.toBeInTheDocument()
+  })
+
+  it('the tabs are reachable by keyboard: one tab stop, the arrow keys switch views (decision #35)', async () => {
+    renderPage()
+    await screen.findByRole('table', { name: t('settings.users.tableLabel') })
+    const usersTab = screen.getByRole('tab', { name: t('settings.users.tabs.users') })
+    const rolesTab = screen.getByRole('tab', { name: t('settings.users.tabs.roles') })
+    // Tab reaches the list (Radix: the list is the tab stop and hands focus to the active tab).
+    screen.getByRole('heading', { level: 2, name: t('settings.sections.users') }).focus()
+    await userEvent.tab()
+    expect(usersTab).toHaveFocus()
+    expect(rolesTab).toHaveAttribute('tabindex', '-1')
+    await userEvent.keyboard('{ArrowRight}')
+    expect(rolesTab).toHaveFocus()
+    expect(rolesTab).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('table', { name: t('settings.users.matrix.tableLabel') })).toBeInTheDocument()
+    // Tab then goes into the panel. (happy-dom keeps the old, hidden panel in the DOM, which
+    // userEvent.tab() does not skip; the browser check covers the real order.)
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('tabindex', '0')
+  })
+
+  it('a click that ends a text selection does not open the sheet', async () => {
+    renderPage()
+    await screen.findByRole('table', { name: t('settings.users.tableLabel') })
+    const getSelection = vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'conseillere@mana.test' } as Selection)
+    await userEvent.click(cell('Conseillère Locale', 'email'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    getSelection.mockRestore()
+    await userEvent.click(cell('Conseillère Locale', 'email'))
+    expect(await screen.findByRole('dialog', { name: 'Conseillère Locale' })).toBeInTheDocument()
   })
 
   it('shows a load error with a retry instead of an empty list', async () => {

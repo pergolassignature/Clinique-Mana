@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { t } from '@/i18n'
 import { roleLabel } from '@/core/access/roles'
 import { useSettingsSection } from '@/core/settings/section-context'
@@ -15,11 +15,12 @@ import { cn } from '@/shared/lib/utils'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import { Badge } from '@/shared/ui/badge'
 import { focusRing } from '@/shared/ui/field-classes'
-import { NavTab, NavTabs } from '@/shared/ui/nav-tabs'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 
 type Tab = 'users' | 'roles'
 const TABS: Tab[] = ['users', 'roles']
+const isTab = (value: string): value is Tab => (TABS as string[]).includes(value)
 
 /**
  * Paramètres → Utilisateurs et accès: the clinic's users (tab « Utilisateurs ») and what each role
@@ -30,24 +31,27 @@ const TABS: Tab[] = ['users', 'roles']
 export function UsersSettingsPage() {
   const { readOnly } = useSettingsSection()
   const [tab, setTab] = useState<Tab>('users')
-  const id = useId()
-  const tabId = (value: Tab) => `${id}-tab-${value}`
 
   return (
     <div className="max-w-content space-y-5">
       <PageHeader title={t('settings.sections.users')} description={t('settings.users.description')} />
       {readOnly && <ReadOnlyNotice />}
-      {/* NavTabs stay out of the tab order (CLAUDE.md §10). */}
-      <NavTabs>
-        {TABS.map((value) => (
-          <NavTab key={value} id={tabId(value)} aria-controls={`${id}-panel`} active={tab === value} onClick={() => setTab(value)}>
-            {t(`settings.users.tabs.${value}`)}
-          </NavTab>
-        ))}
-      </NavTabs>
-      <div role="tabpanel" id={`${id}-panel`} aria-labelledby={tabId(tab)}>
-        {tab === 'users' ? <UsersTab canManage={!readOnly} /> : <RoleMatrix />}
-      </div>
+      {/* Page-level views: real tabs, reachable by keyboard (decision #35). */}
+      <Tabs value={tab} onValueChange={(value) => isTab(value) && setTab(value)}>
+        <TabsList>
+          {TABS.map((value) => (
+            <TabsTrigger key={value} value={value}>
+              {t(`settings.users.tabs.${value}`)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="users" className="mt-5">
+          <UsersTab canManage={!readOnly} />
+        </TabsContent>
+        <TabsContent value="roles" className="mt-5">
+          <RoleMatrix />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
@@ -143,7 +147,15 @@ function UsersTable({ users, canManage, selectedId, onOpen, registerButton }: Us
               <TableRow
                 key={u.user_id}
                 data-state={u.user_id === selectedId ? 'selected' : undefined}
-                onClick={canManage ? () => onOpen(u.user_id) : undefined}
+                onClick={
+                  canManage
+                    ? () => {
+                        // Selecting text (to copy an email) is not a click on the row.
+                        if (window.getSelection()?.toString()) return
+                        onOpen(u.user_id)
+                      }
+                    : undefined
+                }
                 className={cn(canManage && 'cursor-pointer')}
               >
                 <TableCell>

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   allowedOverrideStates,
   assignableRoles,
-  effectivePermissions,
   groupPermissionsByModule,
   orderRoles,
   overrideStateOf,
@@ -28,38 +27,6 @@ describe('roleGrants', () => {
   it('is empty for a role without defaults or no role', () => {
     expect(roleGrants('provider', ROLE_PERMISSIONS)).toEqual(new Set())
     expect(roleGrants(null, ROLE_PERMISSIONS)).toEqual(new Set())
-  })
-})
-
-describe('effectivePermissions', () => {
-  const counselor = roleGrants('counselor', ROLE_PERMISSIONS)
-
-  it('is the role defaults without overrides', () => {
-    expect(effectivePermissions(counselor, [])).toEqual(new Set(['professionals.view']))
-  })
-
-  it('adds a grant outside the role', () => {
-    expect(effectivePermissions(counselor, [{ permission_key: 'audit.view', granted: true }])).toEqual(
-      new Set(['professionals.view', 'audit.view']),
-    )
-  })
-
-  it('removes a revoked role default', () => {
-    expect(effectivePermissions(counselor, [{ permission_key: 'professionals.view', granted: false }])).toEqual(new Set())
-  })
-
-  it('a revoke wins over a grant of the same key, and a redundant grant changes nothing', () => {
-    expect(
-      effectivePermissions(counselor, [
-        { permission_key: 'professionals.view', granted: true },
-        { permission_key: 'audit.view', granted: false },
-      ]),
-    ).toEqual(new Set(['professionals.view']))
-  })
-
-  it('never mutates the role set', () => {
-    effectivePermissions(counselor, [{ permission_key: 'professionals.view', granted: false }])
-    expect(counselor).toEqual(new Set(['professionals.view']))
   })
 })
 
@@ -146,6 +113,8 @@ describe('orderRoles', () => {
 describe('groupPermissionsByModule', () => {
   const permissions = [
     { key: 'users.view', module_key: 'core', description: 'Voir les utilisateurs' },
+    { key: 'users.manage', module_key: 'core', description: 'Gérer les utilisateurs' },
+    { key: 'modules.manage', module_key: 'core', description: 'Gérer les modules' },
     { key: 'billing.view', module_key: 'billing', description: 'Voir la facturation' },
     { key: 'audit.view', module_key: 'core', description: "Consulter le journal d'audit" },
     { key: 'professionals.view', module_key: 'professionals', description: 'Voir les professionnels' },
@@ -158,10 +127,10 @@ describe('groupPermissionsByModule', () => {
     { key: 'agenda', name: 'Agenda' },
   ]
 
-  it('puts core first, then the enabled modules by name; permissions by key; disabled modules left out', () => {
+  it('puts core first, then the enabled modules by name; view before manage; disabled modules left out', () => {
     const groups = groupPermissionsByModule(permissions, modules, ['professionals', 'agenda'])
     expect(groups.map((g) => [g.key, g.name, g.permissions.map((p) => p.key)])).toEqual([
-      ['core', 'Noyau', ['audit.view', 'users.view']],
+      ['core', 'Noyau', ['audit.view', 'users.view', 'modules.manage', 'users.manage']],
       ['agenda', 'Agenda', ['agenda.view']],
       ['professionals', 'Professionnels', ['professionals.view']],
     ])

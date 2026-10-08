@@ -28,14 +28,6 @@ export function roleGrants(role: string | null, rolePermissions: RolePermission[
   return new Set(rolePermissions.filter((rp) => rp.role === role).map((rp) => rp.permission_key))
 }
 
-/** Effective = (role defaults ∪ granted) − revoked. Mirrors private.has_permission (module gate excluded). */
-export function effectivePermissions(roleSet: Set<string>, overrides: PermissionOverride[]): Set<string> {
-  const effective = new Set(roleSet)
-  for (const o of overrides) if (o.granted) effective.add(o.permission_key)
-  for (const o of overrides) if (!o.granted) effective.delete(o.permission_key)
-  return effective
-}
-
 /** The user's override on `key`, or `role` when there is none. */
 export function overrideStateOf(key: string, overrides: PermissionOverride[]): OverrideState {
   const override = overrides.find((o) => o.permission_key === key)
@@ -96,9 +88,14 @@ export interface PermissionGroup<P> {
   permissions: P[]
 }
 
+/** View before manage: the `.view` keys first, then the others, each by key. */
+const byViewThenKey = (a: { key: string }, b: { key: string }) =>
+  Number(!a.key.endsWith('.view')) - Number(!b.key.endsWith('.view')) || a.key.localeCompare(b.key)
+
 /**
  * Permissions grouped by module: core first, then the enabled modules by name; a disabled module's
- * permissions are left out (they grant nothing while it is off). Permissions sorted by key.
+ * permissions are left out (they grant nothing while it is off). Within a group, the `.view`
+ * permissions come first, then the others, each by key.
  */
 export function groupPermissionsByModule<P extends { key: string; module_key: string }>(
   permissions: P[],
@@ -113,7 +110,7 @@ export function groupPermissionsByModule<P extends { key: string; module_key: st
     .map((m) => ({
       key: m.key,
       name: m.name,
-      permissions: permissions.filter((p) => p.module_key === m.key).sort((a, b) => a.key.localeCompare(b.key)),
+      permissions: permissions.filter((p) => p.module_key === m.key).sort(byViewThenKey),
     }))
     .filter((g) => g.permissions.length > 0)
 }

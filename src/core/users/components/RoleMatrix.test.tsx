@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
@@ -42,10 +42,10 @@ describe('RoleMatrix', () => {
     expect(screen.getByText(t('settings.users.matrix.note'))).toBeInTheDocument()
     expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
       t('settings.users.matrix.permission'),
-      'Administrateur',
-      'Conseillère',
-      'Adjointe administrative',
-      'Professionnel',
+      t('roles.admin'),
+      t('roles.counselor'),
+      t('roles.admin_assistant'),
+      t('roles.provider'),
     ])
   })
 
@@ -59,7 +59,7 @@ describe('RoleMatrix', () => {
     expect(rowValues('Voir les professionnels')).toEqual([yes, yes, yes, no])
   })
 
-  it('groups the rows by module, core first, and leaves out disabled modules', async () => {
+  it('groups the rows by module, core first, view before manage, and leaves out disabled modules', async () => {
     mocks.fetchPermissionCatalog.mockResolvedValue(testCatalog)
     renderMatrix()
     await screen.findByRole('rowheader', { name: 'Voir les paramètres' })
@@ -73,16 +73,41 @@ describe('RoleMatrix', () => {
     expect(firstCells).toEqual([
       t('settings.users.sheet.permissions.coreGroup'),
       "Consulter le journal d'audit",
+      'Voir les paramètres',
+      'Voir les utilisateurs',
       'Activer ou désactiver des modules',
       'Voir et modifier les coordonnées bancaires de la clinique',
       'Modifier les paramètres de la clinique',
-      'Voir les paramètres',
       'Inviter et gérer les utilisateurs',
-      'Voir les utilisateurs',
       'Professionnels',
       'Voir les professionnels',
     ])
     expect(screen.queryByText('Voir la facturation')).not.toBeInTheDocument()
+  })
+
+  it('fades the right edge while more role columns remain to scroll to', async () => {
+    mocks.fetchPermissionCatalog.mockResolvedValue(testCatalog)
+    renderMatrix()
+    const region = await screen.findByRole('region', { name: t('settings.users.matrix.tableLabel') })
+    expect(screen.queryByTestId('matrix-more')).not.toBeInTheDocument()
+    // happy-dom has no layout: give the region a phone-sized box.
+    Object.defineProperties(region, {
+      clientWidth: { configurable: true, value: 343 },
+      scrollWidth: { configurable: true, value: 500 },
+      scrollLeft: { configurable: true, writable: true, value: 0 },
+    })
+    region.dispatchEvent(new Event('scroll'))
+    expect(await screen.findByTestId('matrix-more')).toBeInTheDocument()
+    region.scrollLeft = 157
+    region.dispatchEvent(new Event('scroll'))
+    await waitFor(() => expect(screen.queryByTestId('matrix-more')).not.toBeInTheDocument())
+  })
+
+  it('keeps the permission column in place while the roles scroll', async () => {
+    mocks.fetchPermissionCatalog.mockResolvedValue(testCatalog)
+    renderMatrix()
+    expect(await screen.findByRole('rowheader', { name: 'Voir les paramètres' })).toHaveClass('sticky', 'left-0', 'bg-card')
+    expect(screen.getByRole('columnheader', { name: t('settings.users.matrix.permission') })).toHaveClass('sticky', 'left-0', 'bg-card')
   })
 
   it('shows a load error with a retry', async () => {

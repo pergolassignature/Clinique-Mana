@@ -317,7 +317,20 @@
           "label": "Rôle",
           "provider": "Géré dans le module Professionnels",
           "managerLimit": "Vous ne pouvez attribuer qu'un rôle dont vous avez toutes les permissions.",
-          "saved": "Rôle modifié."
+          "loadError": "Les rôles disponibles n'ont pas pu être chargés.",
+          "saved": "Rôle modifié.",
+          "promote": {
+            "title": "Nommer {name} administrateur ?",
+            "body": "Un administrateur a toutes les permissions, y compris la gestion des utilisateurs et des modules.",
+            "overridesOne": "Son exception sera supprimée.",
+            "overridesOther": "Ses {count} exceptions seront supprimées.",
+            "confirm": "Nommer administrateur"
+          },
+          "demote": {
+            "title": "Retirer le rôle d'administrateur ?",
+            "body": "{name} n'aura plus que les permissions du rôle {role}.",
+            "confirm": "Retirer le rôle"
+          }
         },
         "status": {
           "label": "Compte actif",
@@ -339,12 +352,14 @@
           "no": "Non",
           "granted": "Accordée",
           "revoked": "Retirée",
-          "saved": "Permission mise à jour.",
+          "revokeHint": "Seul quelqu'un qui a cette permission peut la rendre.",
+          "saved": "{permission} : {state}.",
+          "states": { "role": "selon le rôle", "granted": "accordée", "revoked": "retirée" },
           "loadError": "Les permissions n'ont pas pu être chargées."
         }
       },
       "matrix": {
-        "note": "Les rôles par défaut sont fixés par la clinique. Pour une exception, modifiez la personne.",
+        "note": "Les rôles par défaut sont fixes. Pour une exception, modifiez la personne.",
         "tableLabel": "Permissions par rôle",
         "permission": "Permission",
         "yes": "Oui",

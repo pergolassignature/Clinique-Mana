@@ -1,11 +1,13 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Info } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { roleLabel } from '@/core/access/roles'
+import { FormActions } from '@/shared/components/FormActions'
 import { initialsOf } from '@/shared/lib/format'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
+import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { cn } from '@/shared/lib/utils'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import {
@@ -23,6 +25,7 @@ import { Badge } from '@/shared/ui/badge'
 import { buttonVariants } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
 import { Label } from '@/shared/ui/label'
+import { SegmentedControl } from '@/shared/ui/segmented-control'
 import { Select } from '@/shared/ui/select'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/ui/sheet'
 import { Switch } from '@/shared/ui/switch'
@@ -155,45 +158,71 @@ interface SectionProps {
 
 // ── Rôle ────────────────────────────────────────────────────────────────────────────────────────
 
+/**
+ * The role, in a small form with « Annuler / Enregistrer »: a closed select changes its value as
+ * the arrow keys go through the options, so nothing is saved on change (decision #36). Making
+ * someone admin, or removing the admin role, asks for confirmation first.
+ */
 function RoleSection({ user, locked, callerIsAdmin }: SectionProps) {
   const { can } = useAccess()
-  const { data: catalog } = usePermissionCatalog()
+  const catalog = usePermissionCatalog()
   const setRole = useSetUserRole()
+  const [draft, setDraft] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState<'promote' | 'demote' | null>(null)
+  const selectRef = useRef<HTMLSelectElement>(null)
   const isProvider = user.role === 'provider'
-  // A non-admin manager may assign only the roles whose defaults they hold; unknown until the
-  // catalogue has loaded, so nothing is offered meanwhile.
+  const readOnly = locked || isProvider
+  // A non-admin manager may assign only the roles whose defaults they hold, so their choices wait
+  // for the catalogue (with its loading and error states).
+  const needsCatalog = !callerIsAdmin && !readOnly
   const assignable = callerIsAdmin
     ? new Set<string>(MANAGED_ROLES)
-    : catalog
-      ? assignableRoles({ callerIsAdmin, callerCan: can, rolePermissions: catalog.rolePermissions })
+    : catalog.data
+      ? assignableRoles({ callerIsAdmin, callerCan: can, rolePermissions: catalog.data.rolePermissions })
       : new Set<string>()
-  const shown = setRole.isPending ? setRole.variables.role : (user.role ?? '')
+  const value = draft ?? user.role ?? ''
+  const dirty = draft !== null && draft !== user.role
   const options = [...MANAGED_ROLES, ...(user.role && !(MANAGED_ROLES as readonly string[]).includes(user.role) ? [user.role] : [])]
+  useUnsavedChanges(dirty)
+
+  // Either way the select then shows the saved role: the new one, or the old one after a refusal.
+  const save = (role: string) => setRole.mutate({ userId: user.user_id, role }, { onSettled: () => setDraft(null) })
+
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!dirty || setRole.isPending || draft === null) return
+    if (draft === 'admin') setConfirm('promote')
+    else if (user.role === 'admin') setConfirm('demote')
+    else save(draft)
+  }
+
+  const promoteBody = [
+    t('settings.users.sheet.role.promote.body'),
+    user.override_count === 1
+      ? t('settings.users.sheet.role.promote.overridesOne')
+      : user.override_count > 1
+        ? t('settings.users.sheet.role.promote.overridesOther', { count: String(user.override_count) })
+        : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
-    <section className="space-y-2">
+    <form onSubmit={onSubmit} noValidate aria-busy={setRole.isPending || undefined}>
       <FormField
         label={t('settings.users.sheet.role.label')}
-        help={
-          isProvider
-            ? t('settings.users.sheet.role.provider')
-            : !callerIsAdmin && !locked
-              ? t('settings.users.sheet.role.managerLimit')
-              : undefined
-        }
-        readOnly={locked || isProvider}
+        help={isProvider ? t('settings.users.sheet.role.provider') : needsCatalog ? t('settings.users.sheet.role.managerLimit') : undefined}
+        readOnly={readOnly}
       >
         {(field) => (
           <Select
             {...field}
-            value={shown}
+            ref={selectRef}
+            value={value}
             placeholder={user.role === null ? t('settings.users.noRole') : undefined}
-            aria-disabled={setRole.isPending || undefined}
-            className={cn(setRole.isPending && 'cursor-progress')}
             onChange={(event) => {
               // Ignored while saving: the controlled value snaps back (no `disabled`, so focus stays).
-              if (setRole.isPending || event.target.value === user.role) return
-              setRole.mutate({ userId: user.user_id, role: event.target.value })
+              if (!setRole.isPending) setDraft(event.target.value)
             }}
           >
             {options.map((role) => (
@@ -204,9 +233,51 @@ function RoleSection({ user, locked, callerIsAdmin }: SectionProps) {
           </Select>
         )}
       </FormField>
-    </section>
+      {needsCatalog && catalog.isPending && (
+        <div className="mt-2">
+          <Loading />
+        </div>
+      )}
+      {needsCatalog && catalog.isError && !catalog.data && (
+        <div className="mt-2">
+          <LoadError message={t('settings.users.sheet.role.loadError')} onRetry={() => void catalog.refetch()} retrying={catalog.isFetching} />
+        </div>
+      )}
+      {!readOnly && (
+        <div className="mt-3 flex items-center justify-end gap-2">
+          <FormActions onCancel={() => setDraft(null)} onReset={() => selectRef.current?.focus()} dirty={dirty} pending={setRole.isPending} />
+        </div>
+      )}
+      <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
+        <AlertDialogContent
+          // Opened without a trigger: focus goes back to the select, whatever the answer.
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            selectRef.current?.focus()
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirm === 'promote' ? t('settings.users.sheet.role.promote.title', { name: user.display_name }) : t('settings.users.sheet.role.demote.title')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirm === 'promote'
+                ? promoteBody
+                : t('settings.users.sheet.role.demote.body', { name: user.display_name, role: draft ? roleLabel(draft) : '' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => draft !== null && save(draft)}>
+              {confirm === 'promote' ? t('settings.users.sheet.role.promote.confirm') : t('settings.users.sheet.role.demote.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </form>
   )
 }
+
 
 // ── Statut ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -349,58 +420,43 @@ interface PermissionRowProps {
 }
 
 /**
- * One permission: its description and three radios « Selon le rôle (Oui|Non) » / « Accordée » /
- * « Retirée », drawn as a segmented control. Native radios: Tab reaches the group, the arrow keys
- * choose. A choice is saved at once; while it saves the group shows it and ignores other choices
- * (`aria-disabled`, not `disabled`, so focus stays on the radio).
+ * One permission: its description and a toggle group « Selon le rôle (Oui|Non) » / « Accordée » /
+ * « Retirée ». The arrow keys only move focus; Enter, Space or a click chooses and saves at once
+ * (optimistic, with a toast). While it saves, the group ignores other choices.
  */
 function PermissionRow({ userId, permission, byRole, current, allowed, locked }: PermissionRowProps) {
-  const name = useId()
-  const save = useSetPermissionState()
-  const shown = save.isPending ? save.variables.state : current
-  const options: { state: OverrideState; label: string }[] = [
-    {
-      state: 'role',
-      label: t('settings.users.sheet.permissions.byRole', {
-        value: t(byRole ? 'settings.users.sheet.permissions.yes' : 'settings.users.sheet.permissions.no'),
-      }),
-    },
-    { state: 'granted', label: t('settings.users.sheet.permissions.granted') },
-    { state: 'revoked', label: t('settings.users.sheet.permissions.revoked') },
-  ]
+  const labelId = useId()
+  const hintId = useId()
+  const save = useSetPermissionState(userId)
+  // A manager who lacks the permission cannot clear its revoke (the role default would give it back).
+  const revokeStays = !locked && current === 'revoked' && !allowed.has('role')
+  const label = (state: OverrideState) =>
+    state === 'role'
+      ? t('settings.users.sheet.permissions.byRole', {
+          value: t(byRole ? 'settings.users.sheet.permissions.yes' : 'settings.users.sheet.permissions.no'),
+        })
+      : t(`settings.users.sheet.permissions.${state}`)
+  const states: OverrideState[] = ['role', 'granted', 'revoked']
 
   return (
-    <fieldset className="min-w-0" aria-busy={save.isPending || undefined}>
-      <legend className="mb-1.5 text-sm text-foreground">{permission.description}</legend>
-      <div className="flex w-full rounded-md border border-border bg-muted p-0.5 sm:inline-flex sm:w-auto">
-        {options.map(({ state, label }) => (
-          <label
-            key={state}
-            className={cn(
-              'relative flex min-h-11 flex-1 cursor-pointer items-center justify-center whitespace-nowrap rounded-sm px-2.5 text-xs text-muted-foreground transition-colors duration-120 hover:text-foreground sm:min-h-7 sm:flex-none',
-              'has-[:checked]:bg-card has-[:checked]:font-medium has-[:checked]:text-foreground has-[:checked]:ring-1 has-[:checked]:ring-border',
-              'has-[:focus-visible]:shadow-focus',
-              'has-[:disabled]:cursor-default has-[:disabled]:hover:text-muted-foreground has-[:disabled:not(:checked)]:opacity-50',
-              save.isPending && 'cursor-progress',
-            )}
-          >
-            <input
-              type="radio"
-              className="sr-only"
-              name={name}
-              value={state}
-              checked={shown === state}
-              disabled={locked || (state !== current && !allowed.has(state))}
-              aria-disabled={save.isPending || undefined}
-              onChange={() => {
-                if (save.isPending || state === current) return
-                save.mutate({ userId, key: permission.key, state })
-              }}
-            />
-            {label}
-          </label>
-        ))}
-      </div>
-    </fieldset>
+    <div className="min-w-0">
+      <p id={labelId} className="mb-1.5 text-sm text-foreground">
+        {permission.description}
+      </p>
+      <SegmentedControl
+        aria-labelledby={labelId}
+        aria-describedby={revokeStays ? hintId : undefined}
+        options={states.map((state) => ({ value: state, label: label(state), disabled: state !== current && !allowed.has(state) }))}
+        value={current}
+        disabled={locked}
+        pending={save.isPending}
+        onValueChange={(state) => save.mutate({ key: permission.key, state, label: permission.description })}
+      />
+      {revokeStays && (
+        <p id={hintId} className="mt-1 text-xs text-muted-foreground">
+          {t('settings.users.sheet.permissions.revokeHint')}
+        </p>
+      )}
+    </div>
   )
 }
