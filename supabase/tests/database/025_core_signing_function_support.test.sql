@@ -6,7 +6,8 @@
 -- with the request's view permission), null for another org's or an unknown id;
 -- recover_signature_request makes a live draft of the org `sent` with completion stamped, taking
 -- its newest staged source, or none (recorded missing) without blocking the recovery, only for
--- the draft's own recorded document (another document id, or a draft without one, is refused),
+-- the draft's own recorded envelope (another envelope id, or a draft without one, is refused;
+-- recover_signature_request is the envelope version of *_core_signing_envelope.sql),
 -- and refuses anything else; discard_system_file soft-deletes a staged signing system file of the
 -- org only (never a file a request took, a client upload, another purpose's, another org's, a
 -- pending one), and is idempotent; get_signing_credentials returns the address, the Vault key
@@ -26,20 +27,20 @@ select results_eq($$
          has_function_privilege('service_role', p.oid, 'execute'), p.prosecdef
     from pg_proc p
    where p.oid in ('public.get_signing_request(uuid, uuid)'::regprocedure,
-                   'public.recover_signature_request(uuid, uuid, text, text, jsonb)'::regprocedure,
+                   'public.recover_signature_request(uuid, uuid, text, jsonb)'::regprocedure,
                    'public.discard_system_file(uuid, uuid)'::regprocedure,
                    'public.get_signing_credentials(uuid)'::regprocedure)
    order by 1
 $$, $$ values ('discard_system_file(uuid,uuid)'::text, false, false, true, true),
               ('get_signing_credentials(uuid)'::text, false, false, true, true),
               ('get_signing_request(uuid,uuid)'::text, false, false, true, true),
-              ('recover_signature_request(uuid,uuid,text,text,jsonb)'::text, false, false, true, true) $$,
+              ('recover_signature_request(uuid,uuid,text,jsonb)'::text, false, false, true, true) $$,
   'get_signing_request, recover_signature_request, discard_system_file and get_signing_credentials: service role only, definer');
 
 -- =============================================================================
 -- Fixtures (as postgres)
--- Org A: admin A. Org B. Requests: R1 a draft of org A (two signers, document 41), R2 sent
--- (recipient ids), R3 a draft (document 43) with no file at all, R4 a draft with no document.
+-- Org A: admin A. Org B. Requests: R1 a draft of org A (two signers, envelope 41), R2 sent
+-- (recipient ids), R3 a draft (envelope 43) with no file at all, R4 a draft with no envelope.
 -- Files of R1 (signing_source): F1 staged, older; F2 staged, newest (expected); F3 newer but its
 -- staging is over; F4 newer, another view permission; F5 newer, deleted. A client upload U1
 -- (staged, uploaded_by set), a file T1 a request took (retain_until null), a pending P1, and
@@ -55,19 +56,19 @@ insert into public.profiles (user_id, org_id, display_name, email, status) value
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A', 'admin@a.test', 'active');
 
 insert into public.signature_requests (id, org_id, module_key, purpose, subject_type, subject_id, title, status,
-  documenso_document_id, envelope_id, idempotency_key, view_permission, sent_at, expires_at, last_error)
+  envelope_id, idempotency_key, view_permission, sent_at, expires_at, last_error)
 values
   ('c0000000-0000-0000-0000-0000000000a1', 'b0000000-0000-0000-0000-00000000000a', 'core', 'core.signing_test',
-   'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Document test', 'draft', '41', 'envelope_41', 'key-a1',
+   'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Document test', 'draft', 'envelope_41', 'key-a1',
    'settings.integrations_manage', null, null, 'provider_unavailable'),
   ('c0000000-0000-0000-0000-0000000000a2', 'b0000000-0000-0000-0000-00000000000a', 'core', 'core.signing_test',
-   'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Document test', 'sent', '42', null, 'key-a2',
+   'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Document test', 'sent', 'envelope_42', 'key-a2',
    'settings.integrations_manage', now() - interval '2 days', now() + interval '5 days', null),
   ('c0000000-0000-0000-0000-0000000000a3', 'b0000000-0000-0000-0000-00000000000a', 'core', 'core.signing_test',
-   'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Document test', 'draft', '43', null, 'key-a3',
+   'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Document test', 'draft', 'envelope_43', 'key-a3',
    'settings.integrations_manage', null, null, null),
   ('c0000000-0000-0000-0000-0000000000a4', 'b0000000-0000-0000-0000-00000000000a', 'core', 'core.signing_test',
-   'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Document test', 'draft', null, null, 'key-a4',
+   'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Document test', 'draft', null, 'key-a4',
    'settings.integrations_manage', null, null, 'provider_unavailable');
 insert into public.signature_request_signers (request_id, org_id, role, name, email, signing_order, documenso_recipient_id)
 values
@@ -114,7 +115,7 @@ set local role service_role;
 select is(public.get_signing_request('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000000a1'),
   jsonb_build_object(
     'id', 'c0000000-0000-0000-0000-0000000000a1', 'module_key', 'core', 'purpose', 'core.signing_test',
-    'status', 'draft', 'view_permission', 'settings.integrations_manage', 'documenso_document_id', '41',
+    'status', 'draft', 'view_permission', 'settings.integrations_manage', 'documenso_document_id', null,
     'envelope_id', 'envelope_41', 'expires_at', null, 'completed_event_at', null, 'last_error', 'provider_unavailable',
     'staged_source_file_id', 'f0000000-0000-0000-0000-000000000002',
     'signers', '[{"role": "professional", "order": 1, "recipient_id": null},
@@ -124,8 +125,8 @@ select is(public.get_signing_request('b0000000-0000-0000-0000-00000000000a', 'c0
             - 'expires_at',
   jsonb_build_object(
     'id', 'c0000000-0000-0000-0000-0000000000a2', 'module_key', 'core', 'purpose', 'core.signing_test',
-    'status', 'sent', 'view_permission', 'settings.integrations_manage', 'documenso_document_id', '42',
-    'envelope_id', null, 'completed_event_at', null, 'last_error', null, 'staged_source_file_id', null,
+    'status', 'sent', 'view_permission', 'settings.integrations_manage', 'documenso_document_id', null,
+    'envelope_id', 'envelope_42', 'completed_event_at', null, 'last_error', null, 'staged_source_file_id', null,
     'signers', '[{"role": "professional", "order": 1, "recipient_id": "201"}]'::jsonb),
   'a sent request: no staged source file; its recipient ids');
 select is((public.get_signing_request('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000000a2')
@@ -166,48 +167,48 @@ $$, $$ values ('B1'::text, 'ready'::text, false, null::uuid), ('F2', 'deleted', 
 -- =============================================================================
 set local role service_role;
 select throws_ok($$ select public.recover_signature_request('b0000000-0000-0000-0000-00000000000a',
-                      'c0000000-0000-0000-0000-0000000000a2', '52', null, '[{"role": "professional", "recipient_id": "301"}]') $$,
+                      'c0000000-0000-0000-0000-0000000000a2', 'envelope_52', '[{"role": "professional", "recipient_id": "301"}]') $$,
   '22023', null, 'recover: a sent request is not a draft');
 select throws_ok($$ select public.recover_signature_request('b0000000-0000-0000-0000-00000000000b',
-                      'c0000000-0000-0000-0000-0000000000a1', '41', null,
+                      'c0000000-0000-0000-0000-0000000000a1', 'envelope_41',
                       '[{"role": "professional", "recipient_id": "301"}, {"role": "clinic", "recipient_id": "302"}]') $$,
   '22023', null, 'recover: another org''s request is unknown');
 select throws_ok($$ select public.recover_signature_request('b0000000-0000-0000-0000-00000000000a',
-                      'c0000000-0000-0000-0000-0000000000a1', '41', null, '[{"role": "professional", "recipient_id": "301"}]') $$,
+                      'c0000000-0000-0000-0000-0000000000a1', 'envelope_41', '[{"role": "professional", "recipient_id": "301"}]') $$,
   '22023', null, 'recover: every signer gets a recipient id');
 select throws_ok($$ select public.recover_signature_request('b0000000-0000-0000-0000-00000000000a',
-                      'c0000000-0000-0000-0000-0000000000a1', '51', 'envelope_51',
+                      'c0000000-0000-0000-0000-0000000000a1', 'envelope_51',
                       '[{"role": "professional", "recipient_id": "301"}, {"role": "clinic", "recipient_id": "302"}]') $$,
-  '22023', 'Not the request''s document',
-  'recover: a document the draft did not record (another one under the request''s id) is never adopted');
+  '22023', 'Not the request''s envelope',
+  'recover: an envelope the draft did not record (another one under the request''s id) is never adopted');
 select throws_ok($$ select public.recover_signature_request('b0000000-0000-0000-0000-00000000000a',
-                      'c0000000-0000-0000-0000-0000000000a4', '44', null, '[{"role": "professional", "recipient_id": "304"}]') $$,
-  '22023', 'Not the request''s document', 'recover: a draft without a recorded document cannot be recovered');
+                      'c0000000-0000-0000-0000-0000000000a4', 'envelope_44', '[{"role": "professional", "recipient_id": "304"}]') $$,
+  '22023', 'Not the request''s envelope', 'recover: a draft without a recorded envelope cannot be recovered');
 select throws_ok($$ select public.recover_signature_request('b0000000-0000-0000-0000-00000000000a',
-                      'c0000000-0000-0000-0000-0000000000a1', 'x', null,
+                      'c0000000-0000-0000-0000-0000000000a1', '41',
                       '[{"role": "professional", "recipient_id": "301"}, {"role": "clinic", "recipient_id": "302"}]') $$,
-  '22023', null, 'recover: a Documenso document id is numeric');
+  '22023', 'Invalid envelope id', 'recover: an envelope id, never a numeric document id');
 select is(public.recover_signature_request('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000000a1',
-            '41', 'envelope_41', '[{"role": "professional", "recipient_id": "301"}, {"role": "clinic", "recipient_id": "302"}]'),
+            'envelope_41', '[{"role": "professional", "recipient_id": "301"}, {"role": "clinic", "recipient_id": "302"}]'),
   'f0000000-0000-0000-0000-000000000001'::uuid, 'recover takes the newest source still staged');
 select is(public.recover_signature_request('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000000a3',
-            '43', null, '[{"role": "professional", "recipient_id": "303"}]'),
+            'envelope_43', '[{"role": "professional", "recipient_id": "303"}]'),
   null::uuid, 'no staged source left → null (recorded missing), recovered anyway');
 reset role;
 select results_eq($$
-  select r.id, r.status, r.documenso_document_id, r.envelope_id, r.source_file_id, r.sent_at, r.expires_at,
-         r.completed_event_at, r.last_error, r.send_started_at, r.superseded_document_ids,
+  select r.id, r.status, r.envelope_id, r.source_file_id, r.sent_at, r.expires_at,
+         r.completed_event_at, r.last_error, r.send_started_at, r.superseded_envelope_ids,
          (select array_agg(s.documenso_recipient_id order by s.signing_order) from public.signature_request_signers s
            where s.request_id = r.id)
     from public.signature_requests r
    where r.id in ('c0000000-0000-0000-0000-0000000000a1', 'c0000000-0000-0000-0000-0000000000a3') order by r.id
 $$, $$ values
-  ('c0000000-0000-0000-0000-0000000000a1'::uuid, 'sent'::text, '41'::text, 'envelope_41'::text,
+  ('c0000000-0000-0000-0000-0000000000a1'::uuid, 'sent'::text, 'envelope_41'::text,
    'f0000000-0000-0000-0000-000000000001'::uuid, now(), null::timestamptz, now(), null::text, null::timestamptz,
    array[]::text[], array['301', '302']),
-  ('c0000000-0000-0000-0000-0000000000a3', 'sent', '43', null, null, now(), null, now(), null, null, array[]::text[],
+  ('c0000000-0000-0000-0000-0000000000a3', 'sent', 'envelope_43', null, now(), null, now(), null, null, array[]::text[],
    array['303']) $$,
-  'recovered: sent on its own document, completion stamped (nothing expires or cancels it now), recipients keyed by role');
+  'recovered: sent on its own envelope, completion stamped (nothing expires or cancels it now), recipients keyed by role');
 select is((select retain_until from public.stored_files where id = 'f0000000-0000-0000-0000-000000000001'), null,
   'the source taken is no longer staged');
 set local role service_role;
