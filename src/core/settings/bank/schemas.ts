@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
-import { withoutControlChars } from '@/core/settings/organization/schemas'
 import { EMAIL_PATTERN } from '@/shared/lib/email'
+import { withoutControlChars } from '@/shared/lib/field-schemas'
 import type { BankDetails, BankDetailsInput } from './api'
 
 /**
