@@ -32,6 +32,7 @@ const FIELDS = route('POST', '/api/v2/document/field/create-many')
 const DISTRIBUTE = route('POST', '/api/v2/document/distribute')
 const REDISTRIBUTE = route('POST', '/api/v2/document/redistribute')
 const DELETE = route('POST', '/api/v2/document/delete')
+const CANCEL = route('POST', '/api/v2/envelope/cancel')
 const DOWNLOAD_12 = route('GET', '/api/v2/document/12/download')
 const LIST = route('GET', '/api/v2/document')
 
@@ -134,6 +135,7 @@ Deno.test('createDocument: multipart with the payload JSON and the PDF part, the
   const result = await client(fetch).createDocument(PDF, input())
   assertEquals(result, {
     documentId: '12',
+    envelopeId: 'envelope_abc',
     recipients: [{ id: '51', email: ADDRESS }, { id: '52', email: CLINIC }],
   })
   assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CREATE, GET_12])
@@ -160,6 +162,59 @@ Deno.test('createDocument: multipart with the payload JSON and the PDF part, the
   // No title or name in the file name (Loi 25): the title can name a person.
   assertEquals(file.name, 'document.pdf')
   assertEquals(new Uint8Array(await file.arrayBuffer()), PDF)
+})
+
+Deno.test('createDocument: expiryDays becomes envelopeExpirationPeriod in days', async () => {
+  const { fetch, calls } = fakeFetch({
+    [CREATE]: json(200, { id: 12, envelopeId: 'envelope_abc' }),
+    [GET_12]: json(200, documentBody()),
+  })
+  const base = input()
+  await client(fetch).createDocument(
+    PDF,
+    { ...base, meta: { ...base.meta, expiryDays: 14 } },
+  )
+  const { meta } = JSON.parse(String((await formOf(calls[0])).get('payload')))
+  assertEquals(meta.envelopeExpirationPeriod, { unit: 'day', amount: 14 })
+  assertFalse('expiryDays' in meta)
+})
+
+Deno.test('createDocument: two recipients with one address, or a bad expiry → invalid_request, no request', async () => {
+  const { fetch, calls } = fakeFetch({})
+  const base = input()
+  for (
+    const bad of [
+      input({
+        recipients: [
+          base.recipients[0],
+          { ...base.recipients[1], email: ' Ana.Gagnon@EXAMPLE.com' },
+        ],
+      }),
+      ...[0, 1.5, -3, Number.NaN].map((expiryDays) => ({
+        ...base,
+        meta: { ...base.meta, expiryDays },
+      })),
+    ]
+  ) {
+    const error = await assertRejects(
+      () => client(fetch).createDocument(PDF, bad),
+      DocumensoError,
+    )
+    assertEquals([error.code, error.status], ['invalid_request', null])
+    assertFalse(error.message.includes('@'))
+  }
+  assertEquals(calls.length, 0)
+})
+
+Deno.test('createDocument: a missing or malformed envelopeId → null (cancel then deletes)', async () => {
+  for (const created of [{ id: 12 }, { id: 12, envelopeId: '../x' }]) {
+    const { fetch } = fakeFetch({
+      [CREATE]: json(200, created),
+      [GET_12]: json(200, documentBody()),
+    })
+    const result = await client(fetch).createDocument(PDF, input())
+    assertEquals(result.envelopeId, null)
+  }
 })
 
 Deno.test('createDocument: the Authorization header is the bare key (no Bearer)', async () => {
@@ -321,9 +376,67 @@ Deno.test('errors: an aborted caller signal stops the request', async () => {
   assert(error.message.includes('aborted'))
 })
 
+/** A body that sends `head`, then fails as `fail` says (on the request's abort, or at once). */
+const brokenBody =
+  (head: string, fail: 'abort' | 'reset'): Responder => (req) =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(head))
+          if (fail === 'reset') {
+            controller.error(new TypeError(`connection reset: ${BASE}/api/v2`))
+          } else {
+            req.signal.addEventListener(
+              'abort',
+              () => controller.error(req.signal.reason),
+            )
+          }
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+
+Deno.test('errors: a body that fails mid-read → provider_error, never the raw error', async () => {
+  for (
+    const [name, call] of [
+      ['get', (c: ReturnType<typeof client>) => c.get('12')],
+      [
+        'downloadSigned',
+        (c: ReturnType<typeof client>) => c.downloadSigned('12'),
+      ],
+      ['ping', (c: ReturnType<typeof client>) => c.ping()],
+    ] as const
+  ) {
+    const { fetch } = fakeFetch({
+      [GET_12]: brokenBody('{"id":12,', 'reset'),
+      [DOWNLOAD_12]: brokenBody('%PDF-1.7', 'reset'),
+      [LIST]: brokenBody('{"data":[', 'reset'),
+    })
+    const error = await assertRejects(() => call(client(fetch)), DocumensoError)
+    assertEquals([error.code, error.status], ['provider_error', null], name)
+    assert(error.message.includes('unreachable while reading'), name)
+    assertFalse(error.message.includes(BASE), name)
+  }
+})
+
+Deno.test('errors: the timeout also covers the body (it stalls mid-read)', async () => {
+  const { fetch } = fakeFetch({
+    [GET_12]: brokenBody('{"id":12,', 'abort'),
+    [DOWNLOAD_12]: brokenBody('%PDF-1.7', 'abort'),
+  })
+  const c = client(fetch, { timeoutMs: 20 })
+  for (const call of [() => c.get('12'), () => c.downloadSigned('12')]) {
+    const error = await assertRejects(call, DocumensoError)
+    assertEquals([error.code, error.status], ['provider_error', null])
+    assert(error.message.includes('timed out while reading'), error.message)
+  }
+})
+
 Deno.test('errors: a non-numeric document id is refused before any request', async () => {
   const { fetch, calls } = fakeFetch({})
-  for (const id of ['', '12/../delete', 'envelope_abc', '1e3']) {
+  for (
+    const id of ['', '12/../delete', 'envelope_abc', '1e3', '1234567890123456']
+  ) {
     const error = await assertRejects(
       () => client(fetch).get(id),
       DocumensoError,
@@ -331,6 +444,15 @@ Deno.test('errors: a non-numeric document id is refused before any request', asy
     assertEquals(error.code, 'provider_error')
   }
   assertEquals(calls.length, 0)
+})
+
+Deno.test('errors: a 15-digit id is still accepted (a safe integer)', async () => {
+  const id = '123456789012345'
+  const { fetch, calls } = fakeFetch({
+    [route('POST', '/api/v2/document/distribute')]: json(200, {}),
+  })
+  await client(fetch).distribute(id)
+  assertEquals(JSON.parse(calls[0].body), { documentId: Number(id) })
 })
 
 // ---------------------------------------------------------------------------
@@ -470,16 +592,93 @@ Deno.test('get: an unknown document status → provider_error', async () => {
 // ---------------------------------------------------------------------------
 // cancel
 // ---------------------------------------------------------------------------
-Deno.test('cancel: deletes the document; a 404 (already gone) resolves', async () => {
+const NOT_FOUND = { message: 'Document not found', code: 'NOT_FOUND' }
+
+Deno.test("cancel: without an envelope id, deletes the document; Documenso's 404 (already gone) resolves", async () => {
   const { fetch, calls } = fakeFetch({
-    [DELETE]: [
-      json(200, { success: true }),
-      json(404, { message: 'Not found' }),
-    ],
+    [DELETE]: [json(200, { success: true }), json(404, NOT_FOUND)],
   })
   await client(fetch).cancel('12')
-  await client(fetch).cancel('12')
+  await client(fetch).cancel('12', { envelopeId: null })
+  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [DELETE, DELETE])
   assertEquals(JSON.parse(calls[0].body), { documentId: 12 })
+})
+
+Deno.test("cancel: a 404 that is not Documenso's error (proxy, wrong URL) is an error", async () => {
+  const html = () =>
+    new Response('<html><body>404 Not Found</body></html>', {
+      status: 404,
+      headers: { 'Content-Type': 'text/html' },
+    })
+  for (
+    const responder of [
+      html,
+      json(404, { message: 'Not found' }),
+      json(404, { message: 'x', code: 'BAD_REQUEST' }),
+      json(404, 'NOT_FOUND'),
+    ]
+  ) {
+    const { fetch } = fakeFetch({ [DELETE]: responder })
+    const error = await assertRejects(
+      () => client(fetch).cancel('12'),
+      DocumensoError,
+    )
+    assertEquals([error.code, error.status], ['provider_error', 404])
+  }
+})
+
+Deno.test('cancel: with an envelope id, cancels the envelope with the reason', async () => {
+  const { fetch, calls } = fakeFetch({
+    [CANCEL]: [json(200, { success: true }), json(200, { success: true })],
+  })
+  await client(fetch).cancel('12', {
+    envelopeId: 'envelope_abc',
+    reason: 'Contrat remplacé',
+  })
+  await client(fetch).cancel('12', { envelopeId: 'envelope_abc' })
+  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CANCEL, CANCEL])
+  assertEquals(JSON.parse(calls[0].body), {
+    envelopeId: 'envelope_abc',
+    reason: 'Contrat remplacé',
+  })
+  assertEquals(JSON.parse(calls[1].body), { envelopeId: 'envelope_abc' })
+})
+
+Deno.test('cancel: an envelope 400 resolves only when the document reads back CANCELLED', async () => {
+  const refused = json(400, { message: 'not pending', code: 'BAD_REQUEST' })
+  const cases = [
+    [json(200, documentBody({ status: 'CANCELLED' })), true],
+    [json(200, documentBody({ status: 'DRAFT' })), false],
+    [json(500, {}), false],
+  ] as const
+  for (const [readBack, resolves] of cases) {
+    const { fetch, calls } = fakeFetch({
+      [CANCEL]: refused,
+      [GET_12]: readBack,
+    })
+    const attempt = client(fetch).cancel('12', { envelopeId: 'envelope_abc' })
+    if (resolves) await attempt
+    else {
+      const error = await assertRejects(() => attempt, DocumensoError)
+      assertEquals([error.code, error.status], ['provider_error', 400])
+    }
+    assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CANCEL, GET_12])
+  }
+  // Documenso's 404 for an unknown envelope also counts as done.
+  const { fetch } = fakeFetch({ [CANCEL]: json(404, NOT_FOUND) })
+  await client(fetch).cancel('12', { envelopeId: 'envelope_abc' })
+})
+
+Deno.test('cancel: a malformed envelope id is refused before any request', async () => {
+  const { fetch, calls } = fakeFetch({})
+  for (const envelopeId of ['', 'envelope_', 'abc', 'envelope_a/b', '12']) {
+    const error = await assertRejects(
+      () => client(fetch).cancel('12', { envelopeId }),
+      DocumensoError,
+    )
+    assertEquals(error.code, 'provider_error')
+  }
+  assertEquals(calls.length, 0)
 })
 
 Deno.test('cancel: a 400 (e.g. a completed document) is still an error', async () => {
@@ -550,6 +749,23 @@ Deno.test('ping: 200 → ok; 401 → { ok: false, status: 401 }', async () => {
   const c = client(fetch)
   assertEquals(await c.ping(), { ok: true })
   assertEquals(await c.ping(), { ok: false, status: 401 })
+})
+
+Deno.test("ping: a 200 that is not Documenso's list → provider_error", async () => {
+  for (
+    const responder of [
+      () => new Response('<html>Welcome to nginx</html>'),
+      json(200, { data: 'x' }),
+      json(200, [{ id: 1 }]),
+    ]
+  ) {
+    const { fetch } = fakeFetch({ [LIST]: responder })
+    const error = await assertRejects(
+      () => client(fetch).ping(),
+      DocumensoError,
+    )
+    assertEquals([error.code, error.status], ['provider_error', 200])
+  }
 })
 
 Deno.test('ping: no answer at all → provider_error', async () => {

@@ -44,18 +44,28 @@ const field = (recipientId: string) => ({
   height: 6,
 })
 
-/** A fake with one distributed document; returns its id and recipient ids. */
+/** A fake with one distributed document; returns its ids. */
 async function sent(fake = fakeDocumenso()) {
   const client = documensoClient(BASE, KEY, fake.fetch)
-  const { documentId, recipients } = await client.createDocument(PDF, input)
+  const { documentId, envelopeId, recipients } = await client.createDocument(
+    PDF,
+    input,
+  )
   await client.addFields(documentId, recipients.map((r) => field(r.id)))
   await client.distribute(documentId)
-  return { fake, client, documentId, ids: recipients.map((r) => r.id) }
+  return {
+    fake,
+    client,
+    documentId,
+    envelopeId,
+    ids: recipients.map((r) => r.id),
+  }
 }
 
 Deno.test('fake-documenso: the client round trip (create, fields, distribute, sign, complete, download)', async () => {
-  const { fake, client, documentId, ids } = await sent()
+  const { fake, client, documentId, envelopeId, ids } = await sent()
   assertEquals(documentId, '1')
+  assertEquals(envelopeId, 'envelope_1')
   assertEquals(ids, ['101', '102'])
   assertEquals((await client.get(documentId)).status, 'PENDING')
 
@@ -96,11 +106,17 @@ Deno.test('fake-documenso: a wrong key → 401 (ping), a signer without a SIGNAT
   assertEquals(error.status, 400)
 })
 
-Deno.test('fake-documenso: cancel — pending → CANCELLED, then 404 (resolved by the client); completed → 400', async () => {
+Deno.test('fake-documenso: delete — pending → CANCELLED, then a NOT_FOUND 404 (resolved by the client); completed → 400', async () => {
   const { fake, client, documentId } = await sent()
   await client.cancel(documentId)
   assertEquals((await client.get(documentId)).status, 'CANCELLED')
   await client.cancel(documentId)
+  const gone = await fake.fetch(`${BASE}/api/v2/document/delete`, {
+    method: 'POST',
+    headers: { Authorization: KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ documentId: 1 }),
+  })
+  assertEquals([gone.status, (await gone.json()).code], [404, 'NOT_FOUND'])
 
   const second = await sent(fake)
   fake.complete(second.documentId)
@@ -109,6 +125,46 @@ Deno.test('fake-documenso: cancel — pending → CANCELLED, then 404 (resolved 
     DocumensoError,
   )
   assertEquals(error.status, 400)
+
+  // A draft is deleted outright.
+  const draft = await client.createDocument(PDF, input)
+  await client.cancel(draft.documentId)
+  assert(!fake.documents.has(draft.documentId))
+})
+
+Deno.test('fake-documenso: envelope cancel — pending → CANCELLED and kept, reported once to onEvent; a draft → 400', async () => {
+  const events: string[] = []
+  const fake = fakeDocumenso({
+    onEvent: (event, id) => events.push(`${event}:${id}`),
+  })
+  const { client, documentId, envelopeId } = await sent(fake)
+  await client.cancel(documentId, { envelopeId, reason: 'Remplacé' })
+  assertEquals((await client.get(documentId)).status, 'CANCELLED')
+  // Again: Documenso refuses (400), the client reads CANCELLED back.
+  await client.cancel(documentId, { envelopeId })
+  await Promise.resolve()
+  assertEquals(events, ['DOCUMENT_CANCELLED:1'])
+
+  const draft = await client.createDocument(PDF, input)
+  const error = await assertRejects(
+    () => client.cancel(draft.documentId, { envelopeId: draft.envelopeId }),
+    DocumensoError,
+  )
+  assertEquals(error.status, 400)
+  assertEquals(fake.documents.get(draft.documentId)?.status, 'DRAFT')
+})
+
+Deno.test('fake-documenso: the expiry reaches the stored meta', async () => {
+  const fake = fakeDocumenso()
+  const client = documensoClient(BASE, KEY, fake.fetch)
+  const { documentId } = await client.createDocument(PDF, {
+    ...input,
+    meta: { ...input.meta, expiryDays: 30 },
+  })
+  assertEquals(
+    fake.documents.get(documentId)?.meta.envelopeExpirationPeriod,
+    { unit: 'day', amount: 30 },
+  )
 })
 
 Deno.test('fake-documenso: reject stores the reason; redistribute needs a pending document', async () => {

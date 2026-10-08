@@ -1,26 +1,36 @@
 /**
- * An in-memory Documenso for Deno tests: a `fetch` that serves the paths of
+ * An in-memory Documenso: a `fetch` that serves the paths of
  * `DOCUMENSO_PATHS` (`../documenso.ts`), with a call log like `fakeFetch`.
- * Test-only: never deployed.
+ * Never deployed. It is the one fake: Deno tests use it directly, and
+ * `npm run fake:documenso` serves it over HTTP for local development
+ * (`scripts/fake-documenso.ts`, through `./fake-documenso-server.ts`, which
+ * adds the admin routes and posts the webhooks).
  *
- * Same behaviour as `scripts/fake-documenso.mjs` (keep the two in step):
+ * Behaviour:
  * - `Authorization` must be the key (no `Bearer`), else 401;
  * - ids are deterministic: documents 1, 2, …; recipients 101, 102, …;
- *   timestamps tick one second per change from 2026-01-01T12:00:00Z;
+ *   envelope `envelope_<document id>`; timestamps tick one second per change
+ *   from 2026-01-01T12:00:00Z;
  * - fields only on a draft; `distribute` needs a SIGNATURE field per signer
  *   (as Documenso does) and is a no-op on a pending document;
- * - `cancel` (delete): a draft disappears, a pending or rejected document
- *   becomes CANCELLED, a cancelled one answers 404, a completed one 400;
+ * - `delete`: a draft disappears, a pending or rejected document becomes
+ *   CANCELLED, a cancelled or unknown one answers 404, a completed one 400;
+ * - `cancel` (envelope): a pending document becomes CANCELLED (and stays);
+ *   any other status answers 400, an unknown envelope 404;
+ * - cancelling a pending document reports DOCUMENT_CANCELLED to `onEvent`,
+ *   as Documenso fires that webhook;
+ * - errors have Documenso's shape, `{ message, code }`, with the tRPC code
+ *   (`NOT_FOUND` for 404, `UNAUTHORIZED`, `BAD_REQUEST`…);
  * - the signed download is the uploaded PDF plus a trailing comment, so it
  *   differs from the source and still ends with `%%EOF` nearby.
  *
- * Instead of the script's admin routes, tests call `open` / `sign` /
- * `complete` / `reject`, then build the webhook with `webhookRequest`.
+ * Tests call `open` / `sign` / `complete` / `reject`, then build the webhook
+ * with `webhookRequest`.
  */
 import { DOCUMENSO_PATHS, type DocumensoDocumentStatus } from '../documenso.ts'
 import type { FetchCall } from './fake-fetch.ts'
 
-/** The fake's API operations, for `failures`. */
+/** The fake's API operations, for `failures` (`cancel` is the envelope one). */
 export type FakeDocumensoOperation =
   | 'create'
   | 'read'
@@ -28,14 +38,18 @@ export type FakeDocumensoOperation =
   | 'distribute'
   | 'redistribute'
   | 'cancel'
+  | 'delete'
   | 'download'
   | 'list'
 
+/** A recipient as the fake stores it (and returns it, ids as numbers). */
 export interface FakeDocumensoRecipient {
+  /** `101`, `102`, … across the fake's documents. */
   id: string
   email: string
   name: string
   role: string
+  /** 1-based, from the create payload (else the list order). */
   signingOrder: number
   readStatus: 'NOT_OPENED' | 'OPENED'
   signingStatus: 'NOT_SIGNED' | 'SIGNED' | 'REJECTED'
@@ -44,17 +58,22 @@ export interface FakeDocumensoRecipient {
   rejectionReason: string | null
 }
 
+/** A placed field, in percent of the page as the client sent it. */
 export interface FakeDocumensoField {
   recipientId: string
   type: string
+  /** 1-based (`pageNumber` in the request). */
   page: number
+  /** `pageX` / `pageY` in the request. */
   x: number
   y: number
   width: number
   height: number
 }
 
+/** A document as the fake stores it. */
 export interface FakeDocumensoDocument {
+  /** `1`, `2`, …; the envelope id is `envelope_<id>`. */
   id: string
   externalId: string | null
   title: string
@@ -62,14 +81,21 @@ export interface FakeDocumensoDocument {
   createdAt: string
   updatedAt: string
   completedAt: string | null
+  /** The create payload's `meta`, as sent (`dateFormat`, `envelopeExpirationPeriod`…). */
   meta: Record<string, unknown>
+  /** The uploaded PDF. */
   pdf: Uint8Array
   recipients: FakeDocumensoRecipient[]
   fields: FakeDocumensoField[]
 }
 
+/** The fake: its `fetch`, its state, and the signer actions tests drive. */
 export interface FakeDocumenso {
+  /** The origin it answers (`options.baseUrl` without a trailing slash). */
+  baseUrl: string
+  /** Serves `baseUrl`; other origins go to `options.fallback`, else throw. */
   fetch: typeof fetch
+  /** Every request to `baseUrl`, in order (bodies read from a clone). */
   calls: FetchCall[]
   /** By id; a deleted draft is removed. */
   documents: Map<string, FakeDocumensoDocument>
@@ -89,14 +115,30 @@ export interface FakeDocumenso {
   webhookRequest(url: string, event: string, documentId: string): Request
 }
 
+/** Options of `fakeDocumenso`; the defaults match the local seed. */
 export interface FakeDocumensoOptions {
+  /**
+   * Default `http://host.docker.internal:55390`, the seed's
+   * `signing_settings.base_url`: edge functions run in Docker and reach a
+   * fake on the host through `host.docker.internal`. OrbStack and Docker
+   * Desktop provide that name; Linux Docker does not (use the host's bridge
+   * address, e.g. `http://172.17.0.1:55390`, and serve the fake on it).
+   */
   baseUrl?: string
+  /** Default `local-dev-documenso-key`. */
   apiKey?: string
+  /** Sent as `X-Documenso-Secret`; default `local-dev-documenso-webhook-secret`. */
   webhookSecret?: string
   /** Delay inside each request, so concurrent calls overlap (default 0). */
   latencyMs?: number
   /** Serves requests to any other origin; without it they throw. */
   fallback?: typeof fetch
+  /**
+   * Called when Documenso would fire a webhook on its own after an API call
+   * (DOCUMENT_CANCELLED when a pending document is cancelled), after the
+   * answer is built.
+   */
+  onEvent?: (event: string, documentId: string) => void
 }
 
 const START = Date.parse('2026-01-01T12:00:00.000Z')
@@ -107,8 +149,15 @@ const json = (status: number, body: unknown) =>
     status,
     headers: { 'Content-Type': 'application/json' },
   })
+/** tRPC error codes by status, as Documenso's OpenAPI errors carry them. */
+const CODES: Record<number, string> = {
+  400: 'BAD_REQUEST',
+  401: 'UNAUTHORIZED',
+  403: 'FORBIDDEN',
+  404: 'NOT_FOUND',
+}
 const failure = (status: number, message: string) =>
-  json(status, { message, code: status === 401 ? 'UNAUTHORIZED' : 'ERROR' })
+  json(status, { message, code: CODES[status] ?? 'INTERNAL_SERVER_ERROR' })
 
 const inPercent = (v: unknown, min: number) =>
   typeof v === 'number' && v >= min && v <= 100
@@ -284,7 +333,18 @@ export function fakeDocumenso(
     return json(200, { success: true })
   }
 
-  async function cancel(req: Request): Promise<Response> {
+  /** A pending (or rejected) document becomes CANCELLED. */
+  function markCancelled(doc: FakeDocumensoDocument): void {
+    const wasPending = doc.status === 'PENDING'
+    doc.status = 'CANCELLED'
+    doc.updatedAt = tick()
+    if (wasPending) {
+      // Documenso fires the webhook after answering.
+      queueMicrotask(() => options.onEvent?.('DOCUMENT_CANCELLED', doc.id))
+    }
+  }
+
+  async function deleteDocument(req: Request): Promise<Response> {
     const doc = find((await body(req)).documentId)
     if (!doc || doc.status === 'CANCELLED') {
       return failure(404, 'Document not found')
@@ -293,10 +353,19 @@ export function fakeDocumenso(
       return failure(400, 'A completed document cannot be deleted')
     }
     if (doc.status === 'DRAFT') documents.delete(doc.id)
-    else {
-      doc.status = 'CANCELLED'
-      doc.updatedAt = tick()
+    else markCancelled(doc)
+    return json(200, { success: true })
+  }
+
+  async function cancelEnvelope(req: Request): Promise<Response> {
+    const { envelopeId } = await body(req)
+    const id = /^envelope_(\d+)$/.exec(String(envelopeId))?.[1]
+    const doc = id === undefined ? undefined : find(id)
+    if (!doc) return failure(404, 'Envelope not found')
+    if (doc.status !== 'PENDING') {
+      return failure(400, 'Only a pending envelope can be cancelled')
     }
+    markCancelled(doc)
     return json(200, { success: true })
   }
 
@@ -345,6 +414,7 @@ export function fakeDocumenso(
       return ['redistribute', '']
     }
     if (post && path === DOCUMENSO_PATHS.cancel) return ['cancel', '']
+    if (post && path === DOCUMENSO_PATHS.delete) return ['delete', '']
     if (req.method !== 'GET') return null
     if (path === DOCUMENSO_PATHS.list) return ['list', '']
     const download = /^\/api\/v2\/document\/(\d+)\/download$/.exec(path)
@@ -373,7 +443,9 @@ export function fakeDocumenso(
       case 'redistribute':
         return await redistribute(req)
       case 'cancel':
-        return await cancel(req)
+        return await cancelEnvelope(req)
+      case 'delete':
+        return await deleteDocument(req)
       case 'download':
         return download(id, url)
       case 'list':
@@ -434,6 +506,7 @@ export function fakeDocumenso(
   }
 
   return {
+    baseUrl,
     fetch: fake as typeof fetch,
     calls,
     documents,

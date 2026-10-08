@@ -9,23 +9,30 @@
  *   Hub hard-codes its URL). Requests send `Authorization: <key>`, no
  *   `Bearer`, as Documenso's `apiKey` scheme expects.
  * - **Errors:** every failure throws a `DocumensoError` carrying the HTTP
- *   status (null when there was no answer) and a code: `not_configured` when
- *   the key is refused (401/403) or the URL / key is missing, otherwise
- *   `provider_error`. A response body is never read into an error, a log or a
- *   return value: Documenso quotes addresses in its messages.
- * - **Limits:** each request is cut after `timeoutMs` (20 s by default) and
- *   stops at once when the caller's `signal` aborts. A signed PDF over
- *   `maxDownloadBytes` (25 MB) is refused while it streams.
- * - Nothing here logs. Ids are numeric strings (the `document` API's ids);
- *   anything else is refused before a request, so no id reaches a path
- *   unchecked.
+ *   status (null when no complete answer arrived) and a code:
+ *   `not_configured` when the key is refused (401/403) or the URL / key is
+ *   missing, `invalid_request` for input refused before any request (two
+ *   recipients with one address, a bad expiry), otherwise `provider_error`.
+ *   A response body is never read into an error, a log or a return value:
+ *   Documenso quotes addresses in its messages. Transport errors (while
+ *   connecting or while reading a body) are reduced to their kind (`timed
+ *   out`, `aborted`, `unreachable`): the raw error can quote the URL.
+ * - **Limits:** each request, body included, is cut after `timeoutMs` (20 s
+ *   by default) and stops at once when the caller's `signal` aborts. A signed
+ *   PDF over `maxDownloadBytes` (25 MB) is refused while it streams; a JSON
+ *   body over 1 MB is refused the same way.
+ * - Nothing here logs. Document ids are numeric strings (the `document` API's
+ *   ids) and envelope ids `envelope_…`; anything else is refused before a
+ *   request, so no id reaches a path or a body unchecked.
  *
- * The paths use the v2 `document` family, as PS Hub does. Documenso marks it
- * deprecated in favour of `envelope` (string ids); every path used here is
- * still in the public v2 OpenAPI document (checked 2026-10-08). The ones PS
- * Hub never called are marked `VERIFY` below; the fake servers
- * (`scripts/fake-documenso.mjs`, `testing/fake-documenso.ts`) mirror this
- * table exactly.
+ * The paths use the v2 `document` family, as PS Hub does, except `cancel`,
+ * which uses the `envelope` family when the envelope id is known. Documenso
+ * marks `document` deprecated in favour of `envelope` (string ids); every
+ * path used here is in the public v2 OpenAPI document
+ * (app.documenso.com/api/v2/openapi.json, checked 2026-10-08). The ones PS
+ * Hub never called are marked `VERIFY` below; the fake
+ * (`testing/fake-documenso.ts`, also served locally by
+ * `scripts/fake-documenso.ts`) mirrors this table exactly.
  */
 import { z } from 'zod'
 import { FunctionError } from './errors.ts'
@@ -46,12 +53,17 @@ export const DOCUMENSO_PATHS = {
   distribute: '/api/v2/document/distribute',
   /** POST `{ documentId, recipients: number[] }`: resends to those recipients. */
   redistribute: '/api/v2/document/redistribute',
-  /** POST `{ documentId }`: a pending document is cancelled (`DOCUMENT_CANCELLED`). */
+  /** POST `{ envelopeId, reason? }`: a pending document is cancelled and stays visible. */
+  // VERIFY against the clinic instance (Mise en service): in the public v2
+  // OpenAPI (« Cancel a pending envelope », 200 `{ success }`, checked
+  // 2026-10-08). Its answer for a draft or an already-cancelled envelope is
+  // not documented: `cancel` reads the status back after a 400.
+  cancel: '/api/v2/envelope/cancel',
+  /** POST `{ documentId }`: a draft is deleted, a pending document cancelled (`DOCUMENT_CANCELLED`). */
   // VERIFY against the clinic instance (Mise en service): the `document`
   // family has no cancel; deleting a pending document cancels it and fires
-  // DOCUMENT_CANCELLED. Newer instances also have POST /api/v2/envelope/cancel
-  // `{ envelopeId }`, which keeps the document visible.
-  cancel: '/api/v2/document/delete',
+  // DOCUMENT_CANCELLED. Used when the envelope id is unknown (and for drafts).
+  delete: '/api/v2/document/delete',
   /** GET `?version=signed` → the signed PDF (certificate appended). */
   // VERIFY against the clinic instance (Mise en service): raw PDF bytes, as PS
   // Hub reads them (envelope successor: /api/v2/envelope/item/{itemId}/download).
@@ -91,7 +103,26 @@ export interface CreateDocumentInput {
     signingOrder: 'SEQUENTIAL' | 'PARALLEL'
     /** The clinic timezone (`organizations.timezone`), for DATE fields. */
     timezone: string
+    /**
+     * Days before the invitation expires (a positive integer), sent as
+     * `envelopeExpirationPeriod: { unit: 'day', amount }`; absent, the
+     * instance's default applies.
+     */
+    expiryDays?: number
   }
+}
+
+/** What `cancel` may know besides the document id. */
+export interface DocumensoCancelOptions {
+  /**
+   * From `createDocument`. Set, the envelope is cancelled and stays visible
+   * in Documenso; absent (or null), the document is deleted, which cancels a
+   * pending one too. Documenso cancels only a pending (distributed)
+   * envelope: cancel a draft by its document id alone.
+   */
+  envelopeId?: string | null
+  /** Why, as Documenso records it (envelope cancel only). */
+  reason?: string
 }
 
 /**
@@ -131,15 +162,21 @@ export interface DocumensoDocumentState {
 export interface DocumensoClient {
   /**
    * Uploads the PDF with its recipients and meta (as a draft), then reads the
-   * recipient ids back (PS Hub's two calls). When the second step fails, the
-   * error's `documentId` names the created document, so it can be cancelled.
+   * recipient ids back (PS Hub's two calls). Two recipients with the same
+   * address (case-insensitive) are refused first (`invalid_request`): the
+   * recipient ids are read back by address, so they could not be told apart.
+   * When the second step fails, the error's `documentId` names the created
+   * document, so it can be cancelled. `envelopeId` is null when Documenso
+   * did not return a well-formed one.
    */
   createDocument(
     pdf: Uint8Array,
     input: CreateDocumentInput,
-  ): Promise<
-    { documentId: string; recipients: { id: string; email: string }[] }
-  >
+  ): Promise<{
+    documentId: string
+    envelopeId: string | null
+    recipients: { id: string; email: string }[]
+  }>
   /** Places the fields; an empty list makes no request. */
   addFields(documentId: string, fields: DocumensoFieldInput[]): Promise<void>
   /** Sends the document (Documenso emails the first signer). */
@@ -148,11 +185,20 @@ export interface DocumensoClient {
   redistribute(documentId: string, recipientIds: string[]): Promise<void>
   /** The document's status and recipients. */
   get(documentId: string): Promise<DocumensoDocumentState>
-  /** Cancels the document; one already gone (404) counts as cancelled. */
-  cancel(documentId: string): Promise<void>
+  /**
+   * Cancels the document (`DocumensoCancelOptions`). Already done counts as
+   * done: a 404 whose body is Documenso's `NOT_FOUND` error (any other 404,
+   * e.g. a proxy's, is an error), or, for an envelope, a 400 while the
+   * document reads back as CANCELLED.
+   */
+  cancel(documentId: string, options?: DocumensoCancelOptions): Promise<void>
   /** The signed PDF (Documenso appends its certificate). */
   downloadSigned(documentId: string): Promise<Uint8Array>
-  /** One authenticated read: ok, or the HTTP status. Throws only when nothing answered. */
+  /**
+   * One authenticated read: ok, or the HTTP status. Throws when nothing
+   * answered, or when a 2xx is not Documenso's list (`{ data: [...] }`, e.g.
+   * the base URL points at another server).
+   */
   ping(): Promise<{ ok: true } | { ok: false; status: number }>
 }
 
@@ -167,12 +213,16 @@ export interface DocumensoClientOptions {
 }
 
 /** The codes a Documenso failure maps to (P3-28). */
-export type DocumensoErrorCode = 'provider_error' | 'not_configured'
+export type DocumensoErrorCode =
+  | 'provider_error'
+  | 'not_configured'
+  | 'invalid_request'
 
 /**
- * A Documenso failure. `status` is the HTTP status, or null when nothing
- * answered (network error, timeout, abort) or before any request. The message
- * names the operation and the status only.
+ * A Documenso failure. `status` is the HTTP status, or null when no complete
+ * answer arrived (network error, timeout or abort, while connecting or
+ * reading the body) or before any request. The message names the operation
+ * and the status or the failure's kind only.
  */
 export class DocumensoError extends FunctionError {
   declare readonly code: DocumensoErrorCode
@@ -190,11 +240,21 @@ export class DocumensoError extends FunctionError {
 
 const TIMEOUT_MS = 20_000
 const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
-/** DATE fields in the Québec order (PS Hub's choice). */
+/**
+ * DATE fields day first, as PS Hub sends them. Not the Québec standard
+ * order, which is year first (yyyy-MM-dd, also in Documenso's list).
+ */
 const DATE_FORMAT = 'dd/MM/yyyy'
-/** Documenso's ids in the `document` API are integers. */
-const NUMERIC_ID = /^[1-9][0-9]{0,15}$/
+/** Documenso's ids in the `document` API are integers: ≤ 15 digits stay safe integers. */
+const NUMERIC_ID = /^[1-9][0-9]{0,14}$/
+/** Envelope ids: `envelope_` and a generated suffix. */
+// VERIFY against the clinic instance (Mise en service): the suffix alphabet.
+const ENVELOPE_ID = /^envelope_[A-Za-z0-9_-]{1,64}$/
 const PDF_MAGIC = '%PDF-'
+/** Largest JSON success body read (a document with its recipients is far smaller). */
+const MAX_JSON_BYTES = 1024 * 1024
+/** Largest error body read (only `cancel` reads one, for its 404). */
+const MAX_ERROR_BYTES = 64 * 1024
 
 const TERMINAL_EVENTS = new Set([
   'DOCUMENT_COMPLETED',
@@ -220,7 +280,21 @@ export function documensoEventId(
     : `${prefix}:${version ?? 'unversioned'}`
 }
 
-const createdSchema = z.object({ id: z.number().int().positive() })
+const createdSchema = z.object({
+  id: z.number().int().positive(),
+  envelopeId: z.unknown().optional(),
+})
+
+/** `{ data: [...] }`, the list `ping` reads. */
+const listSchema = z.object({ data: z.array(z.unknown()) })
+
+/** Documenso's error body for a missing document or envelope. */
+// VERIFY against the clinic instance (Mise en service): `code` is the tRPC
+// error code (OpenAPI error shape `{ message, code, issues? }`).
+const notFoundSchema = z.object({
+  message: z.string(),
+  code: z.literal('NOT_FOUND'),
+})
 
 const nullableString = z.string().nullish().transform((v) => v ?? null)
 
@@ -275,28 +349,54 @@ function numericId(id: string, operation: Operation): number {
   return Number(id)
 }
 
-/** The body bytes, or null past `maxBytes` (reading stops there). */
+/** A response, and the error its transport failure maps to. */
+interface Exchange {
+  operation: Operation
+  res: Response
+  /** The failure (kind only, never the raw error); `reading` once the body started. */
+  failure(reading?: boolean): DocumensoError
+}
+
+/** Drops the body; a stream that already failed has nothing left to drop. */
+async function discard(exchange: Exchange): Promise<void> {
+  try {
+    await exchange.res.body?.cancel()
+  } catch {
+    // Nothing to keep: the status is all the caller uses.
+  }
+}
+
+/**
+ * The body bytes, or null past `maxBytes` (reading stops there). A
+ * transport failure mid-body (timeout, abort, dropped connection) throws the
+ * exchange's failure, never the raw error.
+ */
 async function readCapped(
-  res: Response,
+  exchange: Exchange,
   maxBytes: number,
 ): Promise<Uint8Array | null> {
+  const { res } = exchange
   if (Number(res.headers.get('Content-Length')) > maxBytes) {
-    await res.body?.cancel()
+    await discard(exchange)
     return null
   }
   if (!res.body) return new Uint8Array()
-  const reader = res.body.getReader()
   const chunks: Uint8Array[] = []
   let size = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    size += value.length
-    if (size > maxBytes) {
-      await reader.cancel()
-      return null
+  try {
+    const reader = res.body.getReader()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.length
+      if (size > maxBytes) {
+        await reader.cancel().catch(() => {})
+        return null
+      }
+      chunks.push(value)
     }
-    chunks.push(value)
+  } catch {
+    throw exchange.failure(true)
   }
   const bytes = new Uint8Array(size)
   let offset = 0
@@ -305,6 +405,20 @@ async function readCapped(
     offset += chunk.length
   }
   return bytes
+}
+
+/** The body as JSON, or undefined when it is not JSON (read errors throw). */
+async function readJson(
+  exchange: Exchange,
+  maxBytes: number,
+): Promise<unknown> {
+  const bytes = await readCapped(exchange, maxBytes)
+  if (bytes === null) return undefined
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes))
+  } catch {
+    return undefined
+  }
 }
 
 /**
@@ -338,32 +452,38 @@ export function documensoClient(
     operation: Operation,
     path: string,
     init: { method: 'GET' | 'POST'; json?: unknown; body?: FormData },
-  ): Promise<Response> {
+  ): Promise<Exchange> {
     const timeout = AbortSignal.timeout(timeoutMs)
     const signal = options.signal
       ? AbortSignal.any([timeout, options.signal])
       : timeout
-    const headers: Record<string, string> = { Authorization: apiKey }
-    if (init.json !== undefined) headers['Content-Type'] = 'application/json'
-    try {
-      return await fetchFn(`${base}${path}`, {
-        method: init.method,
-        headers,
-        body: init.json !== undefined ? JSON.stringify(init.json) : init.body,
-        signal,
-      })
-    } catch {
-      // The error can quote the URL: only its kind is kept.
+    // The raw error can quote the URL: only its kind is kept.
+    const failure = (reading = false) => {
       const reason = options.signal?.aborted
         ? 'aborted'
         : timeout.aborted
         ? 'timed out'
         : 'unreachable'
-      throw new DocumensoError(
+      return new DocumensoError(
         'provider_error',
         null,
-        `Documenso ${operation} ${reason}`,
+        `Documenso ${operation} ${reason}${
+          reading ? ' while reading the response' : ''
+        }`,
       )
+    }
+    const headers: Record<string, string> = { Authorization: apiKey }
+    if (init.json !== undefined) headers['Content-Type'] = 'application/json'
+    try {
+      const res = await fetchFn(`${base}${path}`, {
+        method: init.method,
+        headers,
+        body: init.json !== undefined ? JSON.stringify(init.json) : init.body,
+        signal,
+      })
+      return { operation, res, failure }
+    } catch {
+      throw failure()
     }
   }
 
@@ -372,13 +492,13 @@ export function documensoClient(
     operation: Operation,
     path: string,
     init: Parameters<typeof send>[2],
-  ): Promise<Response> {
-    const res = await send(operation, path, init)
-    if (!res.ok) {
-      await res.body?.cancel()
-      throw statusError(operation, res.status)
+  ): Promise<Exchange> {
+    const exchange = await send(operation, path, init)
+    if (!exchange.res.ok) {
+      await discard(exchange)
+      throw statusError(operation, exchange.res.status)
     }
-    return res
+    return exchange
   }
 
   /** A request that must succeed, its body discarded. */
@@ -387,37 +507,51 @@ export function documensoClient(
     path: string,
     init: Parameters<typeof send>[2],
   ): Promise<void> {
-    const res = await ok(operation, path, init)
-    await res.body?.cancel()
+    await discard(await ok(operation, path, init))
   }
 
-  /** A successful JSON body parsed with `schema`. */
+  /** A successful JSON body (≤ 1 MB) parsed with `schema`. */
   async function parsed<S extends z.ZodType>(
-    operation: Operation,
-    res: Response,
+    exchange: Exchange,
     schema: S,
   ): Promise<z.output<S>> {
-    let body: unknown
-    try {
-      body = await res.json()
-    } catch {
-      throw badResponse(operation, res.status)
-    }
-    const result = schema.safeParse(body)
+    const { operation, res } = exchange
+    const result = schema.safeParse(await readJson(exchange, MAX_JSON_BYTES))
     if (!result.success) throw badResponse(operation, res.status)
     return result.data
   }
 
   async function readDocument(documentId: string) {
     const id = numericId(documentId, 'read')
-    const res = await ok('read', DOCUMENSO_PATHS.document(String(id)), {
+    const exchange = await ok('read', DOCUMENSO_PATHS.document(String(id)), {
       method: 'GET',
     })
-    return parsed('read', res, documentSchema)
+    return parsed(exchange, documentSchema)
+  }
+
+  /** Refuses input Documenso would accept wrongly (`invalid_request`). */
+  function checkInput(input: CreateDocumentInput): void {
+    const refuse = (why: string) => {
+      throw new DocumensoError(
+        'invalid_request',
+        null,
+        `Documenso create: ${why}`,
+      )
+    }
+    const emails = input.recipients.map((r) => r.email.trim().toLowerCase())
+    if (new Set(emails).size !== emails.length) {
+      refuse('two recipients share an address')
+    }
+    const days = input.meta.expiryDays
+    if (days !== undefined && !(Number.isSafeInteger(days) && days >= 1)) {
+      refuse('expiryDays is not a positive integer')
+    }
   }
 
   return {
     async createDocument(pdf, input) {
+      checkInput(input)
+      const { expiryDays, ...meta } = input.meta
       const form = new FormData()
       form.append(
         'payload',
@@ -425,7 +559,13 @@ export function documensoClient(
           title: input.title,
           externalId: input.externalId,
           recipients: input.recipients,
-          meta: { ...input.meta, dateFormat: DATE_FORMAT },
+          meta: {
+            ...meta,
+            dateFormat: DATE_FORMAT,
+            ...(expiryDays === undefined ? {} : {
+              envelopeExpirationPeriod: { unit: 'day', amount: expiryDays },
+            }),
+          },
         }),
       )
       // A fixed file name: the title can name a person (Loi 25).
@@ -434,11 +574,18 @@ export function documensoClient(
         new Blob([pdf as Uint8Array<ArrayBuffer>], { type: 'application/pdf' }),
         'document.pdf',
       )
-      const res = await ok('create', DOCUMENSO_PATHS.create, {
-        method: 'POST',
-        body: form,
-      })
-      const documentId = String((await parsed('create', res, createdSchema)).id)
+      const created = await parsed(
+        await ok('create', DOCUMENSO_PATHS.create, {
+          method: 'POST',
+          body: form,
+        }),
+        createdSchema,
+      )
+      const documentId = String(created.id)
+      const envelopeId = typeof created.envelopeId === 'string' &&
+          ENVELOPE_ID.test(created.envelopeId)
+        ? created.envelopeId
+        : null
       try {
         const doc = await readDocument(documentId)
         const recipients = input.recipients.map(({ email }) => {
@@ -448,7 +595,7 @@ export function documensoClient(
           if (!match) throw badResponse('read', 200)
           return { id: String(match.id), email }
         })
-        return { documentId, recipients }
+        return { documentId, envelopeId, recipients }
       } catch (error) {
         const e = error instanceof DocumensoError
           ? error
@@ -509,39 +656,74 @@ export function documensoClient(
       }
     },
 
-    async cancel(documentId) {
-      const res = await send('cancel', DOCUMENSO_PATHS.cancel, {
-        method: 'POST',
-        json: { documentId: numericId(documentId, 'cancel') },
-      })
-      await res.body?.cancel()
-      if (!res.ok && res.status !== 404) throw statusError('cancel', res.status)
+    async cancel(documentId, { envelopeId = null, reason } = {}) {
+      const id = numericId(documentId, 'cancel')
+      if (envelopeId !== null && !ENVELOPE_ID.test(envelopeId)) {
+        throw new DocumensoError(
+          'provider_error',
+          null,
+          'Documenso cancel: invalid id',
+        )
+      }
+      const exchange = envelopeId !== null
+        ? await send('cancel', DOCUMENSO_PATHS.cancel, {
+          method: 'POST',
+          json: { envelopeId, ...(reason === undefined ? {} : { reason }) },
+        })
+        : await send('cancel', DOCUMENSO_PATHS.delete, {
+          method: 'POST',
+          json: { documentId: id },
+        })
+      const { status } = exchange.res
+      if (exchange.res.ok) return await discard(exchange)
+      if (status === 404) {
+        // Gone already, but only Documenso's own error says so: a proxy's or
+        // another server's 404 (a wrong base URL) is an error.
+        const body = await readJson(exchange, MAX_ERROR_BYTES)
+        if (notFoundSchema.safeParse(body).success) return
+        throw statusError('cancel', status)
+      }
+      await discard(exchange)
+      if (envelopeId !== null && status === 400) {
+        // Documenso refuses to cancel what is not pending: already cancelled
+        // counts as done, anything else (a draft, a completed document) not.
+        try {
+          if ((await readDocument(documentId)).status === 'CANCELLED') return
+        } catch {
+          // The cancel's own error is the one to report.
+        }
+      }
+      throw statusError('cancel', status)
     },
 
     async downloadSigned(documentId) {
       const id = numericId(documentId, 'download')
-      const res = await ok(
+      const exchange = await ok(
         'download',
         `${DOCUMENSO_PATHS.download(String(id))}?version=signed`,
         { method: 'GET' },
       )
-      const bytes = await readCapped(res, maxDownloadBytes)
+      const bytes = await readCapped(exchange, maxDownloadBytes)
       if (
         bytes === null ||
         new TextDecoder().decode(bytes.subarray(0, PDF_MAGIC.length)) !==
           PDF_MAGIC
       ) {
-        throw badResponse('download', res.status)
+        throw badResponse('download', exchange.res.status)
       }
       return bytes
     },
 
     async ping() {
-      const res = await send('ping', `${DOCUMENSO_PATHS.list}?perPage=1`, {
+      const exchange = await send('ping', `${DOCUMENSO_PATHS.list}?perPage=1`, {
         method: 'GET',
       })
-      await res.body?.cancel()
-      return res.ok ? { ok: true } : { ok: false, status: res.status }
+      if (!exchange.res.ok) {
+        await discard(exchange)
+        return { ok: false, status: exchange.res.status }
+      }
+      await parsed(exchange, listSchema)
+      return { ok: true }
     },
   }
 }
