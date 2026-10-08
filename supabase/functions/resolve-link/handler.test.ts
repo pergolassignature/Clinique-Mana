@@ -80,7 +80,7 @@ async function snapshot(res: Response) {
   return { status: res.status, headers, body: await res.text() }
 }
 
-Deno.test('resolve-link: a valid link → 200 { purpose, display }, opened mark requested, no token echoed', async () => {
+Deno.test('resolve-link: a valid link → 200 { purpose, display }, marked opened only past the module gate, no token echoed', async () => {
   await run(async () => {
     const hash = await hashToken(TOKEN)
     const { handler, service } = harness({ peeks: { [hash]: peekValid() } })
@@ -97,14 +97,19 @@ Deno.test('resolve-link: a valid link → 200 { purpose, display }, opened mark 
       'consume_rate_limit',
       'peek_secure_link',
       'module_enabled_for_org',
+      'peek_secure_link',
       'resolve_staff_invitation',
     ])
     assertEquals(service.calls[1].args, {
       p_token_hash: hash,
-      p_mark_opened: true,
+      p_mark_opened: false,
     })
     assertEquals(service.calls[2].args, { p_org_id: ORG_ID, p_key: 'core' })
-    assertEquals(service.calls[3].args, { p_link_id: LINK_ID })
+    assertEquals(service.calls[3].args, {
+      p_token_hash: hash,
+      p_mark_opened: true,
+    })
+    assertEquals(service.calls[4].args, { p_link_id: LINK_ID })
   })
 })
 
@@ -223,14 +228,46 @@ Deno.test('resolve-link: expired → 410 link_expired; used → 410 link_used; n
   })
 })
 
-Deno.test('resolve-link: a disabled module never reaches the purpose RPC', async () => {
+Deno.test('resolve-link: a disabled module never marks the link opened nor reaches the purpose RPC', async () => {
   await run(async () => {
     const { handler, service } = harness({
       peeks: { [await hashToken(TOKEN)]: peekValid() },
       moduleEnabled: false,
     })
-    await handler(post({ token: TOKEN }))
-    assert(!names(service.calls).includes('resolve_staff_invitation'))
+    assertEquals((await handler(post({ token: TOKEN }))).status, 410)
+    assertEquals(names(service.calls), [
+      'consume_rate_limit',
+      'peek_secure_link',
+      'module_enabled_for_org',
+    ])
+    assertEquals(
+      service.calls.filter((c) => c.args.p_mark_opened === true),
+      [],
+    )
+  })
+})
+
+Deno.test('resolve-link: a link whose state changes between the two peeks → 410 with the new state, not resolved', async () => {
+  await run(async () => {
+    for (
+      const [later, code] of [
+        [{ state: 'invalid' }, 'link_invalid'],
+        [{ state: 'used', purpose: 'staff_invite' }, 'link_used'],
+        [{ state: 'expired', purpose: 'staff_invite' }, 'link_expired'],
+      ] as const
+    ) {
+      const { handler, service } = harness({
+        rpc: {
+          peek_secure_link: (args) => ({
+            data: args.p_mark_opened ? later : peekValid(),
+          }),
+        },
+      })
+      const res = await handler(post({ token: TOKEN }))
+      assertEquals(res.status, 410)
+      assertEquals((await res.json()).error.code, code)
+      assert(!names(service.calls).includes('resolve_staff_invitation'))
+    }
   })
 })
 
@@ -239,6 +276,13 @@ Deno.test('resolve-link: RPC failures → 500 internal, reported without the tok
     const hash = await hashToken(TOKEN)
     const cases: Record<string, RpcRoute>[] = [
       { peek_secure_link: { error: { code: 'XX000', message: 'boom' } } },
+      // The marking peek fails after the gate.
+      {
+        peek_secure_link: (args) =>
+          args.p_mark_opened
+            ? { error: { code: 'XX000', message: 'boom' } }
+            : { data: peekValid() },
+      },
       { peek_secure_link: { data: peekValid({ resolve_rpc: null }) } },
       { module_enabled_for_org: { error: { code: 'XX000', message: 'x' } } },
       { resolve_staff_invitation: { error: { code: 'XX000', message: 'x' } } },

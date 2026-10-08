@@ -118,6 +118,37 @@ Deno.test('users-set-status: a ban failure after the disable → 200 sessions_en
   })
 })
 
+Deno.test('users-set-status: disabling an already-disabled user retries the ban; sessions_ended follows the new attempt', async () => {
+  await run(async () => {
+    // set_user_status is a no-op for an unchanged status (it answers null).
+    let banFails = true
+    const { handler, events } = harness({
+      updateUser: () =>
+        banFails ? authDown() : { data: { user: { id: TARGET } } },
+    })
+    await captureConsole('error', async () => {
+      const first = await handler(post({ user_id: TARGET, status: 'disabled' }))
+      assertEquals(await first.json(), {
+        status: 'disabled',
+        sessions_ended: false,
+      })
+    })
+    banFails = false
+    const retry = await handler(post({ user_id: TARGET, status: 'disabled' }))
+    assertEquals(retry.status, 200)
+    assertEquals(await retry.json(), {
+      status: 'disabled',
+      sessions_ended: true,
+    })
+    assertEquals(events, [
+      'set_user_status:disabled',
+      'ban:876000h',
+      'set_user_status:disabled',
+      'ban:876000h',
+    ])
+  })
+})
+
 Deno.test('users-set-status: enable → set_user_status, then the unban (ban_duration none) → 200', async () => {
   await run(async () => {
     const { handler, events } = harness()

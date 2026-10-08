@@ -107,6 +107,20 @@ const run = (fn: () => Promise<void>) =>
     ALLOWED_ORIGINS: APP,
   }, fn)
 
+/** `peek_secure_link`: valid on the first call, then `later` (null: an RPC error). */
+const peekThen = (later: unknown): RpcRoute => {
+  let calls = 0
+  return () =>
+    calls++ === 0
+      ? { data: peekValid() }
+      : later === null
+      ? { error: { code: 'XX000', message: 'fake: peek down' } }
+      : { data: later }
+}
+
+/** An `accept_rpc` transport failure: no reply, so no status. */
+const lostReply = { error: { code: '', message: 'TypeError: fetch failed' } }
+
 const accept = (over: Record<string, unknown> = {}) =>
   post({ token: TOKEN, password: PASSWORD, ...over })
 
@@ -141,12 +155,23 @@ Deno.test('accept-invite: happy path: peek → createUser → accept_rpc → 200
       email: INVITEE_EMAIL,
       password: PASSWORD,
       email_confirm: true,
+      app_metadata: { invite_link_id: LINK_ID },
     }])
     assertEquals(args('accept_staff_invitation'), {
       p_token_hash: hash,
       p_user_id: NEW_USER,
       p_payload: {},
     })
+  })
+})
+
+Deno.test('accept-invite: the created user carries the orphan marker app_metadata.invite_link_id (the link id only)', async () => {
+  await run(async () => {
+    const { handler, service } = harness()
+    assertEquals((await handler(accept())).status, 200)
+    const [attrs] = service.adminCalls[0].args as [Record<string, unknown>]
+    assertEquals(attrs.app_metadata, { invite_link_id: LINK_ID })
+    assertEquals(attrs.user_metadata, undefined)
   })
 })
 
@@ -194,6 +219,68 @@ Deno.test('accept-invite: accept_rpc errors (or answers nonsense) → the user i
         'deleteUser',
       ])
     }
+  })
+})
+
+Deno.test('accept-invite: an accept_rpc transport error, the link now used → the user is kept (the reply was lost), reported, 500', async () => {
+  await run(async () => {
+    const { handler, events } = harness({
+      rpc: {
+        peek_secure_link: peekThen({ state: 'used', purpose: 'staff_invite' }),
+        accept_staff_invitation: lostReply,
+      },
+    })
+    const logged = await captureConsole('error', async () => {
+      const error = await errorOf(await handler(accept()))
+      assertEquals([error.status, error.code], [500, 'internal'])
+    })
+    assertEquals(events.slice(-3), [
+      'createUser',
+      'accept_staff_invitation',
+      'peek_secure_link',
+    ])
+    assert(!events.includes('deleteUser'))
+    assertEquals(logged.map((l) => JSON.parse(String(l[0]))), [{
+      fn: 'accept-invite',
+      code: 'accept_outcome_unknown',
+      ids: { link_id: LINK_ID, user_id: NEW_USER },
+    }])
+  })
+})
+
+Deno.test('accept-invite: an accept_rpc transport error and a failed re-peek → the user is kept, reported', async () => {
+  await run(async () => {
+    const { handler, events } = harness({
+      rpc: {
+        peek_secure_link: peekThen(null),
+        accept_staff_invitation: lostReply,
+      },
+    })
+    const logged = await captureConsole('error', async () => {
+      assertEquals((await handler(accept())).status, 500)
+    })
+    assert(!events.includes('deleteUser'))
+    assertEquals(
+      JSON.parse(String(logged.at(-1)?.[0])).code,
+      'accept_outcome_unknown',
+    )
+  })
+})
+
+Deno.test('accept-invite: an accept_rpc transport error, the link still valid → the user is deleted, accept_failed', async () => {
+  await run(async () => {
+    const { handler, events } = harness({
+      rpc: { accept_staff_invitation: lostReply },
+    })
+    const logged = await captureConsole('error', async () => {
+      assertEquals((await handler(accept())).status, 500)
+    })
+    assertEquals(events.slice(-3), [
+      'accept_staff_invitation',
+      'peek_secure_link',
+      'deleteUser',
+    ])
+    assertEquals(JSON.parse(String(logged.at(-1)?.[0])).code, 'accept_failed')
   })
 })
 
@@ -269,6 +356,45 @@ Deno.test('accept-invite: another createUser error → 500, nothing consumed; we
     const error = await errorOf(await weak.handler(accept()))
     assertEquals([error.status, error.code], [400, 'invalid_request'])
     assert(!weak.events.includes('accept_staff_invitation'))
+  })
+})
+
+Deno.test('accept-invite: a concurrent accept won (createUser fails, the link is now used) → 410 link_used, not reported', async () => {
+  await run(async () => {
+    const { handler, events } = harness({
+      rpc: {
+        peek_secure_link: peekThen({ state: 'used', purpose: 'staff_invite' }),
+      },
+      // GoTrue may answer the losing insert with a database error.
+      admin: { createUser: () => authError(500, 'unexpected_failure') },
+    })
+    const logged = await captureConsole('error', async () => {
+      const error = await errorOf(await handler(accept()))
+      assertEquals([error.status, error.code], [410, 'link_used'])
+    })
+    assertEquals(logged, [])
+    assertEquals(events.slice(-2), ['createUser', 'peek_secure_link'])
+    assert(!events.includes('accept_staff_invitation'))
+    assert(!events.includes('deleteUser'))
+  })
+})
+
+Deno.test('accept-invite: createUser fails and the re-peek fails or is still valid → 500 create_user_failed', async () => {
+  await run(async () => {
+    for (const later of [null, peekValid()]) {
+      const { handler } = harness({
+        rpc: { peek_secure_link: peekThen(later) },
+        admin: { createUser: () => authError(500, 'unexpected_failure') },
+      })
+      const logged = await captureConsole('error', async () => {
+        const error = await errorOf(await handler(accept()))
+        assertEquals([error.status, error.code], [500, 'internal'])
+      })
+      assertEquals(
+        JSON.parse(String(logged.at(-1)?.[0])).code,
+        'create_user_failed',
+      )
+    }
   })
 })
 

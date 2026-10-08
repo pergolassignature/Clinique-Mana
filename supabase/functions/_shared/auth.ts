@@ -26,6 +26,7 @@ import {
   type SupabaseClient,
   type User,
 } from '@supabase/supabase-js'
+import { reportError } from './report.ts'
 import { timingSafeEqual } from './timing-safe-equal.ts'
 
 /**
@@ -66,10 +67,54 @@ function allowedOrigins(): string[] | null {
   return raw.split(',').map((o) => o.trim()).filter(Boolean)
 }
 
+/** How long a browser may cache a preflight answer, in seconds. */
+const PREFLIGHT_MAX_AGE = '600'
+
+const LOCAL_HOSTS: ReadonlySet<string> = new Set([
+  'localhost',
+  '127.0.0.1',
+  '[::1]',
+])
+
+/** True when `APP_URL` is set and is not a local origin. */
+function deployedAppUrl(): boolean {
+  const appUrl = Deno.env.get('APP_URL')
+  if (!appUrl) return false
+  try {
+    return !LOCAL_HOSTS.has(new URL(appUrl).hostname)
+  } catch {
+    return true
+  }
+}
+
+let originsUnsetReported = false
+
+/**
+ * `ALLOWED_ORIGINS` unset (so `*`) on a deployed project (`APP_URL` set and
+ * not local) is a misconfiguration: reported `cors_origins_unset`, once per
+ * isolate. The answer itself is unchanged (`*`).
+ */
+function reportOriginsUnset(): void {
+  if (originsUnsetReported || !deployedAppUrl()) return
+  originsUnsetReported = true
+  const sent = reportError({ fn: 'cors', code: 'cors_origins_unset' })
+  // Keep the isolate alive for the report when the edge runtime allows it.
+  const runtime = (globalThis as {
+    EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void }
+  }).EdgeRuntime
+  runtime?.waitUntil?.(sent)
+}
+
+/** Tests only: lets `cors_origins_unset` be reported again. */
+export function resetCorsReportForTests(): void {
+  originsUnsetReported = false
+}
+
 /**
  * CORS headers for a browser-facing response. With `ALLOWED_ORIGINS` set, the
  * request's `Origin` is echoed only when listed (plus `Vary: Origin`);
- * otherwise `*`. No `Content-Type` here: `jsonResponse` adds it.
+ * otherwise `*` (reported once per isolate when `APP_URL` is not local, see
+ * `reportOriginsUnset`). No `Content-Type` here: `jsonResponse` adds it.
  */
 export function corsHeaders(req?: Request): Record<string, string> {
   const headers: Record<string, string> = {
@@ -81,6 +126,7 @@ export function corsHeaders(req?: Request): Record<string, string> {
   }
   const allowed = allowedOrigins()
   if (allowed === null) {
+    reportOriginsUnset()
     headers['Access-Control-Allow-Origin'] = '*'
     return headers
   }
@@ -114,10 +160,18 @@ export function errorResponse(
   return jsonResponse({ error: { code, message } }, status, req)
 }
 
-/** Call first in every browser-facing handler: answers the CORS preflight. */
+/**
+ * Call first in every browser-facing handler: answers the CORS preflight,
+ * cacheable for 10 minutes (`Access-Control-Max-Age: 600`).
+ */
 export function handleCors(req: Request): Response | null {
   return req.method === 'OPTIONS'
-    ? new Response(null, { headers: corsHeaders(req) })
+    ? new Response(null, {
+      headers: {
+        ...corsHeaders(req),
+        'Access-Control-Max-Age': PREFLIGHT_MAX_AGE,
+      },
+    })
     : null
 }
 

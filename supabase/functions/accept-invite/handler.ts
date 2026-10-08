@@ -17,18 +17,32 @@
  *    purposes have their own module functions).
  * 8. `display = resolve_rpc(p_link_id)`; null (revoked or renewed since the
  *    peek) → `link_invalid`; `display.email` is required.
- * 9. `auth.admin.createUser({ email, password, email_confirm: true })`: the
- *    link proves the address. An address that already has an account → 409
- *    `conflict` with the neutral « Ce lien ne peut plus être utilisé… »,
- *    reported `invite_email_exists` with the link id only (P3-8: never
- *    reveal that an account exists); `weak_password` → 400; any other error
- *    → 500, nothing consumed.
+ * 9. `auth.admin.createUser({ email, password, email_confirm: true,
+ *    app_metadata: { invite_link_id } })`: the link proves the address. An
+ *    address that already has an account → 409 `conflict` with the neutral
+ *    « Ce lien ne peut plus être utilisé… », reported `invite_email_exists`
+ *    with the link id only (P3-8: never reveal that an account exists);
+ *    `weak_password` → 400. Any other error: the link is peeked again, and
+ *    if it is now `used` (a concurrent accept won; Auth may answer the
+ *    losing insert with a database error rather than `email_exists`) → 410
+ *    `link_used`, not reported; otherwise 500, nothing consumed.
+ *    Orphan marker: `app_metadata.invite_link_id` marks an account created
+ *    here. A maintenance job (DB lane) deletes auth users that carry it,
+ *    have no profile and are older than 1 hour, so an account left behind by
+ *    a failed compensation (step 11) cannot block the invitation for good:
+ *    once it is gone, the invitee can accept again.
  * 10. `accept_rpc(p_token_hash, p_user_id, p_payload)`: it consumes the link
  *    and does the purpose's work in one transaction.
- * 11. Compensation: an RPC error, or any status but `accepted`, deletes the
- *    user just created; a link state (`link_used` / `link_expired` /
- *    `link_invalid`) answers 410 with it, an error or an unknown answer 500.
- *    A failed delete is reported with the user id; nothing is retried.
+ * 11. Compensation: any status but `accepted` deletes the user just created;
+ *    a link state (`link_used` / `link_expired` / `link_invalid`) answers 410
+ *    with it, an unknown answer 500. An RPC (transport) error is ambiguous:
+ *    the transaction may have committed and only the reply been lost. The
+ *    link is peeked first: deleted only when the peek shows it still not
+ *    used (`accept_failed`, 500); when it is `used`, or the peek fails, the
+ *    account may be real and is kept (`accept_outcome_unknown`, reported
+ *    with the link and user ids, 500; the orphan job removes it if no
+ *    profile was made). A failed delete is reported with the user id;
+ *    nothing is retried.
  * 12. 200 `{ status: 'accepted', email }`: the token holder already knows
  *    the address, and the page signs in with it.
  *
@@ -175,6 +189,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       email,
       password: input.password,
       email_confirm: true,
+      // The orphan marker (step 9): see the module comment.
+      app_metadata: { invite_link_id: peek.link_id },
     })
     if (created.error) {
       if (emailExists(created.error)) {
@@ -184,6 +200,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       if (created.error.code === 'weak_password') {
         return errorResponse('invalid_request', 'Password refused', 400, req)
       }
+      // A concurrent accept may have won: not an error worth a report.
+      const again = await peekSecureLink(client, tokenHash, false)
+      if (again?.state === 'used') return linkGoneResponse('link_used', req)
       return failed('create_user_failed', ids)
     }
     const userId = created.data.user?.id
@@ -201,9 +220,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     // Compensation: the account exists only with an accepted link.
     const userIds = { ...ids, user_id: userId }
-    const answer = accepted.error
-      ? await failed('accept_failed', userIds)
-      : isLinkGoneCode(status)
+    if (accepted.error) {
+      // The reply may be lost after a commit: never delete a real account.
+      const peeked = await peekSecureLink(client, tokenHash, false)
+      if (!peeked || peeked.state === 'used') {
+        return failed('accept_outcome_unknown', userIds)
+      }
+      const answer = await failed('accept_failed', userIds)
+      await deleteCreatedUser(client, userIds, report)
+      return answer
+    }
+    const answer = isLinkGoneCode(status)
       ? linkGoneResponse(status, req)
       : await failed('accept_invalid', userIds)
     await deleteCreatedUser(client, userIds, report)

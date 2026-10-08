@@ -14,6 +14,7 @@ import {
   getUserClient,
   handleCors,
   jsonResponse,
+  resetCorsReportForTests,
   serviceKeys,
   verifyAuth,
   verifyServiceRoleAuth,
@@ -141,6 +142,67 @@ Deno.test('handleCors: answers OPTIONS with the request origin, ignores other me
     )
     assertEquals(handleCors(fromOrigin('https://app.test')), null)
   })
+})
+
+Deno.test('handleCors: a preflight is cacheable for 10 minutes (Access-Control-Max-Age: 600); other answers are not', async () => {
+  for (const origins of [undefined, 'https://app.test']) {
+    await withEnv({ ALLOWED_ORIGINS: origins, APP_URL: undefined }, () => {
+      const preflight = handleCors(fromOrigin('https://app.test', 'OPTIONS'))
+      assertEquals(preflight?.headers.get('Access-Control-Max-Age'), '600')
+      assertEquals(
+        corsHeaders(fromOrigin('https://app.test'))[
+          'Access-Control-Max-Age'
+        ],
+        undefined,
+      )
+    })
+  }
+})
+
+Deno.test('corsHeaders: ALLOWED_ORIGINS unset with a deployed APP_URL → reported cors_origins_unset once per isolate, still *', async () => {
+  resetCorsReportForTests()
+  await withEnv({
+    ALLOWED_ORIGINS: undefined,
+    APP_URL: 'https://app.cliniquemana.com',
+    SENTRY_DSN: undefined,
+  }, async () => {
+    const logged = await captureConsole('error', async () => {
+      for (let i = 0; i < 3; i++) {
+        const h = corsHeaders(fromOrigin('https://evil.test'))
+        assertEquals(h['Access-Control-Allow-Origin'], '*')
+      }
+      handleCors(fromOrigin('https://evil.test', 'OPTIONS'))
+      await Promise.resolve()
+    })
+    assertEquals(logged.map((l) => JSON.parse(String(l[0]))), [
+      { fn: 'cors', code: 'cors_origins_unset' },
+    ])
+  })
+  resetCorsReportForTests()
+})
+
+Deno.test('corsHeaders: no cors_origins_unset report with a local or unset APP_URL, or with ALLOWED_ORIGINS set', async () => {
+  for (
+    const env of [
+      { ALLOWED_ORIGINS: undefined, APP_URL: 'http://localhost:5173' },
+      { ALLOWED_ORIGINS: undefined, APP_URL: 'http://127.0.0.1:5173' },
+      { ALLOWED_ORIGINS: undefined, APP_URL: undefined },
+      {
+        ALLOWED_ORIGINS: 'https://app.cliniquemana.com',
+        APP_URL: 'https://app.cliniquemana.com',
+      },
+    ]
+  ) {
+    resetCorsReportForTests()
+    await withEnv({ ...env, SENTRY_DSN: undefined }, async () => {
+      const logged = await captureConsole('error', async () => {
+        corsHeaders(fromOrigin('https://app.cliniquemana.com'))
+        await Promise.resolve()
+      })
+      assertEquals(logged, [], JSON.stringify(env))
+    })
+  }
+  resetCorsReportForTests()
 })
 
 // ---------------------------------------------------------------------------

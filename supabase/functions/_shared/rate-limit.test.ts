@@ -25,9 +25,72 @@ const hex = (bytes: Uint8Array) =>
 // ---------------------------------------------------------------------------
 // clientIp
 // ---------------------------------------------------------------------------
-Deno.test('clientIp: the first x-forwarded-for hop, trimmed', () => {
-  assertEquals(clientIp(withIp('203.0.113.5, 10.0.0.1')), '203.0.113.5')
+Deno.test("clientIp: the rightmost x-forwarded-for entry (the gateway's), trimmed", () => {
+  assertEquals(clientIp(withIp('10.0.0.1, 203.0.113.5')), '203.0.113.5')
   assertEquals(clientIp(withIp('  198.51.100.7  ')), '198.51.100.7')
+})
+
+Deno.test('clientIp: a forged leftmost entry is ignored', () => {
+  // The client sent `x-forwarded-for: 1.2.3.4`; the gateway appended the real one.
+  for (const forged of ['1.2.3.4', '198.51.100.99', 'unknown', '::1']) {
+    assertEquals(clientIp(withIp(`${forged}, 203.0.113.5`)), '203.0.113.5')
+  }
+  // Rotating the forged entry does not give a new bucket.
+  assertEquals(
+    clientIp(withIp('192.0.2.1, 203.0.113.5')),
+    clientIp(withIp('192.0.2.2, 203.0.113.5')),
+  )
+})
+
+Deno.test('clientIp: CLIENT_IP_SOURCE=cf-connecting-ip reads that header only', async () => {
+  const req = (headers: Record<string, string>) =>
+    new Request('https://fn.test/x', { headers })
+  await withEnv({ CLIENT_IP_SOURCE: 'cf-connecting-ip' }, () => {
+    assertEquals(
+      clientIp(req({
+        'cf-connecting-ip': ' 203.0.113.5 ',
+        'x-forwarded-for': '198.51.100.7',
+      })),
+      '203.0.113.5',
+    )
+    assertEquals(
+      clientIp(req({ 'cf-connecting-ip': '2001:db8:0:1::9' })),
+      '2001:db8:0:1::/64',
+    )
+    // No fallback to x-forwarded-for.
+    assertEquals(
+      clientIp(req({ 'x-forwarded-for': '198.51.100.7' })),
+      'unknown',
+    )
+  })
+  for (const source of [undefined, 'xff-rightmost', 'something-else']) {
+    await withEnv({ CLIENT_IP_SOURCE: source }, () => {
+      assertEquals(
+        clientIp(req({
+          'cf-connecting-ip': '203.0.113.5',
+          'x-forwarded-for': '198.51.100.7',
+        })),
+        '198.51.100.7',
+        String(source),
+      )
+    })
+  }
+})
+
+Deno.test('clientIp: a malformed value → unknown', () => {
+  for (
+    const value of [
+      'junk',
+      '203.0.113.5, not-an-ip',
+      '1',
+      '2001:db8:zz::1',
+      '203.0.113.5 extra',
+      `1.${'1'.repeat(70)}`,
+      '<script>',
+    ]
+  ) {
+    assertEquals(clientIp(withIp(value)), 'unknown', value)
+  }
 })
 
 Deno.test('clientIp: IPv6 is grouped by /64, so addresses in one block share a key', () => {
@@ -38,7 +101,7 @@ Deno.test('clientIp: IPv6 is grouped by /64, so addresses in one block share a k
       '2001:db8:0:1:ffff:ffff:ffff:ffff',
       '2001:0DB8:0000:0001:abcd:0:0:9',
       '[2001:db8:0:1::42]',
-      '2001:db8:0:1::1%eth0',
+      '2001:db8:0:1::1%1', // a numeric zone; `%eth0` fails IP_FORMAT
       '2001:db8:0:1:0:0:192.0.2.1',
     ]
   ) {
@@ -49,17 +112,17 @@ Deno.test('clientIp: IPv6 is grouped by /64, so addresses in one block share a k
   assertEquals(clientIp(withIp('2001:db8::')), '2001:db8:0:0::/64')
 })
 
-Deno.test('clientIp: an IPv4-mapped IPv6 is its IPv4; unparseable values are kept', () => {
+Deno.test('clientIp: an IPv4-mapped IPv6 is its IPv4; unparseable values of a valid format are kept', () => {
   assertEquals(clientIp(withIp('::ffff:203.0.113.5')), '203.0.113.5')
   assertEquals(clientIp(withIp('::FFFF:cb00:7105')), '203.0.113.5')
-  for (const ip of ['1::2::3', '2001:db8:zz::1', '1:2:3:4:5:6:7:8:9', 'junk']) {
+  for (const ip of ['1::2::3', '1:2:3:4:5:6:7:8:9', '999.1.1.1']) {
     assertEquals(clientIp(withIp(ip)), ip, ip)
   }
 })
 
 Deno.test('clientIp: unknown when the header is missing or empty', () => {
   assertEquals(clientIp(withIp()), 'unknown')
-  assertEquals(clientIp(withIp(' , 10.0.0.1')), 'unknown')
+  assertEquals(clientIp(withIp('10.0.0.1, ')), 'unknown')
 })
 
 // ---------------------------------------------------------------------------
@@ -199,6 +262,7 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     inviteAcceptIp: ['links.accept_ip', 10, 3_600],
     inviteAcceptLink: ['links.accept_link', 5, 3_600],
     staffInviteUser: ['invites.staff_user', 30, 3_600],
+    storageUploadUser: ['storage.upload_user', 60, 3_600],
   })
   for (const l of Object.values(LIMITS)) {
     assertMatch(l.bucket, /^[a-z][a-z0-9_.]{0,62}$/)

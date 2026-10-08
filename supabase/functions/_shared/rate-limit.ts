@@ -156,15 +156,34 @@ function ipKey(ip: string): string {
   return `${groups.slice(0, 4).map((g) => g.toString(16)).join(':')}::/64`
 }
 
+/** What an IP header value may hold: IPv4, IPv6 (brackets, zone `%`). */
+const IP_FORMAT = /^[0-9a-fA-F:.[\]%]{2,64}$/
+
 /**
- * The caller's IP as a rate-limit key: the first `x-forwarded-for` hop,
- * trimmed, with IPv6 grouped by /64 (see `ipKey`). Requests without an IP all
- * get `'unknown'`, so they share one bucket per limit.
- * Verify on staging what the edge runtime forwards (design §3.2).
+ * The raw client IP from the header `CLIENT_IP_SOURCE` names, or null:
+ * - `xff-rightmost` (default, also for an unknown value): the **rightmost**
+ *   `x-forwarded-for` entry, the one the Supabase gateway appends. Entries to
+ *   its left come from the client and can be forged, so they are ignored.
+ * - `cf-connecting-ip`: that header only (a Cloudflare front that sets it);
+ *   no fallback to `x-forwarded-for`.
+ */
+function rawClientIp(req: Request): string | null {
+  if (Deno.env.get('CLIENT_IP_SOURCE') === 'cf-connecting-ip') {
+    return req.headers.get('cf-connecting-ip')?.trim() || null
+  }
+  return req.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() || null
+}
+
+/**
+ * The caller's IP as a rate-limit key: by default the rightmost
+ * `x-forwarded-for` entry (`CLIENT_IP_SOURCE`, see `rawClientIp`), checked
+ * against `IP_FORMAT`, with IPv6 grouped by /64 (see `ipKey`). A missing,
+ * empty or malformed value gives `'unknown'`: such requests share one bucket
+ * per limit. Verify on staging what the gateway appends (design §3.2).
  */
 export function clientIp(req: Request): string {
-  const first = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  return first ? ipKey(first) : 'unknown'
+  const ip = rawClientIp(req)
+  return ip && IP_FORMAT.test(ip) ? ipKey(ip) : 'unknown'
 }
 
 /**

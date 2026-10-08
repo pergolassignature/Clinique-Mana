@@ -14,7 +14,12 @@
  *    { ban_duration })`: `876000h` (100 years) to disable, `none` to enable.
  * 5. Disable, ban failed: the disable stays (data access has stopped; that is
  *    the safe side), 200 `{ status, sessions_ended: false }`, reported; the
- *    UI warns that open sessions close within the hour.
+ *    UI warns that open sessions close within the hour, and may offer to
+ *    retry. A retry is the same call: disabling an already-disabled user is
+ *    a no-op in `set_user_status` (it still runs its guards), and the ban is
+ *    **always** attempted again, so `sessions_ended` reports the new
+ *    attempt. Never skip the ban because the status already reads
+ *    `disabled`: that would leave a failed ban unretryable.
  * 6. Enable, unban failed: a still-banned person cannot sign in, so the
  *    status is put back to `disabled` (as the caller), and the answer is 502
  *    `provider_error` (« Réessayez »). The database never shows an account
@@ -87,6 +92,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       return rpcErrorResponse(changed.error, req)
     }
 
+    // Always, even when the status did not change: retries a failed ban (5).
     const disable = input.status === 'disabled'
     const { error } = await service.auth.admin.updateUserById(input.user_id, {
       ban_duration: disable ? BAN_FOREVER : 'none',
