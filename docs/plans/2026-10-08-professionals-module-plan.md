@@ -1475,6 +1475,41 @@ end;
 $$;
 ```
 
+**As built (the migration is the reference where this sketch differs):**
+- **Readiness** adds two items to « Profil de jumelage complet » (4a.3 review):
+  - `regulated_title` in `missing` when a restricted motif is held without a regulated title (an admin may restrict a motif after it was given). The order of `missing` is `profession, licence, regulated_title, language, clientele, motif`.
+  - A `warnings` array, which holds `login_email_mismatch` when a linked professional's email differs from the login address (the email sync left it, decision #38). It is not a gap: `complete` stays true.
+- **New view columns:** the readiness view adds `restricted_motifs_ok` and `email_matches_login`. Staff without `users.view` cannot read profiles, so the comparison is one definer set function, `private.professional_login_email_mismatches()`, scanned once per statement. Test 043 checks the licence gap by making `naturopathe` regulated after the fact, so no trigger is disabled.
+- **Status RPCs** return `table (status, account_change, profile_id)`, not `void`. `account_change` is `'disabled'` or `'enabled'` when the call changed the provider's account, else null, so 4b.6 knows when to ban or unban without a second read.
+  - Both RPCs lock the account first, then the professional (`private.lock_professional_with_account`), in the same order as the email sync trigger, so they never deadlock.
+  - The account goes through `private.set_provider_account_status`, which behaves like `set_user_status`: on disable it also deletes `auth.sessions` (P3-32). It acts only on a `provider` profile of the clinic and only when the status changes. If the account was already disabled by someone else, deactivation leaves `deactivation_disabled_account` false, so reactivation leaves the account alone.
+  - Messages added: « La raison compte au plus 500 caractères. » and « La note compte au plus 500 caractères. ». Deactivation clears `activation_override_reason`, and a complete file stores no override reason.
+- **Views:** `professionals_list` and `professionals_directory` filter on `(select private.has_permission('professionals.view'))`. Without that filter, the provider's self policies would put their own row there.
+  - `professionals_list` adds `deactivation_reason_id` and `email_matches_login`.
+  - `professionals_directory.updated_at` is the latest change of the record, the matching profile and the set rows. A removed set row leaves no trace there; the history has it.
+- **`list_professionals`** pages the list on the server (coordinator request, added to the plan's client-side list). 4a.10 can keep reading `professionals_list` whole.
+  - **Filters:** statuses, titles (any of the professional's titles), languages, clientèles and motifs (any of the ids within a filter), and accepting new clients. Filters combine with « and », and an empty array means no filter.
+  - **Sorts:** `name` (last name, first name, id) or `recent` (`status_changed_at` desc, id desc). The keyset cursor and the org are plpgsql variables, so they are index bounds of `professionals_org_name_idx` (row prefix; the id is rechecked) and of the new `professionals_org_status_changed_idx`.
+  - **Set filters** are resolved first, in one statement, through the junctions' `(org_id, <x>_id)` indexes.
+  - **Limits:** the page holds 1 to 200 rows (default 50); `22023` for an unknown sort or status, or more than 500 ids.
+- **History:** `private.professional_history_tables()` takes no argument, and there is no `professional_private` branch yet. 4a.17 adds both with its table, so no dead code ships now. Redacted fields come back as the audit trigger wrote them (« [redacted] »). There is no existence pre-check: org scoping is enough.
+- **Indexes:** the 4a.3 name index already bounds the cursor (`ROW(last_name, first_name) >= …` as an index condition), so none was replaced; 042 asserts it. « Accepte de nouveaux clients » reads the matching profile through its `(org_id)` index, since a boolean index would not narrow ≤ 500 rows.
+- **4a.3 follow-up (separate commit):** the email sync trigger also catches `check_violation` (23514, `professionals_email_check`), so a GoTrue confirmation of an address without a dotted domain never fails. 042 now has 215 tests.
+- **Performance probe** (`supabase/scripts/perf-professionals.sql`, run through `docker exec … psql`, since `psql` is not on the host and the Supabase image refuses `auto_explain`, so function bodies are shown as prepared generic plans). Local, 200 professionals, 5 000 motif rows, ≈ 8 200 audit rows, as the seed conseillère:
+
+  | Read | Time |
+  |---|---|
+  | `professionals_list` | 5–7 ms |
+  | `professionals_directory` | 9–13 ms |
+  | readiness of one professional | 0.6 ms |
+  | `get_professional_record` | 2–3 ms |
+  | `list_professional_history` | 0.3–0.5 ms (statement 0.02 ms) |
+  | `list_professionals` page | 5–6 ms |
+
+  - No SubPlan runs once per row; the only `loops=200` is a Memoize cache of title lookups.
+  - The history reads `audit_log_org_record_prefix_idx` with org, prefix and cursor as index conditions.
+  - The unfiltered name page reads `professionals_org_name_idx` with the cursor as an index condition. The motif-filtered page reads `professionals_pkey` with the resolved ids.
+
 **Step 4: Run the database checks** (lock). Then the performance probe:
 ```bash
 scripts/with-db-lock.sh psql "postgresql://postgres:postgres@127.0.0.1:55322/postgres" -f supabase/scripts/perf-professionals.sql
