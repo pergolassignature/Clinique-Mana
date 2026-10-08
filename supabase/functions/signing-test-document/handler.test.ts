@@ -2,6 +2,7 @@ import { assert, assertEquals } from '@std/assert'
 import { createHandler } from './handler.ts'
 import { createHandler as createWebhook } from '../signing-webhook/handler.ts'
 import type { Deps } from '../_shared/deps.ts'
+import { DOCUMENSO_PATHS } from '../_shared/documenso.ts'
 import { fakeDocumenso } from '../_shared/testing/fake-documenso.ts'
 import { fakeSigningDb } from '../_shared/testing/fake-signing-db.ts'
 import { fakeSupabase } from '../_shared/testing/fake-supabase.ts'
@@ -112,8 +113,27 @@ Deno.test('signing-test-document: a double click (same key) → the same request
 Deno.test('signing-test-document: two clicks at once (same key) → exactly one send; the other 409 « Un envoi est déjà en cours. »', async () => {
   await run(async () => {
     const s = setup()
-    const answers = await Promise.all([s.handler(post()), s.handler(post())])
+    // Deterministic overlap: Documenso's create is held until both calls
+    // have tried to claim the draft, so the winner's send is still running
+    // when the other one asks (never finished before it starts).
+    let claims = 0
+    let bothClaimed!: () => void
+    const gate = new Promise<void>((resolve) => (bothClaimed = resolve))
+    const claim = s.db.rpc.begin_signature_request_send
+    s.db.rpc.begin_signature_request_send = async (args) => {
+      const result = typeof claim === 'function' ? await claim(args) : claim
+      if (++claims === 2) bothClaimed()
+      return result
+    }
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+      const req = new Request(input, init)
+      if (new URL(req.url).pathname === DOCUMENSO_PATHS.create) await gate
+      return s.fake.fetch(req)
+    }
+    const handler = createHandler({ ...s.deps, fetch })
+    const answers = await Promise.all([handler(post()), handler(post())])
     const bodies = await Promise.all(answers.map((r) => r.json()))
+    assertEquals(claims, 2)
     assertEquals(answers.map((r) => r.status).sort(), [200, 409])
     const refused = bodies[answers.findIndex((r) => r.status === 409)]
     assertEquals(refused.error.message, 'Un envoi est déjà en cours.')

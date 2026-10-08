@@ -590,6 +590,45 @@ Deno.test('createSignatureRequest: re-send whose earlier document id is held und
   })
 })
 
+Deno.test('createSignatureRequest: re-send whose earlier document reads without an externalId → previous_read_failed (provider_error, retryable), never taken for a foreign document', async () => {
+  await run(async () => {
+    const s = setup()
+    await draftWithDocument(s)
+    s.fake.documents.get('1')!.externalId = undefined
+    let result
+    const lines = await captureConsole('error', async () => {
+      result = await createSignatureRequest(s.deps, input())
+    })
+    assertEquals(result, {
+      ok: false,
+      code: 'provider_error',
+      requestId: 'r-draft',
+    })
+    assert(
+      !JSON.stringify(lines).includes('signing_foreign_document'),
+      'not reported foreign',
+    )
+    assertEquals(s.fake.documents.size, 1, 'no second document')
+    assertEquals(s.rendered.length, 0, 'nothing rendered')
+    assertEquals(
+      s.order.filter((o) => /cancel|delete/.test(o)),
+      [],
+      'not cancelled',
+    )
+    assertEquals(s.fake.documents.get('1')!.status, 'PENDING')
+    const row = s.db.requests.get('r-draft')!
+    assertEquals(row.status, 'draft')
+    assertEquals(row.last_error, 'previous_read_failed')
+    assertEquals(row.send_started_at, null, 'the claim is released')
+    assertEquals(row.documenso_document_id, '1')
+    assertEquals(row.superseded_document_ids, [])
+    s.fake.documents.get('1')!.externalId = 'r-draft'
+    assert((await createSignatureRequest(s.deps, input())).ok, 'retried')
+    assertEquals(s.fake.documents.get('1')!.status, 'CANCELLED')
+    assertEquals(s.db.requests.get('r-draft')!.documenso_document_id, '2')
+  })
+})
+
 Deno.test('createSignatureRequest: re-send whose earlier document is cancelled, rejected or gone → sent again without a cancel', async () => {
   await run(async () => {
     for (const status of ['CANCELLED', 'REJECTED', 'gone'] as const) {

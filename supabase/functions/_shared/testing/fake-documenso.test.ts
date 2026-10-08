@@ -200,6 +200,18 @@ Deno.test('fake-documenso: failures inject a status per operation until removed'
   assertEquals((await client.get(documentId)).status, 'PENDING')
 })
 
+Deno.test("fake-documenso: an externalId set to undefined is left out of reads → the client's bad response", async () => {
+  const { fake, client, documentId } = await sent()
+  fake.documents.get(documentId)!.externalId = undefined
+  const error = await assertRejects(
+    () => client.get(documentId),
+    DocumensoError,
+  )
+  assertEquals([error.code, error.status], ['provider_error', 200])
+  fake.documents.get(documentId)!.externalId = null
+  assertEquals((await client.get(documentId)).externalId, null)
+})
+
 Deno.test('fake-documenso: the webhook request carries the secret, the event, the external id and a ticking version', async () => {
   const { fake, documentId } = await sent()
   fake.open(documentId)

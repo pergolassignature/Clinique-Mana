@@ -149,7 +149,8 @@ export interface DocumensoDocumentState {
   completedAt: string | null
   /**
    * The `externalId` the document was created with (the request id, see
-   * `createDocument`), or null when it has none: how the signing functions
+   * `createDocument`), or null when it has none (the field itself is
+   * required: a read without it is a bad response): how the signing functions
    * tell their own document from another one under the same id (an org that
    * changed Documenso instance).
    */
@@ -315,8 +316,13 @@ const documentSchema = z.object({
   completedAt: nullableString,
   // The v2 OpenAPI's document read: `externalId`, a string or null, always
   // present (checked 2026-10-08); the create payload's `externalId` is a
-  // string of at most 255.
-  externalId: nullableString,
+  // string of at most 255. Required here: a read without the field is a bad
+  // response (`provider_error`), never a document « held under no id », so a
+  // re-send stops on `previous_read_failed` (retryable) instead of taking the
+  // document for another's.
+  // VERIFY against the clinic instance (Mise en service): the read carries
+  // `externalId`.
+  externalId: z.string().nullable(),
   recipients: z.array(z.object({
     id: z.number().int().positive(),
     email: z.string(),

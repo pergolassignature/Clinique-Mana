@@ -598,6 +598,19 @@ Deno.test('get: a document without an externalId reads null', async () => {
   assertEquals((await client(fetch).get('12')).externalId, null)
 })
 
+Deno.test('get: a document read without the externalId field → provider_error (a bad response, never « no id »)', async () => {
+  const { externalId: _, ...withoutField } = documentBody()
+  for (const body of [withoutField, documentBody({ externalId: 12 })]) {
+    const { fetch } = fakeFetch({ [GET_12]: json(200, body) })
+    const error = await assertRejects(
+      () => client(fetch).get('12'),
+      DocumensoError,
+    )
+    assertEquals(error.code, 'provider_error')
+    assertEquals(error.message, 'Documenso read: unexpected response')
+  }
+})
+
 Deno.test('get: an unknown document status → provider_error', async () => {
   const { fetch } = fakeFetch({
     [GET_12]: json(200, documentBody({ status: 'ARCHIVED' })),
