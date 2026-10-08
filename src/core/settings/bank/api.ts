@@ -6,7 +6,7 @@ import { supabase } from '@/core/supabase/client'
  * account only). `updated_at` is an instant (timestamptz). The generated types say `string` for
  * every column; the email is optional and the author's name comes from a left join, so both may be null.
  */
-const bankDetailsSchema = z.object({
+const bankDetailsRowSchema = z.object({
   institution_number: z.string(),
   transit_number: z.string(),
   account_last4: z.string(),
@@ -14,14 +14,14 @@ const bankDetailsSchema = z.object({
   updated_at: z.string(),
   updated_by_name: z.string().nullable(),
 })
-export type BankDetails = z.infer<typeof bankDetailsSchema>
+export type BankDetails = z.infer<typeof bankDetailsRowSchema>
 
 /** The org's masked bank details, or null when none are stored. Needs `settings.bank_manage` (else `42501`). */
 export async function fetchBankDetails(): Promise<BankDetails | null> {
   const { data, error } = await supabase.rpc('get_bank_details')
   if (error) throw error
   const row = data?.[0]
-  return row ? bankDetailsSchema.parse(row) : null
+  return row ? bankDetailsRowSchema.parse(row) : null
 }
 
 /**

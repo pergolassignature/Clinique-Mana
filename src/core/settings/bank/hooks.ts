@@ -15,7 +15,8 @@ export const REVEAL_DURATION_MS = 60_000
 
 /** The masked bank details (null when none are stored). The full account number is never cached. */
 export function useBankDetails() {
-  // Fresh for a minute: a background refetch must not re-sync the form while someone is typing.
+  // Fresh for a minute, like the organization: switching sections or windows does not call the RPC
+  // again each time. A refetch while editing is harmless: the form keeps what is typed.
   return useQuery({ queryKey: bankKeys.details(), queryFn: fetchBankDetails, staleTime: 60_000 })
 }
 
@@ -45,7 +46,7 @@ export function useSetBankDetails() {
 /**
  * The full account number, revealed on demand. Each `reveal` calls the RPC, which writes an audit
  * row. The number lives in this component's state only (never in React Query) and is dropped by
- * `hide`, after `REVEAL_DURATION_MS`, and on unmount. An answer that arrives after `hide` or after
+ * `hide`, after `REVEAL_DURATION_MS`, when the tab is hidden, and on unmount. An answer that arrives after `hide` or after
  * unmount is ignored. A refusal is a toast; nothing stored any more refreshes the masked details.
  */
 export function useRevealedAccountNumber() {
@@ -56,20 +57,26 @@ export function useRevealedAccountNumber() {
   // Bumped by every reveal, hide and unmount: an answer for an older request is dropped.
   const request = useRef(0)
 
-  useEffect(
-    () => () => {
-      request.current += 1
-      clearTimeout(timer.current)
-    },
-    [],
-  )
-
   const hide = useCallback(() => {
     request.current += 1
     clearTimeout(timer.current)
     setAccountNumber(null)
     setPending(false)
   }, [])
+
+  // Masked again on unmount, and as soon as the tab is hidden (a shared reception PC left as is).
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') hide()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      request.current += 1
+      clearTimeout(timer.current)
+      setAccountNumber(null)
+    }
+  }, [hide])
 
   const reveal = useCallback(async () => {
     const id = ++request.current

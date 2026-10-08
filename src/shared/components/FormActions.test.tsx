@@ -99,13 +99,15 @@ describe('FormActions', () => {
   })
 
   // An edit mode opened by « Modifier » (Coordonnées bancaires): « Annuler » leaves it, edits or not.
-  it('with cancelCloses, keeps « Annuler » active while the form is clean, and inactive only while saving', async () => {
-    const { onCancel, rerender } = renderActions({ dirty: false, cancelCloses: true })
+  it('with cancelCloses, keeps « Annuler » active while the form is clean, inactive only while saving, and skips onReset', async () => {
+    const onReset = vi.fn()
+    const { onCancel, rerender } = renderActions({ dirty: false, cancelCloses: true, onReset })
     expect(cancel()).not.toHaveAttribute('aria-disabled')
     expect(save()).toHaveAttribute('aria-disabled', 'true')
     await userEvent.click(cancel())
     expect(onCancel).toHaveBeenCalledOnce()
-    rerender({ dirty: true, pending: true, cancelCloses: true })
+    expect(onReset).not.toHaveBeenCalled()
+    rerender({ dirty: true, pending: true, cancelCloses: true, onReset })
     expect(cancel()).toHaveAttribute('aria-disabled', 'true')
     await userEvent.click(cancel())
     expect(onCancel).toHaveBeenCalledOnce()

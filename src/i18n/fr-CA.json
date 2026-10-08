@@ -286,6 +286,8 @@
         "masked": "Numéro masqué, se terminant par {last4}",
         "show": "Afficher",
         "showLabel": "Afficher le numéro de compte",
+        "revealing": "Affichage…",
+        "revealingLabel": "Affichage du numéro de compte…",
         "hide": "Masquer",
         "hideLabel": "Masquer le numéro de compte",
         "autoHide": "Masqué de nouveau dans une minute.",
@@ -301,7 +303,7 @@
         "transitHelp": "5 chiffres",
         "account": "Numéro de compte",
         "accountHelp": "7 à 12 chiffres",
-        "accountKeepHelp": "7 à 12 chiffres. Laissez vide pour garder le numéro actuel.",
+        "accountKeepHelp": "7 à 12 chiffres. Laissez vide pour garder le compte se terminant par {last4}.",
         "accountUnchanged": "Inchangé",
         "email": "Courriel Interac",
         "emailHelp": "L'adresse où la clinique reçoit les virements Interac."

@@ -6,12 +6,16 @@ import { SaveButton } from './SaveButton'
 import { ignoreWhenInactive, softDisabledClasses } from './soft-disabled'
 
 interface FormActionsProps {
-  /** Puts the form back to its last saved values (e.g. react-hook-form's `reset()`). */
+  /**
+   * Puts the form back to its last saved values (e.g. react-hook-form's `reset()`); with
+   * `cancelCloses`, closes the form instead (back to the display it was opened from).
+   */
   onCancel: () => void
   /**
    * Runs once the form has re-rendered after `onCancel`, e.g. `() => form.setFocus('firstField')`
    * to send keyboard focus back to the form (react-hook-form's reset() re-registers the fields on
    * that render, so focusing earlier would miss them). Without it, focus stays on « Annuler ».
+   * Not called with `cancelCloses`: the form closes, so the caller moves focus itself.
    */
   onReset?: () => void
   /** The form has unsaved changes: both buttons are active only then. */
@@ -60,7 +64,7 @@ export function FormActions({ onCancel, onReset, dirty, pending = false, submitL
         aria-disabled={cancelInactive || undefined}
         onClick={ignoreWhenInactive(cancelInactive, () => {
           onCancel()
-          setCancelled((n) => n + 1)
+          if (!cancelCloses) setCancelled((n) => n + 1)
         })}
         className={cn(softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
       >

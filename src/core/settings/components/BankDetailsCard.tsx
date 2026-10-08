@@ -11,8 +11,8 @@ import { Button } from '@/shared/ui/button'
 
 interface BankDetailsCardProps {
   details: BankDetails
-  /** Opens the edit form; without it (read-only) there is no « Modifier ». */
-  onEdit?: () => void
+  /** Opens the edit form. */
+  onEdit: () => void
   /** « Modifier », where the page returns focus once the form closes. */
   editRef?: Ref<HTMLButtonElement>
 }
@@ -30,7 +30,7 @@ function Item({ term, children, className }: { term: string; children: ReactNode
 /**
  * The stored bank details, account masked (`••••4567`). « Afficher » reveals the full number
  * through the audited RPC; it stays in this component's state only and is masked again by
- * « Masquer », after a minute, and when the card unmounts. The page remounts the card (`key`) when
+ * « Masquer », after a minute, when the tab is hidden, and when the card unmounts. The page remounts the card (`key`) when
  * the details change, so a number revealed before a save never outlives it.
  */
 export function BankDetailsCard({ details, onEdit, editRef }: BankDetailsCardProps) {
@@ -43,12 +43,10 @@ export function BankDetailsCard({ details, onEdit, editRef }: BankDetailsCardPro
       as="section"
       title={t('settings.bank.title')}
       footer={
-        onEdit && (
-          <Button ref={editRef} type="button" variant="outline" aria-label={t('settings.bank.display.editLabel')} onClick={onEdit}>
-            <Pencil aria-hidden />
-            {t('settings.bank.display.edit')}
-          </Button>
-        )
+        <Button ref={editRef} type="button" variant="outline" aria-label={t('settings.bank.display.editLabel')} onClick={onEdit}>
+          <Pencil aria-hidden />
+          {t('settings.bank.display.edit')}
+        </Button>
       }
     >
       <dl className="grid gap-3 sm:grid-cols-2">
@@ -61,7 +59,7 @@ export function BankDetailsCard({ details, onEdit, editRef }: BankDetailsCardPro
         <Item term={t('settings.bank.display.account')}>
           <span className="flex flex-wrap items-center gap-x-2">
             {/* Announced when it changes: the number once revealed, the masked words once hidden. */}
-            <span aria-live="polite" className="tabular">
+            <span aria-live="polite" translate="no" className="tabular">
               {revealed ? (
                 accountNumber
               ) : (
@@ -76,13 +74,19 @@ export function BankDetailsCard({ details, onEdit, editRef }: BankDetailsCardPro
               type="button"
               variant="link"
               size="sm"
-              aria-label={revealed ? t('settings.bank.display.hideLabel') : t('settings.bank.display.showLabel')}
+              aria-label={
+                revealed
+                  ? t('settings.bank.display.hideLabel')
+                  : pending
+                    ? t('settings.bank.display.revealingLabel')
+                    : t('settings.bank.display.showLabel')
+              }
               aria-disabled={pending || undefined}
               onClick={ignoreWhenInactive(pending, revealed ? hide : () => void reveal())}
               className={cn(softDisabledClasses, 'aria-disabled:hover:no-underline')}
             >
               {revealed ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
-              {revealed ? t('settings.bank.display.hide') : t('settings.bank.display.show')}
+              {revealed ? t('settings.bank.display.hide') : pending ? t('settings.bank.display.revealing') : t('settings.bank.display.show')}
             </Button>
           </span>
           {revealed && <span className="mt-0.5 block text-xs text-muted-foreground">{t('settings.bank.display.autoHide')}</span>}

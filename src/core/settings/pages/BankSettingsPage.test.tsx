@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import type { BankDetails } from '@/core/settings/bank/api'
+import { bankKeys } from '@/core/settings/bank/hooks'
 import { LEAVE_LINK, renderOrganizationPage } from '@/test/organization'
 import { BankSettingsPage } from './BankSettingsPage'
 
@@ -37,9 +38,9 @@ const editButton = () => screen.getByRole('button', { name: t('settings.bank.dis
 /** A definition list value, by its term. */
 const valueOf = (term: string) => within(card()).getByText(term, { selector: 'dt' }).nextElementSibling
 
-async function renderPage({ details = DETAILS as BankDetails | null, readOnly = false } = {}) {
+async function renderPage({ details = DETAILS as BankDetails | null } = {}) {
   mocks.bank.fetchBankDetails.mockResolvedValue(details)
-  const result = renderOrganizationPage(<BankSettingsPage />, { readOnly })
+  const result = renderOrganizationPage(<BankSettingsPage />)
   await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
   return result
 }
@@ -113,7 +114,12 @@ describe('BankSettingsPage', () => {
     expect(account).toHaveValue('')
     expect(account).toHaveAttribute('placeholder', t('settings.bank.fields.accountUnchanged'))
     expect(account).toHaveAttribute('autocomplete', 'off')
-    expect(account).toHaveAccessibleDescription(t('settings.bank.fields.accountKeepHelp'))
+    expect(account).toHaveAccessibleDescription('7 à 12 chiffres. Laissez vide pour garder le compte se terminant par 4567.')
+    // Password managers ignore autocomplete="off" alone.
+    expect(account).toHaveAttribute('data-1p-ignore')
+    expect(account).toHaveAttribute('data-lpignore', 'true')
+    expect(account).toHaveAttribute('data-bwignore', 'true')
+    expect(account).toHaveAttribute('data-form-type', 'other')
 
     const transit = field(t('settings.bank.fields.transit'), true)
     await userEvent.clear(transit)
@@ -215,6 +221,58 @@ describe('BankSettingsPage', () => {
       }),
     )
     expect(await screen.findByText('••••4567')).toBeInTheDocument()
+    expect(editButton()).toHaveFocus()
+  })
+
+  it('shows the load error, not the empty state, when a first save succeeds but reloading fails', async () => {
+    mocks.bank.setBankDetails.mockResolvedValue(undefined)
+    await renderPage({ details: null })
+    await userEvent.click(screen.getByRole('button', { name: t('settings.bank.empty.add') }))
+    await userEvent.type(field(t('settings.bank.fields.institution'), true), '815')
+    await userEvent.type(field(t('settings.bank.fields.transit'), true), '30000')
+    await userEvent.type(field(t('settings.bank.fields.account'), true), '1234567')
+    mocks.bank.fetchBankDetails.mockRejectedValue({ code: '57014', message: 'canceling statement due to statement timeout' })
+    await userEvent.click(within(form()).getByRole('button', { name: t('common.save') }))
+    expect(await screen.findByText(t('settings.bank.loadError'))).toBeInTheDocument()
+    expect(screen.queryByText(t('settings.bank.empty.title'))).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t('common.retry') })).toHaveFocus()
+  })
+
+  it('makes the fields read-only while saving (nothing typed meanwhile is lost), footer still shown', async () => {
+    let finish: () => void = () => {}
+    mocks.bank.setBankDetails.mockReturnValue(new Promise<void>((resolve) => (finish = resolve)))
+    await renderPage()
+    await userEvent.click(editButton())
+    await userEvent.type(field(t('settings.bank.fields.account')), '7654321')
+    await userEvent.click(within(form()).getByRole('button', { name: t('common.save') }))
+    const saving = await within(form()).findByRole('button', { name: t('common.saving') })
+    expect(saving).toBeInTheDocument()
+    for (const textbox of within(form()).getAllByRole('textbox')) expect(textbox).toHaveAttribute('readonly')
+    await act(async () => finish())
+    expect(await screen.findByRole('region', { name: t('settings.bank.title') })).toBeInTheDocument()
+  })
+
+  it('masks a revealed number again when the details change (the card remounts)', async () => {
+    mocks.bank.revealAccountNumber.mockResolvedValue('1234567')
+    const { queryClient } = await renderPage()
+    await userEvent.click(showButton())
+    expect(await within(card()).findByText('1234567')).toBeInTheDocument()
+    act(() => queryClient.setQueryData(bankKeys.details(), { ...DETAILS, account_last4: '4321', updated_at: '2026-10-07T19:00:00Z' }))
+    // React Query notifies on the next tick.
+    await waitFor(() => expect(within(card()).queryByText('1234567')).not.toBeInTheDocument())
+    expect(within(card()).getByText('••••4321')).toBeInTheDocument()
+  })
+
+  it('labels « Afficher » « Affichage… » while the reveal is pending', async () => {
+    let answer: (value: string) => void = () => {}
+    mocks.bank.revealAccountNumber.mockReturnValue(new Promise<string>((resolve) => (answer = resolve)))
+    await renderPage()
+    await userEvent.click(showButton())
+    const pending = screen.getByRole('button', { name: t('settings.bank.display.revealingLabel') })
+    expect(pending).toHaveTextContent(t('settings.bank.display.revealing'))
+    expect(pending).toHaveAttribute('aria-disabled', 'true')
+    await act(async () => answer('1234567'))
+    expect(within(card()).getByText('1234567')).toHaveAttribute('translate', 'no')
   })
 
   it('« Annuler » on a first entry goes back to the empty state', async () => {
@@ -231,19 +289,5 @@ describe('BankSettingsPage', () => {
     mocks.bank.fetchBankDetails.mockResolvedValue(DETAILS)
     await userEvent.click(screen.getByRole('button', { name: t('common.retry') }))
     expect(await screen.findByText('••••4567')).toBeInTheDocument()
-  })
-
-  // The section has no edit permission today (settings.bank_manage both sees and edits), but the
-  // page stays safe if it is ever shown read-only: nothing can open the form.
-  it('read-only: shows the notice and no « Modifier »', async () => {
-    await renderPage({ readOnly: true })
-    expect(screen.getAllByText(t('common.readOnlyNotice.title'))).toHaveLength(1)
-    expect(screen.queryByRole('button', { name: t('settings.bank.display.editLabel') })).not.toBeInTheDocument()
-  })
-
-  it('read-only: no « Ajouter » on the empty state', async () => {
-    await renderPage({ details: null, readOnly: true })
-    expect(screen.getByText(t('settings.bank.empty.title'))).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: t('settings.bank.empty.add') })).not.toBeInTheDocument()
   })
 })

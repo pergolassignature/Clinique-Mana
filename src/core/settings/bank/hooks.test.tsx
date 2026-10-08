@@ -143,6 +143,42 @@ describe('useRevealedAccountNumber', () => {
     expect(result.current.pending).toBe(false)
   })
 
+  it('drops an answer that arrives after unmount (no timer, no toast)', async () => {
+    vi.useFakeTimers()
+    const { wrapper } = setup()
+    let answer: (value: string) => void = () => {}
+    mocks.api.revealAccountNumber.mockReturnValue(new Promise<string>((resolve) => (answer = resolve)))
+    const { result, unmount } = renderHook(() => useRevealedAccountNumber(), { wrapper })
+    let pending: Promise<void> = Promise.resolve()
+    act(() => {
+      pending = result.current.reveal()
+    })
+    unmount()
+    answer('1234567')
+    await pending
+    expect(vi.getTimerCount()).toBe(0)
+    expect(mocks.toast.error).not.toHaveBeenCalled()
+  })
+
+  it('hides the number as soon as the tab is hidden', async () => {
+    const { wrapper } = setup()
+    mocks.api.revealAccountNumber.mockResolvedValue('1234567')
+    const { result } = renderHook(() => useRevealedAccountNumber(), { wrapper })
+    await act(() => result.current.reveal())
+    const visibility = vi.spyOn(document, 'visibilityState', 'get')
+    visibility.mockReturnValue('visible')
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    expect(result.current.accountNumber).toBe('1234567')
+    visibility.mockReturnValue('hidden')
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    expect(result.current.accountNumber).toBeNull()
+    visibility.mockRestore()
+  })
+
   it('shows a refusal in a toast and stays masked', async () => {
     const { wrapper } = setup()
     mocks.api.revealAccountNumber.mockRejectedValue({ code: '42501', message: 'Permission refusée : settings.bank_manage' })
