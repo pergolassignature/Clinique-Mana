@@ -79,17 +79,27 @@ export function lazyPage(load: () => Promise<Module>, exportName = 'default'): L
   })
 }
 
+/** Anything with an optional preload (a lazyPage, or a plain component). */
+type Preloadable = { preload?: () => Promise<unknown>; isLoaded?: () => boolean }
+
 /**
  * Preloads `page` and returns whether it can render now, WITHOUT suspending: the caller keeps
  * its own loading screen meanwhile, so no Suspense fallback (and its 300 ms hold) is involved.
  * A failed load is thrown to the nearest error boundary; remounting tries again.
+ *
+ * `alsoWaitFor` (e.g. the page at the URL, inside `page`) is waited for too, so its own Suspense
+ * boundary never shows a fallback either; its failure is ignored here (its boundary reports it).
  */
-export function useLazyPageReady(page: LazyPage): boolean {
-  const [state, setState] = useState<{ ready: boolean; error: unknown }>(() => ({ ready: page.isLoaded(), error: null }))
+export function useLazyPageReady(page: LazyPage, alsoWaitFor?: Preloadable): boolean {
+  const [state, setState] = useState<{ ready: boolean; error: unknown }>(() => ({
+    ready: page.isLoaded() && (alsoWaitFor?.isLoaded?.() ?? true),
+    error: null,
+  }))
   useEffect(() => {
     if (state.ready) return
     let active = true
-    page.preload().then(
+    const extra = alsoWaitFor?.preload?.().catch(() => {})
+    Promise.all([page.preload(), extra]).then(
       () => {
         if (active) setState({ ready: true, error: null })
       },
@@ -100,7 +110,7 @@ export function useLazyPageReady(page: LazyPage): boolean {
     return () => {
       active = false
     }
-  }, [page, state.ready])
+  }, [page, alsoWaitFor, state.ready])
   if (state.error) throw state.error
   return state.ready
 }
@@ -118,7 +128,7 @@ export function whenIdle(task: () => void, timeout = 2000): IdleHandle {
 }
 
 /** Starts preloading pages at idle time; failures are ignored (navigation retries them). */
-export function preloadWhenIdle(pages: Iterable<{ preload?: () => Promise<unknown> }>): IdleHandle {
+export function preloadWhenIdle(pages: Iterable<Preloadable>): IdleHandle {
   return whenIdle(() => {
     for (const page of pages) void page.preload?.().catch(() => {})
   })

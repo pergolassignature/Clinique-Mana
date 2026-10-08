@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { coreSettingsSections } from '@/core/settings/sections'
 import { ALL_MODULES } from './modules'
-import { preloadRouteCode } from './route-preload'
+import { AUTH_STORAGE_KEY } from '@/core/supabase/client'
+import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
 
 const at = (pathname: string, search = '') => ({ pathname, search, origin: window.location.origin })
 
@@ -47,10 +48,32 @@ describe('preloadRouteCode', () => {
     for (const spy of spies) expect(spy).not.toHaveBeenCalled()
   })
 
+  it('names the page at the URL', () => {
+    expect(routePage(at('/parametres/journal'))).toBe(coreSettingsSections.find((s) => s.id === 'audit')?.component)
+    expect(routePage(at('/accueil'))).toBeUndefined()
+  })
+
   it('swallows a failed preload (rendering retries it)', async () => {
     spyPreloads()
     vi.mocked(sectionPreload('identity')).mockRejectedValue(new Error('offline'))
     expect(() => preloadRouteCode(at('/parametres/identite'))).not.toThrow()
     await Promise.resolve()
+  })
+})
+
+describe('hasStoredSession', () => {
+  afterEach(() => window.localStorage.removeItem(AUTH_STORAGE_KEY))
+
+  it("reflects auth-js's stored session key", () => {
+    expect(hasStoredSession()).toBe(false)
+    window.localStorage.setItem(AUTH_STORAGE_KEY, '{}')
+    expect(hasStoredSession()).toBe(true)
+  })
+
+  it('is false when storage is blocked', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    expect(hasStoredSession()).toBe(false)
   })
 })

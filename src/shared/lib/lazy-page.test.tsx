@@ -1,6 +1,6 @@
 import { Component, Suspense, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { lazyPage, preloadWhenIdle, useLazyPageReady, type LazyPage } from './lazy-page'
 
 const Page = () => <p>PAGE</p>
@@ -112,8 +112,8 @@ describe('lazyPage', () => {
 
 describe('useLazyPageReady', () => {
   // Like App's SignedInApp: its own loading screen, no Suspense (no 300 ms fallback hold).
-  function Gate({ page: Page }: { page: LazyPage }) {
-    return useLazyPageReady(Page) ? <Page /> : <p role="status">WAITING</p>
+  function Gate({ page: Page, also }: { page: LazyPage; also?: Parameters<typeof useLazyPageReady>[1] }) {
+    return useLazyPageReady(Page, also) ? <Page /> : <p role="status">WAITING</p>
   }
 
   it('shows the caller\'s loading screen, then the page, without suspending', async () => {
@@ -123,6 +123,21 @@ describe('useLazyPageReady', () => {
     expect(screen.getByRole('status')).toHaveTextContent('WAITING')
     resolve({ default: Page })
     expect(await screen.findByText('PAGE')).toBeInTheDocument()
+  })
+
+  it('also waits for a second page, ignoring its failure', async () => {
+    let resolveInner: () => void = () => {}
+    const inner = { preload: vi.fn(() => new Promise<void>((r) => (resolveInner = r))), isLoaded: () => false }
+    const LazyPage = lazyPage(async () => ({ default: Page }))
+    await LazyPage.preload()
+    render(inSuspense(<Gate page={LazyPage} also={inner} />))
+    expect(screen.getByRole('status')).toHaveTextContent('WAITING')
+    resolveInner()
+    expect(await screen.findByText('PAGE')).toBeInTheDocument()
+
+    const failing = { preload: () => Promise.reject(new Error('offline')), isLoaded: () => false }
+    render(inSuspense(<Gate page={LazyPage} also={failing} />))
+    await waitFor(() => expect(screen.getAllByText('PAGE')).toHaveLength(2))
   })
 
   it('renders at once when already loaded', async () => {

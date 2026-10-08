@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/core/auth/AuthProvider'
@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { Toaster } from '@/shared/ui/sonner'
 import { lazyPage, useLazyPageReady, whenIdle } from '@/shared/lib/lazy-page'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
-import { preloadRouteCode } from './route-preload'
+import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 2 * 60_000, gcTime: 5 * 60_000, retry: 1 } },
@@ -26,13 +26,23 @@ const queryClient = new QueryClient({
  */
 const AuthenticatedApp = lazyPage(() => import('./AuthenticatedApp'), 'AuthenticatedApp')
 
+// A session stored in this browser (reload, deep link, new tab): start the signed-in code while
+// auth-js is still reading it. Code only; whether the session is valid is still decided by
+// auth-js, and what renders by RequireAuth's verified access (#11).
+if (typeof window !== 'undefined' && hasStoredSession()) {
+  void AuthenticatedApp.preload().catch(() => {})
+  preloadRouteCode()
+}
+
 /**
- * Shows RequireAuth's loading screen until the signed-in chunk is in. No Suspense: a committed
- * fallback would stay at least 300 ms (React 19), slowing sign-in. A failed load reaches the
- * app's error boundary, whose Retry reloads the page.
+ * Shows RequireAuth's loading screen until the signed-in chunk, and the code of the page at the
+ * URL, are in. No Suspense: a committed fallback would stay at least 300 ms (React 19), slowing
+ * sign-in and reloads. A failed shell load reaches the app's error boundary, whose Retry reloads
+ * the page; a failed page load is left to that page's own boundary.
  */
 function SignedInApp() {
-  const ready = useLazyPageReady(AuthenticatedApp)
+  const [page] = useState(() => routePage())
+  const ready = useLazyPageReady(AuthenticatedApp, page)
   return ready ? <AuthenticatedApp /> : <Loading />
 }
 
