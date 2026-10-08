@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
@@ -7,6 +7,7 @@ import { LoadError } from '@/shared/components/LoadState'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Button } from '@/shared/ui/button'
 import { Skeleton } from '@/shared/ui/skeleton'
+import { RecordActions } from '../components/record/RecordActions'
 import { RecordHeader } from '../components/record/RecordHeader'
 import { RecordTabs } from '../components/record/RecordTabs'
 import { RecordContext, type RecordData } from '../components/record/record-context'
@@ -39,10 +40,15 @@ function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) 
   const catalog = useProfessionalsCatalog()
   const tabs = useMemo(() => visibleRecordTabs(can), [can])
   const current = tabs.find((def) => def.tab === onglet)
+  const heading = useRef<HTMLHeadingElement>(null)
+  const focusHeading = useCallback(() => heading.current?.focus(), [])
 
   const data = record.data
   usePageTitle(data ? fullName(data.professional) : t(data === null ? `${R}.notFound.title` : 'modules.professionals.name'), { crumb: Boolean(data) })
-  const value = useMemo<RecordData | null>(() => (data && catalog.data ? { record: data, catalog: catalog.data } : null), [data, catalog.data])
+  const value = useMemo<RecordData | null>(
+    () => (data && catalog.data ? { record: data, catalog: catalog.data, focusHeading } : null),
+    [data, catalog.data, focusHeading],
+  )
 
   if (data === null) return <RecordNotFound />
   if (!current) return <Navigate to={recordPath(id)} replace />
@@ -55,7 +61,7 @@ function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) 
   if (!value) return <RecordSkeleton />
   return (
     <RecordContext.Provider value={value}>
-      <RecordHeader record={value.record} catalog={value.catalog} />
+      <RecordHeader record={value.record} catalog={value.catalog} headingRef={heading} actions={<RecordActions />} />
       <RecordTabs id={id} current={current} tabs={tabs} />
     </RecordContext.Provider>
   )

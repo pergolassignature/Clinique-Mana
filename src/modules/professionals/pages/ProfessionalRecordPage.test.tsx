@@ -20,7 +20,7 @@ import { ProfessionalRecordPage } from './ProfessionalRecordPage'
 
 const mocks = vi.hoisted(() => ({
   catalog: { fetchProfessionalsCatalog: vi.fn() },
-  record: { fetchProfessionalRecord: vi.fn() },
+  record: { fetchProfessionalRecord: vi.fn(), deactivateProfessional: vi.fn() },
 }))
 vi.mock('../api/catalog', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/catalog')>()), ...mocks.catalog }))
 vi.mock('../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/record')>()), ...mocks.record }))
@@ -212,6 +212,36 @@ describe('ProfessionalRecordPage', () => {
     // The cached record shows at once, with its list folded again.
     expect(screen.getByRole('heading', { level: 1, name: 'Julie Roy' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: t(`${S}.allOverall`, { count: '72' }) })).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('shows the status actions in the header for staff who manage files, none for the counselor', async () => {
+    renderPage({ role: 'admin' })
+    await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })
+    const header = screen.getByRole('heading', { level: 1 }).closest('header') as HTMLElement
+    expect(within(header).getByRole('button', { name: t(`${R}.actions.activate`) })).toBeInTheDocument()
+    expect(within(header).getByRole('button', { name: t(`${R}.actions.more`) })).toBeInTheDocument()
+    cleanup()
+    renderPage()
+    await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })
+    expect(within(screen.getByRole('heading', { level: 1 }).closest('header') as HTMLElement).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('moves focus to the name once a deactivation leaves no action to return to', async () => {
+    let record = recordFixture()
+    mocks.record.fetchProfessionalRecord.mockImplementation(async () => record)
+    mocks.record.deactivateProfessional.mockImplementation(async () => {
+      record = { ...record, professional: { ...record.professional, status: 'inactive' } }
+      return { status: 'inactive', accountChange: null, profileId: null }
+    })
+    renderPage({ role: 'admin_assistant' })
+    await userEvent.click(await screen.findByRole('button', { name: t(`${R}.actions.more`) }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: t(`${R}.actions.deactivate`) }))
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: new RegExp(`^${t(`${R}.deactivate.reason`)}`) }), 'Congé')
+    await userEvent.click(screen.getByRole('button', { name: t(`${R}.deactivate.confirm`) }))
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(mocks.record.deactivateProfessional).toHaveBeenCalledExactlyOnceWith(IDS.professional, IDS.leave, null)
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Marie Tremblay' })).toHaveFocus())
   })
 
   it('shows the counselor no compensation tab, and the admin one', async () => {

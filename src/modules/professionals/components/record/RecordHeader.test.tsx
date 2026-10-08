@@ -37,6 +37,14 @@ describe('RecordHeader', () => {
     expect(text.parentElement).toHaveClass('min-w-0', 'max-w-full')
   })
 
+  it('puts the actions after the identity, which keeps 16rem before they wrap under it', () => {
+    render(<RecordHeader record={recordFixture()} catalog={CATALOG_VIEW} actions={<button type="button">Activer</button>} />)
+    const header = screen.getByRole('banner')
+    expect(header).toHaveClass('flex-wrap')
+    expect(header.lastElementChild).toBe(screen.getByRole('button', { name: 'Activer' }))
+    expect(screen.getByRole('heading', { level: 1 }).closest('.basis-64')).toBe(header.firstElementChild)
+  })
+
   it('shows the email alone without a title, and no chips without languages', () => {
     renderHeader((r) => ({ ...r, professions: [], languageIds: [] }))
     expect(screen.getByText('marie.t@exemple.ca')).toBeInTheDocument()

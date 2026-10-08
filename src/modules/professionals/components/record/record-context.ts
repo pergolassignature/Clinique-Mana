@@ -10,6 +10,11 @@ import type { CatalogView } from '../../lib/catalog-view'
 export interface RecordData {
   record: ProfessionalRecord
   catalog: CatalogView
+  /**
+   * Moves focus to the record's heading (the h1, focusable but not tabbable): where a closed
+   * dialog sends focus when the button that opened it is gone (« Activer » once active).
+   */
+  focusHeading: () => void
 }
 
 export const RecordContext = createContext<RecordData | null>(null)

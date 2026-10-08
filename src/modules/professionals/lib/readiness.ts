@@ -1,6 +1,7 @@
 import { t } from '@/i18n'
 import type { ReadinessItemKey, ReadinessMissing, ReadinessWarning, RecordTab } from './constants'
 import type { ProfessionalRecord } from '../api/parse'
+import { activationLabel, statusActions } from './status-actions'
 
 /** « Profil de jumelage complet ». */
 export function readinessItemLabel(key: ReadinessItemKey): string {
@@ -29,27 +30,36 @@ export const MISSING_TAB: Readonly<Record<ReadinessMissing, RecordTab>> = {
 /** Who may fix the gaps of each tab. */
 const TAB_PERMISSION: Partial<Record<RecordTab, string>> = { identite: 'professionals.manage', jumelage: 'professionals.matching' }
 
+/** The button of « Prochaine action »: a link to the tab that fixes a gap, or the activation dialog. */
+export type NextActionButton = { kind: 'tab'; label: string; tab: RecordTab } | { kind: 'activate'; label: string }
+
 export interface NextAction {
   message: string
-  /** At most one small outline button, to the tab that fixes the first gap (when the user may edit it). */
-  action: { label: string; tab: RecordTab } | null
+  /** At most one small outline button, only when the user may do what it leads to. */
+  action: NextActionButton | null
 }
 
 /**
  * Aperçu « Prochaine action » (4a rules): the first gap's tab (identity gaps come first in the
- * RPC's order); a complete file not yet active is ready (the header holds the teal « Activer »);
- * an active one needs nothing.
+ * RPC's order); a complete file not yet active is ready, with « Activer » (« Réactiver » once
+ * inactive) opening the same dialog as the header's teal action (P4-74, 4a.14); an active one needs
+ * nothing.
  */
 export function nextAction(record: Pick<ProfessionalRecord, 'professional' | 'readiness'>, can: (permission: string) => boolean): NextAction {
+  const N = 'modules.professionals.readiness.nextAction'
   if (record.readiness.complete) {
-    const key = record.professional.status === 'active' ? 'nothingToDo' : 'readyToActivate'
-    return { message: t(`modules.professionals.readiness.nextAction.${key}`), action: null }
+    if (record.professional.status === 'active') return { message: t(`${N}.nothingToDo`), action: null }
+    const kind = statusActions(record, can).activate
+    return {
+      message: t(record.professional.status === 'inactive' ? `${N}.readyToReactivate` : `${N}.readyToActivate`),
+      action: kind ? { kind: 'activate', label: activationLabel(kind) } : null,
+    }
   }
   const firstGap = record.readiness.items.find((i) => !i.done)?.missing[0]
   const tab = firstGap ? MISSING_TAB[firstGap] : 'jumelage'
   const permission = TAB_PERMISSION[tab]
   return {
-    message: t(tab === 'identite' ? 'modules.professionals.readiness.nextAction.completeIdentity' : 'modules.professionals.readiness.nextAction.completeMatching'),
-    action: permission && can(permission) ? { label: t('modules.professionals.readiness.nextAction.complete'), tab } : null,
+    message: t(tab === 'identite' ? `${N}.completeIdentity` : `${N}.completeMatching`),
+    action: permission && can(permission) ? { kind: 'tab', label: t(`${N}.complete`), tab } : null,
   }
 }

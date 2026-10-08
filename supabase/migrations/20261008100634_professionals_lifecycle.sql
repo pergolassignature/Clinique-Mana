@@ -24,7 +24,10 @@
 --   file stores no reason. deactivate_professional: an active reason of the clinic, a note when
 --   the reason requires one (1–500). Both lock the account first, then the professional (the
 --   email sync trigger takes them in that order), and return (status, account_change,
---   profile_id) so 4b.6 knows when to ban or unban without a second read.
+--   profile_id) so 4b.6 knows when to ban or unban without a second read. Their refusals carry
+--   a HINT the dialogs route by (4a.14): `status` (already in that status), `readiness` (an
+--   incomplete file without the override), `reason` (the override reason, or a deactivation
+--   reason that is not an active one of the clinic), `note`.
 -- * Accounts (P4-11): a reason with disables_account disables the provider's profile the way
 --   set_user_status does (status, then its auth.sessions, P3-32), only when the profile was
 --   active and holds the role provider, and remembers it did (deactivation_disabled_account).
@@ -284,7 +287,7 @@ begin
   end if;
   v_row := private.lock_professional_with_account(p_id);
   if v_row.status = 'active' then
-    raise exception 'Ce professionnel est déjà actif.' using errcode = 'P0001';
+    raise exception 'Ce professionnel est déjà actif.' using errcode = 'P0001', hint = 'status';
   end if;
 
   select r.ready into v_ready from public.professionals_readiness r where r.professional_id = p_id;
@@ -292,13 +295,14 @@ begin
     v_reason := null;                       -- a complete file needs no override
   else
     if not private.has_permission('professionals.activate_override') then
-      raise exception 'Le dossier n''est pas complet. Seule l''administration peut activer un dossier incomplet.' using errcode = 'P0001';
+      raise exception 'Le dossier n''est pas complet. Seule l''administration peut activer un dossier incomplet.'
+        using errcode = 'P0001', hint = 'readiness';
     end if;
     if v_reason is null or pg_catalog.char_length(v_reason) < 5 then
-      raise exception 'Indiquez la raison (au moins 5 caractères).' using errcode = 'P0001';
+      raise exception 'Indiquez la raison (au moins 5 caractères).' using errcode = 'P0001', hint = 'reason';
     end if;
     if pg_catalog.char_length(v_reason) > 500 then
-      raise exception 'La raison compte au plus 500 caractères.' using errcode = 'P0001';
+      raise exception 'La raison compte au plus 500 caractères.' using errcode = 'P0001', hint = 'reason';
     end if;
   end if;
 
@@ -336,19 +340,19 @@ begin
   end if;
   v_row := private.lock_professional_with_account(p_id);
   if v_row.status = 'inactive' then
-    raise exception 'Ce professionnel est déjà inactif.' using errcode = 'P0001';
+    raise exception 'Ce professionnel est déjà inactif.' using errcode = 'P0001', hint = 'status';
   end if;
 
   select * into v_reason from public.deactivation_reasons r
    where r.org_id = v_org and r.id = p_reason_id and r.is_active;
   if not found then
-    raise exception 'Raison introuvable.' using errcode = 'P0001';
+    raise exception 'Raison introuvable.' using errcode = 'P0001', hint = 'reason';
   end if;
   if v_reason.requires_note and v_note is null then
-    raise exception 'Précisez la raison.' using errcode = 'P0001';
+    raise exception 'Précisez la raison.' using errcode = 'P0001', hint = 'note';
   end if;
   if pg_catalog.char_length(v_note) > 500 then
-    raise exception 'La note compte au plus 500 caractères.' using errcode = 'P0001';
+    raise exception 'La note compte au plus 500 caractères.' using errcode = 'P0001', hint = 'note';
   end if;
 
   -- « Fin de collaboration »: the login goes too (P4-11), unless it is already disabled (then it

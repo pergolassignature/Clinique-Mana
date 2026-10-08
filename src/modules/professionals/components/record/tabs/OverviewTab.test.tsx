@@ -17,7 +17,7 @@ const base = `/professionnels/${IDS.professional}`
 function renderOverview(change: (record: ProfessionalRecord) => ProfessionalRecord = (r) => r, role: FixtureRole = 'counselor', catalog = CATALOG_VIEW) {
   render(
     renderWithContexts(
-      <RecordContext.Provider value={{ record: change(recordFixture()), catalog }}>
+      <RecordContext.Provider value={{ record: change(recordFixture()), catalog, focusHeading: () => {} }}>
         <OverviewTab />
       </RecordContext.Provider>,
       { access: { access: accessForRole(role) } },
@@ -175,7 +175,7 @@ describe('OverviewTab — Profil de jumelage', () => {
   it('has no « Modifier » without professionals.matching', () => {
     render(
       renderWithContexts(
-        <RecordContext.Provider value={{ record: recordFixture(), catalog: CATALOG_VIEW }}>
+        <RecordContext.Provider value={{ record: recordFixture(), catalog: CATALOG_VIEW, focusHeading: () => {} }}>
           <OverviewTab />
         </RecordContext.Provider>,
         { access: { access: accessForRole('counselor', { permissions: ['professionals.view'] }) } },
@@ -232,10 +232,11 @@ describe('OverviewTab — À surveiller and Prochaine action', () => {
     expect(within(next).getByRole('link', { name: t('modules.professionals.readiness.nextAction.complete') })).toHaveAttribute('href', `${base}/jumelage`)
   })
 
-  it('says a complete file is ready, with no button (the header holds « Activer »)', () => {
+  it('says a complete file is ready, with no button for whoever cannot activate', () => {
     renderOverview(complete)
     const next = card(t(`${O}.nextAction.title`))
     expect(within(next).getByText(t('modules.professionals.readiness.nextAction.readyToActivate'))).toBeInTheDocument()
     expect(within(next).queryByRole('link')).not.toBeInTheDocument()
+    expect(within(next).queryByRole('button')).not.toBeInTheDocument()
   })
 })
