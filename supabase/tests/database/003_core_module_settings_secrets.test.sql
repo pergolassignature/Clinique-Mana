@@ -104,9 +104,10 @@ select functions_are('public', array[
   'import_professional',
   'get_professional_private', 'reveal_professional_private', 'set_professional_tax_numbers', 'set_professional_bank',
   'set_professional_sin', 'clear_professional_private_field',
-  'set_compensation_default', 'delete_compensation_default', 'set_professional_margin', 'delete_professional_margin',
-  'set_recognition_rule', 'delete_recognition_rule', 'set_professional_recognition', 'delete_professional_recognition',
-  'get_professional_compensation',
+  'set_compensation_rate', 'delete_compensation_rate', 'set_retention_grid', 'delete_retention_grid',
+  'record_monthly_sessions', 'decide_retention', 'delete_professional_retention',
+  'set_professional_client_agreement', 'end_professional_client_agreement', 'delete_professional_client_agreement',
+  'get_professional_compensation', 'list_retention_review',
   'set_user_preference', 'delete_user_preference'
 ], 'public schema exposes exactly the intended RPCs');
 
