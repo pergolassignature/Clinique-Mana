@@ -1,6 +1,6 @@
 /**
  * Fixtures for the signing tests: a minimal PDF, and a request already sent
- * (its document distributed in the fake Documenso, its row `sent` in the
+ * (its envelope distributed in the fake Documenso, its row `sent` in the
  * fake database). Test-only: never deployed.
  */
 import { documensoClient, type DocumensoReach } from '../documenso.ts'
@@ -62,9 +62,10 @@ export const SIGNERS = [
 let next = 0
 
 /**
- * A request sent through the fake Documenso: its document is created with
- * `signers` (default: the professional only), fields placed, distributed,
- * and its row inserted as `sent` (or `over.status`) with the recipient ids.
+ * A request sent through the fake Documenso: its envelope is created with
+ * `signers` (default: the professional only), each with a SIGNATURE field,
+ * distributed, and its row inserted as `sent` (or `over.status`) with the
+ * envelope and recipient ids.
  */
 export async function sentRequest(
   fake: FakeDocumenso,
@@ -77,7 +78,7 @@ export async function sentRequest(
   const client = documensoClient(fake.baseUrl, DOCUMENSO_KEY, fake.fetch, {
     reach: LOCAL_REACH,
   })
-  const created = await client.createDocument(MINIMAL_PDF, {
+  const created = await client.createEnvelope(MINIMAL_PDF, {
     title: 'Contrat',
     externalId: id,
     recipients: signers.map((s) => ({
@@ -85,6 +86,14 @@ export async function sentRequest(
       name: s.name,
       role: 'SIGNER' as const,
       signingOrder: s.order,
+      fields: [{
+        type: 'SIGNATURE' as const,
+        page: 1,
+        x: 10,
+        y: 80,
+        width: 20,
+        height: 5,
+      }],
     })),
     meta: {
       subject: 'Contrat à signer',
@@ -95,23 +104,10 @@ export async function sentRequest(
       timezone: 'America/Toronto',
     },
   })
-  await client.addFields(
-    created.documentId,
-    created.recipients.map((r) => ({
-      recipientId: r.id,
-      type: 'SIGNATURE' as const,
-      page: 1,
-      x: 10,
-      y: 80,
-      width: 20,
-      height: 5,
-    })),
-  )
-  await client.distribute(created.documentId)
+  await client.distribute(created.envelopeId)
   fake.calls.length = 0
   return db.insertRequest({
     status: 'sent',
-    documenso_document_id: created.documentId,
     envelope_id: created.envelopeId,
     sent_at: '2026-10-01T12:00:00.000Z',
     expires_at: '2026-10-15T12:00:00.000Z',

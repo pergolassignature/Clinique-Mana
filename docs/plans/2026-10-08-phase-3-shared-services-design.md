@@ -340,10 +340,10 @@ The professional invitation (4b) reuses steps 3–5 with its own purpose handler
 
 **`_shared/documenso.ts`** is ported from PS Hub (`approve-contract`, `resend-contract-email`, `documenso-webhook`). Its methods:
 
-- `createDocument(pdf, payload)`: v2 multipart `document/create`, with `externalId` set to our `signature_request.id`;
-- `distribute`, `get`, `redistribute`, `cancel`, `downloadSigned`.
+- `createEnvelope(pdf, payload)`: v2 multipart `envelope/create` (the recipients' fields inline), with `externalId` set to our `signature_request.id`;
+- `distribute`, `get`, `redistribute`, `cancel`, `downloadSigned`, all keyed by the envelope id.
 
-Requests send `Authorization: <api key>` (no `Bearer`), as PS Hub does. The base URL and key come from Settings and Vault, never from code (PS Hub hard-codes its URL: not ported). Check the clinic instance's version for the newer v2 « envelope » endpoints.
+Requests send `Authorization: <api key>` (no `Bearer`), as PS Hub does. The base URL and key come from Settings and Vault, never from code (PS Hub hard-codes its URL: not ported). **Envelope routes only** (2026-10-08): the clinic's Documenso 2.20 marks `/api/v2/document/*` deprecated, so the client calls `/api/v2/envelope/*` and the envelope id is the request's Documenso reference; see the [envelope API plan](2026-10-08-documenso-envelope-api-plan.md).
 
 **Do not port PS Hub's client-built PDF** (`create-contract` accepts `pdfBase64` from the browser). The PDF is rendered **server-side** from the published template version and database values (foundation design §4.3). The renderer is open question Q1, settled by a spike at the start of batch 3f.
 

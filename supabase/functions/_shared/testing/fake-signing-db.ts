@@ -1,6 +1,7 @@
 /**
  * An in-memory signing database for the signing function tests: the RPCs of
- * `core_signing` (Task 3.31), `core_signing_function_support`, the system
+ * `core_signing` (Task 3.31), `core_signing_function_support`,
+ * `core_signing_envelope` (keyed by envelope id, plan E-1…E-3), the system
  * files of `core_storage`, the webhook claims of Task 3.2 and the rate
  * limiter, as `fakeSupabase` routes. It follows the SQL closely enough for
  * the functions' flows (idempotency, drafts, monotonic events, completion
@@ -35,7 +36,8 @@ export interface FakeSignatureRequest {
   status: string
   view_permission: string
   idempotency_key: string
-  documenso_document_id: string | null
+  /** Deprecated (`core_signing_envelope`): never written, read back null. */
+  documenso_document_id: null
   envelope_id: string | null
   source_file_id: string | null
   signed_file_id: string | null
@@ -53,8 +55,8 @@ export interface FakeSignatureRequest {
   send_started_at: string | null
   /** When the latest claim started; never cleared (the reconcile's clock for drafts). */
   last_send_at: string | null
-  /** Earlier documents a re-send replaced (the latest 20). */
-  superseded_document_ids: string[]
+  /** Earlier envelopes a re-send replaced (the latest 20). */
+  superseded_envelope_ids: string[]
   signers: FakeSigner[]
 }
 
@@ -131,6 +133,17 @@ const intervalMs = (value: unknown) => {
   return Number(match[1]) * 1000
 }
 const E22023 = { error: { code: '22023', message: 'Invalid' } }
+/** The envelope id check of `signature_requests.envelope_id` and the RPCs. */
+const ENVELOPE_ID = /^envelope_[A-Za-z0-9_-]{1,64}$/
+const envelopeArg = (value: unknown) =>
+  typeof value === 'string' && ENVELOPE_ID.test(value) ? value : null
+/** `signature_requests_org_id_envelope_id_key`'s violation. */
+const E23505 = {
+  error: {
+    code: '23505',
+    message: 'duplicate key value violates unique constraint',
+  },
+}
 
 /** Builds the fake for one org (another org id finds nothing). */
 export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
@@ -144,6 +157,13 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
   let sequence = 0
   const uuid = (prefix: string) =>
     `${prefix}-0000-4000-8000-${String(++sequence).padStart(12, '0')}`
+
+  /** Another request of `r`'s org already holds `envelopeId` (one envelope per org). */
+  const envelopeTaken = (r: FakeSignatureRequest, envelopeId: string | null) =>
+    envelopeId !== null &&
+    [...requests.values()].some((o) =>
+      o.id !== r.id && o.org_id === r.org_id && o.envelope_id === envelopeId
+    )
 
   const open = (r: FakeSignatureRequest) =>
     ['sent', 'viewed'].includes(r.status) ||
@@ -182,7 +202,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       expired_at: null,
       send_started_at: null,
       last_send_at: null,
-      superseded_document_ids: [],
+      superseded_envelope_ids: [],
       signers: [],
       ...row,
     }
@@ -424,19 +444,21 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
         !recipients.every((e) => r.signers.some((s) => s.role === e.role))
       ) return E22023
       if (!(String(a.p_expires_at) > iso())) return E22023
+      const envelopeId = envelopeArg(a.p_envelope_id)
+      if (!envelopeId) return E22023
+      if (envelopeTaken(r, envelopeId)) return E23505
       source.retain_until = null
       for (const e of recipients) {
         r.signers.find((s) => s.role === e.role)!.recipient_id = e.recipient_id
       }
       Object.assign(r, {
         status: 'sent',
-        superseded_document_ids: supersede(
-          r.superseded_document_ids,
-          r.documenso_document_id,
-          a.p_documenso_document_id,
+        superseded_envelope_ids: supersede(
+          r.superseded_envelope_ids,
+          r.envelope_id,
+          envelopeId,
         ),
-        documenso_document_id: a.p_documenso_document_id,
-        envelope_id: a.p_envelope_id,
+        envelope_id: envelopeId,
         source_file_id: source.id,
         sent_at: iso(),
         expires_at: a.p_expires_at,
@@ -451,8 +473,9 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
         !r || r.org_id !== a.p_org_id || r.status !== 'draft' ||
         r.last_error === 'abandoned'
       ) return E22023
-      // Only the draft's own recorded document.
-      if (r.documenso_document_id !== a.p_documenso_document_id) return E22023
+      // Only the draft's own recorded envelope.
+      const envelopeId = envelopeArg(a.p_envelope_id)
+      if (!envelopeId || r.envelope_id !== envelopeId) return E22023
       const recipients = a.p_signer_recipients as {
         role: string
         recipient_id: string
@@ -468,7 +491,6 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       }
       Object.assign(r, {
         status: 'sent',
-        envelope_id: a.p_envelope_id,
         source_file_id: sourceId,
         sent_at: iso(),
         expires_at: null,
@@ -481,17 +503,16 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
     mark_signature_request_failed: (a) => {
       const r = requests.get(String(a.p_id))
       if (!r || r.status !== 'draft') return E22023
+      const next = envelopeArg(a.p_envelope_id)
+      if (a.p_envelope_id != null && !next) return E22023
+      if (envelopeTaken(r, next)) return E23505
       if (r.last_error !== 'abandoned') r.last_error = String(a.p_error_code)
-      const next = (a.p_documenso_document_id as string | null) ?? null
-      r.superseded_document_ids = supersede(
-        r.superseded_document_ids,
-        r.documenso_document_id,
+      r.superseded_envelope_ids = supersede(
+        r.superseded_envelope_ids,
+        r.envelope_id,
         next,
       )
-      r.envelope_id = next !== null
-        ? (a.p_envelope_id as string | null) ?? null
-        : (a.p_envelope_id as string | null) ?? r.envelope_id
-      r.documenso_document_id = next ?? r.documenso_document_id
+      r.envelope_id = next ?? r.envelope_id
       r.send_started_at = null
       return { data: null }
     },
@@ -507,13 +528,13 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
         }],
       })
       if (!row) return answer('not_found')
-      const documentId = a.p_documenso_document_id as string | null
-      if (documentId && row.superseded_document_ids.includes(documentId)) {
+      const envelopeId = a.p_envelope_id as string | null
+      if (envelopeId && row.superseded_envelope_ids.includes(envelopeId)) {
         return answer('ignored')
       }
       if (
-        row.status !== 'draft' && documentId &&
-        row.documenso_document_id !== documentId
+        row.status !== 'draft' && envelopeId &&
+        row.envelope_id !== envelopeId
       ) {
         return {
           data: [{
@@ -528,7 +549,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       if (row.status === 'draft') {
         return answer(
           row.last_error !== 'abandoned' &&
-            (row.documenso_document_id ?? a.p_documenso_document_id) != null
+            (row.envelope_id ?? envelopeId) != null
             ? 'retry'
             : 'ignored',
         )
@@ -658,7 +679,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
           r.org_id === a.p_org_id && open(r) && modules.has(r.module_key) &&
           (r.status === 'draft'
             ? (r.last_send_at ?? r.created_at) <
-              (r.documenso_document_id === null ? dayAgo : hourAgo)
+              (r.envelope_id === null ? dayAgo : hourAgo)
             : (r.sent_at !== null && r.sent_at < dayAgo) ||
               (r.expires_at !== null && r.expires_at < iso()))
         )
@@ -670,7 +691,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
           envelope_id: r.envelope_id,
           expires_at: r.expires_at,
           action: r.status === 'draft'
-            ? r.documenso_document_id === null ? 'abandon' : 'sync'
+            ? r.envelope_id === null ? 'abandon' : 'sync'
             : r.completed_event_at !== null
             ? 'sync'
             : r.expires_at !== null && r.expires_at < iso()
