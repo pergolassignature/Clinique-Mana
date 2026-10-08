@@ -3,6 +3,7 @@ import {
   clientIp,
   consume,
   hashKey,
+  limitResponse,
   LIMITS,
   type RateLimit,
 } from './rate-limit.ts'
@@ -197,8 +198,31 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     linkResolveIp: ['links.resolve_ip', 30, 600],
     inviteAcceptIp: ['links.accept_ip', 10, 3_600],
     inviteAcceptLink: ['links.accept_link', 5, 3_600],
+    staffInviteUser: ['invites.staff_user', 30, 3_600],
   })
   for (const l of Object.values(LIMITS)) {
     assertMatch(l.bucket, /^[a-z][a-z0-9_.]{0,62}$/)
   }
+})
+
+// ---------------------------------------------------------------------------
+// limitResponse
+// ---------------------------------------------------------------------------
+Deno.test('limitResponse: null when allowed; 429 with Retry-After when refused; 503 when unavailable', async () => {
+  assertEquals(limitResponse({ allowed: true, hits: 1, retryAfter: 0 }), null)
+
+  const refused = limitResponse({ allowed: false, hits: 31, retryAfter: 120 })!
+  assertEquals(refused.status, 429)
+  assertEquals(refused.headers.get('Retry-After'), '120')
+  assertEquals((await refused.json()).error.code, 'rate_limited')
+
+  const closed = limitResponse({
+    allowed: false,
+    hits: 0,
+    retryAfter: 60,
+    reason: 'unavailable',
+  })!
+  assertEquals(closed.status, 503)
+  assertEquals(closed.headers.get('Retry-After'), null)
+  assertEquals((await closed.json()).error.code, 'not_configured')
 })

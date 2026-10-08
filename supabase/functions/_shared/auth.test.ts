@@ -24,6 +24,8 @@ const ACTIVE = {
   user_id: 'u1',
   org_id: 'o1',
   email: 'ana@mana.test',
+  display_name: 'Ana Gagnon',
+  org_name: 'Clinique MANA',
   status: 'active',
   role: 'admin_assistant',
   permissions: ['professionals.view', 'settings.view'],
@@ -231,6 +233,8 @@ Deno.test('evaluateAccess: malformed payload fails closed (403)', () => {
       { ...ACTIVE, permissions: 'professionals.view' },
       { ...ACTIVE, org_id: null },
       { ...ACTIVE, email: null },
+      { ...ACTIVE, display_name: null },
+      { ...ACTIVE, org_name: undefined },
     ]
   ) {
     const d = evaluateAccess({ data, error: null }, {

@@ -149,6 +149,10 @@ export interface CallerAccess {
   org_id: string
   /** `profiles.email` (copied from Auth): the caller's own address. */
   email: string
+  /** `profiles.display_name`: the caller's name, as others see it. */
+  display_name: string
+  /** The caller's organisation name (`organizations.name`). */
+  org_name: string
   status: 'active'
   role: string | null
   permissions: string[]
@@ -207,6 +211,8 @@ export function evaluateAccess(
     typeof a.user_id !== 'string' ||
     typeof a.org_id !== 'string' ||
     typeof a.email !== 'string' ||
+    typeof a.display_name !== 'string' ||
+    typeof a.org_name !== 'string' ||
     !Array.isArray(a.permissions) ||
     !Array.isArray(a.modules)
   ) {

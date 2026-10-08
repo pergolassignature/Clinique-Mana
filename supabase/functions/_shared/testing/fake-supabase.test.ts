@@ -66,3 +66,27 @@ Deno.test('fakeSupabase: auth.getUser answers the configured user, else a 401 er
   assertEquals(refused.data.user, null)
   assertEquals(refused.error?.status, 401)
 })
+
+Deno.test('fakeSupabase: auth.admin methods are routed by name, in a call log', async () => {
+  const { client, adminCalls } = fakeSupabase({
+    admin: {
+      createUser: (attrs) => ({
+        data: { user: { id: 'u1', email: (attrs as { email: string }).email } },
+      }),
+      deleteUser: () => ({ error: { code: 'unexpected_failure' } }),
+    },
+  })
+  const created = await client.auth.admin.createUser({ email: 'a@mana.test' })
+  assertEquals(created.data.user?.id, 'u1')
+  const deleted = await client.auth.admin.deleteUser('u1')
+  assertEquals(deleted.error as unknown, { code: 'unexpected_failure' })
+  assertEquals(adminCalls, [
+    { method: 'createUser', args: [{ email: 'a@mana.test' }] },
+    { method: 'deleteUser', args: ['u1'] },
+  ])
+  assertThrows(
+    () => client.auth.admin.updateUserById('u1', { ban_duration: 'none' }),
+    Error,
+    'fake: no auth.admin.updateUserById',
+  )
+})

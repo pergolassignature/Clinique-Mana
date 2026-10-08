@@ -290,8 +290,11 @@ export function parseEmailContext(
     : null
 }
 
-/** True when `email` is one bare mailbox of at most 254 characters. */
-function isMailbox(email: string): boolean {
+/**
+ * True when `email` is one bare mailbox of at most 254 characters: the rule
+ * every recipient and sender address passes before a send.
+ */
+export function isMailbox(email: string): boolean {
   return email.length <= MAX_ADDRESS_LENGTH && MAILBOX.test(email)
 }
 

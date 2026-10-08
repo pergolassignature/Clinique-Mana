@@ -16,8 +16,13 @@
  *   fragment limits where the token travels, it does not keep it secret.
  *
  * Callers (public token functions, CLAUDE.md §7) check `isWellFormedToken`
- * first, and answer a malformed token exactly like an unknown one.
+ * first, and answer a malformed token exactly like an unknown one
+ * (`linkGoneResponse('link_invalid')`). `peekSecureLink` reads what a hash
+ * opens, without consuming it.
  */
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { z } from 'zod'
+import { errorResponse } from './auth.ts'
 import { byteaHex } from './bytea.ts'
 import { FunctionError } from './errors.ts'
 
@@ -130,4 +135,82 @@ export function linkUrl(appUrl: string, path: LinkPath, token: string): string {
     )
   }
   return `${origin}${path}#t=${token}`
+}
+
+/** An RPC name from the purpose catalogue (its check constraint). */
+const rpcName = z.string().regex(/^[a-z][a-z0-9_]{2,62}$/)
+
+/** `peek_secure_link`'s answer (Task 3.17); other fields are ignored. */
+const peekSchema = z.discriminatedUnion('state', [
+  z.object({ state: z.literal('invalid') }),
+  z.object({ state: z.literal('expired'), purpose: z.string() }),
+  z.object({ state: z.literal('used'), purpose: z.string() }),
+  z.object({
+    state: z.literal('valid'),
+    link_id: z.guid(),
+    org_id: z.guid(),
+    purpose: z.string(),
+    module_key: z.string(),
+    subject_type: z.string(),
+    subject_id: z.guid(),
+    scope: z.record(z.string(), z.unknown()),
+    expires_at: z.string(),
+    requires_session: z.boolean(),
+    creates_account: z.boolean(),
+    resolve_rpc: rpcName.nullable(),
+    accept_rpc: rpcName.nullable(),
+  }),
+])
+
+/** What a token's hash opens (`peek_secure_link`). */
+export type LinkPeek = z.infer<typeof peekSchema>
+
+/**
+ * `peek_secure_link(p_token_hash, p_mark_opened)` with a service client:
+ * the link's state, without consuming it. With `markOpened`, a valid link's
+ * `last_opened_at` is set (at most once an hour). Null when the RPC fails or
+ * answers an unexpected shape: the caller reports it and answers 500.
+ */
+export async function peekSecureLink(
+  client: SupabaseClient,
+  tokenHash: string,
+  markOpened: boolean,
+): Promise<LinkPeek | null> {
+  const { data, error } = await client.rpc('peek_secure_link', {
+    p_token_hash: tokenHash,
+    p_mark_opened: markOpened,
+  })
+  if (error) return null
+  const parsed = peekSchema.safeParse(data)
+  return parsed.success ? parsed.data : null
+}
+
+/** A link that cannot be used, as an error code (P3-28). */
+export type LinkGoneCode = 'link_invalid' | 'link_expired' | 'link_used'
+
+/** The error code for a peek state other than `valid`. */
+export const LINK_STATE_CODE = {
+  invalid: 'link_invalid',
+  expired: 'link_expired',
+  used: 'link_used',
+} as const satisfies Record<string, LinkGoneCode>
+
+/** True for `link_invalid`, `link_expired` and `link_used` (an `accept_rpc` status). */
+export function isLinkGoneCode(value: unknown): value is LinkGoneCode {
+  return Object.values(LINK_STATE_CODE).includes(value as LinkGoneCode)
+}
+
+const LINK_GONE_MESSAGE: Record<LinkGoneCode, string> = {
+  link_invalid: 'Link is not valid',
+  link_expired: 'Link has expired',
+  link_used: 'Link has already been used',
+}
+
+/**
+ * 410 with `code`. Every cause of one code (a malformed, unknown or revoked
+ * token, a disabled module) gets byte-identical answers: no enumeration
+ * (design §3.3).
+ */
+export function linkGoneResponse(code: LinkGoneCode, req?: Request): Response {
+  return errorResponse(code, LINK_GONE_MESSAGE[code], 410, req)
 }
