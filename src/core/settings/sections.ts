@@ -19,7 +19,8 @@ const ComingSoonSection = lazy(() =>
 )
 
 // English `id` for code, French `path` for the URL (decision #24). Menu order within each group.
-// Sections still on ComingSoonSection are built by Tasks 2.9–2.18.
+// On this branch, Signataire, Région, Confidentialité and Utilisateurs are still ComingSoonSection
+// (built on feat/phase-2-core-settings); remove ComingSoonSection once that branch is merged.
 export const coreSettingsSections: SettingsSection[] = [
   {
     id: 'identity',
@@ -122,6 +123,10 @@ export const coreSettingsSections: SettingsSection[] = [
     icon: ScrollText,
     permission: 'audit.view',
     group: 'plateforme',
-    component: ComingSoonSection,
+    component: lazy(() =>
+      import('./pages/AuditLogPage').then((m) => ({
+        default: m.AuditLogPage,
+      }))
+    ),
   },
 ]
