@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
+import { t } from '@/i18n'
 import type { Organization } from './api'
 import {
   addressSchema,
@@ -49,6 +50,9 @@ const ORG: Organization = {
   qst_number: '1234567890TQ0001',
   signatory_name: 'Marie Tremblay',
   signatory_title: 'Directrice',
+  signatory_email: 'direction@cliniquemana.com',
+  logo_file_id: null,
+  signature_file_id: null,
   privacy_officer_name: 'Julie Roy',
   privacy_officer_email: 'vie-privee@cliniquemana.com',
   privacy_policy_url: 'https://cliniquemana.com/confidentialite',
@@ -72,6 +76,7 @@ const EMPTY_ORG: Organization = {
   qst_number: null,
   signatory_name: null,
   signatory_title: null,
+  signatory_email: null,
   privacy_officer_name: null,
   privacy_officer_email: null,
   privacy_policy_url: null,
@@ -259,15 +264,27 @@ describe('taxNumbersSchema', () => {
 
 describe('signatorySchema', () => {
   it('trims and turns empty values into null', () => {
-    expect(signatorySchema.parse({ signatory_name: ' Marie Tremblay ', signatory_title: '' })).toEqual({
+    expect(signatorySchema.parse({ signatory_name: ' Marie Tremblay ', signatory_title: '', signatory_email: ' direction@cliniquemana.com ' })).toEqual({
       signatory_name: 'Marie Tremblay',
       signatory_title: null,
+      signatory_email: 'direction@cliniquemana.com',
     })
+    expect(signatorySchema.parse({ signatory_name: '', signatory_title: '', signatory_email: '' }).signatory_email).toBeNull()
   })
 
   it('caps the lengths at 120 characters', () => {
-    expect(errorOf(signatorySchema, { signatory_name: 'a'.repeat(121), signatory_title: '' }, 'signatory_name')).toBe('120 caractères maximum.')
-    expect(errorOf(signatorySchema, { signatory_name: '', signatory_title: 'a'.repeat(121) }, 'signatory_title')).toBe('120 caractères maximum.')
+    expect(errorOf(signatorySchema, { signatory_name: 'a'.repeat(121), signatory_title: '', signatory_email: '' }, 'signatory_name')).toBe('120 caractères maximum.')
+    expect(errorOf(signatorySchema, { signatory_name: '', signatory_title: 'a'.repeat(121), signatory_email: '' }, 'signatory_title')).toBe('120 caractères maximum.')
+  })
+
+  it.each(['direction', 'direction@clinique', 'a b@clinique.ca', 'direction@@clinique.ca'])('refuses the email %s, as organizations_signatory_email_check does', (signatory_email) => {
+    expect(errorOf(signatorySchema, { signatory_name: '', signatory_title: '', signatory_email }, 'signatory_email')).toBe(t('auth.errors.invalidEmail'))
+  })
+
+  it('refuses a control character in the email before its format', () => {
+    expect(errorOf(signatorySchema, { signatory_name: '', signatory_title: '', signatory_email: 'a\u0085b@clinique.ca' }, 'signatory_email')).toBe(
+      t('settings.validation.controlChar'),
+    )
   })
 })
 
@@ -348,7 +365,7 @@ describe('toFormValues', () => {
     })
     expect(toContactFormValues(ORG)).toEqual({ phone: '514 555-1234', email: 'info@cliniquemana.com', website: 'https://cliniquemana.com' })
     expect(toTaxNumbersFormValues(ORG)).toEqual({ gst_number: '123456789 RT 0001', qst_number: '1234567890 TQ 0001' })
-    expect(toSignatoryFormValues(ORG)).toEqual({ signatory_name: 'Marie Tremblay', signatory_title: 'Directrice' })
+    expect(toSignatoryFormValues(ORG)).toEqual({ signatory_name: 'Marie Tremblay', signatory_title: 'Directrice', signatory_email: 'direction@cliniquemana.com' })
     expect(toPrivacyOfficerFormValues(ORG)).toEqual({ privacy_officer_name: 'Julie Roy', privacy_officer_email: 'vie-privee@cliniquemana.com' })
     expect(toPrivacyPolicyFormValues(ORG)).toEqual({ privacy_policy_url: 'https://cliniquemana.com/confidentialite', record_retention_years: '7' })
     expect(toRegionFormValues(ORG)).toEqual({ timezone: 'America/Toronto' })
@@ -359,7 +376,7 @@ describe('toFormValues', () => {
     expect(toAddressFormValues(EMPTY_ORG)).toEqual({ address_line1: '', address_line2: '', city: '', province: '', postal_code: '' })
     expect(toContactFormValues(EMPTY_ORG)).toEqual({ phone: '', email: '', website: '' })
     expect(toTaxNumbersFormValues(EMPTY_ORG)).toEqual({ gst_number: '', qst_number: '' })
-    expect(toSignatoryFormValues(EMPTY_ORG)).toEqual({ signatory_name: '', signatory_title: '' })
+    expect(toSignatoryFormValues(EMPTY_ORG)).toEqual({ signatory_name: '', signatory_title: '', signatory_email: '' })
     expect(toPrivacyOfficerFormValues(EMPTY_ORG)).toEqual({ privacy_officer_name: '', privacy_officer_email: '' })
     expect(toPrivacyPolicyFormValues(EMPTY_ORG)).toEqual({ privacy_policy_url: '', record_retention_years: '' })
   })

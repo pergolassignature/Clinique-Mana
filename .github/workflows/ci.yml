@@ -34,6 +34,8 @@ jobs:
         env:
           VITE_SUPABASE_URL: http://127.0.0.1:55321
           VITE_SUPABASE_ANON_KEY: ci-placeholder
+      # The login page's JS holds no signed-in code (npm run build runs it too).
+      - run: npm run check:entry
 
   functions:
     name: Edge function checks
@@ -50,6 +52,9 @@ jobs:
       - run: npm run check:functions
       - run: npm run lint:functions
       - run: npm run test:functions
+      # supabase/templates/*.html are generated from _shared/email (P3-27):
+      # fails when a committed template differs from the build output.
+      - run: npm run check:auth-templates
 
   database:
     name: Migrations, RLS tests, types drift
@@ -65,6 +70,11 @@ jobs:
       # (names from `supabase start --help` for CLI 2.98.2).
       - run: supabase start -x studio,imgproxy,mailpit,logflare,vector,supavisor,edge-runtime,realtime
       - run: supabase test db
+      # Again on the migrations alone: staging has no seed, and no test may lean on it.
+      - name: pgTAP without the seed
+        run: |
+          supabase db reset --no-seed
+          supabase test db
       - name: Generated types are up to date
         run: |
           supabase gen types typescript --local --schema public > /tmp/database.types.ts

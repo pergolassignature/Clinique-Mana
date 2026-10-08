@@ -1,0 +1,718 @@
+import { assert, assertEquals, assertFalse, assertMatch } from '@std/assert'
+import {
+  consoleTransport,
+  emailLogTag,
+  isLocalAppUrl,
+  mailpitTransport,
+  type OutgoingEmail,
+  resendTransport,
+  transportFromEnv,
+} from './transport.ts'
+import { fakeFetch, type Responder } from '../testing/fake-fetch.ts'
+import { captureConsole } from '../testing/env.ts'
+
+const RESEND = 'POST https://api.resend.com/emails'
+const MAILPIT = 'POST http://mailpit.test:8025/api/v1/send'
+const KEY = 'local-dev-resend-api-key'
+const LOG_ID = '6f1c1b2e-3d4a-4b5c-8d9e-0f1a2b3c4d5e'
+const ADDRESS = 'ana.gagnon@example.com'
+
+const email = (over: Partial<OutgoingEmail> = {}): OutgoingEmail => ({
+  from: { name: 'Clinique MANA', email: 'no-reply@gestion.cliniquemana.com' },
+  to: ADDRESS,
+  replyTo: 'info@cliniquemana.com',
+  subject: 'Votre accès à Clinique MANA',
+  html: '<p>Bonjour</p>',
+  text: 'Bonjour',
+  idempotencyKey: LOG_ID,
+  attachments: [],
+  ...over,
+})
+
+const json = (status: number, body: unknown): Responder => () =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+const accepted = json(200, { id: 're_123' })
+
+/** A sleep double that records its delays and returns at once. */
+function recordingSleep() {
+  const delays: number[] = []
+  return {
+    delays,
+    sleep: (ms: number) => {
+      delays.push(ms)
+      return Promise.resolve()
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Resend
+// ---------------------------------------------------------------------------
+Deno.test('resend: 429, 500, then 200 → ok after 3 attempts, sleeping 500 then 2000 ms', async () => {
+  const { fetch, calls } = fakeFetch({
+    [RESEND]: [
+      json(429, { name: 'rate_limit_exceeded' }),
+      json(500, {}),
+      accepted,
+    ],
+  })
+  const { delays, sleep } = recordingSleep()
+  const result = await resendTransport(KEY, fetch, { sleep }).send(email())
+  assertEquals(result, { ok: true, providerId: 're_123', attempts: 3 })
+  assertEquals(delays, [500, 2_000])
+  assertEquals(calls.length, 3)
+})
+
+Deno.test('resend: every attempt carries the same Idempotency-Key and the bearer key', async () => {
+  const { fetch, calls } = fakeFetch({ [RESEND]: [json(503, {}), accepted] })
+  await resendTransport(KEY, fetch, recordingSleep()).send(email())
+  assertEquals(calls.length, 2)
+  for (const call of calls) {
+    assertEquals(call.headers.get('idempotency-key'), LOG_ID)
+    assertEquals(call.headers.get('authorization'), `Bearer ${KEY}`)
+    assertEquals(call.headers.get('content-type'), 'application/json')
+  }
+})
+
+Deno.test('resend: the request body (sender, recipient, reply-to, both parts, tag)', async () => {
+  const { fetch, calls } = fakeFetch({ [RESEND]: accepted })
+  await resendTransport(KEY, fetch).send(email())
+  assertEquals(JSON.parse(calls[0].body), {
+    from: '"Clinique MANA" <no-reply@gestion.cliniquemana.com>',
+    to: [ADDRESS],
+    reply_to: 'info@cliniquemana.com',
+    subject: 'Votre accès à Clinique MANA',
+    html: '<p>Bonjour</p>',
+    text: 'Bonjour',
+    tags: [{ name: 'email_log_id', value: LOG_ID }],
+  })
+})
+
+Deno.test('resend: no reply-to and no sender name are left out', async () => {
+  const { fetch, calls } = fakeFetch({ [RESEND]: accepted })
+  await resendTransport(KEY, fetch).send(
+    email({
+      replyTo: null,
+      from: { name: null, email: 'no-reply@gestion.cliniquemana.com' },
+    }),
+  )
+  const body = JSON.parse(calls[0].body)
+  assertEquals(body.from, 'no-reply@gestion.cliniquemana.com')
+  assertFalse('reply_to' in body)
+  assertFalse('attachments' in body)
+})
+
+Deno.test('resend: the sender name cannot break out of its quotes or add a header', async () => {
+  const { fetch, calls } = fakeFetch({ [RESEND]: accepted })
+  await resendTransport(KEY, fetch).send(
+    email({
+      from: {
+        name: 'Clinique "MANA" <x@evil.test>\r\nBcc: y@evil.test',
+        email: 'no-reply@gestion.cliniquemana.com',
+      },
+    }),
+  )
+  assertEquals(
+    JSON.parse(calls[0].body).from,
+    '"Clinique MANA x@evil.test Bcc: y@evil.test" <no-reply@gestion.cliniquemana.com>',
+  )
+})
+
+Deno.test('resend: an attachment is sent as base64 content with its file name', async () => {
+  const { fetch, calls } = fakeFetch({ [RESEND]: accepted })
+  const content = new TextEncoder().encode('%PDF-1.7\n%%EOF')
+  await resendTransport(KEY, fetch).send(
+    email({
+      attachments: [{
+        filename: 'fiche.pdf',
+        content,
+        contentType: 'application/pdf',
+      }],
+    }),
+  )
+  assertEquals(JSON.parse(calls[0].body).attachments, [
+    { filename: 'fiche.pdf', content: btoa('%PDF-1.7\n%%EOF') },
+  ])
+})
+
+Deno.test('resend: base64 of a large attachment matches btoa', async () => {
+  const { fetch, calls } = fakeFetch({ [RESEND]: accepted })
+  const content = new Uint8Array(100_003).map((_, i) => (i * 31) & 255)
+  await resendTransport(KEY, fetch).send(
+    email({
+      attachments: [{
+        filename: 'x.pdf',
+        content,
+        contentType: 'application/pdf',
+      }],
+    }),
+  )
+  let binary = ''
+  for (const b of content) binary += String.fromCharCode(b)
+  assertEquals(JSON.parse(calls[0].body).attachments[0].content, btoa(binary))
+})
+
+Deno.test('resend: a 400 is not retried → provider_rejected', async () => {
+  const { fetch, calls } = fakeFetch({
+    [RESEND]: json(400, { name: 'missing_required_field' }),
+  })
+  const { delays, sleep } = recordingSleep()
+  const result = await resendTransport(KEY, fetch, { sleep }).send(email())
+  assertEquals(result, {
+    ok: false,
+    code: 'provider_rejected',
+    detail: 'resend_missing_required_field',
+    attempts: 1,
+  })
+  assertEquals(calls.length, 1)
+  assertEquals(delays, [])
+})
+
+Deno.test('resend: a 400 or 422 validation_error on `to` → invalid_recipient, not retried', async () => {
+  for (const status of [400, 422]) {
+    const { fetch, calls } = fakeFetch({
+      [RESEND]: json(status, {
+        statusCode: status,
+        name: 'validation_error',
+        message:
+          'Invalid `to` field. The email address needs to follow the `email@example.com` format.',
+      }),
+    })
+    const result = await resendTransport(KEY, fetch, recordingSleep()).send(
+      email(),
+    )
+    assertEquals(result, {
+      ok: false,
+      code: 'invalid_recipient',
+      detail: 'resend_validation_error',
+      attempts: 1,
+    })
+    assertEquals(calls.length, 1)
+  }
+})
+
+Deno.test('resend: a 422 on another field → provider_rejected', async () => {
+  const { fetch } = fakeFetch({
+    [RESEND]: json(422, {
+      name: 'validation_error',
+      message: 'Invalid `from` field.',
+    }),
+  })
+  const result = await resendTransport(KEY, fetch).send(email())
+  assertEquals(result, {
+    ok: false,
+    code: 'provider_rejected',
+    detail: 'resend_validation_error',
+    attempts: 1,
+  })
+})
+
+Deno.test('resend: a network error, then 200 → ok after 2 attempts', async () => {
+  const { fetch } = fakeFetch({
+    [RESEND]: [() => {
+      throw new TypeError('connection reset')
+    }, accepted],
+  })
+  const { delays, sleep } = recordingSleep()
+  const result = await resendTransport(KEY, fetch, { sleep }).send(email())
+  assertEquals(result, { ok: true, providerId: 're_123', attempts: 2 })
+  assertEquals(delays, [500])
+})
+
+Deno.test('resend: three 5xx → provider_unavailable; three 429 → provider_rate_limited', async () => {
+  const unavailable = fakeFetch({
+    [RESEND]: [json(500, {}), json(502, {}), json(503, {})],
+  })
+  assertEquals(
+    await resendTransport(KEY, unavailable.fetch, recordingSleep()).send(
+      email(),
+    ),
+    {
+      ok: false,
+      code: 'provider_unavailable',
+      detail: 'resend_503',
+      attempts: 3,
+    },
+  )
+  const limited = fakeFetch({
+    [RESEND]: [json(429, {}), json(429, {}), json(429, {})],
+  })
+  assertEquals(
+    await resendTransport(KEY, limited.fetch, recordingSleep()).send(email()),
+    {
+      ok: false,
+      code: 'provider_rate_limited',
+      detail: 'resend_429',
+      attempts: 3,
+    },
+  )
+})
+
+Deno.test('resend: a 409 concurrent_idempotent_requests is retried (an earlier attempt is still in flight)', async () => {
+  const { fetch } = fakeFetch({
+    [RESEND]: [json(409, { name: 'concurrent_idempotent_requests' }), accepted],
+  })
+  const result = await resendTransport(KEY, fetch, recordingSleep()).send(
+    email(),
+  )
+  assertEquals(result, { ok: true, providerId: 're_123', attempts: 2 })
+})
+
+Deno.test('resend: a 409 invalid_idempotent_request is not retried', async () => {
+  const { fetch, calls } = fakeFetch({
+    [RESEND]: json(409, { name: 'invalid_idempotent_request' }),
+  })
+  const result = await resendTransport(KEY, fetch, recordingSleep()).send(
+    email(),
+  )
+  assertEquals(result, {
+    ok: false,
+    code: 'provider_rejected',
+    detail: 'resend_invalid_idempotent_request',
+    attempts: 1,
+  })
+  assertEquals(calls.length, 1)
+})
+
+Deno.test('resend: a 200 without an id is retried like a lost answer', async () => {
+  const { fetch } = fakeFetch({ [RESEND]: [json(200, {}), accepted] })
+  const result = await resendTransport(KEY, fetch, recordingSleep()).send(
+    email(),
+  )
+  assertEquals(result, { ok: true, providerId: 're_123', attempts: 2 })
+})
+
+Deno.test('resend: an attempt that hangs is cut by the timeout and retried', async () => {
+  const hang: Responder = (req) =>
+    new Promise((_, reject) =>
+      req.signal.addEventListener('abort', () => reject(req.signal.reason))
+    )
+  const { fetch, calls } = fakeFetch({ [RESEND]: [hang, accepted] })
+  const result = await resendTransport(KEY, fetch, {
+    ...recordingSleep(),
+    timeoutMs: 20,
+  }).send(email())
+  assertEquals(result, { ok: true, providerId: 're_123', attempts: 2 })
+  assertEquals(calls.length, 2)
+})
+
+Deno.test('resend: the last attempt timing out → provider_unavailable (outcome unknown), resend_timeout', async () => {
+  const hang: Responder = (req) =>
+    new Promise((_, reject) =>
+      req.signal.addEventListener('abort', () => reject(req.signal.reason))
+    )
+  const { fetch } = fakeFetch({ [RESEND]: hang })
+  const result = await resendTransport(KEY, fetch, {
+    ...recordingSleep(),
+    timeoutMs: 10,
+  }).send(email())
+  assertEquals(result, {
+    ok: false,
+    code: 'provider_unavailable',
+    detail: 'resend_timeout',
+    attempts: 3,
+  })
+})
+
+Deno.test('resend: network errors on every attempt → provider_unavailable, resend_network_error', async () => {
+  const reset: Responder = () => {
+    throw new TypeError('connection reset')
+  }
+  const { fetch } = fakeFetch({ [RESEND]: reset })
+  const result = await resendTransport(KEY, fetch, recordingSleep()).send(
+    email(),
+  )
+  assertEquals(result, {
+    ok: false,
+    code: 'provider_unavailable',
+    detail: 'resend_network_error',
+    attempts: 3,
+  })
+})
+
+Deno.test('resend: an aborted caller signal stops the retries', async () => {
+  const controller = new AbortController()
+  const { fetch, calls } = fakeFetch({
+    [RESEND]: () => {
+      controller.abort()
+      return new Response('{}', { status: 503 })
+    },
+  })
+  const result = await resendTransport(KEY, fetch, recordingSleep()).send(
+    email(),
+    { signal: controller.signal },
+  )
+  assertEquals(result, {
+    ok: false,
+    code: 'provider_unavailable',
+    detail: 'resend_503',
+    attempts: 1,
+  })
+  assertEquals(calls.length, 1)
+})
+
+Deno.test('resend: an abort mid-flight lets the attempt finish (an accepted email stays accepted)', async () => {
+  const controller = new AbortController()
+  const seen: AbortSignal[] = []
+  const { fetch } = fakeFetch({
+    [RESEND]: async (req) => {
+      seen.push(req.signal)
+      controller.abort()
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      if (req.signal.aborted) throw req.signal.reason
+      return new Response(JSON.stringify({ id: 're_123' }), { status: 200 })
+    },
+  })
+  const result = await resendTransport(KEY, fetch).send(email(), {
+    signal: controller.signal,
+  })
+  assertEquals(result, { ok: true, providerId: 're_123', attempts: 1 })
+  assertEquals(seen.length, 1)
+  assertFalse(seen[0].aborted)
+})
+
+Deno.test('resend: the back-off wait returns early on abort, and no attempt follows', async () => {
+  const controller = new AbortController()
+  const { fetch, calls } = fakeFetch({ [RESEND]: [json(503, {}), accepted] })
+  const result = await resendTransport(KEY, fetch, {
+    sleep: (_ms, signal) => {
+      controller.abort()
+      assert(signal?.aborted)
+      return Promise.resolve()
+    },
+  }).send(email(), { signal: controller.signal })
+  assertEquals(result.ok, false)
+  assertEquals(calls.length, 1)
+})
+
+Deno.test('resend: an already aborted signal sends nothing', async () => {
+  const { fetch, calls } = fakeFetch({ [RESEND]: accepted })
+  const result = await resendTransport(KEY, fetch).send(email(), {
+    signal: AbortSignal.abort(),
+  })
+  assertEquals(result, {
+    ok: false,
+    code: 'provider_unavailable',
+    detail: 'resend_aborted',
+    attempts: 0,
+  })
+  assertEquals(calls.length, 0)
+})
+
+Deno.test('resend: a daily or monthly quota 429 is final (no retry)', async () => {
+  for (const name of ['daily_quota_exceeded', 'monthly_quota_exceeded']) {
+    const { fetch, calls } = fakeFetch({ [RESEND]: json(429, { name }) })
+    const { delays, sleep } = recordingSleep()
+    const result = await resendTransport(KEY, fetch, { sleep }).send(email())
+    assertEquals(result, {
+      ok: false,
+      code: 'provider_rate_limited',
+      detail: `resend_${name}`,
+      attempts: 1,
+    })
+    assertEquals(calls.length, 1)
+    assertEquals(delays, [])
+  }
+})
+
+/** A clock that only the sleep double moves. */
+function virtualTime() {
+  let t = 1_000_000
+  const delays: number[] = []
+  return {
+    delays,
+    now: () => t,
+    sleep: (ms: number) => {
+      delays.push(ms)
+      t += ms
+      return Promise.resolve()
+    },
+  }
+}
+
+const limited = (retryAfter: string): Responder => () =>
+  new Response(JSON.stringify({ name: 'rate_limit_exceeded' }), {
+    status: 429,
+    headers: { 'Retry-After': retryAfter },
+  })
+
+Deno.test('resend: a 429 Retry-After longer than the back-off is honoured', async () => {
+  const { fetch } = fakeFetch({
+    [RESEND]: [limited('3'), limited('1'), accepted],
+  })
+  const clock = virtualTime()
+  const result = await resendTransport(KEY, fetch, clock).send(email())
+  assertEquals(result, { ok: true, providerId: 're_123', attempts: 3 })
+  assertEquals(clock.delays, [3_000, 2_000])
+})
+
+Deno.test('resend: a Retry-After beyond the remaining budget ends the retries', async () => {
+  const { fetch, calls } = fakeFetch({ [RESEND]: [limited('60'), accepted] })
+  const clock = virtualTime()
+  const result = await resendTransport(KEY, fetch, clock).send(email())
+  assertEquals(result, {
+    ok: false,
+    code: 'provider_rate_limited',
+    detail: 'resend_rate_limit_exceeded',
+    attempts: 1,
+  })
+  assertEquals(calls.length, 1)
+  assertEquals(clock.delays, [])
+})
+
+Deno.test('resend: waits count against the budget (Retry-After 20 s, then 20 s again → stop)', async () => {
+  const { fetch, calls } = fakeFetch({
+    [RESEND]: [limited('20'), limited('20'), accepted],
+  })
+  const clock = virtualTime()
+  const result = await resendTransport(KEY, fetch, clock).send(email())
+  assertEquals(result.ok, false)
+  assertEquals(calls.length, 2)
+  assertEquals(clock.delays, [20_000])
+})
+
+Deno.test('resend: an error name that is not snake_case is reported by status only', async () => {
+  for (
+    const name of [`${ADDRESS}`, 'Invalid To', 'x'.repeat(60), 42, null]
+  ) {
+    const { fetch } = fakeFetch({ [RESEND]: json(403, { name }) })
+    const result = await resendTransport(KEY, fetch).send(email())
+    assertEquals(!result.ok && result.detail, 'resend_403')
+  }
+})
+
+Deno.test('resend: the provider answer is never returned or logged (it can quote the address)', async () => {
+  const { fetch } = fakeFetch({
+    [RESEND]: json(422, {
+      name: 'validation_error',
+      message: `Invalid \`to\` field: ${ADDRESS}`,
+    }),
+  })
+  const logged: unknown[][] = []
+  for (const level of ['error', 'warn', 'info', 'log'] as const) {
+    logged.push(
+      ...await captureConsole(level, async () => {
+        const result = await resendTransport(KEY, fetch).send(email())
+        assertFalse(JSON.stringify(result).includes(ADDRESS))
+      }),
+    )
+  }
+  assertFalse(JSON.stringify(logged).includes(ADDRESS))
+})
+
+// ---------------------------------------------------------------------------
+// Mailpit
+// ---------------------------------------------------------------------------
+Deno.test('mailpit: the send API payload shape, and its ID as the provider id', async () => {
+  const { fetch, calls } = fakeFetch({ [MAILPIT]: json(200, { ID: 'mp-1' }) })
+  const content = new TextEncoder().encode('%PDF-1.7\n%%EOF')
+  const result = await mailpitTransport('http://mailpit.test:8025/', fetch)
+    .send(email({
+      attachments: [{
+        filename: 'fiche.pdf',
+        content,
+        contentType: 'application/pdf',
+      }],
+    }))
+  assertEquals(result, { ok: true, providerId: 'mp-1', attempts: 1 })
+  assertEquals(JSON.parse(calls[0].body), {
+    From: {
+      Email: 'no-reply@gestion.cliniquemana.com',
+      Name: 'Clinique MANA',
+    },
+    To: [{ Email: ADDRESS }],
+    ReplyTo: [{ Email: 'info@cliniquemana.com' }],
+    Subject: 'Votre accès à Clinique MANA',
+    HTML: '<p>Bonjour</p>',
+    Text: 'Bonjour',
+    Tags: [`email_log_id-${LOG_ID}`],
+    Attachments: [{
+      Filename: 'fiche.pdf',
+      Content: btoa('%PDF-1.7\n%%EOF'),
+      ContentType: 'application/pdf',
+    }],
+  })
+})
+
+Deno.test('mailpit: one attempt; 5xx → provider_unavailable, 4xx → provider_rejected', async () => {
+  const down = fakeFetch({ [MAILPIT]: json(500, {}) })
+  assertEquals(
+    await mailpitTransport('http://mailpit.test:8025', down.fetch).send(
+      email(),
+    ),
+    {
+      ok: false,
+      code: 'provider_unavailable',
+      detail: 'mailpit_500',
+      attempts: 1,
+    },
+  )
+  assertEquals(down.calls.length, 1)
+  const bad = fakeFetch({ [MAILPIT]: json(400, {}) })
+  assertEquals(
+    await mailpitTransport('http://mailpit.test:8025', bad.fetch).send(
+      email(),
+    ),
+    {
+      ok: false,
+      code: 'provider_rejected',
+      detail: 'mailpit_400',
+      attempts: 1,
+    },
+  )
+})
+
+Deno.test('mailpit: an abort mid-flight lets the attempt finish', async () => {
+  const controller = new AbortController()
+  const { fetch } = fakeFetch({
+    [MAILPIT]: async (req) => {
+      controller.abort()
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      if (req.signal.aborted) throw req.signal.reason
+      return new Response(JSON.stringify({ ID: 'mp-1' }), { status: 200 })
+    },
+  })
+  const result = await mailpitTransport('http://mailpit.test:8025', fetch)
+    .send(email(), { signal: controller.signal })
+  assertEquals(result, { ok: true, providerId: 'mp-1', attempts: 1 })
+})
+
+Deno.test('mailpit: the sender name loses quotes, controls and format characters', async () => {
+  const { fetch, calls } = fakeFetch({ [MAILPIT]: json(200, { ID: 'mp-1' }) })
+  await mailpitTransport('http://mailpit.test:8025', fetch).send(
+    email({
+      from: {
+        name: 'Clinique\u200b MANA\u202e "x"\r\n',
+        email: 'no-reply@gestion.cliniquemana.com',
+      },
+    }),
+  )
+  assertEquals(JSON.parse(calls[0].body).From.Name, 'Clinique MANA x')
+})
+
+// ---------------------------------------------------------------------------
+// Tags
+// ---------------------------------------------------------------------------
+Deno.test('emailLogTag: one form valid for Resend and one for Mailpit', () => {
+  const tag = emailLogTag(LOG_ID)
+  assertEquals(tag, {
+    resend: { name: 'email_log_id', value: LOG_ID },
+    mailpit: `email_log_id-${LOG_ID}`,
+  })
+  // Resend: names and values in [A-Za-z0-9_-]; Mailpit's tag rule.
+  assertMatch(tag.resend.name, /^[A-Za-z0-9_-]{1,256}$/)
+  assertMatch(tag.resend.value, /^[A-Za-z0-9_-]{1,256}$/)
+  assertMatch(tag.mailpit, /^[a-zA-Z0-9\-\ \_\.@]{1,100}$/)
+})
+
+// ---------------------------------------------------------------------------
+// Console
+// ---------------------------------------------------------------------------
+Deno.test('console: logs the email_log id and the subject length only', async () => {
+  let result: unknown
+  const lines = await captureConsole('info', async () => {
+    result = await consoleTransport().send(email())
+  })
+  assertEquals(result, {
+    ok: true,
+    providerId: `console:${LOG_ID}`,
+    attempts: 1,
+  })
+  assertEquals(lines.length, 1)
+  assertEquals(JSON.parse(String(lines[0][0])), {
+    transport: 'console',
+    email_log_id: LOG_ID,
+    subject_length: 'Votre accès à Clinique MANA'.length,
+    attachment_count: 0,
+  })
+  assertFalse(JSON.stringify(lines).includes(ADDRESS))
+})
+
+// ---------------------------------------------------------------------------
+// transportFromEnv
+// ---------------------------------------------------------------------------
+const envOf = (vars: Record<string, string>) => (key: string) => vars[key]
+const { fetch: noFetch } = fakeFetch({})
+
+Deno.test('transportFromEnv: Resend by default, and only with an API key', () => {
+  assert('send' in transportFromEnv(envOf({}), noFetch, KEY))
+  assertEquals(transportFromEnv(envOf({}), noFetch, null), {
+    error: 'not_configured',
+  })
+  assertEquals(
+    transportFromEnv(envOf({ EMAIL_TRANSPORT: 'resend' }), noFetch, ''),
+    { error: 'not_configured' },
+  )
+})
+
+Deno.test('transportFromEnv: Mailpit needs an http(s) MAILPIT_URL', () => {
+  assert(
+    'send' in transportFromEnv(
+      envOf({
+        EMAIL_TRANSPORT: 'mailpit',
+        MAILPIT_URL: 'http://supabase_inbucket_clinique-mana:8025',
+      }),
+      noFetch,
+      null,
+    ),
+  )
+  for (const url of [undefined, '', 'ftp://mailpit', 'not a url']) {
+    const vars: Record<string, string> = { EMAIL_TRANSPORT: 'mailpit' }
+    if (url !== undefined) vars.MAILPIT_URL = url
+    assertEquals(transportFromEnv(envOf(vars), noFetch, null), {
+      error: 'not_configured',
+    })
+  }
+})
+
+Deno.test('transportFromEnv: console with a local APP_URL, and an unknown value fails closed', () => {
+  assert(
+    'send' in
+      transportFromEnv(
+        envOf({
+          EMAIL_TRANSPORT: 'console',
+          APP_URL: 'http://localhost:5173',
+        }),
+        noFetch,
+        null,
+      ),
+  )
+  assertEquals(
+    transportFromEnv(envOf({ EMAIL_TRANSPORT: 'smtp' }), noFetch, KEY),
+    { error: 'not_configured' },
+  )
+})
+
+Deno.test('transportFromEnv: console with a non-local APP_URL → server_misconfigured', () => {
+  for (
+    const url of [
+      undefined,
+      'https://app.cliniquemana.com',
+      'https://localhost:5173',
+      'http://localhost.evil.test:5173',
+      'not a url',
+    ]
+  ) {
+    const vars: Record<string, string> = { EMAIL_TRANSPORT: 'console' }
+    if (url !== undefined) vars.APP_URL = url
+    assertEquals(transportFromEnv(envOf(vars), noFetch, KEY), {
+      error: 'server_misconfigured',
+    })
+  }
+})
+
+Deno.test('isLocalAppUrl: http on localhost, 127.0.0.1 or [::1] only', () => {
+  for (
+    const url of [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173/',
+      'http://[::1]:5173',
+    ]
+  ) assert(isLocalAppUrl(url), url)
+  for (
+    const url of ['https://app.cliniquemana.com', 'http://10.0.0.5:5173', '']
+  ) assertFalse(isLocalAppUrl(url), url)
+})

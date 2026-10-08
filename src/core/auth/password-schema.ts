@@ -4,7 +4,9 @@ import { t } from '@/i18n'
 /**
  * A new password, as GoTrue accepts it: at least 10 characters (`minimum_password_length` in
  * config.toml) and at most 72 bytes, since bcrypt only uses the first 72 (an accented letter
- * takes two). Used by « Choisir un nouveau mot de passe » and « Mon compte ».
+ * takes two). Used by « Choisir un nouveau mot de passe » and « Mon compte ». The same rule as
+ * `accept-invite` (`supabase/functions/_shared/password.ts`) and config.toml:
+ * `password-parity.test.ts`.
  */
 export const newPasswordRule = z
   .string()

@@ -7,20 +7,26 @@ import {
   authorizeCaller,
   bearerToken,
   corsHeaders,
+  type ErrorCode,
   errorResponse,
   evaluateAccess,
   getServiceRoleClient,
   getUserClient,
   handleCors,
   jsonResponse,
+  resetCorsReportForTests,
   serviceKeys,
   verifyAuth,
   verifyServiceRoleAuth,
 } from './auth.ts'
+import { captureConsole, withEnv } from './testing/env.ts'
 
 const ACTIVE = {
   user_id: 'u1',
   org_id: 'o1',
+  email: 'ana@mana.test',
+  display_name: 'Ana Gagnon',
+  org_name: 'Clinique MANA',
   status: 'active',
   role: 'admin_assistant',
   permissions: ['professionals.view', 'settings.view'],
@@ -31,41 +37,6 @@ type ErrorBody = { error: { code: string; message: string } }
 
 async function errorOf(res: Response): Promise<ErrorBody['error']> {
   return ((await res.json()) as ErrorBody).error
-}
-
-/** Runs fn with the given env vars set (undefined = unset), then restores them. */
-async function withEnv(
-  vars: Record<string, string | undefined>,
-  fn: () => void | Promise<void>,
-) {
-  const previous = Object.fromEntries(
-    Object.keys(vars).map((k) => [k, Deno.env.get(k)]),
-  )
-  const apply = (v: Record<string, string | undefined>) => {
-    for (const [k, value] of Object.entries(v)) {
-      if (value === undefined) Deno.env.delete(k)
-      else Deno.env.set(k, value)
-    }
-  }
-  apply(vars)
-  try {
-    await fn()
-  } finally {
-    apply(previous)
-  }
-}
-
-/** Silences console.error and records the calls. */
-async function captureErrors(fn: () => Promise<void> | void) {
-  const original = console.error
-  const calls: unknown[][] = []
-  console.error = (...args: unknown[]) => calls.push(args)
-  try {
-    await fn()
-  } finally {
-    console.error = original
-  }
-  return calls
 }
 
 const NO_SERVICE_KEYS = {
@@ -84,6 +55,27 @@ Deno.test('errorResponse: { error: { code, message } } as JSON', async () => {
   assertEquals(await res.json(), {
     error: { code: 'forbidden', message: 'Nope' },
   })
+})
+
+Deno.test('errorResponse: the Phase 3 codes (P3-28) with their statuses', async () => {
+  const codes: Array<[ErrorCode, number]> = [
+    ['rate_limited', 429],
+    ['invalid_request', 400],
+    ['link_invalid', 410],
+    ['link_expired', 410],
+    ['link_used', 410],
+    ['conflict', 409],
+    ['not_found', 404],
+    ['provider_error', 502],
+    ['not_configured', 503],
+    ['missing_variable', 400],
+    ['weak_password', 400],
+  ]
+  for (const [code, status] of codes) {
+    const res = errorResponse(code, 'Message', status)
+    assertEquals(res.status, status)
+    assertEquals((await errorOf(res)).code, code)
+  }
 })
 
 Deno.test('jsonResponse: JSON body, content type and CORS headers', async () => {
@@ -110,6 +102,15 @@ Deno.test('corsHeaders: * when ALLOWED_ORIGINS is unset; no Content-Type', async
     assert(h['Access-Control-Allow-Headers'].includes('authorization'))
     assertEquals(h['Content-Type'], undefined)
   })
+})
+
+Deno.test('corsHeaders: exposes Retry-After (a 429 is read by the app), with or without ALLOWED_ORIGINS', async () => {
+  for (const origins of [undefined, 'https://app.test']) {
+    await withEnv({ ALLOWED_ORIGINS: origins }, () => {
+      const h = corsHeaders(fromOrigin('https://app.test'))
+      assertEquals(h['Access-Control-Expose-Headers'], 'Retry-After')
+    })
+  }
 })
 
 Deno.test('corsHeaders: echoes an allowed origin with Vary: Origin', async () => {
@@ -142,6 +143,67 @@ Deno.test('handleCors: answers OPTIONS with the request origin, ignores other me
     )
     assertEquals(handleCors(fromOrigin('https://app.test')), null)
   })
+})
+
+Deno.test('handleCors: a preflight is cacheable for 10 minutes (Access-Control-Max-Age: 600); other answers are not', async () => {
+  for (const origins of [undefined, 'https://app.test']) {
+    await withEnv({ ALLOWED_ORIGINS: origins, APP_URL: undefined }, () => {
+      const preflight = handleCors(fromOrigin('https://app.test', 'OPTIONS'))
+      assertEquals(preflight?.headers.get('Access-Control-Max-Age'), '600')
+      assertEquals(
+        corsHeaders(fromOrigin('https://app.test'))[
+          'Access-Control-Max-Age'
+        ],
+        undefined,
+      )
+    })
+  }
+})
+
+Deno.test('corsHeaders: ALLOWED_ORIGINS unset with a deployed APP_URL → reported cors_origins_unset once per isolate, still *', async () => {
+  resetCorsReportForTests()
+  await withEnv({
+    ALLOWED_ORIGINS: undefined,
+    APP_URL: 'https://app.cliniquemana.com',
+    SENTRY_DSN: undefined,
+  }, async () => {
+    const logged = await captureConsole('error', async () => {
+      for (let i = 0; i < 3; i++) {
+        const h = corsHeaders(fromOrigin('https://evil.test'))
+        assertEquals(h['Access-Control-Allow-Origin'], '*')
+      }
+      handleCors(fromOrigin('https://evil.test', 'OPTIONS'))
+      await Promise.resolve()
+    })
+    assertEquals(logged.map((l) => JSON.parse(String(l[0]))), [
+      { fn: 'cors', code: 'cors_origins_unset' },
+    ])
+  })
+  resetCorsReportForTests()
+})
+
+Deno.test('corsHeaders: no cors_origins_unset report with a local or unset APP_URL, or with ALLOWED_ORIGINS set', async () => {
+  for (
+    const env of [
+      { ALLOWED_ORIGINS: undefined, APP_URL: 'http://localhost:5173' },
+      { ALLOWED_ORIGINS: undefined, APP_URL: 'http://127.0.0.1:5173' },
+      { ALLOWED_ORIGINS: undefined, APP_URL: undefined },
+      {
+        ALLOWED_ORIGINS: 'https://app.cliniquemana.com',
+        APP_URL: 'https://app.cliniquemana.com',
+      },
+    ]
+  ) {
+    resetCorsReportForTests()
+    await withEnv({ ...env, SENTRY_DSN: undefined }, async () => {
+      const logged = await captureConsole('error', async () => {
+        corsHeaders(fromOrigin('https://app.cliniquemana.com'))
+        await Promise.resolve()
+      })
+      assertEquals(logged, [], JSON.stringify(env))
+    })
+  }
+  resetCorsReportForTests()
 })
 
 // ---------------------------------------------------------------------------
@@ -233,6 +295,9 @@ Deno.test('evaluateAccess: malformed payload fails closed (403)', () => {
       [],
       { ...ACTIVE, permissions: 'professionals.view' },
       { ...ACTIVE, org_id: null },
+      { ...ACTIVE, email: null },
+      { ...ACTIVE, display_name: null },
+      { ...ACTIVE, org_name: undefined },
     ]
   ) {
     const d = evaluateAccess({ data, error: null }, {
@@ -320,15 +385,17 @@ Deno.test('authorizeCaller: invalid token gives 401 and skips the access RPC', a
 Deno.test('authorizeCaller: Auth server error (5xx) gives 503 auth_unavailable', async () => {
   const { client } = fakeClient({
     user: null,
-    userError: Object.assign(new Error('upstream'), { status: 502 }),
+    userError: Object.assign(new Error('upstream: ana@example.com'), {
+      status: 502,
+    }),
   })
-  const logged = await captureErrors(async () => {
+  const logged = await captureConsole('error', async () => {
     const result = await authorizeCaller(client, 'tok')
     assert(result instanceof Response)
     assertEquals(result.status, 503)
     assertEquals((await errorOf(result)).code, 'auth_unavailable')
   })
-  assertEquals(logged.length, 1)
+  assertEquals(logged, [['[verifyAuth] Auth unavailable (status=502)']])
 })
 
 Deno.test('authorizeCaller: network failure (AuthRetryableFetchError) gives 503', async () => {
@@ -336,7 +403,7 @@ Deno.test('authorizeCaller: network failure (AuthRetryableFetchError) gives 503'
     user: null,
     userError: new AuthRetryableFetchError('fetch failed', 0),
   })
-  await captureErrors(async () => {
+  await captureConsole('error', async () => {
     const result = await authorizeCaller(client, 'tok')
     assert(result instanceof Response)
     assertEquals(result.status, 503)
@@ -348,7 +415,7 @@ Deno.test('authorizeCaller: 42501 after a valid token is logged (missing grant)'
     user: { id: 'u1' },
     access: { data: null, error: { code: '42501', message: 'denied' } },
   })
-  const logged = await captureErrors(async () => {
+  const logged = await captureConsole('error', async () => {
     const result = await authorizeCaller(client, 'tok')
     assert(result instanceof Response)
     assertEquals(result.status, 401)
@@ -359,14 +426,20 @@ Deno.test('authorizeCaller: 42501 after a valid token is logged (missing grant)'
 Deno.test('authorizeCaller: other RPC errors give 500 and are logged', async () => {
   const { client } = fakeClient({
     user: { id: 'u1' },
-    access: { data: null, error: { code: 'XX000', message: 'boom' } },
+    access: {
+      data: null,
+      error: {
+        code: 'XX000',
+        message: 'Failing row contains (ana@example.com)',
+      },
+    },
   })
-  const logged = await captureErrors(async () => {
+  const logged = await captureConsole('error', async () => {
     const result = await authorizeCaller(client, 'tok')
     assert(result instanceof Response)
     assertEquals(result.status, 500)
   })
-  assertEquals(logged.length, 1)
+  assertEquals(logged, [['[verifyAuth] get_my_access failed (code=XX000)']])
 })
 
 Deno.test('authorizeCaller: inactive caller is refused even without options', async () => {
@@ -414,7 +487,7 @@ Deno.test('verifyAuth: missing SUPABASE_URL / anon key gives 500 server_misconfi
   await withEnv(
     { SUPABASE_URL: undefined, SUPABASE_ANON_KEY: 'anon' },
     async () => {
-      const logged = await captureErrors(async () => {
+      const logged = await captureConsole('error', async () => {
         const result = await verifyAuth(
           new Request('http://x', { headers: { Authorization: 'Bearer tok' } }),
         )
@@ -427,6 +500,33 @@ Deno.test('verifyAuth: missing SUPABASE_URL / anon key gives 500 server_misconfi
   )
 })
 
+Deno.test('verifyAuth: builds the caller client with the given factory', async () => {
+  const { client, calls } = fakeClient({ user: { id: 'u1' } })
+  const tokens: string[] = []
+  const result = await verifyAuth(
+    new Request('http://x', { headers: { Authorization: 'Bearer tok' } }),
+    { permission: 'settings.view' },
+    (token) => {
+      tokens.push(token)
+      return client
+    },
+  )
+  assert(!(result instanceof Response))
+  assertEquals(tokens, ['tok'])
+  assertEquals(calls.getUser, ['tok'])
+  assertEquals(result.access.email, 'ana@mana.test')
+})
+
+Deno.test('verifyAuth: a factory Response is returned as is', async () => {
+  const misconfigured = new Response(null, { status: 500 })
+  const result = await verifyAuth(
+    new Request('http://x', { headers: { Authorization: 'Bearer tok' } }),
+    {},
+    () => misconfigured,
+  )
+  assertEquals(result, misconfigured)
+})
+
 Deno.test('getUserClient / getServiceRoleClient: Response when env is missing', async () => {
   await withEnv(
     {
@@ -435,7 +535,7 @@ Deno.test('getUserClient / getServiceRoleClient: Response when env is missing', 
       ...NO_SERVICE_KEYS,
     },
     async () => {
-      await captureErrors(() => {
+      await captureConsole('error', () => {
         assert(getUserClient('tok') instanceof Response)
         assert(getServiceRoleClient() instanceof Response)
       })
@@ -485,7 +585,7 @@ Deno.test('serviceKeys: collects every configured key, ignoring empty values', a
 
 Deno.test('verifyServiceRoleAuth: fails closed (500) when no key is configured', async () => {
   await withEnv(NO_SERVICE_KEYS, async () => {
-    await captureErrors(async () => {
+    await captureConsole('error', async () => {
       const res = verifyServiceRoleAuth(authReq('Bearer anything'))
       assertEquals(res?.status, 500)
       assertEquals((await errorOf(res!)).code, 'server_misconfigured')

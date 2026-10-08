@@ -1,22 +1,38 @@
 <!doctype html>
-<html lang="fr-CA">
-  <body style="margin:0;padding:0;background:#f8f8f9;font-family:Raleway,Helvetica,Arial,sans-serif;color:#4d4d4f;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8f8f9;padding:32px 16px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;padding:32px;">
-            <tr><td style="font-size:14px;font-weight:600;color:#9b1b3c;letter-spacing:0.02em;">Clinique MANA</td></tr>
-            <tr><td style="padding-top:16px;font-size:20px;font-weight:600;color:#4d4d4f;">Confirmez le changement d'adresse courriel</td></tr>
-            <tr><td style="padding-top:12px;font-size:15px;line-height:1.6;">Bonjour,<br /><br />Une demande a été faite pour remplacer l'adresse {{ .Email }} par {{ .NewEmail }} sur votre compte Clinique MANA. Cliquez sur le bouton ci-dessous pour confirmer.</td></tr>
-            <tr><td style="padding-top:24px;"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#9b1b3c;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 20px;border-radius:8px;">Confirmer le changement</a><p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#6b6b6e;">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br /><a href="{{ .ConfirmationURL }}" style="color:#249d95;word-break:break-all;">{{ .ConfirmationURL }}</a></p></td></tr>
-            <tr><td style="padding-top:24px;font-size:13px;line-height:1.6;color:#6b6b6e;">Si vous n'avez pas fait cette demande, ne cliquez pas : votre adresse actuelle reste inchangée.</td></tr>
-            <tr><td style="padding-top:24px;border-top:1px solid #e6e6e8;margin-top:24px;font-size:12px;line-height:1.6;color:#8a8a8d;">
-              Clinique MANA · Ressources en santé mentale et bien-être<br />
-              Ce courriel vous est envoyé parce qu'une action a été demandée pour votre compte. Si ce n'est pas vous, vous pouvez l'ignorer en toute sécurité.
-            </td></tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
+<html lang="fr-CA" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Confirmez le changement d&#39;adresse courriel · Clinique MANA</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F4F4F5;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:#1F1F20">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">Confirmez le changement de votre adresse courriel.</div>
+<table role="presentation" lang="fr-CA" dir="ltr" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4F4F5">
+<tr><td align="center" style="padding:32px 16px">
+<!--[if mso]><table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px">
+<tr><td style="background-color:#FFFFFF;border:1px solid #E4E4E7;border-radius:6px;padding:32px 28px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding:0 0 24px"><img src="{{ .SiteURL }}/email/wordmark.png" width="120" height="53" alt="Clinique MANA" style="display:block;border:0;outline:none;text-decoration:none;width:120px;height:53px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:#1F1F20"></td></tr>
+<tr><td><h1 style="margin:0 0 16px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:20px;line-height:28px;font-weight:600;color:#1F1F20">Confirmez le changement d&#39;adresse courriel</h1><p style="margin:0 0 16px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:#1F1F20">Bonjour,</p><p style="margin:0 0 16px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:#1F1F20">Une demande a été faite pour remplacer l&#39;adresse {{ .Email }} par {{ .NewEmail }} sur votre compte Clinique MANA. Cliquez sur le bouton ci-dessous pour confirmer.</p><p style="margin:0 0 16px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:#1F1F20">Si vous n&#39;avez pas fait cette demande, ne cliquez pas : votre adresse actuelle reste inchangée.</p></td></tr>
+<tr><td style="padding:8px 0 0">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+<td style="border-radius:4px;background-color:#1E837C;mso-padding-alt:12px 20px">
+<a href="{{ .SiteURL }}/connexion/confirmer?token_hash={{ .TokenHash }}&amp;type=email_change" target="_blank" style="display:inline-block;padding:12px 20px;border-radius:4px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;font-weight:600;color:#FFFFFF;text-decoration:none">Confirmer le changement</a>
+</td></tr></table>
+<p style="margin:16px 0 0;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">Si le bouton ne fonctionne pas, copiez ce lien :<br><span style="word-break:break-all">{{ .SiteURL }}/connexion/confirmer?token_hash={{ .TokenHash }}&amp;type=email_change</span></p>
+</td></tr>
+</table>
+</td></tr>
+<tr><td style="padding:24px 28px 0;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">
+<p style="margin:0 0 12px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">Clinique MANA</p>
+<p style="margin:0;padding:12px 0 0;border-top:1px solid #E4E4E7;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">Ce courriel vous est envoyé parce qu&#39;une action a été demandée pour votre compte. Si ce n&#39;est pas vous, vous pouvez l&#39;ignorer.</p>
+</td></tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td></tr>
+</table>
+</body>
 </html>

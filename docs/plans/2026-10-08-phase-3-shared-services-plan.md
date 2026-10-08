@@ -36,13 +36,13 @@ Jonathan, 2026-10-08: « You will go on without asking me questions you have pha
 | P3-14 (Q14) | No antivirus scan of uploads. Uploads are size-limited, type-limited and content-sniffed (Task 3.25). | Only staff and known professionals upload. Revisit before the client portal. |
 | P3-15 | **In-app notifications are in Phase 3** (batch 3b, Tasks 3.12–3.13): a core `notifications` table addressed by permission (optionally narrowed to one user), normal or important, with a link and per-user read state; the topbar bell; « À surveiller » on Accueil. This settles the conflict between design §1 (« out of scope ») and Professionnels §7 (« please add it »). | Professionnels 4b and 4c both need it, and it is core plumbing like email. |
 | P3-16 | **Pluggable purpose handlers through the catalogue.** `secure_link_purposes` names a service-role `resolve_rpc` and `accept_rpc`. `accept-invite` (core) creates the auth user, then calls the purpose's `accept_rpc`, which consumes the link and does the module's work in one transaction. If the RPC fails, the function deletes the user it created. | Professionnels plugs in `link_professional_account` without core importing module code (ADR 0003). |
-| P3-17 | **Staged uploads:** `stored_files.retain_until`. A module stages a file under a submission with a deadline. On approval its RPC calls `private.attach_stored_file(…)` to re-point the row, which clears the deadline. The object path never moves: paths are opaque, and only the first segment (org) is ever parsed. `storage-cleanup` soft-deletes files whose deadline has passed. | Fixes legacy leak A3.7 with no copy or move. |
+| P3-17 | **Staged uploads:** `stored_files.retain_until`. A module stages a file under a submission with a deadline. On approval its RPC calls `private.attach_stored_file(…)` to re-point the row, which clears the deadline. The object path never moves: paths are opaque, and only the first segment (org) is ever parsed. `storage-cleanup` purges a staged file whose deadline has passed directly (object removed, row marked `purged`), with no soft-delete step. | Fixes legacy leak A3.7 with no copy or move. |
 | P3-18 | **Attachments and free recipients are catalogue flags** on `email_template_defaults`: `recipient_mode` (`subject` \| `free`) and `allows_attachments` (PDF only, at most 3, 10 MB in total). `_shared/email` refuses anything else. A free-recipient send is limited to 20 per user per hour. | `professionals.fiche` (any address, with a PDF) without opening a generic relay. |
 | P3-19 | **One PDF path:** `_shared/pdf/` (`renderPdf(doc, assets) → { bytes, pageCount, fields }`) serves both signing (3f) and the Phase 4c fiche. Images (logo, signature) are read from storage by the service role. | Professionnels §7 asks for one rendering path. |
 | P3-20 | Where the two designs differ, **the Phase 3 design wins and Phase 4 aligns**: storage paths are `{org_id}/{module_key}/{subject_id}/{file_id}.{ext}` with no file name (Professionnels §7 said `{uuid}-{name}`); signed read URLs last 5 min (not 1 h); template keys use the module key, `professionals.*` (not `professional.*`), including document templates. | Loi 25 (no names in URLs), the A4 Change, and the key-prefix rule shared with permissions. |
 | P3-21 | **One permission source, evaluated once per statement.** New `private.current_permission_keys() → text[]` (stable, definer). `has_permission(k)` becomes `k = any(current_permission_keys())`, and `get_my_access().permissions` reads the same function. Row-level `view_permission` policies use `view_permission = any ((select private.current_permission_keys())::text[])`. Note: `((select …))` alone does not compile (`text = text[]`); the `::text[]` cast is required. | A per-row `has_permission(column)` call cannot be hoisted out of the scan (design §2.3 wrote it that way); a single function also cannot drift. |
 | P3-22 | **Jobs at a clinic-local hour:** `scheduled_jobs.local_hour`. The cron entry runs hourly. `list_job_orgs` returns the orgs whose local hour (from `organizations.timezone`) equals `local_hour` and that have no run yet for that local date (unique index). Maintenance jobs keep fixed UTC schedules. | Professionnels wants 06:00 clinic time; the design's 11:00 UTC is 07:00 in summer (EDT). |
-| P3-23 | **Local fakes only, no real secret:** `EMAIL_TRANSPORT=mailpit` locally; `scripts/fake-documenso.mjs` (port 55390); `scripts/send-test-webhook.mjs` signs Resend/Documenso payloads with the local test secrets. Local-only values live in `supabase/seed.sql` (Vault rows) and `supabase/functions/.env` (gitignored, copied from the committed `.env.example`). Each is visibly fake (`local-dev-…`). | Jonathan pastes the real keys later (Mise en service). |
+| P3-23 | **Local fakes only, no real secret:** `EMAIL_TRANSPORT=mailpit` locally; `scripts/fake-documenso.mjs` (port 55390); `scripts/send-test-webhook.mjs` signs Resend/Documenso payloads with the local test secrets. Local-only values live in `supabase/seed.sql` (Vault rows) and `supabase/functions/.env` (gitignored, copied from the committed `.env.example`). Each is visibly fake (`local-dev-…`). *As built:* `send-test-webhook.mjs` signs Resend only; the fake Documenso posts its own events. | Jonathan pastes the real keys later (Mise en service). |
 | P3-24 | The bell **polls** (count every 60 s, on window focus, never in background tabs) instead of using Realtime. This deviates from PS Hub (Realtime on `notifications`). | Realtime would need a publication and per-change RLS checks on permission-addressed rows; one minute of latency is enough for insurance notices. |
 | P3-25 | Only the **DB lane** writes migrations, `supabase/seed.sql` and `database.types.ts`, and only one lane at a time holds the **DB token** (see « Lanes »). | The local Supabase stack is shared by every worktree; `db reset` applies the caller's own migrations folder. |
 | P3-26 | Record timelines read emails through `list_subject_emails(p_subject_type, p_subject_id)` (security invoker, RLS applies) and signing through `list_subject_signature_requests(…)`. | Professionnels « Historique » and the checklists; no module reads core tables raw. |
@@ -50,6 +50,10 @@ Jonathan, 2026-10-08: « You will go on without asking me questions you have pha
 | P3-28 | Edge-function error **codes** stay English. The UI maps each code to a French i18n text (`link_expired` → « Ce lien a expiré… »). New codes: `rate_limited` 429, `invalid_request` 400, `link_invalid` / `link_expired` / `link_used` 410, `conflict` 409, `not_found` 404, `provider_error` 502, `not_configured` 503. | Keeps today's `ErrorCode` pattern. `provider_error`, `not_found` and `not_configured` are added to the design's list: a Resend or Documenso failure and missing configuration must be distinguishable from `internal`. |
 | P3-29 | **Error reports** from functions use `_shared/report.ts`, ported from PS Hub's `_shared/sentry.ts`. It sends only the function name, an error code and row ids, never an address, token or body. With no `SENTRY_DSN` it logs a structured line. | The design asks for Sentry alerts from functions, and none exist yet. |
 | P3-30 | `stored_files` has a fifth status, `purged` (object removed, row kept); `signature_requests` gains `last_error`; `document_templates` gains `view_permission`; `signature_requests.template_version_id` may be null only for the built-in test document; `signing_settings.base_url` accepts `https://…`, or `http://host.docker.internal:<port>` for the local fake. | Gaps found while planning (see the next section). |
+| P3-31 | Accepting an invitation re-checks the inviter's standing; an invitation from someone who has since been disabled or lost the right answers like an invalid link. Delegated decision, 2026-10-08, revisable. | Found in the Task 3.18 review: otherwise a manager disabled or demoted after inviting could still bring someone in. Nothing is written and the invitation stays pending, so an admin sees it and revokes or re-sends it herself. |
+| P3-32 | **Disabling a user ends their sessions in the database.** `set_user_status(…, 'disabled')` also deletes the user's `auth.sessions` in the same transaction (refresh tokens go with them), on every disable call; the Auth ban (P3-9) stays for new sign-ins. Delegated decision, 2026-10-08, revisable (Task 3.20b). | supabase-js `auth.admin.signOut` takes the user's JWT, not an id; otherwise a refresh token taken from a compromised device would come back to life on re-enable. |
+| P3-33 | **Clients never mint signed read URLs.** There is no client policy on `storage.objects` for the core buckets (no select either), so `createSignedUrl` from the browser fails. The `storage-sign` function (lane F) takes `{ file_id, download? }`, selects the `stored_files` row with the **user** client (its RLS decides readability), then signs a 5-min URL with the service role and returns `{ url, expires_at }`. Delegated decision, 2026-10-08, revisable. | Found in the Task 3.26 review: a client holding a select policy can sign a URL for any readable path itself, outside any check or rate limit the function applies; one read path is simpler to audit. |
+| P3-34 | **The Documenso address must be public, and a new address needs its key again.** `signing_settings.base_url` is `https://` to a public DNS name only (no IP literal, all-digit or hex-looking host, IPv6 literal, single label, `localhost`, `.localhost`, `.internal` or `.local`: `private.signing_base_url_valid`), or exactly `http://host.docker.internal:<port>` for the local fake, which the functions refuse unless `APP_URL` is local (`isLocalAppUrl`). Every Documenso request is sent with `redirect: 'manual'` (a 3xx is a `provider_error`), and outside local dev the host's A and AAAA records are resolved first: a private, loopback, link-local, CGNAT, multicast, reserved or unspecified address (IPv4-mapped IPv6 included) refuses the request. `set_signing_settings` takes a jsonb patch (each card sends only its field) and deletes the `documenso_api_key` org secret in the same transaction when the address's origin (scheme, host, port) changes; the UI says « Changer l'adresse efface la clé d'API ; saisissez-la de nouveau. ». Delegated decision, 2026-10-08, revisable. | Found in the Task 3.34 review: a `settings.integrations_manage` holder could point the address at an internal service or at their own host, and the server would fetch it, follow redirects and send the stored key there (SSRF and key exfiltration). Clearing the key on a new origin means a key is only ever sent where it was typed for. What remains is the DNS-rebinding window between the check and `fetch`'s own lookup (documented in `_shared/documenso.ts`): https and no redirects narrow it to a service holding a valid certificate for the attacker's name. |
 
 ### Design inconsistencies resolved here
 
@@ -66,7 +70,7 @@ Jonathan, 2026-10-08: « You will go on without asking me questions you have pha
 11. `signature_requests.status` includes `draft`, but §6.3 goes straight to `sent`. `draft` is kept as the state between insert and Documenso success, and the reconcile job cleans stale drafts (Task 3.31).
 12. Storage policies « may call `private.current_professional_id()` » (Professionnels §7). There is one core read policy; module ownership is expressed in the row (`owner_profile_id` + `owner_permission`), never in a storage policy.
 13. ADR 0005 names a generic `signing-create` function; design §6.3 has module functions calling `_shared/signing.ts` instead. ADR 0005 is updated in Task 3.35.
-14. `resolve-link` / `accept-invite` keep `verify_jwt = true` (the anon key is required). The new non-JWT publishable keys (`sb_publishable_…`) would be refused by the gateway. Mise en service checks that the app uses the legacy anon JWT; otherwise switch both to `verify_jwt = false` plus an explicit `apikey` check.
+14. `resolve-link` / `accept-invite` keep `verify_jwt = true` (the anon key is required). The new non-JWT publishable keys (`sb_publishable_…`) would be refused by the gateway. Mise en service checks that the app uses the legacy anon JWT; otherwise switch both to `verify_jwt = false` plus an explicit `apikey` check. *As built (final Phase 3 review, coordinator decision):* both are `verify_jwt = false` with no `apikey` check: the anon key is public, so checking it adds nothing; the token, the rate limits and the module gate are the controls.
 15. A staff invitation references `roles(key)`, so `delete_role` (Task 2.20) would fail on a role with pending invitations with a raw FK error. Task 3.18 extends `delete_role`'s guard with a French message.
 
 ---
@@ -423,7 +427,7 @@ declare
 begin
   if p_max is null or p_max < 1 or p_window_seconds is null or p_window_seconds not between 1 and 86400
      or p_key_hash is null or pg_catalog.length(p_key_hash) <> 32 then
-    raise exception 'Invalid rate limit arguments' using errcode = '22023';
+    raise exception 'Arguments invalides.' using errcode = '22023';
   end if;
   v_window := pg_catalog.make_interval(secs => p_window_seconds);
   v_start := pg_catalog.date_bin(v_window, pg_catalog.now(), timestamptz '2000-01-01 00:00:00+00');
@@ -517,7 +521,7 @@ git commit -m "feat(db): rate limits and leased webhook claims"
 - **`private.invoke_job_function(p_key text, p_org_id uuid default null, p_trigger text default 'cron') returns void`**:
   - reads `project_url` and `internal_function_secret` from `vault.decrypted_secrets` (database-level secrets, not org secrets);
   - if either is missing: inserts an `error` run with detail `configuration_missing` and returns;
-  - otherwise `net.http_post(url := project_url || '/functions/v1/' || function_name, headers := {Content-Type, Authorization: Bearer <secret>}, body := {job_key, org_id, trigger}, timeout_milliseconds := 10000)`.
+  - otherwise `net.http_post(url := project_url || '/functions/v1/' || function_name, headers := {Content-Type, X-Job-Signature}, body := {job_key, org_id, trigger}, timeout_milliseconds := 150000)`. *Review follow-up:* no raw secret in headers (pg_net's queue is readable by every role); `X-Job-Signature: t=<unix>,v1=<hex HMAC-SHA256(internal_function_secret, '<t>.<job_key>.<org_id or empty>.<trigger>')>`, verified by `_shared/jobs.ts` within ±300 s (lane F commit 9712fa1).
 - **Service-role RPCs** for the functions (Task 3.4 `jobs.ts`):
   - `public.list_job_orgs(p_key text) returns setof uuid`: orgs where the job is enabled and its module is enabled (`core` always). For `local_hour` jobs, it keeps only orgs where `extract(hour from now() at time zone o.timezone) = local_hour`;
   - `public.start_job_run(p_key text, p_org_id uuid, p_trigger text) returns uuid`: for `local_hour` jobs it sets `run_local_date = (now() at time zone tz)::date`, and returns **null** on the unique violation (already ran today) instead of raising;
@@ -569,6 +573,15 @@ This only checks that `pg_net` reaches Kong (`select status_code from net._http_
 
 **Commit:** `feat(db): scheduled jobs catalogue, per-org switch, run log, pg_cron and pg_net`.
 
+**Review follow-ups** (same migration, never pushed; `list_job_orgs` / `start_job_run` / `finish_job_run` signatures unchanged):
+- **Signed dispatch, no bearer.** pg_net's tables grant PUBLIC everything, so a queued request's headers are readable by any role. `invoke_job_function` sends no `Authorization` header, only:
+  `X-Job-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256(key = internal_function_secret, message = '<t>.<job_key>.<org_id or empty>.<trigger>')>`
+  (`org_id` as canonical lowercase uuid text, empty for a cron post). `_shared/jobs.ts` (Lane F) checks it: ±300 s, constant-time compare, signed fields equal to the body. Job functions are `verify_jwt = false`. Residual risk: replayable for 5 min, for the same job/org/trigger only. pg_net timeout: 150 000 ms (edge wall clock).
+- **Reconcile.** Each post's request id goes to `scheduled_job_dispatches` (service role only, operational log). `core.scheduled_jobs_reconcile` (SQL, `*/5 * * * *`) turns non-2xx / timeout / network responses (and no response after 1 h) into `error` runs (`http_<status>`, `timeout`, `network`, `no_response`) unless the function logged a run after the dispatch. It marks `running` runs older than 15 min `abandoned` (a local-hour run keeps its day: no double send) and deletes reconciled dispatches after 7 days.
+- **Retention.** `core.scheduled_job_runs_purge` (SQL, daily `20 8 * * *`): runs older than 90 days, `cron.job_run_details` older than 14 days (`skipped` if the platform refuses).
+- **`private.job_due(tz, local_hour, at, last_local_date)`** (P3-22 catch-up): due once the local hour is `>= local_hour` and no cron run exists for that local date. A 25 h day runs once, a missing hour runs at the next one, a missed tick catches up the same day. `start_job_run` re-checks it (no next-day stamp after midnight) and refuses a second run while one started < 15 min ago is `running` (advisory lock).
+- Also: `scheduled_jobs.is_active` (retire = `is_active = false` + `cron.unschedule` in one migration); `list_scheduled_job_runs(p_job_key, p_limit, p_before, p_before_id uuid)` keyset on `(started_at, id)`, hiding disabled modules and retired jobs; `set_scheduled_job_enabled` treats a disabled module's job as unknown (22023) and refuses a null value (22023 « Valeur manquante. »).
+
 ---
 
 ## Task 3.4: Shared function foundations
@@ -583,7 +596,7 @@ This only checks that `pg_net` reaches Kong (`select status_code from net._http_
   - `_shared/deps.ts`: `defaultDeps()`;
   - `_shared/webhooks.ts`: `webhookResponse(status, body?)`, without CORS, `Cache-Control: no-store`; `claimEvent(client, input)` and `completeEvent` / `failEvent`, typed wrappers of the Task 3.2 RPCs returning `{ status: 'claimed', id, token } | { status: 'duplicate' } | { status: 'in_progress' }`;
   - `_shared/rate-limit.ts`: `clientIp(req)` (first `x-forwarded-for` hop, trimmed, else `'unknown'`); `hashKey(parts: string[], secret)` (HMAC-SHA256 with a key derived as `HMAC(INTERNAL_FUNCTION_SECRET, 'rate-limit-v1')`, 32 bytes); `consume(client, bucket, keyParts, max, windowSeconds)` → `{ allowed, retryAfter }`; and `LIMITS` (the constants file of design §2.6 and §3.2, with P3-18's free-recipient limit);
-  - `_shared/jobs.ts`: `runJob(deps, req, jobKey, perOrg: (orgId: string, client) => Promise<string>)`. It runs `verifyServiceRoleAuth`, then reads `{ org_id?, trigger }`. The orgs are `[org_id]` for a manual run, else `list_job_orgs`. For each org: `start_job_run` (null → skip); `perOrg` inside try/catch; `finish_job_run` (`ok` + detail, or `error` + the error's `code` if it has one, else `internal`). It returns 200 with `{ runs: n }`;
+  - `_shared/jobs.ts`: `runJob(deps, req, jobKey, perOrg: (orgId: string, client) => Promise<string>)`. It verifies `X-Job-Signature` (see Task 3.3), then reads `{ job_key, org_id?, trigger }`. The orgs are `[org_id]` for a manual run, else `list_job_orgs`. For each org: `start_job_run` (null → skip); `perOrg` inside try/catch; `finish_job_run` (`ok` + detail, or `error` + the error's `code` if it has one, else `internal`). It returns 200 with `{ runs: n }`;
   - `_shared/report.ts`: `reportError({ fn, code, ids?: Record<string, string> })`. It posts a Sentry envelope when `SENTRY_DSN` is set, otherwise `console.error(JSON.stringify({ fn, code, ids }))`. It refuses keys named `email`, `to`, `token` or `password` (throws in tests; drops them in production);
   - `_shared/testing/fake-supabase.ts`, `fake-fetch.ts`, `fixed-clock.ts`.
 - Modify: `CLAUDE.md` §7:
@@ -653,7 +666,7 @@ Expected: `ok | N passed | 0 failed`.
 
 ## Task 3.6: Email schema
 
-**From lane F (Task 3.7 review):** the placeholder rule is `\{\{([^{}\r\n]*)\}\}` (exported as `PLACEHOLDER_SOURCE` in `_shared/email/render.ts`) with the captured path trimmed in code (linear; no newline inside a placeholder). `save_email_template`'s placeholder check in SQL must use exactly this rule so validation and rendering agree; probe it with `{{` + 10 000 spaces (must return fast). `get_email_context` must return `why_line`. Lane F's compose step maps `unknown_variable` → `missing_variable` and reports an invalid clinic timezone as a configuration error. **RPC contract assumed by lane F's send path (Task 3.8, commit 6ae5810; the comments in `_shared/email/send.ts` are authoritative), match it or change both:** `get_email_context(p_org_id uuid, p_template_key text) returns jsonb` (unknown key → 22023) with `{ module_key, module_enabled, timezone, template: { key, version, subject, body, button_label, why_line, variables[{path,label,sample,required,kind}], view_permission, recipient_mode 'subject'|'free', allows_attachments }, sender: { from_name, from_address, reply_to }, clinic: { name, address_line1, address_line2, city, province, postal_code, phone, website, privacy_officer_name, privacy_officer_email } }`; `queue_email(p_org_id, p_template_key, p_template_version int, p_to_email, p_to_profile_id, p_subject_type, p_subject_id, p_view_permission, p_sent_by, p_attachment_count smallint) returns uuid` (status `queued`); `mark_email_sent(p_id, p_resend_id, p_attempts int)`; `mark_email_failed(p_id, p_error_code, p_attempts int)`; all service-role only.
+**From lane F (Task 3.7 review):** the placeholder rule is `\{\{([^{}\r\n]*)\}\}` (exported as `PLACEHOLDER_SOURCE` in `_shared/email/render.ts`) with the captured path trimmed in code (linear; no newline inside a placeholder). `save_email_template`'s placeholder check in SQL must use exactly this rule so validation and rendering agree; probe it with `{{` + 10 000 spaces (must return fast). `get_email_context` must return `why_line`. Lane F's compose step maps `unknown_variable` → `missing_variable` and reports an invalid clinic timezone as a configuration error. **RPC contract assumed by lane F's send path (Task 3.8, commit 6ae5810; the comments in `_shared/email/send.ts` are authoritative), match it or change both:** `get_email_context(p_org_id uuid, p_template_key text) returns jsonb` (unknown key → 22023) with `{ module_key, module_enabled, timezone, template: { key, version, subject, body, button_label, why_line, variables[{path,label,sample,required,kind}], view_permission, recipient_mode 'subject'|'free', allows_attachments }, sender: { from_name, from_address, reply_to }, clinic: { name, address_line1, address_line2, city, province, postal_code, phone, website, privacy_officer_name, privacy_officer_email } }`; `queue_email(p_org_id, p_template_key, p_template_version int, p_to_email, p_to_profile_id, p_subject_type, p_subject_id, p_view_permission, p_sent_by, p_attachment_count smallint) returns uuid` (status `queued`); `mark_email_sent(p_id, p_resend_id, p_attempts int)`; `mark_email_failed(p_id, p_error_code, p_attempts int)`; all service-role only. **From the Task 3.8 review (DB side):** (1) `apply_email_event` treats `failed` as final **except** when `error_code = 'provider_unavailable'` (outcome unknown: timeout or network error on the last attempt): a later `email.sent`/`email.delivered` webhook may move it forward, so the timeline does not show a false failure and « Renvoyer » does not resend a delivered email. (2) A maintenance step (in the Task 3.3 jobs or the `email_log` retention job) moves rows still `queued` after 15 minutes to `failed` with `error_code = 'provider_unavailable'` (overridable the same way), so a function killed between queue and mark leaves no row stuck. (3) `email_sender_settings.reply_to` gets the same single-mailbox format check as `from_address`, and `from_address`'s check refuses `<>,` and whitespace in the local part.
 
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_email.sql`
@@ -716,6 +729,7 @@ create index email_log_retention_idx on public.email_log (created_at) where to_e
     - sets `last_event_at`.
   - `count_org_emails_today(p_org_id) returns int` (clinic day; feeds the 80 % warning).
 - **Job:** `core.email_log_retention` (sql, maintenance, `30 8 * * *`): `update … set to_email = null where to_email is not null and created_at < now() - interval '24 months'`, in batches of 5 000 (loop until fewer rows), so one run never holds a long lock.
+- **Job (from the Task 3.8 review; deferred here by Task 3.3 because `email_log` does not exist before this task):** `core.email_log_stale_queued` (sql, maintenance, `*/5 * * * *`): `update … set status = 'failed', error_code = 'provider_unavailable' where status = 'queued' and created_at < now() - interval '15 minutes'`, with a partial index `(created_at) where status = 'queued'`. Seed it like the Task 3.3 jobs (`scheduled_jobs` row + `cron.schedule`). Test: a `queued` row 16 minutes old becomes `failed` / `provider_unavailable`; one 14 minutes old stays `queued`.
 - **Seed:** `core.staff_invite` in `email_template_defaults`:
   - label « Invitation d'un membre du personnel », `why_line` « Vous recevez ce courriel parce que la clinique vous invite à créer votre accès. »;
   - subject « Votre accès à {{clinic.name}} », button « Créer mon accès »;
@@ -861,12 +875,12 @@ create index email_log_retention_idx on public.email_log (created_at) where to_e
   1. `Promise.all([get_email_context, get_org_secret(org, 'resend_api_key') when EMAIL_TRANSPORT = 'resend'])`.
   2. `module_enabled` false → `module_disabled`.
   3. Catalogue checks: `freeRecipient` requires `recipient_mode = 'free'`; attachments require `allows_attachments`, at most 3, ≤ 10 MB in total, and `%PDF` magic bytes (else `attachment_not_allowed`).
-  4. Rate limits, run in parallel with `Promise.all` over `consume`:
+  4. Rate limits over `consume`:
      - org daily (`emails.org_day`, 500/86 400);
      - same template + address (`emails.same_address`, 1/60, skipped when `explicitResend`);
      - test sends (`emails.test`, 10/3 600 per caller) or free-recipient sends (`emails.free_recipient`, 20/3 600 per sender).
 
-     Any refusal → `rate_limited`. When the daily count passes 400, call `reportError({ code: 'email_daily_80_percent' })` once (the `hits` value equals 401).
+     Normal sends run them in parallel with `Promise.all`. Test sends and `explicitResend` consume the repeat guard, test and free-recipient limits first, then `emails.org_day` only if all of them pass. Any refusal → `rate_limited`. When the daily count passes 400, call `reportError({ code: 'email_daily_80_percent' })` once (it fires when `emails.org_day` reaches `hits = 401`).
   5. `composeEmail` → on failure, `missing_variable` (nothing queued).
   6. `queue_email` → id.
   7. `transport.send` with `idempotencyKey = id`, `tags = [{ name: 'email_log_id', value: id }]`.
@@ -938,13 +952,11 @@ Rules:
 
 **Lane:** F (after Task 3.6 merges). The `[functions.*]` blocks in `config.toml` are added by the DB lane in the same merge window: ask the coordinator, or add them in this task's commit if the DB lane agrees.
 
-**Files:** `supabase/functions/{email-preview,email-test-send,send-email,resend-webhook}/{index.ts,handler.ts,handler.test.ts}`, and `supabase/config.toml`:
+**Files:** `supabase/functions/{email-preview,email-test-send,resend-webhook}/{index.ts,handler.ts,handler.test.ts}`, and `supabase/config.toml`:
 ```toml
 [functions.email-preview]
 verify_jwt = false
 [functions.email-test-send]
-verify_jwt = false
-[functions.send-email]
 verify_jwt = false
 [functions.resend-webhook]
 verify_jwt = false
@@ -952,28 +964,26 @@ verify_jwt = false
 
 **Behaviour:**
 - **`email-preview`:**
-  - `handleCors`; `verifyAuth(req, { permission: 'settings.email_manage' })`;
+  - `handleCors`; `verifyAuth(req, { permission: 'settings.view' })` (preview stores and sends nothing);
   - body `{ template_key, subject, body, button_label }` (Zod: lengths as in SQL);
   - `get_email_context` (with the caller's org); a disabled module → 403 `module_disabled`;
   - `composeEmail` with `sample: true` and the **draft** text;
   - returns `{ subject, html, text }`; the HTML is ≤ 200 KB, else 413.
 - **`email-test-send`:**
-  - same auth;
-  - body `{ template_key, subject?, body?, button_label? }` (the draft, if any);
+  - `verifyAuth(req, { permission: 'settings.email_manage' })`;
+  - body `{ template_key, subject?, body?, button_label? }`: a draft sends all three fields; an omitted `button_label` keeps the effective label;
   - `sendTemplatedEmail` in test mode to `auth.access.email` (subject type `email_test`, id = the caller);
-  - result codes map to HTTP statuses: `rate_limited` 429; `not_configured` 503; `provider_error` 502; `missing_variable` 400.
-- **`send-email`:**
-  - `verifyServiceRoleAuth`;
-  - body `{ org_id, template_key, to_profile_id?, to_email, subject: { type, id }, values, action_url, explicit_resend? }` (internal callers only: cron and Phase 4 jobs);
-  - `org_id` is accepted here because the caller is the service itself; the module gate comes from `get_email_context`.
+  - result codes map to HTTP statuses: `rate_limited` 429; `not_configured` 503; `provider_error` 502;
+  - an unknown placeholder → 400 `invalid_request` with `variable` (not `missing_variable`); an unknown template key → 404 `not_found`; unclosed braces → 400 « Accolades non fermées dans le texte. ».
+- **`send-email`: dropped (coordinator, after the Task 3.3 review).** Internal senders are edge functions (job functions, module functions); they import `sendTemplatedEmail` from `_shared/email/send.ts` and call it in-process, so no internal HTTP endpoint (and no service-key bearer on the wire) is needed. SQL never sends email directly: a job function does. If a future caller truly needs HTTP, it uses the `X-Job-Signature` scheme, never a raw bearer.
 - **`resend-webhook`:**
   1. `org` from `?org=`, a UUID, else 400.
   2. Read the raw body (≤ 64 KB).
-  3. `get_org_secret(org, 'resend_webhook_secret')`: none → 401 (fail closed, `reportError('resend_webhook_secret_missing')`).
+  3. `get_org_secret(org, 'resend_webhook_secret')`: none → 401 (fail closed). `reportError('resend_webhook_secret_missing')` is throttled to once per org per hour per isolate; other hits are console lines.
   4. `verifySvix` → false → 401.
-  5. Parse `{ type, created_at, data: { email_id, tags } }`; `email_log_id` from `data.tags` (object or array form, as Resend sends).
+  5. Parse `{ type, created_at, data: { email_id, tags } }`; `email_log_id` from `data.tags` (object or array form, as Resend sends). No `email_log_id` tag → 200 `skipped` (after Svix verification, before the claim).
   6. `claimEvent('resend', svix-id, org, type, { type, email_id, email_log_id })`. Store only ids, never `data.to`: the payload is minimised before storage. `duplicate` → 200; `in_progress` → 409.
-  7. Map the type to a status: `email.sent` → sent, `email.delivered` → delivered, `email.delivery_delayed` → delivery_delayed, `email.bounced` → bounced, `email.complained` → complained; others are acked (200) and completed.
+  7. Map the type to a status: `email.sent` → sent, `email.delivered` → delivered, `email.delivery_delayed` → delivery_delayed, `email.bounced` → bounced, `email.suppressed` → bounced, `email.complained` → complained, `email.failed` → failed (error code `provider_failed`); others are acked (200) and completed.
   8. **Module gate, in the same RPC:** `apply_email_event` reads the row's `module_key` and checks `module_enabled_for_org` itself before applying. A disabled module returns `ignored`, which the function acks with 200 and completes, so Resend does not retry forever. This is the design's `requireModuleForOrg(org, email_log.module_key)` without an extra round trip. Say so in the function header, and add a Task 3.6 pgTAP case (a disabled module's row → `ignored`, status unchanged).
   9. `apply_email_event` → complete. An exception → `failEvent(code)` → 500 (Resend retries).
 
@@ -981,11 +991,10 @@ verify_jwt = false
 
 **Tests** (handler level, fake deps):
 - **Preview:**
-  - no auth → 401; the conseillère → 403;
+  - no auth → 401; no `settings.view` → 403 (`settings.view` alone may preview);
   - an unknown placeholder in the draft → 400 `invalid_request`, with the French message from the render code mapped in the UI;
   - an HTML response contains no `<script>` from the input.
 - **Test send:** the recipient is always the caller's address, even if the body has `to`; the 11th test in an hour → 429.
-- **`send-email`:** a user JWT → 401.
 - **Webhook:**
   - a bad signature → 401, and no RPC is called after `get_org_secret`;
   - no secret → 401;
@@ -1045,13 +1054,13 @@ Record the outputs (status codes only) in the task report.
   - columns: date, template label, recipient (`to_email` or « Anonymisé »), status dot + word, with French labels (« En file », « Envoyé », « Livré », « Retardé », « Adresse introuvable » for bounced, « Signalé comme indésirable », « Échec »), error code shown as « Code : … »;
   - keyset « Charger plus » (`p_before` = the last row's `created_at`).
 - **Read-only** (the adjointe with `settings.view`):
-  - `ReadOnlyNotice`; the Réglages fields are `readOnly`; the editor opens in read-only with its preview; no test or save;
+  - `ReadOnlyNotice`; the Réglages fields are `readOnly`; the editor opens in read-only with its preview (`email-preview` needs only `settings.view`); « M'envoyer un test » is hidden or disabled without `settings.email_manage`; no save;
   - Historique is hidden without `settings.email_manage`.
 - **Error mapping:** function codes → `settings.email.errors.<code>`:
   - `not_configured` « L'envoi de courriels n'est pas encore configuré. »;
   - `rate_limited` « Trop d'envois en peu de temps. Réessayez dans quelques minutes. »;
   - `provider_error` « Le service d'envoi n'a pas répondu. Réessayez. »;
-  - `missing_variable` « Une variable obligatoire est vide. ».
+  - `invalid_request` with `variable` « Variable inconnue » (with the `variable` name); the unclosed-braces message is shown as is. Test send no longer returns `missing_variable`.
 
 **Tests:**
 - Permission matrix: admin (all editable), adjointe (read-only, no Historique tab), adjointe + `settings.email_manage` (templates editable, keys card read-only).
@@ -1145,6 +1154,8 @@ Record the outputs (status codes only) in the task report.
 ---
 
 ## Task 3.13: Notifications UI and the shared helper
+
+**From the Task 3.12 review:** always pass **both** cursor fields to `list_my_notifications` (`p_before` = last row's `created_at`, `p_before_id` = its `id`); notices created in one transaction share `created_at`, and the DB now refuses `p_before` without `p_before_id`. Accueil « À surveiller » uses `p_importance: 'important', p_unread_only: true, p_limit: 5` (bounded to 90 days, like the count).
 
 **Lane:** U (after Task 3.12 merges); the Deno helper in lane F.
 
@@ -1337,11 +1348,12 @@ git commit -m "docs(adr): 0006 amendment, auth links land on /connexion/confirme
   - `expires_at timestamptz not null`;
   - **no client privilege at all** (like `org_secrets`);
   - audited with `private.audit_trigger('token_hash')`;
-  - indexes: the unique `token_hash`; `(org_id, purpose, subject_type, subject_id) where revoked_at is null and used_at is null` (live-link lookup); `(created_at)` (purge); FK indexes.
+  - indexes: the unique `token_hash`; **unique** `(org_id, purpose, subject_type, subject_id) where revoked_at is null and use_count < max_uses` (one live link per subject, as a constraint); `(org_id, purpose, subject_type, subject_id, created_at desc)` (a subject's links, newest first: the 4b states list; also the org FK index); `(greatest(used_at, revoked_at, expires_at))` (purge); FK indexes.
 
 **Functions:**
 - **`private.issue_secure_link(p_org_id uuid, p_purpose text, p_subject_type text, p_subject_id uuid, p_token_hash bytea, p_created_by uuid, p_ttl interval default null, p_scope jsonb default '{}') returns uuid`**:
   - checks the purpose exists (`22023`) and `ttl ≤ max_ttl`;
+  - takes a transaction advisory lock on `(org, purpose, subject)`, so two concurrent issues serialize (the last one wins) instead of failing on the unique live-link index;
   - revokes the live links for `(org, purpose, subject)` with `revoked_at = now(), revoked_by = p_created_by`;
   - inserts with `expires_at = now() + coalesce(p_ttl, default_ttl)` and `max_uses` from the purpose;
   - called only from definer RPCs (staff invitations here; Professionnels in 4b), never granted to a client role.
@@ -1360,8 +1372,8 @@ git commit -m "docs(adr): 0006 amendment, auth links land on /connexion/confirme
   - `{ "state": "expired" | "used", "purpose": … }`;
   - `{ "state": "valid", "link_id", "org_id", "purpose", "module_key", "subject_type", "subject_id", "scope", "expires_at", "requires_session", "creates_account", "resolve_rpc", "accept_rpc" }`.
 
-  With `p_mark_opened`, a valid link gets `last_opened_at = now()` (legacy A3 « opened »).
-- **Job:** `core.secure_links_purge` (sql, maintenance, `20 8 * * *`): deletes links where `greatest(used_at, revoked_at, expires_at) < now() - interval '12 months'`.
+  With `p_mark_opened`, a valid link gets `last_opened_at = now()` (legacy A3 « opened ») when it is null or more than an hour old (each change is an audit row).
+- **Job:** `core.secure_links_purge` (sql, maintenance, `25 8 * * *`: 08:20 is `core.scheduled_job_runs_purge`): deletes links where `greatest(used_at, revoked_at, expires_at) < now() - interval '12 months'`.
 
 **Tests:**
 - **Privileges:** `secure_links` and `secure_link_purposes` have no `anon` / `authenticated` privilege; `peek_secure_link` is service role only; the private functions are executable by no client.
@@ -1405,49 +1417,62 @@ git commit -m "docs(adr): 0006 amendment, auth links land on /connexion/confirme
   on conflict do nothing;
   ```
 
+**The inviter never learns the token.** The link proves the invitee controls the address only if nobody else knows the token. If a manager could pass a hash of her choosing, she could invite any address and accept the invitation herself. So `create_staff_invitation` and `renew_staff_invitation` are **service role only**, take the actor explicitly as `p_actor uuid` (first argument), and the `staff-invite` function (Task 3.20) is their only caller. It generates the token, passes `p_actor` = the user `verifyAuth` verified, and never returns the token. `revoke_staff_invitation` and `list_staff_invitations` involve no token and stay user RPCs.
+
 **RPCs:**
-- `create_staff_invitation(p_email text, p_display_name text, p_role text, p_token_hash bytea) returns uuid` (authenticated, definer):
-  - checks `users.manage` first;
-  - locks the org row (`for no key update`);
+- `create_staff_invitation(p_actor uuid, p_email text, p_display_name text, p_role text, p_token_hash bytea) returns uuid` (**service role only**, definer). Every check is made **as `p_actor`**:
+  - the actor holds `users.manage` (`private.permission_keys_for(p_actor)`): a null, unknown, disabled or role-less actor, or one without it → `42501`;
+  - the org is the actor's profile's, never an argument;
+  - locks the org row (`for no key update`) **before** these checks: it reads the actor's org unlocked, locks it, then evaluates her permissions and the guards (`private.staff_inviter`), and answers `42501` if her org changed meanwhile; renew and revoke do the same;
   - `provider` → P0001 « Le rôle Professionnel est attribué par le module Professionnels. »;
-  - an unknown role, or another org's custom role → `22023`;
-  - `admin` while the caller is not admin → P0001 « Seul un administrateur peut inviter un administrateur. » (same rule as `set_user_role`);
+  - an unknown role, or another org's custom role → P0001 « Ce rôle n'existe plus. » (HINT `role_missing`, as every role RPC since Task 2.20);
+  - `admin` while the actor is not admin → P0001 « Seul un administrateur peut inviter un administrateur. » (same rule as `set_user_role`);
+  - a non-admin actor inviting to a role that carries a permission she lacks → P0001 (hold rule, as `set_user_role`);
   - an address with a profile in this org → P0001 « Cette personne a déjà un accès. »;
   - a pending invitation for that address → P0001 « Une invitation est déjà en attente pour cette adresse. Utilisez « Renvoyer ». »;
-  - then `private.issue_secure_link(org, 'staff_invite', 'staff_invitation', id, p_token_hash, auth.uid())`, and inserts the invitation with the link id.
-- `renew_staff_invitation(p_id uuid, p_token_hash bytea) returns table (email text, display_name text, expires_at timestamptz)` (`users.manage`): for a pending invitation in the org, issues a new link (which revokes the old one) and returns what the email needs.
-- `revoke_staff_invitation(p_id)` (`users.manage`): status `revoked`, plus `private.revoke_secure_links`.
-- `list_staff_invitations()` (`users.view`, definer, **one query**):
+  - then `private.issue_secure_link(org, 'staff_invite', 'staff_invitation', id, p_token_hash, p_actor)`, and inserts the invitation with the link id and `invited_by = p_actor`.
+- `renew_staff_invitation(p_actor uuid, p_id uuid, p_token_hash bytea) returns table (email text, display_name text, expires_at timestamptz)` (**service role only**, the same actor checks and role guards as create): for a pending invitation in the actor's org, issues a new link (which revokes the old one, `revoked_by = p_actor`) and returns what the email needs.
+- **Shared permission source:** `private.permission_keys_for(p_user uuid)` holds the body of `current_permission_keys()` with the user as a parameter (no client role may call it). `current_permission_keys()` becomes a plpgsql wrapper, `return private.permission_keys_for(auth.uid())`, with the same result, grants, volatility and cost per call. `has_permission` is unchanged.
+- **Audit:** under the service role `auth.uid()` is null, so create and renew set `app.audit_actor = p_actor` and `app.audit_source = rpc:<name>` around their writes, and restore both afterwards (accept sets `app.audit_actor = p_user_id`). `private.audit_trigger` prefers `app.audit_actor` whenever `auth.role()` is not `authenticated`; under a user's JWT the actor is always `auth.uid()`.
+- `revoke_staff_invitation(p_id)` (authenticated, `users.manage`): status `revoked`, plus `private.revoke_secure_links`.
+- `list_staff_invitations()` (authenticated, `users.view`, definer, **one query**):
   - returns id, email, display_name, role, role_name, status, `expires_at` (from the link), `is_expired`, invited_by_name, created_at, and `last_email_status` / `last_email_at` (lateral `limit 1` on `email_log_subject_idx`);
   - pending invitations only.
 - `resolve_staff_invitation(p_link_id uuid) returns jsonb` (service role): `{ clinic_name, display_name, email, expires_at }`.
 - `accept_staff_invitation(p_token_hash bytea, p_user_id uuid, p_payload jsonb) returns jsonb` (service role). In one transaction:
-  1. `private.consume_secure_link(p_token_hash, 'staff_invite')`: null → `{"status":"link_used"}`;
-  2. the pending invitation for that link: none → `{"status":"link_used"}` (revoked meanwhile);
-  3. insert `profiles (user_id, org_id, display_name, status 'active')` (the email comes from `auth.users` by the existing trigger) and `user_roles (user_id, org_id, role)`;
-  4. the invitation becomes `accepted` with the user and the date;
-  5. returns `{"status":"accepted","org_id":…}`.
+  1. reads the link's org unlocked and locks the org row; then `private.consume_secure_link(p_token_hash, 'staff_invite')`: null → the state peek would answer, `{"status":"link_used"}`, `{"status":"link_expired"}` or `{"status":"link_invalid"}` (unknown, or revoked: a revoked or renewed invitation's link); nothing written;
+  2. locks the pending invitation for that link;
+  3. re-checks the inviter (`invited_by`, P3-31): still an active member of the org holding `users.manage` (`private.permission_keys_for`), and still allowed to invite to the invitation's role (admin and hold rules). Otherwise `{"status":"link_invalid"}`: the consumption is rolled back, nothing is written, and the invitation stays pending for an admin to revoke or re-send;
+  4. an auth user whose address is not the invitation's → `22023` (everything rolled back, the link stays usable);
+  5. insert `profiles (user_id, org_id, display_name, status 'active')` (the email comes from `auth.users` by the existing trigger) and `user_roles (user_id, org_id, role)`;
+  6. the invitation becomes `accepted` with the user and the date; these writes are audited as the new account (`app.audit_actor = p_user_id`, restored afterwards);
+  7. returns `{"status":"accepted","org_id":…}`.
 - **Interaction with Task 2.20:** `delete_role` also refuses a role used by pending invitations: P0001 « Ce rôle est utilisé par {n} invitation(s) en attente. ». Re-create the function with this extra check; inconsistency #15.
 
 **Tests:**
-- **Privileges:** `staff_invitations` is select-only for `authenticated`; the service RPCs are service role only.
-- **`create_staff_invitation` as admin A:**
+- **Privileges:** `staff_invitations` is select-only for `authenticated`; create, renew and the purpose handlers are service role only, so `authenticated` has no EXECUTE on create or renew (`function_privs_are`; never call them as `authenticated`); revoke and list are `authenticated` only.
+- **`permission_keys_for(u)` = `current_permission_keys()` as u**, for every fixture user (and null); the `has_permission` parity in 015 stays green.
+- **`create_staff_invitation` by the service with `p_actor` = admin A:**
   - succeeds, with a link row whose subject is the invitation;
   - provider → the P0001 text; an admin by a non-admin manager (the adjointe with `users.manage`) → the P0001 text; an org custom role → succeeds (#40);
   - an existing member's email (mixed case, spaces) → « Cette personne a déjà un accès. »;
   - a duplicate pending → the « Renvoyer » message;
-  - the conseillère → `42501`;
+  - the actor is `p_actor`, never the JWT's user; `invited_by` and the link's `created_by` = `p_actor`;
+  - an actor without `users.manage` (the conseillère), a disabled actor, a null or unknown actor → `42501`;
+  - the admin-only and hold rules are enforced for the actor (the adjointe);
+  - an actor from org B can neither renew org A's invitation nor use org A's role, and her invitation lands in org B;
   - org B cannot see org A's invitations.
 - **Renew:** the old link is revoked, a new link is live, and the expiry has moved.
 - **Revoke:** the link is revoked; `peek` → invalid.
 - **Accept** (as service role):
   - creates the profile (active, `display_name`), the role and `accepted`;
   - a second accept with the same hash → `link_used`, and no second profile;
-  - accepting after a revoke → `link_used`;
+  - accepting after a revoke → `link_invalid`; an expired link → `link_expired`;
+  - an inviter disabled, without `users.manage`, or without a permission the role carries → `link_invalid`, nothing written; an inviter in good standing → accepted (P3-31);
   - `get_my_access()` as the new user lists the role's permissions.
 - **`list_staff_invitations`:** `is_expired` is true after expiry (set `expires_at` in the past as postgres); `last_email_status` reflects an `email_log` row.
 - **`delete_role`** of a custom role with a pending invitation → the new message.
-- The audit rows exist for create, renew and accept.
+- The audit rows exist for create, renew (actor = `p_actor`, source `rpc:create_staff_invitation` / `rpc:renew_staff_invitation`) and accept; `app.audit_actor` is restored after each call and never overrides an authenticated user.
 
 **Commit:** `feat(db): staff invitations with secure links and acceptance`.
 
@@ -1523,8 +1548,8 @@ verify_jwt = false
 **`staff-invite`:**
 1. `verifyAuth(req, { permission: 'users.manage' })`.
 2. Body `{ email, display_name, role }`, or `{ invitation_id }` (« Renvoyer »).
-3. `generateToken`, `hashToken`.
-4. With the **user client**: `create_staff_invitation(...)` or `renew_staff_invitation(id, hash)`, so RLS and the guards apply. P0001 → 400 with the message (`invalid_request`, the message passed through for the UI, as `moduleErrorMessage` shows P0001).
+3. `generateToken`, `hashToken`, in memory. The token is never logged, stored or returned.
+4. With the **service client**: `create_staff_invitation({ p_actor: auth.access.user_id, p_email, p_display_name, p_role, p_token_hash })` or `renew_staff_invitation({ p_actor: auth.access.user_id, p_id, p_token_hash })` (Task 3.18). `p_actor` is always the user `verifyAuth` verified, never a value from the body. The RPC re-checks `users.manage` and every guard as that actor, in the actor's org. P0001 → 400 with the message (`invalid_request`, the message passed through for the UI, as `moduleErrorMessage` shows P0001). `42501` → 403.
 5. `sendTemplatedEmail`:
    - template `core.staff_invite`; subject `staff_invitation` / id;
    - values `{ invitee: { display_name }, inviter: { display_name: auth.access.display_name }, clinic: { name }, invitation: { expires_at } }`;
@@ -1533,14 +1558,14 @@ verify_jwt = false
 6. Email failure → 502 `provider_error` (or 503 `not_configured`) with `{ invitation_id }`, so the UI shows « Invitation créée, mais le courriel n'a pas pu être envoyé. Utilisez « Renvoyer ». ».
 7. 200 `{ invitation_id }`.
 
-The raw token is never returned (P3-7).
+The raw token is never returned to the browser (P3-7). The browser cannot call create or renew at all (service role only), so the inviter never knows a token for her invitation.
 
 **`users-set-status`:**
 1. `verifyAuth(req, { permission: 'users.manage' })`.
 2. Body `{ user_id, status: 'active' | 'disabled' }`.
 3. `set_user_status` with the **user client** (Phase 2 guards).
 4. Service client `auth.admin.updateUserById(user_id, { ban_duration: status === 'disabled' ? '876000h' : 'none' })`.
-5. A ban failure after a successful disable → 200 `{ sessions_ended: false }`, plus `reportError`. The UI warns « Accès bloqué. Les sessions ouvertes se fermeront d'ici une heure. »
+5. A ban failure after a successful disable → 200 `{ status: 'disabled', signin_blocked: false }`, plus `reportError`. `signin_blocked` (formerly `sessions_ended`) says only whether the Auth ban was applied: since P3-32, `set_user_status` itself ends the sessions in the same transaction, so the ban is the one thing that can fail. The UI warns « Compte désactivé. Le blocage de connexion n'a pas pu être appliqué ; réessayez. »; a retry is the same call (the ban is always attempted again, even for an already-disabled user).
 6. An unban failure on re-enable → 502, and the UI says « Réessayez »: a still-banned user cannot sign in.
 
 **Tests** (fake deps):
@@ -1562,9 +1587,10 @@ The raw token is never returned (P3-7).
   - the conseillère → 403;
   - a P0001 from the RPC → 400 with that message;
   - the token in the email URL hashes to the `p_token_hash` passed to the RPC;
+  - the RPC is called with the service client and `p_actor` = the verified user's id, even when the body carries another id;
   - the response body has no token;
   - « Renvoyer » sets `explicitResend`.
-- **`users-set-status`:** disable → RPC then `updateUserById(ban_duration '876000h')`; a ban failure → 200 `sessions_ended: false`; enable → `'none'`.
+- **`users-set-status`:** disable → RPC then `updateUserById(ban_duration '876000h')`; a ban failure → 200 `signin_blocked: false` (the Auth ban only, P3-32); disabling an already-disabled user retries the ban; enable → `'none'`.
 
 **Live probe (DB token)**, local stack, `functions serve`, `npm run dev`, Mailpit:
 1. **Round trip:** as admin, `staff-invite` (curl with the admin JWT) for `nouvelle@mana.test`, role `counselor` → Mailpit email → link → `resolve-link` → `accept-invite` with a password → sign in with `signInWithPassword` → `get_my_access` shows `counselor`.
@@ -1574,6 +1600,13 @@ The raw token is never returned (P3-7).
 **Commit:** `feat(functions): resolve-link, accept-invite, staff-invite and users-set-status`.
 
 ---
+
+## Task 3.20b: DB follow-ups from the Task 3.20 review (DB lane)
+
+- **P3-32 (delegated, 2026-10-08, revisable): disabling a user ends their sessions in the database.** `set_user_status(…, 'disabled')` also runs `delete from auth.sessions where user_id = p_user_id` in the same transaction (refresh tokens go with it through `session_id`), so a refresh token taken from a compromised device does not come back to life on re-enable. The Auth ban stays (it blocks new sign-ins). Reason: supabase-js `auth.admin.signOut` takes the user's JWT, not an id, so there is no admin "sign out user X" call. Check that the migration owner may delete from `auth.sessions` locally and record the staging check in Mise en service. Test: a disabled user's sessions are gone; re-enable does not restore them.
+- **Orphan auth users:** a maintenance SQL job `core.invite_orphans_purge` (hourly) deletes `auth.users` rows whose `raw_app_meta_data ? 'invite_link_id'`, that have no `public.profiles` row, and that are older than 1 hour (accept-invite sets the marker; a killed function or a failed delete otherwise blocks the invitation with `email_exists` forever). Verify the owner may delete from `auth.users` locally; test with a fixture row.
+- `create_staff_invitation` returns `(id, expires_at)` like `renew` (removes the extra peek in `staff-invite`: done, `staff-invite` uses the RPC's `expires_at`).
+- `list_staff_invitations` also returns `last_email_error_code` (the last email's `error_code`), so lane U shows « Résultat inconnu » instead of « Échec » for `failed` + `provider_unavailable`.
 
 ## Task 3.21: `/invitation` page
 
@@ -1619,7 +1652,7 @@ The raw token is never returned (P3-7).
 ## Task 3.22: « Utilisateurs et accès »: invite, pending invitations, ending sessions
 
 **Lane:** U (after Task 3.20 merges). **Files:**
-- Modify: `src/core/users/api.ts` (+ test): `inviteStaff`, `resendInvitation`, `revokeInvitation`, `listStaffInvitations`, `setUserStatus` (now via `users-set-status`)
+- Modify: `src/core/users/api.ts` (+ test): `inviteStaff`, `resendInvitation`, `revokeInvitation`, `listStaffInvitations`, `setUserStatus` (now via `users-set-status`). `inviteStaff` and `resendInvitation` go through the `staff-invite` function only: the browser never calls `create_staff_invitation` / `renew_staff_invitation` (service role only), and never sees a token. `revokeInvitation` and `listStaffInvitations` call their RPCs directly.
 - Modify: `src/core/users/hooks.ts`, `src/core/settings/pages/UsersSettingsPage.tsx` + test
 - Create: `src/core/users/components/InviteDialog.tsx` + test, `PendingInvitationRows.tsx`
 - Modify: `fr-CA.json`: `settings.users.invite.*`; remove `settings.users.addNote` and its usage
@@ -1632,7 +1665,7 @@ The raw token is never returned (P3-7).
 - **Pending invitations** are rows in the same table (one combined list, sorted after active users):
   - status « Invitation envoyée » (or « Expirée », or « Adresse introuvable » when `last_email_status = 'bounced'`) and « Expire le {formatClinicDateShort} »;
   - actions « Renvoyer » and « Révoquer » (AlertDialog confirm), hidden without `users.manage`.
-- **Disable / enable** goes through `users-set-status`. When `sessions_ended: false`, show the warning toast.
+- **Disable / enable** goes through `users-set-status`. When `signin_blocked: false` (the Auth ban failed; the sessions already ended in the database, P3-32), show the warning toast with « Réessayez ».
 - **Queries:** `listOrgUsers` and `listStaffInvitations` run **in parallel**; the table renders when both resolve. Mutations invalidate `userKeys.all`.
 
 **Tests:**
@@ -1641,7 +1674,7 @@ The raw token is never returned (P3-7).
 - the admin confirmation;
 - a P0001 message is shown in the dialog;
 - the pending row shows « Expirée » when `is_expired`;
-- « Renvoyer » calls `resendInvitation(id)`;
+- « Renvoyer » calls `resendInvitation(id)` (the `staff-invite` function, never an RPC);
 - « Révoquer » asks for confirmation;
 - both list queries start before either resolves;
 - the disable warning.
@@ -1678,6 +1711,8 @@ Content, 15–30 lines:
 ## Task 3.24: Storage (database)
 
 **From lane F (Task 3.25, `_shared/storage.ts`, commit 40fea35), match these:** MIME → extension map `application/pdf→pdf`, `image/png→png`, `image/jpeg→jpg`, `image/webp→webp`, `application/msword→doc`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document→docx` (exact MIME strings, no aliases); `stored_files.sha256` and `confirm_stored_file(p_sha256 text)` take **64 lower-case hex characters** (not `\x…` bytea); object paths `{org_id}/{module_key}/{subject_id}/{file_id}.{ext}` with canonical lower-case UUIDs; the DB stays the source of truth for the path. `get_pending_upload` also returns the purpose's `max_bytes` (the size cap `inspectStream` enforces). Allow `application/msword` only for purposes that truly need it (OLE sniffing accepts any compound file); Phase 4 purposes default to PDF and images.
+
+**Review follow-ups (applied in the migration):** P3-33 removed the `storage.objects` select policy and `private.can_read_object` below (reads go through `storage-sign`; `stored_files` RLS is the only read check); a `deleted` file that was never confirmed (a rejected upload) is purged after 24 h, not 30 days (the 2-hour upload token can upload to its path again); module purposes and files name only their module's permissions; `attach_stored_file` takes `p_purposes`.
 
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_storage.sql`
@@ -1773,7 +1808,7 @@ create policy core_objects_select on storage.objects for select to authenticated
   - `list_files_to_purge(p_limit int default 500)`: `pending` older than 24 h, `deleted` older than 30 days, and `ready` with `retain_until < now()` (staged and abandoned). Ordered by `created_at`, clamped;
   - `mark_files_purged(p_ids uuid[])` → `purged` (≤ 500 ids).
 - **For module RPCs (P3-17):**
-  - `private.attach_stored_file(p_file_id uuid, p_subject_type text, p_subject_id uuid, p_view_permission text, p_owner_profile_id uuid, p_owner_permission text) returns void`: same org, `ready` only; clears `retain_until`;
+  - `private.attach_stored_file(p_file_id uuid, p_purposes text[], p_subject_type text, p_subject_id uuid, p_view_permission text, p_owner_profile_id uuid, p_owner_permission text, p_uploaded_by uuid default null) returns void`: same org, `ready` only, not past `retain_until`, purpose in `p_purposes`, uploaded by `p_uploaded_by` when given (« Fichier introuvable. » otherwise); a module file's permissions must be the module's (review follow-up); clears `retain_until`;
   - `private.soft_delete_stored_file(p_file_id, p_by uuid)`.
 - `set_org_asset(p_kind text, p_file_id uuid)` (`settings.manage`):
   - `p_kind in ('logo','signature')` (`22023`);
@@ -1842,32 +1877,35 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string>
   1. `verifyAuth(req)` (permission and module are checked by the RPC through the user client).
   2. Body `{ purpose, subject_type, subject_id, original_name, mime_type, size_bytes }`.
   3. `create_pending_upload` with the **user client** (P0001 → 400 with the message).
-  4. Service client `storage.from(bucket).createSignedUploadUrl(object_path)`.
-  5. 200 `{ file_id, signed_url, token, path }`.
+  4. **Structural path check** before signing: `create_pending_upload` returns `(file_id, bucket, object_path)`, not the module key, so the function checks the shape only: `{caller's org_id}/{module segment}/{uuid}/{file_id}.{ext}`, with the first segment the caller's org, the last the returned `file_id` and the extension `extensionForMime(mime_type)` (`buildObjectPath` rules: canonical lower-case uuids, `[a-z_]` module segment). Any mismatch → 500, nothing signed.
+  5. Service client `storage.from(bucket).createSignedUploadUrl(object_path)`.
+  6. 200 `{ file_id, bucket, path, token }` (no `signed_url`: the function builds it from its internal API URL; the client calls `uploadToSignedUrl(path, token, file)` on its own Supabase URL).
+  - **Rate limit:** `consume_rate_limit` per user before the RPC (`storage.upload_user`, 60 an hour per user; 429 `rate_limited` « Trop de téléversements. Réessayez dans quelques minutes. »), so a client cannot fill the registry with pending rows.
 - **`storage-confirm`:**
   1. `verifyAuth`; body `{ file_id }`.
   2. `get_pending_upload` with the user client: the uploader and `pending` only, else 404 `not_found`.
   3. Service `download(object_path)`; a missing object → 400 « Le fichier n'a pas été reçu. »
-  4. Real size within the purpose limit; `sniff` matches the declared MIME type.
+  4. Real size within the purpose limit; `sniff` matches the declared MIME type; for an image, **enforce `max_image_side`** (from `get_pending_upload`): width and height read from the header, either above the cap → the same mismatch path with « Cette image est trop grande (4000 pixels au plus par côté). » (the logo and signature use 4000 px).
   5. Mismatch → `remove([path])`, `reject_stored_file`, then 400 « Ce fichier n'est pas du type annoncé. »
   6. Success → `confirm_stored_file(file_id, sha256Hex, size)` → 200 `{ file_id }`.
 - **`storage-cleanup`:**
-  - `runJob('core.storage_cleanup')`, but database-wide: it runs once with org null, because `list_files_to_purge` is global;
-  - in a loop, up to 5 pages of 500: group the rows by bucket; `remove(paths)` in chunks of 100 (**no per-file call**); `mark_files_purged(ids)` for the paths whose removal succeeded;
+  - `runJob('core.storage_cleanup')`, **per org** like every function job (Task 3.24 deviation): `list_files_to_purge(p_org_id, p_limit)` and `mark_files_purged(p_org_id, p_ids)` take the org, a run is logged per org, and « Exécuter maintenant » cleans the caller's clinic only;
+  - for each org, in a loop, up to 5 pages of 500: group the rows by bucket; `remove(paths)` in chunks of 100 (**no per-file call**); `mark_files_purged(org, ids)` for the paths whose removal succeeded (removal first, then marking: the race is benign, see the migration header);
   - detail `« {n} fichiers supprimés »` (counts only).
 
 **Tests:**
-- **Upload:** a P0001 is passed through; the signed URL is created with the RPC's path, never a client path; the body has no `path` field accepted.
+- **Upload:** a P0001 is passed through; the signed URL is created with the RPC's path, never a client path; the body has no `path` field accepted; a returned path of another org, another file id or the wrong extension → 500 with nothing signed; the rate limit → 429 with no RPC call.
 - **Confirm:**
   - a PNG declared as PDF → `remove` + `reject_stored_file` + 400;
   - a real size above the limit → 400;
+  - a 4001 px wide PNG for `org_logo` → `remove` + `reject_stored_file` + 400;
   - success → `confirm_stored_file` with the correct SHA-256;
   - another user's `file_id` → 404 with no download.
-- **Cleanup:** 250 rows over two buckets → 3 `remove` calls (100 + 100 + 50, grouped by bucket) and 1 `mark_files_purged`; a failed chunk is not marked.
+- **Cleanup:** per org (two orgs → two runs, each listing and marking its own org only); 250 rows over two buckets → 3 `remove` calls (100 + 100 + 50, grouped by bucket) and 1 `mark_files_purged`; a failed chunk is not marked.
 
 **Live probe (DB token):**
 1. As admin, through the UI or curl: upload `org_logo` → signed upload (`curl -X PUT` with the token) → confirm → `ready`.
-2. `createSignedUrl(path, 300)` as the conseillère works (view null); as an org B user (create one in a scratch SQL session) it fails.
+2. `storage-sign` (`{ file_id }`) as the conseillère returns a working URL (view null); as an org B user (create one in a scratch SQL session) it answers 404; `createSignedUrl(path, 300)` from the user client fails for both (P3-33).
 3. A `.txt` renamed `.png` → rejected, and the object is gone from storage.
 4. `select private.invoke_job_function('core.storage_cleanup')` → a run `ok`.
 
@@ -1880,8 +1918,8 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string>
 **From the Task 3.25 review:** about 7 % of real `.jpg` files are really PNG or WebP, and browsers derive `file.type` from the extension. The widget sniffs the first bytes on the client (same signatures as `_shared/storage.ts`) and sends the sniffed MIME when it is allowed for the purpose, so a misnamed image is not refused with « Ce fichier n'est pas du type annoncé ».
 
 **Lane:** U (after Task 3.26 merges). **Files:**
-- Create: `src/core/storage/api.ts` + test: `uploadFile({ purpose, subjectType, subjectId, file }): Promise<{ fileId }>`. It calls `storage-upload` → `supabase.storage.from(bucket).uploadToSignedUrl(path, token, file)` → `storage-confirm`. Also `signedFileUrl(fileId, { download?: boolean })`: reads `stored_files` (`object_path, bucket, original_name`) for one id, then `createSignedUrl(path, 300, download ? { download: original_name } : undefined)`.
-- Create: `src/core/storage/hooks.ts` (`storageKeys`, `useSignedFileUrl(fileId)` with `staleTime: 240_000`, so a 5-min URL is refreshed before it expires), `src/shared/components/FileDropzone.tsx` + test (accept list, size check before upload, progress, the error text from the functions)
+- Create: `src/core/storage/api.ts` + test: `uploadFile({ purpose, subjectType, subjectId, file, mimeType?, onStep? }): Promise<{ fileId }>`. `mimeType` is the type to declare (the sniffed one for a misnamed image; `file.type` by default); `onStep` reports `preparing` / `sending` / `confirming` for the progress bar. It calls `storage-upload` (→ `{ file_id, bucket, path, token }`, no URL) → `supabase.storage.from(bucket).uploadToSignedUrl(path, token, new Blob([file], { type: mimeType }), { contentType: mimeType })`: the file is re-wrapped as a Blob of the declared type, because storage records the part's type and `storage-confirm` requires it to equal the declared one (a `File`'s own type comes from its name) → `storage-confirm` (a 200 on retry when the file is already confirmed, so it is retried once after a network failure or a 5xx; 409 `conflict` when a concurrent call settled it otherwise). Also `signedFileUrl(fileId, { download?: boolean })`: calls the `storage-sign` function with `{ file_id, download }` → `{ url, expires_at }` (P3-33: the client never calls `createSignedUrl` itself; the URL lives 300 s; 404 when the file is not readable). A 429 `rate_limited` (120 an hour per user) is shown as an error, not retried. **Reads always go through `storage-sign`** (there is no client policy on `storage.objects`).
+- Create: `src/core/storage/hooks.ts` (`storageKeys`, `useSignedFileUrl(fileId, { refresh? })` with `staleTime: 240_000`; `refresh` (download links only) also refetches every 240 s so a 5-min URL is replaced before it expires, while an `<img>` keeps its URL and asks for a new one from its `onError`), `src/shared/components/FileDropzone.tsx` + test (accept list, size check before upload, progress, the error text from the functions)
 - Modify: `src/core/settings/pages/IdentitySettingsPage.tsx` (+ test): a « Logo » card (preview, « Remplacer », « Retirer » with confirmation → `set_org_asset('logo', …)`)
 - Modify: `src/core/settings/pages/SignatorySettingsPage.tsx` (+ test): « Courriel du signataire » (in the existing signatory card, Zod email) and an « Image de signature » card (PNG with transparency recommended; help text « Utilisée pour la signature de la clinique sur les documents. »)
 - Modify: `src/core/settings/organization/*` (types/schema for `signatory_email`, `logo_file_id`, `signature_file_id`), `fr-CA.json` (`storage.*`, `settings.identity.logo.*`, `settings.signatory.*`)
@@ -2017,6 +2055,24 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 ## Task 3.31: Signing (database)
 
+**From lane F (Task 3.32, commit a0cca70):** the local seed sets the signing base URL to `http://host.docker.internal:55390` (the fake started by `npm run fake:documenso`) and the two org secrets to `local-dev-documenso-key` / `local-dev-documenso-webhook-secret`. `signing-webhook` passes Documenso's raw event names (`DOCUMENT_COMPLETED`, `DOCUMENT_CANCELLED`, …) to `documensoEventId`. `signature_requests` keeps `provider_document_id` even when a later creation step fails (the client's error carries it) so the reconcile job can cancel it. **From lane F (Task 3.30, commit a03143c):** `get_signing_context` returns `{ bucket, object_path }` for the logo and signature images (the renderer's `loadAssets` takes `{ key, bucket, path }`); `update_template_version`'s placeholder check scans **every string** in the body JSON (the renderer fills all of them, with the same placeholder rule as emails); the logo and signature upload purposes (Task 3.24) accept **PNG and JPEG only**: pdfmake cannot embed WebP. Also: `signature_requests` stores Documenso's `envelope_id` next to `provider_document_id` (future move to the envelope API); the logo/signature upload purposes cap PNG dimensions at 4000×4000 (read from the header; a small PNG with alpha can decode to hundreds of MB).
+
+**Review follow-ups (fix commit after 02126e6, same migration):**
+- **Recipients keyed by role.** `mark_signature_request_sent`'s `p_signer_recipients` is `[{role, recipient_id}]` (a role is unique per request). `create_signature_request` returns `table (id uuid, existing boolean, status text, signers jsonb /* [{role, signer_id}] */, last_error text, created_at timestamptz)` on both paths: an existing draft without `last_error` is a send under way, with one a send that failed before.
+- **A completion is never lost.** `DOCUMENT_COMPLETED` stamps `signature_requests.completed_event_at`. From then on `expire_signature_request` returns false, `DOCUMENT_REJECTED` / `DOCUMENT_CANCELLED` are `ignored`, `cancel_signature_request` refuses (P0001), and the reconcile list answers `sync` (download) instead of `expire`; `complete_signature_request` accepts it whatever its expiry.
+- **Drafts and webhooks.** `apply_signing_event` returns `retry` for a draft not abandoned whose Documenso document exists (its `documenso_document_id`, or the one the event names: a send under way); the webhook answers 409 so Documenso retries. The reconcile's `abandon` is only for drafts with no document; a draft with one gets `sync`.
+- **Signer addresses private.** `signature_request_signers` is granted to `authenticated` column by column, without `email`.
+- **Templates.** `create_document_template` needs `settings.manage` (and the edit permission; both permissions of the template's module); module migrations may insert their templates directly. `set_document_template_active(p_id, p_active)` (`settings.manage`). Publishing also checks the title, footer, block types (the closed set of `_shared/pdf/model.ts`), one signature page with unique roles, and `initialsFor` ⊆ its roles. A published or archived version refuses any metadata change but its status and `archived_at` moving forward, and deletion except by its template's cascade.
+- **Phase 4.** `cancel_signature_request(p_id uuid, p_by uuid) returns boolean` (service role): sent/viewed → `cancelled` (`cancelled_by`), a draft → abandoned; false when already closed; P0001 once Documenso completed it. The partial unique index `signature_requests_open_subject_idx (org_id, subject_type, subject_id, purpose)` over open requests (draft not abandoned, sent, viewed; `core.signing_test` excepted): the idempotency key is checked first (the same key always returns its row), then a new key for a record with an open request of that purpose is refused (P0001 « Une demande de signature est déjà en cours pour ce dossier. ») until the old one is cancelled.
+- **Minor.** A late `mark_signature_request_failed` keeps `abandoned`; the reconcile list orders `expire`/`abandon` first, then by `expires_at`; the request `title` is redacted in the audit log; signer `order` values are distinct; a null expiry in `set_signing_settings` is 23514; `apply_signing_event` locks the row only within `p_org_id`.
+
+**Task 3.33 review follow-ups (lane F owned both migrations for this round, edited in place):**
+- **One send at a time.** `signature_requests.send_started_at` and `begin_signature_request_send(p_org_id, p_id, p_stale_after interval) returns boolean` (service role): under the row lock, a live draft only; false while another claim is newer than `now() - p_stale_after`; else stamps `send_started_at`, clears `last_error`, true. `mark_signature_request_sent` / `_failed` release the claim (a failed send is retryable at once). Staleness counts from `send_started_at`, never `created_at`. Concurrency probe: 8 sessions on one draft → exactly one `true`.
+- **Same key, same signers.** `create_signature_request` on an existing key whose signers differ in role, order, name or address (case and outer spaces ignored) → P0001 « Les signataires ne correspondent pas à la demande existante. ». So the stored signing orders are the ones every send gives Documenso, which recovering a completed draft relies on. It also returns `documenso_document_id` and `envelope_id` (a draft's earlier document).
+- **Re-sends.** `superseded_document_ids text[]` (the latest 20): a re-send's earlier document joins it when `mark_signature_request_sent` / `_failed` records the new one; `apply_signing_event` answers `ignored` for a superseded document (no `not_found` report), and `retry` for a draft whatever document it names (a re-send's new document is not recorded yet).
+- **Faster draft reconcile.** A draft with a Documenso document is listed after an hour (`sync`), one without after a day (`abandon`), both from `coalesce(last_send_at, created_at)`. The functions claim a draft before settling it.
+- **Recovery without a staged source.** `recover_signature_request(p_org_id, p_id, p_documenso_document_id, p_envelope_id, p_signer_recipients) returns uuid` (migration `core_signing_function_support`): a live draft Documenso completed → `sent` with `completed_event_at` stamped, taking its newest staged source or none (`source_file_id` null, returned null: recorded missing); then `complete_signature_request` as usual. `discard_system_file` only touches `signing_source` / `signing_signed` files.
+
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_signing.sql`
 - Create: `supabase/tests/database/023_core_signing.test.sql`
@@ -2024,10 +2080,10 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 **Tables** (design §6.2 + P3-30):
 - **`signing_settings`**:
   - `org_id pk`;
-  - `base_url text null`, `check (base_url ~ '^https://[a-z0-9.-]+(:[0-9]+)?(/.*)?$' or base_url ~ '^http://host\.docker\.internal:[0-9]+(/.*)?$')`, with a comment: the second form is the local fake only, since it resolves only on dev machines;
+  - `base_url text null`, `check (base_url ~ '^https://[a-z0-9.-]+(:[0-9]+)?(/.*)?$' or base_url ~ '^http://host\.docker\.internal:[0-9]+(/.*)?$')`, with a comment: the second form is the local fake only, since it resolves only on dev machines (P3-34 narrows the https form to public DNS names: `private.signing_base_url_valid`);
   - `expiry_days int not null default 7 check (between 1 and 60)`, `updated_at`, `updated_by`;
   - created per org by trigger + backfill;
-  - select with `settings.view`; written by `set_signing_settings(p_base_url, p_expiry_days)` (`settings.integrations_manage`);
+  - select with `settings.view`; written by `set_signing_settings(p jsonb)` (`settings.integrations_manage`; a patch of `base_url` and/or `expiry_days`, and a new address origin deletes `documenso_api_key`, P3-34);
   - audited.
 - **`document_templates`**:
   - `id, org_id, key (unique per org; must start with module_key || '.'), module_key → modules, title, description, view_permission → permissions, edit_permission → permissions, is_active, timestamps`;
@@ -2068,8 +2124,8 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   - `get_signature_request(p_id)`, one row or none (used by `signing-sync` in user mode).
 - **Service role:**
   - `get_signing_context(p_org_id, p_template_version_id) returns jsonb`: one round trip with the published version (body, variables, signers, email texts), `signing_settings`, the clinic identity, timezone, `module_enabled`, and the signatory (name, title, `signatory_email`, `signature_file_id`, `logo_file_id`);
-  - `create_signature_request(p jsonb) returns table (id uuid, existing boolean)`: idempotent on `(org_id, idempotency_key)`; inserts the request (`draft`) and its signers;
-  - `mark_signature_request_sent(p_id, p_documenso_document_id, p_source_file_id, p_signer_recipients jsonb /* [{signer_id, recipient_id}] */, p_expires_at)`;
+  - `create_signature_request(p jsonb) returns table (id uuid, existing boolean, status text, signers jsonb, last_error text, created_at timestamptz)`: idempotent on `(org_id, idempotency_key)`; inserts the request (`draft`) and its signers (review follow-ups above);
+  - `mark_signature_request_sent(p_id, p_documenso_document_id, p_envelope_id, p_source_file_id, p_signer_recipients jsonb /* [{role, recipient_id}] */, p_expires_at)`;
   - `mark_signature_request_failed(p_id, p_error_code)` (stays `draft`, sets `last_error`);
   - `apply_signing_event(p_org_id, p_request_id, p_documenso_document_id, p_event text, p_recipient_id text, p_at timestamptz, p_reason text) returns table (outcome text, request_id uuid, module_key text, needs_download boolean)`:
     - finds the row by id, else by document id; another org → `not_found`;
@@ -2077,7 +2133,8 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
     - a terminal state never moves; a disabled module → `ignored`;
   - `complete_signature_request(p_id, p_signed_file_id, p_signed_sha256)` → `signed`, `completed_at`;
   - `list_signature_requests_to_reconcile(p_limit int default 100)`: `sent`/`viewed` with `sent_at < now() - interval '1 day'`, plus `draft` older than 1 day (to clean), plus overdue `expires_at`;
-  - `expire_signature_request(p_id)`.
+  - `expire_signature_request(p_id)`;
+  - `cancel_signature_request(p_id, p_by) returns boolean` (review follow-ups above).
 - **Upload purposes** (for `register_system_file`): `signing_source` (bucket `documents`, view from the request) and `signing_signed` (bucket `signed-documents`). Both have `upload_permission` = `settings.integrations_manage`: no client ever uses them; that is just the strictest core key.
 - **Job:** `core.signing_reconcile` (function `signing-sync`, maintenance, `50 8 * * *`).
 
@@ -2157,6 +2214,12 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 ## Task 3.33: `_shared/signing.ts` and the signing functions
 
+**Done (lane F, Task 3.33):** the render-free part is `_shared/signing-events.ts` (webhook, sync, reconcile; `isolation.test.ts` checks that `signing-webhook`, `signing-sync` and `signing-test-connection` never reach `render.ts`). Two DB gaps were closed by an additive migration written in lane F, **for the DB lane to review**: `20261008082519_core_signing_function_support.sql` (`get_signing_request(p_org_id, p_id)`: the request's view permission, which `complete_signature_request` requires on the signed file and no service RPC returned, plus a draft's staged source file and its signers' roles and orders, for recovering a draft Documenso completed; `discard_system_file(p_org_id, p_file_id)`: the soft-delete of a staged system file whose upload failed, which `register_system_file`'s header promised and core lacked), with `025_core_signing_function_support.test.sql`. Other choices: `createSignatureRequest` takes `email` with the built-in `document`, fills the version's email subject and message (`fillTexts`), answers a P0001 as `invalid_request` with its message, and treats a draft without `last_error` older than 10 minutes as a dead send (sent again); the signed PDF goes to its own `{file_id}.pdf` path (`upsert: false`), not `signed.pdf`; the reconcile fails its run when a request fails (each reported). A draft Documenso completed whose PDF is no longer staged is reported `signing_orphan_completed` and left as is (neither cancelled nor abandoned).
+
+**Review follow-ups (lane F, after 87f6661):** a re-send (« Renvoyer ») claims the draft (`begin_signature_request_send`; a fresh claim → 409 `conflict` « Un envoi est déjà en cours. », replacing the « draft without `last_error` younger than 10 min is returned » rule), then settles the earlier Documenso document before rendering: COMPLETED → recovered (`recoverCompletedDraft` → `recover_signature_request`, then the signed PDF), never sent again; DRAFT or PENDING → cancelled (a failed cancel ends the re-send: `previous_cancel_failed`, 502, retryable); CANCELLED, REJECTED or 404 → sent again. The send no longer takes `req.signal`: its Documenso calls share their own deadline (`SEND_TIMEOUT_MS`, 120 s from the claim), and cleanup cancels use a separate client (`CANCEL_TIMEOUT_MS`, 20 s), so a closed tab never cuts a send between Documenso and the database. Recovery no longer needs the staged source (`signing_source_missing` reported instead); unmatched recipients → `signing_orphan_completed` and the draft released with `last_error = 'orphan_completed'`. The reconcile claims drafts (`sending` when a send holds them), settles drafts with a document after an hour, treats a 400 on the overdue cancel as Documenso's own expiry (`VERIFY`), runs with `perOrgTimeoutMs` 120 s and starts no batch after 90 s (« n à reprendre au prochain passage »). `signing-webhook` reports `signing_completed_after_close` (ids only, 200) for `DOCUMENT_COMPLETED` on an expired, cancelled or abandoned request, and ignores superseded documents quietly. `storeSignedPdf`: when `complete_signature_request` refuses because another delivery stored its PDF first, the request reads back `signed`, its own file is discarded, and that counts as done. Live probe (fake Documenso behind a proxy that can refuse cancels, `functions serve`): send → sent; `mark_sent` refused after distribute with the cleanup cancel failing, then « Renvoyer » → the earlier document read PENDING, cancelled, then a new one sent (`superseded {2}`); the same, then the earlier document completed at Documenso, then « Renvoyer » → recovered and signed, no new document; a double « Renvoyer » → one 200, one 409, exactly one new document.
+
+**From Task 3.30:** pdfmake is vendored at `_shared/pdf/vendor/pdfmake.js` and imported only by `_shared/pdf/render.ts`. Keep the code that renders (request creation) in a module that `signing-webhook` and `signing-sync` do not import, so those functions stay small (≈1.4 MB vs ≈1.9 MB uploaded).
+
 **Lane:** F (after Tasks 3.31 and 3.30 merge). **Files:**
 - `supabase/functions/_shared/signing.ts` + test:
   ```ts
@@ -2174,11 +2237,11 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   ```
   **Order:**
   1. `Promise.all([get_signing_context, get_org_secret('documenso_api_key')])`. No base URL or key → `not_configured`.
-  2. `create_signature_request` (idempotent: an existing `sent` row → return it, no second document).
+  2. `create_signature_request` (idempotent: an existing row that is not a draft → return it, no second document; an existing draft without `last_error` → a send under way, return it without a second document; with one → a send that failed before). Its `signers` (`[{role, signer_id}]`) key the recipients of step 6 by role.
   3. `fillTemplate` + `loadAssets` (logo, signature image, in parallel) → `renderPdf`.
   4. `register_system_file` (`documents`, purpose `signing_source`) → upload the bytes (service storage, `upsert: false`).
   5. Documenso `createDocument` (`externalId = request id`) → `addFields` → `distribute`.
-  6. `mark_signature_request_sent` (`expires_at = now + expiry_days`).
+  6. `mark_signature_request_sent` (`expires_at = now + expiry_days`; recipients `[{role, recipient_id}]`, matched to Documenso's recipients by address).
 
   A failure after step 5 started → `cancel` at Documenso (best-effort) + `mark_signature_request_failed(code)` → `provider_error`.
 - `signing-webhook/` (design §6.3):
@@ -2189,14 +2252,16 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   5. `claimEvent('documenso', documensoEventId(...), org, event, { event, document_id, external_id })`, a minimised payload (no recipient emails).
   6. `apply_signing_event`:
      - `needs_download` → `downloadSigned` → `register_system_file` (`signed-documents`, `upsert: true` at the stable path `{org}/core/{request_id}/signed.pdf`; `register_system_file` returns the existing row for that path, so a retry is idempotent) → `complete_signature_request` with the SHA-256;
+     - `retry` (a draft whose send is under way or failed part way) → `failEvent` and 409, so Documenso retries;
      - `ignored` / `not_found` → complete and 200.
   7. Exception → `failEvent` → 500.
 - `signing-sync/`:
   - **user mode:** `verifyAuth`; body `{ request_id }`; the row read through RLS with `get_signature_request(p_id)` (user client; no row → 404); module gate; Documenso `get` → map to events → `apply_signing_event` (and the download when completed);
-  - **cron mode:** `verifyServiceRoleAuth` → `runJob('core.signing_reconcile')`:
+  - **cron mode:** `runJob('core.signing_reconcile')` (which verifies `X-Job-Signature`):
     - each org's `list_signature_requests_to_reconcile` batch is processed with a concurrency of 4 (`Promise.all` over chunks), not one by one, and not unbounded;
-    - overdue → `cancel` + `expire_signature_request`;
-    - stale drafts → `cancel` if they have a document id, then `mark_signature_request_failed('abandoned')`.
+    - `expire` (overdue): sync first (Documenso `get` → events → `apply_signing_event`; a lost `DOCUMENT_COMPLETED` makes `expire_signature_request` return false, and the signed PDF is downloaded instead); if still not complete, `expire_signature_request` in the DB, then `cancel` at Documenso;
+    - `sync`: Documenso `get` → events → `apply_signing_event`, and the download when completed (this also covers a completed request whose download failed, whatever its expiry). For a **draft** (it has a Documenso document), read its status first, then `cancel` it and `mark_signature_request_failed('abandoned')`;
+    - `abandon` (a stale draft with no Documenso document): `mark_signature_request_failed('abandoned')`.
 - `signing-test-connection/`: `verifyAuth(settings.integrations_manage)` → `ping` → `{ ok }` or `{ ok: false, status }`. Never echo the key or URL.
 - `signing-test-document/`: `verifyAuth(settings.integrations_manage)` → `createSignatureRequest` with `purpose: 'core.signing_test'`:
   - the built-in one-page document (`_shared/pdf/test-document.ts`: « Document test de signature électronique — Clinique MANA »);
@@ -2218,11 +2283,12 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   - completed → download + register + complete (SHA-256 checked);
   - a second completed for the same document → `duplicate` (terminal id without a version);
   - a disabled module → 200, nothing applied;
+  - `retry` (an event for a draft under way) → 409, the claim failed (Documenso retries);
   - the claim payload has no email.
 - **Sync:**
   - user mode without `view_permission` → 404;
   - cron with 10 requests → at most 4 concurrent Documenso calls (count in-flight in the fake);
-  - an overdue request is expired.
+  - an overdue request is synced first: a lost completion is downloaded, not expired; otherwise expired, then cancelled.
 - **Test connection:** a 401 from Documenso → `{ ok: false, status: 401 }`; the response contains neither the key nor the URL.
 
 **Live probe (DB token):**
@@ -2266,9 +2332,15 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 **Commit:** `feat(settings): Signature électronique section`.
 
+**Review follow-ups (P3-34):** no redirect is followed and, outside local dev, the Documenso host must resolve to public addresses only (before every request); the database refuses IP literals and private names; a new address origin clears the API key; each card saves only its own field (`set_signing_settings` patch); « Actualiser l'état » shows its outcome inline (« État à jour. » when nothing changed) in the block's one status region; nothing the page loads is announced; the read-only notice names `settings.integrations_manage` and the cards do not repeat it.
+
 ---
 
 ## Task 3.35: ADR 0005 status and ADR 0008
+
+**Status (2026-10-08): done.** ADR 0008 finalised (final sizes: 1.35 MB for a non-PDF function, 2.18 MB for a rendering one, after the latin-ext and vietnamese fonts). ADR 0005 reflects the signing build (Tasks 3.31–3.33 and their reviews): no `signing-create`, the send claim, recovery of the request's own document only, residual risks and the Mise en service checks.
+
+**From Task 3.30:** update ADR 0008: pdfmake is vendored (`npm run build:pdfmake`, pinned by `scripts/build-pdfmake.lock`), not an npm import in `deno.json`; uploaded sizes are ≈1.35 MB for a non-PDF function and ≈2.18 MB for a rendering one (1.86 MB before the latin-ext and vietnamese fonts were added; about +0.8 MB for rendering); `isolation.test.ts` guards it.
 
 **Lane:** coordinator. **Files:** `docs/adr/0005-documenso-replaces-docuseal.md`, `docs/adr/0008-server-side-pdf-rendering.md`, `docs/adr/README.md`.
 - **ADR 0005:**
@@ -2374,19 +2446,24 @@ Nothing below is needed to build or test Phase 3. Each item is done by Jonathan,
 | 1 | **Resend API key for the app** | Resend → API keys: « Sending access », restricted to `gestion.cliniquemana.com`. Paste it in Paramètres → Courriels → « Clé d'API Resend » | Separate from the Supabase Auth SMTP key, so each can be rotated alone. Verify: « M'envoyer un test » arrives |
 | 2 | **Resend webhook** | Resend → Webhooks: endpoint `https://vnmbjbdsjxmpijyjmmkh.supabase.co/functions/v1/resend-webhook?org=<org_id>` (copy it from Courriels), events `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`. Paste its signing secret (`whsec_…`) in Courriels → « Secret du webhook » | Verify: « Dernier événement reçu » updates; a send to `bounced@resend.dev` shows « Adresse introuvable » |
 | 3 | **Tracking off** | Resend → Domains → `gestion.cliniquemana.com`: open tracking **off**, click tracking **off** | Click tracking would rewrite secure links; open tracking reveals IPs (design §2.1) |
-| 4 | **Documenso instance** | Self-hosted, e.g. `sign.cliniquemana.com`, hosted in Canada if possible | Needs: a signing certificate (`.p12`) to seal PDFs; SMTP through Resend on the clinic domain; clinic branding; an admin account and team; an **API token** (« Clé d'API » in Signature électronique); a **webhook** to `…/functions/v1/signing-webhook?org=<org_id>` with a secret (« Secret »). Then run « Tester la connexion » and « Envoyer un document test ». Confirm the `// VERIFY` endpoints of `_shared/documenso.ts` against the instance's OpenAPI |
+| 4 | **Documenso instance** | Self-hosted, e.g. `sign.cliniquemana.com`, hosted in Canada if possible | Needs: a signing certificate (`.p12`) to seal PDFs; SMTP through Resend on the clinic domain; clinic branding; an admin account and team; an **API token** (« Clé d'API » in Signature électronique); a **webhook** to `…/functions/v1/signing-webhook?org=<org_id>` with a secret (« Secret »). Then run « Tester la connexion » and « Envoyer un document test ». Confirm the `// VERIFY` endpoints of `_shared/documenso.ts` against the instance's OpenAPI. Confirm that the instance's document read (`GET /api/v2/document/{id}`) returns `externalId` (a string or null, never left out: a read without it is a bad response, so a re-send stops on `previous_read_failed`), and each recipient's `signingOrder`, `signingStatus` and `readStatus` |
 | 5 | **Gotenberg** (only if the Task 3.29 spike chose it) | On the Documenso host, not public (firewalled to Supabase egress, or behind a shared secret header) | Function secret `GOTENBERG_URL` (+ secret) |
 | 6 | **DNS** | Registrar | A record + TLS for the signing domain; **fix `_dmarc.cliniquemana.com`** (missing `;` before `rua=`, noted in Phase 1); confirm `app.cliniquemana.com` points at Vercel. Verify: Gmail « Afficher l'original » shows SPF, DKIM and DMARC = PASS |
 | 7 | **Staging Auth templates** | Supabase dashboard → Auth → Email templates | Paste the 5 generated templates from `supabase/templates/` (recovery, magic_link, email_change, confirmation, reauthentication) with their French subjects from `config.toml`. `invite.html` is unchanged |
 | 8 | **Site URL and redirects** | Dashboard → Auth → URL configuration | Site URL `https://app.cliniquemana.com` (P3-2); redirect allow-list includes `https://app.cliniquemana.com/connexion/confirmer`, `/reinitialiser-mot-de-passe`, `/mon-compte`, `/**`. Verify: the forgot-password link points at `app.cliniquemana.com/connexion/confirmer` |
 | 9 | **Function secrets** | `supabase secrets set --project-ref vnmbjbdsjxmpijyjmmkh …` | `INTERNAL_FUNCTION_SECRET` (a new random 32+ byte value, generated by Jonathan), `APP_URL=https://app.cliniquemana.com`, `ALLOWED_ORIGINS=https://app.cliniquemana.com`, `EMAIL_TRANSPORT=resend`, optional `SENTRY_DSN` |
 | 10 | **Database Vault secrets** (for `pg_net`) | SQL editor, run by Jonathan | `select vault.create_secret('https://vnmbjbdsjxmpijyjmmkh.supabase.co', 'project_url', 'pg_net → edge functions');` and `select vault.create_secret('<same value as INTERNAL_FUNCTION_SECRET>', 'internal_function_secret', 'pg_net → edge functions');`. Verify: « Tâches planifiées » shows `ok` runs the next morning, not `configuration_missing` |
-| 11 | **Anon key type** | Dashboard → API keys | The web app must use the legacy anon **JWT** key (`resolve-link` / `accept-invite` have `verify_jwt = true`). If the project has moved to publishable keys only, tell the agent: both functions switch to `verify_jwt = false` with an explicit `apikey` check (inconsistency #14) |
-| 12 | **Client IP header** | After deploy, one `resolve-link` call | Send a request with a **forged** `X-Forwarded-For: 198.51.100.7` and log what the function receives (temporary log, with the go-ahead). If the forged value survives as the first hop, switch `clientIp` to the rightmost hop added by the trusted proxy (or `cf-connecting-ip` if present) before real use: otherwise per-IP limits on `resolve-link` / `accept-invite` can be bypassed (Task 3.4 review) |
+| 11 | **Anon key type** | Dashboard → API keys | *Superseded (final Phase 3 review):* `resolve-link` / `accept-invite` are `verify_jwt = false`, so no function depends on the key type. Only check that the key the web app uses is still active (inconsistency #14) |
+| 12 | **Client IP header: forged-header check** | After deploy, one `resolve-link` call (with the go-ahead) | `clientIp` already reads the **rightmost** `x-forwarded-for` hop, the one the gateway appends (`CLIENT_IP_SOURCE=xff-rightmost`, the default; Task 3.20 review). What is left is to confirm it on staging: send a request with a **forged** `X-Forwarded-For: 198.51.100.7` and check (temporary log of the value `clientIp` picks, with the go-ahead, then removed) that the forged value is **not** the one used. If the hosted gateway does not append the real address as the last hop, tell the agent: switch to `CLIENT_IP_SOURCE=cf-connecting-ip` if a Cloudflare front sets it, or adapt `clientIp`, before real use; otherwise per-IP limits on `resolve-link` / `accept-invite` can be bypassed |
 | 13 | **Disabled-user refresh** (P3-9) | Staging smoke test step 5 | Confirm that a banned user's refresh fails on hosted GoTrue too |
 | 14 | **Drop: legacy bucket** `professional-documents` (39 test files) | Runbook `docs/runbooks/legacy-professional-documents-bucket.md` | Back up into `clinique-mana-backups/`, then delete through the Storage API. **Only with Jonathan's OK**; no inventory feature is dropped |
 | 15 | **Loi 25** (Christine) | Privacy officer | EFVP for Resend (United States) and the Documenso host before real personal data is sent; list the processors in the privacy policy; confirm the 24-month `email_log` anonymisation (P3-6) |
 | 16 | **Inter TTF** (only if the spike needed it) | Download from the official Inter release | Requires Jonathan's OK (download rule); the agent then regenerates `_shared/pdf/fonts.ts` |
+| 16b | **Email change on staging** (Task 3.16) | After item 7 | Check that an email change needs **both** links on hosted GoTrue (locally one link of either address completes it). Then, one release after the new templates are live, remove the old `#…` link reader in `AuthProvider.tsx` (TRANSITION comment). |
+| 16c | **Outlook desktop** (Task 3.16) | Only if the clinic uses classic Outlook for Windows | GoTrue strips HTML comments, so auth emails lose the `<!--[if mso]>` 560 px table and span the window. Readable; the full fix is a Supabase Send Email Hook that sends auth emails through our layout and Resend (a later decision). |
+| 16d | **Auth password rules** (Task 3.20 review) | Dashboard → Auth | Admin-created accounts (accept-invite) bypass dashboard password rules: if staging adds character classes or the leaked-password check, mirror them in `password-schema.ts` and accept-invite's Zod rule. Also confirm `delete from auth.sessions` / `auth.users` by the migration owner works on hosted (P3-32, orphan purge). |
+| 16e | **Loi 25 note: Resend keeps bodies** | With item 15 | Invitation emails (and their link) are readable in the Resend dashboard until the link expires or is used; list it in the EFVP. |
+| 16f | **Documenso reach on hosted functions** (P3-34) | After deploy, « Tester la connexion » | Check that `Deno.resolveDns` works in the hosted edge runtime (the test answers « Connexion réussie » with the real instance); if it is unavailable every Documenso call fails closed (`provider_error`), so tell the agent. `APP_URL` must be the https app URL there (item 9): a local `APP_URL` would allow `host.docker.internal` and skip the address check. |
 | 17 | **Merge = deploy** | GitHub | Push, PR and merge each need his go-ahead. After the merge, run the staging smoke test of design §11 step by step, each with a go-ahead |
 
 ---

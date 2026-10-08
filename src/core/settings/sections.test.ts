@@ -5,7 +5,8 @@ import { coreSettingsSections } from './sections'
 // Uniqueness across core and modules is checked in src/app/settings-sections.test.ts (core may not import app).
 
 // The core permission keys, mirroring public.permissions (module 'core') in the migrations
-// (20261007140517_core_access, 20261007192359_core_roles_split, 20261008015825_core_editable_roles).
+// (20261007140517_core_access, 20261007192359_core_roles_split, 20261008015825_core_editable_roles,
+// 20261008033613_core_shared_permissions).
 // A typo in the registry fails here.
 const CORE_PERMISSION_KEYS = [
   'settings.view',
@@ -16,9 +17,11 @@ const CORE_PERMISSION_KEYS = [
   'modules.manage',
   'audit.view',
   'roles.manage',
+  'settings.email_manage',
+  'settings.integrations_manage',
 ]
 describe('coreSettingsSections', () => {
-  it('registers the Phase 2 sections in menu order, with English ids and French paths', () => {
+  it('registers the sections in menu order, with English ids and French paths', () => {
     expect(coreSettingsSections.map((s) => [s.id, s.path, s.group])).toEqual([
       ['identity', 'identite', 'clinique'],
       ['tax', 'fiscalite', 'clinique'],
@@ -29,6 +32,9 @@ describe('coreSettingsSections', () => {
       ['users', 'utilisateurs', 'plateforme'],
       ['modules', 'modules', 'plateforme'],
       ['audit', 'journal', 'plateforme'],
+      ['jobs', 'taches-planifiees', 'plateforme'],
+      ['email', 'courriels', 'plateforme'],
+      ['signing', 'signature-electronique', 'plateforme'],
     ])
   })
 
@@ -43,6 +49,9 @@ describe('coreSettingsSections', () => {
       'Utilisateurs et accès',
       'Modules',
       "Journal d'audit",
+      'Tâches planifiées',
+      'Courriels',
+      'Signature électronique',
     ])
   })
 
@@ -58,6 +67,11 @@ describe('coreSettingsSections', () => {
       users: [['users.view', 'roles.manage'], ['users.manage', 'roles.manage']],
       modules: ['modules.manage', undefined],
       audit: ['audit.view', undefined],
+      jobs: ['settings.view', 'settings.manage'],
+      // Any of them: the sender and templates need settings.email_manage, the keys settings.integrations_manage.
+      email: ['settings.view', ['settings.email_manage', 'settings.integrations_manage']],
+      // Every part (address, keys, expiry, test tools) is an integration setting.
+      signing: ['settings.view', 'settings.integrations_manage'],
     })
   })
 

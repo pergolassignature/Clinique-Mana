@@ -76,7 +76,28 @@ select functions_are('public', array[
   'list_org_users', 'set_user_role', 'set_user_status', 'set_permission_override', 'clear_permission_override',
   'clear_permission_overrides',
   'set_role_permission', 'create_role', 'rename_role', 'delete_role',
-  'list_audit_entries', 'list_audit_actors'
+  'list_audit_entries', 'list_audit_actors',
+  'consume_rate_limit', 'claim_webhook_event', 'complete_webhook_event', 'fail_webhook_event', 'last_webhook_event_at',
+  'list_job_orgs', 'start_job_run', 'finish_job_run',
+  'list_scheduled_jobs', 'list_scheduled_job_runs', 'set_scheduled_job_enabled', 'run_scheduled_job_now',
+  'set_email_sender', 'set_email_sending_domain', 'list_email_templates', 'save_email_template', 'reset_email_template',
+  'list_email_log', 'list_subject_emails',
+  'get_email_context', 'queue_email', 'mark_email_sent', 'mark_email_failed', 'apply_email_event', 'count_org_emails_today',
+  'create_notification', 'list_my_notifications', 'count_my_unread_notifications', 'mark_notifications_read',
+  'mark_all_notifications_read',
+  'peek_secure_link',
+  'create_staff_invitation', 'renew_staff_invitation', 'revoke_staff_invitation', 'list_staff_invitations',
+  'resolve_staff_invitation', 'accept_staff_invitation',
+  'create_pending_upload', 'get_pending_upload', 'confirm_stored_file', 'reject_stored_file', 'register_system_file',
+  'list_files_to_purge', 'mark_files_purged', 'set_org_asset',
+  'set_signing_settings', 'create_document_template', 'create_template_version', 'update_template_version',
+  'publish_template_version', 'archive_template_version', 'list_document_templates',
+  'list_subject_signature_requests', 'get_signature_request',
+  'get_signing_context', 'create_signature_request', 'mark_signature_request_sent', 'mark_signature_request_failed',
+  'apply_signing_event', 'complete_signature_request', 'list_signature_requests_to_reconcile', 'expire_signature_request',
+  'set_document_template_active', 'cancel_signature_request',
+  'get_signing_request', 'discard_system_file', 'begin_signature_request_send', 'recover_signature_request',
+  'get_signing_credentials'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
@@ -129,7 +150,7 @@ select is((select changed_fields -> 'vault_secret_id' from public.audit_log wher
   '"[redacted]"'::jsonb, 'vault ids are redacted from the log');
 
 -- =============================================================================
--- Adjointe A (settings.view, no settings.manage / modules.manage)
+-- Adjointe A (settings.view; no settings.integrations_manage, settings.manage or modules.manage)
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.set_module_enabled('test_child', true) $$, '42501', null, 'adjointe cannot toggle modules');

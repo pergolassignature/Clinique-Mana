@@ -57,14 +57,25 @@ Deno.test('requireModule: non-boolean result fails closed (403)', async () => {
   assertEquals((await requireModule(client, 'professionals'))?.status, 403)
 })
 
-Deno.test('requireModule: RPC error gives 500 internal', async () => {
+Deno.test('requireModule: RPC error gives 500 internal, logged with its code only', async () => {
   const { client } = fakeClient({
     data: null,
-    error: { code: 'PGRST000', message: 'boom' },
+    error: { code: 'PGRST000', message: 'boom: ana@example.com' },
   })
-  const res = await silenced(() => requireModule(client, 'professionals'))
+  const logged: unknown[][] = []
+  const original = console.error
+  console.error = (...args: unknown[]) => logged.push(args)
+  let res: Response | null
+  try {
+    res = await requireModule(client, 'professionals')
+  } finally {
+    console.error = original
+  }
   assertEquals(res?.status, 500)
   assertEquals((await res?.json()).error.code, 'internal')
+  assertEquals(logged, [[
+    '[requireModule] module_enabled failed (code=PGRST000)',
+  ]])
 })
 
 // ---------------------------------------------------------------------------
