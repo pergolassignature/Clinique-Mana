@@ -27,7 +27,7 @@ export async function withEnv(
 
 /** Silences `console[level]` while fn runs and returns the recorded calls. */
 export async function captureConsole(
-  level: 'error' | 'warn',
+  level: 'error' | 'warn' | 'info' | 'log',
   fn: () => void | Promise<void>,
 ): Promise<unknown[][]> {
   const original = console[level]
