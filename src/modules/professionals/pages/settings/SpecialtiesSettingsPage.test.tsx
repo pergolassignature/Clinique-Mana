@@ -293,10 +293,11 @@ describe('SpecialtiesSettingsPage', () => {
     expect(within(list).getByRole('table')).toHaveClass('whitespace-nowrap')
     expect(within(rowOf('clienteles', 'Aînés')).getAllByRole('cell')[0]).toHaveClass('whitespace-normal')
     for (const name of [t(`${LIST}.actions.moveUp`, { name: 'Aînés' }), t(`${LIST}.actions.moveDown`, { name: 'Aînés' })]) {
-      expect(within(list).getByRole('button', { name })).toHaveClass('max-sm:hidden')
+      expect(within(list).getByRole('button', { name })).toHaveClass('max-md:hidden')
     }
     const menu = within(list).getByRole('button', { name: t(`${LIST}.actions.menu`, { name: 'Aînés' }) })
     expect(menu).not.toHaveClass('max-sm:hidden')
+    expect(menu).not.toHaveClass('max-md:hidden')
     // The actions cell is as narrow as its buttons.
     expect(menu.closest('td')).toHaveClass('w-0', 'pl-1', 'pr-2')
   })

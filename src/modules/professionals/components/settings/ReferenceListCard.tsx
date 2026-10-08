@@ -553,10 +553,10 @@ function MoveButton({ buttonRef, label, icon, inactive, onMove }: MoveButtonProp
       aria-label={label}
       aria-disabled={inactive || undefined}
       onClick={ignoreWhenInactive(inactive, onMove)}
-      // Hidden below `sm`: with them, a list with a secondary column (Titres, Clientèles) is wider
-      // than a 375px screen and pushes « … » out of view. Reordering is a desk task; on a phone the
-      // menu stays, and the order is changed from a wider screen.
-      className={cn(softDisabledClasses, 'aria-disabled:hover:bg-transparent max-sm:hidden')}
+      // Hidden below `md`: with them, a list with a secondary column (Titres, Clientèles) is wider
+      // than the content at 375 and at 640 px (sidebar as a sheet) and pushes « … » out of view.
+      // Reordering is a desk task; on a phone the menu stays, and the order is changed from a wider screen.
+      className={cn(softDisabledClasses, 'aria-disabled:hover:bg-transparent max-md:hidden')}
     >
       {icon}
     </Button>
