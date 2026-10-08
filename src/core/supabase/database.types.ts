@@ -2410,6 +2410,10 @@ export type Database = {
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_role: { Args: { p_role: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
+      discard_system_file: {
+        Args: { p_file_id: string; p_org_id: string }
+        Returns: boolean
+      }
       expire_signature_request: { Args: { p_id: string }; Returns: boolean }
       fail_webhook_event: {
         Args: { p_claim_token: string; p_error: string; p_id: string }
@@ -2471,6 +2475,10 @@ export type Database = {
       }
       get_signing_context: {
         Args: { p_org_id: string; p_template_version_id: string }
+        Returns: Json
+      }
+      get_signing_request: {
+        Args: { p_id: string; p_org_id: string }
         Returns: Json
       }
       last_webhook_event_at: { Args: { p_provider: string }; Returns: string }

@@ -1,0 +1,684 @@
+/**
+ * Following Documenso after a request is sent (design §6.3, Task 3.33):
+ * mapping a document's state or a webhook to `apply_signing_event` calls,
+ * storing the signed PDF, syncing one request, and the daily reconcile.
+ * Used by `signing-webhook`, `signing-sync` and `_shared/signing.ts`.
+ *
+ * **Render-free on purpose:** nothing here imports `pdf/render.ts`, so the
+ * webhook and the sync function do not carry pdfmake (ADR 0008,
+ * `pdf/isolation.test.ts`). Request creation, which renders, lives in
+ * `signing.ts`.
+ *
+ * - **Events** use Documenso's raw names (`DOCUMENT_COMPLETED`); PS Hub's
+ *   dot names (`document.completed`) are mapped to them. A document's state
+ *   becomes events per recipient (signed, else opened), then its terminal
+ *   status; `apply_signing_event` is monotonic, so replaying them is safe.
+ * - **Recipients** are matched to signers by Documenso's recipient id, or by
+ *   signing order for a draft (never by address).
+ * - **The signed PDF** is downloaded (streamed, capped at the bucket's
+ *   20 MB), sniffed, hashed, registered (`register_system_file`, purpose
+ *   `signing_signed`, the request's view permission), uploaded to its own
+ *   path (`upsert: false`: a retry registers a new file), then
+ *   `complete_signature_request`. A failed upload discards the registered
+ *   row (`discard_system_file`).
+ * - **A draft Documenso completed** (a send that died before
+ *   `mark_signature_request_sent`): with its rendered PDF still staged and
+ *   every signer matched, it is marked sent, then completed as usual;
+ *   otherwise it is reported `signing_orphan_completed` (ids only) and left
+ *   as is: never cancelled (the contract is signed at Documenso) and never
+ *   abandoned (that would free its record for a second contract). Someone
+ *   settles it by hand.
+ *
+ * Nothing here logs an address, a name or a body: failures are codes, and
+ * reports carry the org, request and document ids.
+ */
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { z } from 'zod'
+import {
+  type DocumensoClient,
+  documensoClient,
+  DocumensoError,
+} from './documenso.ts'
+import type { PerOrg } from './jobs.ts'
+import { reportError } from './report.ts'
+import { sha256Hex, sniff } from './storage.ts'
+
+/** A failure with a safe code (`runJob` records it; webhooks fail the claim with it). */
+export class SigningFailure extends Error {
+  constructor(
+    readonly code: string,
+    /** The request concerned, when one exists (for reports). */
+    readonly requestId: string | null = null,
+  ) {
+    super(code)
+    this.name = 'SigningFailure'
+  }
+}
+
+/** One `apply_signing_event` call. */
+export interface SigningEvent {
+  event: string
+  recipientId: string | null
+  /** The provider's time (ISO); null lets the database use now. */
+  at: string | null
+  reason: string | null
+}
+
+/** What a document state or a webhook payload says (no address needed). */
+export interface DocumentSnapshot {
+  status?: string
+  completedAt?: string | null
+  recipients: {
+    id: string
+    readStatus?: string
+    signingStatus?: string
+    signedAt?: string | null
+    rejectionReason?: string | null
+  }[]
+}
+
+/** The `signing_signed` purpose and the `signed-documents` bucket cap (Task 3.31). */
+export const SIGNED_PDF_MAX_BYTES = 20 * 1024 * 1024
+/** Requests reconciled at once per org (plan Task 3.33). */
+const CONCURRENCY = 4
+/** `list_signature_requests_to_reconcile` returns at most 100 rows. */
+const RECONCILE_LIMIT = 100
+const DAY_MS = 86_400_000
+const EVENT_NAME = /^[A-Za-z_.]{1,64}$/
+
+/**
+ * Documenso's raw event name (`DOCUMENT_COMPLETED`), from itself or from
+ * PS Hub's dot form (`document.completed`); null when it is not a name.
+ */
+export function normaliseEventName(name: string): string | null {
+  if (!EVENT_NAME.test(name)) return null
+  return name.toUpperCase().replaceAll('.', '_')
+}
+
+const event = (
+  name: string,
+  recipientId: string | null = null,
+  at: string | null = null,
+  reason: string | null = null,
+): SigningEvent => ({ event: name, recipientId, at, reason })
+
+/**
+ * The events a document's state implies, in order: per recipient, signed
+ * (which also marks it viewed) or else opened; then the terminal status.
+ */
+export function documentEvents(doc: DocumentSnapshot): SigningEvent[] {
+  const events: SigningEvent[] = []
+  for (const r of doc.recipients) {
+    if (r.signingStatus === 'SIGNED') {
+      events.push(event('DOCUMENT_SIGNED', r.id, r.signedAt ?? null))
+    } else if (r.readStatus === 'OPENED' && r.signingStatus !== 'REJECTED') {
+      events.push(event('DOCUMENT_OPENED', r.id))
+    }
+  }
+  return [...events, ...terminalEvents(doc.status, doc, null)]
+}
+
+function terminalEvents(
+  status: string | undefined,
+  doc: DocumentSnapshot,
+  at: string | null,
+): SigningEvent[] {
+  switch (status) {
+    case 'COMPLETED':
+      return [event('DOCUMENT_COMPLETED', null, doc.completedAt ?? at)]
+    case 'REJECTED': {
+      const r = doc.recipients.find((r) => r.signingStatus === 'REJECTED')
+      return [
+        event('DOCUMENT_REJECTED', r?.id ?? null, at, r?.rejectionReason),
+      ]
+    }
+    case 'CANCELLED':
+      return [event('DOCUMENT_CANCELLED', null, at)]
+    default:
+      return []
+  }
+}
+
+/**
+ * The calls one webhook makes: only what its event says, read from the
+ * payload's recipients (`at` is the webhook's time, the fallback stamp).
+ * An event the database does not track (`DOCUMENT_CREATED`, `DOCUMENT_SENT`)
+ * makes none.
+ */
+export function webhookEvents(
+  name: string,
+  doc: DocumentSnapshot,
+  at: string | null,
+): SigningEvent[] {
+  switch (name) {
+    case 'DOCUMENT_OPENED': {
+      const opened = doc.recipients.filter((r) => r.readStatus === 'OPENED')
+      return opened.length
+        ? opened.map((r) => event(name, r.id, at))
+        : [event(name, null, at)]
+    }
+    case 'DOCUMENT_SIGNED':
+    case 'DOCUMENT_RECIPIENT_COMPLETED':
+      return doc.recipients.filter((r) => r.signingStatus === 'SIGNED')
+        .map((r) => event(name, r.id, r.signedAt ?? at))
+    case 'DOCUMENT_COMPLETED':
+      return [event(name, null, doc.completedAt ?? at)]
+    case 'DOCUMENT_REJECTED':
+      return terminalEvents('REJECTED', doc, at)
+    case 'DOCUMENT_CANCELLED':
+      return [event(name, null, at)]
+    default:
+      return []
+  }
+}
+
+/** The combined answer of `apply_signing_event` calls. */
+export interface ApplyResult {
+  outcome: 'applied' | 'ignored' | 'not_found' | 'retry'
+  requestId: string | null
+  needsDownload: boolean
+}
+
+const applyRowSchema = z.object({
+  outcome: z.enum(['applied', 'ignored', 'not_found', 'retry']),
+  request_id: z.string().nullable(),
+  needs_download: z.boolean(),
+})
+
+/**
+ * Applies `events` in order (they lock one row, so never in parallel). The
+ * first call finds the row by `ref`; the next ones by the request id it
+ * answered. `retry` and `not_found` stop at once. `applied` when any call
+ * changed the row; `needsDownload` when any asked for the signed PDF.
+ */
+export async function applyEvents(
+  client: SupabaseClient,
+  orgId: string,
+  ref: { requestId: string | null; documentId: string | null },
+  events: SigningEvent[],
+): Promise<ApplyResult> {
+  const result: ApplyResult = {
+    outcome: 'ignored',
+    requestId: ref.requestId,
+    needsDownload: false,
+  }
+  for (const e of events) {
+    const { data, error } = await client.rpc('apply_signing_event', {
+      p_org_id: orgId,
+      p_request_id: result.requestId,
+      p_documenso_document_id: ref.documentId,
+      p_event: e.event,
+      p_recipient_id: e.recipientId,
+      p_at: e.at,
+      p_reason: e.reason,
+    })
+    const row = applyRowSchema.safeParse(Array.isArray(data) ? data[0] : null)
+    if (error || !row.success) throw new SigningFailure('apply_failed')
+    const { outcome, request_id, needs_download } = row.data
+    if (outcome === 'retry' || outcome === 'not_found') {
+      return { outcome, requestId: request_id, needsDownload: false }
+    }
+    if (outcome === 'applied') result.outcome = 'applied'
+    result.requestId = request_id ?? result.requestId
+    result.needsDownload ||= needs_download
+  }
+  return result
+}
+
+const signingRequestSchema = z.object({
+  id: z.string(),
+  module_key: z.string(),
+  status: z.string(),
+  view_permission: z.string(),
+  documenso_document_id: z.string().nullable(),
+  envelope_id: z.string().nullable(),
+  staged_source_file_id: z.string().nullable(),
+  signers: z.array(z.object({
+    role: z.string(),
+    order: z.number().int(),
+    recipient_id: z.string().nullable(),
+  })),
+})
+
+/** One request as the service role reads it (`get_signing_request`). */
+export type SigningRequest = z.infer<typeof signingRequestSchema>
+
+/** The request of the org, or null when it has none with that id. */
+export async function getSigningRequest(
+  client: SupabaseClient,
+  orgId: string,
+  id: string,
+): Promise<SigningRequest | null> {
+  const { data, error } = await client.rpc('get_signing_request', {
+    p_org_id: orgId,
+    p_id: id,
+  })
+  if (error) throw new SigningFailure('request_lookup_failed')
+  if (data === null) return null
+  const parsed = signingRequestSchema.safeParse(data)
+  if (!parsed.success) throw new SigningFailure('request_lookup_failed')
+  return parsed.data
+}
+
+/** An org's Documenso client and its request expiry. */
+export interface OrgSigning {
+  documenso: DocumensoClient
+  expiryDays: number
+}
+
+const settingsSchema = z.object({
+  settings: z.object({
+    base_url: z.string().nullable(),
+    expiry_days: z.number().int().positive(),
+  }),
+})
+
+/**
+ * The org's Documenso (`signing_settings` and the Vault key, read in
+ * parallel), or null when the URL or the key is not set. Downloads are
+ * capped at `SIGNED_PDF_MAX_BYTES`.
+ */
+export async function orgSigning(
+  client: SupabaseClient,
+  orgId: string,
+  fetchFn: typeof fetch,
+  signal?: AbortSignal,
+): Promise<OrgSigning | null> {
+  const [context, secret] = await Promise.all([
+    client.rpc('get_signing_context', {
+      p_org_id: orgId,
+      p_template_version_id: null,
+    }),
+    client.rpc('get_org_secret', {
+      p_org_id: orgId,
+      p_key: 'documenso_api_key',
+    }),
+  ])
+  const parsed = settingsSchema.safeParse(context.data)
+  if (context.error || secret.error || !parsed.success) {
+    throw new SigningFailure('signing_config_failed')
+  }
+  const { base_url, expiry_days } = parsed.data.settings
+  if (!base_url || typeof secret.data !== 'string' || !secret.data) return null
+  return {
+    documenso: documensoClient(base_url, secret.data, fetchFn, {
+      signal,
+      maxDownloadBytes: SIGNED_PDF_MAX_BYTES,
+    }),
+    expiryDays: expiry_days,
+  }
+}
+
+const registeredSchema = z.object({
+  file_id: z.string(),
+  object_path: z.string(),
+})
+
+/**
+ * Registers a system file and uploads its bytes (`upsert: false`). A failed
+ * upload soft-deletes the row (best effort: it is staged, so storage-cleanup
+ * purges it anyway) and throws `uploadCode`.
+ */
+export async function storeSystemFile(
+  client: SupabaseClient,
+  file: {
+    orgId: string
+    bucket: 'documents' | 'signed-documents'
+    purpose: 'signing_source' | 'signing_signed'
+    requestId: string
+    viewPermission: string
+    name: string
+    bytes: Uint8Array
+  },
+  codes: { register: string; upload: string },
+): Promise<string> {
+  const registered = await client.rpc('register_system_file', {
+    p_org_id: file.orgId,
+    p_bucket: file.bucket,
+    p_module_key: 'core',
+    p_purpose: file.purpose,
+    p_subject_type: 'signature_request',
+    p_subject_id: file.requestId,
+    p_mime_type: 'application/pdf',
+    p_size_bytes: file.bytes.length,
+    p_sha256: sha256Hex(file.bytes),
+    p_view_permission: file.viewPermission,
+    p_original_name: file.name,
+  })
+  const row = registeredSchema.safeParse(
+    Array.isArray(registered.data) ? registered.data[0] : null,
+  )
+  if (registered.error || !row.success) throw new SigningFailure(codes.register)
+  const { file_id, object_path } = row.data
+  const upload = await client.storage.from(file.bucket).upload(
+    object_path,
+    file.bytes,
+    { contentType: 'application/pdf', upsert: false },
+  )
+  if (upload.error) {
+    await client.rpc('discard_system_file', {
+      p_org_id: file.orgId,
+      p_file_id: file_id,
+    })
+    throw new SigningFailure(codes.upload)
+  }
+  return file_id
+}
+
+/**
+ * Downloads the signed PDF of a completed document and completes the
+ * request with it (module comment). Throws `DocumensoError` or a
+ * `SigningFailure` (`signed_pdf_invalid`, `signed_register_failed`,
+ * `signed_upload_failed`, `complete_failed`).
+ */
+export async function storeSignedPdf(
+  client: SupabaseClient,
+  documenso: DocumensoClient,
+  orgId: string,
+  request: { id: string; documentId: string; viewPermission: string },
+): Promise<void> {
+  const bytes = await documenso.downloadSigned(request.documentId)
+  if (sniff(bytes) !== 'pdf') throw new SigningFailure('signed_pdf_invalid')
+  const fileId = await storeSystemFile(client, {
+    orgId,
+    bucket: 'signed-documents',
+    purpose: 'signing_signed',
+    requestId: request.id,
+    viewPermission: request.viewPermission,
+    name: 'Document signé.pdf',
+    bytes,
+  }, { register: 'signed_register_failed', upload: 'signed_upload_failed' })
+  const completed = await client.rpc('complete_signature_request', {
+    p_id: request.id,
+    p_signed_file_id: fileId,
+    p_signed_sha256: sha256Hex(bytes),
+  })
+  if (completed.error) throw new SigningFailure('complete_failed')
+}
+
+/** Everything one org's sync needs. */
+export interface SyncContext {
+  client: SupabaseClient
+  orgId: string
+  signing: OrgSigning
+  now: () => Date
+  /** For reports: the function's name. */
+  fn: string
+  fetch: typeof fetch
+}
+
+/** What syncing one request did. */
+export type SyncOutcome =
+  | 'signed'
+  | 'updated'
+  | 'unchanged'
+  | 'abandoned'
+  | 'expired'
+  | 'orphan_completed'
+
+/** A request row as the sync needs it (from any of the read RPCs). */
+export interface SyncRow {
+  id: string
+  status: string
+  documenso_document_id: string | null
+  envelope_id: string | null
+}
+
+/** The view permission (and the rest) of a request about to be stored. */
+async function requireRequest(
+  ctx: SyncContext,
+  id: string,
+): Promise<SigningRequest> {
+  const request = await getSigningRequest(ctx.client, ctx.orgId, id)
+  if (!request) throw new SigningFailure('request_not_found')
+  return request
+}
+
+/**
+ * Reads the document at Documenso and applies what changed; stores the
+ * signed PDF when the request is completed. A draft is settled by
+ * `settleDraft`: with `settleDrafts` (the daily reconcile, for drafts over
+ * a day old) a pending one is cancelled and abandoned; without it (a user's
+ * « Synchroniser », the send may be under way) only a completed one is
+ * recovered.
+ */
+export async function syncRequest(
+  ctx: SyncContext,
+  row: SyncRow,
+  options: { settleDrafts: boolean },
+): Promise<SyncOutcome> {
+  const documentId = row.documenso_document_id
+  if (!documentId) return 'unchanged'
+  const { documenso } = ctx.signing
+  if (row.status === 'draft') {
+    let state = null
+    try {
+      state = await documenso.get(documentId)
+    } catch (error) {
+      // A draft's document may be gone (deleted when the send failed).
+      if (!(error instanceof DocumensoError && error.status === 404)) {
+        throw error
+      }
+    }
+    return await settleDraft(ctx, row, documentId, state, options.settleDrafts)
+  }
+  const state = await documenso.get(documentId)
+  const result = await applyEvents(ctx.client, ctx.orgId, {
+    requestId: row.id,
+    documentId,
+  }, documentEvents(state))
+  if (result.outcome === 'retry' || result.outcome === 'not_found') {
+    throw new SigningFailure(`apply_${result.outcome}`)
+  }
+  if (result.needsDownload) {
+    const request = await requireRequest(ctx, row.id)
+    await storeSignedPdf(ctx.client, documenso, ctx.orgId, {
+      id: row.id,
+      documentId,
+      viewPermission: request.view_permission,
+    })
+    return 'signed'
+  }
+  return result.outcome === 'applied' ? 'updated' : 'unchanged'
+}
+
+async function settleDraft(
+  ctx: SyncContext,
+  row: SyncRow,
+  documentId: string,
+  state: Awaited<ReturnType<DocumensoClient['get']>> | null,
+  cancelStale: boolean,
+): Promise<SyncOutcome> {
+  if (state?.status === 'COMPLETED') {
+    return await recoverCompletedDraft(ctx, row, documentId, state)
+  }
+  if (!cancelStale) return 'unchanged'
+  if (state?.status === 'DRAFT' || state?.status === 'PENDING') {
+    // Documenso cancels only a distributed envelope; a draft goes by its id.
+    await ctx.signing.documenso.cancel(documentId, {
+      envelopeId: state.status === 'PENDING' ? row.envelope_id : null,
+    })
+  }
+  const failed = await ctx.client.rpc('mark_signature_request_failed', {
+    p_id: row.id,
+    p_error_code: 'abandoned',
+  })
+  if (failed.error) throw new SigningFailure('mark_failed_failed')
+  return 'abandoned'
+}
+
+/** `[{role, recipient_id}]` by signing order, or null when a signer has no match. */
+function recipientsByOrder(
+  signers: SigningRequest['signers'],
+  recipients: { id: string; signingOrder: number | null }[],
+): { role: string; recipient_id: string }[] | null {
+  const matched = signers.map((s) => {
+    const found = recipients.filter((r) => r.signingOrder === s.order)
+    return found.length === 1
+      ? { role: s.role, recipient_id: found[0].id }
+      : null
+  })
+  return matched.every((m) => m !== null) &&
+      recipients.length === signers.length
+    ? matched as { role: string; recipient_id: string }[]
+    : null
+}
+
+/** A draft Documenso completed (module comment). */
+async function recoverCompletedDraft(
+  ctx: SyncContext,
+  row: SyncRow,
+  documentId: string,
+  state: Awaited<ReturnType<DocumensoClient['get']>>,
+): Promise<SyncOutcome> {
+  const request = await requireRequest(ctx, row.id)
+  const recipients = recipientsByOrder(request.signers, state.recipients)
+  if (!request.staged_source_file_id || !recipients) {
+    await reportError({
+      fn: ctx.fn,
+      code: 'signing_orphan_completed',
+      ids: {
+        org_id: ctx.orgId,
+        signature_request_id: row.id,
+        document_id: documentId,
+      },
+    }, ctx.fetch)
+    return 'orphan_completed'
+  }
+  const expiresAt = new Date(
+    ctx.now().getTime() + ctx.signing.expiryDays * DAY_MS,
+  )
+  const sent = await ctx.client.rpc('mark_signature_request_sent', {
+    p_id: row.id,
+    p_documenso_document_id: documentId,
+    p_envelope_id: request.envelope_id,
+    p_source_file_id: request.staged_source_file_id,
+    p_signer_recipients: recipients,
+    p_expires_at: expiresAt.toISOString(),
+  })
+  if (sent.error) throw new SigningFailure('mark_sent_failed')
+  const result = await applyEvents(ctx.client, ctx.orgId, {
+    requestId: row.id,
+    documentId,
+  }, documentEvents(state))
+  if (!result.needsDownload) throw new SigningFailure('recover_failed')
+  await storeSignedPdf(ctx.client, ctx.signing.documenso, ctx.orgId, {
+    id: row.id,
+    documentId,
+    viewPermission: request.view_permission,
+  })
+  return 'signed'
+}
+
+const reconcileSchema = z.array(z.object({
+  id: z.string(),
+  status: z.string(),
+  documenso_document_id: z.string().nullable(),
+  envelope_id: z.string().nullable(),
+  action: z.enum(['sync', 'expire', 'abandon']),
+})).max(RECONCILE_LIMIT)
+
+type ReconcileRow = z.infer<typeof reconcileSchema>[number]
+
+/** One listed request (`list_signature_requests_to_reconcile` actions). */
+async function reconcileRow(
+  client: SupabaseClient,
+  ctx: SyncContext | null,
+  row: ReconcileRow,
+): Promise<SyncOutcome> {
+  if (row.action === 'abandon') {
+    const failed = await client.rpc('mark_signature_request_failed', {
+      p_id: row.id,
+      p_error_code: 'abandoned',
+    })
+    if (failed.error) throw new SigningFailure('mark_failed_failed')
+    return 'abandoned'
+  }
+  if (!ctx) throw new SigningFailure('not_configured')
+  const outcome = await syncRequest(ctx, row, { settleDrafts: true })
+  if (row.action !== 'expire' || outcome === 'signed') return outcome
+  // Overdue and still not completed after the sync: expire here first (it
+  // refuses a request Documenso completed), then cancel there.
+  const expired = await client.rpc('expire_signature_request', { p_id: row.id })
+  if (expired.error) throw new SigningFailure('expire_failed')
+  if (expired.data !== true) return outcome
+  await ctx.signing.documenso.cancel(row.documenso_document_id!, {
+    envelopeId: row.envelope_id,
+  })
+  return 'expired'
+}
+
+const LABELS: Record<SyncOutcome, [string, string]> = {
+  signed: ['signée', 'signées'],
+  expired: ['expirée', 'expirées'],
+  abandoned: ['abandonnée', 'abandonnées'],
+  updated: ['mise à jour', 'mises à jour'],
+  unchanged: ['inchangée', 'inchangées'],
+  orphan_completed: ['à vérifier', 'à vérifier'],
+}
+
+/** « 3 demandes suivies (1 signée, 2 inchangées) »: counts only. */
+function detail(counts: Map<SyncOutcome, number>): string {
+  const total = [...counts.values()].reduce((a, b) => a + b, 0)
+  const parts = (Object.keys(LABELS) as SyncOutcome[])
+    .filter((k) => counts.has(k))
+    .map((k) => `${counts.get(k)} ${LABELS[k][counts.get(k)! > 1 ? 1 : 0]}`)
+  return `${total} ${total > 1 ? 'demandes suivies' : 'demande suivie'} (${
+    parts.join(', ')
+  })`
+}
+
+/**
+ * The `core.signing_reconcile` job's work for one org (`runJob`'s
+ * `perOrg`): up to 100 listed requests, 4 at a time. A request that fails
+ * is reported (its id and the error code) and the others go on; then the
+ * run fails as `reconcile_failed`, so « Tâches planifiées » shows it.
+ */
+export function reconcileOrg(
+  deps: { fetch: typeof fetch; now: () => Date },
+  fn: string,
+): PerOrg {
+  return async (orgId, client, signal) => {
+    const listed = await client.rpc('list_signature_requests_to_reconcile', {
+      p_org_id: orgId,
+      p_limit: RECONCILE_LIMIT,
+    })
+    const rows = reconcileSchema.safeParse(listed.data)
+    if (listed.error || !rows.success) throw new SigningFailure('list_failed')
+    if (rows.data.length === 0) return 'Aucune demande à suivre'
+
+    const signing = rows.data.some((r) => r.action !== 'abandon')
+      ? await orgSigning(client, orgId, deps.fetch, signal)
+      : null
+    const ctx: SyncContext | null = signing && {
+      client,
+      orgId,
+      signing,
+      now: deps.now,
+      fn,
+      fetch: deps.fetch,
+    }
+    const counts = new Map<SyncOutcome, number>()
+    let failed = 0
+    for (let i = 0; i < rows.data.length && !signal.aborted; i += CONCURRENCY) {
+      await Promise.all(
+        rows.data.slice(i, i + CONCURRENCY).map(async (row) => {
+          try {
+            const outcome = await reconcileRow(client, ctx, row)
+            counts.set(outcome, (counts.get(outcome) ?? 0) + 1)
+          } catch (error) {
+            failed++
+            const code = (error as { code?: unknown }).code
+            await reportError({
+              fn,
+              code: typeof code === 'string' ? code : 'internal',
+              ids: { org_id: orgId, signature_request_id: row.id },
+            }, deps.fetch)
+          }
+        }),
+      )
+    }
+    if (failed > 0) throw new SigningFailure('reconcile_failed')
+    return detail(counts)
+  }
+}

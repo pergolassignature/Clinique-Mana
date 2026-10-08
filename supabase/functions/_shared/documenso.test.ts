@@ -547,9 +547,11 @@ Deno.test('get: the status and each recipient, without addresses', async () => {
           recipient({
             id: 52,
             email: CLINIC,
+            signingOrder: 2,
             signingStatus: 'SIGNED',
             signedAt: '2026-10-08T14:00:00.000Z',
           }),
+          recipient({ id: 53, email: 'c@mana.test', signingOrder: null }),
         ],
       }),
     ),
@@ -561,6 +563,7 @@ Deno.test('get: the status and each recipient, without addresses', async () => {
     recipients: [
       {
         id: '51',
+        signingOrder: 1,
         signingStatus: 'REJECTED',
         readStatus: 'OPENED',
         signedAt: null,
@@ -568,9 +571,18 @@ Deno.test('get: the status and each recipient, without addresses', async () => {
       },
       {
         id: '52',
+        signingOrder: 2,
         signingStatus: 'SIGNED',
         readStatus: 'NOT_OPENED',
         signedAt: '2026-10-08T14:00:00.000Z',
+        rejectionReason: null,
+      },
+      {
+        id: '53',
+        signingOrder: null,
+        signingStatus: 'NOT_SIGNED',
+        readStatus: 'NOT_OPENED',
+        signedAt: null,
         rejectionReason: null,
       },
     ],

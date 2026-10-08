@@ -95,7 +95,8 @@ select functions_are('public', array[
   'list_subject_signature_requests', 'get_signature_request',
   'get_signing_context', 'create_signature_request', 'mark_signature_request_sent', 'mark_signature_request_failed',
   'apply_signing_event', 'complete_signature_request', 'list_signature_requests_to_reconcile', 'expire_signature_request',
-  'set_document_template_active', 'cancel_signature_request'
+  'set_document_template_active', 'cancel_signature_request',
+  'get_signing_request', 'discard_system_file'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

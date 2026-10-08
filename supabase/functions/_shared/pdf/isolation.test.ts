@@ -55,6 +55,30 @@ Deno.test('pdfmake: the model, template and asset modules do not reach it', asyn
   }
 })
 
+Deno.test('pdfmake: the signing functions that do not render never reach it', async () => {
+  for (
+    const name of [
+      'signing-webhook',
+      'signing-sync',
+      'signing-test-connection',
+      '_shared/signing-events.ts',
+    ]
+  ) {
+    const entry = new URL(
+      name.endsWith('.ts') ? name : `${name}/index.ts`,
+      FUNCTIONS,
+    )
+    const reached = await graph(entry)
+    assert(reached.size > 3, `${name}: the walker follows its imports`)
+    assert(!reached.has(RENDER), `${name} reaches render.ts`)
+    assert(!reached.has(VENDOR), `${name} reaches the vendored pdfmake`)
+  }
+  const sender = await graph(
+    new URL('signing-test-document/index.ts', FUNCTIONS),
+  )
+  assert(sender.has(RENDER), 'signing-test-document renders')
+})
+
 Deno.test('pdfmake: only render.ts (and tests) import the vendored module', async () => {
   const importers: string[] = []
   for (const url of await sources(FUNCTIONS)) {

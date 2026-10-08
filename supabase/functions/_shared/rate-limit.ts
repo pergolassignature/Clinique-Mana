@@ -93,6 +93,30 @@ export const LIMITS = {
     max: 120,
     windowSeconds: 3_600,
   },
+  /**
+   * `signing-sync` (« Synchroniser »), per caller: each call reads the
+   * document from Documenso and may download the signed PDF.
+   */
+  signingSyncUser: {
+    bucket: 'signing.sync_user',
+    max: 60,
+    windowSeconds: 3_600,
+  },
+  /** `signing-test-connection`, per caller: one Documenso read each. */
+  signingTestConnectionUser: {
+    bucket: 'signing.test_connection_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `signing-test-document`, per caller: each call renders a PDF and has
+   * Documenso email the caller.
+   */
+  signingTestDocumentUser: {
+    bucket: 'signing.test_document_user',
+    max: 10,
+    windowSeconds: 3_600,
+  },
 } as const satisfies Record<string, RateLimit>
 
 /**

@@ -149,6 +149,11 @@ export interface DocumensoDocumentState {
   completedAt: string | null
   recipients: {
     id: string
+    /**
+     * As sent to `createDocument` (1-based), or null when Documenso has none:
+     * how the signing functions match recipients to signers (never by address).
+     */
+    signingOrder: number | null
     /** `NOT_SIGNED` | `SIGNED` | `REJECTED` today. */
     signingStatus: string
     /** `NOT_OPENED` | `OPENED` today. */
@@ -304,6 +309,7 @@ const documentSchema = z.object({
   recipients: z.array(z.object({
     id: z.number().int().positive(),
     email: z.string(),
+    signingOrder: z.number().int().nullish().transform((v) => v ?? null),
     signingStatus: z.string(),
     readStatus: z.string(),
     signedAt: nullableString,
@@ -648,6 +654,7 @@ export function documensoClient(
         completedAt: doc.completedAt,
         recipients: doc.recipients.map((r) => ({
           id: String(r.id),
+          signingOrder: r.signingOrder,
           signingStatus: r.signingStatus,
           readStatus: r.readStatus,
           signedAt: r.signedAt,
