@@ -342,6 +342,18 @@ describe('AuditLogPage', () => {
     expect(toggle('07 oct. 2026 à 14:30')).toHaveAttribute('aria-expanded', 'false')
   })
 
+  it('keeps the open rows at midnight while « Tout » is selected', async () => {
+    mocks.clinicDate.value = '2026-10-07'
+    const user = userEvent.setup()
+    const { rerenderPage } = await renderPage()
+    await user.click(toggle('07 oct. 2026 à 14:30'))
+    mocks.clinicDate.value = '2026-10-08'
+    rerenderPage()
+    expect(toggle('07 oct. 2026 à 14:30')).toHaveAttribute('aria-expanded', 'true')
+    // Same query: nothing to reload.
+    expect(mocks.api.fetchAuditEntries).toHaveBeenCalledTimes(1)
+  })
+
   it('announces the count of loaded rows, and names each row button by its action and section', async () => {
     await renderPage()
     expect(screen.getByRole('status')).toHaveTextContent('2 entrées affichées')
@@ -359,7 +371,10 @@ describe('AuditLogPage', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(t('audit.filters.actorsError'))
     mocks.api.fetchAuditActors.mockResolvedValue([{ actor_id: 'a2', actor_name: 'Julie Roy' }])
-    await user.click(within(alert).getByRole('button', { name: t('common.retry') }))
+    // Its own name, distinct from the journal's « Réessayer », and starting with the visible word.
+    const retry = within(alert).getByRole('button', { name: 'Réessayer de charger les personnes' })
+    expect(retry).toHaveTextContent(t('common.retry'))
+    await user.click(retry)
     await waitFor(() => expect(within(filter('Personne')).getAllByRole('option')).toHaveLength(2))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })

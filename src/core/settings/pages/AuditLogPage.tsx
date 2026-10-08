@@ -89,9 +89,9 @@ export function AuditLogPage() {
   const from = periodStartOn(period, clinicDate)
   const filters = useMemo<AuditFilters>(() => ({ table: table || null, actor: actor || null, from }), [table, actor, from])
   const hasFilters = table !== '' || actor !== '' || period !== 'all'
-  // What the rows on screen belong to. A new filter or a new clinic day closes every row and drops
-  // a pending « Charger plus » focus move: both are keyed by it.
-  const view = `${clinicDate}|${table}|${actor}|${period}`
+  // What the rows on screen belong to. A new filter, or a new period start (midnight, unless
+  // « Tout »), closes every row and drops a pending « Charger plus » focus move: both are keyed by it.
+  const view = `${from ?? 'all'}|${table}|${actor}|${period}`
   const [opened, setOpened] = useState<{ view: string; ids: ReadonlySet<number> }>({ view, ids: NO_ROWS })
   const expanded = opened.view === view ? opened.ids : NO_ROWS
   const loadMoreView = useRef<string | null>(null)
@@ -321,7 +321,15 @@ export function AuditLogPage() {
           {actorsFailed && !actors && (
             <div role="alert" className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
               <p>{t('audit.filters.actorsError')}</p>
-              <Button type="button" variant="link" className="text-xs" disabled={actorsFetching} onClick={() => void refetchActors()}>
+              <Button
+                type="button"
+                variant="link"
+                className="text-xs"
+                // Not just « Réessayer »: the journal's own retry may be on the page too.
+                aria-label={t('audit.filters.actorsRetry')}
+                disabled={actorsFetching}
+                onClick={() => void refetchActors()}
+              >
                 {t('common.retry')}
               </Button>
             </div>

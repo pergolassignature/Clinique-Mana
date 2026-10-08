@@ -478,6 +478,7 @@
       "actor": "Personne",
       "allActors": "Toutes les personnes",
       "actorsError": "La liste des personnes n'a pas pu être chargée.",
+      "actorsRetry": "Réessayer de charger les personnes",
       "period": "Période",
       "periods": {
         "today": "Aujourd'hui",
