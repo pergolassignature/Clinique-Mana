@@ -77,14 +77,19 @@ export function UsersSettingsPage() {
 
 /**
  * The users and the pending invitations: two queries started together (no waterfall); the table
- * shows once both are in. A failed one shows the load error, and « Réessayer » asks again for what
- * failed.
+ * shows once both are in. When the users fail, the load error replaces the table, and
+ * « Réessayer » asks again for what failed. When only the invitations fail, the users still show,
+ * with the invitations' own load error above them.
  */
 function UsersTab({ canManage }: { canManage: boolean }) {
   const usersQuery = useOrgUsers()
   const invitationsQuery = useStaffInvitations()
   const users = usersQuery.data
   const failed = [usersQuery, invitationsQuery].filter((q) => q.isError && !q.data)
+  const invitationsFailed = invitationsQuery.isError && !invitationsQuery.data
+  const invitations = invitationsQuery.data ?? (invitationsFailed ? [] : undefined)
+  // « Inviter », where focus goes once an invitation's revocation is confirmed (its row goes).
+  const inviteButton = useRef<HTMLButtonElement>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // From the list, so the sheet shows the refreshed user after each change.
   const selected = users?.find((u) => u.user_id === selectedId) ?? null
@@ -115,26 +120,36 @@ function UsersTab({ canManage }: { canManage: boolean }) {
       {/* The screen's one teal action (users.manage). */}
       {canManage && (
         <div className="flex justify-end">
-          <InviteDialog />
+          <InviteDialog triggerRef={inviteButton} />
         </div>
       )}
-      {failed.length > 0 ? (
+      {usersQuery.isError && !users ? (
         <LoadError
           message={t('settings.users.loadError')}
           onRetry={() => failed.forEach((q) => void q.refetch())}
           retrying={failed.some((q) => q.isFetching)}
         />
-      ) : !users || !invitationsQuery.data ? (
+      ) : !users || !invitations ? (
         <Loading />
       ) : (
-        <UsersTable
-          users={users}
-          invitations={invitationsQuery.data}
-          canManage={canManage}
-          selectedId={selected?.user_id ?? null}
-          onOpen={open}
-          buttonRef={buttonRef}
-        />
+        <>
+          {invitationsFailed && (
+            <LoadError
+              message={t('settings.users.invitations.loadError')}
+              onRetry={() => void invitationsQuery.refetch()}
+              retrying={invitationsQuery.isFetching}
+            />
+          )}
+          <UsersTable
+            users={users}
+            invitations={invitations}
+            canManage={canManage}
+            selectedId={selected?.user_id ?? null}
+            onOpen={open}
+            buttonRef={buttonRef}
+            onRevokeConfirmed={() => inviteButton.current?.focus()}
+          />
+        </>
       )}
       {canManage && (
         <UserSheet
@@ -157,17 +172,20 @@ interface UsersTableProps {
   onOpen: (userId: string) => void
   /** The name button's callback ref, the same function for a user on every render. */
   buttonRef: (userId: string) => (button: HTMLButtonElement | null) => void
+  /** Moves focus once an invitation's revocation is confirmed (its row is going). */
+  onRevokeConfirmed: () => void
 }
 
 /**
- * Nom (avatar, name; the email under it on phones), Courriel, Rôle, Statut, Dernière connexion.
- * On phones the email, status and last sign-in columns are hidden: the email shows under the name,
- * the status under the role, the last sign-in in the sheet. The name is a button for keyboard
+ * Nom (avatar, name; the email under it on phones), Courriel, Rôle, Statut, Activité: a user's last
+ * sign-in (named for screen readers), an invitation's expiry and sender. On phones the email,
+ * status and activity columns are hidden: the email shows under the name, the status under the
+ * role, the last sign-in in the sheet. The name is a button for keyboard
  * users; a click anywhere on the row opens the sheet too. The active users come first, then the
  * pending invitations, then the disabled accounts; with users.manage and invitations, a last
  * column holds the invitations' actions.
  */
-function UsersTable({ users, invitations, canManage, selectedId, onOpen, buttonRef }: UsersTableProps) {
+function UsersTable({ users, invitations, canManage, selectedId, onOpen, buttonRef, onRevokeConfirmed }: UsersTableProps) {
   const lastSignIn = (u: OrgUser) => (u.last_sign_in_at ? formatClinicDateTime(u.last_sign_in_at) : t('settings.users.never'))
   const actionsColumn = canManage && invitations.length > 0
   const userRow = (u: OrgUser) => {
@@ -219,7 +237,10 @@ function UsersTable({ users, invitations, canManage, selectedId, onOpen, buttonR
           <span className="block sm:hidden">{status}</span>
         </TableCell>
         <TableCell className="max-sm:hidden">{status}</TableCell>
-        <TableCell className="text-muted-foreground max-sm:hidden">{lastSignIn(u)}</TableCell>
+        <TableCell className="text-muted-foreground max-sm:hidden">
+          <span className="sr-only">{t('settings.users.lastSignIn')} </span>
+          {lastSignIn(u)}
+        </TableCell>
         {actionsColumn && <TableCell />}
       </TableRow>
     )
@@ -245,7 +266,7 @@ function UsersTable({ users, invitations, canManage, selectedId, onOpen, buttonR
               {t('settings.users.columns.status')}
             </TableHead>
             <TableHead scope="col" className="max-sm:hidden">
-              {t('settings.users.columns.lastSignIn')}
+              {t('settings.users.columns.activity')}
             </TableHead>
             {actionsColumn && (
               <TableHead scope="col">
@@ -256,7 +277,7 @@ function UsersTable({ users, invitations, canManage, selectedId, onOpen, buttonR
         </TableHeader>
         <TableBody>
           {users.filter((u) => u.status === 'active').map(userRow)}
-          <PendingInvitationRows invitations={invitations} canManage={canManage} />
+          <PendingInvitationRows invitations={invitations} canManage={canManage} onRevokeConfirmed={onRevokeConfirmed} />
           {users.filter((u) => u.status !== 'active').map(userRow)}
         </TableBody>
       </Table>

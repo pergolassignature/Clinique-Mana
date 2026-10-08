@@ -74,7 +74,7 @@ const rowOf = (name: string) => {
   if (!row) throw new Error(`no row for ${name}`)
   return row
 }
-const COLUMNS = ['name', 'email', 'role', 'status', 'lastSignIn'] as const
+const COLUMNS = ['name', 'email', 'role', 'status', 'activity'] as const
 /** One cell of a user's row, by column (the phone copies under the name and role live in other cells). */
 const cell = (name: string, column: (typeof COLUMNS)[number]) => within(rowOf(name)).getAllByRole('cell', { hidden: true })[COLUMNS.indexOf(column)] as HTMLElement
 
@@ -102,18 +102,21 @@ describe('UsersSettingsPage', () => {
       t('settings.users.columns.email'),
       t('settings.users.columns.role'),
       t('settings.users.columns.status'),
-      t('settings.users.columns.lastSignIn'),
+      t('settings.users.columns.activity'),
     ])
 
     expect(cell('Conseillère Locale', 'email')).toHaveTextContent('conseillere@mana.test')
     expect(cell('Conseillère Locale', 'role')).toHaveTextContent(t('roles.counselor'))
     expect(cell('Conseillère Locale', 'status')).toHaveTextContent(t('settings.users.status.active'))
-    expect(cell('Conseillère Locale', 'lastSignIn')).toHaveTextContent(formatClinicDateTime('2026-10-06T13:05:00+00:00'))
+    // « Activité »: a user's last sign-in, named for screen readers.
+    expect(cell('Conseillère Locale', 'activity')).toHaveTextContent(
+      `${t('settings.users.lastSignIn')} ${formatClinicDateTime('2026-10-06T13:05:00+00:00')}`,
+    )
     // Phones: the email under the name, the status under the role.
     expect(within(cell('Conseillère Locale', 'name')).getByText('conseillere@mana.test')).toBeInTheDocument()
     expect(within(cell('Conseillère Locale', 'role')).getByText(t('settings.users.status.active'))).toBeInTheDocument()
 
-    expect(cell('Adjointe Locale', 'lastSignIn')).toHaveTextContent(t('settings.users.never'))
+    expect(cell('Adjointe Locale', 'activity')).toHaveTextContent(t('settings.users.never'))
     expect(cell('Adjointe Locale', 'role')).toHaveTextContent(t('roles.admin_assistant'))
     expect(cell('Pro Local', 'status')).toHaveTextContent(t('settings.users.status.disabled'))
     expect(cell('Pro Local', 'role')).toHaveTextContent(t('roles.provider'))
@@ -325,6 +328,7 @@ describe('UsersSettingsPage', () => {
       is_expired: false,
       invited_by_name: 'Admin Local',
       last_email_status: 'delivered',
+      last_email_error_code: null,
     }
     const expired: StaffInvitation = {
       ...pending,
@@ -356,10 +360,10 @@ describe('UsersSettingsPage', () => {
       expect(cell('Nouvelle Personne', 'status')).toHaveTextContent(
         t('settings.users.invitations.email', { status: emailStatusLabel('delivered', null).label }),
       )
-      expect(cell('Nouvelle Personne', 'lastSignIn')).toHaveTextContent(
+      expect(cell('Nouvelle Personne', 'activity')).toHaveTextContent(
         t('settings.users.invitations.expires', { date: formatClinicDateShort(pending.expires_at ?? '') }),
       )
-      expect(cell('Nouvelle Personne', 'lastSignIn')).toHaveTextContent(t('settings.users.invitations.invitedBy', { name: 'Admin Local' }))
+      expect(cell('Nouvelle Personne', 'activity')).toHaveTextContent(t('settings.users.invitations.invitedBy', { name: 'Admin Local' }))
       expect(screen.getByText(`${t('settings.users.countOther', { count: '4' })} · ${t('settings.users.invitations.countOther', { count: '2' })}`)).toBeInTheDocument()
     })
 
@@ -369,16 +373,34 @@ describe('UsersSettingsPage', () => {
       await screen.findByRole('table', { name: t('settings.users.tableLabel') })
       expect(cell('Ancienne Invitation', 'status')).toHaveTextContent(t('settings.users.invitations.status.expired'))
       expect(cell('Ancienne Invitation', 'status')).toHaveTextContent(t('settings.users.invitations.email', { status: t('email.status.bounced') }))
-      expect(cell('Ancienne Invitation', 'lastSignIn')).toHaveTextContent(
+      expect(cell('Ancienne Invitation', 'activity')).toHaveTextContent(
         t('settings.users.invitations.expired', { date: formatClinicDateShort(expired.expires_at ?? '') }),
       )
     })
 
-    it('an invitation whose email never left says so', async () => {
-      mocks.listStaffInvitations.mockResolvedValue([{ ...pending, last_email_status: null }])
+    it.each([
+      ['never left', null, null],
+      ['bounced', 'bounced', null],
+      ['failed', 'failed', 'provider_rejected'],
+      ['failed, code not known yet', 'failed', null],
+    ])('an invitation whose email %s reads « Courriel non remis » (warning), not « Invitation envoyée »', async (_label, status, errorCode) => {
+      mocks.listStaffInvitations.mockResolvedValue([{ ...pending, last_email_status: status, last_email_error_code: errorCode }])
       renderPage()
       await screen.findByRole('table', { name: t('settings.users.tableLabel') })
-      expect(cell('Nouvelle Personne', 'status')).toHaveTextContent(t('settings.users.invitations.emailNone'))
+      const statusCell = cell('Nouvelle Personne', 'status')
+      expect(statusCell).toHaveTextContent(t('settings.users.invitations.status.notDelivered'))
+      expect(statusCell).not.toHaveTextContent(t('settings.users.invitations.status.sent'))
+      if (status === null) expect(statusCell).toHaveTextContent(t('settings.users.invitations.emailNone'))
+    })
+
+    it('an email whose outcome is unknown (provider_unavailable) reads « Résultat inconnu », not a failure', async () => {
+      mocks.listStaffInvitations.mockResolvedValue([{ ...pending, last_email_status: 'failed', last_email_error_code: 'provider_unavailable' }])
+      renderPage()
+      await screen.findByRole('table', { name: t('settings.users.tableLabel') })
+      const statusCell = cell('Nouvelle Personne', 'status')
+      expect(within(statusCell).getAllByText(t('email.failure.unknownOutcome'), { exact: false })).not.toHaveLength(0)
+      expect(statusCell).not.toHaveTextContent(t('settings.users.invitations.status.notDelivered'))
+      expect(statusCell).not.toHaveTextContent(t('email.status.failed'))
     })
 
     it('without users.manage they are listed with no « Renvoyer » nor « Révoquer »', async () => {
@@ -392,10 +414,11 @@ describe('UsersSettingsPage', () => {
 
     it('« Renvoyer » sends a new link through resendInvitation (staff-invite), then refetches the invitations', async () => {
       mocks.listStaffInvitations.mockResolvedValue([pending])
-      mocks.resendInvitation.mockResolvedValue({ invitationId: 'i1', emailProblem: null })
+      mocks.resendInvitation.mockResolvedValue({ invitationId: 'i1', expiresAt: null, emailProblem: null })
       renderPage()
       await screen.findByRole('table', { name: t('settings.users.tableLabel') })
-      await userEvent.click(within(rowOf('Nouvelle Personne')).getByRole('button', { name: t('settings.users.invitations.resend') }))
+      // Each row's actions name the person.
+      await userEvent.click(screen.getByRole('button', { name: t('settings.users.invitations.resendLabel', { name: 'Nouvelle Personne' }) }))
       await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.users.invitations.resent', { email: 'nouvelle@mana.test' })))
       expect(mocks.resendInvitation).toHaveBeenCalledExactlyOnceWith('i1')
       await waitFor(() => expect(mocks.listStaffInvitations).toHaveBeenCalledTimes(2))
@@ -403,34 +426,51 @@ describe('UsersSettingsPage', () => {
 
     it('« Renvoyer » whose email failed says the old link no longer works', async () => {
       mocks.listStaffInvitations.mockResolvedValue([pending])
-      mocks.resendInvitation.mockResolvedValue({ invitationId: 'i1', emailProblem: 'provider_error' })
+      mocks.resendInvitation.mockResolvedValue({ invitationId: 'i1', expiresAt: null, emailProblem: { code: 'provider_error', retryAfter: null } })
       renderPage()
       await screen.findByRole('table', { name: t('settings.users.tableLabel') })
-      await userEvent.click(within(rowOf('Nouvelle Personne')).getByRole('button', { name: t('settings.users.invitations.resend') }))
+      await userEvent.click(within(rowOf('Nouvelle Personne')).getByRole('button', { name: t('settings.users.invitations.resendLabel', { name: 'Nouvelle Personne' }) }))
       await waitFor(() =>
         expect(mocks.toast.error).toHaveBeenCalledWith(t('settings.users.invitations.resendNotSent'), {
-          description: t('settings.users.invite.emailProblems.provider_error'),
+          description: `${t('settings.users.invite.emailProblems.provider_error')} ${t('settings.users.invite.emailAdvice')}`,
         }),
       )
     })
 
-    it('« Révoquer » asks for confirmation first', async () => {
+    it('« Révoquer » asks for confirmation first; once confirmed, focus goes to « Inviter » and the row is inactive meanwhile', async () => {
       mocks.listStaffInvitations.mockResolvedValue([pending])
-      mocks.revokeInvitation.mockResolvedValue(undefined)
+      let finishRevoke: () => void = () => {}
+      mocks.revokeInvitation.mockReturnValue(new Promise<void>((resolve) => (finishRevoke = resolve)))
       renderPage()
       await screen.findByRole('table', { name: t('settings.users.tableLabel') })
-      await userEvent.click(within(rowOf('Nouvelle Personne')).getByRole('button', { name: t('settings.users.invitations.revoke') }))
+      const revokeButton = () => screen.getByRole('button', { name: t('settings.users.invitations.revokeLabel', { name: 'Nouvelle Personne' }) })
+      const resendButton = () => screen.getByRole('button', { name: t('settings.users.invitations.resendLabel', { name: 'Nouvelle Personne' }) })
+      await userEvent.click(revokeButton())
       const confirm = await screen.findByRole('alertdialog', { name: t('settings.users.invitations.revokeConfirm.title', { name: 'Nouvelle Personne' }) })
       expect(confirm).toHaveAccessibleDescription(t('settings.users.invitations.revokeConfirm.body', { email: 'nouvelle@mana.test' }))
       await userEvent.click(within(confirm).getByRole('button', { name: t('common.cancel') }))
       expect(mocks.revokeInvitation).not.toHaveBeenCalled()
+      // Cancelled: back to « Révoquer ».
+      await waitFor(() => expect(revokeButton()).toHaveFocus())
 
-      await userEvent.click(within(rowOf('Nouvelle Personne')).getByRole('button', { name: t('settings.users.invitations.revoke') }))
-      await userEvent.click(
-        within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('settings.users.invitations.revokeConfirm.confirm') }),
-      )
+      await userEvent.click(revokeButton())
+      const second = await screen.findByRole('alertdialog')
+      await userEvent.click(within(second).getByRole('button', { name: t('settings.users.invitations.revokeConfirm.confirm') }))
+      // The dialog keeps its text while it closes.
+      expect(second).toHaveTextContent(t('settings.users.invitations.revokeConfirm.title', { name: 'Nouvelle Personne' }))
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(screen.getByRole('button', { name: t('settings.users.invite.button') })).toHaveFocus())
+      // While the revocation runs, the row's actions are inactive.
+      expect(revokeButton()).toHaveAttribute('aria-disabled', 'true')
+      expect(resendButton()).toHaveAttribute('aria-disabled', 'true')
+      await userEvent.click(resendButton())
+      expect(mocks.resendInvitation).not.toHaveBeenCalled()
+
+      mocks.listStaffInvitations.mockResolvedValue([])
+      finishRevoke()
       await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.users.invitations.revoked')))
       expect(mocks.revokeInvitation).toHaveBeenCalledExactlyOnceWith('i1')
+      await waitFor(() => expect(within(table()).queryByText('Nouvelle Personne')).not.toBeInTheDocument())
     })
 
     it('asks for the users and the invitations in parallel; the table waits for both', async () => {
@@ -448,13 +488,26 @@ describe('UsersSettingsPage', () => {
       expect(await screen.findByRole('table', { name: t('settings.users.tableLabel') })).toBeInTheDocument()
     })
 
-    it('a failed invitations load shows the load error, and « Réessayer » asks again', async () => {
+    it('only the invitations failed: the users still show, with the invitations\' own error; « Réessayer » asks for them again', async () => {
+      mocks.listStaffInvitations.mockRejectedValueOnce(new Error('boom')).mockResolvedValue([pending])
+      renderPage()
+      expect(await screen.findByText(t('settings.users.invitations.loadError'))).toBeInTheDocument()
+      expect(screen.queryByText(t('settings.users.loadError'))).not.toBeInTheDocument()
+      expect(screen.getByRole('table', { name: t('settings.users.tableLabel') })).toBeInTheDocument()
+      expect(rowOf('Conseillère Locale')).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: t('common.retry') }))
+      expect(await within(table()).findByText('Nouvelle Personne')).toBeInTheDocument()
+      expect(screen.queryByText(t('settings.users.invitations.loadError'))).not.toBeInTheDocument()
+      expect(mocks.fetchOrgUsers).toHaveBeenCalledTimes(1)
+    })
+
+    it('both failed: the users\' load error, and « Réessayer » asks for both again', async () => {
+      mocks.fetchOrgUsers.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(testUsers)
       mocks.listStaffInvitations.mockRejectedValueOnce(new Error('boom')).mockResolvedValue([pending])
       renderPage()
       expect(await screen.findByText(t('settings.users.loadError'))).toBeInTheDocument()
       await userEvent.click(screen.getByRole('button', { name: t('common.retry') }))
-      expect(await screen.findByRole('table', { name: t('settings.users.tableLabel') })).toBeInTheDocument()
-      expect(rowOf('Nouvelle Personne')).toBeInTheDocument()
+      expect(await within(await screen.findByRole('table', { name: t('settings.users.tableLabel') })).findByText('Nouvelle Personne')).toBeInTheDocument()
     })
   })
 })

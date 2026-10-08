@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import * as Sentry from '@sentry/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { t } from '@/i18n'
+import type { AccessContextValue } from '@/core/access/access-context'
 import type { AuthContextValue } from '@/core/auth/auth-context'
 import { FunctionCallError } from '@/core/supabase/functions'
-import { renderWithContexts } from '@/test/contexts'
+import { renderWithContexts, testAccess } from '@/test/contexts'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { InvitationPage } from './InvitationPage'
 
@@ -41,6 +43,7 @@ function openLink(
   hash = `#t=${TOKEN}`,
   auth: Partial<AuthContextValue> = {},
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  access: Partial<AccessContextValue> = { status: 'idle', access: null },
 ) {
   window.history.replaceState(null, '', `/invitation${hash}`)
   vi.spyOn(window.history, 'replaceState').mockImplementation(function (this: History, ...args) {
@@ -62,7 +65,7 @@ function openLink(
           />
           <Route path="*" element={<Where />} />
         </Routes>,
-        { auth: { session: null, ...auth }, access: { status: 'idle', access: null }, path: `/invitation${hash}` },
+        { auth: { session: null, ...auth }, access, path: `/invitation${hash}` },
       )}
     </QueryClientProvider>,
   )
@@ -167,16 +170,24 @@ describe('InvitationPage — the link', () => {
   })
 
   it.each([
-    ['rate_limited', 429, t('invitation.states.rate_limited')],
+    ['rate_limited', 429, `${t('invitation.states.rate_limited')} ${t('common.retryIn.later')}`],
     ['network', 0, t('invitation.states.error')],
     ['internal', 500, t('invitation.states.error')],
   ])('%s: a message and « Réessayer », which asks again', async (code, status, text) => {
     mocks.resolveLink.mockRejectedValueOnce(new FunctionCallError(code, status, 'x'))
     openLink()
     expect(await screen.findByText(text)).toBeInTheDocument()
+    // The form is replaced: focus goes to the heading.
+    await waitFor(() => expect(screen.getByRole('heading', { name: t('invitation.title') })).toHaveFocus())
     await userEvent.click(screen.getByRole('button', { name: t('common.retry') }))
     expect(await screen.findByRole('heading', { name: t('invitation.welcome', { clinic: 'Clinique MANA' }) })).toBeInTheDocument()
     expect(mocks.resolveLink).toHaveBeenCalledTimes(2)
+  })
+
+  it('rate_limited says roughly how long to wait, from Retry-After', async () => {
+    mocks.resolveLink.mockRejectedValueOnce(new FunctionCallError('rate_limited', 429, 'x', {}, 2700))
+    openLink()
+    expect(await screen.findByText('Trop de tentatives. Réessayez dans environ 45 minutes.')).toBeInTheDocument()
   })
 })
 
@@ -219,13 +230,24 @@ describe('InvitationPage — the password', () => {
       return null
     })
     openLink(undefined, { session: { user: { id: 'u-other', email: 'autre@mana.test' } } as Session, signOut, signInWithPassword }, queryClient)
-    expect(await screen.findByText(t('invitation.otherUser', { name: 'autre@mana.test' }))).toBeInTheDocument()
+    // Their access is not loaded: a generic line, never their address.
+    expect(await screen.findByText(t('invitation.otherUserUnnamed'))).toBeInTheDocument()
+    expect(screen.queryByText(/autre@mana\.test/)).not.toBeInTheDocument()
     await fillAndSubmit()
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/accueil'))
     expect(signOut).toHaveBeenCalledExactlyOnceWith({ reload: false })
     // The cleared cache neither looks the spent link up again nor drops the form meanwhile.
     expect(log.slice(log.indexOf('accept'))).toEqual(['accept', 'signOut', 'signIn'])
     expect(mocks.resolveLink).toHaveBeenCalledTimes(1)
+  })
+
+  it('someone else signed in, with their access loaded: named by their display name only', async () => {
+    openLink(undefined, { session: { user: { id: 'u-other', email: 'autre@mana.test' } } as Session }, undefined, {
+      status: 'ready',
+      access: { ...testAccess, display_name: 'Julie Roy', email: 'autre@mana.test' },
+    })
+    expect(await screen.findByText(t('invitation.otherUser', { name: 'Julie Roy' }))).toBeInTheDocument()
+    expect(screen.queryByText(/autre@mana\.test/)).not.toBeInTheDocument()
   })
 
   it('the sign-in fails after acceptance: the account is active, sign in from /connexion', async () => {
@@ -253,14 +275,38 @@ describe('InvitationPage — the password', () => {
   })
 
   it.each([
-    ['invalid_request', 400, t('auth.errors.weak_password')],
-    ['rate_limited', 429, t('invitation.states.rate_limited')],
+    ['weak_password', 400, t('auth.errors.weak_password')],
+    ['rate_limited', 429, `${t('invitation.states.rate_limited')} ${t('common.retryIn.minutesOther', { count: '15' })}`],
+    ['invalid_request', 400, t('invitation.errors.generic')],
     ['internal', 500, t('invitation.errors.generic')],
   ])('an accept failure %s keeps the form, with its message', async (code, status, text) => {
-    mocks.acceptInvite.mockRejectedValue(new FunctionCallError(code, status, 'x'))
+    mocks.acceptInvite.mockRejectedValue(new FunctionCallError(code, status, 'x', {}, code === 'rate_limited' ? 900 : null))
     openLink()
     await fillAndSubmit()
     expect(await screen.findByRole('alert')).toHaveTextContent(text)
     expect(passwordField()).toBeInTheDocument()
+  })
+})
+
+describe('InvitationPage — Sentry', () => {
+  it('reports unexpected failures with their code, never the token or the password', async () => {
+    // An unexpected error whose text happens to quote the token and the password.
+    mocks.resolveLink.mockRejectedValueOnce(new TypeError(`fetch /x?t=${TOKEN} failed (${PASSWORD})`))
+    openLink()
+    await screen.findByText(t('invitation.states.error'))
+    await userEvent.click(screen.getByRole('button', { name: t('common.retry') }))
+    mocks.acceptInvite.mockRejectedValueOnce(new FunctionCallError('internal', 500, 'Invitation could not be accepted'))
+    await fillAndSubmit()
+    await screen.findByText(t('invitation.errors.generic'))
+
+    const calls = vi.mocked(Sentry.captureException).mock.calls
+    expect(calls).toHaveLength(2)
+    const sent = JSON.stringify(calls.map(([error, context]) => ({ name: (error as Error).name, message: (error as Error).message, stack: (error as Error).stack, context })))
+    expect(sent).not.toContain(TOKEN)
+    expect(sent).not.toContain(PASSWORD)
+    expect(calls.map(([error]) => [(error as Error).name, (error as Error).message])).toEqual([
+      ['FunctionCallError internal', 'TypeError'],
+      ['FunctionCallError internal', 'Invitation could not be accepted'],
+    ])
   })
 })

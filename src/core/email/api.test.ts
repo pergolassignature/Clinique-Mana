@@ -1,5 +1,6 @@
 import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { FunctionCallError } from '@/core/supabase/functions'
 import {
   EMAIL_LOG_PAGE_SIZE,
   EmailFunctionError,
@@ -163,7 +164,8 @@ describe('previewEmail', () => {
     })
     const error = await previewEmail('core.staff_invite', DRAFT).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(EmailFunctionError)
-    expect(error).toMatchObject({ code: 'invalid_request', status: 400, message: 'Unknown variable', variable: 'client.diagnosis' })
+    expect(error).toBeInstanceOf(FunctionCallError)
+    expect(error).toMatchObject({ name: 'EmailFunctionError', code: 'invalid_request', status: 400, message: 'Unknown variable', variable: 'client.diagnosis' })
   })
 
   it('reads an answer that is not the function’s JSON as internal, and a network failure as network', async () => {

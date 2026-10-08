@@ -8,7 +8,8 @@ vi.mock('@sentry/react', () => mocks)
 
 afterEach(() => vi.clearAllMocks())
 
-const fail = (code: string, status: number, message = 'x', variable?: string) => new EmailFunctionError(code, status, message, variable)
+const fail = (code: string, status: number, message = 'x', variable?: string) =>
+  new EmailFunctionError(code, status, message, variable === undefined ? {} : { variable })
 
 describe('emailErrorMessage', () => {
   it.each([

@@ -27,7 +27,8 @@ export async function resolveLink(token: string): Promise<InvitationDisplay> {
 /**
  * Creates the invitee's account with her password (`accept-invite`) and returns its address, for
  * the sign-in that follows. Throws the function's refusal (`conflict`, a link state,
- * `rate_limited`, `invalid_request` for a password Auth refused…) as a FunctionCallError.
+ * `rate_limited` with its `retryAfter`, `weak_password` for a password Auth refused…) as a
+ * FunctionCallError.
  */
 export async function acceptInvite(token: string, password: string): Promise<{ email: string }> {
   const answer = acceptedSchema.safeParse(await invokeFunction('accept-invite', { token, password }))

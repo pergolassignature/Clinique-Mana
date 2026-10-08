@@ -10,6 +10,7 @@ import { useAuth } from '@/core/auth/auth-context'
 import { AuthCard, StatusNotice } from '@/core/auth/pages/AuthCard'
 import { newPasswordSchema, type NewPasswordValues } from '@/core/auth/password-schema'
 import { FunctionCallError } from '@/core/supabase/functions'
+import { retryInText } from '@/shared/lib/retry-after'
 import { usePageTitle, useNoIndex } from '@/shared/lib/use-page-title'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { Button } from '@/shared/ui/button'
@@ -27,11 +28,19 @@ const isEnding = (code: string): code is Ending => (ENDINGS as readonly string[]
 
 const codeOf = (error: unknown) => (error instanceof FunctionCallError ? error.code : 'internal')
 
-/** Reports a failure the page does not expect (code and message only: never the token). */
+/** « Trop de tentatives. Réessayez dans environ 45 minutes. » (`Retry-After` when the function sent it). */
+const rateLimitedText = (error: unknown) =>
+  `${t('invitation.states.rate_limited')} ${retryInText(error instanceof FunctionCallError ? error.retryAfter : null)}`
+
+/**
+ * Reports a failure the page does not expect: its code and the function's own message only (the
+ * functions' messages never carry a token, a password or an address). Any other error sends its
+ * class name, never its text, which could quote a value.
+ */
 function report(error: unknown) {
   const code = codeOf(error)
   if (code === 'network') return
-  const failure = new Error(error instanceof Error ? error.message : String(error))
+  const failure = new Error(error instanceof FunctionCallError ? error.message : error instanceof Error ? error.name : typeof error)
   failure.name = `FunctionCallError ${code}`
   Sentry.captureException(failure, { tags: { area: 'auth', code } })
 }
@@ -93,10 +102,12 @@ function InvitationLink({ hash }: { hash: string }) {
   }, [resolveCode, resolved.error])
 
   const shown = ending ?? (resolveCode && isEnding(resolveCode) ? resolveCode : null)
-  // The form is replaced by a message: keep focus on the card. The live region announces it.
+  // The form is replaced by a message (an ending, or a failed check with « Réessayer »): focus
+  // goes to its heading. The live region announces it.
+  const replaced = shown ?? (resolved.isError ? 'error' : null)
   useEffect(() => {
-    if (shown) headingRef.current?.focus()
-  }, [shown])
+    if (replaced) headingRef.current?.focus()
+  }, [replaced])
 
   if (shown === 'activated') {
     return (
@@ -118,7 +129,7 @@ function InvitationLink({ hash }: { hash: string }) {
       <AuthCard
         title={t('invitation.title')}
         headingRef={headingRef}
-        status={<StatusNotice>{t(resolveCode === 'rate_limited' ? 'invitation.states.rate_limited' : 'invitation.states.error')}</StatusNotice>}
+        status={<StatusNotice>{resolveCode === 'rate_limited' ? rateLimitedText(resolved.error) : t('invitation.states.error')}</StatusNotice>}
       >
         <Button type="button" variant="outline" className="w-full" disabled={resolved.isFetching} onClick={() => void resolved.refetch()}>
           {t('common.retry')}
@@ -163,7 +174,8 @@ function AcceptForm({ token, invitation, onAccepted, onEnding }: AcceptFormProps
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
   const { register, handleSubmit, formState } = useForm<NewPasswordValues>({ resolver: zodResolver(newPasswordSchema) })
-  const signedInAs = session ? (status === 'ready' && access?.display_name) || session.user.email : null
+  // Someone else signed in on this browser: named by their display name only, never their address.
+  const otherUser = session ? (status === 'ready' && access?.display_name) || '' : null
 
   const onSubmit = async ({ password }: NewPasswordValues) => {
     setError(null)
@@ -173,9 +185,8 @@ function AcceptForm({ token, invitation, onAccepted, onEnding }: AcceptFormProps
     } catch (failure) {
       const code = codeOf(failure)
       if (isEnding(code)) return onEnding(code)
-      if (code === 'rate_limited') setError(t('invitation.states.rate_limited'))
-      // accept-invite checks the length first: a 400 is a password Auth refused (weak_password).
-      else if (code === 'invalid_request') setError(t('auth.errors.weak_password'))
+      if (code === 'rate_limited') setError(rateLimitedText(failure))
+      else if (code === 'weak_password') setError(t('auth.errors.weak_password'))
       else {
         report(failure)
         setError(t('invitation.errors.generic'))
@@ -192,9 +203,9 @@ function AcceptForm({ token, invitation, onAccepted, onEnding }: AcceptFormProps
   return (
     <AuthCard title={t('invitation.welcome', { clinic: invitation.clinic_name })} subtitle={t('invitation.subtitle')}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        {signedInAs && (
+        {otherUser !== null && (
           <p className="rounded-md border border-border bg-card px-2.5 py-2 text-sm text-foreground">
-            {t('invitation.otherUser', { name: signedInAs })}
+            {otherUser ? t('invitation.otherUser', { name: otherUser }) : t('invitation.otherUserUnnamed')}
           </p>
         )}
         <FormField label={t('invitation.name')} readOnly>

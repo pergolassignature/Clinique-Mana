@@ -4,6 +4,8 @@ import { accessKeys, useAccess } from '@/core/access/access-context'
 import { roleKeys, useOrgId } from '@/core/access/org-roles'
 import { moduleErrorMessage, rpcErrorCode, rpcErrorHint } from '@/core/modules/errors'
 import { FunctionCallError } from '@/core/supabase/functions'
+import { retryInText } from '@/shared/lib/retry-after'
+import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { toast } from '@/shared/ui/sonner'
 import {
   clearPermissionOverride,
@@ -22,6 +24,7 @@ import {
   setRolePermission,
   setUserRole,
   setUserStatus,
+  type EmailProblem,
   type UserStatus,
 } from './api'
 import { overrideStateOf, type OverrideState, type PermissionOverride, type RolePermission } from './permissions'
@@ -46,15 +49,16 @@ const setRolePermissionKey = (orgId: string) => [...roleKeys.defaults(orgId), 's
  * meanwhile): another manager may have changed a role, and the sheet's switches decide from these
  * defaults whether a change creates or removes an exception. Also refetched when the window
  * regains focus, except while a matrix cell is saving: that refetch could land before the save
- * and show the cell's old value until the next one.
+ * and show the cell's old value until the next one. `enabled: false` for a caller who does not
+ * need them (an admin's invitation choices).
  */
-export function useRoleDefaults() {
+export function useRoleDefaults({ enabled = true }: { enabled?: boolean } = {}) {
   const orgId = useOrgId()
   const queryClient = useQueryClient()
   return useQuery({
     queryKey: roleKeys.defaults(orgId),
     queryFn: () => fetchRoleDefaults(orgId),
-    enabled: orgId !== '',
+    enabled: enabled && orgId !== '',
     staleTime: 0,
     refetchOnWindowFocus: () => queryClient.isMutating({ mutationKey: setRolePermissionKey(orgId) }) === 0,
   })
@@ -107,12 +111,13 @@ function invalidateUser(queryClient: QueryClient, userId: string, callerId: stri
 
 /**
  * The French text of a failed user-admin change. The functions' own refusals (`staff-invite`'s
- * per-caller limit, an unreachable function) have their text; RPC refusals, including those the
- * functions pass on (`asRpcRefusal`), go through `moduleErrorMessage`.
+ * per-caller limit, with how long to wait from `Retry-After`; an unreachable function) have their
+ * text; RPC refusals, including those the functions pass on (`asRpcRefusal`), go through
+ * `moduleErrorMessage`.
  */
 export function userAdminErrorMessage(error: unknown): string {
   if (error instanceof FunctionCallError) {
-    if (error.code === 'rate_limited') return t('settings.users.invite.errors.rateLimited')
+    if (error.code === 'rate_limited') return `${t('settings.users.invite.errors.rateLimited')} ${retryInText(error.retryAfter)}`
     if (error.code === 'network') return t('settings.users.invite.errors.network')
   }
   return moduleErrorMessage(error, t('common.errors.generic'), 'settings')
@@ -163,20 +168,27 @@ export function useSetUserRole() {
 }
 
 /**
- * « Compte actif » through `users-set-status` (P3-9): disabling also ends the open sessions. When
- * that part failed (`sessionsEnded: false`), the toast warns that they close within the hour. A
- * failed re-enable leaves the account disabled (« Réessayez »); the user is refetched.
+ * « Compte actif » through `users-set-status` (P3-9): disabling ends the open sessions (P3-32) and
+ * blocks new sign-ins (the Auth ban). When the ban failed (`signinBlocked: false`), the warning
+ * stays until closed and offers « Réessayer »: disabling again is idempotent and retries the ban
+ * (it runs even if the sheet has closed meanwhile). A failed re-enable leaves the account disabled
+ * (« Réessayez »); the user is refetched.
  */
 export function useSetUserStatus() {
   const queryClient = useQueryClient()
   const { access } = useAccess()
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: ({ userId, status }: { userId: string; status: UserStatus }) => setUserStatus(userId, status),
-    onSuccess: async ({ sessionsEnded }, { userId, status }) => {
+    onSuccess: async ({ signinBlocked }, { userId, status }) => {
       await invalidateUser(queryClient, userId, access?.user_id)
       if (status === 'active') toast.success(t('settings.users.sheet.status.enabledSaved'))
-      else if (sessionsEnded) toast.success(t('settings.users.sheet.status.disabledSaved'))
-      else toast.warning(t('settings.users.sheet.status.sessionsNotEnded'))
+      else if (signinBlocked) toast.success(t('settings.users.sheet.status.disabledSaved'))
+      else {
+        const retry = (): void => {
+          mutation.mutate({ userId, status: 'disabled' })
+        }
+        toast.warning(t('settings.users.sheet.status.signinNotBlocked'), { duration: Infinity, action: { label: t('common.retry'), onClick: retry } })
+      }
     },
     onError: (error, { userId }) => {
       if (error instanceof FunctionCallError && error.code === 'provider_error') {
@@ -187,6 +199,7 @@ export function useSetUserStatus() {
       }
     },
   })
+  return mutation
 }
 
 /**
@@ -420,9 +433,24 @@ export function useStaffInvitations() {
 const EMAIL_PROBLEMS = ['not_configured', 'rate_limited', 'provider_error', 'invalid_request'] as const
 const isKnownEmailProblem = (code: string): code is (typeof EMAIL_PROBLEMS)[number] => (EMAIL_PROBLEMS as readonly string[]).includes(code)
 
-/** Why an invitation's email did not leave (`InvitationSendResult.emailProblem`). */
-export function emailProblemText(code: string): string {
-  return t(`settings.users.invite.emailProblems.${isKnownEmailProblem(code) ? code : 'other'}`)
+/**
+ * Why an invitation's email did not leave (`InvitationSendResult.emailProblem`), and what to do.
+ * « Renvoyer » is advised only when it can help: a refused recipient (`invalid_request`) needs a
+ * new invitation at the right address, and an unconfigured sender (`not_configured`) fails again
+ * until someone configures it. The email limit says how long to wait (`Retry-After`).
+ */
+export function emailProblemText({ code, retryAfter }: EmailProblem): string {
+  const known = isKnownEmailProblem(code) ? code : 'other'
+  const cause = t(`settings.users.invite.emailProblems.${known}`)
+  switch (known) {
+    case 'invalid_request':
+    case 'not_configured':
+      return cause
+    case 'rate_limited':
+      return `${cause} ${retryInText(retryAfter)}`
+    default:
+      return `${cause} ${t('settings.users.invite.emailAdvice')}`
+  }
 }
 
 /**
@@ -436,16 +464,17 @@ function refetchInvitations(queryClient: QueryClient, error: unknown) {
 }
 
 /**
- * « Inviter ». The dialog shows a refusal (it stays open); success is a toast, a warning when the
- * invitation was created but its email failed (« Renvoyer » then sends it).
+ * « Inviter ». The dialog shows a refusal (it stays open); success is a toast with the link's
+ * expiry, a warning when the invitation was created but its email failed (with what to do).
  */
 export function useInviteStaff() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: { email: string; displayName: string; role: string }) => inviteStaff(input),
-    onSuccess: ({ emailProblem }, { email }) => {
-      if (emailProblem === null) toast.success(t('settings.users.invite.sent', { email }))
-      else toast.warning(t('settings.users.invite.createdNotSent'), { description: emailProblemText(emailProblem) })
+    onSuccess: ({ emailProblem, expiresAt }, { email }) => {
+      if (emailProblem !== null) toast.warning(t('settings.users.invite.createdNotSent'), { description: emailProblemText(emailProblem) })
+      else if (expiresAt === null) toast.success(t('settings.users.invite.sent', { email }))
+      else toast.success(t('settings.users.invite.sentExpires', { email, date: formatClinicDateShort(expiresAt) }))
     },
     onError: (error) => refreshAccessOnRefusal(queryClient, error),
     onSettled: (_data, error) => refetchInvitations(queryClient, error),

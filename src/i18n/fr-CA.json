@@ -52,7 +52,15 @@
     "notFound": { "title": "Page introuvable", "body": "Cette page n'existe pas ou a été déplacée." },
     "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." },
     "appError": { "title": "L'application a rencontré un problème", "body": "Réessayez dans un instant. Si le problème persiste, rechargez la page." },
-    "appUpdate": { "title": "Une nouvelle version de l'application est disponible.", "reload": "Recharger" }
+    "appUpdate": { "title": "Une nouvelle version de l'application est disponible.", "reload": "Recharger" },
+    "retryIn": {
+      "later": "Réessayez plus tard.",
+      "moment": "Réessayez dans un instant.",
+      "minuteOne": "Réessayez dans environ 1 minute.",
+      "minutesOther": "Réessayez dans environ {count} minutes.",
+      "hourOne": "Réessayez dans environ 1 heure.",
+      "hoursOther": "Réessayez dans environ {count} heures."
+    }
   },
   "auth": {
     "login": {
@@ -125,12 +133,13 @@
     "submit": "Activer mon compte",
     "submitting": "Activation…",
     "otherUser": "Vous êtes connecté en tant que {name}. Ce compte sera déconnecté de ce navigateur quand vous activerez le vôtre.",
+    "otherUserUnnamed": "Une autre personne est connectée sur ce navigateur. Son compte sera déconnecté quand vous activerez le vôtre.",
     "states": {
       "link_invalid": "Ce lien n'est pas valide.",
       "link_expired": "Ce lien a expiré. Demandez une nouvelle invitation à la clinique.",
       "link_used": "Ce lien a déjà été utilisé. Connectez-vous.",
       "conflict": "Ce lien ne peut plus être utilisé. Communiquez avec la clinique.",
-      "rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
+      "rate_limited": "Trop de tentatives.",
       "error": "Le lien n'a pas pu être vérifié. Vérifiez votre connexion et réessayez."
     },
     "latestEmailHint": "Si vous avez reçu plus d'un courriel d'invitation, utilisez le courriel le plus récent : chaque nouvel envoi remplace le lien précédent.",
@@ -639,17 +648,18 @@
       "description": "Qui utilise l'application, avec quel rôle et quelles permissions.",
       "tabs": { "users": "Utilisateurs", "roles": "Rôles" },
       "tableLabel": "Utilisateurs de la clinique",
-      "columns": { "name": "Nom", "email": "Courriel", "role": "Rôle", "status": "Statut", "lastSignIn": "Dernière connexion" },
+      "columns": { "name": "Nom", "email": "Courriel", "role": "Rôle", "status": "Statut", "activity": "Activité" },
       "status": { "active": "Actif", "disabled": "Désactivé" },
       "never": "Jamais",
       "noRole": "Aucun rôle",
       "countOne": "1 utilisateur",
       "countOther": "{count} utilisateurs",
       "loadError": "La liste des utilisateurs n'a pas pu être chargée.",
+      "lastSignIn": "Dernière connexion :",
       "invite": {
         "button": "Inviter",
         "title": "Inviter une personne",
-        "description": "Elle recevra un courriel avec un lien pour choisir son mot de passe. Le lien est valide 7 jours.",
+        "description": "Elle recevra un courriel avec un lien pour choisir son mot de passe. Le lien a une durée limitée : sa date d'expiration s'affiche dans la liste.",
         "name": "Nom",
         "email": "Courriel",
         "role": "Rôle",
@@ -661,26 +671,29 @@
         "validation": {
           "nameRequired": "Nom requis.",
           "nameTooLong": "80 caractères au maximum.",
+          "nameInvalid": "Nom invalide.",
           "emailInvalid": "Courriel invalide.",
           "roleRequired": "Choisissez un rôle."
         },
         "adminConfirm": { "title": "Inviter un administrateur ?", "body": "Cette personne aura toutes les permissions.", "confirm": "Inviter" },
         "sent": "Invitation envoyée à {email}.",
-        "createdNotSent": "Invitation créée, mais le courriel n'a pas pu être envoyé. Utilisez « Renvoyer ».",
+        "sentExpires": "Invitation envoyée à {email}. Le lien expire le {date}.",
+        "createdNotSent": "Invitation créée, mais le courriel n'a pas pu être envoyé.",
         "emailProblems": {
-          "not_configured": "L'envoi de courriels n'est pas encore configuré.",
-          "rate_limited": "Limite d'envoi de courriels atteinte. Réessayez dans quelques minutes.",
+          "not_configured": "L'envoi de courriels n'est pas encore configuré pour la clinique.",
+          "rate_limited": "Limite d'envoi de courriels atteinte.",
           "provider_error": "Le service d'envoi n'a pas répondu.",
-          "invalid_request": "Le service d'envoi a refusé cette adresse.",
+          "invalid_request": "Le service d'envoi a refusé cette adresse. Vérifiez-la : révoquez l'invitation, puis invitez la personne à la bonne adresse.",
           "other": "Le courriel n'a pas pu être envoyé."
         },
+        "emailAdvice": "Utilisez « Renvoyer » dans un moment.",
         "errors": {
-          "rateLimited": "Trop d'invitations en peu de temps. Réessayez plus tard.",
+          "rateLimited": "Trop d'invitations en peu de temps.",
           "network": "Le service est injoignable. Vérifiez votre connexion et réessayez."
         }
       },
       "invitations": {
-        "status": { "sent": "Invitation envoyée", "expired": "Expirée" },
+        "status": { "sent": "Invitation envoyée", "expired": "Expirée", "notDelivered": "Courriel non remis" },
         "email": "Courriel : {status}",
         "emailNone": "Courriel : non envoyé",
         "expires": "Expire le {date}",
@@ -688,14 +701,17 @@
         "invitedBy": "Envoyée par {name}",
         "actions": "Actions",
         "resend": "Renvoyer",
+        "resendLabel": "Renvoyer l'invitation de {name}",
         "resending": "Envoi…",
         "resent": "Nouveau lien envoyé à {email}. L'ancien lien ne fonctionne plus.",
-        "resendNotSent": "Le nouveau courriel n'a pas pu être envoyé, et l'ancien lien ne fonctionne plus. Réessayez « Renvoyer ».",
+        "resendNotSent": "Le nouveau courriel n'a pas pu être envoyé, et l'ancien lien ne fonctionne plus.",
         "revoke": "Révoquer",
+        "revokeLabel": "Révoquer l'invitation de {name}",
         "revokeConfirm": { "title": "Révoquer l'invitation de {name} ?", "body": "Le lien envoyé à {email} ne fonctionnera plus.", "confirm": "Révoquer" },
         "revoked": "Invitation révoquée.",
         "countOne": "1 invitation en attente",
-        "countOther": "{count} invitations en attente"
+        "countOther": "{count} invitations en attente",
+        "loadError": "Les invitations en attente n'ont pas pu être chargées."
       },
       "sheet": {
         "lastSignIn": "Dernière connexion : {date}",
@@ -728,7 +744,7 @@
           "confirmBody": "{name} ne pourra plus se connecter, et ses sessions ouvertes seront fermées.",
           "confirm": "Désactiver",
           "disabledSaved": "Compte désactivé.",
-          "sessionsNotEnded": "Accès bloqué. Les sessions ouvertes se fermeront d'ici une heure.",
+          "signinNotBlocked": "Compte désactivé. Le blocage de connexion n'a pas pu être appliqué ; réessayez.",
           "enabledSaved": "Compte réactivé.",
           "reenableFailed": "Le compte n'a pas pu être réactivé. Réessayez."
         },

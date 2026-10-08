@@ -1,4 +1,4 @@
-import { useRef, useState, type RefObject } from 'react'
+import { useRef, useState, type Ref, type RefObject } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -45,6 +45,15 @@ const schema = z.object({
 type FormInput = z.input<typeof schema>
 type FormValues = z.output<typeof schema>
 
+/** `staff-invite`'s refused field (`field` of a 400) → the form's field and its message. */
+const FUNCTION_FIELDS = {
+  email: { name: 'email', message: () => t('settings.users.invite.validation.emailInvalid') },
+  display_name: { name: 'displayName', message: () => t('settings.users.invite.validation.nameInvalid') },
+  role: { name: 'role', message: () => t('settings.users.invite.validation.roleRequired') },
+} as const satisfies Record<string, { name: keyof FormValues; message: () => string }>
+const isFunctionField = (field: string | undefined): field is keyof typeof FUNCTION_FIELDS =>
+  field !== undefined && Object.hasOwn(FUNCTION_FIELDS, field)
+
 /**
  * « Inviter » (users.manage) and its dialog: Nom, Courriel, Rôle. The roles offered are those the
  * caller may give (`assignableRoles`: never Professionnel; Administrateur by an admin only; for a
@@ -53,7 +62,7 @@ type FormValues = z.output<typeof schema>
  * dialog cannot be closed; success closes it with a toast (a warning when only the email failed,
  * the hook), and a refusal stays in it.
  */
-export function InviteDialog() {
+export function InviteDialog({ triggerRef }: { triggerRef?: Ref<HTMLButtonElement> }) {
   const [open, setOpen] = useState(false)
   const invite = useInviteStaff()
   const nameRef = useRef<HTMLInputElement | null>(null)
@@ -67,7 +76,7 @@ export function InviteDialog() {
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
-        <Button>{t('settings.users.invite.button')}</Button>
+        <Button ref={triggerRef}>{t('settings.users.invite.button')}</Button>
       </DialogTrigger>
       <DialogContent
         onOpenAutoFocus={(event) => {
@@ -103,7 +112,8 @@ function InviteForm({ nameRef, pending, onSend }: InviteFormProps) {
   const { access, can } = useAccess()
   const callerIsAdmin = access?.role === 'admin'
   const roles = useOrgRoles()
-  const defaults = useRoleDefaults()
+  // An admin may give any role: only a non-admin manager's choices need the defaults (hold rule).
+  const defaults = useRoleDefaults({ enabled: !callerIsAdmin })
   const [confirmAdmin, setConfirmAdmin] = useState<FormValues | null>(null)
   const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
@@ -126,9 +136,11 @@ function InviteForm({ nameRef, pending, onSend }: InviteFormProps) {
     try {
       await onSend(values)
     } catch (error) {
-      // staff-invite's mailbox rule is stricter than the form's: its body refusal is the address.
-      if (error instanceof FunctionCallError && error.code === 'invalid_request') {
-        form.setError('email', { message: t('settings.users.invite.validation.emailInvalid') }, { shouldFocus: true })
+      // staff-invite's rules can be stricter than the form's (its mailbox rule): it names the field.
+      const field = error instanceof FunctionCallError && error.code === 'invalid_request' ? error.field : undefined
+      if (isFunctionField(field)) {
+        const { name, message } = FUNCTION_FIELDS[field]
+        form.setError(name, { message: message() }, { shouldFocus: true })
       } else {
         form.setError('root.server', { message: userAdminErrorMessage(error) })
       }

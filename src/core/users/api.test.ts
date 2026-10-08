@@ -229,6 +229,7 @@ describe('listStaffInvitations', () => {
         is_expired: false,
         invited_by_name: 'Admin Local',
         last_email_status: 'delivered',
+        last_email_error_code: null,
       },
       {
         id: 'i2',
@@ -240,9 +241,15 @@ describe('listStaffInvitations', () => {
         is_expired: true,
         invited_by_name: null,
         last_email_status: null,
+        last_email_error_code: null,
       },
     ])
     expect(mocks.rpc).toHaveBeenCalledWith('list_staff_invitations')
+  })
+
+  it("reads the last email's error code once the RPC returns it", async () => {
+    mocks.rpc.mockResolvedValue({ data: [{ ...INVITATION_ROW, last_email_status: 'failed', last_email_error_code: 'provider_unavailable' }], error: null })
+    await expect(listStaffInvitations()).resolves.toMatchObject([{ last_email_status: 'failed', last_email_error_code: 'provider_unavailable' }])
   })
 
   it('throws the RPC error', async () => {
@@ -252,10 +259,11 @@ describe('listStaffInvitations', () => {
 })
 
 describe('inviteStaff and resendInvitation (the staff-invite function only)', () => {
-  it('invites through staff-invite, never an RPC, and returns the invitation', async () => {
-    invokeFunction.mockResolvedValue({ invitation_id: 'i1' })
+  it("invites through staff-invite, never an RPC, and returns the invitation and its link's expiry", async () => {
+    invokeFunction.mockResolvedValue({ invitation_id: 'i1', expires_at: '2026-10-15T16:00:00+00:00' })
     await expect(inviteStaff({ email: 'nouvelle@mana.test', displayName: 'Nouvelle Personne', role: 'counselor' })).resolves.toEqual({
       invitationId: 'i1',
+      expiresAt: '2026-10-15T16:00:00+00:00',
       emailProblem: null,
     })
     expect(invokeFunction).toHaveBeenCalledExactlyOnceWith('staff-invite', { email: 'nouvelle@mana.test', display_name: 'Nouvelle Personne', role: 'counselor' })
@@ -264,7 +272,7 @@ describe('inviteStaff and resendInvitation (the staff-invite function only)', ()
 
   it('« Renvoyer » sends the invitation id to staff-invite', async () => {
     invokeFunction.mockResolvedValue({ invitation_id: 'i1' })
-    await expect(resendInvitation('i1')).resolves.toEqual({ invitationId: 'i1', emailProblem: null })
+    await expect(resendInvitation('i1')).resolves.toEqual({ invitationId: 'i1', expiresAt: null, emailProblem: null })
     expect(invokeFunction).toHaveBeenCalledExactlyOnceWith('staff-invite', { invitation_id: 'i1' })
     expect(mocks.rpc).not.toHaveBeenCalled()
   })
@@ -272,9 +280,11 @@ describe('inviteStaff and resendInvitation (the staff-invite function only)', ()
   it.each(['provider_error', 'not_configured', 'rate_limited', 'invalid_request'])(
     'an email failure after the invitation exists (%s) resolves with the invitation and the problem',
     async (code) => {
-      invokeFunction.mockRejectedValue(new FunctionCallError(code, 502, 'Invitation created, email not sent', { invitation_id: 'i1' }))
-      await expect(inviteStaff({ email: 'a@b.ca', displayName: 'A', role: 'counselor' })).resolves.toEqual({ invitationId: 'i1', emailProblem: code })
-      await expect(resendInvitation('i1')).resolves.toEqual({ invitationId: 'i1', emailProblem: code })
+      const retryAfter = code === 'rate_limited' ? 900 : null
+      invokeFunction.mockRejectedValue(new FunctionCallError(code, 502, 'Invitation created, email not sent', { invitation_id: 'i1' }, retryAfter))
+      const result = { invitationId: 'i1', expiresAt: null, emailProblem: { code, retryAfter } }
+      await expect(inviteStaff({ email: 'a@b.ca', displayName: 'A', role: 'counselor' })).resolves.toEqual(result)
+      await expect(resendInvitation('i1')).resolves.toEqual(result)
     },
   )
 
@@ -285,8 +295,10 @@ describe('inviteStaff and resendInvitation (the staff-invite function only)', ()
     await expect(resendInvitation('i1')).rejects.toEqual({ code: '42501', message: 'Not allowed' })
   })
 
-  it("keeps the function's own refusals as they are (a refused body, a limit, the network)", async () => {
+  it("keeps the function's own refusals as they are (a refused field, a refused body, a limit, the network)", async () => {
     for (const error of [
+      // A French-looking message does not make a field refusal a P0001: the field decides.
+      new FunctionCallError('invalid_request', 400, 'Courriel refusé', { field: 'email' }),
       new FunctionCallError('invalid_request', 400, 'Invalid request body'),
       new FunctionCallError('rate_limited', 429, 'Too many attempts'),
       new FunctionCallError('network', 0, 'Function unreachable'),
@@ -308,19 +320,19 @@ describe('revokeInvitation', () => {
 })
 
 describe('setUserStatus (the users-set-status function)', () => {
-  it('disables through users-set-status and says whether the sessions were ended', async () => {
-    invokeFunction.mockResolvedValue({ status: 'disabled', sessions_ended: true })
-    await expect(setUserStatus('u2', 'disabled')).resolves.toEqual({ sessionsEnded: true })
+  it('disables through users-set-status and says whether sign-in was blocked', async () => {
+    invokeFunction.mockResolvedValue({ status: 'disabled', signin_blocked: true })
+    await expect(setUserStatus('u2', 'disabled')).resolves.toEqual({ signinBlocked: true })
     expect(invokeFunction).toHaveBeenCalledExactlyOnceWith('users-set-status', { user_id: 'u2', status: 'disabled' })
     expect(mocks.rpc).not.toHaveBeenCalled()
 
-    invokeFunction.mockResolvedValue({ status: 'disabled', sessions_ended: false })
-    await expect(setUserStatus('u2', 'disabled')).resolves.toEqual({ sessionsEnded: false })
+    invokeFunction.mockResolvedValue({ status: 'disabled', signin_blocked: false })
+    await expect(setUserStatus('u2', 'disabled')).resolves.toEqual({ signinBlocked: false })
   })
 
-  it('re-enables (no sessions to end)', async () => {
+  it('re-enables (no ban to apply)', async () => {
     invokeFunction.mockResolvedValue({ status: 'active' })
-    await expect(setUserStatus('u2', 'active')).resolves.toEqual({ sessionsEnded: true })
+    await expect(setUserStatus('u2', 'active')).resolves.toEqual({ signinBlocked: true })
   })
 
   it('passes the guards on as RPC errors; an unban failure stays a FunctionCallError', async () => {

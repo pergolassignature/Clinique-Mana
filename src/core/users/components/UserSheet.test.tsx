@@ -233,7 +233,7 @@ describe('UserSheet', () => {
 
   describe('status', () => {
     it('disabling asks for confirmation first; focus returns to the switch', async () => {
-      mocks.setUserStatus.mockResolvedValue({ sessionsEnded: true })
+      mocks.setUserStatus.mockResolvedValue({ signinBlocked: true })
       renderSheet(conseillere)
       const active = await screen.findByRole('switch', { name: L.active })
       expect(active).toBeChecked()
@@ -254,7 +254,7 @@ describe('UserSheet', () => {
     })
 
     it('an admin re-enables a disabled account at once', async () => {
-      mocks.setUserStatus.mockResolvedValue({ sessionsEnded: true })
+      mocks.setUserStatus.mockResolvedValue({ signinBlocked: true })
       renderSheet(pro)
       const active = await screen.findByRole('switch', { name: L.active })
       expect(active).not.toBeChecked()
@@ -263,13 +263,24 @@ describe('UserSheet', () => {
       expect(mocks.setUserStatus).toHaveBeenCalledWith('u-pro', 'active')
     })
 
-    it('disabling when the sessions could not be ended: the account is disabled, with a warning', async () => {
-      mocks.setUserStatus.mockResolvedValue({ sessionsEnded: false })
+    it('disabling when sign-in could not be blocked: a warning that stays, whose « Réessayer » disables again', async () => {
+      mocks.setUserStatus.mockResolvedValueOnce({ signinBlocked: false }).mockResolvedValueOnce({ signinBlocked: true })
       renderSheet(conseillere)
       await userEvent.click(await screen.findByRole('switch', { name: L.active }))
       await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('settings.users.sheet.status.confirm') }))
-      await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledWith(t('settings.users.sheet.status.sessionsNotEnded')))
+      await waitFor(() =>
+        expect(mocks.toast.warning).toHaveBeenCalledWith(t('settings.users.sheet.status.signinNotBlocked'), {
+          duration: Infinity,
+          action: { label: t('common.retry'), onClick: expect.any(Function) },
+        }),
+      )
       expect(mocks.toast.success).not.toHaveBeenCalled()
+
+      // « Réessayer »: the same disable again (idempotent), which applies the ban this time.
+      const [, options] = mocks.toast.warning.mock.calls[0] as [string, { action: { onClick: () => void } }]
+      options.action.onClick()
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.users.sheet.status.disabledSaved')))
+      expect(mocks.setUserStatus).toHaveBeenNthCalledWith(2, 'u-conseillere', 'disabled')
     })
 
     it('a failed re-enable (Auth kept the ban) says to retry, and refetches the user', async () => {
