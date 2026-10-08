@@ -412,7 +412,8 @@ create table public.professional_payer_numbers (
   constraint professional_payer_numbers_professional_fkey foreign key (org_id, professional_id)
     references public.professionals (org_id, id) on delete cascade,
   constraint professional_payer_numbers_payer_type_check check (payer_type in ('ivac')),
-  constraint professional_payer_numbers_number_check check (number ~ '^[A-Za-z0-9-]{3,30}$')
+  -- Upper-case (set_professional_payer_number upper-cases), so the unique key ignores case.
+  constraint professional_payer_numbers_number_check check (number ~ '^[A-Z0-9-]{3,30}$')
 );
 
 -- Leading org_id: serve the composite FKs, RLS, the usage counts and the matching lookups
@@ -1095,7 +1096,8 @@ begin
 end;
 $$;
 
--- IVAC number (P4-14): unique per clinic; blank deletes it. Refusals carry HINT ivac (the field).
+-- IVAC number (P4-14): unique per clinic whatever the case (stored upper-case); blank deletes it.
+-- Refusals carry HINT ivac (the field).
 create function public.set_professional_payer_number(p_id uuid, p_payer_type text, p_number text)
 returns void
 language plpgsql
@@ -1104,7 +1106,7 @@ set search_path = ''
 as $$
 declare
   v_org uuid := private.current_user_org_id();
-  v_number text := nullif(pg_catalog.btrim(p_number, E' \t\r\n'), '');
+  v_number text := pg_catalog.upper(nullif(pg_catalog.btrim(p_number, E' \t\r\n'), ''));
   v_rows int;
 begin
   if not private.has_permission('professionals.manage') then
@@ -1122,7 +1124,7 @@ begin
     end if;
     return;
   end if;
-  if v_number !~ '^[A-Za-z0-9-]{3,30}$' then
+  if v_number !~ '^[A-Z0-9-]{3,30}$' then
     raise exception 'Numéro IVAC invalide : 3 à 30 lettres, chiffres ou traits d''union.' using errcode = 'P0001', hint = 'ivac';
   end if;
   begin

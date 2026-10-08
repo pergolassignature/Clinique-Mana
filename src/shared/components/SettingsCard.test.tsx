@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createPortal } from 'react-dom'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
@@ -66,6 +67,30 @@ describe('SettingsCard', () => {
     expect(input).toHaveValue('Clinique MANA')
     await userEvent.tab()
     expect(input).toHaveFocus()
+  })
+
+  it('ignores the submit of a form portalled out of it (a dialog), which React bubbles through the tree', async () => {
+    const card = vi.fn()
+    const dialog = vi.fn()
+    render(
+      <SettingsCard title="Coordonnées" onSubmit={card} footer={<SaveButton />}>
+        {createPortal(
+          <form
+            aria-label="Dialogue"
+            onSubmit={(event) => {
+              event.preventDefault()
+              dialog()
+            }}
+          >
+            <button type="submit">Enregistrer le dialogue</button>
+          </form>,
+          document.body,
+        )}
+      </SettingsCard>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Enregistrer le dialogue' }))
+    expect(dialog).toHaveBeenCalledOnce()
+    expect(card).not.toHaveBeenCalled()
   })
 
   it('read-only: never submits, even when Enter submits the form implicitly', async () => {

@@ -28,8 +28,9 @@ import { showMutationError, type MutationFeedback } from './mutation-feedback'
 
 /**
  * One hook per record change. On success: the RPC's result is written into the cached record
- * (the new set, the merged fields, the new status), then the record, the lists and the history
- * of that professional are refetched (sets and status also the usage counts, see `keys.ts`),
+ * (the new set, the merged fields, the new status), then the record and the history of that
+ * professional are refetched, the lists when the change shows there (sets and status also the
+ * usage counts, see `keys.ts`),
  * awaited so the mutation settles on fresh data; then « Modifications enregistrées. ». No
  * optimistic write: the database decides (licence rules, restricted motifs…), and a refusal
  * leaves the cache untouched. Failures: `showMutationError` (toast, or `onErrorMessage`).
@@ -41,6 +42,12 @@ interface RecordMutation<V extends { id: string }, R> {
   apply: (record: ProfessionalRecord, result: R, variables: V) => ProfessionalRecord
   /** Sets and status change « Utilisé par » in the settings lists. */
   touchesUsage: boolean
+  /**
+   * Whether the change shows in the list (`LIST_COLUMNS`: names, email, status, primary title and
+   * licence, the sets, new clients, readiness). Default: yes. Bio, approach, public contact, IVAC,
+   * experience, gender, phone and address do not: the lists are not refetched for them.
+   */
+  touchesList?: (variables: V) => boolean
   successMessage?: string
 }
 
@@ -54,7 +61,7 @@ function useRecordMutation<V extends { id: string }, R>(config: RecordMutation<V
       )
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: professionalKeys.record(variables.id) }),
-        queryClient.invalidateQueries({ queryKey: professionalKeys.lists() }),
+        (config.touchesList?.(variables) ?? true) && queryClient.invalidateQueries({ queryKey: professionalKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: professionalKeys.history(variables.id) }),
         config.touchesUsage && queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.usage() }),
       ])
@@ -86,12 +93,17 @@ export function useCreateProfessional(feedback?: MutationFeedback) {
 
 // --- Plain fields --------------------------------------------------------------------------------
 
+/** The columns of `professionals` a patch can change that the list shows. */
+const LIST_FIELDS = ['firstName', 'lastName'] as const satisfies readonly (keyof ProfessionalPatch)[]
+const never = () => false
+
 export function useUpdateProfessional(feedback?: MutationFeedback) {
   return useRecordMutation(
     {
       mutationFn: ({ id, patch }: { id: string; patch: ProfessionalPatch }) => updateProfessional(id, patch),
       apply: (record, _, { patch }) => ({ ...record, professional: { ...record.professional, ...patch } }),
       touchesUsage: false,
+      touchesList: ({ patch }) => LIST_FIELDS.some((field) => field in patch),
     },
     feedback,
   )
@@ -103,6 +115,7 @@ export function useUpdatePublicProfile(feedback?: MutationFeedback) {
       mutationFn: ({ id, patch }: { id: string; patch: PublicProfilePatch }) => updatePublicProfile(id, patch),
       apply: (record, _, { patch }) => ({ ...record, publicProfile: { ...record.publicProfile, ...patch } }),
       touchesUsage: false,
+      touchesList: never,
     },
     feedback,
   )
@@ -114,6 +127,7 @@ export function useUpdateMatchingProfile(feedback?: MutationFeedback) {
       mutationFn: ({ id, patch }: { id: string; patch: MatchingProfilePatch }) => updateMatchingProfile(id, patch),
       apply: (record, _, { patch }) => ({ ...record, matchingProfile: { ...record.matchingProfile, ...patch } }),
       touchesUsage: false,
+      touchesList: ({ patch }) => 'acceptingNewClients' in patch,
     },
     feedback,
   )
@@ -197,6 +211,7 @@ export function useSetPayerNumber(feedback?: MutationFeedback) {
         payerNumbers: [...record.payerNumbers.filter((p) => p.type !== type), ...(number ? [{ type, number }] : [])],
       }),
       touchesUsage: false,
+      touchesList: never,
     },
     feedback,
   )

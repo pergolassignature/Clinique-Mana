@@ -8,6 +8,7 @@ import { t } from '@/i18n'
 import { FormActions } from '@/shared/components/FormActions'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
+import { focusRing } from '@/shared/ui/field-classes'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { cn } from '@/shared/lib/utils'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
@@ -21,6 +22,7 @@ import { professionalCatalogKeys, professionalKeys } from '../../hooks/keys'
 import { useSetProfessions } from '../../hooks/use-professional-mutations'
 import { titleOrder, type CatalogView } from '../../lib/catalog-view'
 import { professionsErrorField, professionsSchema, toProfessionItems, type ProfessionItemValues } from '../../schemas/professions'
+import { editingHelp } from './editing-help'
 import { useRecordData } from './record-context'
 
 const P = 'modules.professionals.record.identity.professions'
@@ -31,7 +33,13 @@ interface Values {
 }
 type Form = UseFormReturn<Values, unknown, { items: ProfessionInput[] }>
 
-const toValues = (record: ProfessionalRecord): Values => ({ items: toProfessionItems(record.professions) })
+/**
+ * The draft from the record. A stored licence whose title no longer belongs to an order (the
+ * order was unlinked since) has no field to show it: it is dropped, so nothing hidden is sent (P4-65).
+ */
+const toValues = (record: ProfessionalRecord, catalog: CatalogView): Values => ({
+  items: toProfessionItems(record.professions).map((item) => (titleOrder(catalog, item.titleId) ? item : { ...item, licenceNumber: '' })),
+})
 
 /**
  * « Professions et permis » (A2.9): up to two titles, each with its licence when the title belongs
@@ -44,7 +52,7 @@ export function ProfessionsEditor({ readOnly }: { readOnly: boolean }) {
   const { record, catalog } = useRecordData()
   const id = record.professional.id
   const queryClient = useQueryClient()
-  const stored = useMemo(() => toValues(record), [record])
+  const stored = useMemo(() => toValues(record, catalog), [record, catalog])
   const schema = useMemo(
     () =>
       z.object({
@@ -88,7 +96,7 @@ export function ProfessionsEditor({ readOnly }: { readOnly: boolean }) {
       {
         onSuccess: () => {
           const saved = queryClient.getQueryData<ProfessionalRecord | null>(professionalKeys.record(id)) ?? record
-          form.reset(toValues(saved))
+          form.reset(toValues(saved, catalog))
         },
       },
     ),
@@ -130,6 +138,7 @@ export function ProfessionsEditor({ readOnly }: { readOnly: boolean }) {
           rows={fields.length}
           radioName={`${ids}-primary`}
           readOnly={readOnly}
+          pending={pending}
           onRemove={() => removeRow(index)}
         />
       ))}
@@ -145,9 +154,9 @@ export function ProfessionsEditor({ readOnly }: { readOnly: boolean }) {
             type="button"
             variant="outline"
             size="sm"
-            aria-disabled={full || undefined}
+            aria-disabled={full || pending || undefined}
             aria-describedby={full ? `${ids}-max` : undefined}
-            onClick={ignoreWhenInactive(full, () =>
+            onClick={ignoreWhenInactive(full || pending, () =>
               append({ titleId: '', licenceNumber: '', isPrimary: fields.length === 0 }, { focusName: `items.${fields.length}.titleId` }),
             )}
             className={cn(softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
@@ -180,11 +189,19 @@ interface ProfessionRowProps {
   /** The rows' « Titre principal » radios form one group. */
   radioName: string
   readOnly: boolean
+  /**
+   * A save is in flight: every control is inactive (focus kept, changes ignored), since the draft
+   * is reset to the saved list when it settles and an edit made meanwhile would be lost.
+   */
+  pending: boolean
   onRemove: () => void
 }
 
-/** One title: « Titre », its licence when the title has an order, « Titre principal » and « Retirer ». */
-function ProfessionRow({ form, catalog, index, rows, radioName, readOnly, onRemove }: ProfessionRowProps) {
+/**
+ * One title: « Titre », its licence when the title has an order, « Titre principal » and
+ * « Retirer ». A group named « Titre 1 : Psychologue », so its controls say which title they edit.
+ */
+function ProfessionRow({ form, catalog, index, rows, radioName, readOnly, pending, onRemove }: ProfessionRowProps) {
   const items = useWatch({ control: form.control, name: 'items' })
   const item = items[index] ?? { titleId: '', licenceNumber: '', isPrimary: false }
   const order = titleOrder(catalog, item.titleId || null)
@@ -194,11 +211,16 @@ function ProfessionRow({ form, catalog, index, rows, radioName, readOnly, onRemo
   const otherTitle = items.find((_, i) => i !== index)?.titleId
   const options = catalog.titles.filter((title) => (title.isActive && title.id !== otherTitle) || title.id === item.titleId)
 
-  const choosePrimary = () =>
+  const choosePrimary = () => {
+    // The radio is controlled: an ignored change leaves it as the draft has it.
+    if (pending) return
     items.forEach((_, i) => form.setValue(`items.${i}.isPrimary`, i === index, { shouldDirty: true }))
+  }
+  const n = String(index + 1)
+  const rowLabel = titleName ? t(`${P}.row`, { n, name: titleName }) : t(`${P}.rowEmpty`, { n })
 
   return (
-    <div className={cn('space-y-3', index > 0 && 'border-t border-border-light pt-3')}>
+    <div role="group" aria-label={rowLabel} className={cn('space-y-3', index > 0 && 'border-t border-border-light pt-3')}>
       <div className="grid gap-3 md:grid-cols-2">
         <FormField label={t(`${P}.titleField`)} required error={errors?.titleId?.message}>
           {(field) => (
@@ -210,7 +232,12 @@ function ProfessionRow({ form, catalog, index, rows, radioName, readOnly, onRemo
                   {...field}
                   {...title}
                   placeholder={t(`${P}.titlePlaceholder`)}
+                  aria-disabled={pending || undefined}
+                  className={softDisabledClasses}
+                  // Controlled: while saving, the list does not open and a change is ignored.
+                  onMouseDown={(event) => pending && event.preventDefault()}
                   onChange={(event) => {
+                    if (pending) return
                     title.onChange(event)
                     // The licence goes with a title that needs none: nothing hidden is sent.
                     if (!titleOrder(catalog, event.target.value || null)) form.setValue(`items.${index}.licenceNumber`, '')
@@ -231,10 +258,12 @@ function ProfessionRow({ form, catalog, index, rows, radioName, readOnly, onRemo
           <FormField
             label={order.licenceLabel}
             required
-            help={readOnly ? undefined : t(`${P}.licenceHelp`, { order: order.acronym })}
+            help={editingHelp(readOnly, t(`${P}.licenceHelp`, { order: order.acronym }))}
             error={errors?.licenceNumber?.message}
           >
-            {(field) => <Input {...field} {...form.register(`items.${index}.licenceNumber`)} autoComplete="off" className="tabular" />}
+            {(field) => (
+              <Input {...field} {...form.register(`items.${index}.licenceNumber`)} readOnly={field.readOnly || pending} autoComplete="off" className="tabular" />
+            )}
           </FormField>
         )}
       </div>
@@ -244,9 +273,17 @@ function ProfessionRow({ form, catalog, index, rows, radioName, readOnly, onRemo
             readOnly ? (
               item.isPrimary && <span className="text-xs text-muted-foreground">{t(`${P}.primary`)}</span>
             ) : (
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <input type="radio" name={radioName} checked={item.isPrimary} onChange={choosePrimary} className="h-4 w-4 accent-primary" />
-                {t(`${P}.primary`)}
+              <label className={cn('flex items-center gap-2 text-sm', pending ? 'cursor-not-allowed' : 'cursor-pointer')}>
+                <input
+                  type="radio"
+                  name={radioName}
+                  checked={item.isPrimary}
+                  onChange={choosePrimary}
+                  aria-label={t(`${P}.primaryLabel`, { name: titleName ?? t(`${P}.rowEmpty`, { n }) })}
+                  aria-disabled={pending || undefined}
+                  className={cn('h-4 w-4 rounded-full accent-primary', focusRing, softDisabledClasses)}
+                />
+                <span aria-hidden>{t(`${P}.primary`)}</span>
               </label>
             )
           ) : (
@@ -258,7 +295,9 @@ function ProfessionRow({ form, catalog, index, rows, radioName, readOnly, onRemo
               variant="ghost"
               size="sm"
               aria-label={titleName ? t(`${P}.removeLabel`, { name: titleName }) : t(`${P}.removeEmpty`)}
-              onClick={onRemove}
+              aria-disabled={pending || undefined}
+              onClick={ignoreWhenInactive(pending, onRemove)}
+              className={cn(softDisabledClasses, 'aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted-foreground')}
             >
               {t(`${P}.remove`)}
             </Button>

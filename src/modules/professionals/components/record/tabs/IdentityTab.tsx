@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Controller } from 'react-hook-form'
 import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
@@ -17,12 +18,14 @@ import { contactSchema, toContactFormValues } from '../../../schemas/contact'
 import {
   experienceSchema,
   identitySchema,
+  normalizeIvac,
   payerNumbersSchema,
   toExperienceFormValues,
   toIdentityFormValues,
   toPayerNumbersFormValues,
 } from '../../../schemas/identity'
 import { ChangeEmailDialog } from '../ChangeEmailDialog'
+import { editingHelp } from '../editing-help'
 import { ProfessionalCard } from '../ProfessionalCard'
 import { ProfessionsEditor } from '../ProfessionsEditor'
 import { useRecordData } from '../record-context'
@@ -66,14 +69,14 @@ export function IdentityTab() {
             <FormField label={t(`${I}.identity.lastName`)} required error={errors.lastName?.message}>
               {(field) => <Input {...field} {...register('lastName')} autoComplete="off" />}
             </FormField>
-            <FormField label={t(`${I}.identity.gender`)} help={t(`${I}.identity.genderHelp`)} error={errors.gender?.message}>
+            <FormField label={t(`${I}.identity.gender`)} help={editingHelp(readOnly, t(`${I}.identity.genderHelp`))} error={errors.gender?.message}>
               {(field) => (
                 // Controlled, so the read-only Select shows the chosen label.
                 <Controller
                   control={control}
                   name="gender"
                   render={({ field: gender }) => (
-                    <Select {...field} {...gender} placeholder={t(`${I}.identity.genderNone`)} clearable>
+                    <Select {...field} {...gender} placeholder={t(`${I}.identity.genderNone`)} readOnlyEmptyLabel={t(`${I}.identity.genderNone`)} clearable>
                       {GENDERS.map((value) => (
                         <option key={value} value={value}>
                           {genderLabel(value)}
@@ -177,13 +180,25 @@ export function IdentityTab() {
         useSave={useSaveIvac}
         errorField={ivacError}
       >
-        {({ register, formState: { errors } }) => (
-          <div className={GRID}>
-            <FormField label={t(`${I}.payers.ivac`)} help={readOnly ? undefined : t(`${I}.payers.ivacHelp`)} error={errors.ivac?.message}>
-              {(field) => <Input {...field} {...register('ivac')} autoComplete="off" className="tabular" />}
-            </FormField>
-          </div>
-        )}
+        {(form) => {
+          const { register, formState: { errors } } = form
+          return (
+            <div className={GRID}>
+              <FormField label={t(`${I}.payers.ivac`)} help={editingHelp(readOnly, t(`${I}.payers.ivacHelp`))} error={errors.ivac?.message}>
+                {(field) => (
+                  <Input
+                    {...field}
+                    // Upper-case once left, as it is stored (unique whatever the case).
+                    {...register('ivac', regroupOnBlur(form, 'ivac', normalizeIvac))}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    className="tabular"
+                  />
+                )}
+              </FormField>
+            </div>
+          )
+        }}
       </ProfessionalCard>
     </div>
   )
@@ -196,12 +211,13 @@ export function IdentityTab() {
 function LoginEmail({ readOnly }: { readOnly: boolean }) {
   const { professional } = useRecordData().record
   const hasAccount = professional.profileId !== null
+  const input = useRef<HTMLInputElement | null>(null)
   return (
-    <FormField label={t(`${I}.contact.loginEmail`)} readOnly help={hasAccount ? t(`${I}.contact.accountOwns`) : undefined}>
+    <FormField label={t(`${I}.contact.loginEmail`)} readOnly help={editingHelp(readOnly, hasAccount ? t(`${I}.contact.accountOwns`) : undefined)}>
       {(field) => (
         <div className="flex min-w-0 items-center gap-2">
-          <Input {...field} value={professional.email} className="min-w-0 flex-1" />
-          {!readOnly && !hasAccount && <ChangeEmailDialog professionalId={professional.id} email={professional.email} />}
+          <Input {...field} ref={input} value={professional.email} className="min-w-0 flex-1" />
+          <ChangeEmailDialog professionalId={professional.id} email={professional.email} canChange={!readOnly && !hasAccount} fallbackFocus={input} />
         </div>
       )}
     </FormField>

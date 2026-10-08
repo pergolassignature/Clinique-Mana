@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import type { ProfessionalRecord } from '../../api/parse'
 import type { ProfessionInput } from '../../api/record'
-import { recordFixture } from '../../test/fixtures-domain'
+import { buildCatalogView } from '../../lib/catalog-view'
+import { CATALOG, recordFixture } from '../../test/fixtures-domain'
 import { IDS } from '../../test/fixtures'
 import { renderRecordTab } from '../../test/record-tab'
 import { ProfessionsEditor } from './ProfessionsEditor'
@@ -48,11 +49,10 @@ const title = (i: number) => {
   if (!select) throw new Error(`no title row ${i}`)
   return select
 }
-const radio = (i: number) => {
-  const input = within(editor()).getAllByRole('radio', { name: t(`${P}.primary`) })[i]
-  if (!input) throw new Error(`no radio ${i}`)
-  return input
-}
+/** Row `i` (from 0): a group named « Titre 1 : Psychologue ». */
+const row = (i: number, name: string) => within(editor()).getByRole('group', { name: t(`${P}.row`, { n: String(i + 1), name }) })
+/** The « Titre principal » radio of the title `name`. */
+const radio = (name: string) => within(editor()).getByRole('radio', { name: t(`${P}.primaryLabel`, { name }) })
 const licence = () => within(editor()).queryByRole('textbox', { name: `N° de permis ${t('common.form.required')}` })
 const addButton = () => within(editor()).getByRole('button', { name: t(`${P}.add`) })
 const save = () => userEvent.click(within(editor()).getByRole('button', { name: t('common.save') }))
@@ -76,6 +76,9 @@ describe('ProfessionsEditor', () => {
     await userEvent.click(addButton())
     expect(titles()).toHaveLength(2)
     expect(title(1)).toHaveFocus()
+    // A row with no title yet is « Titre 2 », and so is its radio.
+    expect(within(editor()).getByRole('group', { name: t(`${P}.rowEmpty`, { n: '2' }) })).toContainElement(title(1))
+    expect(radio(t(`${P}.rowEmpty`, { n: '2' }))).not.toBeChecked()
     // The other row's title is not offered again.
     expect(within(title(1)).queryByRole('option', { name: 'Psychologue' })).not.toBeInTheDocument()
     expect(addButton()).toHaveAttribute('aria-disabled', 'true')
@@ -86,10 +89,13 @@ describe('ProfessionsEditor', () => {
 
   it('« Titre principal » changes the draft only; one call sends the whole list', async () => {
     renderRecordTab(<ProfessionsEditor readOnly={false} />, { record: (stored = twoTitles(stored)) })
-    expect(radio(0)).toBeChecked()
-    expect(radio(1)).not.toBeChecked()
-    await userEvent.click(radio(1))
-    expect(radio(0)).not.toBeChecked()
+    // Each radio names its title, inside its row's group.
+    expect(within(row(0, 'Psychologue')).getByRole('radio')).toBe(radio('Psychologue'))
+    expect(within(row(1, 'Naturopathe')).getByRole('radio')).toBe(radio('Naturopathe'))
+    expect(radio('Psychologue')).toBeChecked()
+    expect(radio('Naturopathe')).not.toBeChecked()
+    await userEvent.click(radio('Naturopathe'))
+    expect(radio('Psychologue')).not.toBeChecked()
     expect(mocks.record.setProfessions).not.toHaveBeenCalled()
     await save()
     await waitFor(() =>
@@ -137,6 +143,95 @@ describe('ProfessionsEditor', () => {
     expect(licence()).toHaveFocus()
     expect(mocks.toast.error).not.toHaveBeenCalled()
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['professionals-catalog', 'catalog'] })
+  })
+
+  it('says so above the buttons when a title gained an order since the catalogue was read (licence refused, no field)', async () => {
+    const message = 'Un numéro de permis est requis pour Naturopathe.'
+    mocks.record.setProfessions.mockRejectedValue({ code: 'P0001', message, hint: 'licence', details: IDS.naturopathe })
+    mocks.catalog.fetchProfessionalsCatalog.mockReturnValue(new Promise(() => {}))
+    const { queryClient } = renderRecordTab(<ProfessionsEditor readOnly={false} />, { record: (stored = twoTitles(stored)) })
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    await userEvent.click(radio('Naturopathe'))
+    await save()
+    expect(await within(editor()).findByRole('alert')).toHaveTextContent(t(`${P}.licenceNowRequired`))
+    expect(within(editor()).queryByText(message)).not.toBeInTheDocument()
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['professionals-catalog', 'catalog'] })
+  })
+
+  it('drops a stored licence whose title no longer has an order: nothing hidden is sent (P4-65)', async () => {
+    const unlinked = buildCatalogView({ ...CATALOG, titles: CATALOG.titles.map((title) => (title.id === IDS.psychologue ? { ...title, orderId: null } : title)) })
+    renderRecordTab(<ProfessionsEditor readOnly={false} />, { record: (stored = twoTitles(stored)), catalog: unlinked })
+    expect(licence()).not.toBeInTheDocument()
+    expect(within(editor()).getByRole('button', { name: t('common.save') })).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(radio('Naturopathe'))
+    await save()
+    await waitFor(() =>
+      expect(mocks.record.setProfessions).toHaveBeenCalledExactlyOnceWith(IDS.professional, [
+        { titleId: IDS.psychologue, licenceNumber: null, isPrimary: false },
+        { titleId: IDS.naturopathe, licenceNumber: null, isPrimary: true },
+      ]),
+    )
+  })
+
+  it('keeps every control inactive while saving, so no edit is lost', async () => {
+    let finish: () => void = () => {}
+    mocks.record.setProfessions.mockImplementation(
+      (_id: string, items: ProfessionInput[]) =>
+        new Promise((resolve) => {
+          finish = () => {
+            const professions = items.map((i, n) => ({ id: `row-${n}`, titleId: i.titleId, licenceNumber: i.licenceNumber, isPrimary: i.isPrimary }))
+            stored = { ...stored, professions }
+            resolve(professions)
+          }
+        }),
+    )
+    renderRecordTab(<ProfessionsEditor readOnly={false} />, { record: (stored = twoTitles(stored)) })
+    await userEvent.click(radio('Naturopathe'))
+    await save()
+
+    expect(title(0)).toHaveAttribute('aria-disabled', 'true')
+    expect(licence()).toHaveAttribute('readonly')
+    expect(radio('Psychologue')).toHaveAttribute('aria-disabled', 'true')
+    expect(addButton()).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(radio('Psychologue'))
+    await userEvent.click(within(editor()).getByRole('button', { name: t(`${P}.removeLabel`, { name: 'Psychologue' }) }))
+    expect(titles()).toHaveLength(2)
+    expect(title(1)).toHaveValue(IDS.naturopathe)
+    expect(radio('Naturopathe')).toBeChecked()
+
+    await act(async () => finish())
+    await waitFor(() => expect(title(0)).not.toHaveAttribute('aria-disabled'))
+    expect(mocks.record.setProfessions).toHaveBeenCalledOnce()
+    expect(radio('Naturopathe')).toBeChecked()
+    expect(radio('Psychologue')).not.toHaveAttribute('aria-disabled')
+  })
+
+  it('ignores a title or licence change while saving', async () => {
+    let finish: () => void = () => {}
+    mocks.record.setProfessions.mockImplementation(
+      (_id: string, items: ProfessionInput[]) =>
+        new Promise((resolve) => {
+          finish = () => {
+            const professions = items.map((i, n) => ({ id: `row-${n}`, titleId: i.titleId, licenceNumber: i.licenceNumber, isPrimary: i.isPrimary }))
+            stored = { ...stored, professions }
+            resolve(professions)
+          }
+        }),
+    )
+    renderRecordTab(<ProfessionsEditor readOnly={false} />, { record: stored })
+    await userEvent.clear(licence() as HTMLElement)
+    await userEvent.type(licence() as HTMLElement, '54321')
+    await save()
+
+    await userEvent.selectOptions(title(0), IDS.naturopathe)
+    expect(title(0)).toHaveValue(IDS.psychologue)
+    await userEvent.type(licence() as HTMLElement, '9')
+    expect(licence()).toHaveValue('54321')
+
+    await act(async () => finish())
+    await waitFor(() => expect(title(0)).not.toHaveAttribute('aria-disabled'))
+    expect(mocks.record.setProfessions).toHaveBeenCalledExactlyOnceWith(IDS.professional, [{ titleId: IDS.psychologue, licenceNumber: '54321', isPrimary: true }])
+    expect(licence()).toHaveValue('54321')
   })
 
   it('puts a refusal about the whole list above the buttons', async () => {

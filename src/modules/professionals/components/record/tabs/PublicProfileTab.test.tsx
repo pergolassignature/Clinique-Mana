@@ -39,7 +39,8 @@ describe('PublicProfileTab', () => {
     expect(bio()).toHaveValue('')
     expect(within(portrait).getByText(t(`${P}.portrait.description`))).toBeInTheDocument()
     await userEvent.type(bio(), '  Vingt ans en pratique.  ')
-    expect(bio()).toHaveAccessibleDescription(t(`${P}.portrait.counter`, { count: '26', max: '4000' }))
+    // Counted as stored: the spaces at either end are trimmed.
+    expect(bio()).toHaveAccessibleDescription(t(`${P}.portrait.counter`, { count: '22', max: '4000' }))
     await userEvent.click(within(portrait).getByRole('button', { name: t('common.save') }))
 
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.toasts.saved')))

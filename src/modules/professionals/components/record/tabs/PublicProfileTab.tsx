@@ -11,6 +11,7 @@ import { Textarea } from '@/shared/ui/textarea'
 import type { ProfessionalRecord } from '../../../api/parse'
 import { useSavePublicProfile } from '../../../hooks/use-card-saves'
 import { publicProfileSchema, toPublicProfileFormValues } from '../../../schemas/public-profile'
+import { editingHelp } from '../editing-help'
 import { ProfessionalCard } from '../ProfessionalCard'
 
 const P = 'modules.professionals.record.publicProfile'
@@ -30,10 +31,10 @@ const portraitSchema = publicProfileSchema.pick({ bio: true, approach: true })
 type PortraitControl = Control<z.input<typeof portraitSchema>, unknown, z.output<typeof portraitSchema>>
 const publicContactSchema = publicProfileSchema.pick({ publicEmail: true, publicPhone: true })
 
-/** Characters typed, counted as the database does (code points, `char_length`). */
+/** Characters as stored (trimmed, as the schema does), counted as the database does (code points, `char_length`). */
 function CharacterCount({ control, name }: { control: PortraitControl; name: 'bio' | 'approach' }) {
   const value = useWatch({ control, name })
-  return t(`${P}.portrait.counter`, { count: String([...value].length), max: String(TEXT_MAX) })
+  return t(`${P}.portrait.counter`, { count: String([...value.trim()].length), max: String(TEXT_MAX) })
 }
 
 /**
@@ -61,7 +62,7 @@ export function PublicProfileTab() {
                 key={name}
                 label={t(`${P}.portrait.${name}`)}
                 // The counter is the help: read with the field, like the limit it counts towards.
-                help={readOnly ? undefined : <CharacterCount control={control} name={name} />}
+                help={editingHelp(readOnly, <CharacterCount control={control} name={name} />)}
                 error={errors[name]?.message}
               >
                 {(field) => <Textarea {...field} {...register(name)} rows={6} />}

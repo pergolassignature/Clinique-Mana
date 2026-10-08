@@ -1301,7 +1301,7 @@
           "portrait": {
             "title": "Portrait",
             "description": "Ces textes figurent sur la fiche remise au client.",
-            "bio": "Bio",
+            "bio": "Présentation",
             "approach": "Approche",
             "counter": "{count} / {max} caractères"
           },
@@ -1327,7 +1327,7 @@
             "loginEmail": "Courriel de connexion",
             "change": "Modifier",
             "changeLabel": "Modifier le courriel de connexion",
-            "accountOwns": "Le professionnel le change dans « Mon compte ».",
+            "accountOwns": "Le changement se fait dans « Mon compte » du professionnel.",
             "personalPhone": "Téléphone personnel",
             "addressLine1": "Adresse",
             "addressLine2": "Complément",
@@ -1337,7 +1337,7 @@
           },
           "changeEmail": {
             "title": "Modifier le courriel de connexion",
-            "description": "L'invitation sera envoyée à cette adresse, et elle servira à se connecter.",
+            "description": "L'invitation sera envoyée à cette adresse et elle servira à se connecter.",
             "email": "Courriel"
           },
           "professions": {
@@ -1348,6 +1348,9 @@
             "archived": "{name} (archivé)",
             "licenceHelp": "Requis pour ce titre ({order}).",
             "primary": "Titre principal",
+            "primaryLabel": "Titre principal : {name}",
+            "row": "Titre {n} : {name}",
+            "rowEmpty": "Titre {n}",
             "add": "Ajouter un titre",
             "max": "Deux titres au maximum.",
             "remove": "Retirer",

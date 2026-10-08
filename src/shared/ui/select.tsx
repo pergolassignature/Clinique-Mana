@@ -23,6 +23,11 @@ export interface SelectProps
    * the DOM, which the read-only input cannot read. Defaults to the surrounding context.
    */
   readOnly?: boolean
+  /**
+   * Read-only with no value: what the stand-in reads (« Non indiqué ») rather than an empty field,
+   * when empty is a fact worth stating.
+   */
+  readOnlyEmptyLabel?: string
 }
 
 /** The text of the `<option>` whose value is `value`, searched through fragments, arrays and optgroups. */
@@ -59,7 +64,7 @@ function readOnlyAttributes(props: React.SelectHTMLAttributes<HTMLSelectElement>
  * otherwise the browser would silently select the first real option.
  */
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, children, placeholder, clearable = false, clearLabel, readOnly: readOnlyProp, ...props }, ref) => {
+  ({ className, children, placeholder, clearable = false, clearLabel, readOnly: readOnlyProp, readOnlyEmptyLabel, ...props }, ref) => {
     const readOnly = useFieldReadOnly(readOnlyProp)
     if (readOnly) {
       if (import.meta.env.DEV && props.value === undefined && props.defaultValue === undefined && props.name) {
@@ -69,7 +74,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       }
       const raw = props.value ?? props.defaultValue
       const value = raw === undefined || raw === null ? '' : String(raw)
-      const label = value === '' ? '' : (optionLabel(children, value) ?? value)
+      const label = value === '' ? (readOnlyEmptyLabel ?? '') : (optionLabel(children, value) ?? value)
       return <Input {...readOnlyAttributes(props)} className={className} readOnly value={label} />
     }
     const startEmpty = placeholder !== undefined && props.value === undefined && props.defaultValue === undefined

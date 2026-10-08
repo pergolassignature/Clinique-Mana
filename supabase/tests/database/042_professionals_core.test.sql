@@ -6,14 +6,14 @@
 -- deferred primary check, restricted motifs kept consistent); the clientèle, approach, motif and
 -- language sets (replace, specialized flags, archived and restricted rules, org of the ids);
 -- the HINT of each field refusal (first_name, last_name, email, title, licence, ivac: the forms
--- route by it, never by the French text; for titles and licences DETAIL names the title); IVAC numbers; email changes and the profile → professional email sync (a conflict leaves the
+-- route by it, never by the French text; for titles and licences DETAIL names the title); IVAC numbers (stored upper-case, unique whatever the case); email changes and the profile → professional email sync (a conflict leaves the
 -- professional's email, neutrally); private.current_professional_id(); provider RLS and the
 -- module gate; every RPC refused to disabled staff and with the module off; org isolation; usage
 -- counts (settings without view); audit rows (record ids prefixed by the professional's id, no
 -- audit noise, personal fields redacted).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(237);
+select plan(241);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
@@ -575,6 +575,14 @@ select is(private.test_error_hint($$ select public.set_professional_payer_number
   'ivac', 'an invalid IVAC number: HINT ivac');
 select throws_ok($$ select public.set_professional_payer_number(current_setting('test.p1')::uuid, 'csst', '123456') $$,
   '22023', null, 'an unknown payer type is refused');
+select lives_ok($$ select public.set_professional_payer_number(current_setting('test.p1')::uuid, 'ivac', ' Probe-777 ') $$,
+  'the adjointe changes the IVAC number');
+select results_eq($$ select n.number from public.professional_payer_numbers n where n.professional_id = current_setting('test.p1')::uuid $$,
+  $$ values ('PROBE-777'::text) $$, 'the IVAC number is stored upper-case');
+select throws_ok($$ select public.set_professional_payer_number(current_setting('test.p2')::uuid, 'ivac', 'probe-777') $$,
+  'P0001', 'Ce numéro IVAC est déjà attribué à un autre professionnel.', 'probe-777 is a duplicate of PROBE-777 (unique whatever the case)');
+select is(private.test_error_hint($$ select public.set_professional_payer_number(current_setting('test.p2')::uuid, 'ivac', 'probe-777') $$),
+  'ivac', 'a duplicate in another case: HINT ivac');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select lives_ok($$ select public.set_professional_payer_number(current_setting('test.p3')::uuid, 'ivac', '123456') $$,

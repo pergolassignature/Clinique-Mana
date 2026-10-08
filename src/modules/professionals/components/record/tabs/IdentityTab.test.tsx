@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import type { ProfessionalRecord } from '../../../api/parse'
@@ -87,6 +87,28 @@ describe('IdentityTab', () => {
     )
   })
 
+  it('keeps another card’s edits when a card of the same save hook saves (Identité while Expérience is dirty)', async () => {
+    renderRecordTab(<IdentityTab />, { record: stored })
+    const experience = card(t(`${I}.experience.title`))
+    const years = within(experience).getByRole('textbox', { name: t(`${I}.experience.years`) })
+    await userEvent.clear(years)
+    await userEvent.type(years, '20')
+    const identity = card(t(`${I}.identity.title`))
+    const last = within(identity).getByRole('textbox', { name: required(t(`${I}.identity.lastName`)) })
+    await userEvent.clear(last)
+    await userEvent.type(last, 'Gagnon')
+    await save(identity)
+
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledOnce())
+    expect(mocks.record.updateProfessional).toHaveBeenCalledExactlyOnceWith(stored.professional.id, { firstName: 'Marie', lastName: 'Gagnon', gender: null })
+    // The refetched record reached Expérience, which kept its draft and is still dirty.
+    await waitFor(() => expect(within(identity).getByRole('button', { name: t('common.save') })).toHaveAttribute('aria-disabled', 'true'))
+    expect(years).toHaveValue('20')
+    expect(within(experience).getByRole('button', { name: t('common.save') })).not.toHaveAttribute('aria-disabled')
+    await save(experience)
+    await waitFor(() => expect(mocks.record.updateProfessional).toHaveBeenLastCalledWith(stored.professional.id, { yearsExperience: 20 }))
+  })
+
   it('saves the years of experience (0–60)', async () => {
     renderRecordTab(<IdentityTab />, { record: stored })
     const experience = card(t(`${I}.experience.title`))
@@ -113,16 +135,34 @@ describe('IdentityTab', () => {
       await waitFor(() => expect(mocks.record.setPayerNumber).toHaveBeenCalledExactlyOnceWith(stored.professional.id, 'ivac', null))
     })
 
-    it('shows a duplicate under the field (HINT ivac), not in a toast', async () => {
+    it('upper-cases the number once left, and saves it upper-case', async () => {
+      mocks.record.setPayerNumber.mockResolvedValue(undefined)
+      renderRecordTab(<IdentityTab />, { record: stored })
+      const payers = card(t(`${I}.payers.title`))
+      const ivac = within(payers).getByRole('textbox', { name: t(`${I}.payers.ivac`) })
+      await userEvent.clear(ivac)
+      await userEvent.type(ivac, ' probe-777 ')
+      await userEvent.tab()
+      expect(ivac).toHaveValue('PROBE-777')
+      await save(payers)
+      await waitFor(() => expect(mocks.record.setPayerNumber).toHaveBeenCalledExactlyOnceWith(stored.professional.id, 'ivac', 'PROBE-777'))
+    })
+
+    it('shows a duplicate under the field (HINT ivac), not in a toast, and moves focus there', async () => {
       const message = 'Ce numéro IVAC est déjà attribué à un autre professionnel.'
-      mocks.record.setPayerNumber.mockRejectedValue({ code: 'P0001', message, hint: 'ivac', details: '' })
+      let refuse: (error: unknown) => void = () => {}
+      mocks.record.setPayerNumber.mockReturnValue(new Promise((_, reject) => (refuse = reject)))
       renderRecordTab(<IdentityTab />, { record: stored })
       const payers = card(t(`${I}.payers.title`))
       const ivac = within(payers).getByRole('textbox', { name: t(`${I}.payers.ivac`) })
       await userEvent.clear(ivac)
       await userEvent.type(ivac, '654321')
       await save(payers)
+      // Focus is on « Enregistrer » while the save is in flight…
+      expect(within(payers).getByRole('button', { name: t('common.saving') })).toHaveFocus()
+      await act(async () => refuse({ code: 'P0001', message, hint: 'ivac', details: '' }))
 
+      // …and goes to the field the refusal is about.
       await waitFor(() => expect(ivac).toHaveAccessibleDescription(`${t(`${I}.payers.ivacHelp`)} ${message}`))
       expect(ivac).toHaveFocus()
       expect(mocks.toast.error).not.toHaveBeenCalled()
@@ -175,6 +215,56 @@ describe('IdentityTab', () => {
       expect(mocks.toast.error).not.toHaveBeenCalled()
     })
 
+    it('keeps the dialog open with the message above the buttons when an account appeared meanwhile', async () => {
+      const message = 'Ce professionnel a maintenant un compte : le courriel se change dans « Mon compte ».'
+      mocks.record.setProfessionalEmail.mockImplementation(async () => {
+        // The account was created meanwhile: the refetch the refusal triggers brings it.
+        stored = { ...stored, professional: { ...stored.professional, profileId: '00000000-0000-4000-8000-000000009999' } }
+        throw { code: 'P0001', message, hint: '', details: '' }
+      })
+      renderRecordTab(<IdentityTab />, { record: stored })
+      await userEvent.click(changeButton())
+      const dialog = await screen.findByRole('dialog')
+      const field = within(dialog).getByRole('textbox')
+      await userEvent.clear(field)
+      await userEvent.type(field, 'nouveau@exemple.ca')
+      await userEvent.click(within(dialog).getByRole('button', { name: t('common.save') }))
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(message)
+      // The record refetched with the account: the trigger is gone, the dialog stays.
+      await waitFor(() => expect(screen.queryByRole('button', { name: t(`${I}.contact.changeLabel`), hidden: true })).not.toBeInTheDocument())
+      expect(screen.getByRole('dialog')).toBe(dialog)
+      expect(field).toHaveValue('nouveau@exemple.ca')
+      expect(mocks.toast.error).not.toHaveBeenCalled()
+
+      await userEvent.click(within(dialog).getByRole('button', { name: t('common.cancel') }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(loginEmail()).toHaveFocus()
+    })
+
+    it('keeps the dialog open with the refusal when the permission was withdrawn (42501)', async () => {
+      mocks.record.setProfessionalEmail.mockRejectedValue({ code: '42501', message: 'permission denied', hint: '', details: '' })
+      const { setRole } = renderRecordTab(<IdentityTab />, { record: stored })
+      await userEvent.click(changeButton())
+      const dialog = await screen.findByRole('dialog')
+      const field = within(dialog).getByRole('textbox')
+      await userEvent.clear(field)
+      await userEvent.type(field, 'nouveau@exemple.ca')
+      await userEvent.click(within(dialog).getByRole('button', { name: t('common.save') }))
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(t('common.errors.forbidden'))
+
+      // The refetched access no longer allows editing: the tab turns read-only behind the dialog.
+      act(() => setRole('counselor'))
+      expect(screen.queryByRole('button', { name: t(`${I}.contact.changeLabel`), hidden: true })).not.toBeInTheDocument()
+      expect(screen.getByRole('dialog')).toBe(dialog)
+      expect(within(dialog).getByRole('alert')).toHaveTextContent(t('common.errors.forbidden'))
+      expect(field).not.toHaveAttribute('readonly')
+
+      await userEvent.click(within(dialog).getByRole('button', { name: t('common.cancel') }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(loginEmail()).toHaveFocus()
+    })
+
     it('has no « Modifier » once the professional has an account', () => {
       stored = { ...stored, professional: { ...stored.professional, profileId: '00000000-0000-4000-8000-000000009999' } }
       renderRecordTab(<IdentityTab />, { record: stored })
@@ -183,7 +273,8 @@ describe('IdentityTab', () => {
     })
   })
 
-  it('is read-only for the conseillère: one notice, focusable values, no buttons', () => {
+  it('is read-only for the conseillère: one notice, focusable values, no buttons, no help', () => {
+    stored = { ...stored, professional: { ...stored.professional, profileId: '00000000-0000-4000-8000-000000009999' } }
     renderRecordTab(<IdentityTab />, { record: stored, role: 'counselor' })
     expect(screen.getAllByText(t('common.readOnlyNotice.title'))).toHaveLength(1)
     expect(screen.getByText(t(`${I}.readOnly`))).toBeInTheDocument()
@@ -192,5 +283,11 @@ describe('IdentityTab', () => {
     expect(first).toHaveAttribute('readonly')
     expect(screen.getByRole('textbox', { name: t(`${I}.contact.province`) })).toHaveValue(t('settings.provinces.QC'))
     expect(screen.getByRole('textbox', { name: 'N° de permis' })).toHaveValue('12345')
+    // No gender recorded reads « Non indiqué », not an empty field.
+    expect(screen.getByRole('textbox', { name: t(`${I}.identity.gender`) })).toHaveValue(t(`${I}.identity.genderNone`))
+    // Help says how to fill a field in: none read-only (gender, login email, IVAC, licence).
+    for (const name of [t(`${I}.identity.gender`), t(`${I}.contact.loginEmail`), t(`${I}.payers.ivac`), 'N° de permis']) {
+      expect(screen.getByRole('textbox', { name })).not.toHaveAccessibleDescription()
+    }
   })
 })
