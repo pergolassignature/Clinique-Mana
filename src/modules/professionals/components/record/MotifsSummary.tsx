@@ -8,6 +8,13 @@ import { listLabel } from '../../lib/display'
 import type { MotifSummary, MotifSummaryGroup } from '../../lib/motif-summary'
 import { CategoryIcon } from '../CategoryIcon'
 
+/**
+ * An open category's motifs: one per line, in as many 11rem columns as fit, at most 3 (P4-86). The
+ * list's own width decides, like a container query, but from about 400px: Aperçu's value cell is
+ * ≈ 450px at 1280 (under `cq-480`), where a single column of 16 names would be long again.
+ */
+const MOTIF_COLUMNS = 'grid gap-x-6 grid-cols-[repeat(auto-fill,minmax(max(11rem,calc((100%_-_3rem)/3)),1fr))]'
+
 const S = 'modules.professionals.record.overview.matching.motifSummary'
 const M = 'modules.professionals.record.overview.matching'
 
@@ -15,7 +22,7 @@ const M = 'modules.professionals.record.overview.matching'
  * The professional's motifs, light at any density (P4-73). Each category is a header row (icon,
  * name, « 6 / 16 ») over its short summary: the names when up to three are held, else « Tous »,
  * « Tous sauf … » or the count alone. A summarised category is a disclosure that unfolds to its
- * motifs, one per line in 1 to 3 columns (by the box's width, container queries). When nearly every
+ * motifs, one per line in 1 to 3 columns (by the list's width). When nearly every
  * motif is held, one line (« Tous les motifs (72) ») unfolds to the categories, each still folded:
  * eight calm rows, never 72 names at once. Panels stay mounted under `hidden`, so `aria-controls`
  * always points at an element.
@@ -24,7 +31,7 @@ export function MotifsSummary({ summary }: { summary: MotifSummary }) {
   const { overall, archived } = summary
   const categories = <CategoryList groups={summary.groups} />
   return (
-    <div className="container-inline space-y-2 text-sm">
+    <div className="space-y-2 text-sm">
       {overall ? (
         <Disclosure
           label={
@@ -161,7 +168,8 @@ function CategoryRow({ group, open, onOpenChange }: { group: MotifSummaryGroup; 
         <Chevron open={open} />
         <span className="min-w-0 flex-1">{header}</span>
       </button>
-      <ul id={panelId} hidden={!open} className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 pl-[40px] cq-480:grid-cols-2 cq-720:grid-cols-3">
+      {/* `grid` would beat the `hidden` attribute's display: none; `[&[hidden]]:hidden` restores it. */}
+      <ul id={panelId} hidden={!open} className={cn(MOTIF_COLUMNS, 'mt-2 gap-y-1 pl-[40px] [&[hidden]]:hidden')}>
         {group.motifs.map((motif) => (
           <li key={`${motif.archived ? 'a' : 'm'}:${motif.name}`} className="min-w-0 break-words text-foreground">
             {motif.name}
