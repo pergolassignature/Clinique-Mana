@@ -43,6 +43,8 @@ const TECHNICAL = new Set([
   // A client agreement's client reference: redacted by the audit trigger (Loi 25, P4-193); the
   // history shows the duration, the dates and the amounts only.
   'client_label',
+  // The fiche's last download or email (P4-203): bookkeeping, not a change to the file.
+  'fiche_generated_at',
 ])
 /** Free texts: shown in the details only, never inside a sentence. */
 const LONG_TEXT = new Set(['bio', 'approach', 'availability_note', 'deactivation_note', 'activation_override_reason'])

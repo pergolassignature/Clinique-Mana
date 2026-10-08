@@ -93,6 +93,10 @@ describe('history — the record row', () => {
     expect(event.lines).toEqual([])
   })
 
+  it('says nothing of a fiche download or email (the stamp is bookkeeping, P4-203)', () => {
+    expect(events([row('professionals', 'update', { fiche_generated_at: { before: null, after: TX } })])).toEqual([])
+  })
+
   it('never shows a redacted value: only that the field changed', () => {
     const event = only([row('professionals', 'update', { city: '[redacted]' })])
     expect(event.sentence).toBe('a modifié la ville')

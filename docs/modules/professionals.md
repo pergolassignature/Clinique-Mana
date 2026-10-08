@@ -196,6 +196,24 @@ The clinic's program (P4-180–P4-194, the plan's « The retention program »), 
 - **Other kinds.** `compensation_rates`: « Ateliers et conférences » 25 %, « Annulation tardive » 30 %, « Autres frais » 15 %, per clinic, dated.
 - **Pages.** The record's « Rémunération et fiscalité » → « Rétention »; « Révision mensuelle » (`/professionnels/revision-mensuelle`); Paramètres → Rémunération. Everything needs `professionals.compensation` (admin by default) and is internal: never shown to the professional (`professionals.self`). The notice email to the professional arrives with 4b (P4-191).
 
+## Fiche PDF (Task 4c.5, pulled forward)
+
+The fiche a conseillère gives a client is made **in the browser** with `@react-pdf/renderer` 4.3.1 (P4-58), on PS Hub's structure, in `src/modules/professionals/pdf/`:
+
+- `font-files.ts` + `fonts.ts`: Inter (WOFF 1, latin and latin-ext, 400/600/700) registered and loaded once, hyphenation off (P4-205);
+- `load-images.ts`: a stored PNG or JPEG (the clinic logo; the photo with 4c) as a data URL, through `storage-sign`;
+- `fiche-content.ts`: the record, the catalogue and the clinic as printed words (pure, tested without a PDF);
+- `FicheDocument.tsx`: the Letter page(s);
+- `generate-fiche-pdf.ts`: fonts ∥ logo → content → `pdf().toBlob()`.
+
+That folder is one lazy chunk (react-pdf, the fonts: about 1.7 MB, 574 kB gzip), loaded by « Fiche PDF » (`hooks/use-fiche.ts`, `import()`), never with the record page or the login page: ESLint refuses `@react-pdf/*` outside it and any static import of it (types excepted), and `check:entry-chunk` fails if react-pdf reaches the login page's JS. Vite's chunk-size warning names this chunk on every build; it is expected.
+
+« Fiche PDF » (`components/record/FicheMenu.tsx`, in `RecordActions`) is an outline menu for every reader of the record. « Télécharger » saves « Fiche - Prénom Nom.pdf » (P4-200), one item per title when there are two (P4-206), then stamps `professionals.fiche_generated_at` (`mark_professional_fiche_generated`, migration `…_professionals_fiche.sql`, P4-203). The content follows the clinic's public profiles (P4-212): name, title, « Membre de l’OPQ · N° de permis … », Langues, Honoraires, Clientèle, « À propos », and **every motif held, by name, under its category** (P4-211: the staff screens' summaries never reach the client's document). Clientèle carries the client limits as Aperçu words them: « Adolescents (14 ans et +) » on the youngest held age group, else « Âge minimum : 14 ans », and « Femmes seulement » (P4-219). Honoraires are the clinic's public fees: the **client prices** of the fiche's title's retention grid in force today, « Rencontre 50 min : 175 $ », « Rencontre 30 min : 130 $ », « Rencontre 60 min (couple/famille) : 200 $ » (those the grid prices), else « À confirmer » (P4-218). They come from `get_professional_public_fees(p_id, p_title_id)` (migration `…_professionals_public_fees.sql`): definer, `professionals.view` (the conseillères send fiches but cannot read the grids), durations and client prices only; never a retention, a tier or a pay. No « Approche » text (P4-216), photo slot for 4c (P4-202), no clinic blurb (P4-207).
+
+« Envoyer par courriel… » (`SendFicheDialog.tsx`, active professionals only) renders the same file, uploads it (purpose `professional_fiche`, kept one day, migration `…_professionals_fiche_email.sql`) and calls the edge function `professionals-fiche`, which checks the upload with the caller's own client (`get_professional_fiche_upload`) and sends the template `professionals.fiche` (free recipient, PDF attached, log subject `professional`), then stamps the fiche (P4-209).
+
+Tests read the rendered PDF back (`test/pdf-text.ts`: each font's ToUnicode map, the transform stack, runs drawn off the page): French glyphs with Inter only, latin-ext names, a dropped emoji, a long presentation over pages with the footer on each, 72 motifs as eight « Tous », two titles, « À confirmer », images.
+
 ## Écarts par rapport à PS Hub
 
 PS Hub (`NEW PS Hub`, read-only) settles uncertain choices (P4-39). Where this module differs, the reason is below.
@@ -219,6 +237,11 @@ PS Hub (`NEW PS Hub`, read-only) settles uncertain choices (P4-39). Where this m
   - Tests sign in through the real login page instead of injecting a session.
   - The fixture refuses any origin but the e2e server's.
   - The e2e server runs on its own port (5190, `--strictPort`), because the shared 5173 server may be serving another worktree's code.
+- **Fiche PDF (4c.5).** We follow PS Hub's react-pdf base (`fonts.ts`, `loadImages.ts`, `generate…PDF.ts`, page components) with four differences:
+  - Fonts come from `@fontsource/raleway` through Vite (`?url`), not files in `public/`, so they are hashed and loaded only with the fiche; and a second subset (latin-ext) is renamed once loaded (P4-205, P4-217). PS Hub's single Figtree set has neither need.
+  - Images are fetched as they are (PNG or JPEG data URLs), with no canvas: the storage purposes accept only those two types.
+  - No `lineHeight` on the page style: inherited by an absolute footer, react-pdf 4.3 lays it out far off the page (each text style sets its own, with its own `fontSize`).
+  - The tests render the real document and read its text back (PS Hub's `generateReactPDF.test.ts` checks the template list and the line items, not the PDF).
 
 ## Known follow-ups
 

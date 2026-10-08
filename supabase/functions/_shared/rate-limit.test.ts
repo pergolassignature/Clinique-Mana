@@ -271,6 +271,7 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     signingSyncUser: ['signing.sync_user', 60, 3_600],
     signingTestConnectionUser: ['signing.test_connection_user', 30, 3_600],
     signingTestDocumentUser: ['signing.test_document_user', 10, 3_600],
+    ficheEmailUser: ['professionals.fiche_email_user', 30, 3_600],
     emailPreviewUser: ['emails.preview_user', 300, 3_600],
     placesUser: ['places.user', 600, 3_600],
     placesOrg: ['places.org', 3_000, 3_600],

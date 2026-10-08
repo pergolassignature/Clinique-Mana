@@ -1909,6 +1909,61 @@
         "catalogError": "Les titres n'ont pas pu être chargés.",
         "licenceNowRequired": "Ce titre demande maintenant un numéro de permis. Saisissez-le dans le champ ajouté, puis créez le dossier."
       },
+      "fiche": {
+        "menu": {
+          "trigger": "Fiche PDF",
+          "download": "Télécharger",
+          "downloadTitle": "Télécharger la fiche ({title})",
+          "email": "Envoyer par courriel…",
+          "emailActiveOnly": "Professionnels actifs seulement"
+        },
+        "send": {
+          "title": "Envoyer la fiche par courriel",
+          "description": "La fiche de {name} est jointe au courriel, telle que « Télécharger » la produit.",
+          "to": "Courriel du client",
+          "emailRequired": "Indiquez le courriel du client.",
+          "invalidEmail": "Courriel invalide.",
+          "titleLabel": "Titre",
+          "titleHelp": "La fiche présente ce titre, avec son ordre et son permis.",
+          "message": "Message",
+          "messageHelp": "Facultatif. Il suit « Bonjour, ». {count} / {max} caractères",
+          "messageTooLong": "{max} caractères au plus.",
+          "submit": "Envoyer",
+          "pending": "Envoi…",
+          "sent": "Fiche envoyée à {email}."
+        },
+        "errors": {
+          "render": "La fiche n'a pas pu être préparée. Rechargez la page, puis réessayez.",
+          "appUpdated": "Une nouvelle version de l'application est disponible. Rechargez la page, puis réessayez.",
+          "send": "La fiche n'a pas pu être envoyée. Réessayez dans un instant.",
+          "tryAgain": "L'envoi a été interrompu. Réessayez.",
+          "invalidRecipient": "Ce courriel ne peut pas recevoir la fiche. Vérifiez l'adresse.",
+          "rateLimited": "Trop de fiches envoyées en peu de temps.",
+          "notConfigured": "L'envoi de courriels n'est pas configuré. Avisez l'administration de la clinique.",
+          "provider": "Le service de courriel n'a pas répondu. Réessayez dans un instant.",
+          "uploadGone": "La fiche préparée n'est plus disponible. Réessayez.",
+          "template": "Le modèle de courriel « Fiche d'un professionnel » demande une valeur que l'envoi ne fournit pas. Vérifiez-le dans Paramètres, Courriels."
+        },
+        "pdf": {
+          "documentTitle": "Fiche de {name}",
+          "member": "Membre de {acronym}",
+          "memberElided": "Membre de l’{acronym}",
+          "clienteles": "Clientèle",
+          "languages": "Langues",
+          "fees": "Honoraires",
+          "feesPending": "À confirmer",
+          "feeLine": "{duration} : {price}",
+          "feeDurations": {
+            "50": "Rencontre 50 min",
+            "30": "Rencontre 30 min",
+            "60": "Rencontre 60 min (couple/famille)"
+          },
+          "specialized": "Domaine de spécialisation",
+          "about": "À propos",
+          "motifs": "Motifs de consultation",
+          "footer": "Fiche à jour le {date} · Page {page} de {total}"
+        }
+      },
       "toasts": {
         "saved": "Modifications enregistrées.",
         "created": "Professionnel créé.",
@@ -2681,7 +2736,8 @@
         "deactivation_reason_id": "Raison de la désactivation",
         "deactivation_note": "Note de désactivation",
         "deactivation_disabled_account": "Compte désactivé avec le dossier",
-        "activation_override_reason": "Raison de l'activation d'un dossier incomplet"
+        "activation_override_reason": "Raison de l'activation d'un dossier incomplet",
+        "fiche_generated_at": "Fiche PDF générée le"
       },
       "professional_public_profiles": {
         "professional_id": "Professionnel",

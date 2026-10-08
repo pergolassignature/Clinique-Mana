@@ -15,6 +15,7 @@ vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 const ACTIVATE = t('modules.professionals.record.actions.activate')
 const REACTIVATE = t('modules.professionals.record.actions.reactivate')
 const MORE = t('modules.professionals.record.actions.more')
+const FICHE = t('modules.professionals.fiche.menu.trigger')
 
 function renderActions(status: ProfessionalStatus, complete: boolean, role: FixtureRole) {
   const record = recordWithStatus(status, complete)
@@ -27,12 +28,12 @@ const buttons = () => screen.queryAllByRole('button').map((b) => b.getAttribute(
 
 describe('RecordActions', () => {
   it.each<[string, ProfessionalStatus, boolean, FixtureRole, string[]]>([
-    ['adjointe, complete draft: « Activer » and the menu', 'draft', true, 'admin_assistant', [ACTIVATE, MORE]],
-    ['adjointe, incomplete draft: the menu only (Aperçu says what is missing)', 'draft', false, 'admin_assistant', [MORE]],
-    ['admin, incomplete draft: « Activer » (override)', 'draft', false, 'admin', [ACTIVATE, MORE]],
-    ['active: the menu only', 'active', true, 'admin', [MORE]],
-    ['inactive and complete: « Réactiver », no menu', 'inactive', true, 'admin_assistant', [REACTIVATE]],
-    ['conseillère: nothing', 'draft', true, 'counselor', []],
+    ['adjointe, complete draft: « Fiche PDF », « Activer » and the menu', 'draft', true, 'admin_assistant', [FICHE, ACTIVATE, MORE]],
+    ['adjointe, incomplete draft: the menu only (Aperçu says what is missing)', 'draft', false, 'admin_assistant', [FICHE, MORE]],
+    ['admin, incomplete draft: « Activer » (override)', 'draft', false, 'admin', [FICHE, ACTIVATE, MORE]],
+    ['active: the menu only', 'active', true, 'admin', [FICHE, MORE]],
+    ['inactive and complete: « Réactiver », no menu', 'inactive', true, 'admin_assistant', [FICHE, REACTIVATE]],
+    ['conseillère: « Fiche PDF » only', 'draft', true, 'counselor', [FICHE]],
   ])('%s', (_, status, complete, role, expected) => {
     renderActions(status, complete, role)
     expect(buttons()).toEqual(expected)

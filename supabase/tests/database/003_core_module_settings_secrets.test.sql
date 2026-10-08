@@ -115,7 +115,8 @@ select functions_are('public', array[
   'get_submission_review', 'apply_professional_submission', 'reject_professional_submission',
   'list_professional_invitations_to_remind_for_service', 'reissue_professional_invitation_for_service',
   'get_professional_submission_notice_for_service',
-  'set_user_preference', 'delete_user_preference'
+  'set_user_preference', 'delete_user_preference',
+  'mark_professional_fiche_generated', 'get_professional_fiche_upload', 'get_professional_public_fees'
 ], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,

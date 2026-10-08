@@ -5,7 +5,9 @@
 //
 // Markers are strings each library always ships, so they survive minification:
 // - date-fns: its default (en-US) and fr locales' « less than a second » texts;
-// - cmdk: its DOM attribute names.
+// - cmdk: its DOM attribute names;
+// - @react-pdf/renderer (the fiche PDF, P4-58: a chunk of its own, loaded on « Fiche PDF »): a
+//   method of its font store, a public name minification keeps.
 // Each marker must still appear in SOME built chunk: if a library update renames one, this script
 // fails instead of silently checking nothing.
 //
@@ -21,6 +23,7 @@ const assets = join(dist, "assets");
 const MARKERS = {
   "date-fns": ["less than a second", "moins d’une seconde"],
   cmdk: ["cmdk-item", "cmdk-group-heading"],
+  "@react-pdf/renderer": ["registerHyphenationCallback"],
 };
 
 const fail = (message) => {
@@ -76,4 +79,4 @@ for (const name of loginFiles) {
   gzip += gzipSync(content).length;
 }
 const kB = (bytes) => `${(bytes / 1000).toFixed(2)} kB`;
-console.log(`[entry-chunk] OK: login page JS ${loginFiles.length} files, ${kB(raw)} (gzip ${kB(gzip)}); no date-fns, no cmdk.`);
+console.log(`[entry-chunk] OK: login page JS ${loginFiles.length} files, ${kB(raw)} (gzip ${kB(gzip)}); no ${Object.keys(MARKERS).join(", no ")}.`);

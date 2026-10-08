@@ -2710,6 +2710,7 @@ export type Database = {
           deactivation_note: string | null
           deactivation_reason_id: string | null
           email: string
+          fiche_generated_at: string | null
           first_name: string
           gender: string | null
           id: string
@@ -2737,6 +2738,7 @@ export type Database = {
           deactivation_note?: string | null
           deactivation_reason_id?: string | null
           email: string
+          fiche_generated_at?: string | null
           first_name: string
           gender?: string | null
           id?: string
@@ -2764,6 +2766,7 @@ export type Database = {
           deactivation_note?: string | null
           deactivation_reason_id?: string | null
           email?: string
+          fiche_generated_at?: string | null
           first_name?: string
           gender?: string | null
           id?: string
@@ -4679,6 +4682,10 @@ export type Database = {
         Args: { p_id: string; p_on?: string }
         Returns: Json
       }
+      get_professional_fiche_upload: {
+        Args: { p_file_id: string; p_id: string }
+        Returns: Json
+      }
       get_professional_onboarding: { Args: { p_id: string }; Returns: Json }
       get_professional_private: {
         Args: { p_id: string }
@@ -4693,6 +4700,10 @@ export type Database = {
           updated_at: string
           updated_by_name: string
         }[]
+      }
+      get_professional_public_fees: {
+        Args: { p_id: string; p_title_id?: string }
+        Returns: Json
       }
       get_professional_public_profile: { Args: { p_id: string }; Returns: Json }
       get_professional_readiness: { Args: { p_id: string }; Returns: Json }
@@ -5124,6 +5135,10 @@ export type Database = {
         Returns: number
       }
       mark_notifications_read: { Args: { p_ids: string[] }; Returns: undefined }
+      mark_professional_fiche_generated: {
+        Args: { p_id: string }
+        Returns: string
+      }
       mark_signature_request_failed: {
         Args: { p_envelope_id?: string; p_error_code: string; p_id: string }
         Returns: undefined
