@@ -423,7 +423,7 @@ declare
 begin
   if p_max is null or p_max < 1 or p_window_seconds is null or p_window_seconds not between 1 and 86400
      or p_key_hash is null or pg_catalog.length(p_key_hash) <> 32 then
-    raise exception 'Invalid rate limit arguments' using errcode = '22023';
+    raise exception 'Arguments invalides.' using errcode = '22023';
   end if;
   v_window := pg_catalog.make_interval(secs => p_window_seconds);
   v_start := pg_catalog.date_bin(v_window, pg_catalog.now(), timestamptz '2000-01-01 00:00:00+00');
