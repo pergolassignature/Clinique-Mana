@@ -95,3 +95,12 @@ sql_paths = ["./seed.sql"]
 
 [analytics]
 enabled = false
+
+# Edge functions. `verify_jwt = false` only for functions that authenticate themselves
+# (verifyAuth, a webhook signature or X-Job-Signature; CLAUDE.md §7).
+[functions.email-preview]
+verify_jwt = false
+[functions.email-test-send]
+verify_jwt = false
+[functions.resend-webhook]
+verify_jwt = false

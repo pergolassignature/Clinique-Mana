@@ -1,8 +1,8 @@
 /**
  * The templated send path (design §2.1, §2.6; P3-4, P3-5, P3-18): one call
  * resolves the template and sender, checks the gates and limits, composes,
- * logs, sends and records the outcome. Module functions, `send-email` and
- * `email-test-send` all send through `sendTemplatedEmail`.
+ * logs, sends and records the outcome. Module and job functions and
+ * `email-test-send` all send through `sendTemplatedEmail`, in process.
  *
  * Order (plan Task 3.8, with compose moved before the limits):
  * 1. Configuration (`EMAIL_TRANSPORT`, `APP_URL`; the console transport only
@@ -18,11 +18,16 @@
  *    file names).
  * 4. Compose (`compose.ts`), before any limit: a template error uses up no
  *    slot, and nothing is queued.
- * 5. Rate limits in parallel: org per day; same template and address (60 s,
- *    skipped for « Renvoyer » and test sends); for « Renvoyer » and test sends
- *    instead, a 5 s double-click guard per template, address and sender
- *    (`emails.repeat_guard`); test sends per caller; free-recipient sends per
- *    sender. The 401st send of the day reports `email_daily_80_percent`.
+ * 5. Rate limits. A normal send consumes, in parallel: org per day
+ *    (`emails.org_day`); same template and address (60 s,
+ *    `emails.same_address`); free-recipient sends per sender. « Renvoyer »
+ *    and test sends skip the same-address limit and consume the narrow
+ *    buckets first, in parallel: a 5 s double-click guard per template,
+ *    address and sender (`emails.repeat_guard`); test sends per caller
+ *    (`emails.test`); free-recipient sends per sender. Only when those all
+ *    pass is `emails.org_day` consumed, so refused clicks never use up the
+ *    clinic's daily quota. The 401st send of the day reports
+ *    `email_daily_80_percent`.
  * 6. An aborted caller signal stops here: nothing is queued or sent.
  * 7. `queue_email` → the `email_log` id, used as the idempotency key and tag.
  * 8. The transport (retries inside, P3-4), then `mark_email_sent` /
@@ -31,8 +36,9 @@
  *    unknown » (a later webhook may still move it to `sent` / `delivered`).
  *
  * Outcomes a caller presents are a `SendResult`. Failures that are not the
- * caller's to present (an RPC error, a malformed context, an invalid clinic
- * timezone) are reported here, then thrown as a `FunctionError` (`internal` /
+ * caller's to present (an unknown template key, an RPC error, a malformed
+ * context, an invalid clinic timezone) are reported here, then thrown as a
+ * `FunctionError` (`not_found` for the unknown key, else `internal` /
  * `server_misconfigured`): the handler answers with its code and does not
  * report it again.
  *
@@ -46,7 +52,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import type { Deps } from '../deps.ts'
 import { FunctionError } from '../errors.ts'
-import { consume, LIMITS, type RateLimit } from '../rate-limit.ts'
+import {
+  consume,
+  LIMITS,
+  type RateLimit,
+  type RateLimitResult,
+} from '../rate-limit.ts'
 import { reportError } from '../report.ts'
 import { sniff } from '../storage.ts'
 import { composeEmail, type EmailContext } from './compose.ts'
@@ -106,11 +117,12 @@ export interface SendTemplatedEmailInput {
    * « M'envoyer un test »: sample values for anything missing, a « [Test] »
    * subject, the test limit per caller. The caller passes its own address as
    * `to` (`auth.access.email`), never a body field. `draft` renders unsaved
-   * text instead of the effective template.
+   * text instead of the effective template; `buttonLabel` null means « no
+   * button », undefined keeps the effective template's label.
    */
   test?: {
     callerId: string
-    draft?: { subject: string; body: string; buttonLabel: string | null }
+    draft?: { subject: string; body: string; buttonLabel?: string | null }
   }
 }
 
@@ -262,6 +274,22 @@ function emailContext(raw: RawContext): EmailContext {
   }
 }
 
+/**
+ * A `get_email_context` result as compose input, with its module gate, or
+ * null when malformed. For callers that compose without sending (preview).
+ */
+export function parseEmailContext(
+  data: unknown,
+): { moduleEnabled: boolean; context: EmailContext } | null {
+  const parsed = contextSchema.safeParse(data)
+  return parsed.success
+    ? {
+      moduleEnabled: parsed.data.module_enabled,
+      context: emailContext(parsed.data),
+    }
+    : null
+}
+
 /** True when `email` is one bare mailbox of at most 254 characters. */
 function isMailbox(email: string): boolean {
   return email.length <= MAX_ADDRESS_LENGTH && MAILBOX.test(email)
@@ -293,7 +321,7 @@ export async function sendTemplatedEmail(
     reportError({ fn: deps.fn, code, ids: { ...ids, ...extra } }, deps.fetch)
   const fail = async (
     code: string,
-    as: 'internal' | 'server_misconfigured' = 'internal',
+    as: 'internal' | 'server_misconfigured' | 'not_found' = 'internal',
   ): Promise<never> => {
     await report(code)
     throw new FunctionError(as, `email send: ${code}`)
@@ -330,6 +358,11 @@ export async function sendTemplatedEmail(
       })
       : Promise.resolve({ data: null, error: null }),
   ])
+  // get_email_context raises 22023 for an unknown org or template key: the
+  // caller answers 404 (still reported, a sender names a key in code).
+  if (contextRes.error?.code === '22023') {
+    return fail('email_template_unknown', 'not_found')
+  }
   if (contextRes.error) return fail('email_context_failed')
   if (secretRes.error) return fail('email_secret_failed')
   const parsed = contextSchema.safeParse(contextRes.data)
@@ -379,7 +412,9 @@ export async function sendTemplatedEmail(
       ...context.template,
       subject: draft.subject,
       body: draft.body,
-      buttonLabel: draft.buttonLabel,
+      buttonLabel: draft.buttonLabel === undefined
+        ? context.template.buttonLabel
+        : draft.buttonLabel,
     }
   }
   const composed = composeEmail(context, {
@@ -402,45 +437,61 @@ export async function sendTemplatedEmail(
     }
   }
 
-  // 5. Rate limits, in parallel; the org day limit comes first.
+  // 5. Rate limits. « Renvoyer » and test sends: the narrow buckets first,
+  // then the org day only if they pass; a normal send: all in parallel.
   const address = to.toLowerCase()
-  const checks: [RateLimit, string[]][] = [[LIMITS.emailOrgDay, [input.orgId]]]
-  if (input.explicitResend || input.test) {
+  const orgDay: [RateLimit, string[]] = [LIMITS.emailOrgDay, [input.orgId]]
+  const narrow: [RateLimit, string[]][] = []
+  const guarded = Boolean(input.explicitResend || input.test)
+  if (guarded) {
     // A double click on « Renvoyer » or « M'envoyer un test » sends once.
-    checks.push([LIMITS.emailRepeatGuard, [
+    narrow.push([LIMITS.emailRepeatGuard, [
       input.orgId,
       input.templateKey,
       address,
       input.sentBy ?? input.test?.callerId ?? '',
     ]])
   } else {
-    checks.push([
+    narrow.push([
       LIMITS.emailSameAddress,
       [input.orgId, input.templateKey, address],
     ])
   }
   if (input.test) {
-    checks.push([LIMITS.emailTest, [input.orgId, input.test.callerId]])
+    narrow.push([LIMITS.emailTest, [input.orgId, input.test.callerId]])
   }
   if (free && input.sentBy) {
-    checks.push([LIMITS.emailFreeRecipient, [input.orgId, input.sentBy]])
+    narrow.push([LIMITS.emailFreeRecipient, [input.orgId, input.sentBy]])
   }
-  const limits = await Promise.all(
-    checks.map(([limit, key]) => consume(client, limit, key)),
-  )
-  if (limits[0].hits === ORG_DAY_WARN_AT) await report('email_daily_80_percent')
-  if (limits.some((l) => l.reason === 'unavailable')) {
-    return { ok: false, emailLogId: null, code: 'not_configured' }
-  }
-  const refused = limits.filter((l) => !l.allowed)
-  if (refused.length > 0) {
-    return {
-      ok: false,
-      emailLogId: null,
-      code: 'rate_limited',
-      retryAfter: Math.max(...refused.map((l) => l.retryAfter)),
+  const consumeAll = (checks: [RateLimit, string[]][]) =>
+    Promise.all(checks.map(([limit, key]) => consume(client, limit, key)))
+  const refusal = (limits: RateLimitResult[]): SendResult | null => {
+    if (limits.some((l) => l.reason === 'unavailable')) {
+      return { ok: false, emailLogId: null, code: 'not_configured' }
     }
+    const refused = limits.filter((l) => !l.allowed)
+    return refused.length > 0
+      ? {
+        ok: false,
+        emailLogId: null,
+        code: 'rate_limited',
+        retryAfter: Math.max(...refused.map((l) => l.retryAfter)),
+      }
+      : null
   }
+  let limits: RateLimitResult[]
+  if (guarded) {
+    const first = await consumeAll(narrow)
+    const refusedFirst = refusal(first)
+    if (refusedFirst) return refusedFirst
+    limits = [...await consumeAll([orgDay]), ...first]
+  } else {
+    limits = await consumeAll([orgDay, ...narrow])
+  }
+  // limits[0] is the org day result in both orders.
+  if (limits[0].hits === ORG_DAY_WARN_AT) await report('email_daily_80_percent')
+  const refused = refusal(limits)
+  if (refused) return refused
 
   // 6. The caller has gone: queue nothing, send nothing.
   if (deps.signal?.aborted) {

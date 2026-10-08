@@ -1,6 +1,6 @@
 import { assertEquals } from '@std/assert'
 import { z } from 'zod'
-import { readJson } from './http.ts'
+import { readCapped, readJson } from './http.ts'
 
 const schema = z.object({ name: z.string().min(1) })
 
@@ -94,4 +94,15 @@ Deno.test('readJson: errors carry CORS headers for the request', async () => {
     (res as Response).headers.get('Access-Control-Allow-Methods'),
     'GET, POST, OPTIONS',
   )
+})
+
+Deno.test('readCapped: the raw bytes up to the cap, null above it', async () => {
+  const bytes = await readCapped(post('x'.repeat(10)), 10)
+  assertEquals(new TextDecoder().decode(bytes!), 'x'.repeat(10))
+  assertEquals(await readCapped(post('x'.repeat(11)), 10), null)
+  assertEquals(
+    await readCapped(post('x', { 'Content-Length': '65537' })),
+    null,
+  )
+  assertEquals((await readCapped(new Request('https://fn.test/x')))?.length, 0)
 })
