@@ -60,7 +60,8 @@ Enable RLS on every table. Policies call the helpers in schema `private` (not ex
 | `private.current_user_org_id()` | caller's org, or `null` if no active profile |
 | `private.current_user_role()` | role key (text), or `null` if inactive / no role |
 | `private.has_role(text)` | boolean |
-| `private.has_permission(text)` | role defaults ∪ override grants − override revokes, **only for modules enabled in the caller's org** (`core` always is); `false` when disabled, role-less or unknown key |
+| `private.current_permission_keys()` | the caller's effective permission keys (`text[]`, sorted): the org's role defaults ∪ override grants − override revokes, **only for modules enabled in the caller's org** (`core` always is); `'{}'` when disabled or role-less. The one place permissions are evaluated |
+| `private.has_permission(text)` | `key = any (current_permission_keys())`; `false` for a null or unknown key |
 
 Canonical shape:
 
@@ -71,6 +72,15 @@ create policy trainings_select on public.trainings
     org_id = (select private.current_user_org_id())
     and (select private.has_permission('trainings.view'))
   );
+```
+
+- When the permission key comes from the row (`view_permission`, `owner_permission`), test it against the array, once per statement. The cast is required: without it `= any ((select …))` is the subquery form and fails with « operator does not exist: text = text[] ».
+
+```sql
+using (
+  org_id = (select private.current_user_org_id())
+  and view_permission = any ((select private.current_permission_keys())::text[])
+)
 ```
 
 - **Every module policy includes a `has_permission` term.** It is the module gate: when an org disables a module, `has_permission('<module>.*')` turns false and the module's rows disappear. An ownership-only policy (`user_id = (select auth.uid())`) skips the gate, so combine it: `… and (select private.has_permission('trainings.view'))`.
@@ -137,6 +147,7 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 - `source` defaults to `app.audit_source` if set, else `app` (authenticated), `service` (service role) or `system`. RPCs that log explicitly use `rpc:<function_name>`; seeds set `seed`.
 - Changes invisible to the row diff (e.g. a Vault value) get an explicit row from the RPC — see `set_org_secret`. Reads of `*_private` data are logged by their RPCs.
 - Catalogue tables changed only by migrations (`modules`, `permissions`, `role_permissions`) are not audited: git is their history.
+- **Operational logs are not audited either**, even with an `org_id`: `webhook_events`, `email_log`, `scheduled_job_runs`, `notifications`, `notification_reads` (and `rate_limits`, which has no `org_id`). They are written by the service role or by RPCs, hold recipient addresses or provider payloads, and are purged; auditing them would copy that data into the append-only `audit_log` forever (Loi 25; Phase 3 design §2.5). The list lives in `000_invariants` (§12): a new operational log is added there with its reason, never by disabling the check.
 - `roles` is audited since custom roles exist (`…_core_editable_roles.sql`): admins create, rename and delete them through RPCs. `org_id` comes from the row and is null for the shared base roles. `org_role_permissions` (each clinic's role defaults) is audited like any org-scoped table.
 
 ## 8. Secrets and sensitive data
@@ -147,7 +158,6 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 **Encrypted columns** (reference: `organization_bank_details`, migration `…_core_bank_details.sql`):
 - Store the value in a `bytea` column, on a table with no client privilege (RLS on, no policy), revoked from `service_role` too: `revoke all on public.<table> from anon, authenticated, service_role;`.
 - Encrypt with `private.encrypt_pii(text)` inside a SECURITY DEFINER RPC (owned by `postgres`) that checks its permission first. Key: Vault secret `pii_encryption_key`; AES-256 with a SHA-256 key derivation, via pgcrypto.
-- **Operational logs are not audited either**, even with an `org_id`: `webhook_events`, `email_log`, `scheduled_job_runs`, `notifications`, `notification_reads` (and `rate_limits`, which has no `org_id`). They are written by the service role or by RPCs, hold recipient addresses or provider payloads, and are purged; auditing them would copy that data into the append-only `audit_log` forever (Loi 25; Phase 3 design §2.5). The list lives in `000_invariants` (§12): a new operational log is added there with its reason, never by disabling the check.
 - Keep a `*_last4` (or otherwise masked) column for display; the « get » RPC returns only that.
 - A reveal RPC decrypts with `private.decrypt_pii(bytea)` and writes an `audit_log` row: action `read`, `source = 'rpc:<function>'`, `changed_fields = {"fields": ["<column>", …]}` (the names of the revealed columns, never values). No stored value → return null, no audit row.
 - Attach the audit trigger with the encrypted column **and every other value of the guarded data** redacted (masked column, related numbers, contact): `private.audit_trigger('<column>', …)`. `audit.view` must never show what the reveal permission guards; changes stay visible as `"[redacted]"`.
