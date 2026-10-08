@@ -54,15 +54,15 @@ begin
   get diagnostics v_count = row_count;
   raise notice 'organization_bank_details : % ligne(s) re-chiffrée(s)', v_count;
 
-  -- À partir de la Task 4a.17 (une valeur absente reste absente) :
-  -- update public.professional_private p
-  --    set sin = private.encrypt_pii(private.decrypt_pii(p.sin, p.key_version), v_target),
-  --        bank_account = private.encrypt_pii(private.decrypt_pii(p.bank_account, p.key_version), v_target),
-  --        key_version = v_target
-  --  where p.professional_id in (select x.professional_id from public.professional_private x
-  --                               where x.key_version <> v_target order by x.professional_id limit 500);
-  -- get diagnostics v_count = row_count;
-  -- raise notice 'professional_private : % ligne(s) re-chiffrée(s)', v_count;
+  -- Une valeur absente reste absente (encrypt_pii et decrypt_pii rendent null pour null).
+  update public.professional_private p
+     set sin = private.encrypt_pii(private.decrypt_pii(p.sin, p.key_version), v_target),
+         bank_account = private.encrypt_pii(private.decrypt_pii(p.bank_account, p.key_version), v_target),
+         key_version = v_target
+   where p.professional_id in (select x.professional_id from public.professional_private x
+                                where x.key_version <> v_target order by x.professional_id limit 500);
+  get diagnostics v_count = row_count;
+  raise notice 'professional_private : % ligne(s) re-chiffrée(s)', v_count;
 
   -- À partir de la Task 4b.1 : professional_submission_private, même forme (clé de ligne submission_id).
 end;
