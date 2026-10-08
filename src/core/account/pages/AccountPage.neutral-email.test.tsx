@@ -27,13 +27,33 @@ afterEach(() => vi.resetAllMocks())
 
 const user = { id: 'u1', email: 'admin@mana.test' }
 
-/** Asks for `email` while GoTrue answers `answer`, then returns what the email card shows. */
-async function requestChange(email: string, answer: { data: unknown; error: AuthApiError | null }, serverAfter: object) {
+type Answer = { data: { user?: object }; error: AuthApiError | null }
+
+const taken: Answer = {
+  data: {},
+  error: new AuthApiError('A user with this email address has already been registered', 422, 'email_exists'),
+}
+const freeAnswer = (email: string): Answer => ({ data: { user: { ...user, new_email: email } }, error: null })
+const outage: Answer = { data: {}, error: new AuthApiError('Error sending email change email', 500, 'unexpected_failure') }
+
+/**
+ * Asks for `email` once per answer while GoTrue answers them in turn, then returns what the email
+ * card shows. `serverAfter` is the user GoTrue returns once a request has succeeded.
+ */
+async function requestChange(email: string, answers: Answer | Answer[], serverAfter: object) {
+  const queue = Array.isArray(answers) ? [...answers] : [answers]
+  let emit: ((event: string, session: Session) => void) | undefined
   auth.onAuthStateChange.mockImplementation((callback: (event: string, session: Session) => void) => {
+    emit = callback
     callback('INITIAL_SESSION', { access_token: 't1', user } as Session)
     return { data: { subscription: { unsubscribe: vi.fn() } } }
   })
-  auth.updateUser.mockResolvedValue(answer)
+  // As auth-js does: on success, USER_UPDATED with the updated user, before updateUser resolves.
+  auth.updateUser.mockImplementation(async () => {
+    const answer = queue.shift()!
+    if (!answer.error && answer.data.user) emit?.('USER_UPDATED', { access_token: 't1', user: answer.data.user } as Session)
+    return answer
+  })
   mocks.fetchAuthUser.mockResolvedValueOnce(user).mockResolvedValue(serverAfter)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const view = render(
@@ -49,16 +69,23 @@ async function requestChange(email: string, answer: { data: unknown; error: Auth
   )
   const card = screen.getByRole('form', { name: t('account.email.title') })
   const field = within(card).getByLabelText(new RegExp(`^${t('account.email.new')}`))
-  await userEvent.type(field, email)
-  await userEvent.click(within(card).getByRole('button', { name: t('account.email.submit') }))
-  await within(within(card).getByRole('status')).findByText(t('account.email.requested'))
+  const attempts = queue.length
+  for (let i = 0; i < attempts; i++) {
+    const before = auth.updateUser.mock.calls.length
+    await userEvent.clear(field)
+    await userEvent.type(field, email)
+    await userEvent.click(within(card).getByRole('button', { name: t('account.email.submit') }))
+    await waitFor(() => expect(auth.updateUser).toHaveBeenCalledTimes(before + 1))
+    await waitFor(() => expect(within(card).getByRole('button', { name: t('account.email.submit') })).toBeEnabled())
+  }
+  // The refetch after a success (neutral or not) has landed.
   await waitFor(() => expect(mocks.fetchAuthUser).toHaveBeenCalledTimes(2))
   const shown = {
     // The email itself differs between the two runs: compare the card without it.
     text: card.textContent?.replaceAll(email, '<email>'),
     status: within(card).getByRole('status').textContent,
     fieldInvalid: field.getAttribute('aria-invalid'),
-    fieldValue: (field as HTMLInputElement).value,
+    fieldValue: (field as HTMLInputElement).value.replaceAll(email, '<email>'),
     alerts: within(card).queryAllByRole('alert').length,
     toasts: [mocks.toast.success.mock.calls, mocks.toast.error.mock.calls, mocks.toast.info.mock.calls],
   }
@@ -69,22 +96,15 @@ async function requestChange(email: string, answer: { data: unknown; error: Auth
 
 describe('« Courriel » with an address used by another account', () => {
   it('shows exactly what a real change shows: the neutral notice, no field error, nothing about the address', async () => {
-    const free = await requestChange('libre@mana.test', { data: { user: { ...user, new_email: 'libre@mana.test' } }, error: null }, {
-      ...user,
-      new_email: 'libre@mana.test',
-    })
-    const taken = await requestChange(
-      'adjointe@mana.test',
-      { data: {}, error: new AuthApiError('A user with this email address has already been registered', 422, 'email_exists') },
-      user,
-    )
+    const free = await requestChange('libre@mana.test', freeAnswer('libre@mana.test'), { ...user, new_email: 'libre@mana.test' })
+    const shownTaken = await requestChange('adjointe@mana.test', taken, user)
 
-    expect(taken).toEqual(free)
-    expect(taken.status).toBe(`${t('account.email.requestedTitle')}${t('account.email.requested')}`)
-    expect(taken.fieldInvalid).not.toBe('true')
-    expect(taken.fieldValue).toBe('')
-    expect(taken.alerts).toBe(0)
-    expect(taken.text).not.toMatch(/déjà utilisé|autre compte|en attente/i)
+    expect(shownTaken).toEqual(free)
+    expect(shownTaken.status).toBe(`${t('account.email.requestedTitle')}${t('account.email.requested')}`)
+    expect(shownTaken.fieldInvalid).not.toBe('true')
+    expect(shownTaken.fieldValue).toBe('')
+    expect(shownTaken.alerts).toBe(0)
+    expect(shownTaken.text).not.toMatch(/déjà utilisé|autre compte|en attente/i)
   })
 
   // GoTrue checks for a duplicate before its per-user throttle: within the window a free address
@@ -95,11 +115,24 @@ describe('« Courriel » with an address used by another account', () => {
       { data: {}, error: new AuthApiError('For security purposes, you can only request this after 60 seconds.', 429, 'over_email_send_rate_limit') },
       user,
     )
-    const taken = await requestChange(
-      'adjointe@mana.test',
-      { data: {}, error: new AuthApiError('A user with this email address has already been registered', 422, 'email_exists') },
-      user,
-    )
-    expect(taken).toEqual(throttledFree)
+    const shownTaken = await requestChange('adjointe@mana.test', taken, user)
+    expect(shownTaken).toEqual(throttledFree)
+  })
+
+  // A later attempt that fails replaces the earlier notice with its error, and never lets the
+  // pending address (new_email, recorded only for a real change) show through.
+  it('after a request, a failed retry shows only its error, the same for a free and a taken address', async () => {
+    const free = await requestChange('libre@mana.test', [freeAnswer('libre@mana.test'), outage], {
+      ...user,
+      new_email: 'libre@mana.test',
+    })
+    const shownTaken = await requestChange('adjointe@mana.test', [taken, outage], user)
+
+    expect(shownTaken).toEqual(free)
+    expect(shownTaken.alerts).toBe(1)
+    expect(shownTaken.text).toContain(t('auth.errors.unknown'))
+    expect(shownTaken.status).toBe('')
+    expect(shownTaken.text).not.toContain(t('account.email.requestedTitle'))
+    expect(shownTaken.text).not.toMatch(/en attente/i)
   })
 })

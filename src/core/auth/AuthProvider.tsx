@@ -170,7 +170,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // request made within the window into a « taken or not » answer.
       updateEmail: async (email) => {
         const { error } = await supabase.auth.updateUser({ email }, { emailRedirectTo: absolute('/mon-compte') })
-        if (error?.code === 'email_exists') return null
+        // By message too, for servers that send no error code (as for the magic link above).
+        if (error && (error.code === 'email_exists' || (error.status === 422 && /already been registered/i.test(error.message)))) {
+          return null
+        }
         return toNeutralCode(error)
       },
       // "Se déconnecter" signs out THIS device only, and must always work — reception PCs are shared,

@@ -344,6 +344,12 @@ describe('updateEmail', () => {
     expect(auth.updateUser).toHaveBeenCalledExactlyOnceWith({ email: 'adjointe@mana.test' }, { emailRedirectTo: `${origin}/mon-compte` })
   })
 
+  // Older servers send no error code: the message is the fallback, as for the magic link.
+  it('treats an address used by another account as success when only the message says so', async () => {
+    auth.updateUser.mockResolvedValue(apiError('A user with this email address has already been registered', 422))
+    await expect(renderReady().updateEmail('adjointe@mana.test')).resolves.toBeNull()
+  })
+
   it('still reports a real failure', async () => {
     auth.updateUser.mockResolvedValue(apiError('boom', 500, 'unexpected_failure'))
     await expect(renderReady().updateEmail('nouvelle@mana.test')).resolves.toBe('unknown')

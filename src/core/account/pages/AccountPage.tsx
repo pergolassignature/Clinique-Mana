@@ -109,10 +109,14 @@ function EmailCard() {
   const user = useAccountUser()
   const queryClient = useQueryClient()
   const current = user?.email ?? ''
-  // A change was asked from this page. Its notice is neutral: an address used by another account
-  // answers like a success (decision #38), so the page never names a change the server may not
-  // have recorded.
+  // The last request from this page succeeded. Its notice is neutral: an address used by another
+  // account answers like a success (decision #38), so the page never names a change the server may
+  // not have recorded. Cleared on each new attempt, so a later failure doesn't sit next to it.
   const [requested, setRequested] = useState(false)
+  // A request from this page succeeded at least once. Never cleared: from then on, « en attente
+  // vers … » stays hidden, even while a later attempt is in flight or after it fails, otherwise
+  // new_email (recorded only for a real change) would show through.
+  const [askedHere, setAskedHere] = useState(false)
   const [error, setError] = useState<AuthErrorCode | null>(null)
   const form = useForm<z.input<typeof emailSchema>, unknown, z.output<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
@@ -125,9 +129,10 @@ function EmailCard() {
   // After one, the neutral notice wins, even once new_email comes back: otherwise a real change and
   // an address already taken would end up looking different.
   const pendingEmail = user?.new_email
-  const showPending = !requested && Boolean(pendingEmail) && pendingEmail?.toLowerCase() !== current.toLowerCase()
+  const showPending = !askedHere && Boolean(pendingEmail) && pendingEmail?.toLowerCase() !== current.toLowerCase()
 
   const onSubmit = form.handleSubmit(async ({ email }) => {
+    setRequested(false)
     setError(null)
     if (email.toLowerCase() === current.toLowerCase()) {
       form.setError('email', { message: t('account.email.same') }, { shouldFocus: true })
@@ -144,6 +149,7 @@ function EmailCard() {
       return
     }
     setRequested(true)
+    setAskedHere(true)
     form.reset()
     void queryClient.invalidateQueries({ queryKey: accountKeys.all })
   })
