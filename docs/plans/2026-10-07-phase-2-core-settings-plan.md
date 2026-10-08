@@ -2105,6 +2105,62 @@ to authenticated;
 
 ---
 
+# Batch 2e — Rôles modifiables (added 2026-10-07 at Jonathan's request, decision #40)
+
+## Task 2.20: Editable roles (per clinic)
+
+*Jonathan: « we need to be able to modify the roles, etc. » Runs after the decision #39 switches. Database part first (pgTAP first), then the UI.*
+
+**Why per clinic.** Today `roles` and `role_permissions` are global catalogues, changed only by migrations. If they become editable as they are, an admin's change would apply to every clinic, which breaks design D3 (« une clinique, prête pour plusieurs »). So the role defaults that are actually evaluated become per clinic, and the global tables stay as the **template** used to seed new clinics and to deliver new module permissions.
+
+### Database (one migration `…_core_editable_roles.sql`, plus pgTAP `0NN_core_editable_roles.test.sql`)
+1. **New core permission `roles.manage`** (« Gérer les rôles »), granted to `admin` in the template.
+2. **`public.org_role_permissions(org_id, role, permission_key)`**, primary key on all three, with FKs to `organizations`, `roles` and `permissions` (cascade), the FK indexes, and the audit trigger.
+   - **Access:** select for org members (RLS on org); no client writes.
+   - **Seeding:** filled for every existing org from `role_permissions`. A trigger on `organizations` insert copies the template.
+   - **New template rows:** a trigger on `role_permissions` insert (a module migration adding a permission) also inserts the row for every existing org. An org's own removals are never undone: only new template rows propagate.
+3. **`private.has_permission` and `public.get_my_access`** (`create or replace`, same signatures, grants and module gate) read the role defaults from `org_role_permissions` for the caller's org instead of `role_permissions`. Every Phase 1–2 test must stay green; fix fixtures that insert role defaults directly.
+4. **Custom roles.**
+   - **Schema:** `roles` gains `org_id uuid null` (null = system role, shared), an FK to `organizations` with an index, and the audit trigger (it is now org-scoped).
+   - **RLS on `roles`:** `org_id is null or org_id = current org`.
+   - **Keys:** custom role keys are generated `custom_` + 8 hex chars. The name is unique per org (case-insensitive, trimmed, 1–60 characters).
+5. **RPCs** (all require `roles.manage`, own org only, French P0001 messages, `set search_path = ''`, `service_role` revoked):
+   - `set_role_permission(p_role, p_permission_key, p_granted)`:
+     - refuses `admin` (« L'administrateur a toujours toutes les permissions. »);
+     - refuses another org's custom role;
+     - refuses unknown keys (`22023`).
+   - `create_role(p_name, p_copy_from text default null)`: returns the key, starting with no permissions or a copy of `p_copy_from`'s.
+   - `rename_role(p_role, p_name)`: custom roles only (« Les rôles de base ne peuvent pas être renommés. »).
+   - `delete_role(p_role)`: custom roles only, and only when nobody has it (« Ce rôle est attribué à {n} personne(s). »).
+6. **`set_user_role`** (re-create):
+   - accepts the system roles plus the caller org's custom roles;
+   - the hold check reads `org_role_permissions`;
+   - `provider` is still refused.
+
+   `list_org_users`' `role_name` also returns custom names.
+7. **Tests:**
+   - privileges and RLS for both tables;
+   - each RPC: refusals and success;
+   - template propagation (a new template row reaches existing orgs; an org's removal survives a later migration);
+   - `has_permission` follows an org change immediately;
+   - other-org isolation;
+   - the audit rows;
+   - invariants green.
+
+### UI
+- **Rôles tab** (`RoleMatrix`, `UsersSettingsPage`):
+  - **With `roles.manage`:** each cell is a `Switch` (Space or click only, #36), saved immediately with a toast. The `admin` column is shown checked and read-only, with the note.
+  - **Without `roles.manage`:** the matrix stays read-only, as today.
+  - **« Nouveau rôle »** (dialog): name, plus « Partir des permissions de » (optional role).
+  - **Custom role columns:** a menu with « Renommer » and « Supprimer » (confirmation; the database message is shown if the role is assigned).
+  - **Mobile:** keep the sticky first column and the fade.
+- **Role labels:** system roles keep their i18n label (`roleLabel`); custom roles show their stored name.
+- **User sheet:** the role select lists the system roles plus the custom roles. The decision #39 switches use the org's role defaults.
+- **Settings section:** register `roles.manage` in the permission-key test, and in i18n if needed.
+- **Tests:** editing a cell, admin locked, create, rename, delete (assigned → message), read-only without the permission, and custom roles in the user sheet.
+
+---
+
 # Wrap-up
 
 ## Task 2.19: Documentation, full verification, review
