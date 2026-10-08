@@ -118,6 +118,7 @@ select * from private.pii_key_versions_in_use() order by 1, 2;
 ### 5. Vérifier
 
 1. L'inventaire (« Avant de commencer », point 4) ne montre plus que la version 2.
+   S'il montre encore des lignes en version 1, relancer le bloc de l'étape 4, puis revérifier : une écriture de l'app commencée avant l'étape 3 peut se terminer après l'étape 4, encore en version 1.
 2. `select public.pii_health_check();` → `true`.
 3. Dans l'app : Paramètres → Coordonnées bancaires → « Afficher » montre le bon numéro ; dans la fiche d'un professionnel qui en a un, « Rémunération et fiscalité » → « Afficher » montre son compte.
 

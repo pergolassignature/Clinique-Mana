@@ -1,19 +1,23 @@
 -- Professionnels: encrypted private data and compensation terms (migration
 -- *_professionals_compensation_private.sql, plan Phase 4 Task 4a.17).
--- Covers: privileges (table, RPCs, helpers, over pg_proc); set_professional_private (encryption at
--- rest, masks, collect_sin, Luhn, normalisation, validation messages that never repeat a value,
--- blank keeps the encrypted fields and clears the plain ones); reveal (audited read rows with the
--- field name only, nothing stored → null and no row); clear; audit redaction of every value
--- column and no plaintext anywhere in audit_log; permissions (adjointe, provider, conseillère,
--- module off, other org); the history (private rows without values, reads by field, compensation
--- rows for compensation holders only); key versions (pii_encrypted_values, one version per row
--- during a rotation, the clean P0001 for an unreadable kept value, the health check); compensation
--- (kinds, seeded defaults and rules, dated margins and levels, warning, overlaps, deletes, the
--- read model, isolation).
+-- Covers: privileges (table, RPCs, helpers, over pg_proc); the three card saves
+-- (set_professional_tax_numbers, set_professional_bank, set_professional_sin: encryption at rest,
+-- masks, collect_sin, Luhn, normalisation, validation messages that never repeat a value, blank
+-- keeps the account and clears the plain fields, a card never touches another card's fields,
+-- optimistic concurrency with HINT stale); reveal (audited read rows with the field name only,
+-- nothing stored → null and no row, an unreadable value writes none); clear; collect_sin off
+-- (reveal and clear allowed, a new SIN refused); audit redaction of every value column and no
+-- plaintext anywhere in audit_log; permissions (adjointe, provider, conseillère, module off,
+-- another clinic with org A's ids on every RPC); the history (private rows without values, reads
+-- by known field name only, compensation rows for compensation holders only); key versions
+-- (pii_encrypted_values, one version per row during a rotation on every card, the clean P0001
+-- for an unreadable kept value, the health check); compensation (kinds, seeded defaults and rules,
+-- dated margins and levels, date bounds, warning, overlaps, the four deletes and their windows,
+-- the read model, isolation, the provider refused).
 -- Plaintexts are only compared, never stored outside the RPCs' own writes.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(174);
+select plan(269);
 
 -- The HINT of the error p_sql raises (null when none): throws_ok checks only the code and message.
 create function private.test_error_hint(p_sql text) returns text
@@ -29,6 +33,13 @@ exception when others then
 end;
 $$;
 grant execute on function private.test_error_hint(text) to authenticated;
+
+-- The updated_at a card read before saving (P4-148), through the RPC the UI uses.
+create function private.test_seen(p_id uuid) returns timestamptz
+language sql set search_path = '' as $$
+  select g.updated_at from public.get_professional_private(p_id) g
+$$;
+grant execute on function private.test_seen(uuid) to authenticated;
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider (linked to P2) and a
@@ -89,22 +100,24 @@ select is_empty($$
    where has_table_privilege('anon', 'public.' || t, 'select, insert, update, delete, truncate, references, trigger')
 $$, 'anon: no privileges on the compensation tables');
 
--- The eleven RPCs: EXECUTE for authenticated only (never anon, PUBLIC or service_role).
+-- The fifteen RPCs: EXECUTE for authenticated only (never anon, PUBLIC or service_role).
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
             where n.nspname = 'public'
-              and p.proname in ('get_professional_private', 'reveal_professional_private', 'set_professional_private',
-                                'clear_professional_private_field', 'set_compensation_default', 'delete_compensation_default',
-                                'set_professional_margin', 'delete_professional_margin', 'set_recognition_rule',
-                                'set_professional_recognition', 'get_professional_compensation')),
-  11, 'the eleven RPCs exist, none overloaded');
+              and p.proname in ('get_professional_private', 'reveal_professional_private', 'set_professional_tax_numbers',
+                                'set_professional_bank', 'set_professional_sin', 'clear_professional_private_field',
+                                'set_compensation_default', 'delete_compensation_default', 'set_professional_margin',
+                                'delete_professional_margin', 'set_recognition_rule', 'delete_recognition_rule',
+                                'set_professional_recognition', 'delete_professional_recognition', 'get_professional_compensation')),
+  15, 'the fifteen RPCs exist, none overloaded');
 select is_empty($$
   select p.oid::regprocedure::text
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public'
-     and p.proname in ('get_professional_private', 'reveal_professional_private', 'set_professional_private',
-                       'clear_professional_private_field', 'set_compensation_default', 'delete_compensation_default',
-                       'set_professional_margin', 'delete_professional_margin', 'set_recognition_rule',
-                       'set_professional_recognition', 'get_professional_compensation')
+     and p.proname in ('get_professional_private', 'reveal_professional_private', 'set_professional_tax_numbers',
+                       'set_professional_bank', 'set_professional_sin', 'clear_professional_private_field',
+                       'set_compensation_default', 'delete_compensation_default', 'set_professional_margin',
+                       'delete_professional_margin', 'set_recognition_rule', 'delete_recognition_rule',
+                       'set_professional_recognition', 'delete_professional_recognition', 'get_professional_compensation')
      and (p.proacl is null
           or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0)
           or has_function_privilege('anon', p.oid, 'execute')
@@ -114,15 +127,21 @@ select is_empty($$
 $$, 'the RPCs are security definer and executable by authenticated only');
 select function_privs_are('public', 'reveal_professional_private', array['uuid', 'text'], 'anon', array[]::text[], 'anon cannot reveal');
 select function_privs_are('public', 'reveal_professional_private', array['uuid', 'text'], 'service_role', array[]::text[], 'service_role cannot reveal');
+select function_privs_are('public', 'set_professional_bank', array['uuid', 'text', 'text', 'text', 'timestamp with time zone'],
+  'authenticated', array['EXECUTE'], 'authenticated may call set_professional_bank (its RPC checks the permission)');
+select function_privs_are('public', 'delete_recognition_rule', array['uuid'], 'service_role', array[]::text[], 'service_role cannot delete a rule');
+select function_privs_are('public', 'delete_professional_recognition', array['uuid'], 'anon', array[]::text[], 'anon cannot delete a level');
+select hasnt_function('public', 'set_professional_private', 'the whole-form save is gone (one RPC per card, P4-148)');
 
 -- Helpers: granted to no role.
 select is_empty($$
   select p.oid::regprocedure::text
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'private'
-     and p.proname in ('is_valid_sin', 'raise_unreadable_private_value', 'unreadable_private_field',
+     and p.proname in ('is_valid_sin', 'raise_unreadable_private_value', 'unreadable_private_field', 'assert_private_not_stale',
                        'seed_professionals_compensation', 'seed_professionals_compensation_on_org',
-                       'assert_compensation_access', 'assert_compensation_kind', 'compensation_note', 'assert_starts_after',
+                       'assert_compensation_access', 'assert_compensation_kind', 'compensation_note',
+                       'assert_compensation_date', 'assert_starts_after',
                        'pii_encrypted_values', 'professional_history_tables')
      and (p.proacl is null
           or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0)
@@ -136,9 +155,11 @@ select ok(private.is_valid_sin('046454286'), 'Luhn: 046 454 286 is valid');
 select ok(not private.is_valid_sin('123456789'), 'Luhn: 123 456 789 is not');
 select ok(not private.is_valid_sin('04645428'), 'Luhn: 8 digits are not a SIN');
 select ok(not coalesce(private.is_valid_sin(null), false), 'Luhn: null is not a SIN');
+select lives_ok($$ select private.assert_compensation_date('2000-01-01', 'x'), private.assert_compensation_date('2100-12-31', 'x'),
+                         private.assert_compensation_date(null, 'x') $$, 'date bounds: 2000-01-01 and 2100-12-31 pass, null is left to the caller');
 
 -- =============================================================================
--- set_professional_private / get_professional_private (admin A, P1)
+-- The three card saves / get_professional_private (admin A, P1)
 -- =============================================================================
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
@@ -149,29 +170,32 @@ select results_eq($$ select * from public.get_professional_private(current_setti
 select throws_ok($$ select * from public.get_professional_private(current_setting('test.p3')::uuid) $$,
   'P0001', 'Professionnel introuvable.', 'another clinic''s professional is not found');
 
-select lives_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null,
-  '123456789', '123456789RT0001', '1234567890TQ0001', '815', '30000', '1234567') $$, 'admin A stores P1''s private data');
+select lives_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid,
+  '123456789', '123456789RT0001', '1234567890TQ0001', null) $$, 'admin A stores P1''s tax numbers (nothing stored: expected null)');
+select lives_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid,
+  '815', '30000', '1234567', private.test_seen(current_setting('test.p1')::uuid)) $$, 'admin A stores P1''s bank details');
 select results_eq($$ select sin_last3, business_number, gst_number, qst_number, bank_institution, bank_transit, bank_account_last4, updated_by_name
                        from public.get_professional_private(current_setting('test.p1')::uuid) $$,
   $$ values (null::text, '123456789'::text, '123456789RT0001'::text, '1234567890TQ0001'::text, '815'::text, '30000'::text, '4567'::text, 'Admin A'::text) $$,
   'get returns the plain numbers and the masks only');
 
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, '046 454 286',
-  '123456789', '123456789RT0001', '1234567890TQ0001', '815', '30000', null) $$,
+select throws_ok($$ select public.set_professional_sin(current_setting('test.p1')::uuid, '046 454 286', private.test_seen(current_setting('test.p1')::uuid)) $$,
   'P0001', 'La collecte du NAS n''est pas activée.', 'a SIN is refused while collect_sin is off');
 select is(public.set_professionals_settings('{"collect_sin": true}') -> 'collect_sin', 'true'::jsonb, 'admin A turns SIN collection on');
-select lives_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, '046 454 286',
-  '123456789', '123456789RT0001', '1234567890TQ0001', '815', '30000', null) $$, 'a valid SIN is stored (account left blank)');
-select is((select sin_last3 from public.get_professional_private(current_setting('test.p1')::uuid)), '286', 'sin_last3 is the last three digits');
-select is((select bank_account_last4 from public.get_professional_private(current_setting('test.p1')::uuid)), '4567', 'a blank account keeps the stored one');
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, '123456789',
-  '123456789', '123456789RT0001', '1234567890TQ0001', '815', '30000', null) $$,
+select lives_ok($$ select public.set_professional_sin(current_setting('test.p1')::uuid, '046 454 286', private.test_seen(current_setting('test.p1')::uuid)) $$,
+  'a valid SIN is stored');
+select results_eq($$ select sin_last3, business_number, bank_account_last4 from public.get_professional_private(current_setting('test.p1')::uuid) $$,
+  $$ values ('286'::text, '123456789'::text, '4567'::text) $$, 'sin_last3 is the last three digits; the SIN save touched nothing else');
+select throws_ok($$ select public.set_professional_sin(current_setting('test.p1')::uuid, '123456789', private.test_seen(current_setting('test.p1')::uuid)) $$,
   'P0001', 'NAS invalide.', 'a SIN failing Luhn is refused, without repeating it');
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, '046-454-28A',
-  '123456789', '123456789RT0001', '1234567890TQ0001', '815', '30000', null) $$,
+select throws_ok($$ select public.set_professional_sin(current_setting('test.p1')::uuid, '046-454-28A', private.test_seen(current_setting('test.p1')::uuid)) $$,
   'P0001', 'NAS invalide.', 'a SIN with a letter is refused (never stripped)');
-select is(private.test_error_hint($$ select public.set_professional_private('c0000000-0000-0000-0000-000000000001', '123456789', null, null, null, null, null, null) $$),
+select is(private.test_error_hint($$ select public.set_professional_sin('c0000000-0000-0000-0000-000000000001', '123456789', null) $$),
   'Le NAS compte 9 chiffres, et son dernier chiffre doit correspondre aux huit autres.', 'the Luhn refusal hints without a value');
+select throws_ok($$ select public.set_professional_sin(current_setting('test.p1')::uuid, ' - ', private.test_seen(current_setting('test.p1')::uuid)) $$,
+  'P0001', 'Saisissez le NAS au complet.', 'a blank SIN is refused (clearing is its own RPC)');
+select throws_ok($$ select public.set_professional_sin(current_setting('test.p1')::uuid, null, private.test_seen(current_setting('test.p1')::uuid)) $$,
+  'P0001', 'Saisissez le NAS au complet.', '… a null SIN too');
 
 -- Storage (as postgres): ciphertexts, never the plaintext; version 1.
 reset role;
@@ -217,14 +241,16 @@ select results_eq($$ select a.org_id, a.record_id, a.action, a.changed_fields, a
   'each reveal writes one read row naming the field; nothing stored writes none');
 
 -- =============================================================================
--- Blank keeps / clears, validation, normalisation, clear
+-- Blank keeps / clears, one card never touches another's fields
 -- =============================================================================
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select lives_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, '',
-  '123456789', '', '1234567890TQ0001', '815', '30000', '  ') $$, 'a blank TPS and blank encrypted fields');
+select lives_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, '123456789', '', '1234567890TQ0001',
+  private.test_seen(current_setting('test.p1')::uuid)) $$, 'a blank TPS');
+select lives_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, '815', '30000', '  ',
+  private.test_seen(current_setting('test.p1')::uuid)) $$, 'a blank account');
 select results_eq($$ select sin_last3, gst_number, bank_account_last4 from public.get_professional_private(current_setting('test.p1')::uuid) $$,
-  $$ values ('286'::text, null::text, '4567'::text) $$, 'a blank TPS clears it; a blank SIN and account keep them');
+  $$ values ('286'::text, null::text, '4567'::text) $$, 'a blank TPS clears it; a blank account keeps it; the SIN stays');
 select is(public.reveal_professional_private(current_setting('test.p1')::uuid, 'bank_account'), '1234567', 'the kept account still reveals');
 reset role;
 select is((select encode(pp.bank_account, 'hex') from public.professional_private pp where pp.professional_id = current_setting('test.p1')::uuid),
@@ -236,25 +262,64 @@ select is_empty($$ select 1 from public.audit_log a where a.id > current_setting
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null, '12345678', null, null, null, null, null) $$,
-  'P0001', 'Le numéro d''entreprise (NE) compte 9 chiffres.', 'business number: 9 digits');
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null, null, '123456789TQ0001', null, null, null, null) $$,
-  'P0001', 'Numéro de TPS : format attendu 123456789 RT 0001.', 'TPS format');
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null, null, null, '123456789TQ0001', null, null, null) $$,
-  'P0001', 'Numéro de TVQ : format attendu 1234567890 TQ 0001.', 'TVQ format');
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null, null, null, null, '81', '30000', null) $$,
-  'P0001', 'Le numéro d''institution compte 3 chiffres.', 'institution: 3 digits');
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null, null, null, null, '815', '3000', null) $$,
-  'P0001', 'Le numéro de transit compte 5 chiffres.', 'transit: 5 digits');
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null, null, null, null, '815', '30000', '123456') $$,
-  'P0001', 'Le numéro de compte compte de 7 à 12 chiffres.', 'account: at least 7 digits');
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null, null, null, null, '815', '30000', '12345a7') $$,
-  'P0001', 'Le numéro de compte compte de 7 à 12 chiffres.', 'account: a letter is refused, never stripped');
-select lives_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null,
-  '123 456 789', '123456789 rt 0001', '1234567890-tq-0001', ' 815 ', '30000', null) $$, 'spaces, hyphens and lower case are tidied');
-select results_eq($$ select business_number, gst_number, qst_number, bank_institution from public.get_professional_private(current_setting('test.p1')::uuid) $$,
-  $$ values ('123456789'::text, '123456789RT0001'::text, '1234567890TQ0001'::text, '815'::text) $$, 'numbers are stored normalised');
+select lives_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, null, ' ', null,
+  private.test_seen(current_setting('test.p1')::uuid)) $$, 'an all-blank « Fiscalité » save');
+select results_eq($$ select sin_last3, business_number, gst_number, qst_number, bank_institution, bank_transit, bank_account_last4
+                      from public.get_professional_private(current_setting('test.p1')::uuid) $$,
+  $$ values ('286'::text, null::text, null::text, null::text, '815'::text, '30000'::text, '4567'::text) $$,
+  '… clears the NE, TPS and TVQ only (the bank card''s fields and the SIN stay)');
+select lives_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, null, null, null,
+  private.test_seen(current_setting('test.p1')::uuid)) $$, 'an all-blank « Banque » save');
+select results_eq($$ select sin_last3, bank_institution, bank_transit, bank_account_last4
+                      from public.get_professional_private(current_setting('test.p1')::uuid) $$,
+  $$ values ('286'::text, null::text, null::text, '4567'::text) $$,
+  '… clears the institution and the transit, keeps the account and the SIN');
+select lives_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, '123456789', '123456789RT0001', '1234567890TQ0001',
+  private.test_seen(current_setting('test.p1')::uuid)) $$, 'the tax numbers are entered again');
+select lives_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, '815', '30000', null,
+  private.test_seen(current_setting('test.p1')::uuid)) $$, '… and the institution and transit');
 
+-- Optimistic concurrency (P4-148).
+select throws_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, '123456789', null, null, '2020-01-01 00:00+00') $$,
+  'P0001', 'Ces renseignements ont été modifiés depuis leur affichage.', 'a save based on an older read is refused');
+select is(private.test_error_hint($$ select public.set_professional_bank('c0000000-0000-0000-0000-000000000001', '815', '30000', null, '2020-01-01 00:00+00') $$),
+  'stale', '… with the HINT stale');
+select throws_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, '815', '30000', null, null) $$,
+  'P0001', 'Ces renseignements ont été modifiés depuis leur affichage.', 'expected null (nothing seen) while a row exists: refused');
+select throws_ok($$ select public.set_professional_sin(current_setting('test.p1')::uuid, '046454286', '2020-01-01 00:00+00') $$,
+  'P0001', 'Ces renseignements ont été modifiés depuis leur affichage.', 'the SIN save checks it too');
+select lives_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, '123456789', '123456789RT0001', '1234567890TQ0001',
+  date_trunc('milliseconds', private.test_seen(current_setting('test.p1')::uuid))) $$,
+  'a value read to the millisecond (through a JavaScript Date) still matches');
+select is(public.set_professional_tax_numbers(current_setting('test.p1')::uuid, '123456789', '123456789RT0001', '1234567890TQ0001',
+  private.test_seen(current_setting('test.p1')::uuid)), now(), 'a save returns the row''s new updated_at');
+select is(public.set_professional_bank(current_setting('test.p2')::uuid, '', null, ' ', null), null,
+  'an all-blank save with no row yet returns null');
+
+-- Validation (before the lock).
+select throws_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, '12345678', null, null, null) $$,
+  'P0001', 'Le numéro d''entreprise (NE) compte 9 chiffres.', 'business number: 9 digits');
+select throws_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, null, '123456789TQ0001', null, null) $$,
+  'P0001', 'Numéro de TPS : format attendu 123456789 RT 0001.', 'TPS format');
+select throws_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, null, null, '123456789TQ0001', null) $$,
+  'P0001', 'Numéro de TVQ : format attendu 1234567890 TQ 0001.', 'TVQ format');
+select throws_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, '81', '30000', null, null) $$,
+  'P0001', 'Le numéro d''institution compte 3 chiffres.', 'institution: 3 digits');
+select throws_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, '815', '3000', null, null) $$,
+  'P0001', 'Le numéro de transit compte 5 chiffres.', 'transit: 5 digits');
+select throws_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, '815', '30000', '123456', null) $$,
+  'P0001', 'Le numéro de compte compte de 7 à 12 chiffres.', 'account: at least 7 digits');
+select throws_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, '815', '30000', '12345a7', null) $$,
+  'P0001', 'Le numéro de compte compte de 7 à 12 chiffres.', 'account: a letter is refused, never stripped');
+select lives_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid,
+  '123 456 789', '123456789 rt 0001', '1234567890-tq-0001', private.test_seen(current_setting('test.p1')::uuid)) $$,
+  'spaces, hyphens and lower case are tidied');
+select lives_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, E' 815\t', '30-000', null,
+  private.test_seen(current_setting('test.p1')::uuid)) $$, '… on the bank card too');
+select results_eq($$ select business_number, gst_number, qst_number, bank_institution, bank_transit from public.get_professional_private(current_setting('test.p1')::uuid) $$,
+  $$ values ('123456789'::text, '123456789RT0001'::text, '1234567890TQ0001'::text, '815'::text, '30000'::text) $$, 'numbers are stored normalised');
+
+-- Clear.
 select lives_ok($$ select public.clear_professional_private_field(current_setting('test.p1')::uuid, 'bank_account') $$, 'clear the account');
 select results_eq($$ select sin_last3, bank_institution, bank_account_last4 from public.get_professional_private(current_setting('test.p1')::uuid) $$,
   $$ values ('286'::text, '815'::text, null::text) $$, 'the account and its last 4 are gone; the SIN and the institution stay');
@@ -263,15 +328,28 @@ select set_config('test.audit_mid', (select coalesce(max(a.id), 0)::text from pu
 select lives_ok($$ select public.clear_professional_private_field(current_setting('test.p1')::uuid, 'bank_account') $$, 'clearing again is a no-op');
 select throws_ok($$ select public.clear_professional_private_field(current_setting('test.p1')::uuid, 'gst_number') $$,
   '22023', 'Champ inconnu (attendu : sin ou bank_account).', 'clear: only sin or bank_account');
-select lives_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null,
-  '123456789', '123456789RT0001', '1234567890TQ0001', '815', '30000', '1234567') $$, 'the account is entered again');
-select lives_ok($$ select public.set_professional_private(current_setting('test.p2')::uuid, null, null, null, null, null, null, null) $$,
+select lives_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, '815', '30000', '1234567',
+  private.test_seen(current_setting('test.p1')::uuid)) $$, 'the account is entered again');
+select lives_ok($$ select public.set_professional_tax_numbers(current_setting('test.p2')::uuid, null, null, null, null) $$,
   'an all-blank call with no row yet');
 reset role;
 select is((select count(*)::int from public.professional_private pp where pp.professional_id = current_setting('test.p2')::uuid), 0,
   '… creates no empty row');
 select is((select count(*)::int from public.audit_log a where a.table_name = 'professional_private' and a.id > current_setting('test.audit_mid')::bigint
             and a.changed_fields ? 'bank_account' and a.action = 'update'), 1, 'the second clear wrote nothing (only the re-entry changed the account)');
+
+-- collect_sin off (P4-143): a stored SIN still reveals and clears; a new one is refused. P2.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select lives_ok($$ select public.set_professional_sin(current_setting('test.p2')::uuid, '130 692 544', null) $$, 'P2''s SIN is stored');
+select is(public.set_professionals_settings('{"collect_sin": false}') -> 'collect_sin', 'false'::jsonb, 'admin A turns SIN collection off');
+select is(public.reveal_professional_private(current_setting('test.p2')::uuid, 'sin'), '130692544', 'collect_sin off: the stored SIN still reveals');
+select throws_ok($$ select public.set_professional_sin(current_setting('test.p2')::uuid, '046454286', private.test_seen(current_setting('test.p2')::uuid)) $$,
+  'P0001', 'La collecte du NAS n''est pas activée.', 'collect_sin off: a new SIN is refused');
+select lives_ok($$ select public.clear_professional_private_field(current_setting('test.p2')::uuid, 'sin') $$, 'collect_sin off: the SIN can be cleared');
+select is((select sin_last3 from public.get_professional_private(current_setting('test.p2')::uuid)), null, '… and is gone');
+select is(public.set_professionals_settings('{"collect_sin": true}') -> 'collect_sin', 'true'::jsonb, 'admin A turns SIN collection back on');
+reset role;
 
 -- =============================================================================
 -- Redaction: no value, mask or ciphertext in audit_log
@@ -290,7 +368,7 @@ select ok((select count(*) from public.audit_log a where a.table_name = 'profess
   'the updates are logged (as « [redacted] »)');
 select is_empty($$ select a.id from public.audit_log a
                     where a.org_id in ('b0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b')
-                      and a.changed_fields::text ~ '(046454286|1234567|123456789RT0001|1234567890TQ0001)' $$,
+                      and a.changed_fields::text ~ '(046454286|130692544|1234567|123456789RT0001|1234567890TQ0001)' $$,
   'no plaintext number appears anywhere in the fixtures'' audit_log');
 
 -- =============================================================================
@@ -302,8 +380,12 @@ select throws_ok($$ select * from public.get_professional_private(current_settin
   '42501', 'Permission refusée : professionals.private', 'the adjointe cannot read the private data');
 select throws_ok($$ select public.reveal_professional_private(current_setting('test.p1')::uuid, 'sin') $$,
   '42501', 'Permission refusée : professionals.private', 'the adjointe cannot reveal');
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null, null, null, null, null, null, null) $$,
-  '42501', 'Permission refusée : professionals.private', 'the adjointe cannot write');
+select throws_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, null, null, null, null) $$,
+  '42501', 'Permission refusée : professionals.private', 'the adjointe cannot save the tax numbers');
+select throws_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, null, null, null, null) $$,
+  '42501', 'Permission refusée : professionals.private', 'the adjointe cannot save the bank details');
+select throws_ok($$ select public.set_professional_sin(current_setting('test.p1')::uuid, '046454286', null) $$,
+  '42501', 'Permission refusée : professionals.private', 'the adjointe cannot save a SIN');
 select throws_ok($$ select public.clear_professional_private_field(current_setting('test.p1')::uuid, 'sin') $$,
   '42501', 'Permission refusée : professionals.private', 'the adjointe cannot clear');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
@@ -311,18 +393,40 @@ select throws_ok($$ select * from public.get_professional_private(current_settin
   '42501', 'Permission refusée : professionals.private', 'the provider cannot read even their own private data');
 select throws_ok($$ select public.reveal_professional_private(current_setting('test.p2')::uuid, 'sin') $$,
   '42501', 'Permission refusée : professionals.private', 'the provider cannot reveal');
-select throws_ok($$ select public.set_professional_private(current_setting('test.p2')::uuid, null, null, null, null, null, null, null) $$,
-  '42501', 'Permission refusée : professionals.private', 'the provider cannot write');
+select throws_ok($$ select public.set_professional_tax_numbers(current_setting('test.p2')::uuid, null, null, null, null) $$,
+  '42501', 'Permission refusée : professionals.private', 'the provider cannot save the tax numbers');
+select throws_ok($$ select public.set_professional_bank(current_setting('test.p2')::uuid, null, null, null, null) $$,
+  '42501', 'Permission refusée : professionals.private', 'the provider cannot save the bank details');
+select throws_ok($$ select public.set_professional_sin(current_setting('test.p2')::uuid, '046454286', null) $$,
+  '42501', 'Permission refusée : professionals.private', 'the provider cannot save a SIN');
 select throws_ok($$ select public.clear_professional_private_field(current_setting('test.p2')::uuid, 'sin') $$,
   '42501', 'Permission refusée : professionals.private', 'the provider cannot clear');
+
+-- Another clinic: admin B, with org A's ids.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+select is(public.set_professionals_settings('{"collect_sin": true}') -> 'collect_sin', 'true'::jsonb, 'admin B turns SIN collection on in org B');
 select throws_ok($$ select public.reveal_professional_private(current_setting('test.p1')::uuid, 'sin') $$,
   'P0001', 'Professionnel introuvable.', 'admin B cannot reveal org A''s SIN');
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null, '987654321', null, null, null, null, null) $$,
-  'P0001', 'Professionnel introuvable.', 'admin B cannot write org A''s private data');
+select throws_ok($$ select public.reveal_professional_private(current_setting('test.p1')::uuid, 'bank_account') $$,
+  'P0001', 'Professionnel introuvable.', '… nor its account');
+select throws_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, '987654321', null, null, null) $$,
+  'P0001', 'Professionnel introuvable.', 'admin B cannot write org A''s tax numbers');
+select throws_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, null, null, null, null) $$,
+  'P0001', 'Professionnel introuvable.', '… nor clear them with an all-blank save');
+select throws_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, null, null, null, null) $$,
+  'P0001', 'Professionnel introuvable.', '… nor the bank details (all blank)');
+select throws_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, '001', '12345', '7777777', null) $$,
+  'P0001', 'Professionnel introuvable.', '… nor a new account');
+select throws_ok($$ select public.set_professional_sin(current_setting('test.p1')::uuid, '046454286', null) $$,
+  'P0001', 'Professionnel introuvable.', '… nor a SIN');
+select throws_ok($$ select public.clear_professional_private_field(current_setting('test.p1')::uuid, 'sin') $$,
+  'P0001', 'Professionnel introuvable.', '… nor clear one');
+reset role;
+select results_eq($$ select pp.sin_last3, pp.business_number, pp.bank_institution, pp.bank_account_last4
+                      from public.professional_private pp where pp.professional_id = current_setting('test.p1')::uuid $$,
+  $$ values ('286'::text, '123456789'::text, '815'::text, '4567'::text) $$, 'org A''s row is untouched by admin B');
 
 -- Module off: the permission disappears.
-reset role;
 update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
@@ -343,8 +447,8 @@ select is(private.pii_current_key_version(), 2, 'rotation: writes switch to vers
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select lives_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null,
-  '123456789', '123456789RT0001', '1234567890TQ0001', '815', '30000', '7654321') $$, 'rotation: a new account while the SIN is kept');
+select lives_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, '815', '30000', '7654321',
+  private.test_seen(current_setting('test.p1')::uuid)) $$, 'rotation: a new account while the SIN is kept');
 select is(public.reveal_professional_private(current_setting('test.p1')::uuid, 'sin'), '046454286', 'rotation: the kept SIN still reveals');
 select is(public.reveal_professional_private(current_setting('test.p1')::uuid, 'bank_account'), '7654321', 'rotation: the new account reveals');
 reset role;
@@ -356,6 +460,18 @@ select results_eq($$ select u.key_version, u.value_count from private.pii_key_ve
   $$ values (2, 2::bigint) $$, 'rotation: the inventory shows professional_private on version 2 only');
 select ok(public.pii_health_check(), 'rotation: the health check stays true');
 
+-- The « Fiscalité » card re-encrypts both kept values (row back on version 1 by hand).
+update public.professional_private
+   set sin = private.encrypt_pii('046454286', 1), bank_account = private.encrypt_pii('7654321', 1), key_version = 1
+ where professional_id = current_setting('test.p1')::uuid;
+set local role authenticated;
+select lives_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, '123456789', '123456789RT0001', '1234567890TQ0001',
+  private.test_seen(current_setting('test.p1')::uuid)) $$, 'rotation: a tax-number save on a version 1 row');
+reset role;
+select results_eq($$ select pp.key_version::int, private.decrypt_pii(pp.sin, 2), private.decrypt_pii(pp.bank_account, 2)
+                      from public.professional_private pp where pp.professional_id = current_setting('test.p1')::uuid $$,
+  $$ values (2, '046454286'::text, '7654321'::text) $$, '… moves both encrypted values to version 2 in the same update');
+
 -- A kept SIN that does not decrypt (written with another key, row left on version 1).
 update public.professional_private
    set sin = extensions.pgp_sym_encrypt('000000000', 'not-this-environment-key'),
@@ -363,15 +479,25 @@ update public.professional_private
        key_version = 1
  where professional_id = current_setting('test.p1')::uuid;
 select ok(not public.pii_health_check(), 'an unreadable SIN turns the health check false');
+select set_config('test.audit_unreadable', (select coalesce(max(a.id), 0)::text from public.audit_log a), true);
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null,
-  '123456789', '123456789RT0001', '1234567890TQ0001', '815', '30000', '7654321') $$,
-  'P0001', 'Le NAS enregistré ne peut pas être lu avec la clé de cet environnement.', 'a kept SIN that does not decrypt: clean P0001');
-select is(private.test_error_hint($$ select public.set_professional_private('c0000000-0000-0000-0000-000000000001', null, null, null, null, null, null, '7654321') $$),
-  'Retirez le NAS enregistré, ou saisissez-le de nouveau au complet : il remplacera celui qui est enregistré.', '… with a hint');
+select throws_ok($$ select public.set_professional_bank(current_setting('test.p1')::uuid, '815', '30000', '7654321',
+  private.test_seen(current_setting('test.p1')::uuid)) $$,
+  'P0001', 'Le NAS enregistré ne peut pas être lu avec la clé de cet environnement.', 'a kept SIN that does not decrypt: clean P0001 (bank card)');
+select throws_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, '123456789', null, null,
+  private.test_seen(current_setting('test.p1')::uuid)) $$,
+  'P0001', 'Le NAS enregistré ne peut pas être lu avec la clé de cet environnement.', '… and on the « Fiscalité » card');
+select is(private.test_error_hint($$ select public.set_professional_bank('c0000000-0000-0000-0000-000000000001', null, null, '7654321',
+  private.test_seen('c0000000-0000-0000-0000-000000000001')) $$),
+  'Le NAS enregistré peut être retiré. Il ne peut être saisi de nouveau que si la collecte du NAS est activée.', '… with a hint');
 select throws_ok($$ select public.reveal_professional_private(current_setting('test.p1')::uuid, 'sin') $$,
   'P0001', 'Le NAS enregistré ne peut pas être lu avec la clé de cet environnement.', 'revealing it: the same clean P0001');
+reset role;
+select is_empty($$ select 1 from public.audit_log a where a.id > current_setting('test.audit_unreadable')::bigint
+                     and a.table_name = 'professional_private' and a.action = 'read' $$,
+  'an unreadable reveal writes no read row');
+set local role authenticated;
 select is(public.reveal_professional_private(current_setting('test.p1')::uuid, 'bank_account'), '7654321', 'the readable account still reveals');
 select lives_ok($$ select public.clear_professional_private_field(current_setting('test.p1')::uuid, 'sin') $$,
   'the unreadable SIN can be cleared (the account is re-encrypted)');
@@ -381,13 +507,31 @@ select results_eq($$ select pp.key_version::int, pp.sin is null, pp.sin_last3 is
   $$ values (2, true, true, '7654321'::text) $$, '… leaving the row on version 2 with the account');
 select ok(public.pii_health_check(), 'the health check is true again');
 
+-- An unreadable SIN is replaced by a new one (the SIN card never reads the old one).
+update public.professional_private
+   set sin = extensions.pgp_sym_encrypt('000000000', 'not-this-environment-key'), sin_last3 = '000',
+       bank_account = private.encrypt_pii('7654321', 1), key_version = 1
+ where professional_id = current_setting('test.p1')::uuid;
+set local role authenticated;
+select lives_ok($$ select public.set_professional_sin(current_setting('test.p1')::uuid, '046 454 286',
+  private.test_seen(current_setting('test.p1')::uuid)) $$, 'a new SIN replaces an unreadable one');
+reset role;
+select results_eq($$ select pp.key_version::int, pp.sin_last3, private.decrypt_pii(pp.sin, 2), private.decrypt_pii(pp.bank_account, 2)
+                      from public.professional_private pp where pp.professional_id = current_setting('test.p1')::uuid $$,
+  $$ values (2, '286'::text, '046454286'::text, '7654321'::text) $$, '… with the kept account re-encrypted to version 2');
+
 -- A kept account whose key is missing (version 3 has no key): 55000 → clean P0001.
 update public.professional_private set key_version = 3 where professional_id = current_setting('test.p1')::uuid;
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select throws_ok($$ select public.set_professional_private(current_setting('test.p1')::uuid, null,
-  '123456789', null, null, '815', '30000', null) $$,
+select throws_ok($$ select public.set_professional_tax_numbers(current_setting('test.p1')::uuid, '123456789', null, null,
+  private.test_seen(current_setting('test.p1')::uuid)) $$,
+  'P0001', 'Le NAS enregistré ne peut pas être lu avec la clé de cet environnement.', 'a row whose key is missing: the SIN is named first');
+select throws_ok($$ select public.set_professional_sin(current_setting('test.p1')::uuid, '046454286',
+  private.test_seen(current_setting('test.p1')::uuid)) $$,
   'P0001', 'Le numéro de compte enregistré ne peut pas être lu avec la clé de cet environnement.', 'a kept account with no key: clean P0001');
+select is(private.test_error_hint($$ select public.set_professional_sin('c0000000-0000-0000-0000-000000000001', '046454286',
+  private.test_seen('c0000000-0000-0000-0000-000000000001')) $$),
+  'Retirez le numéro de compte enregistré, ou saisissez-le de nouveau au complet : il remplacera celui qui est enregistré.', '… with a hint that mentions clearing');
 select throws_ok($$ select public.reveal_professional_private(current_setting('test.p1')::uuid, 'bank_account') $$,
   'P0001', 'Le numéro de compte enregistré ne peut pas être lu avec la clé de cet environnement.', 'revealing it: the same clean P0001');
 reset role;
@@ -415,6 +559,20 @@ values ('b0000000-0000-0000-0000-00000000000a', 'professional_private', current_
 set local role authenticated;
 select is((select h.changed_fields from public.list_professional_history(current_setting('test.p1')::uuid, null, 1) h),
   '{"fields": ["sin"]}'::jsonb, 'a read row never passes anything but its field names');
+reset role;
+insert into public.audit_log (org_id, table_name, record_id, action, changed_fields)
+values ('b0000000-0000-0000-0000-00000000000a', 'professional_private', current_setting('test.p1'), 'read',
+        '{"fields": ["sin", "046454286", 42, {"sin": "046454286"}, ["bank_account"], null, "bank_account"]}');
+set local role authenticated;
+select is((select h.changed_fields from public.list_professional_history(current_setting('test.p1')::uuid, null, 1) h),
+  '{"fields": ["sin", "bank_account"]}'::jsonb, '… and only the strings sin and bank_account among them');
+reset role;
+insert into public.audit_log (org_id, table_name, record_id, action, changed_fields)
+values ('b0000000-0000-0000-0000-00000000000a', 'professional_private', current_setting('test.p1'), 'read',
+        '{"fields": ["046454286"]}');
+set local role authenticated;
+select is((select h.changed_fields from public.list_professional_history(current_setting('test.p1')::uuid, null, 1) h),
+  '{"fields": []}'::jsonb, '… an unknown name alone leaves an empty list');
 
 -- =============================================================================
 -- Compensation: catalogue and seeded terms
@@ -474,6 +632,12 @@ select throws_ok($$ select public.set_professional_margin(current_setting('test.
   'P0001', 'La marge est comprise entre 0 et 100 %.', 'a margin above 100 % is refused');
 select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 30, null, null) $$,
   'P0001', 'La date d''entrée en vigueur est requise.', 'a start date is required');
+select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 30, 'infinity', null) $$,
+  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'an infinite start date is refused');
+select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 30, '0044-03-15 BC', null) $$,
+  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'a BC start date is refused');
+select is(private.test_error_hint($$ select public.set_professional_margin('c0000000-0000-0000-0000-000000000001', 'consultation', 30, '20270-01-01', null) $$),
+  'effective_from', '… a five-digit year too, with the HINT effective_from');
 select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'tips', 30, '2027-06-01', null) $$,
   '22023', 'Type de rémunération inconnu.', 'an unknown kind is refused');
 select throws_ok($$ select public.set_professional_margin(current_setting('test.p3')::uuid, 'consultation', 30, '2027-06-01', null) $$,
@@ -510,6 +674,11 @@ update public.professional_compensation set created_at = now() - interval '2 day
 set local role authenticated;
 select throws_ok($$ select public.delete_professional_margin(current_setting('test.m_past')::uuid) $$,
   'P0001', 'Une marge déjà en vigueur ne peut pas être supprimée.', 'a margin in force for more than 24 hours stays');
+select set_config('test.m_fresh', (public.set_professional_margin(current_setting('test.p1')::uuid, 'late_cancellation', 30, (current_date - 10), null)) ->> 'id', true);
+select lives_ok($$ select public.delete_professional_margin(current_setting('test.m_fresh')::uuid) $$,
+  'a margin in force, created under 24 hours ago, can be deleted (typo window)');
+select is((select count(*)::int from public.professional_compensation c
+            where c.professional_id = current_setting('test.p1')::uuid and c.kind = 'late_cancellation'), 0, '… and is gone');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select throws_ok($$ select public.delete_professional_margin(current_setting('test.m1')::uuid) $$,
   'P0001', 'Marge introuvable.', 'admin B cannot delete org A''s margin');
@@ -532,6 +701,17 @@ select is((select count(*)::int from public.compensation_defaults d where d.kind
   '… and the previous one is open again');
 select throws_ok($$ select public.delete_compensation_default((select d.id from public.compensation_defaults d where d.kind = 'consultation')) $$,
   'P0001', 'La première fourchette d''un type ne peut pas être supprimée.', 'the first range of a kind stays');
+select throws_ok($$ select public.set_compensation_default('consultation', 25, 30, '2101-01-01') $$,
+  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'a range starting after 2100 is refused');
+select set_config('test.d_fresh', public.set_compensation_default('workshop', 25, 26, (current_date - 10))::text, true);
+select lives_ok($$ select public.delete_compensation_default(current_setting('test.d_fresh')::uuid) $$,
+  'a range in force, created under 24 hours ago, is deleted (typo window)');
+select set_config('test.d_old', public.set_compensation_default('workshop', 25, 27, (current_date - 10))::text, true);
+reset role;
+update public.compensation_defaults set created_at = now() - interval '2 days' where id = current_setting('test.d_old')::uuid;
+set local role authenticated;
+select throws_ok($$ select public.delete_compensation_default(current_setting('test.d_old')::uuid) $$,
+  'P0001', 'Une fourchette déjà en vigueur ne peut pas être supprimée.', 'a range in force for more than 24 hours stays');
 
 -- =============================================================================
 -- Recognition
@@ -553,10 +733,15 @@ select throws_ok($$ select public.set_recognition_rule(50, 50, 25, 101, 'unconfi
   'P0001', 'Le plafond est compris entre 0 et 100 %.', 'a cap above 100 % is refused');
 select throws_ok($$ select public.set_recognition_rule(0, 50, 25, 25, 'unconfirmed', '2027-01-01', null) $$,
   'P0001', 'Le palier compte de 1 à 1 000 séances.', 'a step of 0 sessions is refused');
+select throws_ok($$ select public.set_recognition_rule(50, 50, 25, 25, 'unconfirmed', '1999-12-31', null) $$,
+  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'a rule starting before 2000 is refused');
+select throws_ok($$ select public.set_professional_recognition(current_setting('test.p1')::uuid, 1, 1, '-infinity', null) $$,
+  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'a level starting at -infinity is refused');
 select lives_ok($$ select public.set_recognition_rule(50, 60, 30, 25, 'margin_reduction', '2027-01-01', 'Confirmé par la comptable') $$,
   'a new rule');
 select results_eq($$ select r.effective_to, r.cap_basis from public.recognition_rules r order by r.effective_from $$,
   $$ values ('2027-01-01'::date, 'unconfirmed'::text), (null::date, 'margin_reduction'::text) $$, '… closes the seeded one');
+select set_config('test.rule_seed', (select r.id::text from public.recognition_rules r where r.effective_from = '2017-01-01'), true);
 
 -- =============================================================================
 -- get_professional_compensation
@@ -588,6 +773,10 @@ select is(public.get_professional_compensation(current_setting('test.p2')::uuid)
   'P2 has no level (the rule is still given)');
 select throws_ok($$ select public.get_professional_compensation(current_setting('test.p3')::uuid) $$,
   'P0001', 'Professionnel introuvable.', 'another clinic''s professional is not found');
+select throws_ok($$ select public.get_professional_compensation(current_setting('test.p1')::uuid, 'infinity') $$,
+  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'the read model refuses an infinite date');
+select is(private.test_error_hint($$ select public.get_professional_compensation('c0000000-0000-0000-0000-000000000001', '0001-01-01 BC') $$),
+  'on', '… and a BC date, with the HINT on');
 
 -- Isolation: admin B.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
@@ -599,6 +788,104 @@ select throws_ok($$ select public.get_professional_compensation(current_setting(
   'P0001', 'Professionnel introuvable.', 'admin B cannot read org A''s terms');
 select is((select d.margin_min_pct from public.compensation_defaults d where d.kind = 'consultation'), 25.00::numeric,
   'admin B''s own default is untouched by org A''s changes');
+select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 30, '2027-06-01', null) $$,
+  'P0001', 'Professionnel introuvable.', 'admin B cannot set org A''s margin');
+select throws_ok($$ select public.set_professional_recognition(current_setting('test.p1')::uuid, 1, 1, '2027-06-01', null) $$,
+  'P0001', 'Professionnel introuvable.', 'admin B cannot set org A''s level');
+select throws_ok($$ select public.delete_professional_recognition(current_setting('test.r1')::uuid) $$,
+  'P0001', 'Niveau introuvable.', 'admin B cannot delete org A''s level');
+select throws_ok($$ select public.delete_compensation_default(current_setting('test.d_old')::uuid) $$,
+  'P0001', 'Fourchette introuvable.', 'admin B cannot delete org A''s range');
+select throws_ok($$ select public.delete_recognition_rule(current_setting('test.rule_seed')::uuid) $$,
+  'P0001', 'Règle introuvable.', 'admin B cannot delete org A''s rule');
+
+-- The provider (professionals.self): no compensation at all, not even their own.
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select is((select (select count(*) from public.compensation_kinds) + (select count(*) from public.compensation_defaults)
+                + (select count(*) from public.professional_compensation) + (select count(*) from public.recognition_rules)
+                + (select count(*) from public.professional_recognition))::int,
+  0, 'the provider reads none of the five compensation tables (RLS)');
+select throws_ok($$ select public.get_professional_compensation(current_setting('test.p2')::uuid) $$,
+  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot read their own terms');
+select throws_ok($$ select public.set_professional_margin(current_setting('test.p2')::uuid, 'consultation', 20, '2027-06-01', null) $$,
+  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot set a margin');
+select throws_ok($$ select public.delete_professional_margin(current_setting('test.m1')::uuid) $$,
+  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot delete a margin');
+select throws_ok($$ select public.set_professional_recognition(current_setting('test.p2')::uuid, 5, 300, '2027-06-01', null) $$,
+  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot set a level');
+select throws_ok($$ select public.delete_professional_recognition(current_setting('test.r1')::uuid) $$,
+  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot delete a level');
+select throws_ok($$ select public.set_compensation_default('consultation', 10, 20, '2027-06-01') $$,
+  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot change a default');
+select throws_ok($$ select public.delete_compensation_default(current_setting('test.d_old')::uuid) $$,
+  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot delete a default');
+select throws_ok($$ select public.set_recognition_rule(10, 100, 50, 50, 'fee_increase', '2027-06-01', null) $$,
+  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot change a rule');
+select throws_ok($$ select public.delete_recognition_rule(current_setting('test.rule_seed')::uuid) $$,
+  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot delete a rule');
+
+-- =============================================================================
+-- Deleting recognition rows (P4-145): only the open one, within the window
+-- =============================================================================
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+reset role;
+select set_config('test.audit_rec', (select coalesce(max(a.id), 0)::text from public.audit_log a), true);
+set local role authenticated;
+select throws_ok($$ select public.delete_professional_recognition(current_setting('test.r1')::uuid) $$,
+  'P0001', 'Seul le dernier niveau peut être supprimé.', 'a closed level cannot be deleted');
+select lives_ok($$ select public.delete_professional_recognition((select r.id from public.professional_recognition r
+                     where r.professional_id = current_setting('test.p1')::uuid and r.effective_to is null)) $$,
+  'the open (future) level is deleted');
+select is((select r.effective_to from public.professional_recognition r where r.id = current_setting('test.r1')::uuid), null,
+  '… and the previous one is open again');
+select lives_ok($$ select public.delete_professional_recognition(current_setting('test.r1')::uuid) $$,
+  'the first level may go too (created under 24 hours ago)');
+select set_config('test.r_fresh', public.set_professional_recognition(current_setting('test.p1')::uuid, 1, 40, (current_date - 10), null)::text, true);
+select lives_ok($$ select public.delete_professional_recognition(current_setting('test.r_fresh')::uuid) $$,
+  'a level in force, created under 24 hours ago, can be deleted (typo window)');
+select set_config('test.r_old', public.set_professional_recognition(current_setting('test.p1')::uuid, 1, 45, (current_date - 10), null)::text, true);
+reset role;
+update public.professional_recognition set created_at = now() - interval '2 days' where id = current_setting('test.r_old')::uuid;
+set local role authenticated;
+select throws_ok($$ select public.delete_professional_recognition(current_setting('test.r_old')::uuid) $$,
+  'P0001', 'Un niveau déjà en vigueur ne peut pas être supprimé.', 'a level in force for more than 24 hours stays');
+select throws_ok($$ select public.delete_professional_recognition('00000000-0000-0000-0000-000000000000') $$,
+  'P0001', 'Niveau introuvable.', 'an unknown level is not found');
+
+select throws_ok($$ select public.delete_recognition_rule(current_setting('test.rule_seed')::uuid) $$,
+  'P0001', 'Seule la dernière règle peut être supprimée.', 'a closed rule cannot be deleted');
+select lives_ok($$ select public.delete_recognition_rule((select r.id from public.recognition_rules r where r.effective_to is null)) $$,
+  'the open (future) rule is deleted');
+select is((select r.effective_to from public.recognition_rules r where r.id = current_setting('test.rule_seed')::uuid), null,
+  '… and the seeded one is open again');
+select throws_ok($$ select public.delete_recognition_rule(current_setting('test.rule_seed')::uuid) $$,
+  'P0001', 'La première règle du programme ne peut pas être supprimée.', 'the first rule stays');
+select set_config('test.rule_a', public.set_recognition_rule(50, 50, 25, 25, 'unconfirmed', (current_date - 10), null)::text, true);
+select set_config('test.rule_b', public.set_recognition_rule(50, 55, 25, 25, 'unconfirmed', (current_date - 5), null)::text, true);
+select lives_ok($$ select public.delete_recognition_rule(current_setting('test.rule_b')::uuid) $$,
+  'a rule in force, created under 24 hours ago, is deleted (typo window)');
+select is((select r.effective_to from public.recognition_rules r where r.id = current_setting('test.rule_a')::uuid), null,
+  '… reopening the previous one');
+reset role;
+update public.recognition_rules set created_at = now() - interval '2 days' where id = current_setting('test.rule_a')::uuid;
+set local role authenticated;
+select throws_ok($$ select public.delete_recognition_rule(current_setting('test.rule_a')::uuid) $$,
+  'P0001', 'Une règle déjà en vigueur ne peut pas être supprimée.', 'a rule in force for more than 24 hours stays');
+select throws_ok($$ select public.delete_recognition_rule('00000000-0000-0000-0000-000000000000') $$,
+  'P0001', 'Règle introuvable.', 'an unknown rule is not found');
+reset role;
+select results_eq($$ select a.table_name, count(*)::int from public.audit_log a
+                      where a.id > current_setting('test.audit_rec')::bigint and a.action = 'delete'
+                        and a.actor_id = 'a0000000-0000-0000-0000-000000000001'
+                        and a.table_name in ('recognition_rules', 'professional_recognition')
+                      group by 1 order by 1 $$,
+  $$ values ('professional_recognition'::text, 3), ('recognition_rules', 2) $$,
+  'each deletion is audited, by its author');
+select is((select a.changed_fields ->> 'level' from public.audit_log a
+            where a.table_name = 'professional_recognition' and a.action = 'delete'
+              and a.record_id = current_setting('test.p1') || ':' || current_setting('test.r_fresh')),
+  '1', 'a deleted level keeps its values in the log (P4-149)');
+set local role authenticated;
 
 -- =============================================================================
 -- Compensation in the history and the audit

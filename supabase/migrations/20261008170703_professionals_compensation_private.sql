@@ -15,16 +15,23 @@
 --   from service_role too, RLS on without a policy: only the definer RPCs below touch it.
 -- * Every value column is redacted by the audit trigger (design decision #31): the log shows that
 --   the private data changed, never a value, a mask or a ciphertext. list_professional_history
---   returns these rows with changed_fields null (reads keep their field names only).
--- * One key version per row (conventions §8): set_professional_private and
---   clear_professional_private_field leave the whole row on private.pii_current_key_version() in
---   one statement; a kept ciphertext is re-encrypted from the row's version (left as is when the
---   row is already current, so no spurious audit change). A kept value that does not decrypt
---   (key missing 55000, wrong key 39000) raises a clean P0001 naming the field, with a HINT.
--- * Encrypted fields: null or blank keeps the stored value; plain fields: as given, blank clears.
---   Spaces, tabs, line breaks and hyphens are stripped from numbers; any other character is
+--   returns these rows with changed_fields null (reads keep only the known field names).
+-- * One RPC per card (P4-148), so a save only ever writes its own fields and one person's save
+--   cannot overwrite another's: set_professional_tax_numbers (NE, TPS, TVQ: plain, blank clears),
+--   set_professional_bank (institution and transit: plain, blank clears; account: encrypted, blank
+--   keeps), set_professional_sin (encrypted, blank refused), clear_professional_private_field
+--   (removes the SIN or the account). The three set_* take p_expected_updated_at, the updated_at
+--   the caller read (null when nothing was stored): a row changed since then is refused (P0001,
+--   HINT 'stale'). They return the row's new updated_at.
+-- * One key version per row (conventions §8): every write leaves the whole row on
+--   private.pii_current_key_version() in one statement; a kept ciphertext is re-encrypted from the
+--   row's version (left as is when the row is already current, so no spurious audit change). A
+--   kept value that does not decrypt (key missing 55000, wrong key 39000) raises a clean P0001
+--   naming the field, with a HINT.
+-- * Spaces, tabs, line breaks and hyphens are stripped from numbers; any other character is
 --   refused (never stripped). SIN: 9 digits and the Luhn check, refused while the module setting
---   collect_sin is off (P4-7). No message ever repeats a value.
+--   collect_sin is off (P4-7); a stored SIN can still be revealed and cleared. No message ever
+--   repeats a value. Every query on professional_private is scoped to the caller's clinic.
 -- * Reveals (reveal_professional_private) decrypt with the row's version and write an audit_log
 --   row: action 'read', source 'rpc:reveal_professional_private', changed_fields
 --   {"fields": ["sin" | "bank_account"]}. Nothing stored → null, no audit row.
@@ -34,11 +41,18 @@
 --   margin ranges and recognition rules (seeded for every clinic, as tax rates); per-professional
 --   dated margins and recognition levels. Periods are [effective_from, effective_to) and never
 --   overlap (exclusion constraints). Every set_* RPC closes the open row on the new start date,
---   as add_tax_rate does, under the org row lock (clinic rows) or the professional row lock.
---   Clients read the tables (professionals.compensation, org-scoped); writes are RPCs only. No
---   amount is computed anywhere (P4-8).
+--   as add_tax_rate does, under the org row lock (clinic rows) or the professional row lock; each
+--   dated table has a delete RPC for its open row (P4-145). Dates are bounded to
+--   2000-01-01 … 2100-12-31 (P4-150). Clients read the tables (professionals.compensation,
+--   org-scoped); writes are RPCs only. No amount is computed anywhere (P4-8).
+-- * The compensation tables are audited with their values (P4-149): the history and the
+--   Journal d'audit keep what a margin or a rule was, even after a deletion. audit.view (admin-only
+--   by default) therefore shows them too.
 -- * Permissions (4a.1): professionals.private for the private data, professionals.compensation
---   for the rest; both admin-only by default. service_role gets nothing.
+--   for the rest; both admin-only by default.
+-- * service_role (conventions §3): its privileges are revoked explicitly on professional_private
+--   (§8) and it gets no EXECUTE on these RPCs (they act for a user); on the compensation tables it
+--   keeps Supabase's defaults, as on every table (server-only, bypasses RLS).
 -- * Patterns use [0-9], never \d (ICU: \d also matches non-ASCII digits).
 -- =============================================================================
 
@@ -193,17 +207,17 @@ begin
   if p_field = 'sin' then
     raise exception 'Le NAS enregistré ne peut pas être lu avec la clé de cet environnement.'
       using errcode = 'P0001',
-            hint = 'Retirez le NAS enregistré, ou saisissez-le de nouveau au complet : il remplacera celui qui est enregistré.';
+            hint = 'Le NAS enregistré peut être retiré. Il ne peut être saisi de nouveau que si la collecte du NAS est activée.';
   end if;
   raise exception 'Le numéro de compte enregistré ne peut pas être lu avec la clé de cet environnement.'
     using errcode = 'P0001',
-          hint = 'Saisissez de nouveau le numéro de compte au complet : il remplacera celui qui est enregistré.';
+          hint = 'Retirez le numéro de compte enregistré, ou saisissez-le de nouveau au complet : il remplacera celui qui est enregistré.';
 end;
 $$;
 
--- Which kept ciphertext of a row does not decrypt with its version: 'sin', 'bank_account', or
--- null. Called only after a write failed with 39000 / 55000, to name the field.
-create function private.unreadable_private_field(p_id uuid, p_check_sin boolean, p_check_account boolean)
+-- Which kept ciphertext of a row of p_org does not decrypt with its version: 'sin',
+-- 'bank_account', or null. Called only after a write failed with 39000 / 55000, to name the field.
+create function private.unreadable_private_field(p_id uuid, p_org uuid, p_check_sin boolean, p_check_account boolean)
 returns text
 language plpgsql
 set search_path = ''
@@ -211,7 +225,7 @@ as $$
 declare
   v_row public.professional_private;
 begin
-  select * into v_row from public.professional_private pp where pp.professional_id = p_id;
+  select * into v_row from public.professional_private pp where pp.professional_id = p_id and pp.org_id = p_org;
   if p_check_sin and v_row.sin is not null then
     begin
       perform private.decrypt_pii(v_row.sin, v_row.key_version);
@@ -230,8 +244,29 @@ begin
 end;
 $$;
 
+-- Optimistic concurrency for the card saves (P4-148): p_expected is the updated_at the caller
+-- read from get_professional_private (null when nothing was stored). Compared to the millisecond,
+-- so a value that went through a JavaScript Date still matches. Call it under the professional lock.
+create function private.assert_private_not_stale(p_id uuid, p_org uuid, p_expected timestamptz)
+returns void
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  v_current timestamptz;
+begin
+  select pp.updated_at into v_current
+    from public.professional_private pp
+   where pp.professional_id = p_id and pp.org_id = p_org;
+  if pg_catalog.date_trunc('milliseconds', v_current) is distinct from pg_catalog.date_trunc('milliseconds', p_expected) then
+    raise exception 'Ces renseignements ont été modifiés depuis leur affichage.' using errcode = 'P0001', hint = 'stale';
+  end if;
+end;
+$$;
+
 -- The plaintext of one encrypted field, and an audit row naming the field (never the value).
--- Nothing stored → null and no audit row.
+-- Nothing stored → null and no audit row. Allowed while collect_sin is off (P4-143).
 create function public.reveal_professional_private(p_id uuid, p_field text)
 returns text
 language plpgsql
@@ -279,22 +314,18 @@ begin
 end;
 $$;
 
--- Upserts one professional's private data. Encrypted fields (p_sin, p_bank_account): null or
--- blank keeps the stored value. Plain fields: as given, blank clears. Numbers lose spaces, tabs,
--- line breaks and hyphens; TPS / TVQ letters are upper-cased; anything else is refused. The
--- whole row ends on the current key version (conventions §8). Nothing to store and no row yet:
--- no row is created.
-create function public.set_professional_private(
+-- « Fiscalité » card: the business, TPS and TVQ numbers, as given (blank clears). Numbers lose
+-- spaces, tabs, line breaks and hyphens; TPS / TVQ letters are upper-cased; anything else is
+-- refused. The encrypted columns are kept, on the current key version. All blank and no row yet:
+-- no row is created. Returns the row's updated_at (null when there is no row).
+create function public.set_professional_tax_numbers(
   p_id uuid,
-  p_sin text,
   p_business_number text,
   p_gst_number text,
   p_qst_number text,
-  p_bank_institution text,
-  p_bank_transit text,
-  p_bank_account text
+  p_expected_updated_at timestamptz
 )
-returns void
+returns timestamptz
 language plpgsql
 security definer
 set search_path = ''
@@ -302,31 +333,17 @@ as $$
 declare
   v_org uuid := private.current_user_org_id();
   v_strip constant text := '[ \t\r\n-]';
-  v_sin text := nullif(pg_catalog.regexp_replace(coalesce(p_sin, ''), v_strip, '', 'g'), '');
   v_bn text := nullif(pg_catalog.regexp_replace(coalesce(p_business_number, ''), v_strip, '', 'g'), '');
   v_gst text := nullif(pg_catalog.upper(pg_catalog.regexp_replace(coalesce(p_gst_number, ''), v_strip, '', 'g')), '');
   v_qst text := nullif(pg_catalog.upper(pg_catalog.regexp_replace(coalesce(p_qst_number, ''), v_strip, '', 'g')), '');
-  v_institution text := nullif(pg_catalog.regexp_replace(coalesce(p_bank_institution, ''), v_strip, '', 'g'), '');
-  v_transit text := nullif(pg_catalog.regexp_replace(coalesce(p_bank_transit, ''), v_strip, '', 'g'), '');
-  v_account text := nullif(pg_catalog.regexp_replace(coalesce(p_bank_account, ''), v_strip, '', 'g'), '');
   v_version integer;
-  v_bad text;
+  v_updated_at timestamptz;
 begin
   if not private.has_permission('professionals.private') then
     raise exception 'Permission refusée : professionals.private' using errcode = '42501';
   end if;
 
   -- Validation first: the table's checks are a backstop only (their error would print the row).
-  if v_sin is not null then
-    if not coalesce((private.professionals_setting(v_org, 'collect_sin'))::boolean, false) then
-      raise exception 'La collecte du NAS n''est pas activée.' using errcode = 'P0001',
-        hint = 'Un administrateur peut l''activer dans Paramètres, section Rémunération.';
-    end if;
-    if not private.is_valid_sin(v_sin) then
-      raise exception 'NAS invalide.' using errcode = 'P0001',
-        hint = 'Le NAS compte 9 chiffres, et son dernier chiffre doit correspondre aux huit autres.';
-    end if;
-  end if;
   if v_bn is not null and v_bn !~ '^[0-9]{9}$' then
     raise exception 'Le numéro d''entreprise (NE) compte 9 chiffres.' using errcode = 'P0001';
   end if;
@@ -336,6 +353,78 @@ begin
   if v_qst is not null and v_qst !~ '^[0-9]{10}TQ[0-9]{4}$' then
     raise exception 'Numéro de TVQ : format attendu 1234567890 TQ 0001.' using errcode = 'P0001';
   end if;
+
+  perform private.lock_professional(p_id);
+  perform private.assert_private_not_stale(p_id, v_org, p_expected_updated_at);
+  v_version := private.pii_current_key_version();
+
+  begin
+    if v_bn is null and v_gst is null and v_qst is null then
+      -- Everything blank: clear the numbers of an existing row; never create an empty one.
+      update public.professional_private pp
+         set business_number = null, gst_number = null, qst_number = null,
+             sin = case when pp.key_version = v_version then pp.sin
+                        else private.encrypt_pii(private.decrypt_pii(pp.sin, pp.key_version), v_version) end,
+             bank_account = case when pp.key_version = v_version then pp.bank_account
+                                 else private.encrypt_pii(private.decrypt_pii(pp.bank_account, pp.key_version), v_version) end,
+             key_version = v_version,
+             updated_by = auth.uid()
+       where pp.professional_id = p_id and pp.org_id = v_org
+      returning pp.updated_at into v_updated_at;
+    else
+      insert into public.professional_private as pp
+        (professional_id, org_id, business_number, gst_number, qst_number, key_version, updated_by)
+      values (p_id, v_org, v_bn, v_gst, v_qst, v_version, auth.uid())
+      on conflict (professional_id) do update
+        set business_number = excluded.business_number,
+            gst_number = excluded.gst_number,
+            qst_number = excluded.qst_number,
+            sin = case when pp.key_version = v_version then pp.sin
+                       else private.encrypt_pii(private.decrypt_pii(pp.sin, pp.key_version), v_version) end,
+            bank_account = case when pp.key_version = v_version then pp.bank_account
+                                else private.encrypt_pii(private.decrypt_pii(pp.bank_account, pp.key_version), v_version) end,
+            key_version = excluded.key_version,
+            updated_by = excluded.updated_by
+        where pp.org_id = v_org
+      returning pp.updated_at into v_updated_at;
+    end if;
+  exception
+    -- 39000: pgcrypto (wrong key or corrupt data); 55000: decrypt_pii (the row's key is missing).
+    when sqlstate '39000' or sqlstate '55000' then
+      perform private.raise_unreadable_private_value(private.unreadable_private_field(p_id, v_org, true, true));
+  end;
+  return v_updated_at;
+end;
+$$;
+
+-- « Banque » card: institution and transit as given (blank clears); the account is encrypted, and
+-- a blank account keeps the stored one (clear_professional_private_field removes it). The SIN is
+-- kept, on the current key version. All blank and no row yet: no row is created.
+create function public.set_professional_bank(
+  p_id uuid,
+  p_institution text,
+  p_transit text,
+  p_account text,
+  p_expected_updated_at timestamptz
+)
+returns timestamptz
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid := private.current_user_org_id();
+  v_strip constant text := '[ \t\r\n-]';
+  v_institution text := nullif(pg_catalog.regexp_replace(coalesce(p_institution, ''), v_strip, '', 'g'), '');
+  v_transit text := nullif(pg_catalog.regexp_replace(coalesce(p_transit, ''), v_strip, '', 'g'), '');
+  v_account text := nullif(pg_catalog.regexp_replace(coalesce(p_account, ''), v_strip, '', 'g'), '');
+  v_version integer;
+  v_updated_at timestamptz;
+begin
+  if not private.has_permission('professionals.private') then
+    raise exception 'Permission refusée : professionals.private' using errcode = '42501';
+  end if;
+
   if v_institution is not null and v_institution !~ '^[0-9]{3}$' then
     raise exception 'Le numéro d''institution compte 3 chiffres.' using errcode = 'P0001';
   end if;
@@ -347,58 +436,108 @@ begin
   end if;
 
   perform private.lock_professional(p_id);
+  perform private.assert_private_not_stale(p_id, v_org, p_expected_updated_at);
   v_version := private.pii_current_key_version();
 
   begin
-    if v_sin is null and v_account is null and v_bn is null and v_gst is null and v_qst is null
-       and v_institution is null and v_transit is null then
-      -- Everything blank: clear the plain fields of an existing row; never create an empty one.
+    if v_institution is null and v_transit is null and v_account is null then
       update public.professional_private pp
-         set business_number = null, gst_number = null, qst_number = null,
-             bank_institution = null, bank_transit = null,
+         set bank_institution = null, bank_transit = null,
              sin = case when pp.key_version = v_version then pp.sin
                         else private.encrypt_pii(private.decrypt_pii(pp.sin, pp.key_version), v_version) end,
              bank_account = case when pp.key_version = v_version then pp.bank_account
                                  else private.encrypt_pii(private.decrypt_pii(pp.bank_account, pp.key_version), v_version) end,
              key_version = v_version,
              updated_by = auth.uid()
-       where pp.professional_id = p_id;
+       where pp.professional_id = p_id and pp.org_id = v_org
+      returning pp.updated_at into v_updated_at;
     else
       insert into public.professional_private as pp
-        (professional_id, org_id, sin, sin_last3, business_number, gst_number, qst_number,
-         bank_institution, bank_transit, bank_account, bank_account_last4, key_version, updated_by)
-      values
-        (p_id, v_org, private.encrypt_pii(v_sin, v_version), pg_catalog.right(v_sin, 3), v_bn, v_gst, v_qst,
-         v_institution, v_transit, private.encrypt_pii(v_account, v_version), pg_catalog.right(v_account, 4),
-         v_version, auth.uid())
+        (professional_id, org_id, bank_institution, bank_transit, bank_account, bank_account_last4, key_version, updated_by)
+      values (p_id, v_org, v_institution, v_transit, private.encrypt_pii(v_account, v_version),
+              pg_catalog.right(v_account, 4), v_version, auth.uid())
       on conflict (professional_id) do update
-        set sin = case when v_sin is not null then excluded.sin
-                       when pp.key_version = v_version then pp.sin
-                       else private.encrypt_pii(private.decrypt_pii(pp.sin, pp.key_version), v_version) end,
-            sin_last3 = coalesce(excluded.sin_last3, pp.sin_last3),
-            business_number = excluded.business_number,
-            gst_number = excluded.gst_number,
-            qst_number = excluded.qst_number,
-            bank_institution = excluded.bank_institution,
+        set bank_institution = excluded.bank_institution,
             bank_transit = excluded.bank_transit,
             bank_account = case when v_account is not null then excluded.bank_account
                                 when pp.key_version = v_version then pp.bank_account
                                 else private.encrypt_pii(private.decrypt_pii(pp.bank_account, pp.key_version), v_version) end,
             bank_account_last4 = coalesce(excluded.bank_account_last4, pp.bank_account_last4),
+            sin = case when pp.key_version = v_version then pp.sin
+                       else private.encrypt_pii(private.decrypt_pii(pp.sin, pp.key_version), v_version) end,
             key_version = excluded.key_version,
-            updated_by = excluded.updated_by;
+            updated_by = excluded.updated_by
+        where pp.org_id = v_org
+      returning pp.updated_at into v_updated_at;
     end if;
   exception
-    -- 39000: pgcrypto (wrong key or corrupt data); 55000: decrypt_pii (the row's key is missing).
     when sqlstate '39000' or sqlstate '55000' then
-      v_bad := private.unreadable_private_field(p_id, v_sin is null, v_account is null);
-      perform private.raise_unreadable_private_value(v_bad);
+      perform private.raise_unreadable_private_value(private.unreadable_private_field(p_id, v_org, true, v_account is null));
   end;
+  return v_updated_at;
+end;
+$$;
+
+-- « NAS »: stores a new SIN (9 digits, Luhn), refused while collect_sin is off (P4-7). A blank SIN
+-- is refused: clear_professional_private_field removes one. The account is kept, on the current
+-- key version.
+create function public.set_professional_sin(p_id uuid, p_sin text, p_expected_updated_at timestamptz)
+returns timestamptz
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid := private.current_user_org_id();
+  v_sin text := nullif(pg_catalog.regexp_replace(coalesce(p_sin, ''), '[ \t\r\n-]', '', 'g'), '');
+  v_version integer;
+  v_updated_at timestamptz;
+begin
+  if not private.has_permission('professionals.private') then
+    raise exception 'Permission refusée : professionals.private' using errcode = '42501';
+  end if;
+
+  if not coalesce((private.professionals_setting(v_org, 'collect_sin'))::boolean, false) then
+    raise exception 'La collecte du NAS n''est pas activée.' using errcode = 'P0001',
+      hint = 'Un administrateur peut l''activer dans Paramètres, section Rémunération.';
+  end if;
+  if v_sin is null then
+    raise exception 'Saisissez le NAS au complet.' using errcode = 'P0001',
+      hint = 'Pour retirer le NAS enregistré, utilisez « Retirer ».';
+  end if;
+  if not private.is_valid_sin(v_sin) then
+    raise exception 'NAS invalide.' using errcode = 'P0001',
+      hint = 'Le NAS compte 9 chiffres, et son dernier chiffre doit correspondre aux huit autres.';
+  end if;
+
+  perform private.lock_professional(p_id);
+  perform private.assert_private_not_stale(p_id, v_org, p_expected_updated_at);
+  v_version := private.pii_current_key_version();
+
+  begin
+    insert into public.professional_private as pp
+      (professional_id, org_id, sin, sin_last3, key_version, updated_by)
+    values (p_id, v_org, private.encrypt_pii(v_sin, v_version), pg_catalog.right(v_sin, 3), v_version, auth.uid())
+    on conflict (professional_id) do update
+      set sin = excluded.sin,
+          sin_last3 = excluded.sin_last3,
+          bank_account = case when pp.key_version = v_version then pp.bank_account
+                              else private.encrypt_pii(private.decrypt_pii(pp.bank_account, pp.key_version), v_version) end,
+          key_version = excluded.key_version,
+          updated_by = excluded.updated_by
+      where pp.org_id = v_org
+    returning pp.updated_at into v_updated_at;
+  exception
+    when sqlstate '39000' or sqlstate '55000' then
+      perform private.raise_unreadable_private_value(private.unreadable_private_field(p_id, v_org, false, true));
+  end;
+  return v_updated_at;
 end;
 $$;
 
 -- Removes the SIN (and its last 3 digits) or the bank account (and its last 4). The other
 -- encrypted field is kept, on the current key version (one version per row). Nothing stored: no-op.
+-- Allowed while collect_sin is off (removal stays possible, P4-143).
 create function public.clear_professional_private_field(p_id uuid, p_field text)
 returns void
 language plpgsql
@@ -406,8 +545,8 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_org uuid := private.current_user_org_id();
   v_version integer;
-  v_bad text;
 begin
   if not private.has_permission('professionals.private') then
     raise exception 'Permission refusée : professionals.private' using errcode = '42501';
@@ -430,19 +569,20 @@ begin
            bank_account_last4 = case when p_field = 'bank_account' then null else pp.bank_account_last4 end,
            key_version = v_version,
            updated_by = auth.uid()
-     where pp.professional_id = p_id
+     where pp.professional_id = p_id and pp.org_id = v_org
        and case p_field when 'sin' then pp.sin is not null else pp.bank_account is not null end;
   exception
     when sqlstate '39000' or sqlstate '55000' then
-      v_bad := private.unreadable_private_field(p_id, p_field <> 'sin', p_field <> 'bank_account');
-      perform private.raise_unreadable_private_value(v_bad);
+      perform private.raise_unreadable_private_value(
+        private.unreadable_private_field(p_id, v_org, p_field <> 'sin', p_field <> 'bank_account'));
   end;
 end;
 $$;
 
 revoke all on function
   private.raise_unreadable_private_value(text),
-  private.unreadable_private_field(uuid, boolean, boolean)
+  private.unreadable_private_field(uuid, uuid, boolean, boolean),
+  private.assert_private_not_stale(uuid, uuid, timestamptz)
 from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
@@ -713,7 +853,24 @@ as $$
   select private.reference_text(p_note, 'La note', 500, false, true)
 $$;
 
--- The refusal when a new dated row does not start after the open one (as add_tax_rate).
+-- Every date argument stays within 2000-01-01 … 2100-12-31 (P4-150): no infinity, no BC date, no
+-- five-digit year typo. The HINT names the argument, so the UI shows the refusal under its field.
+create function private.assert_compensation_date(p_date date, p_hint text)
+returns void
+language plpgsql
+immutable
+set search_path = ''
+as $$
+begin
+  if p_date is not null and (p_date < date '2000-01-01' or p_date > date '2100-12-31') then
+    raise exception 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.'
+      using errcode = 'P0001', hint = p_hint;
+  end if;
+end;
+$$;
+
+-- The refusal when a new dated row has no start date, one out of bounds, or one that does not
+-- start after the open one (as add_tax_rate). HINT 'effective_from' on each.
 create function private.assert_starts_after(p_new date, p_open date, p_message text)
 returns void
 language plpgsql
@@ -722,10 +879,12 @@ set search_path = ''
 as $$
 begin
   if p_new is null then
-    raise exception 'La date d''entrée en vigueur est requise.' using errcode = 'P0001';
+    raise exception 'La date d''entrée en vigueur est requise.' using errcode = 'P0001', hint = 'effective_from';
   end if;
+  perform private.assert_compensation_date(p_new, 'effective_from');
   if p_open is not null and p_new <= p_open then
-    raise exception '% %.', p_message, pg_catalog.to_char(p_open, 'YYYY-MM-DD') using errcode = 'P0001';
+    raise exception '% %.', p_message, pg_catalog.to_char(p_open, 'YYYY-MM-DD')
+      using errcode = 'P0001', hint = 'effective_from';
   end if;
 end;
 $$;
@@ -989,6 +1148,88 @@ begin
 end;
 $$;
 
+-- Removes the clinic's last (open) recognition rule and reopens the previous one: same window as
+-- delete_compensation_default (not in force yet, or created less than 24 hours ago); never the
+-- first rule (the clinic would be left with none).
+create function public.delete_recognition_rule(p_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid := private.current_user_org_id();
+  v_row public.recognition_rules;
+  v_reopened int;
+begin
+  perform private.assert_compensation_access();
+  perform 1 from public.organizations o where o.id = v_org for no key update;
+
+  select * into v_row from public.recognition_rules r where r.id = p_id and r.org_id = v_org;
+  if v_row.id is null then
+    raise exception 'Règle introuvable.' using errcode = 'P0001';
+  end if;
+  if v_row.effective_to is not null then
+    raise exception 'Seule la dernière règle peut être supprimée.' using errcode = 'P0001';
+  end if;
+  if not coalesce(v_row.effective_from > private.clinic_today(), false)
+     and not coalesce(v_row.created_at > pg_catalog.now() - interval '24 hours', false) then
+    raise exception 'Une règle déjà en vigueur ne peut pas être supprimée.' using errcode = 'P0001';
+  end if;
+  if not exists (select 1 from public.recognition_rules r
+                  where r.org_id = v_org and r.effective_to = v_row.effective_from) then
+    raise exception 'La première règle du programme ne peut pas être supprimée.' using errcode = 'P0001';
+  end if;
+
+  delete from public.recognition_rules r where r.id = v_row.id;
+  update public.recognition_rules r
+     set effective_to = null
+   where r.org_id = v_org and r.effective_to = v_row.effective_from;
+  get diagnostics v_reopened = row_count;
+  if v_reopened <> 1 then
+    raise exception 'L''historique des règles est incohérent ; contactez le soutien technique.' using errcode = 'P0001';
+  end if;
+end;
+$$;
+
+-- Removes a professional's last (open) recognition level and reopens the previous one, if any.
+-- Same window as delete_professional_margin; the first level may go.
+create function public.delete_professional_recognition(p_row_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org uuid := private.current_user_org_id();
+  v_row public.professional_recognition;
+begin
+  perform private.assert_compensation_access();
+  select * into v_row from public.professional_recognition r where r.id = p_row_id and r.org_id = v_org;
+  if v_row.id is null then
+    raise exception 'Niveau introuvable.' using errcode = 'P0001';
+  end if;
+  perform private.lock_professional(v_row.professional_id);
+  -- Re-read under the lock: another call may have closed or removed it meanwhile.
+  select * into v_row from public.professional_recognition r where r.id = p_row_id and r.org_id = v_org;
+  if v_row.id is null then
+    raise exception 'Niveau introuvable.' using errcode = 'P0001';
+  end if;
+  if v_row.effective_to is not null then
+    raise exception 'Seul le dernier niveau peut être supprimé.' using errcode = 'P0001';
+  end if;
+  if not coalesce(v_row.effective_from > private.clinic_today(), false)
+     and not coalesce(v_row.created_at > pg_catalog.now() - interval '24 hours', false) then
+    raise exception 'Un niveau déjà en vigueur ne peut pas être supprimé.' using errcode = 'P0001';
+  end if;
+
+  delete from public.professional_recognition r where r.professional_id = v_row.professional_id and r.id = v_row.id;
+  update public.professional_recognition r
+     set effective_to = null
+   where r.professional_id = v_row.professional_id and r.effective_to = v_row.effective_from;
+end;
+$$;
+
 -- The terms in force on a date (clinic today by default): per kind, the professional's margin
 -- (source 'professional') or else the default range (source 'default', or 'none' when the clinic
 -- has none), with the default range always given; and the recognition level with the rule in
@@ -1008,6 +1249,7 @@ begin
   if not exists (select 1 from public.professionals p where p.id = p_id and p.org_id = v_org) then
     raise exception 'Professionnel introuvable.' using errcode = 'P0001';
   end if;
+  perform private.assert_compensation_date(p_on, 'on');
   v_on := coalesce(p_on, private.clinic_today());
 
   return pg_catalog.jsonb_build_object(
@@ -1064,6 +1306,7 @@ revoke all on function
   private.assert_compensation_access(),
   private.assert_compensation_kind(text),
   private.compensation_note(text),
+  private.assert_compensation_date(date, text),
   private.assert_starts_after(date, date, text)
 from public, anon, authenticated, service_role;
 
@@ -1086,8 +1329,8 @@ $$;
 
 -- Same signature, grants and paging as *_professionals_lifecycle.sql. Two changes:
 -- * professional_private rows carry no changed_fields (every value is redacted anyway; the
---   history says only that the private data changed), except reads, which keep their field
---   names ({"fields": ["sin" | "bank_account"]}) and nothing else;
+--   history says only that the private data changed), except reads, which keep only the string
+--   elements 'sin' and 'bank_account' of their field list ({"fields": [...]}) and nothing else;
 -- * professional_compensation and professional_recognition rows show only to holders of
 --   professionals.compensation (professionals.view alone does not open the margins).
 create or replace function public.list_professional_history(p_id uuid, p_before_id bigint default null, p_limit int default 50)
@@ -1119,7 +1362,10 @@ begin
            case
              when a.table_name <> 'professional_private' then a.changed_fields
              when a.action = 'read' and pg_catalog.jsonb_typeof(a.changed_fields -> 'fields') = 'array'
-               then pg_catalog.jsonb_build_object('fields', a.changed_fields -> 'fields')
+               then pg_catalog.jsonb_build_object('fields', (
+                      select coalesce(pg_catalog.jsonb_agg(f.value order by f.ord), '[]'::jsonb)
+                        from pg_catalog.jsonb_array_elements(a.changed_fields -> 'fields') with ordinality as f(value, ord)
+                       where f.value in ('"sin"'::jsonb, '"bank_account"'::jsonb)))
            end,
            a.actor_id, pr.display_name, a.actor_role, a.source
       from public.audit_log a
@@ -1139,27 +1385,35 @@ $$;
 revoke all on function
   public.get_professional_private(uuid),
   public.reveal_professional_private(uuid, text),
-  public.set_professional_private(uuid, text, text, text, text, text, text, text),
+  public.set_professional_tax_numbers(uuid, text, text, text, timestamptz),
+  public.set_professional_bank(uuid, text, text, text, timestamptz),
+  public.set_professional_sin(uuid, text, timestamptz),
   public.clear_professional_private_field(uuid, text),
   public.set_compensation_default(text, numeric, numeric, date),
   public.delete_compensation_default(uuid),
   public.set_professional_margin(uuid, text, numeric, date, text),
   public.delete_professional_margin(uuid),
   public.set_recognition_rule(int, int, int, numeric, text, date, text),
+  public.delete_recognition_rule(uuid),
   public.set_professional_recognition(uuid, int, int, date, text),
+  public.delete_professional_recognition(uuid),
   public.get_professional_compensation(uuid, date)
 from public, anon, authenticated, service_role;
 grant execute on function
   public.get_professional_private(uuid),
   public.reveal_professional_private(uuid, text),
-  public.set_professional_private(uuid, text, text, text, text, text, text, text),
+  public.set_professional_tax_numbers(uuid, text, text, text, timestamptz),
+  public.set_professional_bank(uuid, text, text, text, timestamptz),
+  public.set_professional_sin(uuid, text, timestamptz),
   public.clear_professional_private_field(uuid, text),
   public.set_compensation_default(text, numeric, numeric, date),
   public.delete_compensation_default(uuid),
   public.set_professional_margin(uuid, text, numeric, date, text),
   public.delete_professional_margin(uuid),
   public.set_recognition_rule(int, int, int, numeric, text, date, text),
+  public.delete_recognition_rule(uuid),
   public.set_professional_recognition(uuid, int, int, date, text),
+  public.delete_professional_recognition(uuid),
   public.get_professional_compensation(uuid, date)
 to authenticated;
 

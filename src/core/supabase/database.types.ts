@@ -4203,6 +4203,11 @@ export type Database = {
         Args: { p_row_id: string }
         Returns: undefined
       }
+      delete_professional_recognition: {
+        Args: { p_row_id: string }
+        Returns: undefined
+      }
+      delete_recognition_rule: { Args: { p_id: string }; Returns: undefined }
       delete_role: { Args: { p_role: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
       delete_user_preference: {
@@ -4899,6 +4904,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_professional_bank: {
+        Args: {
+          p_account: string
+          p_expected_updated_at: string
+          p_id: string
+          p_institution: string
+          p_transit: string
+        }
+        Returns: string
+      }
       set_professional_clienteles: {
         Args: { p_id: string; p_items: Json }
         Returns: {
@@ -4932,19 +4947,6 @@ export type Database = {
         Args: { p_id: string; p_number: string; p_payer_type: string }
         Returns: undefined
       }
-      set_professional_private: {
-        Args: {
-          p_bank_account: string
-          p_bank_institution: string
-          p_bank_transit: string
-          p_business_number: string
-          p_gst_number: string
-          p_id: string
-          p_qst_number: string
-          p_sin: string
-        }
-        Returns: undefined
-      }
       set_professional_professions: {
         Args: { p_id: string; p_items: Json }
         Returns: {
@@ -4964,12 +4966,26 @@ export type Database = {
         }
         Returns: string
       }
+      set_professional_sin: {
+        Args: { p_expected_updated_at: string; p_id: string; p_sin: string }
+        Returns: string
+      }
       set_professional_specialties: {
         Args: { p_id: string; p_items: Json }
         Returns: {
           is_specialized: boolean
           specialty_id: string
         }[]
+      }
+      set_professional_tax_numbers: {
+        Args: {
+          p_business_number: string
+          p_expected_updated_at: string
+          p_gst_number: string
+          p_id: string
+          p_qst_number: string
+        }
+        Returns: string
       }
       set_professionals_reference_active: {
         Args: { p_active: boolean; p_id: string; p_kind: string }

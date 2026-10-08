@@ -101,9 +101,11 @@ select functions_are('public', array[
   'save_professional_order', 'save_profession_category', 'save_profession_title', 'save_clientele', 'save_specialty', 'save_motif_category', 'save_motif', 'save_language', 'save_deactivation_reason', 'set_professionals_reference_active', 'reorder_professionals_reference', 'get_professionals_catalog', 'get_professionals_settings', 'set_professionals_settings',
   'create_professional', 'set_professional_email', 'set_professional_professions', 'set_professional_clienteles', 'set_professional_specialties', 'set_professional_motifs', 'set_professional_languages', 'set_professional_payer_number', 'list_professionals_reference_usage',
   'get_professional_readiness', 'activate_professional', 'deactivate_professional', 'list_professionals', 'get_professional_record', 'get_professional_public_profile', 'list_professional_history',
-  'get_professional_private', 'reveal_professional_private', 'set_professional_private', 'clear_professional_private_field',
+  'get_professional_private', 'reveal_professional_private', 'set_professional_tax_numbers', 'set_professional_bank',
+  'set_professional_sin', 'clear_professional_private_field',
   'set_compensation_default', 'delete_compensation_default', 'set_professional_margin', 'delete_professional_margin',
-  'set_recognition_rule', 'set_professional_recognition', 'get_professional_compensation',
+  'set_recognition_rule', 'delete_recognition_rule', 'set_professional_recognition', 'delete_professional_recognition',
+  'get_professional_compensation',
   'set_user_preference', 'delete_user_preference'
 ], 'public schema exposes exactly the intended RPCs');
 
