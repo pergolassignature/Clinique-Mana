@@ -31,9 +31,11 @@ async function sqlMap(): Promise<Map<string, string>> {
   let body: string | undefined
   for (const name of names.sort()) {
     const sql = await Deno.readTextFile(new URL(name, MIGRATIONS))
-    const match = /function private\.mime_extension\([\s\S]*?\$\$([\s\S]*?)\$\$/
-      .exec(sql)
-    if (match) body = match[1]
+    // The body between a dollar-quote tag and its closing twin: `$$`, `$fn$`…
+    const match =
+      /function private\.mime_extension\([\s\S]*?(\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$)([\s\S]*?)\1/
+        .exec(sql)
+    if (match) body = match[2]
   }
   assert(body, 'no migration defines private.mime_extension')
   return new Map(

@@ -11,8 +11,11 @@
 -- Key choices
 -- * Three private buckets. Clients never write an object: uploads go through a signed upload URL
 --   that `storage-upload` creates for the path `create_pending_upload` returns, and system files
---   (rendered and signed PDFs) are written by the service role. There is no insert, update or
---   delete policy on `storage.objects`; reads go through one select policy (below).
+--   (rendered and signed PDFs) are written by the service role. There is no client policy at
+--   all on `storage.objects` for these buckets (P3-33): no client can read an object or mint a
+--   signed URL (`createSignedUrl`) itself. Reads go through the `storage-sign` function, which
+--   selects the `stored_files` row with the user's client (so this table's RLS decides), then
+--   signs a 5-minute URL with the service role.
 -- * MIME type → extension is one fixed map, `private.mime_extension`, the SQL twin of FORMATS in
 --   supabase/functions/_shared/storage.ts (exact strings, no alias). `_shared/storage-map.test.ts`
 --   reads this function from the migrations and checks it against the TypeScript map.
@@ -21,11 +24,22 @@
 --   and stays their source of truth; a check pins the shape. A path never moves: attaching a
 --   staged file re-points the row's subject, so the third segment is the subject at upload time.
 -- * `stored_files` is the registry. Each row carries what it takes to read it: `view_permission`
---   (null = any active member of the org, allowed for core purposes only, so a module's file
---   always passes through a permission of that module: the module gate), or the owner branch
+--   (null = any active member of the org, allowed for core purposes only), or the owner branch
 --   (`owner_profile_id` = the caller and `owner_permission` held, inconsistency #12: ownership is
---   in the row, never in a storage policy). The `stored_files` select policy and
---   `private.can_read_object` (the one object policy) apply the same rule to `ready` rows.
+--   in the row, never in a storage policy). The `stored_files` select policy applies this rule
+--   to `ready` rows, and is the only read check: `storage-sign` relies on it (P3-33).
+-- * The module gate: a module's file is uploaded and read only through permissions of that
+--   module, so disabling the module (its permissions drop out of current_permission_keys) closes
+--   every path to it. A module purpose's upload, view and owner permissions all belong to its
+--   module (check_upload_purpose); a module file's view and owner permissions too (trigger
+--   stored_files_check_module_gate, whoever writes the row: create_pending_upload,
+--   register_system_file, attach_stored_file); and a module file always has a view permission.
+--   Core purposes may name any permission.
+-- * `subject_type` / `subject_id` of a row no module RPC has attached are what the uploader sent
+--   to create_pending_upload: client-supplied and untrusted. They only build the path and group
+--   staged files; no rule reads them for access. A module trusts a file's subject only after its
+--   own RPC attached it (attach_stored_file sets both). Modules list their files through their
+--   own tables (e.g. professional_documents.stored_file_id), never by stored_files.subject_id.
 -- * Purposes are a global catalogue seeded by the owning module (like `scheduled_jobs`: not
 --   audited, git is its history). A trigger keeps `max_bytes` and `mime_types` within the
 --   bucket's limits (storage.buckets is the one source of those). `max_image_side` caps the width
@@ -37,12 +51,29 @@
 -- * Staged uploads (P3-17): a purpose with `retain_days` stamps `retain_until`; a module RPC
 --   attaching the file (`private.attach_stored_file`, or `set_org_asset` for the org assets)
 --   clears it. The logo and signature are staged for one day, so an upload never set as the asset
---   is purged too.
+--   is purged too. So every client-upload purpose that a module RPC must attach needs a
+--   `retain_days`: without one, an upload never attached stays forever.
+--   `attach_stored_file` takes the purposes the calling RPC accepts (and optionally the expected
+--   uploader) and checks them itself, so a client-supplied file id of another purpose (or
+--   someone else's upload) is « Fichier introuvable. » like a file of another org.
 -- * Purge rules (`list_files_to_purge`): `pending` older than 24 h, `deleted` for over 30 days,
---   `ready` past its `retain_until`. A listed file is never revived: `confirm_stored_file` refuses
+--   `deleted` but never confirmed (a rejected upload, a pending file removed) for over 24 h,
+--   `ready` past its `retain_until`. The never-confirmed case is short because the 2-hour signed
+--   upload token can upload to a rejected path again: its object must not linger 30 days. A listed file is never revived: `confirm_stored_file` refuses
 --   a pending file older than 24 h, and `attach_stored_file` / `set_org_asset` refuse a file past
 --   its `retain_until`. So `storage-cleanup` can remove the objects first, then mark the rows
 --   `purged` (`mark_files_purged` re-checks the same rules). Purged rows are kept (P3-30).
+--   The remove-then-mark race is benign: if the function dies between the two, the row keeps its
+--   status with no object, is listed again at the next run (removing a missing object is a
+--   no-op) and marked then; a row whose status changed in between (a staged file soft-deleted)
+--   is not marked now and comes back under its new rule. No rule makes a listed row readable
+--   again, so a removed object is never one a reader can still reach through a `ready` row.
+-- * `register_system_file` registers the row `ready` before the object exists (the caller
+--   uploads to the returned path next): until the upload lands, a reader allowed by the row gets
+--   Storage's 404, never another file. A caller whose upload fails soft-deletes the row (its
+--   module's service RPC, through `private.soft_delete_stored_file`), and a retry registers a new
+--   one. Its view permission is `coalesce(p_view_permission, the purpose's)`; a null result (any
+--   member of the org) is refused in the `documents` and `signed-documents` buckets.
 -- * Audited, with `original_name` redacted: a file name often carries a person's name, and the
 --   audit log is kept forever.
 -- * Deviations from the plan:
@@ -98,7 +129,7 @@ create table public.upload_purposes (
   key text primary key check (key ~ '^[a-z_]{1,50}$'),
   module_key text not null references public.modules(key),
   bucket text not null check (bucket in ('org-assets', 'documents', 'signed-documents')),
-  -- Checked by create_pending_upload (the module is implied by the permission).
+  -- Checked by create_pending_upload; a permission of module_key (the module gate).
   upload_permission text not null references public.permissions(key),
   -- Copied to each file. Null = any active member of the org (core purposes only, see below).
   view_permission text references public.permissions(key),
@@ -127,7 +158,20 @@ grant select on public.upload_purposes to authenticated;
 create policy upload_purposes_select on public.upload_purposes
   for select to authenticated using (true);
 
--- A purpose stays within its bucket's limits (storage.buckets is their one source).
+-- The module gate's test: true when p_key is null or a permission of module p_module.
+create function private.permission_in_module(p_key text, p_module text)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select p_key is null
+      or exists (select 1 from public.permissions pm where pm.key = p_key and pm.module_key = p_module)
+$$;
+revoke all on function private.permission_in_module(text, text) from public, anon, authenticated, service_role;
+
+-- A purpose stays within its bucket's limits (storage.buckets is their one source), and a module
+-- purpose names permissions of its module only (the module gate).
 create function private.check_upload_purpose()
 returns trigger
 language plpgsql
@@ -139,6 +183,13 @@ begin
                     and new.max_bytes <= b.file_size_limit
                     and new.mime_types <@ b.allowed_mime_types) then
     raise exception 'Upload purpose % exceeds the limits of bucket %', new.key, new.bucket using errcode = '23514';
+  end if;
+  if new.module_key <> 'core'
+     and not (private.permission_in_module(new.upload_permission, new.module_key)
+              and private.permission_in_module(new.view_permission, new.module_key)
+              and private.permission_in_module(new.owner_permission, new.module_key)) then
+    raise exception 'Upload purpose % names a permission outside module %', new.key, new.module_key
+      using errcode = '23514';
   end if;
   return new;
 end;
@@ -165,11 +216,13 @@ create table public.stored_files (
   owner_profile_id uuid,
   owner_permission text references public.permissions(key),
   view_permission text references public.permissions(key),
-  -- Shown and offered as the download name; never part of a path or URL.
+  -- Shown and offered as the download name; never part of a path or URL. No slash, backslash,
+  -- control character or bidirectional control (U+200E-U+200F, U+202A-U+202E, U+2066-U+2069:
+  -- they can disguise a file's extension).
   original_name text not null check (
     pg_catalog.length(original_name) between 1 and 200
     and pg_catalog.btrim(original_name) <> ''
-    and original_name !~ '[/\\[:cntrl:]]'),
+    and original_name !~ '[/\\[:cntrl:]\u200e\u200f\u202a-\u202e\u2066-\u2069]'),
   mime_type text not null,
   ext text not null check (ext ~ '^[a-z0-9]{1,5}$'),
   size_bytes int not null check (size_bytes > 0),
@@ -221,6 +274,27 @@ create policy stored_files_select on public.stored_files
              and owner_permission = any ((select private.current_permission_keys())::text[])))
   );
 
+-- The module gate on the row, whoever writes it: a module file's view and owner permissions are
+-- permissions of its module (the not-null view permission is the table check above).
+create function private.check_stored_file_module_gate()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.module_key <> 'core'
+     and not (private.permission_in_module(new.view_permission, new.module_key)
+              and private.permission_in_module(new.owner_permission, new.module_key)) then
+    raise exception 'A % file can only name permissions of its module', new.module_key using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.check_stored_file_module_gate() from public, anon, authenticated, service_role;
+
+create trigger stored_files_check_module_gate
+  before insert or update of module_key, view_permission, owner_permission on public.stored_files
+  for each row execute function private.check_stored_file_module_gate();
 create trigger stored_files_set_updated_at
   before update on public.stored_files
   for each row execute function private.set_updated_at();
@@ -243,42 +317,11 @@ create index organizations_signature_file_id_idx on public.organizations (signat
 grant update (signatory_email) on public.organizations to authenticated;
 
 -- -----------------------------------------------------------------------------
--- Object read policy (the only policy on storage.objects for the core buckets)
--- -----------------------------------------------------------------------------
--- The registry row of the object, readable by the caller: same rule as stored_files_select.
-create function private.can_read_object(p_bucket text, p_name text)
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select exists (
-    select 1 from public.stored_files f
-     where f.object_path = p_name
-       and f.bucket = p_bucket
-       and f.status = 'ready'
-       and f.org_id = private.current_user_org_id()
-       and (f.view_permission is null
-            or f.view_permission = any ((select private.current_permission_keys())::text[])
-            or (f.owner_profile_id = auth.uid()
-                and f.owner_permission = any ((select private.current_permission_keys())::text[])))
-  )
-$$;
-revoke all on function private.can_read_object(text, text) from public, anon, service_role;
-grant execute on function private.can_read_object(text, text) to authenticated;
-
-create policy core_objects_select on storage.objects
-  for select to authenticated
-  using (bucket_id in ('org-assets', 'documents', 'signed-documents')
-         and (select private.can_read_object(bucket_id, name)));
-
--- -----------------------------------------------------------------------------
 -- Uploads (storage-upload / storage-confirm, Task 3.26)
 -- -----------------------------------------------------------------------------
 -- The core permission check of an upload: the purpose's upload_permission, its size and types.
 -- Inserts a `pending` row and returns where storage-upload signs the upload. The extension comes
--- from the MIME type, never from the name.
+-- from the MIME type, never from the name. The subject is the client's, untrusted (header).
 create function public.create_pending_upload(
   p_purpose text,
   p_subject_type text,
@@ -307,8 +350,9 @@ begin
   if not private.has_permission(v_purpose.upload_permission) then
     raise exception 'Permission refusée : %', v_purpose.upload_permission using errcode = '42501';
   end if;
-  if p_subject_id is null or p_size_bytes is null or p_size_bytes <= 0 then
-    raise exception 'Invalid subject or size' using errcode = '22023';
+  if p_subject_type is null or p_subject_id is null or p_original_name is null
+     or p_size_bytes is null or p_size_bytes <= 0 then
+    raise exception 'Invalid subject, name or size' using errcode = '22023';
   end if;
   if p_size_bytes > v_purpose.max_bytes then
     raise exception 'Ce fichier dépasse la taille permise (% Mo).',
@@ -407,7 +451,9 @@ end;
 $$;
 
 -- Service role: a file the function writes itself (unsigned and signed PDFs), registered `ready`;
--- the caller then uploads to the returned path. Bucket and module must be the purpose's.
+-- the caller then uploads to the returned path, and soft-deletes the row if that upload fails
+-- (header). Bucket and module must be the purpose's. The view permission is the caller's, else
+-- the purpose's; none at all (any member of the org) only in org-assets.
 create function public.register_system_file(
   p_org_id uuid,
   p_bucket text,
@@ -430,17 +476,23 @@ as $$
 declare
   v_purpose public.upload_purposes%rowtype;
   v_id uuid := pg_catalog.gen_random_uuid();
+  v_view text;
   v_ext text;
   v_path text;
 begin
   select * into v_purpose from public.upload_purposes u
    where u.key = p_purpose and u.bucket = p_bucket and u.module_key = p_module_key;
   if not found
-     or p_subject_id is null
+     or p_subject_type is null or p_subject_id is null or p_original_name is null
      or p_mime_type is null or not (p_mime_type = any (v_purpose.mime_types))
      or p_size_bytes is null or p_size_bytes <= 0 or p_size_bytes > v_purpose.max_bytes
      or p_sha256 is null or p_sha256 !~ '^[0-9a-f]{64}$' then
-    raise exception 'Invalid purpose, bucket, module, type, size or hash' using errcode = '22023';
+    raise exception 'Invalid purpose, bucket, module, subject, name, type, size or hash' using errcode = '22023';
+  end if;
+  -- A null argument never widens the purpose's rule; null overall (any member) in org-assets only.
+  v_view := coalesce(p_view_permission, v_purpose.view_permission);
+  if v_view is null and p_bucket in ('documents', 'signed-documents') then
+    raise exception 'A view permission is required in bucket %', p_bucket using errcode = '22023';
   end if;
   if not public.module_enabled_for_org(p_org_id, p_module_key) then
     raise exception 'Module disabled for the organization' using errcode = '22023';
@@ -452,7 +504,7 @@ begin
     id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id, view_permission,
     original_name, mime_type, ext, size_bytes, sha256, status, retain_until, confirmed_at)
   values (
-    v_id, p_org_id, p_bucket, v_path, p_module_key, p_purpose, p_subject_type, p_subject_id, p_view_permission,
+    v_id, p_org_id, p_bucket, v_path, p_module_key, p_purpose, p_subject_type, p_subject_id, v_view,
     p_original_name, p_mime_type, v_ext, p_size_bytes, p_sha256, 'ready',
     pg_catalog.now() + pg_catalog.make_interval(days => v_purpose.retain_days), pg_catalog.now());
 
@@ -477,6 +529,7 @@ as $$
      and (f.status in ('pending', 'deleted') or (f.status = 'ready' and f.retain_until is not null))
      and ((f.status = 'pending' and f.created_at < pg_catalog.now() - interval '24 hours')
           or (f.status = 'deleted' and f.deleted_at < pg_catalog.now() - interval '30 days')
+          or (f.status = 'deleted' and f.confirmed_at is null and f.deleted_at < pg_catalog.now() - interval '24 hours')
           or (f.status = 'ready' and f.retain_until < pg_catalog.now()))
    order by f.created_at
    limit least(greatest(coalesce(p_limit, 500), 1), 500)
@@ -502,6 +555,7 @@ begin
      and f.id = any (p_ids)
      and ((f.status = 'pending' and f.created_at < pg_catalog.now() - interval '24 hours')
           or (f.status = 'deleted' and f.deleted_at < pg_catalog.now() - interval '30 days')
+          or (f.status = 'deleted' and f.confirmed_at is null and f.deleted_at < pg_catalog.now() - interval '24 hours')
           or (f.status = 'ready' and f.retain_until < pg_catalog.now()));
   get diagnostics v_count = row_count;
   return v_count;
@@ -527,25 +581,56 @@ to service_role;
 -- Module RPC helpers (P3-17; called by security definer RPCs, no role may call them)
 -- -----------------------------------------------------------------------------
 -- Re-points a ready file of the caller's org to its final subject and access rule, and clears its
--- deadline (a staged upload becomes permanent). The file id may come from a client, hence the org
--- check; the calling RPC checks the purpose and who uploaded it. The object never moves.
--- « Fichier introuvable. » for a file of another org, not ready, or past its retain_until.
+-- deadline (a staged upload becomes permanent). The object never moves. The file id may come from
+-- a client, so this checks everything about the file itself:
+--   * of the caller's org, `ready`, not past its retain_until;
+--   * its purpose is one of p_purposes (the purposes the calling RPC accepts);
+--   * when p_uploaded_by is given, that user uploaded it (e.g. a provider attaching her own file).
+-- « Fichier introuvable. » (P0001) when any of these fails, so a file id of another org, purpose
+-- or uploader reveals nothing. 22023 for invalid arguments: no purpose list, no subject, an owner
+-- without an owner permission, or permissions outside the file's module (the module gate; a
+-- module file needs a view permission).
 create function private.attach_stored_file(
   p_file_id uuid,
+  p_purposes text[],
   p_subject_type text,
   p_subject_id uuid,
   p_view_permission text,
   p_owner_profile_id uuid,
-  p_owner_permission text
+  p_owner_permission text,
+  p_uploaded_by uuid default null
 )
 returns void
 language plpgsql
 set search_path = ''
 as $$
+declare
+  v_module text;
 begin
-  if p_subject_id is null or (p_owner_profile_id is null) <> (p_owner_permission is null) then
-    raise exception 'Invalid subject, or an owner without an owner permission' using errcode = '22023';
+  if p_purposes is null or pg_catalog.cardinality(p_purposes) = 0
+     or p_subject_type is null or p_subject_id is null
+     or (p_owner_profile_id is null) <> (p_owner_permission is null) then
+    raise exception 'Invalid purposes or subject, or an owner without an owner permission' using errcode = '22023';
   end if;
+  select f.module_key into v_module
+    from public.stored_files f
+   where f.id = p_file_id
+     and f.org_id = private.current_user_org_id()
+     and f.status = 'ready'
+     and (f.retain_until is null or f.retain_until > pg_catalog.now())
+     and f.purpose = any (p_purposes)
+     and (p_uploaded_by is null or f.uploaded_by = p_uploaded_by)
+     for no key update;
+  if not found then
+    raise exception 'Fichier introuvable.' using errcode = 'P0001';
+  end if;
+  if v_module <> 'core'
+     and (p_view_permission is null
+          or not private.permission_in_module(p_view_permission, v_module)
+          or not private.permission_in_module(p_owner_permission, v_module)) then
+    raise exception 'A % file can only name permissions of its module', v_module using errcode = '22023';
+  end if;
+
   update public.stored_files f
      set subject_type = p_subject_type,
          subject_id = p_subject_id,
@@ -553,13 +638,7 @@ begin
          owner_profile_id = p_owner_profile_id,
          owner_permission = p_owner_permission,
          retain_until = null
-   where f.id = p_file_id
-     and f.org_id = private.current_user_org_id()
-     and f.status = 'ready'
-     and (f.retain_until is null or f.retain_until > pg_catalog.now());
-  if not found then
-    raise exception 'Fichier introuvable.' using errcode = 'P0001';
-  end if;
+   where f.id = p_file_id;
 end;
 $$;
 
@@ -592,7 +671,7 @@ end;
 $$;
 
 revoke all on function
-  private.attach_stored_file(uuid, text, uuid, text, uuid, text),
+  private.attach_stored_file(uuid, text[], text, uuid, text, uuid, text, uuid),
   private.soft_delete_stored_file(uuid, uuid)
 from public, anon, authenticated, service_role;
 

@@ -2,23 +2,27 @@
 -- P3-30, inconsistencies #8 and #12).
 -- Covers: the three private buckets and their limits; the MIME → extension map (every bucket type
 -- maps; _shared/storage-map.test.ts ties it to the TypeScript map); privileges (catalogue and
--- registry select-only, RPCs per role, private helpers for no client role except can_read_object);
--- the purpose catalogue checks (bucket size and types, a module purpose needs a view permission)
--- and the seeded org_logo / org_signature (PNG and JPEG only, 4000 px a side, staged 1 day);
--- the stored_files checks (original_name, path shape); can_read_object as each fixture user (view
--- null, view permission, another org, pending / deleted / purged, the owner branch and its module
--- gate, a disabled user); storage.objects through the one select policy, and no client write;
--- stored_files through its policy; create_pending_upload (size and type messages, permission,
--- unknown purpose, path format, ext from the MIME type, owner and retain_until from the purpose);
--- get_pending_upload (uploader only, while pending, with the purpose's caps); confirm / reject;
--- register_system_file; set_org_asset (happy path, replace, remove, guards); list_files_to_purge
--- and mark_files_purged (per org, the three purge rules, never a live file); confirm refusing a
--- pending file older than 24 h; attach_stored_file; soft_delete_stored_file; signatory_email;
+-- registry select-only, RPCs per role, private helpers for no client role);
+-- the purpose catalogue checks (bucket size and types, a module purpose needs a view permission,
+-- and its upload / view / owner permissions belong to its module) and the seeded org_logo /
+-- org_signature (PNG and JPEG only, 4000 px a side, staged 1 day); the stored_files checks
+-- (original_name: separators, control and bidirectional characters; path shape; the module gate
+-- trigger); readability through the stored_files policy as each fixture user (view null, view
+-- permission, another org, pending / deleted / purged, the owner branch and its module gate, a
+-- disabled user: what storage-sign relies on); no client policy on storage.objects (P3-33: a
+-- client selects no object, so it cannot sign a URL itself) and no client write; create_pending_upload (size and type messages,
+-- permission, unknown purpose, null subject or name, path format, ext from the MIME type, owner
+-- and retain_until from the purpose); get_pending_upload (uploader only, while pending, with the
+-- purpose's caps); confirm / reject; register_system_file (view permission coalesced with the
+-- purpose's, required outside org-assets, module gate, null subject or name); set_org_asset (happy
+-- path, replace, remove, guards); list_files_to_purge and mark_files_purged (per org, the four
+-- purge rules incl. never-confirmed deleted files after 24 h, never a live file); confirm refusing a pending file older than 24 h;
+-- attach_stored_file (purposes, uploader, module gate); soft_delete_stored_file; signatory_email;
 -- the core.storage_cleanup job; audit rows (original_name redacted, logo_file_id on organizations).
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(114);
+select plan(141);
 
 -- =============================================================================
 -- Buckets and the MIME map
@@ -94,31 +98,23 @@ select results_eq($$
     from pg_proc p
    where p.pronamespace = 'private'::regnamespace
      and p.proname in ('can_read_object', 'mime_extension', 'attach_stored_file', 'soft_delete_stored_file',
-                       'check_upload_purpose')
+                       'check_upload_purpose', 'check_stored_file_module_gate', 'permission_in_module')
    order by 1
 $$, $$ values
-  ('private.attach_stored_file(uuid,text,uuid,text,uuid,text)'::text, false, false, false),
-  ('private.can_read_object(text,text)', false, true, false),
+  ('private.attach_stored_file(uuid,text[],text,uuid,text,uuid,text,uuid)'::text, false, false, false),
+  ('private.check_stored_file_module_gate()', false, false, false),
   ('private.check_upload_purpose()', false, false, false),
   ('private.mime_extension(text)', false, false, false),
+  ('private.permission_in_module(text,text)', false, false, false),
   ('private.soft_delete_stored_file(uuid,uuid)', false, false, false)
-$$, 'only can_read_object is callable, by authenticated (the object policy); the module helpers by no client role');
-select results_eq($$
-  select l.lanname::text collate "default", p.provolatile::text collate "default", p.prosecdef
-    from pg_proc p join pg_language l on l.oid = p.prolang
-   where p.oid = 'private.can_read_object(text, text)'::regprocedure
-$$, $$ values ('sql'::text, 's'::text, true) $$, 'can_read_object is a stable definer SQL function');
+$$, 'the storage helpers are callable by no client role (can_read_object is gone: P3-33)');
 
-select results_eq($$
-  select polname::text collate "default", polcmd::text collate "default", polroles::regrole[]::text collate "default"
-    from pg_policy where polrelid = 'storage.objects'::regclass and polname = 'core_objects_select'
-$$, $$ values ('core_objects_select'::text, 'r'::text, '{authenticated}'::text) $$,
-  'one select policy on storage.objects for authenticated');
 select is_empty($$
   select 1 from pg_policy p
-   where p.polrelid = 'storage.objects'::regclass and p.polcmd <> 'r'
-     and pg_get_expr(p.polqual, p.polrelid) ~ '(org-assets|documents|signed-documents)'
-$$, 'no insert, update or delete policy on the core buckets');
+   where p.polrelid = 'storage.objects'::regclass
+     and (coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), ''))
+         ~ '(org-assets|documents|signed-documents|can_read_object)'
+$$, 'no policy at all on storage.objects for the core buckets: no client reads, signs or writes an object (P3-33)');
 
 select results_eq($$
   select indexname::text collate "default" from pg_indexes
@@ -161,18 +157,37 @@ select throws_ok($$ insert into public.upload_purposes (key, module_key, bucket,
 select throws_ok($$ insert into public.upload_purposes (key, module_key, bucket, upload_permission, max_bytes, mime_types)
                     values ('test_gate', 'professionals', 'documents', 'professionals.view', 1000, array['application/pdf']) $$,
   '23514', null, 'a module purpose needs a view permission (null = any member is for core only: the module gate)');
+select throws_ok($$ insert into public.upload_purposes (key, module_key, bucket, upload_permission, view_permission, max_bytes, mime_types)
+                    values ('test_gate', 'professionals', 'documents', 'professionals.view', 'users.view', 1000, array['application/pdf']) $$,
+  '23514', null, 'a professionals purpose with users.view is refused: its view permission must be the module''s');
+select throws_ok($$ insert into public.upload_purposes (key, module_key, bucket, upload_permission, view_permission, max_bytes, mime_types)
+                    values ('test_gate', 'professionals', 'documents', 'settings.manage', 'professionals.view', 1000, array['application/pdf']) $$,
+  '23514', null, 'a module purpose''s upload permission must be the module''s');
+select throws_ok($$ insert into public.upload_purposes (key, module_key, bucket, upload_permission, view_permission, owner_permission,
+                      max_bytes, mime_types)
+                    values ('test_gate', 'professionals', 'documents', 'professionals.view', 'professionals.view', 'users.view',
+                      1000, array['application/pdf']) $$,
+  '23514', null, 'a module purpose''s owner permission must be the module''s');
 
 -- =============================================================================
 -- Fixtures
 --   files (org A unless noted; subject d…01):
 --     e01 ready, view null           e02 ready, view settings.manage    e03 org B, ready, view null
 --     e04 pending                    e05 deleted 1 day ago              e06 purged
---     e07 ready, test_pro_doc, view settings.manage, owner provider with professionals.view
+--     e07 ready, test_pro_doc, view professionals.test_review (admins only), owner provider with
+--         professionals.view
 --   purge candidates (org A unless noted):
 --     e11 pending, 25 h old (listed)         e12 pending, 1 h old
 --     e13 ready, retain_until passed (listed) e14 deleted 31 days ago (listed)
 --     e15 ready, retain_until in a day        e16 org B, pending, 25 h old
+--     e17 deleted, never confirmed, 25 h ago (listed: a rejected upload)
+--     e18 deleted, never confirmed, 1 h ago
 -- =============================================================================
+-- A second professionals permission, held by admins only (a module file's view permission must be
+-- the module's: the module gate).
+insert into public.permissions (key, module_key, description) values ('professionals.test_review', 'professionals', 'Test');
+insert into public.role_permissions (role, permission_key) values ('admin', 'professionals.test_review');
+
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
   ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@a.test',    '', now(), '{}', '{}', now(), now()),
@@ -208,7 +223,8 @@ insert into public.upload_purposes
   (key, module_key, bucket, upload_permission, view_permission, owner_permission, max_bytes, mime_types, retain_days)
 values
   ('test_core_doc', 'core', 'documents', 'settings.manage', null, null, 10485760, array['application/pdf', 'image/png'], null),
-  ('test_pro_doc', 'professionals', 'documents', 'professionals.view', 'settings.manage', 'professionals.view', 1048576,
+  ('test_signed', 'core', 'signed-documents', 'settings.manage', null, null, 20971520, array['application/pdf'], null),
+  ('test_pro_doc', 'professionals', 'documents', 'professionals.view', 'professionals.test_review', 'professionals.view', 1048576,
    array['application/pdf'], 60);
 
 insert into public.stored_files
@@ -226,14 +242,19 @@ select f.id, f.org, 'documents', f.org || '/' || f.module || '/d0000000-0000-000
     ('e0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'core', 'test_core_doc', 'pending', null, null, null, null, now(), null),
     ('e0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'core', 'test_core_doc', 'deleted', null, null, null, null, now() - interval '2 days', now() - interval '1 day'),
     ('e0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'core', 'test_core_doc', 'purged', null, null, null, null, now(), null),
-    ('e0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'professionals', 'test_pro_doc', 'ready', 'settings.manage', 'a0000000-0000-0000-0000-000000000004', 'professionals.view', null, now(), null),
+    ('e0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'professionals', 'test_pro_doc', 'ready', 'professionals.test_review', 'a0000000-0000-0000-0000-000000000004', 'professionals.view', null, now(), null),
     ('e0000000-0000-0000-0000-000000000011', 'b0000000-0000-0000-0000-00000000000a', 'core', 'test_core_doc', 'pending', null, null, null, null, now() - interval '25 hours', null),
     ('e0000000-0000-0000-0000-000000000012', 'b0000000-0000-0000-0000-00000000000a', 'core', 'test_core_doc', 'pending', null, null, null, null, now() - interval '1 hour', null),
     ('e0000000-0000-0000-0000-000000000013', 'b0000000-0000-0000-0000-00000000000a', 'core', 'test_core_doc', 'ready', null, null, null, now() - interval '1 hour', now() - interval '2 days', null),
     ('e0000000-0000-0000-0000-000000000014', 'b0000000-0000-0000-0000-00000000000a', 'core', 'test_core_doc', 'deleted', null, null, null, null, now() - interval '40 days', now() - interval '31 days'),
     ('e0000000-0000-0000-0000-000000000015', 'b0000000-0000-0000-0000-00000000000a', 'core', 'test_core_doc', 'ready', null, null, null, now() + interval '1 day', now() - interval '3 days', null),
-    ('e0000000-0000-0000-0000-000000000016', 'b0000000-0000-0000-0000-00000000000b', 'core', 'test_core_doc', 'pending', null, null, null, null, now() - interval '25 hours', null)
+    ('e0000000-0000-0000-0000-000000000016', 'b0000000-0000-0000-0000-00000000000b', 'core', 'test_core_doc', 'pending', null, null, null, null, now() - interval '25 hours', null),
+    ('e0000000-0000-0000-0000-000000000017', 'b0000000-0000-0000-0000-00000000000a', 'core', 'test_core_doc', 'deleted', null, null, null, null, now() - interval '26 hours', now() - interval '25 hours'),
+    ('e0000000-0000-0000-0000-000000000018', 'b0000000-0000-0000-0000-00000000000a', 'core', 'test_core_doc', 'deleted', null, null, null, null, now() - interval '2 hours', now() - interval '1 hour')
   ) as f (id, org, module, purpose, status, view, owner, owner_perm, retain, created, deleted);
+-- e17 / e18 were never confirmed (rejected uploads).
+update public.stored_files set confirmed_at = null, sha256 = null
+ where id in ('e0000000-0000-0000-0000-000000000017', 'e0000000-0000-0000-0000-000000000018');
 
 insert into storage.objects (bucket_id, name)
 select 'documents', object_path from public.stored_files
@@ -243,7 +264,7 @@ create temp table t (step text primary key, id uuid, path text) on commit drop;
 grant select, insert on t to authenticated, service_role;
 insert into t (step, id, path)
 select 'e' || right(id::text, 2), id, object_path from public.stored_files
- where id between 'e0000000-0000-0000-0000-000000000001' and 'e0000000-0000-0000-0000-000000000016';
+ where id between 'e0000000-0000-0000-0000-000000000001' and 'e0000000-0000-0000-0000-000000000018';
 
 -- =============================================================================
 -- Table checks
@@ -266,43 +287,74 @@ select throws_ok($$ insert into public.stored_files (id, org_id, bucket, object_
                       'b0000000-0000-0000-0000-00000000000a/core/d0000000-0000-0000-0000-000000000001/e0000000-0000-0000-0000-0000000000ff.pdf',
                       'core', 'test_core_doc', 'test_subject', 'd0000000-0000-0000-0000-000000000001', E'a\tb.pdf', 'application/pdf', 'pdf', 1) $$,
   '23514', null, 'original_name has no control character');
+select throws_ok($$ insert into public.stored_files (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id,
+                      original_name, mime_type, ext, size_bytes)
+                    values ('e0000000-0000-0000-0000-0000000000ff', 'b0000000-0000-0000-0000-00000000000a', 'documents',
+                      'b0000000-0000-0000-0000-00000000000a/core/d0000000-0000-0000-0000-000000000001/e0000000-0000-0000-0000-0000000000ff.pdf',
+                      'core', 'test_core_doc', 'test_subject', 'd0000000-0000-0000-0000-000000000001',
+                      'facture' || chr(8238) || 'fdp.exe', 'application/pdf', 'pdf', 1) $$,
+  '23514', null, 'original_name has no right-to-left override (U+202E)');
+select throws_ok($$ insert into public.stored_files (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id,
+                      original_name, mime_type, ext, size_bytes)
+                    values ('e0000000-0000-0000-0000-0000000000ff', 'b0000000-0000-0000-0000-00000000000a', 'documents',
+                      'b0000000-0000-0000-0000-00000000000a/core/d0000000-0000-0000-0000-000000000001/e0000000-0000-0000-0000-0000000000ff.pdf',
+                      'core', 'test_core_doc', 'test_subject', 'd0000000-0000-0000-0000-000000000001',
+                      'a' || chr(8206) || 'b.pdf', 'application/pdf', 'pdf', 1) $$,
+  '23514', null, 'original_name has no left-to-right mark (U+200E, first of U+200E-200F)');
+select throws_ok($$ insert into public.stored_files (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id,
+                      original_name, mime_type, ext, size_bytes)
+                    values ('e0000000-0000-0000-0000-0000000000ff', 'b0000000-0000-0000-0000-00000000000a', 'documents',
+                      'b0000000-0000-0000-0000-00000000000a/core/d0000000-0000-0000-0000-000000000001/e0000000-0000-0000-0000-0000000000ff.pdf',
+                      'core', 'test_core_doc', 'test_subject', 'd0000000-0000-0000-0000-000000000001',
+                      'a' || chr(8297) || 'b.pdf', 'application/pdf', 'pdf', 1) $$,
+  '23514', null, 'original_name has no pop directional isolate (U+2069, last of U+2066-2069)');
+select throws_ok($$ update public.stored_files set view_permission = 'settings.manage' where id = 'e0000000-0000-0000-0000-000000000007' $$,
+  '23514', null, 'module gate: a professionals file cannot be read through a core permission');
+select throws_ok($$ update public.stored_files set owner_permission = 'users.view' where id = 'e0000000-0000-0000-0000-000000000007' $$,
+  '23514', null, 'module gate: nor owned through one');
+select lives_ok($$ update public.stored_files set view_permission = 'professionals.view' where id = 'e0000000-0000-0000-0000-000000000002' $$,
+  'a core file may name a module permission');
+update public.stored_files set view_permission = 'settings.manage' where id = 'e0000000-0000-0000-0000-000000000002';
 
 -- =============================================================================
--- can_read_object, as each fixture user
+-- Readability through the stored_files policy (what storage-sign checks), as each fixture user
 -- =============================================================================
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select ok(private.can_read_object('documents', (select path from t where step = 'e01')), 'conseillère: own org, ready, view null → true');
-select ok(not private.can_read_object('documents', (select path from t where step = 'e02')), 'conseillère: view settings.manage → false');
-select ok(not private.can_read_object('org-assets', (select path from t where step = 'e01')), 'conseillère: the right path in another bucket → false');
+select ok(exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'e01')), 'conseillère: own org, ready, view null → true');
+select ok(not exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'e02')), 'conseillère: view settings.manage → false');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select ok(private.can_read_object('documents', (select path from t where step = 'e02')), 'admin: view settings.manage → true');
-select ok(not private.can_read_object('documents', (select path from t where step = 'e03')), 'admin A: another org''s file → false');
-select ok(not private.can_read_object('documents', (select path from t where step = 'e04')), 'admin: pending → false');
-select ok(not private.can_read_object('documents', (select path from t where step = 'e05')), 'admin: deleted → false');
-select ok(not private.can_read_object('documents', (select path from t where step = 'e06')), 'admin: purged → false');
-select is((select count(*)::int from storage.objects where bucket_id = 'documents' and name in (select path from t)), 3,
-  'admin A selects only the readable objects through the policy (e01, e02, e07)');
+select ok(exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'e02')), 'admin: view settings.manage → true');
+select ok(not exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'e03')), 'admin A: another org''s file → false');
+select ok(not exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'e04')), 'admin: pending → false');
+select ok(not exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'e05')), 'admin: deleted → false');
+select ok(not exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'e06')), 'admin: purged → false');
+select is_empty($$ select 1 from storage.objects where bucket_id in ('org-assets', 'documents', 'signed-documents') $$,
+  'admin A selects no object: no client policy on storage.objects, so no client signs a URL itself (P3-33)');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select ok(not private.can_read_object('documents', (select path from t where step = 'e02')), 'adjointe (settings.view only): view settings.manage → false');
-select results_eq($$ select name::text from storage.objects where bucket_id = 'documents' and name in (select path from t) $$,
-  $$ select path from t where step = 'e01' $$, 'the adjointe selects only the view-null object');
+select ok(not exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'e02')), 'adjointe (settings.view only): view settings.manage → false');
+select is_empty($$ select 1 from storage.objects where bucket_id in ('org-assets', 'documents', 'signed-documents') $$,
+  'adjointe: storage.objects shows nothing (P3-33: reads go through storage-sign)');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-select ok(private.can_read_object('documents', (select path from t where step = 'e07')), 'provider: owner branch with professionals.view → true');
+select ok(exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'e07')), 'provider: owner branch with professionals.view → true');
+select is_empty($$ select 1 from storage.objects where bucket_id in ('org-assets', 'documents', 'signed-documents') $$,
+  'provider: storage.objects shows nothing (P3-33: reads go through storage-sign)');
 select results_eq($$ select id from public.stored_files where id in (select id from t) order by id $$,
   $$ values ('e0000000-0000-0000-0000-000000000001'::uuid), ('e0000000-0000-0000-0000-000000000007'::uuid),
             ('e0000000-0000-0000-0000-000000000013'::uuid), ('e0000000-0000-0000-0000-000000000015'::uuid) $$,
   'provider: stored_files policy shows ready view-null rows and the owned row');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
-select ok(not private.can_read_object('documents', (select path from t where step = 'e01')), 'disabled admin → false');
+select ok(not exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'e01')), 'disabled admin → false');
 select is((select count(*)::int from public.stored_files where id in (select id from t)), 0, 'disabled admin: no stored_files row');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
-select ok(private.can_read_object('documents', (select path from t where step = 'e03')), 'admin B: own org''s file → true');
+select ok(exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'e03')), 'admin B: own org''s file → true');
+select is_empty($$ select 1 from storage.objects where bucket_id in ('org-assets', 'documents', 'signed-documents') $$,
+  'admin B: storage.objects shows nothing (P3-33: reads go through storage-sign)');
 select results_eq($$ select id from public.stored_files where id in (select id from t) $$,
   $$ values ('e0000000-0000-0000-0000-000000000003'::uuid) $$, 'admin B: stored_files shows only org B''s ready row');
 
@@ -322,7 +374,7 @@ reset role;
 update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-select ok(not private.can_read_object('documents', (select path from t where step = 'e07')), 'provider: owner branch with the module disabled → false');
+select ok(not exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'e07')), 'provider: owner branch with the module disabled → false');
 reset role;
 update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
 
@@ -352,6 +404,12 @@ select throws_ok($$ select * from public.create_pending_upload('org_logo', 'orga
 select throws_ok($$ select * from public.create_pending_upload('org_logo', 'organization', 'b0000000-0000-0000-0000-00000000000a',
                       'logo.png', 'image/png', 0) $$,
   '22023', null, 'a size of 0 → 22023');
+select throws_ok($$ select * from public.create_pending_upload('org_logo', null, 'b0000000-0000-0000-0000-00000000000a',
+                      'logo.png', 'image/png', 1000) $$,
+  '22023', null, 'a null subject type → 22023');
+select throws_ok($$ select * from public.create_pending_upload('org_logo', 'organization', 'b0000000-0000-0000-0000-00000000000a',
+                      null, 'image/png', 1000) $$,
+  '22023', null, 'a null original name → 22023');
 
 insert into t (step, id, path)
 select 'logo1', u.file_id, u.object_path
@@ -403,7 +461,7 @@ select results_eq($$
   select t.path ~ '^b0000000-0000-0000-0000-00000000000a/professionals/d0000000-0000-0000-0000-000000000009/', f.view_permission,
          f.owner_profile_id, f.owner_permission, f.retain_until
     from public.stored_files f join t on t.id = f.id where t.step = 'pro1'
-$$, $$ values (true, 'settings.manage'::text, 'a0000000-0000-0000-0000-000000000004'::uuid, 'professionals.view'::text,
+$$, $$ values (true, 'professionals.test_review'::text, 'a0000000-0000-0000-0000-000000000004'::uuid, 'professionals.view'::text,
                now() + interval '60 days') $$,
   'a purpose with an owner_permission makes the uploader the owner; staged for retain_days (P3-17)');
 
@@ -443,7 +501,50 @@ select throws_ok($$ select * from public.register_system_file('b0000000-0000-000
          'test_pro_doc', 'professional', 'd0000000-0000-0000-0000-000000000003', 'application/pdf', 5000, repeat('c', 64),
          'professionals.view', 'Contrat.pdf') $$,
   '22023', null, 'register_system_file: the module must be enabled for the org');
+select throws_ok($$ select * from public.register_system_file('b0000000-0000-0000-0000-00000000000a', 'documents', 'core',
+         'test_core_doc', 'signature_request', 'd0000000-0000-0000-0000-000000000003', 'application/pdf', 5000, repeat('c', 64),
+         null, 'Contrat.pdf') $$,
+  '22023', null, 'register_system_file: no view permission at all is refused in documents');
+select throws_ok($$ select * from public.register_system_file('b0000000-0000-0000-0000-00000000000a', 'signed-documents', 'core',
+         'test_signed', 'signature_request', 'd0000000-0000-0000-0000-000000000003', 'application/pdf', 5000, repeat('c', 64),
+         null, 'Contrat signé.pdf') $$,
+  '22023', null, 'register_system_file: no view permission at all is refused in signed-documents');
+select throws_ok($$ select * from public.register_system_file('b0000000-0000-0000-0000-00000000000a', 'documents', 'professionals',
+         'test_pro_doc', 'professional', 'd0000000-0000-0000-0000-000000000003', 'application/pdf', 5000, repeat('c', 64),
+         'settings.manage', 'Contrat.pdf') $$,
+  '23514', null, 'register_system_file: a module file cannot be given a core view permission (module gate)');
+select throws_ok($$ select * from public.register_system_file('b0000000-0000-0000-0000-00000000000a', 'documents', 'core',
+         'test_core_doc', null, 'd0000000-0000-0000-0000-000000000003', 'application/pdf', 5000, repeat('c', 64),
+         'settings.manage', 'Contrat.pdf') $$,
+  '22023', null, 'register_system_file: a null subject type → 22023');
+select throws_ok($$ select * from public.register_system_file('b0000000-0000-0000-0000-00000000000a', 'documents', 'core',
+         'test_core_doc', 'signature_request', 'd0000000-0000-0000-0000-000000000003', 'application/pdf', 5000, repeat('c', 64),
+         'settings.manage', null) $$,
+  '22023', null, 'register_system_file: a null original name → 22023');
+insert into t (step, id, path)
+select 'sys2', r.file_id, r.object_path
+  from public.register_system_file('b0000000-0000-0000-0000-00000000000a', 'documents', 'professionals', 'test_pro_doc',
+         'professional', 'd0000000-0000-0000-0000-000000000003', 'application/pdf', 5000, repeat('c', 64), null, 'Fiche.pdf') r;
+-- Core files are generic carriers: a core purpose may take another module's permission (the
+-- signing purposes carry the request's, e.g. professionals.view; the gate applies through it).
+insert into t (step, id, path)
+select 'sys4', r.file_id, r.object_path
+  from public.register_system_file('b0000000-0000-0000-0000-00000000000a', 'signed-documents', 'core', 'signing_signed',
+         'signature_request', 'd0000000-0000-0000-0000-000000000003', 'application/pdf', 5000, repeat('c', 64),
+         'professionals.view', 'Contrat signé.pdf') r;
+insert into t (step, id, path)
+select 'sys3', r.file_id, r.object_path
+  from public.register_system_file('b0000000-0000-0000-0000-00000000000a', 'org-assets', 'core', 'org_logo',
+         'organization', 'b0000000-0000-0000-0000-00000000000a', 'image/png', 5000, repeat('c', 64), null, 'logo.png') r;
 reset role;
+select results_eq($$ select t.step, f.view_permission from public.stored_files f join t on t.id = f.id
+                      where t.step in ('sys2', 'sys3') order by t.step $$,
+  $$ values ('sys2'::text, 'professionals.test_review'::text), ('sys3', null) $$,
+  'register_system_file: a null view permission takes the purpose''s (never widens it); null stays null in org-assets only');
+select results_eq($$ select f.module_key, f.purpose, f.bucket, f.view_permission, f.status
+                       from public.stored_files f join t on t.id = f.id where t.step = 'sys4' $$,
+  $$ values ('core'::text, 'signing_signed'::text, 'signed-documents'::text, 'professionals.view'::text, 'ready'::text) $$,
+  'a core signing_signed file registered with professionals.view works: core rows may name any permission');
 select results_eq($$
   select t.path ~ ('^b0000000-0000-0000-0000-00000000000a/core/d0000000-0000-0000-0000-000000000003/' || f.id || '\.pdf$'),
          f.status, f.sha256, f.size_bytes, f.view_permission, f.uploaded_by, f.confirmed_at
@@ -471,7 +572,7 @@ select v.s, u.file_id, u.object_path
        lateral public.create_pending_upload(v.p, 'organization', 'b0000000-0000-0000-0000-00000000000a', 'x.png', 'image/png', 1000) u;
 reset role;
 set local role service_role;
-select public.confirm_stored_file(id, repeat('d', 64), 1000) from t where step in ('logob', 'logo3', 'sig1');
+select public.confirm_stored_file(id, repeat('d', 64), 1000) from t where step in ('logob', 'logo3', 'sig1', 'pro1');
 reset role;
 
 set local role authenticated;
@@ -493,8 +594,8 @@ select throws_ok($$ select public.set_org_asset('banner', null) $$, '22023', nul
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.set_org_asset('logo', null) $$, '42501', null, 'the adjointe cannot change the logo');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select ok(private.can_read_object('org-assets', (select path from t where step = 'logo3')), 'the conseillère can read the logo (view null)');
-select ok(not private.can_read_object('org-assets', (select path from t where step = 'sig1')), 'the conseillère cannot read the signature image');
+select ok(exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'logo3')), 'the conseillère can read the logo (view null)');
+select ok(not exists (select 1 from public.stored_files f where f.id = (select id from t where step = 'sig1')), 'the conseillère cannot read the signature image');
 reset role;
 
 select results_eq($$
@@ -519,9 +620,9 @@ $$, $$ values (null::uuid, 'deleted'::text) $$, '« Retirer » clears the column
 -- attach_stored_file / soft_delete_stored_file (module RPC helpers, as admin A)
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select lives_ok($$ select private.attach_stored_file('e0000000-0000-0000-0000-000000000015', 'professional',
+select lives_ok($$ select private.attach_stored_file('e0000000-0000-0000-0000-000000000015', array['test_core_doc'], 'professional',
                       'd0000000-0000-0000-0000-000000000002', 'professionals.view', 'a0000000-0000-0000-0000-000000000004',
-                      'professionals.view') $$, 'attach_stored_file');
+                      'professionals.view') $$, 'attach_stored_file (a core file may name module permissions)');
 select results_eq($$
   select subject_type, subject_id, view_permission, owner_profile_id, owner_permission, retain_until, object_path
     from public.stored_files where id = 'e0000000-0000-0000-0000-000000000015'
@@ -529,19 +630,50 @@ $$, $$ select 'professional'::text, 'd0000000-0000-0000-0000-000000000002'::uuid
               'a0000000-0000-0000-0000-000000000004'::uuid, 'professionals.view'::text, null::timestamptz, path
          from t where step = 'e15' $$,
   'attach re-points the subject, permissions and owner, clears retain_until, and never moves the object');
-select throws_ok($$ select private.attach_stored_file('e0000000-0000-0000-0000-000000000013', 'professional',
+select throws_ok($$ select private.attach_stored_file('e0000000-0000-0000-0000-000000000013', array['test_core_doc'], 'professional',
                       'd0000000-0000-0000-0000-000000000002', 'professionals.view', null, null) $$,
   'P0001', 'Fichier introuvable.', 'a staged file past its retain_until cannot be attached (it is listed for purge)');
-select throws_ok($$ select private.attach_stored_file('e0000000-0000-0000-0000-000000000014', 'professional',
+select throws_ok($$ select private.attach_stored_file('e0000000-0000-0000-0000-000000000014', array['test_core_doc'], 'professional',
                       'd0000000-0000-0000-0000-000000000002', 'professionals.view', null, null) $$,
   'P0001', 'Fichier introuvable.', 'a deleted file cannot be attached');
-select throws_ok($$ select private.attach_stored_file('e0000000-0000-0000-0000-000000000003', 'professional',
+select throws_ok($$ select private.attach_stored_file('e0000000-0000-0000-0000-000000000003', array['test_core_doc'], 'professional',
                       'd0000000-0000-0000-0000-000000000002', 'professionals.view', null, null) $$,
   'P0001', 'Fichier introuvable.', 'another org''s file cannot be attached');
-select throws_ok($$ select private.attach_stored_file('e0000000-0000-0000-0000-000000000002', 'professional',
+select throws_ok($$ select private.attach_stored_file('e0000000-0000-0000-0000-000000000002', array['test_core_doc'], 'professional',
                       'd0000000-0000-0000-0000-000000000002', 'professionals.view', 'a0000000-0000-0000-0000-000000000004', null) $$,
   '22023', null, 'an owner needs an owner permission');
-
+select throws_ok($$ select private.attach_stored_file('e0000000-0000-0000-0000-000000000002', null, 'professional',
+                      'd0000000-0000-0000-0000-000000000002', 'professionals.view', null, null) $$,
+  '22023', null, 'the purposes the calling RPC accepts are required');
+select throws_ok($$ select private.attach_stored_file('e0000000-0000-0000-0000-000000000002', array['test_core_doc'], null,
+                      'd0000000-0000-0000-0000-000000000002', 'professionals.view', null, null) $$,
+  '22023', null, 'a null subject type → 22023');
+select throws_ok($$ select private.attach_stored_file((select id from t where step = 'pro1'), array['test_core_doc', 'org_logo'],
+                      'professional', 'd0000000-0000-0000-0000-000000000002', 'professionals.test_review', null, null) $$,
+  'P0001', 'Fichier introuvable.', 'a file whose purpose the RPC does not accept → « Fichier introuvable. »');
+select throws_ok($$ select private.attach_stored_file((select id from t where step = 'pro1'), array['test_pro_doc'],
+                      'professional', 'd0000000-0000-0000-0000-000000000002', 'professionals.test_review', null, null,
+                      'a0000000-0000-0000-0000-000000000001') $$,
+  'P0001', 'Fichier introuvable.', 'a file someone else uploaded, when the uploader is given → « Fichier introuvable. »');
+select throws_ok($$ select private.attach_stored_file((select id from t where step = 'pro1'), array['test_pro_doc'],
+                      'professional', 'd0000000-0000-0000-0000-000000000002', 'users.view', null, null) $$,
+  '22023', null, 'module gate: a professionals file cannot be attached with a core view permission');
+select throws_ok($$ select private.attach_stored_file((select id from t where step = 'pro1'), array['test_pro_doc'],
+                      'professional', 'd0000000-0000-0000-0000-000000000002', 'professionals.test_review',
+                      'a0000000-0000-0000-0000-000000000004', 'users.view') $$,
+  '22023', null, 'module gate: nor with a core owner permission');
+select throws_ok($$ select private.attach_stored_file((select id from t where step = 'pro1'), array['test_pro_doc'],
+                      'professional', 'd0000000-0000-0000-0000-000000000002', null, null, null) $$,
+  '22023', null, 'module gate: a module file keeps a view permission');
+select lives_ok($$ select private.attach_stored_file((select id from t where step = 'pro1'), array['test_core_doc', 'test_pro_doc'],
+                      'professional', 'd0000000-0000-0000-0000-000000000002', 'professionals.test_review',
+                      'a0000000-0000-0000-0000-000000000004', 'professionals.view', 'a0000000-0000-0000-0000-000000000004') $$,
+  'attach_stored_file: an accepted purpose and the expected uploader (the provider''s own upload)');
+select results_eq($$ select f.subject_type, f.subject_id, f.view_permission, f.owner_profile_id, f.retain_until
+                       from public.stored_files f join t on t.id = f.id where t.step = 'pro1' $$,
+  $$ values ('professional'::text, 'd0000000-0000-0000-0000-000000000002'::uuid, 'professionals.test_review'::text,
+             'a0000000-0000-0000-0000-000000000004'::uuid, null::timestamptz) $$,
+  'the staged module file is attached to its final subject and no longer staged');
 select lives_ok($$ select private.soft_delete_stored_file('e0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001') $$,
   'soft_delete_stored_file');
 select lives_ok($$ select private.soft_delete_stored_file('e0000000-0000-0000-0000-000000000001', null) $$,
@@ -558,25 +690,31 @@ select throws_ok($$ select private.soft_delete_stored_file('e0000000-0000-0000-0
 -- =============================================================================
 set local role service_role;
 select results_eq($$ select id, bucket, object_path from public.list_files_to_purge('b0000000-0000-0000-0000-00000000000a') $$,
-  $$ select id, 'documents'::text, path from t where step in ('e14', 'e13', 'e11')
-      order by case step when 'e14' then 1 when 'e13' then 2 else 3 end $$,
-  'org A: deleted > 30 days, ready past retain_until, pending > 24 h; oldest first; nothing live');
+  $$ select id, 'documents'::text, path from t where step in ('e14', 'e13', 'e17', 'e11')
+      order by case step when 'e14' then 1 when 'e13' then 2 when 'e17' then 3 else 4 end $$,
+  'org A: deleted > 30 days, ready past retain_until, never confirmed and deleted > 24 h, pending > 24 h; oldest first; nothing live');
+select ok(not exists (select 1 from public.list_files_to_purge('b0000000-0000-0000-0000-00000000000a')
+                       where id in ('e0000000-0000-0000-0000-000000000018', 'e0000000-0000-0000-0000-000000000005')),
+  'a rejected upload deleted 1 h ago, and a confirmed file deleted 1 day ago, are not listed yet');
 select results_eq($$ select id from public.list_files_to_purge('b0000000-0000-0000-0000-00000000000a', 1) $$,
   $$ values ('e0000000-0000-0000-0000-000000000014'::uuid) $$, 'p_limit pages the list');
 select results_eq($$ select id from public.list_files_to_purge('b0000000-0000-0000-0000-00000000000b') $$,
   $$ values ('e0000000-0000-0000-0000-000000000016'::uuid) $$, 'org B: its own pending file only');
 select is(public.mark_files_purged('b0000000-0000-0000-0000-00000000000a', array[
     'e0000000-0000-0000-0000-000000000011', 'e0000000-0000-0000-0000-000000000013',
-    'e0000000-0000-0000-0000-000000000012', 'e0000000-0000-0000-0000-000000000016']::uuid[]), 2,
+    'e0000000-0000-0000-0000-000000000012', 'e0000000-0000-0000-0000-000000000016',
+    'e0000000-0000-0000-0000-000000000017', 'e0000000-0000-0000-0000-000000000018']::uuid[]), 3,
   'mark_files_purged marks only the org''s purgeable files');
 select throws_ok($$ select public.mark_files_purged('b0000000-0000-0000-0000-00000000000a',
                       array(select gen_random_uuid() from generate_series(1, 501))) $$,
   '22023', null, 'at most 500 ids');
 reset role;
 select results_eq($$ select id, status from public.stored_files where id in ('e0000000-0000-0000-0000-000000000011',
-    'e0000000-0000-0000-0000-000000000012', 'e0000000-0000-0000-0000-000000000013', 'e0000000-0000-0000-0000-000000000016') order by id $$,
+    'e0000000-0000-0000-0000-000000000012', 'e0000000-0000-0000-0000-000000000013', 'e0000000-0000-0000-0000-000000000016',
+    'e0000000-0000-0000-0000-000000000017', 'e0000000-0000-0000-0000-000000000018') order by id $$,
   $$ values ('e0000000-0000-0000-0000-000000000011'::uuid, 'purged'::text), ('e0000000-0000-0000-0000-000000000012', 'pending'),
-            ('e0000000-0000-0000-0000-000000000013', 'purged'), ('e0000000-0000-0000-0000-000000000016', 'pending') $$,
+            ('e0000000-0000-0000-0000-000000000013', 'purged'), ('e0000000-0000-0000-0000-000000000016', 'pending'),
+            ('e0000000-0000-0000-0000-000000000017', 'purged'), ('e0000000-0000-0000-0000-000000000018', 'deleted') $$,
   'purged rows are kept with their status');
 
 -- =============================================================================
