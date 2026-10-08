@@ -13,7 +13,8 @@ import { t } from '@/i18n'
  * - `23514` (check violation): the Zod schemas mirror the SQL checks, so it only follows a bypassed
  *   form or a Zod/SQL parity bug. Reported, since we want to hear about either.
  *
- * `area` tags the Sentry report (e.g. `'settings'`).
+ * `area` tags the Sentry report (e.g. `'settings'`), with the code. The report carries the message
+ * only, never the error object (see `rpcErrorReport`).
  */
 export function moduleErrorMessage(error: unknown, fallback: string, area = 'modules'): string {
   const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
@@ -22,6 +23,18 @@ export function moduleErrorMessage(error: unknown, fallback: string, area = 'mod
   if (code === 'P0001' && typeof message === 'string' && message !== '') return message
   if (code === '42501') return t('common.errors.forbidden')
 
-  Sentry.captureException(error, { tags: { area } })
+  const reportedCode = typeof code === 'string' && code !== '' ? code : 'unknown'
+  Sentry.captureException(rpcErrorReport(reportedCode, message ?? error), { tags: { area, code: reportedCode } })
   return code === '23514' ? t('common.errors.invalidValue') : fallback
+}
+
+/**
+ * What goes to Sentry: a fresh Error from the message only, named `RpcError <code>`. Never the raw
+ * error object: PostgreSQL's `details` and `hint` can hold row values (« Failing row contains (…) »).
+ * `main.tsx` scrubs events again before sending (`scrubSentryEvent`).
+ */
+function rpcErrorReport(code: string, message: unknown): Error {
+  const report = new Error(typeof message === 'string' ? message : message instanceof Error ? message.message : String(message))
+  report.name = `RpcError ${code}`
+  return report
 }

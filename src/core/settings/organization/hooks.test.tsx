@@ -234,6 +234,9 @@ describe('useUpdateOrganization', () => {
     result.current.mutate({ id: 'o1', patch: { city: 'Laval' } })
 
     await waitFor(() => expect(result.current.isError).toBe(true))
-    expect(mocks.captureException).toHaveBeenCalledWith(error, { tags: { area: 'settings' } })
+    expect(mocks.captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'RpcError 57014', message: error.message }),
+      { tags: { area: 'settings', code: '57014' } },
+    )
   })
 })
