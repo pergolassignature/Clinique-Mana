@@ -1,18 +1,21 @@
 -- In-app notifications (migration *_core_notifications.sql, plan Phase 3 Task 3.12, P3-15,
 -- P3-21, P3-24).
--- Covers: privileges on both tables and every RPC, helper and job; the policy shape and the
--- indexes; private.notify validation (link path, module/permission pairing, kind prefix,
--- lengths, expiry, recipient in another org, subject pair); visibility (permission, narrowed
--- user, module gate, expiry, org isolation, disabled user) through RLS and
--- list_my_notifications; the unread counts (90-day window, importance); per-user read state
--- (mark_notifications_read re-checks visibility, mark_all_notifications_read, own read rows
--- only); list filters, keyset paging and the clamp; dedupe (same id, scoped by org and kind);
--- create_notification (service role); core.notifications_purge (12 months, 30 days after
--- expiry, reads cascade) and its cron entry.
+-- Covers: privileges on both tables (no client access to notification_reads) and every RPC,
+-- helper and job; the policy shape and the indexes; private.notify validation (link path,
+-- module/permission pairing with no core exception, kind prefix, lengths, blank or control
+-- characters in the body, null importance, expiry, narrowed recipient outside the org or
+-- disabled, subject pair); visibility (permission, revoked permission, narrowed user, module
+-- gate, expiry, org isolation, disabled user) through RLS and list_my_notifications; the
+-- unread counts (90-day window, importance); per-user read state (mark_notifications_read
+-- re-checks visibility, mark_all_notifications_read); list filters (unread-only bounded to 90
+-- days), keyset paging (ties across a page boundary, a cursor needs its id) and the clamp;
+-- dedupe (same id, scoped by org and kind); create_notification (service role);
+-- core.notifications_purge (12 months, 30 days after expiry, exact count, reads cascade) and
+-- its cron entry.
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(82);
+select plan(93);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -90,7 +93,9 @@ update public.notifications x set expires_at = now() - interval '1 minute'
 select table_privs_are('public', 'notifications', 'anon', array[]::text[], 'anon: nothing on notifications');
 select table_privs_are('public', 'notifications', 'authenticated', array['SELECT'], 'authenticated: select only on notifications');
 select table_privs_are('public', 'notification_reads', 'anon', array[]::text[], 'anon: nothing on notification_reads');
-select table_privs_are('public', 'notification_reads', 'authenticated', array['SELECT'], 'authenticated: select only on notification_reads');
+select table_privs_are('public', 'notification_reads', 'authenticated', array[]::text[], 'authenticated: nothing on notification_reads');
+select is_empty($$ select 1 from pg_policy where polrelid = 'public.notification_reads'::regclass $$,
+  'notification_reads has no policy (definer RPCs only)');
 select is_empty($$
   select table_name, column_name, grantee, privilege_type from information_schema.column_privileges
    where table_schema = 'public' and table_name in ('notifications', 'notification_reads')
@@ -164,8 +169,8 @@ select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b'
   'T', null, null, null, null, 'professionals.view') $$, '22023', null, 'a core notification cannot use a module permission');
 select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b', 'core', 'core.test_users', 'normal',
   'T', null, null, null, null, 'nope.view') $$, '22023', null, 'an unknown permission is refused');
-select lives_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b', 'professionals', 'professionals.test', 'normal',
-  'T', null, null, null, null, 'users.view') $$, 'a module notification may use a core permission');
+select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b', 'professionals', 'professionals.test', 'normal',
+  'T', null, null, null, null, 'users.view') $$, '22023', null, 'a module notification cannot use a core permission (module gate)');
 select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b', 'professionals', 'core.test_users', 'normal',
   'T', null, null, null, null, 'professionals.view') $$, '23514', null, 'the kind prefix must be the module key');
 select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b', 'core', 'core.Bad-Kind', 'normal',
@@ -179,10 +184,21 @@ select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b'
 select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b', 'core', 'core.test_users', 'normal',
   'T', repeat('b', 501), null, null, null, 'users.view') $$, '23514', null, 'a body over 500 characters is refused');
 select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b', 'core', 'core.test_users', 'normal',
+  'T', '   ', null, null, null, 'users.view') $$, '23514', null, 'a blank body is refused');
+select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b', 'core', 'core.test_users', 'normal',
+  'T', E'Ligne 1\nLigne 2', null, null, null, 'users.view') $$, '23514', null, 'a body with a control character is refused');
+insert into n values ('null_importance', private.notify('b0000000-0000-0000-0000-00000000000b',
+  'core', 'core.test_null_importance', null, 'T', null, null, null, null, 'users.view'));
+select is((select importance from public.notifications where id = (select id from n where step = 'null_importance')),
+  'normal', 'a null importance is normal');
+select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b', 'core', 'core.test_users', 'normal',
   'T', null, null, 'professional', null, 'users.view') $$, '23514', null, 'subject type and id go together');
 select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b', 'core', 'core.test_users', 'normal',
   'T', null, null, null, null, 'users.view', 'a0000000-0000-0000-0000-000000000001') $$,
-  '23503', null, 'the narrowed recipient must belong to the notification''s org');
+  '22023', null, 'the narrowed recipient must belong to the notification''s org');
+select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000a', 'core', 'core.test_users', 'normal',
+  'T', null, null, null, null, 'users.view', 'a0000000-0000-0000-0000-000000000005') $$,
+  '22023', null, 'the narrowed recipient must be an active member');
 select throws_ok($$ select private.notify('b0000000-0000-0000-0000-00000000000b', 'core', 'core.test_users', 'normal',
   'T', null, null, null, null, 'users.view', null, null, now()) $$, '22023', null, 'an expiry in the past is refused');
 
@@ -228,7 +244,7 @@ select results_eq($$ select total, important from public.count_my_unread_notific
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
 select ok(not exists (select 1 from public.list_my_notifications() l
-                       where l.id in (select id from n where step <> 'orgb')),
+                       where l.id in (select id from n where step not in ('orgb', 'null_importance'))),
   'admin B sees nothing of org A');
 select ok(exists (select 1 from public.list_my_notifications() l where l.id = (select id from n where step = 'orgb')),
   'admin B sees the org B notice');
@@ -252,6 +268,24 @@ reset role;
 update public.org_modules set enabled = true
  where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
 
+-- A new holder of a permission sees its past notices; revoking it hides them again.
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
+  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'users.view', true);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select results_eq($$ select l.id from public.list_my_notifications() l where l.id in (select id from n where step in ('users', 'pro')) $$,
+  $$ select id from n where step in ('users', 'pro') order by array_position(array['users', 'pro'], step) $$,
+  'granted users.view, the conseillère sees the past users.view notice');
+reset role;
+delete from public.user_permission_overrides
+ where user_id = 'a0000000-0000-0000-0000-000000000003' and permission_key = 'users.view';
+set local role authenticated;
+select results_eq($$ select l.id from public.list_my_notifications() l where l.id in (select id from n) $$,
+  $$ select id from n where step = 'pro' $$, 'with users.view revoked, the notice is hidden again');
+select results_eq($$ select total, important from public.count_my_unread_notifications() $$,
+  $$ values (1, 1) $$, 'and the counts follow');
+reset role;
+
 -- =============================================================================
 -- Read state
 -- =============================================================================
@@ -260,20 +294,24 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select lives_ok($$ select public.mark_notifications_read(array(
   select id from n where step in ('users', 'narrowed', 'orgb', 'expired'))) $$,
   'admin A marks four ids read, two of them invisible to her');
+reset role;
 select set_eq($$ select notification_id from public.notification_reads where user_id = 'a0000000-0000-0000-0000-000000000001' $$,
   $$ select id from n where step in ('users', 'narrowed') $$,
   'only the visible ids get a read row (not org B, not expired)');
+set local role authenticated;
 select results_eq($$ select total, important from public.count_my_unread_notifications() $$,
   $$ values (2, 1) $$, 'admin A: 2 unread left, 1 important');
 select is((select is_read from public.list_my_notifications() where id = (select id from n where step = 'users')),
   true, 'the list shows the notice as read for admin A');
 select lives_ok($$ select public.mark_notifications_read(array(select id from n where step = 'users')) $$,
   'marking an already read notice again is harmless');
+reset role;
 select is((select count(*)::int from public.notification_reads where notification_id = (select id from n where step = 'users')),
   1, 'still one read row');
+set local role authenticated;
 select results_eq($$ select l.id from public.list_my_notifications(p_unread_only => true) l where l.id in (select id from n) $$,
-  $$ select id from n where step in ('pro', 'dedupe', 'old') order by array_position(array['pro', 'dedupe', 'old'], step) $$,
-  'p_unread_only lists the unread notices only');
+  $$ select id from n where step in ('pro', 'dedupe') order by array_position(array['pro', 'dedupe'], step) $$,
+  'p_unread_only lists the unread notices of the last 90 days only (not the 100-day-old one)');
 select results_eq($$ select l.id from public.list_my_notifications(p_importance => 'important') l where l.id in (select id from n) $$,
   $$ select id from n where step in ('narrowed', 'pro') order by array_position(array['narrowed', 'pro'], step) $$,
   'p_importance filters on importance');
@@ -286,20 +324,23 @@ select throws_ok($$ select public.mark_notifications_read(array_fill(gen_random_
 select lives_ok($$ select public.mark_notifications_read(null) $$, 'a null array is a no-op');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000007","role":"authenticated"}', true);
-select is_empty($$ select 1 from public.notification_reads where notification_id in (select id from n) $$,
-  'admin A2 cannot see admin A''s read rows');
+select throws_ok($$ select 1 from public.notification_reads $$, '42501', null, 'clients cannot read notification_reads');
 select is((select is_read from public.list_my_notifications() where id = (select id from n where step = 'users')),
   false, 'read state is per user: unread for admin A2');
 select lives_ok($$ select public.mark_notifications_read(array(select id from n where step = 'narrowed')) $$,
   'admin A2 marks the notice narrowed to admin A');
+reset role;
 select is_empty($$ select 1 from public.notification_reads where user_id = 'a0000000-0000-0000-0000-000000000007' $$,
   'no read row for a notice the caller cannot see');
+set local role authenticated;
 select lives_ok($$ select public.mark_all_notifications_read() $$, 'admin A2 marks everything read');
 select results_eq($$ select total, important from public.count_my_unread_notifications() $$,
   $$ values (0, 0) $$, 'admin A2: nothing unread');
+reset role;
 select set_eq($$ select notification_id from public.notification_reads where user_id = 'a0000000-0000-0000-0000-000000000007' $$,
   $$ select id from n where step in ('users', 'pro', 'dedupe', 'old') $$,
   'mark_all reads exactly the visible notices (not narrowed to someone else, not expired, not org B)');
+set local role authenticated;
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select results_eq($$ select total, important from public.count_my_unread_notifications() $$,
@@ -328,12 +369,10 @@ select results_eq($$
     p_limit => 2) l
 $$, $$ select id from n where step in ('pro', 'dedupe') order by array_position(array['pro', 'dedupe'], step) $$,
   'the next page starts after the last row (created_at, id)');
-select results_eq($$
-  select l.id from public.list_my_notifications(
-    p_before => (select created_at from public.notifications where id = (select id from n where step = 'pro'))) l
-   where l.id in (select id from n)
-$$, $$ select id from n where step in ('dedupe', 'old') order by array_position(array['dedupe', 'old'], step) $$,
-  'p_before alone means created_at < p_before');
+select throws_ok($$
+  select 1 from public.list_my_notifications(
+    p_before => (select created_at from public.notifications where id = (select id from n where step = 'pro')))
+$$, '22023', null, 'p_before without p_before_id is refused (ties would be skipped)');
 select is((select count(*)::int from public.list_my_notifications(p_limit => 0)), 1, 'p_limit is clamped up to 1');
 
 -- =============================================================================
@@ -393,7 +432,12 @@ update public.notifications x set created_at = now() - interval '40 days', expir
 insert into public.notification_reads (notification_id, user_id, org_id)
 select id, 'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a' from n where step = 'p_old';
 
-select matches(private.job_notifications_purge(), '^deleted=[0-9]+$', 'the purge job reports a count');
+create temp table purge_expected on commit drop as
+  select count(*)::int as n from public.notifications
+   where created_at < now() - interval '12 months' or expires_at < now() - interval '30 days';
+select ok((select n from purge_expected) >= 2, 'at least the two fixtures are due for the purge');
+select is(private.job_notifications_purge(), 'deleted=' || (select n from purge_expected),
+  'the purge job reports exactly how many notices it deleted');
 select set_eq($$ select n.step from n join public.notifications x on x.id = n.id where n.step like 'p\_%' $$,
   array['p_kept', 'p_exp29'], 'older than 12 months and expired over 30 days ago are deleted; the rest is kept');
 select is_empty($$ select 1 from public.notification_reads where notification_id = (select id from n where step = 'p_old') $$,
@@ -410,6 +454,17 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select is((select count(*)::int from public.list_my_notifications(p_limit => 1000)), 50, 'p_limit is clamped down to 50');
 select is((select count(*)::int from public.list_my_notifications()), 20, 'the default page is 20');
 select is((select count(*)::int from public.list_my_notifications(p_limit => null)), 20, 'a null p_limit means 20');
+
+-- Keyset ties: the bulk notices share created_at (one transaction); page 2 starts inside the tie.
+select is((select count(distinct created_at)::int
+             from (select created_at from public.notifications order by created_at desc, id desc limit 40) x),
+  1, 'the first two pages of 20 all share one created_at');
+select results_eq($$
+  with p1 as (select l.created_at, l.id from public.list_my_notifications(p_limit => 20) l),
+       last as (select p1.created_at, p1.id from p1 order by p1.created_at, p1.id limit 1)
+  select l.id from last, public.list_my_notifications(p_before => last.created_at, p_before_id => last.id, p_limit => 20) l
+$$, $$ select id from public.notifications order by created_at desc, id desc offset 20 limit 20 $$,
+  'page 2 continues inside the tie, with no row skipped or repeated');
 
 select * from finish();
 rollback;

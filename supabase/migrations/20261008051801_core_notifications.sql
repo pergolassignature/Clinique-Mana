@@ -13,10 +13,15 @@
 -- * Core knows no module kind. A module defines its kinds as `<module>.<name>` text (the
 --   prefix is checked against `module_key`, like template and job keys) and stores French
 --   `title` / `body` ready to display, so the bell never needs a module's labels. The
---   recipient permission belongs to the module or to core (private.notify, 22023).
--- * The permission term of the policy is the module gate: a disabled module's permissions
---   leave the caller's array, so its notices leave the bell. Tested against the array once
---   per statement (P3-21).
+--   recipient permission belongs to the notice's own module, core's to core (private.notify,
+--   22023): no module notice is addressed by a core permission.
+-- * So the permission term is the module gate: a disabled module's permissions leave the
+--   caller's array, so its notices leave the bell. Tested against the array once per
+--   statement (P3-21).
+-- * Addressing by permission is by design: whoever holds it now sees the notice, so a new
+--   holder of a permission (a new member, a role change) sees the past notices too, and a
+--   revoked one stops seeing them. A notice narrowed to one user (`recipient_user_id`, an
+--   active member of the org) still needs the permission to be seen.
 -- * `link_path` is app-relative only (`/x…`, never `//` or `/\`, no control character): the
 --   UI navigates to it, so it can never be an open redirect.
 -- * `dedupe_key` is unique per (org, kind): private.notify returns the existing id, so a job
@@ -26,12 +31,17 @@
 --   `created_at` (`notifications_org_created_idx`, or `notifications_created_idx` while there is
 --   one org) with an anti-join on the caller's read rows. The list is keyset-paged on
 --   (created_at, id), 20 by default, at most 50; the cursor is always an index bound (see the
---   function). Measured over 2 × 10 000 rows: count 1.2 ms, first page 0.8 ms, a page 300 days
+--   function), and a cursor needs both fields (notices created in one transaction share
+--   `created_at`). `is_read` is one primary-key probe per row of the page, not a pass over the
+--   caller's read history; the unread-only list (« À surveiller ») is bounded to 90 days like
+--   the count. Measured over 2 × 10 000 rows: count 1.2 ms, first page 0.8 ms, a page 300 days
 --   deep 0.9 ms (20 rows read), no sequential scan of `notifications`.
 -- * Retention: `core.notifications_purge` (daily, maintenance) deletes notices older than
---   12 months, or expired more than 30 days ago, in batches of 5 000; reads cascade.
+--   12 months, or expired more than 30 days ago, in batches of 5 000 (each DELETE stays
+--   bounded; the run is still one transaction, private.run_sql_job); reads cascade.
 -- * Operational log: neither table is audited (000_invariants list, conventions §7). Clients
---   only select; writes go through the RPCs below or the service role.
+--   select `notifications` (RLS); `notification_reads` has no client privilege and no policy:
+--   the RPCs below (definer) read and write it and return `is_read`.
 -- =============================================================================
 select pg_catalog.set_config('app.audit_source', 'migration:core_notifications', true);
 
@@ -46,7 +56,8 @@ create table public.notifications (
   importance text not null default 'normal' check (importance in ('normal', 'important')),
   title text not null
     check (pg_catalog.length(title) <= 160 and pg_catalog.btrim(title) <> '' and title !~ '[[:cntrl:]]'),
-  body text check (pg_catalog.length(body) between 1 and 500),
+  body text
+    check (pg_catalog.length(body) <= 500 and pg_catalog.btrim(body) <> '' and body !~ '[[:cntrl:]]'),
   link_path text
     check (pg_catalog.length(link_path) <= 500 and link_path ~ '^/[^/\\]' and link_path !~ '[[:cntrl:]]'),
   -- The record the notice is about (`professional`, …), for a module to find its notices.
@@ -98,24 +109,20 @@ create table public.notification_reads (
 );
 create index notification_reads_user_idx on public.notification_reads (user_id, notification_id);
 
+-- RLS on, no policy, no client privilege: only the definer RPCs below read or write it (they
+-- return `is_read`).
 alter table public.notification_reads enable row level security;
 revoke all on public.notification_reads from anon, authenticated;
-grant select on public.notification_reads to authenticated;
--- Own rows only. The notice itself carries the permission (and module) gate.
-create policy notification_reads_select on public.notification_reads
-  for select to authenticated
-  using (
-    user_id = (select auth.uid())
-    and org_id = (select private.current_user_org_id())
-  );
 
 -- -----------------------------------------------------------------------------
 -- Creating notices
 -- -----------------------------------------------------------------------------
 -- Creates a notice, or returns the existing one with the same (org, kind, dedupe key). For SQL
 -- callers: module RPCs (security definer) and SQL jobs. The checks raise 23514 (kind prefix,
--- link, lengths) and 23503 (a narrowed recipient outside the org); the permission must belong
--- to the module or to core, and an expiry must be in the future (22023).
+-- link, lengths, blank or control characters); 22023: the permission must belong to the
+-- notice's module, a narrowed recipient must be an active member of the org (whether they hold
+-- the permission is not checked: visibility requires it anyway), and an expiry must be in the
+-- future. A null importance is `normal`.
 create function private.notify(
   p_org_id uuid,
   p_module_key text,
@@ -142,8 +149,13 @@ begin
   select p.module_key into v_permission_module
     from public.permissions p
    where p.key = p_recipient_permission;
-  if v_permission_module is null or v_permission_module not in (p_module_key, 'core') then
+  if v_permission_module is null or v_permission_module is distinct from p_module_key then
     raise exception 'Permission de destinataire invalide pour ce module' using errcode = '22023';
+  end if;
+  if p_recipient_user_id is not null
+     and not exists (select 1 from public.profiles p
+                      where p.user_id = p_recipient_user_id and p.org_id = p_org_id and p.status = 'active') then
+    raise exception 'Le destinataire doit être un membre actif de l''organisation' using errcode = '22023';
   end if;
   if p_expires_at <= pg_catalog.now() then
     raise exception 'L''échéance d''une notification doit être dans le futur' using errcode = '22023';
@@ -153,7 +165,7 @@ begin
     (org_id, module_key, kind, importance, title, body, link_path, subject_type, subject_id,
      recipient_permission, recipient_user_id, dedupe_key, expires_at)
   values
-    (p_org_id, p_module_key, p_kind, p_importance, p_title, p_body, p_link_path, p_subject_type, p_subject_id,
+    (p_org_id, p_module_key, p_kind, coalesce(p_importance, 'normal'), p_title, p_body, p_link_path, p_subject_type, p_subject_id,
      p_recipient_permission, p_recipient_user_id, p_dedupe_key, p_expires_at)
   on conflict (org_id, kind, dedupe_key) do nothing
   returning id into v_id;
@@ -207,12 +219,16 @@ to service_role;
 -- -----------------------------------------------------------------------------
 -- User RPCs (the topbar bell and Accueil « À surveiller », Task 3.13)
 -- -----------------------------------------------------------------------------
--- The caller's notices (RLS applies), newest first, keyset-paged on (created_at, id): pass the
--- last row's created_at and id. `p_importance` and `p_unread_only` narrow the list (« À
--- surveiller »: important and unread).
+-- The caller's notices, newest first, keyset-paged on (created_at, id): pass the last row's
+-- created_at and id (both: notices created in one transaction share created_at; p_before
+-- alone raises 22023). `p_importance` and `p_unread_only` narrow the list (« À surveiller »:
+-- important and unread, bounded to the last 90 days like the count).
+-- Definer (notification_reads has no client privilege); the rows are exactly those of the
+-- notifications_select policy, with the permission array read once.
 -- plpgsql, so the cursor is resolved into variables first: the row comparison is then an index
--- bound on notifications_org_created_idx. Under RLS, a bound written with coalesce() in the
--- query stays a filter (not leakproof), and a deep page would scan the org.
+-- bound on notifications_org_created_idx (a coalesce() in the query would stay a filter and a
+-- deep page would scan the org). `is_read` is looked up after the limit, for the page's rows
+-- only; the unread-only list needs it before (an anti-join, within 90 days).
 create function public.list_my_notifications(
   p_before timestamptz default null,
   p_limit int default 20,
@@ -235,41 +251,73 @@ returns table (
 )
 language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
 declare
-  -- No cursor: (infinity, max uuid). A cursor without an id: the nil uuid (the smallest),
-  -- i.e. `created_at < p_before`.
+  v_uid uuid := auth.uid();
+  v_org uuid := private.current_user_org_id();
+  v_keys text[];
+  -- No cursor: (infinity, max uuid).
   v_before timestamptz := coalesce(p_before, 'infinity');
-  v_before_id uuid := coalesce(p_before_id,
-                               case when p_before is null then 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid
-                                    else '00000000-0000-0000-0000-000000000000'::uuid end);
-  v_unread_only boolean := coalesce(p_unread_only, false);
+  v_before_id uuid := coalesce(p_before_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid);
   v_limit int := least(greatest(coalesce(p_limit, 20), 1), 50);
 begin
-  return query
-  select x.id, x.module_key, x.kind, x.importance, x.title, x.body, x.link_path, x.subject_type,
-         x.subject_id, x.created_at, x.is_read
-    from (select n.*,
-                 exists (select 1 from public.notification_reads r
-                          where r.notification_id = n.id and r.user_id = (select auth.uid())) as is_read
-            from public.notifications n
-           where n.org_id = (select private.current_user_org_id())
-             and (n.created_at, n.id) < (v_before, v_before_id)
-             and (p_importance is null or n.importance = p_importance)) x
-   where not (v_unread_only and x.is_read)
-   order by x.created_at desc, x.id desc
-   limit v_limit;
+  if p_before is not null and p_before_id is null then
+    raise exception 'Un curseur de pagination doit comprendre p_before et p_before_id' using errcode = '22023';
+  end if;
+  if v_org is null then
+    return;
+  end if;
+  v_keys := private.current_permission_keys();
+
+  if coalesce(p_unread_only, false) then
+    return query
+    select n.id, n.module_key, n.kind, n.importance, n.title, n.body, n.link_path, n.subject_type,
+           n.subject_id, n.created_at, false
+      from public.notifications n
+     where n.org_id = v_org
+       and (n.created_at, n.id) < (v_before, v_before_id)
+       and n.created_at > pg_catalog.now() - interval '90 days'
+       and n.recipient_permission = any (v_keys)
+       and (n.recipient_user_id is null or n.recipient_user_id = v_uid)
+       and (n.expires_at is null or n.expires_at > pg_catalog.now())
+       and (p_importance is null or n.importance = p_importance)
+       and not exists (select 1 from public.notification_reads r
+                        where r.notification_id = n.id and r.user_id = v_uid)
+     order by n.created_at desc, n.id desc
+     limit v_limit;
+  else
+    return query
+    select x.id, x.module_key, x.kind, x.importance, x.title, x.body, x.link_path, x.subject_type,
+           x.subject_id, x.created_at, rd.hit is not null
+      from (select n.*
+              from public.notifications n
+             where n.org_id = v_org
+               and (n.created_at, n.id) < (v_before, v_before_id)
+               and n.recipient_permission = any (v_keys)
+               and (n.recipient_user_id is null or n.recipient_user_id = v_uid)
+               and (n.expires_at is null or n.expires_at > pg_catalog.now())
+               and (p_importance is null or n.importance = p_importance)
+             order by n.created_at desc, n.id desc
+             limit v_limit) x
+      -- One primary-key probe per row of the page (an EXISTS here may become a hashed subplan
+      -- that reads all of the caller's read rows).
+      left join lateral (select true as hit from public.notification_reads r
+                          where r.notification_id = x.id and r.user_id = v_uid
+                          limit 1) rd on true
+     order by x.created_at desc, x.id desc;
+  end if;
 end;
 $$;
 
 -- The bell's dot: unread notices of the last 90 days (bounded), and how many are important.
+-- Definer (notification_reads has no client privilege), with the policy's predicate.
 create function public.count_my_unread_notifications()
 returns table (total int, important int)
 language sql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
   select pg_catalog.count(*)::int,
@@ -277,6 +325,9 @@ as $$
     from public.notifications n
    where n.org_id = (select private.current_user_org_id())
      and n.created_at > pg_catalog.now() - interval '90 days'
+     and n.recipient_permission = any ((select private.current_permission_keys())::text[])
+     and (n.recipient_user_id is null or n.recipient_user_id = (select auth.uid()))
+     and (n.expires_at is null or n.expires_at > pg_catalog.now())
      and not exists (select 1 from public.notification_reads r
                       where r.notification_id = n.id and r.user_id = (select auth.uid()))
 $$;
@@ -361,8 +412,10 @@ to authenticated;
 -- -----------------------------------------------------------------------------
 -- Retention (private.run_sql_job, Task 3.3)
 -- -----------------------------------------------------------------------------
--- Deletes notices older than 12 months, or expired more than 30 days ago, in batches of 5 000
--- so each statement stays bounded. Their read rows cascade.
+-- Deletes notices older than 12 months, or expired more than 30 days ago, in batches of 5 000:
+-- each DELETE (and its cascade to the read rows) stays bounded. The batches do not bound the
+-- transaction: private.run_sql_job runs the whole purge in one, so its locks last until it
+-- ends; they are on rows nothing else writes (old or long expired).
 create function private.job_notifications_purge()
 returns text
 language plpgsql
