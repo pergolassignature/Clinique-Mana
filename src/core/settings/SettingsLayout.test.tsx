@@ -297,9 +297,9 @@ describe('SettingsLayout', () => {
     })
   })
 
-  // Below md the menu is a disclosure. jsdom applies no CSS: the open state is read from
-  // aria-expanded and the nav's data-state, which drives `max-md:data-[state=closed]:hidden`.
-  describe('phone menu', () => {
+  // Below xl (phones, tablets, small laptops) the menu is a disclosure. jsdom applies no CSS: the open
+  // state is read from aria-expanded and the nav's data-state, which drives `max-xl:data-[state=closed]:hidden`.
+  describe('compact menu', () => {
     const headingPage = (title: string) => lazyPage(async () => ({ default: () => <h2 tabIndex={-1}>{title}</h2> }))
     const clinic: SettingsSection = { ...visibleSection, component: headingPage('VISIBLE HEADING') }
     const platform: SettingsSection = { ...modulesSection, component: headingPage('MODULES HEADING') }
@@ -307,19 +307,29 @@ describe('SettingsLayout', () => {
     const nav = () => screen.getByRole('navigation', { name: t('settings.navLabel') })
     const modulesLink = () => within(nav()).getByRole('link', { name: t('settings.sections.modules') })
 
-    // jsdom has no matchMedia: a viewport the test can resize, answering the layout's two queries.
-    let phone = true
+    // jsdom has no matchMedia: a viewport the test can resize, answering any min-/max-width query
+    // (so the tests hold the layout to real widths, not to the queries' spelling).
+    const PHONE = 375
+    const TABLET = 768
+    const LAPTOP = 1024
+    const DESKTOP = 1280
+    let width = PHONE
     const listeners = new Set<() => void>()
-    const resize = (toPhone: boolean) => {
-      phone = toPhone
+    const resize = (to: number) => {
+      width = to
       act(() => listeners.forEach((listener) => listener()))
     }
+    const matchesWidth = (query: string) => {
+      const bound = /\((min|max)-width:\s*(\d+)px\)/.exec(query)
+      if (!bound) return false
+      return bound[1] === 'min' ? width >= Number(bound[2]) : width <= Number(bound[2])
+    }
     beforeEach(() => {
-      phone = true
+      width = PHONE
       listeners.clear()
       vi.stubGlobal('matchMedia', (query: string) => ({
         get matches() {
-          return query === '(max-width: 767px)' ? phone : query === '(min-width: 768px)' ? !phone : false
+          return matchesWidth(query)
         },
         media: query,
         addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
@@ -370,18 +380,51 @@ describe('SettingsLayout', () => {
       expect(heading).toBeInTheDocument()
     })
 
-    it('does not move focus when the desktop menu is used', async () => {
-      phone = false
+    it('is the compact menu on a tablet too: choosing a section closes it and focuses its heading', async () => {
+      width = TABLET
+      render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
+      expect(await screen.findByRole('heading', { name: 'VISIBLE HEADING' })).toBeInTheDocument()
+      expect(menuButton()).toHaveAttribute('aria-expanded', 'false')
+      await userEvent.click(menuButton())
+      // The current page is announced inside the open menu as well as on the button.
+      expect(within(nav()).getByRole('link', { name: t('settings.title') })).toHaveAttribute('aria-current', 'page')
+      await userEvent.click(modulesLink())
+
+      await waitFor(() => expect(screen.getByRole('heading', { name: 'MODULES HEADING' })).toHaveFocus())
+      expect(nav()).toHaveAttribute('data-state', 'closed')
+      expect(modulesLink()).toHaveAttribute('aria-current', 'page')
+    })
+
+    it('is the compact menu on a small laptop too (1024 px)', async () => {
+      width = LAPTOP
+      render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
+      await userEvent.click(menuButton())
+      await userEvent.click(modulesLink())
+      await waitFor(() => expect(screen.getByRole('heading', { name: 'MODULES HEADING' })).toHaveFocus())
+      expect(nav()).toHaveAttribute('data-state', 'closed')
+    })
+
+    it('keeps the compact menu open while the window stays below xl', async () => {
+      render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
+      await userEvent.click(menuButton())
+      resize(TABLET)
+      resize(DESKTOP - 1)
+      expect(nav()).toHaveAttribute('data-state', 'open')
+    })
+
+    it('does not move focus when the column menu is used (from xl)', async () => {
+      width = DESKTOP
       render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
       await userEvent.click(modulesLink())
       expect(await screen.findByRole('heading', { name: 'MODULES HEADING' })).not.toHaveFocus()
       expect(modulesLink()).toHaveFocus()
     })
 
-    it('closes when the window widens past md; a link then keeps focus', async () => {
+    it('closes when the window widens to xl; a link then keeps focus', async () => {
+      width = LAPTOP
       render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, platform]))
       await userEvent.click(menuButton())
-      resize(false)
+      resize(DESKTOP)
       expect(nav()).toHaveAttribute('data-state', 'closed')
 
       await userEvent.click(modulesLink())

@@ -44,7 +44,7 @@ const isNativeClick = (event: MouseEvent) =>
  * The signed-in layout (design system « Ossature »): sidebar 220 px (56 collapsed, remembered),
  * a 48 px topbar (the banner) with the breadcrumb, ⌘K page search and the user menu, and the page
  * (padding 24, content max 1120, sections 20 apart). Below md the sidebar becomes a sheet opened
- * from the topbar. Every way out of the page — sidebar and breadcrumb links, the palette,
+ * from the topbar; on a tablet (md to lg) it starts as the 56 px rail (useSidebarCollapsed). Every way out of the page — sidebar and breadcrumb links, the palette,
  * « Mon compte » and « Se déconnecter » — goes through the unsaved-changes guard (Task 2.3).
  * The palette and the sheet give focus back to where it was when they close. A detail page names
  * itself in the breadcrumb through `useShellCrumb` (ShellCrumbProvider).

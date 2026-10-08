@@ -14,7 +14,7 @@ import { usePageTitle } from '@/shared/lib/use-page-title'
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
 import { renderWithContexts, testAccess } from '@/test/contexts'
 import { AppShell, type ShellNavItem } from './AppShell'
-import { SIDEBAR_COLLAPSED_KEY } from './shell/use-sidebar-collapsed'
+import { SIDEBAR_COLLAPSED_KEY, TABLET_QUERY } from './shell/use-sidebar-collapsed'
 
 const mocks = vi.hoisted(() => ({ fetchOrgRoles: vi.fn() }))
 // The topbar bell (and Accueil) read the caller's notices: none here, and no network.
@@ -225,6 +225,56 @@ describe('AppShell — sidebar', () => {
     expect(sidebar()).toHaveAttribute('data-collapsed', 'false')
     await userEvent.click(screen.getByRole('button', { name: t('nav.collapse') }))
     expect(sidebar()).toHaveAttribute('data-collapsed', 'true')
+  })
+
+  // jsdom has no matchMedia: a viewport answering the hook's tablet query (md to lg).
+  describe('on a tablet', () => {
+    let tablet = true
+    const listeners = new Set<() => void>()
+    const resize = (toTablet: boolean) => {
+      tablet = toTablet
+      act(() => listeners.forEach((listener) => listener()))
+    }
+    beforeEach(() => {
+      tablet = true
+      listeners.clear()
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        get matches() {
+          return query === TABLET_QUERY ? tablet : false
+        },
+        media: query,
+        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+      }))
+    })
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      localStorage.removeItem(SIDEBAR_COLLAPSED_KEY)
+    })
+
+    it('starts as the rail, whatever the desktop choice, with the links still named', () => {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, 'false')
+      render(shellAt('/accueil'))
+      expect(sidebar()).toHaveAttribute('data-collapsed', 'true')
+      expect(screen.getByRole('button', { name: t('nav.expand') })).toBeInTheDocument()
+      expect(within(mainNav()).getByRole('link', { name: t('nav.home') })).toHaveAttribute('title', t('nav.home'))
+    })
+
+    it('expands on demand without changing the desktop choice, and is the rail again after leaving the tablet range', async () => {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, 'true')
+      render(shellAt('/accueil'))
+      await userEvent.click(screen.getByRole('button', { name: t('nav.expand') }))
+      expect(sidebar()).toHaveAttribute('data-collapsed', 'false')
+      expect(localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe('true')
+
+      // Wider: the desktop choice (collapsed) applies; back to a tablet: the rail.
+      resize(false)
+      expect(sidebar()).toHaveAttribute('data-collapsed', 'true')
+      await userEvent.click(screen.getByRole('button', { name: t('nav.expand') }))
+      expect(localStorage.getItem(SIDEBAR_COLLAPSED_KEY)).toBe('false')
+      resize(true)
+      expect(sidebar()).toHaveAttribute('data-collapsed', 'true')
+    })
   })
 })
 
