@@ -6,6 +6,11 @@
  *    per clinic because each clinic has its own Resend account and secret.
  * 2. The three Svix headers must be present (else 401, before any read), and
  *    the raw body at most 64 KB (413) and UTF-8 (400).
+ * 2b. One hit on `LIMITS.resendWebhookIp` for the caller's IP (`clientIp`),
+ *    before the secret is read: anyone can post here, and each post would
+ *    otherwise decrypt a Vault secret. Refused → 429 with `Retry-After`
+ *    (Resend retries); the limiter down → 503 (fail closed, reported by
+ *    `consume`).
  * 3. `get_org_secret(org, 'resend_webhook_secret')`: none → 401 (fail
  *    closed); a read error → 500. An unknown or unconfigured org would
  *    otherwise report on every delivery (Resend retries, anyone can post),
@@ -46,6 +51,7 @@
 import { z } from 'zod'
 import type { Deps } from '../_shared/deps.ts'
 import { readCapped } from '../_shared/http.ts'
+import { clientIp, consume, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 import { verifySvix } from '../_shared/svix.ts'
 import {
@@ -158,6 +164,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     const client = deps.serviceClient()
     if (client instanceof Response) return webhookResponse(500)
+    const limit = await consume(client, LIMITS.resendWebhookIp, [clientIp(req)])
+    if (!limit.allowed) {
+      if (limit.reason === 'unavailable') return webhookResponse(503)
+      const res = webhookResponse(429)
+      res.headers.set('Retry-After', String(limit.retryAfter))
+      return res
+    }
     const secret = await client.rpc('get_org_secret', {
       p_org_id: orgId,
       p_key: 'resend_webhook_secret',

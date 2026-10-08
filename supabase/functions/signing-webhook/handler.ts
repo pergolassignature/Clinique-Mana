@@ -5,6 +5,10 @@
  * 1. `POST` only (405); the org from `?org=` (a uuid, else 400): each
  *    clinic has its own Documenso instance and secret.
  * 2. `X-Documenso-Secret` present (else 401, before any read).
+ * 2b. One hit on `LIMITS.documensoWebhookIp` for the caller's IP (`clientIp`), before
+ *    the secret is read: anyone can post here, and each post would otherwise
+ *    decrypt a Vault secret. Refused → 429 with `Retry-After` (Documenso
+ *    retries); the limiter down → 503 (fail closed, reported by `consume`).
  * 3. `get_org_secret(org, 'documenso_webhook_secret')`: none → 401 (fail
  *    closed; a console line with the org id, no report: anyone can post
  *    here); a read error → 500.
@@ -49,13 +53,14 @@
  *
  * Status codes: 200 `{ outcome }` (`signed`, `applied`, `ignored`,
  * `not_found`, `duplicate`); 400 bad org or payload; 401 no header, no
- * secret, wrong secret; 405; 409 in progress or retry; 413; 500.
+ * secret, wrong secret; 405; 409 in progress or retry; 413; 429; 500; 503.
  * Reports carry the org, webhook-event, request and document ids only.
  */
 import { z } from 'zod'
 import type { Deps } from '../_shared/deps.ts'
 import { documensoEventId } from '../_shared/documenso.ts'
 import { readCapped } from '../_shared/http.ts'
+import { clientIp, consume, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 import {
   applyEvents,
@@ -135,6 +140,15 @@ export function createHandler(
 
     const client = deps.serviceClient()
     if (client instanceof Response) return webhookResponse(500)
+    const limit = await consume(client, LIMITS.documensoWebhookIp, [
+      clientIp(req),
+    ])
+    if (!limit.allowed) {
+      if (limit.reason === 'unavailable') return webhookResponse(503)
+      const res = webhookResponse(429)
+      res.headers.set('Retry-After', String(limit.retryAfter))
+      return res
+    }
     const secret = await client.rpc('get_org_secret', {
       p_org_id: orgId,
       p_key: 'documenso_webhook_secret',

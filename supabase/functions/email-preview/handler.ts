@@ -8,6 +8,9 @@
  * - Body `{ template_key, subject, body, button_label }` (`../_shared/email/draft.ts`).
  *   A `{{` or `}}` outside a placeholder → 400 `invalid_request`
  *   « Accolades non fermées dans le texte. » (SQL's check), before any RPC.
+ * - One hit on `LIMITS.emailPreviewUser` (`[org, user]`) once the input is
+ *   valid: each call renders on the server. Refused → 429 with
+ *   `Retry-After`; the limiter down → 503 `not_configured`.
  * - `get_email_context` for the caller's org (never one from the body): an
  *   unknown key → 404 `not_found`; a disabled module → 403 `module_disabled`.
  * - `composeEmail` in `preview` mode over the draft text. Values are escaped
@@ -37,6 +40,7 @@ import {
 import { safeUrl } from '../_shared/email/render.ts'
 import { parseEmailContext } from '../_shared/email/send.ts'
 import { readJson } from '../_shared/http.ts'
+import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 
 const FN = 'email-preview'
@@ -83,6 +87,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     const client = deps.serviceClient()
     if (client instanceof Response) return client
+    const limited = limitResponse(
+      await consume(client, LIMITS.emailPreviewUser, [orgId, auth.user.id]),
+      req,
+    )
+    if (limited) return limited
 
     const { data, error } = await client.rpc('get_email_context', {
       p_org_id: orgId,

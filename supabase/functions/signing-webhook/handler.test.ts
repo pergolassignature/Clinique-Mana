@@ -164,6 +164,47 @@ Deno.test('signing-webhook: method, org hint, size and payload checks', async ()
   assertFalse(rpcNames(s.supabase).includes('claim_webhook_event'))
 })
 
+Deno.test('signing-webhook: one hit per IP before the secret is read; over the limit → 429 with Retry-After, the limiter down → 503, the secret never read', async () => {
+  await run(async () => {
+    const s = setup()
+    const req = post('{}', 'wrong-secret')
+    req.headers.set('x-forwarded-for', '198.51.100.7, 203.0.113.9')
+    assertEquals((await s.handler(req)).status, 401)
+    assertEquals(s.supabase.calls.map((c) => c.fn), [
+      'consume_rate_limit',
+      'get_org_secret',
+    ])
+    const limit = s.supabase.calls[0].args
+    assertEquals([limit.p_bucket, limit.p_max, limit.p_window_seconds], [
+      'webhooks.documenso_ip',
+      600,
+      60,
+    ])
+    assertFalse(JSON.stringify(limit).includes('203.0.113.9'), 'only a hash')
+
+    for (
+      const [route, status, retryAfter] of [
+        [
+          { data: [{ allowed: false, hits: 601, retry_after_seconds: 42 }] },
+          429,
+          '42',
+        ],
+        [{ error: { code: '57014' } }, 503, null],
+      ] as const
+    ) {
+      const t = setup({ rpc: { consume_rate_limit: route } })
+      let res: Response | undefined
+      await captureConsole('error', async () => {
+        res = await t.handler(post('{}'))
+      })
+      assertEquals(res!.status, status)
+      assertEquals(res!.headers.get('Retry-After'), retryAfter)
+      assertEquals(t.supabase.calls.map((c) => c.fn), ['consume_rate_limit'])
+      assertEquals(t.compared, [])
+    }
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------

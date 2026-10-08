@@ -287,7 +287,7 @@ A notice reaches every holder of `recipient_permission` in its org, optionally n
 
 ### Rate limits and webhook claims
 
-- **Rate limits:** `consume_rate_limit(bucket, key_hash, max, window)` records one hit in a fixed window and answers `(allowed, hits, retry_after_seconds)`; concurrent hits serialise on the upsert's row lock, so exactly `max` pass. Keys are HMAC-hashed by `_shared/rate-limit.ts` (`LIMITS`, one window per bucket); a refused hit past `max + 1` writes nothing. Unavailable → fails closed (503).
+- **Rate limits:** `consume_rate_limit(bucket, key_hash, max, window)` records one hit in a fixed window and answers `(allowed, hits, retry_after_seconds)`; concurrent hits serialise on the upsert's row lock, so exactly `max` pass. Keys are HMAC-hashed by `_shared/rate-limit.ts` (`LIMITS`, one window per bucket); a refused hit past `max + 1` writes nothing. Unavailable → fails closed (503). Both webhooks take one hit per IP (`webhooks.resend_ip`, `webhooks.documenso_ip`: 600 per minute) before they read the org's secret, since anyone can post to them; `email-preview` takes one per caller (300 per hour).
 - **Webhook claims:** `claim_webhook_event` claims a delivery under a lease (new, failed, or lapsed) with a fresh token: `duplicate` (done) → 200, `in_progress` → 409 (the provider retries). Only the token holder completes (payload and error cleared) or fails it (payload kept for the retry, error as a code). The org comes from the URL (`?org=`) after the signature, never from the payload; an event id held by another org is refused.
 
 ### Edge functions

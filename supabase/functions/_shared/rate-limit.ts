@@ -117,6 +117,31 @@ export const LIMITS = {
     max: 10,
     windowSeconds: 3_600,
   },
+  /**
+   * `email-preview`, per caller: each call renders a template on the server
+   * (the editor previews on demand, not per keystroke).
+   */
+  emailPreviewUser: {
+    bucket: 'emails.preview_user',
+    max: 300,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `resend-webhook`, per IP, before the org's secret is read (anyone can
+   * post there). Generous: Resend (Svix) delivers a clinic's bursts from a
+   * few addresses, and a refusal only delays the event (Resend retries).
+   */
+  resendWebhookIp: {
+    bucket: 'webhooks.resend_ip',
+    max: 600,
+    windowSeconds: 60,
+  },
+  /** `signing-webhook`, per IP, before the org's secret is read (as above). */
+  documensoWebhookIp: {
+    bucket: 'webhooks.documenso_ip',
+    max: 600,
+    windowSeconds: 60,
+  },
 } as const satisfies Record<string, RateLimit>
 
 /**

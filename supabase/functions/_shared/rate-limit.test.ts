@@ -268,6 +268,9 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     signingSyncUser: ['signing.sync_user', 60, 3_600],
     signingTestConnectionUser: ['signing.test_connection_user', 30, 3_600],
     signingTestDocumentUser: ['signing.test_document_user', 10, 3_600],
+    emailPreviewUser: ['emails.preview_user', 300, 3_600],
+    resendWebhookIp: ['webhooks.resend_ip', 600, 60],
+    documensoWebhookIp: ['webhooks.documenso_ip', 600, 60],
   })
   for (const l of Object.values(LIMITS)) {
     assertMatch(l.bucket, /^[a-z][a-z0-9_.]{0,62}$/)
