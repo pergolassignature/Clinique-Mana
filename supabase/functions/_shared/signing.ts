@@ -28,33 +28,32 @@
  *    refused while another send's claim is younger than `STALE_SEND_MS` (a
  *    double click, a double « Renvoyer ») → `send_in_progress` « Un envoi
  *    est déjà en cours. » (409), nothing rendered or sent.
- * 3c. A re-sent draft with a Documenso document settles that earlier
- *    document first (`get_signing_request` read after the claim, then
+ * 3c. A re-sent draft with a Documenso envelope settles that earlier
+ *    envelope first (`get_signing_request` read after the claim, then
  *    Documenso): COMPLETED → recovered (`recoverCompletedDraft`: the request
- *    becomes signed) and nothing is sent again; DRAFT or PENDING → cancelled
- *    (a failed cancel ends the re-send: marked `previous_cancel_failed`,
- *    `provider_error`, retryable); CANCELLED, REJECTED or gone (404) → sent
- *    again. A document Documenso does not hold under the request's id
- *    (`externalId`: another instance's under the same id) is reported
- *    `signing_foreign_document` and treated as gone: never recovered nor
- *    cancelled. The new document then replaces it (the earlier id is
- *    superseded).
+ *    becomes signed) and nothing is sent again; DRAFT → deleted, PENDING →
+ *    cancelled (a failed cancel ends the re-send: marked
+ *    `previous_cancel_failed`, `provider_error`, retryable); CANCELLED,
+ *    REJECTED or gone (404) → sent again. An envelope Documenso does not hold
+ *    under the request's id (`externalId`: another instance's under the same
+ *    id) is reported `signing_foreign_document` and treated as gone: never
+ *    recovered nor cancelled. The new envelope then replaces it (the earlier
+ *    id is superseded).
  * 4. The images (logo, signature) the document uses, in parallel → render.
  * 5. `register_system_file` (`documents`, `signing_source`, the request's
  *    view permission) → upload (`upsert: false`); a failed upload discards
  *    the row.
- * 6. Documenso: `createDocument` (`externalId` = the request id; recipients
- *    in signing order; French; the expiry) → `addFields` (each field to its
- *    role's recipient; a box whose role has no signer here is left out) →
- *    `distribute`.
+ * 6. Documenso: `createEnvelope` (`externalId` = the request id; recipients
+ *    in signing order, each with its role's fields inline: a box whose role
+ *    has no signer here is left out; French; the expiry) → `distribute`.
  * 7. `mark_signature_request_sent` (recipients keyed by role, expiry = now +
  *    `expiry_days`).
  *
  * A failure from step 4 on marks the draft (`mark_signature_request_failed`
- * with a code, and the Documenso ids once known), which releases the claim,
+ * with a code, and the envelope id once known), which releases the claim,
  * so a retry with the same key sends again at once. From step 6 on, the
- * document is cancelled first, best effort (by id while a draft, by
- * envelope once distributed). Documenso failures answer `provider_error`
+ * envelope is cancelled first, best effort (straight to delete before
+ * `distribute`, else cancel with the fallback, E-8). Documenso failures answer `provider_error`
  * (`not_configured` for a refused key); the others throw a
  * `SigningFailure` with a code (the caller answers 500 and reports it).
  * Nothing logs an address: codes and ids only.
@@ -70,7 +69,7 @@ import { z } from 'zod'
 import {
   type DocumensoClient,
   documensoClient,
-  type DocumensoDocumentState,
+  type DocumensoEnvelopeState,
   DocumensoError,
   type DocumensoReach,
 } from './documenso.ts'
@@ -89,7 +88,7 @@ import {
   claimDraft,
   getSigningRequest,
   markDraftFailed,
-  readDraftDocument,
+  readDraftEnvelope,
   recoverCompletedDraft,
   SIGNED_PDF_MAX_BYTES,
   signingCredentials,
@@ -389,7 +388,7 @@ export async function createSignatureRequest(
       ),
   }
   if (request.existing) {
-    const settled = await settleEarlierDocument(deps, input, plan)
+    const settled = await settleEarlierEnvelope(deps, input, plan)
     if (settled) return settled
   }
   return await send(deps, input, plan)
@@ -409,15 +408,15 @@ interface SendPlan {
   /** Marks the draft failed (releases the claim). */
   markFailed: (
     code: string,
-    ids?: { documentId?: string | null; envelopeId?: string | null },
+    ids?: { envelopeId?: string | null },
   ) => Promise<void>
 }
 
 /**
  * Step 3c of the module comment: null to send again, or the answer when the
- * earlier document ends the re-send (recovered, or not cancelled).
+ * earlier envelope ends the re-send (recovered, or not cancelled).
  */
-async function settleEarlierDocument(
+async function settleEarlierEnvelope(
   deps: SigningDeps,
   input: CreateSignatureRequestInput,
   plan: SendPlan,
@@ -426,8 +425,8 @@ async function settleEarlierDocument(
   const { requestId, documenso } = plan
   // Read under the claim: another attempt may have changed it since.
   const current = await getSigningRequest(client, input.orgId, requestId)
-  const documentId = current?.documenso_document_id ?? null
-  if (!current || !documentId) return null
+  const envelopeId = current?.envelope_id ?? null
+  if (!current || !envelopeId) return null
   const providerFailure = async (code: string, error: unknown) => {
     await plan.markFailed(code)
     const refused = error instanceof DocumensoError &&
@@ -439,15 +438,15 @@ async function settleEarlierDocument(
     }
   }
 
-  let state: DocumensoDocumentState | null
+  let state: DocumensoEnvelopeState | null
   try {
     // Null when gone at Documenso (deleted when an earlier send failed), or
-    // not this request's own document (reported): either way, send again.
-    state = await readDraftDocument(
+    // not this request's own envelope (reported): either way, send again.
+    state = await readDraftEnvelope(
       { fn: FN, orgId: input.orgId, fetch: deps.fetch },
       documenso,
       requestId,
-      documentId,
+      envelopeId,
     )
   } catch (error) {
     return await providerFailure('previous_read_failed', error)
@@ -467,7 +466,7 @@ async function settleEarlierDocument(
       const outcome = await recoverCompletedDraft(
         ctx,
         current,
-        documentId,
+        envelopeId,
         state,
       )
       return outcome === 'signed'
@@ -501,10 +500,8 @@ async function settleEarlierDocument(
   }
   if (state?.status === 'DRAFT' || state?.status === 'PENDING') {
     try {
-      // Documenso cancels only a distributed envelope; a draft goes by its id.
-      await documenso.cancel(documentId, {
-        envelopeId: state.status === 'PENDING' ? current.envelope_id : null,
-      })
+      // Documenso cancels only a pending envelope: a draft is deleted (E-8).
+      await documenso.cancel(envelopeId, { draft: state.status === 'DRAFT' })
     } catch (error) {
       // Never two live contracts: the re-send stops here, retryable.
       return await providerFailure('previous_cancel_failed', error)
@@ -554,25 +551,25 @@ async function send(
     throw new SigningFailure((error as SigningFailure).code, requestId)
   }
 
-  let documentId: string | null = null
   let envelopeId: string | null = null
-  let distributed = false
+  // Set just before `distribute`: from then on the envelope may be pending
+  // (a timed-out distribute can still have sent it), so it is cancelled with
+  // the fallback; before, it is a draft and deleted (E-8).
+  let distributing = false
   const cancelAndMark = async (code: string) => {
-    if (documentId) {
+    if (envelopeId) {
       try {
-        await plan.cleanup.cancel(documentId, {
-          envelopeId: distributed ? envelopeId : null,
-        })
+        await plan.cleanup.cancel(envelopeId, { draft: !distributing })
       } catch {
-        // Best effort: the reconcile reads the draft's document and settles it.
+        // Best effort: the reconcile reads the draft's envelope and settles it.
       }
     }
-    await markFailed(code, { documentId, envelopeId })
+    await markFailed(code, { envelopeId })
   }
 
   let recipients: { role: string; recipient_id: string }[]
   try {
-    const created = await documenso.createDocument(rendered.bytes, {
+    const created = await documenso.createEnvelope(rendered.bytes, {
       title: input.title,
       externalId: requestId,
       recipients: plan.signers.map((s) => ({
@@ -580,6 +577,9 @@ async function send(
         name: s.name,
         role: 'SIGNER' as const,
         signingOrder: s.order,
+        // Each box to its role's recipient; one whose role has no signer
+        // here is left out.
+        fields: rendered.fields.filter((f) => f.role === s.role),
       })),
       meta: {
         subject: plan.email.subject,
@@ -591,26 +591,17 @@ async function send(
         expiryDays: context.settings.expiry_days,
       },
     })
-    documentId = created.documentId
     envelopeId = created.envelopeId
-    // createDocument answers the recipients in the order they were sent.
+    // createEnvelope answers the recipients in the order they were sent.
     recipients = plan.signers.map((s, i) => ({
       role: s.role,
       recipient_id: created.recipients[i].id,
     }))
-    const byRole = new Map(recipients.map((r) => [r.role, r.recipient_id]))
-    await documenso.addFields(
-      documentId,
-      rendered.fields.flatMap((f) => {
-        const recipientId = byRole.get(f.role)
-        return recipientId ? [{ ...f, recipientId }] : []
-      }),
-    )
-    await documenso.distribute(documentId)
-    distributed = true
+    distributing = true
+    await documenso.distribute(envelopeId)
   } catch (error) {
     if (error instanceof DocumensoError) {
-      documentId ??= error.documentId
+      envelopeId ??= error.envelopeId
       const refused = error.code === 'not_configured'
       await cancelAndMark(
         refused ? 'provider_not_configured' : 'provider_unavailable',
@@ -630,7 +621,6 @@ async function send(
   )
   const sent = await client.rpc('mark_signature_request_sent', {
     p_id: requestId,
-    p_documenso_document_id: documentId,
     p_envelope_id: envelopeId,
     p_source_file_id: sourceFileId,
     p_signer_recipients: recipients,

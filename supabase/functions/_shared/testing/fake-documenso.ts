@@ -176,6 +176,11 @@ function suffix(n: number): string {
   return out.padStart(16, ALPHABET[0])
 }
 
+/** The id of a fake's `n`th envelope (1-based): `envelope_aaaaaaaaaaaaaaab` for 1. */
+export function fakeEnvelopeId(n: number): string {
+  return `envelope_${suffix(n)}`
+}
+
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
     status,
@@ -350,7 +355,7 @@ export function fakeDocumenso(
     }
     nextRecipient += recipients.length
     const legacyId = nextDocument++
-    const id = `envelope_${suffix(legacyId)}`
+    const id = fakeEnvelopeId(legacyId)
     const at = tick()
     documents.set(id, {
       id,

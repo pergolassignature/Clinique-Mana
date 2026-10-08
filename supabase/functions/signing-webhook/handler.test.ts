@@ -2,7 +2,10 @@ import { assert, assertEquals, assertFalse } from '@std/assert'
 import { createHandler } from './handler.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { timingSafeEqual } from '../_shared/timing-safe-equal.ts'
-import { fakeDocumenso } from '../_shared/testing/fake-documenso.ts'
+import {
+  fakeDocumenso,
+  fakeEnvelopeId,
+} from '../_shared/testing/fake-documenso.ts'
 import { fakeSigningDb } from '../_shared/testing/fake-signing-db.ts'
 import {
   fakeSupabase,
@@ -208,11 +211,11 @@ Deno.test('signing-webhook: one hit per IP before the secret is read; over the l
 // ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
-Deno.test('signing-webhook: no externalId that is a request id (a document made outside the app) → 200 ignored before the claim, no lookup by document id', async () => {
+Deno.test('signing-webhook: no externalId that is a request id (an envelope made outside the app) → 200 ignored before the claim, no lookup by envelope id', async () => {
   await run(async () => {
     const s = setup()
     const row = await sentRequest(s.fake, s.db)
-    const doc = row.documenso_document_id!
+    const doc = row.envelope_id!
     s.fake.complete(doc)
     for (const externalId of [undefined, null, 'not-a-uuid']) {
       s.supabase.calls.length = 0
@@ -231,20 +234,20 @@ Deno.test('signing-webhook: no externalId that is a request id (a document made 
   })
 })
 
-Deno.test("signing-webhook: an externalId naming another request than the document's → not_found, nothing applied", async () => {
+Deno.test("signing-webhook: an externalId naming another request than the envelope's → not_found, nothing applied", async () => {
   await run(async () => {
     const s = setup()
     const a = await sentRequest(s.fake, s.db)
     const b = await sentRequest(s.fake, s.db)
-    // Document a, under b's id (another instance numbering a document alike).
-    s.fake.documents.get(a.documenso_document_id!)!.externalId = b.id
-    s.fake.complete(a.documenso_document_id!)
+    // Envelope a, under b's id (another instance giving an envelope that id).
+    s.fake.documents.get(a.envelope_id!)!.externalId = b.id
+    s.fake.complete(a.envelope_id!)
     await captureConsole('error', async () => {
       const res = await s.handler(
         s.fake.webhookRequest(
           URL_,
           'DOCUMENT_COMPLETED',
-          a.documenso_document_id!,
+          a.envelope_id!,
         ),
       )
       assertEquals(await outcome(res), { status: 200, outcome: 'not_found' })
@@ -259,7 +262,7 @@ Deno.test('signing-webhook: completed → claimed (ids only), signed PDF downloa
   await run(async () => {
     const s = setup()
     const row = await sentRequest(s.fake, s.db, {}, SIGNERS)
-    const doc = row.documenso_document_id!
+    const doc = row.envelope_id!
     s.fake.complete(doc)
     const res = await s.handler(
       s.fake.webhookRequest(URL_, 'DOCUMENT_COMPLETED', doc),
@@ -274,7 +277,7 @@ Deno.test('signing-webhook: completed → claimed (ids only), signed PDF downloa
     assertEquals(claim.args.p_org_id, SIGNING_ORG)
     assertEquals(claim.args.p_payload, {
       event: 'DOCUMENT_COMPLETED',
-      document_id: doc,
+      envelope_id: doc,
       external_id: row.id,
     })
     assertFalse(JSON.stringify(claim.args).includes('@'), 'no address claimed')
@@ -296,7 +299,7 @@ Deno.test('signing-webhook: the same completed event again, even with a new time
   await run(async () => {
     const s = setup()
     const row = await sentRequest(s.fake, s.db)
-    const doc = row.documenso_document_id!
+    const doc = row.envelope_id!
     s.fake.complete(doc)
     await s.handler(s.fake.webhookRequest(URL_, 'DOCUMENT_COMPLETED', doc))
     s.supabase.calls.length = 0
@@ -316,7 +319,7 @@ Deno.test('signing-webhook: opened → viewed (version from the webhook time); s
   await run(async () => {
     const s = setup()
     const row = await sentRequest(s.fake, s.db, {}, SIGNERS)
-    const doc = row.documenso_document_id!
+    const doc = row.envelope_id!
     s.fake.open(doc)
     let res = await s.handler(
       s.fake.webhookRequest(URL_, 'document.opened', doc),
@@ -325,7 +328,7 @@ Deno.test('signing-webhook: opened → viewed (version from the webhook time); s
     const claim = s.supabase.calls.find((c) => c.fn === 'claim_webhook_event')!
     assertEquals(
       claim.args.p_event_id,
-      `${SIGNING_ORG}:DOCUMENT_OPENED:${doc}:2026-01-01T12:00:04.000Z`,
+      `${SIGNING_ORG}:DOCUMENT_OPENED:${doc}:2026-01-01T12:00:03.000Z`,
     )
     assertEquals(s.db.requests.get(row.id)!.status, 'viewed')
     assertEquals(s.db.requests.get(row.id)!.signers[0].status, 'viewed')
@@ -344,12 +347,12 @@ Deno.test('signing-webhook: rejected → the reason is stored; cancelled → can
   await run(async () => {
     const s = setup()
     const a = await sentRequest(s.fake, s.db)
-    s.fake.reject(a.documenso_document_id!, undefined, 'Pas d’accord')
+    s.fake.reject(a.envelope_id!, undefined, 'Pas d’accord')
     let res = await s.handler(
       s.fake.webhookRequest(
         URL_,
         'DOCUMENT_REJECTED',
-        a.documenso_document_id!,
+        a.envelope_id!,
       ),
     )
     assertEquals(await outcome(res), { status: 200, outcome: 'applied' })
@@ -361,7 +364,7 @@ Deno.test('signing-webhook: rejected → the reason is stored; cancelled → can
       s.fake.webhookRequest(
         URL_,
         'DOCUMENT_CANCELLED',
-        b.documenso_document_id!,
+        b.envelope_id!,
       ),
     )
     assertEquals(await outcome(res), { status: 200, outcome: 'applied' })
@@ -376,12 +379,12 @@ Deno.test('signing-webhook: a disabled module → 200 ignored, nothing applied o
       module_key: 'professionals',
       purpose: 'professionals.service_contract',
     })
-    s.fake.complete(row.documenso_document_id!)
+    s.fake.complete(row.envelope_id!)
     const res = await s.handler(
       s.fake.webhookRequest(
         URL_,
         'DOCUMENT_COMPLETED',
-        row.documenso_document_id!,
+        row.envelope_id!,
       ),
     )
     assertEquals(await outcome(res), { status: 200, outcome: 'ignored' })
@@ -395,7 +398,7 @@ Deno.test('signing-webhook: an event for a draft whose send is under way → 409
     const s = setup()
     const row = await sentRequest(s.fake, s.db, {
       status: 'draft',
-      documenso_document_id: null,
+      envelope_id: null,
       sent_at: null,
     })
     const doc = [...s.fake.documents.keys()].at(-1)!
@@ -416,21 +419,21 @@ Deno.test('signing-webhook: an event Documenso sends but the database does not t
     const s = setup()
     const row = await sentRequest(s.fake, s.db)
     const res = await s.handler(
-      s.fake.webhookRequest(URL_, 'DOCUMENT_SENT', row.documenso_document_id!),
+      s.fake.webhookRequest(URL_, 'DOCUMENT_SENT', row.envelope_id!),
     )
     assertEquals(await outcome(res), { status: 200, outcome: 'ignored' })
     assertFalse(rpcNames(s.supabase).includes('apply_signing_event'))
   })
 })
 
-Deno.test('signing-webhook: an unknown document → 200 not_found, reported with ids only', async () => {
+Deno.test('signing-webhook: an unknown envelope → 200 not_found, reported with ids only', async () => {
   await run(async () => {
     const s = setup()
     await sentRequest(s.fake, s.db)
     s.db.requests.clear()
     const lines = await captureConsole('error', async () => {
       const res = await s.handler(
-        s.fake.webhookRequest(URL_, 'DOCUMENT_OPENED', '1'),
+        s.fake.webhookRequest(URL_, 'DOCUMENT_OPENED', fakeEnvelopeId(1)),
       )
       assertEquals(await outcome(res), { status: 200, outcome: 'not_found' })
     })
@@ -440,19 +443,19 @@ Deno.test('signing-webhook: an unknown document → 200 not_found, reported with
   })
 })
 
-Deno.test('signing-webhook: a late event of a document a re-send superseded → 200 ignored, not reported', async () => {
+Deno.test('signing-webhook: a late event of an envelope a re-send superseded → 200 ignored, not reported', async () => {
   await run(async () => {
     const s = setup()
     const old = await sentRequest(s.fake, s.db)
-    // A re-send replaced document 1 (cancelled first) with document 2.
+    // A re-send replaced the first envelope (cancelled first) with a second.
     const row = await sentRequest(s.fake, s.db, { id: old.id })
-    row.superseded_document_ids = [old.documenso_document_id!]
+    row.superseded_envelope_ids = [old.envelope_id!]
     const lines = await captureConsole('error', async () => {
       const res = await s.handler(
         s.fake.webhookRequest(
           URL_,
           'DOCUMENT_CANCELLED',
-          old.documenso_document_id!,
+          old.envelope_id!,
         ),
       )
       assertEquals(await outcome(res), { status: 200, outcome: 'ignored' })
@@ -473,13 +476,13 @@ Deno.test('signing-webhook: completed for a request closed here (expired, cancel
     ) {
       const s = setup()
       const row = await sentRequest(s.fake, s.db, over)
-      s.fake.complete(row.documenso_document_id!)
+      s.fake.complete(row.envelope_id!)
       const lines = await captureConsole('error', async () => {
         const res = await s.handler(
           s.fake.webhookRequest(
             URL_,
             'DOCUMENT_COMPLETED',
-            row.documenso_document_id!,
+            row.envelope_id!,
           ),
         )
         assertEquals(await outcome(res), { status: 200, outcome: 'ignored' })
@@ -498,13 +501,13 @@ Deno.test('signing-webhook: completed again for a request already signed → 200
   await run(async () => {
     const s = setup()
     const row = await sentRequest(s.fake, s.db, { status: 'signed' })
-    s.fake.complete(row.documenso_document_id!)
+    s.fake.complete(row.envelope_id!)
     const lines = await captureConsole('error', async () => {
       const res = await s.handler(
         s.fake.webhookRequest(
           URL_,
           'DOCUMENT_COMPLETED',
-          row.documenso_document_id!,
+          row.envelope_id!,
         ),
       )
       assertEquals(await outcome(res), { status: 200, outcome: 'ignored' })
@@ -517,14 +520,14 @@ Deno.test('signing-webhook: a failure after the claim (download) → 500, the cl
   await run(async () => {
     const s = setup()
     const row = await sentRequest(s.fake, s.db)
-    s.fake.complete(row.documenso_document_id!)
+    s.fake.complete(row.envelope_id!)
     s.fake.failures.download = 502
     const lines = await captureConsole('error', async () => {
       const res = await s.handler(
         s.fake.webhookRequest(
           URL_,
           'DOCUMENT_COMPLETED',
-          row.documenso_document_id!,
+          row.envelope_id!,
         ),
       )
       assertEquals(res.status, 500)
@@ -539,7 +542,7 @@ Deno.test('signing-webhook: a failure after the claim (download) → 500, the cl
       s.fake.webhookRequest(
         URL_,
         'DOCUMENT_COMPLETED',
-        row.documenso_document_id!,
+        row.envelope_id!,
       ),
     )
     assertEquals(await outcome(res), { status: 200, outcome: 'signed' })
@@ -564,12 +567,139 @@ Deno.test('signing-webhook: a claim already held → 409; a claim RPC error → 
           s.fake.webhookRequest(
             URL_,
             'DOCUMENT_OPENED',
-            row.documenso_document_id!,
+            row.envelope_id!,
           ),
         )
         assertEquals(res.status, status)
       })
       assertFalse(rpcNames(s.supabase).includes('apply_signing_event'))
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Envelope API (plan E-4)
+// ---------------------------------------------------------------------------
+/** The fake's webhook for `event`, its JSON body changed by `edit`, re-posted. */
+async function edited(
+  s: ReturnType<typeof setup>,
+  event: string,
+  envelopeId: string,
+  edit: (body: Record<string, Record<string, unknown>>) => void,
+): Promise<Request> {
+  const body = await s.fake.webhookRequest(URL_, event, envelopeId).json()
+  edit(body)
+  return post(JSON.stringify(body))
+}
+
+Deno.test('signing-webhook: a missing or malformed envelopeId → 400 after the externalId check, nothing claimed', async () => {
+  await run(async () => {
+    const s = setup()
+    const row = await sentRequest(s.fake, s.db)
+    for (
+      const envelopeId of [
+        undefined,
+        null,
+        12,
+        '12',
+        'envelope_',
+        'envelope_a/b',
+      ]
+    ) {
+      const req = await edited(s, 'DOCUMENT_OPENED', row.envelope_id!, (b) => {
+        if (envelopeId === undefined) delete b.payload.envelopeId
+        else b.payload.envelopeId = envelopeId
+      })
+      assertEquals((await s.handler(req)).status, 400, String(envelopeId))
+    }
+    // An envelope made outside the app: ignored before its envelope id is read.
+    const outside = await edited(
+      s,
+      'DOCUMENT_OPENED',
+      row.envelope_id!,
+      (b) => {
+        b.payload.externalId = null
+        b.payload.envelopeId = 'not an envelope'
+      },
+    )
+    assertEquals(await outcome(await s.handler(outside)), {
+      status: 200,
+      outcome: 'ignored',
+    })
+    assertFalse(rpcNames(s.supabase).includes('claim_webhook_event'))
+  })
+})
+
+Deno.test('signing-webhook: the legacy numeric id and the Recipient copy are ignored', async () => {
+  await run(async () => {
+    const s = setup()
+    const row = await sentRequest(s.fake, s.db, {}, SIGNERS)
+    s.fake.open(row.envelope_id!)
+    for (const id of [undefined, 999, 'x', -1]) {
+      s.db.events.clear()
+      const req = await edited(s, 'DOCUMENT_OPENED', row.envelope_id!, (b) => {
+        if (id === undefined) delete b.payload.id
+        else b.payload.id = id
+        b.payload.Recipient = [{ id: 'garbage' }]
+      })
+      const res = await outcome(await s.handler(req))
+      assertEquals(res.status, 200, String(id))
+      assert(['applied', 'ignored'].includes(res.outcome), String(id))
+    }
+    assertEquals(s.db.requests.get(row.id)!.status, 'viewed')
+  })
+})
+
+Deno.test('signing-webhook: the claim holds the envelope id and no recipient token, address or legacy id', async () => {
+  await run(async () => {
+    const s = setup()
+    const row = await sentRequest(s.fake, s.db, {}, SIGNERS)
+    s.fake.open(row.envelope_id!)
+    const req = s.fake.webhookRequest(URL_, 'DOCUMENT_OPENED', row.envelope_id!)
+    const sent = await req.clone().json()
+    assertEquals(sent.payload.id, 1, 'Documenso sends the legacy id')
+    assert(sent.payload.recipients[0].token, "and the recipients' tokens")
+    assertEquals((await s.handler(req)).status, 200)
+    const claim = s.supabase.calls.find((c) => c.fn === 'claim_webhook_event')!
+    assertEquals(claim.args.p_payload, {
+      event: 'DOCUMENT_OPENED',
+      envelope_id: row.envelope_id,
+      external_id: row.id,
+    })
+    const text = JSON.stringify([claim.args, [...s.db.events.values()]])
+    for (const secret of ['token-', '@']) {
+      assertFalse(text.includes(secret), secret)
+    }
+  })
+})
+
+Deno.test('signing-webhook: createdAt is ISO-normalised in the claim id; an unreadable one falls back to updatedAt, then unversioned', async () => {
+  await run(async () => {
+    const s = setup()
+    const row = await sentRequest(s.fake, s.db)
+    const envelopeId = row.envelope_id!
+    const cases: [unknown, unknown, string][] = [
+      ['2026-10-08T14:00:00Z', null, '2026-10-08T14:00:00.000Z'],
+      ['2026-10-08T10:00:00-04:00', null, '2026-10-08T14:00:00.000Z'],
+      ['not a time', '2026-10-08T15:00:00Z', '2026-10-08T15:00:00.000Z'],
+      ['+275760-09-13T00:00:00.000Z', 'nope', 'unversioned'],
+      [null, null, 'unversioned'],
+    ]
+    for (const [createdAt, updatedAt, version] of cases) {
+      s.supabase.calls.length = 0
+      const req = await edited(s, 'DOCUMENT_SENT', envelopeId, (b) => {
+        ;(b as Record<string, unknown>).createdAt = createdAt
+        b.payload.updatedAt = updatedAt
+      })
+      assertEquals((await s.handler(req)).status, 200, String(createdAt))
+      const claim = s.supabase.calls.find((c) =>
+        c.fn === 'claim_webhook_event'
+      )!
+      assertEquals(
+        claim.args.p_event_id,
+        `${SIGNING_ORG}:DOCUMENT_SENT:${envelopeId}:${version}`,
+      )
+      assert(String(claim.args.p_event_id).length <= 200)
     }
   })
 })

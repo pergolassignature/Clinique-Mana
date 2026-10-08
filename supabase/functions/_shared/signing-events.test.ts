@@ -24,6 +24,11 @@ import {
 } from './testing/signing-fixtures.ts'
 import { sha256Hex } from './storage.ts'
 
+/** Envelope ids the fake Documenso never made: one a row holds, others nobody does. */
+const HELD = 'envelope_hsnzzscbexaddcar'
+const OTHER = 'envelope_zzzzzzzzzzzzzzzz'
+const GONE = 'envelope_goneaaaaaaaaaaaa'
+
 const NOW = '2026-10-08T12:00:00.000Z'
 const run = (fn: () => Promise<void>) => withEnv({ SENTRY_DSN: undefined }, fn)
 
@@ -173,7 +178,7 @@ Deno.test('applyEvents: in order, each call by the request id', async () => {
   const result = await applyEvents(
     supabase.client,
     SIGNING_ORG,
-    { requestId: row.id, documentId: row.documenso_document_id },
+    { requestId: row.id, envelopeId: row.envelope_id },
     [
       {
         event: 'DOCUMENT_OPENED',
@@ -200,7 +205,7 @@ Deno.test('applyEvents: in order, each call by the request id', async () => {
 
 Deno.test('applyEvents: retry and not_found stop at once; nothing to apply is ignored', async () => {
   const { db, supabase } = setup()
-  db.insertRequest({ id: 'r1', documenso_document_id: '77' })
+  db.insertRequest({ id: 'r1', envelope_id: HELD })
   const event = {
     event: 'DOCUMENT_COMPLETED',
     recipientId: null,
@@ -210,7 +215,7 @@ Deno.test('applyEvents: retry and not_found stop at once; nothing to apply is ig
   assertEquals(
     (await applyEvents(supabase.client, SIGNING_ORG, {
       requestId: 'r1',
-      documentId: '77',
+      envelopeId: HELD,
     }, [event, event])).outcome,
     'retry',
   )
@@ -218,15 +223,15 @@ Deno.test('applyEvents: retry and not_found stop at once; nothing to apply is ig
   assertEquals(
     (await applyEvents(supabase.client, SIGNING_ORG, {
       requestId: 'r-unknown',
-      documentId: '77',
+      envelopeId: HELD,
     }, [event])).outcome,
     'not_found',
-    'a document id alone finds nothing: r1 holds document 77, but under another id',
+    'an envelope id alone finds nothing: r1 holds it, but under another id',
   )
   assertEquals(
     await applyEvents(supabase.client, SIGNING_ORG, {
       requestId: 'r-unknown',
-      documentId: '999',
+      envelopeId: OTHER,
     }, []),
     { outcome: 'ignored', requestId: 'r-unknown', needsDownload: false },
   )
@@ -239,7 +244,7 @@ Deno.test('applyEvents: an RPC error throws a coded failure', async () => {
   const error = await assertRejects(() =>
     applyEvents(supabase.client, SIGNING_ORG, {
       requestId: 'r',
-      documentId: null,
+      envelopeId: null,
     }, [{
       event: 'DOCUMENT_OPENED',
       recipientId: null,
@@ -317,7 +322,7 @@ Deno.test('orgSigning: the key goes to the address read with it (one snapshot), 
   assertEquals(signing!.expiryDays, 9)
   await signing!.documenso.ping()
   assertEquals(seen, [{
-    url: 'http://host.docker.internal:55390/api/v2/document?perPage=1',
+    url: 'http://host.docker.internal:55390/api/v2/envelope?perPage=1',
     key: 'key-for-this-address',
   }])
   assertEquals(rpcNames(supabase), ['get_signing_credentials'])
@@ -341,10 +346,10 @@ Deno.test('storeSignedPdf: download → register (request view permission) → u
   const row = await sentRequest(fake, db, {
     view_permission: 'professionals.view',
   })
-  fake.complete(row.documenso_document_id!)
+  fake.complete(row.envelope_id!)
   await storeSignedPdf(supabase.client, documenso, SIGNING_ORG, {
     id: row.id,
-    documentId: row.documenso_document_id!,
+    envelopeId: row.envelope_id!,
     viewPermission: 'professionals.view',
   })
   assertEquals(rpcNames(supabase), [
@@ -375,7 +380,7 @@ Deno.test('storeSignedPdf: download → register (request view permission) → u
 Deno.test('storeSignedPdf: a failed upload soft-deletes the registered file and throws', async () => {
   const { fake, db, documenso } = setup()
   const row = await sentRequest(fake, db)
-  fake.complete(row.documenso_document_id!)
+  fake.complete(row.envelope_id!)
   const supabase = fakeSupabase({
     rpc: db.rpc,
     storage: { upload: () => ({ error: { message: 'boom' } }) },
@@ -383,7 +388,7 @@ Deno.test('storeSignedPdf: a failed upload soft-deletes the registered file and 
   const error = await assertRejects(() =>
     storeSignedPdf(supabase.client, documenso, SIGNING_ORG, {
       id: row.id,
-      documentId: row.documenso_document_id!,
+      envelopeId: row.envelope_id!,
       viewPermission: row.view_permission,
     })
   )
@@ -404,7 +409,7 @@ Deno.test('storeSignedPdf: a download that is not a PDF registers nothing', asyn
   const error = await assertRejects(() =>
     storeSignedPdf(supabase.client, documenso, SIGNING_ORG, {
       id: 'r',
-      documentId: '1',
+      envelopeId: HELD,
       viewPermission: 'settings.integrations_manage',
     })
   )
@@ -416,7 +421,7 @@ Deno.test('storeSignedPdf: a download that is not a PDF registers nothing', asyn
 Deno.test('storeSignedPdf: another delivery completed the request first → this file is discarded, done', async () => {
   const { fake, db, supabase, documenso } = setup()
   const row = await sentRequest(fake, db)
-  fake.complete(row.documenso_document_id!)
+  fake.complete(row.envelope_id!)
   // The other delivery won the race between our download and our complete.
   db.insertFile({
     id: 'f-theirs',
@@ -429,7 +434,7 @@ Deno.test('storeSignedPdf: another delivery completed the request first → this
   })
   await storeSignedPdf(supabase.client, documenso, SIGNING_ORG, {
     id: row.id,
-    documentId: row.documenso_document_id!,
+    envelopeId: row.envelope_id!,
     viewPermission: row.view_permission,
   })
   assertEquals(rpcNames(supabase), [
@@ -446,7 +451,7 @@ Deno.test('storeSignedPdf: another delivery completed the request first → this
 Deno.test('storeSignedPdf: complete refused for another reason → complete_failed', async () => {
   const { fake, db, documenso } = setup()
   const row = await sentRequest(fake, db)
-  fake.complete(row.documenso_document_id!)
+  fake.complete(row.envelope_id!)
   const supabase = fakeSupabase({
     rpc: {
       ...db.rpc,
@@ -457,7 +462,7 @@ Deno.test('storeSignedPdf: complete refused for another reason → complete_fail
   const error = await assertRejects(() =>
     storeSignedPdf(supabase.client, documenso, SIGNING_ORG, {
       id: row.id,
-      documentId: row.documenso_document_id!,
+      envelopeId: row.envelope_id!,
       viewPermission: row.view_permission,
     })
   )
@@ -472,7 +477,7 @@ Deno.test('syncRequest: a lost completion → events applied, signed PDF stored'
   await run(async () => {
     const { fake, db, supabase, ctx } = setup()
     const row = await sentRequest(fake, db)
-    fake.complete(row.documenso_document_id!)
+    fake.complete(row.envelope_id!)
     assertEquals(await syncRequest(ctx, row, { settleDrafts: false }), 'signed')
     assertEquals(db.requests.get(row.id)!.status, 'signed')
     assert(rpcNames(supabase).includes('get_signing_request'))
@@ -482,7 +487,7 @@ Deno.test('syncRequest: a lost completion → events applied, signed PDF stored'
 Deno.test('syncRequest: an opened document → viewed; nothing new → unchanged', async () => {
   const { fake, db, ctx } = setup()
   const row = await sentRequest(fake, db)
-  fake.open(row.documenso_document_id!)
+  fake.open(row.envelope_id!)
   assertEquals(await syncRequest(ctx, row, { settleDrafts: false }), 'updated')
   assertEquals(db.requests.get(row.id)!.status, 'viewed')
   assertEquals(
@@ -495,7 +500,7 @@ Deno.test('syncRequest: a sent request whose document is held under another exte
   for (const externalId of [null, 'another-request']) {
     const { fake, db, supabase, ctx } = setup()
     const row = await sentRequest(fake, db)
-    const doc = row.documenso_document_id!
+    const doc = row.envelope_id!
     fake.complete(doc)
     fake.documents.get(doc)!.externalId = externalId
     const error = await assertRejects(() =>
@@ -518,14 +523,14 @@ Deno.test('syncRequest: a sent request whose document is held under another exte
   }
 })
 
-Deno.test('syncRequest: completed, but the request now records another document → signing_foreign_document, nothing downloaded', async () => {
+Deno.test('syncRequest: completed, but the request now records another envelope → signing_foreign_document, nothing downloaded', async () => {
   const { fake, db, ctx } = setup()
   const row = await sentRequest(fake, db)
-  fake.complete(row.documenso_document_id!)
+  fake.complete(row.envelope_id!)
   const listed = { ...row }
   // Recorded since the list was read (the read before the download is fresh),
-  // while the completion was applied for the listed document all the same.
-  db.requests.get(row.id)!.documenso_document_id = '999'
+  // while the completion was applied for the listed envelope all the same.
+  db.requests.get(row.id)!.envelope_id = OTHER
   const supabase = fakeSupabase({
     rpc: {
       ...db.rpc,
@@ -585,9 +590,9 @@ Deno.test('syncRequest: a draft Documenso completed, its PDF still staged → cl
   await run(async () => {
     const s = setup()
     const row = await deadDraft(s, true)
-    s.fake.complete(row.documenso_document_id!)
+    s.fake.complete(row.envelope_id!)
     assertEquals(
-      s.fake.documents.get(row.documenso_document_id!)!.externalId,
+      s.fake.documents.get(row.envelope_id!)!.externalId,
       row.id,
       'held under the request id: its own document',
     )
@@ -604,12 +609,8 @@ Deno.test('syncRequest: a draft Documenso completed, its PDF still staged → cl
     const recovered = s.supabase.calls.find((c) =>
       c.fn === 'recover_signature_request'
     )!
-    const docRecipients = s.fake.documents.get(row.documenso_document_id!)!
+    const docRecipients = s.fake.documents.get(row.envelope_id!)!
       .recipients
-    assertEquals(
-      recovered.args.p_documenso_document_id,
-      row.documenso_document_id,
-    )
     assertEquals(recovered.args.p_envelope_id, row.envelope_id)
     assertEquals(recovered.args.p_signer_recipients, [
       { role: 'professional', recipient_id: docRecipients[0].id },
@@ -632,7 +633,7 @@ Deno.test('syncRequest: a draft Documenso completed, its PDF no longer staged �
   await run(async () => {
     const s = setup()
     const row = await deadDraft(s, false)
-    s.fake.complete(row.documenso_document_id!)
+    s.fake.complete(row.envelope_id!)
     const lines = await captureConsole('error', async () => {
       assertEquals(
         await syncRequest(s.ctx, row, { settleDrafts: true }),
@@ -659,8 +660,8 @@ Deno.test('syncRequest: a completed draft whose recipients do not match by signi
   await run(async () => {
     const s = setup()
     const row = await deadDraft(s, true)
-    s.fake.complete(row.documenso_document_id!)
-    s.fake.documents.get(row.documenso_document_id!)!.recipients[1]
+    s.fake.complete(row.envelope_id!)
+    s.fake.documents.get(row.envelope_id!)!.recipients[1]
       .signingOrder = 5
     const lines = await captureConsole('error', async () => {
       assertEquals(
@@ -689,7 +690,7 @@ Deno.test('syncRequest: a draft whose document id is held under another external
     for (const status of ['COMPLETED', 'PENDING'] as const) {
       const s = setup()
       const row = await deadDraft(s, true)
-      const doc = row.documenso_document_id!
+      const doc = row.envelope_id!
       if (status === 'COMPLETED') s.fake.complete(doc)
       s.fake.documents.get(doc)!.externalId = 'another-request'
       const lines = await captureConsole('error', async () => {
@@ -726,15 +727,15 @@ Deno.test('syncRequest: a draft whose document id is held under another external
   })
 })
 
-Deno.test('syncRequest: a settle re-reads the draft under its claim: a send that recorded another document since the list → that document is settled', async () => {
+Deno.test('syncRequest: a settle re-reads the draft under its claim: a send that recorded another envelope since the list → that envelope is settled', async () => {
   await run(async () => {
     const s = setup()
-    // Listed with document 1 (PENDING then)…
+    // Listed with its first envelope (PENDING then)…
     const listed = await deadDraft(s, false)
-    const first = listed.documenso_document_id!
-    // …then a « Renvoyer » cancelled it and its new document 2 failed after
-    // distribute: the draft now records document 2.
-    await s.documenso.cancel(first, { envelopeId: listed.envelope_id })
+    const first = listed.envelope_id!
+    // …then a « Renvoyer » cancelled it and its new envelope failed after
+    // distribute: the draft now records that one.
+    await s.documenso.cancel(first)
     const resent = await sentRequest(s.fake, s.db, {
       id: listed.id,
       status: 'draft',
@@ -742,10 +743,10 @@ Deno.test('syncRequest: a settle re-reads the draft under its claim: a send that
       expires_at: null,
       last_error: 'mark_sent_failed',
       created_at: listed.created_at,
-      superseded_document_ids: [first],
+      superseded_envelope_ids: [first],
     }, SIGNERS)
     for (const signer of resent.signers) signer.recipient_id = null
-    const second = resent.documenso_document_id!
+    const second = resent.envelope_id!
     assert(second !== first)
     assertEquals(
       await syncRequest(s.ctx, listed, { settleDrafts: true }),
@@ -754,19 +755,19 @@ Deno.test('syncRequest: a settle re-reads the draft under its claim: a send that
     assertEquals(s.fake.documents.get(second)!.status, 'CANCELLED')
     const cancels = s.fake.calls.filter((c) => c.method === 'POST')
     assertEquals(cancels.length, 1)
-    assertEquals(JSON.parse(cancels[0].body).envelopeId, resent.envelope_id)
+    assertEquals(JSON.parse(cancels[0].body).envelopeId, second)
     const draft = s.db.requests.get(listed.id)!
     assertEquals(draft.last_error, 'abandoned')
-    assertEquals(draft.documenso_document_id, second)
+    assertEquals(draft.envelope_id, second)
   })
 })
 
-Deno.test('syncRequest: a completed draft re-read under its claim → recovered on its current document, never the one listed', async () => {
+Deno.test('syncRequest: a completed draft re-read under its claim → recovered on its current envelope, never the one listed', async () => {
   await run(async () => {
     const s = setup()
     const listed = await deadDraft(s, false)
-    const first = listed.documenso_document_id!
-    await s.documenso.cancel(first, { envelopeId: listed.envelope_id })
+    const first = listed.envelope_id!
+    await s.documenso.cancel(first)
     const resent = await sentRequest(s.fake, s.db, {
       id: listed.id,
       status: 'draft',
@@ -774,10 +775,10 @@ Deno.test('syncRequest: a completed draft re-read under its claim → recovered 
       expires_at: null,
       last_error: 'mark_sent_failed',
       created_at: listed.created_at,
-      superseded_document_ids: [first],
+      superseded_envelope_ids: [first],
     }, SIGNERS)
     for (const signer of resent.signers) signer.recipient_id = null
-    const second = resent.documenso_document_id!
+    const second = resent.envelope_id!
     s.fake.complete(second)
     await captureConsole('error', async () => {
       assertEquals(
@@ -788,8 +789,7 @@ Deno.test('syncRequest: a completed draft re-read under its claim → recovered 
     const recovered = s.supabase.calls.find((c) =>
       c.fn === 'recover_signature_request'
     )!
-    assertEquals(recovered.args.p_documenso_document_id, second)
-    assertEquals(recovered.args.p_envelope_id, resent.envelope_id)
+    assertEquals(recovered.args.p_envelope_id, second)
     assertEquals(s.db.requests.get(listed.id)!.status, 'signed')
   })
 })
@@ -802,7 +802,7 @@ Deno.test('syncRequest: a stale draft still pending → cancelled at Documenso, 
     'unchanged',
   )
   assertEquals(
-    s.fake.documents.get(row.documenso_document_id!)!.status,
+    s.fake.documents.get(row.envelope_id!)!.status,
     'PENDING',
   )
   assertEquals(
@@ -810,7 +810,7 @@ Deno.test('syncRequest: a stale draft still pending → cancelled at Documenso, 
     'abandoned',
   )
   assertEquals(
-    s.fake.documents.get(row.documenso_document_id!)!.status,
+    s.fake.documents.get(row.envelope_id!)!.status,
     'CANCELLED',
   )
   assertEquals(s.db.requests.get(row.id)!.last_error, 'abandoned')
@@ -824,7 +824,7 @@ Deno.test('syncRequest: a draft whose send is under way (fresh claim) → sendin
     await syncRequest(s.ctx, row, { settleDrafts: true }),
     'sending',
   )
-  s.fake.complete(row.documenso_document_id!)
+  s.fake.complete(row.envelope_id!)
   assertEquals(
     await syncRequest(s.ctx, row, { settleDrafts: false }),
     'sending',
@@ -850,9 +850,9 @@ Deno.test('syncRequest: a failed settle releases the claim with its code', async
   })
 })
 
-Deno.test('syncRequest: a stale draft whose document is gone at Documenso → abandoned', async () => {
+Deno.test('syncRequest: a stale draft whose envelope is gone at Documenso → abandoned', async () => {
   const s = setup()
-  const row = s.db.insertRequest({ id: 'r1', documenso_document_id: '404' })
+  const row = s.db.insertRequest({ id: 'r1', envelope_id: GONE })
   assertEquals(
     await syncRequest(s.ctx, row, { settleDrafts: true }),
     'abandoned',
@@ -889,7 +889,7 @@ Deno.test('reconcileOrg: an overdue request whose completion was lost is downloa
     const row = await sentRequest(s.fake, s.db, {
       expires_at: '2026-10-07T12:00:00.000Z',
     })
-    s.fake.complete(row.documenso_document_id!)
+    s.fake.complete(row.envelope_id!)
     const detail = await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
     assertEquals(detail, '1 demande suivie (1 signée)')
     assertEquals(s.db.requests.get(row.id)!.status, 'signed')
@@ -903,7 +903,7 @@ Deno.test('reconcileOrg: an overdue pending request → synced, expired in the d
     const row = await sentRequest(s.fake, s.db, {
       expires_at: '2026-10-07T12:00:00.000Z',
     })
-    s.fake.open(row.documenso_document_id!)
+    s.fake.open(row.envelope_id!)
     const order: string[] = []
     const client = fakeSupabase({
       rpc: Object.fromEntries(
@@ -925,10 +925,10 @@ Deno.test('reconcileOrg: an overdue pending request → synced, expired in the d
     )
     const detail = await perOrg(SIGNING_ORG, client, s.signal)
     assertEquals(detail, '1 demande suivie (1 expirée)')
-    const doc = row.documenso_document_id!
+    const doc = row.envelope_id!
     assertEquals(order.filter((o) => !o.startsWith('get_')), [
       'list_signature_requests_to_reconcile',
-      `documenso /api/v2/document/${doc}`,
+      `documenso /api/v2/envelope/${doc}`,
       'apply_signing_event',
       'expire_signature_request',
       'documenso /api/v2/envelope/cancel',
@@ -967,7 +967,7 @@ Deno.test('reconcileOrg: a draft with a document is settled after an hour (from 
       last_send_at: '2026-10-08T10:00:00.000Z',
     })
     for (const signer of completed.signers) signer.recipient_id = null
-    s.fake.complete(completed.documenso_document_id!)
+    s.fake.complete(completed.envelope_id!)
     // Re-sent 30 minutes ago, still sending: not listed yet.
     await sentRequest(s.fake, s.db, {
       status: 'draft',
@@ -1007,7 +1007,7 @@ Deno.test('reconcileOrg: a draft with a document is settled after an hour (from 
   })
 })
 
-Deno.test('reconcileOrg: an overdue request Documenso already expired (cancel answers 400) → expired, done', async () => {
+Deno.test('reconcileOrg: an overdue request no longer pending at Documenso (cancel answers 400) → expired, done', async () => {
   await run(async () => {
     const s = cronSetup()
     const row = await sentRequest(s.fake, s.db, {

@@ -3,7 +3,10 @@ import { createHandler } from './handler.ts'
 import { createHandler as createWebhook } from '../signing-webhook/handler.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { DOCUMENSO_PATHS } from '../_shared/documenso.ts'
-import { fakeDocumenso } from '../_shared/testing/fake-documenso.ts'
+import {
+  fakeDocumenso,
+  fakeEnvelopeId,
+} from '../_shared/testing/fake-documenso.ts'
 import { fakeSigningDb } from '../_shared/testing/fake-signing-db.ts'
 import {
   fakeSupabase,
@@ -107,7 +110,7 @@ Deno.test('signing-test-document: the built-in document is sent to the caller (c
     assertEquals(row.signers.map((x) => [x.role, x.name, x.email]), [
       ['clinic', ADMIN_NAME, ADMIN_EMAIL],
     ])
-    const doc = s.fake.documents.get(row.documenso_document_id!)!
+    const doc = s.fake.documents.get(row.envelope_id!)!
     assertEquals(doc.title, 'Document test de signature électronique')
     assertEquals(doc.meta.subject, 'Document test de signature électronique')
     assert(!JSON.stringify(body).includes('@'), 'the answer holds no address')
@@ -177,7 +180,7 @@ Deno.test('signing-test-document: the caller closing the connection mid-send doe
     assertEquals(res.status, 200)
     const { request_id } = await res.json()
     assertEquals(s.db.requests.get(request_id)!.status, 'sent')
-    assertEquals(s.fake.documents.get('1')!.status, 'PENDING')
+    assertEquals(s.fake.documents.get(fakeEnvelopeId(1))!.status, 'PENDING')
   })
 })
 
@@ -185,7 +188,7 @@ Deno.test('signing-test-document: the full circuit with the webhook: completed �
   await run(async () => {
     const s = setup()
     const { request_id } = await (await s.handler(post())).json()
-    const doc = s.db.requests.get(request_id)!.documenso_document_id!
+    const doc = s.db.requests.get(request_id)!.envelope_id!
     s.fake.complete(doc)
     const webhook = createWebhook(s.deps)
     const res = await webhook(s.fake.webhookRequest(

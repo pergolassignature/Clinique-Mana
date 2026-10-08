@@ -603,7 +603,7 @@
         "title": "Connexion",
         "description": "L'adresse de l'instance Documenso et sa clé d'API. Une clé enregistrée n'est jamais affichée.",
         "baseUrl": "Adresse de l'instance",
-        "baseUrlHelp": "Par exemple https://signature.cliniquemana.com.",
+        "baseUrlHelp": "Par exemple https://sign.cliniquemana.com.",
         "saved": "Adresse de l'instance enregistrée.",
         "savedKeyCleared": "Adresse de l'instance enregistrée. La clé d'API a été effacée ; saisissez-la de nouveau.",
         "keyClearedWarning": "Changer l'adresse efface la clé d'API ; saisissez-la de nouveau.",

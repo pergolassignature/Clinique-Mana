@@ -7,12 +7,12 @@
  * (`_shared/signing-events.ts`, `perOrgTimeoutMs` `RECONCILE_TIMEOUT_MS`,
  * no new batch after `RECONCILE_SOFT_DEADLINE_MS`): up to 100 listed
  * requests, 4 at a time; `sync` (sent or viewed for over a day, or
- * completed without its PDF; a draft with a document whose send started
+ * completed without its PDF; a draft with an envelope whose send started
  * over an hour ago: claimed, read, then recovered when Documenso completed
  * it, else cancelled and abandoned), `expire` (sync first; still not
  * completed → expired here, then cancelled at Documenso, a 400 there
  * meaning Documenso expired it already) and `abandon` (a draft with no
- * document whose send started over a day ago, claimed first). A draft
+ * envelope whose send started over a day ago, claimed first). A draft
  * whose send is under way is skipped (`sending`).
  *
  * **User mode** (« Synchroniser »):
@@ -66,7 +66,6 @@ const rowSchema = z.object({
   id: z.string(),
   module_key: z.string(),
   status: z.string(),
-  documenso_document_id: z.string().nullable(),
   envelope_id: z.string().nullable(),
 })
 

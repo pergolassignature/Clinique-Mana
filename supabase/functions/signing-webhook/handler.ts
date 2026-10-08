@@ -15,25 +15,30 @@
  * 4. `timingSafeEqual(header, secret)` → 401 on mismatch (PS Hub compares
  *    with `!==`: fixed).
  * 5. The raw body at most 256 KB (413), UTF-8 JSON `{ event, createdAt?,
- *    payload: { id, externalId?, status?, updatedAt?, completedAt?,
+ *    payload: { envelopeId?, externalId?, status?, updatedAt?, completedAt?,
  *    recipients? } }` (else 400). Recipients are read for their id and
- *    statuses only: their addresses, names and tokens are never kept.
+ *    statuses only: their addresses, names and tokens are never kept. The
+ *    legacy numeric `payload.id` and `payload.Recipient` are ignored (E-4).
  * 6. The event name in Documenso's raw form (`document.completed`, PS Hub's
  *    form, becomes `DOCUMENT_COMPLETED`).
  * 6b. **No `externalId` that is a request id → 200 `{ outcome: 'ignored' }`,
- *    before the claim:** a document this app did not create (sent from
+ *    before the claim:** an envelope this app did not create (sent from
  *    Documenso's own screens), acked with no report and no row. Documenso
  *    ids are per instance, so a request is only ever found by its own id,
- *    never by document id alone (an org that changed instance could see
- *    another document under the same number).
- * 7. `claimEvent('documenso', documensoEventId(org, event, document id,
- *    createdAt ?? updatedAt))` with `{ event, document_id, external_id }`:
- *    `duplicate` → 200, `in_progress` → 409, an RPC error → 500. A terminal
- *    event has no version, so a replay is a duplicate whatever its time; the
- *    org is in the id, since two clinics' instances number documents alike.
+ *    never by envelope id alone (an org that changed instance could see
+ *    another envelope under the same id).
+ * 6c. Then `payload.envelopeId` is required and must be an envelope id
+ *    (`isEnvelopeId`), else 400.
+ * 7. `claimEvent('documenso', documensoEventId(org, event, envelope id,
+ *    isoTime(createdAt) ?? isoTime(updatedAt)))` with `{ event, envelope_id,
+ *    external_id }`: `duplicate` → 200, `in_progress` → 409, an RPC error →
+ *    500. A terminal event has no version, so a replay is a duplicate
+ *    whatever its time; the org is in the id, since two clinics' instances
+ *    may give two envelopes one id. The version is ISO-normalised (24
+ *    characters), which bounds the id at 200 (`documensoEventId`).
  * 8. `apply_signing_event` for what the event says (`webhookEvents`), the
  *    row found by `externalId` (our request id) in the hinted org only; a
- *    sent request whose recorded document is another one is `not_found`.
+ *    sent request whose recorded envelope is another one is `not_found`.
  *    The module gate is in the same RPC (`ignored` for a disabled module,
  *    like a terminal request).
  *    - `needs_download` → the signed PDF is stored (`storeSignedPdf`: the
@@ -41,7 +46,7 @@
  *    - `retry` (a draft whose send is under way, or failed part way) →
  *      `failEvent('signing_retry')` and 409, so Documenso retries later;
  *    - `not_found` → 200, reported (a retry cannot find it either). A late
- *      event of a document a re-send superseded is `ignored`, not reported;
+ *      event of an envelope a re-send superseded is `ignored`, not reported;
  *    - `DOCUMENT_COMPLETED` `ignored` for a request closed here (expired,
  *      cancelled, or an abandoned draft) → 200, reported
  *      `signing_completed_after_close` (ids only): the contract is signed at
@@ -54,11 +59,11 @@
  * Status codes: 200 `{ outcome }` (`signed`, `applied`, `ignored`,
  * `not_found`, `duplicate`); 400 bad org or payload; 401 no header, no
  * secret, wrong secret; 405; 409 in progress or retry; 413; 429; 500; 503.
- * Reports carry the org, webhook-event, request and document ids only.
+ * Reports carry the org, webhook-event, request and envelope ids only.
  */
 import { z } from 'zod'
 import type { Deps } from '../_shared/deps.ts'
-import { documensoEventId } from '../_shared/documenso.ts'
+import { documensoEventId, isEnvelopeId } from '../_shared/documenso.ts'
 import { readCapped } from '../_shared/http.ts'
 import { clientIp, consume, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
@@ -82,8 +87,6 @@ import {
 
 const FN = 'signing-webhook'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-/** Documenso document ids (`documenso.ts`). */
-const DOCUMENT_ID = /^[1-9][0-9]{0,14}$/
 /** Design §6.3. */
 const MAX_BODY_BYTES = 256 * 1024
 const SAFE_CODE = /^[a-z0-9_]{1,64}$/
@@ -95,7 +98,7 @@ const webhookSchema = z.object({
   event: z.string().min(1).max(100),
   createdAt: text(64),
   payload: z.object({
-    id: z.number().int().positive(),
+    envelopeId: z.string().max(100).optional(),
     externalId: text(200),
     status: z.string().max(32).optional(),
     updatedAt: text(64),
@@ -110,10 +113,14 @@ const webhookSchema = z.object({
   }),
 })
 
-/** An ISO time, or null (the database then uses now). */
+/**
+ * An ISO time of a four-digit year (24 characters), or null (the database
+ * then uses now; a claim id then says `unversioned`).
+ */
 function isoTime(value: string | null | undefined): string | null {
   const at = value ? Date.parse(value) : NaN
-  return Number.isFinite(at) ? new Date(at).toISOString() : null
+  const iso = Number.isFinite(at) ? new Date(at).toISOString() : null
+  return iso?.length === 24 ? iso : null
 }
 
 /** Options for tests: the comparison is observable. */
@@ -182,14 +189,15 @@ export function createHandler(
       return webhookResponse(400)
     }
     const event = normaliseEventName(parsed.event)
-    const documentId = String(parsed.payload.id)
-    if (!event || !DOCUMENT_ID.test(documentId)) return webhookResponse(400)
+    if (!event) return webhookResponse(400)
     const externalId = parsed.payload.externalId ?? ''
     if (!UUID.test(externalId)) {
       return webhookResponse(200, { outcome: 'ignored' })
     }
+    const envelopeId = parsed.payload.envelopeId
+    if (!isEnvelopeId(envelopeId)) return webhookResponse(400)
     const requestId = externalId.toLowerCase()
-    ids.document_id = documentId
+    ids.envelope_id = envelopeId
 
     let claim
     try {
@@ -198,12 +206,12 @@ export function createHandler(
         eventId: documensoEventId(
           orgId.toLowerCase(),
           event,
-          documentId,
-          parsed.createdAt ?? parsed.payload.updatedAt ?? null,
+          envelopeId,
+          isoTime(parsed.createdAt) ?? isoTime(parsed.payload.updatedAt),
         ),
         orgId,
         eventType: event,
-        payload: { event, document_id: documentId, external_id: requestId },
+        payload: { event, envelope_id: envelopeId, external_id: requestId },
       })
     } catch {
       await report('webhook_claim_failed')
@@ -228,7 +236,7 @@ export function createHandler(
       const applied = await applyEvents(
         client,
         orgId,
-        { requestId, documentId },
+        { requestId, envelopeId },
         webhookEvents(event, snapshot, isoTime(parsed.createdAt)),
       )
       if (applied.requestId) ids.signature_request_id = applied.requestId
@@ -271,7 +279,7 @@ export function createHandler(
         if (!request) throw new SigningFailure('request_not_found')
         await storeSignedPdf(client, signing.documenso, orgId, {
           id: request.id,
-          documentId,
+          envelopeId,
           viewPermission: request.view_permission,
         })
         outcome = 'signed'
