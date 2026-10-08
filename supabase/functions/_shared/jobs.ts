@@ -2,8 +2,10 @@
  * The shared body of a scheduled function job (Task 3.3, design §8).
  *
  * `private.invoke_job_function` posts `{ job_key, org_id, trigger }` with
- * `Authorization: Bearer <internal secret>`. pg_net is asynchronous, so the
- * function writes its own outcome to `scheduled_job_runs`:
+ * `X-Job-Signature: t=<unix s>,v1=<hex HMAC-SHA256>` (see `verifyJobSignature`).
+ * No raw secret is sent: pg_net keeps queued request headers in
+ * `net.http_request_queue`, which every database role can read. pg_net is
+ * asynchronous, so the function writes its own outcome to `scheduled_job_runs`:
  *
  *   Deno.serve(createHandler(...)) → runJob(deps, req, 'core.x', perOrg)
  *
@@ -24,10 +26,11 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
-import { errorResponse, jsonResponse, verifyServiceRoleAuth } from './auth.ts'
+import { errorResponse, jsonResponse } from './auth.ts'
 import type { Deps } from './deps.ts'
 import { readJson } from './http.ts'
 import { reportError } from './report.ts'
+import { timingSafeEqualBytes } from './timing-safe-equal.ts'
 
 /** `scheduled_job_runs.detail` is at most 500 characters (Task 3.3). */
 const MAX_DETAIL = 500
@@ -40,12 +43,78 @@ const SAFE_CODE = /^[A-Za-z0-9_]{1,64}$/
 const PER_ORG_TIMEOUT_MS = 60_000
 
 const jobRequestSchema = z.object({
-  // Optional; when sent, it must name this function's job.
-  job_key: z.string().optional(),
+  // Signed, and it must name this function's job: a signature for one job is
+  // never accepted by another job's function.
+  job_key: z.string(),
   // guid, not uuid: seed and fixture ids are not RFC 4122 variants.
   org_id: z.guid().nullish(),
   trigger: z.enum(['cron', 'manual']),
 })
+
+/** The signed fields of a job request (its body). */
+export interface JobRequest {
+  job_key: string
+  org_id?: string | null
+  trigger: string
+}
+
+/** How far the signature's timestamp may be from `now`, in seconds. */
+export const JOB_SIGNATURE_TOLERANCE_S = 300
+/** `t=<unix seconds>,v1=<64 lowercase hex>`, nothing else. */
+const JOB_SIGNATURE = /^t=([0-9]{1,12}),v1=([0-9a-f]{64})$/
+
+/** The header's timestamp and MAC, or null when it is absent or malformed. */
+function parseJobSignature(
+  header: string | null,
+): { t: string; mac: Uint8Array } | null {
+  const match = header === null ? null : JOB_SIGNATURE.exec(header)
+  if (!match) return null
+  const mac = new Uint8Array(32)
+  for (let i = 0; i < 32; i++) {
+    mac[i] = parseInt(match[2].slice(i * 2, i * 2 + 2), 16)
+  }
+  return { t: match[1], mac }
+}
+
+const unauthorized = () => errorResponse('unauthenticated', 'Unauthorized', 401)
+
+/**
+ * Checks `X-Job-Signature: t=<t>,v1=<mac>` against the body, where `mac` is the
+ * lowercase hex HMAC-SHA256 of `"<t>.<job_key>.<org_id or ''>.<trigger>"`
+ * keyed with `secret` (UTF-8), as `private.invoke_job_function` computes it.
+ * The fields come from the body, so a signature covers exactly what runs.
+ * `t` must be within ±300 s of `now`; inside that window a captured header can
+ * only replay the same job, org and trigger (and `start_job_run` skips a cron
+ * org that already ran this clinic day).
+ *
+ * Returns null when valid, else 401 `unauthenticated` with no detail.
+ */
+export async function verifyJobSignature(
+  req: Request,
+  body: JobRequest,
+  secret: string,
+  now: Date,
+): Promise<Response | null> {
+  const signature = parseJobSignature(req.headers.get('X-Job-Signature'))
+  if (!signature) return unauthorized()
+  const age = Math.floor(now.getTime() / 1000) - Number(signature.t)
+  if (!(Math.abs(age) <= JOB_SIGNATURE_TOLERANCE_S)) return unauthorized()
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const message = `${signature.t}.${body.job_key}.${
+    body.org_id ?? ''
+  }.${body.trigger}`
+  const expected = new Uint8Array(
+    await crypto.subtle.sign('HMAC', key, encoder.encode(message)),
+  )
+  return timingSafeEqualBytes(expected, signature.mac) ? null : unauthorized()
+}
 
 /**
  * One org's work: returns the run detail, or throws (ideally with a `code`).
@@ -178,10 +247,13 @@ async function listJobOrgs(
 }
 
 /**
- * Handles a job request: service-role auth, body `{ job_key?, org_id?, trigger }`,
- * then `perOrg` for each org (see the module comment). Answers 200 `{ runs }`,
- * the number of runs started; 400 for a bad body, a `job_key` other than
- * `jobKey`, or a manual run without an org; 500 when the org list cannot be read.
+ * Handles a job request: body `{ job_key, org_id?, trigger }` signed with
+ * `INTERNAL_FUNCTION_SECRET` (`verifyJobSignature`), then `perOrg` for each org
+ * (see the module comment). Answers 200 `{ runs }`, the number of runs started;
+ * 401 for a missing, malformed, stale or wrong signature (a bearer is ignored);
+ * 400 for a bad body (only once the header is well formed), a `job_key` other
+ * than `jobKey`, or a manual run without an org; 500 when the org list cannot
+ * be read; 503 `not_configured` (reported) when the secret is not set.
  */
 export async function runJob(
   deps: Deps,
@@ -190,11 +262,20 @@ export async function runJob(
   perOrg: PerOrg,
   options: RunJobOptions = {},
 ): Promise<Response> {
-  const denied = verifyServiceRoleAuth(req)
-  if (denied) return denied
+  const secret = deps.env('INTERNAL_FUNCTION_SECRET')
+  if (!secret) {
+    await reportError({ fn: jobKey, code: 'job_signature_not_configured' })
+    return errorResponse('not_configured', 'Not configured', 503)
+  }
+  // Cheap format check first: an unsigned request never has its body read.
+  if (!parseJobSignature(req.headers.get('X-Job-Signature'))) {
+    return unauthorized()
+  }
   const body = await readJson(req, jobRequestSchema)
   if (body instanceof Response) return body
-  if (body.job_key !== undefined && body.job_key !== jobKey) {
+  const denied = await verifyJobSignature(req, body, secret, deps.now())
+  if (denied) return denied
+  if (body.job_key !== jobKey) {
     return errorResponse('invalid_request', 'job_key does not match', 400)
   }
   const manualOrg = body.trigger === 'manual' ? body.org_id : null

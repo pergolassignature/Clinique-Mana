@@ -357,10 +357,17 @@ export function serviceKeys(): string[] {
 }
 
 /**
- * For internal-only functions (cron, other functions). Contract: the caller
- * sends `Authorization: Bearer <key>` with one of `serviceKeys()`.
+ * For internal-only functions called by a holder of a service key (another
+ * function, an operator script). Contract: the caller sends
+ * `Authorization: Bearer <key>` with one of `serviceKeys()`.
  * Returns null when authorised, otherwise a Response. Fails closed (500) when
  * no key is configured. Every key is compared in constant time.
+ *
+ * **Never for `pg_net` callers** (cron, « Exécuter maintenant »): pg_net keeps
+ * queued request headers in `net.http_request_queue`, readable by every
+ * database role, so a bearer sent from SQL leaks. Scheduled jobs verify a
+ * short-lived `X-Job-Signature` instead (`runJob` in `jobs.ts`). No function
+ * calls this one today.
  */
 export function verifyServiceRoleAuth(req: Request): Response | null {
   const keys = serviceKeys()
