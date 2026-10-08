@@ -51,6 +51,14 @@
 --   only with that file. Once `completed_event_at` is set, the request can no longer be expired,
 --   rejected or cancelled (Documenso holds a signed contract): only completed, whatever its
 --   expiry, and the reconcile syncs it until the download succeeds.
+-- * Sends (Task 3.33 review): one at a time per request. begin_signature_request_send claims a
+--   draft under its row lock (`send_started_at`; a claim older than the caller's staleness is a
+--   dead send) and stamps `last_send_at` (never cleared: the reconcile's clock for drafts),
+--   mark_signature_request_sent / _failed release it, and the reconcile claims a draft before
+--   settling it. The same idempotency key must carry the same signers. A re-send
+--   (« Renvoyer ») settles the draft's earlier Documenso document first (recovered when
+--   completed, else cancelled) and the new document replaces it: the earlier id moves to
+--   `superseded_document_ids`, whose late webhooks apply_signing_event ignores.
 -- * One open request per record and purpose (Phase 4): the partial unique index
 --   `signature_requests_open_subject_idx` (draft not abandoned, sent, viewed; the built-in test
 --   document excepted). The idempotency key is checked first: the same key always returns its
@@ -77,7 +85,9 @@
 --   - `documenso_document_id` is unique per org, not globally: ids are per Documenso instance,
 --     and each org configures its own instance.
 --   - create_signature_request also returns the row's status, its signers ([{role, signer_id}]),
---     last_error and created_at (an existing draft: in progress, or failed before);
+--     last_error, created_at and the Documenso ids (an existing draft: its earlier document);
+--     begin_signature_request_send, `send_started_at`, `last_send_at` and
+--     `superseded_document_ids` are added;
 --     mark_signature_request_sent takes the envelope id, and its recipients keyed by role
 --     ([{role, recipient_id}]: a role is unique per request); mark_signature_request_failed
 --     optionally records the document and envelope ids; list_subject_signature_requests takes
@@ -353,6 +363,22 @@ create table public.signature_requests (
   -- envelope (`envelope_…`, for the envelope API).
   documenso_document_id text check (documenso_document_id ~ '^[1-9][0-9]{0,14}$'),
   envelope_id text check (envelope_id ~ '^envelope_[A-Za-z0-9_-]{1,64}$'),
+  -- Earlier Documenso documents of this request that a re-send (« Renvoyer ») replaced after
+  -- cancelling them: their late webhooks are ignored instead of reported as unknown. The latest
+  -- 20 (private.signing_superseded).
+  superseded_document_ids text[] not null default '{}'
+    check (pg_catalog.cardinality(superseded_document_ids) <= 20
+           and pg_catalog.array_to_string(superseded_document_ids, ',', '-') ~ '^([1-9][0-9]{0,14}(,[1-9][0-9]{0,14})*)?$'
+           and (pg_catalog.cardinality(superseded_document_ids) = 0)
+               = (pg_catalog.array_to_string(superseded_document_ids, ',', '-') = '')),
+  -- When the current send claimed the draft (begin_signature_request_send); null when none is
+  -- under way (mark_signature_request_sent and _failed release it). A claim older than the
+  -- caller's staleness is a send that died.
+  send_started_at timestamptz,
+  -- When the latest claim started (begin_signature_request_send: a send, or a settle); never
+  -- cleared, so a draft whose last send failed (its claim released) still counts from that send:
+  -- the reconcile's staleness for drafts.
+  last_send_at timestamptz,
   -- One per user action: a double click or a retry returns the same request.
   idempotency_key text not null check (idempotency_key ~ '^[A-Za-z0-9_:.-]{1,200}$'),
   source_file_id uuid references public.stored_files(id),
@@ -1050,11 +1076,15 @@ end;
 $$;
 
 -- Inserts a request (`draft`) and its signers, idempotent on (org_id, idempotency_key): the same
--- key returns its existing row (`existing` = true), whatever its status and the other fields.
--- Both paths return the row's status, its signers ([{role, signer_id}] in signing order: the
--- recipients of mark_signature_request_sent are keyed by role), last_error and created_at. An
--- existing draft without last_error is a send under way (or one that died silently: the
--- reconcile settles it after a day); with one, a send that failed before.
+-- key returns its existing row (`existing` = true), whatever its status and the other fields,
+-- provided its signers are the same (role, order, name, and address ignoring case and outer
+-- spaces): other signers → P0001 « Les signataires ne correspondent pas à la demande
+-- existante. » (the same key is the same action; and the stored signing orders stay the ones a
+-- re-send gives Documenso, which recovering a completed draft relies on). Both paths return the
+-- row's status, its signers ([{role, signer_id}] in signing order: the recipients of
+-- mark_signature_request_sent are keyed by role), last_error, created_at and the Documenso
+-- document and envelope ids (a draft's earlier document, which a re-send settles first). A send
+-- claims the draft with begin_signature_request_send before rendering.
 -- p: {org_id, module_key, purpose, template_version_id (null only for core.signing_test),
 -- subject_type, subject_id, title, view_permission, idempotency_key, sent_by (null for the
 -- system), signers: [{role, name, email, order}]}. Refused (22023): a disabled module, a purpose
@@ -1064,7 +1094,8 @@ $$;
 -- address: P0001 (Documenso reads recipients back by address). A new key while the record has an
 -- open request of this purpose (header): P0001, until cancel_signature_request closes it.
 create function public.create_signature_request(p jsonb)
-returns table (id uuid, existing boolean, status text, signers jsonb, last_error text, created_at timestamptz)
+returns table (id uuid, existing boolean, status text, signers jsonb, last_error text, created_at timestamptz,
+               documenso_document_id text, envelope_id text)
 language plpgsql
 volatile
 security definer
@@ -1184,14 +1215,104 @@ begin
     end if;
   end if;
 
+  -- The same key with other signers is not the same action (header).
+  if not v_new
+     and (exists (select s ->> 'role', (s ->> 'order')::smallint, pg_catalog.btrim(s ->> 'name'),
+                         pg_catalog.lower(pg_catalog.btrim(s ->> 'email'))
+                    from pg_catalog.jsonb_array_elements(v_signers) s
+                  except
+                  select x.role, x.signing_order, x.name, pg_catalog.lower(x.email)
+                    from public.signature_request_signers x where x.request_id = v_id)
+          or exists (select x.role, x.signing_order, x.name, pg_catalog.lower(x.email)
+                       from public.signature_request_signers x where x.request_id = v_id
+                     except
+                     select s ->> 'role', (s ->> 'order')::smallint, pg_catalog.btrim(s ->> 'name'),
+                            pg_catalog.lower(pg_catalog.btrim(s ->> 'email'))
+                       from pg_catalog.jsonb_array_elements(v_signers) s)) then
+    raise exception 'Les signataires ne correspondent pas à la demande existante.' using errcode = 'P0001';
+  end if;
+
   return query
     select r.id, not v_new, r.status,
            coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('role', s.role, 'signer_id', s.id)
                                                  order by s.signing_order)
                        from public.signature_request_signers s where s.request_id = r.id), '[]'),
-           r.last_error, r.created_at
+           r.last_error, r.created_at, r.documenso_document_id, r.envelope_id
       from public.signature_requests r
      where r.id = v_id;
+end;
+$$;
+
+-- p_ids with p_old appended when another document p_new replaces it (a re-send), the latest 20
+-- kept; unchanged when nothing replaces anything.
+create function private.signing_superseded(p_ids text[], p_old text, p_new text)
+returns text[]
+language sql
+immutable
+set search_path = ''
+as $$
+  select case when p_old is null or p_new is null or p_old = p_new or p_old = any (p_ids) then p_ids
+              else (p_ids || p_old)[greatest(pg_catalog.cardinality(p_ids) - 18, 1):] end
+$$;
+
+-- p_recipients is one {role, recipient_id} per signer of the request: each role one of its
+-- signers', the recipient ids numeric, roles and recipient ids distinct.
+create function private.signing_recipients_valid(p_request_id uuid, p_recipients jsonb)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select pg_catalog.jsonb_typeof(p_recipients) is not distinct from 'array'
+     and pg_catalog.jsonb_array_length(p_recipients)
+         = (select pg_catalog.count(*) from public.signature_request_signers s where s.request_id = p_request_id)
+     and not exists (select 1 from pg_catalog.jsonb_array_elements(p_recipients) e
+                      where pg_catalog.jsonb_typeof(e) <> 'object'
+                         or (e ->> 'recipient_id') is null
+                         or (e ->> 'recipient_id') !~ '^[1-9][0-9]{0,14}$'
+                         or not exists (select 1 from public.signature_request_signers s
+                                         where s.request_id = p_request_id and s.role = e ->> 'role'))
+     and (select pg_catalog.count(distinct e ->> 'role') = pg_catalog.count(*)
+                 and pg_catalog.count(distinct e ->> 'recipient_id') = pg_catalog.count(*)
+            from pg_catalog.jsonb_array_elements(p_recipients) e)
+$$;
+revoke all on function
+  private.signing_superseded(text[], text, text),
+  private.signing_recipients_valid(uuid, jsonb)
+from public, anon, authenticated, service_role;
+
+-- Claims a live draft of the org for one send (createSignatureRequest, before rendering) or one
+-- settle (the reconcile, a completed draft's recovery), under the row lock, so two attempts never
+-- run at once. True when it claimed: send_started_at = last_send_at = now() and last_error
+-- cleared. False for a request that is not a live draft (sent, terminal, abandoned), or whose
+-- current claim is newer than now() - p_stale_after (a send under way; an older one died).
+-- mark_signature_request_sent and _failed release the claim (last_send_at stays). 22023: an
+-- unknown request of the org, a missing or negative staleness.
+create function public.begin_signature_request_send(p_org_id uuid, p_id uuid, p_stale_after interval)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_row public.signature_requests%rowtype;
+begin
+  if p_stale_after is null or p_stale_after < interval '0' then
+    raise exception 'A staleness of zero or more is required' using errcode = '22023';
+  end if;
+  select * into v_row from public.signature_requests r where r.id = p_id and r.org_id = p_org_id for update;
+  if not found then
+    raise exception 'Unknown request' using errcode = '22023';
+  end if;
+  if v_row.status <> 'draft' or v_row.last_error is not distinct from 'abandoned'
+     or v_row.send_started_at > pg_catalog.now() - p_stale_after then
+    return false;
+  end if;
+  update public.signature_requests r
+     set send_started_at = pg_catalog.now(), last_send_at = pg_catalog.now(), last_error = null
+   where r.id = v_row.id;
+  return true;
 end;
 $$;
 
@@ -1200,7 +1321,8 @@ $$;
 -- (p_signer_recipients: [{role, recipient_id}], one per signer of the request; a role is unique
 -- per request, and create_signature_request returns the roles). The source file must be this
 -- request's `signing_source` system file, ready, with the request's view permission; it stops
--- being staged. Anything else → 22023.
+-- being staged. The send's claim is released; a re-send's earlier document joins
+-- superseded_document_ids. Anything else → 22023.
 create function public.mark_signature_request_sent(
   p_id uuid,
   p_documenso_document_id text,
@@ -1227,18 +1349,7 @@ begin
      or p_expires_at is null or p_expires_at <= pg_catalog.now() then
     raise exception 'Invalid document id, envelope id or expiry' using errcode = '22023';
   end if;
-  if pg_catalog.jsonb_typeof(p_signer_recipients) is distinct from 'array'
-     or pg_catalog.jsonb_array_length(p_signer_recipients)
-        <> (select pg_catalog.count(*) from public.signature_request_signers s where s.request_id = v_row.id)
-     or exists (select 1 from pg_catalog.jsonb_array_elements(p_signer_recipients) e
-                 where pg_catalog.jsonb_typeof(e) <> 'object'
-                    or (e ->> 'recipient_id') is null
-                    or (e ->> 'recipient_id') !~ '^[1-9][0-9]{0,14}$'
-                    or not exists (select 1 from public.signature_request_signers s
-                                    where s.request_id = v_row.id and s.role = e ->> 'role'))
-     or (select pg_catalog.count(distinct e ->> 'role') <> pg_catalog.count(*)
-                or pg_catalog.count(distinct e ->> 'recipient_id') <> pg_catalog.count(*)
-           from pg_catalog.jsonb_array_elements(p_signer_recipients) e) then
+  if not coalesce(private.signing_recipients_valid(v_row.id, p_signer_recipients), false) then
     raise exception 'One distinct recipient id per signer role of the request' using errcode = '22023';
   end if;
 
@@ -1263,20 +1374,24 @@ begin
    where s.request_id = v_row.id and s.role = e ->> 'role';
   update public.signature_requests r
      set status = 'sent',
+         superseded_document_ids = private.signing_superseded(r.superseded_document_ids, r.documenso_document_id,
+                                                              p_documenso_document_id),
          documenso_document_id = p_documenso_document_id,
          envelope_id = p_envelope_id,
          source_file_id = p_source_file_id,
          sent_at = pg_catalog.now(),
          expires_at = p_expires_at,
-         last_error = null
+         last_error = null,
+         send_started_at = null
    where r.id = v_row.id;
 end;
 $$;
 
 -- A creation step failed, or the reconcile abandons a stale draft (`abandoned`): the draft keeps
--- the error code and, when given, the Documenso document and envelope it created. A late call on
--- an abandoned draft (a send that ends after the reconcile or cancel_signature_request closed
--- it) records the ids only: the draft stays abandoned.
+-- the error code and, when given, the Documenso document and envelope it created (a re-send's
+-- earlier document joins superseded_document_ids), and the send's claim is released, so « Renvoyer »
+-- may try again at once. A late call on an abandoned draft (a send that ends after the reconcile
+-- or cancel_signature_request closed it) records the ids only: the draft stays abandoned.
 create function public.mark_signature_request_failed(
   p_id uuid,
   p_error_code text,
@@ -1297,8 +1412,12 @@ begin
   end if;
   update public.signature_requests r
      set last_error = case when r.last_error = 'abandoned' then r.last_error else p_error_code end,
+         superseded_document_ids = private.signing_superseded(r.superseded_document_ids, r.documenso_document_id,
+                                                              p_documenso_document_id),
          documenso_document_id = coalesce(p_documenso_document_id, r.documenso_document_id),
-         envelope_id = coalesce(p_envelope_id, r.envelope_id)
+         envelope_id = case when p_documenso_document_id is not null then p_envelope_id
+                            else coalesce(p_envelope_id, r.envelope_id) end,
+         send_started_at = null
    where r.id = p_id and r.status = 'draft';
   if not found then
     raise exception 'Unknown request, or not a draft' using errcode = '22023';
@@ -1308,11 +1427,13 @@ $$;
 
 -- Applies a Documenso event (signing-webhook, signing-sync) under Documenso's raw event names.
 -- The row is found by id (the document's externalId) within p_org_id, else by document id
--- within p_org_id. Returns `not_found` (no row in the org, or an id and a document id naming
--- two different requests), `ignored` (a disabled module, an abandoned draft, a terminal request,
--- an unknown event, or nothing to change), `retry` (a draft not abandoned whose Documenso
--- document exists: a send under way or failed part way; the webhook answers 409 so Documenso
--- retries, and the reconcile settles a failed one) or `applied`. Transitions (monotonic, header):
+-- within p_org_id. Returns `not_found` (no row in the org, or a sent or closed request whose
+-- document id is another one, neither current nor superseded), `ignored` (a superseded document
+-- of the request: a re-send cancelled it; a disabled module, an abandoned draft, a terminal
+-- request, an unknown event, or nothing to change), `retry` (a draft not abandoned whose
+-- Documenso document exists: a send under way or failed part way, whose document may be a
+-- re-send's new one not recorded yet; the webhook answers 409 so Documenso retries, and the
+-- reconcile settles a failed one) or `applied`. Transitions (monotonic, header):
 --   DOCUMENT_OPENED            the recipient pending → viewed; the request sent → viewed
 --   DOCUMENT_SIGNED,
 --   DOCUMENT_RECIPIENT_COMPLETED  the recipient → signed (and viewed); the request sent → viewed
@@ -1360,10 +1481,19 @@ begin
      where r.org_id = p_org_id and r.documenso_document_id = p_documenso_document_id
        for update;
   end if;
-  -- A draft under way has no document id yet: only a different one is a mismatch.
-  if v_row.id is null
-     or (p_request_id is not null and v_row.id <> p_request_id)
-     or (p_documenso_document_id is not null and v_row.documenso_document_id <> p_documenso_document_id) then
+  if v_row.id is null or (p_request_id is not null and v_row.id <> p_request_id) then
+    return query select 'not_found'::text, null::uuid, null::text, false;
+    return;
+  end if;
+  -- An earlier document a re-send cancelled: its late events are expected.
+  if p_documenso_document_id = any (v_row.superseded_document_ids) then
+    return query select 'ignored'::text, v_row.id, v_row.module_key, false;
+    return;
+  end if;
+  -- A draft's send may be creating a new document (a re-send): only a request past its draft
+  -- has one document id for good.
+  if v_row.status <> 'draft' and p_documenso_document_id is not null
+     and v_row.documenso_document_id <> p_documenso_document_id then
     return query select 'not_found'::text, null::uuid, null::text, false;
     return;
   end if;
@@ -1504,12 +1634,16 @@ $$;
 --              cancel at Documenso;
 --   `sync`     sent or viewed for over a day, or one Documenso completed whose signed PDF is not
 --              stored yet (whatever its expiry): read Documenso and apply the events, download
---              when completed (a webhook may have been lost); also a draft over a day old with a
---              Documenso document: read its status before cancelling it, then
---              mark_signature_request_failed('abandoned');
---   `abandon`  a draft over a day old, not abandoned, with no Documenso document:
---              mark_signature_request_failed('abandoned').
--- A disabled module's requests are skipped. Reads signature_requests_open_idx.
+--              when completed (a webhook may have been lost); also a draft with a Documenso
+--              document whose last send started over an hour ago (last_send_at, else
+--              created_at: a send lasts minutes, and a failed one keeps its last_send_at, so a
+--              « Renvoyer » that just failed is not settled at once): read its status, then
+--              recover it when Documenso completed it (soon, so the signed contract shows), else
+--              cancel it there and mark_signature_request_failed('abandoned');
+--   `abandon`  a draft with no Documenso document whose last send started over a day ago (the
+--              same clock), not abandoned: mark_signature_request_failed('abandoned').
+-- A draft is acted on only after begin_signature_request_send claims it (else skipped: a send
+-- is under way). A disabled module's requests are skipped. Reads signature_requests_open_idx.
 create function public.list_signature_requests_to_reconcile(p_org_id uuid, p_limit int default 100)
 returns table (
   id uuid,
@@ -1534,7 +1668,10 @@ as $$
                   else 'sync' end as action) a
    where r.org_id = p_org_id
      and (r.status in ('sent', 'viewed') or (r.status = 'draft' and coalesce(r.last_error, '') <> 'abandoned'))
-     and ((r.status = 'draft' and r.created_at < pg_catalog.now() - interval '1 day')
+     and ((r.status = 'draft'
+           and coalesce(r.last_send_at, r.created_at)
+               < pg_catalog.now() - case when r.documenso_document_id is null then interval '1 day'
+                                         else interval '1 hour' end)
           or (r.status <> 'draft'
               and (r.sent_at < pg_catalog.now() - interval '1 day' or r.expires_at < pg_catalog.now())))
      and public.module_enabled_for_org(r.org_id, r.module_key)
@@ -1610,6 +1747,7 @@ $$;
 revoke all on function
   public.get_signing_context(uuid, uuid),
   public.create_signature_request(jsonb),
+  public.begin_signature_request_send(uuid, uuid, interval),
   public.mark_signature_request_sent(uuid, text, text, uuid, jsonb, timestamptz),
   public.mark_signature_request_failed(uuid, text, text, text),
   public.apply_signing_event(uuid, uuid, text, text, text, timestamptz, text),
@@ -1621,6 +1759,7 @@ from public, anon, authenticated;
 grant execute on function
   public.get_signing_context(uuid, uuid),
   public.create_signature_request(jsonb),
+  public.begin_signature_request_send(uuid, uuid, interval),
   public.mark_signature_request_sent(uuid, text, text, uuid, jsonb, timestamptz),
   public.mark_signature_request_failed(uuid, text, text, text),
   public.apply_signing_event(uuid, uuid, text, text, text, timestamptz, text),

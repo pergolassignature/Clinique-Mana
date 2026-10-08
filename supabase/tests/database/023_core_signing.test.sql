@@ -9,18 +9,21 @@
 -- invisible, set_document_template_active); versions (one draft, one published, publish
 -- archives the previous one, draft-only edits, undeclared placeholders in any body string,
 -- publish readiness and structure, the immutability and delete guards, archive);
--- get_signing_context; create_signature_request (idempotency, signers returned, one open
--- request per record and purpose, every guard); mark_signature_request_sent (recipients keyed
--- by role) / _failed; apply_signing_event (monotonic transitions, terminal states, drafts:
--- retry or ignored, a disabled module, another org, unknown events, nothing undoes a
--- completion); complete_signature_request; list_subject_signature_requests (visibility, signers
+-- get_signing_context; create_signature_request (idempotency, signers returned, the same key
+-- with other signers refused, one open request per record and purpose, every guard);
+-- begin_signature_request_send (one claim at a time, a stale one taken over, drafts only;
+-- last_send_at stamped, never cleared);
+-- mark_signature_request_sent (recipients keyed by role) / _failed (both release the claim; a
+-- re-send's earlier document superseded); apply_signing_event (monotonic transitions, terminal
+-- states, drafts: retry or ignored, a superseded document ignored, a disabled module, another
+-- org, unknown events, nothing undoes a completion); complete_signature_request; list_subject_signature_requests (visibility, signers
 -- without addresses, keyset paging); get_signature_request; list_signature_requests_to_reconcile,
 -- expire_signature_request and cancel_signature_request; audit rows (signers' email and name,
 -- requests' title, versions' body redacted).
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(213);
+select plan(239);
 
 -- =============================================================================
 -- Privileges, indexes, purposes, job
@@ -59,6 +62,7 @@ select results_eq($$
     from pg_proc p
    where p.pronamespace = 'public'::regnamespace
      and p.proname in ('set_signing_settings', 'create_document_template', 'create_template_version',
+                       'begin_signature_request_send',
                        'update_template_version', 'publish_template_version', 'archive_template_version',
                        'list_document_templates', 'list_subject_signature_requests', 'get_signature_request',
                        'get_signing_context', 'create_signature_request', 'mark_signature_request_sent',
@@ -69,6 +73,7 @@ select results_eq($$
 $$, $$ values
   ('apply_signing_event(uuid,uuid,text,text,text,timestamp with time zone,text)'::text, false, false, true, true),
   ('archive_template_version(uuid)', false, true, false, true),
+  ('begin_signature_request_send(uuid,uuid,interval)', false, false, true, true),
   ('cancel_signature_request(uuid,uuid)', false, false, true, true),
   ('complete_signature_request(uuid,uuid,text)', false, false, true, true),
   ('create_document_template(text,text,text,text,text,text)', false, true, false, true),
@@ -95,13 +100,15 @@ select results_eq($$
     from pg_proc p
    where p.pronamespace = 'private'::regnamespace
      and p.proname in ('signing_signers_valid', 'seed_org_signing_settings', 'guard_template_version',
-                       'guard_template_version_delete')
+                       'guard_template_version_delete', 'signing_recipients_valid', 'signing_superseded')
    order by p.proname collate "C"
 $$, $$ values
   ('private.guard_template_version()'::text, false, false, false),
   ('private.guard_template_version_delete()', false, false, false),
   ('private.seed_org_signing_settings()', false, false, false),
-  ('private.signing_signers_valid(jsonb)', false, false, false)
+  ('private.signing_recipients_valid(uuid,jsonb)', false, false, false),
+  ('private.signing_signers_valid(jsonb)', false, false, false),
+  ('private.signing_superseded(text[],text,text)', false, false, false)
 $$, 'the private helpers are callable by no client role');
 
 select is((select pg_get_indexdef('public.signature_requests_subject_idx'::regclass)),
@@ -536,7 +543,7 @@ select k, jsonb_build_object(
 
 -- What create_signature_request returned, per call.
 create temp table cr (k text primary key, id uuid, existing boolean, status text, signers jsonb, last_error text,
-  created_at timestamptz) on commit drop;
+  created_at timestamptz, documenso_document_id text, envelope_id text) on commit drop;
 grant select, insert on cr to service_role;
 insert into cr select 'r1', c.* from public.create_signature_request((select p from rq where k = 'r1')) c;
 reset role;
@@ -551,6 +558,27 @@ insert into cr select 'r1_again', c.* from public.create_signature_request((sele
 select results_eq($$ select id, existing, status, signers = (select signers from cr where k = 'r1') from cr where k = 'r1_again' $$,
   $$ select (select id from t where step = 'r1'), true, 'draft'::text, true $$,
   'the same idempotency key → the existing row, with the same signers');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"signers": [{"role": "professional", "name": "Marie Tremblay", "email": "marie@pro.test", "order": 2},
+                                       {"role": "clinic", "name": "Christine Signataire", "email": "direction@a.test", "order": 1}]}') $$,
+  'P0001', 'Les signataires ne correspondent pas à la demande existante.',
+  'the same key with other signing orders → refused (a re-send must give Documenso the stored orders)');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"signers": [{"role": "professional", "name": "Marie Gagnon", "email": "marie@pro.test", "order": 1},
+                                       {"role": "clinic", "name": "Christine Signataire", "email": "direction@a.test", "order": 2}]}') $$,
+  'P0001', 'Les signataires ne correspondent pas à la demande existante.', 'the same key with another name → refused');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"signers": [{"role": "professional", "name": "Marie Tremblay", "email": "autre@pro.test", "order": 1},
+                                       {"role": "clinic", "name": "Christine Signataire", "email": "direction@a.test", "order": 2}]}') $$,
+  'P0001', 'Les signataires ne correspondent pas à la demande existante.', 'the same key with another address → refused');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"signers": [{"role": "professional", "name": "Marie Tremblay", "email": "marie@pro.test", "order": 1}]}') $$,
+  'P0001', 'Les signataires ne correspondent pas à la demande existante.', 'the same key with a signer fewer → refused');
+select results_eq($$ select c.id, c.existing from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"signers": [{"role": "clinic", "name": " Christine Signataire ", "email": "Direction@A.test ", "order": 2},
+                                       {"role": "professional", "name": "Marie Tremblay", "email": "marie@pro.test", "order": 1}]}') c $$,
+  $$ select (select id from t where step = 'r1'), true $$,
+  'the same signers in another list order, outer spaces, an address in another case → the existing row');
 select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1') || '{"idempotency_key": "k-open"}') $$,
   'P0001', 'Une demande de signature est déjà en cours pour ce dossier.',
   'a new key while the record has an open request of this purpose → refused');
@@ -714,9 +742,11 @@ select lives_ok($$ select public.mark_signature_request_failed((select id from t
 select throws_ok($$ select public.mark_signature_request_failed((select id from t where step = 'r1'), 'provider_error') $$,
   '22023', null, 'mark_failed: only a draft');
 insert into cr select 'r4_again', c.* from public.create_signature_request((select p from rq where k = 'r4')) c;
-select results_eq($$ select id, existing, status, last_error, created_at from cr where k = 'r4_again' $$,
-  $$ select (select id from t where step = 'r4'), true, 'draft'::text, 'provider_error'::text, now() $$,
-  'an existing draft comes back with last_error and created_at (a send that failed before, not one under way)');
+select results_eq($$ select id, existing, status, last_error, created_at, documenso_document_id, envelope_id
+                      from cr where k = 'r4_again' $$,
+  $$ select (select id from t where step = 'r4'), true, 'draft'::text, 'provider_error'::text, now(), '14'::text,
+            'envelope_14'::text $$,
+  'an existing draft comes back with last_error, created_at and its earlier document (a re-send settles it first)');
 reset role;
 
 select results_eq($$
@@ -846,6 +876,80 @@ $$, $$ values ('r2'::text, 'rejected'::text, true, false, 500, 'Je refuse '::tex
   'rejected keeps a reason cut to 500 characters, control characters removed; cancelled; the disabled module''s request unchanged');
 
 -- =============================================================================
+-- Send claims and re-sends (r4: a failed draft whose document 14 exists)
+-- =============================================================================
+set local role service_role;
+select throws_ok($$ select public.begin_signature_request_send('b0000000-0000-0000-0000-00000000000b',
+                      (select id from t where step = 'r4'), interval '10 minutes') $$,
+  '22023', null, 'begin_send: a request of another org is unknown');
+select throws_ok($$ select public.begin_signature_request_send('b0000000-0000-0000-0000-00000000000a',
+                      (select id from t where step = 'r4'), null) $$,
+  '22023', null, 'begin_send: a staleness is required');
+select ok(public.begin_signature_request_send('b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r4'),
+            interval '10 minutes'), 'begin_send claims a failed draft');
+select ok(not public.begin_signature_request_send('b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r4'),
+                interval '10 minutes'), 'a second claim while the first is fresh → false (one send at a time)');
+reset role;
+select results_eq($$ select send_started_at, last_error from public.signature_requests where id = (select id from t where step = 'r4') $$,
+  $$ values (now(), null::text) $$, 'the claim stamps send_started_at and clears last_error');
+select is((select last_send_at from public.signature_requests where id = (select id from t where step = 'r4')), now(),
+  'the claim stamps last_send_at too (the reconcile''s clock for drafts)');
+update public.signature_requests set send_started_at = now() - interval '11 minutes' where id = (select id from t where step = 'r4');
+set local role service_role;
+select ok(public.begin_signature_request_send('b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r4'),
+            interval '10 minutes'), 'a claim older than the staleness (a send that died) is taken over');
+select ok(not public.begin_signature_request_send('b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r2'),
+                interval '0'), 'begin_send: a closed request → false');
+select ok(not public.begin_signature_request_send('b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r1'),
+                interval '0'), 'begin_send: a signed request → false');
+-- The re-send cancelled document 14 at Documenso; its new document 24 fails part way.
+select lives_ok($$ select public.mark_signature_request_failed((select id from t where step = 'r4'), 'provider_unavailable', '24', null) $$,
+  'mark_failed with the re-send''s new document');
+reset role;
+select results_eq($$ select last_error, send_started_at, documenso_document_id, envelope_id, superseded_document_ids
+                      from public.signature_requests where id = (select id from t where step = 'r4') $$,
+  $$ values ('provider_unavailable'::text, null::timestamptz, '24'::text, null::text, array['14']) $$,
+  'mark_failed releases the claim; the earlier document is superseded (its envelope is not the new document''s)');
+select is((select last_send_at from public.signature_requests where id = (select id from t where step = 'r4')), now(),
+  'mark_failed keeps last_send_at: a failed send still counts from when it started');
+set local role service_role;
+select ok(public.begin_signature_request_send('b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r4'),
+            interval '10 minutes'), 'released: « Renvoyer » claims it again at once');
+select results_eq($$ select outcome, request_id from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r4'), '14', 'DOCUMENT_CANCELLED', null, now(), null) $$,
+  $$ select 'ignored'::text, (select id from t where step = 'r4') $$, 'a superseded document''s late event → ignored, not unknown');
+select results_eq($$ select outcome from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r4'), '34', 'DOCUMENT_OPENED', null, now(), null) $$,
+  $$ values ('retry'::text) $$, 'the re-send''s new document, before mark_sent records it → retry');
+insert into t (step, id)
+select 'src_r4', f.file_id
+  from public.register_system_file('b0000000-0000-0000-0000-00000000000a', 'documents', 'core', 'signing_source',
+         'signature_request', (select id from t where step = 'r4'), 'application/pdf', 5000, repeat('c', 64),
+         'users.view', 'Contrat.pdf') f;
+select lives_ok($$ select public.mark_signature_request_sent((select id from t where step = 'r4'), '34', 'envelope_34',
+                     (select id from t where step = 'src_r4'), (select p from rc where k = 'r4'), now() + interval '7 days') $$,
+  'the re-send succeeds with document 34');
+select results_eq($$ select e.d, a.outcome
+                      from (values (1, '14'), (2, '24'), (3, '44')) e (n, d),
+                           lateral public.apply_signing_event('b0000000-0000-0000-0000-00000000000a',
+                             (select id from t where step = 'r4'), e.d, 'DOCUMENT_OPENED', null, now(), null) a
+                     order by e.n $$,
+  $$ values ('14'::text, 'ignored'::text), ('24', 'ignored'), ('44', 'not_found') $$,
+  'sent: both superseded documents are ignored; another document is unknown');
+reset role;
+select results_eq($$ select status, documenso_document_id, superseded_document_ids, send_started_at, last_error
+                      from public.signature_requests where id = (select id from t where step = 'r4') $$,
+  $$ values ('sent'::text, '34'::text, array['14', '24'], null::timestamptz, null::text) $$,
+  'mark_sent releases the claim and supersedes the failed attempt''s document');
+select is((select last_send_at from public.signature_requests where id = (select id from t where step = 'r4')), now(),
+  'mark_sent keeps last_send_at');
+select is(private.signing_superseded(array(select g::text from generate_series(1, 20) g), '21', '22'),
+  array(select g::text from generate_series(2, 21) g), 'signing_superseded keeps the latest 20');
+select results_eq($$ select private.signing_superseded(array['1'], o, n) from (values (1, null, '2'), (2, '3', null), (3, '3', '3'), (4, '1', '2')) v (k, o, n) order by k $$,
+  $$ values (array['1']), (array['1']), (array['1']), (array['1']) $$,
+  'signing_superseded: nothing replaced, the same document, or one already superseded → unchanged');
+
+-- =============================================================================
 -- User reads
 -- =============================================================================
 set local role authenticated;
@@ -934,30 +1038,53 @@ $$, $$ values ('cancelled'::text, true, 'a0000000-0000-0000-0000-000000000001'::
 --   x5 sent an hour ago (not listed)            DOCUMENT_COMPLETED was lost)
 --   x6 org B, sent 2 days ago                x7 sent, past its expiry (expire)
 --   x8 draft 2 days old, no document (abandon)
+--   x9 draft 3 days old with a document, re-sent 30 minutes ago, still sending (not listed:
+--      staleness counts from last_send_at)  x10 draft 2 hours old, with a document (sync)
+--   x11 draft 2 hours old, no document (not listed: a day for those)
+--   x12 draft 3 days old, no document, re-sent 2 hours ago (not listed)
+--   x13 draft 3 days old with a document, re-sent 30 minutes ago and failed (claim released;
+--       not listed: last_send_at stays)
+--   x14 draft 3 days old, no document, re-sent 2 hours ago and failed (not listed)
+--   x15 draft 3 days old with a document, re-sent 2 hours ago and failed (sync)
 -- =============================================================================
 insert into public.signature_requests (id, org_id, module_key, purpose, subject_type, subject_id, title, status,
-  documenso_document_id, envelope_id, idempotency_key, view_permission, last_error, created_at, sent_at, expires_at)
+  documenso_document_id, envelope_id, idempotency_key, view_permission, last_error, created_at, sent_at, expires_at,
+  send_started_at, last_send_at)
 select x.id, x.org, 'core', 'core.signing_test', 'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Test', x.status,
        x.doc, case when x.doc is not null then 'envelope_' || x.doc end, 'key-' || x.id, 'settings.integrations_manage',
-       x.err, x.created, x.sent, x.expires
+       x.err, x.created, x.sent, x.expires, case when x.err is null then x.last_send end, x.last_send
   from (values
     ('c0000000-0000-0000-0000-000000000001'::uuid, 'b0000000-0000-0000-0000-00000000000a'::uuid, 'sent', '601', null::text,
-     now() - interval '2 days', now() - interval '2 days', now() + interval '5 days'),
+     now() - interval '2 days', now() - interval '2 days', now() + interval '5 days', null::timestamptz),
     ('c0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'draft', '602', 'provider_error',
-     now() - interval '2 days', null, null),
+     now() - interval '2 days', null, null, null),
     ('c0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'draft', null, 'abandoned',
-     now() - interval '3 days', null, null),
+     now() - interval '3 days', null, null, null),
     ('c0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'viewed', '604', null,
-     now() - interval '8 days', now() - interval '8 days', now() - interval '1 hour'),
+     now() - interval '8 days', now() - interval '8 days', now() - interval '1 hour', null),
     ('c0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'sent', '605', null,
-     now() - interval '1 hour', now() - interval '1 hour', now() + interval '7 days'),
+     now() - interval '1 hour', now() - interval '1 hour', now() + interval '7 days', null),
     ('c0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000b', 'sent', '606', null,
-     now() - interval '2 days', now() - interval '2 days', now() + interval '5 days'),
+     now() - interval '2 days', now() - interval '2 days', now() + interval '5 days', null),
     ('c0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'sent', '607', null,
-     now() - interval '9 days', now() - interval '9 days', now() - interval '2 hours'),
+     now() - interval '9 days', now() - interval '9 days', now() - interval '2 hours', null),
     ('c0000000-0000-0000-0000-000000000008', 'b0000000-0000-0000-0000-00000000000a', 'draft', null, 'provider_error',
-     now() - interval '2 days', null, null)
-  ) as x (id, org, status, doc, err, created, sent, expires);
+     now() - interval '2 days', null, null, null),
+    ('c0000000-0000-0000-0000-000000000009', 'b0000000-0000-0000-0000-00000000000a', 'draft', '609', null,
+     now() - interval '3 days', null, null, now() - interval '30 minutes'),
+    ('c0000000-0000-0000-0000-000000000010', 'b0000000-0000-0000-0000-00000000000a', 'draft', '610', 'provider_error',
+     now() - interval '2 hours', null, null, null),
+    ('c0000000-0000-0000-0000-000000000011', 'b0000000-0000-0000-0000-00000000000a', 'draft', null, 'provider_error',
+     now() - interval '2 hours', null, null, null),
+    ('c0000000-0000-0000-0000-000000000012', 'b0000000-0000-0000-0000-00000000000a', 'draft', null, null,
+     now() - interval '3 days', null, null, now() - interval '2 hours'),
+    ('c0000000-0000-0000-0000-000000000013', 'b0000000-0000-0000-0000-00000000000a', 'draft', '613', 'provider_unavailable',
+     now() - interval '3 days', null, null, now() - interval '30 minutes'),
+    ('c0000000-0000-0000-0000-000000000014', 'b0000000-0000-0000-0000-00000000000a', 'draft', null, 'render_failed',
+     now() - interval '3 days', null, null, now() - interval '2 hours'),
+    ('c0000000-0000-0000-0000-000000000015', 'b0000000-0000-0000-0000-00000000000a', 'draft', '615', 'provider_unavailable',
+     now() - interval '3 days', null, null, now() - interval '2 hours')
+  ) as x (id, org, status, doc, err, created, sent, expires, last_send);
 
 set local role service_role;
 select results_eq($$
@@ -968,8 +1095,10 @@ $$, $$ values
   ('c0000000-0000-0000-0000-000000000004', 'viewed', '604', 'envelope_604', 'expire'),
   ('c0000000-0000-0000-0000-000000000008', 'draft', null, null, 'abandon'),
   ('c0000000-0000-0000-0000-000000000001', 'sent', '601', 'envelope_601', 'sync'),
-  ('c0000000-0000-0000-0000-000000000002', 'draft', '602', 'envelope_602', 'sync')
-$$, 'org A: expire and abandon first, then sync, each by expiry; a draft with a Documenso document → sync (read it before cancelling)');
+  ('c0000000-0000-0000-0000-000000000015', 'draft', '615', 'envelope_615', 'sync'),
+  ('c0000000-0000-0000-0000-000000000002', 'draft', '602', 'envelope_602', 'sync'),
+  ('c0000000-0000-0000-0000-000000000010', 'draft', '610', 'envelope_610', 'sync')
+$$, 'org A: expire and abandon first, then sync, each by expiry; a draft with a Documenso document after an hour → sync (read it before settling), one without after a day; both counted from the last send (last_send_at, kept after a failed send; else created_at)');
 select results_eq($$ select id from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a', 1) $$,
   $$ values ('c0000000-0000-0000-0000-000000000007'::uuid) $$, 'p_limit pages the list');
 
@@ -1025,7 +1154,8 @@ select ok(public.expire_signature_request('c0000000-0000-0000-0000-000000000007'
 select ok(not public.expire_signature_request('c0000000-0000-0000-0000-000000000001'), 'a request not yet overdue is left as is');
 select ok(not public.expire_signature_request('c0000000-0000-0000-0000-000000000007'), 'an expired request stays expired');
 select results_eq($$ select id from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a') $$,
-  $$ values ('c0000000-0000-0000-0000-000000000001'::uuid), ('c0000000-0000-0000-0000-000000000002') $$,
+  $$ values ('c0000000-0000-0000-0000-000000000001'::uuid), ('c0000000-0000-0000-0000-000000000015'),
+            ('c0000000-0000-0000-0000-000000000002'), ('c0000000-0000-0000-0000-000000000010') $$,
   'signed, expired and abandoned requests leave the list');
 reset role;
 select results_eq($$

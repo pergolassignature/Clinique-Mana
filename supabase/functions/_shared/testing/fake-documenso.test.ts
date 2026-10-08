@@ -67,7 +67,9 @@ Deno.test('fake-documenso: the client round trip (create, fields, distribute, si
   assertEquals(documentId, '1')
   assertEquals(envelopeId, 'envelope_1')
   assertEquals(ids, ['101', '102'])
-  assertEquals((await client.get(documentId)).status, 'PENDING')
+  const read = await client.get(documentId)
+  assertEquals(read.status, 'PENDING')
+  assertEquals(read.externalId, 'req-1', 'the externalId round-trips')
 
   fake.open(documentId)
   fake.sign(documentId)
@@ -196,6 +198,18 @@ Deno.test('fake-documenso: failures inject a status per operation until removed'
   delete fake.failures.distribute
   await client.distribute(documentId)
   assertEquals((await client.get(documentId)).status, 'PENDING')
+})
+
+Deno.test("fake-documenso: an externalId set to undefined is left out of reads → the client's bad response", async () => {
+  const { fake, client, documentId } = await sent()
+  fake.documents.get(documentId)!.externalId = undefined
+  const error = await assertRejects(
+    () => client.get(documentId),
+    DocumensoError,
+  )
+  assertEquals([error.code, error.status], ['provider_error', 200])
+  fake.documents.get(documentId)!.externalId = null
+  assertEquals((await client.get(documentId)).externalId, null)
 })
 
 Deno.test('fake-documenso: the webhook request carries the secret, the event, the external id and a ticking version', async () => {

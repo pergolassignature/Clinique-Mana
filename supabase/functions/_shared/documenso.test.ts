@@ -547,9 +547,11 @@ Deno.test('get: the status and each recipient, without addresses', async () => {
           recipient({
             id: 52,
             email: CLINIC,
+            signingOrder: 2,
             signingStatus: 'SIGNED',
             signedAt: '2026-10-08T14:00:00.000Z',
           }),
+          recipient({ id: 53, email: 'c@mana.test', signingOrder: null }),
         ],
       }),
     ),
@@ -558,9 +560,11 @@ Deno.test('get: the status and each recipient, without addresses', async () => {
   assertEquals(doc, {
     status: 'REJECTED',
     completedAt: null,
+    externalId: 'req-1',
     recipients: [
       {
         id: '51',
+        signingOrder: 1,
         signingStatus: 'REJECTED',
         readStatus: 'OPENED',
         signedAt: null,
@@ -568,14 +572,43 @@ Deno.test('get: the status and each recipient, without addresses', async () => {
       },
       {
         id: '52',
+        signingOrder: 2,
         signingStatus: 'SIGNED',
         readStatus: 'NOT_OPENED',
         signedAt: '2026-10-08T14:00:00.000Z',
         rejectionReason: null,
       },
+      {
+        id: '53',
+        signingOrder: null,
+        signingStatus: 'NOT_SIGNED',
+        readStatus: 'NOT_OPENED',
+        signedAt: null,
+        rejectionReason: null,
+      },
     ],
   })
   assertFalse(JSON.stringify(doc).includes('@'))
+})
+
+Deno.test('get: a document without an externalId reads null', async () => {
+  const { fetch } = fakeFetch({
+    [GET_12]: json(200, documentBody({ externalId: null })),
+  })
+  assertEquals((await client(fetch).get('12')).externalId, null)
+})
+
+Deno.test('get: a document read without the externalId field → provider_error (a bad response, never « no id »)', async () => {
+  const { externalId: _, ...withoutField } = documentBody()
+  for (const body of [withoutField, documentBody({ externalId: 12 })]) {
+    const { fetch } = fakeFetch({ [GET_12]: json(200, body) })
+    const error = await assertRejects(
+      () => client(fetch).get('12'),
+      DocumensoError,
+    )
+    assertEquals(error.code, 'provider_error')
+    assertEquals(error.message, 'Documenso read: unexpected response')
+  }
 })
 
 Deno.test('get: an unknown document status → provider_error', async () => {

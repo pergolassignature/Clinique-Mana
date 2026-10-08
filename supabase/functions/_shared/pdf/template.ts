@@ -29,8 +29,7 @@ import type { Block, PdfDocument, Run } from './model.ts'
 /** The filled document, or the first variable that prevented filling. */
 export type FillResult =
   | { ok: true; document: PdfDocument }
-  | { ok: false; code: 'missing_variable' | 'unknown_variable'; path: string }
-  | { ok: false; code: 'invalid_timezone' }
+  | FillError
 
 const PLACEHOLDER = new RegExp(PLACEHOLDER_SOURCE, 'g')
 /** Control characters (C0, DEL, C1) and the Unicode line/paragraph separators. */
@@ -77,22 +76,29 @@ function mapTexts(
   }
 }
 
-/** Fills `body` with `values` (module comment). The body is not mutated. */
-export function fillTemplate(
-  body: PdfDocument,
+/** The failures shared by `fillTemplate` and `fillTexts`. */
+type FillError =
+  | { ok: false; code: 'missing_variable' | 'unknown_variable'; path: string }
+  | { ok: false; code: 'invalid_timezone' }
+
+/**
+ * Checks every text `scan` visits against the declared variables, then
+ * formats the values: a function that fills one text, or the first failure.
+ */
+function prepare(
+  scan: (visit: (text: string) => void) => void,
   variables: TemplateVariable[],
   values: Record<string, unknown>,
   timezone: string,
-): FillResult {
+): { ok: true; fill: (text: string) => string } | FillError {
   if (!isValidTimeZone(timezone)) return { ok: false, code: 'invalid_timezone' }
 
   const declared = new Set(variables.map((v) => v.path))
   let unknown: string | null = null
-  mapTexts(body, (text) => {
+  scan((text) => {
     for (const [, raw] of text.matchAll(PLACEHOLDER)) {
       if (unknown === null && !declared.has(raw.trim())) unknown = raw.trim()
     }
-    return text
   })
   if (unknown !== null) {
     return { ok: false, code: 'unknown_variable', path: unknown }
@@ -111,16 +117,59 @@ export function fillTemplate(
       return { ok: false, code: 'missing_variable', path: variable.path }
     } else resolved.set(variable.path, '')
   }
-
   return {
     ok: true,
-    document: mapTexts(
-      body,
-      (text) =>
-        text.replace(
-          PLACEHOLDER,
-          (_, raw: string) => resolved.get(raw.trim())!,
-        ),
-    ),
+    fill: (text) =>
+      text.replace(PLACEHOLDER, (_, raw: string) => resolved.get(raw.trim())!),
+  }
+}
+
+/** Fills `body` with `values` (module comment). The body is not mutated. */
+export function fillTemplate(
+  body: PdfDocument,
+  variables: TemplateVariable[],
+  values: Record<string, unknown>,
+  timezone: string,
+): FillResult {
+  const prepared = prepare(
+    (visit) =>
+      mapTexts(body, (text) => {
+        visit(text)
+        return text
+      }),
+    variables,
+    values,
+    timezone,
+  )
+  return prepared.ok
+    ? { ok: true, document: mapTexts(body, prepared.fill) }
+    : prepared
+}
+
+/**
+ * Fills plain strings (a version's Documenso email subject and message,
+ * whose placeholders the database checks like the body's) under the same
+ * rules as `fillTemplate`. The strings themselves keep their line breaks;
+ * control characters are removed from values only.
+ */
+export function fillTexts<K extends string>(
+  texts: Record<K, string>,
+  variables: TemplateVariable[],
+  values: Record<string, unknown>,
+  timezone: string,
+): { ok: true; texts: Record<K, string> } | FillError {
+  const entries = Object.entries(texts) as [K, string][]
+  const prepared = prepare(
+    (visit) => entries.forEach(([, text]) => visit(text)),
+    variables,
+    values,
+    timezone,
+  )
+  if (!prepared.ok) return prepared
+  return {
+    ok: true,
+    texts: Object.fromEntries(
+      entries.map(([key, text]) => [key, prepared.fill(text)]),
+    ) as Record<K, string>,
   }
 }

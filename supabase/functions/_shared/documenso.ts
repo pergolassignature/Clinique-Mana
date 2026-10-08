@@ -147,8 +147,21 @@ export interface DocumensoFieldInput {
 export interface DocumensoDocumentState {
   status: DocumensoDocumentStatus
   completedAt: string | null
+  /**
+   * The `externalId` the document was created with (the request id, see
+   * `createDocument`), or null when it has none (the field itself is
+   * required: a read without it is a bad response): how the signing functions
+   * tell their own document from another one under the same id (an org that
+   * changed Documenso instance).
+   */
+  externalId: string | null
   recipients: {
     id: string
+    /**
+     * As sent to `createDocument` (1-based), or null when Documenso has none:
+     * how the signing functions match recipients to signers (never by address).
+     */
+    signingOrder: number | null
     /** `NOT_SIGNED` | `SIGNED` | `REJECTED` today. */
     signingStatus: string
     /** `NOT_OPENED` | `OPENED` today. */
@@ -301,9 +314,19 @@ const nullableString = z.string().nullish().transform((v) => v ?? null)
 const documentSchema = z.object({
   status: z.enum(['DRAFT', 'PENDING', 'COMPLETED', 'REJECTED', 'CANCELLED']),
   completedAt: nullableString,
+  // The v2 OpenAPI's document read: `externalId`, a string or null, always
+  // present (checked 2026-10-08); the create payload's `externalId` is a
+  // string of at most 255. Required here: a read without the field is a bad
+  // response (`provider_error`), never a document « held under no id », so a
+  // re-send stops on `previous_read_failed` (retryable) instead of taking the
+  // document for another's.
+  // VERIFY against the clinic instance (Mise en service): the read carries
+  // `externalId`.
+  externalId: z.string().nullable(),
   recipients: z.array(z.object({
     id: z.number().int().positive(),
     email: z.string(),
+    signingOrder: z.number().int().nullish().transform((v) => v ?? null),
     signingStatus: z.string(),
     readStatus: z.string(),
     signedAt: nullableString,
@@ -646,8 +669,10 @@ export function documensoClient(
       return {
         status: doc.status,
         completedAt: doc.completedAt,
+        externalId: doc.externalId,
         recipients: doc.recipients.map((r) => ({
           id: String(r.id),
+          signingOrder: r.signingOrder,
           signingStatus: r.signingStatus,
           readStatus: r.readStatus,
           signedAt: r.signedAt,

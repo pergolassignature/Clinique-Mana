@@ -1570,11 +1570,13 @@ export type Database = {
           id: string
           idempotency_key: string
           last_error: string | null
+          last_send_at: string | null
           module_key: string
           org_id: string
           purpose: string
           rejected_at: string | null
           rejection_reason: string | null
+          send_started_at: string | null
           sent_at: string | null
           sent_by: string | null
           signed_file_id: string | null
@@ -1583,6 +1585,7 @@ export type Database = {
           status: string
           subject_id: string
           subject_type: string
+          superseded_document_ids: string[]
           template_version_id: string | null
           title: string
           updated_at: string
@@ -1602,11 +1605,13 @@ export type Database = {
           id?: string
           idempotency_key: string
           last_error?: string | null
+          last_send_at?: string | null
           module_key: string
           org_id: string
           purpose: string
           rejected_at?: string | null
           rejection_reason?: string | null
+          send_started_at?: string | null
           sent_at?: string | null
           sent_by?: string | null
           signed_file_id?: string | null
@@ -1615,6 +1620,7 @@ export type Database = {
           status?: string
           subject_id: string
           subject_type: string
+          superseded_document_ids?: string[]
           template_version_id?: string | null
           title: string
           updated_at?: string
@@ -1634,11 +1640,13 @@ export type Database = {
           id?: string
           idempotency_key?: string
           last_error?: string | null
+          last_send_at?: string | null
           module_key?: string
           org_id?: string
           purpose?: string
           rejected_at?: string | null
           rejection_reason?: string | null
+          send_started_at?: string | null
           sent_at?: string | null
           sent_by?: string | null
           signed_file_id?: string | null
@@ -1647,6 +1655,7 @@ export type Database = {
           status?: string
           subject_id?: string
           subject_type?: string
+          superseded_document_ids?: string[]
           template_version_id?: string | null
           title?: string
           updated_at?: string
@@ -2267,6 +2276,10 @@ export type Database = {
         }[]
       }
       archive_template_version: { Args: { p_id: string }; Returns: undefined }
+      begin_signature_request_send: {
+        Args: { p_id: string; p_org_id: string; p_stale_after: string }
+        Returns: boolean
+      }
       cancel_signature_request: {
         Args: { p_by: string; p_id: string }
         Returns: boolean
@@ -2383,6 +2396,8 @@ export type Database = {
         Args: { p: Json }
         Returns: {
           created_at: string
+          documenso_document_id: string
+          envelope_id: string
           existing: boolean
           id: string
           last_error: string
@@ -2410,6 +2425,10 @@ export type Database = {
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_role: { Args: { p_role: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
+      discard_system_file: {
+        Args: { p_file_id: string; p_org_id: string }
+        Returns: boolean
+      }
       expire_signature_request: { Args: { p_id: string }; Returns: boolean }
       fail_webhook_event: {
         Args: { p_claim_token: string; p_error: string; p_id: string }
@@ -2471,6 +2490,10 @@ export type Database = {
       }
       get_signing_context: {
         Args: { p_org_id: string; p_template_version_id: string }
+        Returns: Json
+      }
+      get_signing_request: {
+        Args: { p_id: string; p_org_id: string }
         Returns: Json
       }
       last_webhook_event_at: { Args: { p_provider: string }; Returns: string }
@@ -2789,6 +2812,16 @@ export type Database = {
           p_to_email: string
           p_to_profile_id: string
           p_view_permission: string
+        }
+        Returns: string
+      }
+      recover_signature_request: {
+        Args: {
+          p_documenso_document_id: string
+          p_envelope_id: string
+          p_id: string
+          p_org_id: string
+          p_signer_recipients: Json
         }
         Returns: string
       }

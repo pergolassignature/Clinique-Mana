@@ -127,3 +127,13 @@ verify_jwt = false
 # A job: runJob verifies X-Job-Signature.
 [functions.storage-cleanup]
 verify_jwt = false
+# Documenso webhook: the org's secret, compared with timingSafeEqual.
+[functions.signing-webhook]
+verify_jwt = false
+# « Synchroniser » (verifyAuth) and the job core.signing_reconcile (X-Job-Signature).
+[functions.signing-sync]
+verify_jwt = false
+[functions.signing-test-connection]
+verify_jwt = false
+[functions.signing-test-document]
+verify_jwt = false
