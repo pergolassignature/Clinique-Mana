@@ -1,22 +1,27 @@
 -- =============================================================================
--- Signing function support: one request read for the service role, discarding a system file
+-- Signing function support: one request read for the service role, recovering a draft Documenso
+-- completed, discarding a signing system file
 -- =============================================================================
 -- Plan:    docs/plans/2026-10-08-phase-3-shared-services-plan.md, Task 3.33 (the signing
 --          functions), follow-up of Task 3.31 (core_signing) and Task 3.24 (core_storage)
 -- Rules:   docs/standards/database-conventions.md
 --
 -- Key choices
--- * Two gaps found while writing the functions (lane F; the DB lane reviews this migration):
+-- * Gaps found while writing the functions (lane F; the DB lane reviews this migration):
 --   - signing-webhook and signing-sync store the signed PDF with register_system_file, and
 --     complete_signature_request only accepts a file carrying the request's view permission.
 --     Neither function had a way to read that permission (apply_signing_event and the reconcile
 --     list do not return it; the tables are closed to the service role, CLAUDE.md §7 forbids
 --     table reads). get_signing_request returns it.
 --   - A draft that Documenso reports completed (a send that died before
---     mark_signature_request_sent) can be recovered while its rendered PDF is still staged: the
---     function then needs that file and the signers' roles and signing orders (Documenso's
---     recipients are matched by signing order, never by address). get_signing_request returns
---     them too.
+--     mark_signature_request_sent, or the earlier document of a re-send) must be recovered: the
+--     contract is signed there. The function needs the signers' roles and signing orders
+--     (Documenso's recipients are matched by signing order, never by address: the stored orders
+--     are the ones sent, create_signature_request refusing other signers on the same key);
+--     get_signing_request returns them. recover_signature_request then makes it `sent` with
+--     completed_event_at stamped, whether or not its rendered PDF is still staged: the signed
+--     PDF is what matters, so a source whose staging ended is recorded missing (source_file_id
+--     null) instead of blocking the recovery.
 --   - register_system_file's header says a caller whose upload fails soft-deletes the row through
 --     its module's service RPC; core had none. discard_system_file is that RPC for every system
 --     file still staged (P3-17), so a row whose object never arrived stops being readable at once
@@ -26,11 +31,21 @@
 --   No address or name: signers are `{role, order, recipient_id}`. `staged_source_file_id` only
 --   for a draft: its newest `signing_source` system file, ready, still staged (mark_..._sent
 --   would refuse any other) and with the request's view permission.
+-- * recover_signature_request(p_org_id, p_id, p_documenso_document_id, p_envelope_id,
+--   p_signer_recipients) → the source file it took (the draft's newest staged `signing_source`,
+--   as get_signing_request picks it), or null when none is left (recorded missing). The caller
+--   read the document COMPLETED at Documenso and holds the draft's send claim. A live draft of the
+--   org becomes `sent` (document and envelope ids, recipients keyed by role as for
+--   mark_signature_request_sent, sent_at, no expiry) with completed_event_at stamped, so nothing
+--   can expire, reject or cancel it before the signed PDF is stored (complete_signature_request);
+--   its claim is released and an earlier document id joins superseded_document_ids. Anything
+--   else → 22023.
 -- * discard_system_file(p_org_id, p_file_id) → true when it soft-deleted the file: of that org,
---   `ready`, a system file (no uploader) still staged (`retain_until` set). A file a request or a
---   module RPC took (retain_until cleared) is never touched; nor is a client upload. The object
---   (if any) is removed by storage-cleanup like any deleted file.
--- * Both are service role only (security definer, set search_path = '').
+--   `ready`, a signing system file (`signing_source` or `signing_signed`, no uploader) still
+--   staged (`retain_until` set). A file a request or a module RPC took (retain_until cleared) is
+--   never touched; nor is a client upload or another purpose's file. The object (if any) is
+--   removed by storage-cleanup like any deleted file.
+-- * All three are service role only (security definer, set search_path = '').
 -- =============================================================================
 select pg_catalog.set_config('app.audit_source', 'migration:core_signing_function_support', true);
 
@@ -82,7 +97,76 @@ as $$
    where r.id = p_id and r.org_id = p_org_id
 $$;
 
--- Soft-deletes a staged system file of the org whose upload failed (header). True when it did.
+-- A draft Documenso completed becomes `sent`, completion stamped (header). Returns the source file
+-- taken, or null.
+create function public.recover_signature_request(
+  p_org_id uuid,
+  p_id uuid,
+  p_documenso_document_id text,
+  p_envelope_id text,
+  p_signer_recipients jsonb
+)
+returns uuid
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_row public.signature_requests%rowtype;
+  v_source uuid;
+begin
+  select * into v_row from public.signature_requests r where r.id = p_id and r.org_id = p_org_id for update;
+  if not found or v_row.status <> 'draft' or v_row.last_error is not distinct from 'abandoned' then
+    raise exception 'Unknown request, or not a live draft' using errcode = '22023';
+  end if;
+  if p_documenso_document_id is null or p_documenso_document_id !~ '^[1-9][0-9]{0,14}$'
+     or (p_envelope_id is not null and p_envelope_id !~ '^envelope_[A-Za-z0-9_-]{1,64}$') then
+    raise exception 'Invalid document id or envelope id' using errcode = '22023';
+  end if;
+  if not coalesce(private.signing_recipients_valid(v_row.id, p_signer_recipients), false) then
+    raise exception 'One distinct recipient id per signer role of the request' using errcode = '22023';
+  end if;
+
+  update public.stored_files f
+     set retain_until = null
+   where f.id = (select x.id
+                   from public.stored_files x
+                  where x.org_id = v_row.org_id
+                    and x.module_key = 'core'
+                    and x.subject_type = 'signature_request'
+                    and x.subject_id = v_row.id
+                    and x.purpose = 'signing_source'
+                    and x.status = 'ready'
+                    and x.uploaded_by is null
+                    and x.view_permission = v_row.view_permission
+                    and x.retain_until > pg_catalog.now()
+                  order by x.created_at desc, x.id desc
+                  limit 1)
+  returning f.id into v_source;
+
+  update public.signature_request_signers s
+     set documenso_recipient_id = e ->> 'recipient_id'
+    from pg_catalog.jsonb_array_elements(p_signer_recipients) e
+   where s.request_id = v_row.id and s.role = e ->> 'role';
+  update public.signature_requests r
+     set status = 'sent',
+         superseded_document_ids = private.signing_superseded(r.superseded_document_ids, r.documenso_document_id,
+                                                              p_documenso_document_id),
+         documenso_document_id = p_documenso_document_id,
+         envelope_id = p_envelope_id,
+         source_file_id = v_source,
+         sent_at = pg_catalog.now(),
+         completed_event_at = pg_catalog.now(),
+         last_error = null,
+         send_started_at = null
+   where r.id = v_row.id;
+  return v_source;
+end;
+$$;
+
+-- Soft-deletes a staged signing system file of the org whose upload failed (header). True when it
+-- did.
 create function public.discard_system_file(p_org_id uuid, p_file_id uuid)
 returns boolean
 language plpgsql
@@ -95,6 +179,7 @@ begin
      set status = 'deleted', deleted_at = pg_catalog.now()
    where f.id = p_file_id
      and f.org_id = p_org_id
+     and f.purpose in ('signing_source', 'signing_signed')
      and f.status = 'ready'
      and f.uploaded_by is null
      and f.retain_until is not null;
@@ -104,9 +189,11 @@ $$;
 
 revoke all on function
   public.get_signing_request(uuid, uuid),
+  public.recover_signature_request(uuid, uuid, text, text, jsonb),
   public.discard_system_file(uuid, uuid)
 from public, anon, authenticated;
 grant execute on function
   public.get_signing_request(uuid, uuid),
+  public.recover_signature_request(uuid, uuid, text, text, jsonb),
   public.discard_system_file(uuid, uuid)
 to service_role;

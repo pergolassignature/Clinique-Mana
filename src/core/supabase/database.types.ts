@@ -1575,6 +1575,7 @@ export type Database = {
           purpose: string
           rejected_at: string | null
           rejection_reason: string | null
+          send_started_at: string | null
           sent_at: string | null
           sent_by: string | null
           signed_file_id: string | null
@@ -1583,6 +1584,7 @@ export type Database = {
           status: string
           subject_id: string
           subject_type: string
+          superseded_document_ids: string[]
           template_version_id: string | null
           title: string
           updated_at: string
@@ -1607,6 +1609,7 @@ export type Database = {
           purpose: string
           rejected_at?: string | null
           rejection_reason?: string | null
+          send_started_at?: string | null
           sent_at?: string | null
           sent_by?: string | null
           signed_file_id?: string | null
@@ -1615,6 +1618,7 @@ export type Database = {
           status?: string
           subject_id: string
           subject_type: string
+          superseded_document_ids?: string[]
           template_version_id?: string | null
           title: string
           updated_at?: string
@@ -1639,6 +1643,7 @@ export type Database = {
           purpose?: string
           rejected_at?: string | null
           rejection_reason?: string | null
+          send_started_at?: string | null
           sent_at?: string | null
           sent_by?: string | null
           signed_file_id?: string | null
@@ -1647,6 +1652,7 @@ export type Database = {
           status?: string
           subject_id?: string
           subject_type?: string
+          superseded_document_ids?: string[]
           template_version_id?: string | null
           title?: string
           updated_at?: string
@@ -2267,6 +2273,10 @@ export type Database = {
         }[]
       }
       archive_template_version: { Args: { p_id: string }; Returns: undefined }
+      begin_signature_request_send: {
+        Args: { p_id: string; p_org_id: string; p_stale_after: string }
+        Returns: boolean
+      }
       cancel_signature_request: {
         Args: { p_by: string; p_id: string }
         Returns: boolean
@@ -2383,6 +2393,8 @@ export type Database = {
         Args: { p: Json }
         Returns: {
           created_at: string
+          documenso_document_id: string
+          envelope_id: string
           existing: boolean
           id: string
           last_error: string
@@ -2797,6 +2809,16 @@ export type Database = {
           p_to_email: string
           p_to_profile_id: string
           p_view_permission: string
+        }
+        Returns: string
+      }
+      recover_signature_request: {
+        Args: {
+          p_documenso_document_id: string
+          p_envelope_id: string
+          p_id: string
+          p_org_id: string
+          p_signer_recipients: Json
         }
         Returns: string
       }
