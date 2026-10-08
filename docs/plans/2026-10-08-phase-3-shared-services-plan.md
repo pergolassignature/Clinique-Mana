@@ -1964,6 +1964,10 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 ## Task 3.30: `_shared/pdf/` renderer (P3-19)
 
+**Spike result (Task 3.29, commit 46a097f, ADR 0008 draft):** pdfmake 0.3.11 adopted. Warm contract median 134 ms, cold ≤ 246 ms, glyphs complete (fonts are WOFF, not WOFF2), byte-identical output. Two constraints carried into this task:
+- **Bundle isolation (decided by the coordinator).** With pdfmake in the shared `deno.json`/`deno.lock`, the CLI bundler packs it into **every** function (supabase-js-only function: 0.93 → 7.37 MB uploaded). Fix it here: only the PDF-rendering functions (`signing-*` that render, the fiche function) may pull pdfmake. Use a per-function `deno.json` for those functions (Supabase supports one per function folder), or a pre-built vendored pdfmake module imported only by `_shared/pdf/`. Adjust `scripts/` lint rules if they forbid it, and document the exception in CLAUDE.md §7. **Acceptance:** `supabase functions deploy --dry-run`/bundle of a non-PDF function is back to ≈ 1 MB; a PDF function stays ≤ 10 MB uploaded (compressed upload size is the measure: it is what the 20 MB CLI limit applies to). Deploys keep bundling with the CLI (never `--use-api`, 5 MB cap).
+- Fold in the spike notes: keep headings with the next block; images as data URLs only; pdfmake URL and local-file access both denied; the signature page must be the last block; convert U+202F to U+00A0 before rendering.
+
 **Lane:** F (after Task 3.29). **Files:**
 - `supabase/functions/_shared/pdf/model.ts`: the document model, a closed set of blocks (no HTML):
   ```ts
