@@ -13,9 +13,12 @@
 -- * has_permission and get_my_access keep their signatures, grants and module gate; they
 --   read the caller's org's defaults instead of the template.
 -- * Custom roles are rows of public.roles with org_id set (null = base role, shared) and a
---   generated key `custom_` + 8 hex characters. Names: trimmed, 1–60 characters, unique per
---   org case-insensitively, and never a base role's name. A trigger keeps user_roles and
---   org_role_permissions on roles of their own org.
+--   generated key `custom_` + 8 hex characters. A role's key, org and is_system never change
+--   (trigger). Names: Unicode whitespace stripped at the ends and collapsed to one space
+--   inside, no control or invisible format characters, 1–60 characters, unique per org and
+--   never a base role's name, compared as lower(normalize(name, NFKC)) so look-alikes
+--   (« Administrateur » in full-width letters, a decomposed « è ») count as the same name.
+--   A trigger keeps user_roles and org_role_permissions on roles of their own org.
 -- * New core permission roles.manage (admin in the template). The four role RPCs require
 --   it, act on the caller's org only and lock the org row (FOR NO KEY UPDATE, conventions
 --   §6). set_user_role takes the same lock after the target's profile (same order as the
@@ -24,10 +27,23 @@
 -- * Hold rule (mirrors set_permission_override): a non-admin manager never gives what she
 --   does not hold. She cannot add a permission she lacks to a role, nor create a role as a
 --   copy of one carrying such a permission. Removing a permission gives nothing: allowed.
+-- * No self-grant: a non-admin manager cannot add permissions to the role she holds herself
+--   (it would turn her temporary overrides into role defaults that clearing her overrides
+--   leaves in place). Removing one from it stays allowed. She cannot take another role
+--   either: nobody changes their own role (decision #28).
+-- * The provider role's defaults are locked, like admin's: they belong to the Professionnels
+--   module (reopens in Phase 4).
 -- * Lock-out: the admin role cannot be edited, renamed or deleted, admins take no overrides
 --   and every org keeps an active admin (core_user_admin), so every org always has someone
---   holding roles.manage and users.manage.
+--   holding roles.manage and users.manage. Admin rows of org_role_permissions cannot be
+--   deleted or changed except by cascade (trigger), and service_role cannot write the table.
+-- * set_permission_override, clear_permission_override and clear_permission_overrides take
+--   the org lock after the target's profile, before checking the caller's own permissions,
+--   so they serialize with set_role_permission changing the caller's role.
 -- * `roles` is now org-scoped and audited (org_id from the row; null for base roles).
+--   Correction: the comment above the audit triggers in 20261007140623_core_audit.sql (on
+--   staging, so not edited) still says roles change only through migrations and are not
+--   audited; from this migration on, `roles` is audited and changed through the role RPCs.
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:core_editable_roles', true);
@@ -54,12 +70,47 @@ alter table public.roles add constraint roles_org_id_check
 -- A custom role is never a system role.
 alter table public.roles add constraint roles_is_system_check
   check (not is_system or org_id is null);
+-- Names are stored normalized (private.valid_role_name): 1–60 characters, the only
+-- whitespace is a single U+0020 between words. The class below is Unicode's White_Space
+-- minus U+0020, written out (POSIX classes depend on the database locale); keep it equal
+-- to the one in valid_role_name.
 alter table public.roles drop constraint roles_name_check;
 alter table public.roles add constraint roles_name_check
-  check (name = btrim(name, E' \t\r\n') and char_length(name) between 1 and 60);
+  check (char_length(name) between 1 and 60
+         and name !~ '^ | $|  '
+         and name !~ '[\t\n\v\f\r\u0085   -     　]');
+-- No control characters (C0, C1) nor invisible format characters (zero-width, bidi marks
+-- and embeddings, word joiner, BOM): two names that look the same must be the same name.
+alter table public.roles add constraint roles_name_no_control_chars
+  check (name !~ '[[:cntrl:]\u0080-\u009F​-‏ - ⁠﻿]');
 
--- Unique name per org; also the index of the org_id foreign key.
-create unique index roles_org_id_name_key on public.roles (org_id, lower(name)) where org_id is not null;
+-- Unique name per org, compared like valid_role_name does (NFKC, case-insensitive); also
+-- the index of the org_id foreign key.
+create unique index roles_org_id_name_key on public.roles (org_id, lower(normalize(name, NFKC)))
+  where org_id is not null;
+
+-- A role's identity never changes: its key is referenced everywhere, its org scopes it and
+-- is_system marks the base roles. Only the name changes (rename_role).
+create function private.roles_freeze_identity()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.key is distinct from old.key
+     or new.org_id is distinct from old.org_id
+     or new.is_system is distinct from old.is_system then
+    raise exception 'La clé, la clinique et le statut système d''un rôle ne changent pas : %', old.key
+      using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger roles_freeze_identity
+  before update on public.roles
+  for each row execute function private.roles_freeze_identity();
 
 drop policy roles_select on public.roles;
 create policy roles_select on public.roles
@@ -84,6 +135,10 @@ create index org_role_permissions_permission_key_idx on public.org_role_permissi
 
 revoke all on public.org_role_permissions from anon, authenticated;
 grant select on public.org_role_permissions to authenticated;
+-- Server code reads role defaults, never writes them: writes go through the role RPCs and
+-- the seeding/propagation triggers (SECURITY DEFINER, owned by postgres). Cascades from a
+-- deleted org, role or permission run as the table owner, so they are unaffected.
+revoke insert, update, delete, truncate on public.org_role_permissions from service_role;
 
 alter table public.org_role_permissions enable row level security;
 create policy org_role_permissions_select on public.org_role_permissions
@@ -128,6 +183,33 @@ create trigger user_roles_check_role_org
 create trigger org_role_permissions_check_role_org
   before insert or update of role, org_id on public.org_role_permissions
   for each row execute function private.check_role_org();
+
+-- Admin rows: admin holds every permission in every org (invariant test 000). Any write path
+-- (RPC, SQL as postgres) is refused, except the cascade of deleting the org, the role or the
+-- permission: then that parent is already gone when the row is deleted.
+create function private.protect_admin_role_permissions()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from public.organizations o where o.id = old.org_id)
+     and exists (select 1 from public.roles ro where ro.key = old.role)
+     and exists (select 1 from public.permissions pm where pm.key = old.permission_key) then
+    raise exception 'L''administrateur a toujours toutes les permissions.' using errcode = 'P0001';
+  end if;
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger org_role_permissions_protect_admin
+  before update or delete on public.org_role_permissions
+  for each row when (old.role = 'admin')
+  execute function private.protect_admin_role_permissions();
 
 -- A new org copies the template.
 create function private.seed_org_role_permissions()
@@ -175,7 +257,9 @@ create trigger role_permissions_propagate
   for each row execute function private.propagate_template_role_permission();
 
 revoke all on function
+  private.roles_freeze_identity(),
   private.check_role_org(),
+  private.protect_admin_role_permissions(),
   private.seed_org_role_permissions(),
   private.propagate_template_role_permission()
 from public, anon, authenticated, service_role;
@@ -295,6 +379,9 @@ $$;
 -- Raises unless the caller holds roles.manage; locks the caller's org row until the end of
 -- the transaction and returns its id. has_permission is false without an active profile,
 -- so the org is never null after the check.
+-- Lock order: profile before org; never lock a profile after the org lock.
+-- (assert_can_manage_user, set_user_role, the override RPCs and the last-admin trigger all
+-- lock the target's profile first, then the org.)
 create function private.assert_can_manage_roles()
 returns uuid
 language plpgsql
@@ -313,8 +400,11 @@ begin
 end;
 $$;
 
--- The trimmed name, or a French P0001 error: required, at most 60 characters, not used by
--- a base role or another role of the org (case-insensitive). p_except_key: the role being
+-- The normalized name, or a French P0001 error. Normalized: Unicode whitespace (same class
+-- as roles_name_check, plus U+0020) stripped at the ends, each inner run replaced by one
+-- space. Then: required, at most 60 characters, no control or format character (same class
+-- as roles_name_no_control_chars), not used by a base role or another role of the org,
+-- compared as lower(normalize(…, NFKC)) like the unique index. p_except_key: the role being
 -- renamed (it may keep its own name, or change its case).
 create function private.valid_role_name(p_org uuid, p_name text, p_except_key text)
 returns text
@@ -324,18 +414,24 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_name text := pg_catalog.btrim(coalesce(p_name, ''), E' \t\r\n');
+  v_ws constant text := '[\t\n\v\f\r \u0085   -     　]+';
+  v_name text;
 begin
+  v_name := pg_catalog.regexp_replace(coalesce(p_name, ''), '^' || v_ws || '|' || v_ws || '$', '', 'g');
+  v_name := pg_catalog.regexp_replace(v_name, v_ws, ' ', 'g');
   if v_name = '' then
     raise exception 'Le nom du rôle est requis.' using errcode = 'P0001';
   end if;
   if pg_catalog.char_length(v_name) > 60 then
     raise exception 'Le nom du rôle ne peut pas dépasser 60 caractères.' using errcode = 'P0001';
   end if;
+  if v_name ~ '[[:cntrl:]\u0080-\u009F​-‏ - ⁠﻿]' then
+    raise exception 'Le nom du rôle contient des caractères invisibles ou non permis.' using errcode = 'P0001';
+  end if;
   if exists (
     select 1 from public.roles ro
      where (ro.org_id is null or ro.org_id = p_org)
-       and pg_catalog.lower(ro.name) = pg_catalog.lower(v_name)
+       and pg_catalog.lower(pg_catalog.normalize(ro.name, 'NFKC')) = pg_catalog.lower(pg_catalog.normalize(v_name, 'NFKC'))
        and ro.key is distinct from p_except_key
   ) then
     raise exception 'Un rôle porte déjà ce nom.' using errcode = 'P0001';
@@ -374,12 +470,23 @@ begin
   if p_role = 'admin' then
     raise exception 'L''administrateur a toujours toutes les permissions.' using errcode = 'P0001';
   end if;
+  -- Locked until Phase 4: the Professionnels module owns the provider role (decision #40).
+  if p_role = 'provider' then
+    raise exception 'Les permissions du rôle Professionnel se gèrent dans le module Professionnels.' using errcode = 'P0001';
+  end if;
   if not exists (select 1 from public.permissions pm where pm.key = p_permission_key) then
     raise exception 'Permission inconnue : %', p_permission_key using errcode = '22023';
   end if;
-  -- Fails closed like set_user_role: has_permission is false for a disabled module.
-  if p_granted and not private.has_role('admin') and not private.has_permission(p_permission_key) then
-    raise exception 'Vous ne pouvez pas accorder une permission que vous n''avez pas.' using errcode = 'P0001';
+  if p_granted and not private.has_role('admin') then
+    -- No self-grant: adding to her own role would make her overrides permanent role
+    -- defaults, out of reach of clear_permission_overrides. Removing stays allowed.
+    if p_role = private.current_user_role() then
+      raise exception 'Vous ne pouvez pas ajouter de permissions à votre propre rôle.' using errcode = 'P0001';
+    end if;
+    -- Fails closed like set_user_role: has_permission is false for a disabled module.
+    if not private.has_permission(p_permission_key) then
+      raise exception 'Vous ne pouvez pas accorder une permission que vous n''avez pas.' using errcode = 'P0001';
+    end if;
   end if;
 
   if p_granted then
@@ -557,6 +664,97 @@ begin
   values (p_user_id, v_org, p_role)
   on conflict (user_id) do update set role = excluded.role
    where public.user_roles.role is distinct from excluded.role;
+end;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- Override RPCs: the org lock before the caller's own hold check
+-- -----------------------------------------------------------------------------
+-- The hold check reads the caller's role defaults, which set_role_permission can now change.
+-- Taking the org lock (after the target's profile: lock order profile → org) before that
+-- check means a concurrent removal from the caller's role has committed or waits, so the
+-- check sees it. Same signatures, bodies and grants otherwise (create or replace keeps the
+-- grants). Originals: 20261007211509_core_user_admin.sql and
+-- 20261008011657_core_clear_permission_overrides.sql.
+create or replace function public.set_permission_override(p_user_id uuid, p_permission_key text, p_granted boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_role text := private.assert_can_manage_user(p_user_id);
+begin
+  perform 1 from public.organizations o where o.id = private.current_user_org_id() for no key update;
+
+  if p_granted is null then
+    raise exception 'Valeur manquante' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.permissions pm where pm.key = p_permission_key) then
+    raise exception 'Permission inconnue : %', p_permission_key using errcode = '22023';
+  end if;
+  -- Also enforced by user_permission_overrides_reject_admin; checked here first for the message order.
+  if v_role = 'admin' then
+    raise exception 'Un administrateur a déjà toutes les permissions.' using errcode = 'P0001';
+  end if;
+  if p_granted and not private.has_role('admin') and not private.has_permission(p_permission_key) then
+    raise exception 'Vous ne pouvez pas accorder une permission que vous n''avez pas.' using errcode = 'P0001';
+  end if;
+
+  insert into public.user_permission_overrides (user_id, org_id, permission_key, granted, created_by)
+  values (p_user_id, private.current_user_org_id(), p_permission_key, p_granted, auth.uid())
+  on conflict (user_id, permission_key) do update
+    set granted = excluded.granted, created_by = excluded.created_by
+   where public.user_permission_overrides.granted is distinct from excluded.granted;
+end;
+$$;
+
+create or replace function public.clear_permission_override(p_user_id uuid, p_permission_key text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform private.assert_can_manage_user(p_user_id);
+  perform 1 from public.organizations o where o.id = private.current_user_org_id() for no key update;
+
+  if not private.has_role('admin')
+     and exists (
+       select 1 from public.user_permission_overrides o
+        where o.user_id = p_user_id and o.permission_key = p_permission_key and not o.granted
+     )
+     and not private.has_permission(p_permission_key) then
+    raise exception 'Vous ne pouvez pas accorder une permission que vous n''avez pas.' using errcode = 'P0001';
+  end if;
+  delete from public.user_permission_overrides o
+   where o.user_id = p_user_id and o.permission_key = p_permission_key;
+end;
+$$;
+
+create or replace function public.clear_permission_overrides(p_user_id uuid)
+returns int
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_removed int;
+begin
+  perform private.assert_can_manage_user(p_user_id);
+  perform 1 from public.organizations o where o.id = private.current_user_org_id() for no key update;
+
+  if not private.has_role('admin') and exists (
+    select 1 from public.user_permission_overrides o
+     where o.user_id = p_user_id
+       and not o.granted
+       and not private.has_permission(o.permission_key)
+  ) then
+    raise exception 'Vous ne pouvez pas accorder une permission que vous n''avez pas.' using errcode = 'P0001';
+  end if;
+  delete from public.user_permission_overrides o where o.user_id = p_user_id;
+  get diagnostics v_removed = row_count;
+  return v_removed;
 end;
 $$;
 

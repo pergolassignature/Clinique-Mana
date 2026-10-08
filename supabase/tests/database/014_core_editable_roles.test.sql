@@ -2,11 +2,14 @@
 -- Covers: roles.manage, org_role_permissions (privileges, RLS, seeding, template
 -- propagation that never undoes an org's removal), has_permission / get_my_access reading
 -- the org's defaults, custom roles (keys, names, constraints, RLS), the four role RPCs
--- (refusals and success, the hold rule for non-admin managers), set_user_role with custom
--- roles and the org-default hold check, list_org_users, other-org isolation, the audit rows.
+-- (refusals and success, the hold rule for non-admin managers, no self-grant, provider and
+-- admin locked), name normalization (whitespace, invisible characters, NFKC look-alikes),
+-- frozen role identity, protected admin rows, set_user_role with custom roles and the
+-- org-default hold check, the override RPCs' org lock, list_org_users, other-org isolation,
+-- the audit rows.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(125);
+select plan(166);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -64,6 +67,8 @@ select results_eq($$ select role from public.role_permissions where permission_k
 
 select table_privs_are('public', 'org_role_permissions', 'anon', array[]::text[], 'anon: no privileges on org_role_permissions');
 select table_privs_are('public', 'org_role_permissions', 'authenticated', array['SELECT'], 'authenticated: select only on org_role_permissions');
+select table_privs_are('public', 'org_role_permissions', 'service_role', array['SELECT', 'REFERENCES', 'TRIGGER'],
+  'service_role: no insert, update, delete or truncate on org_role_permissions');
 select table_privs_are('public', 'roles', 'authenticated', array['SELECT'], 'authenticated: still select only on roles');
 select col_is_null('public', 'roles', 'org_id', 'roles.org_id is nullable (null = base role)');
 select fk_ok('public', 'roles', 'org_id', 'public', 'organizations', 'id', 'roles.org_id references organizations');
@@ -103,10 +108,19 @@ select function_privs_are('private', 'valid_role_name',                    array
 select function_privs_are('private', 'check_role_org',                     array[]::text[],          'service_role',  array[]::text[], 'nobody can execute the role-org trigger function');
 select function_privs_are('private', 'seed_org_role_permissions',          array[]::text[],          'service_role',  array[]::text[], 'nobody can execute the org seeding trigger function');
 select function_privs_are('private', 'propagate_template_role_permission', array[]::text[],          'service_role',  array[]::text[], 'nobody can execute the template propagation trigger function');
+select function_privs_are('private', 'roles_freeze_identity',              array[]::text[],          'service_role',  array[]::text[], 'nobody can execute the role identity trigger function');
+select function_privs_are('private', 'protect_admin_role_permissions',     array[]::text[],          'service_role',  array[]::text[], 'nobody can execute the admin-row trigger function');
 select ok(
   (select bool_and(p.prosrc ~ 'for no key update') from pg_proc p
     where p.oid in ('private.assert_can_manage_roles()'::regprocedure, 'public.set_user_role(uuid, text)'::regprocedure)),
   'the role RPCs and set_user_role lock the org row (FOR NO KEY UPDATE)');
+-- Lock order profile → org, and the org lock before the caller's own hold check.
+select ok(
+  (select bool_and(p.prosrc ~ 'assert_can_manage_user\(.*for no key update.*has_permission\(') from pg_proc p
+    where p.oid in ('public.set_permission_override(uuid, text, boolean)'::regprocedure,
+                    'public.clear_permission_override(uuid, text)'::regprocedure,
+                    'public.clear_permission_overrides(uuid)'::regprocedure)),
+  'the override RPCs lock the target''s profile, then the org, then check the caller''s permissions');
 
 -- =============================================================================
 -- Constraints (as postgres)
@@ -121,6 +135,15 @@ select throws_ok($$ insert into public.roles (key, name, org_id) values ('custom
   '23514', null, 'a role name is stored trimmed');
 select throws_ok($$ insert into public.roles (key, name, is_system, org_id) values ('custom_0123abcd', 'X', true, 'b0000000-0000-0000-0000-00000000000a') $$,
   '23514', null, 'a custom role is never a system role');
+select throws_ok($$ insert into public.roles (key, name, org_id) values ('custom_0123abcd', E'X\u00A0', 'b0000000-0000-0000-0000-00000000000a') $$,
+  '23514', null, 'a stored name has no other whitespace than single spaces (NBSP suffix)');
+select throws_ok($$ insert into public.roles (key, name, org_id) values ('custom_0123abcd', 'X  Y', 'b0000000-0000-0000-0000-00000000000a') $$,
+  '23514', null, 'a stored name has no double space');
+select throws_ok($$ insert into public.roles (key, name, org_id) values ('custom_0123abcd', E'X\u200BY', 'b0000000-0000-0000-0000-00000000000a') $$,
+  '23514', 'new row for relation "roles" violates check constraint "roles_name_no_control_chars"',
+  'a stored name has no zero-width character');
+select throws_ok($$ insert into public.roles (key, name, org_id) values ('custom_0123abcd', E'X\nY', 'b0000000-0000-0000-0000-00000000000a') $$,
+  '23514', null, 'a stored name has no newline');
 
 insert into public.roles (key, name, org_id) values ('custom_0000000b', 'Rôle B', 'b0000000-0000-0000-0000-00000000000b');
 select throws_ok($$ update public.user_roles set role = 'custom_0000000b' where user_id = 'a0000000-0000-0000-0000-000000000006' $$,
@@ -131,6 +154,30 @@ select throws_ok($$ insert into public.role_permissions (role, permission_key) v
   '23514', null, 'the template holds base roles only');
 select throws_ok($$ insert into public.roles (key, name, org_id) values ('custom_0000000c', 'rôle b', 'b0000000-0000-0000-0000-00000000000b') $$,
   '23505', null, 'role names are unique per org, case-insensitively');
+select throws_ok($$ insert into public.roles (key, name, org_id) values ('custom_0000000c', E'\uFF32o\u0302le B', 'b0000000-0000-0000-0000-00000000000b') $$,
+  '23505', null, 'the unique index compares NFKC forms (full-width R, decomposed ô)');
+
+-- A role's key, org and system flag never change (any write path).
+select throws_ok($$ update public.roles set key = 'custom_0000000c' where key = 'custom_0000000b' $$,
+  '23514', null, 'a role''s key cannot change');
+select throws_ok($$ update public.roles set org_id = 'b0000000-0000-0000-0000-00000000000a' where key = 'custom_0000000b' $$,
+  '23514', null, 'a role cannot move to another org');
+select throws_ok($$ update public.roles set is_system = false where key = 'counselor' $$,
+  '23514', null, 'a base role stays a system role');
+select lives_ok($$ update public.roles set name = 'Rôle B2' where key = 'custom_0000000b' $$, 'a role''s name can change');
+update public.roles set name = 'Rôle B' where key = 'custom_0000000b';
+
+-- Admin rows of the org defaults: no delete, no update, whoever writes.
+select throws_ok($$ delete from public.org_role_permissions where org_id = 'b0000000-0000-0000-0000-00000000000a' and role = 'admin' and permission_key = 'roles.manage' $$,
+  'P0001', 'L''administrateur a toujours toutes les permissions.', 'an admin row cannot be deleted, even as postgres');
+select throws_ok($$ update public.org_role_permissions set role = 'counselor' where org_id = 'b0000000-0000-0000-0000-00000000000a' and role = 'admin' and permission_key = 'audit.view' $$,
+  'P0001', 'L''administrateur a toujours toutes les permissions.', 'an admin row cannot be changed');
+set local role service_role;
+select throws_ok($$ delete from public.org_role_permissions where org_id = 'b0000000-0000-0000-0000-00000000000a' and role = 'counselor' $$,
+  '42501', null, 'service_role cannot delete role defaults');
+select throws_ok($$ insert into public.org_role_permissions (org_id, role, permission_key) values ('b0000000-0000-0000-0000-00000000000a', 'counselor', 'audit.view') $$,
+  '42501', null, 'service_role cannot add role defaults');
+reset role;
 
 -- =============================================================================
 -- RLS and refusals without roles.manage: counselor C (org A)
@@ -181,6 +228,19 @@ select matches(public.create_role('Copie adjointe', 'admin_assistant'), '^custom
 select set_config('test.k2', (select key from public.roles where name = 'Copie adjointe'), true);
 select results_eq($$ select permission_key from public.org_role_permissions where role = current_setting('test.k2') order by 1 $$,
   array['professionals.view', 'settings.view'], 'the copy starts with the adjointe''s permissions');
+-- Look-alike names
+select throws_ok($$ select public.create_role(E'Copie adjointe\u00A0') $$,
+  'P0001', 'Un rôle porte déjà ce nom.', 'a no-break space at the end is stripped: same name');
+select throws_ok($$ select public.create_role(E'Copie\nadjointe') $$,
+  'P0001', 'Un rôle porte déjà ce nom.', 'a newline inside is collapsed to a space: same name');
+select throws_ok($$ select public.create_role(E'Copie\u200Badjointe') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', 'a zero-width space is refused');
+select throws_ok($$ select public.create_role(E'Copie adjointe\u200E') $$,
+  'P0001', 'Le nom du rôle contient des caractères invisibles ou non permis.', 'a bidi mark is refused');
+select throws_ok($$ select public.create_role(E'\uFF21dministrateur') $$,
+  'P0001', 'Un rôle porte déjà ce nom.', 'a full-width look-alike of a base role''s name is refused (NFKC)');
+select throws_ok($$ select public.create_role(E'conseille\u0300re') $$,
+  'P0001', 'Un rôle porte déjà ce nom.', 'a decomposed « è » matches the base role « Conseillère » (NFKC)');
 select throws_ok($$ select public.create_role('X', 'nope') $$, '22023', null, 'copying an unknown role is a technical error');
 select throws_ok($$ select public.create_role('X', 'custom_0000000b') $$, '22023', null, 'another org''s role cannot be copied');
 
@@ -195,6 +255,12 @@ select results_eq($$ select permission_key from public.org_role_permissions wher
   array['audit.view'], 'the custom role has audit.view');
 select throws_ok($$ select public.set_role_permission('admin', 'audit.view', false) $$,
   'P0001', 'L''administrateur a toujours toutes les permissions.', 'the admin role cannot be edited');
+select throws_ok($$ select public.set_role_permission('provider', 'audit.view', true) $$,
+  'P0001', 'Les permissions du rôle Professionnel se gèrent dans le module Professionnels.',
+  'the provider role''s defaults are locked (grant)');
+select throws_ok($$ select public.set_role_permission('provider', 'professionals.view', false) $$,
+  'P0001', 'Les permissions du rôle Professionnel se gèrent dans le module Professionnels.',
+  'the provider role''s defaults are locked (removal)');
 select throws_ok(format($$ select public.set_role_permission(%L, 'nope.view', true) $$, current_setting('test.k1')),
   '22023', null, 'an unknown permission is a technical error');
 select throws_ok($$ select public.set_role_permission('nope', 'audit.view', true) $$,
@@ -225,8 +291,9 @@ set local role authenticated;
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 
-select lives_ok(format($$ select public.rename_role(%L, '  Stagiaire senior ') $$, current_setting('test.k1')), 'A1 renames the custom role');
-select is((select name from public.roles where key = current_setting('test.k1')), 'Stagiaire senior', 'the new name is stored trimmed');
+select lives_ok(format($$ select public.rename_role(%L, E'\u00A0 Stagiaire \u3000\t senior\u2003') $$, current_setting('test.k1')), 'A1 renames the custom role');
+select is((select name from public.roles where key = current_setting('test.k1')), 'Stagiaire senior',
+  'the new name is stored normalized (Unicode whitespace stripped at the ends, collapsed inside)');
 select lives_ok(format($$ select public.rename_role(%L, 'stagiaire SENIOR') $$, current_setting('test.k1')),
   'a role may change the case of its own name');
 select throws_ok(format($$ select public.rename_role(%L, 'copie ADJOINTE') $$, current_setting('test.k1')),
@@ -295,6 +362,9 @@ select throws_ok(format($$ select public.set_user_role('a0000000-0000-0000-0000-
 select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000003', 'counselor') $$,
   'P0001', 'Vous ne pouvez pas attribuer un rôle qui donne des permissions que vous n''avez pas.',
   'set_user_role reads the org''s defaults: counselor carries audit.view in org A (not in the template)');
+select throws_ok(format($$ select public.create_role('Copie de copie', %L) $$, current_setting('test.k2')),
+  'P0001', 'Vous ne pouvez pas copier un rôle qui donne des permissions que vous n''avez pas.',
+  'D cannot copy a custom role carrying a permission she lacks (read from the org''s defaults)');
 select lives_ok(format($$ select public.set_role_permission(%L, 'settings.manage', false) $$, current_setting('test.k2')),
   'D may remove a permission she lacks from a role');
 select lives_ok(format($$ select public.set_user_role('a0000000-0000-0000-0000-000000000006', %L) $$, current_setting('test.k2')),
@@ -306,6 +376,39 @@ select lives_ok($$ select public.create_role('Copie conseillère') $$, 'D create
 select lives_ok($$ select public.rename_role((select key from public.roles where name = 'Copie conseillère'), 'Accueil') $$,
   'D renames it');
 select lives_ok($$ select public.delete_role((select key from public.roles where name = 'Accueil')) $$, 'D deletes it');
+
+-- No self-grant: D holds roles.manage and users.manage by override only.
+select throws_ok($$ select public.set_role_permission('admin_assistant', 'roles.manage', true) $$,
+  'P0001', 'Vous ne pouvez pas ajouter de permissions à votre propre rôle.',
+  'D cannot add roles.manage (held by override) to her own role');
+select throws_ok($$ select public.set_role_permission('admin_assistant', 'users.manage', true) $$,
+  'P0001', 'Vous ne pouvez pas ajouter de permissions à votre propre rôle.',
+  'D cannot add users.manage (held by override) to her own role');
+-- Nor through a copy she would then take: nobody changes their own role (#28).
+select set_config('test.k3', public.create_role('Copie D', 'admin_assistant'), true);
+select lives_ok(format($$ select public.set_role_permission(%L, 'roles.manage', true) $$, current_setting('test.k3')),
+  'D may give a permission she holds to a role that is not hers');
+select throws_ok(format($$ select public.set_user_role('a0000000-0000-0000-0000-000000000004', %L) $$, current_setting('test.k3')),
+  'P0001', 'Vous ne pouvez pas modifier votre propre compte ici. Passez par « Mon compte ».',
+  'D cannot take the copy herself');
+select lives_ok(format($$ select public.delete_role(%L) $$, current_setting('test.k3')), 'D deletes the copy');
+select lives_ok($$ select public.set_role_permission('admin_assistant', 'professionals.view', false) $$,
+  'D may remove a permission from her own role');
+select ok(not private.has_permission('professionals.view'), 'and loses it at once');
+
+-- The admin clears D's overrides: she keeps nothing of them.
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(public.clear_permission_overrides('a0000000-0000-0000-0000-000000000004'), 3, 'A1 clears D''s three overrides');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select ok(not private.has_permission('roles.manage') and not private.has_permission('users.manage'),
+  'after the clear, D holds neither roles.manage nor users.manage');
+reset role;
+select is_empty($$
+  select 1 from public.org_role_permissions
+   where org_id = 'b0000000-0000-0000-0000-00000000000a' and role = 'admin_assistant'
+     and permission_key in ('roles.manage', 'users.manage')
+$$, 'org A''s admin_assistant role never received them');
+set local role authenticated;
 
 -- Lock-out: admins keep everything, whatever managers did.
 reset role;
@@ -367,6 +470,21 @@ select is_empty($$
    select rp.role, rp.permission_key from public.role_permissions rp)
 $$, 'a new org starts with the current template');
 
+-- Deleting a template row changes no org: the org's copy is its own.
+create temp table orp_before as select * from public.org_role_permissions;
+delete from public.role_permissions where permission_key = 'test_roles.view';
+select is_empty($$
+  (select * from orp_before except select * from public.org_role_permissions)
+  union all
+  (select * from public.org_role_permissions except select * from orp_before)
+$$, 'deleting template rows changes no org''s defaults');
+
+-- Cascades still remove admin rows: the parent is gone.
+select lives_ok($$ delete from public.permissions where key = 'test_roles.view' $$,
+  'a permission can be deleted (its admin rows go by cascade)');
+select is_empty($$ select 1 from public.org_role_permissions where permission_key = 'test_roles.view' $$,
+  'no org keeps a default for the deleted permission');
+
 -- =============================================================================
 -- Audit (as postgres, org A only)
 -- =============================================================================
@@ -410,6 +528,14 @@ select ok(exists (
      and record_id = 'b0000000-0000-0000-0000-00000000000a:' || current_setting('test.k2') || ':users.view'
      and actor_id = 'a0000000-0000-0000-0000-000000000004'
 ), 'a change by a non-admin manager names her as actor');
+
+-- Deleting an org removes its defaults, admin rows included (cascade), even for service_role.
+set local role service_role;
+select lives_ok($$ delete from public.organizations where id = 'b0000000-0000-0000-0000-00000000000c' $$,
+  'service_role can delete an org: its role defaults go by cascade');
+reset role;
+select is_empty($$ select 1 from public.org_role_permissions where org_id = 'b0000000-0000-0000-0000-00000000000c' $$,
+  'the deleted org has no role defaults left');
 
 select * from finish();
 rollback;

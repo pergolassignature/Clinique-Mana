@@ -3,7 +3,7 @@
 -- See docs/standards/database-conventions.md §12.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(10);
 
 select is_empty($$
   select c.relname from pg_class c
@@ -65,6 +65,15 @@ select is_empty($$
    where c.relnamespace = 'public'::regnamespace and c.relkind = 'v'
      and not coalesce('security_invoker=true' = any(c.reloptions), false)
 $$, 'views are security_invoker');
+
+-- A data invariant, kept here because every future module must respect it: admin holds
+-- every permission in every org (a module migration grants its new permissions to admin in
+-- the template, which propagates; the admin rows cannot be deleted except by cascade).
+select is_empty($$
+  select o.id, pm.key from public.organizations o cross join public.permissions pm
+  except
+  select x.org_id, x.permission_key from public.org_role_permissions x where x.role = 'admin'
+$$, 'admin holds every permission in every org');
 
 select * from finish();
 rollback;
