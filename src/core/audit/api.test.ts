@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AUDIT_PAGE_SIZE, fetchAuditActors, fetchAuditEntries, type AuditFilters } from './api'
+import { AUDIT_PAGE_SIZE, fetchAuditActors, fetchAuditCatalog, fetchAuditEntries, type AuditFilters } from './api'
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn() }))
-vi.mock('@/core/supabase/client', () => ({ supabase: { rpc: mocks.rpc } }))
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }))
+vi.mock('@/core/supabase/client', () => ({ supabase: { rpc: mocks.rpc, from: mocks.from } }))
 
 afterEach(() => vi.clearAllMocks())
 
@@ -69,5 +69,33 @@ describe('fetchAuditActors', () => {
     const error = { code: '42501', message: 'Permission refusée : audit.view' }
     mocks.rpc.mockResolvedValue({ data: null, error })
     await expect(fetchAuditActors()).rejects.toBe(error)
+  })
+})
+
+describe('fetchAuditCatalog', () => {
+  /** `supabase.from(table).select(columns)` resolving to `result`, per table. */
+  function mockTables(results: Record<string, { data: unknown; error: unknown }>) {
+    const select = vi.fn()
+    mocks.from.mockImplementation((table: string) => ({ select: (columns: string) => (select(table, columns), Promise.resolve(results[table])) }))
+    return select
+  }
+
+  it('reads the permission descriptions and the module names', async () => {
+    const select = mockTables({
+      permissions: { data: [{ key: 'audit.view', description: "Consulter le journal d'audit" }], error: null },
+      modules: { data: [{ key: 'professionals', name: 'Professionnels' }], error: null },
+    })
+    await expect(fetchAuditCatalog()).resolves.toEqual({
+      permissions: [{ key: 'audit.view', description: "Consulter le journal d'audit" }],
+      modules: [{ key: 'professionals', name: 'Professionnels' }],
+    })
+    expect(select).toHaveBeenCalledWith('permissions', 'key, description')
+    expect(select).toHaveBeenCalledWith('modules', 'key, name')
+  })
+
+  it('throws the first error', async () => {
+    const error = { code: '42501', message: 'denied' }
+    mockTables({ permissions: { data: null, error }, modules: { data: [], error: null } })
+    await expect(fetchAuditCatalog()).rejects.toBe(error)
   })
 })

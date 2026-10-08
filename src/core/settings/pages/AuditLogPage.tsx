@@ -1,13 +1,16 @@
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { t } from '@/i18n'
 import type { AuditEntry, AuditFilters } from '@/core/audit/api'
-import { useAuditActors, useAuditEntries } from '@/core/audit/hooks'
+import { useAuditActors, useAuditCatalog, useAuditEntries } from '@/core/audit/hooks'
 import {
   actionLabel,
   AUDITED_TABLES,
   auditDetailLines,
   shortRecordId,
+  type AuditDetailLine,
+  type AuditLookups,
+  type AuditValue,
   sourceLabel,
   tableLabel,
 } from '@/core/audit/labels'
@@ -28,6 +31,34 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 const PHONE_TABLE = 'max-sm:[&_td]:px-2 max-sm:[&_th]:px-2'
 
 const COLUMN_COUNT = 5
+
+/** Fills a `{name}` template from `t` with nodes (a value may carry its full form in `title`). */
+function fillTemplate(template: string, parts: Record<string, ReactNode>): ReactNode[] {
+  return template.split(/(\{\w+\})/).map((piece, index) => {
+    const name = /^\{(\w+)\}$/.exec(piece)?.[1]
+    return name !== undefined && Object.hasOwn(parts, name) ? <Fragment key={index}>{parts[name]}</Fragment> : piece
+  })
+}
+
+function Value({ value }: { value: AuditValue }) {
+  return value.title === undefined ? value.text : <span title={value.title}>{value.text}</span>
+}
+
+/** « Champ : avant → après », « Champ : valeur » or a sentence, with the i18n templates. */
+function DetailLine({ line }: { line: AuditDetailLine }) {
+  switch (line.kind) {
+    case 'change':
+      return fillTemplate(t('audit.details.change'), {
+        field: line.field,
+        before: <Value value={line.before} />,
+        after: <Value value={line.after} />,
+      })
+    case 'value':
+      return fillTemplate(t('audit.details.value'), { field: line.field, value: <Value value={line.value} /> })
+    case 'text':
+      return line.text
+  }
+}
 
 /** Who wrote the entry: the actor's name (same org only), else where it came from (« Données de test »). */
 function actorOf(entry: AuditEntry): string {
@@ -59,6 +90,16 @@ export function AuditLogPage() {
   const { data, isPending, isError, isFetching, refetch, hasNextPage, fetchNextPage, isFetchingNextPage, isFetchNextPageError } =
     useAuditEntries(filters)
   const { data: actors } = useAuditActors()
+  const { data: catalog } = useAuditCatalog()
+  // Names for the ids and keys in the details; each falls back to the raw value while missing.
+  const lookups = useMemo<AuditLookups>(
+    () => ({
+      people: new Map(actors?.map((person) => [person.actor_id, person.actor_name])),
+      permissions: new Map(catalog?.permissions.map((permission) => [permission.key, permission.description])),
+      modules: new Map(catalog?.modules.map((module) => [module.key, module.name])),
+    }),
+    [actors, catalog],
+  )
   const entries = data?.pages.flat() ?? []
 
   // Once a « Charger plus » fetch settles: on the last page the button goes away, so its focus
@@ -113,6 +154,8 @@ export function AuditLogPage() {
   } else if (entries.length === 0) {
     content = hasFilters ? (
       <EmptyState
+        // The live region after the filters already says it: heard once.
+        titleAriaHidden
         title={t('audit.emptyFiltered.title')}
         body={t('audit.emptyFiltered.body')}
         action={
@@ -189,9 +232,9 @@ export function AuditLogPage() {
                     <TableRow id={detailsId} className="bg-card-hover hover:bg-card-hover">
                       <TableCell colSpan={COLUMN_COUNT} className="h-auto pb-3 pl-8 pt-0 max-sm:pl-7">
                         <ul className="space-y-0.5">
-                          {auditDetailLines(entry).map((line, index) => (
+                          {auditDetailLines(entry, lookups).map((line, index) => (
                             <li key={index} className="break-words">
-                              {line}
+                              <DetailLine line={line} />
                             </li>
                           ))}
                         </ul>

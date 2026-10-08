@@ -1,4 +1,5 @@
 import { t, type TranslationKey } from '@/i18n'
+import { roleLabel } from '@/core/access/roles'
 import { formatClinicDateTime, formatDateOnlyShort } from '@/shared/lib/timezone'
 import type { AuditEntry } from './api'
 
@@ -97,27 +98,101 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
+/** Names the details can show instead of stored codes and ids; each is optional (fallback: the raw value). */
+export interface AuditLookups {
+  /** user id → display name (`list_audit_actors`). */
+  people?: ReadonlyMap<string, string>
+  /** permission key → description (`permissions` catalogue). */
+  permissions?: ReadonlyMap<string, string>
+  /** module key → name (`modules` catalogue). */
+  modules?: ReadonlyMap<string, string>
+}
+
+/** A value as shown: its text, and the full value in `title` when the text shortens it. */
+export interface AuditValue {
+  text: string
+  title?: string
+}
+
+/** Columns holding a person's user id, in any table. */
+const PERSON_COLUMNS = new Set(['user_id', 'actor_id', 'created_by', 'updated_by'])
+
+/** The profiles.status values (`check (status in ('active', 'disabled'))`). */
+const PROFILE_STATUSES = new Set(['active', 'disabled'])
+
+/**
+ * One value of `table.column`, for reading. Stored codes become French (`role`, `profiles.status`,
+ * `tax_rates.tax`, module and permission keys) and person ids become names, each falling back to
+ * the raw value; a person not in `lookups.people` shows a short id, the full one in `title`.
+ * Everything else goes through `formatAuditValue`.
+ */
+export function auditValue(table: string, column: string, value: unknown, lookups: AuditLookups = {}): AuditValue {
+  if (typeof value !== 'string' || value === '' || value === REDACTED) return { text: formatAuditValue(value) }
+  if (PERSON_COLUMNS.has(column)) {
+    const name = lookups.people?.get(value)
+    return name !== undefined ? { text: name, title: value } : { text: shortRecordId(value), title: value }
+  }
+  if (column === 'role') return { text: roleLabel(value) }
+  if (table === 'profiles' && column === 'status' && PROFILE_STATUSES.has(value)) {
+    return { text: t(`audit.values.status.${value as 'active' | 'disabled'}`) }
+  }
+  if (table === 'tax_rates' && column === 'tax' && (value === 'gst' || value === 'qst')) {
+    return { text: t(`settings.tax.taxes.${value}.title`) }
+  }
+  if (column === 'module_key') return { text: lookups.modules?.get(value) ?? value }
+  if (column === 'permission_key') return { text: lookups.permissions?.get(value) ?? value }
+  return { text: formatAuditValue(value) }
+}
+
+/** One line of an entry's details. */
+export type AuditDetailLine =
+  | { kind: 'change'; field: string; before: AuditValue; after: AuditValue }
+  | { kind: 'value'; field: string; value: AuditValue }
+  | { kind: 'text'; text: string }
+
+/** `set_org_secret` records a rotation as `{"value": {"rotated": true}}`: the value itself never appears. */
+function isSecretRotation(table: string, column: string, value: unknown): boolean {
+  return table === 'org_secrets' && column === 'value' && isRecord(value) && value.rotated === true
+}
+
 /**
  * What an entry changed, one line each, in French:
- * - update: « Champ : avant → après »;
+ * - update: « Champ : avant → après » (a redacted column: « Champ : (masqué) »; a secret
+ *   rotation: « Secret remplacé »);
  * - insert / delete: « Champ : valeur »;
  * - read: « Consultation du numéro de compte » for the bank reveal, else « Champs consultés : … ».
  * « Aucun détail. » when `changed_fields` holds nothing readable.
  */
-export function auditDetailLines({ action, table_name: table, changed_fields: fields }: Pick<AuditEntry, 'action' | 'table_name' | 'changed_fields'>): string[] {
+export function auditDetailLines(
+  { action, table_name: table, changed_fields: fields }: Pick<AuditEntry, 'action' | 'table_name' | 'changed_fields'>,
+  lookups: AuditLookups = {},
+): AuditDetailLine[] {
   if (action === 'read' && isRecord(fields) && Array.isArray(fields.fields) && fields.fields.length > 0) {
     const columns = fields.fields.map(String)
     if (table === 'organization_bank_details' && columns.length === 1 && columns[0] === 'account_number') {
-      return [t('audit.details.readAccountNumber')]
+      return [{ kind: 'text', text: t('audit.details.readAccountNumber') }]
     }
-    return [t('audit.details.readFields', { fields: columns.map((column) => fieldLabel(table, column)).join(', ') })]
+    return [{ kind: 'text', text: t('audit.details.readFields', { fields: columns.map((column) => fieldLabel(table, column)).join(', ') }) }]
   }
-  if (action === 'read' || !isRecord(fields) || Object.keys(fields).length === 0) return [t('audit.details.none')]
-  return Object.entries(fields).map(([column, value]) => {
+  if (action === 'read' || !isRecord(fields) || Object.keys(fields).length === 0) return [{ kind: 'text', text: t('audit.details.none') }]
+  return Object.entries(fields).map(([column, value]): AuditDetailLine => {
+    if (isSecretRotation(table, column, value)) return { kind: 'text', text: t('audit.details.secretRotated') }
     const field = fieldLabel(table, column)
     if (action === 'update' && isRecord(value) && Object.hasOwn(value, 'before') && Object.hasOwn(value, 'after')) {
-      return t('audit.details.change', { field, before: formatAuditValue(value.before), after: formatAuditValue(value.after) })
+      return { kind: 'change', field, before: auditValue(table, column, value.before, lookups), after: auditValue(table, column, value.after, lookups) }
     }
-    return t('audit.details.value', { field, value: formatAuditValue(value) })
+    return { kind: 'value', field, value: auditValue(table, column, value, lookups) }
   })
+}
+
+/** A detail line as plain text (« NEQ : (vide) → 1234567890 »). */
+export function auditDetailText(line: AuditDetailLine): string {
+  switch (line.kind) {
+    case 'change':
+      return t('audit.details.change', { field: line.field, before: line.before.text, after: line.after.text })
+    case 'value':
+      return t('audit.details.value', { field: line.field, value: line.value.text })
+    case 'text':
+      return line.text
+  }
 }

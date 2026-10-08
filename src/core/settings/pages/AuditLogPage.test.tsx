@@ -8,7 +8,7 @@ import { renderInSettingsSection } from '@/test/settings-section'
 import { AuditLogPage } from './AuditLogPage'
 
 const mocks = vi.hoisted(() => ({
-  api: { fetchAuditEntries: vi.fn(), fetchAuditActors: vi.fn(), AUDIT_PAGE_SIZE: 2 },
+  api: { fetchAuditEntries: vi.fn(), fetchAuditActors: vi.fn(), fetchAuditCatalog: vi.fn(), AUDIT_PAGE_SIZE: 2 },
 }))
 vi.mock('@/core/audit/api', () => mocks.api)
 
@@ -73,6 +73,10 @@ async function renderPage({ pages = [[UPDATE, BANK_READ]] as AuditEntry[][] } = 
     { actor_id: MARIE, actor_name: 'Marie Tremblay' },
     { actor_id: 'a2', actor_name: 'Julie Roy' },
   ])
+  mocks.api.fetchAuditCatalog.mockResolvedValue({
+    permissions: [{ key: 'audit.view', description: "Consulter le journal d'audit" }],
+    modules: [{ key: 'professionals', name: 'Professionnels' }],
+  })
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(<QueryClientProvider client={queryClient}>{renderInSettingsSection(<AuditLogPage />)}</QueryClientProvider>)
   await waitFor(() => expect(screen.queryByText(t('common.loading'))).not.toBeInTheDocument())
@@ -87,6 +91,10 @@ describe('AuditLogPage', () => {
   it('lists the entries newest first: date, person, section, action, shortened element', async () => {
     await renderPage()
     expect(screen.getByRole('heading', { level: 2, name: t('settings.sections.audit') })).toBeInTheDocument()
+    // Decision #31.
+    expect(
+      screen.getByText("Les numéros bancaires n'y figurent jamais : seul le fait que les coordonnées ont changé y figure."),
+    ).toBeInTheDocument()
     expect(mocks.api.fetchAuditEntries).toHaveBeenCalledWith(NO_FILTERS, null)
     expect(within(table()).getAllByRole('columnheader').map((th) => th.textContent)).toEqual([
       'Date',
@@ -123,6 +131,33 @@ describe('AuditLogPage', () => {
     await user.click(button)
     expect(button).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText(`NEQ${NB}: (vide) → 1234567890`)).not.toBeInTheDocument()
+  })
+
+  it('names codes and people in the details, a short id with its full value in title otherwise', async () => {
+    const user = userEvent.setup()
+    const ROLE = entry({ id: 9, table_name: 'user_roles', changed_fields: { role: { before: 'counselor', after: 'admin_assistant' } } })
+    const MODULE = entry({
+      id: 8,
+      created_at: '2026-10-07T17:00:00Z',
+      table_name: 'org_modules',
+      action: 'insert',
+      changed_fields: { module_key: 'professionals', enabled: true, updated_by: MARIE, org_id: 'c0000000-0000-0000-0000-000000000009' },
+    })
+    await renderPage({ pages: [[ROLE, MODULE]] })
+    await user.click(toggle('07 oct. 2026 à 14:30'))
+    expect(screen.getByText(`Rôle${NB}: Conseillère → Adjointe administrative`)).toBeInTheDocument()
+    await user.click(toggle('07 oct. 2026 à 13:00'))
+    await waitFor(() => expect(screen.getByText(`Module${NB}: Professionnels`)).toBeInTheDocument())
+    expect(screen.getByText(`Activé${NB}: Oui`)).toBeInTheDocument()
+    expect(screen.getByText('Marie Tremblay', { selector: 'li span' })).toHaveAttribute('title', MARIE)
+  })
+
+  it('shows a secret rotation as « Secret remplacé »', async () => {
+    const user = userEvent.setup()
+    await renderPage({ pages: [[entry({ table_name: 'org_secrets', changed_fields: { value: { rotated: true } }, source: 'rpc:set_org_secret' })]] })
+    await user.click(toggle('07 oct. 2026 à 14:30'))
+    expect(screen.getByText('Secret remplacé')).toBeInTheDocument()
+    expect(screen.queryByText(/rotated/)).not.toBeInTheDocument()
   })
 
   it('shows a bank reveal as « Consultation du numéro de compte », and bank values as « (masqué) »', async () => {
@@ -245,6 +280,8 @@ describe('AuditLogPage', () => {
     await user.selectOptions(filter('Section'), 'Secrets')
     await waitFor(() => expect(screen.getByText(t('audit.emptyFiltered.title'), { selector: 'p:not([data-testid])' })).toBeInTheDocument())
     expect(live).toHaveTextContent(t('audit.emptyFiltered.title'))
+    // Heard once: the visible title is hidden from screen readers, the live region says it.
+    expect(screen.getByText(t('audit.emptyFiltered.title'), { selector: 'p:not([data-testid])' })).toHaveAttribute('aria-hidden', 'true')
     await user.click(screen.getByRole('button', { name: t('audit.filters.reset') }))
     expect(filter('Section')).toHaveValue('')
     expect(filter('Section')).toHaveFocus()

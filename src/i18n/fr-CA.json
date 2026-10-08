@@ -359,7 +359,7 @@
   }
 ,
   "audit": {
-    "description": "Qui a modifié quoi dans les paramètres, et quand. Les coordonnées bancaires n'y figurent jamais.",
+    "description": "Les numéros bancaires n'y figurent jamais : seul le fait que les coordonnées ont changé y figure.",
     "tables": {
       "organizations": "Clinique",
       "profiles": "Utilisateurs",
@@ -429,6 +429,7 @@
       },
       "org_secrets": {
         "key": "Clé",
+        "value": "Valeur",
         "vault_secret_id": "Secret",
         "version": "Version"
       },
@@ -464,7 +465,11 @@
       "empty": "(vide)",
       "yes": "Oui",
       "no": "Non",
-      "redacted": "(masqué)"
+      "redacted": "(masqué)",
+      "status": {
+        "active": "Actif",
+        "disabled": "Désactivé"
+      }
     },
     "filters": {
       "label": "Filtres du journal",
@@ -497,6 +502,7 @@
       "change": "{field} : {before} → {after}",
       "value": "{field} : {value}",
       "readAccountNumber": "Consultation du numéro de compte",
+      "secretRotated": "Secret remplacé",
       "readFields": "Champs consultés : {fields}",
       "none": "Aucun détail."
     },

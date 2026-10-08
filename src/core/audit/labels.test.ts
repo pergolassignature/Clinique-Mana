@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import type { AuditEntry } from './api'
-import { actionLabel, AUDITED_TABLES, auditDetailLines, fieldLabel, formatAuditValue, shortRecordId, sourceLabel, tableLabel } from './labels'
+import {
+  actionLabel,
+  AUDITED_TABLES,
+  auditDetailLines,
+  auditDetailText,
+  auditValue,
+  fieldLabel,
+  formatAuditValue,
+  shortRecordId,
+  sourceLabel,
+  tableLabel,
+  type AuditLookups,
+} from './labels'
 
 // The columns of every audited table the settings pages change, from the generated types (a new
 // column fails here until it has a French label).
@@ -162,10 +174,11 @@ describe('auditDetailLines', () => {
     changed_fields,
   })
   const NB = '\u00a0'
+  const lines = (e: Parameters<typeof auditDetailLines>[0], lookups?: AuditLookups) => auditDetailLines(e, lookups).map(auditDetailText)
 
   it('lists each change of an update as « Champ : avant → après », in French', () => {
     expect(
-      auditDetailLines(
+      lines(
         entry('update', 'organizations', {
           neq: { before: null, after: '1234567890' },
           legal_name: { before: 'Ancienne inc.', after: 'Nouvelle inc.' },
@@ -176,22 +189,22 @@ describe('auditDetailLines', () => {
 
   it('shows a redacted column of an update as « (masqué) », with no before or after', () => {
     // The trigger replaces the whole {before, after} pair of a redacted column.
-    expect(auditDetailLines(entry('update', 'organization_bank_details', { transit_number: '[redacted]' }))).toEqual([
+    expect(lines(entry('update', 'organization_bank_details', { transit_number: '[redacted]' }))).toEqual([
       `Numéro de transit${NB}: (masqué)`,
     ])
   })
 
   it('lists the fields of an insert or a delete', () => {
-    expect(auditDetailLines(entry('insert', 'tax_rates', { tax: 'qst', rate: 0.09975 }))).toEqual([`Taxe${NB}: qst`, `Taux${NB}: 0.09975`])
-    expect(auditDetailLines(entry('delete', 'user_roles', { role: 'counselor' }))).toEqual([`Rôle${NB}: counselor`])
+    expect(lines(entry('insert', 'tax_rates', { tax: 'qst', rate: 0.09975 }))).toEqual([`Taxe${NB}: TVQ`, `Taux${NB}: 0.09975`])
+    expect(lines(entry('delete', 'user_roles', { role: 'counselor' }))).toEqual([`Rôle${NB}: Conseillère`])
   })
 
   it('says a bank read revealed the account number', () => {
-    expect(auditDetailLines(entry('read', 'organization_bank_details', { fields: ['account_number'] }))).toEqual(['Consultation du numéro de compte'])
+    expect(lines(entry('read', 'organization_bank_details', { fields: ['account_number'] }))).toEqual(['Consultation du numéro de compte'])
   })
 
   it('lists the fields of any other read', () => {
-    expect(auditDetailLines(entry('read', 'organization_bank_details', { fields: ['account_number', 'transit_number'] }))).toEqual([
+    expect(lines(entry('read', 'organization_bank_details', { fields: ['account_number', 'transit_number'] }))).toEqual([
       `Champs consultés${NB}: Numéro de compte, Numéro de transit`,
     ])
   })
@@ -199,7 +212,78 @@ describe('auditDetailLines', () => {
   it('says there is no detail when the fields are missing or not an object', () => {
     for (const fields of [null, {}, 'x', [1], { fields: 'account_number' }]) {
       const action = fields !== null && typeof fields === 'object' && 'fields' in fields ? 'read' : 'update'
-      expect(auditDetailLines(entry(action, 'organizations', fields))).toEqual(['Aucun détail.'])
+      expect(lines(entry(action, 'organizations', fields))).toEqual(['Aucun détail.'])
     }
+  })
+
+  it('shows a secret rotation as « Secret remplacé », never the raw JSON', () => {
+    expect(lines(entry('update', 'org_secrets', { value: { rotated: true } }))).toEqual(['Secret remplacé'])
+    expect(fieldLabel('org_secrets', 'value')).toBe('Valeur')
+    // Anything else under `value` is shown as a value.
+    expect(lines(entry('update', 'org_secrets', { value: { rotated: false } }))).toEqual([`Valeur${NB}: {"rotated":false}`])
+  })
+
+  it('names the people of the journal, or shows their short id with the full id in title', () => {
+    const lookups = { people: new Map([['a0000000-0000-0000-0000-000000000001', 'Marie Tremblay']]) }
+    const [known, unknown] = auditDetailLines(
+      entry('update', 'org_modules', {
+        updated_by: { before: 'a0000000-0000-0000-0000-000000000001', after: 'c0000000-0000-0000-0000-000000000009' },
+      }),
+      lookups,
+    ).flatMap((line) => (line.kind === 'change' ? [line.before, line.after] : []))
+    expect(known).toEqual({ text: 'Marie Tremblay', title: 'a0000000-0000-0000-0000-000000000001' })
+    expect(unknown).toEqual({ text: 'c0000000…', title: 'c0000000-0000-0000-0000-000000000009' })
+    expect(lines(entry('insert', 'tax_rates', { created_by: 'a0000000-0000-0000-0000-000000000001' }), lookups)).toEqual([`Créé par${NB}: Marie Tremblay`])
+  })
+})
+
+describe('auditValue', () => {
+  const lookups: AuditLookups = {
+    modules: new Map([['professionals', 'Professionnels']]),
+    permissions: new Map([['audit.view', "Consulter le journal d'audit"]]),
+    people: new Map([['u1', 'Julie Roy']]),
+  }
+
+  it('names roles, keeping an unknown role as is', () => {
+    expect(auditValue('user_roles', 'role', 'admin_assistant').text).toBe('Adjointe administrative')
+    expect(auditValue('user_roles', 'role', 'staff').text).toBe('staff')
+  })
+
+  it('names the profile statuses, keeping any other as is', () => {
+    expect(auditValue('profiles', 'status', 'active').text).toBe('Actif')
+    expect(auditValue('profiles', 'status', 'disabled').text).toBe('Désactivé')
+    expect(auditValue('profiles', 'status', 'invited').text).toBe('invited')
+  })
+
+  it('names the taxes, keeping any other as is', () => {
+    expect(auditValue('tax_rates', 'tax', 'gst').text).toBe('TPS')
+    expect(auditValue('tax_rates', 'tax', 'qst').text).toBe('TVQ')
+    expect(auditValue('tax_rates', 'tax', 'hst').text).toBe('hst')
+  })
+
+  it('names modules from the catalogue, else shows the key', () => {
+    expect(auditValue('org_modules', 'module_key', 'professionals', lookups).text).toBe('Professionnels')
+    expect(auditValue('org_modules', 'module_key', 'billing', lookups).text).toBe('billing')
+    expect(auditValue('org_modules', 'module_key', 'professionals').text).toBe('professionals')
+  })
+
+  it('describes permissions from the catalogue, else shows the key', () => {
+    expect(auditValue('user_permission_overrides', 'permission_key', 'audit.view', lookups).text).toBe("Consulter le journal d'audit")
+    expect(auditValue('user_permission_overrides', 'permission_key', 'audit.view').text).toBe('audit.view')
+  })
+
+  it('names a person in any person column, else shortens the id', () => {
+    for (const column of ['user_id', 'actor_id', 'created_by', 'updated_by']) {
+      expect(auditValue('profiles', column, 'u1', lookups)).toEqual({ text: 'Julie Roy', title: 'u1' })
+    }
+    expect(auditValue('profiles', 'user_id', 'b0000000-0000-0000-0000-00000000000a')).toEqual({
+      text: 'b0000000…',
+      title: 'b0000000-0000-0000-0000-00000000000a',
+    })
+  })
+
+  it('keeps empty and redacted values as such, whatever the column', () => {
+    expect(auditValue('tax_rates', 'created_by', null)).toEqual({ text: '(vide)' })
+    expect(auditValue('organization_bank_details', 'updated_by', '[redacted]')).toEqual({ text: '(masqué)' })
   })
 })
