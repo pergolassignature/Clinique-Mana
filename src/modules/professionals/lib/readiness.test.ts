@@ -39,7 +39,7 @@ describe('nextAction', () => {
       ['clientele', 'motif'],
       'draft',
       ['professionals.matching'],
-      { message: T('modules.professionals.readiness.nextAction.completeMatching'), action: { label: T('modules.professionals.readiness.nextAction.complete'), tab: 'jumelage' } },
+      { message: T('modules.professionals.readiness.nextAction.completeMatching'), action: { kind: 'tab', label: T('modules.professionals.readiness.nextAction.complete'), tab: 'jumelage' } },
     ],
     ['matching gaps, read-only: the sentence alone', ['motif'], 'draft', [], { message: T('modules.professionals.readiness.nextAction.completeMatching'), action: null }],
     [
@@ -47,10 +47,23 @@ describe('nextAction', () => {
       ['licence', 'motif'],
       'invited',
       ['professionals.manage', 'professionals.matching'],
-      { message: T('modules.professionals.readiness.nextAction.completeIdentity'), action: { label: T('modules.professionals.readiness.nextAction.complete'), tab: 'identite' } },
+      { message: T('modules.professionals.readiness.nextAction.completeIdentity'), action: { kind: 'tab', label: T('modules.professionals.readiness.nextAction.complete'), tab: 'identite' } },
     ],
-    ['complete and not active: the header holds « Activer »', [], 'draft', ['professionals.manage'], { message: T('modules.professionals.readiness.nextAction.readyToActivate'), action: null }],
-    ['complete and inactive: ready again', [], 'inactive', ['professionals.manage'], { message: T('modules.professionals.readiness.nextAction.readyToActivate'), action: null }],
+    [
+      'complete and not active: « Activer » opens the activation (P4-74)',
+      [],
+      'draft',
+      ['professionals.manage'],
+      { message: T('modules.professionals.readiness.nextAction.readyToActivate'), action: { kind: 'activate', label: T('modules.professionals.record.actions.activate') } },
+    ],
+    [
+      'complete and inactive: « Réactiver »',
+      [],
+      'inactive',
+      ['professionals.manage'],
+      { message: T('modules.professionals.readiness.nextAction.readyToReactivate'), action: { kind: 'activate', label: T('modules.professionals.record.actions.reactivate') } },
+    ],
+    ['complete, without manage: the sentence alone', [], 'in_review', ['professionals.matching'], { message: T('modules.professionals.readiness.nextAction.readyToActivate'), action: null }],
     ['active: nothing to do', [], 'active', ['professionals.manage'], { message: T('modules.professionals.readiness.nextAction.nothingToDo'), action: null }],
   ])('%s', (_, missing, status, keys, expected) => {
     expect(nextAction(withReadiness(missing, status), can(...keys))).toEqual(expected)

@@ -5,7 +5,7 @@
 -- what the caller may read) for staff, the provider and another org; activate_professional
 -- (incomplete file, admin override with a reason, already active, permission, module gate, other
 -- org); deactivate_professional (reasons and notes, already inactive, reasons of another org or
--- archived); the provider account disabled and re-enabled with its sessions ended, never an
+-- archived); the HINT of each refusal the dialogs route (status, readiness, reason, note); the provider account disabled and re-enabled with its sessions ended, never an
 -- account disabled by someone else, nor one an admin re-enabled then disabled again (the module's
 -- own changes keep its claim; the setting is reset, errors included); professionals_list,
 -- professionals_directory and list_professionals (filters, sorts, keyset pages, name ties, partial
@@ -16,7 +16,23 @@
 -- module off).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(165);
+select plan(173);
+
+-- The HINT of the error `p_sql` raises (null when it raises none or succeeds): throws_ok checks the
+-- code and the message only; the activation and deactivation dialogs route refusals by HINT (4a.14).
+create function private.test_error_hint(p_sql text) returns text
+language plpgsql set search_path = '' as $$
+declare
+  v_hint text;
+begin
+  execute p_sql;
+  return null;
+exception when others then
+  get stacked diagnostics v_hint = pg_exception_hint;
+  return nullif(v_hint, '');
+end;
+$$;
+grant execute on function private.test_error_hint(text) to authenticated;
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
@@ -232,6 +248,8 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select throws_ok($$ select public.activate_professional(current_setting('test.p1')::uuid) $$,
   'P0001', 'Le dossier n''est pas complet. Seule l''administration peut activer un dossier incomplet.',
   'the adjointe cannot activate an incomplete file');
+select is(private.test_error_hint($$ select public.activate_professional(current_setting('test.p1')::uuid) $$), 'readiness',
+  'an incomplete file without the override: HINT readiness');
 select throws_ok($$ select public.activate_professional(current_setting('test.p1')::uuid, 'Dossier complété hors application') $$,
   'P0001', 'Le dossier n''est pas complet. Seule l''administration peut activer un dossier incomplet.',
   'nor with a reason (no override permission)');
@@ -247,10 +265,14 @@ select throws_ok($$ select public.deactivate_professional(current_setting('test.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select throws_ok($$ select public.activate_professional(current_setting('test.p1')::uuid, 'abc') $$,
   'P0001', 'Indiquez la raison (au moins 5 caractères).', 'the override needs a reason of 5 characters');
+select is(private.test_error_hint($$ select public.activate_professional(current_setting('test.p1')::uuid, 'abc') $$), 'reason',
+  'a short override reason: HINT reason');
 select throws_ok($$ select public.activate_professional(current_setting('test.p1')::uuid, E'  \t\n ') $$,
   'P0001', 'Indiquez la raison (au moins 5 caractères).', 'a blank reason is no reason');
 select throws_ok($$ select public.activate_professional(current_setting('test.p1')::uuid, repeat('x', 501)) $$,
   'P0001', 'La raison compte au plus 500 caractères.', 'the reason has at most 500 characters');
+select is(private.test_error_hint($$ select public.activate_professional(current_setting('test.p1')::uuid, repeat('x', 501)) $$), 'reason',
+  'a long override reason: HINT reason');
 select results_eq($$ select * from public.activate_professional(current_setting('test.p1')::uuid, '  Dossier complété hors application  ') $$,
   $$ values ('active'::text, null::text, null::uuid) $$, 'the admin activates an incomplete file with a reason');
 reset role;
@@ -260,7 +282,9 @@ select results_eq($$ select p.status, p.activation_override_reason, p.status_cha
   'status, trimmed override reason and actor are stored');
 set local role authenticated;
 select throws_ok($$ select public.activate_professional(current_setting('test.p1')::uuid, 'Encore une fois') $$,
-  'P0001', 'Ce professionnel est déjà actif.', 'an active professional cannot be activated again');
+  'P0001', 'Ce dossier est déjà actif.', 'an active professional cannot be activated again');
+select is(private.test_error_hint($$ select public.activate_professional(current_setting('test.p1')::uuid, 'Encore une fois') $$), 'status',
+  'already active: HINT status');
 
 -- =============================================================================
 -- deactivate_professional (adjointe A)
@@ -271,14 +295,20 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.other')::uuid) $$,
   'P0001', 'Précisez la raison.', '« Autre » requires a note');
+select is(private.test_error_hint($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.other')::uuid) $$), 'note',
+  'a missing note: HINT note');
 select throws_ok($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.other')::uuid, E' \t ') $$,
   'P0001', 'Précisez la raison.', 'a blank note is no note');
 select throws_ok($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.other')::uuid, repeat('n', 501)) $$,
   'P0001', 'La note compte au plus 500 caractères.', 'the note has at most 500 characters');
+select is(private.test_error_hint($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.other')::uuid, repeat('n', 501)) $$), 'note',
+  'a long note: HINT note');
 select throws_ok($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.b_leave')::uuid) $$,
   'P0001', 'Raison introuvable.', 'a reason of another org is not found');
 select throws_ok($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.insurance')::uuid) $$,
   'P0001', 'Raison introuvable.', 'an archived reason is not offered');
+select is(private.test_error_hint($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.insurance')::uuid) $$), 'reason',
+  'an archived reason: HINT reason');
 select throws_ok($$ select public.deactivate_professional(current_setting('test.p1')::uuid, null) $$,
   'P0001', 'Raison introuvable.', 'a reason is required');
 select results_eq($$ select * from public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.other')::uuid, ' Pause prolongée ') $$,
@@ -292,7 +322,9 @@ select results_eq($$ select p.status, p.deactivation_reason_id, p.deactivation_n
   'reason, trimmed note and actor are stored; the override reason is cleared');
 set local role authenticated;
 select throws_ok($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.leave')::uuid) $$,
-  'P0001', 'Ce professionnel est déjà inactif.', 'an inactive professional cannot be deactivated again');
+  'P0001', 'Ce dossier est déjà inactif.', 'an inactive professional cannot be deactivated again');
+select is(private.test_error_hint($$ select public.deactivate_professional(current_setting('test.p1')::uuid, current_setting('test.leave')::uuid) $$), 'status',
+  'already inactive: HINT status');
 
 -- P1 completes its profile (couples, deuil): the adjointe reactivates it without a reason.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);

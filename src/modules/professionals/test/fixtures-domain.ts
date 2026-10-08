@@ -1,5 +1,6 @@
 import { catalogPayload, listRowPayload, parseRpc, recordPayload, type ProfessionalListRow, type ProfessionalRecord } from '../api/parse'
 import { buildCatalogView, type CatalogView } from '../lib/catalog-view'
+import type { ProfessionalStatus } from '../lib/constants'
 import { CATALOG_JSON, LIST_ROW_JSON, RECORD_JSON } from './fixtures'
 
 /** The fixtures as the pages see them (parsed, camelCase). Test-only. */
@@ -10,6 +11,19 @@ export function recordFixture(): ProfessionalRecord {
   const record = parseRpc(recordPayload, RECORD_JSON)
   if (!record) throw new Error('fixture')
   return record
+}
+
+/**
+ * The record fixture with another status, its file complete (readiness done) or not (the
+ * fixture's gaps: a clientèle and a motif).
+ */
+export function recordWithStatus(status: ProfessionalStatus, complete: boolean): ProfessionalRecord {
+  const record = recordFixture()
+  return {
+    ...record,
+    professional: { ...record.professional, status },
+    readiness: complete ? { ...record.readiness, complete, done: 1, items: [{ key: 'matching_profile', done: true, missing: [] }] } : record.readiness,
+  }
 }
 
 export function listRowFixture(overrides: Partial<ProfessionalListRow> = {}): ProfessionalListRow {

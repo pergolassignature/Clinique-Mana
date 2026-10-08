@@ -19,7 +19,7 @@ export function OverviewTab() {
       <div className="flex min-w-0 flex-col gap-5">
         <ReadinessCard record={record} />
         <WatchCard record={record} />
-        <NextActionCard record={record} can={can} />
+        <NextActionCard />
       </div>
     </div>
   )

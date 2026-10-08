@@ -1231,6 +1231,7 @@
           "completeIdentity": "Complétez les titres et permis.",
           "complete": "Compléter",
           "readyToActivate": "Le dossier est prêt à être activé.",
+          "readyToReactivate": "Le dossier peut être réactivé.",
           "nothingToDo": "Rien à faire. Le dossier est complet."
         }
       },
@@ -1259,6 +1260,42 @@
         "header": {
           "languages": "Langues :",
           "notAccepting": "N'accepte pas de nouveaux clients"
+        },
+        "actions": {
+          "more": "Autres actions",
+          "activate": "Activer",
+          "reactivate": "Réactiver",
+          "deactivate": "Désactiver"
+        },
+        "activate": {
+          "title": "Activer {name} ?",
+          "titleReactivate": "Réactiver {name} ?",
+          "body": "{firstName} pourra recevoir de nouveaux clients et apparaîtra dans le jumelage.",
+          "accountBack": "{firstName} pourra de nouveau se connecter.",
+          "deactivatedFor": "Raison de la désactivation : {reason}",
+          "incomplete": "Le dossier n'est pas complet.",
+          "missing": "{item} : il manque {missing}.",
+          "reason": "Raison de l'activation",
+          "reasonHelp": "Elle s'affiche dans l'aperçu du dossier.",
+          "suggestion": "Suggestion :",
+          "suggestionText": "Dossier complété hors application",
+          "confirm": "Activer",
+          "confirmReactivate": "Réactiver",
+          "confirmOverride": "Activer quand même",
+          "confirmOverrideReactivate": "Réactiver quand même",
+          "pending": "Activation…",
+          "pendingReactivate": "Réactivation…",
+          "nowIncomplete": "Le dossier n'est plus complet. Indiquez la raison de l'activation."
+        },
+        "deactivate": {
+          "title": "Désactiver {name} ?",
+          "body": "{firstName} n'apparaîtra plus dans le jumelage et ne recevra plus de nouveaux clients. Le dossier reste consultable et pourra être réactivé.",
+          "reason": "Raison",
+          "reasonPlaceholder": "Choisir une raison",
+          "note": "Note",
+          "accountOff": "{firstName} ne pourra plus se connecter.",
+          "confirm": "Désactiver",
+          "pending": "Désactivation…"
         },
         "matching": {
           "edit": "Modifier",
@@ -1701,13 +1738,14 @@
       "toasts": {
         "saved": "Modifications enregistrées.",
         "created": "Professionnel créé.",
-        "activated": "Professionnel activé.",
-        "deactivated": "Professionnel désactivé.",
+        "activated": "Dossier activé.",
+        "deactivated": "Dossier désactivé.",
         "archived": "Élément archivé.",
         "restored": "Élément restauré."
       },
       "errors": {
-        "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez dans un instant."
+        "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez dans un instant.",
+        "recordChanged": "Le dossier vient de changer. Réessayez."
       },
       "validation": {
         "firstNameRequired": "Prénom requis.",

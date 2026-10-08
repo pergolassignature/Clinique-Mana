@@ -45,7 +45,7 @@ function renderTab(catalog: CatalogView = CATALOG_VIEW, queryClient: QueryClient
   return render(
     <QueryClientProvider client={queryClient}>
       {renderWithContexts(
-        <RecordContext.Provider value={{ record: recordFixture(), catalog }}>
+        <RecordContext.Provider value={{ record: recordFixture(), catalog, focusHeading: () => {} }}>
           <HistoryTab />
         </RecordContext.Provider>,
         { access: { access: accessForRole('counselor') } },
