@@ -42,6 +42,23 @@ Deno.test('fakeSupabase: storage methods are routed by name, with the bucket log
   }])
 })
 
+Deno.test('fakeSupabase: download(...).asStream() resolves to the same routed result', async () => {
+  const stream = new Blob(['%PDF']).stream()
+  const { client, storageCalls } = fakeSupabase({
+    storage: { download: () => ({ data: stream }) },
+  })
+  const { data, error } = await client.storage.from('documents').download(
+    'a.pdf',
+  ).asStream()
+  assertEquals(data, stream)
+  assertEquals(error, null)
+  assertEquals(storageCalls, [{
+    bucket: 'documents',
+    method: 'download',
+    args: ['a.pdf'],
+  }])
+})
+
 Deno.test('fakeSupabase: an unrouted storage method throws, naming it', () => {
   const { client, storageCalls } = fakeSupabase({
     storage: { remove: () => ({ data: null }) },
@@ -65,4 +82,65 @@ Deno.test('fakeSupabase: auth.getUser answers the configured user, else a 401 er
   const refused = await anonymous.client.auth.getUser('tok')
   assertEquals(refused.data.user, null)
   assertEquals(refused.error?.status, 401)
+})
+
+Deno.test('fakeSupabase: auth.admin methods are routed by name, in a call log', async () => {
+  const { client, adminCalls } = fakeSupabase({
+    admin: {
+      createUser: (attrs) => ({
+        data: { user: { id: 'u1', email: (attrs as { email: string }).email } },
+      }),
+      deleteUser: () => ({ error: { code: 'unexpected_failure' } }),
+    },
+  })
+  const created = await client.auth.admin.createUser({ email: 'a@mana.test' })
+  assertEquals(created.data.user?.id, 'u1')
+  const deleted = await client.auth.admin.deleteUser('u1')
+  assertEquals(deleted.error as unknown, { code: 'unexpected_failure' })
+  assertEquals(adminCalls, [
+    { method: 'createUser', args: [{ email: 'a@mana.test' }] },
+    { method: 'deleteUser', args: ['u1'] },
+  ])
+  assertThrows(
+    () => client.auth.admin.updateUserById('u1', { ban_duration: 'none' }),
+    Error,
+    'fake: no auth.admin.updateUserById',
+  )
+})
+
+Deno.test('fakeSupabase: from(table) reads are routed by table, with columns and eq filters logged', async () => {
+  const { client, tableCalls } = fakeSupabase({
+    tables: {
+      stored_files: (q) => ({
+        data: q.eq.id === 'f1' ? { bucket: 'b' } : null,
+      }),
+    },
+  })
+  const found = await client.from('stored_files').select('bucket').eq(
+    'id',
+    'f1',
+  )
+    .eq('status', 'ready').maybeSingle()
+  assertEquals(found.data, { bucket: 'b' })
+  assertEquals(found.error, null)
+  const listed = await client.from('stored_files').select('bucket').eq(
+    'id',
+    'f2',
+  )
+  assertEquals(listed.data, null)
+  assertEquals(tableCalls, [
+    {
+      table: 'stored_files',
+      columns: 'bucket',
+      eq: { id: 'f1', status: 'ready' },
+      single: true,
+    },
+    {
+      table: 'stored_files',
+      columns: 'bucket',
+      eq: { id: 'f2' },
+      single: false,
+    },
+  ])
+  assertThrows(() => client.from('profiles'), Error, 'fake: no table profiles')
 })

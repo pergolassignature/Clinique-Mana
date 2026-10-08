@@ -12,9 +12,14 @@ import { FunctionError } from './errors.ts'
 import {
   generateToken,
   hashToken,
+  isLinkGoneCode,
   isWellFormedToken,
+  linkGoneResponse,
   linkUrl,
+  peekSecureLink,
 } from './links.ts'
+import { fakeSupabase } from './testing/fake-supabase.ts'
+import { peekValid } from './testing/link-fixtures.ts'
 
 /**
  * The bytes 0x00..0x1f, base64url without padding. Its SHA-256 (of the
@@ -280,5 +285,65 @@ Deno.test('no export writes to the console', async () => {
     for (const s of stubs) assertEquals(s.calls.length, 0)
   } finally {
     for (const s of stubs) s.restore()
+  }
+})
+
+// ---------------------------------------------------------------------------
+// peekSecureLink, linkGoneResponse
+// ---------------------------------------------------------------------------
+Deno.test('peekSecureLink: passes the hash and the mark flag; parses each state', async () => {
+  for (
+    const answer of [
+      { state: 'invalid' },
+      { state: 'expired', purpose: 'staff_invite' },
+      { state: 'used', purpose: 'staff_invite' },
+      peekValid(),
+      peekValid({ resolve_rpc: null, accept_rpc: null }),
+    ]
+  ) {
+    const { client, calls } = fakeSupabase({
+      rpc: { peek_secure_link: { data: answer } },
+    })
+    assertEquals(await peekSecureLink(client, '\\xab', true), answer)
+    assertEquals(calls, [{
+      fn: 'peek_secure_link',
+      args: { p_token_hash: '\\xab', p_mark_opened: true },
+    }])
+  }
+})
+
+Deno.test('peekSecureLink: null for an RPC error or an unexpected answer', async () => {
+  for (
+    const result of [
+      { error: { code: 'XX000', message: 'boom' } },
+      { data: null },
+      { data: { state: 'valid' } },
+      { data: { state: 'unknown' } },
+      { data: peekValid({ org_id: 'not-a-uuid' }) },
+    ]
+  ) {
+    const { client } = fakeSupabase({ rpc: { peek_secure_link: result } })
+    assertEquals(await peekSecureLink(client, '\\xab', false), null)
+  }
+})
+
+Deno.test('linkGoneResponse: 410 with the code; identical bytes for one code', async () => {
+  for (const code of ['link_invalid', 'link_expired', 'link_used'] as const) {
+    const a = linkGoneResponse(code)
+    const b = linkGoneResponse(code)
+    assertEquals(a.status, 410)
+    const [bodyA, bodyB] = [await a.text(), await b.text()]
+    assertEquals(bodyA, bodyB)
+    assertEquals(JSON.parse(bodyA).error.code, code)
+    assertEquals([...a.headers], [...b.headers])
+  }
+})
+
+Deno.test('isLinkGoneCode: the three link codes only', () => {
+  for (const code of ['link_invalid', 'link_expired', 'link_used']) {
+    assert(isLinkGoneCode(code))
+  }
+  for (const value of ['accepted', 'invalid', null, undefined, 1]) {
+    assertFalse(isLinkGoneCode(value))
   }
 })

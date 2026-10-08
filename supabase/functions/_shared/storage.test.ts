@@ -9,6 +9,7 @@ import {
   buildObjectPath,
   extensionForMime,
   inspectStream,
+  isMissingObject,
   sha256Hex,
   sniff,
   type SniffedType,
@@ -721,5 +722,16 @@ Deno.test('buildObjectPath: anything but canonical ids and a module key throws',
       undefined,
       JSON.stringify(override),
     )
+  }
+})
+
+Deno.test('isMissingObject: status 400 or 404, or statusCode 404; anything else is a failure', () => {
+  for (
+    const error of [{ status: 400 }, { status: 404 }, { statusCode: '404' }]
+  ) {
+    assert(isMissingObject(error), JSON.stringify(error))
+  }
+  for (const error of [null, undefined, { status: 500 }, { statusCode: 404 }]) {
+    assertFalse(isMissingObject(error), JSON.stringify(error))
   }
 })
