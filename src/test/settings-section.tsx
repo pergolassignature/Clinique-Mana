@@ -1,7 +1,8 @@
-import { lazy, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Building2 } from 'lucide-react'
 import type { SettingsSection } from '@/core/modules/types'
 import { SettingsSectionContext } from '@/core/settings/section-context'
+import { lazyPage } from '@/shared/lib/lazy-page'
 import { renderWithContexts } from './contexts'
 
 /** A clinic section that may be read only (Identité légale), for pages rendered outside SettingsLayout. */
@@ -13,7 +14,7 @@ export const testSettingsSection: SettingsSection = {
   permission: 'settings.view',
   editPermission: 'settings.manage',
   group: 'clinique',
-  component: lazy(async () => ({ default: () => null })),
+  component: lazyPage(async () => ({ default: () => null })),
 }
 
 /**

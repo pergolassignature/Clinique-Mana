@@ -1,4 +1,4 @@
-import { lazy, useState } from 'react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -8,6 +8,7 @@ import { t } from '@/i18n'
 import { renderWithContexts } from '@/test/contexts'
 import type { SettingsSection } from '@/core/modules/types'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
+import { lazyPage } from '@/shared/lib/lazy-page'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { useSettingsSection } from './section-context'
 import { SettingsLayout } from './SettingsLayout'
@@ -15,9 +16,9 @@ import { SettingsLayout } from './SettingsLayout'
 const mocks = vi.hoisted(() => ({ captureException: vi.fn() }))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 
-const page = (text: string) => lazy(async () => ({ default: () => <p>{text}</p> }))
+const page = (text: string) => lazyPage(async () => ({ default: () => <p>{text}</p> }))
 const crashingPage = () =>
-  lazy(async () => ({
+  lazyPage(async () => ({
     default: () => {
       throw new Error('boom')
     },
@@ -165,7 +166,7 @@ describe('SettingsLayout', () => {
     function Location() {
       return <p data-testid="location">{useLocation().pathname}</p>
     }
-    const dirty: SettingsSection = { ...visibleSection, component: lazy(async () => ({ default: DirtyPage })) }
+    const dirty: SettingsSection = { ...visibleSection, component: lazyPage(async () => ({ default: DirtyPage })) }
     render(
       renderWithContexts(
         <UnsavedChangesProvider>
@@ -193,7 +194,7 @@ describe('SettingsLayout', () => {
     const editable: SettingsSection = {
       id: 'identity', path: 'identite', labelKey: 'settings.sections.identity', icon: Building2,
       permission: 'settings.view', editPermission: 'settings.manage', group: 'clinique',
-      component: lazy(async () => ({ default: ReadOnlyProbe })),
+      component: lazyPage(async () => ({ default: ReadOnlyProbe })),
     }
     const lockedName = `${t('settings.sections.identity')} ${t('settings.navReadOnlyHint')}`
     // Icons are decorative; the words carry the meaning.
@@ -242,7 +243,7 @@ describe('SettingsLayout', () => {
   // Below md the menu is a disclosure. jsdom applies no CSS: the open state is read from
   // aria-expanded and the nav's data-state, which drives `max-md:data-[state=closed]:hidden`.
   describe('phone menu', () => {
-    const headingPage = (title: string) => lazy(async () => ({ default: () => <h2 tabIndex={-1}>{title}</h2> }))
+    const headingPage = (title: string) => lazyPage(async () => ({ default: () => <h2 tabIndex={-1}>{title}</h2> }))
     const clinic: SettingsSection = { ...visibleSection, component: headingPage('VISIBLE HEADING') }
     const platform: SettingsSection = { ...modulesSection, component: headingPage('MODULES HEADING') }
     const menuButton = () => screen.getByRole('button', { name: `${t('settings.menuButtonPrefix')} ${t('settings.title')}` })
@@ -342,7 +343,7 @@ describe('SettingsLayout', () => {
         useUnsavedChanges(true)
         return <h2 tabIndex={-1}>DIRTY HEADING</h2>
       }
-      const dirty: SettingsSection = { ...clinic, component: lazy(async () => ({ default: DirtyPage })) }
+      const dirty: SettingsSection = { ...clinic, component: lazyPage(async () => ({ default: DirtyPage })) }
       const third: SettingsSection = { ...clinic, id: 'third', path: 'troisieme', labelKey: 'nav.home', component: headingPage('THIRD HEADING') }
       render(
         renderWithContexts(
@@ -384,7 +385,7 @@ describe('SettingsLayout', () => {
           </>
         )
       }
-      const late: SettingsSection = { ...platform, component: lazy(async () => ({ default: LatePage })) }
+      const late: SettingsSection = { ...platform, component: lazyPage(async () => ({ default: LatePage })) }
 
       it('gets focus when the user has not started working in the page', async () => {
         render(settingsAt('/parametres/visible-fr', { access: canEverything }, [clinic, late]))

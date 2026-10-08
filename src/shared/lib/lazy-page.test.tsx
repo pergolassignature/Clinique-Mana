@@ -1,7 +1,8 @@
-import { Component, Suspense, type ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import { lazyPage, preloadWhenIdle, useLazyPageReady, type LazyPage } from './lazy-page'
+import { Component, lazy, Suspense, type ReactNode } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import type { ModuleRoute } from '@/core/modules/types'
+import { ALSO_WAIT_FOR_MAX_MS, lazyPage, preloadWhenIdle, useLazyPageReady, whenIdle, type LazyPage, type Preloadable } from './lazy-page'
 
 const Page = () => <p>PAGE</p>
 
@@ -60,6 +61,22 @@ describe('lazyPage', () => {
     const LazyPage = lazyPage(async () => ({ SettingsPage: Page, other: 1 }), 'SettingsPage')
     render(inSuspense(<LazyPage />))
     expect(await screen.findByText('PAGE')).toBeInTheDocument()
+  })
+
+  it('only accepts, by type, a named export that is a component without props', () => {
+    const load = async () => ({ Page, Labelled: ({ label }: { label: string }) => <p>{label}</p>, VERSION: 3 })
+    expect(lazyPage(load, 'Page').isLoaded()).toBe(false)
+    // @ts-expect-error -- not a component
+    lazyPage(load, 'VERSION')
+    // @ts-expect-error -- a component that needs props cannot be a page
+    lazyPage(load, 'Labelled')
+  })
+
+  it('is the only kind of page a manifest takes: a plain React.lazy cannot be preloaded', () => {
+    const route: ModuleRoute = { path: 'x', permission: 'x.view', component: lazyPage(async () => ({ default: Page })) }
+    // @ts-expect-error -- React.lazy has no preload()/isLoaded()
+    const plain: ModuleRoute = { ...route, component: lazy(async () => ({ default: Page })) }
+    expect(plain.path).toBe(route.path)
   })
 
   it('fails clearly when the chunk lacks the export', async () => {
@@ -140,6 +157,38 @@ describe('useLazyPageReady', () => {
     await waitFor(() => expect(screen.getAllByText('PAGE')).toHaveLength(2))
   })
 
+  // A slow or stuck page chunk must not hold the whole app on the loading screen.
+  it('waits for the second page at most ALSO_WAIT_FOR_MAX_MS, then renders', async () => {
+    vi.useFakeTimers()
+    const stuck: Preloadable = { preload: () => new Promise<void>(() => {}), isLoaded: () => false }
+    const LazyPage = lazyPage(async () => ({ default: Page }))
+    await LazyPage.preload()
+    render(inSuspense(<Gate page={LazyPage} also={stuck} />))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ALSO_WAIT_FOR_MAX_MS - 1)
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('WAITING')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(screen.getByText('PAGE')).toBeInTheDocument()
+    expect(ALSO_WAIT_FOR_MAX_MS).toBe(1000)
+  })
+
+  it('still waits for the first page past that cap', async () => {
+    vi.useFakeTimers()
+    let resolve: (m: { default: typeof Page }) => void = () => {}
+    const LazyPage = lazyPage(() => new Promise<{ default: typeof Page }>((r) => (resolve = r)))
+    const stuck: Preloadable = { preload: () => new Promise<void>(() => {}), isLoaded: () => false }
+    render(inSuspense(<Gate page={LazyPage} also={stuck} />))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * ALSO_WAIT_FOR_MAX_MS)
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('WAITING')
+    await act(async () => resolve({ default: Page }))
+    expect(screen.getByText('PAGE')).toBeInTheDocument()
+  })
+
   it('renders at once when already loaded', async () => {
     const LazyPage = lazyPage(async () => ({ default: Page }))
     await LazyPage.preload()
@@ -160,17 +209,73 @@ describe('useLazyPageReady', () => {
   })
 })
 
+const page = (preload = vi.fn(async () => {})): Preloadable & { preload: typeof preload } => ({ preload, isLoaded: () => false })
+
+describe('whenIdle', () => {
+  it('asks requestIdleCallback, with the timeout as its deadline', () => {
+    const requestIdleCallback = vi.fn(() => 7)
+    vi.stubGlobal('requestIdleCallback', requestIdleCallback)
+    const task = vi.fn()
+    whenIdle(task, 500)
+    expect(requestIdleCallback).toHaveBeenCalledWith(task, { timeout: 500 })
+  })
+
+  it('falls back to a short delay without requestIdleCallback', () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('requestIdleCallback', undefined)
+    const task = vi.fn()
+    whenIdle(task)
+    vi.advanceTimersByTime(199)
+    expect(task).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(task).toHaveBeenCalledOnce()
+  })
+
+  it('never runs later than the timeout in the fallback either', () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('requestIdleCallback', undefined)
+    const task = vi.fn()
+    whenIdle(task, 50)
+    vi.advanceTimersByTime(50)
+    expect(task).toHaveBeenCalledOnce()
+  })
+
+  it('can be cancelled in the fallback', () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('requestIdleCallback', undefined)
+    const task = vi.fn()
+    whenIdle(task).cancel()
+    vi.advanceTimersByTime(1000)
+    expect(task).not.toHaveBeenCalled()
+  })
+})
+
 describe('preloadWhenIdle', () => {
-  it('preloads every page when the browser is idle, ignoring failures', () => {
+  /** Stubs requestIdleCallback and returns a function that runs the queued idle task. */
+  const stubIdle = () => {
     let idle: IdleRequestCallback = () => {}
     vi.stubGlobal('requestIdleCallback', vi.fn((cb: IdleRequestCallback) => ((idle = cb), 7)))
-    const ok = vi.fn(async () => {})
-    const failing = vi.fn(() => Promise.reject(new Error('offline')))
-    preloadWhenIdle([{ preload: ok }, { preload: failing }, {}])
-    expect(ok).not.toHaveBeenCalled()
-    idle({ didTimeout: false, timeRemaining: () => 50 })
-    expect(ok).toHaveBeenCalledTimes(1)
-    expect(failing).toHaveBeenCalledTimes(1)
+    return () => idle({ didTimeout: false, timeRemaining: () => 50 })
+  }
+  const stubConnection = (connection: { saveData?: boolean; effectiveType?: string } | undefined) =>
+    vi.spyOn(navigator as Navigator & { connection?: unknown }, 'connection', 'get').mockReturnValue(connection)
+
+  beforeEach(() => {
+    // happy-dom has no Network Information API; define it so tests can stub it.
+    if (!('connection' in navigator)) {
+      Object.defineProperty(navigator, 'connection', { configurable: true, get: () => undefined })
+    }
+  })
+
+  it('preloads every page when the browser is idle, ignoring failures', () => {
+    const runIdle = stubIdle()
+    const ok = page()
+    const failing = page(vi.fn(() => Promise.reject(new Error('offline'))))
+    preloadWhenIdle([ok, failing])
+    expect(ok.preload).not.toHaveBeenCalled()
+    runIdle()
+    expect(ok.preload).toHaveBeenCalledTimes(1)
+    expect(failing.preload).toHaveBeenCalledTimes(1)
   })
 
   it('can be cancelled before the browser is idle', () => {
@@ -184,10 +289,46 @@ describe('preloadWhenIdle', () => {
   it('falls back to a timeout without requestIdleCallback', () => {
     vi.useFakeTimers()
     vi.stubGlobal('requestIdleCallback', undefined)
-    const preload = vi.fn(async () => {})
-    preloadWhenIdle([{ preload }])
-    expect(preload).not.toHaveBeenCalled()
+    const p = page()
+    preloadWhenIdle([p])
+    expect(p.preload).not.toHaveBeenCalled()
     vi.advanceTimersByTime(250)
-    expect(preload).toHaveBeenCalledTimes(1)
+    expect(p.preload).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['Data Saver is on', { saveData: true, effectiveType: '4g' }],
+    ['the link is 2G', { effectiveType: '2g' }],
+    ['the link is slow 2G', { effectiveType: 'slow-2g' }],
+  ])('skips the prefetch when %s', (_case, connection) => {
+    const runIdle = stubIdle()
+    stubConnection(connection)
+    const p = page()
+    preloadWhenIdle([p])
+    runIdle()
+    expect(p.preload).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a fast link', { saveData: false, effectiveType: '4g' }],
+    ['a 3G link', { effectiveType: '3g' }],
+    ['no Network Information API (Firefox, Safari)', undefined],
+  ])('prefetches on %s', (_case, connection) => {
+    const runIdle = stubIdle()
+    stubConnection(connection)
+    const p = page()
+    preloadWhenIdle([p])
+    runIdle()
+    expect(p.preload).toHaveBeenCalledOnce()
+  })
+
+  it('reads the connection when idle, not when scheduled', () => {
+    const runIdle = stubIdle()
+    const connection = stubConnection({ effectiveType: '4g' })
+    const p = page()
+    preloadWhenIdle([p])
+    connection.mockReturnValue({ saveData: true })
+    runIdle()
+    expect(p.preload).not.toHaveBeenCalled()
   })
 })

@@ -49,7 +49,8 @@ export function AuthenticatedApp() {
 
   // Prefetch the code of every page this user can open, once the browser is idle: a first visit
   // then renders at once, without a Suspense fallback (and React's 300 ms hold of it). Static
-  // chunks only, the same for everyone: no data is fetched before the page itself mounts.
+  // chunks only, the same for everyone: no data is fetched before the page itself mounts. Skipped
+  // with Data Saver or on 2G (preloadWhenIdle).
   const routeComponents = useMemo(
     () => modules.flatMap((m) => m.routes.filter((r) => can(r.permission)).map((r) => r.component)),
     [modules, can],
