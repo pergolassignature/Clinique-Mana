@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
-import { invokeFunction, type InvokeOptions } from '@/core/supabase/functions'
+import { FunctionCallError, invokeFunction, type InvokeOptions } from '@/core/supabase/functions'
 import type { UploadStep } from '@/shared/lib/files'
 
 /** The upload itself (`uploadToSignedUrl`) failed: storage's HTTP status, when it gave one. */
@@ -36,7 +36,7 @@ const FORBIDDEN_NAME_CHAR = /[/\\\u0000-\u001f\u007f-\u009f\u200e\u200f\u2028\u2
  * characters with the extension kept, « fichier » when nothing is left. Only shown (and used as a
  * download's name); paths never contain it.
  */
-function registryName(name: string): string {
+export function registryName(name: string): string {
   const cleaned = name.replace(FORBIDDEN_NAME_CHAR, '_').trim()
   const chars = Array.from(cleaned)
   if (chars.length === 0) return 'fichier'
@@ -45,6 +45,22 @@ function registryName(name: string): string {
   const ext = dot > 0 ? Array.from(cleaned.slice(dot)) : []
   const keep = ext.length < 16 ? ext : []
   return [...chars.slice(0, MAX_NAME - keep.length), ...keep].join('')
+}
+
+/** A confirm that may not have reached the server, or failed there: the network, a 5xx. */
+const retriable = (error: unknown) => error instanceof FunctionCallError && (error.code === 'network' || error.status >= 500)
+
+/**
+ * `storage-confirm`, tried a second time after a network failure or a 5xx: a repeated confirm of
+ * a file already confirmed answers 200, so the retry is safe. Any other refusal is final.
+ */
+async function confirmUpload(fileId: string): Promise<void> {
+  try {
+    await invokeFunction('storage-confirm', { file_id: fileId })
+  } catch (error) {
+    if (!retriable(error)) throw error
+    await invokeFunction('storage-confirm', { file_id: fileId })
+  }
 }
 
 export interface UploadInput {
@@ -63,8 +79,9 @@ export interface UploadInput {
  * the path the database chose → the browser sends it there on its own Supabase URL
  * (`uploadToSignedUrl`), typed as declared → `storage-confirm` checks the stored object (type,
  * size, image size) and makes the file `ready`. Stops at the first failure: a `FunctionCallError`
- * (the functions' French refusal, a 429…) or an `UploadSendError`. A retried confirm of a file
- * already confirmed answers 200; a 409 means a concurrent call settled it otherwise.
+ * (the functions' French refusal, a 429…) or an `UploadSendError`; only the confirm is tried again,
+ * once, after a network failure or a 5xx (a repeated confirm answers 200; a 409 means a concurrent
+ * call settled the file otherwise).
  */
 export async function uploadFile({ purpose, subjectType, subjectId, file, mimeType = file.type, onStep }: UploadInput): Promise<{ fileId: string }> {
   onStep?.('preparing')
@@ -90,7 +107,7 @@ export async function uploadFile({ purpose, subjectType, subjectId, file, mimeTy
   }
 
   onStep?.('confirming')
-  await invokeFunction('storage-confirm', { file_id: prepared.file_id })
+  await confirmUpload(prepared.file_id)
   return { fileId: prepared.file_id }
 }
 

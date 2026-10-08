@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { t } from '@/i18n'
 import type { Organization, OrgAssetKind } from '@/core/settings/organization/api'
 import { ORG_ASSET_COLUMN, useRemoveOrgAsset, useUploadOrgAsset } from '@/core/settings/organization/hooks'
@@ -9,6 +9,7 @@ import { UPLOAD_PURPOSES } from '@/core/storage/purposes'
 import { FileDropzone } from '@/shared/components/FileDropzone'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
+import { formatMegabytes, formatPixels } from '@/shared/lib/files'
 import { cn } from '@/shared/lib/utils'
 import {
   AlertDialog,
@@ -29,10 +30,20 @@ const TEXTS = { logo: 'settings.identity.logo', signature: 'settings.signatory.s
 
 const PREVIEW_BOX = 'flex h-24 w-40 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-card p-2'
 
-/** The image through its signed read URL; « Aucun logo. » without one, a line when it cannot be signed. */
+/**
+ * The image through its signed read URL; « Aucun logo. » without one, a line when it cannot be
+ * signed or shown.
+ *
+ * - A failed background refetch keeps the image already shown: the error shows only without one.
+ * - An image that fails to load (its 5-minute URL expired before the browser loaded it again)
+ *   asks for a new URL, once per file; when that fails too, it says so.
+ */
 function AssetPreview({ fileId, alt, empty }: { fileId: string | null; alt: string; empty: string }) {
-  const { data, error } = useSignedFileUrl(fileId)
-  if (fileId === null || error) {
+  const { data, error, refetch } = useSignedFileUrl(fileId)
+  // The file a new URL was asked for, and the URL known not to load.
+  const [retriedFor, setRetriedFor] = useState<string | null>(null)
+  const [deadUrl, setDeadUrl] = useState<string | null>(null)
+  if (fileId === null || (error && !data) || (data && data.url === deadUrl)) {
     return (
       <div className={PREVIEW_BOX}>
         <p className="text-center text-xs text-muted-foreground">{fileId === null ? empty : previewErrorMessage(error)}</p>
@@ -40,9 +51,16 @@ function AssetPreview({ fileId, alt, empty }: { fileId: string | null; alt: stri
     )
   }
   if (!data) return <Skeleton className={PREVIEW_BOX} />
+  const onError = () => {
+    if (retriedFor === fileId) return setDeadUrl(data.url)
+    setRetriedFor(fileId)
+    void refetch().then((result) => {
+      if (result.isError) setDeadUrl(data.url)
+    })
+  }
   return (
     <div className={PREVIEW_BOX}>
-      <img src={data.url} alt={alt} className="max-h-full max-w-full object-contain" />
+      <img src={data.url} alt={alt} loading="lazy" decoding="async" onError={onError} className="max-h-full max-w-full object-contain" />
     </div>
   )
 }
@@ -80,9 +98,10 @@ export function OrgAssetCard({ organization, kind }: OrgAssetCardProps) {
             <FileDropzone
               className="w-full"
               buttonLabel={fileId === null ? t('storage.dropzone.choose') : t(`${texts}.replace`)}
-              hint={t(`${texts}.hint`)}
+              hint={t(`${texts}.hint`, { size: formatMegabytes(purpose.maxBytes), side: formatPixels(purpose.maxImageSide) })}
               accept={purpose.mimeTypes}
               maxBytes={purpose.maxBytes}
+              maxImageSide={purpose.maxImageSide}
               onUpload={async (file, mimeType, onStep) => {
                 await upload.mutateAsync({ organizationId: organization.id, file, mimeType, onStep })
               }}

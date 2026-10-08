@@ -46,17 +46,28 @@ describe('useSignedFileUrl', () => {
     expect(queryClient.getQueryData(storageKeys.signedUrl('u1', FILE_ID))).toEqual(signed(1))
   })
 
-  it('gets a new URL after 4 minutes, before the 5-minute one expires', async () => {
+  it('with refresh (a download link), gets a new URL after 4 minutes, before the 5-minute one expires', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     mocks.signedFileUrl.mockResolvedValueOnce(signed(1)).mockResolvedValue(signed(2))
     const { wrapper } = setup()
-    const { result } = renderHook(() => useSignedFileUrl(FILE_ID), { wrapper })
+    const { result } = renderHook(() => useSignedFileUrl(FILE_ID, { refresh: true }), { wrapper })
     await waitFor(() => expect(result.current.data).toEqual(signed(1)))
     await act(() => vi.advanceTimersByTimeAsync(239_000))
     expect(mocks.signedFileUrl).toHaveBeenCalledTimes(1)
     expect(result.current.isStale).toBe(false)
     await act(() => vi.advanceTimersByTimeAsync(1_000))
     await waitFor(() => expect(result.current.data).toEqual(signed(2)))
+  })
+
+  it('without refresh (an image), keeps its URL while shown: an image already loaded is not reloaded', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    mocks.signedFileUrl.mockResolvedValueOnce(signed(1)).mockResolvedValue(signed(2))
+    const { wrapper } = setup()
+    const { result } = renderHook(() => useSignedFileUrl(FILE_ID), { wrapper })
+    await waitFor(() => expect(result.current.data).toEqual(signed(1)))
+    await act(() => vi.advanceTimersByTimeAsync(600_000))
+    expect(mocks.signedFileUrl).toHaveBeenCalledTimes(1)
+    expect(result.current.data).toEqual(signed(1))
   })
 
   it("never serves one user's URL to the next", async () => {

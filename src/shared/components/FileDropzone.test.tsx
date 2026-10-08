@@ -18,10 +18,17 @@ function png(size: number, name = 'logo.png', type = 'image/png'): File {
 const BUTTON = 'Choisir un fichier'
 const HINT = 'PNG ou JPEG, 2 Mo au plus.'
 
+/** A PNG whose IHDR states `width` × `height`, named and typed as given. */
+function pngSized(width: number, height: number, name = 'grand.png'): File {
+  const be32 = (n: number) => [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff]
+  const ihdr = [0, 0, 0, 0x0d, ...[...'IHDR'].map((c) => c.charCodeAt(0)), ...be32(width), ...be32(height), 8, 6, 0, 0, 0]
+  return new File([new Uint8Array([...PNG_HEAD, ...ihdr, 0, 0, 0, 0])], name, { type: 'image/png' })
+}
+
 function renderDropzone(overrides: Partial<Parameters<typeof FileDropzone>[0]> = {}) {
   const onUpload = vi.fn<(file: File, mimeType: string, onStep: (step: UploadStep) => void) => Promise<void>>(async () => {})
   const errorMessage = vi.fn((error: unknown) => (error instanceof Error ? error.message : 'Erreur'))
-  render(
+  const result = render(
     <>
       <input aria-label="avant" />
       <FileDropzone buttonLabel={BUTTON} hint={HINT} accept={['image/png', 'image/jpeg']} maxBytes={2 * MB} onUpload={onUpload} errorMessage={errorMessage} {...overrides} />
@@ -29,7 +36,7 @@ function renderDropzone(overrides: Partial<Parameters<typeof FileDropzone>[0]> =
     </>,
   )
   const input = document.querySelector('input[type="file"]') as HTMLInputElement
-  return { onUpload, errorMessage, input }
+  return { onUpload, errorMessage, input, unmount: result.unmount }
 }
 
 const button = () => screen.getByRole('button', { name: BUTTON })
@@ -75,6 +82,61 @@ describe('FileDropzone', () => {
     fireEvent.drop(input.parentElement as HTMLElement, { dataTransfer: { files: [new File(['GIF89a'], 'a.gif', { type: 'image/gif' })] } })
     expect(await screen.findByRole('alert')).toHaveTextContent(t('storage.dropzone.wrongType'))
     expect(onUpload).not.toHaveBeenCalled()
+  })
+
+  it('refuses an empty file before any upload', async () => {
+    const { onUpload, input } = renderDropzone()
+    await userEvent.upload(input, new File([], 'logo.png', { type: 'image/png' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(t('storage.dropzone.empty'))
+    expect(onUpload).not.toHaveBeenCalled()
+  })
+
+  it('refuses a text file renamed .png by its content, before any upload', async () => {
+    const { onUpload, input } = renderDropzone()
+    await userEvent.upload(input, new File(['Ceci est du texte.'], 'logo.png', { type: 'image/png' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(t('storage.dropzone.wrongType'))
+    expect(onUpload).not.toHaveBeenCalled()
+  })
+
+  it('refuses an image wider or taller than the side cap, read from its header, before any upload', async () => {
+    const { onUpload, input } = renderDropzone({ maxImageSide: 4000 })
+    await userEvent.upload(input, pngSized(4001, 200))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^Cette image dépasse la taille permise \(4\s000 pixels de côté\)\.$/)
+    expect(onUpload).not.toHaveBeenCalled()
+
+    await userEvent.upload(input, pngSized(4000, 4000))
+    await waitFor(() => expect(onUpload).toHaveBeenCalledTimes(1))
+  })
+
+  it('without a side cap, does not read the image size', async () => {
+    const { onUpload, input } = renderDropzone()
+    await userEvent.upload(input, pngSized(9000, 9000))
+    await waitFor(() => expect(onUpload).toHaveBeenCalledTimes(1))
+  })
+
+  it('while shown, a file dropped outside the zone is cancelled (the tab does not open it); not after', () => {
+    /** Dispatches a drag event carrying `dataTransfer` as is; true when its default was not prevented. */
+    const drag = (target: Element, type: 'dragover' | 'drop', dataTransfer: object) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer })
+      return target.dispatchEvent(event)
+    }
+    const { input, unmount } = renderDropzone()
+    const outside = screen.getByRole('textbox', { name: 'avant' })
+    const files = { types: ['Files'], files: [png(10)], dropEffect: 'copy' }
+    expect(drag(outside, 'dragover', files)).toBe(false)
+    expect(files.dropEffect).toBe('none')
+    expect(drag(outside, 'drop', files)).toBe(false)
+    // Dragged text is left alone.
+    expect(drag(outside, 'drop', { types: ['text/plain'], dropEffect: 'copy' })).toBe(true)
+    // Over the zone, the drop stays allowed.
+    const over = { types: ['Files'], files: [], dropEffect: 'copy' }
+    expect(drag(input.parentElement as HTMLElement, 'dragover', over)).toBe(false)
+    expect(over.dropEffect).toBe('copy')
+
+    unmount()
+    expect(drag(document.body, 'dragover', { types: ['Files'], dropEffect: 'copy' })).toBe(true)
+    expect(drag(document.body, 'drop', files)).toBe(true)
   })
 
   it('uploads an accepted file, declared by its content (a PNG named .jpg goes as image/png)', async () => {

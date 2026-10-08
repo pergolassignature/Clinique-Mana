@@ -194,7 +194,8 @@ describe('SignatorySettingsPage', () => {
       expect(card().compareDocumentPosition(signatureCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       expect(within(signatureCard()).getByText('Utilisée pour la signature de la clinique sur les documents.')).toBeInTheDocument()
       expect(within(signatureCard()).getByRole('button', { name: t('settings.signatory.signature.replace') })).toHaveAccessibleDescription(
-        t('settings.signatory.signature.hint'),
+        // The limits come from UPLOAD_PURPOSES (checked against the migrations), not the text.
+        /^PNG à fond transparent recommandé \(JPEG accepté\), 2 Mo et 4\s000 pixels de côté au plus\.$/,
       )
       await waitFor(() => expect(preview()).toHaveAttribute('src', 'https://x.test/s.png?token=t'))
       expect(mocks.storage.signedFileUrl).toHaveBeenCalledWith(SIGNATURE_ID, expect.anything())

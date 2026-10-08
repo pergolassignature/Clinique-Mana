@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import type { Organization } from '@/core/settings/organization/api'
@@ -335,11 +335,23 @@ describe('IdentitySettingsPage', () => {
       mocks.storage.signedFileUrl.mockImplementation(async (fileId: string) => ({ url: `https://x.test/${fileId}.png?token=t`, expiresAt: '2026-10-08T12:05:00Z' }))
     })
 
+    /** From now on the database keeps what set_org_asset sets, and bumps updated_at, as the function does. */
+    function databaseSetsAssets(organization: Organization) {
+      let row = organization
+      mocks.api.fetchOrganization.mockImplementation(async () => row)
+      mocks.api.setOrgAsset.mockImplementation(async (kind: 'logo' | 'signature', fileId: string | null) => {
+        row = { ...row, [kind === 'logo' ? 'logo_file_id' : 'signature_file_id']: fileId, updated_at: '2026-10-08T12:00:00Z' }
+      })
+    }
+
     it('comes last, after the three forms, with its description and the formats', async () => {
       await renderPage({ organization: withLogo })
       expect(screen.getAllByRole('heading', { level: 3 }).at(-1)).toHaveTextContent(t('settings.identity.logo.title'))
       expect(within(logoCard()).getByText(t('settings.identity.logo.description'))).toBeInTheDocument()
-      expect(within(logoCard()).getByRole('button', { name: t('settings.identity.logo.replace') })).toHaveAccessibleDescription(t('settings.identity.logo.hint'))
+      expect(within(logoCard()).getByRole('button', { name: t('settings.identity.logo.replace') })).toHaveAccessibleDescription(
+        // The limits come from UPLOAD_PURPOSES (checked against the migrations), not the text.
+        /^PNG ou JPEG, 2 Mo et 4\s000 pixels de côté au plus\.$/,
+      )
     })
 
     it('shows the logo through a signed URL, with « Remplacer » and « Retirer »', async () => {
@@ -358,8 +370,8 @@ describe('IdentitySettingsPage', () => {
 
     it('« Remplacer »: uploads the image as org_logo, sets it as the logo, confirms, and shows the new one', async () => {
       mocks.storage.uploadFile.mockResolvedValue({ fileId: NEW_ID })
-      mocks.api.setOrgAsset.mockResolvedValue(undefined)
       await renderPage({ organization: withLogo })
+      databaseSetsAssets(withLogo)
       const file = new File([PNG], 'nouveau.jpg', { type: 'image/jpeg' })
       await userEvent.upload(fileInput(), file)
 
@@ -370,8 +382,9 @@ describe('IdentitySettingsPage', () => {
       expect(mocks.api.setOrgAsset).toHaveBeenCalledExactlyOnceWith('logo', NEW_ID)
       expect(mocks.storage.uploadFile.mock.invocationCallOrder[0]).toBeLessThan(mocks.api.setOrgAsset.mock.invocationCallOrder[0] ?? 0)
       await waitFor(() => expect(preview()).toHaveAttribute('src', `https://x.test/${NEW_ID}.png?token=t`))
-      // The organization is not fetched again: the cache takes the new id.
-      expect(mocks.api.fetchOrganization).toHaveBeenCalledTimes(1)
+      // The organization is read again after set_org_asset, for the updated_at it bumped.
+      expect(mocks.api.fetchOrganization).toHaveBeenCalledTimes(2)
+      expect(mocks.api.setOrgAsset.mock.invocationCallOrder[0]).toBeLessThan(mocks.api.fetchOrganization.mock.invocationCallOrder[1] ?? 0)
     })
 
     it("shows the functions' refusal in the card, and keeps the logo", async () => {
@@ -386,8 +399,8 @@ describe('IdentitySettingsPage', () => {
     })
 
     it('« Retirer » asks first; confirmed, removes the logo and returns focus to the upload button', async () => {
-      mocks.api.setOrgAsset.mockResolvedValue(undefined)
       await renderPage({ organization: withLogo })
+      databaseSetsAssets(withLogo)
       await userEvent.click(within(logoCard()).getByRole('button', { name: t('settings.identity.logo.remove') }))
       const dialog = await screen.findByRole('alertdialog', { name: t('settings.identity.logo.removeConfirm.title') })
       expect(mocks.api.setOrgAsset).not.toHaveBeenCalled()
@@ -423,6 +436,39 @@ describe('IdentitySettingsPage', () => {
       await waitFor(() => expect(preview()).toHaveAttribute('src', `https://x.test/${LOGO_ID}.png?token=t`))
       expect(within(logoCard()).queryByRole('button')).not.toBeInTheDocument()
       expect(fileInput()).toBeNull()
+    })
+
+    it('loads the preview lazily, decoded off the main thread', async () => {
+      await renderPage({ organization: withLogo })
+      await waitFor(() => expect(preview()).toHaveAttribute('src', `https://x.test/${LOGO_ID}.png?token=t`))
+      expect(preview()).toHaveAttribute('loading', 'lazy')
+      expect(preview()).toHaveAttribute('decoding', 'async')
+    })
+
+    it('keeps the image shown when a later refetch of its URL fails', async () => {
+      const { FunctionCallError } = await import('@/core/supabase/functions')
+      const { queryClient } = await renderPage({ organization: withLogo })
+      await waitFor(() => expect(preview()).toHaveAttribute('src', `https://x.test/${LOGO_ID}.png?token=t`))
+      mocks.storage.signedFileUrl.mockRejectedValue(new FunctionCallError('rate_limited', 429, 'Too many attempts', {}, 60))
+      await queryClient.refetchQueries({ queryKey: ['storage'] })
+      expect(mocks.storage.signedFileUrl).toHaveBeenCalledTimes(2)
+      expect(preview()).toHaveAttribute('src', `https://x.test/${LOGO_ID}.png?token=t`)
+      expect(within(logoCard()).queryByText(/Trop d'aperçus/)).not.toBeInTheDocument()
+    })
+
+    it('an image that fails to load (its URL expired) asks for a new URL once; failing again, says so', async () => {
+      let n = 0
+      mocks.storage.signedFileUrl.mockImplementation(async (fileId: string) => ({ url: `https://x.test/${fileId}.png?token=${++n}`, expiresAt: '2026-10-08T12:05:00Z' }))
+      await renderPage({ organization: withLogo })
+      await waitFor(() => expect(preview()).toHaveAttribute('src', `https://x.test/${LOGO_ID}.png?token=1`))
+
+      fireEvent.error(preview())
+      await waitFor(() => expect(preview()).toHaveAttribute('src', `https://x.test/${LOGO_ID}.png?token=2`))
+      expect(mocks.storage.signedFileUrl).toHaveBeenCalledTimes(2)
+
+      fireEvent.error(preview())
+      expect(await within(logoCard()).findByText(t('storage.preview.unavailable'))).toBeInTheDocument()
+      expect(mocks.storage.signedFileUrl).toHaveBeenCalledTimes(2)
     })
 
     it('a preview that cannot be signed says so', async () => {

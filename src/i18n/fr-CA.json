@@ -227,6 +227,8 @@
       "progressLabel": "Téléversement",
       "steps": { "preparing": "Préparation de {name}…", "sending": "Envoi de {name}…", "confirming": "Vérification de {name}…" },
       "tooLarge": "Ce fichier dépasse la taille permise ({size} Mo).",
+      "imageTooLarge": "Cette image dépasse la taille permise ({side} pixels de côté).",
+      "empty": "Ce fichier est vide.",
       "wrongType": "Ce type de fichier n'est pas accepté."
     },
     "preview": { "unavailable": "L'aperçu n'est pas disponible." },
@@ -236,6 +238,8 @@
       "expired": "Ce téléversement n'est plus valide. Choisissez le fichier de nouveau.",
       "conflict": "Ce téléversement a été traité entre-temps. Choisissez le fichier de nouveau.",
       "sendFailed": "L'envoi du fichier a échoué. Vérifiez votre connexion, puis réessayez.",
+      "sendRefused": "L'envoi du fichier a été refusé. Choisissez le fichier de nouveau.",
+      "unauthenticated": "Votre session a expiré. Reconnectez-vous.",
       "network": "Le serveur ne répond pas. Vérifiez votre connexion, puis réessayez.",
       "unavailable": "Le téléversement est momentanément indisponible. Réessayez plus tard."
     }
@@ -593,7 +597,7 @@
       "logo": {
         "title": "Logo",
         "description": "Il figure sur les documents de la clinique (contrats, fiches, reçus).",
-        "hint": "PNG ou JPEG, 2 Mo et 4 000 pixels de côté au plus.",
+        "hint": "PNG ou JPEG, {size} Mo et {side} pixels de côté au plus.",
         "alt": "Logo de la clinique",
         "empty": "Aucun logo.",
         "replace": "Remplacer",
@@ -619,7 +623,7 @@
       "signature": {
         "title": "Image de signature",
         "description": "Utilisée pour la signature de la clinique sur les documents.",
-        "hint": "PNG à fond transparent recommandé (JPEG accepté), 2 Mo et 4 000 pixels de côté au plus.",
+        "hint": "PNG à fond transparent recommandé (JPEG accepté), {size} Mo et {side} pixels de côté au plus.",
         "alt": "Signature de la clinique",
         "empty": "Aucune image de signature.",
         "replace": "Remplacer",

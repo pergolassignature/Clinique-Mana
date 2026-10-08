@@ -35,6 +35,7 @@ describe('uploadErrorMessage', () => {
   })
 
   it.each([
+    ['unauthenticated', 401, 'Votre session a expiré. Reconnectez-vous.'],
     ['forbidden', 403, t('common.errors.forbidden')],
     ['not_found', 404, t('storage.errors.expired')],
     ['conflict', 409, t('storage.errors.conflict')],
@@ -45,8 +46,23 @@ describe('uploadErrorMessage', () => {
     expect(captureException).not.toHaveBeenCalled()
   })
 
-  it('a failed send has its own text', () => {
-    expect(uploadErrorMessage(new UploadSendError(500))).toBe(t('storage.errors.sendFailed'))
+  it('a send that failed without a status (the network) has the connection text, not reported', () => {
+    expect(uploadErrorMessage(new UploadSendError(null))).toBe(t('storage.errors.sendFailed'))
+    expect(captureException).not.toHaveBeenCalled()
+  })
+
+  it.each([400, 403, 409, 413])('a send refused by storage (%i) asks for the file again; its status is reported, nothing else', (status) => {
+    expect(uploadErrorMessage(new UploadSendError(status))).toBe(t('storage.errors.sendRefused'))
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: `UploadSendError ${status}` }), {
+      tags: { area: 'storage', status: String(status) },
+    })
+    const [report] = captureException.mock.calls[0] ?? []
+    expect((report as Error).message).not.toMatch(/\/|token/)
+  })
+
+  it('a send that failed on a 5xx has the connection text; its status is reported', () => {
+    expect(uploadErrorMessage(new UploadSendError(502))).toBe(t('storage.errors.sendFailed'))
+    expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ name: 'UploadSendError 502' }), { tags: { area: 'storage', status: '502' } })
   })
 
   it("set_org_asset's refusal (P0001) is shown as is", () => {

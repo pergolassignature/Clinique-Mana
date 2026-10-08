@@ -1,7 +1,7 @@
-import { useId, useRef, useState, type DragEvent, type Ref } from 'react'
+import { useEffect, useId, useRef, useState, type DragEvent, type Ref } from 'react'
 import { Upload } from 'lucide-react'
 import { t } from '@/i18n'
-import { formatMegabytes, UPLOAD_STEPS, uploadMimeType, type UploadStep } from '@/shared/lib/files'
+import { formatMegabytes, formatPixels, readImageSize, UPLOAD_STEPS, uploadMimeType, type UploadStep } from '@/shared/lib/files'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { ignoreWhenInactive, softDisabledClasses } from './soft-disabled'
@@ -15,6 +15,8 @@ interface FileDropzoneProps {
   accept: readonly string[]
   /** The purpose's size cap, in bytes. */
   maxBytes: number
+  /** The purpose's image width and height cap, in pixels (`upload_purposes.max_image_side`), if any. */
+  maxImageSide?: number | null
   /**
    * Uploads the chosen file, declared as `mimeType` (its content's type when the purpose accepts
    * it), reporting each step. A rejection is shown in the zone, worded by `errorMessage`.
@@ -30,39 +32,78 @@ interface FileDropzoneProps {
 type State = { status: 'idle' } | { status: 'uploading'; step: UploadStep; name: string } | { status: 'error'; message: string }
 
 /**
- * One file, dropped on the zone or chosen with its button. The size and type are checked here,
- * before any network call (the server stays the authority); then `onUpload` runs, its steps shown
- * as a progress bar with a polite status line, and its error under the button.
+ * The text refusing `file` before any network call, or its type to declare. Checked: an empty
+ * file, the size, the type (by content when every accepted type can be sniffed: `uploadMimeType`),
+ * and an image's width and height from its header. The server stays the authority.
+ */
+async function precheck(file: File, accept: readonly string[], maxBytes: number, maxImageSide: number | null): Promise<{ error: string } | { mimeType: string }> {
+  if (file.size === 0) return { error: t('storage.dropzone.empty') }
+  if (file.size > maxBytes) return { error: t('storage.dropzone.tooLarge', { size: formatMegabytes(maxBytes) }) }
+  const mimeType = await uploadMimeType(file, accept)
+  if (mimeType === null || !accept.includes(mimeType)) return { error: t('storage.dropzone.wrongType') }
+  if (maxImageSide !== null) {
+    const size = await readImageSize(file, mimeType)
+    if (size && (size.width > maxImageSide || size.height > maxImageSide)) {
+      return { error: t('storage.dropzone.imageTooLarge', { side: formatPixels(maxImageSide) }) }
+    }
+  }
+  return { mimeType }
+}
+
+/** Whether a drag carries files (not a text or link being dragged within the page). */
+const carriesFiles = (event: globalThis.DragEvent) => event.dataTransfer?.types.includes('Files') ?? false
+
+/**
+ * One file, dropped on the zone or chosen with its button. It is checked here before any network
+ * call (`precheck`); then `onUpload` runs, its steps shown as a progress bar with a polite status
+ * line, and its error under the button.
+ *
+ * While the zone is shown, a file dropped elsewhere on the page is ignored, so a drop just
+ * outside the zone does not make the browser open the file in place of the app.
  *
  * Keyboard: the button is the one tab stop (Enter or Space opens the picker); the file input is
  * hidden and out of the tab order, and the drop zone is a mouse affordance only. The hint and the
  * error describe the button. While an upload runs, the button is `aria-disabled` (it keeps focus)
  * and a second file is ignored.
  */
-export function FileDropzone({ buttonLabel, hint, accept, maxBytes, onUpload, errorMessage, buttonRef, className }: FileDropzoneProps) {
+export function FileDropzone({ buttonLabel, hint, accept, maxBytes, maxImageSide = null, onUpload, errorMessage, buttonRef, className }: FileDropzoneProps) {
   const id = useId()
   const hintId = `${id}-hint`
   const errorId = `${id}-error`
   const input = useRef<HTMLInputElement>(null)
+  const zone = useRef<HTMLDivElement>(null)
   // A ref, not the state: a drop and a change can arrive in the same tick.
   const busy = useRef(false)
   const [state, setState] = useState<State>({ status: 'idle' })
   const [dragActive, setDragActive] = useState(false)
   const uploading = state.status === 'uploading'
 
+  useEffect(() => {
+    // Outside the zone, a file drag shows « no drop » and its drop is cancelled (else the tab
+    // navigates to the file). Drags of text or links are left alone.
+    const ignore = (event: globalThis.DragEvent) => {
+      if (!carriesFiles(event)) return
+      event.preventDefault()
+      if (event.dataTransfer && !zone.current?.contains(event.target as Node | null)) event.dataTransfer.dropEffect = 'none'
+    }
+    document.addEventListener('dragover', ignore)
+    document.addEventListener('drop', ignore)
+    return () => {
+      document.removeEventListener('dragover', ignore)
+      document.removeEventListener('drop', ignore)
+    }
+  }, [])
+
   async function handle(file: File | undefined) {
     if (!file || busy.current) return
     busy.current = true
     try {
-      if (file.size > maxBytes) {
-        setState({ status: 'error', message: t('storage.dropzone.tooLarge', { size: formatMegabytes(maxBytes) }) })
+      const checked = await precheck(file, accept, maxBytes, maxImageSide)
+      if ('error' in checked) {
+        setState({ status: 'error', message: checked.error })
         return
       }
-      const mimeType = await uploadMimeType(file, accept)
-      if (!accept.includes(mimeType)) {
-        setState({ status: 'error', message: t('storage.dropzone.wrongType') })
-        return
-      }
+      const { mimeType } = checked
       setState({ status: 'uploading', step: 'preparing', name: file.name })
       try {
         await onUpload(file, mimeType, (step) => setState({ status: 'uploading', step, name: file.name }))
@@ -85,6 +126,7 @@ export function FileDropzone({ buttonLabel, hint, accept, maxBytes, onUpload, er
 
   return (
     <div
+      ref={zone}
       data-drag-active={dragActive || undefined}
       onDragEnter={onDragOver}
       onDragOver={onDragOver}

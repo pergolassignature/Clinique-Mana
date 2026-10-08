@@ -65,11 +65,18 @@ export function useUpdateOrganization(successMessage: string) {
 export const ORG_ASSET_COLUMN = { logo: 'logo_file_id', signature: 'signature_file_id' } as const satisfies Record<OrgAssetKind, keyof Organization>
 
 /**
- * Puts the asset's new file (or null) in the cached organization, then marks the organization
- * stale without fetching it again: the preview follows the new id at once.
+ * Caches the organization as `set_org_asset` left it: read again, since the function bumps
+ * `updated_at` and only the row read afterwards carries that instant. Merged by `newer`, like a
+ * save: a card save that answers later with a row read before the asset changed (the old file
+ * id) cannot then replace it. If the read fails, the new id is put in the cached row (its
+ * `updated_at` unchanged), then the organization is marked stale either way.
  */
 async function cacheOrgAsset(queryClient: QueryClient, kind: OrgAssetKind, fileId: string | null) {
-  queryClient.setQueryData<Organization>(organizationKeys.current(), (cached) => cached && { ...cached, [ORG_ASSET_COLUMN[kind]]: fileId })
+  const fresh = await fetchOrganization().catch(() => null)
+  queryClient.setQueryData<Organization>(organizationKeys.current(), (cached) => {
+    if (fresh) return cached && newer(cached.updated_at, fresh.updated_at) ? cached : fresh
+    return cached && { ...cached, [ORG_ASSET_COLUMN[kind]]: fileId }
+  })
   await queryClient.invalidateQueries({ queryKey: organizationKeys.all, refetchType: 'none' })
 }
 

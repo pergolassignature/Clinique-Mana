@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FunctionCallError } from '@/core/supabase/functions'
-import { signedFileUrl, uploadFile, UploadSendError } from './api'
+import { registryName, signedFileUrl, uploadFile, UploadSendError } from './api'
 
 const mocks = vi.hoisted(() => {
   const uploadToSignedUrl = vi.fn()
@@ -96,6 +98,52 @@ describe('uploadFile', () => {
     await expect(uploadFile(input())).rejects.toBe(refusal)
   })
 
+  describe('storage-confirm tried again', () => {
+    /** storage-upload answers; storage-confirm fails with each of `failures` in turn, then answers. */
+    function confirmFails(...failures: FunctionCallError[]) {
+      mocks.invokeFunction.mockImplementation(async (name: string) => {
+        if (name === 'storage-upload') return PREPARED
+        const failure = failures.shift()
+        if (failure) throw failure
+        return { file_id: FILE_ID }
+      })
+      mocks.uploadToSignedUrl.mockResolvedValue({ data: {}, error: null })
+    }
+    const confirms = () => mocks.invokeFunction.mock.calls.filter(([name]) => name === 'storage-confirm')
+
+    it.each([
+      ['the network', new FunctionCallError('network', 0, 'Function unreachable')],
+      ['a 500', new FunctionCallError('internal', 500, 'Confirm failed')],
+      ['a 503', new FunctionCallError('not_configured', 503, 'Storage unavailable')],
+    ])('once after %s (a repeated confirm answers 200): the upload succeeds, sent once', async (_case, failure) => {
+      confirmFails(failure)
+      await expect(uploadFile(input())).resolves.toEqual({ fileId: FILE_ID })
+      expect(confirms()).toEqual([
+        ['storage-confirm', { file_id: FILE_ID }],
+        ['storage-confirm', { file_id: FILE_ID }],
+      ])
+      expect(mocks.uploadToSignedUrl).toHaveBeenCalledTimes(1)
+    })
+
+    it('only once: a second failure is passed on', async () => {
+      const second = new FunctionCallError('internal', 502, 'Bad gateway')
+      confirmFails(new FunctionCallError('network', 0, 'Function unreachable'), second)
+      await expect(uploadFile(input())).rejects.toBe(second)
+      expect(confirms()).toHaveLength(2)
+    })
+
+    it.each([
+      ['a refusal (400)', new FunctionCallError('invalid_request', 400, "Ce fichier n'est pas du type annoncé.")],
+      ['a conflict (409)', new FunctionCallError('conflict', 409, 'Already settled')],
+      ['an expired upload (404)', new FunctionCallError('not_found', 404, 'No pending upload')],
+      ['a rate limit (429)', new FunctionCallError('rate_limited', 429, 'Too many attempts', {}, 60)],
+    ])('never after %s', async (_case, failure) => {
+      confirmFails(failure)
+      await expect(uploadFile(input())).rejects.toBe(failure)
+      expect(confirms()).toHaveLength(1)
+    })
+  })
+
   it('refuses an unexpected answer from storage-upload before sending anything', async () => {
     mocks.invokeFunction.mockResolvedValue({ file_id: FILE_ID, bucket: 'org-assets', signed_url: 'http://x' })
     await expect(uploadFile(input())).rejects.toThrow()
@@ -136,5 +184,34 @@ describe('signedFileUrl', () => {
     const limited = new FunctionCallError('rate_limited', 429, 'Too many attempts', {}, 600)
     mocks.invokeFunction.mockRejectedValue(limited)
     await expect(signedFileUrl(FILE_ID)).rejects.toBe(limited)
+  })
+})
+
+describe('registryName and storage-upload', () => {
+  /**
+   * The code points `forbiddenNameChar` in storage-upload's handler refuses, read from its source:
+   * its `char === '…'` literals, its `code < 0x…` bound and its `code >= 0x… && code <= 0x…` ranges.
+   */
+  function serverForbidden(): (code: number) => boolean {
+    const source = readFileSync(path.resolve(__dirname, '../../../supabase/functions/storage-upload/handler.ts'), 'utf8')
+    const body = /function forbiddenNameChar\([^)]*\)[^{]*\{([\s\S]*?)\n\}/.exec(source)?.[1]
+    if (!body) throw new Error('forbiddenNameChar not found in storage-upload/handler.ts')
+    const literals = [...body.matchAll(/char === '((?:\\\\|[^'\\]))'/g)].map(([, c]) => (c === '\\\\' ? 0x5c : (c ?? '').codePointAt(0)))
+    const below = [...body.matchAll(/code < (0x[0-9a-f]+)/gi)].map(([, n]) => Number(n))
+    const ranges = [...body.matchAll(/code >= (0x[0-9a-f]+) && code <= (0x[0-9a-f]+)/gi)].map(([, from, to]) => [Number(from), Number(to)] as const)
+    // The handler as written today: '/' and '\', C0, then DEL+C1, LRM/RLM, the separators, the embeddings and the isolates.
+    expect({ literals: literals.length, below: below.length, ranges: ranges.length }).toEqual({ literals: 2, below: 1, ranges: 5 })
+    return (code) => literals.includes(code) || below.some((n) => code < n) || ranges.some(([from, to]) => code >= from && code <= to)
+  }
+
+  it("replaces exactly the characters storage-upload refuses (the client's set is the server's)", () => {
+    const forbidden = serverForbidden()
+    const mismatches: string[] = []
+    for (let code = 0; code <= 0xffff; code++) {
+      const name = `a${String.fromCharCode(code)}b`
+      const replaced = registryName(name) !== name
+      if (replaced !== forbidden(code)) mismatches.push(`U+${code.toString(16).padStart(4, '0')}`)
+    }
+    expect(mismatches).toEqual([])
   })
 })
