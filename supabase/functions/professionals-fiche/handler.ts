@@ -70,8 +70,8 @@ export const MAX_FICHE_BYTES = 10 * 1024 * 1024
  * tab, the line break and the carriage return, DEL, C1, the line and
  * paragraph separators and the bidirectional controls.
  */
-// deno-lint-ignore no-control-regex
 const FORBIDDEN_IN_MESSAGE =
+  // deno-lint-ignore no-control-regex
   /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u2028\u2029\u200e\u200f\u202a-\u202e\u2066-\u2069]/
 
 const bodySchema = z.strictObject({
