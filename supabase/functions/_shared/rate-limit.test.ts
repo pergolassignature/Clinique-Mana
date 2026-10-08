@@ -192,6 +192,7 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     emailTest: ['emails.test', 10, 3_600],
     emailOrgDay: ['emails.org_day', 500, 86_400],
     emailSameAddress: ['emails.same_address', 1, 60],
+    emailRepeatGuard: ['emails.repeat_guard', 1, 5],
     emailFreeRecipient: ['emails.free_recipient', 20, 3_600],
     linkResolveIp: ['links.resolve_ip', 30, 600],
     inviteAcceptIp: ['links.accept_ip', 10, 3_600],

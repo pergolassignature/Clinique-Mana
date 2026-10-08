@@ -213,10 +213,11 @@ function harness(opts: Options = {}) {
   }
   const rpcNames = () => supabase.calls.map((c) => c.fn)
   const argsOf = (fn: string) => supabase.calls.find((c) => c.fn === fn)?.args
+  /** The buckets consumed, sorted: the limits run in parallel, in no set order. */
   const buckets = () =>
     supabase.calls.filter((c) => c.fn === 'consume_rate_limit').map((c) =>
-      c.args.p_bucket
-    )
+      String(c.args.p_bucket)
+    ).sort()
   return { deps, log, supabase, http, rpcNames, argsOf, buckets }
 }
 
@@ -411,10 +412,41 @@ Deno.test('send: a free recipient needs a sender; on a `free` template it uses i
   )
   assertEquals(result, { ok: true, emailLogId: LOG_ID })
   assertEquals(h.buckets(), [
+    'emails.free_recipient',
     'emails.org_day',
     'emails.same_address',
-    'emails.free_recipient',
   ])
+})
+
+Deno.test('send: a `free` template called without the flag still needs a sender and uses the free bucket', async () => {
+  const free = context({ template: { recipient_mode: 'free' } })
+  const anonymous = harness({ context: free })
+  assertEquals(
+    (await run(() =>
+      sendTemplatedEmail(anonymous.deps, input({ sentBy: null }))
+    )).result,
+    { ok: false, emailLogId: null, code: 'recipient_not_allowed' },
+  )
+  assertFalse(anonymous.rpcNames().includes('consume_rate_limit'))
+
+  const h = harness({ context: free })
+  const { result } = await run(() => sendTemplatedEmail(h.deps, input()))
+  assertEquals(result, { ok: true, emailLogId: LOG_ID })
+  assertEquals(h.buckets(), [
+    'emails.free_recipient',
+    'emails.org_day',
+    'emails.same_address',
+  ])
+
+  const limited = harness({
+    context: free,
+    limits: { 'emails.free_recipient': { allowed: false, hits: 21 } },
+  })
+  const refused = await run(() =>
+    sendTemplatedEmail(limited.deps, input({ freeRecipient: false }))
+  )
+  assertEquals(!refused.result.ok && refused.result.code, 'rate_limited')
+  assertFalse(limited.rpcNames().includes('queue_email'))
 })
 
 Deno.test('send: an address that is not exactly one mailbox → invalid_recipient, nothing queued', async () => {
@@ -427,6 +459,15 @@ Deno.test('send: an address that is not exactly one mailbox → invalid_recipien
       'ana@example.com\r\nBcc: eve@evil.test',
       `${'a'.repeat(250)}@example.com`,
       '',
+      // A zero-width space, a right-to-left override, a Cyrillic homograph
+      // (`а` U+0430 in the domain), and a non-ASCII domain.
+      'ana\u200b@example.com',
+      'ana@example.com\u200b',
+      '\u202eana@example.com',
+      'ana@ex\u0430mple.com',
+      'ana@exemple.québec',
+      'ana@-example.com',
+      'ana@example..com',
     ]
   ) {
     const h = harness()
@@ -440,6 +481,94 @@ Deno.test('send: an address that is not exactly one mailbox → invalid_recipien
     })
     assertFalse(h.rpcNames().includes('consume_rate_limit'))
   }
+})
+
+Deno.test('send: an ASCII or punycode domain is accepted', async () => {
+  for (
+    const email of [
+      'ana@xn--exemple-qva.ca',
+      'ana@exemple.xn--qubec-csa',
+      'ana+test@sous-domaine.example.ca',
+    ]
+  ) {
+    const h = harness()
+    const { result } = await run(() =>
+      sendTemplatedEmail(h.deps, input({ to: { email, profileId: null } }))
+    )
+    assertEquals(result, { ok: true, emailLogId: LOG_ID }, email)
+  }
+})
+
+Deno.test('send: an invalid sender from_address or reply_to → not_configured, reported sender_invalid with ids only', async () => {
+  const sender = (over: Record<string, unknown>) =>
+    context({
+      sender: {
+        from_name: 'Clinique MANA',
+        from_address: 'no-reply@gestion.cliniquemana.com',
+        reply_to: 'info@cliniquemana.com',
+        ...over,
+      },
+    })
+  for (
+    const over of [
+      { from_address: 'no-reply@x.ca, eve@evil.test' },
+      { from_address: 'Clinique <no-reply@x.ca>' },
+      { from_address: 'no-reply@x.ca\r\nBcc: eve@evil.test' },
+      { reply_to: 'info@x.ca, eve@evil.test' },
+      { reply_to: '' },
+      { reply_to: 'info\u200b@x.ca' },
+    ]
+  ) {
+    const h = harness({ context: sender(over) })
+    const { result, errors } = await run(() =>
+      sendTemplatedEmail(h.deps, input())
+    )
+    assertEquals(result, {
+      ok: false,
+      emailLogId: null,
+      code: 'not_configured',
+    })
+    assertEquals(errors.map((e) => JSON.parse(e)), [{
+      fn: 'test-fn',
+      code: 'sender_invalid',
+      ids: { org_id: ORG },
+    }])
+    assertFalse(h.rpcNames().includes('consume_rate_limit'))
+    assertEquals(h.http.calls.length, 0)
+  }
+  const none = harness({ context: sender({ reply_to: null }) })
+  assertEquals(
+    (await run(() => sendTemplatedEmail(none.deps, input()))).result,
+    { ok: true, emailLogId: LOG_ID },
+  )
+})
+
+Deno.test('send: EMAIL_TRANSPORT=console needs a local APP_URL (else server_misconfigured, before any RPC)', async () => {
+  const h = harness({ env: { EMAIL_TRANSPORT: 'console' } })
+  const errors = await captureConsole('error', async () => {
+    await withEnv(ENV, async () => {
+      const error = await assertRejects(
+        () => sendTemplatedEmail(h.deps, input()),
+        FunctionError,
+      )
+      assertEquals(error.code, 'server_misconfigured')
+    })
+  })
+  assertStringIncludes(String(errors[0][0]), 'email_console_not_local')
+  assertEquals(h.rpcNames(), [])
+
+  const local = harness({
+    env: { EMAIL_TRANSPORT: 'console', APP_URL: 'http://localhost:5173' },
+  })
+  let result: unknown
+  await captureConsole('info', async () => {
+    result = (await run(() => sendTemplatedEmail(local.deps, input()))).result
+  })
+  assertEquals(result, { ok: true, emailLogId: LOG_ID })
+  assertEquals(
+    local.argsOf('mark_email_sent')?.p_resend_id,
+    `console:${LOG_ID}`,
+  )
 })
 
 // ---------------------------------------------------------------------------
@@ -531,7 +660,51 @@ Deno.test('send: the same address within 60 s → rate_limited, unless explicitR
     sendTemplatedEmail(resend.deps, input({ explicitResend: true }))
   )
   assertEquals(again.result, { ok: true, emailLogId: LOG_ID })
-  assertEquals(resend.buckets(), ['emails.org_day'])
+  assertEquals(resend.buckets(), ['emails.org_day', 'emails.repeat_guard'])
+})
+
+Deno.test('send: a double click on « Renvoyer » or a test send → rate_limited by the 5 s repeat guard', async () => {
+  const guarded = { 'emails.repeat_guard': { allowed: false, hits: 2 } }
+  for (
+    const over of [
+      { explicitResend: true },
+      { values: {}, test: { callerId: CALLER } },
+    ] as Partial<SendTemplatedEmailInput>[]
+  ) {
+    const h = harness({ limits: guarded })
+    const { result } = await run(() => sendTemplatedEmail(h.deps, input(over)))
+    assertEquals(result, {
+      ok: false,
+      emailLogId: null,
+      code: 'rate_limited',
+      retryAfter: 42,
+    })
+    assertFalse(h.rpcNames().includes('queue_email'))
+    assertEquals(h.http.calls.length, 0)
+  }
+})
+
+Deno.test('send: the repeat-guard key is per template, lower-cased address and sender', async () => {
+  const keyOf = async (over: Partial<SendTemplatedEmailInput>) => {
+    const h = harness()
+    await run(() =>
+      sendTemplatedEmail(h.deps, input({ explicitResend: true, ...over }))
+    )
+    return h.supabase.calls.find((c) =>
+      c.fn === 'consume_rate_limit' && c.args.p_bucket === 'emails.repeat_guard'
+    )?.args.p_key_hash
+  }
+  const base = await keyOf({})
+  assert(base)
+  assertEquals(
+    await keyOf({ to: { email: 'ANA.Gagnon@example.com', profileId: null } }),
+    base,
+  )
+  assertFalse((await keyOf({ sentBy: PROFILE })) === base)
+  assertFalse(
+    (await keyOf({ to: { email: 'eve@example.com', profileId: null } })) ===
+      base,
+  )
 })
 
 Deno.test('send: the same-address key is per org, template and lower-cased address', async () => {
@@ -603,6 +776,29 @@ Deno.test('send: a missing required variable → missing_variable, no queue, no 
   })
   assertFalse(h.rpcNames().includes('queue_email'))
   assertEquals(h.http.calls.length, 0)
+})
+
+Deno.test('send: compose runs before the limits (a template error uses up no slot)', async () => {
+  for (
+    const opts of [
+      {
+        context: context({
+          template: { body: 'Bonjour {{invitee.nickname}}' },
+        }),
+      },
+      {},
+    ] as Options[]
+  ) {
+    const h = harness(opts)
+    const { result } = await run(() =>
+      sendTemplatedEmail(
+        h.deps,
+        input({ values: { ...values, invitee: {} }, explicitResend: true }),
+      )
+    )
+    assertEquals(!result.ok && result.code, 'missing_variable')
+    assertEquals(h.buckets(), [])
+  }
 })
 
 Deno.test('send: an unknown placeholder is reported as missing_variable', async () => {
@@ -678,7 +874,11 @@ Deno.test('send: test mode → « [Test] » subject, sample values, the test lim
   assertStringIncludes(body.text, 'Bonjour Ana Gagnon,')
   assertStringIncludes(body.text, '15 octobre 2026 à 14 h 30')
   assertEquals(body.to, ['christine@cliniquemana.com'])
-  assertEquals(h.buckets(), ['emails.org_day', 'emails.test'])
+  assertEquals(h.buckets(), [
+    'emails.org_day',
+    'emails.repeat_guard',
+    'emails.test',
+  ])
 })
 
 Deno.test('send: test mode renders the draft text when given', async () => {
@@ -738,9 +938,77 @@ Deno.test('send: Resend 500 three times → mark_email_failed(provider_unavailab
   assertFalse(h.rpcNames().includes('mark_email_sent'))
   assertEquals(errors.map((e) => JSON.parse(e)), [{
     fn: 'test-fn',
-    code: 'provider_unavailable',
+    code: 'resend_500',
     ids: { org_id: ORG, email_log_id: LOG_ID },
   }])
+})
+
+Deno.test('send: network errors on every attempt → marked failed(provider_unavailable = outcome unknown), reported resend_network_error', async () => {
+  const reset: Responder = () => {
+    throw new TypeError('connection reset')
+  }
+  const h = harness({ resend: [reset, reset, reset] })
+  const { result, errors } = await run(() =>
+    sendTemplatedEmail(h.deps, input())
+  )
+  assertEquals(result, {
+    ok: false,
+    emailLogId: LOG_ID,
+    code: 'provider_error',
+  })
+  assertEquals(h.argsOf('mark_email_failed'), {
+    p_id: LOG_ID,
+    p_error_code: 'provider_unavailable',
+    p_attempts: 3,
+  })
+  assertEquals(JSON.parse(errors[0]).code, 'resend_network_error')
+})
+
+Deno.test('send: a Resend daily quota 429 → one attempt, failed(provider_rate_limited), reported by name', async () => {
+  const h = harness({ resend: json(429, { name: 'daily_quota_exceeded' }) })
+  const { result, errors } = await run(() =>
+    sendTemplatedEmail(h.deps, input())
+  )
+  assertEquals(result, {
+    ok: false,
+    emailLogId: LOG_ID,
+    code: 'provider_error',
+  })
+  assertEquals(h.http.calls.length, 1)
+  assertEquals(h.argsOf('mark_email_failed'), {
+    p_id: LOG_ID,
+    p_error_code: 'provider_rate_limited',
+    p_attempts: 1,
+  })
+  assertEquals(JSON.parse(errors[0]).code, 'resend_daily_quota_exceeded')
+})
+
+Deno.test('send: the caller aborting mid-flight lets the attempt finish → marked sent, ok', async () => {
+  const controller = new AbortController()
+  const h = harness({
+    resend: async (req) => {
+      controller.abort()
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      if (req.signal.aborted) throw req.signal.reason
+      return new Response(JSON.stringify({ id: 're_123' }), { status: 200 })
+    },
+  })
+  const { result } = await run(() =>
+    sendTemplatedEmail({ ...h.deps, signal: controller.signal }, input())
+  )
+  assertEquals(result, { ok: true, emailLogId: LOG_ID })
+  assertEquals(h.argsOf('mark_email_sent')?.p_resend_id, 're_123')
+  assertFalse(h.rpcNames().includes('mark_email_failed'))
+})
+
+Deno.test('send: a signal already aborted before queueing → no row, nothing sent', async () => {
+  const h = harness()
+  const { result } = await run(() =>
+    sendTemplatedEmail({ ...h.deps, signal: AbortSignal.abort() }, input())
+  )
+  assertEquals(result, { ok: false, emailLogId: null, code: 'provider_error' })
+  assertFalse(h.rpcNames().includes('queue_email'))
+  assertEquals(h.http.calls.length, 0)
 })
 
 Deno.test('send: Resend refusing the address → invalid_recipient, marked failed', async () => {
@@ -771,18 +1039,25 @@ Deno.test('send: a failed mark_email_sent still answers ok (the email left; repo
   assertEquals(JSON.parse(errors[0]).code, 'email_mark_failed')
 })
 
-Deno.test('send: a queue_email error throws internal before anything is sent', async () => {
-  const h = harness({ rpc: { queue_email: { error: { code: '23514' } } } })
-  await captureConsole('error', async () => {
-    await withEnv(ENV, async () => {
-      const error = await assertRejects(
-        () => sendTemplatedEmail(h.deps, input()),
-        FunctionError,
-      )
-      assertEquals(error.code, 'internal')
+Deno.test('send: a queue_email error or a non-uuid id throws internal before anything is sent', async () => {
+  for (
+    const route of [
+      { error: { code: '23514' } },
+      { data: 'not-a-uuid' },
+    ] as FakeResult[]
+  ) {
+    const h = harness({ rpc: { queue_email: route } })
+    await captureConsole('error', async () => {
+      await withEnv(ENV, async () => {
+        const error = await assertRejects(
+          () => sendTemplatedEmail(h.deps, input()),
+          FunctionError,
+        )
+        assertEquals(error.code, 'internal')
+      })
     })
-  })
-  assertEquals(h.http.calls.length, 0)
+    assertEquals(h.http.calls.length, 0)
+  }
 })
 
 Deno.test('send: no report or log line ever holds the address, the subject or the body', async () => {

@@ -4,21 +4,31 @@
  * logs, sends and records the outcome. Module functions, `send-email` and
  * `email-test-send` all send through `sendTemplatedEmail`.
  *
- * Order (plan Task 3.8):
- * 1. Configuration (`EMAIL_TRANSPORT`, `APP_URL`) and the recipient address,
- *    before any RPC.
- * 2. `get_email_context` ∥ `get_org_secret(org, 'resend_api_key')` (Resend only).
- * 3. Module gate, then the catalogue flags: a free recipient needs
- *    `recipient_mode = 'free'`; attachments need `allows_attachments` (at most
- *    3 complete PDFs, 10 MB in total, safe file names).
- * 4. Rate limits in parallel: org per day; same template and address (skipped
- *    for « Renvoyer » and test sends); test sends per caller, or free-recipient
- *    sends per sender. The 401st send of the day reports
- *    `email_daily_80_percent`.
- * 5. Compose (`compose.ts`); nothing is queued when it fails.
- * 6. `queue_email` → the `email_log` id, used as the idempotency key and tag.
- * 7. The transport (retries inside, P3-4), then `mark_email_sent` /
- *    `mark_email_failed`.
+ * Order (plan Task 3.8, with compose moved before the limits):
+ * 1. Configuration (`EMAIL_TRANSPORT`, `APP_URL`; the console transport only
+ *    with a local `APP_URL`) and the recipient address, before any RPC.
+ * 2. `get_email_context` ∥ `get_org_secret(org, 'resend_api_key')` (Resend
+ *    only); the sender `from_address` and `reply_to` must be single mailboxes
+ *    (else `not_configured`, reported `sender_invalid`).
+ * 3. Module gate, then the catalogue flags. The template's `recipient_mode`
+ *    decides, not the caller: a `free` template always needs `sentBy` and
+ *    consumes `emails.free_recipient`; `freeRecipient` on a `subject`
+ *    template is `recipient_not_allowed`. Attachments need
+ *    `allows_attachments` (at most 3 complete PDFs, 10 MB in total, safe
+ *    file names).
+ * 4. Compose (`compose.ts`), before any limit: a template error uses up no
+ *    slot, and nothing is queued.
+ * 5. Rate limits in parallel: org per day; same template and address (60 s,
+ *    skipped for « Renvoyer » and test sends); for « Renvoyer » and test sends
+ *    instead, a 5 s double-click guard per template, address and sender
+ *    (`emails.repeat_guard`); test sends per caller; free-recipient sends per
+ *    sender. The 401st send of the day reports `email_daily_80_percent`.
+ * 6. An aborted caller signal stops here: nothing is queued or sent.
+ * 7. `queue_email` → the `email_log` id, used as the idempotency key and tag.
+ * 8. The transport (retries inside, P3-4), then `mark_email_sent` /
+ *    `mark_email_failed`. The caller's signal never cuts an attempt in flight
+ *    (`transport.ts`); `provider_unavailable` on the row means « outcome
+ *    unknown » (a later webhook may still move it to `sent` / `delivered`).
  *
  * Outcomes a caller presents are a `SendResult`. Failures that are not the
  * caller's to present (an RPC error, a malformed context, an invalid clinic
@@ -42,6 +52,7 @@ import { sniff } from '../storage.ts'
 import { composeEmail, type EmailContext } from './compose.ts'
 import { safeUrl } from './render.ts'
 import {
+  isLocalAppUrl,
   type OutgoingEmail,
   type Sleep,
   transportFromEnv,
@@ -54,7 +65,12 @@ export interface EmailDeps extends Pick<Deps, 'env' | 'fetch'> {
   fn: string
   /** A service-role client (`deps.serviceClient()`, already checked). */
   client: SupabaseClient
-  /** Aborts the provider call and its retries (e.g. the request's signal). */
+  /**
+   * The request's signal, say. Aborted before queueing: nothing is queued or
+   * sent. Aborted later: it stops the back-off and any further attempt, but
+   * never cuts an attempt in flight (bounded by its 10 s timeout), so an
+   * email the provider accepted is still recorded as sent.
+   */
   signal?: AbortSignal
   /** Tests only: replaces the retry back-off wait. */
   sleep?: Sleep
@@ -74,9 +90,16 @@ export interface SendTemplatedEmailInput {
   /** The button URL, from code only. */
   actionUrl: string | null
   sentBy: string | null
-  /** « Renvoyer »: skips the 60 s same-address limit. */
+  /**
+   * « Renvoyer »: skips the 60 s same-address limit; a 5 s double-click guard
+   * per template, address and sender applies instead.
+   */
   explicitResend?: boolean
-  /** A typed address: allowed only when `recipient_mode = 'free'`, with a sender. */
+  /**
+   * A typed address. Refused on a `subject` template. A `free` template is
+   * treated as free whatever this says: it needs `sentBy` and uses the
+   * free-recipient limit.
+   */
   freeRecipient?: boolean
   attachments?: OutgoingEmail['attachments']
   /**
@@ -104,7 +127,9 @@ export type SendFailureCode =
 
 /**
  * The outcome. `emailLogId` is set once the row is queued (a provider failure
- * leaves a `failed` row for « Renvoyer »).
+ * leaves a `failed` row for « Renvoyer »). `provider_error` with a null
+ * `emailLogId` means the caller's signal aborted before queueing: nothing
+ * was queued or sent.
  */
 export type SendResult =
   | { ok: true; emailLogId: string }
@@ -122,16 +147,27 @@ const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 /** The 80 % warning fires on exactly this hit, so once per window. */
 const ORG_DAY_WARN_AT = Math.floor(LIMITS.emailOrgDay.max * 0.8) + 1
 
-/** One part of an address: no space, control character, `@` or delimiter. */
-const ATOM = String.raw`[^\s\p{Cc}@<>()[\]\\,;:"]`
+/**
+ * One character of a local part: no space, control or format character
+ * (zero-width, bidi), `@` or delimiter.
+ */
+const LOCAL_CHAR = String.raw`[^\s\p{Cc}\p{Cf}@<>()[\]\\,;:"]`
+/** One ASCII domain label: letters, digits and inner hyphens (`xn--` included). */
+const LABEL = '[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?'
+/** The top-level label: letters, or punycode (`xn--…`). */
+const TLD = '(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{1,59})'
 /**
  * Exactly one bare mailbox (`local@domain.tld`), so a typed address can never
- * name a second recipient (`a@x.ca, b@y.ca`) or a display name.
+ * name a second recipient (`a@x.ca, b@y.ca`) or a display name. The domain
+ * is ASCII (an internationalised one arrives as punycode), so a homograph
+ * (`exаmple.com` with a Cyrillic `а`) is refused rather than sent.
  */
 const MAILBOX = new RegExp(
-  String.raw`^${ATOM}{1,64}@(?:(?:(?!\.)${ATOM})+\.)+(?:(?!\.)${ATOM}){2,}$`,
+  String.raw`^${LOCAL_CHAR}{1,64}@(?:${LABEL}\.)+${TLD}$`,
   'u',
 )
+/** A uuid, as `queue_email` returns (also the `email_log_id` tag value). */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_ADDRESS_LENGTH = 254
 /** A plain file name ending in `.pdf`: letters, digits, spaces and `'’()._-`. */
 const SAFE_FILENAME = /^[\p{L}\p{N}][\p{L}\p{N} '’()._-]{0,95}\.pdf$/iu
@@ -270,12 +306,17 @@ export async function sendTemplatedEmail(
     await report(kind ? 'app_url_missing' : 'email_transport_unknown')
     return { ok: false, emailLogId: null, code: 'not_configured' }
   }
+  // The console transport answers « sent » while nothing leaves: never
+  // outside a local run.
+  if (kind === 'console' && !isLocalAppUrl(appUrl)) {
+    return fail('email_console_not_local', 'server_misconfigured')
+  }
   const to = input.to.email.trim()
   if (!isMailbox(to)) {
     return { ok: false, emailLogId: null, code: 'invalid_recipient' }
   }
 
-  // 2. Context ∥ API key.
+  // 2. Context ∥ API key, then the sender.
   const [contextRes, secretRes] = await Promise.all([
     client.rpc('get_email_context', {
       p_org_id: input.orgId,
@@ -294,25 +335,35 @@ export async function sendTemplatedEmail(
   const parsed = contextSchema.safeParse(contextRes.data)
   if (!parsed.success) return fail('email_context_invalid')
   const raw = parsed.data
+  const { sender } = raw
+  if (
+    !isMailbox(sender.from_address) ||
+    (sender.reply_to !== null && !isMailbox(sender.reply_to))
+  ) {
+    await report('sender_invalid')
+    return { ok: false, emailLogId: null, code: 'not_configured' }
+  }
   const apiKey = typeof secretRes.data === 'string' ? secretRes.data : null
   const transport = transportFromEnv(env, deps.fetch, apiKey, {
     sleep: deps.sleep,
   })
   if ('error' in transport) {
+    if (transport.error === 'server_misconfigured') {
+      return fail('email_console_not_local', 'server_misconfigured')
+    }
     await report(
       kind === 'resend' ? 'resend_api_key_missing' : 'mailpit_url_missing',
     )
     return { ok: false, emailLogId: null, code: 'not_configured' }
   }
 
-  // 3. Module gate and catalogue flags.
+  // 3. Module gate and catalogue flags. The catalogue decides whether the
+  // recipient is free, not the caller's flag.
   if (!raw.module_enabled) {
     return { ok: false, emailLogId: null, code: 'module_disabled' }
   }
-  if (
-    input.freeRecipient &&
-    (raw.template.recipient_mode !== 'free' || !input.sentBy)
-  ) {
+  const free = raw.template.recipient_mode === 'free'
+  if ((input.freeRecipient && !free) || (free && !input.sentBy)) {
     return { ok: false, emailLogId: null, code: 'recipient_not_allowed' }
   }
   const attachments = input.attachments ?? []
@@ -320,37 +371,7 @@ export async function sendTemplatedEmail(
     return { ok: false, emailLogId: null, code: 'attachment_not_allowed' }
   }
 
-  // 4. Rate limits, in parallel; the org day limit comes first.
-  const checks: [RateLimit, string[]][] = [[LIMITS.emailOrgDay, [input.orgId]]]
-  if (!input.explicitResend && !input.test) {
-    checks.push([
-      LIMITS.emailSameAddress,
-      [input.orgId, input.templateKey, to.toLowerCase()],
-    ])
-  }
-  if (input.test) {
-    checks.push([LIMITS.emailTest, [input.orgId, input.test.callerId]])
-  } else if (input.freeRecipient && input.sentBy) {
-    checks.push([LIMITS.emailFreeRecipient, [input.orgId, input.sentBy]])
-  }
-  const limits = await Promise.all(
-    checks.map(([limit, key]) => consume(client, limit, key)),
-  )
-  if (limits[0].hits === ORG_DAY_WARN_AT) await report('email_daily_80_percent')
-  if (limits.some((l) => l.reason === 'unavailable')) {
-    return { ok: false, emailLogId: null, code: 'not_configured' }
-  }
-  const refused = limits.filter((l) => !l.allowed)
-  if (refused.length > 0) {
-    return {
-      ok: false,
-      emailLogId: null,
-      code: 'rate_limited',
-      retryAfter: Math.max(...refused.map((l) => l.retryAfter)),
-    }
-  }
-
-  // 5. Compose.
+  // 4. Compose, before any limit: a template error uses up no slot.
   const context = emailContext(raw)
   const draft = input.test?.draft
   if (draft) {
@@ -381,7 +402,52 @@ export async function sendTemplatedEmail(
     }
   }
 
-  // 6. Queue. Assumed (Task 3.6):
+  // 5. Rate limits, in parallel; the org day limit comes first.
+  const address = to.toLowerCase()
+  const checks: [RateLimit, string[]][] = [[LIMITS.emailOrgDay, [input.orgId]]]
+  if (input.explicitResend || input.test) {
+    // A double click on « Renvoyer » or « M'envoyer un test » sends once.
+    checks.push([LIMITS.emailRepeatGuard, [
+      input.orgId,
+      input.templateKey,
+      address,
+      input.sentBy ?? input.test?.callerId ?? '',
+    ]])
+  } else {
+    checks.push([
+      LIMITS.emailSameAddress,
+      [input.orgId, input.templateKey, address],
+    ])
+  }
+  if (input.test) {
+    checks.push([LIMITS.emailTest, [input.orgId, input.test.callerId]])
+  }
+  if (free && input.sentBy) {
+    checks.push([LIMITS.emailFreeRecipient, [input.orgId, input.sentBy]])
+  }
+  const limits = await Promise.all(
+    checks.map(([limit, key]) => consume(client, limit, key)),
+  )
+  if (limits[0].hits === ORG_DAY_WARN_AT) await report('email_daily_80_percent')
+  if (limits.some((l) => l.reason === 'unavailable')) {
+    return { ok: false, emailLogId: null, code: 'not_configured' }
+  }
+  const refused = limits.filter((l) => !l.allowed)
+  if (refused.length > 0) {
+    return {
+      ok: false,
+      emailLogId: null,
+      code: 'rate_limited',
+      retryAfter: Math.max(...refused.map((l) => l.retryAfter)),
+    }
+  }
+
+  // 6. The caller has gone: queue nothing, send nothing.
+  if (deps.signal?.aborted) {
+    return { ok: false, emailLogId: null, code: 'provider_error' }
+  }
+
+  // 7. Queue. Assumed (Task 3.6):
   // queue_email(p_org_id uuid, p_template_key text, p_template_version int,
   //   p_to_email text, p_to_profile_id uuid, p_subject_type text,
   //   p_subject_id uuid, p_view_permission text, p_sent_by uuid,
@@ -398,22 +464,23 @@ export async function sendTemplatedEmail(
     p_sent_by: input.sentBy,
     p_attachment_count: attachments.length,
   })
-  if (queued.error || typeof queued.data !== 'string') {
+  if (
+    queued.error || typeof queued.data !== 'string' || !UUID.test(queued.data)
+  ) {
     return fail('email_queue_failed')
   }
   const emailLogId = queued.data
   const logIds = { email_log_id: emailLogId }
 
-  // 7. Send, then record the outcome.
+  // 8. Send, then record the outcome. The signal stops retries only.
   const sent = await transport.send({
-    from: { name: raw.sender.from_name, email: raw.sender.from_address },
+    from: { name: sender.from_name, email: sender.from_address },
     to,
-    replyTo: raw.sender.reply_to,
+    replyTo: sender.reply_to,
     subject: composed.subject,
     html: composed.html,
     text: composed.text,
     idempotencyKey: emailLogId,
-    tags: [{ name: 'email_log_id', value: emailLogId }],
     attachments,
   }, { signal: deps.signal })
 
@@ -431,12 +498,16 @@ export async function sendTemplatedEmail(
   }
 
   // Assumed: mark_email_failed(p_id uuid, p_error_code text, p_attempts int) returns void.
+  // `provider_unavailable` (attempts > 0) means « outcome unknown »: the
+  // provider may have accepted it, and a later webhook can move the row to
+  // `sent` / `delivered` (DB lane).
   const marked = await client.rpc('mark_email_failed', {
     p_id: emailLogId,
     p_error_code: sent.code,
     p_attempts: sent.attempts,
   })
-  await report(sent.code, logIds)
+  // The transport's detail (`resend_503`, `resend_timeout`): [a-z0-9_] only.
+  await report(sent.detail, logIds)
   if (marked.error) await report('email_mark_failed', logIds)
   return {
     ok: false,

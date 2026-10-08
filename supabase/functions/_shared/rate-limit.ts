@@ -33,6 +33,13 @@ export const LIMITS = {
     max: 1,
     windowSeconds: 60,
   },
+  /**
+   * « Renvoyer » and « M'envoyer un test » skip `emailSameAddress`; this
+   * guard keeps a double click from sending twice: one per 5 s window per
+   * template, address and sender (a fixed window, so two clicks straddling
+   * its edge can both pass).
+   */
+  emailRepeatGuard: { bucket: 'emails.repeat_guard', max: 1, windowSeconds: 5 },
   /** Typed (free) recipients, per sender (P3-18). */
   emailFreeRecipient: {
     bucket: 'emails.free_recipient',
