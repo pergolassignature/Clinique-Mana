@@ -3895,6 +3895,10 @@ export type Database = {
         Args: { p_id: string; p_org_id: string }
         Returns: Json
       }
+      import_professional: {
+        Args: { p_dry_run?: boolean; p_row: Json }
+        Returns: Json
+      }
       last_webhook_event_at: { Args: { p_provider: string }; Returns: string }
       list_audit_actors: {
         Args: never
