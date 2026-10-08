@@ -84,6 +84,12 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
+  // Node scripts (scripts/*.mjs, with their Vitest tests): plain JavaScript, Node globals.
+  {
+    files: ['scripts/**/*.mjs'],
+    ...js.configs.recommended,
+    languageOptions: { ecmaVersion: 2024, sourceType: 'module', globals: globals.node },
+  },
   // Playwright runs in Node, not in the browser.
   {
     files: ['e2e/**/*.ts', 'playwright.config.ts'],

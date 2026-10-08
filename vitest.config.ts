@@ -15,7 +15,8 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     // Every test starts with empty mock call history, whatever the order (`--sequence.shuffle`).
     clearMocks: true,
-    include: ['src/**/*.test.{ts,tsx}'],
+    // scripts/*.test.mjs: Node scripts, each test file opts into the node environment.
+    include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
     env: {
       VITE_SUPABASE_URL: 'http://127.0.0.1:55321',
       VITE_SUPABASE_ANON_KEY: 'test-anon-key',
