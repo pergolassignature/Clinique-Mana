@@ -12,6 +12,13 @@ import { AuthenticatedApp } from './AuthenticatedApp'
 import { ALL_MODULES } from './modules'
 
 const mocks = vi.hoisted(() => ({ captureException: vi.fn() }))
+// The topbar bell (and Accueil) read the caller's notices: none here, and no network.
+vi.mock('@/core/notifications/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/notifications/api')>()),
+  countMyUnreadNotifications: async () => ({ total: 0, important: 0 }),
+  listMyNotifications: async () => [],
+  listImportantUnreadNotifications: async () => [],
+}))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 
 // The Modules section needs a query client and the Supabase client: it has its own tests.

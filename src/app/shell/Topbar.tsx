@@ -1,10 +1,9 @@
-import { useRef, type ComponentProps, type RefObject } from 'react'
+import { useRef, type RefObject } from 'react'
 import { LogOut, PanelLeft, Search, UserRound } from 'lucide-react'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
 import { useRoleLabel } from '@/core/access/org-roles'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
-import { cn } from '@/shared/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,23 +13,11 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu'
 import { focusRing } from '@/shared/ui/field-classes'
+import { NotificationBell } from './NotificationBell'
 import { isApplePlatform, paletteShortcutLabel } from './platform'
 import type { ShellTitle } from './shell-pages'
+import { TopbarIconButton } from './TopbarIconButton'
 import { UserAvatar } from './UserAvatar'
-
-/** Ghost icon button: 28 × 28 from md (design system Topbar), 40 × 40 touch target below. */
-function TopbarIconButton({ className, ...props }: ComponentProps<'button'>) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        `inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors duration-120 hover:bg-muted hover:text-foreground md:h-7 md:w-7 ${focusRing}`,
-        className,
-      )}
-      {...props}
-    />
-  )
-}
 
 interface TopbarProps {
   title: ShellTitle | null
@@ -47,7 +34,10 @@ interface TopbarProps {
   searchButtonRef: RefObject<HTMLButtonElement | null>
 }
 
-/** The page's banner, 48 px: sidebar toggle, breadcrumb and title; page search and the user menu. */
+/**
+ * The page's banner, 48 px: sidebar toggle, breadcrumb and title; page search, the notification
+ * bell and the user menu.
+ */
 export function Topbar({
   title,
   collapsed,
@@ -140,6 +130,8 @@ export function Topbar({
             {paletteShortcutLabel()}
           </kbd>
         </button>
+
+        <NotificationBell />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

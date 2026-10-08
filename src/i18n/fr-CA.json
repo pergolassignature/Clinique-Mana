@@ -185,6 +185,35 @@
     "account": "Mon compte"
   },
   "home": { "title": "Bienvenue", "body": "Les modules s'ajoutent ici au fur et à mesure qu'ils sont activés." },
+  "notifications": {
+    "bell": "Notifications",
+    "title": "Notifications",
+    "unreadOne": "1 non lue",
+    "unreadOther": "{count} non lues",
+    "importantOne": "dont 1 importante",
+    "importantOther": "dont {count} importantes",
+    "unreadItem": "Non lue",
+    "important": "Important",
+    "empty": "Aucune notification.",
+    "loadError": "Impossible de charger les notifications.",
+    "loadMore": "Charger plus",
+    "loadingMore": "Chargement…",
+    "loadMoreError": "Impossible de charger la suite.",
+    "markAllRead": "Tout marquer comme lu",
+    "markError": "Impossible de mettre à jour les notifications. Réessayez dans un instant.",
+    "age": {
+      "now": "À l'instant",
+      "minutes": "il y a {count} min",
+      "hours": "il y a {count} h",
+      "yesterday": "Hier",
+      "days": "il y a {count} j"
+    },
+    "watch": {
+      "title": "À surveiller",
+      "open": "Ouvrir",
+      "dismiss": "Marquer comme lu"
+    }
+  },
   "settings": {
     "title": "Paramètres",
     "navLabel": "Sections des paramètres",
