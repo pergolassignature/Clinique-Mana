@@ -2018,7 +2018,7 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 ## Task 3.31: Signing (database)
 
-**From lane F (Task 3.32, commit a0cca70):** the local seed sets the signing base URL to `http://host.docker.internal:55390` (the fake started by `npm run fake:documenso`) and the two org secrets to `local-dev-documenso-api-key` / `local-dev-documenso-webhook-secret`. `signing-webhook` passes Documenso's raw event names (`DOCUMENT_COMPLETED`, `DOCUMENT_CANCELLED`, …) to `documensoEventId`. `signature_requests` keeps `provider_document_id` even when a later creation step fails (the client's error carries it) so the reconcile job can cancel it.
+**From lane F (Task 3.32, commit a0cca70):** the local seed sets the signing base URL to `http://host.docker.internal:55390` (the fake started by `npm run fake:documenso`) and the two org secrets to `local-dev-documenso-api-key` / `local-dev-documenso-webhook-secret`. `signing-webhook` passes Documenso's raw event names (`DOCUMENT_COMPLETED`, `DOCUMENT_CANCELLED`, …) to `documensoEventId`. `signature_requests` keeps `provider_document_id` even when a later creation step fails (the client's error carries it) so the reconcile job can cancel it. **From lane F (Task 3.30, commit a03143c):** `get_signing_context` returns `{ bucket, object_path }` for the logo and signature images (the renderer's `loadAssets` takes `{ key, bucket, path }`); `update_template_version`'s placeholder check scans **every string** in the body JSON (the renderer fills all of them, with the same placeholder rule as emails); the logo and signature upload purposes (Task 3.24) accept **PNG and JPEG only**: pdfmake cannot embed WebP.
 
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_signing.sql`
@@ -2160,6 +2160,8 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 ## Task 3.33: `_shared/signing.ts` and the signing functions
 
+**From Task 3.30:** pdfmake is vendored at `_shared/pdf/vendor/pdfmake.js` and imported only by `_shared/pdf/render.ts`. Keep the code that renders (request creation) in a module that `signing-webhook` and `signing-sync` do not import, so those functions stay small (≈1.4 MB vs ≈1.9 MB uploaded).
+
 **Lane:** F (after Tasks 3.31 and 3.30 merge). **Files:**
 - `supabase/functions/_shared/signing.ts` + test:
   ```ts
@@ -2272,6 +2274,8 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 ---
 
 ## Task 3.35: ADR 0005 status and ADR 0008
+
+**From Task 3.30:** update ADR 0008: pdfmake is vendored (`npm run build:pdfmake`, pinned by `scripts/build-pdfmake.lock`), not an npm import in `deno.json`; uploaded sizes are ≈1.35 MB for a non-PDF function and ≈1.86 MB for a rendering one; `isolation.test.ts` guards it.
 
 **Lane:** coordinator. **Files:** `docs/adr/0005-documenso-replaces-docuseal.md`, `docs/adr/0008-server-side-pdf-rendering.md`, `docs/adr/README.md`.
 - **ADR 0005:**
