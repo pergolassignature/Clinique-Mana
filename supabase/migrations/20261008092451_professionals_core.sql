@@ -277,8 +277,10 @@ create unique index professional_professions_one_primary on public.professional_
 create index professional_professions_org_title_idx on public.professional_professions (org_id, profession_title_id);
 
 -- Licence trimmed, required for regulated titles, in the base format and the order's (HINT
--- licence); at most two titles (HINT title). The count ignores the row's own title, so an upsert that re-sends an existing title
--- (its BEFORE INSERT fires before the conflict is found) is not counted twice.
+-- licence); at most two titles (HINT title). DETAIL is the row's title id, so a form of several
+-- titles puts the refusal under that title's row. The count ignores the row's own title, so an
+-- upsert that re-sends an existing title (its BEFORE INSERT fires before the conflict is found) is
+-- not counted twice.
 create function private.professional_professions_guard()
 returns trigger
 language plpgsql
@@ -296,20 +298,23 @@ begin
     left join public.professional_orders o on o.org_id = t.org_id and o.id = t.order_id
    where t.org_id = new.org_id and t.id = new.profession_title_id;
   if v_order is not null and new.licence_number is null then
-    raise exception 'Le numéro de permis est requis pour ce titre.' using errcode = 'P0001', hint = 'licence';
+    raise exception 'Le numéro de permis est requis pour ce titre.'
+      using errcode = 'P0001', hint = 'licence', detail = new.profession_title_id::text;
   end if;
   if new.licence_number !~ '^[A-Za-z0-9][A-Za-z0-9 -]{0,29}$' then
     raise exception 'Numéro de permis invalide : lettres, chiffres, espaces et traits d''union (30 caractères au plus).'
-      using errcode = 'P0001', hint = 'licence';
+      using errcode = 'P0001', hint = 'licence', detail = new.profession_title_id::text;
   end if;
   if v_pattern is not null and new.licence_number is not null and new.licence_number !~ v_pattern then
-    raise exception 'Le numéro de permis pour % n''a pas le bon format.', v_title using errcode = 'P0001', hint = 'licence';
+    raise exception 'Le numéro de permis pour % n''a pas le bon format.', v_title
+      using errcode = 'P0001', hint = 'licence', detail = new.profession_title_id::text;
   end if;
   if tg_op = 'INSERT' and (
     select count(*) from public.professional_professions pp
      where pp.professional_id = new.professional_id and pp.profession_title_id <> new.profession_title_id
   ) >= 2 then
-    raise exception 'Un professionnel a au plus deux titres.' using errcode = 'P0001', hint = 'title';
+    raise exception 'Un professionnel a au plus deux titres.'
+      using errcode = 'P0001', hint = 'title', detail = new.profession_title_id::text;
   end if;
   return new;
 end;
@@ -407,7 +412,8 @@ create table public.professional_payer_numbers (
   constraint professional_payer_numbers_professional_fkey foreign key (org_id, professional_id)
     references public.professionals (org_id, id) on delete cascade,
   constraint professional_payer_numbers_payer_type_check check (payer_type in ('ivac')),
-  constraint professional_payer_numbers_number_check check (number ~ '^[A-Za-z0-9-]{3,30}$')
+  -- Upper-case (set_professional_payer_number upper-cases), so the unique key ignores case.
+  constraint professional_payer_numbers_number_check check (number ~ '^[A-Z0-9-]{3,30}$')
 );
 
 -- Leading org_id: serve the composite FKs, RLS, the usage counts and the matching lookups
@@ -989,6 +995,7 @@ declare
   v_titles uuid[];
   v_licences text[];
   v_primary boolean[];
+  v_tid uuid;
   v_bad text;
   v_rows int;
   v_n int;
@@ -1019,8 +1026,10 @@ begin
          coalesce(pg_catalog.array_agg(coalesce((e.v ->> 'is_primary')::boolean, false) order by e.ord), '{}')
     into v_titles, v_licences, v_primary
     from pg_catalog.jsonb_array_elements(p_items) with ordinality as e(v, ord);
-  if (select count(distinct x) from pg_catalog.unnest(v_titles) as x) <> v_count then
-    raise exception 'Un titre ne peut être choisi qu''une fois.' using errcode = 'P0001';
+  -- The refusals about one title name it (HINT title, DETAIL its id) for the editor's row.
+  select x.tid into v_tid from pg_catalog.unnest(v_titles) as x(tid) group by x.tid having count(*) > 1 limit 1;
+  if v_tid is not null then
+    raise exception 'Un titre ne peut être choisi qu''une fois.' using errcode = 'P0001', hint = 'title', detail = v_tid::text;
   end if;
   if (select count(*) from pg_catalog.unnest(v_primary) as f where f) > 1 then
     raise exception 'Un seul titre principal.' using errcode = 'P0001';
@@ -1035,14 +1044,15 @@ begin
               where not exists (select 1 from public.profession_titles t where t.org_id = v_org and t.id = x.tid)) then
     raise exception 'Titre inconnu.' using errcode = '22023';
   end if;
-  if exists (
-    select 1 from pg_catalog.unnest(v_titles) as x(tid)
-      join public.profession_titles t on t.org_id = v_org and t.id = x.tid
-     where not t.is_active
-       and not exists (select 1 from public.professional_professions pp
-                        where pp.professional_id = p_id and pp.profession_title_id = x.tid)
-  ) then
-    raise exception 'Ce titre est archivé.' using errcode = 'P0001';
+  select x.tid into v_tid
+    from pg_catalog.unnest(v_titles) as x(tid)
+    join public.profession_titles t on t.org_id = v_org and t.id = x.tid
+   where not t.is_active
+     and not exists (select 1 from public.professional_professions pp
+                      where pp.professional_id = p_id and pp.profession_title_id = x.tid)
+   limit 1;
+  if v_tid is not null then
+    raise exception 'Ce titre est archivé.' using errcode = 'P0001', hint = 'title', detail = v_tid::text;
   end if;
 
   -- Restricted motifs keep a regulated profession (P4-16): the last one cannot go while held.
@@ -1086,7 +1096,8 @@ begin
 end;
 $$;
 
--- IVAC number (P4-14): unique per clinic; blank deletes it.
+-- IVAC number (P4-14): unique per clinic whatever the case (stored upper-case); blank deletes it.
+-- Refusals carry HINT ivac (the field).
 create function public.set_professional_payer_number(p_id uuid, p_payer_type text, p_number text)
 returns void
 language plpgsql
@@ -1095,7 +1106,7 @@ set search_path = ''
 as $$
 declare
   v_org uuid := private.current_user_org_id();
-  v_number text := nullif(pg_catalog.btrim(p_number, E' \t\r\n'), '');
+  v_number text := pg_catalog.upper(nullif(pg_catalog.btrim(p_number, E' \t\r\n'), ''));
   v_rows int;
 begin
   if not private.has_permission('professionals.manage') then
@@ -1113,8 +1124,8 @@ begin
     end if;
     return;
   end if;
-  if v_number !~ '^[A-Za-z0-9-]{3,30}$' then
-    raise exception 'Numéro IVAC invalide : 3 à 30 lettres, chiffres ou traits d''union.' using errcode = 'P0001';
+  if v_number !~ '^[A-Z0-9-]{3,30}$' then
+    raise exception 'Numéro IVAC invalide : 3 à 30 lettres, chiffres ou traits d''union.' using errcode = 'P0001', hint = 'ivac';
   end if;
   begin
     insert into public.professional_payer_numbers as n (org_id, professional_id, payer_type, number)
@@ -1125,7 +1136,7 @@ begin
     get diagnostics v_rows = row_count;  -- 1: inserted, or the number changed
   exception when unique_violation then
     -- Only (org_id, payer_type, number) can be violated here: the primary key is the arbiter.
-    raise exception 'Ce numéro IVAC est déjà attribué à un autre professionnel.' using errcode = 'P0001';
+    raise exception 'Ce numéro IVAC est déjà attribué à un autre professionnel.' using errcode = 'P0001', hint = 'ivac';
   end;
   if v_rows > 0 then
     update public.professionals p set updated_at = pg_catalog.now() where p.id = p_id;

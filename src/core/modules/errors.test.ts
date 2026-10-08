@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { t } from '@/i18n'
-import { moduleErrorMessage, rpcErrorCode, rpcErrorHint } from './errors'
+import { moduleErrorMessage, rpcErrorCode, rpcErrorDetail, rpcErrorHint } from './errors'
 
 const mocks = vi.hoisted(() => ({ captureException: vi.fn() }))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
@@ -103,6 +103,12 @@ describe('rpcErrorCode and rpcErrorHint', () => {
     expect(rpcErrorCode(error)).toBe('P0001')
     expect(rpcErrorHint(error)).toBe('role_missing')
     expect(rpcErrorHint(Object.assign(new Error('x'), { code: 'P0001', hint: 'copy_from' }))).toBe('copy_from')
+  })
+
+  it('rpcErrorDetail reads the DETAIL a refusal names its row by (PostgREST `details`)', () => {
+    expect(rpcErrorDetail({ code: 'P0001', message: 'x', details: 'a1b2', hint: 'licence' })).toBe('a1b2')
+    expect(rpcErrorDetail(pgError('P0001', 'x'))).toBeUndefined()
+    expect(rpcErrorDetail(null)).toBeUndefined()
   })
 
   it('are undefined when the error has none (an empty hint is none)', () => {

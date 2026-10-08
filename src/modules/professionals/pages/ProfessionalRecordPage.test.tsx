@@ -127,7 +127,7 @@ describe('ProfessionalRecordPage', () => {
     expect(screen.getByTestId('navigation')).toHaveTextContent('REPLACE')
     expect(tab('jumelage')).toHaveAttribute('aria-selected', 'true')
     // The tabs read the page's record and catalogue: a switch requests neither again.
-    expect(await screen.findByText(t(`${R}.tabInPreparation`))).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 3, name: t(`${R}.matching.clienteles.title`) })).toBeInTheDocument()
     expect(mocks.record.fetchProfessionalRecord).toHaveBeenCalledTimes(1)
     expect(mocks.catalog.fetchProfessionalsCatalog).toHaveBeenCalledTimes(1)
   })
@@ -143,7 +143,7 @@ describe('ProfessionalRecordPage', () => {
     expect(tab('profil-public')).toHaveAttribute('tabindex', '-1')
     await userEvent.keyboard('{ArrowRight}')
     await waitFor(() => expect(location()).toBe(`${base}/profil-public`))
-    expect(await screen.findByText(t(`${R}.tabInPreparation`))).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 3, name: t(`${R}.publicProfile.portrait.title`) })).toBeInTheDocument()
     expect(mocks.record.fetchProfessionalRecord).toHaveBeenCalledTimes(1)
     expect(mocks.catalog.fetchProfessionalsCatalog).toHaveBeenCalledTimes(1)
   })

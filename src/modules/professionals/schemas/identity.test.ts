@@ -49,6 +49,8 @@ describe('payerNumbersSchema', () => {
     expect(toPayerNumbersFormValues(record.payerNumbers)).toEqual({ ivac: '123456' })
     expect(toPayerNumbersFormValues([])).toEqual({ ivac: '' })
     expect(payerNumbersSchema.parse({ ivac: ' AB-12 ' })).toEqual({ ivac: 'AB-12' })
+    // Stored upper-case, as the database does: « probe-777 » and « PROBE-777 » are one number.
+    expect(payerNumbersSchema.parse({ ivac: ' probe-777 ' })).toEqual({ ivac: 'PROBE-777' })
     expect(payerNumbersSchema.parse({ ivac: '' })).toEqual({ ivac: null })
   })
 

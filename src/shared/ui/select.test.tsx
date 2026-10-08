@@ -201,6 +201,21 @@ describe('Select, read-only', () => {
     expect(screen.getByRole('textbox', { name: 'Province' })).toHaveValue('')
   })
 
+  it('reads readOnlyEmptyLabel for no value, and the chosen label otherwise', () => {
+    const { rerender } = render(
+      <Select aria-label="Genre" readOnly value="" onChange={() => {}} placeholder="Non indiqué" readOnlyEmptyLabel="Non indiqué">
+        <option value="female">Femme</option>
+      </Select>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Genre' })).toHaveValue('Non indiqué')
+    rerender(
+      <Select aria-label="Genre" readOnly value="female" onChange={() => {}} placeholder="Non indiqué" readOnlyEmptyLabel="Non indiqué">
+        <option value="female">Femme</option>
+      </Select>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Genre' })).toHaveValue('Femme')
+  })
+
   it('never carries the name, so a form can never submit the label', () => {
     render(
       <Select aria-label="Province" name="province" readOnly value="QC" onChange={() => {}}>

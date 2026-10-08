@@ -9,6 +9,12 @@
  * docs/standards/brand.tokens.md.
  */
 @layer base {
+  /* The `hidden` attribute always hides: a display utility on the same element (`grid`, `flex`)
+     would otherwise win over the browser's `display: none` (a folded panel kept mounted). */
+  [hidden]:not([hidden='until-found']) {
+    display: none !important;
+  }
+
   :root {
     /* Brand scales. Wine is the logo colour only; teal is the single action colour. */
     --wine-50: 251 242 244;  --wine-100: 246 225 231; --wine-200: 237 194 206; --wine-300: 222 147 168;

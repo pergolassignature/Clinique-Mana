@@ -50,6 +50,10 @@
       "stay": "Rester",
       "leave": "Quitter sans enregistrer"
     },
+    "star": {
+      "add": "Marquer comme spécialisé",
+      "remove": "Retirer la spécialisation"
+    },
     "notFound": { "title": "Page introuvable", "body": "Cette page n'existe pas ou a été déplacée." },
     "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." },
     "appError": { "title": "L'application a rencontré un problème", "body": "Réessayez dans un instant. Si le problème persiste, rechargez la page." },
@@ -1256,6 +1260,83 @@
           "languages": "Langues :",
           "notAccepting": "N'accepte pas de nouveaux clients"
         },
+        "matching": {
+          "edit": "Modifier",
+          "readOnly": "Vous pouvez consulter le profil de jumelage, sans le modifier.",
+          "specialized": "(spécialisé)",
+          "archived": "archivé",
+          "clienteles": {
+            "title": "Clientèles",
+            "description": "Les personnes accompagnées, par âge ou par situation. ★ : spécialisé.",
+            "edit": "Modifier les clientèles",
+            "empty": "Aucune clientèle choisie",
+            "search": "Rechercher une clientèle…"
+          },
+          "approaches": {
+            "title": "Approches",
+            "description": "Les façons d'accompagner. ★ : spécialisé.",
+            "edit": "Modifier les approches",
+            "empty": "Aucune approche choisie",
+            "search": "Rechercher une approche…"
+          },
+          "motifs": {
+            "title": "Motifs",
+            "description": "Les besoins pour lesquels un client peut être jumelé à ce dossier.",
+            "edit": "Modifier les motifs",
+            "empty": "Aucun motif choisi",
+            "search": "Motif ou catégorie…",
+            "blocked": "Réservé aux professionnels qui ont un titre d'un ordre professionnel. Ajoutez d'abord un tel titre dans « Identité et permis »."
+          },
+          "languages": {
+            "title": "Langues",
+            "description": "Les langues dans lesquelles les rencontres peuvent se faire.",
+            "edit": "Modifier les langues",
+            "empty": "Aucune langue choisie",
+            "search": "Rechercher une langue…"
+          },
+          "availability": {
+            "title": "Disponibilités générales",
+            "description": "Les moments de la semaine où les rencontres sont habituellement possibles.",
+            "periods": "Moments de la semaine",
+            "accepting": "Accepte de nouveaux clients",
+            "acceptingHelp": "Désactivé, le dossier reste actif pour les clients déjà jumelés.",
+            "note": "Note",
+            "notePlaceholder": "Par exemple : pas le vendredi."
+          },
+          "picker": {
+            "starsHint": "L'étoile marque une spécialisation.",
+            "searchLabel": "Rechercher dans la liste",
+            "count": "Sélection : {selected} sur {total}",
+            "selectedOnly": "Sélectionnés seulement",
+            "expandAll": "Tout ouvrir",
+            "collapseAll": "Tout fermer",
+            "groupCount": "{selected} sur {total}",
+            "selectAll": "Tout sélectionner",
+            "deselectAll": "Tout désélectionner",
+            "inGroup": "({group})",
+            "restricted": "Réservé",
+            "archived": "Archivé",
+            "noResults": {
+              "title": "Aucun résultat",
+              "body": "Essayez un autre mot, ou le nom d'une catégorie."
+            },
+            "results": {
+              "none": "Aucun résultat",
+              "one": "1 résultat",
+              "other": "{count} résultats"
+            },
+            "noneSelected": {
+              "title": "Rien n'est sélectionné",
+              "body": "Désactivez « Sélectionnés seulement » pour voir toute la liste."
+            },
+            "discard": {
+              "title": "Abandonner les modifications ?",
+              "body": "Les changements faits dans cette liste ne seront pas enregistrés.",
+              "keep": "Continuer la modification",
+              "confirm": "Abandonner"
+            }
+          }
+        },
         "overview": {
           "matching": {
             "title": "Profil de jumelage",
@@ -1272,11 +1353,14 @@
             "specialized": "(spécialisé)",
             "archived": "archivé",
             "motifSummary": {
-              "all": "Tous ({count})",
+              "all": "Tous",
               "allOverall": "Tous les motifs ({count})",
               "allBut": "Tous sauf {names}",
               "allButOverall": "Tous sauf {names} ({selected} sur {total})",
-              "count": "{selected} sur {total}",
+              "countShort": "{selected} / {total}",
+              "countSr": "({selected} sur {total})",
+              "openAll": "Tout ouvrir",
+              "closeAll": "Tout fermer",
               "archivedOne": "Motif archivé : {name}",
               "archivedOther": "Motifs archivés : {names}"
             },
@@ -1300,6 +1384,78 @@
           },
           "nextAction": {
             "title": "Prochaine action"
+          }
+        },
+        "publicProfile": {
+          "portrait": {
+            "title": "Portrait",
+            "description": "Ces textes figurent sur la fiche remise au client.",
+            "bio": "Présentation",
+            "approach": "Approche",
+            "counter": "{count} / {max} caractères"
+          },
+          "contact": {
+            "title": "Coordonnées publiques",
+            "description": "Laissez vide pour ne pas les afficher.",
+            "email": "Courriel public",
+            "phone": "Téléphone public"
+          }
+        },
+        "identity": {
+          "readOnly": "Seules les personnes qui gèrent les dossiers des professionnels peuvent modifier ces informations.",
+          "identity": {
+            "title": "Identité",
+            "firstName": "Prénom",
+            "lastName": "Nom",
+            "gender": "Genre",
+            "genderNone": "Non indiqué",
+            "genderHelp": "Utilisé seulement pour la préférence du client."
+          },
+          "contact": {
+            "title": "Coordonnées",
+            "loginEmail": "Courriel de connexion",
+            "change": "Modifier",
+            "changeLabel": "Modifier le courriel de connexion",
+            "accountOwns": "Le changement se fait dans « Mon compte » du professionnel.",
+            "personalPhone": "Téléphone personnel",
+            "addressLine1": "Adresse",
+            "addressLine2": "Complément",
+            "city": "Ville",
+            "province": "Province",
+            "postalCode": "Code postal"
+          },
+          "changeEmail": {
+            "title": "Modifier le courriel de connexion",
+            "description": "L'invitation sera envoyée à cette adresse et elle servira à se connecter.",
+            "email": "Courriel"
+          },
+          "professions": {
+            "title": "Professions et permis",
+            "description": "Deux titres au plus, dont un principal.",
+            "titleField": "Titre",
+            "titlePlaceholder": "Choisir un titre…",
+            "archived": "{name} (archivé)",
+            "licenceHelp": "Requis pour ce titre ({order}).",
+            "primary": "Titre principal",
+            "primaryLabel": "Titre principal : {name}",
+            "row": "Titre {n} : {name}",
+            "rowEmpty": "Titre {n}",
+            "add": "Ajouter un titre",
+            "max": "Deux titres au maximum.",
+            "remove": "Retirer",
+            "removeLabel": "Retirer le titre {name}",
+            "removeEmpty": "Retirer ce titre",
+            "empty": "Aucun titre pour l'instant.",
+            "licenceNowRequired": "Ce titre demande maintenant un numéro de permis. Saisissez-le dans le champ ajouté, puis enregistrez de nouveau."
+          },
+          "experience": {
+            "title": "Expérience",
+            "years": "Années d'expérience"
+          },
+          "payers": {
+            "title": "Numéros de payeurs",
+            "ivac": "N° IVAC",
+            "ivacHelp": "Unique dans la clinique. Laissez vide pour le retirer."
           }
         }
       },

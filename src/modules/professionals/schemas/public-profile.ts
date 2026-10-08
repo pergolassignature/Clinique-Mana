@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
 import { optionalEmail, optionalPhone } from '@/shared/lib/field-schemas'
+import { formatPhone } from '@/shared/lib/format'
 import type { PublicProfile } from '../api/parse'
 import { longText } from './text'
 
@@ -20,5 +21,5 @@ export const publicProfileSchema = z.object({
 export type PublicProfileValues = z.input<typeof publicProfileSchema>
 
 export function toPublicProfileFormValues(p: PublicProfile): PublicProfileValues {
-  return { bio: p.bio ?? '', approach: p.approach ?? '', publicEmail: p.publicEmail ?? '', publicPhone: p.publicPhone ?? '' }
+  return { bio: p.bio ?? '', approach: p.approach ?? '', publicEmail: p.publicEmail ?? '', publicPhone: formatPhone(p.publicPhone) }
 }

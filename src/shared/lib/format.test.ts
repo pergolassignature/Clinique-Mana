@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compactTaxNumber, formatPhone, formatPostalCode, formatRate, formatTaxNumber, initialsOf, parsePhone, parseRate } from './format'
+import { compactTaxNumber, formatPhone, formatPostalCode, formatRate, formatTaxNumber, initialsOf, parsePhone, parseRate, regroupPhone } from './format'
 
 // French typography puts a no-break space before « % ». Engines differ on which one Intl emits
 // (U+00A0 or the narrow U+202F), so the assertions compare with every space made regular.
@@ -18,6 +18,15 @@ describe('formatPhone', () => {
 
   it('leaves a value it does not recognise untouched', () => {
     expect(formatPhone('+33123456789')).toBe('+33123456789')
+  })
+})
+
+describe('regroupPhone', () => {
+  it('regroups a valid number in the Québec format and leaves anything else as typed', () => {
+    expect(regroupPhone('4189079754')).toBe('418 907-9754')
+    expect(regroupPhone('+1 (514) 555.1234')).toBe('514 555-1234')
+    expect(regroupPhone('555')).toBe('555')
+    expect(regroupPhone('')).toBe('')
   })
 })
 

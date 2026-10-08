@@ -100,34 +100,47 @@ describe('set mutations: write the returned set, then refresh only what it touch
   })
 
   it('useSetPayerNumber writes or removes the number', async () => {
-    const { wrapper, cached } = setup()
+    const { wrapper, cached, invalidated } = setup()
     mocks.api.setPayerNumber.mockResolvedValue(undefined)
     await run(() => useSetPayerNumber(), { id: ID, type: 'ivac' as const, number: '999999' }, wrapper)
     expect(mocks.api.setPayerNumber).toHaveBeenCalledWith(ID, 'ivac', '999999')
     expect(cached()?.payerNumbers).toEqual([{ type: 'ivac', number: '999999' }])
     await run(() => useSetPayerNumber(), { id: ID, type: 'ivac' as const, number: null }, wrapper)
     expect(cached()?.payerNumbers).toEqual([])
+    // The IVAC number is not in the list.
+    expect(invalidated()).not.toContainEqual(professionalKeys.lists())
   })
 })
 
 describe('field updates', () => {
-  it('useUpdateProfessional merges the patch, without touching usage counts', async () => {
+  it('useUpdateProfessional merges the patch, without touching usage counts; the lists only for a name', async () => {
     const { wrapper, cached, invalidated } = setup()
     mocks.api.updateProfessional.mockResolvedValue(undefined)
-    await run(() => useUpdateProfessional(), { id: ID, patch: { city: 'Lévis', gender: 'female' as const } }, wrapper)
-    expect(mocks.api.updateProfessional).toHaveBeenCalledWith(ID, { city: 'Lévis', gender: 'female' })
+    await run(() => useUpdateProfessional(), { id: ID, patch: { city: 'Lévis', gender: 'female' as const, yearsExperience: 3 } }, wrapper)
+    expect(mocks.api.updateProfessional).toHaveBeenCalledWith(ID, { city: 'Lévis', gender: 'female', yearsExperience: 3 })
     expect(cached()?.professional).toMatchObject({ city: 'Lévis', gender: 'female', firstName: 'Marie' })
-    expect(invalidated()).toEqual([professionalKeys.record(ID), professionalKeys.lists(), professionalKeys.history(ID)])
+    // Address, gender and experience are not in the list.
+    expect(invalidated()).toEqual([professionalKeys.record(ID), professionalKeys.history(ID)])
+
+    const names = setup()
+    await run(() => useUpdateProfessional(), { id: ID, patch: { lastName: 'Gagnon' } }, names.wrapper)
+    expect(names.invalidated()).toEqual([professionalKeys.record(ID), professionalKeys.lists(), professionalKeys.history(ID)])
   })
 
-  it('useUpdatePublicProfile and useUpdateMatchingProfile merge into their profile', async () => {
-    const { wrapper, cached } = setup()
+  it('useUpdatePublicProfile and useUpdateMatchingProfile merge into their profile; the lists only for new clients', async () => {
+    const { wrapper, cached, invalidated } = setup()
     mocks.api.updatePublicProfile.mockResolvedValue(undefined)
     await run(() => useUpdatePublicProfile(), { id: ID, patch: { bio: 'Bio' } }, wrapper)
     expect(cached()?.publicProfile.bio).toBe('Bio')
+    expect(invalidated()).toEqual([professionalKeys.record(ID), professionalKeys.history(ID)])
+
+    const matching = setup()
     mocks.api.updateMatchingProfile.mockResolvedValue(undefined)
-    await run(() => useUpdateMatchingProfile(), { id: ID, patch: { acceptingNewClients: false, availabilityPeriods: ['pm' as const] } }, wrapper)
-    expect(cached()?.matchingProfile).toMatchObject({ acceptingNewClients: false, availabilityPeriods: ['pm'] })
+    await run(() => useUpdateMatchingProfile(), { id: ID, patch: { availabilityPeriods: ['pm' as const] } }, matching.wrapper)
+    expect(matching.invalidated()).toEqual([professionalKeys.record(ID), professionalKeys.history(ID)])
+    await run(() => useUpdateMatchingProfile(), { id: ID, patch: { acceptingNewClients: false } }, matching.wrapper)
+    expect(matching.cached()?.matchingProfile).toMatchObject({ acceptingNewClients: false, availabilityPeriods: ['pm'] })
+    expect(matching.invalidated()).toContainEqual(professionalKeys.lists())
   })
 
   it('useSetProfessionalEmail', async () => {

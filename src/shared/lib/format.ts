@@ -36,6 +36,15 @@ export function parsePhone(input: string): string | null {
   return null
 }
 
+/**
+ * A typed number regrouped in the Québec format once its field is left (`4189079754` →
+ * `418 907-9754`); anything unrecognised stays as typed, for the schema's error.
+ */
+export function regroupPhone(value: string): string {
+  const parsed = parsePhone(value)
+  return parsed ? formatPhone(parsed) : value
+}
+
 /** Spaces, hyphens and en/em dashes, typed or pasted inside a postal code (`H2X-1Y4`). */
 const POSTAL_CODE_SEPARATORS = /[\s\-\u2013\u2014]/g
 

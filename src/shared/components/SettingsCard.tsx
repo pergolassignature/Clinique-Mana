@@ -61,8 +61,14 @@ export function SettingsCard({ as = 'form', title, description, readOnly: readOn
     )
   }
 
-  // Read-only: Enter in a field would still submit the form implicitly; nothing may be saved.
-  const handleSubmit: FormEventHandler<HTMLFormElement> | undefined = readOnly ? (event) => event.preventDefault() : onSubmit
+  const handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
+    // A form portalled out of the card (a dialog's) is not inside this one in the DOM, but React
+    // bubbles its submit through the component tree: it is that form's, never the card's.
+    if (event.target !== event.currentTarget) return
+    // Read-only: Enter in a field would still submit the form implicitly; nothing may be saved.
+    if (readOnly) event.preventDefault()
+    else onSubmit?.(event)
+  }
   return (
     <form onSubmit={handleSubmit} noValidate aria-labelledby={titleId} aria-busy={pending || undefined} className={CARD_CLASSES}>
       {header}
