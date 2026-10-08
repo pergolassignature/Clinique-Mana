@@ -1,5 +1,5 @@
 -- =============================================================================
--- PII key versions, canary and deploy health check (ADR 0004 « Before Phase 4 »)
+-- PII key versions, canary and health check (ADR 0004 « Before Phase 4 »)
 -- =============================================================================
 -- Plan:     docs/plans/2026-10-08-professionals-module-plan.md Task 4a.16
 -- ADR:      docs/adr/0004-secrets-in-vault.md
@@ -10,25 +10,36 @@
 -- * Versioned secret names: version 1 is the existing Vault secret `pii_encryption_key`, version
 --   n ≥ 2 is `pii_encryption_key_v<n>`. Every encrypted row records the version it was written
 --   with (`key_version smallint`), so a rotation re-encrypts row by row while both keys exist.
+-- * One version per row: a write re-encrypts every encrypted column of the row with the current
+--   version in the same statement and sets `key_version` to it (columns it does not change are
+--   decrypted with the row's old version and re-encrypted, unless the row is already current).
 -- * The version arguments are `integer`, not `smallint`: a literal (`encrypt_pii(x, 2)`, typed
 --   by hand in the rotation runbook) is an integer and would not resolve to a smallint
 --   parameter, while a `smallint` column casts implicitly to integer.
 -- * The one-argument helpers stay and mean version 1 (Phase 2 callers and tests). Code writes
 --   with the two-argument forms: set_bank_details and reveal_bank_account_number move to them
 --   here, with the same signatures and grants.
+-- * The list of encrypted columns lives in ONE place, private.pii_encrypted_values(). Every new
+--   encrypted table or column is added to it (`create or replace`) in the migration that creates
+--   it; the health check, the canary seeding and the rotation runbook all read it.
 -- * The write version is the highest version that has a canary row
 --   (private.pii_current_key_version()). Adding the canary of a new key is therefore the one
---   act that switches writes to it, and only a key the deploy health check proves readable can
---   receive new data. No canary at all (broken environment) falls back to version 1.
+--   act that switches writes to it. No canary at all (broken environment) falls back to version 1.
 -- * The canary is a fixed test value ('mana-pii-canary', not personal data) encrypted with each
---   key, in private.pii_canary (schema not exposed, no grant, RLS on without a policy).
--- * public.pii_health_check() (definer, service_role only) returns true when every canary row
---   decrypts to the test value, false otherwise: no row, a missing key, a wrong key or corrupt
---   bytes. It never raises for those, never returns a key or a value, and its warnings name only
---   the key version and the SQLSTATE. The deploy job runs it after `supabase db push`.
--- * The canary is seeded only when the version 1 key is readable. Raising here would stop
---   `db push` in the middle of a deploy (later migrations unapplied while Vercel ships the
---   app); an empty canary instead makes the health check fail loudly after the push.
+--   key, in private.pii_canary (schema not exposed, no grant, RLS on without a policy). It is only
+--   ever created by private.pii_seed_canary(v), which refuses unless every value stored with
+--   version v decrypts with the current v key: a canary never vouches for a key that would not
+--   read the data.
+-- * public.pii_health_check() (definer, granted to no role: the owner `postgres` runs it, from
+--   the SQL Editor or the GitHub jobs) returns true when every canary decrypts to the test value
+--   AND every version that holds stored data has its key and a canary; false otherwise. It never
+--   raises for those, never returns a key or a value, and its warnings name only the key version,
+--   the table and the SQLSTATE. GitHub runs it after each migration push and every day
+--   (.github/workflows/supabase-migrations.yml, pii-health.yml): a red job is an alarm, it
+--   blocks nothing (Vercel deploys the app regardless).
+-- * The version 1 canary is seeded here only when the key reads every existing encrypted value.
+--   Raising instead would stop `db push` in the middle of a deploy (later migrations unapplied
+--   while Vercel ships the app); a missing canary keeps the health check red instead.
 -- =============================================================================
 select pg_catalog.set_config('app.audit_source', 'migration:core_pii_key_versions', true);
 
@@ -123,6 +134,47 @@ as $$
 $$;
 
 -- -----------------------------------------------------------------------------
+-- organization_bank_details: key version per row
+-- -----------------------------------------------------------------------------
+-- Existing rows were all written with pii_encryption_key: the default 1 is their true version.
+alter table public.organization_bank_details
+  add column key_version smallint not null default 1,
+  add constraint organization_bank_details_key_version_check check (key_version >= 1);
+
+-- -----------------------------------------------------------------------------
+-- The list of encrypted columns (the one place to extend)
+-- -----------------------------------------------------------------------------
+-- Every stored ciphertext with the version it was written with: one `union all` branch per
+-- encrypted column, null values left out. A new encrypted table or column is added here, with
+-- `create or replace`, in the migration that creates it (conventions §8; 4a.17 adds
+-- professional_private.sin and .bank_account). Granted to no role.
+create function private.pii_encrypted_values()
+returns table (table_name text, column_name text, key_version integer, ciphertext bytea)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select 'organization_bank_details'::text, 'account_number'::text, b.key_version::integer, b.account_number
+    from public.organization_bank_details b
+   where b.account_number is not null
+$$;
+
+-- The key versions that hold stored data, per table, with the number of values. A row with no
+-- ciphertext needs no key, so it does not count. Inventory of the rotation runbook.
+create function private.pii_key_versions_in_use()
+returns table (key_version integer, table_name text, value_count bigint)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select e.key_version, e.table_name, count(*)
+    from private.pii_encrypted_values() e
+   group by e.key_version, e.table_name
+$$;
+
+-- -----------------------------------------------------------------------------
 -- Canary
 -- -----------------------------------------------------------------------------
 create table private.pii_canary (
@@ -133,18 +185,7 @@ create table private.pii_canary (
 );
 revoke all on private.pii_canary from public, anon, authenticated, service_role;
 alter table private.pii_canary enable row level security;
--- No policy and no grant on purpose: only pii_health_check and the owner touch it.
-
-do $$
-begin
-  if private.pii_key(1) is null then
-    raise warning 'pii_encryption_key is unreadable: no canary seeded, pii_health_check() will return false (docs/runbooks/pii-key-escrow.md)';
-  else
-    insert into private.pii_canary (key_version, ciphertext)
-    values (1, private.encrypt_pii('mana-pii-canary', 1));
-  end if;
-end;
-$$;
+-- No policy and no grant on purpose: only pii_seed_canary, pii_health_check and the owner touch it.
 
 -- The version new values are written with: the highest version with a canary row.
 create function private.pii_current_key_version()
@@ -157,16 +198,70 @@ as $$
   select coalesce(max(c.key_version)::integer, 1) from private.pii_canary c
 $$;
 
+-- Creates the canary of a key version, only when that key reads every value already stored with
+-- it (none, for a new key). Returns true when it created the canary; otherwise false with a
+-- WARNING naming only the version and the SQLSTATE: the version already has a canary (left
+-- unchanged), its key is missing, or a stored value does not decrypt with it (a key replaced
+-- after data was written). The only way the migration and the runbooks create a canary.
+create function private.pii_seed_canary(p_version integer)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_values bigint;
+begin
+  if p_version is null or p_version < 1 then
+    raise exception 'Version de clé invalide' using errcode = '22023';
+  end if;
+  if exists (select 1 from private.pii_canary c where c.key_version = p_version) then
+    raise warning 'pii_seed_canary: key version % already has a canary (left unchanged)', p_version;
+    return false;
+  end if;
+  if private.pii_key(p_version) is null then
+    raise warning 'pii_seed_canary: key version % is missing: no canary, pii_health_check() stays false (docs/runbooks/pii-key-escrow.md)', p_version;
+    return false;
+  end if;
+
+  begin
+    -- count(expr) evaluates the decryption for every value; the plaintexts go nowhere.
+    select count(private.decrypt_pii(e.ciphertext, e.key_version)) into v_values
+      from private.pii_encrypted_values() e
+     where e.key_version = p_version;
+  exception when others then
+    raise warning 'pii_seed_canary: key version % does not decrypt every value stored with it (SQLSTATE %): no canary, pii_health_check() stays false (docs/runbooks/pii-key-escrow.md)', p_version, sqlstate;
+    return false;
+  end;
+
+  insert into private.pii_canary (key_version, ciphertext)
+  values (p_version, private.encrypt_pii('mana-pii-canary', p_version));
+  return true;
+end;
+$$;
+
+-- Version 1: never raises (see the header). A false result leaves the health check red.
+do $$
+begin
+  perform private.pii_seed_canary(1);
+end;
+$$;
+
 revoke all on function
   private.pii_key(integer),
   private.encrypt_pii(text, integer),
   private.decrypt_pii(bytea, integer),
-  private.pii_current_key_version()
+  private.pii_encrypted_values(),
+  private.pii_key_versions_in_use(),
+  private.pii_current_key_version(),
+  private.pii_seed_canary(integer)
 from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
--- Health check (deploy job, `.github/workflows/supabase-migrations.yml`)
+-- Health check (GitHub: .github/workflows/supabase-migrations.yml and pii-health.yml)
 -- -----------------------------------------------------------------------------
+-- Definer so that a future monitoring role could be granted this function alone, never the
+-- private helpers. Today it is granted to no role: `postgres` (its owner) runs it.
 create function public.pii_health_check()
 returns boolean
 language plpgsql
@@ -179,6 +274,7 @@ declare
   v_plain text;
   v_checked int := 0;
 begin
+  -- 1. Every canary decrypts to the test value with its key.
   for v_row in select c.key_version, c.ciphertext from private.pii_canary c order by c.key_version loop
     begin
       v_plain := private.decrypt_pii(v_row.ciphertext, v_row.key_version);
@@ -197,21 +293,27 @@ begin
     raise warning 'pii_health_check: no canary row';
     return false;
   end if;
+
+  -- 2. Every version that holds stored data has its key and a canary (so step 1 proved it).
+  for v_row in select u.key_version, u.table_name from private.pii_key_versions_in_use() u order by 1, 2 loop
+    if private.pii_key(v_row.key_version) is null then
+      raise warning 'pii_health_check: key version % is used by % but its key is missing', v_row.key_version, v_row.table_name;
+      return false;
+    end if;
+    if not exists (select 1 from private.pii_canary c where c.key_version = v_row.key_version) then
+      raise warning 'pii_health_check: key version % is used by % but has no canary', v_row.key_version, v_row.table_name;
+      return false;
+    end if;
+  end loop;
   return true;
 end;
 $$;
 
-revoke all on function public.pii_health_check() from public, anon, authenticated;
-grant execute on function public.pii_health_check() to service_role;
+revoke all on function public.pii_health_check() from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
--- organization_bank_details: key version per row
+-- Bank details RPCs: decrypt with the row's version, write with the current one
 -- -----------------------------------------------------------------------------
--- Existing rows were all written with pii_encryption_key: the default 1 is their true version.
-alter table public.organization_bank_details
-  add column key_version smallint not null default 1,
-  add constraint organization_bank_details_key_version_check check (key_version >= 1);
-
 -- Same body as *_core_bank_details.sql, but decrypting with the row's key_version.
 create or replace function public.reveal_bank_account_number()
 returns text
@@ -245,8 +347,10 @@ begin
 end;
 $$;
 
--- Same body as *_core_bank_details.sql, but a new account is encrypted with the current key
--- version and records it. Keeping the stored account (blank p_account_number) keeps its version.
+-- Same body as *_core_bank_details.sql, but every write leaves the row on the current key
+-- version (conventions §8, « one version per row »): a new account is encrypted with it; a kept
+-- account (blank p_account_number) is re-encrypted from the row's version in the same statement,
+-- unless the row is already current (no new ciphertext, so no spurious « changed » audit entry).
 create or replace function public.set_bank_details(
   p_institution_number text,
   p_transit_number text,
@@ -282,18 +386,22 @@ begin
     raise exception 'Courriel Interac invalide.' using errcode = 'P0001';
   end if;
 
+  v_version := private.pii_current_key_version();
   if v_account is null then
     update public.organization_bank_details b
        set institution_number = v_institution,
            transit_number = v_transit,
            etransfer_email = v_email,
+           account_number = case when b.key_version = v_version then b.account_number
+                                 else private.encrypt_pii(private.decrypt_pii(b.account_number, b.key_version), v_version)
+                            end,
+           key_version = v_version,
            updated_by = auth.uid()
      where b.org_id = v_org;
     if not found then
       raise exception 'Le numéro de compte est requis.' using errcode = 'P0001';
     end if;
   else
-    v_version := private.pii_current_key_version();
     insert into public.organization_bank_details
       (org_id, institution_number, transit_number, account_number, account_last4, key_version, etransfer_email, updated_by)
     values
