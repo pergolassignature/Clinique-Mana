@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import { FunctionCallError } from '@/core/supabase/functions'
@@ -33,9 +33,15 @@ const live: Onboarding = {
 }
 
 beforeEach(() => {
+  // Thursday 8 October 2026, 16:00 in Toronto: the fixtures' links are live.
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-08T20:00:00Z'))
   mocks.settings.fetchProfessionalsSettings.mockResolvedValue({ collectSin: false, invitationExpiryDays: 7, invitationReminderAfterDays: 3 })
 })
-afterEach(() => vi.clearAllMocks())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.clearAllMocks()
+})
 
 /** The adjointe opens a menu item of a file. */
 async function choose(item: string, { complete = false, onboarding = null as Onboarding | null } = {}) {
@@ -75,19 +81,44 @@ describe('InvitationDialog', () => {
     await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledWith(t(`${O}.toasts.createdNotSent`), { description: t(`${O}.emailProblems.invalid_request`) }))
   })
 
-  it('a double click refused by the file’s guard stays in the dialog, in plain words', async () => {
-    mocks.invitations.sendProfessionalInvitation.mockRejectedValue(new FunctionCallError('rate_limited', 429, 'Too many', {}, 5))
+  it('too many calls (the file’s 5 s guard or the hourly count): one plain sentence that names neither, in the dialog', async () => {
+    mocks.invitations.sendProfessionalInvitation.mockRejectedValueOnce(new FunctionCallError('rate_limited', 429, 'Too many', {}, 5))
+    mocks.invitations.sendProfessionalInvitation.mockRejectedValueOnce(new FunctionCallError('rate_limited', 429, 'Too many', {}, 2700))
     const { dialog } = await choose(t(`${A}.resend`), { onboarding: live })
-    await userEvent.click(within(dialog).getByRole('button', { name: t(`${A}.resend`) }))
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent(t(`${O}.errors.justSent`))
+    const confirm = within(dialog).getByRole('button', { name: t(`${A}.resend`) })
+    await userEvent.click(confirm)
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Trop de demandes en peu de temps. Réessayez dans un instant.')
+    expect(dialog).not.toHaveTextContent(/vient d.être envoyée/)
+    // Not final: the same button can try again.
+    await userEvent.click(confirm)
+    await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent('Trop de demandes en peu de temps. Réessayez dans environ 45 minutes.'))
   })
 
-  it('a refusal (the file got an account meanwhile) shows the database’s sentence and refetches the file', async () => {
-    mocks.invitations.sendProfessionalInvitation.mockRejectedValue({ code: 'P0001', message: 'Ce professionnel a déjà un compte.', hint: 'account' })
+  it('a second press before the first renders as pending is ignored: one call, and the dialog closes on its success', async () => {
+    mocks.invitations.sendProfessionalInvitation.mockResolvedValue({ expiresAt: '2026-10-15T14:00:00Z', emailProblem: null })
+    const { dialog } = await choose(t(`${A}.resend`), { onboarding: live })
+    const confirm = within(dialog).getByRole('button', { name: t(`${A}.resend`) })
+    act(() => {
+      confirm.click()
+      confirm.click()
+    })
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(mocks.invitations.sendProfessionalInvitation).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['account', 'Ce professionnel a déjà un compte.'],
+    ['status', "Un dossier inactif ne peut pas recevoir d'invitation."],
+    ['invitation', 'Aucune invitation en cours.'],
+  ])('a refusal a retry cannot change (%s): the database’s sentence, the file refetched, « Fermer » only', async (hint, message) => {
+    mocks.invitations.sendProfessionalInvitation.mockRejectedValue({ code: 'P0001', message, hint })
     const { dialog, invalidated } = await choose(t(`${A}.send`))
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${A}.send`) }))
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Ce professionnel a déjà un compte.')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(message)
     await waitFor(() => expect(invalidated()).toContainEqual(professionalKeys.record(ID)))
+    expect(within(dialog).queryByRole('button', { name: t(`${A}.send`) })).not.toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: t('common.close') }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
   })
 
   it('the function failing otherwise (unreachable answer): says which action failed', async () => {
@@ -95,6 +126,17 @@ describe('InvitationDialog', () => {
     const { dialog } = await choose(t(`${A}.revoke`), { onboarding: live })
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${A}.revoke`) }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(t(`${O}.errors.revokeFailed`))
+  })
+
+  it('« Révoquer l’invitation » mentions the questionnaire only when one was sent', async () => {
+    const { dialog } = await choose(t(`${A}.revoke`), { onboarding: live })
+    expect(dialog).toHaveAccessibleDescription(
+      'Le lien envoyé à marie.t@exemple.ca ne fonctionnera plus. Vous pourrez inviter Marie de nouveau. Le dossier redeviendra « À inviter ».',
+    )
+    cleanup()
+    const sent: Onboarding = { ...live, submission: { id: 's1', kind: 'onboarding', status: 'submitted', submittedAt: '2026-10-07T14:00:00Z' } }
+    const again = await choose(t(`${A}.revoke`), { onboarding: sent })
+    expect(again.dialog).toHaveAccessibleDescription(/ne fonctionnera plus\. Le questionnaire envoyé sera fermé sans être appliqué\. Vous pourrez/)
   })
 
   it('« Révoquer l’invitation »: confirmed, then « Invitation révoquée »', async () => {
@@ -132,6 +174,18 @@ describe('RequestUpdateDialog', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${U}.confirm`) }))
     await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledWith(t(`${O}.toasts.updateNotSent`), {
       description: `${t(`${O}.emailProblems.provider_error`)} ${t(`${O}.emailAdvice.update`, { firstName: 'Marie' })}`,
+    }))
+  })
+
+  it('a refused address on an update request: corrected in « Mon compte », and the request stays open', async () => {
+    mocks.invitations.requestProfessionalUpdate.mockResolvedValue({ submissionId: 's1', emailProblem: { code: 'invalid_request', retryAfter: null } })
+    const { dialog } = await choose(t(`${A}.requestUpdate`), { complete: true, onboarding: approved })
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: t(`${O}.sections.photo`) }))
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${U}.confirm`) }))
+    await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledWith(t(`${O}.toasts.updateNotSent`), {
+      description:
+        "Le service d'envoi a refusé l'adresse du dossier. Marie a un compte : c'est dans « Mon compte » que cette adresse se modifie (il n'y a pas d'invitation à renvoyer). " +
+        "La demande reste ouverte : prévenez Marie qu'elle l'attend dans son questionnaire.",
     }))
   })
 })

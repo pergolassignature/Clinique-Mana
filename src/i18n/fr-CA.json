@@ -1258,9 +1258,11 @@
           "reactivateIncomplete": "Le dossier peut être réactivé, même s'il reste des éléments à compléter.",
           "notInvited": "{firstName} n'a pas encore reçu d'invitation pour créer son accès et remplir son questionnaire.",
           "invitationExpired": "Le lien d'invitation a expiré le {date} sans être utilisé.",
+          "invitationRevoked": "L'invitation de {firstName} a été révoquée : son lien ne fonctionne plus.",
+          "invitationUsedNoAccount": "{firstName} a créé son accès avec le lien d'invitation le {date}, mais ce compte n'existe plus.",
           "invitationSent": "Invitation envoyée le {date}. {firstName} n'a pas encore créé son accès.",
           "invitationOpened": "{firstName} a ouvert le lien d'invitation le {date}, mais n'a pas encore créé son accès.",
-          "questionnaireInProgress": "{firstName} remplit son questionnaire. Vous serez avisé quand il sera envoyé.",
+          "questionnaireInProgress": "{firstName} n'a pas encore envoyé son questionnaire. Il apparaîtra ici, à réviser, dès son envoi.",
           "updateInProgress": "Une demande de mise à jour est en cours : {firstName} ne l'a pas encore envoyée.",
           "awaitingQuestionnaire": "Le questionnaire de {firstName} n'a pas encore été approuvé.",
           "reviewOnboarding": "{firstName} a envoyé son questionnaire le {date}. Il attend votre révision.",
@@ -1329,7 +1331,9 @@
           },
           "revoke": {
             "title": "Révoquer l'invitation de {name} ?",
-            "body": "Le lien envoyé à {email} ne fonctionnera plus et le questionnaire commencé sera fermé sans être appliqué. Vous pourrez inviter {firstName} de nouveau.",
+            "body": "Le lien envoyé à {email} ne fonctionnera plus.",
+          "closesQuestionnaire": "Le questionnaire envoyé sera fermé sans être appliqué.",
+          "inviteAgain": "Vous pourrez inviter {firstName} de nouveau.",
             "backToDraft": "Le dossier redeviendra « À inviter »."
           },
           "validForOne": "Le lien sera valide {count} jour.",
@@ -1357,7 +1361,8 @@
           "not_configured": "L'envoi de courriels n'est pas encore configuré pour la clinique.",
           "rate_limited": "Limite d'envoi de courriels atteinte.",
           "provider_error": "Le service d'envoi n'a pas répondu.",
-          "invalid_request": "Le service d'envoi a refusé cette adresse. Vérifiez-la dans l'onglet « Identité et permis », puis renvoyez l'invitation.",
+          "invalid_request": "Le service d'envoi a refusé cette adresse. Corrigez-la dans l'onglet « Identité et permis », puis utilisez « Envoyer l'invitation ».",
+          "invalid_request_update": "Le service d'envoi a refusé l'adresse du dossier. {firstName} a un compte : c'est dans « Mon compte » que cette adresse se modifie (il n'y a pas d'invitation à renvoyer).",
           "module_disabled": "Le module Professionnels est désactivé pour la clinique.",
           "other": "Le courriel n'a pas pu être envoyé."
         },
@@ -1366,8 +1371,7 @@
           "update": "La demande reste ouverte : prévenez {firstName} qu'elle l'attend dans son questionnaire."
         },
         "errors": {
-          "justSent": "Une invitation vient d'être envoyée pour ce dossier. Attendez quelques secondes avant de réessayer.",
-          "rateLimited": "Trop d'envois en peu de temps.",
+          "rateLimited": "Trop de demandes en peu de temps.",
           "moduleDisabled": "Le module Professionnels est désactivé pour la clinique.",
           "network": "Le service est injoignable. Vérifiez votre connexion et réessayez.",
           "unauthenticated": "Votre session a expiré. Reconnectez-vous, puis réessayez.",
@@ -1833,7 +1837,13 @@
             "sentBack": "a renvoyé les réponses pour correction",
             "note": "Note",
             "cancelled": "a fermé le questionnaire en cours sans l'appliquer",
-            "privateSent": "a transmis des renseignements fiscaux ou bancaires"
+            "privateSent": "a transmis des renseignements fiscaux ou bancaires",
+            "update": {
+              "submitted": "a envoyé sa mise à jour du profil",
+              "approved": "a approuvé la mise à jour du profil",
+              "sentBack": "a renvoyé la mise à jour du profil pour correction",
+              "cancelled": "a fermé la demande de mise à jour sans l'appliquer"
+            }
           },
           "consent": {
             "recorded": "a enregistré le consentement au droit à l'image",
@@ -1965,7 +1975,9 @@
         "email": {
           "sentTo": "a envoyé « {template} » à {email}",
           "sent": "a envoyé « {template} »",
-          "checkAddress": "Le service d'envoi n'a pas pu livrer ce courriel. Vérifiez l'adresse dans l'onglet",
+          "notDelivered": "Le service d'envoi n'a pas pu livrer ce courriel.",
+          "markedAsSpam": "Ce courriel a été signalé comme indésirable : le service d'envoi n'écrira plus à cette adresse.",
+          "checkAddress": "Vérifiez l'adresse dans l'onglet",
           "identityTab": "Identité et permis"
         },
         "moneyFields": {
@@ -2031,6 +2043,7 @@
           "next": "Page suivante"
         },
         "truncated": "Plus de 500 professionnels : affinez la recherche.",
+        "statesError": "Les invitations n'ont pas pu être chargées : les statuts affichés sont ceux des dossiers, sans les invitations ni les questionnaires.",
         "loadError": "La liste des professionnels n'a pas pu être chargée.",
         "empty": {
           "title": "Aucun professionnel pour l'instant",
@@ -2042,7 +2055,8 @@
       },
       "create": {
         "heading": "Ajouter un professionnel",
-        "description": "Le professionnel reçoit une invitation par courriel pour créer son accès et remplir son questionnaire.",
+        "description": "Une invitation lui sera envoyée par courriel pour créer son accès et remplir son questionnaire.",
+        "descriptionNoInvite": "Le dossier sera créé sans invitation. Elle pourra être envoyée plus tard depuis la fiche, avec « Envoyer l'invitation ».",
         "firstName": "Prénom",
         "lastName": "Nom",
         "email": "Courriel",

@@ -1,7 +1,7 @@
 import { t } from '@/i18n'
 import type { ProfessionalStatus, RecordTab } from './constants'
 import type { Onboarding, ProfessionalRecord } from '../api/parse'
-import { clinicDaysSince } from './onboarding'
+import { clinicDaysSince, invitationState } from './onboarding'
 
 /**
  * « À surveiller »: what staff should look at, for the list column, the filter and Aperçu.
@@ -59,8 +59,10 @@ function onboardingFlags({ hasAccount, onboarding }: WatchSubject, now: number):
   }
   const invitation = onboarding?.invitation
   if (hasAccount || !invitation) return flags
-  if (invitation.state === 'expired') flags.push({ key: 'invitation_expired', label: t(`${W}.invitation_expired`), tone: 'muted' })
-  if (invitation.state === 'sent') {
+  // As of `now`: a link past its expiry is expired before the next refetch says so.
+  const state = invitationState(invitation, now)
+  if (state === 'expired') flags.push({ key: 'invitation_expired', label: t(`${W}.invitation_expired`), tone: 'muted' })
+  if (state === 'sent') {
     const days = clinicDaysSince(invitation.sentAt, now)
     if (days >= INVITATION_UNANSWERED_DAYS) {
       flags.push({ key: 'invitation_unanswered', label: t(`${W}.invitation_unanswered`, { count: String(days) }), tone: 'muted' })

@@ -517,14 +517,30 @@ describe('history — pages, days, filter', () => {
     const a = { ...junction('professional_motifs', 'motif_id', IDS.anxiete), ...at('2026-10-08T15:00:00+00:00') }
     const b = () => ({ ...junction('professional_motifs', 'motif_id', IDS.deuil), ...at('2026-10-08T14:00:00+00:00') })
     const c = { ...junction('professional_motifs', 'motif_id', IDS.psychose), ...at('2026-10-08T13:00:00+00:00') }
-    expect(historyReadsOn([[a, b()]], true)).toBe(false)
-    expect(historyReadsOn([[a, b()], [b(), b()]], true)).toBe(true)
-    expect(historyReadsOn([[a, b()], [b(), b()], [b(), c]], true)).toBe(false)
-    expect(historyReadsOn([[b(), b()]], true)).toBe(true)
+    expect(historyReadsOn([[a, b()]], true, ctx())).toBe(false)
+    expect(historyReadsOn([[a, b()], [b(), b()]], true, ctx())).toBe(true)
+    expect(historyReadsOn([[a, b()], [b(), b()], [b(), c]], true, ctx())).toBe(false)
+    expect(historyReadsOn([[b(), b()]], true, ctx())).toBe(true)
     // The end of the history, or an empty page, stops it.
-    expect(historyReadsOn([[b(), b()]], false)).toBe(false)
-    expect(historyReadsOn([[a, b()], []], true)).toBe(false)
-    expect(historyReadsOn([], true)).toBe(false)
+    expect(historyReadsOn([[b(), b()]], false, ctx())).toBe(false)
+    expect(historyReadsOn([[a, b()], []], true, ctx())).toBe(false)
+    expect(historyReadsOn([], true, ctx())).toBe(false)
+  })
+
+  it('reads on while the last page settled only rows that give no event (draft saves)', () => {
+    const at = (createdAt: string) => ({ createdAt })
+    const draft = (createdAt: string) => row('professional_submissions', 'update', { submitted_values: '[redacted]' }, at(createdAt))
+    const link = (createdAt: string) => row('professional_submissions', 'update', { secure_link_id: { before: null, after: ORG } }, at(createdAt))
+    const change = (createdAt: string) => row('professionals', 'update', { years_experience: { before: 1, after: 2 } }, at(createdAt))
+    // A first page made only of autosaves: nothing to show, read on.
+    expect(historyReadsOn([[draft('2026-10-08T15:00:00+00:00'), draft('2026-10-08T14:00:00+00:00')]], true, ctx())).toBe(true)
+    // A later page of autosaves (and a link pointer): it settles the save held back before it and its own drafts.
+    const first = [change('2026-10-08T16:00:00+00:00'), draft('2026-10-08T15:00:00+00:00')]
+    expect(historyReadsOn([first], true, ctx())).toBe(false)
+    expect(historyReadsOn([first, [link('2026-10-08T14:00:00+00:00'), draft('2026-10-08T13:00:00+00:00')]], true, ctx())).toBe(true)
+    // Once a page settles an event, it stops; the end of the history stops it too.
+    expect(historyReadsOn([first, [draft('2026-10-08T14:00:00+00:00'), change('2026-10-08T13:00:00+00:00')], [change('2026-10-08T12:00:00+00:00')]], true, ctx())).toBe(false)
+    expect(historyReadsOn([[draft('2026-10-08T15:00:00+00:00'), draft('2026-10-08T14:00:00+00:00')]], false, ctx())).toBe(false)
   })
 
   it('groups by clinic day, newest first', () => {
@@ -603,6 +619,11 @@ describe('history — emails in the timeline (Task 4b.3)', () => {
     expect(keys(buildTimeline(list, mails, { filter: 'all', morePages: false }))).toEqual(['m2', '2026-10-08T15:00', 'm1'])
   })
 
+  it('with no event loaded yet, no email waits for older pages', () => {
+    const mails = [email('m2', '2026-10-08T16:00:00+00:00'), email('m1', '2026-10-01T14:00:00+00:00')]
+    expect(keys(buildTimeline([], mails, { filter: 'all', morePages: true }))).toEqual(['m2', 'm1'])
+  })
+
   it('« Courriels » shows every email and nothing else; « Modifications » no email', () => {
     const list = events([change('2026-10-08T15:00:00+00:00')])
     const mails = [email('m2', '2026-10-08T16:00:00+00:00'), email('m1', '2026-10-01T14:00:00+00:00')]
@@ -629,6 +650,18 @@ describe('history — the questionnaire (Task 4b.3)', () => {
     expect(only([submission('update', { status: { before: 'submitted', after: 'approved' } })]).sentence).toBe(t(`${S}.approved`))
     expect(only([submission('update', { status: { before: 'draft', after: 'cancelled' } })]).sentence).toBe(t(`${S}.cancelled`))
     expect(only([submission('update', { private_saved_at: { before: null, after: '2026-10-08T14:00:00Z' } })]).sentence).toBe(t(`${S}.privateSent`))
+  })
+
+  it('an update request\'s steps say « mise à jour » (the RPC adds the submission\'s kind to each row)', () => {
+    const update = (fields: Record<string, unknown>) => submission('update', { ...fields, kind: 'update' })
+    expect(only([update({ status: { before: 'draft', after: 'submitted' } })]).sentence).toBe('a envoyé sa mise à jour du profil')
+    expect(only([update({ status: { before: 'submitted', after: 'approved' } })]).sentence).toBe('a approuvé la mise à jour du profil')
+    expect(only([update({ status: { before: 'draft', after: 'cancelled' } })]).sentence).toBe("a fermé la demande de mise à jour sans l'appliquer")
+    const sentBack = only([update({ status: { before: 'submitted', after: 'draft' }, decision_note: { before: null, after: 'Précisez vos disponibilités.' } })])
+    expect(sentBack.sentence).toBe('a renvoyé la mise à jour du profil pour correction')
+    expect(sentBack.lines).toEqual([{ kind: 'value', field: 'Note', value: 'Précisez vos disponibilités.' }])
+    // The onboarding's own rows keep « questionnaire ».
+    expect(only([submission('update', { kind: 'onboarding', status: { before: 'draft', after: 'submitted' } })]).sentence).toBe(t(`${S}.submitted`))
   })
 
   it('an update request lists its sections; a correction request shows its note', () => {

@@ -42,10 +42,21 @@ const C = 'modules.professionals.create'
 export function CreateProfessionalDialog() {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
+  // Here, not in the form: the description says whether an invitation will leave.
+  const [inviteNow, setInviteNow] = useState(true)
+  const { can } = useAccess()
+  const invite = can('professionals.invite') && inviteNow
   const firstName = useRef<HTMLInputElement | null>(null)
 
+  const changeOpen = (next: boolean) => {
+    if (pending) return
+    // Each opening starts ticked, as the form starts empty.
+    if (next) setInviteNow(true)
+    setOpen(next)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
         <Button>
           <Plus aria-hidden />
@@ -61,9 +72,15 @@ export function CreateProfessionalDialog() {
       >
         <DialogHeader>
           <DialogTitle>{t(`${C}.heading`)}</DialogTitle>
-          <DialogDescription>{t(`${C}.description`)}</DialogDescription>
+          <DialogDescription>{t(invite ? `${C}.description` : `${C}.descriptionNoInvite`)}</DialogDescription>
         </DialogHeader>
-        <CreateForm firstNameRef={firstName} onPendingChange={setPending} onCreated={() => setOpen(false)} />
+        <CreateForm
+          firstNameRef={firstName}
+          inviteNow={inviteNow}
+          onInviteNowChange={setInviteNow}
+          onPendingChange={setPending}
+          onCreated={() => setOpen(false)}
+        />
       </DialogContent>
     </Dialog>
   )
@@ -71,6 +88,9 @@ export function CreateProfessionalDialog() {
 
 interface CreateFormProps {
   firstNameRef: RefObject<HTMLInputElement | null>
+  /** « Envoyer l'invitation maintenant » (shown with `professionals.invite`). */
+  inviteNow: boolean
+  onInviteNowChange: (inviteNow: boolean) => void
   onPendingChange: (pending: boolean) => void
   onCreated: () => void
 }
@@ -85,12 +105,11 @@ function CreateForm(props: CreateFormProps) {
   return <Loading />
 }
 
-function CreateFormFields({ catalog, firstNameRef, onPendingChange, onCreated }: CreateFormProps & { catalog: CatalogView }) {
+function CreateFormFields({ catalog, firstNameRef, inviteNow, onInviteNowChange, onPendingChange, onCreated }: CreateFormProps & { catalog: CatalogView }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { can } = useAccess()
   const mayInvite = can('professionals.invite')
-  const [inviteNow, setInviteNow] = useState(true)
   const invite = mayInvite && inviteNow
   const sendInvitation = useSendInvitation({
     // The file exists: the dialog closes on its record, the toast says what is left to do.
@@ -196,7 +215,7 @@ function CreateFormFields({ catalog, firstNameRef, onPendingChange, onCreated }:
           label={t(`${C}.inviteNow`)}
           help={t(`${C}.inviteNowHelp`)}
           checked={inviteNow}
-          onCheckedChange={setInviteNow}
+          onCheckedChange={onInviteNowChange}
         />
       )}
       {alert && (

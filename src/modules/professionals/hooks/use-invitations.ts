@@ -18,6 +18,7 @@ import type { SubmissionSection } from '../lib/constants'
 import type { InviteAction } from '../lib/onboarding'
 import { professionalKeys } from './keys'
 import { showMutationError, type MutationFeedback } from './mutation-feedback'
+import { refreshProfessionalHistory } from './use-professional-record'
 
 const I = 'modules.professionals.onboarding'
 
@@ -55,22 +56,19 @@ export function prefetchProfessionalEmails(queryClient: QueryClient, id: string)
 
 // --- Messages ------------------------------------------------------------------------------------
 
-/** The function's limit for one file (P4-261): a refused double click. */
-const FILE_GUARD_SECONDS = 5
-
 /**
- * The French text of a failed call to `professionals-invite`: its own refusals (a double click
- * within 5 s, the caller's hourly limit, the module switched off, the function unreachable, an
- * expired session); the RPC refusals it passes on go through `showMutationError` (as is, or
- * « Permission refusée » with the access refetched). Null for those.
+ * The French text of a failed call to `professionals-invite`: its own refusals (too many calls,
+ * the module switched off, the function unreachable, an expired session); the RPC refusals it
+ * passes on go through `showMutationError` (as is, or « Permission refusée » with the access
+ * refetched). Null for those. A 429 here created nothing; its body does not say which limit
+ * refused it (the file's 5 s guard against a double click, or the caller's hourly count, P4-261),
+ * so the text names neither: « Trop de demandes en peu de temps. Réessayez dans … ».
  */
 export function invitationFunctionMessage(error: unknown): string | null {
   if (!(error instanceof FunctionCallError)) return null
   switch (error.code) {
     case 'rate_limited':
-      return error.retryAfter !== null && error.retryAfter <= FILE_GUARD_SECONDS
-        ? t(`${I}.errors.justSent`)
-        : `${t(`${I}.errors.rateLimited`)} ${retryInText(error.retryAfter)}`
+      return `${t(`${I}.errors.rateLimited`)} ${retryInText(error.retryAfter)}`
     case 'module_disabled':
       return t(`${I}.errors.moduleDisabled`)
     case 'network':
@@ -87,18 +85,30 @@ export function invitationFunctionMessage(error: unknown): string | null {
 const EMAIL_PROBLEMS = ['not_configured', 'rate_limited', 'provider_error', 'invalid_request', 'module_disabled'] as const
 const isKnownProblem = (code: string): code is (typeof EMAIL_PROBLEMS)[number] => (EMAIL_PROBLEMS as readonly string[]).includes(code)
 
+/** What the email that did not leave was about: an invitation link, or an update request (and to whom). */
+export type EmailAbout = { kind: 'invitation' } | { kind: 'update'; firstName: string }
+
 /**
- * Why the email did not leave, and what to do (the toast's second line). « Renvoyer
- * l'invitation » is advised only where it can help: a refused address must be corrected first, an
- * unconfigured sender fails again until someone configures it. An update request has no re-send
- * (P4-267): the professional is told another way.
+ * Why the email did not leave, and what to do (the toast's second line).
+ * - An invitation: « Utilisez « Renvoyer l'invitation » dans un moment. » only where re-sending can
+ *   help: a refused address must be corrected first (the cause says where), an unconfigured
+ *   sender or a module switched off fails again until someone acts; a sending limit says when.
+ * - An update request stays open whatever the cause, and has no re-send (P4-267): every cause
+ *   ends with how the professional learns of it (« La demande reste ouverte : prévenez {Prénom}
+ *   … »). A refused address is corrected by the professional in « Mon compte » (an account
+ *   exists): there is no invitation to re-send.
  */
-export function emailProblemText({ code, retryAfter }: EmailProblem, advice: string): string {
+export function emailProblemText({ code, retryAfter }: EmailProblem, about: EmailAbout): string {
   const known = isKnownProblem(code) ? code : 'other'
+  if (about.kind === 'update') {
+    const { firstName } = about
+    const cause = known === 'invalid_request' ? t(`${I}.emailProblems.invalid_request_update`, { firstName }) : t(`${I}.emailProblems.${known}`)
+    return `${cause} ${t(`${I}.emailAdvice.update`, { firstName })}`
+  }
   const cause = t(`${I}.emailProblems.${known}`)
   if (known === 'rate_limited') return `${cause} ${retryInText(retryAfter)}`
   if (known === 'invalid_request' || known === 'not_configured' || known === 'module_disabled') return cause
-  return `${cause} ${advice}`
+  return `${cause} ${t(`${I}.emailAdvice.invitation`)}`
 }
 
 // --- Actions -------------------------------------------------------------------------------------
@@ -112,7 +122,8 @@ function refreshAfterAction(queryClient: QueryClient, id: string) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: professionalKeys.record(id) }),
     queryClient.invalidateQueries({ queryKey: professionalKeys.lists() }),
-    queryClient.invalidateQueries({ queryKey: professionalKeys.history(id) }),
+    // The first page only (the new entries are at its top), and the emails under it.
+    refreshProfessionalHistory(queryClient, id),
   ])
 }
 
@@ -146,7 +157,7 @@ export function useSendInvitation(feedback?: MutationFeedback) {
   return useMutation({
     mutationFn: ({ id, action }: InvitationVariables) => sendProfessionalInvitation(id, action),
     onSuccess: ({ expiresAt, emailProblem }, { email }) => {
-      if (emailProblem) toast.warning(t(`${I}.toasts.createdNotSent`), { description: emailProblemText(emailProblem, t(`${I}.emailAdvice.invitation`)) })
+      if (emailProblem) toast.warning(t(`${I}.toasts.createdNotSent`), { description: emailProblemText(emailProblem, { kind: 'invitation' }) })
       else if (expiresAt) toast.success(t(`${I}.toasts.sentExpires`, { email, date: formatClinicDateShort(expiresAt) }))
       else toast.success(t(`${I}.toasts.sent`, { email }))
     },
@@ -176,7 +187,7 @@ export function useRequestUpdate(feedback?: MutationFeedback) {
       requestProfessionalUpdate(id, sections),
     onSuccess: ({ emailProblem }, { email, firstName }) => {
       if (emailProblem) {
-        toast.warning(t(`${I}.toasts.updateNotSent`), { description: emailProblemText(emailProblem, t(`${I}.emailAdvice.update`, { firstName })) })
+        toast.warning(t(`${I}.toasts.updateNotSent`), { description: emailProblemText(emailProblem, { kind: 'update', firstName }) })
       } else toast.success(t(`${I}.toasts.updateSent`, { email }))
     },
     onError: (error) => onActionError(queryClient, error, feedback, t(`${I}.errors.updateFailed`)),

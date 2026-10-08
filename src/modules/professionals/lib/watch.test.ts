@@ -64,8 +64,9 @@ describe('watchFlags: the onboarding (Task 4b.3)', () => {
     expect(watchFlags(subject({ ...noAccount, onboarding: invited('sent', '2026-10-06T03:30:00Z') }), NOW).map((f) => f.key)).toEqual(['invitation_unanswered'])
   })
 
-  it('an expired link', () => {
+  it('an expired link, also one still read as sent once its expiry has passed', () => {
     expect(watchFlags(subject({ ...noAccount, onboarding: invited('expired') }), NOW).map((f) => f.label)).toEqual(['Invitation expirée'])
+    expect(watchFlags(subject({ ...noAccount, onboarding: invited('sent') }), Date.parse('2026-10-12T14:00:00Z')).map((f) => f.key)).toEqual(['invitation_expired'])
   })
 
   it('no invitation flag once there is an account, nor for an inactive file', () => {

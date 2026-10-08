@@ -1,7 +1,7 @@
 import { t } from '@/i18n'
 import type { ReadinessItemKey, ReadinessMissing, ReadinessWarning, RecordTab } from './constants'
 import type { Onboarding, ProfessionalRecord } from '../api/parse'
-import { isLiveInvitation, onboardingActionLabel, onboardingActions, shortDate, type InviteAction } from './onboarding'
+import { invitationState, onboardingActionLabel, onboardingActions, shortDate, type InviteAction } from './onboarding'
 import { activationLabel, statusActions } from './status-actions'
 
 /** « Profil de jumelage complet ». */
@@ -67,7 +67,8 @@ const N = 'modules.professionals.readiness.nextAction'
  * 3. no account and the link expired: « Envoyer un nouveau lien » (`professionals.invite`);
  * 4. the first gap of the matching profile (its tab): staff complete it, then invite (or the
  *    invitation left with the creation);
- * 5. no account and no link: « Envoyer l'invitation »;
+ * 5. no account and no live link: « Envoyer l'invitation » (never invited, the link revoked, or
+ *    used by an account that has since been removed: each says which);
  * 6. waiting for the professional: the link sent (or opened), or the questionnaire being filled in;
  * 7. a complete file: « Activer » (the header's dialog, P4-74), or nothing to do once active.
  */
@@ -85,20 +86,26 @@ export function nextAction(record: NextActionSubject, onboarding: Onboarding | n
   }
   if (professional.status === 'inactive') return readinessStep(record, can) ?? activationStep(record, can)
 
-  const { invite } = onboardingActions(professional, onboarding, can)
+  const { invite } = onboardingActions(professional, onboarding, can, now)
   const inviteButton: NextActionButton | null = invite ? { kind: 'invite', label: onboardingActionLabel(invite), action: invite } : null
   const invitation = onboarding?.invitation ?? null
+  // As of `now`: a link past its expiry reads expired before the next refetch.
+  const state = invitationState(invitation, now)
   const noAccount = professional.profileId === null
-  if (noAccount && invitation?.state === 'expired') {
+  if (noAccount && invitation && state === 'expired') {
     return { message: t(`${N}.invitationExpired`, { date: shortDate(invitation.expiresAt, now) }), action: inviteButton }
   }
   const gap = readinessStep(record, can)
   if (gap) return gap
-  if (noAccount && !isLiveInvitation(invitation)) return { message: t(`${N}.notInvited`, { firstName }), action: inviteButton }
+  if (noAccount && invitation && state === 'revoked') return { message: t(`${N}.invitationRevoked`, { firstName }), action: inviteButton }
+  if (noAccount && invitation && state === 'used') {
+    return { message: t(`${N}.invitationUsedNoAccount`, { firstName, date: shortDate(invitation.usedAt ?? invitation.sentAt, now) }), action: inviteButton }
+  }
+  if (noAccount && !invitation) return { message: t(`${N}.notInvited`, { firstName }), action: inviteButton }
   if (noAccount && invitation) {
     return {
       message:
-        invitation.state === 'opened' && invitation.openedAt
+        state === 'opened' && invitation.openedAt
           ? t(`${N}.invitationOpened`, { firstName, date: shortDate(invitation.openedAt, now) })
           : t(`${N}.invitationSent`, { firstName, date: shortDate(invitation.sentAt, now) }),
       action: null,

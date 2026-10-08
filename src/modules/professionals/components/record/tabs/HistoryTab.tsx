@@ -57,10 +57,8 @@ export function HistoryTab() {
   const pages = data?.pages
   const rows = useMemo(() => pages?.flat() ?? [], [pages])
   const settled = useMemo(() => settledHistoryRows(rows, hasNextPage), [rows, hasNextPage])
-  const events = useMemo(
-    () => buildHistoryEvents(settled, { catalog, titleByRow: professionTitlesByRow(rows, record) }),
-    [settled, rows, catalog, record],
-  )
+  const context = useMemo(() => ({ catalog, titleByRow: professionTitlesByRow(rows, record) }), [rows, catalog, record])
+  const events = useMemo(() => buildHistoryEvents(settled, context), [settled, context])
   const emailRows = emails.data
   const timeline = useMemo(
     () => buildTimeline(events, emailRows ?? [], { filter, morePages: hasNextPage }),
@@ -70,11 +68,11 @@ export function HistoryTab() {
   // « Renvoyer l'invitation » goes on the newest invitation email only, when it failed.
   const latestInvitationEmail = emailRows?.find((email) => INVITATION_TEMPLATES.has(email.templateKey))?.id
 
-  // A last page holding only the held-back save added nothing to the screen (the first page, or
-  // the one « Charger plus » brought): read on, page by page, until the save ends (P4-101). It
-  // stops on an error, an empty page or the end of the history. Each new page re-runs this
-  // (`pageCount`): a quick fetch may never render as pending.
-  const readsOn = historyReadsOn(pages ?? [], hasNextPage)
+  // A last page that added nothing to the screen (the first page, or the one « Charger plus »
+  // brought): only the held-back save, or rows that give no event (draft saves). Read on, page by
+  // page, until something shows (P4-101). It stops on an error, an empty page or the end of the
+  // history. Each new page re-runs this (`pageCount`): a quick fetch may never render as pending.
+  const readsOn = useMemo(() => historyReadsOn(pages ?? [], hasNextPage, context), [pages, hasNextPage, context])
   const chaining = readsOn && !isFetchNextPageError
   const pageCount = pages?.length ?? 0
   useEffect(() => {
@@ -206,13 +204,22 @@ function emailActor(email: SubjectEmail): { actor: string; byPerson: boolean } {
   return { actor: t(email.sentBy ? `${H}.actors.unknown` : `${H}.actors.system`), byPerson: false }
 }
 
-/** An address the provider refused (or that does not exist): sending again cannot help. */
-const addressRefused = (email: SubjectEmail) => email.status === 'bounced' || email.errorCode === 'invalid_recipient'
+/**
+ * An address sending again cannot reach: refused by the provider or nonexistent (`bounced`,
+ * `invalid_recipient`), or whose owner marked the email as spam (`complained`: the provider stops
+ * sending there).
+ */
+const addressRefused = (email: SubjectEmail) => email.status === 'bounced' || email.status === 'complained' || email.errorCode === 'invalid_recipient'
+
+/** The file's address is no longer the one this email went to (corrected since, in Identité et permis). */
+const addressChanged = (email: SubjectEmail, current: string) => email.toEmail !== null && email.toEmail.trim().toLowerCase() !== current.trim().toLowerCase()
 
 /**
  * « 14:30  Admin Local a envoyé « Invitation d'un professionnel » à marie@… », then its outcome as
- * a dot and a word. When the newest invitation email failed: « Renvoyer l'invitation » (a new
- * link, after its confirmation) where that can help, else where to correct the address.
+ * a dot and a word. When the newest invitation email failed and the user can invite on this file
+ * (`professionals.invite`, no account, not inactive): « Renvoyer l'invitation » (a new link, after
+ * its confirmation) where that can help — any failure, or a refused address since corrected —
+ * else where to correct the address.
  */
 function EmailItem({ email, latest }: { email: SubjectEmail; latest: boolean }) {
   const { record, onboarding, focusHeading } = useRecordData()
@@ -223,6 +230,8 @@ function EmailItem({ email, latest }: { email: SubjectEmail; latest: boolean }) 
   const outcome = emailStatusLabel(email.status, email.errorCode)
   const failed = outcome.tone === 'error'
   const invite = latest && failed && INVITATION_TEMPLATES.has(email.templateKey) ? onboardingActions(record.professional, onboarding, can).invite : null
+  // A refused address only blocks while the file still has it.
+  const blocked = addressRefused(email) && !addressChanged(email, record.professional.email)
   const sentence = email.toEmail
     ? t(`${H}.email.sentTo`, { template: email.templateLabel, email: email.toEmail })
     : t(`${H}.email.sent`, { template: email.templateLabel })
@@ -242,15 +251,16 @@ function EmailItem({ email, latest }: { email: SubjectEmail; latest: boolean }) 
           </span>
           {outcome.detail && <span className="text-xs text-muted-foreground">{outcome.detail}</span>}
         </div>
-        {failed && latest && INVITATION_TEMPLATES.has(email.templateKey) && addressRefused(email) && record.professional.profileId === null && (
+        {invite && blocked && (
           <p className="mt-1 text-xs text-muted-foreground">
-            {t(`${H}.email.checkAddress`)}{' '}
+            {t(email.status === 'complained' ? `${H}.email.markedAsSpam` : `${H}.email.notDelivered`)} {t(`${H}.email.checkAddress`)}{' '}
             <TabLink id={record.professional.id} tab="identite">
               {t(`${H}.email.identityTab`)}
             </TabLink>
+            .
           </p>
         )}
-        {invite && !addressRefused(email) && (
+        {invite && !blocked && (
           <Button ref={button} type="button" variant="outline" size="sm" className="mt-1.5 max-sm:h-11" onClick={() => setDialog(invite)}>
             {onboardingActionLabel(invite)}
           </Button>

@@ -22,9 +22,12 @@ import { useProfessionalsList } from '../hooks/use-professionals-list'
 import { filterProfessionals, paginate, searchHaystacks, withOnboarding } from '../lib/filters'
 import { useRememberedProfessionalsFilters } from '../lib/remembered-filters'
 import { professionalRecordPage } from '../manifest'
-import type { ProfessionalListRow } from '../api/parse'
+import type { Onboarding, ProfessionalListRow } from '../api/parse'
 
 const L = 'modules.professionals.list'
+
+/** The onboarding states when they could not load: every row reads its stored status. */
+const NO_STATES: ReadonlyMap<string, Onboarding> = new Map()
 
 /** « 12 professionnels · 9 actifs » (French: 0 and 1 are singular). */
 function subtitle(rows: readonly ProfessionalListRow[]): string {
@@ -51,9 +54,12 @@ export function ProfessionalsListPage() {
   const { filters, setFilters, toggleMotif, setPage, reset, restoring } = useRememberedProfessionalsFilters()
   const filtersButton = useRef<HTMLButtonElement>(null)
 
-  // The onboarding states joined in memory (P4-270): one request, in parallel with the list.
+  // The onboarding states joined in memory (P4-270): one request, in parallel with the list. When
+  // they cannot load, the list still shows, with the stored statuses and no invitation flags, and
+  // says so (`statesFailed`) with a retry.
   const listRows = list.data?.rows
-  const stateMap = states.data
+  const statesFailed = states.isError && !states.data
+  const stateMap = statesFailed ? NO_STATES : states.data
   const rows = useMemo(() => (listRows && stateMap ? withOnboarding(listRows, stateMap) : undefined), [listRows, stateMap])
   const catalogView = catalog.data
   // Folded once per list, not on every keystroke.
@@ -82,7 +88,7 @@ export function ProfessionalsListPage() {
     filtersButton.current?.focus()
   }, [reset])
 
-  const failed = [list, states, catalog].filter((q) => q.isError && !q.data)
+  const failed = [list, catalog].filter((q) => q.isError && !q.data)
 
   return (
     <>
@@ -126,6 +132,24 @@ export function ProfessionalsListPage() {
             onReset={reset}
             filtersButtonRef={filtersButton}
           />
+          {statesFailed && (
+            <Alert variant="warning">
+              <TriangleAlert aria-hidden />
+              <AlertDescription className="flex flex-wrap items-center gap-x-3 gap-y-2 text-foreground">
+                {t(`${L}.statesError`)}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-disabled={states.isFetching || undefined}
+                  onClick={ignoreWhenInactive(states.isFetching, () => void states.refetch())}
+                  className={cn(softDisabledClasses, 'max-sm:h-11 aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
+                >
+                  {t('common.retry')}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
           {list.data?.truncated && (
             <Alert variant="warning">
               <TriangleAlert aria-hidden />

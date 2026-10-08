@@ -265,6 +265,25 @@ describe('OverviewTab — the onboarding (Task 4b.3)', () => {
     expect(within(dialog).getByText(/marie\.t@exemple\.ca/)).toBeInTheDocument()
   })
 
+  it('closing the confirmation opened from « Prochaine action » returns focus to its button', async () => {
+    vi.useRealTimers()
+    const user = userEvent.setup()
+    renderOverview(awaitingOnboarding, 'admin', CATALOG_VIEW, null)
+    const button = within(card(t(`${O}.nextAction.title`))).getByRole('button', { name: "Envoyer l'invitation" })
+    await user.click(button)
+    const dialog = await screen.findByRole('alertdialog', { name: "Envoyer l'invitation à Marie Tremblay ?" })
+    await user.click(within(dialog).getByRole('button', { name: t('common.cancel') }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(button).toHaveFocus()
+  })
+
+  it('a revoked link: « Prochaine action » says so and offers a new invitation', () => {
+    renderOverview(awaitingOnboarding, 'admin', CATALOG_VIEW, sent('revoked'))
+    const next = card(t(`${O}.nextAction.title`))
+    expect(within(next).getByText("L'invitation de Marie a été révoquée : son lien ne fonctionne plus.")).toBeInTheDocument()
+    expect(within(next).getByRole('button', { name: "Envoyer l'invitation" })).toBeInTheDocument()
+  })
+
   it('a counselor reads the same sentence, without the button', () => {
     renderOverview(awaitingOnboarding, 'counselor', CATALOG_VIEW, null)
     const next = card(t(`${O}.nextAction.title`))

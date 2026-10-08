@@ -284,6 +284,17 @@ describe('ProfessionalsListPage', () => {
     expect(screen.getByText('0 professionnel · 0 actif')).toBeInTheDocument()
   })
 
+  it('the onboarding states failing: the list still shows, with the stored statuses, a notice and « Réessayer »', async () => {
+    mocks.invitations.fetchInvitationStates.mockRejectedValueOnce(new Error('network'))
+    renderPage()
+    expect(await screen.findByRole('link', { name: 'Marie Tremblay' })).toBeInTheDocument()
+    const notice = screen.getByText(t(`${L}.statesError`))
+    expect(screen.queryByText(t(`${L}.loadError`))).not.toBeInTheDocument()
+    await userEvent.click(within(notice).getByRole('button', { name: t('common.retry') }))
+    await waitFor(() => expect(screen.queryByText(t(`${L}.statesError`))).not.toBeInTheDocument())
+    expect(mocks.invitations.fetchInvitationStates).toHaveBeenCalledTimes(2)
+  })
+
   it('warns past 500 professionals', async () => {
     mocks.list.fetchProfessionalsList.mockResolvedValue({ rows: ROWS, truncated: true })
     renderPage()

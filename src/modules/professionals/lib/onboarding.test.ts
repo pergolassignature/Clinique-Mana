@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { InvitationInfo, Onboarding } from '../api/parse'
-import { clinicDaysSince, displayStatus, invitationLine, onboardingActions, questionnaireLine, shortDate } from './onboarding'
+import { clinicDaysSince, displayStatus, invitationLine, invitationState, isLiveInvitation, onboardingActions, questionnaireLine, shortDate } from './onboarding'
 
 /** Thursday 8 October 2026, 16:00 in Toronto. */
 const NOW = Date.parse('2026-10-08T20:00:00Z')
@@ -45,11 +45,16 @@ describe('onboardingActions', () => {
     ['expired: a new link', invitation('expired'), { invite: 'new_link', revoke: false, requestUpdate: false }],
     ['revoked: send again', invitation('revoked'), { invite: 'send', revoke: false, requestUpdate: false }],
   ])('without an account, %s', (_, link, expected) => {
-    expect(onboardingActions(file(null), onboarding({ invitation: link }), INVITE)).toEqual(expected)
+    expect(onboardingActions(file(null), onboarding({ invitation: link }), INVITE, NOW)).toEqual(expected)
+  })
+
+  it('a link read as sent but past its expiry offers a new link, without a refetch', () => {
+    const lapsed = invitation('sent', { expiresAt: '2026-10-08T19:00:00Z' })
+    expect(onboardingActions(file(null), onboarding({ invitation: lapsed }), INVITE, NOW)).toEqual({ invite: 'new_link', revoke: false, requestUpdate: false })
   })
 
   it('an imported active file without an account can be invited (P4-171)', () => {
-    expect(onboardingActions(file(null, 'active'), null, INVITE).invite).toBe('send')
+    expect(onboardingActions(file(null, 'active'), null, INVITE, NOW).invite).toBe('send')
   })
 
   it('with an account: an update request while nothing is open', () => {
@@ -89,6 +94,24 @@ describe('invitationLine (A2.5)', () => {
     [invitation('revoked'), 'Invitation révoquée : le lien ne fonctionne plus.'],
   ])('%o', (link, line) => {
     expect(invitationLine(link, NOW)).toBe(line)
+  })
+})
+
+describe('invitationState: the link as of now', () => {
+  it('a sent or opened link whose expiry has passed is expired; the others read as stored', () => {
+    const lapsedAt = { expiresAt: '2026-10-08T20:00:00Z' }
+    expect(invitationState(invitation('sent', lapsedAt), NOW)).toBe('expired')
+    expect(invitationState(invitation('opened', lapsedAt), NOW)).toBe('expired')
+    expect(invitationState(invitation('sent'), NOW)).toBe('sent')
+    expect(invitationState(invitation('used', lapsedAt), NOW)).toBe('used')
+    expect(invitationState(invitation('revoked', lapsedAt), NOW)).toBe('revoked')
+    expect(invitationState(null, NOW)).toBeNull()
+    expect(isLiveInvitation(invitation('sent', lapsedAt), NOW)).toBe(false)
+    expect(isLiveInvitation(invitation('opened'), NOW)).toBe(true)
+  })
+
+  it('« Lien expiré » for a link past its expiry, before the server says so', () => {
+    expect(invitationLine(invitation('sent', { expiresAt: '2026-10-08T14:00:00Z' }), NOW)).toBe('Lien expiré le 8 oct. — envoyez un nouveau lien.')
   })
 })
 

@@ -214,7 +214,7 @@ function JobState() {
       ) : (
         <p className="text-xs text-muted-foreground">
           {t(`${S}.job.askAdmin`)}{' '}
-           <GuardedNavLink to={`${SETTINGS_BASE_PATH}/taches-planifiees`} className="text-link underline-offset-[3px] hover:underline">
+          <GuardedNavLink to={`${SETTINGS_BASE_PATH}/taches-planifiees`} className="text-link underline-offset-[3px] hover:underline">
             {t(`${S}.job.openJobs`)}
           </GuardedNavLink>
         </p>

@@ -442,28 +442,33 @@ const isSection = (value: unknown): value is SubmissionSection => typeof value =
  * The questionnaire's life (Task 4b.3, 4b.1's `professional_submissions`): opened with the
  * invitation, an update requested (with its sections), sent, approved, sent back for correction,
  * closed unapplied, and the private answers transmitted (P4-178: « Renseignements fiscaux ou
- * bancaires transmis », never their values). Draft saves (the answers, redacted, and the link the
- * draft points at) are not events: the provider's autosave would flood the history.
+ * bancaires transmis », never their values). An update request's steps say « mise à jour »: the
+ * insert carries its `kind`, and `list_professional_history` adds the submission's `kind` to the
+ * other rows (a plain string next to the `{before, after}` pairs). Draft saves (the answers,
+ * redacted, and the link the draft points at) are not events: the provider's autosave would flood
+ * the history. The RPC leaves them out; this is the guard for any that come through.
  */
 function submissionRow(entry: HistoryEntry): Described | null {
   const S = `${H}.sentences.submission`
   const fields = fieldsOf(entry)
+  const update = fields.kind === 'update'
   if (entry.action === 'insert') {
-    if (fields.kind !== 'update') return { kind: 'change', sentence: t(`${S}.opened`), lines: [] }
+    if (!update) return { kind: 'change', sentence: t(`${S}.opened`), lines: [] }
     const sections = Array.isArray(fields.requested_sections) ? fields.requested_sections.filter(isSection) : []
     const lines: HistoryLine[] =
       sections.length > 0 ? [{ kind: 'value', field: t(`${S}.sections`), value: listLabel(sections.map((section) => t(`modules.professionals.onboarding.sections.${section}`))) }] : []
     return { kind: 'change', sentence: t(`${S}.updateRequested`), lines }
   }
   if (entry.action !== 'update') return null
+  const U = update ? `${S}.update` : S
   const status = pairOf(fields.status)
-  if (status?.after === 'submitted') return { kind: 'change', sentence: t(`${S}.submitted`), lines: [] }
-  if (status?.after === 'approved') return { kind: 'change', sentence: t(`${S}.approved`), lines: [] }
-  if (status?.after === 'cancelled') return { kind: 'change', sentence: t(`${S}.cancelled`), lines: [] }
+  if (status?.after === 'submitted') return { kind: 'change', sentence: t(`${U}.submitted`), lines: [] }
+  if (status?.after === 'approved') return { kind: 'change', sentence: t(`${U}.approved`), lines: [] }
+  if (status?.after === 'cancelled') return { kind: 'change', sentence: t(`${U}.cancelled`), lines: [] }
   if (status?.before === 'submitted' && status.after === 'draft') {
     const note = pairOf(fields.decision_note)?.after
     const lines: HistoryLine[] = typeof note === 'string' && note !== '' && note !== REDACTED ? [{ kind: 'value', field: t(`${S}.note`), value: note }] : []
-    return { kind: 'change', sentence: t(`${S}.sentBack`), lines }
+    return { kind: 'change', sentence: t(`${U}.sentBack`), lines }
   }
   const privateSaved = pairOf(fields.private_saved_at)
   if (privateSaved && privateSaved.after !== null) return { kind: 'change', sentence: t(`${S}.privateSent`), lines: [] }
@@ -698,16 +703,22 @@ export function settledHistoryRows(rows: readonly HistoryEntry[], more: boolean)
 }
 
 /**
- * Whether the tab must read on by itself (P4-101): more pages exist and the last loaded page
- * holds only rows of the held-back save (its first row is of the same transaction as its last).
- * That page added nothing to the screen, so « Charger plus » would seem to do nothing. An empty
- * last page, or the end of the history, stops it.
+ * Whether the tab must read on by itself (P4-101): more pages exist and the last page loaded
+ * brought nothing to the screen. That is the case when it holds only rows of the held-back save
+ * (a save of 72 motifs spans pages), and when the rows it settled give no event at all (the
+ * questionnaire's draft saves, a former primary title losing its flag): « Charger plus » would
+ * otherwise seem to do nothing, or the first page would stay blank. The rows a page settles are
+ * the ones held back before it plus its own, minus the save it now holds back. An empty last
+ * page, or the end of the history, stops it.
  */
-export function historyReadsOn(pages: readonly (readonly HistoryEntry[])[], more: boolean): boolean {
+export function historyReadsOn(pages: readonly (readonly HistoryEntry[])[], more: boolean, ctx: HistoryContext): boolean {
   const last = pages.at(-1)
-  const first = last?.[0]
-  const end = last?.at(-1)
-  return more && first !== undefined && end !== undefined && transactionOf(first) === transactionOf(end)
+  if (!more || !last || last.length === 0) return false
+  const before = pages.slice(0, -1).flat()
+  const rows = [...before, ...last]
+  const from = settledHistoryRows(before, true).length
+  const to = settledHistoryRows(rows, true).length
+  return buildHistoryEvents(rows.slice(from, to), ctx).length === 0
 }
 
 /** The professions' title ids by row id: the record's rows, and any loaded row that names its title. */
@@ -726,7 +737,8 @@ export function professionTitlesByRow(rows: readonly HistoryEntry[], record: Pic
  * The timeline (Task 4b.3): the audit's events and the professional's emails, newest first. The
  * audit is read page by page; the emails all at once (`list_subject_emails`, at most 100). While
  * older audit pages remain, an email older than the oldest event loaded waits for them, so the
- * timeline never shows a gap that « Charger plus » would later fill above it.
+ * timeline never shows a gap that « Charger plus » would later fill above it (with no event loaded
+ * at all, every email shows).
  * « Modifications » shows the record's changes only, « Courriels » every email.
  */
 export type TimelineEntry = { type: 'event'; key: string; createdAt: string; event: HistoryEvent } | { type: 'email'; key: string; createdAt: string; email: SubjectEmail }
@@ -742,8 +754,10 @@ export function buildTimeline(
   const emailEntries = emails.map((email): TimelineEntry => ({ type: 'email', key: `m${email.id}`, createdAt: email.createdAt, email }))
   if (filter === 'emails') return emailEntries
   if (filter === 'changes') return eventEntries
+  // No event loaded yet (the first pages hold nothing to show): the emails are not held back,
+  // or the timeline would stay blank while they wait.
   const oldest = events.at(-1)?.createdAt
-  const shown = morePages ? emailEntries.filter((entry) => oldest !== undefined && Date.parse(entry.createdAt) >= Date.parse(oldest)) : emailEntries
+  const shown = morePages && oldest !== undefined ? emailEntries.filter((entry) => Date.parse(entry.createdAt) >= Date.parse(oldest)) : emailEntries
   // Both lists are newest first: a stable sort keeps each one's order among equal times.
   return [...eventEntries, ...shown].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
 }

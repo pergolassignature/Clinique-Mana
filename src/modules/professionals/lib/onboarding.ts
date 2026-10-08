@@ -2,7 +2,7 @@ import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { t } from '@/i18n'
 import { formatInClinicTimezone, getClinicDateString } from '@/shared/lib/timezone'
 import type { InvitationInfo, Onboarding, Professional } from '../api/parse'
-import type { DisplayStatus, ProfessionalStatus, SubmissionSection } from './constants'
+import type { DisplayStatus, InvitationState, ProfessionalStatus, SubmissionSection } from './constants'
 
 /**
  * The onboarding as staff read it (Task 4b.3): the displayed status (P4-43), what the invitation
@@ -24,9 +24,21 @@ export function displayStatus(status: ProfessionalStatus, onboarding: Onboarding
   return onboarding?.onboardingApproved && onboarding.submission?.status !== 'submitted' ? 'preparing' : 'in_review'
 }
 
-/** The link can still be used: sent or opened, not expired, revoked nor used. */
-export function isLiveInvitation(invitation: InvitationInfo | null | undefined): boolean {
-  return invitation?.state === 'sent' || invitation?.state === 'opened'
+/**
+ * The link's state at `now`: one read as `sent` or `opened` whose expiry has passed is `expired`
+ * (the server says so on its next read), so a page left open reads « Lien expiré » without a
+ * refetch. Null without a link.
+ */
+export function invitationState(invitation: InvitationInfo | null | undefined, now: number = Date.now()): InvitationState | null {
+  if (!invitation) return null
+  if ((invitation.state === 'sent' || invitation.state === 'opened') && Date.parse(invitation.expiresAt) <= now) return 'expired'
+  return invitation.state
+}
+
+/** The link can still be used at `now`: sent or opened, not expired, revoked nor used. */
+export function isLiveInvitation(invitation: InvitationInfo | null | undefined, now: number = Date.now()): boolean {
+  const state = invitationState(invitation, now)
+  return state === 'sent' || state === 'opened'
 }
 
 /**
@@ -52,12 +64,17 @@ const NO_ACTIONS: OnboardingActions = { invite: null, revoke: false, requestUpda
  * for an inactive file (P4-303); without an account, an invitation (any other status, P4-171);
  * with one, an update request while no submission is open.
  */
-export function onboardingActions(professional: Pick<Professional, 'status' | 'profileId'>, onboarding: Onboarding | null, can: Can): OnboardingActions {
+export function onboardingActions(
+  professional: Pick<Professional, 'status' | 'profileId'>,
+  onboarding: Onboarding | null,
+  can: Can,
+  now: number = Date.now(),
+): OnboardingActions {
   if (!can('professionals.invite') || professional.status === 'inactive') return NO_ACTIONS
   if (professional.profileId !== null) return { invite: null, revoke: false, requestUpdate: !onboarding?.submission }
-  const invitation = onboarding?.invitation ?? null
-  if (isLiveInvitation(invitation)) return { invite: 'resend', revoke: true, requestUpdate: false }
-  return { invite: invitation?.state === 'expired' ? 'new_link' : 'send', revoke: false, requestUpdate: false }
+  const state = invitationState(onboarding?.invitation, now)
+  if (state === 'sent' || state === 'opened') return { invite: 'resend', revoke: true, requestUpdate: false }
+  return { invite: state === 'expired' ? 'new_link' : 'send', revoke: false, requestUpdate: false }
 }
 
 /** The menu's and the buttons' words: they say exactly what the click does. */
@@ -93,7 +110,7 @@ export function clinicDaysSince(iso: string, now: number): number {
 export function invitationLine(invitation: InvitationInfo | null, now: number): string {
   if (!invitation) return t(`${O}.invitation.none`)
   const d = (iso: string) => shortDate(iso, now)
-  switch (invitation.state) {
+  switch (invitationState(invitation, now) ?? invitation.state) {
     case 'sent':
       return t(`${O}.invitation.sent`, { sent: d(invitation.sentAt), expires: d(invitation.expiresAt) })
     case 'opened':

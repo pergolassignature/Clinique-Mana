@@ -109,7 +109,7 @@ describe('RecordActions — the invitation menu (Task 4b.3)', () => {
   const A = 'modules.professionals.onboarding.actions'
   const DEACTIVATE = t('modules.professionals.record.actions.deactivate')
   const invitation = (state: InvitationInfo['state']): Onboarding => ({
-    invitation: { state, sentAt: '2026-10-05T14:00:00Z', expiresAt: '2026-10-12T14:00:00Z', openedAt: null, usedAt: null },
+    invitation: { state, sentAt: '2026-10-05T14:00:00Z', expiresAt: '2099-10-12T14:00:00Z', openedAt: null, usedAt: null },
     submission: null,
     onboardingApproved: false,
   })

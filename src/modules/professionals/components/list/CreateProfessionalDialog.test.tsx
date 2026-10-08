@@ -219,13 +219,23 @@ describe('CreateProfessionalDialog — invite now (Task 4b.3)', () => {
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(`/professionnels/${NEW_ID}/apercu`))
   }
 
-  it('offers « Envoyer l’invitation maintenant », ticked, only with professionals.invite', async () => {
+  it('offers « Envoyer l’invitation maintenant », ticked, only with professionals.invite; the description follows it', async () => {
     renderDialog({ invite: true })
     await open()
+    const dialog = screen.getByRole('dialog')
     expect(screen.getByRole('checkbox', { name: INVITE })).toBeChecked()
     expect(screen.getByRole('button', { name: t(`${C}.submitAndInvite`) })).toBeInTheDocument()
+    expect(dialog).toHaveAccessibleDescription(t(`${C}.description`))
     await userEvent.click(screen.getByRole('checkbox', { name: INVITE }))
     expect(screen.getByRole('button', { name: t(`${C}.submit`) })).toBeInTheDocument()
+    expect(dialog).toHaveAccessibleDescription(t(`${C}.descriptionNoInvite`))
+  })
+
+  it('without professionals.invite, the description says no invitation leaves', async () => {
+    renderDialog()
+    await open()
+    expect(screen.queryByRole('checkbox', { name: INVITE })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(t(`${C}.descriptionNoInvite`))
   })
 
   it('creates, then sends the invitation to the file’s address, and says where it went', async () => {

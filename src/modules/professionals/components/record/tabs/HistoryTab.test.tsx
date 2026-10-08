@@ -6,7 +6,7 @@ import { t } from '@/i18n'
 import { renderWithContexts } from '@/test/contexts'
 import { accessForRole } from '@/test/role-fixtures'
 import type { SubjectEmail } from '../../../api/invitations'
-import type { HistoryEntry, Onboarding } from '../../../api/parse'
+import type { HistoryEntry, Onboarding, ProfessionalRecord } from '../../../api/parse'
 import { setupQueryClient } from '../../../test/query-client'
 import { CATALOG_VIEW, recordFixture, seventyTwoMotifsCatalog } from '../../../test/fixtures-domain'
 import { IDS } from '../../../test/fixtures'
@@ -64,11 +64,12 @@ function renderTab(
   queryClient: QueryClient = setupQueryClient().queryClient,
   role: 'counselor' | 'admin' = 'counselor',
   onboarding: Onboarding | null = null,
+  record: ProfessionalRecord = recordFixture(),
 ) {
   return render(
     <QueryClientProvider client={queryClient}>
       {renderWithContexts(
-        <RecordContext.Provider value={{ record: recordFixture(), catalog, onboarding, focusHeading: () => {} }}>
+        <RecordContext.Provider value={{ record, catalog, onboarding, focusHeading: () => {} }}>
           <HistoryTab />
         </RecordContext.Provider>,
         { access: { access: accessForRole(role) } },
@@ -306,6 +307,32 @@ describe('HistoryTab', () => {
     expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined]])
   })
 
+  it('reads on by itself past pages made only of draft saves (the questionnaire’s autosave)', async () => {
+    const draft = (id: number, minute: number) =>
+      entry(id, `2026-10-08T17:${String(minute).padStart(2, '0')}:00+00:00`, 'professional_submissions', 'update', { submitted_values: '[redacted]' }, `${P}:s1`)
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([draft(9, 50), draft(8, 40)])
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([draft(7, 30), draft(6, 20)])
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([entry(5, '2026-10-08T16:00:00+00:00', 'professionals', 'update', { years_experience: { before: 1, after: 2 } })])
+    renderTab()
+    expect(await screen.findByText(/a modifié les années d'expérience : 1 → 2/)).toBeInTheDocument()
+    expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined], [P, 8], [P, 6]])
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByText(t(`${H}.end`))).toBeInTheDocument()
+  })
+
+  it('« Charger plus » reads on past a page of draft saves instead of seeming to do nothing', async () => {
+    const draft = (id: number, minute: number) =>
+      entry(id, `2026-10-08T17:${String(minute).padStart(2, '0')}:00+00:00`, 'professional_submissions', 'update', { submitted_values: '[redacted]' }, `${P}:s1`)
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([entry(10, '2026-10-08T18:30:00+00:00', 'professionals', 'update', { city: '[redacted]' }), draft(9, 50)])
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([draft(8, 40), draft(7, 30)])
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([entry(6, '2026-10-08T16:00:00+00:00', 'professionals', 'update', { years_experience: { before: 1, after: 2 } })])
+    renderTab()
+    await userEvent.click(await screen.findByRole('button', { name: t(`${H}.loadMore`) }))
+    expect(await screen.findByText(/a modifié les années d'expérience : 1 → 2/)).toBeInTheDocument()
+    expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined], [P, 9], [P, 7]])
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+  })
+
   it('shows the empty state', async () => {
     mocks.fetchProfessionalHistory.mockResolvedValueOnce([])
     renderTab()
@@ -340,6 +367,12 @@ describe('HistoryTab — Courriels (Task 4b.3)', () => {
     submission: null,
     onboardingApproved: false,
   }
+  // Thursday 8 October 2026, 16:00 in Toronto: the link above is live.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-08T20:00:00Z'))
+  })
+  afterEach(() => vi.useRealTimers())
 
   it('merges the emails with the changes by time, each with who sent it and its outcome', async () => {
     mocks.fetchProfessionalHistory.mockResolvedValueOnce([entry(9, '2026-10-08T18:30:00+00:00', 'professionals', 'update', { city: '[redacted]' })])
@@ -389,7 +422,43 @@ describe('HistoryTab — Courriels (Task 4b.3)', () => {
     renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'admin', live)
     await screen.findByText(t('email.status.bounced'))
     expect(screen.queryByRole('button', { name: "Renvoyer l'invitation" })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: t(`${H}.email.identityTab`) })).toHaveAttribute('href', `/professionnels/${P}/identite`)
+    const link = screen.getByRole('link', { name: t(`${H}.email.identityTab`) })
+    expect(link).toHaveAttribute('href', `/professionnels/${P}/identite`)
+    expect(link.parentElement).toHaveTextContent("Le service d'envoi n'a pas pu livrer ce courriel. Vérifiez l'adresse dans l'onglet Identité et permis.")
+  })
+
+  it('an email marked as spam (complained) is a refused address: no « Renvoyer », says why', async () => {
+    mocks.fetchProfessionalHistory.mockResolvedValue([])
+    mocks.fetchProfessionalEmails.mockResolvedValue([email('m1', '2026-10-08T19:00:00+00:00', { status: 'complained' })])
+    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'admin', live)
+    await screen.findByText(t('email.status.complained'))
+    expect(screen.queryByRole('button', { name: "Renvoyer l'invitation" })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t(`${H}.email.identityTab`) }).parentElement).toHaveTextContent(
+      "Ce courriel a été signalé comme indésirable : le service d'envoi n'écrira plus à cette adresse. Vérifiez l'adresse dans l'onglet Identité et permis.",
+    )
+  })
+
+  it('a refused address corrected since (the file has another one): « Renvoyer » again, no hint', async () => {
+    mocks.fetchProfessionalHistory.mockResolvedValue([])
+    mocks.fetchProfessionalEmails.mockResolvedValue([email('m1', '2026-10-08T19:00:00+00:00', { status: 'bounced', toEmail: 'marie.ancienne@exemple.ca' })])
+    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'admin', live)
+    await screen.findByText(t('email.status.bounced'))
+    expect(screen.getByRole('button', { name: "Renvoyer l'invitation" })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: t(`${H}.email.identityTab`) })).not.toBeInTheDocument()
+  })
+
+  it('no hint and no « Renvoyer » without professionals.invite, nor on an inactive file', async () => {
+    mocks.fetchProfessionalHistory.mockResolvedValue([])
+    mocks.fetchProfessionalEmails.mockResolvedValue([email('m1', '2026-10-08T19:00:00+00:00', { status: 'bounced' })])
+    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'counselor', live)
+    await screen.findByText(t('email.status.bounced'))
+    expect(screen.queryByRole('link', { name: t(`${H}.email.identityTab`) })).not.toBeInTheDocument()
+    cleanup()
+    const inactive = { ...recordFixture(), professional: { ...recordFixture().professional, status: 'inactive' as const } }
+    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'admin', live, inactive)
+    await screen.findByText(t('email.status.bounced'))
+    expect(screen.queryByRole('link', { name: t(`${H}.email.identityTab`) })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: "Renvoyer l'invitation" })).not.toBeInTheDocument()
   })
 
   it('no « Renvoyer » for a counselor, nor for an update request (P4-267)', async () => {

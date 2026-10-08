@@ -33,6 +33,8 @@ export function RequestUpdateDialog({ onClose, onCloseAutoFocus }: StatusDialogP
   const mutation = useRequestUpdate({ onErrorMessage: (message) => setRefusal(message) })
   const pending = mutation.isPending
   const first = useRef<HTMLButtonElement>(null)
+  // One call at a time: a second press before the first renders as pending is ignored.
+  const calling = useRef(false)
   const errorId = useId()
 
   const toggle = (section: SubmissionSection, checked: boolean) => {
@@ -50,9 +52,19 @@ export function RequestUpdateDialog({ onClose, onCloseAutoFocus }: StatusDialogP
       first.current?.focus()
       return
     }
+    if (calling.current) return
+    calling.current = true
     // The questionnaire's order, whatever the order of the clicks.
     const sections = SUBMISSION_SECTIONS.filter((section) => chosen.has(section))
-    mutation.mutate({ id: professional.id, sections, email: professional.email, firstName: professional.firstName }, { onSuccess: onClose })
+    mutation.mutate(
+      { id: professional.id, sections, email: professional.email, firstName: professional.firstName },
+      {
+        onSuccess: onClose,
+        onSettled: () => {
+          calling.current = false
+        },
+      },
+    )
   }
 
   return (

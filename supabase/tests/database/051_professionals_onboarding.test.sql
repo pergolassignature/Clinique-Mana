@@ -26,7 +26,7 @@
 -- at apply; draft consent text; staged files of another submission; reminder before expiry.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(311);
+select plan(314);
 
 -- The HINT / DETAIL of the error p_sql raises (null when none): throws_ok checks code and message.
 create function private.test_error_hint(p_sql text) returns text
@@ -919,6 +919,27 @@ select results_eq($$ select mp.accepting_new_clients, mp.availability_periods, m
   'every answered field is applied; the note, never sent, keeps its value (P4-176)');
 select is((select s.applied_fields from public.professional_submissions s where s.id = (current_setting('test.u2')::jsonb ->> 'submission_id')::uuid),
   array['motif_ids', 'accepting_new_clients', 'availability_periods'], 'applied fields recorded');
+-- Historique (4b.3 review): the draft saves are audited but are not history rows; every other
+-- submission row names its kind, so an update request reads « mise à jour ».
+select ok(exists (select 1 from public.audit_log a
+                   where a.table_name = 'professional_submissions' and a.action = 'update'
+                     and left(a.record_id, 36) = current_setting('test.p2')
+                     and not exists (select 1 from jsonb_object_keys(a.changed_fields) k(key)
+                                      where k.key not in ('submitted_values', 'secure_link_id'))),
+  'the update''s draft saves are audited');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is_empty($$ select 1 from public.list_professional_history(current_setting('test.p2')::uuid, null, 200) h
+                    where h.table_name = 'professional_submissions' and h.action = 'update'
+                      and not exists (select 1 from jsonb_object_keys(h.changed_fields) k(key)
+                                       where k.key not in ('submitted_values', 'secure_link_id', 'kind')) $$,
+  'list_professional_history leaves out the draft saves');
+select results_eq($$ select h.action, h.changed_fields ->> 'kind', h.changed_fields -> 'status' ->> 'after'
+                       from public.list_professional_history(current_setting('test.p2')::uuid, null, 200) h
+                      where h.table_name = 'professional_submissions' order by h.id $$,
+  $$ values ('insert'::text, 'update'::text, null::text), ('update', 'update', 'submitted'), ('update', 'update', 'approved') $$,
+  'the update request''s rows: opened, sent, approved, each with its kind');
+reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select ok(set_config('test.u3', public.start_my_profile_update(array['portrait', 'tax_bank'])::text, true) is not null,

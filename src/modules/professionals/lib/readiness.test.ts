@@ -117,6 +117,25 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
     })
   })
 
+  it('a revoked link, or one used by an account since removed: says which, with « Envoyer l’invitation »', () => {
+    const send = { kind: 'invite', label: "Envoyer l'invitation", action: 'send' }
+    expect(nextAction(onboardingFile(null, 'draft'), invitation('revoked'), can(...INVITE), NOW)).toEqual({
+      message: "L'invitation de Marie a été révoquée : son lien ne fonctionne plus.",
+      action: send,
+    })
+    expect(nextAction(onboardingFile(null, 'draft'), invitation('used', { usedAt: '2026-10-09T13:00:00Z' }), can(...INVITE), NOW)).toEqual({
+      message: "Marie a créé son accès avec le lien d'invitation le 9 oct., mais ce compte n'existe plus.",
+      action: send,
+    })
+  })
+
+  it('a link read as sent but past its expiry reads expired, with « Envoyer un nouveau lien »', () => {
+    expect(nextAction(onboardingFile(), invitation('sent', { expiresAt: '2026-10-08T19:00:00Z' }), can(...INVITE), NOW)).toEqual({
+      message: t(`${N}.invitationExpired`, { date: '8 oct.' }),
+      action: { kind: 'invite', label: 'Envoyer un nouveau lien', action: 'new_link' },
+    })
+  })
+
   it('matching gaps come before an invitation not yet sent', () => {
     expect(nextAction(withReadiness(['motif'], 'draft'), null, can(...INVITE), NOW).message).toBe(t(`${N}.completeMatching`))
   })

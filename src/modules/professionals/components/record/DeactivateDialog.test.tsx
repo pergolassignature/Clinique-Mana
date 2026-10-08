@@ -122,7 +122,7 @@ describe('DeactivateDialog', () => {
   it('says the invitation link stops working and the questionnaire in progress closes (4b.1, P4-301)', async () => {
     const invited = recordWithStatus('invited', false)
     await openDeactivate(invited, {
-      invitation: { state: 'sent', sentAt: '2026-10-05T14:00:00Z', expiresAt: '2026-10-12T14:00:00Z', openedAt: null, usedAt: null },
+      invitation: { state: 'sent', sentAt: '2026-10-05T14:00:00Z', expiresAt: '2099-10-12T14:00:00Z', openedAt: null, usedAt: null },
       submission: { id: 's1', kind: 'onboarding', status: 'draft', submittedAt: null },
       onboardingApproved: false,
     })
