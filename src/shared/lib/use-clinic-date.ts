@@ -1,15 +1,8 @@
 import { useEffect, useState } from 'react'
-import { clinicTimeToUTC, getClinicDateString } from './timezone'
+import { clinicTimeToUTC, getClinicDateString, shiftCalendarDay } from './timezone'
 
 /** A small margin past midnight, so the timer never fires on the last millisecond of the day. */
 const MARGIN_MS = 1000
-
-/** The day after `date` (`yyyy-MM-dd`), as a calendar date (computed in UTC: no timezone or DST shift). */
-function nextDay(date: string): string {
-  const day = new Date(`${date}T00:00:00Z`)
-  day.setUTCDate(day.getUTCDate() + 1)
-  return day.toISOString().slice(0, 10)
-}
 
 /**
  * Today's date in the clinic's timezone (`yyyy-MM-dd`), updated at the clinic's next midnight: a
@@ -22,7 +15,7 @@ export function useClinicDate(): string {
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    const delay = Math.max(0, Date.parse(clinicTimeToUTC(nextDay(date), '00:00')) - Date.now()) + MARGIN_MS
+    const delay = Math.max(0, Date.parse(clinicTimeToUTC(shiftCalendarDay(date, 1), '00:00')) - Date.now()) + MARGIN_MS
     const id = setTimeout(() => {
       const today = getClinicDateString(new Date())
       if (today === date) setAttempt((n) => n + 1)
