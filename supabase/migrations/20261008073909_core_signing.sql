@@ -17,35 +17,56 @@
 --   Disabling a module removes its permissions from current_permission_keys(), so its templates
 --   and requests disappear (inconsistency #9: every signing table is read through a
 --   view_permission, P3-21 form).
+-- * Templates are created by settings.manage holders (create_document_template; both permissions
+--   belong to the template's module); a module's migration may also insert its templates
+--   directly. Versions are created, edited, published and archived by holders of the template's
+--   edit_permission (legacy A5); set_document_template_active (settings.manage) retires one.
 -- * Versions (design §6.2, legacy A5): `draft → published → archived`, or a draft discarded
 --   straight to `archived`. At most one draft and one published version per template (partial
 --   unique indexes); publishing archives the previous one first, under the template's row lock.
---   Only a draft changes: the trigger `document_template_versions_guard` refuses any change to a
---   published or archived version's content, and any status move backwards, whoever writes the
---   row. A request only references a published version, so a version is immutable once used.
+--   Only a draft changes: the trigger `document_template_versions_guard` refuses, whoever writes
+--   the row, any change to a published or archived version except its status and archived_at
+--   moving forward (and created_by / published_by set to null when a profile goes), and any
+--   status move backwards. `document_template_versions_no_delete` refuses deleting a published
+--   or archived version, except through its template's cascade. A request only references a
+--   published version, so a version is immutable once used.
 -- * Bodies are the renderer's `PdfDocument` (supabase/functions/_shared/pdf/model.ts), validated
 --   in full by the renderer (`checkDocument`). Here: an object of at most 256 KB; every string
 --   in it, plus the Documenso email subject and message, uses only declared placeholders (the
 --   email rule, `private.email_placeholder_error`, Task 3.30: the renderer fills every string).
---   Publishing also requires what the fixed signing fields rely on: the body ends with a
---   `signaturePage`, whose roles are exactly the version's signers, and an email subject.
+--   Publishing also requires what the renderer and the fixed signing fields rely on: a title and
+--   a footer; block types of the model's closed set; the body ends with its only `signaturePage`,
+--   whose roles are unique and exactly the version's signers; `header.initialsFor` among them;
+--   and an email subject.
 -- * Requests (design §6.2): `draft` between the insert and Documenso's success (inconsistency
 --   #11), then `sent → viewed → signed | rejected | cancelled | expired`. Transitions are
 --   monotonic and come from Documenso (apply_signing_event: the webhook, and signing-sync for a
---   lost one); a terminal state never moves; a draft ignores events (reconcile handles it). Per
---   signer: `pending → viewed → signed | rejected`. `last_error` is a code; a failed draft keeps
---   the Documenso document it created (and its envelope id) so the reconcile can cancel it.
---   `DOCUMENT_COMPLETED` answers needs_download (the webhook stores the signed PDF and calls
---   complete_signature_request); the request becomes `signed` only with that file.
+--   lost one); a terminal state never moves. A draft whose send is under way or failed after
+--   Documenso created the document answers `retry` (the webhook answers 409, so Documenso
+--   retries until the send ends or the reconcile settles it); an abandoned draft ignores events.
+--   Per signer: `pending → viewed → signed | rejected`. `last_error` is a code; a failed draft
+--   keeps the Documenso document it created (and its envelope id) so the reconcile can settle it.
+--   `DOCUMENT_COMPLETED` stamps `completed_event_at` and answers needs_download (the webhook
+--   stores the signed PDF and calls complete_signature_request); the request becomes `signed`
+--   only with that file. Once `completed_event_at` is set, the request can no longer be expired,
+--   rejected or cancelled (Documenso holds a signed contract): only completed, whatever its
+--   expiry, and the reconcile syncs it until the download succeeds.
+-- * One open request per record and purpose (Phase 4): the partial unique index
+--   `signature_requests_open_subject_idx` (draft not abandoned, sent, viewed; the built-in test
+--   document excepted). The idempotency key is checked first: the same key always returns its
+--   own row, whatever its status; a new key for a record that already has an open request of
+--   that purpose is refused (P0001) until cancel_signature_request closes the old one.
 -- * Files: the unsigned and signed PDFs are registered by the function (register_system_file,
 --   purposes `signing_source` and `signing_signed`), staged one day (P3-17). mark_..._sent and
 --   complete_signature_request take them (clear `retain_until`); a file left behind by a failed
 --   or retried step is purged by storage-cleanup. Paths follow Task 3.24 (`{org}/core/{request
 --   id}/{file id}.pdf`), so a retried download registers a new file instead of overwriting.
 -- * Personal data: signer addresses and names are redacted from the audit log (the timeline
---   shows roles), and so is a rejection reason (free text from the signer). Template bodies are
---   redacted too: a version's row is its own record, and bodies are up to 256 KB. Nothing here
---   stores a signing token or link.
+--   shows roles), and so are a request's title (it names the person) and a rejection reason
+--   (free text from the signer). Template bodies are redacted too: a version's row is its own
+--   record, and bodies are up to 256 KB. Signer addresses are not readable by clients at all
+--   (column grant: every column of signature_request_signers but `email`). Nothing here stores
+--   a signing token or link.
 -- * Reads: list_document_templates, list_subject_signature_requests (P3-26, keyset-paged on
 --   (created_at, id)) and get_signature_request are security invoker, so RLS applies.
 -- * Deviations from the plan:
@@ -55,10 +76,14 @@
 --     replaces `(status, sent_at) where status in ('sent','viewed')`; abandoned drafts leave it.
 --   - `documenso_document_id` is unique per org, not globally: ids are per Documenso instance,
 --     and each org configures its own instance.
---   - create_signature_request also returns the row's status; mark_signature_request_sent takes
---     the envelope id; mark_signature_request_failed optionally records the document and
---     envelope ids; list_subject_signature_requests takes p_limit, p_before, p_before_id.
---   - `expired_at` and `archived_at` record those transitions.
+--   - create_signature_request also returns the row's status, its signers ([{role, signer_id}]),
+--     last_error and created_at (an existing draft: in progress, or failed before);
+--     mark_signature_request_sent takes the envelope id, and its recipients keyed by role
+--     ([{role, recipient_id}]: a role is unique per request); mark_signature_request_failed
+--     optionally records the document and envelope ids; list_subject_signature_requests takes
+--     p_limit, p_before, p_before_id.
+--   - `expired_at`, `archived_at`, `completed_event_at` and `cancelled_by` record those events;
+--     cancel_signature_request and set_document_template_active are added (Phase 4, admin).
 --   - `base_url` also refuses whitespace, `?` and `#`; set_signing_settings trims the value and
 --     its trailing slashes.
 -- =============================================================================
@@ -235,7 +260,10 @@ create unique index document_template_versions_draft_idx
 create index document_template_versions_created_by_idx on public.document_template_versions (created_by);
 create index document_template_versions_published_by_idx on public.document_template_versions (published_by);
 
--- Only a draft changes; a status never moves backwards (header). Whoever writes the row.
+-- Only a draft changes; a status never moves backwards (header). Whoever writes the row. A
+-- frozen version keeps every column but its status and archived_at (moving forward: the check
+-- constraints tie archived_at to `archived`), updated_at, and created_by / published_by set to
+-- null (their foreign keys' `on delete set null`).
 create function private.guard_template_version()
 returns trigger
 language plpgsql
@@ -243,11 +271,12 @@ set search_path = ''
 as $$
 begin
   if old.status <> 'draft'
-     and (new.template_id, new.org_id, new.version, new.body, new.variables, new.signers,
-          new.email_subject, new.email_message)
-         is distinct from
-         (old.template_id, old.org_id, old.version, old.body, old.variables, old.signers,
-          old.email_subject, old.email_message) then
+     and ((pg_catalog.to_jsonb(new) - array['status', 'archived_at', 'updated_at', 'created_by', 'published_by'])
+          is distinct from
+          (pg_catalog.to_jsonb(old) - array['status', 'archived_at', 'updated_at', 'created_by', 'published_by'])
+          or (new.created_by is not null and new.created_by is distinct from old.created_by)
+          or (new.published_by is not null and new.published_by is distinct from old.published_by)
+          or (old.archived_at is not null and new.archived_at is distinct from old.archived_at)) then
     raise exception 'Seule une version brouillon peut être modifiée.' using errcode = 'P0001';
   end if;
   if new.status <> old.status
@@ -263,6 +292,26 @@ revoke all on function private.guard_template_version() from public, anon, authe
 create trigger document_template_versions_guard
   before update on public.document_template_versions
   for each row execute function private.guard_template_version();
+
+-- A published or archived version is history: deleted only with its template (the foreign key's
+-- cascade runs this trigger one level down), never on its own. A draft may go.
+create function private.guard_template_version_delete()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if old.status <> 'draft' and pg_catalog.pg_trigger_depth() < 2 then
+    raise exception 'Une version publiée ou archivée ne peut pas être supprimée.' using errcode = 'P0001';
+  end if;
+  return old;
+end;
+$$;
+revoke all on function private.guard_template_version_delete() from public, anon, authenticated, service_role;
+
+create trigger document_template_versions_no_delete
+  before delete on public.document_template_versions
+  for each row execute function private.guard_template_version_delete();
 create trigger document_template_versions_set_updated_at
   before update on public.document_template_versions
   for each row execute function private.set_updated_at();
@@ -315,11 +364,16 @@ create table public.signature_requests (
   rejection_reason text check (pg_catalog.length(rejection_reason) <= 500),
   expires_at timestamptz,
   sent_by uuid,
+  -- Who closed the request through cancel_signature_request (null: the system, or Documenso).
+  cancelled_by uuid,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   sent_at timestamptz,
   viewed_at timestamptz,
   completed_at timestamptz,
+  -- When Documenso said DOCUMENT_COMPLETED: the contract is signed there, even before the signed
+  -- PDF is stored (completed_at). Protects the request from expiry, rejection and cancellation.
+  completed_event_at timestamptz,
   rejected_at timestamptz,
   cancelled_at timestamptz,
   expired_at timestamptz,
@@ -335,7 +389,8 @@ create table public.signature_requests (
   foreign key (template_version_id, org_id) references public.document_template_versions (id, org_id),
   -- The module gate (header).
   foreign key (view_permission, module_key) references public.permissions (key, module_key),
-  foreign key (sent_by, org_id) references public.profiles (user_id, org_id) on delete set null (sent_by)
+  foreign key (sent_by, org_id) references public.profiles (user_id, org_id) on delete set null (sent_by),
+  foreign key (cancelled_by, org_id) references public.profiles (user_id, org_id) on delete set null (cancelled_by)
 );
 -- A subject's requests, newest first: list_subject_signature_requests (keyset), the org FK and
 -- the RLS org predicate.
@@ -344,19 +399,26 @@ create index signature_requests_subject_idx
 -- The open requests of an org (list_signature_requests_to_reconcile), oldest first.
 create index signature_requests_open_idx on public.signature_requests (org_id, created_at)
   where status in ('sent', 'viewed') or (status = 'draft' and coalesce(last_error, '') <> 'abandoned');
+-- One open request per record and purpose (header): the same predicate, so an abandoned draft
+-- frees its record. The built-in test document is left out (an admin may send several).
+create unique index signature_requests_open_subject_idx
+  on public.signature_requests (org_id, subject_type, subject_id, purpose)
+  where (status in ('sent', 'viewed') or (status = 'draft' and coalesce(last_error, '') <> 'abandoned'))
+    and purpose <> 'core.signing_test';
 create index signature_requests_module_key_idx on public.signature_requests (module_key);
 create index signature_requests_template_version_id_idx on public.signature_requests (template_version_id);
 create index signature_requests_view_permission_idx on public.signature_requests (view_permission);
 create index signature_requests_source_file_id_idx on public.signature_requests (source_file_id) where source_file_id is not null;
 create index signature_requests_signed_file_id_idx on public.signature_requests (signed_file_id) where signed_file_id is not null;
 create index signature_requests_sent_by_idx on public.signature_requests (sent_by) where sent_by is not null;
+create index signature_requests_cancelled_by_idx on public.signature_requests (cancelled_by) where cancelled_by is not null;
 
 create trigger signature_requests_set_updated_at
   before update on public.signature_requests
   for each row execute function private.set_updated_at();
 create trigger signature_requests_audit
   after insert or update or delete on public.signature_requests
-  for each row execute function private.audit_trigger('rejection_reason');
+  for each row execute function private.audit_trigger('title', 'rejection_reason');
 
 alter table public.signature_requests enable row level security;
 revoke all on public.signature_requests from anon, authenticated, service_role;
@@ -397,7 +459,10 @@ create trigger signature_request_signers_audit
 
 alter table public.signature_request_signers enable row level security;
 revoke all on public.signature_request_signers from anon, authenticated, service_role;
-grant select on public.signature_request_signers to authenticated;
+-- Every column but `email` (header): an address is for Documenso, never shown to a client.
+grant select (id, request_id, org_id, role, name, signing_order, documenso_recipient_id, status, viewed_at,
+              signed_at, rejected_at, created_at, updated_at)
+  on public.signature_request_signers to authenticated;
 -- Through the request: (request_id, role) then the request's primary key.
 create policy signature_request_signers_select on public.signature_request_signers
   for select to authenticated
@@ -411,8 +476,8 @@ create policy signature_request_signers_select on public.signature_request_signe
 -- -----------------------------------------------------------------------------
 -- Settings RPC (« Signature électronique », Task 3.34)
 -- -----------------------------------------------------------------------------
--- Sets the instance address (trimmed, without trailing slashes; empty clears it) and the expiry
--- of the caller's org. The checks raise 23514 (the form mirrors them).
+-- Sets the instance address (trimmed, without trailing slashes; empty or null clears it) and the
+-- expiry of the caller's org. The checks raise 23514 (the form mirrors them), a null expiry too.
 create function public.set_signing_settings(p_base_url text, p_expiry_days int)
 returns void
 language plpgsql
@@ -423,6 +488,9 @@ begin
   if not private.has_permission('settings.integrations_manage') then
     raise exception 'Permission refusée : settings.integrations_manage' using errcode = '42501';
   end if;
+  if p_expiry_days is null then
+    raise exception 'Le délai d''expiration est obligatoire.' using errcode = '23514';
+  end if;
   update public.signing_settings s
      set base_url = nullif(pg_catalog.rtrim(pg_catalog.btrim(p_base_url, E' \t\r\n'), '/'), ''),
          expiry_days = p_expiry_days,
@@ -432,10 +500,12 @@ end;
 $$;
 
 -- -----------------------------------------------------------------------------
--- Template admin RPCs (each checks the template's edit_permission, legacy A5)
+-- Template admin RPCs (templates: settings.manage; versions: the template's edit_permission,
+-- legacy A5)
 -- -----------------------------------------------------------------------------
--- A template of the caller's org; both permissions belong to p_module_key, and the caller holds
--- p_edit_permission. Its first version comes from create_template_version.
+-- A template of the caller's org (header): the caller holds settings.manage and p_edit_permission
+-- (else the template would be one she cannot edit), and both permissions belong to p_module_key.
+-- Its first version comes from create_template_version.
 create function public.create_document_template(
   p_key text,
   p_module_key text,
@@ -454,6 +524,9 @@ declare
   v_description text := nullif(pg_catalog.btrim(p_description, E' \t\r\n'), '');
   v_id uuid;
 begin
+  if not private.has_permission('settings.manage') then
+    raise exception 'Permission refusée : settings.manage' using errcode = '42501';
+  end if;
   if not private.has_permission(p_edit_permission) then
     raise exception 'Permission refusée : %', p_edit_permission using errcode = '42501';
   end if;
@@ -482,6 +555,33 @@ begin
     raise exception 'Un modèle avec cette clé existe déjà.' using errcode = 'P0001';
   end if;
   return v_id;
+end;
+$$;
+
+-- Retires a template (nothing can be sent from it: get_signing_context and
+-- create_signature_request require an active one) or brings it back. settings.manage, like
+-- creating it. Its versions are untouched.
+create function public.set_document_template_active(p_id uuid, p_active boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not private.has_permission('settings.manage') then
+    raise exception 'Permission refusée : settings.manage' using errcode = '42501';
+  end if;
+  if p_active is null then
+    raise exception 'p_active is required' using errcode = '22023';
+  end if;
+  update public.document_templates t
+     set is_active = p_active
+   where t.id = p_id and t.org_id = private.current_user_org_id()
+     and t.is_active is distinct from p_active;
+  if not found and not exists (select 1 from public.document_templates t
+                                where t.id = p_id and t.org_id = private.current_user_org_id()) then
+    raise exception 'Unknown template' using errcode = '22023';
+  end if;
 end;
 $$;
 
@@ -631,14 +731,45 @@ begin
     raise exception 'Seule une version brouillon peut être publiée.' using errcode = 'P0001';
   end if;
 
+  -- What the renderer requires (model.ts): a title, a footer, known block types (structure:
+  -- 22023, the editor builds them), one signature page, last; unique roles on it; initials only
+  -- by those roles.
+  if pg_catalog.jsonb_typeof(v_version.body -> 'title') is distinct from 'string'
+     or pg_catalog.btrim(v_version.body ->> 'title') = '' then
+    raise exception 'Le modèle doit avoir un titre.' using errcode = 'P0001';
+  end if;
+  if pg_catalog.jsonb_typeof(v_version.body -> 'footer') is distinct from 'object'
+     or pg_catalog.jsonb_typeof(v_version.body -> 'footer' -> 'text') is distinct from 'string' then
+    raise exception 'Le modèle doit avoir un pied de page.' using errcode = 'P0001';
+  end if;
+  if pg_catalog.jsonb_typeof(v_version.body -> 'blocks') = 'array'
+     and exists (select 1 from pg_catalog.jsonb_array_elements(v_version.body -> 'blocks') b
+                  where (b ->> 'type') is null
+                     or (b ->> 'type') not in ('heading', 'paragraph', 'list', 'table', 'image', 'pageBreak',
+                                               'signaturePage')) then
+    raise exception 'Unknown block type' using errcode = '22023';
+  end if;
   v_page := case when pg_catalog.jsonb_typeof(v_version.body -> 'blocks') = 'array'
                  then v_version.body -> 'blocks' -> -1 end;
   if v_page ->> 'type' is distinct from 'signaturePage'
-     or pg_catalog.jsonb_typeof(v_page -> 'signers') is distinct from 'array' then
+     or pg_catalog.jsonb_typeof(v_page -> 'signers') is distinct from 'array'
+     or (select pg_catalog.count(*) from pg_catalog.jsonb_array_elements(v_version.body -> 'blocks') b
+          where b ->> 'type' = 'signaturePage') <> 1 then
     raise exception 'Le modèle doit se terminer par une page de signature.' using errcode = 'P0001';
+  end if;
+  if (select pg_catalog.count(distinct s ->> 'role') <> pg_catalog.count(*)
+        from pg_catalog.jsonb_array_elements(v_page -> 'signers') s) then
+    raise exception 'Chaque signataire ne figure qu''une fois sur la page de signature.' using errcode = 'P0001';
   end if;
   if pg_catalog.jsonb_array_length(v_version.signers) = 0 then
     raise exception 'Le modèle doit avoir au moins un signataire.' using errcode = 'P0001';
+  end if;
+  if (v_version.body -> 'header' -> 'initialsFor') is not null
+     and (pg_catalog.jsonb_typeof(v_version.body -> 'header' -> 'initialsFor') <> 'array'
+          or exists (select 1 from pg_catalog.jsonb_array_elements(v_version.body -> 'header' -> 'initialsFor') i
+                      where not exists (select 1 from pg_catalog.jsonb_array_elements(v_page -> 'signers') s
+                                         where s -> 'role' = i))) then
+    raise exception 'Seuls les signataires du modèle peuvent parapher les pages.' using errcode = 'P0001';
   end if;
   if (select pg_catalog.array_agg(distinct s ->> 'role' order by s ->> 'role')
         from pg_catalog.jsonb_array_elements(v_page -> 'signers') s)
@@ -826,6 +957,7 @@ $$;
 revoke all on function
   public.set_signing_settings(text, int),
   public.create_document_template(text, text, text, text, text, text),
+  public.set_document_template_active(uuid, boolean),
   public.create_template_version(uuid),
   public.update_template_version(uuid, jsonb, jsonb, jsonb, text, text),
   public.publish_template_version(uuid),
@@ -837,6 +969,7 @@ from public, anon, authenticated, service_role;
 grant execute on function
   public.set_signing_settings(text, int),
   public.create_document_template(text, text, text, text, text, text),
+  public.set_document_template_active(uuid, boolean),
   public.create_template_version(uuid),
   public.update_template_version(uuid, jsonb, jsonb, jsonb, text, text),
   public.publish_template_version(uuid),
@@ -917,16 +1050,21 @@ end;
 $$;
 
 -- Inserts a request (`draft`) and its signers, idempotent on (org_id, idempotency_key): the same
--- key returns the existing row (`existing` = true) and its status, whatever the other fields.
+-- key returns its existing row (`existing` = true), whatever its status and the other fields.
+-- Both paths return the row's status, its signers ([{role, signer_id}] in signing order: the
+-- recipients of mark_signature_request_sent are keyed by role), last_error and created_at. An
+-- existing draft without last_error is a send under way (or one that died silently: the
+-- reconcile settles it after a day); with one, a send that failed before.
 -- p: {org_id, module_key, purpose, template_version_id (null only for core.signing_test),
 -- subject_type, subject_id, title, view_permission, idempotency_key, sent_by (null for the
 -- system), signers: [{role, name, email, order}]}. Refused (22023): a disabled module, a purpose
--- or view permission outside the module, a version not published (or of another module or org),
--- signers not matching the version (each role one of the version's, every required one present),
--- a sender outside the org. Two signers with one address: P0001 (Documenso reads recipients
--- back by address).
+-- or view permission outside the module, a version not published (or of an inactive template,
+-- another module or org), signers not matching the version (each role one of the version's,
+-- every required one present, one order each), a sender outside the org. Two signers with one
+-- address: P0001 (Documenso reads recipients back by address). A new key while the record has an
+-- open request of this purpose (header): P0001, until cancel_signature_request closes it.
 create function public.create_signature_request(p jsonb)
-returns table (id uuid, existing boolean, status text)
+returns table (id uuid, existing boolean, status text, signers jsonb, last_error text, created_at timestamptz)
 language plpgsql
 volatile
 security definer
@@ -941,9 +1079,12 @@ declare
   v_view text := p ->> 'view_permission';
   v_key text := p ->> 'idempotency_key';
   v_sent_by uuid := (p ->> 'sent_by')::uuid;
+  v_subject_type text := p ->> 'subject_type';
+  v_subject_id uuid := (p ->> 'subject_id')::uuid;
   v_signers jsonb := p -> 'signers';
   v_roles jsonb;
   v_id uuid;
+  v_new boolean := false;
 begin
   if v_org is null or v_module is null or v_key is null
      or not exists (select 1 from public.organizations o where o.id = v_org) then
@@ -987,8 +1128,9 @@ begin
                               or pg_catalog.jsonb_typeof(s -> 'order') is distinct from 'number'
                               or (s ->> 'order') !~ '^[1-9]$'
                        end)
-     or (select pg_catalog.count(distinct s ->> 'role') from pg_catalog.jsonb_array_elements(v_signers) s)
-        <> pg_catalog.jsonb_array_length(v_signers) then
+     or (select pg_catalog.count(distinct s ->> 'role') <> pg_catalog.count(*)
+                or pg_catalog.count(distinct s ->> 'order') <> pg_catalog.count(*)
+           from pg_catalog.jsonb_array_elements(v_signers) s) then
     raise exception 'Invalid signers' using errcode = '22023';
   end if;
   if v_roles is not null
@@ -1006,34 +1148,59 @@ begin
     raise exception 'Chaque signataire doit avoir sa propre adresse courriel.' using errcode = 'P0001';
   end if;
 
-  insert into public.signature_requests as r
-    (org_id, module_key, purpose, template_version_id, subject_type, subject_id, title, idempotency_key,
-     view_permission, sent_by)
-  values
-    (v_org, v_module, v_purpose, v_version, p ->> 'subject_type', (p ->> 'subject_id')::uuid,
-     pg_catalog.btrim(p ->> 'title', E' \t\r\n'), v_key, v_view, v_sent_by)
-  on conflict (org_id, idempotency_key) do nothing
-  returning r.id into v_id;
+  -- The idempotency key first: the same key always returns its own row (header).
+  select r.id into v_id from public.signature_requests r where r.org_id = v_org and r.idempotency_key = v_key;
   if v_id is null then
-    return query
-      select r.id, true, r.status from public.signature_requests r
-       where r.org_id = v_org and r.idempotency_key = v_key;
-    return;
+    if v_purpose <> 'core.signing_test'
+       and exists (select 1 from public.signature_requests r
+                    where r.org_id = v_org and r.subject_type = v_subject_type and r.subject_id = v_subject_id
+                      and r.purpose = v_purpose
+                      and (r.status in ('sent', 'viewed')
+                           or (r.status = 'draft' and coalesce(r.last_error, '') <> 'abandoned'))) then
+      raise exception 'Une demande de signature est déjà en cours pour ce dossier.' using errcode = 'P0001';
+    end if;
+    begin
+      insert into public.signature_requests as r
+        (org_id, module_key, purpose, template_version_id, subject_type, subject_id, title, idempotency_key,
+         view_permission, sent_by)
+      values
+        (v_org, v_module, v_purpose, v_version, v_subject_type, v_subject_id,
+         pg_catalog.btrim(p ->> 'title', E' \t\r\n'), v_key, v_view, v_sent_by)
+      on conflict (org_id, idempotency_key) do nothing
+      returning r.id into v_id;
+    exception when unique_violation then
+      -- A concurrent request with another key for the same record and purpose won the race.
+      raise exception 'Une demande de signature est déjà en cours pour ce dossier.' using errcode = 'P0001';
+    end;
+    if v_id is null then
+      -- The same key, inserted concurrently.
+      select r.id into v_id from public.signature_requests r where r.org_id = v_org and r.idempotency_key = v_key;
+    else
+      insert into public.signature_request_signers (request_id, org_id, role, name, email, signing_order)
+      select v_id, v_org, s ->> 'role', pg_catalog.btrim(s ->> 'name'), pg_catalog.btrim(s ->> 'email'),
+             (s ->> 'order')::smallint
+        from pg_catalog.jsonb_array_elements(v_signers) s;
+      v_new := true;
+    end if;
   end if;
 
-  insert into public.signature_request_signers (request_id, org_id, role, name, email, signing_order)
-  select v_id, v_org, s ->> 'role', pg_catalog.btrim(s ->> 'name'), pg_catalog.btrim(s ->> 'email'),
-         (s ->> 'order')::smallint
-    from pg_catalog.jsonb_array_elements(v_signers) s;
-  return query select v_id, false, 'draft'::text;
+  return query
+    select r.id, not v_new, r.status,
+           coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('role', s.role, 'signer_id', s.id)
+                                                 order by s.signing_order)
+                       from public.signature_request_signers s where s.request_id = r.id), '[]'),
+           r.last_error, r.created_at
+      from public.signature_requests r
+     where r.id = v_id;
 end;
 $$;
 
 -- Documenso accepted and distributed the document. A live draft (not abandoned) becomes `sent`
 -- with its document and envelope ids, expiry and source file; each signer gets its recipient id
--- (p_signer_recipients: [{signer_id, recipient_id}], one per signer). The source file must be
--- this request's `signing_source` system file, ready, with the request's view permission; it
--- stops being staged. Anything else → 22023.
+-- (p_signer_recipients: [{role, recipient_id}], one per signer of the request; a role is unique
+-- per request, and create_signature_request returns the roles). The source file must be this
+-- request's `signing_source` system file, ready, with the request's view permission; it stops
+-- being staged. Anything else → 22023.
 create function public.mark_signature_request_sent(
   p_id uuid,
   p_documenso_document_id text,
@@ -1068,11 +1235,11 @@ begin
                     or (e ->> 'recipient_id') is null
                     or (e ->> 'recipient_id') !~ '^[1-9][0-9]{0,14}$'
                     or not exists (select 1 from public.signature_request_signers s
-                                    where s.request_id = v_row.id and s.id::text = e ->> 'signer_id'))
-     or (select pg_catalog.count(distinct e ->> 'signer_id') <> pg_catalog.count(*)
+                                    where s.request_id = v_row.id and s.role = e ->> 'role'))
+     or (select pg_catalog.count(distinct e ->> 'role') <> pg_catalog.count(*)
                 or pg_catalog.count(distinct e ->> 'recipient_id') <> pg_catalog.count(*)
            from pg_catalog.jsonb_array_elements(p_signer_recipients) e) then
-    raise exception 'One distinct recipient id per signer of the request' using errcode = '22023';
+    raise exception 'One distinct recipient id per signer role of the request' using errcode = '22023';
   end if;
 
   update public.stored_files f
@@ -1093,7 +1260,7 @@ begin
   update public.signature_request_signers s
      set documenso_recipient_id = e ->> 'recipient_id'
     from pg_catalog.jsonb_array_elements(p_signer_recipients) e
-   where s.request_id = v_row.id and s.id::text = e ->> 'signer_id';
+   where s.request_id = v_row.id and s.role = e ->> 'role';
   update public.signature_requests r
      set status = 'sent',
          documenso_document_id = p_documenso_document_id,
@@ -1107,7 +1274,9 @@ end;
 $$;
 
 -- A creation step failed, or the reconcile abandons a stale draft (`abandoned`): the draft keeps
--- the error code and, when given, the Documenso document and envelope it created (to cancel).
+-- the error code and, when given, the Documenso document and envelope it created. A late call on
+-- an abandoned draft (a send that ends after the reconcile or cancel_signature_request closed
+-- it) records the ids only: the draft stays abandoned.
 create function public.mark_signature_request_failed(
   p_id uuid,
   p_error_code text,
@@ -1127,7 +1296,7 @@ begin
     raise exception 'Invalid error code, document id or envelope id' using errcode = '22023';
   end if;
   update public.signature_requests r
-     set last_error = p_error_code,
+     set last_error = case when r.last_error = 'abandoned' then r.last_error else p_error_code end,
          documenso_document_id = coalesce(p_documenso_document_id, r.documenso_document_id),
          envelope_id = coalesce(p_envelope_id, r.envelope_id)
    where r.id = p_id and r.status = 'draft';
@@ -1138,18 +1307,22 @@ end;
 $$;
 
 -- Applies a Documenso event (signing-webhook, signing-sync) under Documenso's raw event names.
--- The row is found by id (the document's externalId), else by document id within p_org_id.
--- Returns `not_found` (no row, a row of another org, or an id and a document id naming two
--- different requests), `ignored` (a disabled module, a draft or a terminal request, an unknown
--- event, or nothing to change) or `applied`. Transitions (monotonic, header):
+-- The row is found by id (the document's externalId) within p_org_id, else by document id
+-- within p_org_id. Returns `not_found` (no row in the org, or an id and a document id naming
+-- two different requests), `ignored` (a disabled module, an abandoned draft, a terminal request,
+-- an unknown event, or nothing to change), `retry` (a draft not abandoned whose Documenso
+-- document exists: a send under way or failed part way; the webhook answers 409 so Documenso
+-- retries, and the reconcile settles a failed one) or `applied`. Transitions (monotonic, header):
 --   DOCUMENT_OPENED            the recipient pending → viewed; the request sent → viewed
 --   DOCUMENT_SIGNED,
 --   DOCUMENT_RECIPIENT_COMPLETED  the recipient → signed (and viewed); the request sent → viewed
---   DOCUMENT_COMPLETED         every signer → signed; needs_download (complete_signature_request
---                              then stores the signed PDF and sets `signed`)
+--   DOCUMENT_COMPLETED         every signer → signed; completed_event_at stamped; needs_download
+--                              (complete_signature_request then stores the signed PDF and sets
+--                              `signed`)
 --   DOCUMENT_REJECTED          the request → rejected with the reason (control characters
 --                              removed, cut to 500); the recipient → rejected
 --   DOCUMENT_CANCELLED         the request → cancelled
+-- After DOCUMENT_COMPLETED, a rejection or cancellation is ignored (header).
 -- p_at (the provider's time, at most now) stamps the change.
 create function public.apply_signing_event(
   p_org_id uuid,
@@ -1178,20 +1351,35 @@ begin
   end if;
 
   if p_request_id is not null then
-    select * into v_row from public.signature_requests r where r.id = p_request_id for update;
+    select * into v_row from public.signature_requests r
+     where r.id = p_request_id and r.org_id = p_org_id
+       for update;
   end if;
   if v_row.id is null and p_documenso_document_id is not null then
     select * into v_row from public.signature_requests r
      where r.org_id = p_org_id and r.documenso_document_id = p_documenso_document_id
        for update;
   end if;
-  if v_row.id is null or v_row.org_id <> p_org_id
-     or (p_documenso_document_id is not null and v_row.documenso_document_id is distinct from p_documenso_document_id) then
+  -- A draft under way has no document id yet: only a different one is a mismatch.
+  if v_row.id is null
+     or (p_request_id is not null and v_row.id <> p_request_id)
+     or (p_documenso_document_id is not null and v_row.documenso_document_id <> p_documenso_document_id) then
     return query select 'not_found'::text, null::uuid, null::text, false;
     return;
   end if;
-  if not public.module_enabled_for_org(v_row.org_id, v_row.module_key)
-     or v_row.status not in ('sent', 'viewed') then
+  if not public.module_enabled_for_org(v_row.org_id, v_row.module_key) then
+    return query select 'ignored'::text, v_row.id, v_row.module_key, false;
+    return;
+  end if;
+  if v_row.status = 'draft' then
+    return query
+      select case when coalesce(v_row.last_error, '') <> 'abandoned'
+                   and coalesce(v_row.documenso_document_id, p_documenso_document_id) is not null
+                  then 'retry' else 'ignored' end,
+             v_row.id, v_row.module_key, false;
+    return;
+  end if;
+  if v_row.status not in ('sent', 'viewed') then
     return query select 'ignored'::text, v_row.id, v_row.module_key, false;
     return;
   end if;
@@ -1222,24 +1410,31 @@ begin
       update public.signature_request_signers s
          set status = 'signed', viewed_at = coalesce(s.viewed_at, v_at), signed_at = coalesce(s.signed_at, v_at)
        where s.request_id = v_row.id and s.status in ('pending', 'viewed');
+      update public.signature_requests r
+         set completed_event_at = v_at
+       where r.id = v_row.id and r.completed_event_at is null;
       return query select 'applied'::text, v_row.id, v_row.module_key, true;
       return;
     when 'DOCUMENT_REJECTED' then
-      update public.signature_request_signers s
-         set status = 'rejected', rejected_at = v_at
-       where s.request_id = v_row.id and s.documenso_recipient_id = p_recipient_id
-         and s.status in ('pending', 'viewed');
-      update public.signature_requests r
-         set status = 'rejected', rejected_at = v_at,
-             rejection_reason = nullif(pg_catalog.left(pg_catalog.btrim(
-               pg_catalog.regexp_replace(p_reason, '[[:cntrl:]]', ' ', 'g')), 500), '')
-       where r.id = v_row.id;
-      v_changed := 1;
+      if v_row.completed_event_at is null then
+        update public.signature_request_signers s
+           set status = 'rejected', rejected_at = v_at
+         where s.request_id = v_row.id and s.documenso_recipient_id = p_recipient_id
+           and s.status in ('pending', 'viewed');
+        update public.signature_requests r
+           set status = 'rejected', rejected_at = v_at,
+               rejection_reason = nullif(pg_catalog.left(pg_catalog.btrim(
+                 pg_catalog.regexp_replace(p_reason, '[[:cntrl:]]', ' ', 'g')), 500), '')
+         where r.id = v_row.id;
+        v_changed := 1;
+      end if;
     when 'DOCUMENT_CANCELLED' then
-      update public.signature_requests r
-         set status = 'cancelled', cancelled_at = v_at
-       where r.id = v_row.id;
-      v_changed := 1;
+      if v_row.completed_event_at is null then
+        update public.signature_requests r
+           set status = 'cancelled', cancelled_at = v_at
+         where r.id = v_row.id;
+        v_changed := 1;
+      end if;
     else
       null;
   end case;
@@ -1250,8 +1445,9 @@ $$;
 
 -- The signed PDF is stored: a sent or viewed request becomes `signed` with the file (this
 -- request's `signing_signed` system file, ready, with the given hash and the request's view
--- permission; it stops being staged), and every signer is signed. Calling it again with the same
--- file is a no-op; anything else → 22023.
+-- permission; it stops being staged), and every signer is signed. Its expiry does not matter: a
+-- request Documenso completed cannot be expired (header). Calling it again with the same file is
+-- a no-op; anything else → 22023.
 create function public.complete_signature_request(p_id uuid, p_signed_file_id uuid, p_signed_sha256 text)
 returns void
 language plpgsql
@@ -1293,17 +1489,26 @@ begin
      set status = 'signed', signed_at = coalesce(s.signed_at, pg_catalog.now())
    where s.request_id = v_row.id and s.status in ('pending', 'viewed');
   update public.signature_requests r
-     set status = 'signed', completed_at = pg_catalog.now(), signed_file_id = p_signed_file_id,
-         signed_sha256 = p_signed_sha256
+     set status = 'signed', completed_at = pg_catalog.now(),
+         completed_event_at = coalesce(r.completed_event_at, pg_catalog.now()),
+         signed_file_id = p_signed_file_id, signed_sha256 = p_signed_sha256
    where r.id = v_row.id;
 end;
 $$;
 
 -- core.signing_reconcile (signing-sync, one org at a time): the org's open requests to act on,
--- oldest first, with the action: `expire` (sent or viewed past expires_at: cancel at Documenso,
--- then expire_signature_request), `sync` (sent or viewed for over a day: read Documenso and apply
--- the events, in case a webhook was lost), `abandon` (a draft over a day old and not yet
--- abandoned: cancel its document if any, then mark_signature_request_failed('abandoned')).
+-- `expire` and `abandon` first, then by expiry (soonest first), with the action:
+--   `expire`   sent or viewed past expires_at: sync first (read Documenso and apply its events: a
+--              lost DOCUMENT_COMPLETED makes expire_signature_request refuse, and the signed PDF
+--              is downloaded instead); if still not complete, expire_signature_request, then
+--              cancel at Documenso;
+--   `sync`     sent or viewed for over a day, or one Documenso completed whose signed PDF is not
+--              stored yet (whatever its expiry): read Documenso and apply the events, download
+--              when completed (a webhook may have been lost); also a draft over a day old with a
+--              Documenso document: read its status before cancelling it, then
+--              mark_signature_request_failed('abandoned');
+--   `abandon`  a draft over a day old, not abandoned, with no Documenso document:
+--              mark_signature_request_failed('abandoned').
 -- A disabled module's requests are skipped. Reads signature_requests_open_idx.
 create function public.list_signature_requests_to_reconcile(p_org_id uuid, p_limit int default 100)
 returns table (
@@ -1320,23 +1525,26 @@ stable
 security definer
 set search_path = ''
 as $$
-  select r.id, r.module_key, r.status, r.documenso_document_id, r.envelope_id, r.expires_at,
-         case when r.status = 'draft' then 'abandon'
-              when r.expires_at < pg_catalog.now() then 'expire'
-              else 'sync' end
+  select r.id, r.module_key, r.status, r.documenso_document_id, r.envelope_id, r.expires_at, a.action
     from public.signature_requests r
+    cross join lateral (
+      select case when r.status = 'draft' then case when r.documenso_document_id is null then 'abandon' else 'sync' end
+                  when r.completed_event_at is not null then 'sync'
+                  when r.expires_at < pg_catalog.now() then 'expire'
+                  else 'sync' end as action) a
    where r.org_id = p_org_id
      and (r.status in ('sent', 'viewed') or (r.status = 'draft' and coalesce(r.last_error, '') <> 'abandoned'))
      and ((r.status = 'draft' and r.created_at < pg_catalog.now() - interval '1 day')
           or (r.status <> 'draft'
               and (r.sent_at < pg_catalog.now() - interval '1 day' or r.expires_at < pg_catalog.now())))
      and public.module_enabled_for_org(r.org_id, r.module_key)
-   order by r.created_at, r.id
+   order by a.action in ('expire', 'abandon') desc, r.expires_at nulls last, r.created_at, r.id
    limit least(greatest(coalesce(p_limit, 100), 1), 100)
 $$;
 
 -- A sent or viewed request past its expiry becomes `expired`. True when it did; false for any
--- other request (not overdue, already terminal), which is left as is.
+-- other request (not overdue, already terminal, or completed at Documenso: completed_event_at),
+-- which is left as is.
 create function public.expire_signature_request(p_id uuid)
 returns boolean
 language plpgsql
@@ -1347,8 +1555,55 @@ as $$
 begin
   update public.signature_requests r
      set status = 'expired', expired_at = pg_catalog.now()
-   where r.id = p_id and r.status in ('sent', 'viewed') and r.expires_at < pg_catalog.now();
+   where r.id = p_id and r.status in ('sent', 'viewed') and r.expires_at < pg_catalog.now()
+     and r.completed_event_at is null;
   return found;
+end;
+$$;
+
+-- Phase 4 (a contract replaced, a record closed): closes an open request, so a new one can be
+-- created for the record (one open request per record and purpose, header). The caller cancels
+-- the Documenso document first when the request has one (Documenso refuses once the document is
+-- completed, and its DOCUMENT_CANCELLED webhook is then ignored as a no-op). sent or viewed →
+-- `cancelled` (cancelled_at, cancelled_by = p_by); a draft → abandoned (a send under way then
+-- fails at mark_signature_request_sent). True when it closed the request; false when it was
+-- already closed (rejected, cancelled, expired, abandoned). Refused: a request Documenso
+-- completed (signed, or completed_event_at) → P0001; an unknown request, or p_by (null: the
+-- system) outside its org → 22023.
+create function public.cancel_signature_request(p_id uuid, p_by uuid)
+returns boolean
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_row public.signature_requests%rowtype;
+begin
+  select * into v_row from public.signature_requests r where r.id = p_id for update;
+  if not found then
+    raise exception 'Unknown request' using errcode = '22023';
+  end if;
+  if p_by is not null
+     and not exists (select 1 from public.profiles pr where pr.user_id = p_by and pr.org_id = v_row.org_id) then
+    raise exception 'The canceller is not a member of the organization' using errcode = '22023';
+  end if;
+  if v_row.status = 'signed' or v_row.completed_event_at is not null then
+    raise exception 'Ce document a déjà été signé : la demande ne peut plus être annulée.' using errcode = 'P0001';
+  end if;
+  if v_row.status in ('sent', 'viewed') then
+    update public.signature_requests r
+       set status = 'cancelled', cancelled_at = pg_catalog.now(), cancelled_by = p_by
+     where r.id = v_row.id;
+    return true;
+  end if;
+  if v_row.status = 'draft' and coalesce(v_row.last_error, '') <> 'abandoned' then
+    update public.signature_requests r
+       set last_error = 'abandoned', cancelled_by = p_by
+     where r.id = v_row.id;
+    return true;
+  end if;
+  return false;
 end;
 $$;
 
@@ -1360,7 +1615,8 @@ revoke all on function
   public.apply_signing_event(uuid, uuid, text, text, text, timestamptz, text),
   public.complete_signature_request(uuid, uuid, text),
   public.list_signature_requests_to_reconcile(uuid, int),
-  public.expire_signature_request(uuid)
+  public.expire_signature_request(uuid),
+  public.cancel_signature_request(uuid, uuid)
 from public, anon, authenticated;
 grant execute on function
   public.get_signing_context(uuid, uuid),
@@ -1370,7 +1626,8 @@ grant execute on function
   public.apply_signing_event(uuid, uuid, text, text, text, timestamptz, text),
   public.complete_signature_request(uuid, uuid, text),
   public.list_signature_requests_to_reconcile(uuid, int),
-  public.expire_signature_request(uuid)
+  public.expire_signature_request(uuid),
+  public.cancel_signature_request(uuid, uuid)
 to service_role;
 
 -- -----------------------------------------------------------------------------

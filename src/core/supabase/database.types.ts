@@ -1559,7 +1559,9 @@ export type Database = {
       signature_requests: {
         Row: {
           cancelled_at: string | null
+          cancelled_by: string | null
           completed_at: string | null
+          completed_event_at: string | null
           created_at: string
           documenso_document_id: string | null
           envelope_id: string | null
@@ -1589,7 +1591,9 @@ export type Database = {
         }
         Insert: {
           cancelled_at?: string | null
+          cancelled_by?: string | null
           completed_at?: string | null
+          completed_event_at?: string | null
           created_at?: string
           documenso_document_id?: string | null
           envelope_id?: string | null
@@ -1619,7 +1623,9 @@ export type Database = {
         }
         Update: {
           cancelled_at?: string | null
+          cancelled_by?: string | null
           completed_at?: string | null
+          completed_event_at?: string | null
           created_at?: string
           documenso_document_id?: string | null
           envelope_id?: string | null
@@ -1648,6 +1654,13 @@ export type Database = {
           viewed_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "signature_requests_cancelled_by_org_id_fkey"
+            columns: ["cancelled_by", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
           {
             foreignKeyName: "signature_requests_module_key_fkey"
             columns: ["module_key"]
@@ -2254,6 +2267,10 @@ export type Database = {
         }[]
       }
       archive_template_version: { Args: { p_id: string }; Returns: undefined }
+      cancel_signature_request: {
+        Args: { p_by: string; p_id: string }
+        Returns: boolean
+      }
       claim_webhook_event: {
         Args: {
           p_event_id: string
@@ -2365,8 +2382,11 @@ export type Database = {
       create_signature_request: {
         Args: { p: Json }
         Returns: {
+          created_at: string
           existing: boolean
           id: string
+          last_error: string
+          signers: Json
           status: string
         }[]
       }
@@ -2825,6 +2845,10 @@ export type Database = {
           p_institution_number: string
           p_transit_number: string
         }
+        Returns: undefined
+      }
+      set_document_template_active: {
+        Args: { p_active: boolean; p_id: string }
         Returns: undefined
       }
       set_email_sender: {

@@ -2055,6 +2055,15 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 **From lane F (Task 3.32, commit a0cca70):** the local seed sets the signing base URL to `http://host.docker.internal:55390` (the fake started by `npm run fake:documenso`) and the two org secrets to `local-dev-documenso-key` / `local-dev-documenso-webhook-secret`. `signing-webhook` passes Documenso's raw event names (`DOCUMENT_COMPLETED`, `DOCUMENT_CANCELLED`, …) to `documensoEventId`. `signature_requests` keeps `provider_document_id` even when a later creation step fails (the client's error carries it) so the reconcile job can cancel it. **From lane F (Task 3.30, commit a03143c):** `get_signing_context` returns `{ bucket, object_path }` for the logo and signature images (the renderer's `loadAssets` takes `{ key, bucket, path }`); `update_template_version`'s placeholder check scans **every string** in the body JSON (the renderer fills all of them, with the same placeholder rule as emails); the logo and signature upload purposes (Task 3.24) accept **PNG and JPEG only**: pdfmake cannot embed WebP. Also: `signature_requests` stores Documenso's `envelope_id` next to `provider_document_id` (future move to the envelope API); the logo/signature upload purposes cap PNG dimensions at 4000×4000 (read from the header; a small PNG with alpha can decode to hundreds of MB).
 
+**Review follow-ups (fix commit after 02126e6, same migration):**
+- **Recipients keyed by role.** `mark_signature_request_sent`'s `p_signer_recipients` is `[{role, recipient_id}]` (a role is unique per request). `create_signature_request` returns `table (id uuid, existing boolean, status text, signers jsonb /* [{role, signer_id}] */, last_error text, created_at timestamptz)` on both paths: an existing draft without `last_error` is a send under way, with one a send that failed before.
+- **A completion is never lost.** `DOCUMENT_COMPLETED` stamps `signature_requests.completed_event_at`. From then on `expire_signature_request` returns false, `DOCUMENT_REJECTED` / `DOCUMENT_CANCELLED` are `ignored`, `cancel_signature_request` refuses (P0001), and the reconcile list answers `sync` (download) instead of `expire`; `complete_signature_request` accepts it whatever its expiry.
+- **Drafts and webhooks.** `apply_signing_event` returns `retry` for a draft not abandoned whose Documenso document exists (its `documenso_document_id`, or the one the event names: a send under way); the webhook answers 409 so Documenso retries. The reconcile's `abandon` is only for drafts with no document; a draft with one gets `sync`.
+- **Signer addresses private.** `signature_request_signers` is granted to `authenticated` column by column, without `email`.
+- **Templates.** `create_document_template` needs `settings.manage` (and the edit permission; both permissions of the template's module); module migrations may insert their templates directly. `set_document_template_active(p_id, p_active)` (`settings.manage`). Publishing also checks the title, footer, block types (the closed set of `_shared/pdf/model.ts`), one signature page with unique roles, and `initialsFor` ⊆ its roles. A published or archived version refuses any metadata change but its status and `archived_at` moving forward, and deletion except by its template's cascade.
+- **Phase 4.** `cancel_signature_request(p_id uuid, p_by uuid) returns boolean` (service role): sent/viewed → `cancelled` (`cancelled_by`), a draft → abandoned; false when already closed; P0001 once Documenso completed it. The partial unique index `signature_requests_open_subject_idx (org_id, subject_type, subject_id, purpose)` over open requests (draft not abandoned, sent, viewed; `core.signing_test` excepted): the idempotency key is checked first (the same key always returns its row), then a new key for a record with an open request of that purpose is refused (P0001 « Une demande de signature est déjà en cours pour ce dossier. ») until the old one is cancelled.
+- **Minor.** A late `mark_signature_request_failed` keeps `abandoned`; the reconcile list orders `expire`/`abandon` first, then by `expires_at`; the request `title` is redacted in the audit log; signer `order` values are distinct; a null expiry in `set_signing_settings` is 23514; `apply_signing_event` locks the row only within `p_org_id`.
+
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_signing.sql`
 - Create: `supabase/tests/database/023_core_signing.test.sql`
@@ -2106,8 +2115,8 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   - `get_signature_request(p_id)`, one row or none (used by `signing-sync` in user mode).
 - **Service role:**
   - `get_signing_context(p_org_id, p_template_version_id) returns jsonb`: one round trip with the published version (body, variables, signers, email texts), `signing_settings`, the clinic identity, timezone, `module_enabled`, and the signatory (name, title, `signatory_email`, `signature_file_id`, `logo_file_id`);
-  - `create_signature_request(p jsonb) returns table (id uuid, existing boolean)`: idempotent on `(org_id, idempotency_key)`; inserts the request (`draft`) and its signers;
-  - `mark_signature_request_sent(p_id, p_documenso_document_id, p_source_file_id, p_signer_recipients jsonb /* [{signer_id, recipient_id}] */, p_expires_at)`;
+  - `create_signature_request(p jsonb) returns table (id uuid, existing boolean, status text, signers jsonb, last_error text, created_at timestamptz)`: idempotent on `(org_id, idempotency_key)`; inserts the request (`draft`) and its signers (review follow-ups above);
+  - `mark_signature_request_sent(p_id, p_documenso_document_id, p_envelope_id, p_source_file_id, p_signer_recipients jsonb /* [{role, recipient_id}] */, p_expires_at)`;
   - `mark_signature_request_failed(p_id, p_error_code)` (stays `draft`, sets `last_error`);
   - `apply_signing_event(p_org_id, p_request_id, p_documenso_document_id, p_event text, p_recipient_id text, p_at timestamptz, p_reason text) returns table (outcome text, request_id uuid, module_key text, needs_download boolean)`:
     - finds the row by id, else by document id; another org → `not_found`;
@@ -2115,7 +2124,8 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
     - a terminal state never moves; a disabled module → `ignored`;
   - `complete_signature_request(p_id, p_signed_file_id, p_signed_sha256)` → `signed`, `completed_at`;
   - `list_signature_requests_to_reconcile(p_limit int default 100)`: `sent`/`viewed` with `sent_at < now() - interval '1 day'`, plus `draft` older than 1 day (to clean), plus overdue `expires_at`;
-  - `expire_signature_request(p_id)`.
+  - `expire_signature_request(p_id)`;
+  - `cancel_signature_request(p_id, p_by) returns boolean` (review follow-ups above).
 - **Upload purposes** (for `register_system_file`): `signing_source` (bucket `documents`, view from the request) and `signing_signed` (bucket `signed-documents`). Both have `upload_permission` = `settings.integrations_manage`: no client ever uses them; that is just the strictest core key.
 - **Job:** `core.signing_reconcile` (function `signing-sync`, maintenance, `50 8 * * *`).
 
@@ -2214,11 +2224,11 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   ```
   **Order:**
   1. `Promise.all([get_signing_context, get_org_secret('documenso_api_key')])`. No base URL or key → `not_configured`.
-  2. `create_signature_request` (idempotent: an existing `sent` row → return it, no second document).
+  2. `create_signature_request` (idempotent: an existing row that is not a draft → return it, no second document; an existing draft without `last_error` → a send under way, return it without a second document; with one → a send that failed before). Its `signers` (`[{role, signer_id}]`) key the recipients of step 6 by role.
   3. `fillTemplate` + `loadAssets` (logo, signature image, in parallel) → `renderPdf`.
   4. `register_system_file` (`documents`, purpose `signing_source`) → upload the bytes (service storage, `upsert: false`).
   5. Documenso `createDocument` (`externalId = request id`) → `addFields` → `distribute`.
-  6. `mark_signature_request_sent` (`expires_at = now + expiry_days`).
+  6. `mark_signature_request_sent` (`expires_at = now + expiry_days`; recipients `[{role, recipient_id}]`, matched to Documenso's recipients by address).
 
   A failure after step 5 started → `cancel` at Documenso (best-effort) + `mark_signature_request_failed(code)` → `provider_error`.
 - `signing-webhook/` (design §6.3):
@@ -2229,14 +2239,16 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   5. `claimEvent('documenso', documensoEventId(...), org, event, { event, document_id, external_id })`, a minimised payload (no recipient emails).
   6. `apply_signing_event`:
      - `needs_download` → `downloadSigned` → `register_system_file` (`signed-documents`, `upsert: true` at the stable path `{org}/core/{request_id}/signed.pdf`; `register_system_file` returns the existing row for that path, so a retry is idempotent) → `complete_signature_request` with the SHA-256;
+     - `retry` (a draft whose send is under way or failed part way) → `failEvent` and 409, so Documenso retries;
      - `ignored` / `not_found` → complete and 200.
   7. Exception → `failEvent` → 500.
 - `signing-sync/`:
   - **user mode:** `verifyAuth`; body `{ request_id }`; the row read through RLS with `get_signature_request(p_id)` (user client; no row → 404); module gate; Documenso `get` → map to events → `apply_signing_event` (and the download when completed);
   - **cron mode:** `runJob('core.signing_reconcile')` (which verifies `X-Job-Signature`):
     - each org's `list_signature_requests_to_reconcile` batch is processed with a concurrency of 4 (`Promise.all` over chunks), not one by one, and not unbounded;
-    - overdue → `cancel` + `expire_signature_request`;
-    - stale drafts → `cancel` if they have a document id, then `mark_signature_request_failed('abandoned')`.
+    - `expire` (overdue): sync first (Documenso `get` → events → `apply_signing_event`; a lost `DOCUMENT_COMPLETED` makes `expire_signature_request` return false, and the signed PDF is downloaded instead); if still not complete, `expire_signature_request` in the DB, then `cancel` at Documenso;
+    - `sync`: Documenso `get` → events → `apply_signing_event`, and the download when completed (this also covers a completed request whose download failed, whatever its expiry). For a **draft** (it has a Documenso document), read its status first, then `cancel` it and `mark_signature_request_failed('abandoned')`;
+    - `abandon` (a stale draft with no Documenso document): `mark_signature_request_failed('abandoned')`.
 - `signing-test-connection/`: `verifyAuth(settings.integrations_manage)` → `ping` → `{ ok }` or `{ ok: false, status }`. Never echo the key or URL.
 - `signing-test-document/`: `verifyAuth(settings.integrations_manage)` → `createSignatureRequest` with `purpose: 'core.signing_test'`:
   - the built-in one-page document (`_shared/pdf/test-document.ts`: « Document test de signature électronique — Clinique MANA »);
@@ -2258,11 +2270,12 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   - completed → download + register + complete (SHA-256 checked);
   - a second completed for the same document → `duplicate` (terminal id without a version);
   - a disabled module → 200, nothing applied;
+  - `retry` (an event for a draft under way) → 409, the claim failed (Documenso retries);
   - the claim payload has no email.
 - **Sync:**
   - user mode without `view_permission` → 404;
   - cron with 10 requests → at most 4 concurrent Documenso calls (count in-flight in the fake);
-  - an overdue request is expired.
+  - an overdue request is synced first: a lost completion is downloaded, not expired; otherwise expired, then cancelled.
 - **Test connection:** a 401 from Documenso → `{ ok: false, status: 401 }`; the response contains neither the key nor the URL.
 
 **Live probe (DB token):**
