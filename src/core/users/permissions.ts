@@ -41,22 +41,34 @@ interface CallerLimits {
   callerCan: (key: string) => boolean
 }
 
+/** What one permission switch shows: the override's value if there is one, else the role default. */
+export function effectivePermission(key: string, byRole: boolean, overrides: PermissionOverride[]): { on: boolean; override: boolean | null } {
+  const override = overrides.find((o) => o.permission_key === key)?.granted ?? null
+  return { on: override ?? byRole, override }
+}
+
+/** What turning a switch to `next` saves: back to the role value clears the override (decision #39). */
+export function stateForSwitch(byRole: boolean, next: boolean): OverrideState {
+  if (next === byRole) return 'role'
+  return next ? 'granted' : 'revoked'
+}
+
 /**
- * The states the caller may choose for one permission of another user. A non-admin manager never
- * gives what they lack: no grant, and no cleared revoke (the role default could give it back);
- * revoking, or clearing a grant, is always allowed.
+ * Whether the caller may flip one permission of another user. Turning it off (a revoke, or a
+ * cleared grant) is always allowed; a non-admin manager turns it on (a grant, or a cleared revoke
+ * back to a role « Oui ») only if they hold it.
  */
-export function allowedOverrideStates({
-  callerIsAdmin,
-  callerCan,
-  permissionKey,
-  current,
-}: CallerLimits & { permissionKey: string; current: OverrideState }): Set<OverrideState> {
-  const holds = callerIsAdmin || callerCan(permissionKey)
-  const allowed = new Set<OverrideState>(['revoked'])
-  if (holds) allowed.add('granted')
-  if (holds || current !== 'revoked') allowed.add('role')
-  return allowed
+export function canTogglePermission({ callerIsAdmin, callerCan, permissionKey, on }: CallerLimits & { permissionKey: string; on: boolean }): boolean {
+  return on || callerIsAdmin || callerCan(permissionKey)
+}
+
+/**
+ * Whether the caller may remove all of a user's overrides (clear_permission_overrides): a
+ * non-admin manager is refused if any revoke is on a permission they lack (clearing it could give
+ * the permission back).
+ */
+export function canResetOverrides({ callerIsAdmin, callerCan, overrides }: CallerLimits & { overrides: PermissionOverride[] }): boolean {
+  return callerIsAdmin || overrides.every((o) => o.granted || callerCan(o.permission_key))
 }
 
 /**

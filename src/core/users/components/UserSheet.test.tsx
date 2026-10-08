@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   setUserStatus: vi.fn(),
   setPermissionOverride: vi.fn(),
   clearPermissionOverride: vi.fn(),
+  clearPermissionOverrides: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('../api', () => ({
@@ -29,6 +30,7 @@ vi.mock('../api', () => ({
   setUserStatus: mocks.setUserStatus,
   setPermissionOverride: mocks.setPermissionOverride,
   clearPermissionOverride: mocks.clearPermissionOverride,
+  clearPermissionOverrides: mocks.clearPermissionOverrides,
 }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
@@ -53,10 +55,14 @@ const L = {
   active: t('settings.users.sheet.status.label'),
   save: t('common.save'),
   cancel: t('common.cancel'),
-  granted: t('settings.users.sheet.permissions.granted'),
-  revoked: t('settings.users.sheet.permissions.revoked'),
-  byRoleYes: t('settings.users.sheet.permissions.byRole', { value: t('settings.users.sheet.permissions.yes') }),
-  byRoleNo: t('settings.users.sheet.permissions.byRole', { value: t('settings.users.sheet.permissions.no') }),
+  exception: t('settings.users.sheet.permissions.exception'),
+  exceptionRoleYes: t('settings.users.sheet.permissions.exceptionSr', { value: t('settings.users.sheet.permissions.yes') }),
+  exceptionRoleNo: t('settings.users.sheet.permissions.exceptionSr', { value: t('settings.users.sheet.permissions.no') }),
+  lacked: t('settings.users.sheet.permissions.lackedHint'),
+  reset: t('settings.users.sheet.permissions.reset.label'),
+  resetCount: (count: number) => t('settings.users.sheet.permissions.reset.labelCount', { count: String(count) }),
+  resetTitle: t('settings.users.sheet.permissions.reset.title'),
+  resetConfirm: t('settings.users.sheet.permissions.reset.confirm'),
 }
 const savedToast = (permission: string, state: 'role' | 'granted' | 'revoked') =>
   t('settings.users.sheet.permissions.saved', { permission, state: t(`settings.users.sheet.permissions.states.${state}`) })
@@ -76,9 +82,14 @@ function renderSheet(user: OrgUser, caller: Access = adminCaller) {
   return { queryClient, onClose }
 }
 
-/** The toggle group of one permission, by its description. */
-const permission = (description: string) => screen.getByRole('group', { name: description })
-const choice = (description: string, name: string) => within(permission(description)).getByRole('button', { name })
+/** The switch of one permission, by its description. */
+const permission = (description: string) => screen.getByRole('switch', { name: description })
+/** The descriptions of the permission switches, in order (the status switch left out). */
+const permissionOrder = () =>
+  screen
+    .getAllByRole('switch')
+    .map((s) => document.querySelector(`label[for="${s.id}"]`)?.textContent)
+    .filter((name) => name !== L.active)
 const roleSelect = () => screen.getByRole('combobox', { name: L.role })
 
 beforeEach(() => {
@@ -253,80 +264,102 @@ describe('UserSheet', () => {
   })
 
   describe('permissions', () => {
-    it('one group per module (core first, view before manage, enabled modules only), the role default in the first option', async () => {
+    it('one switch per permission, grouped by module (core first, view before manage, enabled modules only), showing the role default', async () => {
       renderSheet(conseillere)
       expect(await screen.findByRole('heading', { name: t('settings.users.sheet.permissions.coreGroup') })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Professionnels' })).toBeInTheDocument()
       expect(screen.queryByText('Voir la facturation')).not.toBeInTheDocument()
-      const core = screen.getAllByRole('group').map((g) => g.getAttribute('aria-labelledby') && document.getElementById(g.getAttribute('aria-labelledby') ?? '')?.textContent)
-      expect(core.slice(0, 4)).toEqual([P.audit, P.settings, 'Voir les utilisateurs', 'Activer ou désactiver des modules'])
-      // counselor: professionals.view by default, audit.view not.
-      expect(choice(P.professionals, L.byRoleYes)).toHaveAttribute('aria-pressed', 'true')
-      expect(choice(P.audit, L.byRoleNo)).toHaveAttribute('aria-pressed', 'true')
+      expect(permissionOrder().slice(0, 4)).toEqual([P.audit, P.settings, 'Voir les utilisateurs', 'Activer ou désactiver des modules'])
+      // counselor: professionals.view by default, audit.view not; no exception either way.
+      expect(permission(P.professionals)).toBeChecked()
+      expect(permission(P.audit)).not.toBeChecked()
+      expect(permission(P.audit)).not.toHaveAttribute('aria-describedby')
+      expect(screen.queryByText(L.exception)).not.toBeInTheDocument()
     })
 
-    it('reflects the overrides', async () => {
+    it('an override shows its value and the « Exception » marker, with the role value for screen readers', async () => {
       mocks.fetchUserOverrides.mockResolvedValue([
         { permission_key: 'audit.view', granted: true },
         { permission_key: 'professionals.view', granted: false },
       ])
       renderSheet(conseillere)
-      await waitFor(() => expect(choice(P.audit, L.granted)).toHaveAttribute('aria-pressed', 'true'))
-      expect(choice(P.professionals, L.revoked)).toHaveAttribute('aria-pressed', 'true')
+      await waitFor(() => expect(permission(P.audit)).toBeChecked())
+      expect(permission(P.audit)).toHaveAccessibleDescription(L.exceptionRoleNo)
+      expect(permission(P.professionals)).not.toBeChecked()
+      expect(permission(P.professionals)).toHaveAccessibleDescription(L.exceptionRoleYes)
+      expect(screen.getAllByText(L.exception)).toHaveLength(2)
+      expect(L.exceptionRoleNo).toBe('(exception — rôle\u00a0: Non)')
       expect(mocks.fetchUserOverrides).toHaveBeenCalledWith('u-conseillere')
     })
 
-    it('grants, revokes and clears, each with a toast naming the permission', async () => {
+    it('toggling away from the role value sets an exception; back to it clears it; each with a toast naming the permission', async () => {
       mocks.setPermissionOverride.mockResolvedValue(undefined)
       mocks.clearPermissionOverride.mockResolvedValue(undefined)
-      mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'professionals.view', granted: false }])
-      renderSheet(conseillere)
-      await screen.findByRole('group', { name: P.audit })
+      // adjointe: settings.view and professionals.view by role; audit.view granted as an exception.
+      mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'audit.view', granted: true }])
+      renderSheet(adjointe)
+      await waitFor(() => expect(permission(P.audit)).toBeChecked())
 
-      await userEvent.click(choice(P.audit, L.granted))
-      await waitFor(() => expect(mocks.setPermissionOverride).toHaveBeenCalledWith('u-conseillere', 'audit.view', true))
-      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.audit, 'granted')))
-
-      await userEvent.click(choice(P.settings, L.revoked))
-      await waitFor(() => expect(mocks.setPermissionOverride).toHaveBeenCalledWith('u-conseillere', 'settings.view', false))
+      await userEvent.click(permission(P.settings))
+      await waitFor(() => expect(mocks.setPermissionOverride).toHaveBeenCalledWith('u-adjointe', 'settings.view', false))
       await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.settings, 'revoked')))
 
-      await userEvent.click(choice(P.professionals, L.byRoleYes))
-      await waitFor(() => expect(mocks.clearPermissionOverride).toHaveBeenCalledWith('u-conseillere', 'professionals.view'))
-      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.professionals, 'role')))
+      await userEvent.click(permission('Voir les utilisateurs'))
+      await waitFor(() => expect(mocks.setPermissionOverride).toHaveBeenCalledWith('u-adjointe', 'users.view', true))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(savedToast('Voir les utilisateurs', 'granted')))
+
+      await userEvent.click(permission(P.audit))
+      await waitFor(() => expect(mocks.clearPermissionOverride).toHaveBeenCalledWith('u-adjointe', 'audit.view'))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.audit, 'role')))
+      expect(mocks.setPermissionOverride).toHaveBeenCalledTimes(2)
       expect(mocks.toast.error).not.toHaveBeenCalled()
-      expect(savedToast(P.audit, 'granted')).toBe("Consulter le journal d'audit : accordée.")
+      expect(savedToast(P.audit, 'granted')).toBe("Consulter le journal d'audit\u00a0: accordée.")
     })
 
-    it('the arrow keys save nothing; Enter or Space chooses', async () => {
+    it('the marker follows the switch: on as an exception, then off again', async () => {
+      mocks.setPermissionOverride.mockResolvedValue(undefined)
+      mocks.clearPermissionOverride.mockResolvedValue(undefined)
+      renderSheet(conseillere)
+      await screen.findByRole('switch', { name: P.audit })
+      mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'audit.view', granted: true }])
+      await userEvent.click(permission(P.audit))
+      await waitFor(() => expect(permission(P.audit)).toHaveAccessibleDescription(L.exceptionRoleNo))
+      expect(permission(P.audit)).toBeChecked()
+
+      mocks.fetchUserOverrides.mockResolvedValue([])
+      await userEvent.click(permission(P.audit))
+      await waitFor(() => expect(mocks.clearPermissionOverride).toHaveBeenCalledWith('u-conseillere', 'audit.view'))
+      await waitFor(() => expect(screen.queryByText(L.exception)).not.toBeInTheDocument())
+      expect(permission(P.audit)).not.toBeChecked()
+    })
+
+    it('the arrow keys do nothing; Space toggles', async () => {
       mocks.setPermissionOverride.mockResolvedValue(undefined)
       renderSheet(conseillere)
-      await screen.findByRole('group', { name: P.audit })
-      choice(P.audit, L.byRoleNo).focus()
-      await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowLeft}{ArrowRight}')
-      expect(choice(P.audit, L.revoked)).toHaveFocus()
+      await screen.findByRole('switch', { name: P.audit })
+      permission(P.audit).focus()
+      await userEvent.keyboard('{ArrowRight}{ArrowLeft}{ArrowDown}{ArrowUp}')
+      expect(permission(P.audit)).toHaveFocus()
+      expect(permission(P.audit)).not.toBeChecked()
       expect(mocks.setPermissionOverride).not.toHaveBeenCalled()
       expect(mocks.clearPermissionOverride).not.toHaveBeenCalled()
 
-      await userEvent.keyboard('{ArrowLeft}{Enter}')
+      await userEvent.keyboard(' ')
       await waitFor(() => expect(mocks.setPermissionOverride).toHaveBeenCalledWith('u-conseillere', 'audit.view', true))
-      choice(P.settings, L.byRoleNo).focus()
-      await userEvent.keyboard('{ArrowLeft} ')
-      await waitFor(() => expect(mocks.setPermissionOverride).toHaveBeenCalledWith('u-conseillere', 'settings.view', false))
-      expect(mocks.setPermissionOverride).toHaveBeenCalledTimes(2)
+      expect(mocks.setPermissionOverride).toHaveBeenCalledTimes(1)
     })
 
-    it('shows the new state at once and ignores other choices while saving', async () => {
+    it('shows the new state at once and ignores other toggles while saving', async () => {
       mocks.setPermissionOverride.mockReturnValue(new Promise(() => {}))
       renderSheet(conseillere)
-      await screen.findByRole('group', { name: P.audit })
-      await userEvent.click(choice(P.audit, L.granted))
-      await waitFor(() => expect(choice(P.audit, L.granted)).toHaveAttribute('aria-pressed', 'true'))
-      expect(permission(P.audit)).toHaveAttribute('aria-busy', 'true')
-      expect(choice(P.audit, L.revoked)).toHaveAttribute('aria-disabled', 'true')
-      await userEvent.click(choice(P.audit, L.revoked))
+      await screen.findByRole('switch', { name: P.audit })
+      await userEvent.click(permission(P.audit))
+      await waitFor(() => expect(permission(P.audit)).toBeChecked())
+      expect(permission(P.audit)).toHaveAttribute('aria-disabled', 'true')
+      await userEvent.click(permission(P.audit))
       expect(mocks.setPermissionOverride).toHaveBeenCalledTimes(1)
-      expect(choice(P.audit, L.granted)).toHaveAttribute('aria-pressed', 'true')
+      expect(mocks.clearPermissionOverride).not.toHaveBeenCalled()
+      expect(permission(P.audit)).toBeChecked()
     })
 
     it('two rows save at once; a failure puts back only its own row', async () => {
@@ -342,37 +375,37 @@ describe('UserSheet', () => {
             }),
       )
       renderSheet(conseillere)
-      await screen.findByRole('group', { name: P.audit })
-      await userEvent.click(choice(P.audit, L.granted))
-      await userEvent.click(choice(P.settings, L.revoked))
-      expect(choice(P.audit, L.granted)).toHaveAttribute('aria-pressed', 'true')
-      expect(choice(P.settings, L.revoked)).toHaveAttribute('aria-pressed', 'true')
-      expect(permission(P.audit)).toHaveAttribute('aria-busy', 'true')
-      expect(permission(P.settings)).toHaveAttribute('aria-busy', 'true')
+      await screen.findByRole('switch', { name: P.audit })
+      await userEvent.click(permission(P.audit))
+      await userEvent.click(permission(P.settings))
+      expect(permission(P.audit)).toBeChecked()
+      expect(permission(P.settings)).toBeChecked()
+      expect(permission(P.audit)).toHaveAttribute('aria-disabled', 'true')
+      expect(permission(P.settings)).toHaveAttribute('aria-disabled', 'true')
 
-      // The server now has the settings revoke only.
-      mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'settings.view', granted: false }])
+      // The server now has the settings grant only.
+      mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'settings.view', granted: true }])
       rejectAudit({ code: 'P0001', message: "Vous ne pouvez pas accorder une permission que vous n'avez pas." })
-      await waitFor(() => expect(choice(P.audit, L.byRoleNo)).toHaveAttribute('aria-pressed', 'true'))
-      expect(choice(P.settings, L.revoked)).toHaveAttribute('aria-pressed', 'true')
+      await waitFor(() => expect(permission(P.audit)).not.toBeChecked())
+      expect(permission(P.settings)).toBeChecked()
       // No refetch while the settings change is still in flight.
       expect(mocks.fetchUserOverrides).toHaveBeenCalledTimes(1)
 
       resolveSettings()
       await waitFor(() => expect(mocks.fetchUserOverrides).toHaveBeenCalledTimes(2))
-      expect(choice(P.settings, L.revoked)).toHaveAttribute('aria-pressed', 'true')
-      expect(choice(P.audit, L.byRoleNo)).toHaveAttribute('aria-pressed', 'true')
+      expect(permission(P.settings)).toBeChecked()
+      expect(permission(P.audit)).not.toBeChecked()
       expect(mocks.toast.error).toHaveBeenCalledWith("Vous ne pouvez pas accorder une permission que vous n'avez pas.")
-      expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.settings, 'revoked'))
+      expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.settings, 'granted'))
     })
 
     it('refetches the users list (override_count) once the last of two overlapping saves settles', async () => {
       const resolvers: (() => void)[] = []
       mocks.setPermissionOverride.mockImplementation(() => new Promise<void>((resolve) => resolvers.push(resolve)))
       const { queryClient } = renderSheet(conseillere)
-      await screen.findByRole('group', { name: P.audit })
-      await userEvent.click(choice(P.audit, L.granted))
-      await userEvent.click(choice(P.settings, L.revoked))
+      await screen.findByRole('switch', { name: P.audit })
+      await userEvent.click(permission(P.audit))
+      await userEvent.click(permission(P.settings))
       await waitFor(() => expect(resolvers).toHaveLength(2))
       const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
       // Both answer in the same tick.
@@ -382,11 +415,99 @@ describe('UserSheet', () => {
       expect(invalidate.mock.calls.filter(([filters]) => JSON.stringify(filters?.queryKey) === JSON.stringify(userKeys.list())).length).toBe(2)
     })
 
-    it('an admin has no permission controls, only the note', async () => {
+    it('a 42501 on a toggle also refreshes the caller\'s access', async () => {
+      mocks.setPermissionOverride.mockRejectedValue({ code: '42501', message: 'Permission refusée : users.manage' })
+      const { queryClient } = renderSheet(conseillere)
+      await screen.findByRole('switch', { name: P.audit })
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      await userEvent.click(permission(P.audit))
+      await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith(t('common.errors.forbidden')))
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: accessKeys.all })
+      await waitFor(() => expect(permission(P.audit)).not.toBeChecked())
+    })
+
+    it('an admin has no permission switches nor reset, only the note', async () => {
       renderSheet(otherAdmin)
       expect(await screen.findByText(t('settings.users.sheet.permissions.admin'))).toBeInTheDocument()
-      expect(screen.queryByRole('group')).not.toBeInTheDocument()
+      expect(screen.getAllByRole('switch')).toHaveLength(1)
+      expect(screen.queryByRole('button', { name: new RegExp(L.reset) })).not.toBeInTheDocument()
       expect(mocks.fetchUserOverrides).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('« Rétablir les permissions du rôle »', () => {
+    it('is disabled when the person has no exception', async () => {
+      renderSheet(conseillere)
+      await screen.findByRole('switch', { name: P.audit })
+      expect(screen.getByRole('button', { name: L.reset })).toHaveAttribute('aria-disabled', 'true')
+      await userEvent.click(screen.getByRole('button', { name: L.reset }))
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+
+    it('waits while a switch is saving', async () => {
+      mocks.setPermissionOverride.mockReturnValue(new Promise(() => {}))
+      mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'audit.view', granted: true }])
+      renderSheet(conseillere)
+      await userEvent.click(await screen.findByRole('switch', { name: P.settings }))
+      const reset = screen.getByRole('button', { name: L.resetCount(2) })
+      expect(reset).toHaveAttribute('aria-disabled', 'true')
+      await userEvent.click(reset)
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+
+    it('shows the count, asks first, then removes every exception with a toast', async () => {
+      mocks.clearPermissionOverrides.mockResolvedValue(2)
+      mocks.fetchUserOverrides.mockResolvedValue([
+        { permission_key: 'audit.view', granted: true },
+        { permission_key: 'professionals.view', granted: false },
+      ])
+      renderSheet(conseillere)
+      const reset = await screen.findByRole('button', { name: L.resetCount(2) })
+      expect(reset).not.toHaveAttribute('aria-disabled')
+
+      await userEvent.click(reset)
+      const dialog = await screen.findByRole('alertdialog', { name: L.resetTitle })
+      expect(dialog).toHaveAccessibleDescription(
+        t('settings.users.sheet.permissions.reset.bodyOther', { count: '2', name: conseillere.display_name, role: t('roles.counselor') }),
+      )
+      expect(t('settings.users.sheet.permissions.reset.bodyOther', { count: '2', name: 'Camille', role: 'Conseillère' })).toBe(
+        'Les 2 exceptions de Camille seront supprimées. Ses permissions seront celles du rôle Conseillère.',
+      )
+      await userEvent.click(within(dialog).getByRole('button', { name: L.cancel }))
+      expect(mocks.clearPermissionOverrides).not.toHaveBeenCalled()
+      await waitFor(() => expect(screen.getByRole('button', { name: L.resetCount(2) })).toHaveFocus())
+
+      mocks.fetchUserOverrides.mockResolvedValue([])
+      await userEvent.click(screen.getByRole('button', { name: L.resetCount(2) }))
+      await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: L.resetConfirm }))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.users.sheet.permissions.reset.saved')))
+      expect(mocks.clearPermissionOverrides).toHaveBeenCalledWith('u-conseillere')
+      await waitFor(() => expect(screen.getByRole('button', { name: L.reset })).toHaveAttribute('aria-disabled', 'true'))
+      expect(screen.queryByText(L.exception)).not.toBeInTheDocument()
+      expect(permission(P.audit)).not.toBeChecked()
+      expect(permission(P.professionals)).toBeChecked()
+    })
+
+    it('names a single exception in the singular', async () => {
+      mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'audit.view', granted: true }])
+      renderSheet(conseillere)
+      await userEvent.click(await screen.findByRole('button', { name: L.resetCount(1) }))
+      expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
+        t('settings.users.sheet.permissions.reset.bodyOne', { name: conseillere.display_name, role: t('roles.counselor') }),
+      )
+    })
+
+    it('shows the database message when refused, and keeps the exceptions', async () => {
+      const refused = "Vous ne pouvez pas accorder une permission que vous n'avez pas."
+      mocks.clearPermissionOverrides.mockRejectedValue({ code: 'P0001', message: refused })
+      mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'audit.view', granted: true }])
+      renderSheet(conseillere)
+      await userEvent.click(await screen.findByRole('button', { name: L.resetCount(1) }))
+      await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: L.resetConfirm }))
+      await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith(refused))
+      expect(mocks.toast.success).not.toHaveBeenCalled()
+      expect(permission(P.audit)).toBeChecked()
+      expect(screen.getByRole('button', { name: L.resetCount(1) })).not.toHaveAttribute('aria-disabled')
     })
   })
 
@@ -403,14 +524,27 @@ describe('UserSheet', () => {
     expect(mocks.setUserStatus).not.toHaveBeenCalled()
   })
 
+  it("the caller's own permissions are read-only, without the reset", async () => {
+    mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'users.manage', granted: true }])
+    renderSheet(adjointe, managerCaller)
+    await waitFor(() => expect(permission('Inviter et gérer les utilisateurs')).toBeChecked())
+    for (const name of [P.audit, P.settings]) {
+      expect(permission(name)).toHaveAttribute('aria-readonly', 'true')
+      expect(permission(name)).not.toHaveAccessibleDescription(L.lacked)
+    }
+    await userEvent.click(permission(P.settings))
+    expect(permission(P.settings)).toBeChecked()
+    expect(mocks.setPermissionOverride).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: new RegExp(L.reset) })).not.toBeInTheDocument()
+  })
+
   it("a provider's role is read-only, managed in Professionnels; status and permissions stay editable", async () => {
     renderSheet(pro)
     const role = await screen.findByRole('textbox', { name: L.role })
     expect(role).toHaveValue(t('roles.provider'))
     expect(role).toHaveAccessibleDescription(t('settings.users.sheet.role.provider'))
     expect(screen.getByRole('switch', { name: L.active })).not.toHaveAttribute('aria-readonly')
-    expect(await screen.findByRole('group', { name: P.audit })).toBeInTheDocument()
-    expect(choice(P.audit, L.granted)).toBeEnabled()
+    expect(await screen.findByRole('switch', { name: P.audit })).not.toHaveAttribute('aria-readonly')
   })
 
   describe('as a non-admin manager', () => {
@@ -441,7 +575,7 @@ describe('UserSheet', () => {
       await userEvent.click(screen.getAllByRole('button', { name: t('common.retry') })[0] as HTMLElement)
       await waitFor(() => expect(within(roleSelect()).getByRole('option', { name: t('roles.admin_assistant') })).toBeEnabled())
       expect(screen.queryByText(t('settings.users.sheet.role.loadError'))).not.toBeInTheDocument()
-      expect(await screen.findByRole('group', { name: P.audit })).toBeInTheDocument()
+      expect(await screen.findByRole('switch', { name: P.audit })).toBeInTheDocument()
     })
 
     it('shows a loading line while the catalogue loads', async () => {
@@ -452,17 +586,63 @@ describe('UserSheet', () => {
       expect(within(roleSelect()).getByRole('option', { name: t('roles.admin_assistant') })).toBeDisabled()
     })
 
-    it('may not grant, nor clear a revoke of, a permission they lack, and is told why', async () => {
+    it('may turn on only what they hold; turning off is always allowed; told why when read-only', async () => {
+      mocks.setPermissionOverride.mockResolvedValue(undefined)
+      mocks.clearPermissionOverride.mockResolvedValue(undefined)
+      // settings.manage granted by an admin (the manager lacks it); audit.view revoked.
+      mocks.fetchUserOverrides.mockResolvedValue([
+        { permission_key: 'settings.manage', granted: true },
+        { permission_key: 'audit.view', granted: false },
+      ])
+      renderSheet(conseillere, managerCaller)
+      await waitFor(() => expect(permission('Modifier les paramètres de la clinique')).toBeChecked())
+
+      // Off, and the manager lacks it: read-only, with the hint.
+      const audit = permission(P.audit)
+      expect(audit).toHaveAttribute('aria-readonly', 'true')
+      expect(audit).toHaveAccessibleDescription(`${L.exceptionRoleNo} ${L.lacked}`)
+      const modules = permission('Activer ou désactiver des modules')
+      expect(modules).toHaveAttribute('aria-readonly', 'true')
+      expect(modules).toHaveAccessibleDescription(L.lacked)
+      await userEvent.click(modules)
+      expect(modules).not.toBeChecked()
+      expect(mocks.setPermissionOverride).not.toHaveBeenCalled()
+
+      // Off, held (settings.view): may turn on, no hint.
+      expect(permission(P.settings)).not.toHaveAttribute('aria-readonly')
+      expect(permission(P.settings)).not.toHaveAttribute('aria-describedby')
+      // On by role, held: may turn off.
+      await userEvent.click(permission(P.professionals))
+      await waitFor(() => expect(mocks.setPermissionOverride).toHaveBeenCalledWith('u-conseillere', 'professionals.view', false))
+      // On by an exception she lacks: may still turn it off (clears the grant).
+      const manage = permission('Modifier les paramètres de la clinique')
+      expect(manage).not.toHaveAttribute('aria-readonly')
+      await userEvent.click(manage)
+      await waitFor(() => expect(mocks.clearPermissionOverride).toHaveBeenCalledWith('u-conseillere', 'settings.manage'))
+    })
+
+    it('may reset unless a revoke is on a permission they lack, and is told why', async () => {
+      mocks.clearPermissionOverrides.mockResolvedValue(1)
       mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'audit.view', granted: false }])
       renderSheet(conseillere, managerCaller)
-      await screen.findByRole('group', { name: P.audit })
-      expect(choice(P.audit, L.granted)).toBeDisabled()
-      expect(choice(P.audit, L.byRoleNo)).toBeDisabled()
-      expect(choice(P.audit, L.revoked)).toHaveAttribute('aria-pressed', 'true')
-      expect(permission(P.audit)).toHaveAccessibleDescription(t('settings.users.sheet.permissions.revokeHint'))
-      // A permission the manager holds stays fully open, with no hint.
-      expect(choice(P.settings, L.granted)).toBeEnabled()
-      expect(permission(P.settings)).not.toHaveAttribute('aria-describedby')
+      const blocked = await screen.findByRole('button', { name: L.resetCount(1) })
+      expect(blocked).toHaveAttribute('aria-disabled', 'true')
+      expect(blocked).toHaveAccessibleDescription(t('settings.users.sheet.permissions.reset.blocked'))
+    })
+
+    it('may reset when the revokes are on permissions they hold', async () => {
+      mocks.clearPermissionOverrides.mockResolvedValue(2)
+      mocks.fetchUserOverrides.mockResolvedValue([
+        { permission_key: 'settings.manage', granted: true },
+        { permission_key: 'professionals.view', granted: false },
+      ])
+      renderSheet(conseillere, managerCaller)
+      const reset = await screen.findByRole('button', { name: L.resetCount(2) })
+      expect(reset).not.toHaveAttribute('aria-disabled')
+      expect(reset).not.toHaveAttribute('aria-describedby')
+      await userEvent.click(reset)
+      await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: L.resetConfirm }))
+      await waitFor(() => expect(mocks.clearPermissionOverrides).toHaveBeenCalledWith('u-conseillere'))
     })
 
     it('may disable but not re-enable an account', async () => {

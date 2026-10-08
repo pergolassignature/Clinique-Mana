@@ -1,10 +1,11 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useIsMutating, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { accessKeys, useAccess } from '@/core/access/access-context'
 import { moduleErrorMessage } from '@/core/modules/errors'
 import { toast } from '@/shared/ui/sonner'
 import {
   clearPermissionOverride,
+  clearPermissionOverrides,
   fetchOrgUsers,
   fetchPermissionCatalog,
   fetchUserOverrides,
@@ -100,6 +101,24 @@ export function useSetUserStatus() {
   )
 }
 
+/** « Rétablir les permissions du rôle »: removes all of the user's overrides (one atomic RPC). */
+export function useResetPermissions() {
+  return useUserMutation(
+    async ({ userId }: { userId: string }) => {
+      await clearPermissionOverrides(userId)
+    },
+    () => t('settings.users.sheet.permissions.reset.saved'),
+  )
+}
+
+/** The key of one user's permission switch saves (useSetPermissionState). */
+const permissionStateKey = (userId: string) => [...userKeys.overrides(userId), 'set'] as const
+
+/** Whether a permission switch of this user is still saving (the reset waits for it). */
+export function useIsSavingPermission(userId: string) {
+  return useIsMutating({ mutationKey: permissionStateKey(userId) }) > 0
+}
+
 /** The overrides with `key` set to `state` (removed for `role`). */
 function withState(overrides: PermissionOverride[], key: string, state: OverrideState): PermissionOverride[] {
   const others = overrides.filter((o) => o.permission_key !== key)
@@ -127,7 +146,7 @@ interface PermissionStateVariables {
 export function useSetPermissionState(userId: string) {
   const queryClient = useQueryClient()
   const { access } = useAccess()
-  const mutationKey = [...userKeys.overrides(userId), 'set'] as const
+  const mutationKey = permissionStateKey(userId)
   return useMutation({
     mutationKey,
     mutationFn: ({ key, state }: PermissionStateVariables) =>

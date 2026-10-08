@@ -5,6 +5,7 @@ import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { roleLabel } from '@/core/access/roles'
 import { FormActions } from '@/shared/components/FormActions'
+import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { initialsOf } from '@/shared/lib/format'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
@@ -25,20 +26,29 @@ import { Badge } from '@/shared/ui/badge'
 import { Button, buttonVariants } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
 import { Label } from '@/shared/ui/label'
-import { SegmentedControl } from '@/shared/ui/segmented-control'
 import { Select } from '@/shared/ui/select'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/ui/sheet'
 import { Switch } from '@/shared/ui/switch'
 import type { CatalogPermission, OrgUser } from '../api'
-import { usePermissionCatalog, useSetPermissionState, useSetUserRole, useSetUserStatus, useUserOverrides } from '../hooks'
 import {
-  allowedOverrideStates,
+  useIsSavingPermission,
+  usePermissionCatalog,
+  useResetPermissions,
+  useSetPermissionState,
+  useSetUserRole,
+  useSetUserStatus,
+  useUserOverrides,
+} from '../hooks'
+import {
   assignableRoles,
+  canResetOverrides,
+  canTogglePermission,
+  effectivePermission,
   groupPermissionsByModule,
   MANAGED_ROLES,
-  overrideStateOf,
   roleGrants,
-  type OverrideState,
+  stateForSwitch,
+  type PermissionOverride,
 } from '../permissions'
 import { permissionGroupName } from './group-name'
 import { LoadError, Loading } from './LoadState'
@@ -61,7 +71,7 @@ interface UserSheetProps {
 
 /**
  * The sheet of one user (Paramètres → Utilisateurs et accès): role, account status and permission
- * overrides. Each change is saved at once (toast; the control waits while it saves). The guards
+ * switches (the role default, or an exception; decision #39). Each change is saved at once (toast; the control waits while it saves). The guards
  * of the database are mirrored so the sheet never offers what the server would refuse; if it
  * refuses anyway, its French message is shown.
  */
@@ -402,6 +412,7 @@ function PermissionsSection({ user, locked, callerIsAdmin }: SectionProps) {
   const catalog = usePermissionCatalog()
   const isAdmin = user.role === 'admin'
   const overrides = useUserOverrides(isAdmin ? undefined : user.user_id)
+  const reset = useResetPermissions()
 
   let body
   if (isAdmin) {
@@ -424,24 +435,38 @@ function PermissionsSection({ user, locked, callerIsAdmin }: SectionProps) {
     const groups = groupPermissionsByModule(catalog.data.permissions, catalog.data.modules, access?.modules ?? [])
     body = (
       <div className="space-y-5">
-        <p className="text-xs text-muted-foreground">
-          {t('settings.users.sheet.permissions.description')}
-          {!callerIsAdmin && !locked && <> {t('settings.users.sheet.permissions.managerLimit')}</>}
-        </p>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            {t('settings.users.sheet.permissions.description')}
+            {!callerIsAdmin && !locked && <> {t('settings.users.sheet.permissions.managerLimit')}</>}
+          </p>
+          {!locked && (
+            <ResetPermissions
+              user={user}
+              overrides={overrides.data}
+              callerIsAdmin={callerIsAdmin}
+              pending={reset.isPending}
+              onConfirm={() => reset.mutate({ userId: user.user_id })}
+            />
+          )}
+        </div>
         {groups.map((group) => (
           <div key={group.key} className="space-y-3">
             <h4 className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">{permissionGroupName(group)}</h4>
             {group.permissions.map((permission) => {
-              const current = overrideStateOf(permission.key, overrides.data)
+              const byRole = roleSet.has(permission.key)
+              const { on, override } = effectivePermission(permission.key, byRole, overrides.data)
               return (
                 <PermissionRow
                   key={permission.key}
                   userId={user.user_id}
                   permission={permission}
-                  byRole={roleSet.has(permission.key)}
-                  current={current}
-                  allowed={allowedOverrideStates({ callerIsAdmin, callerCan: can, permissionKey: permission.key, current })}
+                  byRole={byRole}
+                  on={on}
+                  isException={override !== null}
+                  canToggle={canTogglePermission({ callerIsAdmin, callerCan: can, permissionKey: permission.key, on })}
                   locked={locked}
+                  resetting={reset.isPending}
                 />
               )
             })}
@@ -461,52 +486,142 @@ function PermissionsSection({ user, locked, callerIsAdmin }: SectionProps) {
   )
 }
 
+interface ResetPermissionsProps {
+  user: OrgUser
+  overrides: PermissionOverride[]
+  callerIsAdmin: boolean
+  pending: boolean
+  onConfirm: () => void
+}
+
+/**
+ * « Rétablir les permissions du rôle (n) »: removes all of the person's exceptions after a
+ * confirmation (one atomic RPC). Inactive without exceptions, while it or a switch saves, and for
+ * a non-admin manager when an exception revokes a permission they lack (the server would refuse).
+ * Inactive means `aria-disabled`: after the reset the button keeps focus.
+ */
+function ResetPermissions({ user, overrides, callerIsAdmin, pending, onConfirm }: ResetPermissionsProps) {
+  const { can } = useAccess()
+  const switchSaving = useIsSavingPermission(user.user_id)
+  const [confirming, setConfirming] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const hintId = useId()
+  const count = overrides.length
+  const blocked = count > 0 && !canResetOverrides({ callerIsAdmin, callerCan: can, overrides })
+  const inactive = count === 0 || blocked || pending || switchSaving
+  const role = user.role ? roleLabel(user.role, user.role_name) : t('settings.users.noRole')
+
+  return (
+    <div className="space-y-1">
+      <Button
+        ref={buttonRef}
+        type="button"
+        variant="outline"
+        aria-disabled={inactive || undefined}
+        aria-describedby={blocked ? hintId : undefined}
+        className={cn(softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card', pending && 'cursor-progress')}
+        onClick={ignoreWhenInactive(inactive, () => setConfirming(true))}
+      >
+        {count === 0
+          ? t('settings.users.sheet.permissions.reset.label')
+          : t('settings.users.sheet.permissions.reset.labelCount', { count: String(count) })}
+      </Button>
+      {blocked && (
+        <p id={hintId} className="text-xs text-muted-foreground">
+          {t('settings.users.sheet.permissions.reset.blocked')}
+        </p>
+      )}
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent
+          // Opened without a trigger: focus goes back to the button, whatever the answer.
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            buttonRef.current?.focus()
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.users.sheet.permissions.reset.title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {count === 1
+                ? t('settings.users.sheet.permissions.reset.bodyOne', { name: user.display_name, role })
+                : t('settings.users.sheet.permissions.reset.bodyOther', { count: String(count), name: user.display_name, role })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirm}>{t('settings.users.sheet.permissions.reset.confirm')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}
+
 interface PermissionRowProps {
   userId: string
   permission: CatalogPermission
   /** Whether the user's role gives it by default. */
   byRole: boolean
-  current: OverrideState
-  allowed: Set<OverrideState>
+  /** The effective permission: the exception's value, else the role default. */
+  on: boolean
+  /** An override exists (shown as « Exception »). */
+  isException: boolean
+  /** The caller may flip it (a non-admin manager turns on only what they hold). */
+  canToggle: boolean
   locked: boolean
+  /** « Rétablir » is saving: toggles are ignored meanwhile. */
+  resetting: boolean
 }
 
 /**
- * One permission: its description and a toggle group « Selon le rôle (Oui|Non) » / « Accordée » /
- * « Retirée ». The arrow keys only move focus; Enter, Space or a click chooses and saves at once
- * (optimistic, with a toast). While it saves, the group ignores other choices.
+ * One permission: its description and a switch showing the effective permission. Turning it to
+ * the role value removes the exception; turning it to the other value creates one. Only Space or
+ * a click toggles (a switch ignores the arrow keys, decision #36); the change is saved at once
+ * (optimistic, with a toast), and further toggles are ignored while it saves.
  */
-function PermissionRow({ userId, permission, byRole, current, allowed, locked }: PermissionRowProps) {
-  const labelId = useId()
+function PermissionRow({ userId, permission, byRole, on, isException, canToggle, locked, resetting }: PermissionRowProps) {
+  const switchId = useId()
+  const exceptionId = useId()
   const hintId = useId()
   const save = useSetPermissionState(userId)
-  // A manager who lacks the permission cannot clear its revoke (the role default would give it back).
-  const revokeStays = !locked && current === 'revoked' && !allowed.has('role')
-  const label = (state: OverrideState) =>
-    state === 'role'
-      ? t('settings.users.sheet.permissions.byRole', {
-          value: t(byRole ? 'settings.users.sheet.permissions.yes' : 'settings.users.sheet.permissions.no'),
-        })
-      : t(`settings.users.sheet.permissions.${state}`)
-  const states: OverrideState[] = ['role', 'granted', 'revoked']
+  const busy = save.isPending || resetting
+  const lacked = !locked && !canToggle
+  const describedBy = [isException && exceptionId, lacked && hintId].filter(Boolean).join(' ') || undefined
 
   return (
     <div className="min-w-0">
-      <p id={labelId} className="mb-1.5 text-sm text-foreground">
-        {permission.description}
-      </p>
-      <SegmentedControl
-        aria-labelledby={labelId}
-        aria-describedby={revokeStays ? hintId : undefined}
-        options={states.map((state) => ({ value: state, label: label(state), disabled: state !== current && !allowed.has(state) }))}
-        value={current}
-        disabled={locked}
-        pending={save.isPending}
-        onValueChange={(state) => save.mutate({ key: permission.key, state, label: permission.description })}
-      />
-      {revokeStays && (
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+          <Label htmlFor={switchId} className="font-normal">
+            {permission.description}
+          </Label>
+          {isException && (
+            <Badge variant="info">
+              <span aria-hidden="true">{t('settings.users.sheet.permissions.exception')}</span>
+              <span id={exceptionId} className="sr-only">
+                {t('settings.users.sheet.permissions.exceptionSr', {
+                  value: t(byRole ? 'settings.users.sheet.permissions.yes' : 'settings.users.sheet.permissions.no'),
+                })}
+              </span>
+            </Badge>
+          )}
+        </div>
+        <Switch
+          id={switchId}
+          checked={on}
+          readOnly={locked || lacked}
+          aria-disabled={busy || undefined}
+          aria-describedby={describedBy}
+          className={cn('mt-0.5', busy && 'cursor-progress')}
+          onCheckedChange={(next) => {
+            if (busy) return
+            save.mutate({ key: permission.key, state: stateForSwitch(byRole, next), label: permission.description })
+          }}
+        />
+      </div>
+      {lacked && (
         <p id={hintId} className="mt-1 text-xs text-muted-foreground">
-          {t('settings.users.sheet.permissions.revokeHint')}
+          {t('settings.users.sheet.permissions.lackedHint')}
         </p>
       )}
     </div>

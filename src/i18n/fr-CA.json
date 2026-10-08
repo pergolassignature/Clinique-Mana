@@ -343,19 +343,28 @@
         },
         "permissions": {
           "title": "Permissions",
-          "description": "Chaque personne a les permissions de son rôle. Accordez ou retirez une permission pour une exception.",
+          "description": "Chaque personne a les permissions de son rôle. Activez ou désactivez une permission pour créer une exception.",
           "admin": "Un administrateur a toutes les permissions.",
           "managerLimit": "Vous ne pouvez accorder que les permissions que vous avez.",
           "coreGroup": "Général",
-          "byRole": "Selon le rôle ({value})",
           "yes": "Oui",
           "no": "Non",
-          "granted": "Accordée",
-          "revoked": "Retirée",
-          "revokeHint": "Seul quelqu'un qui a cette permission peut la rendre.",
+          "exception": "Exception",
+          "exceptionSr": "(exception — rôle : {value})",
+          "lackedHint": "Seule une personne qui a cette permission peut l'accorder.",
           "saved": "{permission} : {state}.",
           "states": { "role": "selon le rôle", "granted": "accordée", "revoked": "retirée" },
-          "loadError": "Les permissions n'ont pas pu être chargées."
+          "loadError": "Les permissions n'ont pas pu être chargées.",
+          "reset": {
+            "label": "Rétablir les permissions du rôle",
+            "labelCount": "Rétablir les permissions du rôle ({count})",
+            "blocked": "Une exception retire une permission que vous n'avez pas : seule une personne qui l'a peut rétablir le rôle.",
+            "title": "Rétablir les permissions du rôle ?",
+            "bodyOne": "L'exception de {name} sera supprimée. Ses permissions seront celles du rôle {role}.",
+            "bodyOther": "Les {count} exceptions de {name} seront supprimées. Ses permissions seront celles du rôle {role}.",
+            "confirm": "Rétablir",
+            "saved": "Permissions du rôle rétablies."
+          }
         }
       },
       "matrix": {
