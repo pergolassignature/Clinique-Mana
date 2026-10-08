@@ -141,7 +141,7 @@ Deno.test('staff-invite: no users.manage (the conseillère) → 403; no token �
   })
 })
 
-Deno.test('staff-invite: invite → service create with the verified actor, emailed link, 200 { invitation_id } only', async () => {
+Deno.test('staff-invite: invite → service create with the verified actor, emailed link, 200 { invitation_id, expires_at } only', async () => {
   await run(async () => {
     const { handler, user, service, http } = harness()
     const res = await handler(post({
@@ -154,7 +154,10 @@ Deno.test('staff-invite: invite → service create with the verified actor, emai
     }))
     assertEquals(res.status, 200)
     const text = await res.text()
-    assertEquals(JSON.parse(text), { invitation_id: INVITATION_ID })
+    assertEquals(JSON.parse(text), {
+      invitation_id: INVITATION_ID,
+      expires_at: '2026-10-15T15:00:00+00:00',
+    })
 
     const created = args(service.calls, 'create_staff_invitation')!
     assertEquals(created.p_actor, ADMIN_ID)
@@ -216,7 +219,10 @@ Deno.test('staff-invite: « Renvoyer » → service renew with the verified acto
       p_actor: OTHER_ID,
     }))
     assertEquals(res.status, 200)
-    assertEquals(await res.json(), { invitation_id: INVITATION_ID })
+    assertEquals(await res.json(), {
+      invitation_id: INVITATION_ID,
+      expires_at: '2026-10-15T15:00:00+00:00',
+    })
     const renewed = args(service.calls, 'renew_staff_invitation')!
     assertEquals(renewed.p_actor, ADMIN_ID)
     assertEquals(renewed.p_id, INVITATION_ID)
@@ -294,24 +300,54 @@ Deno.test('staff-invite: the per-caller limit → 429 before any token or RPC', 
   })
 })
 
-Deno.test('staff-invite: an invalid body → 400, nothing done', async () => {
+Deno.test('staff-invite: an invalid body → 400 naming the refused field, nothing done', async () => {
   await run(async () => {
     for (
-      const body of [
-        {},
-        { ...INVITE, email: 'pas une adresse' },
-        { ...INVITE, email: 'a@b.ca, c@d.ca' },
-        { ...INVITE, display_name: '   ' },
-        { ...INVITE, display_name: 'x'.repeat(81) },
-        { ...INVITE, role: '' },
-        { invitation_id: 'not-a-uuid' },
-      ]
+      const [body, field] of [
+        [{}, 'email'],
+        [{ ...INVITE, email: 'pas une adresse' }, 'email'],
+        [{ ...INVITE, email: 'a@b.ca, c@d.ca' }, 'email'],
+        [{ ...INVITE, display_name: '   ' }, 'display_name'],
+        [{ ...INVITE, display_name: 'x'.repeat(81) }, 'display_name'],
+        [{ ...INVITE, role: '' }, 'role'],
+        [{ invitation_id: 'not-a-uuid' }, undefined],
+        [[INVITE], undefined],
+        [null, undefined],
+      ] as const
     ) {
       const { handler, service } = harness()
       const error = await errorOf(await handler(post(body)))
       assertEquals([error.status, error.code], [400, 'invalid_request'])
+      assertEquals(error.field, field, JSON.stringify(body).slice(0, 40))
       assertEquals(service.calls, [])
     }
+  })
+})
+
+Deno.test('staff-invite: a refused recipient keeps the invitation id: 400 with field email', async () => {
+  await run(async () => {
+    const { handler, http } = harness({
+      rpc: {
+        renew_staff_invitation: {
+          data: [{
+            email: 'pas une adresse',
+            display_name: 'Nouvelle Personne',
+            expires_at: '2026-10-15T15:00:00+00:00',
+          }],
+        },
+      },
+    })
+    const res = await handler(post({ invitation_id: INVITATION_ID }))
+    assertEquals(res.status, 400)
+    assertEquals(await res.json(), {
+      error: {
+        code: 'invalid_request',
+        message: 'Invitation created, email not sent',
+        field: 'email',
+      },
+      invitation_id: INVITATION_ID,
+    })
+    assertEquals(http.calls, [])
   })
 })
 

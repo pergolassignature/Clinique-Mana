@@ -1,9 +1,11 @@
 /**
  * `users-set-status` (Task 3.20, design §4, P3-9): « Désactiver » and
- * « Réactiver » in « Utilisateurs et accès ». Disabling also bans the
- * account in Auth, which refuses its token refreshes, so open sessions end
- * when their access token expires (an hour at most, ADR 0006); data access
- * stops at once through the profile's status. Re-enabling lifts the ban.
+ * « Réactiver » in « Utilisateurs et accès ». `set_user_status` disables the
+ * profile and, since P3-32, deletes the person's Auth sessions in the same
+ * transaction, so open sessions end at once (their refresh tokens are gone)
+ * and data access stops through the profile's status. This function then bans
+ * the account in Auth, so a password sign-in is refused too. Re-enabling lifts
+ * the ban.
  *
  * 1. CORS; `POST` only; `verifyAuth` with `users.manage`.
  * 2. Body `{ user_id, status: 'active' | 'disabled' }`.
@@ -12,15 +14,17 @@
  *    called only once it succeeded, so a refused change never touches Auth.
  * 4. With the service client, `auth.admin.updateUserById(user_id,
  *    { ban_duration })`: `876000h` (100 years) to disable, `none` to enable.
- * 5. Disable, ban failed: the disable stays (data access has stopped; that is
- *    the safe side), 200 `{ status, sessions_ended: false }`, reported; the
- *    UI warns that open sessions close within the hour.
+ * 5. Disable, ban failed: the disable stays (data access and the sessions
+ *    have ended; that is the safe side), 200 `{ status, signin_blocked: false
+ *    }`, reported. `signin_blocked` says only whether the Auth ban was
+ *    applied; the UI offers « Réessayez »: disabling again is idempotent and
+ *    retries the ban.
  * 6. Enable, unban failed: a still-banned person cannot sign in, so the
  *    status is put back to `disabled` (as the caller), and the answer is 502
  *    `provider_error` (« Réessayez »). The database never shows an account
  *    as active while Auth refuses it. A failed roll-back is reported too.
  *
- * Status mapping: 200 `{ status: 'disabled', sessions_ended }` or
+ * Status mapping: 200 `{ status: 'disabled', signin_blocked }` or
  * `{ status: 'active' }`; 400 `invalid_request` (body; P0001 with its French
  * message; 22023); 401 / 403 / 503 from `verifyAuth`; 403 `forbidden`
  * (42501); 405; 413; 502 `provider_error` (unban failed); 500 `internal`
@@ -94,7 +98,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (disable) {
       if (error) await report('auth_ban_failed')
       return jsonResponse(
-        { status: 'disabled', sessions_ended: !error },
+        { status: 'disabled', signin_blocked: !error },
         200,
         req,
       )

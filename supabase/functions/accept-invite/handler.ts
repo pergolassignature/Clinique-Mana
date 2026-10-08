@@ -21,8 +21,9 @@
  *    link proves the address. An address that already has an account → 409
  *    `conflict` with the neutral « Ce lien ne peut plus être utilisé… »,
  *    reported `invite_email_exists` with the link id only (P3-8: never
- *    reveal that an account exists); `weak_password` → 400; any other error
- *    → 500, nothing consumed.
+ *    reveal that an account exists); Auth's `weak_password` → 400
+ *    `weak_password` (the page shows Auth's weak-password text); any other
+ *    error → 500, nothing consumed.
  * 10. `accept_rpc(p_token_hash, p_user_id, p_payload)`: it consumes the link
  *    and does the purpose's work in one transaction.
  * 11. Compensation: an RPC error, or any status but `accepted`, deletes the
@@ -32,9 +33,10 @@
  * 12. 200 `{ status: 'accepted', email }`: the token holder already knows
  *    the address, and the page signs in with it.
  *
- * Status mapping: 200; 400 `invalid_request` (body, password refused by Auth,
- * a purpose without accounts); 405; 409 `conflict`; 410 `link_invalid` /
- * `link_expired` / `link_used`; 413; 429 `rate_limited` with `Retry-After`;
+ * Status mapping: 200; 400 `invalid_request` (body, a purpose without
+ * accounts) or `weak_password` (a password Auth refused); 405; 409
+ * `conflict`; 410 `link_invalid` / `link_expired` / `link_used`; 413; 429
+ * `rate_limited` with `Retry-After`;
  * 503 `not_configured` (limiter failed closed); 500 `internal` (reported) or
  * `server_misconfigured`. Reports carry the link and user ids only: never the
  * token, the password or the address.
@@ -87,6 +89,19 @@ const bodySchema = z.object({
 /** P3-8: the same answer whether or not the address has an account elsewhere. */
 const NO_LONGER_USABLE =
   'Ce lien ne peut plus être utilisé. Communiquez avec la clinique.'
+
+/**
+ * Auth refused the password (its strength rules, beyond the length checked
+ * above). Not an `ErrorCode` of `_shared/auth.ts`: this function's own code,
+ * which `/invitation` keys on.
+ */
+function weakPasswordResponse(req: Request): Response {
+  return jsonResponse(
+    { error: { code: 'weak_password', message: 'Password refused' } },
+    400,
+    req,
+  )
+}
 
 /** An Auth error meaning the address already has an account. */
 function emailExists(
@@ -182,7 +197,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         return errorResponse('conflict', NO_LONGER_USABLE, 409, req)
       }
       if (created.error.code === 'weak_password') {
-        return errorResponse('invalid_request', 'Password refused', 400, req)
+        return weakPasswordResponse(req)
       }
       return failed('create_user_failed', ids)
     }

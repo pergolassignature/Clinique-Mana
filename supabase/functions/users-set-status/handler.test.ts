@@ -80,12 +80,12 @@ const authDown = () => ({
   error: Object.assign(new Error('down'), { status: 500, code: 'unexpected' }),
 })
 
-Deno.test('users-set-status: disable → set_user_status (as the caller), then the ban → 200 sessions_ended', async () => {
+Deno.test('users-set-status: disable → set_user_status (as the caller), then the ban → 200 signin_blocked', async () => {
   await run(async () => {
     const { handler, user, service, events } = harness()
     const res = await handler(post({ user_id: TARGET, status: 'disabled' }))
     assertEquals(res.status, 200)
-    assertEquals(await res.json(), { status: 'disabled', sessions_ended: true })
+    assertEquals(await res.json(), { status: 'disabled', signin_blocked: true })
     assertEquals(events, ['set_user_status:disabled', 'ban:876000h'])
     assertEquals(user.calls[1], {
       fn: 'set_user_status',
@@ -98,7 +98,7 @@ Deno.test('users-set-status: disable → set_user_status (as the caller), then t
   })
 })
 
-Deno.test('users-set-status: a ban failure after the disable → 200 sessions_ended false, reported; the disable stays', async () => {
+Deno.test('users-set-status: a ban failure after the disable → 200 signin_blocked false, reported; the disable stays', async () => {
   await run(async () => {
     const { handler, events } = harness({ updateUser: authDown })
     const logged = await captureConsole('error', async () => {
@@ -106,7 +106,7 @@ Deno.test('users-set-status: a ban failure after the disable → 200 sessions_en
       assertEquals(res.status, 200)
       assertEquals(await res.json(), {
         status: 'disabled',
-        sessions_ended: false,
+        signin_blocked: false,
       })
     })
     assertEquals(events, ['set_user_status:disabled', 'ban:876000h'])

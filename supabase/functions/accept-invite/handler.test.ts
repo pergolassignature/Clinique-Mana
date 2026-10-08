@@ -252,7 +252,7 @@ Deno.test('accept-invite: createUser email_exists → 409 conflict, no accept_rp
   })
 })
 
-Deno.test('accept-invite: another createUser error → 500, nothing consumed; weak_password → 400', async () => {
+Deno.test('accept-invite: another createUser error → 500, nothing consumed; weak_password → 400 weak_password', async () => {
   await run(async () => {
     const down = harness({
       admin: { createUser: () => authError(500, 'unexpected_failure') },
@@ -267,7 +267,7 @@ Deno.test('accept-invite: another createUser error → 500, nothing consumed; we
       admin: { createUser: () => authError(422, 'weak_password') },
     })
     const error = await errorOf(await weak.handler(accept()))
-    assertEquals([error.status, error.code], [400, 'invalid_request'])
+    assertEquals([error.status, error.code], [400, 'weak_password'])
     assert(!weak.events.includes('accept_staff_invitation'))
   })
 })
