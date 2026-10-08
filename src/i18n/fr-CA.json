@@ -87,6 +87,17 @@
       "cancel": "Annuler et se déconnecter",
       "success": "Mot de passe mis à jour."
     },
+    "confirm": {
+      "title": "Confirmation",
+      "subtitle": "Cliquez sur « Continuer » pour poursuivre.",
+      "continue": "Continuer",
+      "verifying": "Vérification…",
+      "otherUser": "Vous êtes connecté en tant que {name}. Ce lien concerne peut-être un autre compte.",
+      "invalid": "Ce lien a expiré ou a déjà été utilisé.",
+      "requestNew": "Demander un nouveau lien",
+      "emailChangeTitle": "Lien confirmé",
+      "emailChangeBody": "Votre demande a été confirmée. Si un second lien a été envoyé à l'autre adresse, ouvrez-le aussi pour terminer le changement."
+    },
     "errors": {
       "invalidEmail": "Courriel invalide.",
       "required": "Champ requis.",
@@ -97,6 +108,7 @@
       "invalid_code": "Code invalide ou expiré.",
       "invalid_email": "Courriel invalide.",
       "rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
+      "link_invalid": "Ce lien a expiré ou a déjà été utilisé.",
       "unknown": "Une erreur est survenue. Réessayez."
     }
   },
@@ -187,7 +199,8 @@
       "privacy": "Confidentialité",
       "users": "Utilisateurs et accès",
       "modules": "Modules",
-      "audit": "Journal d'audit"
+      "audit": "Journal d'audit",
+      "jobs": "Tâches planifiées"
     },
     "navReadOnlyHint": "(lecture seule)",
     "menuButtonPrefix": "Section des paramètres :",
@@ -197,6 +210,87 @@
       "saved": "Modules mis à jour.",
       "error": "Impossible de modifier ce module.",
       "loadError": "Impossible de charger les modules."
+    },
+    "jobs": {
+      "description": "Les tâches que l'application exécute d'elle-même, et le résultat de leur dernière exécution. Les heures sont celles de la clinique.",
+      "loadError": "Impossible de charger les tâches planifiées.",
+      "empty": "Aucune tâche planifiée pour le moment.",
+      "columns": {
+        "job": "Tâche",
+        "schedule": "Fréquence",
+        "lastRun": "Dernière exécution",
+        "active": "Activation",
+        "actions": "Actions"
+      },
+      "never": "Jamais exécutée",
+      "alwaysOn": "Toujours active",
+      "enabled": "Activée",
+      "disabled": "Désactivée",
+      "toggleLabel": "Activer : {label}",
+      "enabledToast": "Tâche activée.",
+      "disabledToast": "Tâche désactivée.",
+      "toggleError": "Impossible de modifier cette tâche.",
+      "runNow": "Exécuter maintenant",
+      "runNowLabel": "Exécuter maintenant : {label}",
+      "started": "Tâche lancée. Son résultat paraîtra dans les dernières exécutions.",
+      "runError": "Impossible de lancer cette tâche.",
+      "enableFirst": "Activez d'abord cette tâche.",
+      "confirm": {
+        "title": "Exécuter « {label} » maintenant ?",
+        "body": "La tâche s'exécute tout de suite pour la clinique, en plus de son horaire habituel. Elle pourra être relancée dans quelques minutes.",
+        "run": "Exécuter"
+      },
+      "schedule": {
+        "hourly": "Toutes les heures",
+        "everyMinutes": "Toutes les {count} minutes",
+        "daily": "Tous les jours à {time}",
+        "localDaily": "Tous les jours à {time} (heure de la clinique)",
+        "custom": "Horaire personnalisé ({cron})",
+        "none": "Non planifiée"
+      },
+      "status": {
+        "ok": "Réussie",
+        "error": "Erreur",
+        "skipped": "Ignorée",
+        "running": "En cours"
+      },
+      "trigger": {
+        "cron": "Planifiée",
+        "manual": "Manuelle"
+      },
+      "detail": {
+        "configuration_missing": "Configuration manquante (voir Mise en service)",
+        "abandoned": "Interrompue : aucune fin après 15 minutes",
+        "timeout": "Délai dépassé",
+        "network": "Service injoignable",
+        "no_response": "Aucune réponse du service",
+        "sqlstate": "Erreur technique (code {code})",
+        "http": "Erreur technique (HTTP {status})",
+        "httpUnknown": "inconnu",
+        "other": "Erreur technique ({code})"
+      },
+      "runs": {
+        "title": "Dernières exécutions",
+        "columns": {
+          "date": "Début",
+          "job": "Tâche",
+          "trigger": "Déclenchement",
+          "status": "Statut"
+        },
+        "loadError": "Impossible de charger les dernières exécutions.",
+        "empty": {
+          "title": "Aucune exécution pour le moment.",
+          "body": "Chaque exécution d'une tâche, planifiée ou manuelle, paraîtra ici."
+        },
+        "countOne": "1 exécution",
+        "countOther": "{count} exécutions",
+        "loadMore": "Charger plus",
+        "loadingMore": "Chargement…",
+        "loadMoreError": "Impossible de charger la suite.",
+        "end": "Début de l'historique",
+        "scrollLabel": "Liste des dernières exécutions"
+      },
+      "scrollLabel": "Liste des tâches planifiées"
     },
     "organization": {
       "loadError": "Impossible de charger les renseignements de la clinique."
@@ -582,7 +676,8 @@
       "org_module_settings": "Paramètres de module",
       "org_secrets": "Secrets",
       "tax_rates": "Taux de taxes",
-      "organization_bank_details": "Coordonnées bancaires"
+      "organization_bank_details": "Coordonnées bancaires",
+      "org_scheduled_jobs": "Tâches planifiées"
     },
     "commonFields": {
       "id": "Identifiant",
@@ -667,6 +762,10 @@
         "account_number": "Numéro de compte",
         "account_last4": "Fin du numéro de compte",
         "etransfer_email": "Courriel Interac"
+      },
+      "org_scheduled_jobs": {
+        "job_key": "Tâche",
+        "enabled": "Activée"
       }
     },
     "actions": {

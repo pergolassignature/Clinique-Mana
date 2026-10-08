@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import type { ConfirmType } from './confirm'
 
 export type AuthErrorCode =
   | 'invalid_credentials'
@@ -10,6 +11,8 @@ export type AuthErrorCode =
   | 'invalid_code'
   | 'invalid_email'
   | 'rate_limited'
+  /** An email link that has expired or was already used (one message for both, design §5). */
+  | 'link_invalid'
   | 'unknown'
 
 export interface AuthContextValue {
@@ -49,6 +52,15 @@ export interface AuthContextValue {
    * may still be signed in.
    */
   signOutEverywhere: () => Promise<AuthErrorCode | null>
+  /**
+   * Verifies an emailed link's token hash (`/connexion/confirmer`, only after a click). On success
+   * auth-js has saved the link's session, if it carries one (the first of two email-change links
+   * does not), and returns its access token, so the caller can set the recovery marker itself.
+   */
+  verifyEmailLink: (
+    tokenHash: string,
+    type: ConfirmType,
+  ) => Promise<{ ok: true; sessionAccessToken: string | null } | { ok: false; code: AuthErrorCode }>
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined)

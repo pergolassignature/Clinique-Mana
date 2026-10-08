@@ -131,6 +131,24 @@ describe('scrubSentryEvent: URLs', () => {
     expect(scrubSentryEvent(event)?.breadcrumbs?.[0]?.data).toEqual({ from: '/', to: '/accueil' })
   })
 
+  // The email links of Phase 3 land on /connexion/confirmer?token_hash=…&type=…: an error on that
+  // page, or a navigation from it (the page strips the query at once), must not carry the token.
+  it('scrubs the token of a /connexion/confirmer link everywhere a URL is reported', () => {
+    const link = 'https://app.test/connexion/confirmer?token_hash=pkce_0123456789abcdef&type=email&next=https%3A%2F%2Fapp.test%2Fparametres'
+    const event = {
+      type: undefined,
+      request: { url: link, query_string: link.split('?')[1], headers: { Referer: link } },
+      breadcrumbs: [{ category: 'navigation', data: { from: link, to: '/connexion/confirmer' } }],
+    } as Event
+    const scrubbed = scrubSentryEvent(event)
+    const kept = 'https://app.test/connexion/confirmer?next=https%3A%2F%2Fapp.test%2Fparametres'
+    expect(scrubbed?.request?.url).toBe(kept)
+    expect(scrubbed?.request?.query_string).toBe('next=https%3A%2F%2Fapp.test%2Fparametres')
+    expect(scrubbed?.request?.headers).toEqual({ Referer: kept })
+    expect(scrubbed?.breadcrumbs?.[0]?.data).toEqual({ from: kept, to: '/connexion/confirmer' })
+    expect(JSON.stringify(scrubbed)).not.toContain('pkce_0123456789abcdef')
+  })
+
   it('scrubs fetch and xhr breadcrumb urls', () => {
     const event = {
       type: undefined,

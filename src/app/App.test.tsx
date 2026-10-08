@@ -21,6 +21,9 @@ const fake = vi.hoisted(() => {
     rpcCalls: [] as { name: string; userId: string | undefined }[],
     signOutScopes: [] as string[],
     updateUserCalls: [] as unknown[],
+    verifyOtpCalls: [] as unknown[],
+    /** The session a verified email link signs in (null: the link is expired or used). */
+    linkSession: null as { access_token: string; user: { id: string; email?: string } } | null,
     respond: undefined as ((userId: string) => RpcResult) | undefined,
   }
   const emit = (event: string, session: typeof state.session) => {
@@ -44,6 +47,14 @@ const fake = vi.hoisted(() => {
         state.updateUserCalls.push(attributes)
         emit('USER_UPDATED', state.session)
         return { data: { user: state.session?.user }, error: null }
+      },
+      // Like auth-js: a verified link saves its session and emits PASSWORD_RECOVERY or SIGNED_IN.
+      verifyOtp: async (params: { type: string }) => {
+        state.verifyOtpCalls.push(params)
+        const session = state.linkSession
+        if (!session) return { data: { session: null, user: null }, error: { name: 'AuthApiError', status: 403, code: 'otp_expired', message: 'x' } }
+        emit(params.type === 'recovery' ? 'PASSWORD_RECOVERY' : 'SIGNED_IN', session)
+        return { data: { session, user: session.user }, error: null }
       },
     },
     rpc: async (name: string) => {
@@ -79,6 +90,8 @@ function resetFake() {
   fake.state.rpcCalls = []
   fake.state.signOutScopes = []
   fake.state.updateUserCalls = []
+  fake.state.verifyOtpCalls = []
+  fake.state.linkSession = null
   fake.state.respond = grantAccess
 }
 resetFake()
@@ -252,6 +265,38 @@ describe('App — password recovery', () => {
     expect(fake.state.signOutScopes).toEqual(['others'])
     expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull()
     expect(loadPage).not.toHaveBeenCalled()
+  })
+
+  // The email link (Phase 3): /connexion/confirmer verifies only on « Continuer », then marks the
+  // returned session before the reset page, so a reload or another tab stays in recovery.
+  it('opens the reset page from /connexion/confirmer, after the click only, and stays there on reload', async () => {
+    fake.state.linkSession = recovery
+    const firstTab = await openAt('/connexion/confirmer?token_hash=h1&type=recovery')
+    await userEvent.click(await screen.findByRole('button', { name: t('auth.confirm.continue') }))
+    expect(await screen.findByLabelText(t('auth.reset.password'))).toBeInTheDocument()
+    expect(fake.state.verifyOtpCalls).toEqual([{ token_hash: 'h1', type: 'recovery' }])
+    expect(where()).toBe('/reinitialiser-mot-de-passe')
+    expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBe('recovery-session')
+    firstTab.unmount()
+
+    await openAt('/accueil', recovery)
+    expect(await screen.findByLabelText(t('auth.reset.password'))).toBeInTheDocument()
+  })
+
+  it('serves /connexion/confirmer without a session and verifies nothing on load', async () => {
+    await openAt('/connexion/confirmer?token_hash=h1&type=email&next=%2Fparametres')
+    expect(await screen.findByRole('button', { name: t('auth.confirm.continue') })).toBeInTheDocument()
+    expect(where()).toBe('/connexion/confirmer')
+    expect(fake.state.verifyOtpCalls).toEqual([])
+  })
+
+  it('keeps a signed-in colleague signed in when the link has expired', async () => {
+    await openAt('/connexion/confirmer?token_hash=h1&type=recovery', sessionFor('u1'))
+    await userEvent.click(await screen.findByRole('button', { name: t('auth.confirm.continue') }))
+    expect(await screen.findByText(t('auth.confirm.invalid'))).toBeInTheDocument()
+    expect(fake.state.signOutScopes).toEqual([])
+    expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull()
+    expect(where()).toBe('/connexion/confirmer')
   })
 
   it('lets a recovery session cancel: signed out, back to the plain login page', async () => {

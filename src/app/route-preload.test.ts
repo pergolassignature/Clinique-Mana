@@ -3,11 +3,16 @@ import { coreSettingsSections } from '@/core/settings/sections'
 import { ALL_MODULES } from './modules'
 import { AUTH_STORAGE_KEY } from '@/core/supabase/client'
 import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
+import { ConfirmPage } from './public-pages'
 
 const at = (pathname: string, search = '') => ({ pathname, search, origin: window.location.origin })
 
 const spyPreloads = () => {
-  const pages = [...coreSettingsSections.map((s) => s.component), ...ALL_MODULES.flatMap((m) => m.routes.map((r) => r.component))]
+  const pages = [
+    ConfirmPage,
+    ...coreSettingsSections.map((s) => s.component),
+    ...ALL_MODULES.flatMap((m) => m.routes.map((r) => r.component)),
+  ]
   return pages.map((page) => vi.spyOn(page, 'preload').mockResolvedValue(undefined))
 }
 
@@ -46,6 +51,15 @@ describe('preloadRouteCode', () => {
     preloadRouteCode(at('/parametres'))
     preloadRouteCode(at('/connexion', '?redirect=//evil.example/parametres/identite'))
     for (const spy of spies) expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('starts loading the public confirmation page on its own path only', () => {
+    const spies = spyPreloads()
+    preloadRouteCode(at('/connexion/confirmer', '?token_hash=h&type=recovery'))
+    expect(ConfirmPage.preload).toHaveBeenCalledTimes(1)
+    expect(spies.filter((s) => s.mock.calls.length > 0)).toHaveLength(1)
+    for (const path of ['/connexion', '/connexion/confirmer/x', '/confirmer', '/reinitialiser-mot-de-passe']) preloadRouteCode(at(path))
+    expect(ConfirmPage.preload).toHaveBeenCalledTimes(1)
   })
 
   it('names the page at the URL', () => {

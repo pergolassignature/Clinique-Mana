@@ -21,6 +21,7 @@ export const AUDITED_TABLES = [
   'org_secrets',
   'tax_rates',
   'organization_bank_details',
+  'org_scheduled_jobs',
 ] as const
 
 /** The French text of a key built from database names, or undefined when there is none. */

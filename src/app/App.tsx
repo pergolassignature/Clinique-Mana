@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/core/auth/AuthProvider'
@@ -12,6 +12,7 @@ import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { Toaster } from '@/shared/ui/sonner'
 import { lazyPage, useLazyPageReady, whenIdle } from '@/shared/lib/lazy-page'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
+import { ConfirmPage } from './public-pages'
 import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
 
 const queryClient = new QueryClient({
@@ -88,6 +89,15 @@ export function App() {
             <PreloadSignedInCode />
             <BrowserRouter future={ROUTER_FUTURE}>
               <Routes>
+                {/* Public: the auth emails land here (design §5); verifies on « Continuer » only. */}
+                <Route
+                  path="/connexion/confirmer"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <ConfirmPage />
+                    </Suspense>
+                  }
+                />
                 <Route path="/connexion" element={<LoginPage />} />
                 <Route path="/mot-de-passe-oublie" element={<ForgotPasswordPage />} />
                 {/* Not under RequireAuth: RequireAuth sends recovery sessions here. */}

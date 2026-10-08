@@ -243,6 +243,7 @@ describe('AuditLogPage', () => {
       'Secrets',
       'Taux de taxes',
       'Coordonnées bancaires',
+      'Tâches planifiées',
     ])
     await user.selectOptions(filter('Section'), 'Taux de taxes')
     await waitFor(() => expect(mocks.api.fetchAuditEntries).toHaveBeenLastCalledWith({ ...NO_FILTERS, table: 'tax_rates' }, null))
