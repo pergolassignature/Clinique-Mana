@@ -1153,6 +1153,7 @@ export type Database = {
           account_number: string
           etransfer_email: string | null
           institution_number: string
+          key_version: number
           org_id: string
           transit_number: string
           updated_at: string
@@ -1163,6 +1164,7 @@ export type Database = {
           account_number: string
           etransfer_email?: string | null
           institution_number: string
+          key_version?: number
           org_id: string
           transit_number: string
           updated_at?: string
@@ -1173,6 +1175,7 @@ export type Database = {
           account_number?: string
           etransfer_email?: string | null
           institution_number?: string
+          key_version?: number
           org_id?: string
           transit_number?: string
           updated_at?: string
@@ -4272,6 +4275,7 @@ export type Database = {
         Args: { p_mark_opened: boolean; p_token_hash: string }
         Returns: Json
       }
+      pii_health_check: { Args: never; Returns: boolean }
       publish_template_version: { Args: { p_id: string }; Returns: undefined }
       queue_email: {
         Args: {
