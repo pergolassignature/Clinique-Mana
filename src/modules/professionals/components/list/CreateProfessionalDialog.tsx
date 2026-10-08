@@ -94,6 +94,8 @@ function CreateFormFields({ catalog, firstNameRef, onPendingChange, onCreated }:
         void queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.catalog() })
       } else if (field) {
         form.setError(field, { message }, { shouldFocus: true })
+        // « Ce titre est archivé. »: the refetched catalogue stops offering it.
+        if (field === 'titleId') void queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.catalog() })
       } else {
         form.setError('root.server', { message })
       }

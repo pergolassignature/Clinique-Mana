@@ -70,7 +70,9 @@ interface WriterState {
  * once (a page opened again restores it, even before the write) and writes after `delay` without
  * a new change; null forgets the preference (`delete_user_preference`). What waits is written at
  * once when the component unmounts (leaving the page), when the page is hidden (another tab, the
- * window minimised) and when it is unloaded (`pagehide`: a reload, closing the tab).
+ * window minimised) and when it is unloaded (`pagehide`: a reload, closing the tab). The unload write is
+ * best effort: the request waits on the auth session lock and may not leave a closing tab; hiding the
+ * page first (switching tabs) is what usually saves it.
  *
  * Each write names the user who made the change (captured by `schedule`), and the database refuses
  * it for any other session. On a sign-out or a change of user (here, or another tab switching the
@@ -159,7 +161,8 @@ export function usePreferenceWriter(key: string, delay = PREFERENCE_WRITE_DELAY)
     [drop],
   )
 
-  // The page may never unmount (a reload, a closed tab, a phone switching apps): write on the way out.
+  // The page may never unmount (a reload, a closed tab, a phone switching apps): write on the way out
+  // (best effort on unload, see above).
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'hidden') flush()

@@ -183,6 +183,18 @@ describe('CreateProfessionalDialog', () => {
     expect(await screen.findByRole('textbox', { name: /^N° de permis/ })).toBeInTheDocument()
   })
 
+  it('an archived title (HINT title) shows under Profession, and the titles are refetched', async () => {
+    const message = 'Ce titre est archivé.'
+    mocks.record.createProfessional.mockRejectedValue({ code: 'P0001', message, hint: 'title' })
+    const { invalidated } = renderDialog()
+    await open()
+    await fillNames()
+    await userEvent.selectOptions(profession(), IDS.naturopathe)
+    await userEvent.click(screen.getByRole('button', { name: t(`${C}.submit`) }))
+    await waitFor(() => expect(profession()).toHaveAccessibleDescription(expect.stringContaining(message)))
+    expect(invalidated()).toContainEqual(['professionals-catalog', 'catalog'])
+  })
+
   it('shows any other refusal above the buttons', async () => {
     mocks.record.createProfessional.mockRejectedValue({ code: 'P0001', message: "Aucune langue active n'est disponible." })
     renderDialog()

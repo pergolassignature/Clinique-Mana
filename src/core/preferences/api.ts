@@ -46,6 +46,11 @@ export async function deleteUserPreference(userId: string, key: string): Promise
  * Returns the unsubscribe function.
  */
 export function onSessionUserChange(listener: (userId: string | null) => void): () => void {
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => listener(session?.user.id ?? null))
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    // The first report is not a change: when auth-js could not read the stored session it comes
+    // with none, which must not drop what the signed-in user just chose.
+    if (event === 'INITIAL_SESSION') return
+    listener(session?.user.id ?? null)
+  })
   return () => data.subscription.unsubscribe()
 }
