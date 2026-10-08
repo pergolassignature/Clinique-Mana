@@ -76,6 +76,13 @@ select x.id, x.org, 'core', 'core.signing_test', 'signing_test', 'a0000000-0000-
      now() - interval '3 days', now() - interval '3 days', now() + interval '4 days', now() - interval '7 hours', null)
   ) as x (id, org, status, doc, err, created, sent, expires, completed, last_send);
 
+-- The reconcile itself is healthy here (an `ok` run per org 10 minutes ago): the cases where it is
+-- not are 046's.
+insert into public.scheduled_job_runs (job_key, org_id, trigger, started_at, finished_at, status, detail)
+select 'core.signing_reconcile', o.id, 'cron', now() - interval '10 minutes', now() - interval '9 minutes', 'ok', 'fixture'
+  from public.organizations o
+ where o.id in ('b0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b');
+
 select results_eq($$
   select o.enabled from public.org_scheduled_jobs o
    where o.job_key = 'core.signing_unsaved_alert' and o.org_id = 'b0000000-0000-0000-0000-00000000000a'
@@ -99,7 +106,7 @@ reset role;
 -- =============================================================================
 -- The alert (as postgres, like run_sql_job)
 -- =============================================================================
-select is(private.job_signing_unsaved_alert(), 'notified=3 cleared=0',
+select is(private.job_signing_unsaved_alert(), 'notified=3 cleared=0 stalled=0 resumed=0 module_disabled=0 module_cleared=0',
   'first run: a1 and b1 (completed over 6 h ago) and the orphan f1; not e2 (completed 30 min ago)');
 select results_eq($$
   select org_id, module_key, kind, importance, link_path, subject_type, subject_id, recipient_permission,
@@ -122,14 +129,14 @@ select ok((select bool_and(title = 'Un document signé n''est pas encore sauvega
              from public.notifications where kind = 'core.signed_document_unsaved'),
   'French title and body; the request''s title (it may name a person) is not copied');
 
-select is(private.job_signing_unsaved_alert(), 'notified=0 cleared=0', 'a second run posts nothing new');
+select is(private.job_signing_unsaved_alert(), 'notified=0 cleared=0 stalled=0 resumed=0 module_disabled=0 module_cleared=0', 'a second run posts nothing new');
 select is((select count(*)::int from public.notifications where kind = 'core.signed_document_unsaved'), 3,
   'never twice for one request');
 
 -- e2 passes its 6 hours (a1 is still unsaved): one more notice.
 update public.signature_requests set completed_event_at = now() - interval '6 hours 1 minute'
  where id = 'c0000000-0000-0000-0000-0000000000e2';
-select is(private.job_signing_unsaved_alert(), 'notified=1 cleared=0', 'a request past 6 hours is notified at the next run');
+select is(private.job_signing_unsaved_alert(), 'notified=1 cleared=0 stalled=0 resumed=0 module_disabled=0 module_cleared=0', 'a request past 6 hours is notified at the next run');
 
 -- a1's PDF is finally stored: its notice expires; the others stay.
 select lives_ok($$
@@ -139,7 +146,7 @@ select lives_ok($$
        repeat('f', 64), 'settings.integrations_manage', 'Document signé.pdf') f),
     repeat('f', 64))
 $$, 'a1''s signed PDF is stored (complete_signature_request)');
-select is(private.job_signing_unsaved_alert(), 'notified=0 cleared=1', 'the next run clears a1''s notice');
+select is(private.job_signing_unsaved_alert(), 'notified=0 cleared=1 stalled=0 resumed=0 module_disabled=0 module_cleared=0', 'the next run clears a1''s notice');
 select results_eq($$
   select subject_id, expires_at from public.notifications where kind = 'core.signed_document_unsaved' order by subject_id
 $$, $$ values ('c0000000-0000-0000-0000-0000000000a1'::uuid, now()),
@@ -151,7 +158,7 @@ $$, $$ values ('c0000000-0000-0000-0000-0000000000a1'::uuid, now()),
 select lives_ok($$ select private.run_sql_job('core.signing_unsaved_alert') $$, 'run_sql_job runs it');
 select results_eq($$
   select status, detail from public.scheduled_job_runs where job_key = 'core.signing_unsaved_alert'
-$$, $$ values ('ok'::text, 'notified=0 cleared=0'::text) $$, 'and logs an ok run with its counts');
+$$, $$ values ('ok'::text, 'notified=0 cleared=0 stalled=0 resumed=0 module_disabled=0 module_cleared=0'::text) $$, 'and logs an ok run with its counts');
 
 select * from finish();
 rollback;
