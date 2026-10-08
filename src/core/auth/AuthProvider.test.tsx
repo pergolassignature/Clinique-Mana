@@ -1,5 +1,5 @@
 // SUPABASE_ALLOWED: test mocks the Supabase client module and builds real AuthApiError fixtures.
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render } from '@testing-library/react'
 import { AuthApiError, type AuthChangeEvent, type Session } from '@supabase/supabase-js'
 import { t } from '@/i18n'
@@ -71,7 +71,15 @@ function renderReady() {
   return view.latest()
 }
 
+// An explicit sign-out ends with a full page load of /connexion; happy-dom would really navigate.
+const loadPage = vi.fn()
+beforeEach(() => {
+  vi.spyOn(window.location, 'replace').mockImplementation(loadPage)
+})
+
 afterEach(() => {
+  vi.restoreAllMocks()
+  loadPage.mockReset()
   for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.reauthenticate, auth.signOut, auth.getSession, sentry.captureMessage, sentry.captureException]) {
     fn.mockReset()
   }
@@ -479,6 +487,43 @@ describe('signOut (this device only)', () => {
     const latest = renderSignedIn()
     emit('SIGNED_OUT', null)
     expect(latest().signedOutHere).toBe(false)
+    // Nor reload: the guard keeps the way back (?redirect=) for this tab.
+    expect(loadPage).not.toHaveBeenCalled()
+  })
+
+  // Decisions #10, #17: a shared PC picks up a new deploy, and nothing of the user stays in memory.
+  it('then loads /connexion afresh, once the sign-out has finished', async () => {
+    let finish: (value: { error: null }) => void = () => {}
+    auth.signOut.mockReturnValue(new Promise((resolve) => (finish = resolve)))
+    const latest = renderSignedIn()
+    let pending: Promise<void> = Promise.resolve()
+    act(() => {
+      pending = latest().signOut()
+    })
+    expect(loadPage).not.toHaveBeenCalled()
+    await act(async () => {
+      finish({ error: null })
+      await pending
+    })
+    expect(loadPage).toHaveBeenCalledExactlyOnceWith('/connexion')
+  })
+
+  it('loads /connexion even when the sign-out call failed (the local session is forgotten anyway)', async () => {
+    auth.signOut.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ error: null })
+    auth.getSession.mockResolvedValue({ data: { session: null }, error: null })
+    const latest = renderSignedIn()
+    await signOut(latest)
+    expect(loadPage).toHaveBeenCalledExactlyOnceWith('/connexion')
+  })
+
+  it('does not reload with `reload: false` (the caller navigates itself)', async () => {
+    auth.signOut.mockResolvedValue({ error: null })
+    const latest = renderSignedIn()
+    await act(async () => {
+      await latest().signOut({ reload: false })
+    })
+    expect(latest().session).toBeNull()
+    expect(loadPage).not.toHaveBeenCalled()
   })
 
   it('leaves recovery mode and clears the marker', async () => {
@@ -517,6 +562,7 @@ describe('signOutEverywhere', () => {
     expect(latest().signedOutHere).toBe(true)
     expect(latest().isRecovery).toBe(false)
     expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull()
+    expect(loadPage).toHaveBeenCalledExactlyOnceWith('/connexion')
   })
 
   // auth-js emits SIGNED_OUT during the call: RequireAuth must already know it was explicit (#17).
@@ -559,6 +605,7 @@ describe('signOutEverywhere', () => {
     expect(auth.signOut).toHaveBeenCalledExactlyOnceWith({ scope: 'global' })
     expect(latest().session?.access_token).toBe('t1')
     expect(latest().signedOutHere).toBe(false)
+    expect(loadPage).not.toHaveBeenCalled()
     // An unexpected failure goes to Sentry; throttling is expected and is not.
     if (reported) expect(sentry.captureException).toHaveBeenCalledExactlyOnceWith(expect.anything(), { tags: { area: 'auth' } })
     else expect(sentry.captureException).not.toHaveBeenCalled()

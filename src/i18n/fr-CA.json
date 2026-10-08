@@ -51,7 +51,9 @@
       "leave": "Quitter sans enregistrer"
     },
     "notFound": { "title": "Page introuvable", "body": "Cette page n'existe pas ou a été déplacée." },
-    "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." }
+    "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." },
+    "appError": { "title": "L'application a rencontré un problème", "body": "Réessayez dans un instant. Si le problème persiste, rechargez la page." },
+    "appUpdate": { "title": "Une nouvelle version de l'application est disponible.", "reload": "Recharger" }
   },
   "auth": {
     "login": {

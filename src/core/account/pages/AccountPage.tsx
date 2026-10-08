@@ -374,7 +374,8 @@ function SessionsCard() {
     setPending(true)
     setError(null)
     const code = await signOutEverywhere()
-    // On success the session is gone: RequireAuth leaves this page for plain /connexion (#17).
+    // On success the session is gone: RequireAuth leaves this page for plain /connexion (#17),
+    // which then loads afresh.
     if (code) {
       setError(code)
       setPending(false)

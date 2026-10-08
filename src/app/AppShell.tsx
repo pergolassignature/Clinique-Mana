@@ -69,7 +69,8 @@ export function AppShell({ navItems, children }: { navItems: ShellNavItem[]; chi
   const signingOutRef = useRef(false)
 
   // signOut() always forgets this device's session (decision #13). RequireAuth then sends this tab
-  // to plain /connexion (#17), and AccessProvider clears the query cache (#10): no navigation here.
+  // to plain /connexion (#17), AccessProvider clears the query cache (#10), and signOut() finishes
+  // with a full page load of /connexion: no navigation here.
   const signOutNow = useCallback(() => {
     if (signingOutRef.current) return
     signingOutRef.current = true

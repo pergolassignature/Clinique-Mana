@@ -75,7 +75,7 @@ function PreloadSignedInCode() {
 
 export function App() {
   return (
-    <ErrorBoundary scope="app">
+    <ErrorBoundary scope="app" root>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <AccessProvider>
