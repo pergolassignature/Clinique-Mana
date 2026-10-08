@@ -2454,7 +2454,8 @@
         "stepState": {
           "complete": "(terminée)",
           "current": "(étape en cours)",
-          "todo": "(à compléter)"
+          "todo": "(à compléter)",
+          "refused": "(modification refusée)"
         },
         "steps": {
           "personal": {
@@ -2515,10 +2516,16 @@
           "saving": "Enregistrement…",
           "savedAt": "Enregistré à {time}",
           "savedOn": "Enregistré le {date}",
+          "unsaved": "Des modifications ne sont pas enregistrées.",
           "onContinue": "Cette étape est enregistrée quand vous continuez.",
           "saveDraft": "Enregistrer le brouillon",
           "failed": "Vos dernières modifications n'ont pas été enregistrées. Vérifiez votre connexion.",
-          "retry": "Réessayer"
+          "retry": "Réessayer",
+          "notSaved": "Cette modification n'a pas pu être enregistrée."
+        },
+        "refused": {
+          "titleOne": "Une modification n'a pas été enregistrée",
+          "titleMany": "Des modifications n'ont pas été enregistrées"
         },
         "states": {
           "loadError": "Le questionnaire n'a pas pu être chargé.",
@@ -2526,6 +2533,7 @@
             "pageTitle": "Mon questionnaire",
             "title": "Rien à compléter pour l'instant.",
             "body": "La clinique vous écrira si elle a besoin d'une mise à jour de votre profil.",
+            "closed": "La clinique a fermé votre questionnaire : vos dernières modifications n'ont pas été enregistrées.",
             "home": "Retour à l'accueil"
           },
           "submitted": {
@@ -2635,6 +2643,11 @@
         },
         "taxBank": {
           "privacy": "Le numéro de compte et le NAS sont chiffrés dès l'enregistrement. Ils ne s'affichent plus jamais en entier.",
+          "onFileError": "Impossible d'afficher les renseignements déjà fournis.",
+          "errors": {
+            "network": "Vos renseignements n'ont pas été enregistrés. Vérifiez votre connexion, puis réessayez.",
+            "failed": "Vos renseignements n'ont pas pu être enregistrés. Réessayez dans un instant."
+          },
           "bankTitle": "Dépôt direct",
           "bankHelp": "Les numéros figurent sur un spécimen de chèque ou dans votre institution en ligne.",
           "institution": "Institution",
@@ -2655,7 +2668,7 @@
         },
         "consent": {
           "version": "Version {version}",
-          "none": "La clinique n'a pas encore publié ce texte. Vous pourrez le signer plus tard.",
+          "none": "La clinique n'a pas encore publié ce texte. Vous pourrez le signer, puis envoyer votre profil, dès qu'elle l'aura publié.",
           "signed": "Signé le {date} par {name}.",
           "newVersion": "Le texte a changé depuis votre signature. Relisez-le, puis signez de nouveau.",
           "agree": "J'ai lu et j'accepte ce consentement.",
@@ -2673,13 +2686,18 @@
           "serverMissing": "La clinique indique que ces étapes sont incomplètes :",
           "complete": "Complète",
           "incomplete": "À compléter",
+          "toConfirm": "À confirmer",
           "edit": "Modifier",
           "completeAction": "Compléter",
+          "confirmAction": "Confirmer",
           "editLabel": "Modifier : {step}",
+          "completeActionLabel": "Compléter : {step}",
+          "confirmActionLabel": "Confirmer : {step}",
           "submit": "Envoyer mon profil",
           "submitting": "Envoi…",
           "notAnswered": "Non indiqué",
           "notSigned": "Pas encore signé.",
+          "signedVersion": "Signé (version {version}) le {date} par {name}.",
           "yes": "Oui",
           "no": "Non",
           "primary": "principal",
@@ -2688,7 +2706,10 @@
           "masked3": "••• {last3}",
           "errors": {
             "network": "Impossible de joindre la clinique. Vérifiez votre connexion, puis réessayez.",
-            "submitFailed": "Votre profil n'a pas pu être envoyé. Réessayez dans un instant."
+            "submitFailed": "Votre profil n'a pas pu être envoyé. Réessayez dans un instant.",
+            "refusedOne": "Corrigez d'abord l'étape « {step} » : une modification y a été refusée.",
+            "refusedMany": "Corrigez d'abord ces étapes : une modification y a été refusée.",
+            "goToStep": "Ouvrir l'étape"
           }
         },
         "validation": {

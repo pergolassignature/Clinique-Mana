@@ -2,14 +2,14 @@ import { useId, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { CircleCheck } from 'lucide-react'
 import { t } from '@/i18n'
-import { rpcErrorHint } from '@/core/modules/errors'
+import { moduleErrorMessage, rpcErrorHint } from '@/core/modules/errors'
 import { CheckboxField } from '@/shared/components/CheckboxField'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { professionalKeys } from '../../hooks/keys'
-import { isRefusal, useSignMyConsent } from '../../hooks/use-my-submission'
+import { isRefusal, reportQuestionnaireError, useSignMyConsent } from '../../hooks/use-my-submission'
 import { fullName } from '../../lib/display'
 import { nameMatches } from '../../lib/questionnaire'
 import { StepActions, StepAlert, StepForm } from './StepParts'
@@ -20,8 +20,9 @@ const C = 'modules.professionals.questionnaire.consent'
 /**
  * « Consentement »: the latest published text (P4-273), « J'ai lu et j'accepte » and the full name
  * typed as the file has it (accents, case and spaces aside, checked here and by the database).
- * Signed on « Continuer » (the signature is the provider's act, with the server's time); a
- * signature of an older version must be given again.
+ * Signed on « Continuer » (the signature is the provider's act; the time shown is the one the
+ * database answers, P4-336); a signature of an older version must be given again. Without a
+ * published text the step says that sending waits for it.
  */
 export function ConsentStep({ ctx }: { ctx: StepContext }) {
   const { submission, autosave } = ctx
@@ -58,13 +59,15 @@ export function ConsentStep({ ctx }: { ctx: StepContext }) {
     }
     const signerName = name.trim().replace(/\s+/g, ' ')
     try {
-      await sign.mutateAsync({ versionId: consent.id, signerName })
-      autosave.recordAnswer('consent', { consent_version_id: consent.id, signer_name: signerName, signed_at: new Date().toISOString() })
+      const signedAt = await sign.mutateAsync({ versionId: consent.id, signerName })
+      autosave.recordAnswer('consent', { consent_version_id: consent.id, signer_name: signerName, signed_at: signedAt })
       setAgreed(false)
       setName('')
       ctx.next()
     } catch (error) {
       const hint = isRefusal(error) ? rpcErrorHint(error) : undefined
+      if (hint && autosave.pageRefusal(hint, moduleErrorMessage(error, ''))) return
+      reportQuestionnaireError('sign_my_consent', error, submission.id)
       const { message } = refusalTarget(error, [])
       if (hint === 'signer_name') setErrors({ name: message })
       else setAlert(message)

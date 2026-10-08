@@ -10,6 +10,7 @@ import {
   sameValue,
   sectionComplete,
   sectionKeys,
+  sectionsToConfirm,
   stepFromSlug,
   stepsFor,
   SUBMISSION_SECTIONS,
@@ -151,6 +152,17 @@ describe('completeness (private.submission_gaps, P4-173)', () => {
     expect(incompleteSections(['consent', 'availability', 'personal'], ctx({ answered: { availability: {} } }))).toEqual(['personal', 'consent'])
   })
 
+  it('names the sections only prefilled and never confirmed (« À confirmer », P4-330)', () => {
+    const personal = { personal_phone: '+15145551234', address_line1: '1 rue A', city: 'Laval', province: 'QC', postal_code: 'H7A 1A1' }
+    const prefill = { personal, portrait: { bio: null }, languages: { language_ids: ['fr'] } }
+    // personal and languages would be complete as shown; portrait's prefill is empty; motifs has none.
+    expect(sectionsToConfirm(['personal', 'portrait', 'languages', 'motifs'], prefill, ctx())).toEqual(['personal', 'languages'])
+    // Once answered, a section is complete, not « à confirmer ».
+    expect(sectionsToConfirm(['personal', 'languages'], prefill, ctx({ answered: { personal } }))).toEqual(['languages'])
+    // A prefill overlaid with an answer that empties a required field is to complete.
+    expect(sectionsToConfirm(['personal'], prefill, ctx({ answered: { personal: { city: '' } } }))).toEqual([])
+  })
+
   it('reads a `sections` refusal, known keys only', () => {
     expect(sectionKeys(['photo', 'personal', 'approaches'])).toEqual(['personal', 'photo'])
     expect(sectionKeys('personal')).toEqual([])
@@ -169,5 +181,16 @@ describe('insurance and consent', () => {
     expect(nameMatches('Félix Gauthie', 'Félix', 'Gauthier')).toBe(false)
     expect(nameMatches('', 'Félix', 'Gauthier')).toBe(false)
     expect(comparableName('Hélène  Côté-Lœuvre')).toBe('helene cote-loeuvre')
+  })
+
+  it('folds what unaccent folds and decomposition does not (ß, Ł, Ø, Æ, Đ, Þ, ’…), as the database checks it', () => {
+    // The same string and result as 053_professionals_questionnaire_consent_answer.test.sql.
+    expect(comparableName('ß ẞ Ł Ø Đ Ħ ı Ŀ Ŋ Œ Æ Þ Ð ĸ ſ Ĳ ŉ Ŧ ’ é Ç ü')).toBe("ss ss l o d h i l n oe ae th d q s ij 'n t ' e c u")
+    expect(nameMatches('lukasz oster', 'Łukasz', 'Øster')).toBe(true)
+    expect(nameMatches('Anna Strauss', 'Anna', 'Strauß')).toBe(true)
+    expect(nameMatches("Siobhan O'Brien", 'Siobhán', 'O’Brien')).toBe(true)
+    expect(nameMatches('Dorte Aero', 'Dorte', 'Ærø')).toBe(true)
+    expect(nameMatches('Thora Dottir', 'Þóra', 'Dóttir')).toBe(true)
+    expect(nameMatches('Lukas Oster', 'Łukasz', 'Øster')).toBe(false)
   })
 })

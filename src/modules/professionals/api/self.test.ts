@@ -32,6 +32,7 @@ describe('fetchMySubmission', () => {
       private: null,
       onFile: { hasSin: false, hasBankAccount: false },
       collectSin: false,
+      signedConsentVersion: null,
       professional: { firstName: 'Félix', lastName: 'Gauthier', email: 'provider@mana.test' },
     })
   })
@@ -104,9 +105,9 @@ describe('saves', () => {
     })
   })
 
-  it('signs the consent version with the name as typed', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: null })
-    await signMyConsent('v1', 'Félix Gauthier')
+  it('signs the consent version with the name as typed, and answers the server’s time', async () => {
+    mocks.rpc.mockResolvedValue({ data: '2026-10-08T16:03:00.123+00:00', error: null })
+    await expect(signMyConsent('v1', 'Félix Gauthier')).resolves.toBe('2026-10-08T16:03:00.123+00:00')
     expect(mocks.rpc).toHaveBeenCalledWith('sign_my_consent', { p_version_id: 'v1', p_signer_name: 'Félix Gauthier' })
   })
 

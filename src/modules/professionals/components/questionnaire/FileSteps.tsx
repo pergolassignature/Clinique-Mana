@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { FileText } from 'lucide-react'
 import { t } from '@/i18n'
-import { uploadFile } from '@/core/storage/api'
+import { uploadFile, UploadSendError } from '@/core/storage/api'
+import { FunctionCallError } from '@/core/supabase/functions'
 import { uploadErrorMessage } from '@/core/storage/errors'
 import { useSignedFileUrl } from '@/core/storage/hooks'
 import { FileDropzone } from '@/shared/components/FileDropzone'
@@ -26,8 +27,12 @@ export const SUBMISSION_FILE = { purpose: 'professional_submission_file', subjec
 export const PHOTO_LIMITS = { mimeTypes: ['image/jpeg', 'image/png'], maxBytes: 5_242_880, maxImageSide: 4000 } as const
 export const INSURANCE_LIMITS = { mimeTypes: ['application/pdf', 'image/jpeg', 'image/png'], maxBytes: 10_485_760, maxImageSide: 4000 } as const
 
-/** The French text of a failed upload, or of the draft save that records it. */
-const fileErrorMessage = (error: unknown) => (isRefusal(error) ? refusalTarget(error, []).message : uploadErrorMessage(error))
+/**
+ * The French text of a failed upload (the storage functions), or of the draft save that records it
+ * (already reported by the autosave: a refusal's message, the connection, or « not saved »).
+ */
+const fileErrorMessage = (error: unknown) =>
+  error instanceof FunctionCallError || error instanceof UploadSendError ? uploadErrorMessage(error) : refusalTarget(error, []).message
 
 /**
  * Uploads a file for the submission, then records it in the section (with `extra` fields: the
@@ -41,8 +46,23 @@ function useSubmissionUpload(ctx: StepContext, section: 'photo' | 'insurance', e
   }
 }
 
-/** « Retirer »: the section no longer names the file (the staged file expires by itself, P4-331). */
-function RemoveFileButton({ ctx, section, label, onRemoved }: { ctx: StepContext; section: 'photo' | 'insurance'; label: string; onRemoved: (message: string | null) => void }) {
+/**
+ * « Retirer »: the section no longer names the file (the staged file expires by itself, P4-331).
+ * Once removed, focus goes to the dropzone's button (this one is gone).
+ */
+function RemoveFileButton({
+  ctx,
+  section,
+  label,
+  onRemoved,
+  focusAfter,
+}: {
+  ctx: StepContext
+  section: 'photo' | 'insurance'
+  label: string
+  onRemoved: (message: string | null) => void
+  focusAfter: RefObject<HTMLButtonElement | null>
+}) {
   const [pending, setPending] = useState(false)
   return (
     <Button
@@ -56,6 +76,7 @@ function RemoveFileButton({ ctx, section, label, onRemoved }: { ctx: StepContext
         const outcome = await ctx.autosave.save(section, { file_id: null })
         setPending(false)
         onRemoved(outcome.ok ? null : fileErrorMessage(outcome.error))
+        if (outcome.ok) focusAfter.current?.focus()
       }}
     >
       {pending ? t(`${F}.removing`) : label}
@@ -81,6 +102,7 @@ export function PhotoStep({ ctx }: { ctx: StepContext }) {
       return
     }
     setPending(true)
+    // Only what this press sends (or waits for) counts: an earlier refused save is said elsewhere.
     const outcome = await ctx.autosave.flush('photo')
     setPending(false)
     if (outcome.ok) ctx.next()
@@ -98,7 +120,7 @@ export function PhotoStep({ ctx }: { ctx: StepContext }) {
           )}
           <div className="min-w-0 space-y-1">
             <p className="text-sm text-foreground">{t(`${F}.photoReceived`)}</p>
-            <RemoveFileButton ctx={ctx} section="photo" label={t(`${F}.removePhoto`)} onRemoved={setAlert} />
+            <RemoveFileButton ctx={ctx} section="photo" label={t(`${F}.removePhoto`)} onRemoved={setAlert} focusAfter={dropzoneButton} />
           </div>
         </div>
       ) : (
@@ -156,7 +178,7 @@ export function InsuranceStep({ ctx }: { ctx: StepContext }) {
               {t(`${F}.open`)}
             </a>
           )}
-          <RemoveFileButton ctx={ctx} section="insurance" label={t(`${F}.removeInsurance`)} onRemoved={setRemoveError} />
+          <RemoveFileButton ctx={ctx} section="insurance" label={t(`${F}.removeInsurance`)} onRemoved={setRemoveError} focusAfter={dropzoneButton} />
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">{t(`${F}.insuranceNone`)}</p>

@@ -3,7 +3,7 @@ import { t } from '@/i18n'
 import { PROVINCE_OPTIONS } from '@/core/settings/organization/provinces'
 import { formatPhone, formatTaxNumber } from '@/shared/lib/format'
 import { formatClinicDateTime, formatDateOnly } from '@/shared/lib/timezone'
-import type { MyProfessionalPrivate, MySubmission, SectionValues } from '../../api/self'
+import type { MySubmission, SectionValues } from '../../api/self'
 import type { CatalogView } from '../../lib/catalog-view'
 import { AVAILABILITY_PERIODS } from '../../lib/constants'
 import { clienteleLabel, minClientAgeLabel, periodsLabel, professionLine } from '../../lib/display'
@@ -13,6 +13,8 @@ import type { SubmissionSection } from '../../lib/questionnaire'
 import { submittedProfessions } from '../../schemas/questionnaire'
 import { HeldChips } from '../record/Chips'
 import { MotifsSummary } from '../record/MotifsSummary'
+import { OnFileError } from './StepParts'
+import type { OnFilePrivate } from './use-step-form'
 
 const L = 'modules.professionals.questionnaire'
 const R = `${L}.review` as const
@@ -57,15 +59,17 @@ interface SummaryProps {
   values: SectionValues
   submission: MySubmission
   catalog: CatalogView
-  onFilePrivate: MyProfessionalPrivate | null
+  onFile: OnFilePrivate
 }
 
 /**
  * One section's answers in words, as the review and the sent profile show them: what the section
  * holds now (prefill and answers), ids named from the catalogue, motifs by category and by name
- * (P4-249), private values as masks only, dates in the clinic's time (date-only values as is).
+ * (P4-249), private values as masks only (or why the record's cannot be shown), dates in the
+ * clinic's time (date-only values as is); a signature of an older text names its version.
  */
-export function SectionSummary({ section, values, submission, catalog, onFilePrivate }: SummaryProps) {
+export function SectionSummary({ section, values, submission, catalog, onFile }: SummaryProps) {
+  const onFilePrivate = onFile.data
   switch (section) {
     case 'personal': {
       const province = text(values, 'province')
@@ -172,7 +176,9 @@ export function SectionSummary({ section, values, submission, catalog, onFilePri
       const account = saved?.bankAccountLast4 ?? (submission.onFile.hasBankAccount ? onFilePrivate?.bankAccountLast4 : null)
       const sin = saved?.sinLast3 ?? (submission.onFile.hasSin ? onFilePrivate?.sinLast3 : null)
       return (
-        <Rows
+        <div className="space-y-2">
+          {onFile.failed && <OnFileError onFile={onFile} />}
+          <Rows
           rows={[
             { label: t(`${L}.taxBank.institution`), value: plain?.bankInstitution ?? null },
             { label: t(`${L}.taxBank.transit`), value: plain?.bankTransit ?? null },
@@ -182,17 +188,24 @@ export function SectionSummary({ section, values, submission, catalog, onFilePri
             { label: t(`${L}.taxBank.qstNumber`), value: plain?.qstNumber ? formatTaxNumber(plain.qstNumber) : null },
             ...(submission.collectSin ? [{ label: t(`${L}.taxBank.sin`), value: sin ? t(`${R}.masked3`, { last3: sin }) : null }] : []),
           ]}
-        />
+          />
+        </div>
       )
     }
     case 'consent': {
-      const signed = submission.consent !== null && text(values, 'consent_version_id') === submission.consent.id
+      const signedId = text(values, 'consent_version_id')
+      const current = submission.consent !== null && signedId === submission.consent.id
       const at = text(values, 'signed_at')
+      const params = { date: at ? formatClinicDateTime(at) : '', name: text(values, 'signer_name') ?? '' }
+      // Signed on an older text (the clinic published a newer one since): its version is named.
+      const older = !current && signedId !== null && submission.signedConsentVersion !== null
       return (
         <p className="text-sm text-foreground">
-          {signed
-            ? t(`${L}.consent.signed`, { date: at ? formatClinicDateTime(at) : '', name: text(values, 'signer_name') ?? '' })
-            : t(`${R}.notSigned`)}
+          {current
+            ? t(`${L}.consent.signed`, params)
+            : older
+              ? t(`${R}.signedVersion`, { ...params, version: String(submission.signedConsentVersion) })
+              : t(`${R}.notSigned`)}
         </p>
       )
     }

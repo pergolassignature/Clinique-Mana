@@ -3,12 +3,24 @@ import { useForm, type DefaultValues, type FieldValues, type Path, type Resolver
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { t } from '@/i18n'
-import { moduleErrorMessage, rpcErrorDetail, rpcErrorHint } from '@/core/modules/errors'
-import type { MySubmission } from '../../api/self'
+import { rpcErrorDetail, rpcErrorHint } from '@/core/modules/errors'
+import type { MyProfessionalPrivate, MySubmission } from '../../api/self'
 import type { CatalogView } from '../../lib/catalog-view'
 import { changedFields, confirmPayload, type SubmissionSection } from '../../lib/questionnaire'
-import { isRefusal, type QuestionnaireAutosave, type SaveOutcome } from '../../hooks/use-my-submission'
+import { isRefusal, saveErrorText, type QuestionnaireAutosave, type SaveOutcome } from '../../hooks/use-my-submission'
 import { parseValidFields } from '../../schemas/questionnaire'
+
+/**
+ * The private data the record already holds (`get_my_professional_private`, read only when the
+ * private step is requested): plain numbers and masks, or why they cannot be shown.
+ */
+export interface OnFilePrivate {
+  data: MyProfessionalPrivate | null
+  /** The read failed: « Impossible d'afficher les renseignements déjà fournis » with « Réessayer ». */
+  failed: boolean
+  retry: () => void
+  retrying: boolean
+}
 
 /** What every step gets from the page. */
 export interface StepContext {
@@ -17,22 +29,24 @@ export interface StepContext {
   catalog: CatalogView
   /** The clinic's today (`yyyy-MM-dd`). */
   today: string
+  onFile: OnFilePrivate
   /** Goes to the next step (once « Continuer » has saved). */
   next: () => void
   /** Goes to the previous step; null on the first one. */
   back: (() => void) | null
 }
 
-/** The French text of a failed save that is not a refusal (the banner also says it). */
+/** The connection text of a save that failed in transit (the banner also says it). */
 export const saveFailedText = () => t('modules.professionals.questionnaire.autosave.failed')
 
 /**
- * Where a refusal goes: a P0001 whose HINT names a field of the step goes under it; any other
- * P0001 above the step's buttons; anything else is the failed-save text (reported).
+ * Where a failed save goes: a P0001 whose HINT names a field of the step goes under it; any other
+ * failure above the step's buttons, in words that fit it (`saveErrorText`: the refusal's message,
+ * the connection text only for a failure in transit).
  */
 export function refusalTarget(error: unknown, fields: readonly string[], hintField?: (hint: string, detail: string | undefined) => string | null) {
-  if (!isRefusal(error)) return { field: null, message: saveFailedText() }
-  const message = moduleErrorMessage(error, saveFailedText())
+  const message = saveErrorText(error)
+  if (!isRefusal(error)) return { field: null, message }
   const hint = rpcErrorHint(error)
   if (!hint) return { field: null, message }
   const field = hintField?.(hint, rpcErrorDetail(error)) ?? (fields.includes(hint) ? hint : null)
@@ -68,7 +82,8 @@ export interface StepForm<TValues extends FieldValues> {
 /**
  * A step built on a form: its values start from the draft kept while moving between steps, else
  * from what the section holds; every change is kept and autosaved (the fields that parse and
- * changed, 2.5 s after the last edit); leaving the step sends what is pending. « Continuer »
+ * changed, 2.5 s after the last edit); leaving the step sends what is pending, and a refusal met
+ * while it was closed is shown again when it opens. « Continuer »
  * validates the whole step, sends the changes and the required fields not answered yet
  * (`confirmPayload`, P4-330), then goes to the next step. A refusal lands under the field its HINT
  * names (focused on « Continuer », not while the provider types elsewhere).
@@ -76,7 +91,7 @@ export interface StepForm<TValues extends FieldValues> {
 export function useStepForm<TValues extends FieldValues>(ctx: StepContext, options: StepFormOptions<TValues>): StepForm<TValues> {
   const { autosave, submission } = ctx
   // Stable functions only in the effect below (the autosave object changes after each save).
-  const { schedule, flush, setDraft, onRefusal, current } = autosave
+  const { schedule, flush, setDraft, onRefusal, current, refusalOf } = autosave
   const { section, schema } = options
   const optionsRef = useRef(options)
   optionsRef.current = options
@@ -113,13 +128,16 @@ export function useStepForm<TValues extends FieldValues>(ctx: StepContext, optio
       schedule(section, collect)
     })
     const stopListening = onRefusal(section, (error) => showRefusal(error, false))
+    // A save of this step refused while it was closed (it left before the answer): shown again.
+    const standing = refusalOf(section)
+    if (standing) showRefusal(standing.error, false)
     return () => {
       subscription.unsubscribe()
       stopListening()
       // Leaving the step sends what is pending.
       void flush(section)
     }
-  }, [current, flush, form, onRefusal, schedule, schema, section, setDraft, showRefusal])
+  }, [current, flush, form, onRefusal, refusalOf, schedule, schema, section, setDraft, showRefusal])
 
   const submit = form.handleSubmit(async (parsed) => {
     const problem = optionsRef.current.check?.() ?? null

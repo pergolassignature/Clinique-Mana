@@ -47,6 +47,8 @@ export const mySubmissionPayload = z
     on_file: z.object({ has_sin: z.boolean(), has_bank_account: z.boolean() }).nullable(),
     /** The latest published consent; null when the clinic has none published. */
     consent: z.object({ id: z.string(), version: z.number(), title: z.string(), body: z.string() }).nullable(),
+    /** The version number of the text the draft's signature names (null: unsigned). */
+    signed_consent_version: z.number().nullable(),
     collect_sin: z.boolean(),
     professional: z.object({ first_name: z.string(), last_name: z.string(), email: z.string() }),
   })
@@ -72,6 +74,7 @@ export const mySubmissionPayload = z
     },
     onFile: { hasSin: s.on_file?.has_sin ?? false, hasBankAccount: s.on_file?.has_bank_account ?? false },
     consent: s.consent,
+    signedConsentVersion: s.signed_consent_version,
     collectSin: s.collect_sin,
     professional: { firstName: s.professional.first_name, lastName: s.professional.last_name, email: s.professional.email },
   }))
@@ -123,10 +126,14 @@ export async function saveMySubmissionPrivate(input: SubmissionPrivateInput): Pr
   if (error) throw error
 }
 
-/** Signs the latest published consent with the name as typed (the database compares it with the file's, P4-273). */
-export async function signMyConsent(versionId: string, signerName: string): Promise<void> {
-  const { error } = await supabase.rpc('sign_my_consent', { p_version_id: versionId, p_signer_name: signerName })
+/**
+ * Signs the latest published consent with the name as typed (the database compares it with the
+ * file's, P4-273). Resolves with the signature's time, the server's (P4-336).
+ */
+export async function signMyConsent(versionId: string, signerName: string): Promise<string> {
+  const { data, error } = await supabase.rpc('sign_my_consent', { p_version_id: versionId, p_signer_name: signerName })
   if (error) throw error
+  return parseRpc(z.string(), data)
 }
 
 /** What the record already holds of the private data (`get_my_professional_private`): plain numbers and masks. */

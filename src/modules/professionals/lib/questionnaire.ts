@@ -192,6 +192,19 @@ export function incompleteSections(requested: readonly SubmissionSection[], ctx:
   return SUBMISSION_SECTIONS.filter((section) => requested.includes(section) && !sectionComplete(section, ctx))
 }
 
+/**
+ * The requested sections that are not complete only because their prefill was never confirmed
+ * (P4-330): what they show would be complete once « Continuer » sends it. « Révision » reads them
+ * « À confirmer » rather than « À compléter ».
+ */
+export function sectionsToConfirm(requested: readonly SubmissionSection[], prefill: SectionsValues, ctx: CompletenessContext): SubmissionSection[] {
+  const shown: Record<string, Values> = {}
+  for (const section of SUBMISSION_SECTIONS) {
+    if (prefill[section] !== undefined) shown[section] = effectiveSection(prefill, ctx.answered, section)
+  }
+  return incompleteSections(requested, ctx).filter((section) => prefill[section] !== undefined && sectionComplete(section, { ...ctx, answered: { ...ctx.answered, ...shown } }))
+}
+
 /** The section keys of a `sections` refusal (`professionals-submit`), known ones only, in order. */
 export function sectionKeys(value: unknown): SubmissionSection[] {
   if (!Array.isArray(value)) return []
@@ -209,14 +222,57 @@ export function nextMarch31(today: string): string {
   return today < `${year}-03-31` ? `${year}-03-31` : `${year + 1}-03-31`
 }
 
-/** A name as `sign_my_consent` compares it (`unaccent`): accents, ligatures, case and runs of spaces aside. */
+/**
+ * The letters `unaccent` folds that Unicode decomposition does not (its rules file, checked by
+ * 053_professionals_questionnaire_consent_answer.test.sql): ligatures, stroked and special letters,
+ * and the typographic apostrophe.
+ */
+const UNACCENT_FOLDS: Readonly<Record<string, string>> = {
+  ß: 'ss',
+  ẞ: 'SS',
+  Æ: 'AE',
+  æ: 'ae',
+  Œ: 'OE',
+  œ: 'oe',
+  Ĳ: 'IJ',
+  ĳ: 'ij',
+  Ł: 'L',
+  ł: 'l',
+  Ŀ: 'L',
+  ŀ: 'l',
+  Ø: 'O',
+  ø: 'o',
+  Đ: 'D',
+  đ: 'd',
+  Ð: 'D',
+  ð: 'd',
+  Ħ: 'H',
+  ħ: 'h',
+  ı: 'i',
+  Ŋ: 'N',
+  ŋ: 'n',
+  Þ: 'TH',
+  þ: 'th',
+  Ŧ: 'T',
+  ŧ: 't',
+  ĸ: 'q',
+  ſ: 's',
+  ŉ: "'n",
+  '\u2019': "'",
+  '\u2018': "'",
+}
+const FOLDABLE = new RegExp(`[${Object.keys(UNACCENT_FOLDS).join('')}]`, 'gu')
+
+/**
+ * A name as `sign_my_consent` compares it (`lower(unaccent(…))`): accents, ligatures and special
+ * letters (ß, Ł, Ø…), case and runs of spaces aside.
+ */
 export const comparableName = (name: string): string =>
   name
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
+    .replace(FOLDABLE, (letter) => UNACCENT_FOLDS[letter] ?? letter)
     .toLowerCase()
-    .replace(/œ/g, 'oe')
-    .replace(/æ/g, 'ae')
     .replace(/\s+/g, ' ')
     .trim()
 

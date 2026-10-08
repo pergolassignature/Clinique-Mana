@@ -5,13 +5,13 @@ import { FunctionCallError, refusalMessage } from '@/core/supabase/functions'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import { StatusDot } from '@/shared/ui/status-dot'
-import type { MyProfessionalPrivate, MySubmission, SectionValues } from '../../api/self'
+import type { MySubmission, SectionValues } from '../../api/self'
 import type { CatalogView } from '../../lib/catalog-view'
 import { useSubmitMyProfile } from '../../hooks/use-my-submission'
 import { sectionKeys, type SubmissionSection } from '../../lib/questionnaire'
 import { SectionSummary } from './SectionSummary'
 import { StepActions, StepAlert, StepForm } from './StepParts'
-import { saveFailedText, type StepContext } from './use-step-form'
+import { saveFailedText, type OnFilePrivate, type StepContext } from './use-step-form'
 
 const R = 'modules.professionals.questionnaire.review'
 const S = 'modules.professionals.questionnaire.steps'
@@ -22,17 +22,28 @@ interface SubmissionSectionsProps {
   /** What each section holds now (prefill and answers). */
   valuesOf: (section: SubmissionSection) => SectionValues
   sections: readonly SubmissionSection[]
-  onFilePrivate: MyProfessionalPrivate | null
-  /** With it, each section says whether it is complete and offers « Modifier »; without, read-only. */
-  edit?: { incomplete: readonly SubmissionSection[]; goTo: (section: SubmissionSection) => void }
+  onFile: OnFilePrivate
+  /**
+   * With it, each section says whether it is complete (« Complète »), only prefilled and not
+   * confirmed yet (« À confirmer », P4-330) or to complete, and offers « Modifier »; without, read-only.
+   */
+  edit?: { incomplete: readonly SubmissionSection[]; toConfirm: readonly SubmissionSection[]; goTo: (section: SubmissionSection) => void }
 }
 
+type SectionStatus = 'complete' | 'toConfirm' | 'incomplete'
+const STATUS = {
+  complete: { tone: 'success', label: 'complete', action: 'edit' },
+  toConfirm: { tone: 'warning', label: 'toConfirm', action: 'confirmAction' },
+  incomplete: { tone: 'warning', label: 'incomplete', action: 'completeAction' },
+} as const
+
 /** The answers, section by section (the review, and the profile once sent). */
-export function SubmissionSections({ submission, catalog, valuesOf, sections, onFilePrivate, edit }: SubmissionSectionsProps) {
+export function SubmissionSections({ submission, catalog, valuesOf, sections, onFile, edit }: SubmissionSectionsProps) {
   return (
     <div className="divide-y divide-border border-y border-border">
       {sections.map((section) => {
-        const complete = !edit?.incomplete.includes(section)
+        const status: SectionStatus = !edit?.incomplete.includes(section) ? 'complete' : edit.toConfirm.includes(section) ? 'toConfirm' : 'incomplete'
+        const { tone, label, action } = STATUS[status]
         const title = t(`${S}.${section}.title`)
         return (
           <section key={section} aria-label={title} className="space-y-2 py-4">
@@ -41,16 +52,16 @@ export function SubmissionSections({ submission, catalog, valuesOf, sections, on
               {edit && (
                 <div className="flex items-center gap-3">
                   <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <StatusDot tone={complete ? 'success' : 'warning'} />
-                    {t(complete ? `${R}.complete` : `${R}.incomplete`)}
+                    <StatusDot tone={tone} />
+                    {t(`${R}.${label}`)}
                   </span>
-                  <Button type="button" variant="outline" size="sm" aria-label={t(`${R}.editLabel`, { step: title })} onClick={() => edit.goTo(section)}>
-                    {t(complete ? `${R}.edit` : `${R}.completeAction`)}
+                  <Button type="button" variant="outline" size="sm" aria-label={t(`${R}.${action}Label`, { step: title })} onClick={() => edit.goTo(section)}>
+                    {t(`${R}.${action}`)}
                   </Button>
                 </div>
               )}
             </div>
-            <SectionSummary section={section} values={valuesOf(section)} submission={submission} catalog={catalog} onFilePrivate={onFilePrivate} />
+            <SectionSummary section={section} values={valuesOf(section)} submission={submission} catalog={catalog} onFile={onFile} />
           </section>
         )
       })}
@@ -72,26 +83,38 @@ function submitErrorText(error: unknown): string {
  * « Révision et envoi »: every requested section in words with « Modifier », the steps still to
  * complete named first (P4-173, checked here before anything is sent: the function's limit counts
  * successes only, P4-261, and its refusal stays the backstop), then « Envoyer mon profil »: what is
- * pending is saved first, then `professionals-submit`. A refusal that lists steps names them.
+ * pending is saved first, then `professionals-submit`. A change refused on a step (whatever sent it)
+ * stops the sending and names the step to fix; a save failed in transit says to check the
+ * connection. A refusal that lists steps names them.
  */
 export function ReviewStep({
   ctx,
   incomplete,
+  toConfirm,
   goTo,
-  onFilePrivate,
 }: {
   ctx: StepContext
   incomplete: readonly SubmissionSection[]
+  toConfirm: readonly SubmissionSection[]
   goTo: (section: SubmissionSection) => void
-  onFilePrivate: MyProfessionalPrivate | null
 }) {
   const submit = useSubmitMyProfile()
   const [alert, setAlert] = useState<string | null>(null)
+  const [refusedSteps, setRefusedSteps] = useState<SubmissionSection[]>([])
   const [serverGaps, setServerGaps] = useState<SubmissionSection[]>([])
   const missingRef = useRef<HTMLDivElement>(null)
   const missingId = useId()
   const missing = serverGaps.length > 0 ? serverGaps : incomplete
   const sections = ctx.submission.requestedSections
+  const { autosave } = ctx
+
+  /** A change refused on these steps: sending waits until they are fixed. */
+  const stopForRefusals = (refused: SubmissionSection[]) => {
+    if (refused.length === 0) return false
+    setRefusedSteps(refused)
+    setAlert(refused.length === 1 ? t(`${R}.errors.refusedOne`, { step: t(`${S}.${refused[0] as SubmissionSection}.title`) }) : t(`${R}.errors.refusedMany`))
+    return true
+  }
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -101,15 +124,20 @@ export function ReviewStep({
       return
     }
     setAlert(null)
+    setRefusedSteps([])
     setServerGaps([])
-    // What is still pending is saved first: the database checks what it holds.
-    if (!(await ctx.autosave.flushAll())) {
+    // What is still pending is saved first (it may fix a refused change): the database checks what it holds.
+    const saved = await autosave.flushAll()
+    const problems = autosave.problems()
+    if (problems.closed || stopForRefusals(problems.refused)) return
+    if (!saved || problems.failed) {
       setAlert(saveFailedText())
       return
     }
     try {
       await submit.mutateAsync()
     } catch (error) {
+      if (error instanceof FunctionCallError && error.field && autosave.pageRefusal(error.field, refusalMessage(error) ?? '')) return
       const gaps = error instanceof FunctionCallError && error.field === 'sections' ? sectionKeys(error.extra.sections) : []
       if (gaps.length > 0) {
         setServerGaps(gaps)
@@ -149,12 +177,29 @@ export function ReviewStep({
       <SubmissionSections
         submission={ctx.submission}
         catalog={ctx.catalog}
-        valuesOf={ctx.autosave.current}
+        valuesOf={autosave.current}
         sections={sections}
-        onFilePrivate={onFilePrivate}
-        edit={{ incomplete: missing, goTo }}
+        onFile={ctx.onFile}
+        edit={{ incomplete: missing, toConfirm, goTo }}
       />
-      <StepAlert message={alert} />
+      <StepAlert message={alert}>
+        {refusedSteps.length > 1 && (
+          <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+            {refusedSteps.map((section) => (
+              <li key={section}>
+                <button type="button" onClick={() => goTo(section)} className="text-link underline underline-offset-2">
+                  {t(`${S}.${section}.title`)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {refusedSteps.length === 1 && (
+          <button type="button" onClick={() => goTo(refusedSteps[0] as SubmissionSection)} className="ml-1 text-link underline underline-offset-2">
+            {t(`${R}.errors.goToStep`)}
+          </button>
+        )}
+      </StepAlert>
       <StepActions
         back={ctx.back}
         pending={submit.isPending}
