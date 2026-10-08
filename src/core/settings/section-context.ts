@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { SettingsSection } from '@/core/modules/types'
+import { canAny } from './visible-sections'
 
 export interface SettingsSectionState {
   section: SettingsSection
@@ -17,7 +18,10 @@ export function useSettingsSection(): SettingsSectionState {
   return value
 }
 
-/** Seen but not editable: the section names an edit permission the user lacks. */
+/**
+ * Seen but not editable: the section names an edit permission (or several, any of them) and the
+ * user holds none. Nothing on the page is hers to change.
+ */
 export function isSectionReadOnly(section: Pick<SettingsSection, 'editPermission'>, can: (permission: string) => boolean): boolean {
-  return section.editPermission !== undefined && !can(section.editPermission)
+  return section.editPermission !== undefined && !canAny(section.editPermission, can)
 }

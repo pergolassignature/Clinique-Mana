@@ -477,6 +477,27 @@ describe('RoleMatrix — removing a managing permission from her own role', () =
     await waitFor(() => expect(cell(roleName.assistant, MANAGE_ROLES)).toHaveFocus())
   })
 
+  it('once roles.manage is gone, focus stays in the now read-only matrix (not on <body>)', async () => {
+    mocks.fetchRoleDefaults.mockResolvedValue(ownRoleManages)
+    mocks.setRolePermission.mockResolvedValue(undefined)
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const ui = (access: Access) =>
+      renderWithContexts(
+        <QueryClientProvider client={queryClient}>
+          <RoleMatrix />
+        </QueryClientProvider>,
+        { access: { access } },
+      )
+    const { rerender } = render(ui(managerCaller))
+    await userEvent.click(await findCell(roleName.assistant, MANAGE_ROLES))
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('settings.users.matrix.selfRemove.confirm') }))
+    await waitFor(() => expect(cell(roleName.assistant, MANAGE_ROLES)).toHaveFocus())
+    // Her access refreshed: no roles.manage any more, the switches give way to ✓ / —.
+    rerender(ui({ ...managerCaller, permissions: managerCaller.permissions.filter((p) => p !== 'roles.manage') }))
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: t('settings.users.matrix.tableLabel') })).toHaveFocus()
+  })
+
   it('does not ask for another permission of her role, nor for that permission in another role', async () => {
     mocks.fetchRoleDefaults.mockResolvedValue([...ownRoleManages, { role: 'counselor', permission_key: 'roles.manage' }])
     mocks.setRolePermission.mockResolvedValue(undefined)
@@ -576,7 +597,39 @@ describe('RoleMatrix — custom roles', () => {
     expect(screen.getAllByRole('columnheader').at(-1)).toHaveTextContent('Réception du soir')
     // The copy gave it defaults: both queries were refetched.
     expect(mocks.fetchRoleDefaults).toHaveBeenCalledTimes(2)
-    expect(screen.getByRole('button', { name: t('settings.users.matrix.newRole') })).toHaveFocus()
+  })
+
+  it("then focuses the new role's menu button, its column scrolled into view", async () => {
+    const scroll = vi.spyOn(Element.prototype, 'scrollIntoView')
+    mocks.createRole.mockResolvedValue(customRole.key)
+    renderMatrix(adminCaller)
+    await userEvent.click(await screen.findByRole('button', { name: t('settings.users.matrix.newRole') }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.type(within(dialog).getByRole('textbox', { name: new RegExp(NAME) }), customRole.name)
+    mocks.fetchOrgRoles.mockResolvedValue([...testRoles, customRole])
+    await userEvent.click(within(dialog).getByRole('button', { name: t('settings.users.roleDialog.create') }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const menu = await screen.findByRole('button', { name: t('settings.users.matrix.roleActions', { role: customRole.name }) })
+    await waitFor(() => expect(menu).toHaveFocus())
+    const header = menu.closest('th')
+    expect(header).toHaveTextContent(customRole.name)
+    expect(scroll.mock.contexts).toContain(header)
+    expect(scroll).toHaveBeenCalledWith({ inline: 'nearest', block: 'nearest' })
+    scroll.mockRestore()
+  })
+
+  it('a rename goes back to the role\'s menu button, without scrolling', async () => {
+    const scroll = vi.spyOn(Element.prototype, 'scrollIntoView')
+    mocks.fetchOrgRoles.mockResolvedValue([...testRoles, customRole])
+    renderMatrix(adminCaller)
+    await openMenu(customRole.name)
+    await userEvent.click(await screen.findByRole('menuitem', { name: t('settings.users.matrix.rename') }))
+    await screen.findByRole('dialog')
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: t('settings.users.matrix.roleActions', { role: customRole.name }) })).toHaveFocus())
+    expect(scroll).not.toHaveBeenCalled()
+    scroll.mockRestore()
   })
 
   it('creates an empty role without refetching the defaults', async () => {

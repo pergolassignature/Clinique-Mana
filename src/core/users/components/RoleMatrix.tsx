@@ -1,4 +1,4 @@
-import { useCallback, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type FocusEvent, type RefObject } from 'react'
 import { Check, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
@@ -45,6 +45,38 @@ import { RoleNameDialog } from './RoleNameDialog'
 
 /** The sticky first column: it stays put while the role columns scroll under it (phones). */
 const STICKY = 'sticky left-0 z-10 bg-card'
+
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/** The tab whose panel holds the element (Radix links them by aria-labelledby), if any. */
+function tabOf(element: HTMLElement): HTMLElement | null {
+  const tabId = element.closest('[role=tabpanel]')?.getAttribute('aria-labelledby')
+  return tabId ? document.getElementById(tabId) : null
+}
+
+/**
+ * Keeps focus on the page when the matrix turns read-only under it (the caller has just removed
+ * roles.manage from her own role, or lost it elsewhere): the switch she was on goes, and focus
+ * would drop to <body>. It then moves to the matrix's first focusable element, else its tab
+ * (« Rôles »). Returns the root's focus handler, which remembers the last element focused in it.
+ */
+function useFocusFallbackOnReadOnly(rootRef: RefObject<HTMLDivElement | null>, canManage: boolean) {
+  const lastFocused = useRef<HTMLElement | null>(null)
+  const wasManaging = useRef(canManage)
+  useEffect(() => {
+    const lost = wasManaging.current && !canManage
+    wasManaging.current = canManage
+    const root = rootRef.current
+    const last = lastFocused.current
+    if (!lost || !root || !last || last.isConnected) return
+    if (document.activeElement && document.activeElement !== document.body) return
+    ;(root.querySelector<HTMLElement>(FOCUSABLE) ?? tabOf(root))?.focus()
+  }, [canManage, rootRef])
+  return (event: FocusEvent) => {
+    // Through React's tree: the dialogs (portals) count as inside.
+    if (event.target instanceof HTMLElement) lastFocused.current = event.target
+  }
+}
 
 /**
  * Whether the table's scroll region (the Table wrapper inside the container) has columns left to
@@ -142,13 +174,46 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
   const dialogRoleGone = dialogState !== null && dialogState.kind !== 'create' && !unordered.some((r) => r.key === dialogState.role.key)
   if (dialogRoleGone) setDialogState(null)
   const dialog = dialogRoleGone ? null : dialogState
+  const rootRef = useRef<HTMLDivElement>(null)
+  const trackFocus = useFocusFallbackOnReadOnly(rootRef, canManage)
   const newRoleRef = useRef<HTMLButtonElement>(null)
   const menuTriggers = useRef(new Map<string, HTMLButtonElement>())
-  // The role whose menu opened the dialog: focus goes back there (the dialog state is gone by then).
+  // The role whose menu opened the dialog, or the role just created: focus goes there once the
+  // dialog has closed (its state is gone by then).
   const dialogRole = useRef<string | null>(null)
+  // A created role whose column had not rendered yet when the dialog closed: its menu button takes
+  // focus as it mounts.
+  const awaitedRole = useRef<string | null>(null)
+  // The role « Nouveau rôle » has just created.
+  const createdRole = useRef<string | null>(null)
   const setDialog = (next: RoleDialog | null) => {
     if (next) dialogRole.current = next.kind === 'create' ? null : next.role.key
     setDialogState(next)
+  }
+  /** The new role's column, scrolled into view, and its menu button focused. */
+  const revealRole = (trigger: HTMLButtonElement) => {
+    trigger.closest('th')?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+    trigger.focus()
+  }
+  // One stable callback ref per role (an inline one would detach and reattach on every render).
+  const triggerRefs = useRef(new Map<string, (button: HTMLButtonElement | null) => void>())
+  const registerTrigger = (roleKey: string) => {
+    let ref = triggerRefs.current.get(roleKey)
+    if (!ref) {
+      ref = (button) => {
+        if (!button) {
+          menuTriggers.current.delete(roleKey)
+          return
+        }
+        menuTriggers.current.set(roleKey, button)
+        if (awaitedRole.current === roleKey) {
+          awaitedRole.current = null
+          revealRole(button)
+        }
+      }
+      triggerRefs.current.set(roleKey, ref)
+    }
+    return ref
   }
   const noteIds = { admin: useId(), provider: useId(), lacked: useId(), ownRole: useId() }
 
@@ -156,11 +221,25 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
   const grants = new Map(roles.map((role) => [role.key, roleGrants(role.key, rolePermissions)]))
   const groups = groupPermissionsByModule(permissions, modules, enabledModules)
 
-  /** Back to the role's menu button when the role is still there, else to « Nouveau rôle ». */
+  /**
+   * Back to the role's menu button when the role is still there, else to « Nouveau rôle ». After a
+   * creation, to the new role's menu button, its column scrolled into view; until that column
+   * renders, « Nouveau rôle » holds focus.
+   */
   const returnFocus = (event: Event) => {
     event.preventDefault()
-    const trigger = dialogRole.current === null ? undefined : menuTriggers.current.get(dialogRole.current)
+    const role = dialogRole.current
+    const trigger = role === null ? undefined : menuTriggers.current.get(role)
+    if (role !== null && role === createdRole.current) {
+      createdRole.current = null
+      if (trigger?.isConnected) return revealRole(trigger)
+      awaitedRole.current = role
+    }
     ;(trigger?.isConnected ? trigger : newRoleRef.current)?.focus()
+  }
+  const onCreated = (role: string) => {
+    dialogRole.current = role
+    createdRole.current = role
   }
 
   const lockDescription = (role: string, lock: RoleCellLock | null) =>
@@ -180,7 +259,7 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
   }
 
   return (
-    <div className="space-y-3">
+    <div ref={rootRef} className="space-y-3" onFocus={trackFocus}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1 text-sm text-muted-foreground">
           <p>{t(canManage ? 'settings.users.matrix.noteManage' : 'settings.users.matrix.note')}</p>
@@ -215,10 +294,7 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
                     {canManage && isCustomRole(role) && (
                       <RoleMenu
                         role={role}
-                        registerTrigger={(button) => {
-                          if (button) menuTriggers.current.set(role.key, button)
-                          else menuTriggers.current.delete(role.key)
-                        }}
+                        registerTrigger={registerTrigger(role.key)}
                         onRename={() => setDialog({ kind: 'rename', role })}
                         onDelete={() => setDialog({ kind: 'delete', role })}
                       />
@@ -298,6 +374,7 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
             roles={unordered}
             rolePermissions={rolePermissions}
             onCloseAutoFocus={returnFocus}
+            onCreated={onCreated}
           />
           <DeleteRoleDialog role={dialog?.kind === 'delete' ? dialog.role : null} onClose={() => setDialog(null)} onCloseAutoFocus={returnFocus} />
           <AlertDialog open={removal !== null} onOpenChange={(open) => !open && setRemoval(null)}>

@@ -54,8 +54,8 @@ describe('coreSettingsSections', () => {
       bank: ['settings.bank_manage', undefined],
       region: ['settings.view', 'settings.manage'],
       privacy: ['settings.view', 'settings.manage'],
-      // Any of them: the « Rôles » tab needs roles.manage only.
-      users: [['users.view', 'roles.manage'], 'users.manage'],
+      // Any of them: the « Rôles » tab needs roles.manage only, and is hers to change with it.
+      users: [['users.view', 'roles.manage'], ['users.manage', 'roles.manage']],
       modules: ['modules.manage', undefined],
       audit: ['audit.view', undefined],
     })
@@ -64,7 +64,7 @@ describe('coreSettingsSections', () => {
   it('uses only known core permission keys', () => {
     for (const s of coreSettingsSections) {
       for (const permission of typeof s.permission === 'string' ? [s.permission] : s.permission) expect(CORE_PERMISSION_KEYS).toContain(permission)
-      if (s.editPermission !== undefined) expect(CORE_PERMISSION_KEYS).toContain(s.editPermission)
+      for (const permission of typeof s.editPermission === 'string' ? [s.editPermission] : (s.editPermission ?? [])) expect(CORE_PERMISSION_KEYS).toContain(permission)
     }
   })
 })

@@ -56,6 +56,8 @@ interface RoleNameDialogProps {
   rolePermissions: RolePermission[]
   /** Where focus goes once the dialog has closed (it has no trigger). */
   onCloseAutoFocus: (event: Event) => void
+  /** A role was created (its key), just before the dialog closes. */
+  onCreated?: (role: string) => void
 }
 
 /**
@@ -65,7 +67,7 @@ interface RoleNameDialogProps {
  * closes it (toast), a refusal stays in it, on the field it concerns. Renaming a role another
  * manager has just deleted (« Ce rôle n'existe plus. ») closes it with that message as a toast.
  */
-export function RoleNameDialog({ open, onOpenChange, role, roles, rolePermissions, onCloseAutoFocus }: RoleNameDialogProps) {
+export function RoleNameDialog({ open, onOpenChange, role, roles, rolePermissions, onCloseAutoFocus, onCreated }: RoleNameDialogProps) {
   const create = useCreateRole()
   const rename = useRenameRole()
   const pending = create.isPending || rename.isPending
@@ -91,7 +93,7 @@ export function RoleNameDialog({ open, onOpenChange, role, roles, rolePermission
         rename.reset()
       }
     } else {
-      await create.mutateAsync({ name, copyFrom: copyFrom === '' ? null : copyFrom })
+      onCreated?.(await create.mutateAsync({ name, copyFrom: copyFrom === '' ? null : copyFrom }))
     }
     onOpenChange(false)
   }

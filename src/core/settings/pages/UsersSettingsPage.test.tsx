@@ -2,10 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Users } from 'lucide-react'
 import { t } from '@/i18n'
 import type { Access } from '@/core/access/access'
 import type { SettingsSection } from '@/core/modules/types'
+import { isSectionReadOnly } from '@/core/settings/section-context'
+import { coreSettingsSections } from '@/core/settings/sections'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { accessForRole } from '@/test/role-fixtures'
 import { renderInSettingsSection } from '@/test/settings-section'
@@ -29,16 +30,8 @@ vi.mock('@/core/access/api', async (importOriginal) => ({ ...(await importOrigin
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
-const usersSection: SettingsSection = {
-  id: 'users',
-  path: 'utilisateurs',
-  labelKey: 'settings.sections.users',
-  icon: Users,
-  permission: 'users.view',
-  editPermission: 'users.manage',
-  group: 'plateforme',
-  component: (() => null) as unknown as SettingsSection['component'],
-}
+// The real section: its permissions decide whether the page is read-only (as SettingsLayout does).
+const usersSection = coreSettingsSections.find((s) => s.id === 'users') as SettingsSection
 
 const adminCaller = accessForRole('admin', { user_id: 'u-admin', modules: ['professionals'] })
 /** users.view without users.manage. */
@@ -48,7 +41,8 @@ const viewerCaller = accessForRole('admin_assistant', {
   permissions: ['settings.view', 'professionals.view', 'users.view'],
 })
 
-function renderPage({ caller = adminCaller, readOnly = false }: { caller?: Access; readOnly?: boolean } = {}) {
+function renderPage({ caller = adminCaller }: { caller?: Access } = {}) {
+  const readOnly = isSectionReadOnly(usersSection, (p) => caller.permissions.includes(p))
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     renderInSettingsSection(
@@ -86,6 +80,8 @@ describe('UsersSettingsPage', () => {
     expect(await screen.findByRole('heading', { level: 2, name: t('settings.sections.users') })).toBeInTheDocument()
     await screen.findByRole('table', { name: t('settings.users.tableLabel') })
     expect(screen.getByText(t('settings.users.addNote'))).toBeInTheDocument()
+    // The admin may change everything here.
+    expect(screen.queryByText(t('common.readOnlyNotice.title'))).not.toBeInTheDocument()
     expect(within(table()).getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
       t('settings.users.columns.name'),
       t('settings.users.columns.email'),
@@ -133,10 +129,12 @@ describe('UsersSettingsPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Pro Local' })).toHaveFocus())
   })
 
-  it('is read-only without users.manage: the notice, no buttons, rows do not open', async () => {
-    renderPage({ caller: viewerCaller, readOnly: true })
+  it('is read-only without users.manage nor roles.manage: one notice for the page, no buttons, rows do not open', async () => {
+    renderPage({ caller: viewerCaller })
     await screen.findByRole('table', { name: t('settings.users.tableLabel') })
-    expect(screen.getByText(t('common.readOnlyNotice.title'))).toBeInTheDocument()
+    // The page's notice, above the tabs; none in the tab.
+    expect(screen.getAllByText(t('common.readOnlyNotice.title'))).toHaveLength(1)
+    expect(within(screen.getByRole('tabpanel')).queryByText(t('common.readOnlyNotice.title'))).not.toBeInTheDocument()
     expect(within(table()).queryByRole('button')).not.toBeInTheDocument()
     await userEvent.click(within(rowOf('Conseillère Locale')).getByText(t('roles.counselor')))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -168,11 +166,16 @@ describe('UsersSettingsPage', () => {
     expect(screen.queryByRole('table', { name: t('settings.users.tableLabel') })).not.toBeInTheDocument()
   })
 
-  it('the « Rôles » tab follows roles.manage, not users.manage', async () => {
-    renderPage({ caller: { ...viewerCaller, permissions: [...viewerCaller.permissions, 'roles.manage'] }, readOnly: true })
+  it('with users.view and roles.manage but not users.manage: the users read-only with their notice, the matrix editable', async () => {
+    const caller = { ...viewerCaller, permissions: [...viewerCaller.permissions, 'roles.manage'] }
+    // Not a read-only section: roles.manage is one of its edit permissions.
+    expect(isSectionReadOnly(usersSection, (p) => caller.permissions.includes(p))).toBe(false)
+    renderPage({ caller })
     await screen.findByRole('table', { name: t('settings.users.tableLabel') })
     // The users stay read-only: the notice is in their tab only.
+    expect(screen.getAllByText(t('common.readOnlyNotice.title'))).toHaveLength(1)
     expect(within(screen.getByRole('tabpanel')).getByText(t('common.readOnlyNotice.title'))).toBeInTheDocument()
+    expect(within(table()).queryByRole('button')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('tab', { name: t('settings.users.tabs.roles') }))
     await screen.findByRole('table', { name: t('settings.users.matrix.tableLabel') })
     expect(screen.queryByText(t('common.readOnlyNotice.title'))).not.toBeInTheDocument()
@@ -188,7 +191,7 @@ describe('UsersSettingsPage', () => {
       modules: ['professionals'],
       permissions: ['settings.view', 'professionals.view', 'roles.manage'],
     })
-    renderPage({ caller: rolesManager, readOnly: true })
+    renderPage({ caller: rolesManager })
     expect(await screen.findByRole('table', { name: t('settings.users.matrix.tableLabel') })).toBeInTheDocument()
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([t('settings.users.tabs.roles')])
     expect(screen.getByRole('tab', { name: t('settings.users.tabs.roles') })).toHaveAttribute('aria-selected', 'true')
@@ -199,7 +202,7 @@ describe('UsersSettingsPage', () => {
   })
 
   it('with users.view: « Utilisateurs » first, then « Rôles »', async () => {
-    renderPage({ caller: viewerCaller, readOnly: true })
+    renderPage({ caller: viewerCaller })
     await screen.findByRole('table', { name: t('settings.users.tableLabel') })
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([t('settings.users.tabs.users'), t('settings.users.tabs.roles')])
     expect(screen.getByRole('tab', { name: t('settings.users.tabs.users') })).toHaveAttribute('aria-selected', 'true')

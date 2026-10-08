@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SettingsSection } from '@/core/modules/types'
+import { isSectionReadOnly } from './section-context'
 import { canOpenSection, visibleSettingsSections } from './visible-sections'
 
 type Item = Pick<SettingsSection, 'group' | 'permission'> & { id: string }
@@ -35,5 +36,16 @@ describe('canOpenSection', () => {
     expect(canOpenSection({ permission: 'users.view' }, can)).toBe(false)
     expect(canOpenSection({ permission: ['users.view', 'roles.manage'] }, can)).toBe(true)
     expect(canOpenSection({ permission: [] }, can)).toBe(false)
+  })
+})
+
+describe('isSectionReadOnly', () => {
+  it('is read-only only when the user holds none of its edit permissions', () => {
+    const can = (p: string) => p === 'roles.manage'
+    expect(isSectionReadOnly({ editPermission: 'users.manage' }, can)).toBe(true)
+    expect(isSectionReadOnly({ editPermission: 'roles.manage' }, can)).toBe(false)
+    expect(isSectionReadOnly({ editPermission: ['users.manage', 'roles.manage'] }, can)).toBe(false)
+    expect(isSectionReadOnly({ editPermission: ['users.manage', 'settings.manage'] }, can)).toBe(true)
+    expect(isSectionReadOnly({ editPermission: undefined }, can)).toBe(false)
   })
 })
