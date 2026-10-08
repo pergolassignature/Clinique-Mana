@@ -2,7 +2,7 @@ import { lastDayOf, taxRateStatus } from '@/core/settings/tax/rates'
 import { parseRate } from '@/shared/lib/format'
 import { t } from '@/i18n'
 import { formatDateOnly, formatDateOnlyShort, shiftCalendarDay } from '@/shared/lib/timezone'
-import type { Duration, RetentionStatus } from '../api/compensation'
+import type { Decision, Duration, PayLine, RetentionStatus } from '../api/compensation'
 
 /**
  * Pure helpers of the retention program (P4-180…): percents, money and session counts as the
@@ -121,16 +121,24 @@ const S = 'modules.professionals.compensation.sessionsCount'
 export const sessionsLabel = (sessions: number): string => t(Math.abs(sessions) < 2 ? `${S}.one` : `${S}.other`, { count: formatSessions(sessions) })
 
 /**
- * The last count of a tier, the next tier's threshold less a half session (counts go by half
- * sessions): the first tier of the clinic's sheet, « 50 et - », is 0 to 50,5.
+ * The last whole count of a tier, the next tier's threshold less one (P4-198): « 51 à 100 », as
+ * the clinic's sheet reads it. A count with a half session (100,5) stays in the tier until it
+ * reaches the next threshold; the help text says so, the label does not.
  */
-export const tierLastCount = (nextThreshold: number): number => nextThreshold - 0.5
+export const tierLastCount = (nextThreshold: number): number => nextThreshold - 1
 
-/** A tier as a range of cumulative sessions: « 0 à 50,5 séances », « 501 séances et plus » (the last). */
+/** A tier as a range of cumulative sessions: « 0 à 50 séances », « 501 séances et plus » (the last). */
 export function tierRangeLabel(threshold: number, nextThreshold: number | null): string {
   return nextThreshold === null
     ? t('modules.professionals.compensation.tierRangeOpen', { from: sessionsLabel(threshold) })
     : t('modules.professionals.compensation.tierRange', { from: formatSessions(threshold), to: sessionsLabel(tierLastCount(nextThreshold)) })
+}
+
+/** A tier in a narrow cell: « 101–150 », « 501 et + » (read in full through `tierRangeLabel`). */
+export function tierShortLabel(threshold: number, nextThreshold: number | null): string {
+  return nextThreshold === null
+    ? t('modules.professionals.compensation.tierShortOpen', { from: formatSessions(threshold) })
+    : t('modules.professionals.compensation.tierShort', { from: formatSessions(threshold), to: formatSessions(tierLastCount(nextThreshold)) })
 }
 
 /** A month's count: a 50 or 60 minute session counts 1, a 30 minute one half (P4-186). */
@@ -179,13 +187,110 @@ export const monthLabel = (month: string): string => formatDateOnly(month, 'MMMM
 export const durationLabel = (duration: Duration): string => t(`modules.professionals.compensation.durations.${duration}`)
 
 /**
+ * What a status reads as (P4-197, Jonathan: « il faut toujours être clair »): a plain sentence per
+ * situation. The database's `gap` splits in two — the count reached a tier the applied rate does
+ * not follow yet (« Nouveau palier atteint »: the suggestion is lower, or the count passed the
+ * tier the rate was decided at), or the rate simply differs from the grid (« Taux différent de la
+ * grille »: a correction, a rate decided without a grid). `no_rate` is « Taux de départ à fixer »;
+ * a decided increase (`increase_decided`, the review only) reads « Augmentation décidée ».
+ */
+export type RetentionDisplay =
+  | 'newTier'
+  | 'gridGap'
+  | 'noRate'
+  | 'increaseDecided'
+  | 'floor'
+  | 'conforme'
+  | 'maintained'
+  | 'custom'
+  | 'professionUnconfirmed'
+
+interface DisplayInput {
+  status: RetentionStatus
+  applied: { pct: number; tierThreshold: number | null } | null
+  suggested: { threshold: number; pct: number } | null
+}
+
+export function retentionDisplay({ status, applied, suggested }: DisplayInput, increaseDecided = false): RetentionDisplay {
+  switch (status) {
+    case 'profession_unconfirmed':
+      return 'professionUnconfirmed'
+    case 'no_rate':
+      return 'noRate'
+    case 'gap': {
+      const passedTier = applied !== null && suggested !== null && (suggested.pct < applied.pct || (applied.tierThreshold !== null && suggested.threshold > applied.tierThreshold))
+      return passedTier ? 'newTier' : 'gridGap'
+    }
+    default:
+      if (increaseDecided) return 'increaseDecided'
+      return status
+  }
+}
+
+/** Whether a status asks for a decision (the review's « À décider »). */
+export const needsDecision = (status: RetentionStatus): boolean => status === 'gap' || status === 'no_rate'
+
+/**
  * The sheet's colour cues, on design-system tokens (P4-190): yellow for a gap, blue for the
- * floor, green for an increase decided for the month; plain otherwise.
+ * floor, green for an increase decided for the month; plain otherwise (a starting rate to fix
+ * included: it has its own neutral mark, never the gap's yellow, P4-197).
  */
 export type RetentionTone = 'warning' | 'info' | 'success' | 'default'
-export function retentionTone(status: RetentionStatus, increaseDecided = false): RetentionTone {
-  if (status === 'gap') return 'warning'
-  if (increaseDecided) return 'success'
-  if (status === 'floor') return 'info'
+export function retentionTone(display: RetentionDisplay): RetentionTone {
+  if (display === 'newTier' || display === 'gridGap') return 'warning'
+  if (display === 'increaseDecided') return 'success'
+  if (display === 'floor') return 'info'
   return 'default'
+}
+
+const D = 'modules.professionals.compensation.decision'
+
+/**
+ * A decision's button carries its value (P4-197): « Appliquer 27 % », « Fixer à 30 % » (no rate
+ * yet), « Maintenir 27,5 % », « Autre taux… » (a typed rate: custom, or a starting rate).
+ */
+export function decisionActionLabel(kind: Decision, appliedPct: number | null, suggestedPct: number | null): string {
+  switch (kind) {
+    case 'suggested':
+      return t(appliedPct === null ? `${D}.action.setTo` : `${D}.action.apply`, { rate: suggestedPct === null ? '—' : formatPercent(suggestedPct) })
+    case 'maintained':
+      return t(`${D}.action.maintain`, { rate: appliedPct === null ? '—' : formatPercent(appliedPct) })
+    case 'custom':
+    case 'initial':
+      return t(`${D}.action.other`)
+  }
+}
+
+/** The decision dialog's title, with the same value as its button. */
+export function decisionTitle(kind: Decision, appliedPct: number | null, suggestedPct: number | null): string {
+  switch (kind) {
+    case 'suggested':
+    case 'maintained':
+      return decisionActionLabel(kind, appliedPct, suggestedPct)
+    case 'custom':
+      return t(`${D}.title.custom`)
+    case 'initial':
+      return t(`${D}.title.initial`)
+  }
+}
+
+/** One duration's pay before and after a decision, from the database's amounts (P4-189). */
+export interface PayChange {
+  duration: Duration
+  /** Paid today (at the rate in force on the read's date), null without a rate. */
+  beforeCents: number | null
+  afterCents: number
+}
+
+/**
+ * What a decision does to the pay per duration (P4-198): « Appliquer » pays the suggested amount,
+ * « Maintenir » the latest decision's (upcoming, else in force). A typed rate is unknown until it
+ * is stored: none. Durations the grid does not price are not in `pay`.
+ */
+export function payChanges(kind: Decision, pay: readonly PayLine[]): PayChange[] {
+  if (kind !== 'suggested' && kind !== 'maintained') return []
+  return pay.flatMap((line) => {
+    const after = kind === 'suggested' ? line.suggestedCents : (line.upcomingCents ?? line.appliedCents)
+    return after === null ? [] : [{ duration: line.duration, beforeCents: line.appliedCents, afterCents: after }]
+  })
 }

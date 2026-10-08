@@ -7,13 +7,14 @@ import { toast } from '@/shared/ui/sonner'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
-import type { Decision, DecisionInput } from '../../api/compensation'
+import type { Decision, DecisionInput, PayLine } from '../../api/compensation'
 import { useDecideRetention } from '../../hooks/use-compensation'
 import type { MutationFeedback } from '../../hooks/mutation-feedback'
-import { formatPercent, percentInput } from '../../lib/compensation'
+import { decisionTitle, formatPercent, payChanges, percentInput } from '../../lib/compensation'
 import { decisionSchema, type DecisionFormOutput, type DecisionFormValues } from '../../schemas/compensation'
 import { DialogForm, EffectiveFromField } from './DatedRowParts'
 import { useDateErrorOnField, useDialogRefusal, type DateError } from './dialog-state'
+import { PayChangeList } from './RetentionParts'
 
 const D = 'modules.professionals.compensation.decision'
 const W = 'modules.professionals.compensation'
@@ -28,7 +29,7 @@ export interface DecisionTarget {
   /** How the open rate was decided: re-confirming a « Taux particulier » prefills its rate. */
   appliedDecision: Decision | null
   suggestedPct: number | null
-  /** The suggested tier as a range (« 51 à 100,5 séances », `tierRangeLabel`), or null. */
+  /** The suggested tier as a range (« 51 à 100 séances », `tierRangeLabel`), or null. */
   tierLabel: string | null
   /** The earliest start the RPC accepts (the day after the open rate's), or null. */
   minDate: string | null
@@ -38,6 +39,8 @@ export interface DecisionTarget {
   countMonth: string
   /** The open decision as read, null when none (`decide_retention`'s optimistic check). */
   expectedOpenId: string | null
+  /** The pay per duration as read (the dialog shows what the decision changes, P4-198). */
+  pay: readonly PayLine[]
 }
 
 interface DecisionDialogProps {
@@ -47,9 +50,10 @@ interface DecisionDialogProps {
 
 /**
  * The four decisions on the applied rate (P4-187), from the record or « Révision mensuelle »:
- * « Appliquer la suggestion » and « Maintenir » take only a date (the rate is the database's,
- * from the count through `countMonth`: what the dialog announced), « Taux particulier » a rate and
- * its reason, « Taux de départ » a rate. A decision taken meanwhile by someone else (HINT `stale`)
+ * « Appliquer 27 % » / « Fixer à 30 % » and « Maintenir 27,5 % » take only a date (the rate is the
+ * database's, from the count through `countMonth`: what the dialog announced) and show the pay
+ * before and after, per duration (P4-198); « Taux particulier » takes a rate and its reason,
+ * « Taux de départ » a rate. A decision taken meanwhile by someone else (HINT `stale`)
  * closes the dialog with a message; the record and the reviews are refetched. Controlled: open
  * while `target` is set; closing is ignored while saving.
  */
@@ -87,9 +91,10 @@ export function DecisionDialog({ target, onClose }: DecisionDialogProps) {
         {target && (
           <>
             <DialogHeader>
-              <DialogTitle>{target.name ? t(`${D}.titleFor.${target.decision}`, { name: target.name }) : t(`${D}.title.${target.decision}`)}</DialogTitle>
+              <DialogTitle>{titleOf(target)}</DialogTitle>
               <DialogDescription>{describe(target)}</DialogDescription>
             </DialogHeader>
+            <PayChangeList changes={payChanges(target.decision, target.pay)} />
             <DecisionForm
               key={`${target.professionalId}-${target.decision}`}
               target={target}
@@ -117,6 +122,12 @@ export function DecisionDialog({ target, onClose }: DecisionDialogProps) {
   )
 }
 
+/** « Appliquer 27 % — Camille Roy » (the button's value), « Taux particulier » on the record. */
+function titleOf(target: DecisionTarget): string {
+  const title = decisionTitle(target.decision, target.appliedPct, target.suggestedPct)
+  return target.name ? t(`${D}.titleFor`, { title, name: target.name }) : title
+}
+
 /** The sentence under the title: what the decision will do. */
 function describe(target: DecisionTarget): string {
   const applied = target.appliedPct === null ? null : formatPercent(target.appliedPct)
@@ -126,7 +137,7 @@ function describe(target: DecisionTarget): string {
     case 'suggested':
       return applied ? t(`${D}.describe.suggested`, { from: applied, to: suggested ?? '—', tier }) : t(`${D}.describe.suggestedFirst`, { to: suggested ?? '—', tier })
     case 'maintained':
-      return t(`${D}.describe.maintained`, { rate: applied ?? '—', tier })
+      return t(`${D}.describe.maintained`, { rate: applied ?? '—', suggested: suggested ?? '—', tier })
     case 'custom':
       return t(`${D}.describe.custom`)
     case 'initial':

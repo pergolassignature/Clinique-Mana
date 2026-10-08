@@ -17,8 +17,8 @@ import { GridDialog } from './GridDialog'
 const G = 'modules.professionals.settings.compensation.grids'
 
 /**
- * « 0 à 50,5 » … « 301 et plus » (the column is « Séances cumulées »): the clinic's sheet's ranges
- * (« 50 et - », « 51 à 100 »), exact with half sessions.
+ * « 0 à 50 » … « 301 et plus » (the column is « Séances cumulées »): the clinic's sheet's ranges
+ * (« 50 et - », « 51 à 100 »), in whole sessions (P4-198).
  */
 function tierRange(tiers: GridRow['tiers'], index: number): string {
   const from = tiers[index]?.threshold ?? 0

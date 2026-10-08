@@ -2,28 +2,32 @@ import type { ReactNode } from 'react'
 import { t } from '@/i18n'
 import { formatDateOnlyShort } from '@/shared/lib/timezone'
 import { Badge } from '@/shared/ui/badge'
-import type { PayLine, RetentionStatus } from '../../api/compensation'
-import { durationLabel, formatCents } from '../../lib/compensation'
+import type { PayLine } from '../../api/compensation'
+import { durationLabel, formatCents, type PayChange, type RetentionDisplay } from '../../lib/compensation'
 
 /**
- * Pieces shared by the record's « Rétention » card and « Révision mensuelle »: the status, a
- * key/value pair and the pay per duration. Amounts come from the database (P4-189).
+ * Pieces shared by the record's « Rétention » card, « Révision mensuelle » and the decision
+ * dialog: the status, a key/value pair, the pay table and a decision's pay change. Amounts come
+ * from the database (P4-189).
  */
 
 const W = 'modules.professionals.compensation'
 
 const STATUS_VARIANT = {
-  gap: 'warning',
-  conforme: 'success',
+  newTier: 'warning',
+  gridGap: 'warning',
+  noRate: 'default',
+  increaseDecided: 'success',
   floor: 'info',
+  conforme: 'success',
   maintained: 'secondary',
   custom: 'secondary',
-  profession_unconfirmed: 'outline',
-} as const satisfies Record<RetentionStatus, 'warning' | 'success' | 'info' | 'secondary' | 'outline'>
+  professionUnconfirmed: 'outline',
+} as const satisfies Record<RetentionDisplay, 'warning' | 'success' | 'info' | 'secondary' | 'outline' | 'default'>
 
-/** « Écart à valider », « Conforme », « Palier maximum atteint »… (P4-188). */
-export function RetentionStatusBadge({ status }: { status: RetentionStatus }) {
-  return <Badge variant={STATUS_VARIANT[status]}>{t(`${W}.retentionStatus.${status}`)}</Badge>
+/** « Nouveau palier atteint », « Taux de départ à fixer », « Conforme »… (P4-197): the words carry it, the dot only echoes. */
+export function RetentionStatusBadge({ display }: { display: RetentionDisplay }) {
+  return <Badge variant={STATUS_VARIANT[display]}>{t(`${W}.status.${display}`)}</Badge>
 }
 
 /** One key/value pair: the term 12 px secondary, the value 13 px (design system). */
@@ -36,39 +40,89 @@ export function Item({ term, children }: { term: string; children: ReactNode }) 
   )
 }
 
+const P = 'modules.professionals.record.compensation.retention.payTable'
+
 /**
- * Pay per duration: « 50 min · 126,88 $ » at the rate in force on the read's date (what is paid
- * that day, P4-189), the suggested amount next to it when it differs (« → 127,75 $ »), and the
- * amount of a decision starting later, labelled as such (« À venir dès le 1 nov. 2026 : 127,75 $ »,
- * `upcomingFrom` being that decision's start). `compact` (the review's narrow cell) drops the client
- * price, shortens « 60 min / couple » to « 60 min » and puts the other amounts on their own lines.
+ * « Versé par séance » on the record (P4-198): Durée · Prix client · Aujourd'hui (at the rate in
+ * force on the read's date, what is paid that day) · « Dès le … » when a decision starts later.
  */
-export function PayList({ pay, upcomingFrom = null, compact = false }: { pay: readonly PayLine[]; upcomingFrom?: string | null; compact?: boolean }) {
-  if (pay.length === 0) return <span className="text-muted-foreground">—</span>
+export function PayTable({ pay, upcomingFrom = null, caption }: { pay: readonly PayLine[]; upcomingFrom?: string | null; caption: string }) {
+  const upcoming = upcomingFrom !== null && pay.some((line) => line.upcomingCents !== null && line.upcomingCents !== line.appliedCents)
+  const cell = 'px-2 py-1.5 text-right tabular'
   return (
-    <ul className="space-y-0.5">
-      {pay.map((line) => {
-        const differs = line.suggestedCents !== null && line.suggestedCents !== line.appliedCents
-        return (
-          <li key={line.duration} className={compact ? 'text-sm' : 'whitespace-nowrap text-sm'}>
-            <span className="text-muted-foreground">{compact ? t(`${W}.pay.minutes`, { duration: String(line.duration) }) : durationLabel(line.duration)}</span>{' '}
-            <span className="whitespace-nowrap font-medium tabular">{line.appliedCents === null ? '—' : formatCents(line.appliedCents)}</span>
-            {differs && (
-              <span className={compact ? 'block whitespace-nowrap text-xs text-muted-foreground tabular' : 'text-muted-foreground tabular'}>
-                {' '}
-                <span aria-hidden>→</span>
-                <span className="sr-only">{t(`${W}.pay.suggestedPrefix`)}</span> {formatCents(line.suggestedCents ?? 0)}
-              </span>
+    <table className="w-full max-w-lg text-sm">
+      <caption className="mb-1 text-left text-xs text-muted-foreground">{caption}</caption>
+      <thead>
+        <tr className="border-b border-border-light text-xs text-muted-foreground">
+          <th scope="col" className="py-1.5 pr-2 text-left font-normal">
+            {t(`${P}.duration`)}
+          </th>
+          <th scope="col" className={`${cell} font-normal`}>
+            {t(`${P}.clientPrice`)}
+          </th>
+          <th scope="col" className={`${cell} font-normal`}>
+            {t(`${P}.today`)}
+          </th>
+          {upcoming && (
+            <th scope="col" className={`${cell} font-normal`}>
+              {t(`${P}.from`, { date: formatDateOnlyShort(upcomingFrom) })}
+            </th>
+          )}
+        </tr>
+      </thead>
+      <tbody>
+        {pay.map((line) => (
+          <tr key={line.duration} className="border-b border-border-light last:border-0">
+            <th scope="row" className="py-1.5 pr-2 text-left font-normal">
+              {durationLabel(line.duration)}
+            </th>
+            <td className={`${cell} text-muted-foreground`}>{formatCents(line.clientPriceCents)}</td>
+            <td className={`${cell} font-medium`}>{line.appliedCents === null ? '—' : formatCents(line.appliedCents)}</td>
+            {upcoming && <td className={`${cell} font-medium`}>{line.upcomingCents === null ? '—' : formatCents(line.upcomingCents)}</td>}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+const C = `${W}.decision.pay`
+
+/** « +0,87 $ », « −1,25 $ ». */
+const signedCents = (cents: number): string => `${cents < 0 ? '−' : '+'}${formatCents(Math.abs(cents))}`
+
+/**
+ * A decision's effect on the pay, one line per duration the grid prices (P4-198): « Rencontre
+ * 50 min : versé 126,88 $ → 127,75 $ (+0,87 $) », « … versé 105,00 $ » for a first rate,
+ * « … (inchangé) » when it stays.
+ */
+export function PayChangeList({ changes }: { changes: readonly PayChange[] }) {
+  if (changes.length === 0) return null
+  return (
+    <section aria-labelledby="decision-pay-title" className="rounded-md border border-border-light bg-muted/40 px-3 py-2">
+      <h3 id="decision-pay-title" className="text-xs font-medium text-muted-foreground">
+        {t(`${C}.title`)}
+      </h3>
+      <ul className="mt-1 space-y-0.5 text-sm">
+        {changes.map((change) => (
+          <li key={change.duration}>
+            {t(`${C}.meeting`, { duration: durationLabel(change.duration) })} {t(`${C}.paid`)}{' '}
+            {change.beforeCents === null ? (
+              <span className="font-medium tabular">{formatCents(change.afterCents)}</span>
+            ) : change.beforeCents === change.afterCents ? (
+              <>
+                <span className="font-medium tabular">{formatCents(change.afterCents)}</span> <span className="text-muted-foreground">{t(`${C}.unchanged`)}</span>
+              </>
+            ) : (
+              <>
+                <span className="tabular">{formatCents(change.beforeCents)}</span> <span aria-hidden>→</span>
+                <span className="sr-only"> {t(`${C}.becomes`)}</span> <span className="font-medium tabular">{formatCents(change.afterCents)}</span>{' '}
+                <span className="text-muted-foreground tabular">({signedCents(change.afterCents - change.beforeCents)})</span>
+              </>
             )}
-            {upcomingFrom !== null && line.upcomingCents !== null && line.upcomingCents !== line.appliedCents && (
-              <span className="block whitespace-normal text-xs text-muted-foreground tabular">
-                {t(`${W}.pay.upcoming`, { date: formatDateOnlyShort(upcomingFrom), amount: formatCents(line.upcomingCents) })}
-              </span>
-            )}
-            {!compact && <span className="block text-xs text-muted-foreground">{t(`${W}.pay.clientPrice`, { price: formatCents(line.clientPriceCents) })}</span>}
           </li>
-        )
-      })}
-    </ul>
+        ))}
+      </ul>
+    </section>
   )
 }

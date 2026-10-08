@@ -377,12 +377,12 @@ begin
   -- Retention (P4-180…): fake counts and rates so « Révision mensuelle » shows every status.
   -- Months are relative to the clinic's today: the opening balance two months back, last month's
   -- sessions, decisions on the program's start (2026-07-01) and on this month's first day.
-  --   01 Geneviève  312 sessions, 25 %                  → Palier maximum atteint
-  --   03 Camille    103 sessions, 27,5 %                → Écart à valider (27 % suggested)
+  --   01 Geneviève  312 sessions, 25 %                  → Palier maximum
+  --   03 Camille    103 sessions, 27,5 %                → Nouveau palier atteint (27 % suggested)
   --   04 Félix       60 sessions, 30 % maintained at 51 → Maintenu
   --   05 Sophie      40 sessions, 27 % custom, one client agreement → Taux particulier
   --   07 Étienne    158 sessions, 29 % → 28,5 % this month → Conforme (green for last month)
-  --   02 Isabelle, 06 Marc-André: nothing yet          → Écart à valider
+  --   02 Isabelle, 06 Marc-André: nothing yet          → Taux de départ à fixer (no_rate)
   declare
     v_this constant date := greatest(date_trunc('month', private.clinic_today())::date, date '2026-08-01');
     v_last constant date := (date_trunc('month', private.clinic_today()) - interval '1 month')::date;

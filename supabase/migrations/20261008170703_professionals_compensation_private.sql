@@ -1104,8 +1104,10 @@ $$;
 -- the one in force on p_on, the suggested tier (the highest threshold the count reached), the
 -- next tier, the floor (the grid's last tier) and the status (P4-188):
 --   profession_unconfirmed  no grid for the primary title (or no title);
---   gap                     « Écart à valider »: no rate yet, or applied ≠ suggested with no
---                           decision covering it;
+--   no_rate                 « Taux de départ à fixer » (P4-197): a grid, but no decision yet;
+--   gap                     « Écart à valider »: applied ≠ suggested with no decision covering
+--                           it (the UI reads « Nouveau palier atteint » or « Taux différent de
+--                           la grille », P4-197);
 --   custom                  « Taux particulier » (Jonathan, 2026-10-08): stands while the count
 --                           is still in the tier it was decided at (or a lower one, after a
 --                           correction), and always once that tier is the floor; a new tier
@@ -1147,7 +1149,7 @@ as $$
          sug.threshold_sessions, sug.retention_pct, nxt.threshold_sessions, nxt.retention_pct, fl.retention_pct,
          case
            when g.id is null then 'profession_unconfirmed'
-           when a.id is null then 'gap'
+           when a.id is null then 'no_rate'
            when a.decision = 'custom' then
              case when a.tier_threshold is not null
                    and (sug.threshold_sessions <= a.tier_threshold or a.tier_threshold >= fl.threshold_sessions)

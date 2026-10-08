@@ -311,8 +311,8 @@ select throws_ok($$ select public.record_monthly_sessions('2026-09-01', jsonb_bu
 -- =============================================================================
 -- Decisions and statuses (admin A, P1: 55.5 sessions → tier 51, 27.5 %)
 -- =============================================================================
-select is(public.get_professional_compensation(current_setting('test.p1')::uuid, '2026-09-15') ->> 'status', 'gap',
-  'no rate yet: « Écart à valider »');
+select is(public.get_professional_compensation(current_setting('test.p1')::uuid, '2026-09-15') ->> 'status', 'no_rate',
+  'no rate yet: « Taux de départ à fixer », not a gap (P4-197)');
 select is(public.get_professional_compensation(current_setting('test.p1')::uuid, '2026-09-15') -> 'suggested',
   '{"threshold_sessions": 51, "retention_pct": 27.50}'::jsonb, 'suggested: tier 51 at 27.5 %');
 select is(public.get_professional_compensation(current_setting('test.p1')::uuid, '2026-09-15') -> 'next',
@@ -616,7 +616,7 @@ select is((select x ->> 'status' from jsonb_array_elements(public.list_retention
 select is((select x ->> 'status' from jsonb_array_elements(public.list_retention_review('2026-09-01') -> 'rows') x where x ->> 'last_name' = 'Cinq'),
   'floor', 'P5: « Palier maximum atteint »');
 select is((select x ->> 'status' from jsonb_array_elements(public.list_retention_review('2026-09-01') -> 'rows') x where x ->> 'last_name' = 'Deux'),
-  'gap', 'P2: no rate, « Écart à valider »');
+  'no_rate', 'P2: no rate, « Taux de départ à fixer » (P4-197)');
 select is(private.test_error_hint($$ select public.list_retention_review(null) $$), 'month', 'a month is required');
 
 -- The decision counts through the month it was taken for (P4-187): reviewing September while

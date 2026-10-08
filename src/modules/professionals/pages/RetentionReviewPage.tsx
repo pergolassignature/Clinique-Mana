@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Handshake } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Handshake } from 'lucide-react'
 import { t } from '@/i18n'
 import { rpcErrorDetail, rpcErrorHint } from '@/core/modules/errors'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { SaveButton } from '@/shared/components/SaveButton'
+import { formatDateOnlyShort } from '@/shared/lib/timezone'
 import { useClinicDate } from '@/shared/lib/use-clinic-date'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { useConfirmLeave, useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
@@ -17,11 +18,25 @@ import { Select } from '@/shared/ui/select'
 import type { Decision, ReviewRow } from '../api/compensation'
 import { DecisionDialog, type DecisionTarget } from '../components/compensation/DecisionDialog'
 import { RefusalAlert } from '../components/compensation/DatedRowParts'
-import { PayList, RetentionStatusBadge } from '../components/compensation/RetentionParts'
+import { RetentionStatusBadge } from '../components/compensation/RetentionParts'
 import { useRetentionReview, useSaveReviewSessions } from '../hooks/use-compensation'
-import { formatPercent, formatSessions, monthLabel, monthOf, retentionTone, sessionsLabel, shiftMonth, tierRangeLabel } from '../lib/compensation'
+import {
+  decisionActionLabel,
+  formatPercent,
+  formatSessions,
+  monthLabel,
+  monthOf,
+  needsDecision,
+  retentionDisplay,
+  retentionTone,
+  sessionsLabel,
+  shiftMonth,
+  tierRangeLabel,
+  tierShortLabel,
+} from '../lib/compensation'
 import {
   changedEntries,
+  countByFilter,
   countByStatus,
   draftCount,
   filterRows,
@@ -30,6 +45,7 @@ import {
   isImportedBalance,
   liveTotal,
   onlyImportedBalances,
+  OPTIONAL_FILTERS,
   REVIEW_FILTERS,
   shownCounts,
   type Drafts,
@@ -39,6 +55,9 @@ import {
 const R = 'modules.professionals.review'
 const W = 'modules.professionals.compensation'
 
+/** The earliest month the picker reaches (the RPC's own bound). */
+const FIRST_MONTH = '2000-01-01'
+
 /** The sheet's colour cues on design-system tokens (P4-190). */
 const TONE_CLASSES = {
   warning: 'bg-warning/10',
@@ -46,6 +65,10 @@ const TONE_CLASSES = {
   info: 'bg-info/10',
   default: '',
 } as const
+
+/** Six columns on a wide screen; one card per professional below `lg` (P4-199). */
+const COLUMNS =
+  'lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.35fr)_minmax(0,0.75fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,1.6fr)]'
 
 /** The decisions a row offers (the database checks them again). */
 function decisionsFor(row: ReviewRow): Decision[] {
@@ -56,13 +79,14 @@ function decisionsFor(row: ReviewRow): Decision[] {
 }
 
 /**
- * « Révision mensuelle » (`professionals.compensation`, P4-190): the clinic's spreadsheet as a
- * page. One read per month (`list_retention_review`), every active professional: the month's
- * 50/60 and 30-minute sessions (typed in place, saved in one batch, all or nothing), the
- * cumulative count, the applied and suggested rates, the pay, the status, and the decisions for a
- * gap (counted through the reviewed month). The filter starts on « Écart à valider »; a row being
- * edited stays visible. The page opens on last month, or on the current month when last month
- * holds only the opening balances an import wrote (P4-192: nothing to review there).
+ * « Révision mensuelle » (`professionals.compensation`, P4-190, made clear by P4-197–P4-199): the
+ * clinic's spreadsheet as a page. One read per month (`list_retention_review`), every active
+ * professional: the month's 50/60 and 30-minute sessions (typed in place, saved in one batch, all
+ * or nothing), the cumulative count and its breakdown, the tier, the retention (« 27,5 % → 27 % »
+ * when a decision is due), a plain status, and decision buttons that carry their value. The pay
+ * per session is in the decision dialog. The filter starts on « À décider » (gaps and starting
+ * rates to fix); a row being edited stays visible. The page opens on last month, or on the current
+ * month when last month holds only the opening balances an import wrote (P4-192).
  */
 export function RetentionReviewPage() {
   usePageTitle(t(`${R}.title`))
@@ -71,11 +95,12 @@ export function RetentionReviewPage() {
   const [month, setMonth] = useState(() => shiftMonth(currentMonth, -1))
   // Until the user picks a month, the default may still move to the current month (imports).
   const monthChosen = useRef(false)
-  const [filter, setFilter] = useState<ReviewFilter>('gap')
+  const [filter, setFilter] = useState<ReviewFilter>('todo')
   const [drafts, setDrafts] = useState<Drafts>({})
   const [refusal, setRefusal] = useState<{ message: string; detail: string | null } | null>(null)
   const [staleId, setStaleId] = useState<string | null>(null)
   const [decision, setDecision] = useState<DecisionTarget | null>(null)
+  const halfHintId = useId()
   const review = useRetentionReview(month)
   // While another month loads, the previous one is a placeholder: never shown as this month's.
   const loaded = review.data?.month === month ? review.data : undefined
@@ -117,17 +142,16 @@ export function RetentionReviewPage() {
     if (onlyImportedBalances(loaded.rows)) setMonth(currentMonth)
   }, [loaded, month, currentMonth])
 
-  const counts = countByStatus(rows)
+  const filterCounts = countByFilter(rows)
+  const statusCounts = countByStatus(rows)
   const shown = filterRows(rows, filter, drafts)
   const type = (row: ReviewRow, field: 'long' | 'short', value: string) =>
     setDrafts((current) => {
       const base = current[row.id] ?? { ...shownCounts(row, current), version: row.entry?.updatedAt ?? null }
       return { ...current, [row.id]: { ...base, [field]: value } }
     })
-  const changeMonth = (value: string) => {
-    if (!/^[0-9]{4}-[0-9]{2}$/.test(value)) return
-    const next = `${value}-01`
-    if (next > currentMonth || next === month) return
+  const changeMonth = (next: string) => {
+    if (next > currentMonth || next < FIRST_MONTH || next === month) return
     confirmLeave(() => {
       monthChosen.current = true
       setDrafts({})
@@ -150,10 +174,17 @@ export function RetentionReviewPage() {
       // The suggestion shown is the count through the reviewed month: the decision uses the same.
       countMonth: month,
       expectedOpenId: row.applied?.id ?? null,
+      pay: row.pay,
     })
+  const todoSummary = [
+    statusCounts.gap > 0 ? t(statusCounts.gap < 2 ? `${R}.todoGap.one` : `${R}.todoGap.other`, { count: String(statusCounts.gap) }) : null,
+    statusCounts.no_rate > 0 ? t(statusCounts.no_rate < 2 ? `${R}.todoNoRate.one` : `${R}.todoNoRate.other`, { count: String(statusCounts.no_rate) }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   let body
-  // A month being loaded (the first, or another one) shows the loader, never « Aucun écart ».
+  // A month being loaded (the first, or another one) shows the loader, never « Rien à décider ».
   if (!loaded && (review.isPending || review.isFetching)) body = <Loading />
   else if (!loaded) body = <LoadError message={t(`${R}.loadError`)} retrying={review.isFetching} onRetry={() => void review.refetch()} />
   else
@@ -169,115 +200,37 @@ export function RetentionReviewPage() {
         }}
         className="space-y-3"
       >
+        <span id={halfHintId} className="sr-only">
+          {t(`${R}.halfHint`)}
+        </span>
         {shown.length === 0 ? (
-          <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{filter === 'gap' ? t(`${R}.noGap`) : t(`${R}.empty`)}</p>
+          <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+            {filter === 'todo' ? t(`${R}.noTodo`, { month: monthLabel(month) }) : t(`${R}.empty`)}
+          </p>
         ) : (
           <ul className="divide-y divide-border rounded-lg border border-border bg-card" aria-label={t(`${R}.listLabel`, { month: monthLabel(month) })}>
-            <li aria-hidden className="hidden gap-3 px-3 py-2 text-xs font-medium text-muted-foreground lg:grid lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)]">
+            <li aria-hidden className={cn('hidden gap-3 px-3 py-2 text-xs font-medium text-muted-foreground lg:grid', COLUMNS)}>
               <span>{t(`${R}.columns.professional`)}</span>
-              <span>{t(`${R}.columns.sessions`)}</span>
+              <span>
+                {t(`${R}.columns.sessions`)}
+                <span className="block font-normal">{t(`${R}.halfHint`)}</span>
+              </span>
               <span>{t(`${R}.columns.cumulative`)}</span>
-              <span>{t(`${R}.columns.rates`)}</span>
-              <span>{t(`${R}.columns.pay`)}</span>
+              <span>{t(`${R}.columns.tier`)}</span>
+              <span>{t(`${R}.columns.retention`)}</span>
               <span>{t(`${R}.columns.status`)}</span>
             </li>
-            {shown.map((row) => {
-              const name = `${row.firstName} ${row.lastName}`
-              const counts = shownCounts(row, drafts)
-              const total = liveTotal(row, drafts)
-              const changed = isChanged(row, drafts[row.id])
-              return (
-                <li
-                  key={row.id}
-                  className={cn('grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)] lg:items-start', TONE_CLASSES[retentionTone(row.status, row.increaseDecided)])}
-                >
-                  <div className="min-w-0">
-                    <Link to={`/professionnels/${row.id}/remuneration`} className="text-sm font-medium text-foreground underline-offset-[3px] hover:underline">
-                      {name}
-                    </Link>
-                    <p className="text-xs text-muted-foreground">{row.titleName ?? t(`${R}.noTitle`)}</p>
-                    {row.agreements > 0 && (
-                      <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                        <Handshake aria-hidden className="size-3.5" />
-                        {t(`${R}.agreements`, { count: String(row.agreements) })}
-                      </p>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <FormField label={t(`${R}.long`)} error={drafts[row.id] && draftCount(counts.long) === null ? t(`${W}.validation.sessionsLong`) : undefined}>
-                      {(field) => (
-                        <Input
-                          {...field}
-                          aria-label={t(`${R}.longLabel`, { name })}
-                          value={counts.long}
-                          onChange={(event) => type(row, 'long', event.target.value)}
-                          inputMode="numeric"
-                          autoComplete="off"
-                          className="tabular"
-                        />
-                      )}
-                    </FormField>
-                    <FormField label={t(`${R}.short`)} error={drafts[row.id] && draftCount(counts.short) === null ? t(`${W}.validation.sessionsShort`) : undefined}>
-                      {(field) => (
-                        <Input
-                          {...field}
-                          aria-label={t(`${R}.shortLabel`, { name })}
-                          value={counts.short}
-                          onChange={(event) => type(row, 'short', event.target.value)}
-                          inputMode="numeric"
-                          autoComplete="off"
-                          className="tabular"
-                        />
-                      )}
-                    </FormField>
-                  </div>
-                  <div className="text-sm">
-                    <span className="text-xs text-muted-foreground lg:hidden">{t(`${R}.columns.cumulative`)} </span>
-                    <span className="font-medium tabular">{total === null ? '—' : formatSessions(total)}</span>
-                    {changed && <span className="ml-1 text-xs text-muted-foreground">{t(`${R}.unsaved`)}</span>}
-                    <span className="block text-xs text-muted-foreground">{t(`${R}.before`, { count: formatSessions(row.sessionsBefore) })}</span>
-                    {row.entry && isImportedBalance(row) ? (
-                      <span className="block text-xs text-muted-foreground">{t(`${R}.importedBalance`, { count: sessionsLabel(row.entry.adjustment) })}</span>
-                    ) : (
-                      row.entry &&
-                      row.entry.adjustment !== 0 && (
-                        <span className="block text-xs text-muted-foreground">
-                          {t(`${R}.adjustment`, { value: `${row.entry.adjustment > 0 ? '+' : ''}${formatSessions(row.entry.adjustment)}` })}
-                        </span>
-                      )
-                    )}
-                  </div>
-                  <div className="text-sm">
-                    <span className="block">
-                      <span className="text-xs text-muted-foreground">{t(`${R}.applied`)} </span>
-                      <span className="font-medium tabular">{row.applied ? formatPercent(row.applied.pct) : '—'}</span>
-                    </span>
-                    <span className="block">
-                      <span className="text-xs text-muted-foreground">{t(`${R}.suggested`)} </span>
-                      <span className="tabular">{row.suggested ? formatPercent(row.suggested.pct) : '—'}</span>
-                      {row.suggested && (
-                        <span className="block text-xs text-muted-foreground">{t(`${R}.tier`, { range: tierRangeLabel(row.suggested.threshold, row.next?.threshold ?? null) })}</span>
-                      )}
-                    </span>
-                  </div>
-                  <div>
-                    <PayList pay={row.pay} upcomingFrom={row.applied && row.applied.effectiveFrom > (loaded?.on ?? '') ? row.applied.effectiveFrom : null} compact />
-                  </div>
-                  <div className="space-y-1.5">
-                    <RetentionStatusBadge status={row.status} />
-                    {row.increaseDecided && <p className="text-xs text-muted-foreground">{t(`${R}.increaseDecided`)}</p>}
-                    {row.applied?.decision === 'custom' && row.applied.note && <p className="break-words text-xs text-muted-foreground">{row.applied.note}</p>}
-                    <div className="flex flex-wrap gap-1">
-                      {decisionsFor(row).map((kind) => (
-                        <Button key={kind} type="button" size="sm" variant={kind === 'suggested' ? 'default' : 'outline'} aria-label={t(`${R}.decisionLabel.${kind}`, { name })} onClick={() => openDecision(row, kind)}>
-                          {t(`${W}.decision.action.${kind}`)}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                </li>
-              )
-            })}
+            {shown.map((row) => (
+              <ReviewItem
+                key={row.id}
+                row={row}
+                drafts={drafts}
+                on={loaded.on}
+                halfHintId={halfHintId}
+                onType={(field, value) => type(row, field, value)}
+                onDecide={(kind) => openDecision(row, kind)}
+              />
+            ))}
           </ul>
         )}
         <div className={cn('sticky bottom-0 z-10 space-y-2 rounded-lg border border-border bg-card p-3 shadow-soft', !dirty && !refusal && 'hidden')}>
@@ -309,39 +262,301 @@ export function RetentionReviewPage() {
   return (
     <div className="space-y-4">
       <PageHeader level={1} title={t(`${R}.title`)} description={t(`${R}.description`)} />
-      <div className="flex flex-wrap items-end gap-3">
-        <FormField label={t(`${R}.month`)} help={t(`${R}.monthHelp`)}>
-          {(field) => (
-            <Input
-              {...field}
-              type="month"
-              // Browsers without a month picker show a text field: the format is the hint.
-              placeholder={t(`${R}.monthPlaceholder`)}
-              value={month.slice(0, 7)}
-              min="2000-01"
-              max={currentMonth.slice(0, 7)}
-              onChange={(event) => changeMonth(event.target.value)}
-              className="w-44"
-            />
-          )}
-        </FormField>
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+        <MonthPicker month={month} min={FIRST_MONTH} max={currentMonth} onChange={changeMonth} />
         <FormField label={t(`${R}.filter`)}>
           {(field) => (
-            <Select {...field} value={filter} onChange={(event) => setFilter(event.target.value as ReviewFilter)} className="w-60">
-              {REVIEW_FILTERS.map((value) => (
+            <Select {...field} value={filter} onChange={(event) => setFilter(event.target.value as ReviewFilter)} className="w-64 max-w-full">
+              {REVIEW_FILTERS.filter((value) => !OPTIONAL_FILTERS.includes(value) || filterCounts[value] > 0 || value === filter).map((value) => (
                 <option key={value} value={value}>
-                  {value === 'all'
-                    ? t(`${R}.filters.all`, { count: String(rows.length) })
-                    : t(`${R}.filters.status`, { status: t(`${W}.retentionStatus.${value}`), count: String(counts[value]) })}
+                  {t(`${R}.filters.${value}`, { count: String(filterCounts[value]) })}
                 </option>
               ))}
             </Select>
           )}
         </FormField>
-        <p className="pb-1.5 text-xs text-muted-foreground">{t(`${R}.legend`)}</p>
+        {loaded && filter === 'todo' && todoSummary && <p className="pb-1.5 text-sm text-muted-foreground">{todoSummary}</p>}
+      </div>
+      <div className="space-y-0.5 text-xs text-muted-foreground">
+        <p className="font-medium text-foreground">{t(`${R}.legend`)}</p>
+        <p>{t(`${R}.help`)}</p>
       </div>
       {body}
       <DecisionDialog target={decision} onClose={() => setDecision(null)} />
     </div>
   )
+}
+
+/**
+ * The month as French words between two arrows (P4-199): « ‹ septembre 2026 › », never the
+ * browser's own month field (English in some browsers). The next arrow stops at the clinic's month.
+ */
+function MonthPicker({ month, min, max, onChange }: { month: string; min: string; max: string; onChange: (month: string) => void }) {
+  const labelId = useId()
+  return (
+    <div role="group" aria-labelledby={labelId} className="space-y-1">
+      <span id={labelId} className="block text-xs font-medium text-foreground">
+        {t(`${R}.month`)}
+      </span>
+      <div className="flex h-8 items-center rounded-md border border-border bg-card">
+        <Button type="button" variant="ghost" size="icon" aria-label={t(`${R}.monthPrevious`)} disabled={month <= min} onClick={() => onChange(shiftMonth(month, -1))}>
+          <ChevronLeft aria-hidden />
+        </Button>
+        <span aria-live="polite" className="min-w-36 px-1 text-center text-sm font-medium tabular">
+          {monthLabel(month)}
+        </span>
+        <Button type="button" variant="ghost" size="icon" aria-label={t(`${R}.monthNext`)} disabled={month >= max} onClick={() => onChange(shiftMonth(month, 1))}>
+          <ChevronRight aria-hidden />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+interface ReviewItemProps {
+  row: ReviewRow
+  drafts: Drafts
+  /** The review's date (the first day of the next month): a decision starting later says when. */
+  on: string
+  halfHintId: string
+  onType: (field: 'long' | 'short', value: string) => void
+  onDecide: (kind: Decision) => void
+}
+
+/** One professional: a row of six cells on a wide screen, a card below `lg`, in the same order. */
+function ReviewItem({ row, drafts, on, halfHintId, onType, onDecide }: ReviewItemProps) {
+  const id = useId()
+  const name = `${row.firstName} ${row.lastName}`
+  const counts = shownCounts(row, drafts)
+  const total = liveTotal(row, drafts)
+  const changed = isChanged(row, drafts[row.id])
+  const display = retentionDisplay(row, row.increaseDecided)
+  const longError = drafts[row.id] && draftCount(counts.long) === null ? t(`${W}.validation.sessionsLong`) : undefined
+  const shortError = drafts[row.id] && draftCount(counts.short) === null ? t(`${W}.validation.sessionsShort`) : undefined
+  const imported = isImportedBalance(row)
+  const cellLabel = 'block text-xs text-muted-foreground lg:sr-only'
+  return (
+    <li aria-labelledby={`${id}-name`} className={cn('grid gap-3 px-4 py-4 lg:items-start lg:px-3 lg:py-3', COLUMNS, TONE_CLASSES[retentionTone(display)])}>
+      <div className="min-w-0">
+        <Link id={`${id}-name`} to={`/professionnels/${row.id}/remuneration`} className="text-sm font-medium text-foreground underline-offset-[3px] hover:underline">
+          {name}
+        </Link>
+        <p className="text-xs text-muted-foreground">{row.titleName ?? t(`${R}.noTitle`)}</p>
+        {row.agreements > 0 && (
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+            <Handshake aria-hidden className="size-3.5" />
+            {t(`${R}.agreements`, { count: String(row.agreements) })}
+          </p>
+        )}
+      </div>
+
+      <div className="min-w-0">
+        <span className={cellLabel}>{t(`${R}.columns.sessions`)}</span>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5 lg:mt-0">
+          <CountInput
+            short={t(`${R}.long`)}
+            label={t(`${R}.longLabel`, { name })}
+            value={counts.long}
+            errorId={longError ? `${id}-long-error` : undefined}
+            onChange={(value) => onType('long', value)}
+          />
+          <CountInput
+            short={t(`${R}.short`)}
+            label={t(`${R}.shortLabel`, { name })}
+            value={counts.short}
+            hintId={halfHintId}
+            errorId={shortError ? `${id}-short-error` : undefined}
+            onChange={(value) => onType('short', value)}
+          />
+        </div>
+        <p aria-hidden className="mt-1 text-xs text-muted-foreground lg:hidden">
+          {t(`${R}.halfHint`)}
+        </p>
+        {longError && (
+          <p id={`${id}-long-error`} className="mt-1 text-xs text-destructive">
+            {longError}
+          </p>
+        )}
+        {shortError && (
+          <p id={`${id}-short-error`} className="mt-1 text-xs text-destructive">
+            {shortError}
+          </p>
+        )}
+      </div>
+
+      {/* Cumul, palier, retenue: three columns of the card on a phone, three cells of the row on a wide screen. */}
+      <div className="grid grid-cols-3 gap-3 lg:contents">
+        <div className="min-w-0 text-sm">
+          <span className={cellLabel}>{t(`${R}.columns.cumulative`)}</span>
+          <span className="font-semibold tabular">{total === null ? '—' : formatSessions(total)}</span>
+          {total !== null && !imported && ' '}
+          {total !== null && !imported && (
+            <span className="whitespace-nowrap text-xs text-muted-foreground tabular" title={breakdownLong(row.sessionsBefore, total)}>
+              <span aria-hidden>{t(`${R}.breakdown`, { before: formatSessions(row.sessionsBefore), month: formatSessions(total - row.sessionsBefore) })}</span>
+              <span className="sr-only">{breakdownLong(row.sessionsBefore, total)}</span>
+            </span>
+          )}
+          {changed && <span className="block text-xs text-muted-foreground">{t(`${R}.unsaved`)}</span>}
+          {row.entry && imported ? (
+            <span className="block text-xs text-muted-foreground">{t(`${R}.importedBalance`, { count: sessionsLabel(row.entry.adjustment) })}</span>
+          ) : (
+            row.entry &&
+            row.entry.adjustment !== 0 && (
+              <span className="block text-xs text-muted-foreground">
+                {t(`${R}.adjustment`, { value: `${row.entry.adjustment > 0 ? '+' : ''}${formatSessions(row.entry.adjustment)}` })}
+              </span>
+            )
+          )}
+        </div>
+
+        <div className="min-w-0 text-sm">
+          <span className={cellLabel}>{t(`${R}.columns.tier`)}</span>
+          {row.suggested ? <TierCell row={row} imported={imported} /> : <span className="text-muted-foreground">—</span>}
+          {changed && row.suggested && <span className="block text-xs text-muted-foreground">{t(`${R}.recalculated`)}</span>}
+        </div>
+
+        <div className="min-w-0 text-sm">
+          <span className={cellLabel}>{t(`${R}.columns.retention`)}</span>
+          <RetentionCell row={row} on={on} />
+        </div>
+      </div>
+
+      <div className="min-w-0 space-y-1.5">
+        <RetentionStatusBadge display={display} />
+        <StatusNote row={row} display={display} />
+        {decisionsFor(row).length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {decisionsFor(row).map((kind) => {
+              const action = decisionActionLabel(kind, row.applied?.pct ?? null, row.suggested?.pct ?? null)
+              return (
+                <Button
+                  key={kind}
+                  type="button"
+                  size="sm"
+                  variant={kind === 'suggested' ? 'default' : 'outline'}
+                  aria-label={t(`${R}.decisionFor`, { action, name })}
+                  onClick={() => onDecide(kind)}
+                >
+                  {action}
+                </Button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </li>
+  )
+}
+
+/** « 88 avant + 15 ce mois-ci ». */
+const breakdownLong = (before: number, total: number): string =>
+  t(`${R}.breakdownLong`, { before: formatSessions(before), month: formatSessions(total - before) })
+
+/** One count field: « 50/60 » or « 30 » beside it, the full label read by screen readers. */
+function CountInput({
+  short,
+  label,
+  value,
+  hintId,
+  errorId,
+  onChange,
+}: {
+  short: string
+  label: string
+  value: string
+  hintId?: string
+  errorId?: string
+  onChange: (value: string) => void
+}) {
+  const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span aria-hidden className="text-xs text-muted-foreground">
+        {short}
+      </span>
+      <Input
+        aria-label={label}
+        aria-describedby={describedBy}
+        aria-invalid={errorId ? true : undefined}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        inputMode="numeric"
+        autoComplete="off"
+        className="w-14 tabular"
+      />
+    </span>
+  )
+}
+
+/** « 101–150 » with « nouveau » when this month's sessions crossed into it (read in full). */
+function TierCell({ row, imported }: { row: ReviewRow; imported: boolean }) {
+  const suggested = row.suggested
+  if (!suggested) return null
+  const next = row.next?.threshold ?? null
+  const isNew = !imported && suggested.threshold > 0 && row.sessionsBefore < suggested.threshold
+  return (
+    <>
+      <span aria-hidden className="whitespace-nowrap tabular">
+        {tierShortLabel(suggested.threshold, next)}
+      </span>
+      <span className="sr-only">{tierRangeLabel(suggested.threshold, next)}</span>
+      {isNew && (
+        <span className="ml-1.5 inline-block rounded-sm bg-warning/20 px-1 text-2xs font-medium text-foreground">
+          <span aria-hidden>{t(`${R}.newTier`)}</span>
+          <span className="sr-only">, {t(`${R}.newTierLong`)}</span>
+        </span>
+      )}
+    </>
+  )
+}
+
+/** « 27,5 % → 27 % » while a decision is due, else the applied rate (with the grid's when kept apart). */
+function RetentionCell({ row, on }: { row: ReviewRow; on: string }) {
+  const { applied, suggested } = row
+  const due = needsDecision(row.status) && suggested !== null && suggested.pct !== applied?.pct
+  return (
+    <>
+      {due ? (
+        <>
+          <span aria-hidden className="whitespace-nowrap tabular">
+            {applied ? formatPercent(applied.pct) : '—'} → <span className="font-semibold">{formatPercent(suggested.pct)}</span>
+          </span>
+          <span className="sr-only">
+            {applied
+              ? t(`${R}.retentionChange`, { from: formatPercent(applied.pct), to: formatPercent(suggested.pct) })
+              : t(`${R}.retentionFirst`, { to: formatPercent(suggested.pct) })}
+          </span>
+        </>
+      ) : (
+        <span className="whitespace-nowrap font-medium tabular">{applied ? formatPercent(applied.pct) : '—'}</span>
+      )}
+      {!due && applied && suggested && suggested.pct !== applied.pct && (
+        <span className="block text-xs text-muted-foreground">{t(`${R}.grid`, { rate: formatPercent(suggested.pct) })}</span>
+      )}
+      {applied && applied.effectiveFrom > on && !row.increaseDecided && (
+        <span className="block text-xs text-muted-foreground">{t(`${R}.startsOn`, { date: formatDateOnlyShort(applied.effectiveFrom) })}</span>
+      )}
+    </>
+  )
+}
+
+/** The line under a status: when a kept rate comes back, when a decided increase starts, why no grid. */
+function StatusNote({ row, display }: { row: ReviewRow; display: ReturnType<typeof retentionDisplay> }) {
+  const note = 'text-xs text-muted-foreground'
+  switch (display) {
+    case 'increaseDecided':
+      return row.applied ? <p className={note}>{t(`${R}.startsOn`, { date: formatDateOnlyShort(row.applied.effectiveFrom) })}</p> : null
+    case 'maintained':
+    case 'custom':
+      return (
+        <>
+          <p className={note}>{row.next ? t(`${R}.comesBack`, { count: sessionsLabel(row.next.threshold) }) : t(`${R}.staysAtFloor`)}</p>
+          {display === 'custom' && row.applied?.note && <p className={cn(note, 'break-words')}>{row.applied.note}</p>}
+        </>
+      )
+    case 'professionUnconfirmed':
+      return <p className={note}>{t(`${R}.noGrid`)}</p>
+    default:
+      return null
+  }
 }

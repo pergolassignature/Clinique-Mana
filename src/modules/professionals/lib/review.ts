@@ -1,5 +1,5 @@
 import type { RetentionStatus, ReviewRow, SessionEntryInput } from '../api/compensation'
-import { parseSessions } from './compensation'
+import { needsDecision, parseSessions } from './compensation'
 
 /**
  * « Révision mensuelle » (P4-190): the month's typed sessions (drafts), the rows they change, and
@@ -92,17 +92,45 @@ export function onlyImportedBalances(rows: readonly ReviewRow[]): boolean {
   return entered.length > 0 && entered.every(isImportedBalance)
 }
 
-export const REVIEW_FILTERS = ['gap', 'all', 'conforme', 'maintained', 'custom', 'floor', 'profession_unconfirmed'] as const
+/**
+ * « Afficher » (P4-199): « À décider » first (a gap or a starting rate to fix), then « Tous »,
+ * « Conformes », « Palier maximum », and the rates that stand by decision (« Maintenus ou taux
+ * particuliers ») and « Profession à confirmer » (offered when a row is in them).
+ */
+export const REVIEW_FILTERS = ['todo', 'all', 'conforme', 'floor', 'kept', 'profession_unconfirmed'] as const
 export type ReviewFilter = (typeof REVIEW_FILTERS)[number]
+
+/** Filters shown only when they hold a row (or are the one chosen). */
+export const OPTIONAL_FILTERS: readonly ReviewFilter[] = ['kept', 'profession_unconfirmed']
+
+function inFilter(status: RetentionStatus, filter: ReviewFilter): boolean {
+  switch (filter) {
+    case 'all':
+      return true
+    case 'todo':
+      return needsDecision(status)
+    case 'kept':
+      return status === 'maintained' || status === 'custom'
+    default:
+      return status === filter
+  }
+}
 
 /** The rows a filter keeps; a row being edited always stays, so typing never hides it. */
 export function filterRows(rows: readonly ReviewRow[], filter: ReviewFilter, drafts: Drafts): ReviewRow[] {
-  return rows.filter((row) => filter === 'all' || row.status === filter || drafts[row.id] !== undefined)
+  return rows.filter((row) => inFilter(row.status, filter) || drafts[row.id] !== undefined)
 }
 
-/** Rows per status, for the filter's labels. */
+/** Rows per filter, for the filter's labels. */
+export function countByFilter(rows: readonly ReviewRow[]): Record<ReviewFilter, number> {
+  const counts = Object.fromEntries(REVIEW_FILTERS.map((filter) => [filter, 0])) as Record<ReviewFilter, number>
+  for (const row of rows) for (const filter of REVIEW_FILTERS) if (inFilter(row.status, filter)) counts[filter] += 1
+  return counts
+}
+
+/** Rows per status (« À décider »'s two counts: gaps, starting rates to fix). */
 export function countByStatus(rows: readonly ReviewRow[]): Record<RetentionStatus, number> {
-  const counts: Record<RetentionStatus, number> = { gap: 0, conforme: 0, floor: 0, maintained: 0, custom: 0, profession_unconfirmed: 0 }
+  const counts: Record<RetentionStatus, number> = { gap: 0, no_rate: 0, conforme: 0, floor: 0, maintained: 0, custom: 0, profession_unconfirmed: 0 }
   for (const row of rows) counts[row.status] += 1
   return counts
 }
