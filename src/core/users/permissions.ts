@@ -75,7 +75,7 @@ export function canTogglePermission({ callerIsAdmin, callerCan, permissionKey, o
  * The roles whose defaults are never edited in the matrix: Administrateur always has every
  * permission, and the professionals' permissions are managed by the Professionnels module.
  */
-export const LOCKED_ROLES: ReadonlySet<string> = new Set(['admin', PROVIDER_ROLE])
+const LOCKED_ROLES: ReadonlySet<string> = new Set(['admin', PROVIDER_ROLE])
 
 /** Why a matrix cell is read-only for the caller, or null when she may toggle it. */
 export type RoleCellLock = 'locked' | 'ownRole' | 'lacked'

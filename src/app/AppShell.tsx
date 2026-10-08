@@ -13,7 +13,7 @@ import { SidebarContent } from './shell/SidebarContent'
 import { Topbar } from './shell/Topbar'
 import { useSidebarCollapsed } from './shell/use-sidebar-collapsed'
 
-export type { ShellNavItem, ShellPage } from './shell/shell-pages'
+export type { ShellNavItem } from './shell/shell-pages'
 
 const MAIN_ID = 'contenu'
 
