@@ -41,7 +41,7 @@ function LeaveButton() {
 
 const baseAccess: Access = { ...testAccess, display_name: 'Camille Tremblay' }
 
-function renderPage(auth: Partial<AuthContextValue> = {}) {
+function renderPage(auth: Partial<AuthContextValue> = {}, path: NonNullable<Parameters<typeof renderWithContexts>[1]>['path'] = '/') {
   const current = auth.session ?? session()
   // By default the server agrees with the stored session.
   if (!mocks.fetchAuthUser.getMockImplementation()) mocks.fetchAuthUser.mockImplementation(async () => current.user)
@@ -54,7 +54,7 @@ function renderPage(auth: Partial<AuthContextValue> = {}) {
           <AccountPage />
           <LeaveButton />
         </UnsavedChangesProvider>,
-        { auth: { ...auth, session: current }, access: { access } },
+        { auth: { ...auth, session: current }, access: { access }, path },
       )}
     </QueryClientProvider>
   )
@@ -251,6 +251,14 @@ describe('« Courriel »', () => {
   it('shows a change already waiting for confirmation', () => {
     renderPage({ session: session({ new_email: 'nouvelle@mana.test' }) })
     expect(within(status()).getByText(t('account.email.pendingTitle', { email: 'nouvelle@mana.test' }))).toBeInTheDocument()
+  })
+
+  // From /connexion/confirmer (Phase 3): an email-change link just confirmed shows the same neutral
+  // notice as a request made here, never « en attente vers … ».
+  it('shows the neutral notice after an email-change link is confirmed', () => {
+    renderPage({ session: session({ new_email: 'nouvelle@mana.test' }) }, { pathname: '/mon-compte', state: { emailChangeConfirmed: true } })
+    expect(within(status()).getByText(t('account.email.requested'))).toBeInTheDocument()
+    expect(status()).not.toHaveTextContent('nouvelle@mana.test')
   })
 
   it('after a request, shows the neutral notice instead of an older pending change', async () => {

@@ -87,6 +87,15 @@
       "cancel": "Annuler et se déconnecter",
       "success": "Mot de passe mis à jour."
     },
+    "confirm": {
+      "title": "Confirmation",
+      "subtitle": "Cliquez sur « Continuer » pour poursuivre.",
+      "continue": "Continuer",
+      "verifying": "Vérification…",
+      "otherUser": "Vous êtes connecté en tant que {name}. Ce lien concerne peut-être un autre compte.",
+      "invalid": "Ce lien a expiré ou a déjà été utilisé.",
+      "requestNew": "Demander un nouveau lien"
+    },
     "errors": {
       "invalidEmail": "Courriel invalide.",
       "required": "Champ requis.",
@@ -97,6 +106,7 @@
       "invalid_code": "Code invalide ou expiré.",
       "invalid_email": "Courriel invalide.",
       "rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
+      "link_invalid": "Ce lien a expiré ou a déjà été utilisé.",
       "unknown": "Une erreur est survenue. Réessayez."
     }
   },

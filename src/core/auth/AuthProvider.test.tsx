@@ -21,6 +21,7 @@ const auth = vi.hoisted(() => ({
   reauthenticate: vi.fn(),
   signOut: vi.fn(),
   getSession: vi.fn(),
+  verifyOtp: vi.fn(),
 }))
 
 const sentry = vi.hoisted(() => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
@@ -80,7 +81,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks()
   loadPage.mockReset()
-  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.reauthenticate, auth.signOut, auth.getSession, sentry.captureMessage, sentry.captureException]) {
+  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.reauthenticate, auth.signOut, auth.getSession, auth.verifyOtp, sentry.captureMessage, sentry.captureException]) {
     fn.mockReset()
   }
   auth.listener = undefined
@@ -612,6 +613,35 @@ describe('signOutEverywhere', () => {
   })
 })
 
+describe('verifyEmailLink (/connexion/confirmer)', () => {
+  it("verifies the token hash and returns the new session's access token", async () => {
+    auth.verifyOtp.mockResolvedValue({ data: { session: session('t-new'), user: { id: 'u1' } }, error: null })
+    await expect(renderReady().verifyEmailLink('h1', 'recovery')).resolves.toEqual({ ok: true, sessionAccessToken: 't-new' })
+    expect(auth.verifyOtp).toHaveBeenCalledExactlyOnceWith({ token_hash: 'h1', type: 'recovery' })
+  })
+
+  // With double confirmation, the first of the two email-change links answers without a session.
+  it('succeeds without a session', async () => {
+    auth.verifyOtp.mockResolvedValue({ data: { session: null, user: null }, error: null })
+    await expect(renderReady().verifyEmailLink('h1', 'email_change')).resolves.toEqual({ ok: true, sessionAccessToken: null })
+  })
+
+  // One message for expired and already used links (design §5 step 4).
+  it('maps otp_expired to link_invalid, with a status fallback for servers without a code', async () => {
+    auth.verifyOtp.mockResolvedValue(apiError('Email link is invalid or has expired', 403, 'otp_expired'))
+    await expect(renderReady().verifyEmailLink('h1', 'email')).resolves.toEqual({ ok: false, code: 'link_invalid' })
+    auth.verifyOtp.mockResolvedValue(apiError('Token has expired or is invalid', 403))
+    await expect(renderReady().verifyEmailLink('h1', 'email')).resolves.toEqual({ ok: false, code: 'link_invalid' })
+  })
+
+  it('keeps a failure that did not use the link distinct (throttle, outage)', async () => {
+    auth.verifyOtp.mockResolvedValue(apiError('Too many requests', 429, 'over_request_rate_limit'))
+    await expect(renderReady().verifyEmailLink('h1', 'email')).resolves.toEqual({ ok: false, code: 'rate_limited' })
+    auth.verifyOtp.mockResolvedValue(apiError('Internal error', 500))
+    await expect(renderReady().verifyEmailLink('h1', 'email')).resolves.toEqual({ ok: false, code: 'unknown' })
+  })
+})
+
 describe('FR-CA messages', () => {
   // Record<AuthErrorCode, …> fails to compile if a code is added without being listed here.
   const codes: Record<AuthErrorCode, true> = {
@@ -622,6 +652,7 @@ describe('FR-CA messages', () => {
     invalid_code: true,
     invalid_email: true,
     rate_limited: true,
+    link_invalid: true,
     unknown: true,
   }
 

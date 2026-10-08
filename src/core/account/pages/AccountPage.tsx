@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -110,14 +111,17 @@ function EmailCard() {
   const user = useAccountUser()
   const queryClient = useQueryClient()
   const current = user?.email ?? ''
+  // Arriving from an email-change link just confirmed (/connexion/confirmer): the same neutral
+  // notice as after a request made here.
+  const linkConfirmed = (useLocation().state as { emailChangeConfirmed?: boolean } | null)?.emailChangeConfirmed === true
   // The last request from this page succeeded. Its notice is neutral: an address used by another
   // account answers like a success (decision #38), so the page never names a change the server may
   // not have recorded. Cleared on each new attempt, so a later failure doesn't sit next to it.
-  const [requested, setRequested] = useState(false)
+  const [requested, setRequested] = useState(linkConfirmed)
   // A request from this page succeeded at least once. Never cleared: from then on, « en attente
   // vers … » stays hidden, even while a later attempt is in flight or after it fails, otherwise
   // new_email (recorded only for a real change) would show through.
-  const [askedHere, setAskedHere] = useState(false)
+  const [askedHere, setAskedHere] = useState(linkConfirmed)
   const [error, setError] = useState<AuthErrorCode | null>(null)
   const form = useForm<z.input<typeof emailFormSchema>, unknown, z.output<typeof emailFormSchema>>({
     resolver: zodResolver(emailFormSchema),

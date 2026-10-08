@@ -63,7 +63,7 @@ const ENTRY_FILES = {
     'src/shared/ui/read-only-context.ts',
     'src/shared/ui/sonner.tsx',
   ],
-  app: ['src/app/App.tsx', 'src/app/modules.ts', 'src/app/route-preload.ts'],
+  app: ['src/app/App.tsx', 'src/app/modules.ts', 'src/app/public-pages.ts', 'src/app/route-preload.ts'],
   // A module's public index and manifest are read at boot (ALL_MODULES); its pages are lazy.
   modules: ['src/modules/*/index.ts', 'src/modules/*/manifest.ts'],
   other: ['src/main.tsx', 'src/i18n/index.ts'],
