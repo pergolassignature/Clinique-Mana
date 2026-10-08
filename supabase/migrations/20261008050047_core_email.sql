@@ -14,8 +14,11 @@
 --   catalogue sound: the key prefix is the module, the variables are well formed, and the
 --   default text uses only declared placeholders.
 -- * The effective template is the clinic's override (`email_templates`, audited) or else the
---   default. `version` is 0 for the default and counts the saves of an override from 1; a reset
---   deletes the override, so a later save starts again at 1 (the audit trail dates each one).
+--   default. `version` is 0 for the default and counts the saves of an override from 1. A
+--   (template_key, template_version) pair is never reused within an org, so an `email_log` row
+--   always names one text (its before/after is in the audit trail): a reset deletes the
+--   override but not its counter (`email_template_versions.last_version`), and the next save
+--   continues from the highest version used (saves 1, 2, reset, save → 3).
 -- * Placeholders follow one rule, shared with the renderer (`PLACEHOLDER_SOURCE`,
 --   supabase/functions/_shared/format.ts): `\{\{([^{}\r\n]*)\}\}`, the path being the capture
 --   with spaces trimmed (btrim: SQL is at most stricter than the renderer's trim()). The one
@@ -30,26 +33,41 @@
 --   address, no space or `<>,` in the local part; an ASCII domain), a subset of what the send
 --   path accepts, so a stored sender is never refused there. `from_address` must be on
 --   `sending_domain`. The sender name cannot hold `<`, `>`, `"` or control characters (it goes
---   into the From header).
+--   into the From header); seeded from the org name without them, « Clinique » if nothing is
+--   left. With no `reply_to`, get_email_context answers the org email when it is one mailbox.
 -- * `email_log` is an operational log (no audit trigger, 000_invariants list): one row per
 --   message, written only by the service-role RPCs below. No body, rendered subject or value
 --   is stored (design §2.5). Read through RLS: own org, and the row's `view_permission`
 --   (tested against the caller's permission array once per statement, P3-21) or
 --   `settings.email_manage`. A disabled module's `view_permission` drops out of the array, so
 --   its rows disappear except for `settings.email_manage` holders (the clinic-wide history).
+-- * Efficiency. list_email_log is keyset-paged on (created_at, id); the paging position and
+--   the period are computed into variables first, so on any page (generic plan included) they
+--   are index bounds of `email_log_org_created_idx`, or of `email_log_org_status_idx` with a
+--   status filter (« Échecs » is a rare status: without it a filter matching nothing would read
+--   the whole org). count_org_emails_today is a closed range on the clinic day. Measured
+--   over 2 × 12 000 rows: see the functions.
 -- * Status order: queued < sent < delivery_delayed < delivered; bounced and complained are
 --   final, and so is failed, except `failed / provider_unavailable` (outcome unknown: a timeout
 --   or network error on the last attempt, or a row stuck in `queued`). A later webhook (or a late
 --   mark_email_sent) may move that one on, so a delivered email is never shown as failed and
 --   « Renvoyer » does not resend it. A late mark_email_failed never overrides a webhook outcome.
+--   The provider's own failure event (Resend `email.failed`: invalid recipient, domain or quota)
+--   is `failed / provider_failed`, final; it moves a row not yet delivered (queued, sent,
+--   delivery_delayed, unknown outcome), never a delivered, bounced or complained one.
 -- * Jobs (Task 3.3 runner): `core.email_log_retention` nulls `to_email` after 24 months (P3-6),
 --   in batches of 5 000 so each statement stays bounded; `core.email_log_stale_queued` fails
 --   rows still `queued` after 15 minutes as `provider_unavailable` (a function killed between
 --   queue and mark), every 5 minutes.
 -- * Send-path contract (supabase/functions/_shared/email/send.ts, lane F): `get_email_context`,
 --   `queue_email`, `mark_email_sent`, `mark_email_failed`, all service-role only, exactly as
---   that file assumes. `apply_email_event` (resend-webhook, Task 3.10) checks the row's module
---   itself and answers `ignored` when it is disabled, so the webhook acks without an extra call.
+--   that file assumes. queue_email takes the version and view permission from that context
+--   and refuses (22023) any that differ from the catalogue and the org's current version (a
+--   save between the two calls fails that send rather than log the wrong version).
+--   `apply_email_event` (resend-webhook, Task 3.10) checks the row's module itself and answers
+--   `ignored` when it is disabled, or when the tag and the provider id name two different rows
+--   (a 23505 there would make the provider retry forever), so the webhook acks without an
+--   extra call.
 -- =============================================================================
 select pg_catalog.set_config('app.audit_source', 'migration:core_email', true);
 
@@ -128,11 +146,26 @@ as $$
       where pg_catalog.strpos(x.rest, '{{') > 0 or pg_catalog.strpos(x.rest, '}}') > 0))
 $$;
 
+-- A sender name from an org name: without the characters the From header refuses, runs of
+-- spaces collapsed, at most 80 characters; « Clinique » when nothing is left.
+create function private.email_sender_name(p_name text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(
+    nullif(pg_catalog.btrim(pg_catalog.left(pg_catalog.btrim(pg_catalog.regexp_replace(
+      pg_catalog.regexp_replace(p_name, '[[:cntrl:]<>"]', '', 'g'), ' {2,}', ' ', 'g')), 80)), ''),
+    'Clinique')
+$$;
+
 revoke all on function
   private.is_mailbox(text),
   private.email_variables_valid(jsonb),
   private.email_variable_paths(jsonb),
-  private.email_placeholder_error(text, text[])
+  private.email_placeholder_error(text, text[]),
+  private.email_sender_name(text)
 from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
@@ -207,6 +240,24 @@ create policy email_templates_select on public.email_templates
     and (select private.has_permission('settings.view'))
   );
 
+-- The highest override version an org has used per template, kept across resets so that a
+-- version number is never reused (header). Written only by save_email_template (definer);
+-- no client privilege, no policy. Audited like every org-scoped table.
+create table public.email_template_versions (
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  key text not null references public.email_template_defaults(key),
+  last_version int not null check (last_version > 0),
+  primary key (org_id, key)
+);
+create index email_template_versions_key_idx on public.email_template_versions (key);
+
+create trigger email_template_versions_audit
+  after insert or update or delete on public.email_template_versions
+  for each row execute function private.audit_trigger();
+
+alter table public.email_template_versions enable row level security;
+revoke all on public.email_template_versions from anon, authenticated;
+
 -- -----------------------------------------------------------------------------
 -- Sender settings
 -- -----------------------------------------------------------------------------
@@ -242,8 +293,8 @@ create policy email_settings_select on public.email_settings
     and (select private.has_permission('settings.view'))
   );
 
--- A new org gets its sender: its name (without the characters the From header refuses), the
--- no-reply address of the default domain, and its email as reply-to when it is one mailbox.
+-- A new org gets its sender: its name (private.email_sender_name), the no-reply address of the
+-- default domain, and its email as reply-to when it is one mailbox.
 create function private.seed_org_email_settings()
 returns trigger
 language plpgsql
@@ -254,8 +305,7 @@ begin
   insert into public.email_settings (org_id, from_name, from_address, reply_to)
   values (
     new.id,
-    pg_catalog.left(pg_catalog.btrim(pg_catalog.regexp_replace(
-      pg_catalog.regexp_replace(new.name, '[[:cntrl:]<>"]', '', 'g'), ' {2,}', ' ', 'g')), 80),
+    private.email_sender_name(new.name),
     'no-reply@gestion.cliniquemana.com',
     case when private.is_mailbox(new.email) then new.email end)
   on conflict do nothing;
@@ -272,8 +322,7 @@ create trigger organizations_seed_email_settings
 -- Backfill (staging): the same row for every existing org, audited as this migration.
 insert into public.email_settings (org_id, from_name, from_address, reply_to)
 select o.id,
-       pg_catalog.left(pg_catalog.btrim(pg_catalog.regexp_replace(
-         pg_catalog.regexp_replace(o.name, '[[:cntrl:]<>"]', '', 'g'), ' {2,}', ' ', 'g')), 80),
+       private.email_sender_name(o.name),
        'no-reply@gestion.cliniquemana.com',
        case when private.is_mailbox(o.email) then o.email end
   from public.organizations o
@@ -314,6 +363,9 @@ create table public.email_log (
 -- Serves the org FK, the RLS predicate, list_email_log (keyset on created_at, id) and
 -- count_org_emails_today.
 create index email_log_org_created_idx on public.email_log (org_id, created_at desc, id desc);
+-- Serves list_email_log with a status (« Échecs », a rare status: the org index would read
+-- every row of the org to find none).
+create index email_log_org_status_idx on public.email_log (org_id, status, created_at desc, id desc);
 -- Serves list_subject_emails (record timelines, P3-26).
 create index email_log_subject_idx on public.email_log (org_id, subject_type, subject_id, created_at desc, id desc);
 -- Serves core.email_log_retention.
@@ -438,7 +490,7 @@ begin
 end;
 $$;
 
--- Saves the caller's org override of a template (trimmed, validated) and bumps its version.
+-- Saves the caller's org override of a template (trimmed, validated) as its next version.
 create function public.save_email_template(p_key text, p_subject text, p_body text, p_button_label text)
 returns void
 language plpgsql
@@ -452,6 +504,7 @@ declare
   v_body text := pg_catalog.btrim(p_body, E' \t\r\n');
   v_button text := nullif(pg_catalog.btrim(p_button_label, E' \t\r\n'), '');
   v_error text;
+  v_version int;
 begin
   if not private.has_permission('settings.email_manage') then
     raise exception 'Permission refusée : settings.email_manage' using errcode = '42501';
@@ -486,18 +539,26 @@ begin
     raise exception '%', v_error using errcode = 'P0001';
   end if;
 
-  insert into public.email_templates as t (org_id, key, subject, body, button_label, updated_by)
-  values (v_org, p_key, v_subject, v_body, v_button, auth.uid())
+  -- The next version: one more than the highest ever used, reset or not. The counter's row
+  -- lock serialises two saves of the same template.
+  insert into public.email_template_versions as c (org_id, key, last_version)
+  values (v_org, p_key, 1)
+  on conflict (org_id, key) do update set last_version = c.last_version + 1
+  returning c.last_version into v_version;
+
+  insert into public.email_templates as t (org_id, key, subject, body, button_label, version, updated_by)
+  values (v_org, p_key, v_subject, v_body, v_button, v_version, auth.uid())
   on conflict (org_id, key) do update
     set subject = excluded.subject,
         body = excluded.body,
         button_label = excluded.button_label,
-        version = t.version + 1,
+        version = excluded.version,
         updated_by = excluded.updated_by;
 end;
 $$;
 
--- « Rétablir le texte par défaut »: deletes the caller's org override (audited).
+-- « Rétablir le texte par défaut »: deletes the caller's org override (audited). Its version
+-- counter stays, so the next save does not reuse a version number.
 create function public.reset_email_template(p_key text)
 returns void
 language plpgsql
@@ -522,6 +583,15 @@ $$;
 -- « Historique d'envoi »: the log rows the caller may see (RLS applies), newest first,
 -- keyset-paged on (created_at, id): pass the last row's created_at and id. Filters are
 -- optional; the period is [p_from, p_to).
+-- The cursor and the period are folded into two variables first: the upper bound is the
+-- smaller of the cursor and (p_to, nil uuid), the lower one p_from. A plpgsql variable is a
+-- plan parameter, so both stay index bounds in a generic plan (a `p is null or …` term would
+-- only be a filter). With a status the query reads `email_log_org_status_idx`, so a filter
+-- matching nothing reads nothing. The template filter is a filter (a template is a large
+-- share of an org's rows, its own index would add little).
+-- Measured, generic plan, 12 000 rows in each of two orgs (auto_explain, local): any page
+-- reads its 50 index entries, 10 000 rows deep included (0.4 ms; the SQL version read and
+-- filtered 10 051, 2.1 ms); a status matching nothing reads none (was all 12 000).
 create function public.list_email_log(
   p_template_key text default null,
   p_status text default null,
@@ -544,28 +614,59 @@ returns table (
   last_event_at timestamptz,
   error_code text
 )
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select e.id, e.template_key, d.label, e.status, e.to_email, e.subject_type, e.subject_id,
-         e.created_at, e.sent_at, e.last_event_at, e.error_code
-    from public.email_log e
-    join public.email_template_defaults d on d.key = e.template_key
-   where e.org_id = (select private.current_user_org_id())
-     and (p_template_key is null or e.template_key = p_template_key)
-     and (p_status is null or e.status = p_status)
-     and (p_from is null or e.created_at >= p_from)
-     and (p_to is null or e.created_at < p_to)
-     -- With no id, the nil uuid (the smallest) makes this `created_at < p_before`.
-     and (p_before is null
-          or (e.created_at, e.id) < (p_before, coalesce(p_before_id, '00000000-0000-0000-0000-000000000000'::uuid)))
-   order by e.created_at desc, e.id desc
-   limit least(greatest(coalesce(p_limit, 50), 1), 100)
+declare
+  -- No cursor: (infinity, max uuid). A cursor without an id: the nil uuid (the smallest),
+  -- i.e. `created_at < p_before`. `created_at < p_to` is `(created_at, id) < (p_to, nil)`.
+  v_before timestamptz := coalesce(p_before, 'infinity');
+  v_before_id uuid := coalesce(p_before_id,
+                               case when p_before is null then 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid
+                                    else '00000000-0000-0000-0000-000000000000'::uuid end);
+  v_from timestamptz := coalesce(p_from, '-infinity');
+  v_limit int := least(greatest(coalesce(p_limit, 50), 1), 100);
+begin
+  if p_to is not null and (p_to, '00000000-0000-0000-0000-000000000000'::uuid) < (v_before, v_before_id) then
+    v_before := p_to;
+    v_before_id := '00000000-0000-0000-0000-000000000000'::uuid;
+  end if;
+
+  if p_status is null then
+    return query
+    select e.id, e.template_key, d.label, e.status, e.to_email, e.subject_type, e.subject_id,
+           e.created_at, e.sent_at, e.last_event_at, e.error_code
+      from public.email_log e
+      join public.email_template_defaults d on d.key = e.template_key
+     where e.org_id = (select private.current_user_org_id())
+       and (e.created_at, e.id) < (v_before, v_before_id)
+       and e.created_at >= v_from
+       and (p_template_key is null or e.template_key = p_template_key)
+     order by e.created_at desc, e.id desc
+     limit v_limit;
+  else
+    return query
+    select e.id, e.template_key, d.label, e.status, e.to_email, e.subject_type, e.subject_id,
+           e.created_at, e.sent_at, e.last_event_at, e.error_code
+      from public.email_log e
+      join public.email_template_defaults d on d.key = e.template_key
+     where e.org_id = (select private.current_user_org_id())
+       and e.status = p_status
+       and (e.created_at, e.id) < (v_before, v_before_id)
+       and e.created_at >= v_from
+       and (p_template_key is null or e.template_key = p_template_key)
+     order by e.created_at desc, e.id desc
+     limit v_limit;
+  end if;
+end;
 $$;
 
--- A record's emails (« Historique » timelines, P3-26; RLS applies), newest first.
+-- A record's emails (« Historique » timelines, P3-26), newest first, with who sent each one.
+-- Definer so that the sender's name shows to anyone who may see the email (profiles are
+-- readable with users.view only); the rows are exactly those of the email_log_select policy:
+-- own org, and the row's view_permission or settings.email_manage.
 create function public.list_subject_emails(p_subject_type text, p_subject_id uuid, p_limit int default 50)
 returns table (
   id uuid,
@@ -574,6 +675,7 @@ returns table (
   status text,
   to_email text,
   sent_by uuid,
+  sent_by_name text,
   created_at timestamptz,
   sent_at timestamptz,
   last_event_at timestamptz,
@@ -581,14 +683,17 @@ returns table (
 )
 language sql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select e.id, e.template_key, d.label, e.status, e.to_email, e.sent_by,
+  select e.id, e.template_key, d.label, e.status, e.to_email, e.sent_by, p.display_name,
          e.created_at, e.sent_at, e.last_event_at, e.error_code
     from public.email_log e
     join public.email_template_defaults d on d.key = e.template_key
+    left join public.profiles p on p.user_id = e.sent_by and p.org_id = e.org_id
    where e.org_id = (select private.current_user_org_id())
+     and (e.view_permission = any ((select private.current_permission_keys())::text[])
+          or (select private.has_permission('settings.email_manage')))
      and e.subject_type = p_subject_type
      and e.subject_id = p_subject_id
    order by e.created_at desc, e.id desc
@@ -619,7 +724,8 @@ to authenticated;
 -- Service-role RPCs (supabase/functions/_shared/email/send.ts, resend-webhook)
 -- -----------------------------------------------------------------------------
 -- Everything one send needs, in one round trip (shape: send.ts `contextSchema`). Unknown
--- org or key → 22023.
+-- org or key → 22023. With no reply-to set, the org email is the reply-to when it is one
+-- mailbox (as the seed does).
 create function public.get_email_context(p_org_id uuid, p_template_key text)
 returns jsonb
 language plpgsql
@@ -648,7 +754,7 @@ begin
            'sender', pg_catalog.jsonb_build_object(
              'from_name', s.from_name,
              'from_address', s.from_address,
-             'reply_to', s.reply_to),
+             'reply_to', coalesce(s.reply_to, case when private.is_mailbox(o.email) then o.email end)),
            'clinic', pg_catalog.jsonb_build_object(
              'name', o.name,
              'address_line1', o.address_line1,
@@ -667,15 +773,17 @@ begin
     left join public.email_templates t on t.org_id = o.id and t.key = d.key
    where d.key = p_template_key and o.id = p_org_id;
   if v_context is null then
-    raise exception 'Unknown organization or email template' using errcode = '22023';
+    raise exception 'Organisation ou modèle de courriel inconnu' using errcode = '22023';
   end if;
   return v_context;
 end;
 $$;
 
 -- Logs one message as `queued` before it is handed to the provider; its id is the
--- idempotency key and the `email_log_id` tag. The module comes from the template. The
--- recipient profile and the sender, when given, must belong to the org.
+-- idempotency key and the `email_log_id` tag. The module comes from the template. Refused
+-- (22023): an unknown template, no recipient address, a view permission other than the
+-- catalogue's, a version other than the org's current one (0 for the default, else the
+-- override's), a recipient profile or sender outside the org.
 create function public.queue_email(
   p_org_id uuid,
   p_template_key text,
@@ -695,24 +803,38 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_module text;
+  v_default public.email_template_defaults%rowtype;
+  v_version int;
   v_id uuid;
 begin
-  select d.module_key into v_module from public.email_template_defaults d where d.key = p_template_key;
-  if not found
-     or not exists (select 1 from public.permissions pm where pm.key = p_view_permission)
-     or (p_to_profile_id is not null
-         and not exists (select 1 from public.profiles p where p.user_id = p_to_profile_id and p.org_id = p_org_id))
+  select * into v_default from public.email_template_defaults d where d.key = p_template_key;
+  if not found then
+    raise exception 'Modèle de courriel inconnu' using errcode = '22023';
+  end if;
+  if p_to_email is null then
+    raise exception 'Adresse du destinataire manquante' using errcode = '22023';
+  end if;
+  if p_view_permission is distinct from v_default.view_permission then
+    raise exception 'Permission de consultation différente de celle du modèle' using errcode = '22023';
+  end if;
+  select coalesce((select t.version from public.email_templates t
+                    where t.org_id = p_org_id and t.key = p_template_key), 0)
+    into v_version;
+  if p_template_version is distinct from v_version then
+    raise exception 'Version du modèle différente de la version en vigueur' using errcode = '22023';
+  end if;
+  if (p_to_profile_id is not null
+      and not exists (select 1 from public.profiles p where p.user_id = p_to_profile_id and p.org_id = p_org_id))
      or (p_sent_by is not null
          and not exists (select 1 from public.profiles p where p.user_id = p_sent_by and p.org_id = p_org_id)) then
-    raise exception 'Invalid email to queue' using errcode = '22023';
+    raise exception 'Destinataire ou expéditeur hors de l''organisation' using errcode = '22023';
   end if;
 
   insert into public.email_log
     (org_id, module_key, template_key, template_version, to_email, to_profile_id,
      subject_type, subject_id, view_permission, sent_by, attachment_count)
   values
-    (p_org_id, v_module, p_template_key, p_template_version, p_to_email, p_to_profile_id,
+    (p_org_id, v_default.module_key, p_template_key, p_template_version, p_to_email, p_to_profile_id,
      p_subject_type, p_subject_id, p_view_permission, p_sent_by, p_attachment_count)
   returning id into v_id;
   return v_id;
@@ -731,7 +853,7 @@ as $$
 begin
   if p_resend_id is null or pg_catalog.length(p_resend_id) not between 1 and 200
      or p_attempts is null or p_attempts not between 0 and 100 then
-    raise exception 'Invalid send outcome' using errcode = '22023';
+    raise exception 'Résultat d''envoi invalide' using errcode = '22023';
   end if;
   update public.email_log e
      set status = case when e.status = 'queued' or (e.status = 'failed' and e.error_code = 'provider_unavailable')
@@ -743,7 +865,7 @@ begin
          sent_at = coalesce(e.sent_at, pg_catalog.now())
    where e.id = p_id;
   if not found then
-    raise exception 'Unknown email' using errcode = '22023';
+    raise exception 'Courriel inconnu' using errcode = '22023';
   end if;
 end;
 $$;
@@ -760,7 +882,7 @@ as $$
 begin
   if p_error_code is null or p_error_code !~ '^[a-z0-9_]{1,64}$'
      or p_attempts is null or p_attempts not between 0 and 100 then
-    raise exception 'Invalid send outcome' using errcode = '22023';
+    raise exception 'Résultat d''envoi invalide' using errcode = '22023';
   end if;
   update public.email_log e
      set status = case when e.status = 'queued' or (e.status = 'failed' and e.error_code = 'provider_unavailable')
@@ -770,15 +892,17 @@ begin
          attempts = greatest(e.attempts, p_attempts)
    where e.id = p_id;
   if not found then
-    raise exception 'Unknown email' using errcode = '22023';
+    raise exception 'Courriel inconnu' using errcode = '22023';
   end if;
 end;
 $$;
 
 -- Applies a delivery webhook event (resend-webhook, Task 3.10) to its row, found by id (the
--- `email_log_id` tag), else by provider id. Returns `applied`, `ignored` (the module is
--- disabled for the org, the row is final, or the event would move it backwards) or
--- `not_found` (no row, or a row of another org). Order and final states: see the header.
+-- `email_log_id` tag), else by provider id. `p_status` is a webhook status, or `failed` for
+-- the provider's failure event (stored as `provider_failed`). Returns `applied`, `ignored`
+-- (the tag and the provider id name two different rows, the module is disabled for the org,
+-- the row is final, or the event would move it backwards) or `not_found` (no row, or a row
+-- of another org). Order and final states: see the header.
 create function public.apply_email_event(
   p_org_id uuid,
   p_email_log_id uuid,
@@ -799,8 +923,8 @@ declare
   v_at timestamptz := coalesce(p_at, pg_catalog.now());
 begin
   if p_org_id is null or p_status is null
-     or p_status not in ('sent', 'delivery_delayed', 'delivered', 'bounced', 'complained') then
-    raise exception 'Invalid email event' using errcode = '22023';
+     or p_status not in ('sent', 'delivery_delayed', 'delivered', 'bounced', 'complained', 'failed') then
+    raise exception 'Événement de courriel invalide' using errcode = '22023';
   end if;
 
   if p_email_log_id is not null then
@@ -812,14 +936,21 @@ begin
   if v_row.id is null or v_row.org_id <> p_org_id then
     return 'not_found';
   end if;
+  -- The provider id belongs to another row: storing it would raise 23505 at every retry.
+  if p_resend_id is not null
+     and exists (select 1 from public.email_log x where x.resend_id = p_resend_id and x.id <> v_row.id) then
+    return 'ignored';
+  end if;
   if not public.module_enabled_for_org(v_row.org_id, v_row.module_key) then
     return 'ignored';
   end if;
 
   -- Ranks: queued and an unknown outcome 0, sent 1, delivery_delayed 2, delivered 3;
-  -- bounced and complained 4 (final); any other failure is final.
+  -- bounced, complained and failed 4 (final); any other failure is final. A failure event
+  -- never overrides a delivery.
   if v_row.status in ('bounced', 'complained')
-     or (v_row.status = 'failed' and v_row.error_code <> 'provider_unavailable') then
+     or (v_row.status = 'failed' and v_row.error_code <> 'provider_unavailable')
+     or (p_status = 'failed' and v_row.status = 'delivered') then
     return 'ignored';
   end if;
   v_current := case v_row.status when 'sent' then 1 when 'delivery_delayed' then 2 when 'delivered' then 3 else 0 end;
@@ -830,28 +961,51 @@ begin
 
   update public.email_log e
      set status = p_status,
-         error_code = null,
+         error_code = case when p_status = 'failed' then 'provider_failed' end,
          resend_id = coalesce(e.resend_id, p_resend_id),
-         sent_at = coalesce(e.sent_at, v_at),
+         -- A message the provider failed was never sent: sent_at stays as it was.
+         sent_at = case when p_status = 'failed' then e.sent_at else coalesce(e.sent_at, v_at) end,
          last_event_at = v_at
    where e.id = v_row.id;
   return 'applied';
 end;
 $$;
 
--- Messages logged today (clinic day, organizations.timezone) for an org.
+-- Messages logged today (clinic day, organizations.timezone) for an org; 0 for an unknown
+-- org. The day's bounds are computed first, so the count is an index range of
+-- `email_log_org_created_idx`. Both bounds matter: a generic plan rates `created_at >= $1`
+-- alone as a third of the table and may scan all of it (seen at 24 000 rows), a closed range
+-- as a small slice.
+-- Measured, generic plan, 12 000 rows in each of two orgs, ~100 today: an index-only range
+-- reading only today's entries.
 create function public.count_org_emails_today(p_org_id uuid)
 returns int
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select pg_catalog.count(*)::int
-    from public.organizations o
-    join public.email_log e on e.org_id = o.id
-   where o.id = p_org_id
-     and e.created_at >= (pg_catalog.date_trunc('day', pg_catalog.now() at time zone o.timezone) at time zone o.timezone)
+declare
+  v_timezone text;
+  v_day_start timestamptz;
+  v_day_end timestamptz;
+  v_count int;
+begin
+  select o.timezone into v_timezone from public.organizations o where o.id = p_org_id;
+  if not found then
+    return 0;
+  end if;
+  -- Local midnight to the next local midnight (23 or 25 hours on a DST change).
+  v_day_start := pg_catalog.date_trunc('day', pg_catalog.now() at time zone v_timezone) at time zone v_timezone;
+  v_day_end := (pg_catalog.date_trunc('day', pg_catalog.now() at time zone v_timezone) + interval '1 day')
+               at time zone v_timezone;
+  select pg_catalog.count(*)::int into v_count
+    from public.email_log e
+   where e.org_id = p_org_id
+     and e.created_at >= v_day_start
+     and e.created_at < v_day_end;
+  return v_count;
+end;
 $$;
 
 revoke all on function

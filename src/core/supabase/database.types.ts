@@ -258,6 +258,39 @@ export type Database = {
           },
         ]
       }
+      email_template_versions: {
+        Row: {
+          key: string
+          last_version: number
+          org_id: string
+        }
+        Insert: {
+          key: string
+          last_version: number
+          org_id: string
+        }
+        Update: {
+          key?: string
+          last_version?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_template_versions_key_fkey"
+            columns: ["key"]
+            isOneToOne: false
+            referencedRelation: "email_template_defaults"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "email_template_versions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_templates: {
         Row: {
           body: string
@@ -1611,6 +1644,7 @@ export type Database = {
           last_event_at: string
           sent_at: string
           sent_by: string
+          sent_by_name: string
           status: string
           template_key: string
           template_label: string

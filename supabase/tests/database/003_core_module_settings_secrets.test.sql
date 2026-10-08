@@ -85,7 +85,7 @@ select functions_are('public', array[
   'get_email_context', 'queue_email', 'mark_email_sent', 'mark_email_failed', 'apply_email_event', 'count_org_emails_today',
   'create_notification', 'list_my_notifications', 'count_my_unread_notifications', 'mark_notifications_read',
   'mark_all_notifications_read'
-],'public schema exposes exactly the intended RPCs');
+], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
   '23514', null, 'module settings must be a JSON object');

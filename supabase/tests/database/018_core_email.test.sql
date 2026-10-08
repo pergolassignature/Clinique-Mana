@@ -1,19 +1,23 @@
 -- Email schema (migration *_core_email.sql, plan Phase 3 Task 3.6, P3-18, P3-21, P3-26).
--- Covers: privileges on the four tables and every RPC and helper; the catalogue checks
+-- Covers: privileges on the five tables and every RPC and helper; the catalogue checks
 -- (key prefix, variables, placeholders) and the seeded core.staff_invite; email_settings rows
--- for every org (trigger + backfill rule for reply_to); list / save / reset of templates
--- (versions, audit, module filter, placeholder rule shared with _shared/format.ts, lengths,
--- the `{{` + 10 000 spaces probe); the sender (single-mailbox checks, domain rewrite, who may
--- change what); email_log RLS (view_permission against the permission array, or
--- settings.email_manage; org isolation), list_email_log (filters, keyset, clamp) and
--- list_subject_emails; the service-role send path (get_email_context, queue_email,
--- mark_email_sent, mark_email_failed), apply_email_event (monotonic, final states, the
--- provider_unavailable override, module gate, org check), count_org_emails_today; the two
--- maintenance jobs (retention, stale queued rows) and their cron entries.
+-- for every org (trigger + backfill rule for reply_to, « Clinique » fallback name); list /
+-- save / reset of templates (versions never reused after a reset, audit, module filter,
+-- placeholder rule shared with _shared/format.ts, lengths, the `{{` + 10 000 spaces probe); the
+-- sender (single-mailbox checks, domain rewrite, who may change what); email_log RLS
+-- (view_permission against the permission array, or settings.email_manage; org isolation),
+-- list_email_log (filters, keyset with ties across pages, status branch, period vs cursor,
+-- clamp) and list_subject_emails (sender name); the service-role send path
+-- (get_email_context with the reply-to fallback, queue_email and its refusals,
+-- mark_email_sent including the provider_unavailable override, mark_email_failed),
+-- apply_email_event (monotonic, final states, the provider_unavailable override, module gate,
+-- org check, tag and provider id of two rows), count_org_emails_today (clinic day, one minute
+-- either side of midnight); the two maintenance jobs (retention, stale queued rows, one minute
+-- either side of each threshold) and their cron entries.
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(149);
+select plan(185);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -21,8 +25,9 @@ select plan(149);
 -- (override settings.email_manage granted), conseillère C, provider P (override users.view
 -- granted), disabled admin X.
 -- Org B (professionals off, an email that is not a single mailbox): admin B.
+-- Org C: a name made only of characters the From header refuses.
 -- Test default professionals.test_notice (module professionals, professionals.view).
--- email_log rows c…01–c…11 (ids below), queued rows created by the test in table `q`.
+-- email_log rows c…01–c…18 (ids below), queued rows created by the test in table `q`.
 -- =============================================================================
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -34,7 +39,8 @@ values
   ('a0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',    '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name, timezone, email, privacy_officer_name, privacy_officer_email) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A', 'America/Toronto', 'contact@a.test', 'Christine A', 'vie.privee@a.test'),
-  ('b0000000-0000-0000-0000-00000000000b', 'Org "B" <test>', 'America/Toronto', 'a<b@b.test', null, null);
+  ('b0000000-0000-0000-0000-00000000000b', 'Org "B" <test>', 'America/Toronto', 'a<b@b.test', null, null),
+  ('b0000000-0000-0000-0000-00000000000c', '<>"', 'America/Toronto', null, null, null);
 insert into public.profiles (user_id, org_id, display_name, email, status) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',         'admin@a.test',    'active'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe D',      'adjointe@a.test', 'active'),
@@ -76,9 +82,9 @@ values
   ('c0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000b', 'professionals', 'professionals.test_notice', 0, 'pro@b.test',
    'professional', 'd0000000-0000-0000-0000-000000000004', 'sent', null, 're_c04', 'professionals.view', now()),
   ('c0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'core', 'core.staff_invite', 0, 'old@a.test',
-   'staff_invitation', 'd0000000-0000-0000-0000-000000000005', 'delivered', null, null, 'users.view', now() - interval '25 months'),
+   'staff_invitation', 'd0000000-0000-0000-0000-000000000005', 'delivered', null, null, 'users.view', now() - interval '24 months' - interval '1 minute'),
   ('c0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'core', 'core.staff_invite', 0, 'recent@a.test',
-   'staff_invitation', 'd0000000-0000-0000-0000-000000000006', 'delivered', null, null, 'users.view', now() - interval '23 months'),
+   'staff_invitation', 'd0000000-0000-0000-0000-000000000006', 'delivered', null, null, 'users.view', now() - interval '24 months' + interval '1 minute'),
   ('c0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'core', 'core.staff_invite', 0, 'q16@a.test',
    'staff_invitation', 'd0000000-0000-0000-0000-000000000007', 'queued', null, null, 'users.view', now() - interval '16 minutes'),
   ('c0000000-0000-0000-0000-000000000008', 'b0000000-0000-0000-0000-00000000000a', 'core', 'core.staff_invite', 0, 'q14@a.test',
@@ -88,7 +94,32 @@ values
   ('c0000000-0000-0000-0000-000000000010', 'b0000000-0000-0000-0000-00000000000a', 'core', 'core.staff_invite', 0, 'rejected@a.test',
    'staff_invitation', 'd0000000-0000-0000-0000-000000000010', 'failed', 'provider_rejected', null, 'users.view', now() - interval '3 hours'),
   ('c0000000-0000-0000-0000-000000000011', 'b0000000-0000-0000-0000-00000000000b', 'core', 'core.staff_invite', 0, 'y@b.test',
-   'staff_invitation', 'd0000000-0000-0000-0000-000000000011', 'delivered', null, null, 'users.view', now() - interval '2 days');
+   'staff_invitation', 'd0000000-0000-0000-0000-000000000011', 'delivered', null, null, 'users.view', now() - interval '2 days'),
+  -- Outcome unknown, then accepted (mark_email_sent override).
+  ('c0000000-0000-0000-0000-000000000015', 'b0000000-0000-0000-0000-00000000000a', 'core', 'core.staff_invite', 0, 'late@a.test',
+   'staff_invitation', 'd0000000-0000-0000-0000-000000000015', 'failed', 'provider_unavailable', null, 'users.view', now() - interval '4 hours'),
+  -- Org B around the clinic day start (00:00 Toronto): 23:30 the evening before (already the
+  -- next day in UTC), one minute before, one minute after.
+  ('c0000000-0000-0000-0000-000000000016', 'b0000000-0000-0000-0000-00000000000b', 'core', 'core.staff_invite', 0, 'e1@b.test',
+   'staff_invitation', 'd0000000-0000-0000-0000-000000000016', 'sent', null, null, 'users.view',
+   (date_trunc('day', now() at time zone 'America/Toronto') at time zone 'America/Toronto') - interval '30 minutes'),
+  ('c0000000-0000-0000-0000-000000000017', 'b0000000-0000-0000-0000-00000000000b', 'core', 'core.staff_invite', 0, 'e2@b.test',
+   'staff_invitation', 'd0000000-0000-0000-0000-000000000017', 'sent', null, null, 'users.view',
+   (date_trunc('day', now() at time zone 'America/Toronto') at time zone 'America/Toronto') - interval '1 minute'),
+  ('c0000000-0000-0000-0000-000000000018', 'b0000000-0000-0000-0000-00000000000b', 'core', 'core.staff_invite', 0, 'e3@b.test',
+   'staff_invitation', 'd0000000-0000-0000-0000-000000000018', 'sent', null, null, 'users.view',
+   (date_trunc('day', now() at time zone 'America/Toronto') at time zone 'America/Toronto') + interval '1 minute');
+-- Three org A rows sharing created_at (keyset ties); c…12 was sent by admin A.
+insert into public.email_log
+  (id, org_id, module_key, template_key, template_version, to_email, subject_type, subject_id,
+   status, view_permission, sent_by, created_at)
+values
+  ('c0000000-0000-0000-0000-000000000012', 'b0000000-0000-0000-0000-00000000000a', 'professionals', 'professionals.test_notice', 0, 't12@a.test',
+   'professional', 'd0000000-0000-0000-0000-000000000012', 'delivered', 'professionals.view', 'a0000000-0000-0000-0000-000000000001', now() - interval '5 hours'),
+  ('c0000000-0000-0000-0000-000000000013', 'b0000000-0000-0000-0000-00000000000a', 'professionals', 'professionals.test_notice', 0, 't13@a.test',
+   'professional', 'd0000000-0000-0000-0000-000000000013', 'delivered', 'professionals.view', null, now() - interval '5 hours'),
+  ('c0000000-0000-0000-0000-000000000014', 'b0000000-0000-0000-0000-00000000000a', 'professionals', 'professionals.test_notice', 0, 't14@a.test',
+   'professional', 'd0000000-0000-0000-0000-000000000014', 'delivered', 'professionals.view', null, now() - interval '5 hours');
 
 -- Queued rows (written as service_role).
 create temp table q (step text primary key, id uuid) on commit drop;
@@ -105,10 +136,12 @@ select table_privs_are('public', 'email_settings', 'anon', array[]::text[], 'ano
 select table_privs_are('public', 'email_settings', 'authenticated', array['SELECT'], 'authenticated: select on email_settings');
 select table_privs_are('public', 'email_log', 'anon', array[]::text[], 'anon: nothing on email_log');
 select table_privs_are('public', 'email_log', 'authenticated', array['SELECT'], 'authenticated: select on email_log');
+select table_privs_are('public', 'email_template_versions', 'anon', array[]::text[], 'anon: nothing on email_template_versions');
+select table_privs_are('public', 'email_template_versions', 'authenticated', array[]::text[], 'authenticated: nothing on email_template_versions');
 select is_empty($$
   select table_name, column_name, grantee, privilege_type from information_schema.column_privileges
    where table_schema = 'public'
-     and table_name in ('email_template_defaults', 'email_templates', 'email_settings', 'email_log')
+     and table_name in ('email_template_defaults', 'email_templates', 'email_template_versions', 'email_settings', 'email_log')
      and grantee in ('anon', 'authenticated') and privilege_type <> 'SELECT'
 $$, 'no column privilege beyond select on the email tables');
 
@@ -145,23 +178,27 @@ select is_empty($$
   select p.oid::regprocedure::text from pg_proc p
    where p.pronamespace = 'private'::regnamespace
      and p.proname in ('is_mailbox', 'email_variables_valid', 'email_variable_paths', 'email_placeholder_error',
-                       'seed_org_email_settings', 'job_email_log_retention', 'job_email_log_stale_queued')
+                       'email_sender_name', 'seed_org_email_settings', 'job_email_log_retention',
+                       'job_email_log_stale_queued')
      and (has_function_privilege('authenticated', p.oid, 'execute')
           or has_function_privilege('service_role', p.oid, 'execute'))
 $$, 'the private email helpers, trigger and jobs are callable by no client role');
 select is((select count(*)::int from pg_proc p
             where p.pronamespace = 'private'::regnamespace
               and p.proname in ('is_mailbox', 'email_variables_valid', 'email_variable_paths', 'email_placeholder_error',
-                                'seed_org_email_settings', 'job_email_log_retention', 'job_email_log_stale_queued')),
-  7, 'the seven private email functions exist');
+                                'email_sender_name', 'seed_org_email_settings', 'job_email_log_retention',
+                                'job_email_log_stale_queued')),
+  8, 'the eight private email functions exist');
 
 select results_eq($$
   select indexname::text collate "default" from pg_indexes
    where schemaname = 'public' and tablename = 'email_log'
-     and indexname in ('email_log_org_created_idx', 'email_log_subject_idx', 'email_log_retention_idx', 'email_log_queued_idx')
+     and indexname in ('email_log_org_created_idx', 'email_log_org_status_idx', 'email_log_subject_idx',
+                       'email_log_retention_idx', 'email_log_queued_idx')
    order by 1
-$$, array['email_log_org_created_idx', 'email_log_queued_idx', 'email_log_retention_idx', 'email_log_subject_idx'],
-  'email_log has the list, timeline, retention and stale-queue indexes');
+$$, array['email_log_org_created_idx', 'email_log_org_status_idx', 'email_log_queued_idx', 'email_log_retention_idx',
+          'email_log_subject_idx'],
+  'email_log has the list, status, timeline, retention and stale-queue indexes');
 select is((select pg_get_expr(pol.polqual, pol.polrelid) like '%current_permission_keys()%'
              from pg_policy pol where pol.polname = 'email_log_select'),
   true, 'email_log_select tests view_permission against the permission array');
@@ -214,12 +251,14 @@ $$, $$ values
 
 select results_eq($$
   select org_id, from_name, from_address, reply_to, sending_domain from public.email_settings
-   where org_id in ('b0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b') order by org_id
+   where org_id in ('b0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b',
+                    'b0000000-0000-0000-0000-00000000000c') order by org_id
 $$, $$ values
   ('b0000000-0000-0000-0000-00000000000a'::uuid, 'Org A'::text, 'no-reply@gestion.cliniquemana.com'::text,
    'contact@a.test'::text, 'gestion.cliniquemana.com'::text),
-  ('b0000000-0000-0000-0000-00000000000b', 'Org B test', 'no-reply@gestion.cliniquemana.com', null, 'gestion.cliniquemana.com') $$,
-  'a new org gets its sender: org name without < > ", no-reply address, reply-to only when the org email is one mailbox');
+  ('b0000000-0000-0000-0000-00000000000b', 'Org B test', 'no-reply@gestion.cliniquemana.com', null, 'gestion.cliniquemana.com'),
+  ('b0000000-0000-0000-0000-00000000000c', 'Clinique', 'no-reply@gestion.cliniquemana.com', null, 'gestion.cliniquemana.com') $$,
+  'a new org gets its sender: org name without < > " (« Clinique » if nothing is left), no-reply address, reply-to only when the org email is one mailbox');
 
 -- The placeholder rule (_shared/format.ts PLACEHOLDER_SOURCE), linear on a lone `{{`.
 set local statement_timeout = '1s';
@@ -362,8 +401,13 @@ select throws_ok($$ select public.set_email_sending_domain('autre.exemple.ca') $
   '42501', null, 'the adjointe without settings.integrations_manage cannot change the domain');
 select lives_ok($$ select public.save_email_template('core.staff_invite', 'Accès à {{clinic.name}}', 'Bonjour {{invitee.display_name}}.', 'Créer mon accès') $$,
   'the adjointe with settings.email_manage saves a template');
-select is((select count(*)::int from public.list_email_templates() where key = 'core.staff_invite' and is_custom and version = 1),
-  1, 'a save after a reset starts again at version 1');
+select is((select count(*)::int from public.list_email_templates() where key = 'core.staff_invite' and is_custom and version = 3),
+  1, 'a save after a reset continues from the highest version used (1, 2, reset, 3)');
+reset role;
+select is((select last_version from public.email_template_versions
+            where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'core.staff_invite'),
+  3, 'the version counter outlives the reset');
+set local role authenticated;
 
 -- =============================================================================
 -- Conseillère C (professionals.view only)
@@ -410,6 +454,9 @@ select results_eq($$ select id from public.email_log where id in ('c0000000-0000
   array['c0000000-0000-0000-0000-000000000003'::uuid], 'the conseillère sees the professionals.view row, not the users.view one');
 select is_empty($$ select 1 from public.list_subject_emails('staff_invitation', 'd0000000-0000-0000-0000-000000000001') $$,
   'the conseillère gets no staff invitation timeline');
+select results_eq($$ select id, sent_by, sent_by_name from public.list_subject_emails('professional', 'd0000000-0000-0000-0000-000000000012') $$,
+  $$ values ('c0000000-0000-0000-0000-000000000012'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'Admin A'::text) $$,
+  'the timeline names the sender, even for a member who cannot read profiles (no users.view)');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select results_eq($$ select id from public.email_log where id in ('c0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000003') order by id $$,
@@ -423,7 +470,8 @@ select is_empty($$ select 1 from public.email_log where id in ('c0000000-0000-00
 -- =============================================================================
 -- Admin A: list_email_log and list_subject_emails
 -- Org A staff_invite rows, newest first: c08 (-14 min), c07 (-16 min), c01 (-1 h), c09 (-2 h),
--- c10 (-3 h), c06 (-23 months), c05 (-25 months).
+-- c10 (-3 h), c15 (-4 h), c06 (-24 months + 1 min), c05 (-24 months - 1 min).
+-- Org A test_notice rows: c03 (-30 min), then c14, c13, c12 (all -5 h, ties by id desc).
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select results_eq($$ select id, template_label, status from public.list_email_log(p_template_key => 'core.staff_invite', p_limit => 3) $$,
@@ -438,11 +486,46 @@ $$, array['c0000000-0000-0000-0000-000000000009'::uuid, 'c0000000-0000-0000-0000
   'keyset paging continues after the last row');
 select results_eq($$ select id, error_code from public.list_email_log(p_status => 'failed') $$,
   $$ values ('c0000000-0000-0000-0000-000000000009'::uuid, 'provider_unavailable'::text),
-            ('c0000000-0000-0000-0000-000000000010', 'provider_rejected') $$, 'list_email_log filters by status');
+            ('c0000000-0000-0000-0000-000000000010', 'provider_rejected'),
+            ('c0000000-0000-0000-0000-000000000015', 'provider_unavailable') $$, 'list_email_log filters by status');
+select is_empty($$ select 1 from public.list_email_log(p_status => 'complained') $$, 'a status matching no row lists nothing');
 select results_eq($$ select id from public.list_email_log(p_from => now() - interval '24 months', p_to => now() - interval '1 day') $$,
   array['c0000000-0000-0000-0000-000000000006'::uuid], 'list_email_log filters by period');
+
+-- Keyset ties: c14, c13, c12 share created_at; pages of 2 cut through them.
+select results_eq($$ select id from public.list_email_log(p_template_key => 'professionals.test_notice', p_limit => 2) $$,
+  array['c0000000-0000-0000-0000-000000000003'::uuid, 'c0000000-0000-0000-0000-000000000014'],
+  'keyset page 1 ends inside a tie');
+select results_eq($$
+  select id from public.list_email_log(p_template_key => 'professionals.test_notice', p_limit => 2,
+    p_before => now() - interval '5 hours', p_before_id => 'c0000000-0000-0000-0000-000000000014')
+$$, array['c0000000-0000-0000-0000-000000000013'::uuid, 'c0000000-0000-0000-0000-000000000012'],
+  'keyset page 2 continues inside the tie, by id desc');
+select results_eq($$ select id from public.list_email_log(p_template_key => 'professionals.test_notice', p_status => 'delivered', p_limit => 2) $$,
+  array['c0000000-0000-0000-0000-000000000014'::uuid, 'c0000000-0000-0000-0000-000000000013'],
+  'with a status, page 1 ends inside the tie');
+select results_eq($$
+  select id from public.list_email_log(p_template_key => 'professionals.test_notice', p_status => 'delivered', p_limit => 2,
+    p_before => now() - interval '5 hours', p_before_id => 'c0000000-0000-0000-0000-000000000013')
+$$, array['c0000000-0000-0000-0000-000000000012'::uuid], 'with a status, page 2 continues inside the tie');
+select results_eq($$
+  select id from public.list_email_log(p_template_key => 'professionals.test_notice', p_before => now() - interval '5 hours')
+$$, array[]::uuid[], 'a cursor without an id keeps rows strictly older');
+
+-- The period end and the cursor: the tighter bound wins.
+select results_eq($$
+  select id from public.list_email_log(p_template_key => 'core.staff_invite', p_limit => 2, p_to => now() - interval '2 hours',
+    p_before => now() - interval '1 hour', p_before_id => 'c0000000-0000-0000-0000-000000000001')
+$$, array['c0000000-0000-0000-0000-000000000010'::uuid, 'c0000000-0000-0000-0000-000000000015'],
+  'a period end before the cursor bounds the page');
+select results_eq($$
+  select id from public.list_email_log(p_template_key => 'core.staff_invite', p_limit => 2, p_to => now(),
+    p_before => now() - interval '2 hours', p_before_id => 'c0000000-0000-0000-0000-000000000009')
+$$, array['c0000000-0000-0000-0000-000000000010'::uuid, 'c0000000-0000-0000-0000-000000000015'],
+  'a cursor before the period end bounds the page');
+
 select is((select count(*)::int from public.list_email_log(p_limit => 0)), 1, 'p_limit is clamped to at least 1');
-select is((select count(*)::int from public.list_email_log(p_limit => 1000)), 8, 'p_limit is clamped to 100 (8 visible rows)');
+select is((select count(*)::int from public.list_email_log(p_limit => 1000)), 12, 'p_limit is clamped to 100 (12 visible rows)');
 select results_eq($$ select id, template_label, to_email from public.list_subject_emails('staff_invitation', 'd0000000-0000-0000-0000-000000000001') $$,
   $$ values ('c0000000-0000-0000-0000-000000000001'::uuid, 'Invitation d''un membre du personnel'::text, 'x@a.test'::text) $$,
   'list_subject_emails returns the subject''s timeline');
@@ -461,7 +544,7 @@ select results_eq($$
          c->'template'->>'view_permission', c->'template'->>'recipient_mode',
          (c->'template'->>'allows_attachments')::boolean, jsonb_array_length(c->'template'->'variables')
     from public.get_email_context('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite') c
-$$, $$ values ('core'::text, true, 'America/Toronto'::text, 1, 'Accès à {{clinic.name}}'::text,
+$$, $$ values ('core'::text, true, 'America/Toronto'::text, 3, 'Accès à {{clinic.name}}'::text,
   'Vous recevez ce courriel parce que la clinique vous invite à créer votre accès.'::text,
   'users.view'::text, 'subject'::text, false, 4) $$,
   'get_email_context returns the effective template with its catalogue fields');
@@ -472,8 +555,10 @@ $$, $$ values (array['allows_attachments', 'body', 'button_label', 'key', 'recip
                      'variables', 'version', 'view_permission', 'why_line']) $$,
   'the template object has exactly the fields of the send path contract');
 select is((select c->'sender' from public.get_email_context('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite') c),
-  '{"from_name": "Clinique A", "from_address": "bonjour@mail.exemple.ca", "reply_to": null}'::jsonb,
-  'get_email_context returns the sender');
+  '{"from_name": "Clinique A", "from_address": "bonjour@mail.exemple.ca", "reply_to": "contact@a.test"}'::jsonb,
+  'get_email_context returns the sender; with no reply-to, the org email (one mailbox)');
+select is((select c->'sender'->>'reply_to' from public.get_email_context('b0000000-0000-0000-0000-00000000000b', 'core.staff_invite') c),
+  null, 'no reply-to fallback when the org email is not one mailbox');
 select is((select c->'clinic' from public.get_email_context('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite') c),
   '{"name": "Org A", "address_line1": null, "address_line2": null, "city": null, "province": "QC", "postal_code": null,
     "phone": null, "website": null, "privacy_officer_name": "Christine A", "privacy_officer_email": "vie.privee@a.test"}'::jsonb,
@@ -483,34 +568,49 @@ select is((select (c->>'module_enabled')::boolean from public.get_email_context(
 select is((select c->'template'->>'subject' from public.get_email_context('b0000000-0000-0000-0000-00000000000b', 'core.staff_invite') c),
   'Votre accès à {{clinic.name}}', 'another org gets the default, not org A''s override');
 select throws_ok($$ select public.get_email_context('b0000000-0000-0000-0000-00000000000a', 'core.nope') $$,
-  '22023', null, 'an unknown template key raises 22023');
+  '22023', 'Organisation ou modèle de courriel inconnu', 'an unknown template key raises 22023');
 select throws_ok($$ select public.get_email_context('b0000000-0000-0000-0000-0000000000ff', 'core.staff_invite') $$,
   '22023', null, 'an unknown org raises 22023');
 
 -- =============================================================================
 -- Service role: queue, mark, events
 -- =============================================================================
-insert into q select 'q1', public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 1, 'Invitee@A.test',
+insert into q select 'q1', public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 3, 'Invitee@A.test',
   null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'users.view', 'a0000000-0000-0000-0000-000000000001', 0::smallint);
 select results_eq($$
   select e.status, e.module_key, e.template_version, e.to_email, e.attempts, e.sent_by, e.attachment_count, e.view_permission
     from public.email_log e join q on q.id = e.id where q.step = 'q1'
-$$, $$ values ('queued'::text, 'core'::text, 1, 'Invitee@A.test'::text, 0,
+$$, $$ values ('queued'::text, 'core'::text, 3, 'Invitee@A.test'::text, 0,
                'a0000000-0000-0000-0000-000000000001'::uuid, 0::smallint, 'users.view'::text) $$,
   'queue_email logs a queued row with the template''s module');
-select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 1, 'x@a.test',
+select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 3, 'x@a.test',
   null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'nope.view', null, 0::smallint) $$,
-  '22023', null, 'queue_email refuses an unknown view permission');
-select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 1, 'x@a.test',
-  'a0000000-0000-0000-0000-000000000006', 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'users.view', null, 0::smallint) $$,
-  '22023', null, 'queue_email refuses a recipient profile of another org');
-select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 1, 'x@a.test',
-  null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'users.view', 'a0000000-0000-0000-0000-000000000006', 0::smallint) $$,
-  '22023', null, 'queue_email refuses a sender of another org');
-select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.nope', 1, 'x@a.test',
+  '22023', 'Permission de consultation différente de celle du modèle', 'queue_email refuses an unknown view permission');
+select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 3, 'x@a.test',
+  null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'settings.view', null, 0::smallint) $$,
+  '22023', 'Permission de consultation différente de celle du modèle', 'queue_email refuses a view permission other than the catalogue''s');
+select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 3, null,
   null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'users.view', null, 0::smallint) $$,
-  '22023', null, 'queue_email refuses an unknown template');
-select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 1, 'x@a.test',
+  '22023', 'Adresse du destinataire manquante', 'queue_email refuses a null recipient address');
+select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 2, 'x@a.test',
+  null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'users.view', null, 0::smallint) $$,
+  '22023', 'Version du modèle différente de la version en vigueur', 'queue_email refuses a version older than the override''s');
+select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 0, 'x@a.test',
+  null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'users.view', null, 0::smallint) $$,
+  '22023', 'Version du modèle différente de la version en vigueur', 'queue_email refuses the default''s version 0 when an override exists');
+select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000b', 'core.staff_invite', 1, 'x@b.test',
+  null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'users.view', null, 0::smallint) $$,
+  '22023', 'Version du modèle différente de la version en vigueur', 'queue_email refuses a version other than 0 without an override');
+select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 3, 'x@a.test',
+  'a0000000-0000-0000-0000-000000000006', 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'users.view', null, 0::smallint) $$,
+  '22023', 'Destinataire ou expéditeur hors de l''organisation', 'queue_email refuses a recipient profile of another org');
+select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 3, 'x@a.test',
+  null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'users.view', 'a0000000-0000-0000-0000-000000000006', 0::smallint) $$,
+  '22023', 'Destinataire ou expéditeur hors de l''organisation', 'queue_email refuses a sender of another org');
+select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.nope', 0, 'x@a.test',
+  null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'users.view', null, 0::smallint) $$,
+  '22023', 'Modèle de courriel inconnu', 'queue_email refuses an unknown template');
+select throws_ok($$ select public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 3, 'x@a.test',
   null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000020', 'users.view', null, 4::smallint) $$,
   '23514', null, 'queue_email refuses more than three attachments');
 
@@ -518,7 +618,14 @@ select lives_ok($$ select public.mark_email_sent((select id from q where step = 
 select results_eq($$ select e.status, e.resend_id, e.attempts, e.sent_at is not null from public.email_log e join q on q.id = e.id where q.step = 'q1' $$,
   $$ values ('sent'::text, 're_q1'::text, 2, true) $$, 'the row is sent with the provider id and the attempts');
 select throws_ok($$ select public.mark_email_sent('c0000000-0000-0000-0000-0000000000ff', 're_x', 1) $$,
-  '22023', null, 'mark_email_sent refuses an unknown row');
+  '22023', 'Courriel inconnu', 'mark_email_sent refuses an unknown row');
+select throws_ok($$ select public.mark_email_sent('c0000000-0000-0000-0000-000000000015', null, 1) $$,
+  '22023', 'Résultat d''envoi invalide', 'mark_email_sent refuses a missing provider id');
+select lives_ok($$ select public.mark_email_sent('c0000000-0000-0000-0000-000000000015', 're_c15', 2) $$,
+  'a late mark_email_sent on an unknown outcome');
+select results_eq($$ select status, error_code, resend_id, attempts from public.email_log where id = 'c0000000-0000-0000-0000-000000000015' $$,
+  $$ values ('sent'::text, null::text, 're_c15'::text, 2) $$,
+  'failed(provider_unavailable) then mark_email_sent becomes sent, error code cleared');
 
 select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', (select id from q where step = 'q1'), 're_q1', 'delivered', now()),
   'applied', 'sent → delivered is applied');
@@ -537,7 +644,7 @@ select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', (sele
 select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', (select id from q where step = 'q1'), 're_q1', 'delivered', now()),
   'ignored', 'complained is final');
 
-insert into q select 'q2', public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 1, 'b@a.test',
+insert into q select 'q2', public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 3, 'b@a.test',
   null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000021', 'users.view', null, 0::smallint);
 select lives_ok($$ select public.mark_email_sent((select id from q where step = 'q2'), 're_q2', 1) $$, 'q2 is sent');
 select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', null, 're_q2', 'bounced', now()),
@@ -549,8 +656,15 @@ select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000b', (sele
   'not_found', 'another org''s event is not_found');
 select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000000ff', 're_nope', 'sent', now()),
   'not_found', 'an unknown row is not_found');
-select throws_ok($$ select public.apply_email_event('b0000000-0000-0000-0000-00000000000a', null, 're_q2', 'failed', now()) $$,
-  '22023', null, 'an event status outside the webhook statuses raises 22023');
+select throws_ok($$ select public.apply_email_event('b0000000-0000-0000-0000-00000000000a', null, 're_q2', 'queued', now()) $$,
+  '22023', 'Événement de courriel invalide', 'an event status outside the webhook statuses raises 22023');
+select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000008', 're_c01', 'sent', now()),
+  'ignored', 'a tag and a provider id of two different rows are ignored (no 23505, no retry loop)');
+select results_eq($$ select id, status, resend_id from public.email_log
+                      where id in ('c0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000008') order by id $$,
+  $$ values ('c0000000-0000-0000-0000-000000000001'::uuid, 'sent'::text, 're_c01'::text),
+            ('c0000000-0000-0000-0000-000000000008', 'queued', null) $$,
+  'both rows are unchanged');
 
 select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000b', 'c0000000-0000-0000-0000-000000000004', 're_c04', 'delivered', now()),
   'ignored', 'an event of a disabled module is ignored');
@@ -564,15 +678,15 @@ select results_eq($$ select status, error_code, resend_id from public.email_log 
 select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000010', null, 'delivered', now()),
   'ignored', 'any other failure is final');
 
-insert into q select 'q3', public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 1, 'c@a.test',
+insert into q select 'q3', public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 3, 'c@a.test',
   null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000022', 'users.view', null, 0::smallint);
 select lives_ok($$ select public.mark_email_failed((select id from q where step = 'q3'), 'provider_rejected', 1) $$, 'mark_email_failed');
 select results_eq($$ select e.status, e.error_code, e.attempts from public.email_log e join q on q.id = e.id where q.step = 'q3' $$,
   $$ values ('failed'::text, 'provider_rejected'::text, 1) $$, 'the row is failed with its code');
 select throws_ok($$ select public.mark_email_failed((select id from q where step = 'q3'), 'Bad Code', 1) $$,
-  '22023', null, 'mark_email_failed refuses a free-text error');
+  '22023', 'Résultat d''envoi invalide', 'mark_email_failed refuses a free-text error');
 
-insert into q select 'q4', public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 1, 'd@a.test',
+insert into q select 'q4', public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 3, 'd@a.test',
   null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000023', 'users.view', null, 0::smallint);
 select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', (select id from q where step = 'q4'), 're_q4', 'sent', now()),
   'applied', 'the webhook sees q4 sent before the function records it');
@@ -581,8 +695,40 @@ select lives_ok($$ select public.mark_email_failed((select id from q where step 
 select results_eq($$ select e.status, e.error_code, e.resend_id from public.email_log e join q on q.id = e.id where q.step = 'q4' $$,
   $$ values ('sent'::text, null::text, 're_q4'::text) $$, 'a late failure never overrides a webhook outcome');
 
-select is(public.count_org_emails_today('b0000000-0000-0000-0000-00000000000b'), 2,
-  'count_org_emails_today counts the clinic day only');
+-- The provider's failure event (Resend email.failed).
+insert into q select 'q5', public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 3, 'f@a.test',
+  null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000024', 'users.view', null, 0::smallint);
+select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', (select id from q where step = 'q5'), 're_q5', 'failed', now()),
+  'applied', 'a failure event moves a queued row');
+select results_eq($$ select e.status, e.error_code, e.resend_id, e.sent_at, e.last_event_at from public.email_log e join q on q.id = e.id where q.step = 'q5' $$,
+  $$ values ('failed'::text, 'provider_failed'::text, 're_q5'::text, null::timestamptz, now()) $$,
+  'the row is failed / provider_failed, never marked sent');
+select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', (select id from q where step = 'q5'), 're_q5', 'delivered', now()),
+  'ignored', 'provider_failed is final for webhooks');
+select lives_ok($$ select public.mark_email_sent((select id from q where step = 'q5'), 're_q5', 1) $$,
+  'a late mark_email_sent after the failure event');
+select results_eq($$ select e.status, e.error_code from public.email_log e join q on q.id = e.id where q.step = 'q5' $$,
+  $$ values ('failed'::text, 'provider_failed'::text) $$, 'a late mark_email_sent does not override provider_failed');
+insert into q select 'q6', public.queue_email('b0000000-0000-0000-0000-00000000000a', 'core.staff_invite', 3, 'g@a.test',
+  null, 'staff_invitation', 'd0000000-0000-0000-0000-000000000025', 'users.view', null, 0::smallint);
+select lives_ok($$ select public.mark_email_sent((select id from q where step = 'q6'), 're_q6', 1) $$, 'q6 is sent');
+select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', null, 're_q6', 'failed', now()),
+  'applied', 'a failure event moves a sent row');
+select results_eq($$ select e.status, e.error_code, e.sent_at is not null from public.email_log e join q on q.id = e.id where q.step = 'q6' $$,
+  $$ values ('failed'::text, 'provider_failed'::text, true) $$, 'sent → failed / provider_failed, sent_at kept');
+select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000006', null, 'failed', now()),
+  'ignored', 'a failure event never overrides delivered');
+select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', (select id from q where step = 'q2'), 're_q2', 'failed', now()),
+  'ignored', 'a failure event never overrides bounced');
+select is(public.apply_email_event('b0000000-0000-0000-0000-00000000000a', (select id from q where step = 'q1'), 're_q1', 'failed', now()),
+  'ignored', 'a failure event never overrides complained');
+select results_eq($$ select e.status from public.email_log e left join q on q.id = e.id
+                     where q.step in ('q1', 'q2') or e.id = 'c0000000-0000-0000-0000-000000000006' order by e.status $$,
+  array['bounced'::text, 'complained', 'delivered'], 'delivered, bounced and complained rows are unchanged');
+
+select is(public.count_org_emails_today('b0000000-0000-0000-0000-00000000000b'), 3,
+  'count_org_emails_today counts the clinic day only: from 00:00 Toronto, not 23:30 or 23:59 the evening before');
+select is(public.count_org_emails_today('b0000000-0000-0000-0000-0000000000ff'), 0, 'an unknown org counts 0');
 
 -- =============================================================================
 -- Jobs (as postgres)
@@ -601,7 +747,7 @@ select ok(private.job_email_log_retention() ~ '^anonymised=[0-9]+$', 'the retent
 select results_eq($$ select id, to_email from public.email_log
                       where id in ('c0000000-0000-0000-0000-000000000005', 'c0000000-0000-0000-0000-000000000006') order by id $$,
   $$ values ('c0000000-0000-0000-0000-000000000005'::uuid, null::text), ('c0000000-0000-0000-0000-000000000006', 'recent@a.test') $$,
-  'a row from 25 months ago loses its address; one from 23 months ago keeps it');
+  'a row from 24 months and 1 minute ago loses its address; one from 1 minute less than 24 months keeps it');
 select is((select status from public.email_log where id = 'c0000000-0000-0000-0000-000000000005'), 'delivered',
   'the anonymised row is kept');
 

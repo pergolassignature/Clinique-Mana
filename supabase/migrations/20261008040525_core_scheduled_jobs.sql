@@ -593,6 +593,12 @@ $$;
 -- Recent runs visible to the caller (own org and database-wide; RLS applies), newest first,
 -- keyset-paged on (started_at, id): pass the last row's started_at and id. Runs of an inactive
 -- job or of a module disabled for the caller's org are hidden.
+-- The cursor is computed into variables first (a plpgsql variable is a plan parameter), so it
+-- is an index bound on every page, generic plan included: of `scheduled_job_runs_started_idx`
+-- for all jobs, of `scheduled_job_runs_job_started_idx` for one (planned per call, below).
+-- Measured, generic plan, 12 000 runs over the 7 jobs (auto_explain, local): a page 10 000
+-- runs deep reads 20 to 60 index entries, for all jobs or one (0.3 to 0.6 ms; the SQL version
+-- read and filtered 10 021); the first page of a job with 100 runs reads 20.
 create function public.list_scheduled_job_runs(
   p_job_key text default null,
   p_limit int default 20,
@@ -608,22 +614,49 @@ returns table (
   finished_at timestamptz,
   detail text
 )
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select r.id, r.job_key, r.trigger, r.status, r.started_at, r.finished_at, r.detail
-    from public.scheduled_job_runs r
-   where (p_job_key is null or r.job_key = p_job_key)
-     -- A semi-join on the catalogue's primary key, memoized per job (10 000 rows: < 1 ms).
-     and r.job_key in (select j.key from public.scheduled_jobs j
-                        where j.is_active and public.module_enabled(j.module_key))
-     -- With no id, the nil uuid (the smallest) makes this `started_at < p_before`.
-     and (p_before is null
-          or (r.started_at, r.id) < (p_before, coalesce(p_before_id, '00000000-0000-0000-0000-000000000000'::uuid)))
-   order by r.started_at desc, r.id desc
-   limit least(greatest(coalesce(p_limit, 20), 1), 100)
+declare
+  -- No cursor: (infinity, max uuid). A cursor without an id: the nil uuid (the smallest),
+  -- i.e. `started_at < p_before`.
+  v_before timestamptz := coalesce(p_before, 'infinity');
+  v_before_id uuid := coalesce(p_before_id,
+                               case when p_before is null then 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid
+                                    else '00000000-0000-0000-0000-000000000000'::uuid end);
+  v_limit int := least(greatest(coalesce(p_limit, 20), 1), 100);
+begin
+  if p_job_key is null then
+    return query
+    select r.id, r.job_key, r.trigger, r.status, r.started_at, r.finished_at, r.detail
+      from public.scheduled_job_runs r
+     where (r.started_at, r.id) < (v_before, v_before_id)
+       -- A semi-join on the catalogue's primary key, memoized per job (10 000 rows: < 1 ms).
+       and r.job_key in (select j.key from public.scheduled_jobs j
+                          where j.is_active and public.module_enabled(j.module_key))
+     order by r.started_at desc, r.id desc
+     limit v_limit;
+  else
+    -- One job: hidden as a whole when inactive or of a disabled module.
+    if not exists (select 1 from public.scheduled_jobs j
+                    where j.key = p_job_key and j.is_active and public.module_enabled(j.module_key)) then
+      return;
+    end if;
+    -- Planned for this job (EXECUTE): a generic plan rates every job alike, ties
+    -- `scheduled_job_runs_started_idx` (job as a filter) with the job's index, and may pick
+    -- the former, which reads every other job's runs to page a rare one.
+    return query execute
+      'select r.id, r.job_key, r.trigger, r.status, r.started_at, r.finished_at, r.detail
+         from public.scheduled_job_runs r
+        where r.job_key = $1
+          and (r.started_at, r.id) < ($2, $3)
+        order by r.started_at desc, r.id desc
+        limit $4'
+      using p_job_key, v_before, v_before_id, v_limit;
+  end if;
+end;
 $$;
 
 -- Switches a business job on or off for the caller's org (audited through the table).

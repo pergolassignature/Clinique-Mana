@@ -100,7 +100,7 @@ Staff edit words, never HTML. **The button URL is not editable**: it is the secu
 - **RPCs** (`settings.email_manage`):
   - `save_email_template(p_key, p_subject, p_body, p_button_label)` validates placeholders and bumps `version`;
   - `reset_email_template(p_key)` deletes the override (« Rétablir le texte par défaut », with confirmation).
-- **History:** the audit trail keeps the before/after of each edit, and `email_log.template_version` says which version was sent. There is no draft/publish cycle: a template is short and the preview shows the result.
+- **History:** the audit trail keeps the before/after of each edit, and `email_log.template_version` says which version was sent. A version number is never reused within an org: « Rétablir le texte par défaut » deletes the override but keeps its counter (`email_template_versions.last_version`), so the next save continues from the highest version used (1, 2, reset, 3), and `queue_email` refuses a version other than the current one. There is no draft/publish cycle: a template is short and the preview shows the result.
 
 **Settings UI (« Courriels », §9).** Templates are grouped by module, one row each (label, « Personnalisé » or « Par défaut », last change). Opening a row shows a sheet with:
 
