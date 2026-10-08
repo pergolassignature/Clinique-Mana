@@ -16,9 +16,16 @@
 -- transaction rolled back by any refusal, files attached, consent row, private data moved and the
 -- submission's copy deleted, the adjointe without professionals.private); reject; update requests;
 -- readiness items; invitation states (precedence); the record bundle; history; pii_encrypted_values.
+-- Security review (P4-240 … P4-248): the link bound to the address (scope, set_professional_email,
+-- a forced mismatch, the new link); private answers closed with the submission (revocation,
+-- deactivation, account removal, the 90-day purge job); partial saves (only the keys given, merged;
+-- unanswered fields never applied); the SIN path (collect_sin on, Luhn, last three digits, rotation,
+-- unreadable at save and at apply, applied, collect_sin off before apply); inactive files; refusals
+-- at acceptance (disabled inviter, existing profile); self-review; consent and insurance re-checked
+-- at apply; draft consent text; staged files of another submission; reminder before expiry.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(230);
+select plan(305);
 
 -- The HINT / DETAIL of the error p_sql raises (null when none): throws_ok checks code and message.
 create function private.test_error_hint(p_sql text) returns text
@@ -49,8 +56,9 @@ grant execute on function private.test_error_hint(text), private.test_error_deta
 
 -- =============================================================================
 -- Fixtures (as postgres): org A (admin, adjointe, provider linked to P2, conseillère), org B (admin).
--- Auth users without a profile for the accepted invitations (06: P1's address, 08: P5's) and one
--- with another address (07). P1, P5, P6 drafts and P4 inactive in org A; P2 active; P3 in org B.
+-- Auth users without a profile for the accepted invitations (06: P1's address, 08: P5's, 09: P7's
+-- corrected address) and one with another address (07); 10 has P8's address and a profile in org B.
+-- P1, P5, P6, P7, P8 drafts and P4 inactive in org A; P2 active; P3 in org B.
 -- =============================================================================
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -61,7 +69,9 @@ values
   ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',       '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'p1@exemple.test',    '', now(), '{"invite_link_id": "x"}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'autre@exemple.test', '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'p5@exemple.test',    '', now(), '{}', '{}', now(), now());
+  ('a0000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'p5@exemple.test',    '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'p7-nouveau@exemple.test', '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'p8@exemple.test',    '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A'),
   ('b0000000-0000-0000-0000-00000000000b', 'Org B');
@@ -70,7 +80,8 @@ insert into public.profiles (user_id, org_id, display_name, email, status) value
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe A',    'adjointe@a.test',    'active'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Provider A',    'provider@a.test',    'active'),
   ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère A', 'conseillere@a.test', 'active'),
-  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',       'admin@b.test',       'active');
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',       'admin@b.test',       'active'),
+  ('a0000000-0000-0000-0000-000000000010', 'b0000000-0000-0000-0000-00000000000b', 'P8 ailleurs',   'p8@exemple.test',    'active');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant'),
@@ -88,7 +99,9 @@ insert into public.professionals (id, org_id, profile_id, first_name, last_name,
   ('c0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', null, 'Paz', 'Quatre', 'p4@exemple.test', 'inactive',
    (select r.id from public.deactivation_reasons r where r.org_id = 'b0000000-0000-0000-0000-00000000000a' and r.key = 'leave')),
   ('c0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', null, 'Pom', 'Cinq', 'p5@exemple.test', 'draft', null),
-  ('c0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', null, 'Pio', 'Six', 'p6@exemple.test', 'draft', null);
+  ('c0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', null, 'Pio', 'Six', 'p6@exemple.test', 'draft', null),
+  ('c0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', null, 'Pac', 'Sept', 'p7@exemple.test', 'draft', null),
+  ('c0000000-0000-0000-0000-000000000008', 'b0000000-0000-0000-0000-00000000000a', null, 'Pep', 'Huit', 'p8@exemple.test', 'draft', null);
 insert into public.professional_public_profiles (org_id, professional_id)
 select p.org_id, p.id from public.professionals p where p.id::text like 'c0000000-0000-0000-0000-00000000000_';
 insert into public.professional_matching_profiles (org_id, professional_id)
@@ -104,6 +117,10 @@ select set_config('test.p3', 'c0000000-0000-0000-0000-000000000003', true);
 select set_config('test.p4', 'c0000000-0000-0000-0000-000000000004', true);
 select set_config('test.p5', 'c0000000-0000-0000-0000-000000000005', true);
 select set_config('test.p6', 'c0000000-0000-0000-0000-000000000006', true);
+select set_config('test.p7', 'c0000000-0000-0000-0000-000000000007', true);
+select set_config('test.p8', 'c0000000-0000-0000-0000-000000000008', true);
+select set_config('test.leave', (select r.id::text from public.deactivation_reasons r
+                                  where r.org_id = 'b0000000-0000-0000-0000-00000000000a' and r.key = 'leave'), true);
 -- Reference rows are taken from the clinic's catalogue by their properties, never by key: the
 -- motif and clientèle lists are catalogue data (they are being replaced by the website's).
 -- « psy »: a title from an order without a licence pattern; « naturo »: a title without an order.
@@ -132,7 +149,8 @@ select set_config('test.b_motif',  (select m.id::text from public.motifs m where
 update public.motifs set is_restricted = true where id = current_setting('test.psychose')::uuid;
 
 -- Staged uploads: 01 photo (PNG) and 02 insurance (PDF) by P1's future account, 03 a PDF by it (their
--- uploader is set once that account has a profile, below), 04 a PNG by provider A.
+-- uploader and subject, P1's submission, are set once that account has a profile, below), 04 a PNG by
+-- provider A, 05 a PNG by P1's account staged for another submission.
 insert into public.stored_files
   (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id, original_name, mime_type, ext,
    size_bytes, sha256, status, view_permission, owner_profile_id, owner_permission, retain_until, uploaded_by, confirmed_at)
@@ -145,8 +163,12 @@ select f.id, current_setting('test.a')::uuid, 'documents',
     ('e0000000-0000-0000-0000-000000000001'::uuid, 'image/png', 'png', 'a0000000-0000-0000-0000-000000000006'::uuid),
     ('e0000000-0000-0000-0000-000000000002', 'application/pdf', 'pdf', 'a0000000-0000-0000-0000-000000000006'),
     ('e0000000-0000-0000-0000-000000000003', 'application/pdf', 'pdf', 'a0000000-0000-0000-0000-000000000006'),
-    ('e0000000-0000-0000-0000-000000000004', 'image/png', 'png', 'a0000000-0000-0000-0000-000000000003')
+    ('e0000000-0000-0000-0000-000000000004', 'image/png', 'png', 'a0000000-0000-0000-0000-000000000003'),
+    ('e0000000-0000-0000-0000-000000000005', 'image/png', 'png', 'a0000000-0000-0000-0000-000000000006')
   ) as f(id, mime, ext, uploader);
+
+update public.stored_files set subject_id = 'd0000000-0000-0000-0000-000000000009', object_path = replace(object_path, 'd0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000009')
+ where id = 'e0000000-0000-0000-0000-000000000005';
 
 select set_config('test.audit_start', (select coalesce(max(id), 0)::text from public.audit_log), true);
 
@@ -260,6 +282,11 @@ select throws_ok($$ select public.set_professionals_settings('{"invitation_expir
 select throws_ok($$ select public.set_professionals_settings('{"invitation_expiry_days": 2.5}') $$, '22023', null, 'expiry: whole days');
 select throws_ok($$ select public.set_professionals_settings('{"invitation_expiry_days": null}') $$, '22023', null, 'expiry: never null');
 select throws_ok($$ select public.set_professionals_settings('{"invitation_reminder_after_days": 0}') $$, '22023', null, 'reminder: at least 1 day');
+select throws_ok($$ select public.set_professionals_settings('{"invitation_reminder_after_days": 7}') $$, 'P0001',
+  'Le rappel doit partir avant la fin de validité du lien : choisissez un délai plus court que sa durée de validité.',
+  'the reminder leaves before the link expires (P4-248)');
+select is(private.test_error_hint($$ select public.set_professionals_settings('{"invitation_expiry_days": 3}') $$), 'invitation_reminder_after_days',
+  '… also when the lifetime is shortened under the reminder (HINT the reminder)');
 select is(public.set_professionals_settings('{"invitation_reminder_after_days": null}') -> 'invitation_reminder_after_days', 'null'::jsonb,
   'reminder: null turns it off');
 reset role;
@@ -295,6 +322,8 @@ select results_eq($$ select l.purpose, l.subject_type, l.subject_id, l.created_b
                        from public.secure_links l where l.id = (current_setting('test.inv1')::jsonb ->> 'link_id')::uuid $$,
   $$ values ('professional_invite'::text, 'professional'::text, current_setting('test.p1')::uuid, 'a0000000-0000-0000-0000-000000000002'::uuid, true) $$,
   'the link: the purpose, the professional, the actor; only the token''s hash');
+select is((select l.scope from public.secure_links l where l.id = (current_setting('test.inv1')::jsonb ->> 'link_id')::uuid),
+  '{"email": "p1@exemple.test"}'::jsonb, 'the link is bound to the file''s address (P4-240)');
 select results_eq($$ select s.kind, s.status, s.requested_sections, s.secure_link_id, s.prefill -> 'languages' -> 'language_ids'
                        from public.professional_submissions s where s.id = (current_setting('test.inv1')::jsonb ->> 'submission_id')::uuid $$,
   $$ values ('onboarding'::text, 'draft'::text,
@@ -367,8 +396,11 @@ select ok(exists (select 1 from public.audit_log a where a.table_name = 'profess
                    and a.actor_id = 'a0000000-0000-0000-0000-000000000006' and a.source = 'rpc:link_professional_account'),
   'the link is audited as the new account');
 
-update public.stored_files set uploaded_by = 'a0000000-0000-0000-0000-000000000006'
- where id in ('e0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000003');
+update public.stored_files set uploaded_by = 'a0000000-0000-0000-0000-000000000006',
+       subject_id = case when id = 'e0000000-0000-0000-0000-000000000005' then subject_id
+                         else (current_setting('test.inv1')::jsonb ->> 'submission_id')::uuid end
+ where id in ('e0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000003',
+              'e0000000-0000-0000-0000-000000000005');
 
 -- P5: an expired link, then an inviter who lost the permission.
 set local role service_role;
@@ -410,6 +442,8 @@ reset role;
 select results_eq($$ select p.status, l.revoked_at is not null, l.revoked_by from public.professionals p
                        join public.secure_links l on l.subject_id = p.id where p.id = current_setting('test.p5')::uuid $$,
   $$ values ('draft'::text, true, 'a0000000-0000-0000-0000-000000000002'::uuid) $$, 'the link is revoked; the file is « À inviter » again');
+select is((select s.status from public.professional_submissions s where s.id = (current_setting('test.inv5')::jsonb ->> 'submission_id')::uuid),
+  'cancelled', '… and its onboarding draft is closed (P4-241)');
 
 set local role service_role;
 select set_config('test.inv6', public.create_professional_invitation('a0000000-0000-0000-0000-000000000001', current_setting('test.p6')::uuid,
@@ -438,6 +472,8 @@ select lives_ok($$ select public.deactivate_professional(current_setting('test.p
   'an invited file is deactivated');
 select is((select s.state from public.list_professional_invitation_states() s where s.professional_id = current_setting('test.p6')::uuid), 'revoked',
   '… and its link is revoked (4a.4, 4a.14)');
+select is((select s.status from public.professional_submissions s where s.id = (current_setting('test.inv6')::jsonb ->> 'submission_id')::uuid),
+  'cancelled', '… and its onboarding draft is closed (P4-241)');
 select results_eq($$ select s.professional_id, s.state from public.list_professional_invitation_states() s
                       where s.professional_id in (current_setting('test.p1')::uuid, current_setting('test.p5')::uuid) order by 1 $$,
   $$ values (current_setting('test.p1')::uuid, 'used'::text), (current_setting('test.p5')::uuid, 'revoked'::text) $$,
@@ -475,8 +511,8 @@ select lives_ok($$ select public.save_my_submission_draft('personal', '{"persona
   "city": "Montréal", "province": "qc", "postal_code": "h2x1y4"}') $$, 'a personal section is saved');
 reset role;
 select is((select s.submitted_values -> 'personal' from public.professional_submissions s where s.professional_id = current_setting('test.p1')::uuid),
-  '{"personal_phone": "+15145550101", "address_line1": "123, rue Principale", "address_line2": null, "city": "Montréal", "province": "QC", "postal_code": "H2X 1Y4"}'::jsonb,
-  'the answers are stored normalised as the forms store them');
+  '{"personal_phone": "+15145550101", "address_line1": "123, rue Principale", "city": "Montréal", "province": "QC", "postal_code": "H2X 1Y4"}'::jsonb,
+  'the answers are stored normalised as the forms store them, only the keys given (P4-176)');
 set local role authenticated;
 
 -- Professions and motifs through the staff paths (dry run), restricted motifs across sections.
@@ -533,6 +569,8 @@ select throws_ok($$ select public.save_my_submission_draft('portrait', jsonb_bui
 -- Files: the provider's own staged upload, of the right type; the insurance's date.
 select throws_ok($$ select public.save_my_submission_draft('photo', '{"file_id": "e0000000-0000-0000-0000-000000000004"}') $$,
   'P0001', 'Fichier introuvable. Téléversez-le de nouveau.', 'someone else''s upload is not found');
+select throws_ok($$ select public.save_my_submission_draft('photo', '{"file_id": "e0000000-0000-0000-0000-000000000005"}') $$,
+  'P0001', 'Fichier introuvable. Téléversez-le de nouveau.', 'an upload staged for another submission is not found (P4-246)');
 select throws_ok($$ select public.save_my_submission_draft('photo', '{"file_id": "e0000000-0000-0000-0000-000000000003"}') $$,
   'P0001', 'La photo doit être une image JPEG ou PNG de 5 Mo au plus.', 'a PDF is not a photo');
 select lives_ok($$ select public.save_my_submission_draft('photo', '{"file_id": "e0000000-0000-0000-0000-000000000001"}') $$, 'the photo');
@@ -656,11 +694,14 @@ select set_config('test.s1', current_setting('test.inv1')::jsonb ->> 'submission
 select set_config('test.review', public.get_submission_review(current_setting('test.s1')::uuid)::text, true);
 select is(jsonb_array_length(current_setting('test.review')::jsonb -> 'sections'), 11, 'the review lists the eleven sections');
 select is((select f from jsonb_array_elements(current_setting('test.review')::jsonb -> 'sections' -> 0 -> 'fields') f where f ->> 'field' = 'city'),
-  '{"field": "city", "label_key": "modules.professionals.submission.fields.city", "kind": "plain", "current": null, "submitted": "Montréal", "changed": true}'::jsonb,
-  'a field: current, submitted, changed');
+  '{"field": "city", "label_key": "modules.professionals.submission.fields.city", "kind": "plain", "answered": true, "current": null, "submitted": "Montréal", "changed": true}'::jsonb,
+  'a field: answered, current, submitted, changed');
+select is((select f from jsonb_array_elements(current_setting('test.review')::jsonb -> 'sections' -> 0 -> 'fields') f where f ->> 'field' = 'address_line2'),
+  '{"field": "address_line2", "label_key": "modules.professionals.submission.fields.address_line2", "kind": "plain", "answered": false, "current": null, "submitted": null, "changed": false}'::jsonb,
+  'a field never sent is not answered');
 select is((select f from jsonb_array_elements(current_setting('test.review')::jsonb -> 'sections') s, jsonb_array_elements(s -> 'fields') f
             where f ->> 'field' = 'bank_account'),
-  '{"field": "bank_account", "label_key": "modules.professionals.submission.fields.bank_account", "kind": "private", "changed": true}'::jsonb,
+  '{"field": "bank_account", "label_key": "modules.professionals.submission.fields.bank_account", "kind": "private", "answered": true, "changed": true}'::jsonb,
   'a private field says only that it changed');
 select ok(current_setting('test.review') not like '%1234567%' and current_setting('test.review') not like '%123456789%',
   'no private value in the review');
@@ -670,8 +711,10 @@ select is((select f -> 'changed' from jsonb_array_elements(current_setting('test
             where f ->> 'field' = 'language_ids'), 'true'::jsonb, 'a set compares by ids');
 select throws_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['nickname']) $$, '22023', 'Champ inconnu.',
   'an unknown field is refused');
-select throws_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['sin']) $$, '22023', 'Champ non soumis.',
+select throws_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['address_line2']) $$, '22023', 'Champ non soumis.',
   'a field without an answer is refused');
+select throws_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['sin']) $$, 'P0001',
+  'La collecte du NAS n''est pas activée.', 'the SIN while collect_sin is off is refused (P4-182)');
 
 -- One transaction: a refused field rolls back the others (the anxiety motif archived meanwhile).
 reset role;
@@ -706,6 +749,37 @@ select results_eq($$ select s.status, s.decision_note, (select count(*)::int fro
                                                           and n.kind = 'professionals.submission_received')
                        from public.professional_submissions s where s.id = current_setting('test.s1')::uuid $$,
   $$ values ('submitted'::text, null::text, 2) $$, 'sent again: the note is cleared, a new notice');
+
+-- A draft consent text (4c.3) is read by staff only (P4-247); once published, a signature on the
+-- previous version is not applied (P4-245). An insurance expired since the sending is not either.
+reset role;
+insert into public.consent_versions (org_id, key, version, title, body)
+values (current_setting('test.a')::uuid, 'image_rights', 2, 'Consentement au droit à l''image', 'Texte révisé.');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+select is((select count(*)::int from public.consent_versions c where c.org_id = current_setting('test.a')::uuid and c.version = 2), 0,
+  'the provider does not read a draft consent text');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select is((select count(*)::int from public.consent_versions c where c.org_id = current_setting('test.a')::uuid and c.version = 2), 1,
+  'staff do');
+reset role;
+update public.consent_versions set published_at = now() where org_id = current_setting('test.a')::uuid and version = 2;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['consent']) $$,
+  'P0001', 'Le texte du consentement a changé depuis la signature.', 'apply: a consent signed on a version that is no longer the latest');
+reset role;
+delete from public.consent_versions where org_id = current_setting('test.a')::uuid and version = 2;
+update public.professional_submissions
+   set submitted_values = jsonb_set(submitted_values, '{insurance,expires_on}', to_jsonb((current_date - 3)::text))
+ where id = current_setting('test.s1')::uuid;
+set local role authenticated;
+select throws_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['insurance']) $$,
+  'P0001', 'Cette assurance est échue depuis l''envoi du profil.', 'apply: an insurance that expired since it was sent');
+reset role;
+update public.professional_submissions
+   set submitted_values = jsonb_set(submitted_values, '{insurance,expires_on}', to_jsonb((current_date + 200)::text))
+ where id = current_setting('test.s1')::uuid;
 
 -- Apply a selection (the adjointe has no professionals.private).
 set local role authenticated;
@@ -816,6 +890,7 @@ select results_eq($$ select p.status, n.title from public.professionals p
                        join public.notifications n on n.subject_id = p.id and n.kind = 'professionals.submission_received'
                       where p.id = current_setting('test.p2')::uuid $$,
   $$ values ('active'::text, 'Mise à jour à réviser'::text) $$, 'an update keeps the status; its notice says « Mise à jour »');
+update public.professional_matching_profiles set availability_note = 'Les mardis' where professional_id = current_setting('test.p2')::uuid;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select lives_ok($$ select public.apply_professional_submission((current_setting('test.u2')::jsonb ->> 'submission_id')::uuid) $$, 'apply all');
@@ -823,12 +898,14 @@ reset role;
 select results_eq($$ select mp.accepting_new_clients, mp.availability_periods, mp.availability_note,
                             (select array_agg(x.motif_id) from public.professional_motifs x where x.professional_id = mp.professional_id)
                        from public.professional_matching_profiles mp where mp.professional_id = current_setting('test.p2')::uuid $$,
-  $$ values (false, array['weekend'], null::text, array[current_setting('test.deuil')::uuid]) $$, 'every answered field is applied');
+  $$ values (false, array['weekend'], 'Les mardis'::text, array[current_setting('test.deuil')::uuid]) $$,
+  'every answered field is applied; the note, never sent, keeps its value (P4-176)');
 select is((select s.applied_fields from public.professional_submissions s where s.id = (current_setting('test.u2')::jsonb ->> 'submission_id')::uuid),
-  array['motif_ids', 'accepting_new_clients', 'availability_periods', 'availability_note'], 'applied fields recorded');
+  array['motif_ids', 'accepting_new_clients', 'availability_periods'], 'applied fields recorded');
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select ok(public.start_my_profile_update(array['portrait']) is not null, '« Proposer une modification » once nothing is open');
+select ok(set_config('test.u3', public.start_my_profile_update(array['portrait', 'tax_bank'])::text, true) is not null,
+  '« Proposer une modification » once nothing is open');
 reset role;
 
 -- =============================================================================
@@ -895,6 +972,273 @@ reset role;
 select results_eq($$ select pp.key_version::int, private.decrypt_pii(pp.bank_account, 2), pp.business_number
                        from public.professional_private pp where pp.professional_id = current_setting('test.p5')::uuid $$,
   $$ values (2, '7654321'::text, '123456789'::text) $$, '… lands on version 2 (re-encrypted inside the database)');
+-- =============================================================================
+-- The SIN in the questionnaire (P4-182): collect_sin on, Luhn, last three digits, a rotation, an
+-- unreadable kept value at save and at apply, applied; partial saves (P4-176); self-review (P4-244)
+-- =============================================================================
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(public.set_professionals_settings('{"collect_sin": true}') -> 'collect_sin', 'true'::jsonb, 'the admin turns collect_sin on');
+reset role;
+-- P2's record already holds part of its portrait; the update leaves those fields unanswered.
+update public.professional_public_profiles set approach = 'Approche actuelle', public_email = 'pia@exemple.test'
+ where professional_id = current_setting('test.p2')::uuid;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select throws_ok($$ select public.save_my_submission_private('046 454 287', null, null, null, '815', '30000', '1112223') $$,
+  'P0001', 'NAS invalide.', 'a SIN that fails the Luhn check is refused');
+select is(private.test_error_hint($$ select public.save_my_submission_private('046 454 287', null, null, null, '815', '30000', '1112223') $$),
+  'sin', '… HINT sin');
+select lives_ok($$ select public.save_my_submission_private('046-454-286', null, null, null, '815', '30000', '1112223') $$,
+  'with collect_sin on, the SIN is saved');
+select is((select s -> 'private' ->> 'sin_last3' from public.get_my_submission() s), '286', 'the provider reads back its last three digits only');
+reset role;
+select results_eq($$ select private.decrypt_pii(sp.sin, sp.key_version), sp.key_version::int from public.professional_submission_private sp
+                      where sp.submission_id = current_setting('test.u3')::uuid $$,
+  $$ values ('046454286'::text, private.pii_current_key_version()) $$, 'the SIN is encrypted at once, on the write version');
+-- A row left on version 1 by a rotation: a save that keeps the SIN re-encrypts it (one version per row).
+update public.professional_submission_private
+   set sin = private.encrypt_pii('046454286', 1), bank_account = private.encrypt_pii('1112223', 1), key_version = 1
+ where submission_id = current_setting('test.u3')::uuid;
+set local role authenticated;
+select lives_ok($$ select public.save_my_submission_private(null, null, null, null, '815', '30000', null) $$, 'rotation: a save that keeps the SIN');
+reset role;
+select results_eq($$ select sp.key_version::int, private.decrypt_pii(sp.sin, 2), private.decrypt_pii(sp.bank_account, 2)
+                       from public.professional_submission_private sp where sp.submission_id = current_setting('test.u3')::uuid $$,
+  $$ values (2, '046454286'::text, '1112223'::text) $$, 'rotation: the kept SIN and account are re-encrypted with version 2');
+-- A kept SIN that does not decrypt (another key): a clean P0001 that names it.
+update public.professional_submission_private
+   set sin = extensions.pgp_sym_encrypt('000000000', 'not-this-environment-key'), bank_account = private.encrypt_pii('1112223', 1),
+       key_version = 1
+ where submission_id = current_setting('test.u3')::uuid;
+set local role authenticated;
+select throws_ok($$ select public.save_my_submission_private(null, null, null, null, '815', '30000', null) $$,
+  'P0001', 'Le NAS enregistré précédemment ne peut pas être lu avec la clé de cet environnement.', 'an unreadable kept SIN: clean P0001');
+select is(private.test_error_hint($$ select public.save_my_submission_private(null, null, null, null, '815', '30000', null) $$),
+  'Saisissez-le de nouveau au complet : il remplacera celui qui est enregistré.', '… with a hint');
+select lives_ok($$ select public.save_my_submission_private('046454286', null, null, null, '815', '30000', null) $$,
+  'typing the SIN again replaces it');
+
+-- Two saves of « Portrait », one field each: merged; the fields never sent stay unanswered.
+select lives_ok($$ select public.save_my_submission_draft('portrait', '{"bio": "Nouvelle présentation."}') $$, 'a save with the presentation only');
+select lives_ok($$ select public.save_my_submission_draft('portrait', '{"public_phone": "514 555 0199"}') $$, 'then one with the public phone only');
+reset role;
+select is((select s.submitted_values -> 'portrait' from public.professional_submissions s where s.id = current_setting('test.u3')::uuid),
+  '{"bio": "Nouvelle présentation.", "public_phone": "+15145550199"}'::jsonb, 'the section holds both answers and nothing else');
+set local role authenticated;
+select lives_ok($$ select public.submit_my_submission() $$, 'the update with a SIN is sent');
+
+-- Self-review: a reviewer never applies or refuses her own file.
+reset role;
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted)
+values ('a0000000-0000-0000-0000-000000000003', current_setting('test.a')::uuid, 'professionals.review', true);
+set local role authenticated;
+select throws_ok($$ select public.apply_professional_submission(current_setting('test.u3')::uuid) $$,
+  'P0001', 'Vous ne pouvez pas réviser votre propre profil.', 'self-review: no apply');
+select throws_ok($$ select public.reject_professional_submission(current_setting('test.u3')::uuid, 'Non') $$,
+  'P0001', 'Vous ne pouvez pas réviser votre propre profil.', 'self-review: no refusal');
+reset role;
+delete from public.user_permission_overrides where user_id = 'a0000000-0000-0000-0000-000000000003';
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is((select jsonb_object_agg(f ->> 'field', f -> 'answered')
+             from jsonb_array_elements(public.get_submission_review(current_setting('test.u3')::uuid) -> 'sections') s,
+                  jsonb_array_elements(s -> 'fields') f
+            where f ->> 'field' in ('bio', 'approach', 'public_email', 'public_phone', 'sin')),
+  '{"bio": true, "approach": false, "public_email": false, "public_phone": true, "sin": true}'::jsonb, 'the review says which fields were answered');
+-- The submission's SIN on version 1 and unreadable: a clean P0001 at apply.
+reset role;
+update public.professional_submission_private
+   set sin = extensions.pgp_sym_encrypt('000000000', 'not-this-environment-key'), bank_account = private.encrypt_pii('1112223', 1),
+       key_version = 1
+ where submission_id = current_setting('test.u3')::uuid;
+set local role authenticated;
+select throws_ok($$ select public.apply_professional_submission(current_setting('test.u3')::uuid, array['sin']) $$,
+  'P0001', 'Les renseignements transmis ne peuvent pas être lus avec la clé de cet environnement.', 'apply: an unreadable SIN');
+select is(private.test_error_hint($$ select public.apply_professional_submission(current_setting('test.u3')::uuid, array['sin']) $$),
+  'Refusez la soumission : le professionnel saisira ces renseignements de nouveau.', '… with a hint');
+reset role;
+update public.professional_submission_private set sin = private.encrypt_pii('046454286', 1)
+ where submission_id = current_setting('test.u3')::uuid;
+set local role authenticated;
+select lives_ok($$ select public.apply_professional_submission(current_setting('test.u3')::uuid) $$, 'apply all, the SIN included');
+reset role;
+select results_eq($$ select pp.key_version::int, private.decrypt_pii(pp.sin, pp.key_version), pp.sin_last3,
+                            private.decrypt_pii(pp.bank_account, pp.key_version)
+                       from public.professional_private pp where pp.professional_id = current_setting('test.p2')::uuid $$,
+  $$ values (2, '046454286'::text, '286'::text, '1112223'::text) $$, 'the SIN lands in professional_private, on the write version');
+select results_eq($$ select x.bio, x.approach, x.public_email, x.public_phone from public.professional_public_profiles x
+                      where x.professional_id = current_setting('test.p2')::uuid $$,
+  $$ values ('Nouvelle présentation.'::text, 'Approche actuelle'::text, 'pia@exemple.test'::text, '+15145550199'::text) $$,
+  'apply all: the answered fields change, the fields never sent keep their values (P4-176)');
+
+-- collect_sin turned off between the save and the review: the SIN is not applied (P4-182).
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select ok(set_config('test.u4', public.start_my_profile_update(array['tax_bank'])::text, true) is not null, 'a second update: tax and bank');
+select lives_ok($$ select public.save_my_submission_private('130 692 544', null, null, null, null, null, null) $$, 'a new SIN');
+select lives_ok($$ select public.submit_my_submission() $$, 'sent (the account and its institution are on file)');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(public.set_professionals_settings('{"collect_sin": false}') -> 'collect_sin', 'false'::jsonb, 'the admin turns collect_sin off');
+select is((select f -> 'answered' from jsonb_array_elements(public.get_submission_review(current_setting('test.u4')::uuid) -> 'sections') s,
+                                       jsonb_array_elements(s -> 'fields') f where f ->> 'field' = 'sin'),
+  'false'::jsonb, 'the SIN is no longer an available field');
+select throws_ok($$ select public.apply_professional_submission(current_setting('test.u4')::uuid, array['sin']) $$,
+  'P0001', 'La collecte du NAS n''est pas activée.', 'apply: the SIN is refused while collect_sin is off');
+select lives_ok($$ select public.apply_professional_submission(current_setting('test.u4')::uuid) $$, '« Appliquer tout » works without it');
+reset role;
+select results_eq($$ select private.decrypt_pii(pp.sin, pp.key_version), s.applied_fields,
+                            (select count(*)::int from public.professional_submission_private sp where sp.submission_id = s.id)
+                       from public.professional_private pp join public.professional_submissions s on s.professional_id = pp.professional_id
+                      where s.id = current_setting('test.u4')::uuid $$,
+  $$ values ('046454286'::text, '{}'::text[], 0) $$, 'the record keeps its SIN; the one sent is discarded with the private row');
+
+-- =============================================================================
+-- Loi 25: private answers never outlive their submission (P4-241, P4-242); inactive files (P4-243)
+-- =============================================================================
+select results_eq($$ select j.module_key, j.kind, j.sql_function, j.is_maintenance, c.schedule, c.command
+                       from public.scheduled_jobs j join cron.job c on c.jobname = j.cron_job_name
+                      where j.key = 'professionals.submission_private_purge' $$,
+  $$ values ('professionals'::text, 'sql'::text, 'private.job_professionals_submission_private_purge'::text, true, '10 9 * * *'::text,
+             'select private.run_sql_job(''professionals.submission_private_purge'')'::text) $$,
+  'the purge of stale private answers is catalogued and scheduled daily');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select ok(set_config('test.u5', public.start_my_profile_update(array['tax_bank'])::text, true) is not null, 'a third update');
+select lives_ok($$ select public.save_my_submission_private(null, null, null, null, null, null, '2223334') $$, 'an account entered, not sent');
+reset role;
+select ok(private.job_professionals_submission_private_purge() ~ '^deleted=[0-9]+$', 'the purge job returns a count');
+select ok(exists (select 1 from public.professional_submission_private sp where sp.submission_id = current_setting('test.u5')::uuid),
+  'a draft saved recently keeps its private answers');
+-- 100 days without a save (updated_at set with its trigger off).
+alter table public.professional_submissions disable trigger professional_submissions_set_updated_at;
+alter table public.professional_submission_private disable trigger professional_submission_private_set_updated_at;
+update public.professional_submissions set updated_at = now() - interval '100 days' where id = current_setting('test.u5')::uuid;
+update public.professional_submission_private set updated_at = now() - interval '100 days' where submission_id = current_setting('test.u5')::uuid;
+alter table public.professional_submissions enable trigger professional_submissions_set_updated_at;
+alter table public.professional_submission_private enable trigger professional_submission_private_set_updated_at;
+select ok(private.job_professionals_submission_private_purge() ~ '^deleted=[1-9][0-9]*$', 'the job deletes the private answers of a stale draft');
+select results_eq($$ select s.status, s.private_saved_at, (select count(*)::int from public.professional_submission_private sp where sp.submission_id = s.id)
+                       from public.professional_submissions s where s.id = current_setting('test.u5')::uuid $$,
+  $$ values ('draft'::text, null::timestamptz, 0) $$, '… the draft stays, its private step empty again');
+set local role authenticated;
+select lives_ok($$ select public.save_my_submission_private(null, null, null, null, null, null, '2223334') $$, 'the provider enters the account again');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select lives_ok($$ select public.deactivate_professional(current_setting('test.p2')::uuid, current_setting('test.leave')::uuid) $$,
+  'P2 is deactivated (leave: the account stays enabled)');
+reset role;
+select results_eq($$ select s.status, (select count(*)::int from public.professional_submission_private sp where sp.submission_id = s.id)
+                       from public.professional_submissions s where s.id = current_setting('test.u5')::uuid $$,
+  $$ values ('cancelled'::text, 0) $$, 'deactivation closes the open submission and deletes its private answers');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select throws_ok($$ select public.start_my_profile_update(array['portrait']) $$,
+  'P0001', 'Votre dossier est inactif : communiquez avec la clinique pour le réactiver.', 'an inactive file: no update from « Mon profil »');
+select throws_ok($$ select public.save_my_submission_draft('portrait', '{"bio": "x"}') $$,
+  'P0001', 'Votre dossier est inactif : communiquez avec la clinique pour le réactiver.', '… nor a save');
+select ok(public.get_my_submission() is null, '… and nothing is open');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok($$ select public.request_professional_update(current_setting('test.p2')::uuid, array['motifs']) $$,
+  'P0001', 'Ce dossier est inactif : réactivez-le d''abord.', 'staff ask nothing of an inactive file');
+
+-- An account removed abandons the open submission (P5, a…08).
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000008","role":"authenticated"}', true);
+select ok(set_config('test.u6', public.start_my_profile_update(array['tax_bank'])::text, true) is not null, 'P5 starts an update');
+select lives_ok($$ select public.save_my_submission_private(null, null, null, null, null, null, '3334445') $$, '… and enters an account');
+reset role;
+delete from public.profiles where user_id = 'a0000000-0000-0000-0000-000000000008';
+select results_eq($$ select p.profile_id, s.status, (select count(*)::int from public.professional_submission_private sp where sp.submission_id = s.id)
+                       from public.professionals p join public.professional_submissions s on s.professional_id = p.id
+                      where s.id = current_setting('test.u6')::uuid $$,
+  $$ values (null::uuid, 'cancelled'::text, 0) $$, 'the account removed: the open submission is closed, its private answers deleted');
+
+-- =============================================================================
+-- The invitation is bound to the address it was sent to (P4-240)
+-- =============================================================================
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select set_config('test.inv7', public.create_professional_invitation('a0000000-0000-0000-0000-000000000001', current_setting('test.p7')::uuid,
+  extensions.digest('token-7', 'sha256'))::text, true);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select lives_ok($$ select public.set_professional_email(current_setting('test.p7')::uuid, 'P7-Nouveau@exemple.test') $$,
+  'the address of an invited file is corrected');
+reset role;
+select results_eq($$ select p.email, p.status, l.revoked_at is not null from public.professionals p
+                       join public.secure_links l on l.id = (current_setting('test.inv7')::jsonb ->> 'link_id')::uuid
+                      where p.id = current_setting('test.p7')::uuid $$,
+  $$ values ('p7-nouveau@exemple.test'::text, 'draft'::text, true) $$, 'the link sent to the old address is revoked; the file is « À inviter » again');
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select ok(public.resolve_professional_invitation((current_setting('test.inv7')::jsonb ->> 'link_id')::uuid) is null, 'resolve: the old link shows nothing');
+select is(public.link_professional_account(extensions.digest('token-7', 'sha256'), 'a0000000-0000-0000-0000-000000000009', '{}'),
+  '{"status": "link_invalid"}'::jsonb, 'accept: the old link opens no account, even for the new address');
+select set_config('test.inv7b', public.create_professional_invitation('a0000000-0000-0000-0000-000000000001', current_setting('test.p7')::uuid,
+  extensions.digest('token-7b', 'sha256'))::text, true);
+select is(public.resolve_professional_invitation((current_setting('test.inv7b')::jsonb ->> 'link_id')::uuid) ->> 'email', 'p7-nouveau@exemple.test',
+  'a new link goes to the new address');
+reset role;
+-- The address changed without set_professional_email (forced here): the bound link is refused.
+update public.professionals set email = 'p7-autre@exemple.test' where id = current_setting('test.p7')::uuid;
+set local role service_role;
+select ok(public.resolve_professional_invitation((current_setting('test.inv7b')::jsonb ->> 'link_id')::uuid) is null,
+  'resolve: a link whose address is no longer the file''s shows nothing');
+select is(public.link_professional_account(extensions.digest('token-7b', 'sha256'), 'a0000000-0000-0000-0000-000000000009', '{}'),
+  '{"status": "link_invalid"}'::jsonb, 'accept: … and is invalid');
+reset role;
+select results_eq($$ select l.use_count, p.profile_id from public.secure_links l join public.professionals p on p.id = l.subject_id
+                      where l.id = (current_setting('test.inv7b')::jsonb ->> 'link_id')::uuid $$,
+  $$ values (0, null::uuid) $$, '… the consumption rolled back');
+update public.professionals set email = 'p7-nouveau@exemple.test' where id = current_setting('test.p7')::uuid;
+set local role service_role;
+select is(public.link_professional_account(extensions.digest('token-7b', 'sha256'), 'a0000000-0000-0000-0000-000000000009', '{}') ->> 'status',
+  'accepted', 'the link sent to the current address works');
+reset role;
+-- An inactive file: nothing is applied (forced here: a deactivation closes the submission).
+update public.professional_submissions set status = 'submitted', submitted_at = now()
+ where professional_id = current_setting('test.p7')::uuid and status = 'draft';
+update public.professionals set status = 'inactive', deactivation_reason_id = current_setting('test.leave')::uuid
+ where id = current_setting('test.p7')::uuid;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok($$ select public.apply_professional_submission((select s.id from public.professional_submissions s
+                                                                 where s.professional_id = current_setting('test.p7')::uuid and s.status = 'submitted')) $$,
+  'P0001', 'Ce dossier est inactif : réactivez-le d''abord.', 'apply: an inactive file is refused');
+reset role;
+
+-- =============================================================================
+-- Acceptance refusals: a disabled inviter, an inactive file, an account that already has a profile
+-- =============================================================================
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select set_config('test.inv8', public.create_professional_invitation('a0000000-0000-0000-0000-000000000002', current_setting('test.p8')::uuid,
+  extensions.digest('token-8', 'sha256'))::text, true);
+reset role;
+update public.profiles set status = 'disabled' where user_id = 'a0000000-0000-0000-0000-000000000002';
+set local role service_role;
+select is(public.link_professional_account(extensions.digest('token-8', 'sha256'), 'a0000000-0000-0000-0000-000000000010', '{}'),
+  '{"status": "link_invalid"}'::jsonb, 'accept: the inviter''s account is disabled (P3-31)');
+reset role;
+update public.profiles set status = 'active' where user_id = 'a0000000-0000-0000-0000-000000000002';
+update public.professionals set status = 'inactive', deactivation_reason_id = current_setting('test.leave')::uuid
+ where id = current_setting('test.p8')::uuid;
+set local role service_role;
+select ok(public.resolve_professional_invitation((current_setting('test.inv8')::jsonb ->> 'link_id')::uuid) is null,
+  'resolve: an inactive file shows nothing');
+select is(public.link_professional_account(extensions.digest('token-8', 'sha256'), 'a0000000-0000-0000-0000-000000000010', '{}'),
+  '{"status": "link_invalid"}'::jsonb, 'accept: an inactive file is refused');
+reset role;
+update public.professionals set status = 'invited', deactivation_reason_id = null where id = current_setting('test.p8')::uuid;
+set local role service_role;
+select throws_ok($$ select public.link_professional_account(extensions.digest('token-8', 'sha256'), 'a0000000-0000-0000-0000-000000000010', '{}') $$,
+  '23505', null, 'accept: an account that already has a profile is refused');
+reset role;
+select results_eq($$ select l.use_count, p.profile_id from public.secure_links l join public.professionals p on p.id = l.subject_id
+                      where l.id = (current_setting('test.inv8')::jsonb ->> 'link_id')::uuid $$,
+  $$ values (0, null::uuid) $$, '… nothing written (rolled back)');
+
 select ok(public.pii_health_check(), 'the health check is true at the end');
 
 select * from finish();
