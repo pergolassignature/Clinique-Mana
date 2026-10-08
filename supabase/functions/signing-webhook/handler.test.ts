@@ -335,6 +335,79 @@ Deno.test('signing-webhook: an unknown document → 200 not_found, reported with
   })
 })
 
+Deno.test('signing-webhook: a late event of a document a re-send superseded → 200 ignored, not reported', async () => {
+  await run(async () => {
+    const s = setup()
+    const old = await sentRequest(s.fake, s.db)
+    // A re-send replaced document 1 (cancelled first) with document 2.
+    const row = await sentRequest(s.fake, s.db, { id: old.id })
+    row.superseded_document_ids = [old.documenso_document_id!]
+    const lines = await captureConsole('error', async () => {
+      const res = await s.handler(
+        s.fake.webhookRequest(
+          URL_,
+          'DOCUMENT_CANCELLED',
+          old.documenso_document_id!,
+        ),
+      )
+      assertEquals(await outcome(res), { status: 200, outcome: 'ignored' })
+    })
+    assertEquals(lines, [], 'no signing_event_not_found report')
+    assertEquals(s.db.requests.get(row.id)!.status, 'sent')
+  })
+})
+
+Deno.test('signing-webhook: completed for a request closed here (expired, cancelled, abandoned) → 200, reported signing_completed_after_close (ids only)', async () => {
+  await run(async () => {
+    for (
+      const over of [
+        { status: 'expired' },
+        { status: 'cancelled' },
+        { status: 'draft', sent_at: null, last_error: 'abandoned' },
+      ]
+    ) {
+      const s = setup()
+      const row = await sentRequest(s.fake, s.db, over)
+      s.fake.complete(row.documenso_document_id!)
+      const lines = await captureConsole('error', async () => {
+        const res = await s.handler(
+          s.fake.webhookRequest(
+            URL_,
+            'DOCUMENT_COMPLETED',
+            row.documenso_document_id!,
+          ),
+        )
+        assertEquals(await outcome(res), { status: 200, outcome: 'ignored' })
+      })
+      const report = JSON.stringify(lines)
+      assert(report.includes('signing_completed_after_close'), over.status)
+      assert(report.includes(row.id))
+      assertFalse(report.includes('@'))
+      assertEquals(s.db.requests.get(row.id)!.status, over.status)
+      assertEquals(s.db.files.size, 0, 'nothing downloaded')
+    }
+  })
+})
+
+Deno.test('signing-webhook: completed again for a request already signed → 200 ignored, no report', async () => {
+  await run(async () => {
+    const s = setup()
+    const row = await sentRequest(s.fake, s.db, { status: 'signed' })
+    s.fake.complete(row.documenso_document_id!)
+    const lines = await captureConsole('error', async () => {
+      const res = await s.handler(
+        s.fake.webhookRequest(
+          URL_,
+          'DOCUMENT_COMPLETED',
+          row.documenso_document_id!,
+        ),
+      )
+      assertEquals(await outcome(res), { status: 200, outcome: 'ignored' })
+    })
+    assertEquals(lines, [])
+  })
+})
+
 Deno.test('signing-webhook: a failure after the claim (download) → 500, the claim failed with a code, reported', async () => {
   await run(async () => {
     const s = setup()

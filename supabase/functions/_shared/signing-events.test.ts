@@ -352,6 +352,58 @@ Deno.test('storeSignedPdf: a download that is not a PDF registers nothing', asyn
   assertEquals(db.files.size, 0)
 })
 
+Deno.test('storeSignedPdf: another delivery completed the request first → this file is discarded, done', async () => {
+  const { fake, db, supabase, documenso } = setup()
+  const row = await sentRequest(fake, db)
+  fake.complete(row.documenso_document_id!)
+  // The other delivery won the race between our download and our complete.
+  db.insertFile({
+    id: 'f-theirs',
+    purpose: 'signing_signed',
+    subject_id: row.id,
+  })
+  Object.assign(db.requests.get(row.id)!, {
+    status: 'signed',
+    signed_file_id: 'f-theirs',
+  })
+  await storeSignedPdf(supabase.client, documenso, SIGNING_ORG, {
+    id: row.id,
+    documentId: row.documenso_document_id!,
+    viewPermission: row.view_permission,
+  })
+  assertEquals(rpcNames(supabase), [
+    'register_system_file',
+    'complete_signature_request',
+    'get_signing_request',
+    'discard_system_file',
+  ])
+  const ours = [...db.files.values()].find((f) => f.id !== 'f-theirs')!
+  assertEquals(ours.status, 'deleted')
+  assertEquals(db.requests.get(row.id)!.signed_file_id, 'f-theirs')
+})
+
+Deno.test('storeSignedPdf: complete refused for another reason → complete_failed', async () => {
+  const { fake, db, documenso } = setup()
+  const row = await sentRequest(fake, db)
+  fake.complete(row.documenso_document_id!)
+  const supabase = fakeSupabase({
+    rpc: {
+      ...db.rpc,
+      complete_signature_request: { error: { code: '22023' } },
+    },
+    storage: db.storage,
+  })
+  const error = await assertRejects(() =>
+    storeSignedPdf(supabase.client, documenso, SIGNING_ORG, {
+      id: row.id,
+      documentId: row.documenso_document_id!,
+      viewPermission: row.view_permission,
+    })
+  )
+  assertEquals((error as { code: string }).code, 'complete_failed')
+  assert(!rpcNames(supabase).includes('discard_system_file'))
+})
+
 // ---------------------------------------------------------------------------
 // syncRequest
 // ---------------------------------------------------------------------------
@@ -404,7 +456,7 @@ async function deadDraft(
   return row
 }
 
-Deno.test('syncRequest: a draft Documenso completed, its PDF still staged → marked sent (roles by signing order), then signed', async () => {
+Deno.test('syncRequest: a draft Documenso completed, its PDF still staged → claimed, recovered (roles by signing order, the source taken), then signed', async () => {
   await run(async () => {
     const s = setup()
     const row = await deadDraft(s, true)
@@ -413,18 +465,30 @@ Deno.test('syncRequest: a draft Documenso completed, its PDF still staged → ma
       await syncRequest(s.ctx, row, { settleDrafts: false }),
       'signed',
     )
-    const sent = s.supabase.calls.find((c) =>
-      c.fn === 'mark_signature_request_sent'
+    const names = rpcNames(s.supabase)
+    assert(
+      names.indexOf('begin_signature_request_send') <
+        names.indexOf('recover_signature_request'),
+      'claimed first',
+    )
+    const recovered = s.supabase.calls.find((c) =>
+      c.fn === 'recover_signature_request'
     )!
     const docRecipients = s.fake.documents.get(row.documenso_document_id!)!
       .recipients
-    assertEquals(sent.args.p_source_file_id, 'f-src')
-    assertEquals(sent.args.p_signer_recipients, [
+    assertEquals(
+      recovered.args.p_documenso_document_id,
+      row.documenso_document_id,
+    )
+    assertEquals(recovered.args.p_envelope_id, row.envelope_id)
+    assertEquals(recovered.args.p_signer_recipients, [
       { role: 'professional', recipient_id: docRecipients[0].id },
       { role: 'clinic', recipient_id: docRecipients[1].id },
     ])
-    assertEquals(sent.args.p_expires_at, '2026-10-15T12:00:00.000Z')
-    assertEquals(s.db.requests.get(row.id)!.status, 'signed')
+    const done = s.db.requests.get(row.id)!
+    assertEquals(done.status, 'signed')
+    assertEquals(done.source_file_id, 'f-src')
+    assertEquals(s.db.files.get('f-src')!.retain_until, null)
     assertEquals(
       s.fake.calls.filter((c) =>
         c.url.includes('cancel') || c.url.includes('delete')
@@ -434,11 +498,40 @@ Deno.test('syncRequest: a draft Documenso completed, its PDF still staged → ma
   })
 })
 
-Deno.test('syncRequest: a draft Documenso completed, its PDF no longer staged → signing_orphan_completed (ids only), never cancelled', async () => {
+Deno.test('syncRequest: a draft Documenso completed, its PDF no longer staged → recovered anyway (signed), the source recorded missing and reported', async () => {
   await run(async () => {
     const s = setup()
     const row = await deadDraft(s, false)
     s.fake.complete(row.documenso_document_id!)
+    const lines = await captureConsole('error', async () => {
+      assertEquals(
+        await syncRequest(s.ctx, row, { settleDrafts: true }),
+        'signed',
+      )
+    })
+    const report = JSON.stringify(lines)
+    assert(report.includes('signing_source_missing'))
+    assert(report.includes(row.id))
+    assert(!report.includes('@'))
+    const done = s.db.requests.get(row.id)!
+    assertEquals(done.status, 'signed')
+    assertEquals(done.source_file_id, null)
+    assert(done.signed_file_id !== null)
+    assertEquals(
+      s.fake.calls.filter((c) => c.method === 'POST'),
+      [],
+      'no cancel at Documenso',
+    )
+  })
+})
+
+Deno.test('syncRequest: a completed draft whose recipients do not match by signing order → signing_orphan_completed (ids only), released with that code, never cancelled', async () => {
+  await run(async () => {
+    const s = setup()
+    const row = await deadDraft(s, true)
+    s.fake.complete(row.documenso_document_id!)
+    s.fake.documents.get(row.documenso_document_id!)!.recipients[1]
+      .signingOrder = 5
     const lines = await captureConsole('error', async () => {
       assertEquals(
         await syncRequest(s.ctx, row, { settleDrafts: true }),
@@ -449,8 +542,10 @@ Deno.test('syncRequest: a draft Documenso completed, its PDF no longer staged �
     assert(report.includes('signing_orphan_completed'))
     assert(report.includes(row.id))
     assert(!report.includes('@'))
-    assertEquals(s.db.requests.get(row.id)!.status, 'draft')
-    assertEquals(s.db.requests.get(row.id)!.last_error, null)
+    const draft = s.db.requests.get(row.id)!
+    assertEquals(draft.status, 'draft')
+    assertEquals(draft.last_error, 'orphan_completed')
+    assertEquals(draft.send_started_at, null)
     assertEquals(
       s.fake.calls.filter((c) => c.method === 'POST'),
       [],
@@ -479,6 +574,40 @@ Deno.test('syncRequest: a stale draft still pending → cancelled at Documenso, 
     'CANCELLED',
   )
   assertEquals(s.db.requests.get(row.id)!.last_error, 'abandoned')
+})
+
+Deno.test('syncRequest: a draft whose send is under way (fresh claim) → sending: nothing read is acted on', async () => {
+  const s = setup()
+  const row = await deadDraft(s, true)
+  s.db.requests.get(row.id)!.send_started_at = '2026-10-08T11:55:00.000Z'
+  assertEquals(
+    await syncRequest(s.ctx, row, { settleDrafts: true }),
+    'sending',
+  )
+  s.fake.complete(row.documenso_document_id!)
+  assertEquals(
+    await syncRequest(s.ctx, row, { settleDrafts: false }),
+    'sending',
+  )
+  assertEquals(s.db.requests.get(row.id)!.status, 'draft')
+  assertEquals(s.fake.calls.filter((c) => c.method === 'POST'), [])
+})
+
+Deno.test('syncRequest: a failed settle releases the claim with its code', async () => {
+  await run(async () => {
+    const s = setup()
+    const row = await deadDraft(s, true)
+    s.fake.failures.cancel = 500
+    await captureConsole('error', async () => {
+      const error = await assertRejects(() =>
+        syncRequest(s.ctx, row, { settleDrafts: true })
+      )
+      assertEquals((error as { code: string }).code, 'provider_error')
+    })
+    const draft = s.db.requests.get(row.id)!
+    assertEquals(draft.last_error, 'provider_error')
+    assertEquals(draft.send_started_at, null)
+  })
 })
 
 Deno.test('syncRequest: a stale draft whose document is gone at Documenso → abandoned', async () => {
@@ -577,9 +706,85 @@ Deno.test('reconcileOrg: a stale draft with no document is abandoned without Doc
     assertEquals(detail, '1 demande suivie (1 abandonnée)')
     assertEquals(rpcNames(s.supabase), [
       'list_signature_requests_to_reconcile',
+      'begin_signature_request_send',
       'mark_signature_request_failed',
     ])
     assertEquals(s.fake.calls.length, 0)
+  })
+})
+
+Deno.test('reconcileOrg: a draft with a document is settled after an hour (from its last send), one without after a day', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    // Two hours since its send: listed; Documenso completed it, so recovered.
+    const completed = await sentRequest(s.fake, s.db, {
+      status: 'draft',
+      sent_at: null,
+      expires_at: null,
+      last_error: 'mark_sent_failed',
+      created_at: '2026-10-05T12:00:00.000Z',
+      send_started_at: '2026-10-08T10:00:00.000Z',
+    })
+    for (const signer of completed.signers) signer.recipient_id = null
+    s.fake.complete(completed.documenso_document_id!)
+    // Re-sent 30 minutes ago: not listed yet.
+    await sentRequest(s.fake, s.db, {
+      status: 'draft',
+      sent_at: null,
+      expires_at: null,
+      created_at: '2026-10-05T12:00:00.000Z',
+      send_started_at: '2026-10-08T11:30:00.000Z',
+    })
+    // No document, two hours old: not listed (a day for those).
+    s.db.insertRequest({
+      id: 'r-young',
+      created_at: '2026-10-08T10:00:00.000Z',
+    })
+    let detail = ''
+    const lines = await captureConsole('error', async () => {
+      detail = await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+    })
+    assertEquals(detail, '1 demande suivie (1 signée)')
+    assert(JSON.stringify(lines).includes('signing_source_missing'))
+    assertEquals(
+      await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal),
+      'Aucune demande à suivre',
+    )
+    assertEquals(s.db.requests.get(completed.id)!.status, 'signed')
+    assertEquals(s.db.requests.get('r-young')!.last_error, null)
+  })
+})
+
+Deno.test('reconcileOrg: an overdue request Documenso already expired (cancel answers 400) → expired, done', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const row = await sentRequest(s.fake, s.db, {
+      expires_at: '2026-10-07T12:00:00.000Z',
+    })
+    s.fake.failures.cancel = 400
+    const detail = await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+    assertEquals(detail, '1 demande suivie (1 expirée)')
+    assertEquals(s.db.requests.get(row.id)!.status, 'expired')
+  })
+})
+
+Deno.test('reconcileOrg: past the soft deadline no new batch starts; the detail says how many wait', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    for (let i = 0; i < 6; i++) await sentRequest(s.fake, s.db)
+    let t = 0
+    const perOrg = reconcileOrg({
+      fetch: s.fake.fetch,
+      now: s.clock.now,
+      softDeadlineMs: 1000,
+      // The first batch takes the whole budget.
+      elapsed: () => (t += 600),
+    }, 'signing-sync')
+    const detail = await perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+    assertEquals(
+      detail,
+      '4 demandes suivies (4 inchangées) ; 2 à reprendre au prochain passage',
+    )
   })
 })
 

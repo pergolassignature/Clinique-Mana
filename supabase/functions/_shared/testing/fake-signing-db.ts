@@ -49,6 +49,10 @@ export interface FakeSignatureRequest {
   completed_event_at: string | null
   completed_at: string | null
   expired_at: string | null
+  /** `begin_signature_request_send`'s claim. */
+  send_started_at: string | null
+  /** Earlier documents a re-send replaced (the latest 20). */
+  superseded_document_ids: string[]
   signers: FakeSigner[]
 }
 
@@ -113,6 +117,17 @@ export interface FakeSigningDb {
 }
 
 const P0001 = (message: string) => ({ error: { code: 'P0001', message } })
+/** `private.signing_superseded`. */
+const supersede = (ids: string[], old: string | null, next: unknown) =>
+  old === null || next == null || old === next || ids.includes(old)
+    ? ids
+    : [...ids, old].slice(-20)
+/** `'600 seconds'` (what the functions send) in ms. */
+const intervalMs = (value: unknown) => {
+  const match = /^(\d+) seconds$/.exec(String(value))
+  if (!match) throw new Error(`fake: unsupported interval ${value}`)
+  return Number(match[1]) * 1000
+}
 const E22023 = { error: { code: '22023', message: 'Invalid' } }
 
 /** Builds the fake for one org (another org id finds nothing). */
@@ -163,6 +178,8 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       completed_event_at: null,
       completed_at: null,
       expired_at: null,
+      send_started_at: null,
+      superseded_document_ids: [],
       signers: [],
       ...row,
     }
@@ -206,10 +223,6 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
     }
     if (!row) return null
     if (typeof id === 'string' && row.id !== id) return null
-    if (
-      typeof documentId === 'string' && row.documenso_document_id !== null &&
-      row.documenso_document_id !== documentId
-    ) return null
     return row
   }
 
@@ -284,6 +297,19 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
         r.org_id === orgId && r.idempotency_key === input.idempotency_key
       )
       const existing = row !== undefined
+      const key = (
+        x: { role: string; order: number; name: string; email: string },
+      ) =>
+        [x.role, x.order, x.name.trim(), x.email.trim().toLowerCase()].join('|')
+      if (
+        row &&
+        [...signers.map(key)].sort().join(';') !==
+          [...row.signers.map(key)].sort().join(';')
+      ) {
+        return P0001(
+          'Les signataires ne correspondent pas à la demande existante.',
+        )
+      }
       if (!row) {
         const subject = input.subject_id
         if (
@@ -326,8 +352,24 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
           signers: signersJson(row),
           last_error: row.last_error,
           created_at: row.created_at,
+          documenso_document_id: row.documenso_document_id,
+          envelope_id: row.envelope_id,
         }],
       }
+    },
+    begin_signature_request_send: (a) => {
+      const r = requests.get(String(a.p_id))
+      if (!r || r.org_id !== a.p_org_id) return E22023
+      if (r.status !== 'draft' || r.last_error === 'abandoned') {
+        return { data: false }
+      }
+      const stale = now().getTime() - intervalMs(a.p_stale_after)
+      if (
+        r.send_started_at !== null && Date.parse(r.send_started_at) > stale
+      ) return { data: false }
+      r.send_started_at = iso()
+      r.last_error = null
+      return { data: true }
     },
     register_system_file: (a) => {
       if (a.p_org_id !== orgId || a.p_module_key !== 'core') return E22023
@@ -349,7 +391,8 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       const f = files.get(String(a.p_file_id))
       if (
         !f || f.org_id !== a.p_org_id || f.status !== 'ready' ||
-        f.retain_until === null
+        f.retain_until === null ||
+        !['signing_source', 'signing_signed'].includes(f.purpose)
       ) return { data: false }
       f.status = 'deleted'
       return { data: true }
@@ -381,22 +424,73 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       }
       Object.assign(r, {
         status: 'sent',
+        superseded_document_ids: supersede(
+          r.superseded_document_ids,
+          r.documenso_document_id,
+          a.p_documenso_document_id,
+        ),
         documenso_document_id: a.p_documenso_document_id,
         envelope_id: a.p_envelope_id,
         source_file_id: source.id,
         sent_at: iso(),
         expires_at: a.p_expires_at,
         last_error: null,
+        send_started_at: null,
       })
       return { data: null }
+    },
+    recover_signature_request: (a) => {
+      const r = requests.get(String(a.p_id))
+      if (
+        !r || r.org_id !== a.p_org_id || r.status !== 'draft' ||
+        r.last_error === 'abandoned'
+      ) return E22023
+      const recipients = a.p_signer_recipients as {
+        role: string
+        recipient_id: string
+      }[]
+      if (
+        recipients.length !== r.signers.length ||
+        !recipients.every((e) => r.signers.some((s) => s.role === e.role))
+      ) return E22023
+      const sourceId = stagedSourceOf(r)
+      if (sourceId) files.get(sourceId)!.retain_until = null
+      for (const e of recipients) {
+        r.signers.find((s) => s.role === e.role)!.recipient_id = e.recipient_id
+      }
+      Object.assign(r, {
+        status: 'sent',
+        superseded_document_ids: supersede(
+          r.superseded_document_ids,
+          r.documenso_document_id,
+          a.p_documenso_document_id,
+        ),
+        documenso_document_id: a.p_documenso_document_id,
+        envelope_id: a.p_envelope_id,
+        source_file_id: sourceId,
+        sent_at: iso(),
+        expires_at: null,
+        completed_event_at: iso(),
+        last_error: null,
+        send_started_at: null,
+      })
+      return { data: sourceId }
     },
     mark_signature_request_failed: (a) => {
       const r = requests.get(String(a.p_id))
       if (!r || r.status !== 'draft') return E22023
       if (r.last_error !== 'abandoned') r.last_error = String(a.p_error_code)
-      r.documenso_document_id = (a.p_documenso_document_id as string) ??
-        r.documenso_document_id
-      r.envelope_id = (a.p_envelope_id as string) ?? r.envelope_id
+      const next = (a.p_documenso_document_id as string | null) ?? null
+      r.superseded_document_ids = supersede(
+        r.superseded_document_ids,
+        r.documenso_document_id,
+        next,
+      )
+      r.envelope_id = next !== null
+        ? (a.p_envelope_id as string | null) ?? null
+        : (a.p_envelope_id as string | null) ?? r.envelope_id
+      r.documenso_document_id = next ?? r.documenso_document_id
+      r.send_started_at = null
       return { data: null }
     },
     apply_signing_event: (a) => {
@@ -414,6 +508,23 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
         }],
       })
       if (!row) return answer('not_found')
+      const documentId = a.p_documenso_document_id as string | null
+      if (documentId && row.superseded_document_ids.includes(documentId)) {
+        return answer('ignored')
+      }
+      if (
+        row.status !== 'draft' && documentId &&
+        row.documenso_document_id !== documentId
+      ) {
+        return {
+          data: [{
+            outcome: 'not_found',
+            request_id: null,
+            module_key: null,
+            needs_download: false,
+          }],
+        }
+      }
       if (!modules.has(row.module_key)) return answer('ignored')
       if (row.status === 'draft') {
         return answer(
@@ -542,11 +653,13 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
     },
     list_signature_requests_to_reconcile: (a) => {
       const dayAgo = new Date(now().getTime() - DAY_MS).toISOString()
+      const hourAgo = new Date(now().getTime() - DAY_MS / 24).toISOString()
       const rows = [...requests.values()]
         .filter((r) =>
           r.org_id === a.p_org_id && open(r) && modules.has(r.module_key) &&
           (r.status === 'draft'
-            ? r.created_at < dayAgo
+            ? (r.send_started_at ?? r.created_at) <
+              (r.documenso_document_id === null ? dayAgo : hourAgo)
             : (r.sent_at !== null && r.sent_at < dayAgo) ||
               (r.expires_at !== null && r.expires_at < iso()))
         )

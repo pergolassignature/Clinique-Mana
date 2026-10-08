@@ -2,6 +2,7 @@ import { assert, assertEquals, assertRejects } from '@std/assert'
 import {
   createSignatureRequest,
   type CreateSignatureRequestInput,
+  SEND_IN_PROGRESS_MESSAGE,
   STALE_SEND_MS,
 } from './signing.ts'
 import {
@@ -12,13 +13,17 @@ import {
 } from './pdf/model.ts'
 import { SIGNING_TEST_EMAIL, signingTestDocument } from './pdf/test-document.ts'
 import { fakeDocumenso } from './testing/fake-documenso.ts'
-import { fakeSigningDb } from './testing/fake-signing-db.ts'
+import {
+  type FakeSignatureRequest,
+  fakeSigningDb,
+} from './testing/fake-signing-db.ts'
 import { fakeSupabase, type RpcRoute } from './testing/fake-supabase.ts'
 import { fixedClock } from './testing/fixed-clock.ts'
 import { withEnv } from './testing/env.ts'
 import {
   CLINIC_EMAIL,
   MINIMAL_PDF,
+  sentRequest,
   SIGNER_EMAIL,
   SIGNERS,
   SIGNING_ORG,
@@ -201,6 +206,56 @@ function setup(options: SetupOptions = {}) {
 
 const run = (fn: () => Promise<void>) => withEnv({ SENTRY_DSN: undefined }, fn)
 
+/** A draft of `input()`'s key and signer (as an earlier attempt left it). */
+function existingDraft(
+  s: ReturnType<typeof setup>,
+  over: Partial<FakeSignatureRequest> = {},
+): FakeSignatureRequest {
+  return s.db.insertRequest({
+    id: 'r-draft',
+    idempotency_key: input().idempotencyKey,
+    module_key: 'professionals',
+    purpose: 'professionals.service_contract',
+    subject_type: 'professional',
+    subject_id: SUBJECT_ID,
+    view_permission: 'professionals.view',
+    last_error: 'mark_sent_failed',
+    signers: [{
+      id: 's1',
+      role: 'professional',
+      name: 'Ana Gagnon',
+      email: SIGNER_EMAIL,
+      order: 1,
+      recipient_id: null,
+      status: 'pending',
+    }],
+    ...over,
+  })
+}
+
+/**
+ * A draft whose earlier send created document 1 at Documenso (distributed:
+ * PENDING) before failing, as the fixture `sentRequest` builds it.
+ */
+async function draftWithDocument(s: ReturnType<typeof setup>) {
+  const row = await sentRequest(s.fake, s.db, {
+    id: 'r-draft',
+    status: 'draft',
+    idempotency_key: input().idempotencyKey,
+    module_key: 'professionals',
+    purpose: 'professionals.service_contract',
+    subject_type: 'professional',
+    subject_id: SUBJECT_ID,
+    view_permission: 'professionals.view',
+    sent_at: null,
+    expires_at: null,
+    last_error: 'mark_sent_failed',
+  })
+  for (const signer of row.signers) signer.recipient_id = null
+  s.order.length = 0
+  return row
+}
+
 Deno.test('createSignatureRequest: the happy path, in order', async () => {
   await run(async () => {
     const s = setup()
@@ -211,6 +266,7 @@ Deno.test('createSignatureRequest: the happy path, in order', async () => {
       'get_signing_context',
       'get_org_secret',
       'create_signature_request',
+      'begin_signature_request_send',
       'download o/logo.png',
       'downloaded (1 at once)',
       'render (logo)',
@@ -342,17 +398,175 @@ Deno.test('createSignatureRequest: idempotency, an existing sent row → returne
   })
 })
 
-Deno.test('createSignatureRequest: a double click while the first send runs → the same draft, no second document', async () => {
+Deno.test('createSignatureRequest: a double click while the first send runs → send_in_progress, no render, no second document', async () => {
   await run(async () => {
     const s = setup()
-    s.db.insertRequest({
-      id: 'r-live',
-      idempotency_key: input().idempotencyKey,
-      created_at: '2026-10-08T11:59:30.000Z',
+    existingDraft(s, {
+      last_error: null,
+      send_started_at: '2026-10-08T11:59:30.000Z',
     })
     const result = await createSignatureRequest(s.deps, input())
-    assertEquals(result, { ok: true, requestId: 'r-live', existing: true })
+    assertEquals(result, {
+      ok: false,
+      code: 'send_in_progress',
+      message: 'Un envoi est déjà en cours.',
+      requestId: 'r-draft',
+    })
+    assertEquals(SEND_IN_PROGRESS_MESSAGE, 'Un envoi est déjà en cours.')
+    assertEquals(s.rendered.length, 0)
     assertEquals(s.fake.calls.length, 0)
+  })
+})
+
+Deno.test('createSignatureRequest: two concurrent sends of one key → exactly one document; the other is told a send is under way', async () => {
+  await run(async () => {
+    for (const fresh of [true, false]) {
+      const s = setup()
+      if (!fresh) existingDraft(s) // a concurrent « Renvoyer » of a failed draft
+      const results = await Promise.all([
+        createSignatureRequest(s.deps, input()),
+        createSignatureRequest(s.deps, input()),
+      ])
+      assertEquals(
+        results.map((r) => r.ok ? 'sent' : r.code).sort(),
+        ['send_in_progress', 'sent'],
+      )
+      assertEquals(s.fake.documents.size, 1)
+      assertEquals(s.rendered.length, 1)
+      assertEquals(s.db.requests.size, 1)
+      assertEquals([...s.db.requests.values()][0].status, 'sent')
+    }
+  })
+})
+
+Deno.test('createSignatureRequest: the same key with other signers → invalid_request with the database message', async () => {
+  await run(async () => {
+    const s = setup()
+    existingDraft(s)
+    const result = await createSignatureRequest(
+      s.deps,
+      input({
+        signers: [{
+          role: 'professional',
+          name: 'Ana Gagnon',
+          email: 'autre@example.test',
+          order: 1,
+        }],
+      }),
+    )
+    assertEquals(result, {
+      ok: false,
+      code: 'invalid_request',
+      message: 'Les signataires ne correspondent pas à la demande existante.',
+      requestId: null,
+    })
+    assertEquals(s.fake.calls.length, 0)
+  })
+})
+
+Deno.test('createSignatureRequest: re-send with a live earlier document (pending) → cancelled first, then a new document replaces it', async () => {
+  await run(async () => {
+    const s = setup()
+    await draftWithDocument(s)
+    const result = await createSignatureRequest(s.deps, input())
+    assertEquals(result, { ok: true, requestId: 'r-draft', existing: true })
+    const documenso = s.order.filter((o) => o.startsWith('documenso'))
+    assertEquals(documenso.slice(0, 3), [
+      'documenso GET /api/v2/document/1',
+      'documenso POST /api/v2/envelope/cancel',
+      'documenso POST /api/v2/document/create',
+    ])
+    assert(
+      s.order.indexOf('documenso POST /api/v2/envelope/cancel') <
+        s.order.findIndex((o) => o.startsWith('render')),
+      'settled before rendering',
+    )
+    assertEquals(s.fake.documents.get('1')!.status, 'CANCELLED')
+    assertEquals(s.fake.documents.get('2')!.status, 'PENDING')
+    const row = s.db.requests.get('r-draft')!
+    assertEquals(row.status, 'sent')
+    assertEquals(row.documenso_document_id, '2')
+    assertEquals(row.superseded_document_ids, ['1'])
+    assertEquals(row.send_started_at, null)
+  })
+})
+
+Deno.test('createSignatureRequest: re-send with an earlier document still a draft at Documenso → deleted by its id, then sent', async () => {
+  await run(async () => {
+    const s = setup()
+    await draftWithDocument(s)
+    s.fake.documents.get('1')!.status = 'DRAFT'
+    const result = await createSignatureRequest(s.deps, input())
+    assert(result.ok)
+    assert(s.order.includes('documenso POST /api/v2/document/delete'))
+    assertEquals(s.fake.documents.has('1'), false)
+    assertEquals(s.db.requests.get('r-draft')!.documenso_document_id, '2')
+  })
+})
+
+Deno.test('createSignatureRequest: re-send whose earlier cancel fails → aborted (provider_error), retryable at once, no second document', async () => {
+  await run(async () => {
+    const s = setup()
+    await draftWithDocument(s)
+    s.fake.failures.cancel = 500
+    const result = await createSignatureRequest(s.deps, input())
+    assertEquals(result, {
+      ok: false,
+      code: 'provider_error',
+      requestId: 'r-draft',
+    })
+    assertEquals(s.fake.documents.size, 1)
+    assertEquals(s.rendered.length, 0)
+    const row = s.db.requests.get('r-draft')!
+    assertEquals(row.status, 'draft')
+    assertEquals(row.last_error, 'previous_cancel_failed')
+    assertEquals(row.send_started_at, null, 'the claim is released')
+    assertEquals(row.documenso_document_id, '1')
+    delete s.fake.failures.cancel
+    assert((await createSignatureRequest(s.deps, input())).ok, 'retried')
+    assertEquals(s.fake.documents.get('1')!.status, 'CANCELLED')
+    assertEquals(s.db.requests.get('r-draft')!.documenso_document_id, '2')
+  })
+})
+
+Deno.test('createSignatureRequest: re-send whose earlier document Documenso completed → recovered (signed), never sent again', async () => {
+  await run(async () => {
+    const s = setup()
+    await draftWithDocument(s)
+    s.fake.complete('1')
+    const result = await createSignatureRequest(s.deps, input())
+    assertEquals(result, { ok: true, requestId: 'r-draft', existing: true })
+    assertEquals(s.fake.documents.size, 1, 'no second document')
+    assertEquals(s.rendered.length, 0, 'nothing rendered')
+    assertEquals(
+      s.fake.calls.filter((c) => c.method === 'POST').map((c) => c.url),
+      [],
+      'nothing cancelled or created',
+    )
+    const row = s.db.requests.get('r-draft')!
+    assertEquals(row.status, 'signed')
+    assertEquals(row.documenso_document_id, '1')
+    assertEquals(row.source_file_id, null, 'no staged source: recorded missing')
+    assertEquals(row.signers.map((x) => x.recipient_id), ['101'])
+  })
+})
+
+Deno.test('createSignatureRequest: re-send whose earlier document is cancelled, rejected or gone → sent again without a cancel', async () => {
+  await run(async () => {
+    for (const status of ['CANCELLED', 'REJECTED', 'gone'] as const) {
+      const s = setup()
+      await draftWithDocument(s)
+      if (status === 'gone') s.fake.documents.delete('1')
+      else s.fake.documents.get('1')!.status = status
+      const result = await createSignatureRequest(s.deps, input())
+      assert(result.ok, status)
+      assertEquals(
+        s.order.filter((o) => /cancel|delete/.test(o)),
+        [],
+        `${status}: no cancel`,
+      )
+      assertEquals(s.db.requests.get('r-draft')!.documenso_document_id, '2')
+    }
   })
 })
 
@@ -362,34 +576,19 @@ Deno.test('createSignatureRequest: a draft that failed before (last_error), or d
       const over of [
         { last_error: 'provider_unavailable', created_at: NOW },
         {
+          // Its claim is older than STALE_SEND_MS: the send died.
           last_error: null,
-          created_at: new Date(Date.parse(NOW) - STALE_SEND_MS - 1000)
+          send_started_at: new Date(Date.parse(NOW) - STALE_SEND_MS - 1000)
             .toISOString(),
         },
       ]
     ) {
       const s = setup()
-      s.db.insertRequest({
-        id: 'r-failed',
-        idempotency_key: input().idempotencyKey,
-        module_key: 'professionals',
-        purpose: 'professionals.service_contract',
-        view_permission: 'professionals.view',
-        signers: [{
-          id: 's1',
-          role: 'professional',
-          name: 'Ana Gagnon',
-          email: SIGNER_EMAIL,
-          order: 1,
-          recipient_id: null,
-          status: 'pending',
-        }],
-        ...over,
-      })
+      existingDraft(s, over)
       const result = await createSignatureRequest(s.deps, input())
-      assertEquals(result, { ok: true, requestId: 'r-failed', existing: true })
-      assertEquals(s.db.requests.get('r-failed')!.status, 'sent')
-      assertEquals(s.db.requests.get('r-failed')!.last_error, null)
+      assertEquals(result, { ok: true, requestId: 'r-draft', existing: true })
+      assertEquals(s.db.requests.get('r-draft')!.status, 'sent')
+      assertEquals(s.db.requests.get('r-draft')!.last_error, null)
     }
   })
 })
@@ -397,15 +596,11 @@ Deno.test('createSignatureRequest: a draft that failed before (last_error), or d
 Deno.test('createSignatureRequest: an abandoned draft with this key → provider_error, nothing sent', async () => {
   await run(async () => {
     const s = setup()
-    s.db.insertRequest({
-      id: 'r-gone',
-      idempotency_key: input().idempotencyKey,
-      last_error: 'abandoned',
-    })
+    existingDraft(s, { last_error: 'abandoned' })
     assertEquals(await createSignatureRequest(s.deps, input()), {
       ok: false,
       code: 'provider_error',
-      requestId: 'r-gone',
+      requestId: 'r-draft',
     })
     assertEquals(s.fake.calls.length, 0)
   })

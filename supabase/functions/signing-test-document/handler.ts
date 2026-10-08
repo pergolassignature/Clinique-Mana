@@ -19,8 +19,14 @@
  * 5. 200 `{ request_id, existing }`. The page already knows the caller's
  *    address for its toast: the answer never holds one.
  *
+ * The send does not follow the caller's connection (`req.signal` is not
+ * passed): a closed tab never cuts a send between Documenso and the
+ * database, and its cleanup cancel always runs (`_shared/signing.ts`).
+ *
  * Status codes: 200; 400 `invalid_request` (body, or the database's French
- * refusal); 401 / 403 / 503 from `verifyAuth`; 405; 413; 429; 502
+ * refusal); 401 / 403 / 503 from `verifyAuth`; 405; 409 `conflict`
+ * (« Un envoi est déjà en cours. »: the same key while its send runs); 413;
+ * 429; 502
  * `provider_error` (Documenso failed; the draft can be sent again with the
  * same key); 503 `not_configured` (no URL or key, the key refused, no logo
  * for a template that needs one, or the limiter down); 500 `internal`
@@ -54,6 +60,7 @@ const STATUS = {
   missing_variable: 400,
   provider_error: 502,
   invalid_request: 400,
+  send_in_progress: 409,
 } as const
 
 /** The test-document handler; see the module comment. */
@@ -90,7 +97,6 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         client: service,
         fetch: deps.fetch,
         now: deps.now,
-        signal: req.signal,
       }, {
         orgId: access.org_id,
         moduleKey: 'core',
@@ -118,10 +124,16 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           req,
         )
       }
-      const message = result.code === 'invalid_request'
-        ? result.message
-        : 'The test document could not be sent'
-      return errorResponse(result.code, message, STATUS[result.code], req)
+      const message =
+        result.code === 'invalid_request' || result.code === 'send_in_progress'
+          ? result.message
+          : 'The test document could not be sent'
+      return errorResponse(
+        result.code === 'send_in_progress' ? 'conflict' : result.code,
+        message,
+        STATUS[result.code],
+        req,
+      )
     } catch (error) {
       const { code, requestId } = error as Partial<SigningFailure>
       await reportError({

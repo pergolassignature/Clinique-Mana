@@ -4,12 +4,16 @@
  *
  * **Job mode** (a request carrying `X-Job-Signature`, `core.signing_reconcile`,
  * daily): `runJob` verifies the signature, then `reconcileOrg` per org
- * (`_shared/signing-events.ts`): up to 100 listed requests, 4 at a time;
- * `sync` (sent or viewed for over a day, or completed without its PDF; a
- * stale draft with a document: read, then cancelled and abandoned, or
- * recovered when Documenso completed it), `expire` (sync first; still not
- * completed → expired here, then cancelled at Documenso) and `abandon` (a
- * stale draft with no document).
+ * (`_shared/signing-events.ts`, `perOrgTimeoutMs` `RECONCILE_TIMEOUT_MS`,
+ * no new batch after `RECONCILE_SOFT_DEADLINE_MS`): up to 100 listed
+ * requests, 4 at a time; `sync` (sent or viewed for over a day, or
+ * completed without its PDF; a draft with a document whose send started
+ * over an hour ago: claimed, read, then recovered when Documenso completed
+ * it, else cancelled and abandoned), `expire` (sync first; still not
+ * completed → expired here, then cancelled at Documenso, a 400 there
+ * meaning Documenso expired it already) and `abandon` (a draft with no
+ * document whose send started over a day ago, claimed first). A draft
+ * whose send is under way is skipped (`sending`).
  *
  * **User mode** (« Synchroniser »):
  * 1. CORS; `POST` only; `verifyAuth` (an active profile).
@@ -21,9 +25,10 @@
  *    `module_disabled`).
  * 6. The org's Documenso (none → 503 `not_configured`), then `syncRequest`
  *    without settling drafts: a draft whose send may be under way is never
- *    cancelled from a click (only a completed one is recovered).
+ *    cancelled from a click (only a completed one is recovered, once
+ *    claimed).
  * 7. 200 `{ request_id, outcome }` (`signed`, `updated`, `unchanged`,
- *    `orphan_completed`).
+ *    `orphan_completed`, `sending`).
  *
  * User-mode status codes: 200; 400 body; 401 / 403 / 503 from `verifyAuth`;
  * 403 `module_disabled`; 404 `not_found`; 405; 413; 429 `rate_limited`;
@@ -46,6 +51,7 @@ import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 import {
   orgSigning,
+  RECONCILE_TIMEOUT_MS,
   reconcileOrg,
   syncRequest,
 } from '../_shared/signing-events.ts'
@@ -68,7 +74,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const perOrg = reconcileOrg(deps, FN)
   return async (req) => {
     if (req.headers.has('X-Job-Signature')) {
-      return await runJob(deps, req, JOB, perOrg)
+      return await runJob(deps, req, JOB, perOrg, {
+        perOrgTimeoutMs: RECONCILE_TIMEOUT_MS,
+      })
     }
     const preflight = handleCors(req)
     if (preflight) return preflight

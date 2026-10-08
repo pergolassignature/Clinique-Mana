@@ -109,6 +109,44 @@ Deno.test('signing-test-document: a double click (same key) → the same request
   })
 })
 
+Deno.test('signing-test-document: two clicks at once (same key) → exactly one send; the other 409 « Un envoi est déjà en cours. »', async () => {
+  await run(async () => {
+    const s = setup()
+    const answers = await Promise.all([s.handler(post()), s.handler(post())])
+    const bodies = await Promise.all(answers.map((r) => r.json()))
+    assertEquals(answers.map((r) => r.status).sort(), [200, 409])
+    const refused = bodies[answers.findIndex((r) => r.status === 409)]
+    assertEquals(refused.error.message, 'Un envoi est déjà en cours.')
+    assertEquals(refused.error.code, 'conflict')
+    assertEquals(s.fake.documents.size, 1)
+    assertEquals([...s.db.requests.values()][0].status, 'sent')
+  })
+})
+
+Deno.test('signing-test-document: the caller closing the connection mid-send does not abort it (Documenso and the database both finish)', async () => {
+  await run(async () => {
+    const s = setup()
+    const controller = new AbortController()
+    // A fetch that honours its signal, as Deno's does; the caller leaves as
+    // soon as Documenso is first called.
+    const fetch: typeof globalThis.fetch = (input, init) => {
+      controller.abort()
+      if (new Request(input, init).signal.aborted) {
+        return Promise.reject(new DOMException('aborted', 'AbortError'))
+      }
+      return s.fake.fetch(input, init)
+    }
+    const handler = createHandler({ ...s.deps, fetch })
+    const req = new Request(post(), { signal: controller.signal })
+    const res = await handler(req)
+    assert(req.signal.aborted, 'the caller left')
+    assertEquals(res.status, 200)
+    const { request_id } = await res.json()
+    assertEquals(s.db.requests.get(request_id)!.status, 'sent')
+    assertEquals(s.fake.documents.get('1')!.status, 'PENDING')
+  })
+})
+
 Deno.test('signing-test-document: the full circuit with the webhook: completed → signed, the PDF stored', async () => {
   await run(async () => {
     const s = setup()

@@ -28,7 +28,12 @@
  *      org's Documenso, the request's view permission) → 200 `signed`;
  *    - `retry` (a draft whose send is under way, or failed part way) →
  *      `failEvent('signing_retry')` and 409, so Documenso retries later;
- *    - `not_found` → 200, reported (a retry cannot find it either);
+ *    - `not_found` → 200, reported (a retry cannot find it either). A late
+ *      event of a document a re-send superseded is `ignored`, not reported;
+ *    - `DOCUMENT_COMPLETED` `ignored` for a request closed here (expired,
+ *      cancelled, or an abandoned draft) → 200, reported
+ *      `signing_completed_after_close` (ids only): the contract is signed at
+ *      Documenso after the clinic closed it, which a person must look at;
  *    - `applied` / `ignored` → 200. An event the database does not track
  *      (`DOCUMENT_SENT`, `DOCUMENT_CREATED`) applies nothing: 200 `ignored`.
  * 9. `completeEvent`. A failure after the claim → `failEvent(code)` and 500
@@ -207,6 +212,23 @@ export function createHandler(
       let outcome: string = applied.outcome
       if (applied.outcome === 'not_found') {
         await report('signing_event_not_found')
+      } else if (
+        event === 'DOCUMENT_COMPLETED' && applied.outcome === 'ignored' &&
+        applied.requestId
+      ) {
+        const request = await getSigningRequest(
+          client,
+          orgId,
+          applied.requestId,
+        )
+        if (
+          request &&
+          (['expired', 'cancelled'].includes(request.status) ||
+            (request.status === 'draft' &&
+              request.last_error === 'abandoned'))
+        ) {
+          await report('signing_completed_after_close')
+        }
       } else if (applied.needsDownload) {
         const [signing, request] = await Promise.all([
           orgSigning(client, orgId, deps.fetch, req.signal),

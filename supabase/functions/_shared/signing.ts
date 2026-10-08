@@ -17,13 +17,22 @@
  *    filled.
  * 3. `create_signature_request` (idempotent on the key). An existing row:
  *    - not a draft → returned (`existing`), nothing sent again;
- *    - a draft without `last_error` created less than `STALE_SEND_MS` ago →
- *      a send under way (a double click): returned, no second document;
- *    - a draft with `last_error` (or one older than that, whose send died)
- *      → sent again on the same row (« Renvoyer »);
- *    - an abandoned draft → `provider_error` (a new action needs a new key).
+ *    - an abandoned draft → `provider_error` (a new action needs a new key);
+ *    - another draft is sent again on the same row (« Renvoyer »).
  *    A P0001 refusal (a request already open for the record, two signers
- *    with one address) → `invalid_request` with its French message.
+ *    with one address, the same key with other signers) → `invalid_request`
+ *    with its French message.
+ * 3b. `begin_signature_request_send` claims the draft (new or existing):
+ *    refused while another send's claim is younger than `STALE_SEND_MS` (a
+ *    double click, a double « Renvoyer ») → `send_in_progress` « Un envoi
+ *    est déjà en cours. » (409), nothing rendered or sent.
+ * 3c. A re-sent draft with a Documenso document settles that earlier
+ *    document first (`get_signing_request` read after the claim, then
+ *    Documenso): COMPLETED → recovered (`recoverCompletedDraft`: the request
+ *    becomes signed) and nothing is sent again; DRAFT or PENDING → cancelled
+ *    (a failed cancel ends the re-send: marked `previous_cancel_failed`,
+ *    `provider_error`, retryable); CANCELLED, REJECTED or gone (404) → sent
+ *    again. The new document then replaces it (the earlier id is superseded).
  * 4. The images (logo, signature) the document uses, in parallel → render.
  * 5. `register_system_file` (`documents`, `signing_source`, the request's
  *    view permission) → upload (`upsert: false`); a failed upload discards
@@ -36,16 +45,28 @@
  *    `expiry_days`).
  *
  * A failure from step 4 on marks the draft (`mark_signature_request_failed`
- * with a code, and the Documenso ids once known), so a retry with the same
- * key sends again. From step 6 on, the document is cancelled first, best
- * effort (by id while a draft, by envelope once distributed). Documenso
- * failures answer `provider_error` (`not_configured` for a refused key);
- * the others throw a `SigningFailure` with a code (the caller answers 500
- * and reports it). Nothing logs an address: codes and ids only.
+ * with a code, and the Documenso ids once known), which releases the claim,
+ * so a retry with the same key sends again at once. From step 6 on, the
+ * document is cancelled first, best effort (by id while a draft, by
+ * envelope once distributed). Documenso failures answer `provider_error`
+ * (`not_configured` for a refused key); the others throw a
+ * `SigningFailure` with a code (the caller answers 500 and reports it).
+ * Nothing logs an address: codes and ids only.
+ *
+ * **The caller's connection never drives the send:** once claimed, a send
+ * runs to its end (or to `SEND_TIMEOUT_MS`, its own deadline on every
+ * Documenso call), whether or not the browser is still waiting. A cleanup
+ * cancel has its own client and timeout (`CANCEL_TIMEOUT_MS`), so it runs
+ * even after the send's deadline fired.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
-import { documensoClient, DocumensoError } from './documenso.ts'
+import {
+  type DocumensoClient,
+  documensoClient,
+  type DocumensoDocumentState,
+  DocumensoError,
+} from './documenso.ts'
 import type { TemplateVariable } from './format.ts'
 import { type AssetRef, loadAssets } from './pdf/assets.ts'
 import {
@@ -57,10 +78,29 @@ import {
 import { renderPdf } from './pdf/render.ts'
 import { fillTemplate, fillTexts } from './pdf/template.ts'
 import { reportError } from './report.ts'
-import { SigningFailure, storeSystemFile } from './signing-events.ts'
+import {
+  claimDraft,
+  getSigningRequest,
+  markDraftFailed,
+  recoverCompletedDraft,
+  SIGNED_PDF_MAX_BYTES,
+  SigningFailure,
+  STALE_SEND_MS,
+  storeSystemFile,
+  type SyncContext,
+} from './signing-events.ts'
 
-/** A draft without `last_error` older than this is a send that died (edge wall clock: 400 s at most). */
-export const STALE_SEND_MS = 10 * 60_000
+export { STALE_SEND_MS }
+/**
+ * The deadline of a send's Documenso calls, from its claim: under the edge
+ * idle timeout (150 s) and well under `STALE_SEND_MS`.
+ */
+export const SEND_TIMEOUT_MS = 120_000
+/** Each cleanup cancel's own timeout (independent of the send's deadline). */
+export const CANCEL_TIMEOUT_MS = 20_000
+/** The answer to a second send while one is under way (409). */
+export const SEND_IN_PROGRESS_MESSAGE = 'Un envoi est déjà en cours.'
+const FN = 'signing'
 const DAY_MS = 86_400_000
 /** The asset keys a template may use, and where `get_signing_context` puts them. */
 const ASSET_KEYS = ['logo', 'signature'] as const
@@ -110,14 +150,23 @@ export type CreateSignatureRequestResult =
     requestId: string | null
   }
   | { ok: false; code: 'invalid_request'; message: string; requestId: null }
+  | {
+    ok: false
+    code: 'send_in_progress'
+    message: string
+    requestId: string
+  }
 
-/** What creating a request needs; `renderer` defaults to pdfmake. */
+/**
+ * What creating a request needs; `renderer` defaults to pdfmake. No caller
+ * signal on purpose: the send outlives the caller's connection (module
+ * comment).
+ */
 export interface SigningDeps {
   /** A service-role client. */
   client: SupabaseClient
   fetch: typeof fetch
   now: () => Date
-  signal?: AbortSignal
   renderer?: PdfRenderer
 }
 
@@ -150,9 +199,7 @@ const createdSchema = z.object({
   id: z.string(),
   existing: z.boolean(),
   status: z.string(),
-  signers: z.array(z.object({ role: z.string() })),
   last_error: z.string().nullable(),
-  created_at: z.string(),
 })
 
 const pdfRenderer: PdfRenderer = { render: renderPdf }
@@ -282,45 +329,166 @@ export async function createSignatureRequest(
     throw new SigningFailure('create_request_failed')
   }
   const request = row.data
-  if (request.existing) {
-    if (request.status !== 'draft') {
-      return { ok: true, requestId: request.id, existing: true }
-    }
-    if (request.last_error === 'abandoned') {
-      return { ok: false, code: 'provider_error', requestId: request.id }
-    }
-    const age = deps.now().getTime() - Date.parse(request.created_at)
-    if (request.last_error === null && age < STALE_SEND_MS) {
-      return { ok: true, requestId: request.id, existing: true }
-    }
+  if (request.existing && request.status !== 'draft') {
+    return { ok: true, requestId: request.id, existing: true }
   }
-  const roles = new Set(request.signers.map((s) => s.role))
-  if (
-    roles.size !== signers.length || !signers.every((s) => roles.has(s.role))
-  ) {
-    // The same key with other signers: not the same action.
-    throw new SigningFailure('signers_mismatch')
+  if (request.existing && request.last_error === 'abandoned') {
+    return { ok: false, code: 'provider_error', requestId: request.id }
+  }
+  if (!(await claimDraft(client, input.orgId, request.id))) {
+    return {
+      ok: false,
+      code: 'send_in_progress',
+      message: SEND_IN_PROGRESS_MESSAGE,
+      requestId: request.id,
+    }
   }
 
-  return await send(deps, input, {
+  // The send's own deadline, from the claim (never the caller's signal).
+  const signal = AbortSignal.timeout(SEND_TIMEOUT_MS)
+  const baseUrl = context.settings.base_url!
+  const plan: SendPlan = {
     requestId: request.id,
     existing: request.existing,
     context,
-    apiKey,
     document: prepared.document,
     email: prepared.email,
     signers,
-  })
+    documenso: documensoClient(baseUrl, apiKey, deps.fetch, {
+      signal,
+      maxDownloadBytes: SIGNED_PDF_MAX_BYTES,
+    }),
+    cleanup: documensoClient(baseUrl, apiKey, deps.fetch, {
+      timeoutMs: CANCEL_TIMEOUT_MS,
+    }),
+    markFailed: (code, ids) =>
+      markDraftFailed(
+        client,
+        { fn: FN, orgId: input.orgId, fetch: deps.fetch },
+        request.id,
+        code,
+        ids,
+      ),
+  }
+  if (request.existing) {
+    const settled = await settleEarlierDocument(deps, input, plan)
+    if (settled) return settled
+  }
+  return await send(deps, input, plan)
 }
 
 interface SendPlan {
   requestId: string
   existing: boolean
   context: SigningContext
-  apiKey: string
   document: PdfDocument
   email: { subject: string; message: string }
   signers: RequestSigner[]
+  /** Bound to the send's deadline. */
+  documenso: DocumensoClient
+  /** For cleanup cancels: its own timeout only. */
+  cleanup: DocumensoClient
+  /** Marks the draft failed (releases the claim). */
+  markFailed: (
+    code: string,
+    ids?: { documentId?: string | null; envelopeId?: string | null },
+  ) => Promise<void>
+}
+
+/**
+ * Step 3c of the module comment: null to send again, or the answer when the
+ * earlier document ends the re-send (recovered, or not cancelled).
+ */
+async function settleEarlierDocument(
+  deps: SigningDeps,
+  input: CreateSignatureRequestInput,
+  plan: SendPlan,
+): Promise<CreateSignatureRequestResult | null> {
+  const { client } = deps
+  const { requestId, documenso } = plan
+  // Read under the claim: another attempt may have changed it since.
+  const current = await getSigningRequest(client, input.orgId, requestId)
+  const documentId = current?.documenso_document_id ?? null
+  if (!documentId) return null
+  const providerFailure = async (code: string, error: unknown) => {
+    await plan.markFailed(code)
+    const refused = error instanceof DocumensoError &&
+      error.code === 'not_configured'
+    return {
+      ok: false as const,
+      code: refused ? 'not_configured' as const : 'provider_error' as const,
+      requestId,
+    }
+  }
+
+  let state: DocumensoDocumentState | null = null
+  try {
+    state = await documenso.get(documentId)
+  } catch (error) {
+    // Gone at Documenso (deleted when an earlier send failed): send again.
+    if (!(error instanceof DocumensoError && error.status === 404)) {
+      return await providerFailure('previous_read_failed', error)
+    }
+  }
+
+  if (state?.status === 'COMPLETED') {
+    // Signed there: recover it, never send a second contract.
+    const ctx: SyncContext = {
+      client,
+      orgId: input.orgId,
+      signing: { documenso, expiryDays: plan.context.settings.expiry_days },
+      now: deps.now,
+      fn: FN,
+      fetch: deps.fetch,
+    }
+    try {
+      const outcome = await recoverCompletedDraft(
+        ctx,
+        { id: requestId },
+        documentId,
+        state,
+      )
+      return outcome === 'signed'
+        ? { ok: true, requestId, existing: true }
+        : { ok: false, code: 'provider_error', requestId }
+    } catch (error) {
+      const raw = (error as { code?: unknown }).code
+      const code = error instanceof DocumensoError
+        ? 'provider_unavailable'
+        : typeof raw === 'string'
+        ? raw
+        : 'recover_failed'
+      const after = await getSigningRequest(client, input.orgId, requestId)
+        .catch(() => null)
+      if (after && after.status !== 'draft') {
+        // Recovered (completion stamped); only the signed PDF is missing,
+        // which the reconcile downloads.
+        await reportError({
+          fn: FN,
+          code: 'signing_recover_incomplete',
+          ids: { org_id: input.orgId, signature_request_id: requestId },
+        }, deps.fetch)
+        return { ok: true, requestId, existing: true }
+      }
+      await plan.markFailed(code)
+      if (error instanceof DocumensoError) {
+        return await providerFailure(code, error)
+      }
+      throw new SigningFailure(code, requestId)
+    }
+  }
+  if (state?.status === 'DRAFT' || state?.status === 'PENDING') {
+    try {
+      // Documenso cancels only a distributed envelope; a draft goes by its id.
+      await documenso.cancel(documentId, {
+        envelopeId: state.status === 'PENDING' ? current!.envelope_id : null,
+      })
+    } catch (error) {
+      // Never two live contracts: the re-send stops here, retryable.
+      return await providerFailure('previous_cancel_failed', error)
+    }
+  }
+  return null
 }
 
 /** Steps 4 to 7 of the module comment. */
@@ -330,25 +498,7 @@ async function send(
   plan: SendPlan,
 ): Promise<CreateSignatureRequestResult> {
   const { client } = deps
-  const { requestId, context } = plan
-  const markFailed = async (
-    code: string,
-    ids: { documentId?: string | null; envelopeId?: string | null } = {},
-  ) => {
-    const { error } = await client.rpc('mark_signature_request_failed', {
-      p_id: requestId,
-      p_error_code: code,
-      p_documenso_document_id: ids.documentId ?? null,
-      p_envelope_id: ids.envelopeId ?? null,
-    })
-    if (error) {
-      await reportError({
-        fn: 'signing',
-        code: 'mark_failed_failed',
-        ids: { org_id: input.orgId, signature_request_id: requestId },
-      }, deps.fetch)
-    }
-  }
+  const { requestId, context, documenso, markFailed } = plan
 
   let rendered: RenderedPdf
   try {
@@ -382,19 +532,13 @@ async function send(
     throw new SigningFailure((error as SigningFailure).code, requestId)
   }
 
-  const documenso = documensoClient(
-    context.settings.base_url!,
-    plan.apiKey,
-    deps.fetch,
-    { signal: deps.signal },
-  )
   let documentId: string | null = null
   let envelopeId: string | null = null
   let distributed = false
   const cancelAndMark = async (code: string) => {
     if (documentId) {
       try {
-        await documenso.cancel(documentId, {
+        await plan.cleanup.cancel(documentId, {
           envelopeId: distributed ? envelopeId : null,
         })
       } catch {
