@@ -1226,14 +1226,13 @@
             "specialized": "(spécialisé)",
             "archived": "archivé",
             "motifSummary": {
-              "all": "Tous",
+              "all": "Tous ({count})",
               "allOverall": "Tous les motifs ({count})",
               "allBut": "Tous sauf {names}",
               "allButOverall": "Tous sauf {names} ({selected} sur {total})",
               "count": "{selected} sur {total}",
-              "archived": "Motifs archivés : {names}",
-              "showAll": "Voir les {count} motifs",
-              "hideAll": "Masquer la liste"
+              "archivedOne": "Motif archivé : {name}",
+              "archivedOther": "Motifs archivés : {names}"
             },
             "empty": {
               "clienteles": "Aucune clientèle choisie",

@@ -1,8 +1,9 @@
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { Route, Routes, useNavigationType } from 'react-router-dom'
+import { Route, Routes, useNavigate, useNavigationType } from 'react-router-dom'
 import { t } from '@/i18n'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
 import { ShellCrumbProvider, useShellCrumbLabel } from '@/shared/lib/shell-crumb'
@@ -11,8 +12,9 @@ import { renderWithContexts } from '@/test/contexts'
 import { LocationProbe } from '@/test/LocationProbe'
 import { accessForRole, type FixtureRole } from '@/test/role-fixtures'
 import { RECORD_TAB_DEFS } from '../components/record/record-tabs'
+import { professionalKeys } from '../hooks/keys'
 import { setupQueryClient } from '../test/query-client'
-import { CATALOG, recordFixture } from '../test/fixtures-domain'
+import { CATALOG, recordFixture, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
 import { ProfessionalRecordPage } from './ProfessionalRecordPage'
 
@@ -44,8 +46,19 @@ function DirtyForm() {
   return null
 }
 
-function renderPage({ path = `${base}/apercu`, role = 'counselor' as FixtureRole, dirty = false } = {}) {
+/** Opens another URL from inside the router (another record, as a link elsewhere would). */
+function GoTo({ path }: { path: string }) {
+  const navigate = useNavigate()
+  return (
+    <button type="button" onClick={() => navigate(path)}>
+      go
+    </button>
+  )
+}
+
+function renderPage({ path = `${base}/apercu`, role = 'counselor' as FixtureRole, dirty = false, extra = null as ReactNode, before = (_: ReturnType<typeof setupQueryClient>) => {} } = {}) {
   const client = setupQueryClient()
+  before(client)
   render(
     <QueryClientProvider client={client.queryClient}>
       {renderWithContexts(
@@ -56,6 +69,7 @@ function renderPage({ path = `${base}/apercu`, role = 'counselor' as FixtureRole
             </Routes>
             <Probes />
             {dirty && <DirtyForm />}
+            {extra}
           </ShellCrumbProvider>
         </UnsavedChangesProvider>,
         { path, access: { access: accessForRole(role) } },
@@ -112,16 +126,26 @@ describe('ProfessionalRecordPage', () => {
     expect(location()).toBe(`${base}/jumelage`)
     expect(screen.getByTestId('navigation')).toHaveTextContent('REPLACE')
     expect(tab('jumelage')).toHaveAttribute('aria-selected', 'true')
+    // The tabs read the page's record and catalogue: a switch requests neither again.
+    expect(await screen.findByText(t(`${R}.tabInPreparation`))).toBeInTheDocument()
+    expect(mocks.record.fetchProfessionalRecord).toHaveBeenCalledTimes(1)
+    expect(mocks.catalog.fetchProfessionalsCatalog).toHaveBeenCalledTimes(1)
   })
 
   it('switches tabs with the arrow keys (one tab stop)', async () => {
     renderPage()
     await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })
-    tab('apercu').focus()
+    act(() => tab('apercu').focus())
     await userEvent.keyboard('{ArrowRight}')
-    expect(location()).toBe(`${base}/jumelage`)
+    // Radix moves the focus in a timeout after the keydown: wait for it rather than race it.
+    await waitFor(() => expect(location()).toBe(`${base}/jumelage`))
     expect(tab('jumelage')).toHaveFocus()
     expect(tab('profil-public')).toHaveAttribute('tabindex', '-1')
+    await userEvent.keyboard('{ArrowRight}')
+    await waitFor(() => expect(location()).toBe(`${base}/profil-public`))
+    expect(await screen.findByText(t(`${R}.tabInPreparation`))).toBeInTheDocument()
+    expect(mocks.record.fetchProfessionalRecord).toHaveBeenCalledTimes(1)
+    expect(mocks.catalog.fetchProfessionalsCatalog).toHaveBeenCalledTimes(1)
   })
 
   it('asks before leaving a tab with unsaved edits', async () => {
@@ -139,6 +163,55 @@ describe('ProfessionalRecordPage', () => {
     renderPage()
     await userEvent.hover(await screen.findByRole('tab', { name: t(`${R}.tabs.jumelage`) }))
     expect(preload).toHaveBeenCalled()
+  })
+
+  it('starts loading a tab’s code when it takes the focus', async () => {
+    const identite = RECORD_TAB_DEFS.find((def) => def.tab === 'identite')?.panel
+    const preload = vi.spyOn(identite as Required<NonNullable<typeof identite>>, 'preload')
+    renderPage()
+    const trigger = await screen.findByRole('tab', { name: t(`${R}.tabs.identite`) })
+    expect(preload).not.toHaveBeenCalled()
+    act(() => trigger.focus())
+    expect(preload).toHaveBeenCalled()
+  })
+
+  it('asks before following an in-page link to another tab while a card is dirty', async () => {
+    renderPage({ dirty: true })
+    await userEvent.click(await screen.findByRole('link', { name: t(`${R}.overview.matching.edit`) }))
+    expect(await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })).toBeInTheDocument()
+    expect(location()).toBe(`${base}/apercu`)
+    await userEvent.click(screen.getByRole('button', { name: t('common.unsaved.leave') }))
+    await waitFor(() => expect(location()).toBe(`${base}/jumelage`))
+    expect(screen.getByTestId('navigation')).toHaveTextContent('REPLACE')
+  })
+
+  it('follows an in-page link to another tab at once when nothing is dirty', async () => {
+    renderPage()
+    await userEvent.click(await screen.findByRole('link', { name: t(`${R}.overview.matching.edit`) }))
+    expect(location()).toBe(`${base}/jumelage`)
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('navigation')).toHaveTextContent('REPLACE')
+  })
+
+  it('starts another record with fresh local state, even from the cache', async () => {
+    const otherId = '00000000-0000-4000-8000-0000000000b2'
+    const big = seventyTwoMotifsCatalog()
+    const allMotifs = big.motifs.filter((m) => m.isActive).map((m) => m.id)
+    const first = { ...recordFixture(), motifIds: allMotifs }
+    const second = { ...first, professional: { ...first.professional, id: otherId, firstName: 'Julie', lastName: 'Roy' } }
+    mocks.catalog.fetchProfessionalsCatalog.mockResolvedValue(big)
+    mocks.record.fetchProfessionalRecord.mockImplementation((id: string) => Promise.resolve(id === otherId ? second : first))
+    renderPage({
+      extra: <GoTo path={`/professionnels/${otherId}/apercu`} />,
+      before: ({ queryClient }) => queryClient.setQueryData(professionalKeys.record(otherId), second),
+    })
+    const S = `${R}.overview.matching.motifSummary`
+    await userEvent.click(await screen.findByRole('button', { name: t(`${S}.allOverall`, { count: '72' }) }))
+    expect(screen.getByRole('button', { name: t(`${S}.allOverall`, { count: '72' }) })).toHaveAttribute('aria-expanded', 'true')
+    await userEvent.click(screen.getByRole('button', { name: 'go' }))
+    // The cached record shows at once, with its list folded again.
+    expect(screen.getByRole('heading', { level: 1, name: 'Julie Roy' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t(`${S}.allOverall`, { count: '72' }) })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('shows the counselor no compensation tab, and the admin one', async () => {
@@ -185,5 +258,16 @@ describe('ProfessionalRecordPage', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })).toBeInTheDocument()
     expect(mocks.record.fetchProfessionalRecord).toHaveBeenCalledTimes(2)
     expect(mocks.catalog.fetchProfessionalsCatalog).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers « Réessayer » when the catalogue fails, and retries only the catalogue', async () => {
+    mocks.catalog.fetchProfessionalsCatalog.mockRejectedValueOnce(Object.assign(new Error('boom'), { code: 'XX000' }))
+    renderPage()
+    expect(await screen.findByText(t(`${R}.loadError`))).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: t('common.retry') }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })).toBeInTheDocument()
+    expect(mocks.catalog.fetchProfessionalsCatalog).toHaveBeenCalledTimes(2)
+    expect(mocks.record.fetchProfessionalRecord).toHaveBeenCalledTimes(1)
   })
 })

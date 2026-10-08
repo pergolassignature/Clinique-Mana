@@ -29,7 +29,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  */
 export function ProfessionalRecordPage() {
   const { id = '', onglet } = useParams()
-  return UUID.test(id) ? <RecordView id={id} onglet={onglet} /> : <RecordNotFound />
+  // Keyed by the id: another record starts with fresh local state (open disclosures, tab panels).
+  return UUID.test(id) ? <RecordView key={id} id={id} onglet={onglet} /> : <RecordNotFound />
 }
 
 function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) {

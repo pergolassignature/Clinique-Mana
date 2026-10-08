@@ -29,6 +29,14 @@ describe('RecordHeader', () => {
     expect(within(screen.getByRole('list')).getByText(t(`${H}.notAccepting`))).toBeInTheDocument()
   })
 
+  it('ellipsises a chip on its text, inside a shrinkable chip (a flex item draws no ellipsis)', () => {
+    renderHeader((r) => ({ ...r, matchingProfile: { ...r.matchingProfile, acceptingNewClients: false } }))
+    const text = screen.getByText(t(`${H}.notAccepting`))
+    expect(text.tagName).toBe('SPAN')
+    expect(text).toHaveClass('truncate', 'min-w-0')
+    expect(text.parentElement).toHaveClass('min-w-0', 'max-w-full')
+  })
+
   it('shows the email alone without a title, and no chips without languages', () => {
     renderHeader((r) => ({ ...r, professions: [], languageIds: [] }))
     expect(screen.getByText('marie.t@exemple.ca')).toBeInTheDocument()

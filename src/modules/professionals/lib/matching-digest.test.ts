@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { matchingDigest } from './matching-digest'
-import { CATALOG_VIEW, recordFixture } from '../test/fixtures-domain'
+import { buildCatalogView } from './catalog-view'
+import { CATALOG, CATALOG_VIEW, recordFixture } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
 import type { ProfessionalRecord } from '../api/parse'
 
@@ -27,6 +28,26 @@ describe('matchingDigest', () => {
       ['Aînés (65 ans et plus)', false],
     ])
     expect(digest.approaches).toEqual([{ id: IDS.cbt, label: 'Thérapie cognitivo-comportementale (TCC)', specialized: true, archived: false }])
+  })
+
+  it('keeps a held archived clientèle or approach, marked « (archivé) », in its place', () => {
+    const archive = <T extends { id: string; isActive: boolean }>(rows: T[], id: string) => rows.map((row) => (row.id === id ? { ...row, isActive: false } : row))
+    const catalog = buildCatalogView({ ...CATALOG, clienteles: archive(CATALOG.clienteles, IDS.couples), specialties: archive(CATALOG.specialties, IDS.cbt) })
+    const digest = matchingDigest(
+      record({
+        clienteles: [
+          { id: IDS.children, specialized: false },
+          { id: IDS.couples, specialized: true },
+        ],
+        specialties: [{ id: IDS.cbt, specialized: false }],
+      }),
+      catalog,
+    )
+    expect(digest.clienteles.map((c) => [c.label, c.specialized, c.archived])).toEqual([
+      ['Couples', true, true],
+      ['Enfants (0 à 12 ans)', false, false],
+    ])
+    expect(digest.approaches).toEqual([{ id: IDS.cbt, label: 'Thérapie cognitivo-comportementale (TCC)', specialized: false, archived: true }])
   })
 
   it('summarises the motifs (summarizeMotifs)', () => {

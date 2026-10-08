@@ -57,5 +57,10 @@ export function RecordHeader({ record, catalog }: RecordHeaderProps) {
 
 /** A quiet tag: hairline border, secondary 12px text, no fill (design system: no pastel). */
 function Chip({ children }: { children: ReactNode }) {
-  return <li className="inline-flex h-5 max-w-full items-center truncate rounded-sm border border-border px-1.5 text-xs text-muted-foreground">{children}</li>
+  return (
+    <li className="inline-flex h-5 min-w-0 max-w-full items-center rounded-sm border border-border px-1.5 text-xs text-muted-foreground">
+      {/* `truncate` on the text, not the flex item: a flex container draws no ellipsis. */}
+      <span className="min-w-0 truncate">{children}</span>
+    </li>
+  )
 }
