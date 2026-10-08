@@ -1,19 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
-import { renderWithContexts } from '@/test/contexts'
-import { accessForRole, type FixtureRole } from '@/test/role-fixtures'
-import type { ProfessionalRecord } from '../../../api/parse'
+import { hasUnsavedChanges } from '@/shared/lib/unsaved-changes-registry'
+import type { FixtureRole } from '@/test/role-fixtures'
+import type { ProfessionalRecord, SpecializedRef } from '../../../api/parse'
 import type { CatalogView } from '../../../lib/catalog-view'
 import { CATALOG_VIEW, recordFixture, seventyTwoMotifsCatalog } from '../../../test/fixtures-domain'
 import { IDS } from '../../../test/fixtures'
-import { setupQueryClient } from '../../../test/query-client'
-import { RecordContext } from '../record-context'
+import { LEAVE_LINK, renderRecordTab } from '../../../test/record-tab'
 import { MatchingTab } from './MatchingTab'
 
 const mocks = vi.hoisted(() => ({
   api: {
+    fetchProfessionalRecord: vi.fn(),
     setClienteles: vi.fn(),
     setSpecialties: vi.fn(),
     setMotifs: vi.fn(),
@@ -22,10 +22,24 @@ const mocks = vi.hoisted(() => ({
   },
   toast: { success: vi.fn(), error: vi.fn() },
 }))
-vi.mock('../../../api/record', () => mocks.api)
+vi.mock('../../../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/record')>()), ...mocks.api }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
+/** What the database holds; the set mocks write into it and the refetch reads it. */
+let stored: ProfessionalRecord
+
+beforeEach(() => {
+  mocks.api.fetchProfessionalRecord.mockImplementation(async () => stored)
+  mocks.api.setMotifs.mockImplementation(async (_id: string, motifIds: string[]) => {
+    stored = { ...stored, motifIds }
+    return motifIds
+  })
+  mocks.api.setClienteles.mockImplementation(async (_id: string, clienteles: SpecializedRef[]) => {
+    stored = { ...stored, clienteles }
+    return clienteles
+  })
+})
 afterEach(() => vi.clearAllMocks())
 
 const M = 'modules.professionals.record.matching'
@@ -37,18 +51,8 @@ function renderTab({
   permissions,
   catalog = CATALOG_VIEW,
 }: { change?: (r: ProfessionalRecord) => ProfessionalRecord; role?: FixtureRole; permissions?: string[]; catalog?: CatalogView } = {}) {
-  const { wrapper: Wrapper } = setupQueryClient()
-  const access = accessForRole(role, permissions ? { permissions } : {})
-  render(
-    <Wrapper>
-      {renderWithContexts(
-        <RecordContext.Provider value={{ record: change(recordFixture()), catalog }}>
-          <MatchingTab />
-        </RecordContext.Provider>,
-        { access: { access } },
-      )}
-    </Wrapper>,
-  )
+  stored = change(recordFixture())
+  return renderRecordTab(<MatchingTab />, { record: stored, role, permissions, catalog })
 }
 
 const card = (title: string) => screen.getByRole('heading', { level: 3, name: title }).closest('section, form') as HTMLElement
@@ -103,7 +107,6 @@ describe('MatchingTab — what is held', () => {
 
 describe('MatchingTab — pickers', () => {
   it('saves the motifs once, the whole set, only on « Enregistrer »', async () => {
-    mocks.api.setMotifs.mockResolvedValue([IDS.anxiete, IDS.psychose])
     renderTab()
     const dialog = await openPicker('motifs')
     await unfold(dialog, 'Vie intérieure')
@@ -149,7 +152,6 @@ describe('MatchingTab — pickers', () => {
   })
 
   it('saves clientèles with their stars', async () => {
-    mocks.api.setClienteles.mockResolvedValue([])
     renderTab()
     const dialog = await openPicker('clienteles')
     await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Enfants (0 à 12 ans)' }))
@@ -168,5 +170,35 @@ describe('MatchingTab — pickers', () => {
     const french = within(dialog).getByRole('checkbox', { name: 'Français' })
     expect(french).toBeDisabled()
     expect(french).toHaveAccessibleDescription(t('modules.professionals.validation.languagesRequired'))
+  })
+
+  it('arms the tab guard while a picker holds changes, and disarms it on « Annuler »', async () => {
+    renderTab()
+    const dialog = await openPicker('languages')
+    expect(hasUnsavedChanges()).toBe(false)
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Anglais' }))
+    expect(hasUnsavedChanges()).toBe(true)
+    await userEvent.click(within(dialog).getByRole('button', { name: t('common.cancel') }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(hasUnsavedChanges()).toBe(false)
+  })
+
+  it('searches the motifs by a category’s name', async () => {
+    renderTab()
+    const dialog = await openPicker('motifs')
+    await userEvent.type(within(dialog).getByRole('searchbox'), 'interieure')
+    // Every motif of « Vie intérieure » is listed, though none of their names holds the word.
+    expect(within(dialog).getByRole('checkbox', { name: 'Anxiété' })).toBeVisible()
+    expect(within(dialog).getByRole('checkbox', { name: /Psychose/ })).toBeVisible()
+    expect(within(dialog).queryByRole('checkbox', { name: 'Sans catégorie' })).not.toBeInTheDocument()
+  })
+})
+
+describe('MatchingTab — availability', () => {
+  it('asks before leaving with an unsaved availability edit', async () => {
+    renderTab()
+    await userEvent.click(screen.getByRole('checkbox', { name: t('modules.professionals.periods.weekend') }))
+    await userEvent.click(screen.getByRole('link', { name: LEAVE_LINK }))
+    expect(await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })).toBeInTheDocument()
   })
 })

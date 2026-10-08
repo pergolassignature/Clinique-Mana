@@ -1,6 +1,9 @@
-import type { ProfessionalPatch, PublicProfilePatch } from '../api/record'
+import { useQueryClient } from '@tanstack/react-query'
+import type { ProfessionalRecord } from '../api/parse'
+import type { MatchingProfilePatch, ProfessionalPatch, PublicProfilePatch } from '../api/record'
+import { professionalKeys } from './keys'
 import type { MutationFeedback } from './mutation-feedback'
-import { useSetPayerNumber, useUpdateProfessional, useUpdatePublicProfile } from './use-professional-mutations'
+import { useSetPayerNumber, useUpdateMatchingProfile, useUpdateProfessional, useUpdatePublicProfile } from './use-professional-mutations'
 
 /** What a record card needs from its mutation: write the card's output, then call `onSaved`. */
 export interface CardSave<TOut> {
@@ -35,6 +38,25 @@ export const useSaveIvac: UseCardSave<{ ivac: string | null }> = (id, feedback) 
   const mutation = useSetPayerNumber(feedback)
   return {
     save: ({ ivac }, onSaved) => mutation.mutate({ id, type: 'ivac', number: ivac }, { onSuccess: onSaved }),
+    pending: mutation.isPending,
+  }
+}
+
+/**
+ * Disponibilités générales (`professionals.matching`). « Accepte de nouveaux clients » is sent only
+ * when it changed: it is the one field of the card the list shows, so a save of the moments or the
+ * note alone does not refetch the lists (`touchesList` of `useUpdateMatchingProfile`).
+ */
+export const useSaveMatchingProfile: UseCardSave<MatchingProfilePatch> = (id, feedback) => {
+  const queryClient = useQueryClient()
+  const mutation = useUpdateMatchingProfile(feedback)
+  return {
+    save: (patch, onSaved) => {
+      const stored = queryClient.getQueryData<ProfessionalRecord | null>(professionalKeys.record(id))?.matchingProfile
+      const { acceptingNewClients, ...rest } = patch
+      const sent = stored && acceptingNewClients === stored.acceptingNewClients ? rest : patch
+      mutation.mutate({ id, patch: sent }, { onSuccess: onSaved })
+    },
     pending: mutation.isPending,
   }
 }

@@ -58,7 +58,7 @@ export function MatchingTab() {
           <SetCard list="languages" picker={pickers?.languages}>
             <HeldChips items={digest.languages} empty={t(`${M}.languages.empty`)} />
           </SetCard>
-          <AvailabilityCard record={record} readOnly={!canEdit} />
+          <AvailabilityCard readOnly={!canEdit} />
         </div>
       </div>
     </div>
@@ -170,9 +170,12 @@ function useSetSave<V, R>(useMutationHook: (feedback?: MutationFeedback) => UseM
       refusal.current = message
     },
   })
-  return (variables: V): Promise<string | null> =>
-    mutation.mutateAsync(variables).then(
+  return (variables: V): Promise<string | null> => {
+    // This call's refusal only: never the message a previous save left behind.
+    refusal.current = null
+    return mutation.mutateAsync(variables).then(
       () => null,
       () => refusal.current ?? t('modules.professionals.errors.saveFailed'),
     )
+  }
 }

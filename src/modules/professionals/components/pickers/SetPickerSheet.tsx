@@ -88,17 +88,34 @@ export function SetPickerSheet({ trigger, ...panel }: SetPickerSheetProps) {
 /**
  * The draft of one opening: taken from the saved set once (a refetch underneath neither resets it
  * nor moves rows), ticks and stars applied to it, a refusal cleared by the next change, and the
- * last item of a required list locked.
+ * last item of a required list locked, and nothing changed while `frozen` (saving). `bulk` says whether the last change was a category's
+ * « Tout sélectionner / désélectionner »: only those announce the new total (a tick is announced
+ * by its own checkbox).
  */
-function usePickerDraft({ groups, selected, withStars, requiredMessage }: Pick<PanelProps, 'groups' | 'selected' | 'withStars' | 'requiredMessage'>) {
+function usePickerDraft({
+  groups,
+  selected,
+  withStars,
+  requiredMessage,
+  frozen,
+}: Pick<PanelProps, 'groups' | 'selected' | 'withStars' | 'requiredMessage'> & { frozen: boolean }) {
   const [initial] = useState(selected)
   const [ordered] = useState(() => (withStars ? groups.map((g) => ({ ...g, items: heldFirst(g.items, selected) })) : [...groups]))
   const [draft, setDraft] = useState<PickerSelection>(() => new Map(selected))
   const [refusal, setRefusal] = useState<string | null>(null)
-  // Functional updates: two changes before a re-render (fast clicks) both apply.
-  const change = (update: (prev: PickerSelection) => PickerSelection) => {
-    setDraft(update)
+  const [bulk, setBulk] = useState(false)
+  // Functional updates: two changes before a re-render (fast clicks) both apply. The required
+  // list's last item is kept here too, against the draft of the moment: two fast unticks of the
+  // last two languages leave one, whatever the disabled state rendered in between.
+  const change = (update: (prev: PickerSelection) => PickerSelection, { isBulk = false } = {}) => {
+    // While saving, the draft on screen is the one being saved (the list is also disabled).
+    if (frozen) return
+    setDraft((prev) => {
+      const next = update(prev)
+      return requiredMessage && next.size === 0 && prev.size > 0 ? prev : next
+    })
     setRefusal(null)
+    setBulk(isBulk)
   }
   const edits: Pick<PickerRowsContext, 'locked' | 'onToggle' | 'onStar'> = {
     locked: requiredMessage && draft.size === 1 ? { id: [...draft.keys()][0] ?? '', reason: requiredMessage } : null,
@@ -115,15 +132,15 @@ function usePickerDraft({ groups, selected, withStars, requiredMessage }: Pick<P
         return entry ? new Map(prev).set(id, { specialized: !entry.specialized }) : prev
       }),
   }
-  return { ordered, draft, change, edits, dirty: !sameSelection(draft, initial), refusal, setRefusal }
+  return { ordered, draft, change, edits, dirty: !sameSelection(draft, initial), refusal, setRefusal, bulk }
 }
 
 function PickerPanel({ title, subject, groups, selected, withStars = false, searchPlaceholder, requiredMessage, onSave, onClose }: PanelProps) {
-  const { ordered, draft, change, edits, dirty, refusal, setRefusal } = usePickerDraft({ groups, selected, withStars, requiredMessage })
+  const [saving, setSaving] = useState(false)
+  const { ordered, draft, change, edits, dirty, refusal, setRefusal, bulk } = usePickerDraft({ groups, selected, withStars, requiredMessage, frozen: saving })
   const [query, setQuery] = useState('')
   const [only, setOnly] = useState<ReadonlySet<string> | null>(null)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
-  const [saving, setSaving] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -136,6 +153,7 @@ function PickerPanel({ title, subject, groups, selected, withStars = false, sear
   const words = useMemo(() => searchWords(query), [query])
   const filtering = words.length > 0 || only !== null
   const visible = useMemo(() => filterGroups(ordered, { words, only }), [ordered, words, only])
+  const count = selectionCount(allItems, draft)
 
   const requestClose = () => {
     if (saving) return
@@ -180,32 +198,37 @@ function PickerPanel({ title, subject, groups, selected, withStars = false, sear
         <span className="sr-only">{t('common.close')}</span>
       </button>
       <form noValidate onSubmit={(event) => void submit(event)} className="flex min-h-0 flex-1 flex-col">
-        <PickerToolbar
-          searchRef={searchable ? searchRef : null}
-          query={query}
-          onQueryChange={setQuery}
-          searchPlaceholder={searchPlaceholder}
-          count={selectionCount(allItems, draft)}
-          selectedOnly={searchable ? { on: only !== null, onChange: (on) => setOnly(on ? new Set(draft.keys()) : null) } : null}
-          expandAll={
-            grouped && !filtering
-              ? { allOpen: ordered.every((g) => expanded.has(g.key)), onChange: (open) => setExpanded(open ? new Set(ordered.map((g) => g.key)) : new Set()) }
-              : null
-          }
-        />
-        <SheetBody className="pt-1">
-          <PickerBody
-            visible={visible}
-            grouped={grouped}
-            filtering={filtering}
-            searching={words.length > 0}
-            expanded={expanded}
-            onExpandedChange={setExpanded}
-            allItems={allByGroup}
-            onGroupAction={(items, action) => change((prev) => applyGroupAction(prev, items, action))}
-            rows={{ draft, words, withStars, ...edits }}
+        {/* While saving, the list is inert: the draft being saved is the one on screen. `contents`
+            keeps the toolbar and the scrolling body in the form's column. */}
+        <fieldset disabled={saving} className="contents">
+          <PickerToolbar
+            searchRef={searchable ? searchRef : null}
+            query={query}
+            onQueryChange={setQuery}
+            searchPlaceholder={searchPlaceholder}
+            count={count}
+            selectedOnly={searchable ? { on: only !== null, onChange: (on) => setOnly(on ? new Set(draft.keys()) : null) } : null}
+            expandAll={
+              grouped && !filtering
+                ? { allOpen: ordered.every((g) => expanded.has(g.key)), onChange: (open) => setExpanded(open ? new Set(ordered.map((g) => g.key)) : new Set()) }
+                : null
+            }
           />
-        </SheetBody>
+          <SheetBody className="pt-1">
+            <PickerBody
+              visible={visible}
+              grouped={grouped}
+              filtering={filtering}
+              searching={words.length > 0}
+              expanded={expanded}
+              onExpandedChange={setExpanded}
+              allItems={allByGroup}
+              onGroupAction={(items, action) => change((prev) => applyGroupAction(prev, items, action), { isBulk: true })}
+              rows={{ draft, words, withStars, ...edits }}
+            />
+          </SheetBody>
+        </fieldset>
+        <PickerAnnouncements searchResults={words.length > 0 ? visible.reduce((n, g) => n + g.items.length, 0) : null} count={bulk ? count : null} />
         {refusal && (
           <div className="shrink-0 px-5 pb-3">
             <Alert variant="destructive" role="alert">
@@ -243,13 +266,13 @@ interface PickerToolbarProps {
   expandAll: { allOpen: boolean; onChange: (open: boolean) => void } | null
 }
 
-/** Above the list, never scrolled away: the search, the running total, « Sélectionnés seulement », « Tout déplier ». */
+/** Above the list, never scrolled away: the search, the running total, « Sélectionnés seulement », « Tout ouvrir ». */
 function PickerToolbar({ searchRef, query, onQueryChange, searchPlaceholder, count, selectedOnly, expandAll }: PickerToolbarProps) {
   return (
     <div className="shrink-0 space-y-2 border-b border-border px-5 pb-3">
       {searchRef && <SearchBox inputRef={searchRef} value={query} onChange={onQueryChange} placeholder={searchPlaceholder} />}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <p aria-live="polite" className="mr-auto text-xs tabular text-muted-foreground">
+        <p className="mr-auto text-xs tabular text-muted-foreground">
           {t(`${P}.count`, { selected: String(count.selected), total: String(count.total) })}
         </p>
         {selectedOnly && <SelectedOnlySwitch on={selectedOnly.on} onChange={selectedOnly.onChange} />}
@@ -260,6 +283,31 @@ function PickerToolbar({ searchRef, query, onQueryChange, searchPlaceholder, cou
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * What a screen reader hears without moving: the number of matches while searching (« Aucun
+ * résultat » included), and the new total after a category's bulk action. A single tick is not
+ * announced here: its checkbox already says its state, and the total on every tick would be noise.
+ * Both regions stay mounted (empty when silent), so their next text is read.
+ */
+function PickerAnnouncements({ searchResults, count }: { searchResults: number | null; count: { selected: number; total: number } | null }) {
+  return (
+    <>
+      <p role="status" className="sr-only">
+        {searchResults === null
+          ? ''
+          : searchResults === 0
+            ? t(`${P}.results.none`)
+            : searchResults === 1
+              ? t(`${P}.results.one`)
+              : t(`${P}.results.other`, { count: String(searchResults) })}
+      </p>
+      <p aria-live="polite" className="sr-only">
+        {count ? t(`${P}.count`, { selected: String(count.selected), total: String(count.total) }) : ''}
+      </p>
+    </>
   )
 }
 
@@ -280,7 +328,8 @@ interface PickerBodyProps {
 function PickerBody({ visible, grouped, filtering, searching, allItems, expanded, onExpandedChange, onGroupAction, rows }: PickerBodyProps) {
   if (visible.length === 0) {
     return searching ? (
-      <EmptyState title={t(`${P}.noResults.title`)} body={t(`${P}.noResults.body`)} />
+      // « Aucun résultat » is announced by the status region: the title is not read twice.
+      <EmptyState title={t(`${P}.noResults.title`)} body={t(`${P}.noResults.body`)} titleAriaHidden />
     ) : (
       <EmptyState title={t(`${P}.noneSelected.title`)} body={t(`${P}.noneSelected.body`)} />
     )

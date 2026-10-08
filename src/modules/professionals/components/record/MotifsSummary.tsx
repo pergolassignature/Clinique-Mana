@@ -11,9 +11,10 @@ import { CategoryIcon } from '../CategoryIcon'
 /**
  * An open category's motifs: one per line, in as many 11rem columns as fit, at most 3 (P4-86). The
  * list's own width decides, like a container query, but from about 400px: Aperçu's value cell is
- * ≈ 450px at 1280 (under `cq-480`), where a single column of 16 names would be long again.
+ * ≈ 450px at 1280 (under `cq-480`), where a single column of 16 names would be long again. The
+ * outer `min(100%, …)` keeps a single column inside a container narrower than 11rem.
  */
-const MOTIF_COLUMNS = 'grid gap-x-6 grid-cols-[repeat(auto-fill,minmax(max(11rem,calc((100%_-_3rem)/3)),1fr))]'
+const MOTIF_COLUMNS = 'grid gap-x-6 grid-cols-[repeat(auto-fill,minmax(min(100%,max(11rem,calc((100%_-_3rem)/3))),1fr))]'
 
 const S = 'modules.professionals.record.overview.matching.motifSummary'
 const M = 'modules.professionals.record.overview.matching'
@@ -86,7 +87,7 @@ const Chevron = ({ open }: { open: boolean }) => (
   />
 )
 
-/** The categories, hairlines between them, with « Ouvrir tout / Fermer tout » when several fold. */
+/** The categories, hairlines between them, with « Tout ouvrir / Tout fermer » when several fold. */
 function CategoryList({ groups }: { groups: MotifSummaryGroup[] }) {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
   const foldable = groups.filter((g) => g.summary.kind !== 'names').map((g) => g.key)
@@ -168,10 +169,10 @@ function CategoryRow({ group, open, onOpenChange }: { group: MotifSummaryGroup; 
         <Chevron open={open} />
         <span className="min-w-0 flex-1">{header}</span>
       </button>
-      {/* `grid` would beat the `hidden` attribute's display: none; `[&[hidden]]:hidden` restores it. */}
-      <ul id={panelId} hidden={!open} className={cn(MOTIF_COLUMNS, 'mt-2 gap-y-1 pl-[40px] [&[hidden]]:hidden')}>
+      {/* `hidden` wins over `grid` through the base rule in globals.css. */}
+      <ul id={panelId} hidden={!open} className={cn(MOTIF_COLUMNS, 'mt-2 gap-y-1 pl-[40px]')}>
         {group.motifs.map((motif) => (
-          <li key={`${motif.archived ? 'a' : 'm'}:${motif.name}`} className="min-w-0 break-words text-foreground">
+          <li key={motif.id} className="min-w-0 break-words text-foreground">
             {motif.name}
             {motif.archived && <span className="text-muted-foreground"> ({t(`${M}.archived`)})</span>}
           </li>

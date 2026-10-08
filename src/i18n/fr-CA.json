@@ -1303,8 +1303,8 @@
             "searchLabel": "Rechercher dans la liste",
             "count": "Sélection : {selected} sur {total}",
             "selectedOnly": "Sélectionnés seulement",
-            "expandAll": "Tout déplier",
-            "collapseAll": "Tout replier",
+            "expandAll": "Tout ouvrir",
+            "collapseAll": "Tout fermer",
             "groupCount": "{selected} sur {total}",
             "selectAll": "Tout sélectionner",
             "deselectAll": "Tout désélectionner",
@@ -1314,6 +1314,11 @@
             "noResults": {
               "title": "Aucun résultat",
               "body": "Essayez un autre mot, ou le nom d'une catégorie."
+            },
+            "results": {
+              "none": "Aucun résultat",
+              "one": "1 résultat",
+              "other": "{count} résultats"
             },
             "noneSelected": {
               "title": "Rien n'est sélectionné",
@@ -1349,8 +1354,8 @@
               "allButOverall": "Tous sauf {names} ({selected} sur {total})",
               "countShort": "{selected} / {total}",
               "countSr": "({selected} sur {total})",
-              "openAll": "Ouvrir tout",
-              "closeAll": "Fermer tout",
+              "openAll": "Tout ouvrir",
+              "closeAll": "Tout fermer",
               "archivedOne": "Motif archivé : {name}",
               "archivedOther": "Motifs archivés : {names}"
             },

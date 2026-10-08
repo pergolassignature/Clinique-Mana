@@ -24,6 +24,7 @@ export type MotifGroupSummary =
   | { kind: 'count'; selected: number; total: number; names: string[] }
 
 export interface HeldMotif {
+  id: string
   name: string
   archived: boolean
 }
@@ -71,22 +72,23 @@ export function summarizeMotifs(motifIds: readonly string[], catalog: CatalogVie
   let total = 0
   for (const group of catalog.motifGroups) {
     const active = group.motifs.filter((m) => m.isActive)
-    const heldActive = active.filter((m) => held.has(m.id)).map((m) => m.name)
+    const heldActive = active.filter((m) => held.has(m.id))
     const missing = active.filter((m) => !held.has(m.id)).map((m) => m.name)
-    const heldArchived = group.motifs.filter((m) => !m.isActive && held.has(m.id)).map((m) => m.name)
+    const heldArchived = group.motifs.filter((m) => !m.isActive && held.has(m.id))
+    const heldNames = heldActive.map((m) => m.name)
     selected += heldActive.length
     total += active.length
     missingOverall.push(...missing)
-    archived.push(...heldArchived)
+    archived.push(...heldArchived.map((m) => m.name))
     if (heldActive.length === 0) continue
     groups.push({
       key: group.key,
       name: group.name,
       icon: group.icon,
-      summary: groupSummary(heldActive, missing),
+      summary: groupSummary(heldNames, missing),
       selected: heldActive.length,
       total: active.length,
-      motifs: [...heldActive.map((name) => ({ name, archived: false })), ...heldArchived.map((name) => ({ name, archived: true }))],
+      motifs: [...heldActive, ...heldArchived].map(({ id, name, isActive }) => ({ id, name, archived: !isActive })),
     })
   }
   // Up to FEW held, every category shows its names already: no overall line to unfold.

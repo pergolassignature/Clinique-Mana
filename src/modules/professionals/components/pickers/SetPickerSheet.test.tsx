@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import { Button } from '@/shared/ui/button'
@@ -70,6 +70,17 @@ const save = () => userEvent.click(screen.getByRole('button', { name: t('common.
 /** The visible rows' labels, in order. */
 const rowLabels = (dialog: HTMLElement) => within(dialog).getAllByRole('checkbox').map((box) => dialog.querySelector(`label[for="${box.id}"]`)?.textContent)
 const groupToggle = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name}`) })
+const bulk = (dialog: HTMLElement, action: 'selectAll' | 'deselectAll', group: string) =>
+  within(dialog).getByRole('button', { name: `${t(`${P}.${action}`)} ${t(`${P}.inGroup`, { group })}` })
+/** The two sr-only live regions: search results (`role="status"`) and the total after a bulk action. */
+const searchStatus = (dialog: HTMLElement) => within(dialog).getByRole('status')
+const totalAnnouncement = (dialog: HTMLElement) => dialog.querySelector('p.sr-only[aria-live="polite"]')
+/** A save that waits for `settle`. */
+function pendingSave() {
+  let settle: (value: string | null) => void = () => {}
+  const onSave = vi.fn<(next: PickerDraft) => Promise<string | null>>(() => new Promise((resolve) => (settle = resolve)))
+  return { onSave, settle: (value: string | null) => act(() => settle(value)) }
+}
 
 describe('SetPickerSheet — draft and save', () => {
   it('ticks into a local draft only, then saves the whole set once and closes, focus back on « Modifier »', async () => {
@@ -153,6 +164,62 @@ describe('SetPickerSheet — closing', () => {
     expect(within(dialog).getByRole('checkbox', { name: 'Anxiété' })).not.toBeChecked()
   })
 
+  it('returns focus to « Modifier » after « Abandonner »', async () => {
+    renderPicker()
+    const dialog = await open()
+    await userEvent.click(groupToggle('Vie intérieure'))
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Anxiété' }))
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(await screen.findByRole('button', { name: t(`${P}.discard.confirm`) }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Modifier' })).toHaveFocus())
+  })
+
+  it('cannot close while saving: Escape, X and « Annuler » do nothing until the save settles', async () => {
+    const { onSave, settle } = pendingSave()
+    renderPicker({ onSave })
+    const dialog = await open()
+    await userEvent.click(groupToggle('Vie intérieure'))
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Anxiété' }))
+    await save()
+    expect(onSave).toHaveBeenCalledTimes(1)
+    await userEvent.keyboard('{Escape}')
+    fireEvent.click(within(dialog).getByRole('button', { name: t('common.close') }))
+    await userEvent.click(within(dialog).getByRole('button', { name: t('common.cancel') }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    await settle(null)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('keeps the list inert while saving: ticks, stars, bulk buttons and the search do nothing', async () => {
+    const { onSave, settle } = pendingSave()
+    const groups: PickerGroup[] = [
+      { key: 'kids', label: 'Jeunes', items: [item('child', 'Enfants'), item('teen', 'Adolescents')] },
+      { key: 'grown', label: 'Adultes', items: [item('adult', 'Adultes (18 à 64 ans)'), item('senior', 'Aînés')] },
+    ]
+    renderPicker({ groups, selected: sel('child'), withStars: true, onSave })
+    const dialog = await open()
+    await userEvent.click(screen.getByRole('button', { name: t(`${P}.expandAll`) }))
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Adolescents' }))
+    await save()
+    const teen = within(dialog).getByRole('checkbox', { name: 'Adolescents' })
+    const star = within(dialog).getByRole('button', { name: t('common.star.add'), description: 'Enfants' })
+    for (const control of [teen, star, bulk(dialog, 'selectAll', 'Adultes'), screen.getByRole('searchbox')]) expect(control).toBeDisabled()
+    // Even a click that gets through (no pointer check) changes nothing.
+    fireEvent.click(teen)
+    fireEvent.click(star)
+    fireEvent.click(bulk(dialog, 'selectAll', 'Adultes'))
+    expect(teen).toBeChecked()
+    expect(within(dialog).getByRole('button', { name: t('common.star.add'), description: 'Enfants' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('checkbox', { name: 'Aînés' })).not.toBeChecked()
+    expect([...(onSave.mock.calls[0]?.[0].keys() ?? [])]).toEqual(['child', 'teen'])
+    // A refusal gives the list back.
+    await settle('Refusé.')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Refusé.')
+    expect(within(dialog).getByRole('checkbox', { name: 'Adolescents' })).toBeEnabled()
+  })
+
   it('keeps the close button out of the tab order', async () => {
     renderPicker()
     const dialog = await open()
@@ -199,7 +266,46 @@ describe('SetPickerSheet — categories', () => {
     expect(within(dialog).getByRole('heading', { level: 3, name: /Vie intérieure/ })).toHaveTextContent(t(`${P}.groupCount`, { selected: '0', total: '2' }))
     await userEvent.clear(screen.getByRole('searchbox'))
     await userEvent.type(screen.getByRole('searchbox'), 'zzz')
-    expect(within(dialog).getByText(t(`${P}.noResults.title`))).toBeInTheDocument()
+    expect(within(dialog).getByText(t(`${P}.noResults.title`), { ignore: '.sr-only' })).toBeInTheDocument()
+  })
+
+  it('lists a whole category when the search names it', async () => {
+    renderPicker()
+    const dialog = await open()
+    await userEvent.type(screen.getByRole('searchbox'), 'famille')
+    expect(rowLabels(dialog)).toEqual(['Couple', 'Adoption'])
+    expect(within(dialog).getByText('famille', { selector: 'mark' })).toBeInTheDocument()
+  })
+
+  it('tells screen readers how many rows the search leaves, « Aucun résultat » included', async () => {
+    renderPicker()
+    const dialog = await open()
+    expect(searchStatus(dialog)).toBeEmptyDOMElement()
+    await userEvent.type(screen.getByRole('searchbox'), 'anx')
+    expect(searchStatus(dialog)).toHaveTextContent(t(`${P}.results.one`))
+    await userEvent.clear(screen.getByRole('searchbox'))
+    await userEvent.type(screen.getByRole('searchbox'), 'famille')
+    expect(searchStatus(dialog)).toHaveTextContent(t(`${P}.results.other`, { count: '2' }))
+    await userEvent.type(screen.getByRole('searchbox'), 'zzz')
+    expect(searchStatus(dialog)).toHaveTextContent(t(`${P}.results.none`))
+    // The empty state's title is not read a second time.
+    expect(within(dialog).getByText(t(`${P}.noResults.title`), { selector: 'p:not([role])' })).toHaveAttribute('aria-hidden', 'true')
+    await userEvent.clear(screen.getByRole('searchbox'))
+    expect(searchStatus(dialog)).toBeEmptyDOMElement()
+  })
+
+  it('announces the total after a bulk action, not after each tick', async () => {
+    renderPicker()
+    const dialog = await open()
+    await userEvent.click(groupToggle('Relations et famille'))
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Couple' }))
+    // The checkbox says its own state; the visible total is not a live region.
+    expect(totalAnnouncement(dialog)).toBeEmptyDOMElement()
+    expect(within(dialog).getByText(t(`${P}.count`, { selected: '1', total: '4' }))).not.toHaveAttribute('aria-live')
+    await userEvent.click(bulk(dialog, 'selectAll', 'Vie intérieure'))
+    expect(totalAnnouncement(dialog)).toHaveTextContent(t(`${P}.count`, { selected: '2', total: '4' }))
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Adoption' }))
+    expect(totalAnnouncement(dialog)).toBeEmptyDOMElement()
   })
 
   it('« Sélectionnés seulement » keeps the held items in view, even once unticked', async () => {
@@ -228,6 +334,23 @@ describe('SetPickerSheet — restricted, archived, required, stars', () => {
     expect(old).not.toBeChecked()
   })
 
+  it('« Tout sélectionner » skips the archived item; it can still be ticked again by hand and saved (P4-84)', async () => {
+    const { onSave } = renderPicker({ selected: sel('old') })
+    const dialog = await open()
+    await userEvent.click(groupToggle('Vie intérieure'))
+    const old = within(dialog).getByRole('checkbox', { name: /Ancien motif/ })
+    await userEvent.click(old)
+    expect(old).not.toBeChecked()
+    await userEvent.click(bulk(dialog, 'selectAll', 'Vie intérieure'))
+    expect(within(dialog).getByRole('checkbox', { name: 'Anxiété' })).toBeChecked()
+    expect(old).not.toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: /Psychose/ })).not.toBeChecked()
+    await userEvent.click(old)
+    expect(old).toBeChecked()
+    await save()
+    expect([...(vi.mocked(onSave).mock.calls[0]?.[0].keys() ?? [])].sort()).toEqual(['anx', 'old'])
+  })
+
   it('lets a held blocked item be removed (P4-55)', async () => {
     renderPicker({ selected: sel('psy') })
     const dialog = await open()
@@ -251,6 +374,35 @@ describe('SetPickerSheet — restricted, archived, required, stars', () => {
     expect(fr).toHaveAccessibleDescription('Au moins une langue est requise.')
     await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Anglais' }))
     expect(fr).toBeEnabled()
+  })
+
+  it('keeps every row in place while ticking and starring (P4-81)', async () => {
+    const flat: PickerGroup[] = [{ key: 'all', label: '', items: [item('kids', 'Enfants'), item('adults', 'Adultes'), item('couples', 'Couples')] }]
+    renderPicker({ groups: flat, selected: sel('adults', ['couples', true]), withStars: true })
+    const dialog = await open()
+    const order = ['Couples', 'Adultes', 'Enfants']
+    expect(rowLabels(dialog)).toEqual(order)
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Enfants' }))
+    expect(rowLabels(dialog)).toEqual(order)
+    await userEvent.click(within(dialog).getByRole('button', { name: t('common.star.add'), description: 'Enfants' }))
+    expect(rowLabels(dialog)).toEqual(order)
+    await userEvent.click(within(dialog).getByRole('button', { name: t('common.star.remove'), description: 'Couples' }))
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Couples' }))
+    expect(rowLabels(dialog)).toEqual(order)
+  })
+
+  it('keeps the last item of a required list even when two fast clicks untick the last two', async () => {
+    const flat: PickerGroup[] = [{ key: 'all', label: '', items: [item('fr', 'Français'), item('en', 'Anglais')] }]
+    renderPicker({ groups: flat, selected: sel('fr', 'en'), requiredMessage: 'Au moins une langue est requise.' })
+    const dialog = await open()
+    act(() => {
+      within(dialog).getByRole('checkbox', { name: 'Français' }).click()
+      within(dialog).getByRole('checkbox', { name: 'Anglais' }).click()
+    })
+    expect(within(dialog).getByRole('checkbox', { name: 'Français' })).not.toBeChecked()
+    const en = within(dialog).getByRole('checkbox', { name: 'Anglais' })
+    expect(en).toBeChecked()
+    expect(en).toBeDisabled()
   })
 
   it('lists ★ then held first, toggles stars from the keyboard and saves them', async () => {
@@ -292,7 +444,7 @@ describe('SetPickerSheet — 72 motifs, all held', () => {
     const { onSave } = renderPicker({ groups: seventyTwo, selected: everyMotif })
     const dialog = await open()
     await userEvent.click(within(dialog).getByRole('button', { name: `${t(`${P}.deselectAll`)} ${t(`${P}.inGroup`, { group: 'Catégorie 8' })}` }))
-    expect(within(dialog).getByText(t(`${P}.count`, { selected: '63', total: '72' }))).toBeInTheDocument()
+    expect(within(dialog).getByText(t(`${P}.count`, { selected: '63', total: '72' }), { ignore: '.sr-only' })).toBeInTheDocument()
     await save()
     expect(vi.mocked(onSave).mock.calls[0]?.[0].size).toBe(63)
   })

@@ -54,8 +54,8 @@ describe('summarizeMotifs — 72 motifs', () => {
   it('keeps archived motifs out of the counts, names them apart and marks them last in their category', () => {
     const summary = summarizeMotifs([...ALL, 'm-archived'], BIG)
     expect(summary).toMatchObject({ selected: 72, total: 72, overall: { kind: 'all' }, archived: ['Ancien motif'] })
-    expect(summary.groups[0]?.motifs.at(-1)).toEqual({ name: 'Ancien motif', archived: true })
-    expect(summary.groups[0]?.motifs[0]).toEqual({ name: 'Motif 1.1', archived: false })
+    expect(summary.groups[0]?.motifs.at(-1)).toEqual({ id: 'm-archived', name: 'Ancien motif', archived: true })
+    expect(summary.groups[0]?.motifs[0]).toEqual({ id: 'm-0-0', name: 'Motif 1.1', archived: false })
     expect(summary.groups[0]).toMatchObject({ selected: 9, total: 9 })
   })
 })
