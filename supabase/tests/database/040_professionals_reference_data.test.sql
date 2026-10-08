@@ -1,16 +1,19 @@
 -- Professionnels reference data (migration *_professionals_reference_data.sql, plan Phase 4 Task 4a.1).
 -- Covers: the 7 new professionals permissions and their role defaults (template and a new org's
 -- copy), their effect per role; the 9 per-clinic lists (privileges, seeding of new orgs with the
--- legacy-v1 lists, D7 rows left out, idempotent reseeding, audit source); read access by role,
--- org isolation and the module gate; key, name, icon and age checks, case-insensitive unique
--- names and the composite (org_id, id) foreign keys.
+-- legacy-v1 lists and the P4-51 labels, D7 rows left out, idempotent reseeding, audit source,
+-- reseeding onto a row that holds a seeded name under another key); read access by role and by
+-- any professionals key, org isolation, disabled users and the module gate; key, name, icon and
+-- age checks, tidy labels, NFKC unique names, frozen keys and the composite (org_id, id) foreign
+-- keys.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(77);
+select plan(103);
 
 -- =============================================================================
--- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
--- with an admin. Both orgs are created after the migration, so the seeding trigger runs, with a
+-- Fixtures (as postgres): org A with an admin, an adjointe, a provider, a conseillère, K and S in
+-- a custom role without any professionals key (S holds professionals.settings by override) and a
+-- disabled admin; org B with an admin. Both orgs are created after the migration, so the seeding trigger runs, with a
 -- known audit source set first (the seed must restore it).
 -- =============================================================================
 select set_config('app.audit_source', 'test:fixtures', true);
@@ -21,7 +24,10 @@ values
   ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'adjointe@a.test',    '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'provider@a.test',    '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'conseillere@a.test', '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',       '', now(), '{}', '{}', now(), now());
+  ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',       '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'k@a.test',           '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 's@a.test',           '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'x@a.test',           '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A'),
   ('b0000000-0000-0000-0000-00000000000b', 'Org B');
@@ -29,21 +35,41 @@ insert into public.organizations (id, name) values
 select is(current_setting('app.audit_source', true), 'test:fixtures',
   'seeding a new org restores the audit source it found');
 
-insert into public.profiles (user_id, org_id, display_name, email) values
-  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',       'admin@a.test'),
-  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe A',    'adjointe@a.test'),
-  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Provider A',    'provider@a.test'),
-  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère A', 'conseillere@a.test'),
-  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',       'admin@b.test');
+insert into public.profiles (user_id, org_id, display_name, email, status) values
+  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',         'admin@a.test',       'active'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe A',      'adjointe@a.test',    'active'),
+  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Provider A',      'provider@a.test',    'active'),
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère A',   'conseillere@a.test', 'active'),
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',         'admin@b.test',       'active'),
+  ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'K (sans clé)',    'k@a.test',           'active'),
+  ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'S (settings)',    's@a.test',           'active'),
+  ('a0000000-0000-0000-0000-000000000008', 'b0000000-0000-0000-0000-00000000000a', 'Admin désactivé', 'x@a.test',           'disabled');
+insert into public.roles (key, name, org_id) values ('custom_0000000a', 'Lecture seule', 'b0000000-0000-0000-0000-00000000000a');
+insert into public.org_role_permissions (org_id, role, permission_key) values
+  ('b0000000-0000-0000-0000-00000000000a', 'custom_0000000a', 'settings.view');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'provider'),
   ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'counselor'),
-  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin');
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin'),
+  ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'custom_0000000a'),
+  ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'custom_0000000a'),
+  ('a0000000-0000-0000-0000-000000000008', 'b0000000-0000-0000-0000-00000000000a', 'admin');
 insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'professionals', true),
   ('b0000000-0000-0000-0000-00000000000b', 'professionals', true);
+insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
+  ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'professionals.settings', true);
+
+-- The nine lists' row counts as the caller sees them (RLS), in one row.
+select set_config('test.list_counts', $q$
+  select (select count(*) from public.professional_orders)::int, (select count(*) from public.profession_categories)::int,
+         (select count(*) from public.profession_titles)::int, (select count(*) from public.clienteles)::int,
+         (select count(*) from public.specialties)::int, (select count(*) from public.motif_categories)::int,
+         (select count(*) from public.motifs)::int, (select count(*) from public.languages)::int,
+         (select count(*) from public.deactivation_reasons)::int
+$q$, true);
 
 -- =============================================================================
 -- Permissions and role defaults
@@ -132,6 +158,8 @@ select function_privs_are('private', 'seed_professionals_reference', array['uuid
   'service_role cannot seed the lists');
 select function_privs_are('private', 'seed_professionals_reference_on_org', array[]::text[], 'authenticated', array[]::text[],
   'clients cannot execute the seeding trigger function');
+select function_privs_are('private', 'freeze_reference_identity', array[]::text[], 'authenticated', array[]::text[],
+  'clients cannot execute the key-freeze trigger function');
 
 -- =============================================================================
 -- Seeding (orgs A and B, created after the migration)
@@ -232,6 +260,44 @@ select is_empty($$
     union all select p.key from public.profession_categories p where p.org_id = 'b0000000-0000-0000-0000-00000000000a'
   ) x where x.key in ('issue', 'modality', 'lgbtq', 'indigenous', 'newcomers')
 $$, 'legacy-archived rows are not re-seeded (D7)');
+select results_eq($$
+  select m.key, m.name from public.motifs m
+   where m.org_id = 'b0000000-0000-0000-0000-00000000000a'
+     and m.key in ('trouble_bipolaire', 'trouble_personnalite_limite', 'trouble_personnalite_narcissique',
+                   'trouble_obsessionnel_compulsif', 'trouble_oppositionnel_provocation', 'trouble_conduites',
+                   'trouble_sommeil', 'trouble_spectre_autisme', 'troubles_alimentaires',
+                   'traumatisme_stress_post_traumatique', 'dysfonctions_sexuelle', 'transsexualite',
+                   'comportement_sexuels_abusif', 'difficultes_language', 'readaptation_professionnelle',
+                   'victime_agression_sexuelle', 'situations_crises', 'psychose', 'depression')
+   order by m.key
+$$, $$ values
+  ('comportement_sexuels_abusif'::text, 'Comportements sexuels abusifs'::text), ('depression', 'Dépression'),
+  ('difficultes_language', 'Difficultés de langage'), ('dysfonctions_sexuelle', 'Difficultés sexuelles'),
+  ('psychose', 'Psychose'), ('readaptation_professionnelle', 'Réadaptation professionnelle'),
+  ('situations_crises', 'Situations de crise'), ('transsexualite', 'Transidentité'),
+  ('traumatisme_stress_post_traumatique', 'Traumatisme et stress post-traumatique'),
+  ('trouble_bipolaire', 'Bipolarité'), ('trouble_conduites', 'Difficultés de conduite'),
+  ('trouble_obsessionnel_compulsif', 'Obsessions et compulsions (TOC)'),
+  ('trouble_oppositionnel_provocation', 'Opposition et provocation (TOP)'),
+  ('trouble_personnalite_limite', 'Personnalité limite (TPL)'),
+  ('trouble_personnalite_narcissique', 'Traits narcissiques'), ('trouble_sommeil', 'Difficultés de sommeil'),
+  ('trouble_spectre_autisme', 'Spectre de l''autisme (TSA)'), ('troubles_alimentaires', 'Relation à l''alimentation'),
+  ('victime_agression_sexuelle', 'Victime d''agression sexuelle') $$,
+  'P4-51: reworded motifs and fixed typos under their legacy keys; Psychose and Dépression kept');
+select results_eq($$
+  select c.key, c.description from public.motif_categories c
+   where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.key in ('inner_life', 'development', 'life_changes')
+   order by c.sort_order
+$$, $$ values ('inner_life'::text, 'Anxiété, dépression, estime de soi et bien-être émotionnel'::text),
+              ('development', 'Apprentissage, attention et développement'),
+              ('life_changes', 'Deuil, santé et transitions de vie') $$,
+  'P4-51: reworded category descriptions');
+select is_empty($$
+  select m.name from public.motifs m where m.org_id = 'b0000000-0000-0000-0000-00000000000a' and m.name ~* '\mtroubles?\M'
+  union all
+  select c.description from public.motif_categories c
+   where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.description ~* '\mtroubles?\M|sant[ée] mentale|maladies'
+$$, 'no seeded motif or category label speaks of « trouble », « santé mentale » or « maladies » (P4-51)');
 
 -- =============================================================================
 -- Idempotence and audit (as postgres)
@@ -276,6 +342,13 @@ select throws_ok($$
   select 'b0000000-0000-0000-0000-00000000000a', 'cross_org', 'Motif croisé', c.id
     from public.motif_categories c where c.org_id = 'b0000000-0000-0000-0000-00000000000b' and c.key = 'trauma'
 $$, '23503', null, 'a motif cannot point at another clinic''s category (composite FK, P4-40)');
+select throws_ok($$
+  insert into public.profession_titles (org_id, key, name, category_id, order_id)
+  select 'b0000000-0000-0000-0000-00000000000a', 'cross_org', 'Titre croisé', c.id, o.id
+    from public.profession_categories c, public.professional_orders o
+   where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.key = 'psychologie'
+     and o.org_id = 'b0000000-0000-0000-0000-00000000000b' and o.key = 'opq'
+$$, '23503', null, 'a title cannot point at another clinic''s order (composite FK, P4-40)');
 select throws_ok($$ insert into public.motifs (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'Bad Key', 'Clé invalide') $$,
   '23514', null, 'keys are ASCII snake_case');
 select throws_ok($$ insert into public.motifs (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'untrimmed', ' Espaces') $$,
@@ -291,6 +364,71 @@ select throws_ok($$ insert into public.languages (org_id, code, name) values ('b
 select throws_ok($$ insert into public.motifs (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'anxiete_bis', 'ANXIÉTÉ') $$,
   '23505', null, 'motif names are unique per clinic, ignoring case');
 
+-- Look-alike names and untidy labels
+select throws_ok($$ insert into public.motifs (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'anxiete_nfd', E'Anxie\u0301te\u0301') $$,
+  '23505', null, 'a decomposed « Anxiété » (e + combining acute) collides with the seeded one (NFKC)');
+select throws_ok($$ insert into public.specialties (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'emdr_wide', E'\uFF25\uFF2D\uFF24\uFF32') $$,
+  '23505', null, 'a full-width « ＥＭＤＲ » collides with the seeded EMDR (NFKC)');
+select throws_ok($$ insert into public.motifs (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'nbsp_end', E'Proche aidance\u00A0') $$,
+  '23514', null, 'a name ending with a no-break space is refused');
+select throws_ok($$ insert into public.languages (org_id, code, name) values ('b0000000-0000-0000-0000-00000000000a', 'de', E'\u3000Allemand') $$,
+  '23514', null, 'a name starting with an ideographic space is refused');
+select throws_ok($$ insert into public.motifs (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'zwsp', E'Anxi\u200Bété') $$,
+  '23514', null, 'a name holding a zero-width space is refused');
+select throws_ok($$ insert into public.clienteles (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'ctrl', E'Jeunes\tadultes') $$,
+  '23514', null, 'a name holding a control character is refused');
+select lives_ok($$ insert into public.motifs (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'proche_aidance', E'Proche\u00A0aidance') $$,
+  'a no-break space inside a name is allowed');
+select throws_ok($$ insert into public.motifs (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'proche_aidance_2', 'proche aidance') $$,
+  '23505', null, 'NFKC folds the inner no-break space: « proche aidance » is the same name');
+select throws_ok($$ insert into public.motif_categories (org_id, key, name, description) values ('b0000000-0000-0000-0000-00000000000a', 'desc_untrimmed', 'Description', 'Un texte ') $$,
+  '23514', null, 'a category description is trimmed');
+select throws_ok($$ insert into public.professional_orders (org_id, key, name, acronym, licence_pattern) values ('b0000000-0000-0000-0000-00000000000a', 'pattern_untrimmed', 'Ordre test', 'OT', ' ^[0-9]{5}$') $$,
+  '23514', null, 'a licence pattern is trimmed');
+select throws_ok($$ insert into public.professional_orders (org_id, key, name, acronym, licence_label) values ('b0000000-0000-0000-0000-00000000000a', 'label_untrimmed', 'Ordre test', 'OT', E'N° de permis\n') $$,
+  '23514', null, 'a licence label is trimmed');
+delete from public.motifs where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'proche_aidance';
+
+-- Frozen identity (key, code, org); everything else stays editable
+select throws_ok($$ update public.motifs set key = 'anxiete_2' where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'anxiete' $$,
+  '23514', null, 'a motif''s key never changes');
+select throws_ok($$ update public.languages set code = 'de' where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 'es' $$,
+  '23514', null, 'a language''s code never changes');
+select throws_ok($$ update public.profession_categories set org_id = 'b0000000-0000-0000-0000-00000000000b'
+                     where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'naturopathie' $$,
+  '23514', null, 'a row never moves to another clinic');
+select lives_ok($$ update public.motifs set name = 'Insomnie et réveils', sort_order = 445
+                    where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'insomnie' $$,
+  'a motif''s name and order still change');
+
+-- Reseeding onto rows that hold a seeded name under another key: the seed adds no copy and attaches
+-- its titles and motifs to them. Org A loses the « nutrition » category (and its title) and the
+-- « life_changes » category (and its 2 motifs), then holds « NUTRITION » and « Changements de vie »
+-- under other keys.
+delete from public.profession_titles where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'nutritionniste';
+delete from public.profession_categories where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'nutrition';
+delete from public.motifs where org_id = 'b0000000-0000-0000-0000-00000000000a' and key in ('deuil', 'maladies_degeneratives');
+delete from public.motif_categories where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'life_changes';
+insert into public.profession_categories (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'nutrition_clinique', 'NUTRITION');
+insert into public.motif_categories (org_id, key, name) values ('b0000000-0000-0000-0000-00000000000a', 'transitions', 'Changements de vie');
+select lives_ok($$ select private.seed_professionals_reference('b0000000-0000-0000-0000-00000000000a') $$,
+  'reseeding org A with seeded names held under other keys runs');
+select results_eq($$
+  select 'title'::text, t.key, c.key from public.profession_titles t join public.profession_categories c on c.id = t.category_id
+   where t.org_id = 'b0000000-0000-0000-0000-00000000000a' and t.key = 'nutritionniste'
+  union all
+  select 'motif', m.key, c.key from public.motifs m join public.motif_categories c on c.id = m.category_id
+   where m.org_id = 'b0000000-0000-0000-0000-00000000000a' and m.key in ('deuil', 'maladies_degeneratives')
+  order by 1 desc, 2
+$$, $$ values ('title'::text, 'nutritionniste'::text, 'nutrition_clinique'::text),
+              ('motif', 'deuil', 'transitions'), ('motif', 'maladies_degeneratives', 'transitions') $$,
+  'the re-added title and motifs attach to the rows holding the seeded names');
+select is_empty($$
+  select c.key from public.profession_categories c where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.key = 'nutrition'
+  union all
+  select c.key from public.motif_categories c where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.key = 'life_changes'
+$$, 'no copy of a category whose name is taken is added');
+
 -- =============================================================================
 -- Read access (RLS): staff and providers of the org, module gate
 -- =============================================================================
@@ -301,18 +439,24 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select is((select count(*)::int from public.motifs), 72, 'the conseillère reads the 72 motifs of org A');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is((select count(*)::int from public.motifs), 72, 'the provider reads the 72 motifs of org A (professionals.self)');
-select results_eq($$
-  select (select count(*) from public.professional_orders)::int, (select count(*) from public.profession_categories)::int,
-         (select count(*) from public.profession_titles)::int, (select count(*) from public.clienteles)::int,
-         (select count(*) from public.specialties)::int, (select count(*) from public.motif_categories)::int,
-         (select count(*) from public.languages)::int, (select count(*) from public.deactivation_reasons)::int
-$$, $$ values (6, 9, 9, 7, 10, 8, 3, 4) $$, 'the provider reads every list of org A');
+select results_eq(current_setting('test.list_counts'), $$ values (6, 9, 9, 7, 10, 8, 72, 3, 4) $$,
+  'the provider reads every list of org A');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000007","role":"authenticated"}', true);
+select results_eq(current_setting('test.list_counts'), $$ values (6, 9, 9, 7, 10, 8, 72, 3, 4) $$,
+  'S, holding only professionals.settings (override, no view), reads every list');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+select results_eq(current_setting('test.list_counts'), $$ values (0, 0, 0, 0, 0, 0, 0, 0, 0) $$,
+  'K, module on but no professionals key (neither view nor self), reads no list');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000008","role":"authenticated"}', true);
+select results_eq(current_setting('test.list_counts'), $$ values (0, 0, 0, 0, 0, 0, 0, 0, 0) $$,
+  'a disabled admin reads no list');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select results_eq($$ select org_id, count(*)::int from public.motifs group by org_id $$,
   $$ values ('b0000000-0000-0000-0000-00000000000b'::uuid, 72) $$, 'admin B reads only org B''s motifs');
 select lives_ok($$ select public.set_module_enabled('professionals', false) $$, 'admin B disables professionals');
-select is((select count(*)::int from public.motifs), 0, 'with the module off, admin B reads no motif (module gate)');
+select results_eq(current_setting('test.list_counts'), $$ values (0, 0, 0, 0, 0, 0, 0, 0, 0) $$,
+  'with the module off, admin B reads none of the 9 lists (module gate)');
 
 select * from finish();
 rollback;

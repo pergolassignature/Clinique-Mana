@@ -86,6 +86,7 @@ Jonathan, 2026-10-08: « You will go on without asking me questions you have pha
 | P4-48 | **Phase 4 edge functions follow Phase 3's shape:** `handler.ts` (all logic, `createHandler(deps)`) + `index.ts` (wiring); database access only through `client.rpc(…)` and `client.storage`; tests with `_shared/testing/` fakes; errors reported through `_shared/report.ts` (ids and codes only, P3-29); error codes from P3-28. | Testable without a server; no raw table reads from functions. |
 | P4-49 | **No module storage policy.** File access is the one core read policy on `stored_files.view_permission` (Task 3.24); a professional's own files use the owner branch (`owner_profile_id` + `owner_permission = 'professionals.self'`). `private.current_professional_id()` is never called from a storage policy. Phase 4 lists files through its own rows (`professional_documents.stored_file_id`, the submission's staged files), **never through `stored_files.subject_id`**: on a file no module RPC has attached, the subject is client-supplied and untrusted (Task 3.24 review). | Phase 3 inconsistency 12: one policy, ownership expressed in the row. |
 | P4-50 | **Professionnels-owned email templates** (seeded by this module's migrations, keys `professionals.*`): `invite`, `invite_reminder`, `profile_update`, `submission_received`, `document_rejected`, `document_expiring`, `document_expired` (expiry day) and `document_expired_reminder` (weekly after expiry), and `fiche` (`recipient_mode = 'free'`, `allows_attachments = true`). | Phase 3 inconsistency 5: these keys belong to the module. |
+| P4-51 | **Non-clinical seeded labels** (delegated, 2026-10-08, revisable). Motif names say what people live, not a diagnosis: Trouble bipolaire → Bipolarité; Trouble de personnalité limite (TPL) → Personnalité limite (TPL); Trouble de personnalité narcissique (TPN) → Traits narcissiques; Trouble obsessionnel-compulsif (TOC) → Obsessions et compulsions (TOC); Trouble oppositionnel avec provocation (TOP) → Opposition et provocation (TOP); Trouble des conduites → Difficultés de conduite; Trouble du sommeil → Difficultés de sommeil; Trouble du spectre de l'autisme → Spectre de l'autisme (TSA); Troubles alimentaires → Relation à l'alimentation; Traumatisme et Trouble de stress post-traumatique (TSPT) → Traumatisme et stress post-traumatique; Dysfonctions sexuelle → Difficultés sexuelles; Transsexualité → Transidentité. Category descriptions: « Apprentissage, attention et développement », « Anxiété, dépression, estime de soi et bien-être émotionnel », « Deuil, santé et transitions de vie ». Legacy typos fixed: Comportements sexuels abusifs, Difficultés de langage, Réadaptation professionnelle, Victime d'agression sexuelle, Situations de crise. **Psychose** and **Dépression** stay. Keys are unchanged; sort orders follow the new names. | CLAUDE.md: « motifs are orientation tags, not diagnoses ». Psychose and Dépression are the everyday words clients use to say what they live, not formal diagnoses, and no plainer word says the same thing. Keys are unchanged, so the import (4a.19) maps legacy rows as before; each clinic can still rename any label. |
 
 ---
 
@@ -444,7 +445,7 @@ create table public.motif_categories (
   constraint motif_categories_org_id_key_key unique (org_id, key),
   constraint motif_categories_org_id_id_key unique (org_id, id)
 );
-create unique index motif_categories_org_name_key on public.motif_categories (org_id, lower(name));
+create unique index motif_categories_org_name_key on public.motif_categories (org_id, lower(normalize(name, NFKC)));
 create index motif_categories_org_sort_idx on public.motif_categories (org_id, sort_order);
 
 create table public.motifs (
@@ -465,7 +466,7 @@ create table public.motifs (
   constraint motifs_org_id_id_key unique (org_id, id),
   constraint motifs_category_fkey foreign key (org_id, category_id) references public.motif_categories (org_id, id)
 );
-create unique index motifs_org_name_key on public.motifs (org_id, lower(name));
+create unique index motifs_org_name_key on public.motifs (org_id, lower(normalize(name, NFKC)));
 create index motifs_org_category_idx on public.motifs (org_id, category_id);
 create index motifs_org_sort_idx on public.motifs (org_id, sort_order);
 
@@ -492,7 +493,7 @@ create trigger motifs_audit after insert or update or delete on public.motifs
   for each row execute function private.audit_trigger();
 ```
 
-**The seven other lists** (common columns: `id, org_id, key, name, is_system, sort_order, is_active, created_at, updated_at`, the same key/name checks, `unique (org_id, key)`, `unique (org_id, id)`, `unique (org_id, lower(name))`, `(org_id, sort_order)` index, grants, policy, triggers):
+**The seven other lists** (common columns: `id, org_id, key, name, is_system, sort_order, is_active, created_at, updated_at`, the same key/name checks, `unique (org_id, key)`, `unique (org_id, id)`, `unique (org_id, lower(normalize(name, NFKC)))`, `(org_id, sort_order)` index, grants, policy, triggers):
 
 | Table | Extra columns and checks |
 |---|---|
@@ -615,6 +616,8 @@ revoke all on function private.seed_professionals_reference(uuid), private.seed_
 select private.seed_professionals_reference(o.id) from public.organizations o;
 ```
 
+**Review follow-ups (applied in the migration, which is the reference where this sketch differs):** names, licence labels and patterns and descriptions use `char_length(…) between 1 and N and private.is_tidy_text(…)` (no leading or trailing Unicode whitespace, no control or invisible character: the classes of `valid_role_name` / `roles_name_no_control_chars`); the 9 name indexes are `(org_id, lower(normalize(name, NFKC)))` like `roles_org_id_name_key`; one `before update` trigger function, `private.freeze_reference_identity()`, refuses changes to `key` / `code` / `org_id` on the 9 tables; `can_read_professionals_reference()` is true for any of the 8 professionals keys (view, every staff key a person may hold by override, and self); the seed matches a row holding a seeded name under another key instead of adding a copy, and attaches titles and motifs to it; seeded labels follow P4-51.
+
 **Step 4: Run the database checks** (inside the lock): `npm run db:reset && npm run db:test && npm run db:types`, then `supabase db reset --no-seed && supabase test db`. Expected: all green, `000_invariants` included (every new table has `org_id`, RLS, an audit trigger and indexed FKs). Check the local seed org was seeded:
 ```bash
 psql "postgresql://postgres:postgres@127.0.0.1:55322/postgres" -c "select count(*) from public.motifs"
@@ -678,7 +681,7 @@ revoke all on function private.reference_key(text) from public, anon, authentica
 ```
 Check in the test that `unaccent` maps « œ » to « oe »; if it does not, add `replace(p_name, 'œ', 'oe')` before `unaccent`.
 
-**`save_motif`** (the representative save RPC; the others follow it):
+**`save_motif`** (the representative save RPC; the others follow it). Names follow 4a.1's checks (review follow-up): strip Unicode whitespace at both ends and refuse control or invisible characters with a French `P0001` before the insert (same classes as `valid_role_name` and `private.is_tidy_text`), and compare names as `lower(normalize(…, NFKC))` like the unique indexes:
 
 ```sql
 create function public.save_motif(p_id uuid, p_name text, p_category_id uuid, p_is_restricted boolean)
@@ -712,7 +715,9 @@ begin
 
   if exists (
     select 1 from public.motifs m
-     where m.org_id = v_org and pg_catalog.lower(m.name) = pg_catalog.lower(v_name) and m.id is distinct from p_id
+     where m.org_id = v_org
+       and pg_catalog.lower(pg_catalog.normalize(m.name, 'NFKC')) = pg_catalog.lower(pg_catalog.normalize(v_name, 'NFKC'))
+       and m.id is distinct from p_id
   ) then
     raise exception 'Un motif porte déjà ce nom (il est peut-être archivé).' using errcode = 'P0001';
   end if;

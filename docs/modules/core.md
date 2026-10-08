@@ -156,6 +156,13 @@ Defaults of the template (`role_permissions`), copied into each clinic; a clinic
 | `modules.manage` | core | ✓ | | | |
 | `audit.view` | core | ✓ | | | |
 | `professionals.view` | professionals | ✓ | ✓ | ✓ | |
+| `professionals.manage` | professionals | ✓ | | ✓ | |
+| `professionals.matching` | professionals | ✓ | ✓ | ✓ | |
+| `professionals.activate_override` | professionals | ✓ | | | |
+| `professionals.settings` | professionals | ✓ | | | |
+| `professionals.compensation` | professionals | ✓ | | | |
+| `professionals.private` | professionals | ✓ | | | |
+| `professionals.self` | professionals | ✓ | | | ✓ |
 
 Per-user grants and revokes live in `user_permission_overrides`. Module keys may not equal a core prefix (`settings`, `users`, `roles`, `modules`, `audit`). Role labels shown in the app come from i18n (`roles.<key>`) for base roles and from `roles.name` for custom ones (`useRoleLabel`).
 

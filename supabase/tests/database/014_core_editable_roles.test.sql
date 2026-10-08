@@ -249,9 +249,11 @@ select throws_ok($$ select public.create_role(repeat('x', 61)) $$,
   'P0001', 'Le nom du rôle ne peut pas dépasser 60 caractères.', 'a name over 60 characters is refused');
 select matches(public.create_role('Copie adjointe', 'admin_assistant'), '^custom_[0-9a-f]{8}$', 'create_role copies another role');
 select set_config('test.k2', (select key from public.roles where name = 'Copie adjointe'), true);
-select results_eq($$ select permission_key from public.org_role_permissions where role = current_setting('test.k2') order by 1 $$,
-  array['professionals.manage', 'professionals.matching', 'professionals.view', 'settings.view'],
-  'the copy starts with the adjointe''s permissions');
+-- Core keys plus professionals.view, so later module defaults (Phase 4) leave these checks alone.
+select results_eq($$ select rp.permission_key from public.org_role_permissions rp join public.permissions pm on pm.key = rp.permission_key
+                      where rp.role = current_setting('test.k2') and (pm.module_key = 'core' or pm.key = 'professionals.view') order by 1 $$,
+  array['professionals.view', 'settings.view'],
+  'the copy starts with the adjointe''s permissions (core keys and professionals.view)');
 -- Look-alike names
 select throws_ok($$ select public.create_role(E'Copie adjointe\u00A0') $$,
   'P0001', 'Un rôle porte déjà ce nom.', 'a no-break space at the end is stripped: same name');
@@ -342,14 +344,16 @@ select lives_ok($$ select public.set_role_permission('counselor', 'professionals
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select ok(private.has_permission('settings.view'), 'has_permission follows the org change at once (grant)');
 select ok(not private.has_permission('professionals.view'), 'has_permission follows the org change at once (removal)');
-select is(public.get_my_access() -> 'permissions', '["professionals.matching", "settings.view"]'::jsonb,
-  'get_my_access reads the org''s defaults');
+select is((select coalesce(jsonb_agg(k order by k), '[]') from jsonb_array_elements_text(public.get_my_access() -> 'permissions') k
+            join public.permissions pm on pm.key = k where pm.module_key = 'core' or pm.key = 'professionals.view'),
+  '["settings.view"]'::jsonb, 'get_my_access reads the orgs defaults (core keys and professionals.view)');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000008","role":"authenticated"}', true);
 select ok(not private.has_permission('settings.view'), 'org B''s counselors are unaffected');
 reset role;
-select results_eq($$ select permission_key from public.role_permissions where role = 'counselor' order by 1 $$,
-  array['professionals.matching', 'professionals.view'], 'the template is unaffected');
+select results_eq($$ select rp.permission_key from public.role_permissions rp join public.permissions pm on pm.key = rp.permission_key
+                      where rp.role = 'counselor' and (pm.module_key = 'core' or pm.key = 'professionals.view') order by 1 $$,
+  array['professionals.view'], 'the template is unaffected (core keys and professionals.view)');
 set local role authenticated;
 
 -- =============================================================================
