@@ -45,7 +45,7 @@ export interface ReferenceGroup {
   /** Same id = same group. */
   id: string
   label: string
-  /** Groups show in ascending order; `Infinity` (« Autres ») goes last. Equal orders keep their first appearance. */
+  /** Groups show in ascending order; `Infinity` (« Sans catégorie ») goes last. Equal orders keep their first appearance. */
   order: number
 }
 
@@ -169,7 +169,7 @@ interface RowGroup<K extends ReferenceKind> {
   rows: ReferenceRow<K>[]
 }
 
-/** The rows shown, split by `groupBy` (groups in `order`, « Autres » last), or one unnamed group. */
+/** The rows shown, split by `groupBy` (groups in `order`, « Sans catégorie » last), or one unnamed group. */
 function groupRows<K extends ReferenceKind>(rows: readonly ReferenceRow<K>[], groupBy?: (row: ReferenceRow<K>) => ReferenceGroup): RowGroup<K>[] {
   if (!groupBy) return [{ group: null, rows: [...rows] }]
   const groups = new Map<string, RowGroup<K>>()

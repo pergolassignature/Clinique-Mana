@@ -62,7 +62,7 @@ export function agesLabel({ minAge, maxAge }: AgeBounds): string {
 }
 
 /**
- * « Enfants (0 à 12 ans) », « Aînés (65 ans et plus) », « Couples » (not an age group: the name alone).
+ * « Enfants (0 à 12 ans) », « Adultes (18 ans et plus) », « Couples » (not an age group: the name alone).
  * Inside the brackets the ages run on from the name, so they start lower-case: « Nourrissons (moins
  * de 1 an) », « Individus (tous les âges) ».
  */
@@ -70,6 +70,19 @@ export function clienteleLabel(c: { name: string } & AgeBounds): string {
   if (c.minAge === null) return c.name
   const ages = agesLabel(c)
   return t('modules.professionals.display.withAges', { name: c.name, ages: ages.charAt(0).toLocaleLowerCase('fr-CA') + ages.slice(1) })
+}
+
+/**
+ * « Adolescents (14 ans et +) »: a held age group from the professional's youngest client age, in
+ * the website's words (P4-245).
+ */
+export function minAgeClienteleLabel(name: string, minClientAge: number): string {
+  return t('modules.professionals.display.withMinAge', { name, age: String(minClientAge), unit: years(minClientAge) })
+}
+
+/** « Âge minimum : 14 ans ». */
+export function minClientAgeLabel(minClientAge: number): string {
+  return t('modules.professionals.display.minClientAge', { age: String(minClientAge), unit: years(minClientAge) })
 }
 
 /** « FR · EN »: the codes of the held languages, in the catalogue's order. Unknown ids are skipped. */

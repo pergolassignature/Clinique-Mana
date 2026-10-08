@@ -65,11 +65,11 @@ test('the adjointe creates, matches and activates a professional, who is then fo
   await expect(page.getByRole('heading', { level: 1, name: fullName })).toBeVisible()
   await expect(page.getByText('Complétez le profil de jumelage.')).toBeVisible()
 
-  // Jumelage: two clientèles (Adolescents ★), three motifs, English.
+  // Jumelage: two clientèles (Adolescents ★) from 14 years old, three motifs, English. No approaches (P4-240).
   await openTab(page, 'Jumelage')
   let sheet = await openPicker(page, 'Modifier les clientèles')
   await sheet.getByRole('checkbox', { name: 'Adolescents (13 à 17 ans)' }).click()
-  await sheet.getByRole('checkbox', { name: 'Adultes (18 à 64 ans)' }).click()
+  await sheet.getByRole('checkbox', { name: 'Adultes (18 ans et plus)' }).click()
   await sheet
     .getByRole('listitem')
     .filter({ hasText: 'Adolescents (13 à 17 ans)' })
@@ -79,15 +79,25 @@ test('the adjointe creates, matches and activates a professional, who is then fo
 
   sheet = await openPicker(page, 'Modifier les motifs')
   for (const motif of ['Anxiété', 'Deuil', 'Estime de soi']) await tickMotif(sheet, motif)
-  await expect(sheet.getByText('Sélection : 3 sur 72')).toBeVisible()
+  await expect(sheet.getByText('Sélection : 3 sur 124')).toBeVisible()
   await savePicker(sheet)
+  // Every held motif by name, under its category's title (P4-249).
+  const motifs = page.getByRole('region', { name: 'Motifs' })
+  for (const name of ['Santé mentale / Troubles psychologiques', 'Anxiété', 'Estime de soi', 'Autres', 'Deuil']) {
+    await expect(motifs.getByText(name, { exact: true })).toBeVisible()
+  }
+  await expect(page.getByRole('heading', { name: 'Approches' })).toHaveCount(0)
+
+  // Limites de clientèle (P4-245): the youngest client age reads on the youngest age group.
+  const limits = page.locator('form').filter({ has: page.getByRole('heading', { name: 'Limites de clientèle' }) })
+  await limits.getByRole('textbox', { name: 'Âge minimum des clients' }).fill('14')
+  await limits.getByRole('button', { name: 'Enregistrer' }).click()
+  await expect(page.getByRole('region', { name: 'Clientèles' }).getByText('Adolescents (14 ans et +)')).toBeVisible()
 
   sheet = await openPicker(page, 'Modifier les langues')
   await sheet.getByRole('checkbox', { name: 'Anglais' }).click()
   await savePicker(sheet)
 
-  const clienteles = page.getByRole('region', { name: 'Clientèles' })
-  await expect(clienteles.getByText('Adolescents (13 à 17 ans)')).toBeVisible()
   await expect(page.getByRole('region', { name: 'Langues' }).getByText('Anglais')).toBeVisible()
 
   // Aperçu: ready to activate → « Activer » → Actif.
@@ -136,18 +146,18 @@ test('the conseillère cannot add, edits motifs, and reads Identité et permis o
   await expect(page.getByRole('link', { name: /Étienne Fortin/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Ajouter' })).toHaveCount(0)
 
-  // Étienne Fortin (seed 07): add « Insomnie » to his motifs, then put it back as it was.
+  // Étienne Fortin (seed 07): add « Phobies » to his motifs, then put it back as it was.
   await page.goto('/professionnels/5eed0000-0000-0000-0000-000000000007/jumelage')
   await expect(page.getByRole('heading', { level: 1, name: 'Étienne Fortin' })).toBeVisible()
   let sheet = await openPicker(page, 'Modifier les motifs')
-  await tickMotif(sheet, 'Insomnie')
+  await tickMotif(sheet, 'Phobies')
   await savePicker(sheet)
   await expect(page.getByText('Modifications enregistrées.')).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Motifs' }).getByText('Insomnie')).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Motifs' }).getByText('Phobies')).toBeVisible()
   sheet = await openPicker(page, 'Modifier les motifs')
-  await tickMotif(sheet, 'Insomnie')
+  await tickMotif(sheet, 'Phobies')
   await savePicker(sheet)
-  await expect(page.getByRole('region', { name: 'Motifs' }).getByText('Insomnie')).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Motifs' }).getByText('Phobies')).toHaveCount(0)
 
   // Identité et permis: one read-only notice, fields read-only, nothing to save.
   await openTab(page, 'Identité et permis')

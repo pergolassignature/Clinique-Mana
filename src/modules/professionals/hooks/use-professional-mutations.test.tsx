@@ -12,7 +12,6 @@ import {
   useSetPayerNumber,
   useSetProfessionalEmail,
   useSetProfessions,
-  useSetSpecialties,
   useUpdateMatchingProfile,
   useUpdateProfessional,
   useUpdatePublicProfile,
@@ -31,7 +30,6 @@ const mocks = vi.hoisted(() => ({
     updateMatchingProfile: vi.fn(),
     setProfessions: vi.fn(),
     setClienteles: vi.fn(),
-    setSpecialties: vi.fn(),
     setMotifs: vi.fn(),
     setLanguages: vi.fn(),
     setPayerNumber: vi.fn(),
@@ -78,7 +76,7 @@ describe('set mutations: write the returned set, then refresh only what it touch
     expect(mocks.toast.success).toHaveBeenCalledWith(SAVED)
   })
 
-  it('useSetLanguages, useSetClienteles, useSetSpecialties, useSetProfessions', async () => {
+  it('useSetLanguages, useSetClienteles, useSetProfessions', async () => {
     const { wrapper, cached } = setup()
     mocks.api.setLanguages.mockResolvedValue([IDS.fr, IDS.en])
     await run(() => useSetLanguages(), { id: ID, languageIds: [IDS.fr, IDS.en] }, wrapper)
@@ -88,10 +86,6 @@ describe('set mutations: write the returned set, then refresh only what it touch
     await run(() => useSetClienteles(), { id: ID, items: [{ id: IDS.children, specialized: false }] }, wrapper)
     expect(mocks.api.setClienteles).toHaveBeenCalledWith(ID, [{ id: IDS.children, specialized: false }])
     expect(cached()?.clienteles).toEqual([{ id: IDS.children, specialized: false }])
-
-    mocks.api.setSpecialties.mockResolvedValue([{ id: IDS.cbt, specialized: true }])
-    await run(() => useSetSpecialties(), { id: ID, items: [{ id: IDS.cbt, specialized: true }] }, wrapper)
-    expect(cached()?.specialties).toEqual([{ id: IDS.cbt, specialized: true }])
 
     const rows = [{ id: 'r2', titleId: IDS.naturopathe, licenceNumber: null, isPrimary: true }]
     mocks.api.setProfessions.mockResolvedValue(rows)

@@ -202,22 +202,30 @@ create table public.professional_matching_profiles (
   org_id uuid not null,
   accepting_new_clients boolean not null default true,
   -- General periods until Rendez-vous brings slots (P4-4); same values as a demande's preferences.
+  -- end_of_day: « Fin de journée » (« FDJ » at the clinic), between the afternoon and the evening (P4-250).
   availability_periods text[] not null default '{}',
   availability_note text,
+  -- Who the professional sees, beyond the clientèles (P4-245): the youngest client age they take
+  -- (the website's « Enfants (8+) », « Adolescents (14+) »), and clients who are women only (« Femmes
+  -- exclusivement »). Matching applies both as hard filters (docs/modules/professionals.md).
+  min_client_age smallint,
+  women_only boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint professional_matching_profiles_professional_fkey foreign key (org_id, professional_id)
     references public.professionals (org_id, id) on delete cascade,
   constraint professional_matching_profiles_availability_periods_check check (
-    availability_periods <@ array['am', 'pm', 'evening', 'weekend'] and private.has_no_duplicates(availability_periods)),
-  constraint professional_matching_profiles_availability_note_check check (char_length(availability_note) <= 500 and btrim(availability_note, E' \t\r\n') <> '')
+    availability_periods <@ array['am', 'pm', 'end_of_day', 'evening', 'weekend'] and private.has_no_duplicates(availability_periods)),
+  constraint professional_matching_profiles_availability_note_check check (char_length(availability_note) <= 500 and btrim(availability_note, E' \t\r\n') <> ''),
+  constraint professional_matching_profiles_min_client_age_check check (min_client_age between 0 and 120)
 );
 create index professional_matching_profiles_org_idx on public.professional_matching_profiles (org_id);
 
 revoke all on public.professional_public_profiles, public.professional_matching_profiles from anon, authenticated;
 grant select on public.professional_public_profiles, public.professional_matching_profiles to authenticated;
 grant update (bio, approach, public_email, public_phone) on public.professional_public_profiles to authenticated;
-grant update (accepting_new_clients, availability_periods, availability_note) on public.professional_matching_profiles to authenticated;
+grant update (accepting_new_clients, availability_periods, availability_note, min_client_age, women_only)
+  on public.professional_matching_profiles to authenticated;
 alter table public.professional_public_profiles enable row level security;
 alter table public.professional_matching_profiles enable row level security;
 
@@ -364,19 +372,6 @@ create table public.professional_clienteles (
   constraint professional_clienteles_clientele_fkey foreign key (org_id, clientele_id) references public.clienteles (org_id, id)
 );
 
-create table public.professional_specialties (
-  org_id uuid not null,
-  professional_id uuid not null,
-  specialty_id uuid not null,
-  is_specialized boolean not null default false,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint professional_specialties_pkey primary key (professional_id, specialty_id),
-  constraint professional_specialties_professional_fkey foreign key (org_id, professional_id)
-    references public.professionals (org_id, id) on delete cascade,
-  constraint professional_specialties_specialty_fkey foreign key (org_id, specialty_id) references public.specialties (org_id, id)
-);
-
 create table public.professional_motifs (
   org_id uuid not null,
   professional_id uuid not null,
@@ -417,22 +412,20 @@ create table public.professional_payer_numbers (
 );
 
 -- Leading org_id: serve the composite FKs, RLS, the usage counts and the matching lookups
--- (« who holds this motif / clientèle / approach / language ») with the professional's id from the
+-- (« who holds this motif / clientèle / language ») with the professional's id from the
 -- index; the primary keys serve « this professional's set ».
 create index professional_clienteles_org_clientele_idx on public.professional_clienteles (org_id, clientele_id) include (professional_id);
-create index professional_specialties_org_specialty_idx on public.professional_specialties (org_id, specialty_id) include (professional_id);
 create index professional_motifs_org_motif_idx on public.professional_motifs (org_id, motif_id) include (professional_id);
 create index professional_languages_org_language_idx on public.professional_languages (org_id, language_id) include (professional_id);
 
-revoke all on public.professional_professions, public.professional_clienteles, public.professional_specialties,
+revoke all on public.professional_professions, public.professional_clienteles,
               public.professional_motifs, public.professional_languages, public.professional_payer_numbers
   from anon, authenticated;
-grant select on public.professional_professions, public.professional_clienteles, public.professional_specialties,
+grant select on public.professional_professions, public.professional_clienteles,
                 public.professional_motifs, public.professional_languages, public.professional_payer_numbers
   to authenticated;
 alter table public.professional_professions enable row level security;
 alter table public.professional_clienteles enable row level security;
-alter table public.professional_specialties enable row level security;
 alter table public.professional_motifs enable row level security;
 alter table public.professional_languages enable row level security;
 alter table public.professional_payer_numbers enable row level security;
@@ -447,12 +440,6 @@ create policy professional_clienteles_select_staff on public.professional_client
   for select to authenticated
   using (org_id = (select private.current_user_org_id()) and (select private.has_permission('professionals.view')));
 create policy professional_clienteles_select_self on public.professional_clienteles
-  for select to authenticated
-  using (professional_id = (select private.current_professional_id()) and (select private.has_permission('professionals.self')));
-create policy professional_specialties_select_staff on public.professional_specialties
-  for select to authenticated
-  using (org_id = (select private.current_user_org_id()) and (select private.has_permission('professionals.view')));
-create policy professional_specialties_select_self on public.professional_specialties
   for select to authenticated
   using (professional_id = (select private.current_professional_id()) and (select private.has_permission('professionals.self')));
 create policy professional_motifs_select_staff on public.professional_motifs
@@ -481,10 +468,6 @@ create trigger professional_professions_audit after insert or update or delete o
 create trigger professional_clienteles_set_updated_at before update on public.professional_clienteles
   for each row execute function private.set_updated_at();
 create trigger professional_clienteles_audit after insert or update or delete on public.professional_clienteles
-  for each row execute function private.audit_trigger();
-create trigger professional_specialties_set_updated_at before update on public.professional_specialties
-  for each row execute function private.set_updated_at();
-create trigger professional_specialties_audit after insert or update or delete on public.professional_specialties
   for each row execute function private.audit_trigger();
 create trigger professional_motifs_audit after insert or update or delete on public.professional_motifs
   for each row execute function private.audit_trigger();
@@ -869,63 +852,6 @@ begin
 end;
 $$;
 
-create function public.set_professional_specialties(p_id uuid, p_items jsonb)
-returns table (specialty_id uuid, is_specialized boolean)
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_org uuid := private.current_user_org_id();
-  v_ids uuid[];
-  v_flags boolean[];
-  v_bad text;
-  v_rows int;
-  v_n int;
-begin
-  if not private.has_permission('professionals.matching') then
-    raise exception 'Permission refusée : professionals.matching' using errcode = '42501';
-  end if;
-  select x.ids, x.flags into v_ids, v_flags from private.parse_specialized_items(p_items) x;
-  perform private.lock_professional(p_id);
-
-  if exists (select 1 from pg_catalog.unnest(v_ids) as x(id)
-              where not exists (select 1 from public.specialties s where s.org_id = v_org and s.id = x.id)) then
-    raise exception 'Approche inconnue.' using errcode = '22023';
-  end if;
-  select s.name into v_bad
-    from pg_catalog.unnest(v_ids) as x(id)
-    join public.specialties s on s.org_id = v_org and s.id = x.id
-   where not s.is_active
-     and not exists (select 1 from public.professional_specialties ps where ps.professional_id = p_id and ps.specialty_id = x.id)
-   order by s.sort_order, s.name
-   limit 1;
-  if v_bad is not null then
-    raise exception 'L''approche « % » est archivée.', v_bad using errcode = 'P0001';
-  end if;
-
-  delete from public.professional_specialties ps where ps.professional_id = p_id and ps.specialty_id <> all (v_ids);
-  get diagnostics v_rows = row_count;
-  update public.professional_specialties ps set is_specialized = x.flag
-    from unnest(v_ids, v_flags) as x(id, flag)
-   where ps.professional_id = p_id and ps.specialty_id = x.id and ps.is_specialized <> x.flag;
-  get diagnostics v_n = row_count;
-  v_rows := v_rows + v_n;
-  insert into public.professional_specialties (org_id, professional_id, specialty_id, is_specialized)
-  select v_org, p_id, x.id, x.flag from unnest(v_ids, v_flags) as x(id, flag)
-  on conflict do nothing;
-  get diagnostics v_n = row_count;
-  v_rows := v_rows + v_n;
-  if v_rows > 0 then
-    update public.professionals p set updated_at = pg_catalog.now() where p.id = p_id;
-  end if;
-
-  return query select ps.specialty_id, ps.is_specialized from public.professional_specialties ps
-                where ps.professional_id = p_id order by ps.specialty_id;
-end;
-$$;
-
 create function public.set_professional_languages(p_id uuid, p_language_ids uuid[])
 returns setof uuid
 language plpgsql
@@ -1172,9 +1098,6 @@ begin
     select 'clienteles', x.clientele_id, count(*)::int
       from public.professional_clienteles x where x.org_id = v_org group by x.clientele_id
     union all
-    select 'specialties', x.specialty_id, count(*)::int
-      from public.professional_specialties x where x.org_id = v_org group by x.specialty_id
-    union all
     select 'languages', x.language_id, count(*)::int
       from public.professional_languages x where x.org_id = v_org group by x.language_id
     union all
@@ -1205,7 +1128,6 @@ revoke all on function
   public.set_professional_email(uuid, text),
   public.set_professional_professions(uuid, jsonb),
   public.set_professional_clienteles(uuid, jsonb),
-  public.set_professional_specialties(uuid, jsonb),
   public.set_professional_motifs(uuid, uuid[]),
   public.set_professional_languages(uuid, uuid[]),
   public.set_professional_payer_number(uuid, text, text),
@@ -1216,7 +1138,6 @@ grant execute on function
   public.set_professional_email(uuid, text),
   public.set_professional_professions(uuid, jsonb),
   public.set_professional_clienteles(uuid, jsonb),
-  public.set_professional_specialties(uuid, jsonb),
   public.set_professional_motifs(uuid, uuid[]),
   public.set_professional_languages(uuid, uuid[]),
   public.set_professional_payer_number(uuid, text, text),

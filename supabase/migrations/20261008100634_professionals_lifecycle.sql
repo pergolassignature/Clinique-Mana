@@ -383,7 +383,6 @@ select p.id, p.org_id, p.first_name, p.last_name, p.email, p.status, p.status_ch
        pp.licence_number                     as primary_licence_number,
        coalesce(l.ids, '{}')                 as language_ids,
        coalesce(c.ids, '{}')                 as clientele_ids,
-       coalesce(s.ids, '{}')                 as specialty_ids,
        coalesce(m.ids, '{}')                 as motif_ids,
        mp.accepting_new_clients,
        r.matching_complete,
@@ -398,8 +397,6 @@ select p.id, p.org_id, p.first_name, p.last_name, p.email, p.status, p.status_ch
                from public.professional_languages x group by x.professional_id) l on l.professional_id = p.id
   left join (select x.professional_id, array_agg(x.clientele_id order by x.clientele_id) as ids
                from public.professional_clienteles x group by x.professional_id) c on c.professional_id = p.id
-  left join (select x.professional_id, array_agg(x.specialty_id order by x.specialty_id) as ids
-               from public.professional_specialties x group by x.professional_id) s on s.professional_id = p.id
   left join (select x.professional_id, array_agg(x.motif_id order by x.motif_id) as ids
                from public.professional_motifs x group by x.professional_id) m on m.professional_id = p.id
  where (select private.has_permission('professionals.view'));
@@ -415,6 +412,8 @@ create view public.professionals_directory with (security_invoker = true) as
 select p.id, p.org_id, p.status,
        mp.accepting_new_clients,
        mp.availability_periods,
+       mp.min_client_age,
+       mp.women_only,
        p.first_name || ' ' || p.last_name    as display_name,
        pp.profession_title_id                as primary_title_id,
        pt.key                                as primary_title_key,
@@ -425,7 +424,6 @@ select p.id, p.org_id, p.status,
        coalesce(pr.items, '[]')              as professions,
        coalesce(l.codes, '{}')               as language_codes,
        coalesce(c.items, '[]')               as clienteles,
-       coalesce(s.items, '[]')               as specialties,
        coalesce(m.ids, '{}')                 as motif_ids,
        coalesce(m.keys, '{}')                as motif_keys,
        p.years_experience,
@@ -461,12 +459,6 @@ select p.id, p.org_id, p.status,
                from public.professional_clienteles x
                join public.clienteles k on k.org_id = x.org_id and k.id = x.clientele_id
               group by x.professional_id) c on c.professional_id = p.id
-  left join (select x.professional_id,
-                    jsonb_agg(jsonb_build_object('id', x.specialty_id, 'key', k.key, 'specialized', x.is_specialized)
-                              order by k.sort_order, k.key) as items
-               from public.professional_specialties x
-               join public.specialties k on k.org_id = x.org_id and k.id = x.specialty_id
-              group by x.professional_id) s on s.professional_id = p.id
   left join (select x.professional_id, array_agg(x.motif_id order by k.key) as ids, array_agg(k.key order by k.key) as keys
                from public.professional_motifs x
                join public.motifs k on k.org_id = x.org_id and k.id = x.motif_id
@@ -613,9 +605,6 @@ as $$
            'clienteles', coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id', x.clientele_id, 'specialized', x.is_specialized)
                                           order by x.clientele_id)
                                      from public.professional_clienteles x where x.professional_id = p.id), '[]'),
-           'specialties', coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id', x.specialty_id, 'specialized', x.is_specialized)
-                                           order by x.specialty_id)
-                                      from public.professional_specialties x where x.professional_id = p.id), '[]'),
            'motif_ids', coalesce((select pg_catalog.jsonb_agg(x.motif_id order by x.motif_id)
                                     from public.professional_motifs x where x.professional_id = p.id), '[]'),
            'language_ids', coalesce((select pg_catalog.jsonb_agg(x.language_id order by x.language_id)
@@ -630,7 +619,8 @@ $$;
 
 -- The public profile (Demandes' profile dialog, the fiche): names, not ids. Motifs grouped by
 -- active category in category order; a motif without a category or whose category is archived
--- goes under « Autres » (key 'autres', no icon), last.
+-- goes under « Sans catégorie » (key null, no icon), last: « Autres » is one of the clinic's
+-- categories (P4-246). min_client_age and women_only qualify the clientèles (P4-245).
 create function public.get_professional_public_profile(p_id uuid)
 returns jsonb
 language sql
@@ -651,8 +641,8 @@ as $$
              select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
                       'category_key', g.category_key, 'category_name', g.category_name, 'icon', g.icon, 'motifs', g.motifs)
                     order by g.sort_order is null, g.sort_order, g.category_key)
-               from (select case when mc.is_active then mc.key else 'autres' end as category_key,
-                            case when mc.is_active then mc.name else 'Autres' end as category_name,
+               from (select case when mc.is_active then mc.key end as category_key,
+                            case when mc.is_active then mc.name else 'Sans catégorie' end as category_name,
                             case when mc.is_active then mc.icon end as icon,
                             case when mc.is_active then mc.sort_order end as sort_order,
                             pg_catalog.jsonb_agg(m.name order by m.sort_order, m.name) as motifs
@@ -668,14 +658,11 @@ as $$
                from public.professional_clienteles x
                join public.clienteles k on k.org_id = x.org_id and k.id = x.clientele_id
               where x.professional_id = p.id), '[]'),
-           'approaches', coalesce((
-             select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('name', k.name, 'specialized', x.is_specialized)
-                    order by k.sort_order, k.name)
-               from public.professional_specialties x
-               join public.specialties k on k.org_id = x.org_id and k.id = x.specialty_id
-              where x.professional_id = p.id), '[]'))
+           'min_client_age', mp.min_client_age,
+           'women_only', coalesce(mp.women_only, false))
     from public.professionals p
     left join public.professional_public_profiles pp on pp.professional_id = p.id
+    left join public.professional_matching_profiles mp on mp.professional_id = p.id
     left join public.professional_professions pr on pr.professional_id = p.id and pr.is_primary
     left join public.profession_titles t on t.org_id = pr.org_id and t.id = pr.profession_title_id
     left join public.professional_orders o on o.org_id = t.org_id and o.id = t.order_id
@@ -694,7 +681,7 @@ immutable
 set search_path = ''
 as $$
   select array['professionals', 'professional_public_profiles', 'professional_matching_profiles',
-               'professional_professions', 'professional_clienteles', 'professional_specialties',
+               'professional_professions', 'professional_clienteles',
                'professional_motifs', 'professional_languages', 'professional_payer_numbers']
 $$;
 revoke all on function private.professional_history_tables() from public, anon, authenticated, service_role;

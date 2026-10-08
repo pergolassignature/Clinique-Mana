@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { CATALOG_STALE_TIME, useProfessionalsCatalog, useReferenceUsage } from './use-catalog'
 import { professionalCatalogKeys } from './keys'
+import { OTHER_MOTIF_GROUP } from '../lib/catalog-view'
 import { CATALOG } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
 import { setupQueryClient } from '../test/query-client'
@@ -19,7 +20,7 @@ describe('useProfessionalsCatalog', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(queryClient.getQueryData(professionalCatalogKeys.catalog())).toBe(CATALOG)
     expect(result.current.data?.byId.motifs.get(IDS.anxiete)?.name).toBe('Anxiété')
-    expect(result.current.data?.motifGroups.at(-1)?.key).toBe('autres')
+    expect(result.current.data?.motifGroups.at(-1)?.key).toBe(OTHER_MOTIF_GROUP)
     expect(queryClient.getQueryCache().find({ queryKey: professionalCatalogKeys.catalog() })?.options).toMatchObject({ staleTime: CATALOG_STALE_TIME })
     expect(CATALOG_STALE_TIME).toBe(5 * 60_000)
   })

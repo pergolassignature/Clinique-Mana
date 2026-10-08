@@ -39,12 +39,13 @@ export const professionalsManifest: ModuleManifest = {
       component: lazyPage(() => import('./pages/settings/ProfessionsSettingsPage'), 'ProfessionsSettingsPage'),
     },
     {
-      id: 'specialties',
-      path: 'specialites',
-      labelKey: 'modules.professionals.settings.specialties.title',
+      // « Spécialités » until P4-240 removed the approaches: only the clientèles are left.
+      id: 'clienteles',
+      path: 'clienteles',
+      labelKey: 'modules.professionals.settings.clienteles.title',
       icon: Compass,
       ...LIST_SECTION,
-      component: lazyPage(() => import('./pages/settings/SpecialtiesSettingsPage'), 'SpecialtiesSettingsPage'),
+      component: lazyPage(() => import('./pages/settings/ClientelesSettingsPage'), 'ClientelesSettingsPage'),
     },
     {
       id: 'motifs',

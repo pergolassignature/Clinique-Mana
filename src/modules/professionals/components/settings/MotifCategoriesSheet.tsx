@@ -16,7 +16,7 @@ const C = 'modules.professionals.settings.motifs.categories'
 
 const motifCount = (count: number) => (count === 1 ? t(`${C}.motifCount.one`) : t(`${C}.motifCount.other`, { count: String(count) }))
 
-/** « Utilisé par » counts a category's active motifs; archiving one sends them under « Autres » until it is restored. */
+/** « Utilisé par » counts a category's active motifs; archiving one sends them under « Sans catégorie » until it is restored. */
 const LABELS: Partial<ReferenceListLabels> = {
   add: t(`${C}.add`),
   createTitle: t(`${C}.createTitle`),

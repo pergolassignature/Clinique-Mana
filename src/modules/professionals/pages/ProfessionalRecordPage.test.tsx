@@ -212,25 +212,24 @@ describe('ProfessionalRecordPage', () => {
     expect(screen.getByTestId('navigation')).toHaveTextContent('REPLACE')
   })
 
-  it('starts another record with fresh local state, even from the cache', async () => {
+  it('starts another record from the cache at once, every motif written out', async () => {
     const otherId = '00000000-0000-4000-8000-0000000000b2'
     const big = seventyTwoMotifsCatalog()
     const allMotifs = big.motifs.filter((m) => m.isActive).map((m) => m.id)
     const first = { ...recordFixture(), motifIds: allMotifs }
-    const second = { ...first, professional: { ...first.professional, id: otherId, firstName: 'Julie', lastName: 'Roy' } }
+    const second = { ...first, professional: { ...first.professional, id: otherId, firstName: 'Julie', lastName: 'Roy' }, motifIds: allMotifs.slice(0, 2) }
     mocks.catalog.fetchProfessionalsCatalog.mockResolvedValue(big)
     mocks.record.fetchProfessionalRecord.mockImplementation((id: string) => Promise.resolve(id === otherId ? second : first))
     renderPage({
       extra: <GoTo path={`/professionnels/${otherId}/apercu`} />,
       before: ({ queryClient }) => queryClient.setQueryData(professionalKeys.record(otherId), second),
     })
-    const S = `${R}.overview.matching.motifSummary`
-    await userEvent.click(await screen.findByRole('button', { name: t(`${S}.allOverall`, { count: '72' }) }))
-    expect(screen.getByRole('button', { name: t(`${S}.allOverall`, { count: '72' }) })).toHaveAttribute('aria-expanded', 'true')
+    expect(await screen.findByText('Motif 8.9', { selector: 'li' })).toBeVisible()
     await userEvent.click(screen.getByRole('button', { name: 'go' }))
-    // The cached record shows at once, with its list folded again.
+    // The cached record shows at once, with its own motifs.
     expect(screen.getByRole('heading', { level: 1, name: 'Julie Roy' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: t(`${S}.allOverall`, { count: '72' }) })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('Motif 1.2', { selector: 'li' })).toBeVisible()
+    expect(screen.queryByText('Motif 8.9', { selector: 'li' })).not.toBeInTheDocument()
   })
 
   it('shows the status actions in the header for staff who manage files, none for the counselor', async () => {

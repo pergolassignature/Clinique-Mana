@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
 import type { HistoryEntry } from '../api/parse'
 import { CATALOG, CATALOG_VIEW, recordFixture, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
-import { buildCatalogView } from './catalog-view'
+import { buildCatalogView, OTHER_MOTIF_GROUP } from './catalog-view'
 import { IDS } from '../test/fixtures'
 import {
   buildHistoryEvents,
@@ -113,8 +113,8 @@ describe('history — the record row', () => {
   })
 
   it('reads the matching profile: periods by name, booleans Oui / Non', () => {
-    expect(only([row('professional_matching_profiles', 'update', { availability_periods: { before: [], after: ['evening', 'am'] } })]).sentence).toBe(
-      `a modifié les disponibilités générales\u00a0: ${t('audit.values.empty')} → Matin · Soir`,
+    expect(only([row('professional_matching_profiles', 'update', { availability_periods: { before: [], after: ['evening', 'end_of_day', 'am'] } })]).sentence).toBe(
+      `a modifié les disponibilités générales\u00a0: ${t('audit.values.empty')} → Matin · Fin de journée · Soir`,
     )
     expect(only([row('professional_matching_profiles', 'update', { accepting_new_clients: { before: true, after: false } })]).sentence).toBe(
       "a modifié l'accueil de nouveaux clients\u00a0: Oui → Non",
@@ -182,7 +182,7 @@ describe('history — the record row', () => {
   })
 })
 
-describe('history — sets (motifs, languages, clientèles, approaches)', () => {
+describe('history — sets (motifs, languages, clientèles)', () => {
   it('names up to three motifs in the catalogue order', () => {
     const event = only([junction('professional_motifs', 'motif_id', IDS.psychose), junction('professional_motifs', 'motif_id', IDS.anxiete)])
     expect(event.sentence).toBe('a ajouté les motifs Anxiété et Psychose')
@@ -203,7 +203,7 @@ describe('history — sets (motifs, languages, clientèles, approaches)', () => 
     expect(event.groups[0]?.items[0]).toMatchObject({ name: 'Motif 1.1', archived: false })
   })
 
-  it('marks archived motifs and names unknown ones « Motif archivé », under « Autres »', () => {
+  it('marks archived motifs and names unknown ones « Motif archivé », under « Sans catégorie »', () => {
     const event = only(
       [IDS.anxiete, IDS.archivedMotif, IDS.deuil, IDS.orphan, ORG].map((id) => junction('professional_motifs', 'motif_id', id, 'delete')),
     )
@@ -212,8 +212,8 @@ describe('history — sets (motifs, languages, clientèles, approaches)', () => 
     expect(names).toEqual([
       { key: 'inner_life', name: 'Vie intérieure', items: [{ name: 'Anxiété', archived: false }, { name: 'Ancien motif', archived: true }] },
       {
-        key: 'autres',
-        name: 'Autres',
+        key: OTHER_MOTIF_GROUP,
+        name: t('modules.professionals.otherCategory'),
         items: [
           { name: 'Deuil', archived: false },
           { name: 'Sans catégorie', archived: false },
@@ -240,7 +240,7 @@ describe('history — sets (motifs, languages, clientèles, approaches)', () => 
     expect(split.map((e) => e.sentence)).toEqual(['a ajouté le motif Anxiété', 'a ajouté le motif Psychose'])
   })
 
-  it('marks specialised clientèles and approaches, and reads a change of the star', () => {
+  it('marks specialised clientèles, and reads a change of the star', () => {
     expect(only([junction('professional_clienteles', 'clientele_id', IDS.couples, 'insert', { is_specialized: true })]).sentence).toBe(
       'a ajouté la clientèle Couples (spécialisé)',
     )
@@ -249,9 +249,8 @@ describe('history — sets (motifs, languages, clientèles, approaches)', () => 
         .sentence,
     ).toBe('a indiqué une spécialisation pour\u00a0: Enfants')
     expect(
-      only([row('professional_specialties', 'update', { is_specialized: { before: true, after: false } }, { recordId: `${P}:${IDS.cbt}` })]).sentence,
-    ).toBe('a retiré la spécialisation pour\u00a0: Thérapie cognitivo-comportementale (TCC)')
-    expect(only([junction('professional_specialties', 'specialty_id', ORG)]).sentence).toBe(`a ajouté l'approche ${t(`${H}.values.unknown.specialty`)}`)
+      only([row('professional_clienteles', 'update', { is_specialized: { before: true, after: false } }, { recordId: `${P}:${IDS.couples}` })]).sentence,
+    ).toBe('a retiré la spécialisation pour\u00a0: Couples')
   })
 
   it('puts archived items last, then unknown ones, for every set', () => {

@@ -16,7 +16,6 @@ import {
   filterHistory,
   groupHistoryByDay,
   HISTORY_FILTERS,
-  historyItemLabel,
   historyReadsOn,
   professionTitlesByRow,
   settledHistoryRows,
@@ -24,7 +23,7 @@ import {
   type HistoryFilter,
   type HistoryLine,
 } from '../../../lib/history'
-import { Disclosure } from '../MotifsSummary'
+import { CategoryNames, Disclosure } from '../MotifsSummary'
 import { useRecordData } from '../record-context'
 
 const H = 'modules.professionals.history'
@@ -204,24 +203,22 @@ function lineText(line: HistoryLine): string {
   }
 }
 
-/** « Champ : avant → après » lines, then the names a counted sentence stands for (by category for motifs). */
+/**
+ * The « Champ : avant → après » lines, then the names a counted sentence stands for: by category
+ * for motifs, each category's title on its own line and every name under it (P4-249), as on the
+ * record.
+ */
 function HistoryDetails({ event }: { event: HistoryEvent }) {
   return (
-    <ul className="space-y-0.5 text-muted-foreground">
-      {event.lines.map((line, index) => (
-        <li key={index}>{lineText(line)}</li>
-      ))}
-      {event.groups.map((group) => (
-        <li key={group.key}>
-          {group.name !== null && (
-            <>
-              <span className="font-medium text-foreground">{group.name}</span>
-              {' : '}
-            </>
-          )}
-          {group.items.map(historyItemLabel).join(' · ')}
-        </li>
-      ))}
-    </ul>
+    <>
+      {event.lines.length > 0 && (
+        <ul className="space-y-0.5 text-muted-foreground">
+          {event.lines.map((line, index) => (
+            <li key={index}>{lineText(line)}</li>
+          ))}
+        </ul>
+      )}
+      {event.groups.length > 0 && <CategoryNames groups={event.groups} className={cn(event.lines.length > 0 && 'mt-2')} />}
+    </>
   )
 }

@@ -55,7 +55,6 @@ const titlePayload = z
 const clientelePayload = z
   .object({ ...keyedRow, min_age: z.number().nullable(), max_age: z.number().nullable() })
   .transform((r) => ({ ...keyed(r), minAge: r.min_age, maxAge: r.max_age }))
-const specialtyPayload = z.object(keyedRow).transform(keyed)
 const motifCategoryPayload = z
   .object({ ...keyedRow, description: z.string().nullable(), icon: z.enum(MOTIF_CATEGORY_ICONS) })
   .transform((r) => ({ ...keyed(r), description: r.description, icon: r.icon }))
@@ -72,24 +71,21 @@ export type ProfessionalOrder = z.output<typeof orderPayload>
 export type ProfessionCategory = z.output<typeof categoryPayload>
 /** A title; `orderId` null means not regulated: no licence required. */
 export type ProfessionTitle = z.output<typeof titlePayload>
-/** A clientèle: an age group (`minAge` set, `maxAge` null = « and over »), or none (couples, families, groups). */
+/** A clientèle: an age group (`minAge` set, `maxAge` null = « and over »), or none (couples, families, parents). */
 export type Clientele = z.output<typeof clientelePayload>
-/** A therapeutic approach (table `specialties`; « Approches » in the UI). */
-export type Specialty = z.output<typeof specialtyPayload>
 export type MotifCategory = z.output<typeof motifCategoryPayload>
-/** A motif; `categoryId` null (or an archived category) shows under « Autres ». */
+/** A motif; `categoryId` null (or an archived category) shows under « Sans catégorie » (P4-246). */
 export type Motif = z.output<typeof motifPayload>
 export type Language = z.output<typeof languagePayload>
 export type DeactivationReason = z.output<typeof deactivationReasonPayload>
 
-/** The nine lists of the caller's clinic, each in its sort order, archived rows included (`isActive`). */
+/** The eight lists of the caller's clinic, each in its sort order, archived rows included (`isActive`). */
 export const catalogPayload = z
   .object({
     orders: z.array(orderPayload),
     categories: z.array(categoryPayload),
     titles: z.array(titlePayload),
     clienteles: z.array(clientelePayload),
-    specialties: z.array(specialtyPayload),
     motif_categories: z.array(motifCategoryPayload),
     motifs: z.array(motifPayload),
     languages: z.array(languagePayload),
@@ -177,12 +173,18 @@ const matchingProfileRowPayload = z
     accepting_new_clients: z.boolean(),
     availability_periods: z.array(z.enum(AVAILABILITY_PERIODS)),
     availability_note: z.string().nullable(),
+    min_client_age: z.number().nullable(),
+    women_only: z.boolean(),
     updated_at: z.string(),
   })
   .transform((r) => ({
     acceptingNewClients: r.accepting_new_clients,
     availabilityPeriods: r.availability_periods,
     availabilityNote: r.availability_note,
+    /** The youngest client age the professional takes (« Enfants (8 ans et +) »), null for none (P4-245). */
+    minClientAge: r.min_client_age,
+    /** Women clients only (« Femmes exclusivement », P4-245). */
+    womenOnly: r.women_only,
     updatedAt: r.updated_at,
   }))
 export type MatchingProfile = z.output<typeof matchingProfileRowPayload>
@@ -196,7 +198,7 @@ export const professionRowPayload = z
   .transform((r) => ({ id: r.id, titleId: r.profession_title_id, licenceNumber: r.licence_number, isPrimary: r.is_primary }))
 export type ProfessionRow = z.output<typeof professionRowPayload>
 
-/** A held clientèle or approach; `specialized` is the « ★ spécialisé » flag. */
+/** A held clientèle; `specialized` is the « ★ spécialisé » flag. */
 export interface SpecializedRef {
   id: string
   specialized: boolean
@@ -228,7 +230,6 @@ export const recordPayload = z
     matching_profile: matchingProfileRowPayload,
     professions: z.array(professionRowPayload),
     clienteles: z.array(specializedRefPayload),
-    specialties: z.array(specializedRefPayload),
     motif_ids: z.array(z.string()),
     language_ids: z.array(z.string()),
     payer_numbers: z.array(payerNumberPayload),
@@ -240,7 +241,6 @@ export const recordPayload = z
     matchingProfile: r.matching_profile,
     professions: r.professions,
     clienteles: r.clienteles,
-    specialties: r.specialties,
     motifIds: r.motif_ids,
     languageIds: r.language_ids,
     payerNumbers: r.payer_numbers,
@@ -269,7 +269,6 @@ export const listRowPayload = z
     primary_licence_number: z.string().nullable(),
     language_ids: z.array(z.string()),
     clientele_ids: z.array(z.string()),
-    specialty_ids: z.array(z.string()),
     motif_ids: z.array(z.string()),
     // Left join: every professional has a matching profile (created with the record).
     accepting_new_clients: z.boolean().nullable(),
@@ -292,7 +291,6 @@ export const listRowPayload = z
     primaryLicenceNumber: r.primary_licence_number,
     languageIds: r.language_ids,
     clienteleIds: r.clientele_ids,
-    specialtyIds: r.specialty_ids,
     motifIds: r.motif_ids,
     acceptingNewClients: r.accepting_new_clients ?? false,
     matchingComplete: r.matching_complete,

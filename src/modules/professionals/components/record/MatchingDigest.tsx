@@ -1,10 +1,12 @@
 import { useMemo, type ReactNode } from 'react'
 import { t } from '@/i18n'
+import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import type { ProfessionalRecord } from '../../api/parse'
 import type { CatalogView } from '../../lib/catalog-view'
-import { matchingDigest, type DigestItem } from '../../lib/matching-digest'
+import { minClientAgeLabel } from '../../lib/display'
+import { matchingDigest, type DigestItem, type MatchingDigest as Digest } from '../../lib/matching-digest'
 import { MotifsSummary } from './MotifsSummary'
 import { TabLink } from './TabLink'
 
@@ -36,12 +38,11 @@ export function MatchingDigest({ record, catalog, canEdit }: MatchingDigestProps
         <dl className="divide-y divide-border-light">
           <Row label={t(`${M}.clienteles`)}>
             <Items items={digest.clienteles} empty={t(`${M}.empty.clienteles`)} />
+            <Limits digest={digest} />
           </Row>
-          <Row label={t(`${M}.approaches`)}>
-            <Items items={digest.approaches} empty={t(`${M}.empty.approaches`)} />
-          </Row>
-          <Row label={t(`${M}.motifs`)}>
-            {digest.motifs.selected + digest.motifs.archived.length === 0 ? <Empty>{t(`${M}.empty.motifs`)}</Empty> : <MotifsSummary summary={digest.motifs} />}
+          {/* Stacked at every width: the motifs take the card's whole width, every name written out (P4-249). */}
+          <Row label={t(`${M}.motifs`)} stacked>
+            {digest.motifs.groups.length === 0 ? <Empty>{t(`${M}.empty.motifs`)}</Empty> : <MotifsSummary summary={digest.motifs} />}
           </Row>
           <Row label={t(`${M}.languages`)}>
             <Items items={digest.languages} empty={t(`${M}.empty.languages`)} />
@@ -55,10 +56,10 @@ export function MatchingDigest({ record, catalog, canEdit }: MatchingDigestProps
   )
 }
 
-/** Label above the value on phones, beside it from `sm` up. */
-function Row({ label, children }: { label: string; children: ReactNode }) {
+/** Label above the value on phones, beside it from `sm` up (`stacked`: above it at every width). */
+function Row({ label, stacked = false, children }: { label: string; stacked?: boolean; children: ReactNode }) {
   return (
-    <div className="grid gap-x-4 gap-y-0.5 py-2 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,160px)_minmax(0,1fr)]">
+    <div className={cn('grid gap-x-4 gap-y-0.5 py-2 first:pt-0 last:pb-0', stacked ? 'gap-y-1.5' : 'sm:grid-cols-[minmax(0,160px)_minmax(0,1fr)]')}>
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="min-w-0 break-words text-foreground">{children}</dd>
     </div>
@@ -67,6 +68,14 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 function Empty({ children }: { children: ReactNode }) {
   return <span className="text-muted-foreground">{children}</span>
+}
+
+/** « Âge minimum : 14 ans » (when no held age group carries it) and « Femmes seulement », under the clientèles (P4-245). */
+export function Limits({ digest }: { digest: Pick<Digest, 'minClientAge' | 'womenOnly'> }) {
+  const lines = [digest.minClientAge !== null && minClientAgeLabel(digest.minClientAge), digest.womenOnly && t('modules.professionals.display.womenOnly')].filter(
+    (line): line is string => typeof line === 'string',
+  )
+  return lines.length > 0 && <span className="mt-0.5 block text-foreground">{lines.join(' · ')}</span>
 }
 
 function Items({ items, empty }: { items: DigestItem[]; empty: string }) {

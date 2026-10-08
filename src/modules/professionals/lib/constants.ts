@@ -12,7 +12,7 @@ export const GENDERS = ['female', 'male', 'unspecified'] as const
 export type Gender = (typeof GENDERS)[number]
 
 /** `professional_matching_profiles_availability_periods_check` (P4-4), in display order. */
-export const AVAILABILITY_PERIODS = ['am', 'pm', 'evening', 'weekend'] as const
+export const AVAILABILITY_PERIODS = ['am', 'pm', 'end_of_day', 'evening', 'weekend'] as const
 export type AvailabilityPeriod = (typeof AVAILABILITY_PERIODS)[number]
 
 /** `professional_payer_numbers_payer_type_check`. */
@@ -45,7 +45,7 @@ export const MOTIF_CATEGORY_ICONS = [
 export type MotifCategoryIcon = (typeof MOTIF_CATEGORY_ICONS)[number]
 
 /**
- * The nine reference lists, by table name: what `set_professionals_reference_active`,
+ * The eight reference lists, by table name: what `set_professionals_reference_active`,
  * `reorder_professionals_reference` and `list_professionals_reference_usage` call a « kind ».
  */
 export const REFERENCE_KINDS = [
@@ -53,7 +53,6 @@ export const REFERENCE_KINDS = [
   'profession_categories',
   'profession_titles',
   'clienteles',
-  'specialties',
   'motif_categories',
   'motifs',
   'languages',

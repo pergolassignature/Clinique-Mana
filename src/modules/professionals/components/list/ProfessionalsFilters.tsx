@@ -234,7 +234,7 @@ function FilterSelect(props: { label: string; all: string; value: string | null;
 /** Accent-insensitive, every word somewhere in the motif's name (its one keyword). */
 const motifSearch = (_value: string, search: string, keywords?: string[]) => (matchesSearch(keywords ?? [], searchWords(search)) ? 1 : 0)
 
-/** Motifs (any of them): a searchable list grouped by category, « Autres » last; Enter or a click toggles one. */
+/** Motifs (any of them): a searchable list grouped by category, « Sans catégorie » last; Enter or a click toggles one. */
 function MotifFilter({ catalog, selected, onToggle }: { catalog: CatalogView; selected: readonly string[]; onToggle: (id: string) => void }) {
   const labelId = useId()
   return (

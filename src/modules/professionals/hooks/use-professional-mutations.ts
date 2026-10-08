@@ -11,7 +11,6 @@ import {
   setPayerNumber,
   setProfessionalEmail,
   setProfessions,
-  setSpecialties,
   updateMatchingProfile,
   updateProfessional,
   updatePublicProfile,
@@ -163,17 +162,6 @@ export function useSetClienteles(feedback?: MutationFeedback) {
     {
       mutationFn: ({ id, items }: { id: string; items: SpecializedRef[] }) => setClienteles(id, items),
       apply: (record, clienteles) => ({ ...record, clienteles }),
-      touchesUsage: true,
-    },
-    feedback,
-  )
-}
-
-export function useSetSpecialties(feedback?: MutationFeedback) {
-  return useRecordMutation(
-    {
-      mutationFn: ({ id, items }: { id: string; items: SpecializedRef[] }) => setSpecialties(id, items),
-      apply: (record, specialties) => ({ ...record, specialties }),
       touchesUsage: true,
     },
     feedback,
