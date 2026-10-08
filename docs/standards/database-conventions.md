@@ -34,7 +34,7 @@ grant update (title, starts_on) on public.trainings to authenticated;   -- colum
 
 - Clients never get `TRUNCATE`, `REFERENCES` or `TRIGGER` (TRUNCATE bypasses RLS).
 - Clients never get `INSERT` or `DELETE` either: inserts and deletes go through RPCs (enforced by `000_invariants`). Updates use column grants plus an RLS policy, or an RPC when they need checks.
-- `service_role` keeps Supabase's defaults (it bypasses RLS and is server-only). Revoke from it explicitly when a table must be protected from server code too (`audit_log`).
+- `service_role` keeps Supabase's defaults (it bypasses RLS and is server-only). Revoke from it explicitly when a table must be protected from server code too (`audit_log`; writes on `org_role_permissions`, whose admin rows guard against lock-out).
 
 ## 4. Table shape
 
@@ -136,7 +136,8 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 - `record_id` is the PK columns joined with `:` (`<org_id>:<module_key>`). `updated_at`-only updates are skipped.
 - `source` defaults to `app.audit_source` if set, else `app` (authenticated), `service` (service role) or `system`. RPCs that log explicitly use `rpc:<function_name>`; seeds set `seed`.
 - Changes invisible to the row diff (e.g. a Vault value) get an explicit row from the RPC — see `set_org_secret`. Reads of `*_private` data are logged by their RPCs.
-- Catalogue tables changed only by migrations (`modules`, `permissions`, `role_permissions`, `roles`) are not audited: git is their history.
+- Catalogue tables changed only by migrations (`modules`, `permissions`, `role_permissions`) are not audited: git is their history.
+- `roles` is audited since custom roles exist (`…_core_editable_roles.sql`): admins create, rename and delete them through RPCs. `org_id` comes from the row and is null for the shared base roles. `org_role_permissions` (each clinic's role defaults) is audited like any org-scoped table.
 
 ## 8. Secrets and sensitive data
 
@@ -169,11 +170,11 @@ insert into public.role_permissions (role, permission_key) values
 on conflict do nothing;
 ```
 
-- Module keys never equal a core permission prefix (`settings`, `users`, `modules`, `audit`): a check constraint refuses them.
+- Module keys never equal a core permission prefix (`settings`, `users`, `modules`, `audit`, `roles`): a check constraint refuses them.
 - Dependencies never mention `core` (it is implicit) and must stay acyclic: a trigger rejects any edge that closes a cycle (`23514`).
 - A disabled module grants nothing: its permissions vanish from `has_permission` and `get_my_access` until an admin enables it.
 
-- Grant **every** new module permission to `admin`: admins hold every permission by convention (overrides on admins are refused, so nothing else can give them one).
+- Grant **every** new module permission to `admin`: admins hold every permission (overrides on admins are refused, so nothing else can give them one; `000_invariants` checks it in every org). A new `role_permissions` row is the template: a trigger copies it into every existing org's `org_role_permissions`.
 
 Then, for each table: shape (§4) → `revoke all` + grants (§3) → RLS policies (§5) → `set_updated_at` and audit triggers (§7) → FK indexes. A new module starts **disabled** in every org; enable it with `set_module_enabled` (or in `seed.sql` locally). List the module's tables in `docs/modules/<module>.md`. Other modules read them only through a view or RPC the owner publishes.
 
@@ -199,6 +200,7 @@ Cover at least: privileges for `anon` and `authenticated`; cross-org isolation (
 
 Traps:
 - `throws_ok` on a function the role cannot EXECUTE segfaults Postgres image `.106`: use `function_privs_are`.
+- The local Postgres image (supabase/postgres 17.6.1.x) has segfaulted on pgTAP tests that define `pg_temp` plpgsql helpers with exception handlers. Don't define helper functions in tests; inline the logic or check function source via `pg_proc` instead.
 - A table the role has no privilege on raises `42501`; it does not return 0 rows. RLS-filtered tables return 0 rows.
 - OrbStack may lack macOS access to `~/Documents`, so `supabase test db` finds no files. Grant OrbStack the Documents folder, or mirror the tests elsewhere and pass the path: `supabase test db /tmp/pgtap`.
 - The local seed writes rows (including audit rows): filter assertions by fixture ids, never count a whole table.
@@ -224,5 +226,6 @@ These hold for every current and future object; a violation fails CI.
 | Every foreign key has an index whose first column is the FK's first column | add the index (§4) |
 | Every table with an `org_id` column (except `audit_log`) has an `audit_trigger` | attach it (§7) |
 | Every view is `security_invoker = true` | §5b |
+| `admin` holds every permission in every org (`org_role_permissions`) | add the `('admin', '<permission>')` row to `role_permissions` in the migration that adds the permission (§9) |
 
 If a legitimate design needs an exception, change the invariant query explicitly (with a comment saying why) in the same PR; never disable the test.

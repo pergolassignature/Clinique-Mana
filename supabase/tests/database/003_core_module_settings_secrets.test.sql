@@ -75,6 +75,7 @@ select functions_are('public', array[
   'get_bank_details', 'reveal_bank_account_number', 'set_bank_details',
   'list_org_users', 'set_user_role', 'set_user_status', 'set_permission_override', 'clear_permission_override',
   'clear_permission_overrides',
+  'set_role_permission', 'create_role', 'rename_role', 'delete_role',
   'list_audit_entries', 'list_audit_actors'
 ], 'public schema exposes exactly the intended RPCs');
 

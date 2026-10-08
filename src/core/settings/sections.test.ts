@@ -5,7 +5,8 @@ import { coreSettingsSections } from './sections'
 // Uniqueness across core and modules is checked in src/app/settings-sections.test.ts (core may not import app).
 
 // The core permission keys, mirroring public.permissions (module 'core') in the migrations
-// (20261007140517_core_access, 20261007192359_core_roles_split). A typo in the registry fails here.
+// (20261007140517_core_access, 20261007192359_core_roles_split, 20261008015825_core_editable_roles).
+// A typo in the registry fails here.
 const CORE_PERMISSION_KEYS = [
   'settings.view',
   'settings.manage',
@@ -14,6 +15,7 @@ const CORE_PERMISSION_KEYS = [
   'users.manage',
   'modules.manage',
   'audit.view',
+  'roles.manage',
 ]
 describe('coreSettingsSections', () => {
   it('registers the Phase 2 sections in menu order, with English ids and French paths', () => {
@@ -52,7 +54,8 @@ describe('coreSettingsSections', () => {
       bank: ['settings.bank_manage', undefined],
       region: ['settings.view', 'settings.manage'],
       privacy: ['settings.view', 'settings.manage'],
-      users: ['users.view', 'users.manage'],
+      // Any of them: the « Rôles » tab needs roles.manage only, and is hers to change with it.
+      users: [['users.view', 'roles.manage'], ['users.manage', 'roles.manage']],
       modules: ['modules.manage', undefined],
       audit: ['audit.view', undefined],
     })
@@ -60,8 +63,8 @@ describe('coreSettingsSections', () => {
 
   it('uses only known core permission keys', () => {
     for (const s of coreSettingsSections) {
-      expect(CORE_PERMISSION_KEYS).toContain(s.permission)
-      if (s.editPermission !== undefined) expect(CORE_PERMISSION_KEYS).toContain(s.editPermission)
+      for (const permission of typeof s.permission === 'string' ? [s.permission] : s.permission) expect(CORE_PERMISSION_KEYS).toContain(permission)
+      for (const permission of typeof s.editPermission === 'string' ? [s.editPermission] : (s.editPermission ?? [])) expect(CORE_PERMISSION_KEYS).toContain(permission)
     }
   })
 })

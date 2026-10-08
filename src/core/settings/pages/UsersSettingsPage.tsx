@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
 import { roleLabel } from '@/core/access/roles'
 import { useSettingsSection } from '@/core/settings/section-context'
 import type { OrgUser } from '@/core/users/api'
@@ -23,14 +24,23 @@ const TABS: Tab[] = ['users', 'roles']
 const isTab = (value: string): value is Tab => (TABS as string[]).includes(value)
 
 /**
- * Paramètres → Utilisateurs et accès: the clinic's users (tab « Utilisateurs ») and what each role
- * gives by default (tab « Rôles », read-only). With users.manage, a row opens the user's sheet
- * (role, status, permission overrides); with users.view only, the table is read-only. People are
- * added by hand until invitations exist (decision #22).
+ * Paramètres → Utilisateurs et accès: the clinic's users (tab « Utilisateurs », with users.view)
+ * and what each role gives by default (tab « Rôles », editable with roles.manage). The section opens
+ * with either permission, on the first tab the user can see. Each tab follows its own right: with
+ * users.manage, a row opens the user's sheet (role, status, permission overrides), else the table
+ * is read-only; the matrix follows roles.manage. The section is read-only (the lock, one notice
+ * for the page) only without either; otherwise a read-only users tab has its own notice.
+ * People are added by hand until invitations exist (decision #22).
  */
 export function UsersSettingsPage() {
   const { readOnly } = useSettingsSection()
-  const [tab, setTab] = useState<Tab>('users')
+  const { can } = useAccess()
+  const canManageUsers = can('users.manage')
+  // The users need users.view (list_org_users refuses otherwise); the roles show to whoever is here.
+  const tabs = TABS.filter((value) => value !== 'users' || can('users.view'))
+  const [selected, setTab] = useState<Tab | null>(null)
+  // The chosen tab while it is visible, else the first one (also after a permission change).
+  const tab = selected !== null && tabs.includes(selected) ? selected : (tabs[0] ?? 'roles')
 
   return (
     <div className="max-w-content space-y-5">
@@ -39,15 +49,18 @@ export function UsersSettingsPage() {
       {/* Page-level views: real tabs, reachable by keyboard (decision #35). */}
       <Tabs value={tab} onValueChange={(value) => isTab(value) && setTab(value)}>
         <TabsList>
-          {TABS.map((value) => (
+          {tabs.map((value) => (
             <TabsTrigger key={value} value={value}>
               {t(`settings.users.tabs.${value}`)}
             </TabsTrigger>
           ))}
         </TabsList>
-        <TabsContent value="users" className="mt-5">
-          <UsersTab canManage={!readOnly} />
-        </TabsContent>
+        {tabs.includes('users') && (
+          <TabsContent value="users" className="mt-5 space-y-5">
+            {!readOnly && !canManageUsers && <ReadOnlyNotice />}
+            <UsersTab canManage={canManageUsers} />
+          </TabsContent>
+        )}
         <TabsContent value="roles" className="mt-5">
           <RoleMatrix />
         </TabsContent>

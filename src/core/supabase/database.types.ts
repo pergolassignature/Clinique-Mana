@@ -188,6 +188,46 @@ export type Database = {
           },
         ]
       }
+      org_role_permissions: {
+        Row: {
+          org_id: string
+          permission_key: string
+          role: string
+        }
+        Insert: {
+          org_id: string
+          permission_key: string
+          role: string
+        }
+        Update: {
+          org_id?: string
+          permission_key?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_role_permissions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_role_permissions_permission_key_fkey"
+            columns: ["permission_key"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "org_role_permissions_role_fkey"
+            columns: ["role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       org_secrets: {
         Row: {
           key: string
@@ -465,20 +505,31 @@ export type Database = {
           is_system: boolean
           key: string
           name: string
+          org_id: string | null
         }
         Insert: {
           created_at?: string
           is_system?: boolean
           key: string
           name: string
+          org_id?: string | null
         }
         Update: {
           created_at?: string
           is_system?: boolean
           key?: string
           name?: string
+          org_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "roles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tax_rates: {
         Row: {
@@ -630,7 +681,12 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: number
       }
+      create_role: {
+        Args: { p_copy_from?: string; p_name: string }
+        Returns: string
+      }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
+      delete_role: { Args: { p_role: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
       get_bank_details: {
         Args: never
@@ -711,6 +767,10 @@ export type Database = {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
       }
+      rename_role: {
+        Args: { p_name: string; p_role: string }
+        Returns: undefined
+      }
       reveal_bank_account_number: { Args: never; Returns: string }
       set_bank_details: {
         Args: {
@@ -735,6 +795,10 @@ export type Database = {
           p_permission_key: string
           p_user_id: string
         }
+        Returns: undefined
+      }
+      set_role_permission: {
+        Args: { p_granted: boolean; p_permission_key: string; p_role: string }
         Returns: undefined
       }
       set_user_role: {

@@ -32,13 +32,14 @@ export interface SettingsSection {
   path: string
   labelKey: TranslationKey
   icon: LucideIcon
-  /** Needed to see the section. */
-  permission: string
+  /** Needed to see the section: one key, or several meaning any of them. */
+  permission: string | readonly string[]
   /**
-   * Needed to change it. A user who can see the section without it reads it only: a lock in the
-   * menu and the « Lecture seule » notice on the page. Omitted: whoever sees the section may change it.
+   * Needed to change it: one key, or several meaning any of them. A user who can see the section
+   * without it reads it only: a lock in the menu and the « Lecture seule » notice on the page.
+   * Omitted: whoever sees the section may change it.
    */
-  editPermission?: string
+  editPermission?: string | readonly string[]
   group: SettingsGroup
   /** A lazyPage(), as for ModuleRoute. */
   component: LazyPage

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { t } from '@/i18n'
-import { moduleErrorMessage } from './errors'
+import { moduleErrorMessage, rpcErrorCode, rpcErrorHint } from './errors'
 
 const mocks = vi.hoisted(() => ({ captureException: vi.fn() }))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
@@ -94,5 +94,29 @@ describe('moduleErrorMessage', () => {
     expect(moduleErrorMessage(value, FALLBACK)).toBe(FALLBACK)
     expect(reported()).toBeInstanceOf(Error)
     expect(reported()).not.toBe(value)
+  })
+})
+
+describe('rpcErrorCode and rpcErrorHint', () => {
+  it('read the code and the hint of a PostgREST error, a plain object or an Error', () => {
+    const error = { code: 'P0001', message: "Ce rôle n'existe plus.", details: '', hint: 'role_missing' }
+    expect(rpcErrorCode(error)).toBe('P0001')
+    expect(rpcErrorHint(error)).toBe('role_missing')
+    expect(rpcErrorHint(Object.assign(new Error('x'), { code: 'P0001', hint: 'copy_from' }))).toBe('copy_from')
+  })
+
+  it('are undefined when the error has none (an empty hint is none)', () => {
+    expect(rpcErrorHint(pgError('P0001', 'x'))).toBeUndefined()
+    expect(rpcErrorCode(new TypeError('Failed to fetch'))).toBeUndefined()
+    expect(rpcErrorHint(null)).toBeUndefined()
+    expect(rpcErrorCode({ code: 42 })).toBeUndefined()
+  })
+
+  it('the hint reaches the caller, never Sentry', () => {
+    const error = { code: 'XX000', message: 'boom', details: '', hint: 'Failing row contains (secret)' }
+    expect(rpcErrorHint(error)).toBe('Failing row contains (secret)')
+    moduleErrorMessage(error, FALLBACK)
+    expect(JSON.stringify(mocks.captureException.mock.lastCall)).not.toContain('secret')
+    expect(reported().message).toBe('boom')
   })
 })

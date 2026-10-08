@@ -7,6 +7,7 @@ import {
   actionLabel,
   AUDITED_TABLES,
   auditDetailLines,
+  roleNamesFromEntries,
   shortRecordId,
   type AuditDetailLine,
   type AuditLookups,
@@ -15,6 +16,7 @@ import {
   tableLabel,
 } from '@/core/audit/labels'
 import { AUDIT_PERIODS, periodStartOn, type AuditPeriod } from '@/core/audit/period'
+import { useOrgRoles } from '@/core/access/org-roles'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
@@ -100,16 +102,20 @@ export function AuditLogPage() {
     useAuditEntries(filters)
   const { data: actors, isError: actorsFailed, isFetching: actorsFetching, refetch: refetchActors } = useAuditActors()
   const { data: catalog } = useAuditCatalog()
-  // Names for the ids and keys in the details; each falls back to the raw value while missing.
+  // Custom role names (base roles have their label); the same query as the Rôles tab, refreshed by its changes.
+  const { data: roles } = useOrgRoles()
+  const entries = useMemo(() => data?.pages.flat() ?? [], [data])
+  // Names for the ids and keys in the details; each falls back to the raw value while missing. A
+  // deleted custom role keeps the last name its own rows on screen carry; a current one, its name.
   const lookups = useMemo<AuditLookups>(
     () => ({
       people: new Map(actors?.map((person) => [person.actor_id, person.actor_name])),
       permissions: new Map(catalog?.permissions.map((permission) => [permission.key, permission.description])),
       modules: new Map(catalog?.modules.map((module) => [module.key, module.name])),
+      roles: new Map([...roleNamesFromEntries(entries), ...(roles?.map((role): [string, string] => [role.key, role.name]) ?? [])]),
     }),
-    [actors, catalog],
+    [actors, catalog, roles, entries],
   )
-  const entries = data?.pages.flat() ?? []
 
   // Once a « Charger plus » fetch settles: on the last page the button goes away, so its focus
   // moves to « Début du journal ». Only after a press in this view (never after a refetch).

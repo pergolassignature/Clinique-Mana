@@ -64,6 +64,28 @@ describe('SettingsLayout', () => {
     expect(screen.queryByText('MODULES PAGE')).not.toBeInTheDocument()
   })
 
+  it('routes to a section with several permissions when the user has any of them, and only then', async () => {
+    const usersSection: SettingsSection = {
+      id: 'users',
+      path: 'utilisateurs',
+      labelKey: 'settings.sections.users',
+      icon: Building2,
+      permission: ['users.view', 'roles.manage'],
+      group: 'plateforme',
+      component: page('USERS PAGE'),
+    }
+    const { unmount } = render(settingsAt('/parametres/utilisateurs', { access: { can: (p) => p === 'roles.manage' } }, [usersSection]))
+    expect(await screen.findByText('USERS PAGE')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t('settings.sections.users') })).toBeInTheDocument()
+    unmount()
+
+    // users.manage alone opens neither (it never comes without users.view in practice).
+    render(settingsAt('/parametres/utilisateurs', { access: { can: (p) => p === 'settings.view' || p === 'users.manage' } }, [usersSection, visibleSection]))
+    expect(await screen.findByText(t('common.notFound.title'))).toBeInTheDocument()
+    expect(screen.queryByText('USERS PAGE')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: t('settings.sections.users') })).not.toBeInTheDocument()
+  })
+
   it('opens an accessible section from its URL', async () => {
     render(settingsAt('/parametres/modules', { access: { can: (p) => p === 'modules.manage' } }))
     expect(await screen.findByText('MODULES PAGE')).toBeInTheDocument()
@@ -216,6 +238,41 @@ describe('SettingsLayout', () => {
       expect(await screen.findByText('identity:editable')).toBeInTheDocument()
       const link = screen.getByRole('link', { name: t('settings.sections.identity') })
       expect(decorativeIcons(link)).toBe(1) // section icon only
+    })
+
+    describe('with several edit permissions (Utilisateurs et accès)', () => {
+      const users: SettingsSection = {
+        id: 'users', path: 'utilisateurs', labelKey: 'settings.sections.users', icon: Building2,
+        permission: ['users.view', 'roles.manage'], editPermission: ['users.manage', 'roles.manage'], group: 'plateforme',
+        component: lazyPage(async () => ({ default: ReadOnlyProbe })),
+      }
+      const lockedUsers = `${t('settings.sections.users')} ${t('settings.navReadOnlyHint')}`
+      const only = (...permissions: string[]) => ({ can: (p: string) => permissions.includes(p) })
+
+      it('shows no lock to a user with any one of them (roles.manage only)', async () => {
+        render(settingsAt('/parametres/utilisateurs', { access: only('roles.manage') }, [users]))
+        expect(await screen.findByText('users:editable')).toBeInTheDocument()
+        expect(decorativeIcons(screen.getByRole('link', { name: t('settings.sections.users') }))).toBe(1)
+      })
+
+      it('shows no lock to an admin', async () => {
+        render(settingsAt('/parametres/utilisateurs', { access: canEverything }, [users]))
+        expect(await screen.findByText('users:editable')).toBeInTheDocument()
+        expect(decorativeIcons(screen.getByRole('link', { name: t('settings.sections.users') }))).toBe(1)
+      })
+
+      it('shows the lock to a user with none of them (users.view only)', async () => {
+        render(settingsAt('/parametres/utilisateurs', { access: only('users.view') }, [users]))
+        expect(await screen.findByText('users:read-only')).toBeInTheDocument()
+        expect(decorativeIcons(screen.getByRole('link', { name: lockedUsers }))).toBe(2)
+      })
+
+      it('leaves a single-permission section locked for a settings.view user', async () => {
+        render(settingsAt('/parametres/identite', { access: only('settings.view', 'users.view') }, [editable, users]))
+        expect(await screen.findByText('identity:read-only')).toBeInTheDocument()
+        expect(screen.getByRole('link', { name: lockedName })).toBeInTheDocument()
+        expect(screen.getByRole('link', { name: lockedUsers })).toBeInTheDocument()
+      })
     })
 
     it('treats a section without an edit permission as editable by whoever sees it', async () => {
