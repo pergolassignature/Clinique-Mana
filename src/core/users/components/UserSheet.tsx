@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { Info } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
+import type { CatalogPermission } from '@/core/access/api'
+import { usePermissionCatalog } from '@/core/access/catalog'
 import { useOrgRoles } from '@/core/access/org-roles'
 import { roleLabel } from '@/core/access/roles'
 import { FormActions } from '@/shared/components/FormActions'
@@ -31,10 +33,9 @@ import { Label } from '@/shared/ui/label'
 import { Select } from '@/shared/ui/select'
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/ui/sheet'
 import { Switch } from '@/shared/ui/switch'
-import type { CatalogPermission, OrgUser } from '../api'
+import type { OrgUser } from '../api'
 import {
   useIsSavingPermission,
-  usePermissionCatalog,
   useResetPermissions,
   useRoleDefaults,
   useSetPermissionState,

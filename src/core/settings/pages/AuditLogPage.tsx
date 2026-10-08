@@ -2,7 +2,7 @@ import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode }
 import { ChevronRight } from 'lucide-react'
 import { t } from '@/i18n'
 import type { AuditEntry, AuditFilters } from '@/core/audit/api'
-import { useAuditActors, useAuditCatalog, useAuditEntries } from '@/core/audit/hooks'
+import { useAuditActors, useAuditEntries } from '@/core/audit/hooks'
 import {
   actionLabel,
   AUDITED_TABLES,
@@ -16,6 +16,7 @@ import {
   tableLabel,
 } from '@/core/audit/labels'
 import { AUDIT_PERIODS, periodStartOn, type AuditPeriod } from '@/core/audit/period'
+import { usePermissionCatalog } from '@/core/access/catalog'
 import { useOrgRoles } from '@/core/access/org-roles'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
@@ -102,7 +103,8 @@ export function AuditLogPage() {
   const { data, isPending, isError, isFetching, refetch, hasNextPage, fetchNextPage, isFetchingNextPage, isFetchNextPageError } =
     useAuditEntries(filters)
   const { data: actors, isError: actorsFailed, isFetching: actorsFetching, refetch: refetchActors } = useAuditActors()
-  const { data: catalog } = useAuditCatalog()
+  // Optional: without the catalogue the details show permission and module keys.
+  const { data: catalog } = usePermissionCatalog()
   // Custom role names (base roles have their label); the same query as the Rôles tab, refreshed by its changes.
   const { data: roles } = useOrgRoles()
   const entries = useMemo(() => data?.pages.flat() ?? [], [data])

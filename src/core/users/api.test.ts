@@ -5,7 +5,6 @@ import {
   createRole,
   deleteRole,
   fetchOrgUsers,
-  fetchPermissionCatalog,
   fetchRoleDefaults,
   fetchUserOverrides,
   renameRole,
@@ -101,28 +100,6 @@ describe('fetchOrgUsers', () => {
     const error = { code: '42501', message: 'Permission refusée : users.view' }
     mocks.rpc.mockResolvedValue({ data: null, error })
     await expect(fetchOrgUsers()).rejects.toBe(error)
-  })
-})
-
-describe('fetchPermissionCatalog', () => {
-  it('reads the permissions and modules (the template; the role defaults are per clinic)', async () => {
-    mocks.results.set('permissions', { data: [{ key: 'audit.view', module_key: 'core', description: "Consulter le journal d'audit" }], error: null })
-    mocks.results.set('modules', { data: [{ key: 'core', name: 'Noyau' }], error: null })
-    await expect(fetchPermissionCatalog()).resolves.toEqual({
-      permissions: [{ key: 'audit.view', module_key: 'core', description: "Consulter le journal d'audit" }],
-      modules: [{ key: 'core', name: 'Noyau' }],
-    })
-    expect(mocks.select.mock.calls).toEqual([
-      ['permissions', 'key, module_key, description'],
-      ['modules', 'key, name'],
-    ])
-  })
-
-  it('throws the first error', async () => {
-    const error = { code: 'PGRST301', message: 'JWT expired' }
-    mocks.results.set('permissions', { data: [], error: null })
-    mocks.results.set('modules', { data: null, error })
-    await expect(fetchPermissionCatalog()).rejects.toBe(error)
   })
 })
 

@@ -26,7 +26,11 @@ const mocks = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
 vi.mock('@/core/users/api', () => mocks)
-vi.mock('@/core/access/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/access/api')>()), fetchOrgRoles: mocks.fetchOrgRoles }))
+vi.mock('@/core/access/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/access/api')>()),
+  fetchOrgRoles: mocks.fetchOrgRoles,
+  fetchPermissionCatalog: mocks.fetchPermissionCatalog,
+}))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 

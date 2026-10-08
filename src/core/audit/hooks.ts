@@ -1,13 +1,12 @@
 import { useEffect } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AUDIT_PAGE_SIZE, fetchAuditActors, fetchAuditCatalog, fetchAuditEntries, type AuditFilters } from './api'
+import { AUDIT_PAGE_SIZE, fetchAuditActors, fetchAuditEntries, type AuditFilters } from './api'
 
 export const auditKeys = {
   all: ['audit'] as const,
   entriesAll: () => [...auditKeys.all, 'entries'] as const,
   entries: (filters: AuditFilters) => [...auditKeys.entriesAll(), filters] as const,
   actors: () => [...auditKeys.all, 'actors'] as const,
-  catalog: () => [...auditKeys.all, 'catalog'] as const,
 }
 
 /**
@@ -47,12 +46,4 @@ export function useAuditEntries(filters: AuditFilters) {
 export function useAuditActors() {
   // Always stale: a person who just acted for the first time shows up when the page is opened again.
   return useQuery({ queryKey: auditKeys.actors(), queryFn: fetchAuditActors, staleTime: 0 })
-}
-
-/**
- * Permission descriptions and module names for the details. They change only with migrations: kept
- * for the session. Optional: without them the details show the keys.
- */
-export function useAuditCatalog() {
-  return useQuery({ queryKey: auditKeys.catalog(), queryFn: fetchAuditCatalog, staleTime: Infinity })
 }

@@ -1,5 +1,5 @@
-import type { OrgRole } from '@/core/access/api'
-import type { OrgUser, PermissionCatalog } from '@/core/users/api'
+import type { OrgRole, PermissionCatalog } from '@/core/access/api'
+import type { OrgUser } from '@/core/users/api'
 import type { RolePermission } from '@/core/users/permissions'
 import { ROLE_PERMISSIONS } from './role-fixtures'
 

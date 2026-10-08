@@ -20,19 +20,6 @@ export interface OrgUser {
   override_count: number
 }
 
-export interface CatalogPermission {
-  key: string
-  module_key: string
-  /** French, shown as is. */
-  description: string
-}
-
-/** The permission template: what exists, by module. It changes only with a migration. */
-export interface PermissionCatalog {
-  permissions: CatalogPermission[]
-  modules: { key: string; name: string }[]
-}
-
 /** The caller's org users, active first then by name (users.view; raises 42501 otherwise). */
 export async function fetchOrgUsers(): Promise<OrgUser[]> {
   const { data, error } = await supabase.rpc('list_org_users')
@@ -47,17 +34,6 @@ export async function fetchOrgUsers(): Promise<OrgUser[]> {
     last_sign_in_at: (row.last_sign_in_at as string | null) ?? null,
     override_count: row.override_count,
   }))
-}
-
-/** Permissions and modules, readable by every authenticated user. */
-export async function fetchPermissionCatalog(): Promise<PermissionCatalog> {
-  const [permissions, modules] = await Promise.all([
-    supabase.from('permissions').select('key, module_key, description'),
-    supabase.from('modules').select('key, name'),
-  ])
-  if (permissions.error) throw permissions.error
-  if (modules.error) throw modules.error
-  return { permissions: permissions.data, modules: modules.data }
 }
 
 /**

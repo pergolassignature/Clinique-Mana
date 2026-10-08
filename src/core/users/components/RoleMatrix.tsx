@@ -2,7 +2,8 @@ import { useCallback, useEffect, useId, useRef, useState, type FocusEvent, type 
 import { Check, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
-import type { OrgRole } from '@/core/access/api'
+import type { CatalogPermission, OrgRole } from '@/core/access/api'
+import { usePermissionCatalog } from '@/core/access/catalog'
 import { useOrgRoles } from '@/core/access/org-roles'
 import { roleLabel } from '@/core/access/roles'
 import { LoadError, Loading } from '@/shared/components/LoadState'
@@ -27,8 +28,7 @@ import {
 } from '@/shared/ui/dropdown-menu'
 import { Switch } from '@/shared/ui/switch'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
-import type { CatalogPermission } from '../api'
-import { usePendingRolePermissions, usePermissionCatalog, useRoleDefaults, useSetRolePermission, type RolePermissionVariables } from '../hooks'
+import { usePendingRolePermissions, useRoleDefaults, useSetRolePermission, type RolePermissionVariables } from '../hooks'
 import {
   confirmsSelfRemoval,
   groupPermissionsByModule,
