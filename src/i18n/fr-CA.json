@@ -1005,10 +1005,99 @@
           "title": "Motifs"
         },
         "languages": {
-          "title": "Langues"
+          "title": "Langues",
+          "description": "Le français est offert par tous. Ajoutez les autres langues de consultation.",
+          "add": "Ajouter une langue",
+          "createTitle": "Ajouter une langue",
+          "editTitle": "Modifier la langue",
+          "code": "Code",
+          "codeHelp": "Deux lettres, par exemple « pt » pour le portugais.",
+          "codeLocked": "Le code ne change pas une fois la langue ajoutée.",
+          "system": "Offert par tous : ne peut pas être archivé."
         },
         "deactivationReasons": {
-          "title": "Raisons de désactivation"
+          "title": "Raisons de désactivation",
+          "description": "Les raisons proposées au moment de désactiver un professionnel.",
+          "add": "Ajouter une raison",
+          "createTitle": "Ajouter une raison",
+          "editTitle": "Modifier la raison",
+          "requiresNote": "Note requise",
+          "requiresNoteHelp": "Une précision sera demandée au moment de la désactivation.",
+          "disablesAccount": "Désactive le compte",
+          "disablesAccountHelp": "Le professionnel ne pourra plus se connecter.",
+          "yes": "Oui",
+          "no": "Non",
+          "system": "Raison par défaut : ne peut pas être archivée."
+        },
+        "list": {
+          "loadError": "La liste n'a pas pu être chargée.",
+          "table": "Tableau « {list} »",
+          "filter": {
+            "label": "Afficher",
+            "option": "{label} ({count})",
+            "active": "Actifs",
+            "archived": "Archivés",
+            "all": "Tous"
+          },
+          "search": {
+            "label": "Rechercher dans « {list} »",
+            "placeholder": "Rechercher…"
+          },
+          "results": {
+            "one": "1 élément affiché",
+            "other": "{count} éléments affichés"
+          },
+          "add": "Ajouter",
+          "columns": {
+            "name": "Nom",
+            "usage": "Utilisé par",
+            "actions": "Actions"
+          },
+          "usage": {
+            "none": "—",
+            "noneLabel": "Personne",
+            "one": "1 professionnel",
+            "other": "{count} professionnels"
+          },
+          "archived": "Archivé",
+          "system": "Utilisé par le jumelage : ne peut pas être archivé.",
+          "actions": {
+            "menu": "Actions pour « {name} »",
+            "edit": "Modifier",
+            "archive": "Archiver",
+            "restore": "Restaurer",
+            "moveUp": "Monter « {name} »",
+            "moveDown": "Descendre « {name} »"
+          },
+          "empty": {
+            "title": "Aucun élément",
+            "body": "Ajoutez le premier élément de cette liste.",
+            "noMatchTitle": "Aucun résultat",
+            "noMatchBody": "Modifiez la recherche.",
+            "noActive": "Aucun élément actif",
+            "noArchived": "Aucun élément archivé"
+          },
+          "dialog": {
+            "createTitle": "Ajouter un élément",
+            "editTitle": "Modifier l'élément",
+            "name": "Nom",
+            "create": "Ajouter",
+            "creating": "Ajout…"
+          },
+          "archive": {
+            "title": "Archiver « {name} » ?",
+            "bodyNone": "Personne n'utilise cet élément. Il ne pourra plus être choisi.",
+            "bodyOne": "1 professionnel utilise « {name} ». Il reste sur son dossier mais ne pourra plus être choisi.",
+            "bodyOther": "{count} professionnels utilisent « {name} ». Il reste sur leur dossier mais ne pourra plus être choisi.",
+            "confirm": "Archiver",
+            "pending": "Archivage…"
+          },
+          "restore": {
+            "title": "Restaurer « {name} » ?",
+            "body": "« {name} » pourra de nouveau être choisi.",
+            "confirm": "Restaurer",
+            "pending": "Restauration…"
+          }
         }
       }
     }
