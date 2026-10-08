@@ -72,7 +72,7 @@ const restrict = (...patternSets) => ({ 'no-restricted-imports': ['error', { pat
 const TESTS = ['**/*.test.{ts,tsx}']
 
 export default tseslint.config(
-  { ignores: ['dist', '_legacy', 'supabase/functions', 'src/core/supabase/database.types.ts'] },
+  { ignores: ['dist', '_legacy', 'supabase/functions', 'src/core/supabase/database.types.ts', 'playwright-report', 'test-results'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
@@ -83,6 +83,13 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
+  },
+  // Playwright runs in Node, not in the browser.
+  {
+    files: ['e2e/**/*.ts', 'playwright.config.ts'],
+    languageOptions: { globals: globals.node },
+    // A fixture's `use(value)` is Playwright's, not React's `use` hook.
+    rules: { 'react-hooks/rules-of-hooks': 'off' },
   },
   // shadcn primitives export their variants (buttonVariants, badgeVariants, toast) next to the component.
   {
