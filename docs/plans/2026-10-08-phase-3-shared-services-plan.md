@@ -2334,7 +2334,7 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 ## Task 3.35: ADR 0005 status and ADR 0008
 
-**Status (2026-10-08):** ADR 0008 finalised (final sizes: 1.35 MB for a non-PDF function, 2.18 MB for a rendering one, after the latin-ext and vietnamese fonts). The ADR 0005 part waits for Task 3.33.
+**Status (2026-10-08): done.** ADR 0008 finalised (final sizes: 1.35 MB for a non-PDF function, 2.18 MB for a rendering one, after the latin-ext and vietnamese fonts). ADR 0005 reflects the signing build (Tasks 3.31–3.33 and their reviews): no `signing-create`, the send claim, recovery of the request's own document only, residual risks and the Mise en service checks.
 
 **From Task 3.30:** update ADR 0008: pdfmake is vendored (`npm run build:pdfmake`, pinned by `scripts/build-pdfmake.lock`), not an npm import in `deno.json`; uploaded sizes are ≈1.35 MB for a non-PDF function and ≈1.86 MB for a rendering one; `isolation.test.ts` guards it.
 
