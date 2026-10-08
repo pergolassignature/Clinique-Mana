@@ -27,11 +27,14 @@
 // quotes. Columns (header names are matched without case or accents):
 //   prenom, nom, courriel, telephone, ville, province, code_postal, annees_experience,
 //   titre_1, permis_1, titre_2, permis_2, langues, clienteles, age_minimum, femmes_seulement,
-//   motifs, ivac, activer
+//   motifs, ivac, activer, retenue, seances_cumulees
 // Lists hold keys separated by « ; » (or « , »); in clienteles, « * » after a key marks it
 // specialized (adults*;couples). titre_1 is the primary title. age_minimum: the youngest client age
 // (0–120, empty for none). femmes_seulement and activer: oui, non or empty (non). A permis may be
 // pasted as the website shows it: normalizeLicence keeps the bare number (P4-247).
+// retenue (the clinic's retention %, « 27,5 % ») and seances_cumulees (the cumulative sessions
+// through last month, « 237,5 ») are numbers typed the Québec way; both need
+// professionals.compensation (P4-192).
 import { closeSync, fsyncSync, openSync, readFileSync, unlinkSync, writeSync } from 'node:fs'
 import { ReadStream, WriteStream } from 'node:tty'
 import { pathToFileURL } from 'node:url'
@@ -111,7 +114,7 @@ const count = (text, ch) => text.split(ch).length - 1
 export const COLUMNS = [
   'prenom', 'nom', 'courriel', 'telephone', 'ville', 'province', 'code_postal', 'annees_experience',
   'titre_1', 'permis_1', 'titre_2', 'permis_2', 'langues', 'clienteles', 'age_minimum', 'femmes_seulement',
-  'motifs', 'ivac', 'activer',
+  'motifs', 'ivac', 'activer', 'retenue', 'seances_cumulees',
 ]
 const REQUIRED_COLUMNS = ['prenom', 'nom', 'courriel']
 
@@ -186,6 +189,8 @@ const FIELD_COLUMNS = {
   motifs: 'motifs',
   ivac: 'ivac',
   activate: 'activer',
+  retentionPct: 'retenue',
+  cumulativeSessions: 'seances_cumulees',
 }
 export const columnOf = (field) => (field == null ? 'ligne' : (FIELD_COLUMNS[field] ?? field))
 
@@ -243,6 +248,24 @@ export function normalizeLicence(cell, titleKey = '') {
 }
 
 /**
+ * A number typed the Québec way → a JSON number, or null when the cell is not one: « 27,5 »,
+ * « 27.5 », « 1 237,5 » (spaces, no-break ones included, between groups of three digits). Only the
+ * shape is checked here; the bounds (0–100 %, half sessions…) are import_professional's.
+ */
+export function parseQuebecNumber(cell) {
+  const text = cell.replace(/[\u00a0\u202f]/g, ' ').trim()
+  if (!/^-?(?:[0-9]+|[0-9]{1,3}(?: [0-9]{3})+)(?:[.,][0-9]+)?$/.test(text)) return null
+  const value = Number(text.replaceAll(' ', '').replace(',', '.'))
+  return Number.isFinite(value) ? value : null
+}
+
+/** The CSV's numeric columns: a percent sign is allowed after the retention (« 27,5 % »). */
+const NUMBERS = [
+  ['retenue', 'retention_pct', 'retentionPct', /\s*%$/, 'Indiquez un pourcentage, par exemple 27,5 ou 27,5 %.'],
+  ['seances_cumulees', 'cumulative_sessions', 'cumulativeSessions', null, 'Indiquez un nombre de séances, par exemple 237 ou 237,5.'],
+]
+
+/**
  * One CSV row → { payload, errors }. Only what the CSV encodes is checked here (numbers, oui/non,
  * stars, the title columns); every value is checked by import_professional, with the app's rules.
  * Empty cells are left out.
@@ -284,6 +307,14 @@ export function rowToPayload(values) {
   const activate = yesNo(values.activer)
   if (activate === null) errors.push({ field: 'activate', message: 'Indiquez oui ou non.' })
   else if (activate) payload.activate = true
+  // Never the cell in the message: the value is the clinic's, not something to print.
+  for (const [column, key, field, suffix, message] of NUMBERS) {
+    const cell = (values[column] ?? '').trim()
+    if (cell === '') continue
+    const value = parseQuebecNumber(suffix ? cell.replace(suffix, '') : cell)
+    if (value === null) errors.push({ field, message })
+    else payload[key] = value
+  }
   return { payload, errors }
 }
 
@@ -527,7 +558,10 @@ function outcomeText(result) {
   return `activé, dossier incomplet (${missing})`
 }
 
-/** Counts, never the lists themselves (motifs: a summary, never a wall). */
+/**
+ * Counts, never the lists themselves (motifs: a summary, never a wall); the retention and the
+ * cumulative sessions are named when given, never their values.
+ */
 function contentText(payload) {
   const parts = [
     [payload.professions?.length, 'titre', 'titres'],
@@ -535,10 +569,14 @@ function contentText(payload) {
     [payload.clienteles?.length, 'clientèle', 'clientèles'],
     [payload.motifs?.length, 'motif', 'motifs'],
   ]
-  return parts
-    .filter(([n]) => n)
-    .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
-    .join(', ')
+  const flags = [
+    ['retention_pct', 'retenue'],
+    ['cumulative_sessions', 'séances cumulées'],
+  ]
+  return [
+    ...parts.filter(([n]) => n).map(([n, one, many]) => `${n} ${n === 1 ? one : many}`),
+    ...flags.filter(([key]) => key in payload).map(([, label]) => label),
+  ].join(', ')
 }
 
 /** CSV order: the row as a whole first, then column by column (a stable sort keeps each side's order). */

@@ -371,6 +371,52 @@ begin
     end if;
   end loop;
 
+  -- Retention (P4-180…): fake counts and rates so « Révision mensuelle » shows every status.
+  -- Months are relative to the clinic's today: the opening balance two months back, last month's
+  -- sessions, decisions on the program's start (2026-07-01) and on this month's first day.
+  --   01 Geneviève  312 sessions, 25 %                  → Palier maximum atteint
+  --   03 Camille    103 sessions, 27,5 %                → Écart à valider (27 % suggested)
+  --   04 Félix       60 sessions, 30 % maintained at 51 → Maintenu
+  --   05 Sophie      40 sessions, 27 % custom, one client agreement → Taux particulier
+  --   07 Étienne    158 sessions, 29 % → 28,5 % this month → Conforme (green for last month)
+  --   02 Isabelle, 06 Marc-André: nothing yet          → Écart à valider
+  declare
+    v_this constant date := greatest(date_trunc('month', private.clinic_today())::date, date '2026-08-01');
+    v_last constant date := (date_trunc('month', private.clinic_today()) - interval '1 month')::date;
+    v_before constant date := (date_trunc('month', private.clinic_today()) - interval '2 months')::date;
+    r record;
+    v_decided jsonb;
+  begin
+    for r in select * from (values
+        (1, 312.0, 0, 0), (3, 88.0, 14, 2), (4, 60.0, 0, 0), (5, 40.0, 0, 0), (7, 150.0, 8, 0)
+      ) as v(n, opening, long_sessions, short_sessions)
+    loop
+      v_id := ('5eed0000-0000-0000-0000-' || lpad(r.n::text, 12, '0'))::uuid;
+      perform public.record_monthly_sessions(v_before, jsonb_build_array(jsonb_build_object(
+        'professional_id', v_id, 'sessions_50_60', 0, 'sessions_30', 0, 'adjustment', r.opening,
+        'note', 'Solde d''ouverture (fictif)', 'expected_updated_at', null)));
+      if r.long_sessions + r.short_sessions > 0 then
+        perform public.record_monthly_sessions(v_last, jsonb_build_array(jsonb_build_object(
+          'professional_id', v_id, 'sessions_50_60', r.long_sessions, 'sessions_30', r.short_sessions,
+          'expected_updated_at', null)));
+      end if;
+    end loop;
+    -- Each decision counts through last month (the month « Révision mensuelle » reviews) and names
+    -- the open decision it replaces (null for the first).
+    perform public.decide_retention('5eed0000-0000-0000-0000-000000000001', 'initial', 25, date '2026-07-01', null, v_last, null);
+    perform public.decide_retention('5eed0000-0000-0000-0000-000000000003', 'initial', 27.5, date '2026-07-01', null, v_last, null);
+    v_decided := public.decide_retention('5eed0000-0000-0000-0000-000000000004', 'initial', 30, date '2026-07-01', null, v_last, null);
+    perform public.decide_retention('5eed0000-0000-0000-0000-000000000004', 'maintained', null, v_this, null, v_last,
+                                    (v_decided ->> 'id')::uuid);
+    perform public.decide_retention('5eed0000-0000-0000-0000-000000000005', 'custom', 27, date '2026-07-01',
+                                    'Entente particulière (fictive)', v_last, null);
+    perform public.set_professional_client_agreement('5eed0000-0000-0000-0000-000000000005', 'D-1042', 50, 6000, 9000,
+                                                     date '2026-07-01', 'Entente fictive');
+    v_decided := public.decide_retention('5eed0000-0000-0000-0000-000000000007', 'initial', 29, date '2026-07-01', null, v_last, null);
+    perform public.decide_retention('5eed0000-0000-0000-0000-000000000007', 'suggested', null, v_this, null, v_last,
+                                    (v_decided ->> 'id')::uuid);
+  end;
+
   perform set_config('request.jwt.claims', '', false);
 end;
 $seed$;

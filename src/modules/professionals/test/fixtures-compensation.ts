@@ -3,80 +3,129 @@ import type { ProfessionalPrivate } from '../api/private'
 import { IDS } from './fixtures'
 
 /**
- * Compensation and private-data payloads (4a.17's RPCs and tables), as JSON and as the parsed
- * domain values the cards read. Test-only.
+ * Retention and private-data payloads (the RPCs and tables of 20261008170703), as JSON and as the
+ * parsed domain values the cards read. Fake values only. Test-only.
  */
 
 export const COMP_IDS = {
-  margin: '00000000-0000-4000-8000-000000003001',
-  previousMargin: '00000000-0000-4000-8000-000000003002',
-  level: '00000000-0000-4000-8000-000000003101',
-  rule: '00000000-0000-4000-8000-000000003201',
+  rate: '00000000-0000-4000-8000-000000003001',
+  previousRate: '00000000-0000-4000-8000-000000003002',
+  month: '00000000-0000-4000-8000-000000003101',
+  previousMonth: '00000000-0000-4000-8000-000000003102',
+  agreement: '00000000-0000-4000-8000-000000003201',
+  grid: '00000000-0000-4000-8000-000000003301',
+  title: '00000000-0000-4000-8000-000000003401',
 } as const
 
-export const MARGIN_ROW_JSON = {
-  id: COMP_IDS.margin,
-  kind: 'consultation',
-  margin_pct: 28,
-  effective_from: '2026-11-01',
-  effective_to: null,
-  created_at: '2026-10-08T15:00:00+00:00',
+/** The month rows as `professional_session_counts` returns them (newest first). */
+export const SESSION_ROW_JSON = {
+  id: COMP_IDS.month,
+  month: '2026-09-01',
+  sessions_50_60: 20,
+  sessions_30: 4,
+  adjustment: 0,
   note: null,
+  updated_at: '2026-10-02T14:00:00.123456+00:00',
 }
 
-/** `get_professional_compensation(P, '2026-12-01')`: a margin for Consultation, defaults elsewhere. */
+/** `get_professional_compensation(P)` on 2026-10-08: 55,5 sessions, 28 % applied, 27,5 % suggested. */
 export const COMPENSATION_JSON = {
-  on: '2026-12-01',
-  margins: [
-    { kind: 'consultation', name: 'Consultation', source: 'professional', margin_pct: 28, min: 25, max: 30, effective_from: '2026-11-01', id: COMP_IDS.margin, note: null },
-    { kind: 'workshop', name: 'Atelier', source: 'default', margin_pct: null, min: 25, max: 25, effective_from: '2017-01-01', id: null, note: null },
-  ],
-  recognition: {
-    id: COMP_IDS.level,
-    level: 2,
-    sessions_counted: 117,
-    effective_from: '2026-10-01',
-    note: 'Compté dans GOrendezvous',
-    rule: {
-      id: COMP_IDS.rule,
-      step_sessions: 50,
-      bonus_per_50min_cents: 50,
-      bonus_per_30min_cents: 25,
-      cap_pct: 25,
-      cap_basis: 'unconfirmed',
-      effective_from: '2017-01-01',
-    },
+  on: '2026-10-08',
+  title: { id: COMP_IDS.title, name: 'Psychologue' },
+  grid: {
+    id: COMP_IDS.grid,
+    effective_from: '2026-07-01',
+    floor_pct: 25,
+    tiers: [
+      { threshold_sessions: 0, retention_pct: 28 },
+      { threshold_sessions: 51, retention_pct: 27.5 },
+      { threshold_sessions: 101, retention_pct: 27 },
+    ],
   },
-}
-
-const RULE = {
-  id: COMP_IDS.rule,
-  stepSessions: 50,
-  bonusPer50MinCents: 50,
-  bonusPer30MinCents: 25,
-  capPct: 25,
-  capBasis: 'unconfirmed' as const,
-  effectiveFrom: '2017-01-01',
+  sessions_total: 55.5,
+  applied: { id: COMP_IDS.rate, retention_pct: 28, decision: 'initial', effective_from: '2026-07-01', tier_threshold: 0, note: null },
+  previous_pct: null,
+  in_force_pct: 28,
+  suggested: { threshold_sessions: 51, retention_pct: 27.5 },
+  next: { threshold_sessions: 101, retention_pct: 27 },
+  status: 'gap',
+  pay: [
+    { duration: 60, client_price_cents: 20000, applied_cents: 14400, suggested_cents: 14500, upcoming_cents: null },
+    { duration: 50, client_price_cents: 17500, applied_cents: 12600, suggested_cents: 12688, upcoming_cents: null },
+    { duration: 30, client_price_cents: 13000, applied_cents: 9360, suggested_cents: 9425, upcoming_cents: null },
+  ],
+  agreements: [],
+  other_rates: [
+    { kind: 'workshop', name: 'Ateliers et conférences', retention_pct: 25, effective_from: '2026-07-01' },
+    { kind: 'late_cancellation', name: 'Annulation tardive', retention_pct: 30, effective_from: '2026-07-01' },
+  ],
 }
 
 /**
- * On 2026-10-08 (the tests' clinic date): Consultation at the default range, a margin of 28 %
- * coming on 2026-11-01 (created today, so deletable); Atelier at its default; level 2 since
- * 2026-10-01, entered long ago (not deletable).
+ * On 2026-10-08 (the tests' clinic date): a psychologist with 55,5 sessions (July's opening
+ * balance and September's sessions), 28 % applied since 2026-07-01 (entered long ago, not
+ * deletable), 27,5 % suggested: « Écart à valider ». One client agreement, created today.
  */
 export function compensationFixture(overrides: Partial<ProfessionalCompensation> = {}): ProfessionalCompensation {
   return {
     on: '2026-10-08',
-    margins: [
-      { kind: 'consultation', name: 'Consultation', source: 'default', marginPct: null, min: 25, max: 30, effectiveFrom: '2017-01-01', note: null },
-      { kind: 'workshop', name: 'Atelier', source: 'default', marginPct: null, min: 25, max: 25, effectiveFrom: '2017-01-01', note: null },
+    title: { id: COMP_IDS.title, name: 'Psychologue' },
+    grid: {
+      id: COMP_IDS.grid,
+      effectiveFrom: '2026-07-01',
+      floorPct: 25,
+      tiers: [
+        { threshold: 0, pct: 28 },
+        { threshold: 51, pct: 27.5 },
+        { threshold: 101, pct: 27 },
+      ],
+    },
+    sessionsTotal: 55.5,
+    applied: { id: COMP_IDS.rate, pct: 28, decision: 'initial', effectiveFrom: '2026-07-01', tierThreshold: 0, note: null },
+    previousPct: null,
+    inForcePct: 28,
+    suggested: { threshold: 51, pct: 27.5 },
+    next: { threshold: 101, pct: 27 },
+    status: 'gap',
+    pay: [
+      { duration: 60, clientPriceCents: 20000, appliedCents: 14400, suggestedCents: 14500, upcomingCents: null },
+      { duration: 50, clientPriceCents: 17500, appliedCents: 12600, suggestedCents: 12688, upcomingCents: null },
+      { duration: 30, clientPriceCents: 13000, appliedCents: 9360, suggestedCents: 9425, upcomingCents: null },
     ],
-    recognition: { level: 2, sessionsCounted: 117, effectiveFrom: '2026-10-01', note: 'Compté dans GOrendezvous', rule: RULE },
-    marginRows: [
-      { id: COMP_IDS.margin, kind: 'consultation', marginPct: 28, effectiveFrom: '2026-11-01', effectiveTo: null, createdAt: '2026-10-08T15:00:00Z', note: null },
+    otherRates: [
+      { kind: 'workshop', name: 'Ateliers et conférences', pct: 25, effectiveFrom: '2026-07-01' },
+      { kind: 'late_cancellation', name: 'Annulation tardive', pct: 30, effectiveFrom: '2026-07-01' },
     ],
-    levelRows: [
-      { id: COMP_IDS.level, level: 2, sessionsCounted: 117, effectiveFrom: '2026-10-01', effectiveTo: null, createdAt: '2026-01-01T00:00:00Z', note: 'Compté dans GOrendezvous' },
+    rateRows: [
+      {
+        id: COMP_IDS.rate,
+        pct: 28,
+        decision: 'initial',
+        tierThreshold: 0,
+        suggestedPct: 28,
+        sessionsTotal: 31.5,
+        effectiveFrom: '2026-07-01',
+        effectiveTo: null,
+        createdAt: '2026-07-01T12:00:00Z',
+        note: null,
+      },
+    ],
+    sessionRows: [
+      { id: COMP_IDS.month, month: '2026-09-01', long: 20, short: 4, adjustment: 0, note: null, updatedAt: '2026-10-02T14:00:00.123456+00:00' },
+      { id: COMP_IDS.previousMonth, month: '2026-07-01', long: 0, short: 0, adjustment: 33.5, note: 'Solde importé', updatedAt: '2026-07-01T12:00:00+00:00' },
+    ],
+    agreementRows: [
+      {
+        id: COMP_IDS.agreement,
+        clientLabel: 'D-1042',
+        duration: 50,
+        professionalAmountCents: 8500,
+        clientPriceCents: 12000,
+        effectiveFrom: '2026-10-01',
+        effectiveTo: null,
+        createdAt: '2026-10-08T13:00:00Z',
+        note: null,
+      },
     ],
     ...overrides,
   }

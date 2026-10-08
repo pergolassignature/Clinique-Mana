@@ -14,18 +14,13 @@ import { refreshProfessionalHistory } from '../../../hooks/use-professional-reco
 import { RecordContext } from '../record-context'
 import { HistoryTab } from './HistoryTab'
 
-const mocks = vi.hoisted(() => ({ fetchProfessionalHistory: vi.fn(), fetchCompensationKinds: vi.fn() }))
+const mocks = vi.hoisted(() => ({ fetchProfessionalHistory: vi.fn() }))
 // Two rows per page, so paging is easy to drive.
 vi.mock('../../../api/history', () => ({ fetchProfessionalHistory: mocks.fetchProfessionalHistory, PROFESSIONAL_HISTORY_PAGE_SIZE: 2 }))
-vi.mock('../../../api/compensation', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../../api/compensation')>()),
-  fetchCompensationKinds: mocks.fetchCompensationKinds,
-}))
 
 afterEach(() => {
   cleanup()
   mocks.fetchProfessionalHistory.mockReset()
-  mocks.fetchCompensationKinds.mockReset()
 })
 
 const H = 'modules.professionals.history'
@@ -286,19 +281,6 @@ describe('HistoryTab', () => {
     await waitFor(() => expect(mocks.fetchProfessionalHistory).toHaveBeenCalled())
     expect(await screen.findByText(/a modifié les années d'expérience : 2 → 3/)).toBeInTheDocument()
     expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined]])
-  })
-
-  it('reads the compensation kinds only for professionals.compensation holders (P4-161)', async () => {
-    mocks.fetchProfessionalHistory.mockResolvedValue([])
-    mocks.fetchCompensationKinds.mockResolvedValue([{ key: 'consultation', name: 'Consultation' }])
-    renderTab()
-    expect(await screen.findByText(t(`${H}.empty.title`))).toBeInTheDocument()
-    expect(mocks.fetchCompensationKinds).not.toHaveBeenCalled()
-    cleanup()
-
-    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'admin')
-    expect(await screen.findByText(t(`${H}.empty.title`))).toBeInTheDocument()
-    expect(mocks.fetchCompensationKinds).toHaveBeenCalledOnce()
   })
 
   it('shows the empty state', async () => {

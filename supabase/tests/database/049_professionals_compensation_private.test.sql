@@ -1,5 +1,5 @@
--- Professionnels: encrypted private data and compensation terms (migration
--- *_professionals_compensation_private.sql, plan Phase 4 Task 4a.17).
+-- Professionnels: encrypted private data (migration *_professionals_compensation_private.sql,
+-- plan Phase 4 Task 4a.17). The retention program of the same migration: 050.
 -- Covers: privileges (table, RPCs, helpers, over pg_proc); the three card saves
 -- (set_professional_tax_numbers, set_professional_bank, set_professional_sin: encryption at rest,
 -- masks, collect_sin, Luhn, normalisation, validation messages that never repeat a value, blank
@@ -9,15 +9,13 @@
 -- (reveal and clear allowed, a new SIN refused); audit redaction of every value column and no
 -- plaintext anywhere in audit_log; permissions (adjointe, provider, conseillère, module off,
 -- another clinic with org A's ids on every RPC); the history (private rows without values, reads
--- by known field name only, compensation rows for compensation holders only); key versions
+-- by known field name only); key versions
 -- (pii_encrypted_values, one version per row during a rotation on every card, the clean P0001
--- for an unreadable kept value, the health check); compensation (kinds, seeded defaults and rules,
--- dated margins and levels, date bounds, warning, overlaps, the four deletes and their windows,
--- the read model, isolation, the provider refused).
+-- for an unreadable kept value, the health check).
 -- Plaintexts are only compared, never stored outside the RPCs' own writes.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(269);
+select plan(149);
 
 -- The HINT of the error p_sql raises (null when none): throws_ok checks only the code and message.
 create function private.test_error_hint(p_sql text) returns text
@@ -89,35 +87,18 @@ select is((select c.relrowsecurity from pg_class c where c.oid = 'public.profess
 select is((select count(*)::int from pg_policies p where p.schemaname = 'public' and p.tablename = 'professional_private'), 0,
   'professional_private has no policy');
 
-select table_privs_are('public', 'compensation_kinds',        'authenticated', array['SELECT'], 'authenticated: select only on compensation_kinds');
-select table_privs_are('public', 'compensation_defaults',     'authenticated', array['SELECT'], 'authenticated: select only on compensation_defaults');
-select table_privs_are('public', 'professional_compensation', 'authenticated', array['SELECT'], 'authenticated: select only on professional_compensation');
-select table_privs_are('public', 'recognition_rules',         'authenticated', array['SELECT'], 'authenticated: select only on recognition_rules');
-select table_privs_are('public', 'professional_recognition',  'authenticated', array['SELECT'], 'authenticated: select only on professional_recognition');
-select is_empty($$
-  select t from unnest(array['compensation_kinds', 'compensation_defaults', 'professional_compensation',
-                             'recognition_rules', 'professional_recognition']) t
-   where has_table_privilege('anon', 'public.' || t, 'select, insert, update, delete, truncate, references, trigger')
-$$, 'anon: no privileges on the compensation tables');
-
--- The fifteen RPCs: EXECUTE for authenticated only (never anon, PUBLIC or service_role).
+-- The six RPCs: EXECUTE for authenticated only (never anon, PUBLIC or service_role).
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
             where n.nspname = 'public'
               and p.proname in ('get_professional_private', 'reveal_professional_private', 'set_professional_tax_numbers',
-                                'set_professional_bank', 'set_professional_sin', 'clear_professional_private_field',
-                                'set_compensation_default', 'delete_compensation_default', 'set_professional_margin',
-                                'delete_professional_margin', 'set_recognition_rule', 'delete_recognition_rule',
-                                'set_professional_recognition', 'delete_professional_recognition', 'get_professional_compensation')),
-  15, 'the fifteen RPCs exist, none overloaded');
+                                'set_professional_bank', 'set_professional_sin', 'clear_professional_private_field')),
+  6, 'the six RPCs exist, none overloaded');
 select is_empty($$
   select p.oid::regprocedure::text
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public'
      and p.proname in ('get_professional_private', 'reveal_professional_private', 'set_professional_tax_numbers',
-                       'set_professional_bank', 'set_professional_sin', 'clear_professional_private_field',
-                       'set_compensation_default', 'delete_compensation_default', 'set_professional_margin',
-                       'delete_professional_margin', 'set_recognition_rule', 'delete_recognition_rule',
-                       'set_professional_recognition', 'delete_professional_recognition', 'get_professional_compensation')
+                       'set_professional_bank', 'set_professional_sin', 'clear_professional_private_field')
      and (p.proacl is null
           or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0)
           or has_function_privilege('anon', p.oid, 'execute')
@@ -129,8 +110,6 @@ select function_privs_are('public', 'reveal_professional_private', array['uuid',
 select function_privs_are('public', 'reveal_professional_private', array['uuid', 'text'], 'service_role', array[]::text[], 'service_role cannot reveal');
 select function_privs_are('public', 'set_professional_bank', array['uuid', 'text', 'text', 'text', 'timestamp with time zone'],
   'authenticated', array['EXECUTE'], 'authenticated may call set_professional_bank (its RPC checks the permission)');
-select function_privs_are('public', 'delete_recognition_rule', array['uuid'], 'service_role', array[]::text[], 'service_role cannot delete a rule');
-select function_privs_are('public', 'delete_professional_recognition', array['uuid'], 'anon', array[]::text[], 'anon cannot delete a level');
 select hasnt_function('public', 'set_professional_private', 'the whole-form save is gone (one RPC per card, P4-148)');
 
 -- Helpers: granted to no role.
@@ -139,9 +118,6 @@ select is_empty($$
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'private'
      and p.proname in ('is_valid_sin', 'raise_unreadable_private_value', 'unreadable_private_field', 'assert_private_not_stale',
-                       'seed_professionals_compensation', 'seed_professionals_compensation_on_org',
-                       'assert_compensation_access', 'assert_compensation_kind', 'compensation_note',
-                       'assert_compensation_date', 'assert_starts_after',
                        'pii_encrypted_values', 'professional_history_tables')
      and (p.proacl is null
           or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0)
@@ -155,8 +131,6 @@ select ok(private.is_valid_sin('046454286'), 'Luhn: 046 454 286 is valid');
 select ok(not private.is_valid_sin('123456789'), 'Luhn: 123 456 789 is not');
 select ok(not private.is_valid_sin('04645428'), 'Luhn: 8 digits are not a SIN');
 select ok(not coalesce(private.is_valid_sin(null), false), 'Luhn: null is not a SIN');
-select lives_ok($$ select private.assert_compensation_date('2000-01-01', 'x'), private.assert_compensation_date('2100-12-31', 'x'),
-                         private.assert_compensation_date(null, 'x') $$, 'date bounds: 2000-01-01 and 2100-12-31 pass, null is left to the caller');
 
 -- =============================================================================
 -- The three card saves / get_professional_private (admin A, P1)
@@ -432,8 +406,6 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select throws_ok($$ select public.reveal_professional_private(current_setting('test.p1')::uuid, 'sin') $$,
   '42501', 'Permission refusée : professionals.private', 'module off: no reveal');
-select throws_ok($$ select public.get_professional_compensation(current_setting('test.p1')::uuid) $$,
-  '42501', 'Permission refusée : professionals.compensation', 'module off: no compensation');
 reset role;
 update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
 
@@ -573,339 +545,6 @@ values ('b0000000-0000-0000-0000-00000000000a', 'professional_private', current_
 set local role authenticated;
 select is((select h.changed_fields from public.list_professional_history(current_setting('test.p1')::uuid, null, 1) h),
   '{"fields": []}'::jsonb, '… an unknown name alone leaves an empty list');
-
--- =============================================================================
--- Compensation: catalogue and seeded terms
--- =============================================================================
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select results_eq($$ select k.key, k.name from public.compensation_kinds k order by k.sort_order $$,
-  $$ values ('consultation'::text, 'Consultation'::text), ('workshop', 'Atelier'), ('late_cancellation', 'Annulation tardive'), ('other_fees', 'Autres frais') $$,
-  'the four kinds, in order');
-select results_eq($$ select d.kind, d.margin_min_pct, d.margin_max_pct, d.effective_from, d.effective_to
-                      from public.compensation_defaults d order by d.kind $$,
-  $$ values ('consultation'::text, 25.00::numeric, 30.00::numeric, '2017-01-01'::date, null::date),
-            ('late_cancellation', 30.00, 30.00, '2017-01-01', null),
-            ('other_fees', 15.00, 15.00, '2017-01-01', null),
-            ('workshop', 25.00, 25.00, '2017-01-01', null) $$,
-  'org A is seeded with the legacy default ranges (and sees only its own)');
-select results_eq($$ select r.effective_from, r.effective_to, r.step_sessions, r.bonus_per_50min_cents, r.bonus_per_30min_cents, r.cap_pct, r.cap_basis
-                      from public.recognition_rules r $$,
-  $$ values ('2017-01-01'::date, null::date, 50, 50, 25, 25.00::numeric, 'unconfirmed'::text) $$,
-  'org A is seeded with the recognition rule (cap basis unconfirmed, P4-8)');
-reset role;
-select is((select count(*)::int from public.compensation_defaults d where d.org_id = 'b0000000-0000-0000-0000-00000000000b'), 4,
-  'org B has its own defaults');
-select is((select count(*)::int from public.audit_log a where a.org_id = 'b0000000-0000-0000-0000-00000000000a'
-            and a.table_name in ('compensation_defaults', 'recognition_rules') and a.source = 'seed:professionals_compensation'), 5,
-  'the seeded rows are audited as the seed');
-
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-select is((select count(*)::int from public.compensation_kinds), 0, 'the conseillère reads no kinds (RLS)');
-select is((select count(*)::int from public.compensation_defaults), 0, 'the conseillère reads no defaults');
-select throws_ok($$ select public.get_professional_compensation(current_setting('test.p1')::uuid) $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the conseillère cannot read the terms');
-select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 28, '2026-11-01', null) $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the conseillère cannot set a margin');
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select throws_ok($$ select public.set_compensation_default('consultation', 20, 30, '2027-01-01') $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the adjointe cannot change a default');
-select throws_ok($$ select public.set_professional_recognition(current_setting('test.p1')::uuid, 1, 60, '2026-10-01', null) $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the adjointe cannot set a level');
-
--- =============================================================================
--- Margins
--- =============================================================================
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select set_config('test.m1', (public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 28, '2026-11-01', null)) ->> 'id', true);
-select is((select c.margin_pct from public.professional_compensation c where c.id = current_setting('test.m1')::uuid), 28.00::numeric,
-  'a margin is stored');
-select is(public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 29, '2027-01-01', 'Renouvellement') ->> 'warning',
-  'false', 'a margin inside the default range: no warning');
-select is((select c.effective_to from public.professional_compensation c where c.id = current_setting('test.m1')::uuid), '2027-01-01'::date,
-  'the next margin closes the open one on its start date');
-select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 27, '2027-01-01', null) $$,
-  'P0001', 'La nouvelle marge doit commencer après le 2027-01-01.', 'a margin must start after the open one');
-select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', -1, '2027-06-01', null) $$,
-  'P0001', 'La marge est comprise entre 0 et 100 %.', 'a negative margin is refused');
-select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 101, '2027-06-01', null) $$,
-  'P0001', 'La marge est comprise entre 0 et 100 %.', 'a margin above 100 % is refused');
-select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 30, null, null) $$,
-  'P0001', 'La date d''entrée en vigueur est requise.', 'a start date is required');
-select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 30, 'infinity', null) $$,
-  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'an infinite start date is refused');
-select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 30, '0044-03-15 BC', null) $$,
-  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'a BC start date is refused');
-select is(private.test_error_hint($$ select public.set_professional_margin('c0000000-0000-0000-0000-000000000001', 'consultation', 30, '20270-01-01', null) $$),
-  'effective_from', '… a five-digit year too, with the HINT effective_from');
-select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'tips', 30, '2027-06-01', null) $$,
-  '22023', 'Type de rémunération inconnu.', 'an unknown kind is refused');
-select throws_ok($$ select public.set_professional_margin(current_setting('test.p3')::uuid, 'consultation', 30, '2027-06-01', null) $$,
-  'P0001', 'Professionnel introuvable.', 'another clinic''s professional is not found');
-select is(public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 35, '2027-06-01', null) ->> 'warning',
-  'true', 'a margin outside the default range is stored with a warning');
-select is(public.set_professional_margin(current_setting('test.p1')::uuid, 'workshop', 25, '2026-11-01', ' Atelier   de groupe ') ->> 'warning',
-  'false', 'a margin equal to a one-value range: no warning');
-select is((select c.note from public.professional_compensation c where c.professional_id = current_setting('test.p1')::uuid and c.kind = 'workshop'),
-  'Atelier de groupe', 'the note is tidied');
-
-reset role;
-select throws_ok($$ insert into public.professional_compensation (org_id, professional_id, kind, margin_pct, effective_from)
-                    values ('b0000000-0000-0000-0000-00000000000a', current_setting('test.p1')::uuid, 'consultation', 20, '2026-12-01') $$,
-  '23P01', null, 'overlapping margins are refused by the exclusion constraint');
-select throws_ok($$ insert into public.compensation_defaults (org_id, kind, margin_min_pct, margin_max_pct, effective_from)
-                    values ('b0000000-0000-0000-0000-00000000000a', 'consultation', 20, 30, '2020-01-01') $$,
-  '23P01', null, 'overlapping default ranges are refused too');
-
--- Deletes: only the open row, only before it is in force or within 24 hours of its creation.
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select throws_ok($$ select public.delete_professional_margin(current_setting('test.m1')::uuid) $$,
-  'P0001', 'Seule la dernière marge peut être supprimée.', 'a closed margin cannot be deleted');
-select lives_ok($$ select public.delete_professional_margin((select c.id from public.professional_compensation c
-                     where c.professional_id = current_setting('test.p1')::uuid and c.kind = 'consultation' and c.effective_to is null)) $$,
-  'the open (future) margin is deleted');
-select results_eq($$ select c.margin_pct, c.effective_to from public.professional_compensation c
-                      where c.professional_id = current_setting('test.p1')::uuid and c.kind = 'consultation' and c.effective_from = '2027-01-01' $$,
-  $$ values (29.00::numeric, null::date) $$, '… and the previous one is open again');
-select set_config('test.m_past', (public.set_professional_margin(current_setting('test.p1')::uuid, 'other_fees', 15, (current_date - 30), null)) ->> 'id', true);
-reset role;
-update public.professional_compensation set created_at = now() - interval '2 days' where id = current_setting('test.m_past')::uuid;
-set local role authenticated;
-select throws_ok($$ select public.delete_professional_margin(current_setting('test.m_past')::uuid) $$,
-  'P0001', 'Une marge déjà en vigueur ne peut pas être supprimée.', 'a margin in force for more than 24 hours stays');
-select set_config('test.m_fresh', (public.set_professional_margin(current_setting('test.p1')::uuid, 'late_cancellation', 30, (current_date - 10), null)) ->> 'id', true);
-select lives_ok($$ select public.delete_professional_margin(current_setting('test.m_fresh')::uuid) $$,
-  'a margin in force, created under 24 hours ago, can be deleted (typo window)');
-select is((select count(*)::int from public.professional_compensation c
-            where c.professional_id = current_setting('test.p1')::uuid and c.kind = 'late_cancellation'), 0, '… and is gone');
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
-select throws_ok($$ select public.delete_professional_margin(current_setting('test.m1')::uuid) $$,
-  'P0001', 'Marge introuvable.', 'admin B cannot delete org A''s margin');
-
--- Default ranges.
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select throws_ok($$ select public.set_compensation_default('consultation', 31, 30, (current_date + 400)) $$,
-  'P0001', 'La marge minimale ne peut pas dépasser la marge maximale.', 'min above max is refused');
-select throws_ok($$ select public.set_compensation_default('consultation', 20, 101, (current_date + 400)) $$,
-  'P0001', 'La marge est comprise entre 0 et 100 %.', 'max above 100 % is refused');
-select throws_ok($$ select public.set_compensation_default('consultation', 20, 30, '2017-01-01') $$,
-  'P0001', 'La nouvelle fourchette doit commencer après le 2017-01-01.', 'a range must start after the open one');
-select set_config('test.d_new', public.set_compensation_default('consultation', 26, 31, (current_date + 400))::text, true);
-select results_eq($$ select d.margin_min_pct, d.margin_max_pct, d.effective_to from public.compensation_defaults d
-                      where d.kind = 'consultation' order by d.effective_from $$,
-  $$ values (25.00::numeric, 30.00::numeric, (current_date + 400)), (26.00, 31.00, null) $$,
-  'a new range closes the open one');
-select lives_ok($$ select public.delete_compensation_default(current_setting('test.d_new')::uuid) $$, 'a future range is deleted');
-select is((select count(*)::int from public.compensation_defaults d where d.kind = 'consultation' and d.effective_to is null), 1,
-  '… and the previous one is open again');
-select throws_ok($$ select public.delete_compensation_default((select d.id from public.compensation_defaults d where d.kind = 'consultation')) $$,
-  'P0001', 'La première fourchette d''un type ne peut pas être supprimée.', 'the first range of a kind stays');
-select throws_ok($$ select public.set_compensation_default('consultation', 25, 30, '2101-01-01') $$,
-  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'a range starting after 2100 is refused');
-select set_config('test.d_fresh', public.set_compensation_default('workshop', 25, 26, (current_date - 10))::text, true);
-select lives_ok($$ select public.delete_compensation_default(current_setting('test.d_fresh')::uuid) $$,
-  'a range in force, created under 24 hours ago, is deleted (typo window)');
-select set_config('test.d_old', public.set_compensation_default('workshop', 25, 27, (current_date - 10))::text, true);
-reset role;
-update public.compensation_defaults set created_at = now() - interval '2 days' where id = current_setting('test.d_old')::uuid;
-set local role authenticated;
-select throws_ok($$ select public.delete_compensation_default(current_setting('test.d_old')::uuid) $$,
-  'P0001', 'Une fourchette déjà en vigueur ne peut pas être supprimée.', 'a range in force for more than 24 hours stays');
-
--- =============================================================================
--- Recognition
--- =============================================================================
-select set_config('test.r1', public.set_professional_recognition(current_setting('test.p1')::uuid, 2, 117, '2026-10-01', 'Compté dans GOrendezvous')::text, true);
-select results_eq($$ select r.level, r.sessions_counted, r.effective_from, r.note from public.professional_recognition r
-                      where r.id = current_setting('test.r1')::uuid $$,
-  $$ values (2, 117, '2026-10-01'::date, 'Compté dans GOrendezvous'::text) $$, 'a recognition level is stored');
-select lives_ok($$ select public.set_professional_recognition(current_setting('test.p1')::uuid, 3, 160, '2027-01-01', null) $$, 'a later level');
-select is((select r.effective_to from public.professional_recognition r where r.id = current_setting('test.r1')::uuid), '2027-01-01'::date,
-  '… closes the open one');
-select throws_ok($$ select public.set_professional_recognition(current_setting('test.p1')::uuid, 4, 210, '2026-12-01', null) $$,
-  'P0001', 'Le nouveau niveau doit commencer après le 2027-01-01.', 'a level must start after the open one');
-select throws_ok($$ select public.set_professional_recognition(current_setting('test.p1')::uuid, -1, 0, '2027-06-01', null) $$,
-  'P0001', 'Le niveau est compris entre 0 et 1 000.', 'a negative level is refused');
-select throws_ok($$ select public.set_recognition_rule(50, 50, 25, 25, 'guess', '2027-01-01', null) $$,
-  '22023', 'Base du plafond inconnue.', 'an unknown cap basis is refused');
-select throws_ok($$ select public.set_recognition_rule(50, 50, 25, 101, 'unconfirmed', '2027-01-01', null) $$,
-  'P0001', 'Le plafond est compris entre 0 et 100 %.', 'a cap above 100 % is refused');
-select throws_ok($$ select public.set_recognition_rule(0, 50, 25, 25, 'unconfirmed', '2027-01-01', null) $$,
-  'P0001', 'Le palier compte de 1 à 1 000 séances.', 'a step of 0 sessions is refused');
-select throws_ok($$ select public.set_recognition_rule(50, 50, 25, 25, 'unconfirmed', '1999-12-31', null) $$,
-  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'a rule starting before 2000 is refused');
-select throws_ok($$ select public.set_professional_recognition(current_setting('test.p1')::uuid, 1, 1, '-infinity', null) $$,
-  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'a level starting at -infinity is refused');
-select lives_ok($$ select public.set_recognition_rule(50, 60, 30, 25, 'margin_reduction', '2027-01-01', 'Confirmé par la comptable') $$,
-  'a new rule');
-select results_eq($$ select r.effective_to, r.cap_basis from public.recognition_rules r order by r.effective_from $$,
-  $$ values ('2027-01-01'::date, 'unconfirmed'::text), (null::date, 'margin_reduction'::text) $$, '… closes the seeded one');
-select set_config('test.rule_seed', (select r.id::text from public.recognition_rules r where r.effective_from = '2017-01-01'), true);
-
--- =============================================================================
--- get_professional_compensation
--- =============================================================================
-select set_config('test.on_dec', public.get_professional_compensation(current_setting('test.p1')::uuid, '2026-12-01')::text, true);
-select is((select m from jsonb_array_elements(current_setting('test.on_dec')::jsonb -> 'margins') m where m ->> 'kind' = 'consultation')
-            - 'id' - 'name' - 'note',
-  '{"kind": "consultation", "source": "professional", "margin_pct": 28, "min": 25, "max": 30, "effective_from": "2026-11-01"}'::jsonb,
-  'on 2026-12-01: the professional''s consultation margin, with the default range');
-select is((select m from jsonb_array_elements(current_setting('test.on_dec')::jsonb -> 'margins') m where m ->> 'kind' = 'late_cancellation')
-            - 'name',
-  '{"kind": "late_cancellation", "source": "default", "margin_pct": null, "min": 30, "max": 30, "effective_from": "2017-01-01", "id": null, "note": null}'::jsonb,
-  '… the default range where the professional has none');
-select is((select array_agg(m ->> 'kind' order by ord) from jsonb_array_elements(current_setting('test.on_dec')::jsonb -> 'margins') with ordinality as x(m, ord)),
-  array['consultation', 'workshop', 'late_cancellation', 'other_fees'], '… every kind, in catalogue order');
-select is((current_setting('test.on_dec')::jsonb -> 'recognition') - 'id' - 'rule',
-  '{"level": 2, "sessions_counted": 117, "effective_from": "2026-10-01", "note": "Compté dans GOrendezvous"}'::jsonb,
-  '… the recognition level in force');
-select is((current_setting('test.on_dec')::jsonb -> 'recognition' -> 'rule') - 'id',
-  '{"step_sessions": 50, "bonus_per_50min_cents": 50, "bonus_per_30min_cents": 25, "cap_pct": 25, "cap_basis": "unconfirmed", "effective_from": "2017-01-01"}'::jsonb,
-  '… with the rule in force (cap basis unconfirmed)');
-select is(public.get_professional_compensation(current_setting('test.p1')::uuid, '2027-02-01') #>> '{recognition,level}', '3',
-  'on 2027-02-01: the later level');
-select is((select m ->> 'margin_pct' from jsonb_array_elements(public.get_professional_compensation(current_setting('test.p1')::uuid, '2027-02-01') -> 'margins') m
-            where m ->> 'kind' = 'consultation'), '29.00', '… and the later margin');
-select is((select m ->> 'source' from jsonb_array_elements(public.get_professional_compensation(current_setting('test.p2')::uuid) -> 'margins') m
-            where m ->> 'kind' = 'consultation'), 'default', 'P2 today: the default range');
-select is(public.get_professional_compensation(current_setting('test.p2')::uuid) #> '{recognition,level}', 'null'::jsonb,
-  'P2 has no level (the rule is still given)');
-select throws_ok($$ select public.get_professional_compensation(current_setting('test.p3')::uuid) $$,
-  'P0001', 'Professionnel introuvable.', 'another clinic''s professional is not found');
-select throws_ok($$ select public.get_professional_compensation(current_setting('test.p1')::uuid, 'infinity') $$,
-  'P0001', 'La date doit être comprise entre le 2000-01-01 et le 2100-12-31.', 'the read model refuses an infinite date');
-select is(private.test_error_hint($$ select public.get_professional_compensation('c0000000-0000-0000-0000-000000000001', '0001-01-01 BC') $$),
-  'on', '… and a BC date, with the HINT on');
-
--- Isolation: admin B.
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
-select is((select count(*)::int from public.professional_compensation c where c.professional_id = current_setting('test.p1')::uuid), 0,
-  'admin B sees none of org A''s margins');
-select is((select count(*)::int from public.professional_recognition r where r.professional_id = current_setting('test.p1')::uuid), 0,
-  'admin B sees none of org A''s levels');
-select throws_ok($$ select public.get_professional_compensation(current_setting('test.p1')::uuid) $$,
-  'P0001', 'Professionnel introuvable.', 'admin B cannot read org A''s terms');
-select is((select d.margin_min_pct from public.compensation_defaults d where d.kind = 'consultation'), 25.00::numeric,
-  'admin B''s own default is untouched by org A''s changes');
-select throws_ok($$ select public.set_professional_margin(current_setting('test.p1')::uuid, 'consultation', 30, '2027-06-01', null) $$,
-  'P0001', 'Professionnel introuvable.', 'admin B cannot set org A''s margin');
-select throws_ok($$ select public.set_professional_recognition(current_setting('test.p1')::uuid, 1, 1, '2027-06-01', null) $$,
-  'P0001', 'Professionnel introuvable.', 'admin B cannot set org A''s level');
-select throws_ok($$ select public.delete_professional_recognition(current_setting('test.r1')::uuid) $$,
-  'P0001', 'Niveau introuvable.', 'admin B cannot delete org A''s level');
-select throws_ok($$ select public.delete_compensation_default(current_setting('test.d_old')::uuid) $$,
-  'P0001', 'Fourchette introuvable.', 'admin B cannot delete org A''s range');
-select throws_ok($$ select public.delete_recognition_rule(current_setting('test.rule_seed')::uuid) $$,
-  'P0001', 'Règle introuvable.', 'admin B cannot delete org A''s rule');
-
--- The provider (professionals.self): no compensation at all, not even their own.
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select is((select (select count(*) from public.compensation_kinds) + (select count(*) from public.compensation_defaults)
-                + (select count(*) from public.professional_compensation) + (select count(*) from public.recognition_rules)
-                + (select count(*) from public.professional_recognition))::int,
-  0, 'the provider reads none of the five compensation tables (RLS)');
-select throws_ok($$ select public.get_professional_compensation(current_setting('test.p2')::uuid) $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot read their own terms');
-select throws_ok($$ select public.set_professional_margin(current_setting('test.p2')::uuid, 'consultation', 20, '2027-06-01', null) $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot set a margin');
-select throws_ok($$ select public.delete_professional_margin(current_setting('test.m1')::uuid) $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot delete a margin');
-select throws_ok($$ select public.set_professional_recognition(current_setting('test.p2')::uuid, 5, 300, '2027-06-01', null) $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot set a level');
-select throws_ok($$ select public.delete_professional_recognition(current_setting('test.r1')::uuid) $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot delete a level');
-select throws_ok($$ select public.set_compensation_default('consultation', 10, 20, '2027-06-01') $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot change a default');
-select throws_ok($$ select public.delete_compensation_default(current_setting('test.d_old')::uuid) $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot delete a default');
-select throws_ok($$ select public.set_recognition_rule(10, 100, 50, 50, 'fee_increase', '2027-06-01', null) $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot change a rule');
-select throws_ok($$ select public.delete_recognition_rule(current_setting('test.rule_seed')::uuid) $$,
-  '42501', 'Permission refusée : professionals.compensation', 'the provider cannot delete a rule');
-
--- =============================================================================
--- Deleting recognition rows (P4-145): only the open one, within the window
--- =============================================================================
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-reset role;
-select set_config('test.audit_rec', (select coalesce(max(a.id), 0)::text from public.audit_log a), true);
-set local role authenticated;
-select throws_ok($$ select public.delete_professional_recognition(current_setting('test.r1')::uuid) $$,
-  'P0001', 'Seul le dernier niveau peut être supprimé.', 'a closed level cannot be deleted');
-select lives_ok($$ select public.delete_professional_recognition((select r.id from public.professional_recognition r
-                     where r.professional_id = current_setting('test.p1')::uuid and r.effective_to is null)) $$,
-  'the open (future) level is deleted');
-select is((select r.effective_to from public.professional_recognition r where r.id = current_setting('test.r1')::uuid), null,
-  '… and the previous one is open again');
-select lives_ok($$ select public.delete_professional_recognition(current_setting('test.r1')::uuid) $$,
-  'the first level may go too (created under 24 hours ago)');
-select set_config('test.r_fresh', public.set_professional_recognition(current_setting('test.p1')::uuid, 1, 40, (current_date - 10), null)::text, true);
-select lives_ok($$ select public.delete_professional_recognition(current_setting('test.r_fresh')::uuid) $$,
-  'a level in force, created under 24 hours ago, can be deleted (typo window)');
-select set_config('test.r_old', public.set_professional_recognition(current_setting('test.p1')::uuid, 1, 45, (current_date - 10), null)::text, true);
-reset role;
-update public.professional_recognition set created_at = now() - interval '2 days' where id = current_setting('test.r_old')::uuid;
-set local role authenticated;
-select throws_ok($$ select public.delete_professional_recognition(current_setting('test.r_old')::uuid) $$,
-  'P0001', 'Un niveau déjà en vigueur ne peut pas être supprimé.', 'a level in force for more than 24 hours stays');
-select throws_ok($$ select public.delete_professional_recognition('00000000-0000-0000-0000-000000000000') $$,
-  'P0001', 'Niveau introuvable.', 'an unknown level is not found');
-
-select throws_ok($$ select public.delete_recognition_rule(current_setting('test.rule_seed')::uuid) $$,
-  'P0001', 'Seule la dernière règle peut être supprimée.', 'a closed rule cannot be deleted');
-select lives_ok($$ select public.delete_recognition_rule((select r.id from public.recognition_rules r where r.effective_to is null)) $$,
-  'the open (future) rule is deleted');
-select is((select r.effective_to from public.recognition_rules r where r.id = current_setting('test.rule_seed')::uuid), null,
-  '… and the seeded one is open again');
-select throws_ok($$ select public.delete_recognition_rule(current_setting('test.rule_seed')::uuid) $$,
-  'P0001', 'La première règle du programme ne peut pas être supprimée.', 'the first rule stays');
-select set_config('test.rule_a', public.set_recognition_rule(50, 50, 25, 25, 'unconfirmed', (current_date - 10), null)::text, true);
-select set_config('test.rule_b', public.set_recognition_rule(50, 55, 25, 25, 'unconfirmed', (current_date - 5), null)::text, true);
-select lives_ok($$ select public.delete_recognition_rule(current_setting('test.rule_b')::uuid) $$,
-  'a rule in force, created under 24 hours ago, is deleted (typo window)');
-select is((select r.effective_to from public.recognition_rules r where r.id = current_setting('test.rule_a')::uuid), null,
-  '… reopening the previous one');
-reset role;
-update public.recognition_rules set created_at = now() - interval '2 days' where id = current_setting('test.rule_a')::uuid;
-set local role authenticated;
-select throws_ok($$ select public.delete_recognition_rule(current_setting('test.rule_a')::uuid) $$,
-  'P0001', 'Une règle déjà en vigueur ne peut pas être supprimée.', 'a rule in force for more than 24 hours stays');
-select throws_ok($$ select public.delete_recognition_rule('00000000-0000-0000-0000-000000000000') $$,
-  'P0001', 'Règle introuvable.', 'an unknown rule is not found');
-reset role;
-select results_eq($$ select a.table_name, count(*)::int from public.audit_log a
-                      where a.id > current_setting('test.audit_rec')::bigint and a.action = 'delete'
-                        and a.actor_id = 'a0000000-0000-0000-0000-000000000001'
-                        and a.table_name in ('recognition_rules', 'professional_recognition')
-                      group by 1 order by 1 $$,
-  $$ values ('professional_recognition'::text, 3), ('recognition_rules', 2) $$,
-  'each deletion is audited, by its author');
-select is((select a.changed_fields ->> 'level' from public.audit_log a
-            where a.table_name = 'professional_recognition' and a.action = 'delete'
-              and a.record_id = current_setting('test.p1') || ':' || current_setting('test.r_fresh')),
-  '1', 'a deleted level keeps its values in the log (P4-149)');
-set local role authenticated;
-
--- =============================================================================
--- Compensation in the history and the audit
--- =============================================================================
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select ok((select count(*) from public.list_professional_history(current_setting('test.p1')::uuid, null, 200) h
-            where h.table_name = 'professional_compensation' and h.action = 'insert') >= 4,
-  'the admin''s history shows the margins');
-select ok(exists (select 1 from public.list_professional_history(current_setting('test.p1')::uuid, null, 200) h
-                   where h.table_name = 'professional_recognition'),
-  '… and the recognition levels');
-select is((select h.record_id from public.list_professional_history(current_setting('test.p1')::uuid, null, 200) h
-            where h.table_name = 'professional_compensation' and h.action = 'insert' and h.changed_fields ->> 'id' = current_setting('test.m1')),
-  current_setting('test.p1') || ':' || current_setting('test.m1'), 'a margin''s record id starts with the professional');
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select is((select count(*)::int from public.list_professional_history(current_setting('test.p1')::uuid, null, 200) h
-            where h.table_name in ('professional_compensation', 'professional_recognition')),
-  0, 'the adjointe''s history leaves the compensation out');
-select ok((select count(*) from public.list_professional_history(current_setting('test.p1')::uuid, null, 200) h
-            where h.table_name = 'professional_private') > 0, '… but shows the private rows (without values)');
 
 -- The professional's deletion takes the private row with it, audited without values.
 reset role;

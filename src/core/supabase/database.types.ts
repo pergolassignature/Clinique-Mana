@@ -98,64 +98,6 @@ export type Database = {
           },
         ]
       }
-      compensation_defaults: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          effective_from: string
-          effective_to: string | null
-          id: string
-          kind: string
-          margin_max_pct: number
-          margin_min_pct: number
-          org_id: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          effective_from: string
-          effective_to?: string | null
-          id?: string
-          kind: string
-          margin_max_pct: number
-          margin_min_pct: number
-          org_id: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          effective_from?: string
-          effective_to?: string | null
-          id?: string
-          kind?: string
-          margin_max_pct?: number
-          margin_min_pct?: number
-          org_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "compensation_defaults_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "compensation_defaults_kind_fkey"
-            columns: ["kind"]
-            isOneToOne: false
-            referencedRelation: "compensation_kinds"
-            referencedColumns: ["key"]
-          },
-          {
-            foreignKeyName: "compensation_defaults_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       compensation_kinds: {
         Row: {
           key: string
@@ -173,6 +115,61 @@ export type Database = {
           sort_order?: number
         }
         Relationships: []
+      }
+      compensation_rates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          kind: string
+          org_id: string
+          retention_pct: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          kind: string
+          org_id: string
+          retention_pct: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          kind?: string
+          org_id?: string
+          retention_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compensation_rates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "compensation_rates_kind_fkey"
+            columns: ["kind"]
+            isOneToOne: false
+            referencedRelation: "compensation_kinds"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "compensation_rates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       deactivation_reasons: {
         Row: {
@@ -1519,6 +1516,90 @@ export type Database = {
           },
         ]
       }
+      professional_client_agreements: {
+        Row: {
+          client_id: string | null
+          client_label: string
+          client_price_cents: number
+          created_at: string
+          created_by: string | null
+          duration: number
+          effective_from: string
+          effective_to: string | null
+          id: string
+          note: string | null
+          org_id: string
+          professional_amount_cents: number
+          professional_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          client_label: string
+          client_price_cents: number
+          created_at?: string
+          created_by?: string | null
+          duration: number
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          note?: string | null
+          org_id: string
+          professional_amount_cents: number
+          professional_id: string
+        }
+        Update: {
+          client_id?: string | null
+          client_label?: string
+          client_price_cents?: number
+          created_at?: string
+          created_by?: string | null
+          duration?: number
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          note?: string | null
+          org_id?: string
+          professional_amount_cents?: number
+          professional_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_client_agreements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "professional_client_agreements_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_client_agreements_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_client_agreements_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_client_agreements_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
       professional_clienteles: {
         Row: {
           clientele_id: string
@@ -1582,88 +1663,6 @@ export type Database = {
           },
           {
             foreignKeyName: "professional_clienteles_professional_fkey"
-            columns: ["org_id", "professional_id"]
-            isOneToOne: false
-            referencedRelation: "professionals_readiness"
-            referencedColumns: ["org_id", "professional_id"]
-          },
-        ]
-      }
-      professional_compensation: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          effective_from: string
-          effective_to: string | null
-          id: string
-          kind: string
-          margin_pct: number
-          note: string | null
-          org_id: string
-          professional_id: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          effective_from: string
-          effective_to?: string | null
-          id?: string
-          kind: string
-          margin_pct: number
-          note?: string | null
-          org_id: string
-          professional_id: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          effective_from?: string
-          effective_to?: string | null
-          id?: string
-          kind?: string
-          margin_pct?: number
-          note?: string | null
-          org_id?: string
-          professional_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "professional_compensation_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "professional_compensation_kind_fkey"
-            columns: ["kind"]
-            isOneToOne: false
-            referencedRelation: "compensation_kinds"
-            referencedColumns: ["key"]
-          },
-          {
-            foreignKeyName: "professional_compensation_professional_fkey"
-            columns: ["org_id", "professional_id"]
-            isOneToOne: false
-            referencedRelation: "professionals"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "professional_compensation_professional_fkey"
-            columns: ["org_id", "professional_id"]
-            isOneToOne: false
-            referencedRelation: "professionals_directory"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "professional_compensation_professional_fkey"
-            columns: ["org_id", "professional_id"]
-            isOneToOne: false
-            referencedRelation: "professionals_list"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "professional_compensation_professional_fkey"
             columns: ["org_id", "professional_id"]
             isOneToOne: false
             referencedRelation: "professionals_readiness"
@@ -2194,78 +2193,175 @@ export type Database = {
           },
         ]
       }
-      professional_recognition: {
+      professional_retention: {
         Row: {
           created_at: string
           created_by: string | null
+          decision: string
           effective_from: string
           effective_to: string | null
           id: string
-          level: number
           note: string | null
           org_id: string
           professional_id: string
-          sessions_counted: number
+          retention_pct: number
+          sessions_total: number | null
+          suggested_pct: number | null
+          tier_threshold: number | null
         }
         Insert: {
           created_at?: string
           created_by?: string | null
+          decision: string
           effective_from: string
           effective_to?: string | null
           id?: string
-          level: number
           note?: string | null
           org_id: string
           professional_id: string
-          sessions_counted: number
+          retention_pct: number
+          sessions_total?: number | null
+          suggested_pct?: number | null
+          tier_threshold?: number | null
         }
         Update: {
           created_at?: string
           created_by?: string | null
+          decision?: string
           effective_from?: string
           effective_to?: string | null
           id?: string
-          level?: number
           note?: string | null
           org_id?: string
           professional_id?: string
-          sessions_counted?: number
+          retention_pct?: number
+          sessions_total?: number | null
+          suggested_pct?: number | null
+          tier_threshold?: number | null
         }
         Relationships: [
           {
-            foreignKeyName: "professional_recognition_created_by_fkey"
+            foreignKeyName: "professional_retention_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
           {
-            foreignKeyName: "professional_recognition_professional_fkey"
+            foreignKeyName: "professional_retention_professional_fkey"
             columns: ["org_id", "professional_id"]
             isOneToOne: false
             referencedRelation: "professionals"
             referencedColumns: ["org_id", "id"]
           },
           {
-            foreignKeyName: "professional_recognition_professional_fkey"
+            foreignKeyName: "professional_retention_professional_fkey"
             columns: ["org_id", "professional_id"]
             isOneToOne: false
             referencedRelation: "professionals_directory"
             referencedColumns: ["org_id", "id"]
           },
           {
-            foreignKeyName: "professional_recognition_professional_fkey"
+            foreignKeyName: "professional_retention_professional_fkey"
             columns: ["org_id", "professional_id"]
             isOneToOne: false
             referencedRelation: "professionals_list"
             referencedColumns: ["org_id", "id"]
           },
           {
-            foreignKeyName: "professional_recognition_professional_fkey"
+            foreignKeyName: "professional_retention_professional_fkey"
             columns: ["org_id", "professional_id"]
             isOneToOne: false
             referencedRelation: "professionals_readiness"
             referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
+      professional_session_counts: {
+        Row: {
+          adjustment: number
+          created_at: string
+          created_by: string | null
+          id: string
+          month: string
+          note: string | null
+          org_id: string
+          professional_id: string
+          sessions_30: number
+          sessions_50_60: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          adjustment?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          month: string
+          note?: string | null
+          org_id: string
+          professional_id: string
+          sessions_30?: number
+          sessions_50_60?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          adjustment?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          month?: string
+          note?: string | null
+          org_id?: string
+          professional_id?: string
+          sessions_30?: number
+          sessions_50_60?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_session_counts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "professional_session_counts_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_session_counts_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_session_counts_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_session_counts_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "professional_session_counts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -2448,12 +2544,66 @@ export type Database = {
         }
         Relationships: []
       }
-      recognition_rules: {
+      retention_grid_prices: {
         Row: {
-          bonus_per_30min_cents: number
-          bonus_per_50min_cents: number
-          cap_basis: string
-          cap_pct: number
+          client_price_cents: number
+          duration: number
+          grid_id: string
+          org_id: string
+        }
+        Insert: {
+          client_price_cents: number
+          duration: number
+          grid_id: string
+          org_id: string
+        }
+        Update: {
+          client_price_cents?: number
+          duration?: number
+          grid_id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retention_grid_prices_grid_fkey"
+            columns: ["org_id", "grid_id"]
+            isOneToOne: false
+            referencedRelation: "retention_grids"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      retention_grid_tiers: {
+        Row: {
+          grid_id: string
+          org_id: string
+          retention_pct: number
+          threshold_sessions: number
+        }
+        Insert: {
+          grid_id: string
+          org_id: string
+          retention_pct: number
+          threshold_sessions: number
+        }
+        Update: {
+          grid_id?: string
+          org_id?: string
+          retention_pct?: number
+          threshold_sessions?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retention_grid_tiers_grid_fkey"
+            columns: ["org_id", "grid_id"]
+            isOneToOne: false
+            referencedRelation: "retention_grids"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      retention_grids: {
+        Row: {
           created_at: string
           created_by: string | null
           effective_from: string
@@ -2461,13 +2611,9 @@ export type Database = {
           id: string
           note: string | null
           org_id: string
-          step_sessions: number
+          title_id: string
         }
         Insert: {
-          bonus_per_30min_cents: number
-          bonus_per_50min_cents: number
-          cap_basis?: string
-          cap_pct: number
           created_at?: string
           created_by?: string | null
           effective_from: string
@@ -2475,13 +2621,9 @@ export type Database = {
           id?: string
           note?: string | null
           org_id: string
-          step_sessions: number
+          title_id: string
         }
         Update: {
-          bonus_per_30min_cents?: number
-          bonus_per_50min_cents?: number
-          cap_basis?: string
-          cap_pct?: number
           created_at?: string
           created_by?: string | null
           effective_from?: string
@@ -2489,22 +2631,29 @@ export type Database = {
           id?: string
           note?: string | null
           org_id?: string
-          step_sessions?: number
+          title_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "recognition_rules_created_by_fkey"
+            foreignKeyName: "retention_grids_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
           {
-            foreignKeyName: "recognition_rules_org_id_fkey"
+            foreignKeyName: "retention_grids_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retention_grids_title_fkey"
+            columns: ["org_id", "title_id"]
+            isOneToOne: false
+            referencedRelation: "profession_titles"
+            referencedColumns: ["org_id", "id"]
           },
         ]
       }
@@ -4093,20 +4242,29 @@ export type Database = {
           status: string
         }[]
       }
-      delete_compensation_default: {
-        Args: { p_id: string }
-        Returns: undefined
+      decide_retention: {
+        Args: {
+          p_count_month: string
+          p_decision: string
+          p_effective_from: string
+          p_expected_open_id: string
+          p_id: string
+          p_note: string
+          p_retention_pct: number
+        }
+        Returns: Json
       }
+      delete_compensation_rate: { Args: { p_id: string }; Returns: undefined }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
-      delete_professional_margin: {
+      delete_professional_client_agreement: {
         Args: { p_row_id: string }
         Returns: undefined
       }
-      delete_professional_recognition: {
+      delete_professional_retention: {
         Args: { p_row_id: string }
         Returns: undefined
       }
-      delete_recognition_rule: { Args: { p_id: string }; Returns: undefined }
+      delete_retention_grid: { Args: { p_id: string }; Returns: undefined }
       delete_role: { Args: { p_role: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
       delete_user_preference: {
@@ -4116,6 +4274,10 @@ export type Database = {
       discard_system_file: {
         Args: { p_file_id: string; p_org_id: string }
         Returns: boolean
+      }
+      end_professional_client_agreement: {
+        Args: { p_effective_to: string; p_row_id: string }
+        Returns: undefined
       }
       expire_signature_request: { Args: { p_id: string }; Returns: boolean }
       fail_webhook_event: {
@@ -4436,6 +4598,7 @@ export type Database = {
           usage: number
         }[]
       }
+      list_retention_review: { Args: { p_month: string }; Returns: Json }
       list_scheduled_job_runs: {
         Args: {
           p_before?: string
@@ -4612,6 +4775,10 @@ export type Database = {
         }
         Returns: string
       }
+      record_monthly_sessions: {
+        Args: { p_entries: Json; p_month: string }
+        Returns: number
+      }
       record_signature_sync: {
         Args: {
           p_error_code?: string
@@ -4757,12 +4924,11 @@ export type Database = {
         }
         Returns: undefined
       }
-      set_compensation_default: {
+      set_compensation_rate: {
         Args: {
           p_effective_from: string
           p_kind: string
-          p_max: number
-          p_min: number
+          p_retention_pct: number
         }
         Returns: string
       }
@@ -4812,6 +4978,18 @@ export type Database = {
         }
         Returns: string
       }
+      set_professional_client_agreement: {
+        Args: {
+          p_client_label: string
+          p_client_price_cents: number
+          p_duration: number
+          p_effective_from: string
+          p_id: string
+          p_note: string
+          p_professional_amount_cents: number
+        }
+        Returns: string
+      }
       set_professional_clienteles: {
         Args: { p_id: string; p_items: Json }
         Returns: {
@@ -4826,16 +5004,6 @@ export type Database = {
       set_professional_languages: {
         Args: { p_id: string; p_language_ids: string[] }
         Returns: string[]
-      }
-      set_professional_margin: {
-        Args: {
-          p_effective_from: string
-          p_id: string
-          p_kind: string
-          p_margin_pct: number
-          p_note: string
-        }
-        Returns: Json
       }
       set_professional_motifs: {
         Args: { p_id: string; p_motif_ids: string[] }
@@ -4853,16 +5021,6 @@ export type Database = {
           licence_number: string
           profession_title_id: string
         }[]
-      }
-      set_professional_recognition: {
-        Args: {
-          p_effective_from: string
-          p_id: string
-          p_level: number
-          p_note: string
-          p_sessions: number
-        }
-        Returns: string
       }
       set_professional_sin: {
         Args: { p_expected_updated_at: string; p_id: string; p_sin: string }
@@ -4883,15 +5041,13 @@ export type Database = {
         Returns: undefined
       }
       set_professionals_settings: { Args: { p_patch: Json }; Returns: Json }
-      set_recognition_rule: {
+      set_retention_grid: {
         Args: {
-          p_bonus_per_30min_cents: number
-          p_bonus_per_50min_cents: number
-          p_cap_basis: string
-          p_cap_pct: number
           p_effective_from: string
           p_note: string
-          p_step_sessions: number
+          p_prices: Json
+          p_tiers: Json
+          p_title_id: string
         }
         Returns: string
       }

@@ -13,6 +13,7 @@ import {
   openReportFile,
   openTerminal,
   parseCsv,
+  parseQuebecNumber,
   readRows,
   reportCsv,
   reportName,
@@ -100,6 +101,13 @@ describe('readRows', () => {
       expect(message).toMatch(/^La première ligne doit contenir les en-têtes/)
       for (const cell of ['Élodie', 'elodie', 'Jean', 'Tremblay', 'Montréal', '5145550101']) expect(message).not.toContain(cell)
     }
+  })
+
+  it('accepts the two optional compensation columns, however their headers are written', () => {
+    expect(normalizeHeader('Séances cumulées')).toBe('seances_cumulees')
+    expect(readRows('Prénom,Nom,Courriel,Retenue,Séances cumulées\nLéa,Roy,lea@example.test,"27,5 %","237,5"\n')).toEqual([
+      { line: 2, values: { prenom: 'Léa', nom: 'Roy', courriel: 'lea@example.test', retenue: '27,5 %', seances_cumulees: '237,5' } },
+    ])
   })
 
   it('keeps a row wider than the header without reading its cells', () => {
@@ -191,6 +199,68 @@ describe('rowToPayload', () => {
   it('rejects the « approches » column (P4-240)', () => {
     expect(() => readRows('prenom,nom,courriel,approches\nLéa,Roy,lea@example.test,cbt\n')).toThrow(/Colonnes inconnues : approches/)
   })
+  it('reads the retention and the cumulative sessions typed the Québec way', () => {
+    expect(rowToPayload(values({ retenue: '27,5 %', seances_cumulees: '237,5' }))).toMatchObject({
+      errors: [],
+      payload: { retention_pct: 27.5, cumulative_sessions: 237.5 },
+    })
+    for (const [retenue, seances, pct, count] of [
+      ['27.5', '237.5', 27.5, 237.5],
+      ['27,5%', '237', 27.5, 237],
+      [' 30 \u00a0% ', '1\u202f237,5', 30, 1237.5],
+      ['0', '0', 0, 0],
+      ['27,125', '1 500', 27.125, 1500], // shape only: the bounds and the decimals are the database's
+      ['-5 %', '-1', -5, -1],
+    ]) {
+      const { payload, errors } = rowToPayload(values({ retenue, seances_cumulees: seances }))
+      expect(errors, retenue).toEqual([])
+      expect([payload.retention_pct, payload.cumulative_sessions], retenue).toEqual([pct, count])
+    }
+  })
+
+  it('leaves the two keys out when their cells are blank, as every other empty cell', () => {
+    const { payload, errors } = rowToPayload(values({ retenue: '', seances_cumulees: '' }))
+    expect(errors).toEqual([])
+    expect(payload).not.toHaveProperty('retention_pct')
+    expect(payload).not.toHaveProperty('cumulative_sessions')
+  })
+
+  it('refuses a number the CSV cannot read, on its column, without repeating the cell', () => {
+    const retenue = 'Indiquez un pourcentage, par exemple 27,5 ou 27,5 %.'
+    const seances = 'Indiquez un nombre de séances, par exemple 237 ou 237,5.'
+    for (const cell of ['abc', '1.237,5', '27,5,0', '27..5', '%', '27 % %', '1e3', '12 34', ',5', '5,', '--5', 'trente-deux']) {
+      const { payload, errors } = rowToPayload(values({ retenue: cell, seances_cumulees: cell }))
+      expect(errors, cell).toEqual([
+        { field: 'retentionPct', message: retenue },
+        { field: 'cumulativeSessions', message: seances },
+      ])
+      expect(payload, cell).not.toHaveProperty('retention_pct')
+      expect(payload, cell).not.toHaveProperty('cumulative_sessions')
+    }
+    expect(describeRow({ line: 2, email: '', payload: {}, errors: rowToPayload(values({ retenue: 'trente-deux' })).errors }, null).details).toEqual([
+      `retenue : ${retenue}`,
+    ])
+    // The percent sign belongs to the retention only.
+    expect(rowToPayload(values({ seances_cumulees: '237 %' })).errors).toEqual([{ field: 'cumulativeSessions', message: seances }])
+  })
+
+  it('never sends a number too long to be one (JSON would turn it into null)', () => {
+    expect(parseQuebecNumber('9'.repeat(400))).toBeNull()
+    expect(parseQuebecNumber('237,5')).toBe(237.5)
+  })
+
+  it('maps a file without the two columns exactly as before', () => {
+    const [row] = buildRows(`${HEADER}\n${ROW}\n`)
+    expect(row.errors).toEqual([])
+    expect(Object.keys(row.payload)).toEqual([
+      'first_name', 'last_name', 'email', 'personal_phone', 'city', 'province', 'postal_code', 'ivac',
+      'years_experience', 'professions', 'languages', 'motifs', 'clienteles', 'min_client_age', 'women_only', 'activate',
+    ])
+    expect(describeRow(row, { status: 'ok', activated: true, complete: true, missing: [] }).details).toEqual([
+      '1 titre, 2 langues, 2 clientèles, 2 motifs · activé',
+    ])
+  })
+
 })
 
 describe('normalizeLicence', () => {
@@ -212,6 +282,9 @@ describe('normalizeLicence', () => {
     expect(normalizeLicence('Membre de RITMA 1234', 'coach_professionnel')).toHaveProperty('error')
   })
 
+})
+
+describe('buildRows', () => {
   it('flags an email repeated in the file from its second line on', () => {
     const rows = buildRows(`${HEADER}\n${ROW}\n${ROW.replace('Élodie', 'Élo').replace('elodie.gagnon', 'ELODIE.GAGNON').replace('IVAC-1', 'IVAC-2')}\n`)
     expect(rows[0].errors).toEqual([])
@@ -239,6 +312,14 @@ describe('normalizeLicence', () => {
     expect(rows).toHaveLength(6)
     expect(rows.flatMap((r) => r.errors)).toEqual([])
     expect(rows.every((r) => r.email.endsWith('@example.test'))).toBe(true)
+    expect(rows.map((r) => [r.payload.retention_pct, r.payload.cumulative_sessions])).toEqual([
+      [25, 1237.5],
+      [30, 642],
+      [32.5, 318.5],
+      [25, 1500],
+      [undefined, undefined],
+      [27.5, 893],
+    ])
   })
 })
 
@@ -333,6 +414,30 @@ describe('describe (one row’s report entry)', () => {
       'motifs : Motif inconnu : anxite',
       'activer : Indiquez oui ou non.',
     ])
+  })
+
+  it('names the database’s retention and session errors by their columns', () => {
+    const row = { line: 4, email: 'a@example.test', payload: {}, errors: [] }
+    const result = {
+      status: 'error',
+      errors: [
+        { field: 'cumulativeSessions', message: 'Le nombre de séances cumulées est compris entre 0 et 100 000, par demi-séance.' },
+        { field: 'retentionPct', message: 'Le taux de retenue est un pourcentage entre 0 et 100, à deux décimales au plus.' },
+        { field: 'activate', message: 'Indiquez oui ou non.' },
+      ],
+    }
+    expect(describeRow(row, result).details).toEqual([
+      'activer : Indiquez oui ou non.',
+      'retenue : Le taux de retenue est un pourcentage entre 0 et 100, à deux décimales au plus.',
+      'seances_cumulees : Le nombre de séances cumulées est compris entre 0 et 100 000, par demi-séance.',
+    ])
+  })
+
+  it('says a row carries a retention and cumulative sessions, never their values', () => {
+    const row = { line: 2, email: 'a@example.test', payload: { professions: [{}], retention_pct: 27.5, cumulative_sessions: 237.5 }, errors: [] }
+    const { details } = describeRow(row, { status: 'ok', activated: false, complete: false, missing: [] })
+    expect(details).toEqual(['1 titre, retenue, séances cumulées · non activé (« À inviter »)'])
+    expect(details.join('')).not.toMatch(/27|237/)
   })
 })
 
@@ -642,6 +747,18 @@ describe('run', () => {
     const report = Object.values(files)[0]
     expect(report).toContain('2,elodie.gagnon@example.test,essai,erreur,,annees_experience : Entre 0 et 60 ans. | motifs : Motif inconnu : anxite')
     for (const value of ['Élodie', 'Gagnon', '555-0142', 'Montréal', 'H2J', '54321', 'IVAC-1']) expect(report).not.toContain(value)
+  })
+
+  it('sends the retention and the cumulative sessions as JSON numbers; the terminal and the report hold neither', async () => {
+    const { deps, client, output, files } = setup({ answers: ['admin@mana.test'] })
+    deps.readFile = () => `${HEADER},retenue,seances_cumulees\n${ROW},"27,5 %","1 237,5"\n`
+    expect(await run(['--file', 'x.csv'], deps)).toBe(0)
+    const [, args] = client.rpc.mock.calls[0]
+    expect(args.p_row).toMatchObject({ retention_pct: 27.5, cumulative_sessions: 1237.5 })
+    expect(JSON.stringify(args.p_row)).toContain('"retention_pct":27.5,"cumulative_sessions":1237.5')
+    const printed = [...output, ...Object.values(files)].join('\n')
+    expect(printed).toContain('retenue, séances cumulées')
+    for (const value of ['27,5', '27.5', '1 237', '1237']) expect(printed).not.toContain(value)
   })
 
   it('says why a row too broken to read is not sent', async () => {

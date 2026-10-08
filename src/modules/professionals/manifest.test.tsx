@@ -18,6 +18,7 @@ describe('professionalsManifest', () => {
     expect(professionalsManifest.routes.map((r) => [r.path, r.permission])).toEqual([
       ['professionnels', 'professionals.view'],
       ['professionnels/:id/:onglet?', 'professionals.view'],
+      ['professionnels/revision-mensuelle', 'professionals.compensation'],
     ])
   })
 

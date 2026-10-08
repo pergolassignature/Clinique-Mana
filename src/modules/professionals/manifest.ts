@@ -28,6 +28,13 @@ export const professionalsManifest: ModuleManifest = {
     { path: 'professionnels', permission: 'professionals.view', component: lazyPage(() => import('./pages/ProfessionalsListPage'), 'ProfessionalsListPage') },
     // The tab is a URL segment: apercu, jumelage… (RECORD_TABS)
     { path: 'professionnels/:id/:onglet?', permission: 'professionals.view', component: professionalRecordPage },
+    // « Révision mensuelle » (P4-190): the retention program's monthly page, compensation holders only.
+    // A static segment: React Router ranks it above the record's `:id`, whatever the order.
+    {
+      path: 'professionnels/revision-mensuelle',
+      permission: 'professionals.compensation',
+      component: lazyPage(() => import('./pages/RetentionReviewPage'), 'RetentionReviewPage'),
+    },
   ],
   settingsSections: [
     {

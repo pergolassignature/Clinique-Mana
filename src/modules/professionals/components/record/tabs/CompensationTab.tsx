@@ -7,9 +7,8 @@ import { useProfessionalCompensation } from '../../../hooks/use-compensation'
 import { useProfessionalPrivate } from '../../../hooks/use-private'
 import { useProfessionalsSettings } from '../../../hooks/use-professionals-settings'
 import { BankCard } from '../BankCard'
-import { MarginCard } from '../MarginCard'
-import { RecognitionCard } from '../RecognitionCard'
 import { useRecordData } from '../record-context'
+import { RetentionCard } from '../RetentionCard'
 import { SinCard } from '../SinCard'
 import { TaxNumbersCard } from '../TaxNumbersCard'
 
@@ -17,8 +16,8 @@ const C = 'modules.professionals.record.compensation'
 
 /**
  * « Rémunération et fiscalité » (Task 4a.18), seen with `professionals.compensation` or
- * `professionals.private`; each card follows its own permission. Compensation: « Marge clinique »,
- * « Programme de reconnaissance ». Private data: « Fiscalité », « NAS », « Banque », each saved on
+ * `professionals.private`; each card follows its own permission. Compensation: « Rétention »
+ * (P4-180…). Private data: « Fiscalité », « NAS », « Banque », each saved on
  * its own (P4-148). Its requests start together at mount (no waterfall), or earlier on the tab's
  * hover; a revealed value is never cached.
  */
@@ -37,13 +36,7 @@ export function CompensationTab() {
     if (compensation.isPending) compensationContent = <Loading />
     else if (!compensation.data)
       compensationContent = <LoadError message={t(`${C}.loadError`)} retrying={compensation.isFetching} onRetry={() => void compensation.refetch()} />
-    else
-      compensationContent = (
-        <>
-          <MarginCard professionalId={id} data={compensation.data} />
-          <RecognitionCard professionalId={id} data={compensation.data} />
-        </>
-      )
+    else compensationContent = <RetentionCard professionalId={id} data={compensation.data} />
   }
 
   let privateContent = null

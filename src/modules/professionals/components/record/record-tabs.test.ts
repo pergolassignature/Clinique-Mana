@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { QueryClient } from '@tanstack/react-query'
 import { ROLE_PERMISSIONS, type FixtureRole } from '@/test/role-fixtures'
-import { compensationTermsKeys, professionalKeys, professionalsSettingsKeys } from '../../hooks/keys'
+import { professionalKeys, professionalsSettingsKeys } from '../../hooks/keys'
 import { RECORD_TABS } from '../../lib/constants'
 import { RECORD_TAB_DEFS, visibleRecordTabs } from './record-tabs'
 
@@ -48,14 +48,13 @@ describe('visibleRecordTabs', () => {
     expect(await prefetched(['professionals.private'])).toEqual([professionalKeys.private('p1'), professionalsSettingsKeys.settings()])
   })
 
-  it('prefetches the compensation kinds with Historique for compensation holders only', async () => {
+  it('prefetches only Historique’s first page, whatever the permissions (P4-193)', async () => {
     const queryClient = new QueryClient()
     const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined)
-    vi.spyOn(queryClient, 'prefetchInfiniteQuery').mockResolvedValue(undefined)
+    const infinite = vi.spyOn(queryClient, 'prefetchInfiniteQuery').mockResolvedValue(undefined)
     const def = RECORD_TAB_DEFS.find((d) => d.tab === 'historique')
-    await def?.prefetch?.(queryClient, 'p1', () => false)
+    await def?.prefetch?.(queryClient, 'p1', () => true)
     expect(prefetch).not.toHaveBeenCalled()
-    await def?.prefetch?.(queryClient, 'p1', (p) => p === 'professionals.compensation')
-    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual([compensationTermsKeys.kinds()])
+    expect(infinite).toHaveBeenCalledOnce()
   })
 })
