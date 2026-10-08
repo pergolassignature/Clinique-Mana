@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase/client'
+import { FunctionCallError, invokeFunction } from '@/core/supabase/functions'
 import type { PermissionOverride, RolePermission } from './permissions'
 
 export type UserStatus = 'active' | 'disabled'
@@ -62,9 +63,21 @@ export async function setUserRole(userId: string, role: string): Promise<void> {
   if (error) throw error
 }
 
-export async function setUserStatus(userId: string, status: UserStatus): Promise<void> {
-  const { error } = await supabase.rpc('set_user_status', { p_user_id: userId, p_status: status })
-  if (error) throw error
+/**
+ * Disables or re-enables an account through `users-set-status` (P3-9): `set_user_status` as the
+ * caller (the guards above; disabling also deletes the open sessions, P3-32), then the Auth ban,
+ * which refuses a new sign-in. `signinBlocked` is false when the account was disabled but the ban
+ * failed: data access and the sessions have ended, and disabling again (idempotent) retries the
+ * ban. A failed unban (re-enable) throws the function's `provider_error`: the account stays
+ * disabled.
+ */
+export async function setUserStatus(userId: string, status: UserStatus): Promise<{ signinBlocked: boolean }> {
+  try {
+    const data = (await invokeFunction('users-set-status', { user_id: userId, status })) as { signin_blocked?: unknown } | null
+    return { signinBlocked: data?.signin_blocked !== false }
+  } catch (error) {
+    throw asRpcRefusal(error)
+  }
 }
 
 export async function setPermissionOverride(userId: string, permissionKey: string, granted: boolean): Promise<void> {
@@ -109,5 +122,132 @@ export async function renameRole(role: string, name: string): Promise<void> {
 
 export async function deleteRole(role: string): Promise<void> {
   const { error } = await supabase.rpc('delete_role', { p_role: role })
+  if (error) throw error
+}
+
+// ── Staff invitations (Task 3.22) ───────────────────────────────────────────────────────────────
+
+/**
+ * One pending invitation (`list_staff_invitations`, users.view). The generated types mark every
+ * column non-null, but its left joins can leave `role_name`, `expires_at` (no link),
+ * `invited_by_name`, `last_email_status` and `last_email_error_code` (no email logged yet, or no
+ * error) null.
+ */
+export interface StaffInvitation {
+  id: string
+  email: string
+  display_name: string
+  role: string
+  role_name: string | null
+  expires_at: string | null
+  is_expired: boolean
+  invited_by_name: string | null
+  /** `email_log.status` of the last email about it, as `emailStatusLabel` reads it. */
+  last_email_status: string | null
+  /** That email's `error_code` (`provider_unavailable` reads « Résultat inconnu »). */
+  last_email_error_code: string | null
+}
+
+/**
+ * `last_email_error_code`, which the database lane adds to `list_staff_invitations`: read when the
+ * row has it (null until then, so a failed email reads « Courriel non remis »).
+ */
+function lastEmailErrorCode(row: object): string | null {
+  const value = 'last_email_error_code' in row ? row.last_email_error_code : null
+  return typeof value === 'string' ? value : null
+}
+
+/** The clinic's pending invitations, newest first. */
+export async function listStaffInvitations(): Promise<StaffInvitation[]> {
+  const { data, error } = await supabase.rpc('list_staff_invitations')
+  if (error) throw error
+  return data.map((row) => ({
+    id: row.id,
+    email: row.email,
+    display_name: row.display_name,
+    role: row.role,
+    role_name: (row.role_name as string | null) ?? null,
+    expires_at: (row.expires_at as string | null) ?? null,
+    is_expired: row.is_expired,
+    invited_by_name: (row.invited_by_name as string | null) ?? null,
+    last_email_status: (row.last_email_status as string | null) ?? null,
+    last_email_error_code: lastEmailErrorCode(row),
+  }))
+}
+
+/** Why an invitation's email did not leave: the function's code, and a 429's `Retry-After` (seconds). */
+export interface EmailProblem {
+  code: string
+  retryAfter: number | null
+}
+
+/**
+ * What « Inviter » and « Renvoyer » did: the invitation, its link's expiry (when the email left),
+ * and whether its email left. `emailProblem` is set when the invitation exists (created or
+ * renewed) but the email failed (`provider_error`, `not_configured`, `rate_limited`,
+ * `invalid_request` for a refused recipient…).
+ */
+export interface InvitationSendResult {
+  invitationId: string
+  expiresAt: string | null
+  emailProblem: EmailProblem | null
+}
+
+/**
+ * The messages of the fieldless 400s a function writes itself (a body it cannot read, 22023):
+ * nothing else tells them from a P0001's French message, and they are never shown. A body check
+ * that concerns a field carries its `field` instead.
+ */
+const TECHNICAL_MESSAGES = new Set(['Invalid request', 'Invalid request body', 'Invalid JSON body'])
+
+/**
+ * The functions pass an RPC's refusal on: P0001 as 400 `invalid_request` with its French message,
+ * 42501 as 403 `forbidden`. Rethrown as that RPC error (`{ code, message }`), so
+ * `moduleErrorMessage` shows the message and a 42501 refreshes the caller's access, as for the
+ * RPCs called directly. Anything else (a 400 naming a `field`, a function's own code) stays as it
+ * is.
+ */
+function asRpcRefusal(error: unknown): unknown {
+  if (!(error instanceof FunctionCallError)) return error
+  if (error.status === 400 && error.code === 'invalid_request' && error.field === undefined && !TECHNICAL_MESSAGES.has(error.message)) {
+    return { code: 'P0001', message: error.message }
+  }
+  if (error.status === 403 && error.code === 'forbidden') return { code: '42501', message: error.message }
+  return error
+}
+
+/** `staff-invite`: the invitation, or its refusal; an error answer that names the invitation means only the email failed. */
+async function sendInvitation(body: Record<string, unknown>): Promise<InvitationSendResult> {
+  try {
+    const data = (await invokeFunction('staff-invite', body)) as { invitation_id: string; expires_at?: unknown }
+    const expiresAt = typeof data.expires_at === 'string' ? data.expires_at : null
+    return { invitationId: data.invitation_id, expiresAt, emailProblem: null }
+  } catch (error) {
+    const invitationId = error instanceof FunctionCallError ? error.extra.invitation_id : undefined
+    if (error instanceof FunctionCallError && typeof invitationId === 'string') {
+      return { invitationId, expiresAt: null, emailProblem: { code: error.code, retryAfter: error.retryAfter } }
+    }
+    throw asRpcRefusal(error)
+  }
+}
+
+/**
+ * « Inviter » (users.manage): through `staff-invite` only. The function creates the invitation as
+ * the caller (`create_staff_invitation` is service-role only, P3-7) and emails the link; the
+ * browser never sees a token. Throws the RPC's refusal (P0001: provider role, admin by a
+ * non-admin, hold rule, already a member, already pending) or the function's.
+ */
+export function inviteStaff(input: { email: string; displayName: string; role: string }): Promise<InvitationSendResult> {
+  return sendInvitation({ email: input.email, display_name: input.displayName, role: input.role })
+}
+
+/** « Renvoyer »: a new link by email (`renew_staff_invitation` through `staff-invite`); the previous link stops working. */
+export function resendInvitation(invitationId: string): Promise<InvitationSendResult> {
+  return sendInvitation({ invitation_id: invitationId })
+}
+
+/** « Révoquer » (users.manage): the invitation and its link (P0001 when it is no longer pending). */
+export async function revokeInvitation(invitationId: string): Promise<void> {
+  const { error } = await supabase.rpc('revoke_staff_invitation', { p_id: invitationId })
   if (error) throw error
 }

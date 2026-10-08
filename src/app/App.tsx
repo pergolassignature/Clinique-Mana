@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { Toaster } from '@/shared/ui/sonner'
 import { lazyPage, useLazyPageReady, whenIdle } from '@/shared/lib/lazy-page'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
-import { ConfirmPage } from './public-pages'
+import { ConfirmPage, InvitationPage } from './public-pages'
 import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
 
 const queryClient = new QueryClient({
@@ -95,6 +95,15 @@ export function App() {
                   element={
                     <Suspense fallback={<Loading />}>
                       <ConfirmPage />
+                    </Suspense>
+                  }
+                />
+                {/* Public: the staff invitation email lands here (design §4); the token is in the fragment. */}
+                <Route
+                  path="/invitation"
+                  element={
+                    <Suspense fallback={<Loading />}>
+                      <InvitationPage />
                     </Suspense>
                   }
                 />

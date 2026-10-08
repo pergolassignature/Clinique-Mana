@@ -22,7 +22,8 @@
  *    address that already has an account → 409 `conflict` with the neutral
  *    « Ce lien ne peut plus être utilisé… », reported `invite_email_exists`
  *    with the link id only (P3-8: never reveal that an account exists);
- *    `weak_password` → 400. Any other error: the link is peeked again, and
+ *    Auth's `weak_password` → 400 `weak_password` (the page shows Auth's
+ *    weak-password text). Any other error: the link is peeked again, and
  *    if it is now `used` (a concurrent accept won; Auth may answer the
  *    losing insert with a database error rather than `email_exists`) → 410
  *    `link_used`, not reported; otherwise 500, nothing consumed.
@@ -46,9 +47,10 @@
  * 12. 200 `{ status: 'accepted', email }`: the token holder already knows
  *    the address, and the page signs in with it.
  *
- * Status mapping: 200; 400 `invalid_request` (body, password refused by Auth,
- * a purpose without accounts); 405; 409 `conflict`; 410 `link_invalid` /
- * `link_expired` / `link_used`; 413; 429 `rate_limited` with `Retry-After`;
+ * Status mapping: 200; 400 `invalid_request` (body, a purpose without
+ * accounts) or `weak_password` (a password Auth refused); 405; 409
+ * `conflict`; 410 `link_invalid` / `link_expired` / `link_used`; 413; 429
+ * `rate_limited` with `Retry-After`;
  * 503 `not_configured` (limiter failed closed); 500 `internal` (reported) or
  * `server_misconfigured`. Reports carry the link and user ids only: never the
  * token, the password or the address.
@@ -197,8 +199,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         await report('invite_email_exists', ids)
         return errorResponse('conflict', NO_LONGER_USABLE, 409, req)
       }
+      // Auth's strength rules, beyond the length checked above.
       if (created.error.code === 'weak_password') {
-        return errorResponse('invalid_request', 'Password refused', 400, req)
+        return errorResponse('weak_password', 'Password refused', 400, req)
       }
       // A concurrent accept may have won: not an error worth a report.
       const again = await peekSecureLink(client, tokenHash, false)

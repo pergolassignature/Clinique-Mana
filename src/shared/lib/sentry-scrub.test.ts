@@ -149,6 +149,26 @@ describe('scrubSentryEvent: URLs', () => {
     expect(JSON.stringify(scrubbed)).not.toContain('pkce_0123456789abcdef')
   })
 
+  // A staff invitation lands on /invitation#t=<token> (Task 3.21): the page strips the fragment at
+  // once, but the page load and that navigation are reported with the full URL.
+  it('scrubs the token of an /invitation link everywhere a URL is reported', () => {
+    const token = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8'
+    const link = `https://app.test/invitation#t=${token}`
+    const event = {
+      type: undefined,
+      request: { url: link, headers: { Referer: link } },
+      breadcrumbs: [
+        { category: 'navigation', data: { from: link, to: '/invitation' } },
+        { category: 'navigation', data: { from: '/invitation', to: '/accueil' } },
+      ],
+    } as Event
+    const scrubbed = scrubSentryEvent(event)
+    expect(scrubbed?.request?.url).toBe('https://app.test/invitation')
+    expect(scrubbed?.request?.headers).toEqual({ Referer: 'https://app.test/invitation' })
+    expect(scrubbed?.breadcrumbs?.[0]?.data).toEqual({ from: 'https://app.test/invitation', to: '/invitation' })
+    expect(JSON.stringify(scrubbed)).not.toContain(token)
+  })
+
   it('scrubs fetch and xhr breadcrumb urls', () => {
     const event = {
       type: undefined,

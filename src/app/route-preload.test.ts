@@ -3,13 +3,14 @@ import { coreSettingsSections } from '@/core/settings/sections'
 import { ALL_MODULES } from './modules'
 import { AUTH_STORAGE_KEY } from '@/core/supabase/client'
 import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
-import { ConfirmPage } from './public-pages'
+import { ConfirmPage, InvitationPage } from './public-pages'
 
 const at = (pathname: string, search = '') => ({ pathname, search, origin: window.location.origin })
 
 const spyPreloads = () => {
   const pages = [
     ConfirmPage,
+    InvitationPage,
     ...coreSettingsSections.map((s) => s.component),
     ...ALL_MODULES.flatMap((m) => m.routes.map((r) => r.component)),
   ]
@@ -60,6 +61,15 @@ describe('preloadRouteCode', () => {
     expect(spies.filter((s) => s.mock.calls.length > 0)).toHaveLength(1)
     for (const path of ['/connexion', '/connexion/confirmer/x', '/confirmer', '/reinitialiser-mot-de-passe']) preloadRouteCode(at(path))
     expect(ConfirmPage.preload).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts loading the invitation page on its own path only (the token is in the fragment)', () => {
+    const spies = spyPreloads()
+    preloadRouteCode(at('/invitation'))
+    expect(InvitationPage.preload).toHaveBeenCalledTimes(1)
+    expect(spies.filter((s) => s.mock.calls.length > 0)).toHaveLength(1)
+    for (const path of ['/invitation/x', '/invitations', '/connexion/invitation']) preloadRouteCode(at(path))
+    expect(InvitationPage.preload).toHaveBeenCalledTimes(1)
   })
 
   it('names the page at the URL', () => {

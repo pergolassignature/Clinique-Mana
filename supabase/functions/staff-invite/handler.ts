@@ -14,21 +14,23 @@
  *    (« Renvoyer »). The address is trimmed and lowercased, and must be one
  *    bare mailbox (the send path's rule), so an invitation is never created
  *    for an address the email cannot reach. Any other field (an actor, an
- *    org) is ignored.
+ *    org) is ignored. An invitation body the schema refuses answers 400
+ *    `invalid_request` with the first refused `field` (`email`,
+ *    `display_name` or `role`), for the dialog to mark it.
  * 3. `invites.staff_user` (30 per hour per caller), on top of the email
  *    limits of the send path.
  * 4. `generateToken`, `hashToken` and the link URL (an unusable `APP_URL` →
  *    500 before anything is created).
  * 5. With the service client, `p_actor` = the caller `verifyAuth` verified,
- *    never a body value: `create_staff_invitation` then `peek_secure_link`
- *    for the link's expiry (create returns the id only), or
- *    `renew_staff_invitation` (which returns the address, name and expiry).
+ *    never a body value: `create_staff_invitation` (which returns the id and
+ *    the new link's expiry) or `renew_staff_invitation` (which returns the
+ *    address, name and expiry). A reply of another shape → 500, reported.
  *    The RPC re-checks `users.manage` and every guard as that actor, in her
  *    org. P0001 → 400 `invalid_request` with its French message; 42501 →
  *    403.
  * 6. `sendTemplatedEmail` (`core.staff_invite`, subject `staff_invitation` /
  *    id; « Renvoyer » is an `explicitResend`).
- * 7. 200 `{ invitation_id }`.
+ * 7. 200 `{ invitation_id, expires_at }` (the new link's expiry).
  *
  * Status mapping: 200; 400 `invalid_request` (body, P0001, 22023); 401 / 403
  * / 503 from `verifyAuth`; 403 `forbidden` (42501); 405; 413; 429
@@ -39,7 +41,8 @@
  * shows « Invitation créée, mais le courriel n'a pas pu être envoyé.
  * Utilisez « Renvoyer ». »: 502 `provider_error`, 503 `not_configured`, 429
  * `rate_limited` (an email limit, with `Retry-After`), 400 `invalid_request`
- * (recipient refused), 403 `module_disabled`, 500 `internal` (anything else).
+ * with `field: 'email'` (recipient refused), 403 `module_disabled`, 500
+ * `internal` (anything else).
  */
 import { z } from 'zod'
 import {
@@ -53,12 +56,7 @@ import type { Deps } from '../_shared/deps.ts'
 import { isMailbox, sendTemplatedEmail } from '../_shared/email/send.ts'
 import { FunctionError, rpcErrorResponse } from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
-import {
-  generateToken,
-  hashToken,
-  linkUrl,
-  peekSecureLink,
-} from '../_shared/links.ts'
+import { generateToken, hashToken, linkUrl } from '../_shared/links.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 
@@ -70,8 +68,41 @@ const inviteSchema = z.object({
   display_name: z.string().trim().min(1).max(80),
   role: z.string().min(1).max(64),
 })
-/** « Renvoyer » when `invitation_id` is valid, else an invitation. */
-const bodySchema = z.union([resendSchema, inviteSchema])
+type Body = z.output<typeof resendSchema> | z.output<typeof inviteSchema>
+
+/** The invitation fields a refusal can name. */
+const INVITE_FIELDS = new Set(['email', 'display_name', 'role'])
+
+/**
+ * « Renvoyer » when `invitation_id` is valid, else an invitation. A refused
+ * invitation body names its first refused field; « Renvoyer » (only an id,
+ * which the UI never gets wrong) and a body that is not an object name none.
+ */
+function parseBody(value: unknown, req: Request): Body | Response {
+  const resend = resendSchema.safeParse(value)
+  if (resend.success) return resend.data
+  const invite = inviteSchema.safeParse(value)
+  if (invite.success) return invite.data
+  const isResend = typeof value === 'object' && value !== null &&
+    'invitation_id' in value
+  const field = isResend ? undefined : invite.error.issues[0]?.path[0]
+  return jsonResponse(
+    {
+      error: {
+        code: 'invalid_request',
+        message: 'Invalid request body',
+        ...(typeof field === 'string' && INVITE_FIELDS.has(field) && { field }),
+      },
+    },
+    400,
+    req,
+  )
+}
+
+/** `create_staff_invitation`'s one row. */
+const createSchema = z.tuple([
+  z.object({ id: z.guid(), expires_at: z.string() }),
+])
 
 /** `renew_staff_invitation`'s one row. */
 const renewSchema = z.tuple([
@@ -88,10 +119,15 @@ function invitationError(
   code: ErrorCode,
   status: number,
   req: Request,
+  field?: 'email',
 ): Response {
   return jsonResponse(
     {
-      error: { code, message: 'Invitation created, email not sent' },
+      error: {
+        code,
+        message: 'Invitation created, email not sent',
+        ...(field && { field }),
+      },
       invitation_id: invitationId,
     },
     status,
@@ -113,7 +149,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       deps.userClient,
     )
     if (auth instanceof Response) return auth
-    const input = await readJson(req, bodySchema)
+    const body = await readJson(req, z.unknown())
+    if (body instanceof Response) return body
+    const input = parseBody(body, req)
     if (input instanceof Response) return input
     const client = deps.serviceClient()
     if (client instanceof Response) return client
@@ -185,21 +223,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         p_token_hash: tokenHash,
       })
       if (error) return rpcFailed(error)
-      if (typeof data !== 'string') {
+      const row = createSchema.safeParse(data)
+      if (!row.success) {
         await report('create_invalid')
         return errorResponse('internal', 'Invitation failed', 500, req)
       }
-      invitationId = data
-      // create returns the id only: the expiry is the new link's.
-      const peek = await peekSecureLink(client, tokenHash, false)
-      if (peek?.state !== 'valid') {
-        await report('invite_peek_failed', { invitation_id: invitationId })
-        return invitationError(invitationId, 'internal', 500, req)
-      }
+      const [created] = row.data
+      invitationId = created.id
       invitee = {
         email: input.email,
         displayName: input.display_name,
-        expiresAt: peek.expires_at,
+        expiresAt: created.expires_at,
       }
     }
 
@@ -229,7 +263,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         },
       )
       if (result.ok) {
-        return jsonResponse({ invitation_id: invitationId }, 200, req)
+        return jsonResponse(
+          { invitation_id: invitationId, expires_at: invitee.expiresAt },
+          200,
+          req,
+        )
       }
       switch (result.code) {
         case 'rate_limited': {
@@ -242,7 +280,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         case 'provider_error':
           return invitationError(invitationId, 'provider_error', 502, req)
         case 'invalid_recipient':
-          return invitationError(invitationId, 'invalid_request', 400, req)
+          return invitationError(
+            invitationId,
+            'invalid_request',
+            400,
+            req,
+            'email',
+          )
         case 'module_disabled':
           return invitationError(invitationId, 'module_disabled', 403, req)
         default:

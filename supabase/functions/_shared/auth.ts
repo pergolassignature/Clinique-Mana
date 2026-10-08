@@ -32,8 +32,9 @@ import { timingSafeEqual } from './timing-safe-equal.ts'
 /**
  * Error codes stay English; the UI maps each one to a French text (P3-28).
  * Usual statuses: `invalid_request` 400 (413 for a body over the cap),
- * `missing_variable` 400 (a template value is missing), `unauthenticated`
- * 401, `forbidden` / `module_disabled` 403, `not_found` 404, `conflict` 409,
+ * `missing_variable` 400 (a template value is missing), `weak_password`
+ * 400 (Auth refused a password), `unauthenticated` 401, `forbidden` /
+ * `module_disabled` 403, `not_found` 404, `conflict` 409,
  * `link_invalid` / `link_expired` / `link_used` 410, `rate_limited` 429,
  * `server_misconfigured` / `internal` 500, `provider_error` 502,
  * `auth_unavailable` / `not_configured` 503.
@@ -55,6 +56,7 @@ export type ErrorCode =
   | 'provider_error'
   | 'not_configured'
   | 'missing_variable'
+  | 'weak_password'
 
 // ---------------------------------------------------------------------------
 // CORS and responses

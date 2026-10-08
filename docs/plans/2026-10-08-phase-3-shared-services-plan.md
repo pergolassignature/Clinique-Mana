@@ -1563,7 +1563,7 @@ The raw token is never returned to the browser (P3-7). The browser cannot call c
 2. Body `{ user_id, status: 'active' | 'disabled' }`.
 3. `set_user_status` with the **user client** (Phase 2 guards).
 4. Service client `auth.admin.updateUserById(user_id, { ban_duration: status === 'disabled' ? '876000h' : 'none' })`.
-5. A ban failure after a successful disable → 200 `{ sessions_ended: false }`, plus `reportError`. The UI warns « Accès bloqué. Les sessions ouvertes se fermeront d'ici une heure. »
+5. A ban failure after a successful disable → 200 `{ status: 'disabled', signin_blocked: false }`, plus `reportError`. `signin_blocked` (formerly `sessions_ended`) says only whether the Auth ban was applied: since P3-32, `set_user_status` itself ends the sessions in the same transaction, so the ban is the one thing that can fail. The UI warns « Compte désactivé. Le blocage de connexion n'a pas pu être appliqué ; réessayez. »; a retry is the same call (the ban is always attempted again, even for an already-disabled user).
 6. An unban failure on re-enable → 502, and the UI says « Réessayez »: a still-banned user cannot sign in.
 
 **Tests** (fake deps):
@@ -1588,7 +1588,7 @@ The raw token is never returned to the browser (P3-7). The browser cannot call c
   - the RPC is called with the service client and `p_actor` = the verified user's id, even when the body carries another id;
   - the response body has no token;
   - « Renvoyer » sets `explicitResend`.
-- **`users-set-status`:** disable → RPC then `updateUserById(ban_duration '876000h')`; a ban failure → 200 `sessions_ended: false`; enable → `'none'`.
+- **`users-set-status`:** disable → RPC then `updateUserById(ban_duration '876000h')`; a ban failure → 200 `signin_blocked: false` (the Auth ban only, P3-32); disabling an already-disabled user retries the ban; enable → `'none'`.
 
 **Live probe (DB token)**, local stack, `functions serve`, `npm run dev`, Mailpit:
 1. **Round trip:** as admin, `staff-invite` (curl with the admin JWT) for `nouvelle@mana.test`, role `counselor` → Mailpit email → link → `resolve-link` → `accept-invite` with a password → sign in with `signInWithPassword` → `get_my_access` shows `counselor`.
@@ -1603,7 +1603,7 @@ The raw token is never returned to the browser (P3-7). The browser cannot call c
 
 - **P3-32 (delegated, 2026-10-08, revisable): disabling a user ends their sessions in the database.** `set_user_status(…, 'disabled')` also runs `delete from auth.sessions where user_id = p_user_id` in the same transaction (refresh tokens go with it through `session_id`), so a refresh token taken from a compromised device does not come back to life on re-enable. The Auth ban stays (it blocks new sign-ins). Reason: supabase-js `auth.admin.signOut` takes the user's JWT, not an id, so there is no admin "sign out user X" call. Check that the migration owner may delete from `auth.sessions` locally and record the staging check in Mise en service. Test: a disabled user's sessions are gone; re-enable does not restore them.
 - **Orphan auth users:** a maintenance SQL job `core.invite_orphans_purge` (hourly) deletes `auth.users` rows whose `raw_app_meta_data ? 'invite_link_id'`, that have no `public.profiles` row, and that are older than 1 hour (accept-invite sets the marker; a killed function or a failed delete otherwise blocks the invitation with `email_exists` forever). Verify the owner may delete from `auth.users` locally; test with a fixture row.
-- `create_staff_invitation` returns `(id, expires_at)` like `renew` (removes the extra peek in `staff-invite`; lane F adjusts the call).
+- `create_staff_invitation` returns `(id, expires_at)` like `renew` (removes the extra peek in `staff-invite`: done, `staff-invite` uses the RPC's `expires_at`).
 - `list_staff_invitations` also returns `last_email_error_code` (the last email's `error_code`), so lane U shows « Résultat inconnu » instead of « Échec » for `failed` + `provider_unavailable`.
 
 ## Task 3.21: `/invitation` page
@@ -1663,7 +1663,7 @@ The raw token is never returned to the browser (P3-7). The browser cannot call c
 - **Pending invitations** are rows in the same table (one combined list, sorted after active users):
   - status « Invitation envoyée » (or « Expirée », or « Adresse introuvable » when `last_email_status = 'bounced'`) and « Expire le {formatClinicDateShort} »;
   - actions « Renvoyer » and « Révoquer » (AlertDialog confirm), hidden without `users.manage`.
-- **Disable / enable** goes through `users-set-status`. When `sessions_ended: false`, show the warning toast.
+- **Disable / enable** goes through `users-set-status`. When `signin_blocked: false` (the Auth ban failed; the sessions already ended in the database, P3-32), show the warning toast with « Réessayez ».
 - **Queries:** `listOrgUsers` and `listStaffInvitations` run **in parallel**; the table renders when both resolve. Mutations invalidate `userKeys.all`.
 
 **Tests:**

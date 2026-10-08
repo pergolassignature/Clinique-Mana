@@ -69,6 +69,7 @@ Deno.test('errorResponse: the Phase 3 codes (P3-28) with their statuses', async 
     ['provider_error', 502],
     ['not_configured', 503],
     ['missing_variable', 400],
+    ['weak_password', 400],
   ]
   for (const [code, status] of codes) {
     const res = errorResponse(code, 'Message', status)
