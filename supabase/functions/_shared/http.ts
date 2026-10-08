@@ -11,10 +11,13 @@ import { errorResponse } from './auth.ts'
 /** Default cap on a JSON request body, in bytes (plan « Conventions »). */
 const MAX_JSON_BYTES = 65_536
 
-/** The body bytes, or null as soon as they exceed `maxBytes` (stops reading). */
-async function readCapped(
+/**
+ * The raw body bytes, or null as soon as they exceed `maxBytes` (64 KB by
+ * default; stops reading). For bodies verified before parsing (webhooks).
+ */
+export async function readCapped(
   req: Request,
-  maxBytes: number,
+  maxBytes = MAX_JSON_BYTES,
 ): Promise<Uint8Array | null> {
   if (Number(req.headers.get('Content-Length')) > maxBytes) return null
   if (!req.body) return new Uint8Array()

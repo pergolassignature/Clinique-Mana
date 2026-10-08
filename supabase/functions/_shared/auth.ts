@@ -31,10 +31,11 @@ import { timingSafeEqual } from './timing-safe-equal.ts'
 /**
  * Error codes stay English; the UI maps each one to a French text (P3-28).
  * Usual statuses: `invalid_request` 400 (413 for a body over the cap),
- * `unauthenticated` 401, `forbidden` / `module_disabled` 403, `not_found` 404,
- * `conflict` 409, `link_invalid` / `link_expired` / `link_used` 410,
- * `rate_limited` 429, `server_misconfigured` / `internal` 500,
- * `provider_error` 502, `auth_unavailable` / `not_configured` 503.
+ * `missing_variable` 400 (a template value is missing), `unauthenticated`
+ * 401, `forbidden` / `module_disabled` 403, `not_found` 404, `conflict` 409,
+ * `link_invalid` / `link_expired` / `link_used` 410, `rate_limited` 429,
+ * `server_misconfigured` / `internal` 500, `provider_error` 502,
+ * `auth_unavailable` / `not_configured` 503.
  */
 export type ErrorCode =
   | 'unauthenticated'
@@ -52,6 +53,7 @@ export type ErrorCode =
   | 'not_found'
   | 'provider_error'
   | 'not_configured'
+  | 'missing_variable'
 
 // ---------------------------------------------------------------------------
 // CORS and responses
@@ -143,6 +145,8 @@ function misconfigured(what: string, req?: Request): Response {
 export interface CallerAccess {
   user_id: string
   org_id: string
+  /** `profiles.email` (copied from Auth): the caller's own address. */
+  email: string
   status: 'active'
   role: string | null
   permissions: string[]
@@ -200,6 +204,7 @@ export function evaluateAccess(
     Array.isArray(a) ||
     typeof a.user_id !== 'string' ||
     typeof a.org_id !== 'string' ||
+    typeof a.email !== 'string' ||
     !Array.isArray(a.permissions) ||
     !Array.isArray(a.modules)
   ) {
@@ -300,7 +305,8 @@ export async function authorizeCaller(
 /**
  * Verifies the caller's JWT, requires an active profile, and optionally a
  * permission key and an enabled module. Returns AuthResult, or a Response to
- * return immediately.
+ * return immediately. `makeClient` builds the caller's client (a handler
+ * passes `deps.userClient`); it defaults to `getUserClient`.
  *
  * @example
  * const auth = await verifyAuth(req, { permission: 'professionals.view', module: 'professionals' })
@@ -309,6 +315,8 @@ export async function authorizeCaller(
 export async function verifyAuth(
   req: Request,
   options: AccessOptions = {},
+  makeClient: (token: string) => SupabaseClient | Response = (token) =>
+    getUserClient(token, req),
 ): Promise<AuthResult | Response> {
   const token = bearerToken(req)
   if (!token) {
@@ -319,7 +327,7 @@ export async function verifyAuth(
       req,
     )
   }
-  const client = getUserClient(token, req)
+  const client = makeClient(token)
   if (client instanceof Response) return client
   return await authorizeCaller(client, token, options, req)
 }

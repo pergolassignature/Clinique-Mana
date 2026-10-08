@@ -54,3 +54,15 @@ Deno.test('fakeSupabase: an unrouted storage method throws, naming it', () => {
   )
   assertEquals(storageCalls, [])
 })
+
+Deno.test('fakeSupabase: auth.getUser answers the configured user, else a 401 error', async () => {
+  const signedIn = fakeSupabase({ user: { id: 'u1' } })
+  const ok = await signedIn.client.auth.getUser('tok')
+  assertEquals([ok.data.user?.id, ok.error], ['u1', null])
+  assertEquals(signedIn.authCalls, ['tok'])
+
+  const anonymous = fakeSupabase({})
+  const refused = await anonymous.client.auth.getUser('tok')
+  assertEquals(refused.data.user, null)
+  assertEquals(refused.error?.status, 401)
+})

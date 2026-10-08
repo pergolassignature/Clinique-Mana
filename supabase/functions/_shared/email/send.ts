@@ -1,8 +1,8 @@
 /**
  * The templated send path (design §2.1, §2.6; P3-4, P3-5, P3-18): one call
  * resolves the template and sender, checks the gates and limits, composes,
- * logs, sends and records the outcome. Module functions, `send-email` and
- * `email-test-send` all send through `sendTemplatedEmail`.
+ * logs, sends and records the outcome. Module and job functions and
+ * `email-test-send` all send through `sendTemplatedEmail`, in process.
  *
  * Order (plan Task 3.8, with compose moved before the limits):
  * 1. Configuration (`EMAIL_TRANSPORT`, `APP_URL`; the console transport only
@@ -260,6 +260,22 @@ function emailContext(raw: RawContext): EmailContext {
     },
     timezone: raw.timezone,
   }
+}
+
+/**
+ * A `get_email_context` result as compose input, with its module gate, or
+ * null when malformed. For callers that compose without sending (preview).
+ */
+export function parseEmailContext(
+  data: unknown,
+): { moduleEnabled: boolean; context: EmailContext } | null {
+  const parsed = contextSchema.safeParse(data)
+  return parsed.success
+    ? {
+      moduleEnabled: parsed.data.module_enabled,
+      context: emailContext(parsed.data),
+    }
+    : null
 }
 
 /** True when `email` is one bare mailbox of at most 254 characters. */

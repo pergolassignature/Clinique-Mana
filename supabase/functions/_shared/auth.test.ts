@@ -23,6 +23,7 @@ import { captureConsole, withEnv } from './testing/env.ts'
 const ACTIVE = {
   user_id: 'u1',
   org_id: 'o1',
+  email: 'ana@mana.test',
   status: 'active',
   role: 'admin_assistant',
   permissions: ['professionals.view', 'settings.view'],
@@ -64,6 +65,7 @@ Deno.test('errorResponse: the Phase 3 codes (P3-28) with their statuses', async 
     ['not_found', 404],
     ['provider_error', 502],
     ['not_configured', 503],
+    ['missing_variable', 400],
   ]
   for (const [code, status] of codes) {
     const res = errorResponse(code, 'Message', status)
@@ -219,6 +221,7 @@ Deno.test('evaluateAccess: malformed payload fails closed (403)', () => {
       [],
       { ...ACTIVE, permissions: 'professionals.view' },
       { ...ACTIVE, org_id: null },
+      { ...ACTIVE, email: null },
     ]
   ) {
     const d = evaluateAccess({ data, error: null }, {
@@ -411,6 +414,33 @@ Deno.test('verifyAuth: missing SUPABASE_URL / anon key gives 500 server_misconfi
       assertEquals(logged.length, 1)
     },
   )
+})
+
+Deno.test('verifyAuth: builds the caller client with the given factory', async () => {
+  const { client, calls } = fakeClient({ user: { id: 'u1' } })
+  const tokens: string[] = []
+  const result = await verifyAuth(
+    new Request('http://x', { headers: { Authorization: 'Bearer tok' } }),
+    { permission: 'settings.view' },
+    (token) => {
+      tokens.push(token)
+      return client
+    },
+  )
+  assert(!(result instanceof Response))
+  assertEquals(tokens, ['tok'])
+  assertEquals(calls.getUser, ['tok'])
+  assertEquals(result.access.email, 'ana@mana.test')
+})
+
+Deno.test('verifyAuth: a factory Response is returned as is', async () => {
+  const misconfigured = new Response(null, { status: 500 })
+  const result = await verifyAuth(
+    new Request('http://x', { headers: { Authorization: 'Bearer tok' } }),
+    {},
+    () => misconfigured,
+  )
+  assertEquals(result, misconfigured)
 })
 
 Deno.test('getUserClient / getServiceRoleClient: Response when env is missing', async () => {

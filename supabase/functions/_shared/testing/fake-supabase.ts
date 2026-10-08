@@ -1,7 +1,8 @@
 /**
  * A Supabase client double for function tests. Functions reach the database
  * only through `rpc` and `storage` (plan « Conventions »), so the fake is a
- * router over those two, with a call log. Test-only: never deployed.
+ * router over those two, with a call log, plus `auth.getUser` for a caller's
+ * client (`verifyAuth`). Test-only: never deployed.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -26,6 +27,8 @@ export interface FakeSupabase {
   client: SupabaseClient
   calls: Array<{ fn: string; args: Record<string, unknown> }>
   storageCalls: Array<{ bucket: string; method: string; args: unknown[] }>
+  /** The tokens passed to `auth.getUser`. */
+  authCalls: string[]
 }
 
 const normalise = (r: FakeResult) => ({
@@ -33,16 +36,35 @@ const normalise = (r: FakeResult) => ({
   error: r.error ?? null,
 })
 
-/** Builds a fake client from RPC routes (by name) and storage routes (by method). */
+/**
+ * Builds a fake client from RPC routes (by name) and storage routes (by
+ * method). `user` is what `auth.getUser` answers; without one it answers a
+ * 401 error (an invalid token).
+ */
 export function fakeSupabase(
   routes: {
     rpc?: Record<string, RpcRoute>
     storage?: Record<string, StorageRoute>
+    user?: { id: string }
   },
 ): FakeSupabase {
   const calls: FakeSupabase['calls'] = []
   const storageCalls: FakeSupabase['storageCalls'] = []
+  const authCalls: string[] = []
   const client = {
+    auth: {
+      getUser: (token: string) => {
+        authCalls.push(token)
+        return Promise.resolve(
+          routes.user ? { data: { user: routes.user }, error: null } : {
+            data: { user: null },
+            error: Object.assign(new Error('fake: invalid token'), {
+              status: 401,
+            }),
+          },
+        )
+      },
+    },
     rpc: async (fn: string, args: Record<string, unknown> = {}) => {
       calls.push({ fn, args })
       const route = routes.rpc?.[fn]
@@ -77,5 +99,10 @@ export function fakeSupabase(
         }),
     },
   }
-  return { client: client as unknown as SupabaseClient, calls, storageCalls }
+  return {
+    client: client as unknown as SupabaseClient,
+    calls,
+    storageCalls,
+    authCalls,
+  }
 }

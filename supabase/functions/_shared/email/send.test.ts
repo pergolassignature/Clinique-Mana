@@ -7,6 +7,7 @@ import {
 } from '@std/assert'
 import {
   type EmailDeps,
+  parseEmailContext,
   sendTemplatedEmail,
   type SendTemplatedEmailInput,
 } from './send.ts'
@@ -1075,4 +1076,14 @@ Deno.test('send: no report or log line ever holds the address, the subject or th
       assertFalse(text.includes(secret), `${secret} leaked: ${text}`)
     }
   }
+})
+
+Deno.test('parseEmailContext: the compose input and the module gate, or null', () => {
+  const parsed = parseEmailContext(context({ module_enabled: false }))
+  assert(parsed)
+  assertFalse(parsed.moduleEnabled)
+  assertEquals(parsed.context.template.buttonLabel, 'Créer mon accès')
+  assertEquals(parsed.context.clinic.postalCode, 'H2X 1Y4')
+  assertEquals(parsed.context.timezone, 'America/Toronto')
+  assertEquals(parseEmailContext({ module_enabled: true }), null)
 })
