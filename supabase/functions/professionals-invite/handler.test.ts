@@ -243,7 +243,16 @@ Deno.test('professionals-invite: send → service create with the verified actor
     assert(sent.Text.includes(`${APP}/invitation#t=`))
     // A first sending: the 60 s same-address limit.
     assert(buckets(service.calls).includes('emails.same_address'))
-    assertEquals(buckets(service.calls)[0], 'professionals.invite_user')
+    // The file's guard, then the caller's limit, before the link is issued.
+    assertEquals(buckets(service.calls).slice(0, 2), [
+      'professionals.invite_file',
+      'professionals.invite_user',
+    ])
+    assert(
+      service.calls.findIndex((c) =>
+        c.fn === 'create_professional_invitation'
+      ) > 1,
+    )
   })
 })
 
@@ -509,15 +518,120 @@ Deno.test('professionals-invite: the per-caller limit → 429 before any token o
       assertEquals(res.status, 429)
       assertEquals(res.headers.get('Retry-After'), '900')
     }
-    assertEquals(service.calls.map((c) => c.fn), [
-      'consume_rate_limit',
-      'consume_rate_limit',
+    // send: the file's guard, then the caller's limit; request_update: the
+    // caller's limit only.
+    assertEquals(buckets(service.calls), [
+      'professionals.invite_file',
+      'professionals.invite_user',
+      'professionals.invite_user',
     ])
+    assertEquals(service.calls.length, 3)
     assertEquals(user.calls.map((c) => c.fn), [
       'get_my_access',
       'get_my_access',
     ])
     assertEquals(http.calls, [])
+  })
+})
+
+Deno.test("professionals-invite: a double click on « Renvoyer » / « Nouveau lien » → the second is refused by the file's guard before any link is issued", async () => {
+  await run(async () => {
+    // The file's guard holds one hit per key, as its 5 s window does; the
+    // other buckets allow everything.
+    const seen = new Set<string>()
+    const { handler, service, http } = harness({
+      rpc: {
+        consume_rate_limit: (a) => {
+          const guarded = a.p_bucket === 'professionals.invite_file'
+          const key = String(a.p_key_hash)
+          const allowed = !guarded || !seen.has(key)
+          if (guarded) seen.add(key)
+          return {
+            data: [{
+              allowed,
+              hits: 1,
+              retry_after_seconds: allowed ? 0 : 5,
+            }],
+          }
+        },
+      },
+    })
+    const first = await handler(
+      post({ action: 'resend', professional_id: PROFESSIONAL_ID }),
+    )
+    assertEquals(first.status, 200)
+    for (const action of ['resend', 'new_link', 'send']) {
+      const again = await handler(
+        post({ action, professional_id: PROFESSIONAL_ID }),
+      )
+      const error = await errorOf(again)
+      assertEquals([error.status, error.code], [429, 'rate_limited'], action)
+      assertEquals(again.headers.get('Retry-After'), '5')
+      // Nothing created: no ids next to the error.
+      assertEquals(error.body.professional_id, undefined)
+    }
+    // One link issued, the one emailed; the refused clicks did not count
+    // against the caller's hourly limit.
+    assertEquals(
+      service.calls.filter((c) => c.fn === 'create_professional_invitation')
+        .length,
+      1,
+    )
+    assertEquals(http.calls.length, 1)
+    assertEquals(
+      buckets(service.calls).filter((b) => b === 'professionals.invite_user')
+        .length,
+      1,
+    )
+    // Another file is not held back.
+    const other = await handler(
+      post({ action: 'resend', professional_id: OTHER_ID }),
+    )
+    assertEquals(other.status, 200)
+  })
+})
+
+Deno.test('professionals-invite: once the link has rotated, the email is sent even if the caller has gone', async () => {
+  await run(async () => {
+    const controller = new AbortController()
+    const { handler, http, service } = harness({
+      rpc: {
+        create_professional_invitation: () => {
+          // The tab closes while the link is being issued.
+          controller.abort()
+          return {
+            data: {
+              link_id: LINK_ID,
+              submission_id: SUBMISSION_ID,
+              email: PROFESSIONAL_EMAIL,
+              first_name: 'Nadia',
+              expires_at: EXPIRES,
+            },
+          }
+        },
+      },
+    })
+    const req = new Request(URL_, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: APP,
+        Authorization: 'Bearer tok',
+      },
+      body: JSON.stringify({
+        action: 'new_link',
+        professional_id: PROFESSIONAL_ID,
+      }),
+      signal: controller.signal,
+    })
+    const res = await handler(req)
+    assert(req.signal.aborted)
+    assertEquals(res.status, 200)
+    assertEquals(http.calls.length, 1)
+    assertEquals(
+      await hashToken(emailedToken(http.calls[0].body)),
+      args(service.calls, 'create_professional_invitation')!.p_token_hash,
+    )
   })
 })
 

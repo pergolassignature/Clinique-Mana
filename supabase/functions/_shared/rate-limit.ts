@@ -77,8 +77,20 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
-   * `professionals-submit`, per caller: each call emails the clinic's
-   * reviewers (up to 20). A submission can only be sent again after a
+   * `professionals-invite` (send, « Renvoyer », « Nouveau lien »), per file
+   * (org + professional), whoever clicks: each call revokes the live link and
+   * emails a new one, so a double click, or two colleagues at once, would
+   * leave the first email's link dead. Consumed before the link is issued.
+   */
+  professionalInviteFile: {
+    bucket: 'professionals.invite_file',
+    max: 1,
+    windowSeconds: 5,
+  },
+  /**
+   * `professionals-submit`, per caller, consumed only once the submission
+   * succeeded (refusals are not counted, P4-261): it caps the reviewers'
+   * emails (up to 20 each). A submission is sent again only after a staff
    * refusal, so 10 per hour is ample.
    */
   professionalSubmitUser: {

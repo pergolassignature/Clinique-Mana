@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Professionnels: what the onboarding edge functions need (reminder job, re-issue, submission notice)
 -- =============================================================================
--- Plan:    docs/plans/2026-10-08-professionals-module-plan.md Task 4b.2 (P4-45, P4-260 … P4-269)
+-- Plan:    docs/plans/2026-10-08-professionals-module-plan.md Task 4b.2 (P4-45, P4-260 … P4-267)
 -- Needs:   *_professionals_onboarding.sql (4b.1: the professional_invite purpose, the onboarding
 --          submissions, the settings invitation_expiry_days / invitation_reminder_after_days, the
 --          template professionals.invite_reminder), Phase 3 jobs, secure links and email_log

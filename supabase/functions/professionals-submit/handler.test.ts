@@ -183,8 +183,13 @@ Deno.test('professionals-submit: submit as the caller, then one email per review
       calls(service.calls, 'get_professional_submission_notice_for_service'),
       [{ p_actor: PROVIDER_ID }],
     )
-    // The limit first, before the submission.
+    // The limit once submitted (the submission is the caller's client), then
+    // the notice.
     assertEquals(service.calls[0].args.p_bucket, 'professionals.submit_user')
+    assertEquals(
+      service.calls[1].fn,
+      'get_professional_submission_notice_for_service',
+    )
 
     const queued = calls(service.calls, 'queue_email')
     assertEquals(
@@ -235,10 +240,8 @@ Deno.test('professionals-submit: a refusal → 400 with message, field and secti
         sections: ['personal', 'consent'],
       },
     })
-    assertEquals(
-      calls(service.calls, 'get_professional_submission_notice_for_service'),
-      [],
-    )
+    // A refusal is not counted against the caller's limit.
+    assertEquals(service.calls, [])
     assertEquals(http.calls, [])
 
     // An inactive file (4b.1, P4-303): the provider's wording, nothing emailed.
@@ -279,18 +282,45 @@ Deno.test('professionals-submit: a refusal → 400 with message, field and secti
       assertEquals(error.status, 500)
     })
     assertEquals(logged.map((l) => l.code), ['submit_failed'])
+    for (const h of [inactive, denied, broken]) {
+      assertEquals(h.service.calls, [])
+    }
   })
 })
 
-Deno.test("professionals-submit: the caller's limit → 429 before the submission", async () => {
+Deno.test("professionals-submit: the caller's limit counts successful submissions only: once reached, the submission stands (200) and the reviewers' emails are skipped, reported", async () => {
   await run(async () => {
-    const { handler, user } = harness({
+    const { handler, user, service, http } = harness({
       limits: { 'professionals.submit_user': { allowed: false } },
     })
-    const res = await handler(post())
-    assertEquals(res.status, 429)
-    assertEquals(res.headers.get('Retry-After'), '600')
-    assertEquals(user.calls.map((c) => c.fn), ['get_my_access'])
+    const refused = await reports(async () => {
+      const res = await handler(post())
+      assertEquals([res.status, await res.json()], [200, { ok: true }])
+    })
+    assertEquals(user.calls.map((c) => c.fn), [
+      'get_my_access',
+      'submit_my_submission',
+    ])
+    assertEquals(service.calls.map((c) => c.fn), ['consume_rate_limit'])
+    assertEquals(http.calls, [])
+    assertEquals(refused.map((l) => [l.code, l.ids]), [[
+      'reviewer_emails_rate_limited',
+      { org_id: ORG_ID },
+    ]])
+
+    // The limiter itself failing (closed): the same, reported as such.
+    const unavailable = harness({
+      rpc: { consume_rate_limit: { error: { code: 'XX000' } } },
+    })
+    const logged = await reports(async () => {
+      const res = await unavailable.handler(post())
+      assertEquals(res.status, 200)
+    })
+    assert(
+      logged.some((l) => l.code === 'reviewer_emails_limit_unavailable'),
+      JSON.stringify(logged),
+    )
+    assertEquals(unavailable.http.calls, [])
   })
 })
 
@@ -309,6 +339,23 @@ Deno.test('professionals-submit: once submitted, an email problem still answers 
       ['no reviewer', { notice: { data: { ...NOTICE, reviewers: [] } } }, [
         'no_reviewer',
       ]],
+      [
+        'more than 20 reviewers (the RPC caps them at 20)',
+        {
+          notice: {
+            data: {
+              ...NOTICE,
+              reviewers: Array.from({ length: 21 }, (_, i) => ({
+                user_id: `00000000-0000-4000-8000-${
+                  String(i + 1).padStart(12, '0')
+                }`,
+                email: `r${i + 1}@exemple.test`,
+              })),
+            },
+          },
+        },
+        ['notice_invalid'],
+      ],
       ['APP_URL', { env: { APP_URL: 'http://app.example.com' } }, [
         'app_url_invalid',
       ]],

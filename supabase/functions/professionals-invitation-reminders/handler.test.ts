@@ -1,5 +1,5 @@
 import { assert, assertEquals } from '@std/assert'
-import { createHandler, JOB_KEY, MAX_PER_RUN } from './handler.ts'
+import { createHandler, JOB_KEY, MAX_PER_RUN, remindOrg } from './handler.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { hashToken } from '../_shared/links.ts'
 import { fakeFetch, type Responder } from '../_shared/testing/fake-fetch.ts'
@@ -75,6 +75,8 @@ function harness(opts: {
   start?: RpcRoute
   mailpit?: Responder
   env?: Record<string, string>
+  /** Other service RPC routes (override the defaults). */
+  rpc?: Record<string, RpcRoute>
 } = {}) {
   let logIds = 0
   const service = fakeSupabase({
@@ -105,6 +107,7 @@ function harness(opts: {
       }),
       mark_email_sent: { data: null },
       mark_email_failed: { data: null },
+      ...opts.rpc,
     },
   })
   const http = fakeFetch({
@@ -119,7 +122,7 @@ function harness(opts: {
     serviceClient: () => service.client,
     userClient: () => new Response(null, { status: 500 }),
   }
-  return { handler: createHandler(deps), service, http }
+  return { handler: createHandler(deps), deps, service, http }
 }
 
 const run = (fn: () => Promise<void>) =>
@@ -287,37 +290,235 @@ Deno.test('professionals-invitation-reminders: already ran today (start_job_run 
   })
 })
 
-Deno.test('professionals-invitation-reminders: an email setup failure stops the run after the first file', async () => {
+const reissuedIds = (calls: { fn: string; args: Record<string, unknown> }[]) =>
+  callsTo(calls, 'reissue_professional_invitation_for_service').map((a) =>
+    String(a.p_id)
+  )
+
+/** Mailpit's answer by recipient: `status` for the listed files, else 200. */
+const mailpitFailing =
+  (failing: string[], status: number): Responder => async (req) => {
+    const to = (await req.json()).To[0].Email
+    return new Response(JSON.stringify({ ID: 'm' }), {
+      status: failing.some((id) => addressOf(id) === to) ? status : 200,
+    })
+  }
+
+const contextWith = (over: Record<string, unknown>): RpcRoute => (args) => ({
+  data: {
+    ...professionalsEmailContext(String(args.p_template_key)),
+    ...over,
+  },
+})
+
+Deno.test("professionals-invitation-reminders: the first file stops the run on any failure that is not its recipient's own; one link rotated at most", async () => {
+  const ids = [pid(1), pid(2), pid(3)]
+  const cases: [string, Parameters<typeof harness>[0], string][] = [
+    [
+      'not_configured',
+      { env: { EMAIL_TRANSPORT: 'carrier-pigeon' } },
+      'email_not_configured',
+    ],
+    [
+      'module_disabled',
+      { rpc: { get_email_context: contextWith({ module_enabled: false }) } },
+      'email_not_configured',
+    ],
+    [
+      'provider_error (unavailable)',
+      { mailpit: mailpitFailing(ids, 500) },
+      'reminders_stopped_provider_error',
+    ],
+    [
+      'provider_error (rejected)',
+      { mailpit: mailpitFailing(ids, 422) },
+      'reminders_stopped_provider_error',
+    ],
+    [
+      'rate_limited',
+      {
+        rpc: {
+          consume_rate_limit: {
+            data: [{ allowed: false, hits: 501, retry_after_seconds: 600 }],
+          },
+        },
+      },
+      'reminders_stopped_rate_limited',
+    ],
+    [
+      'missing_variable',
+      {
+        reissue: (id) => ({
+          data: {
+            link_id: pid(900),
+            email: addressOf(id),
+            first_name: '',
+            expires_at: 'pas une date',
+            clinic_name: 'Clinique MANA',
+          },
+        }),
+      },
+      'reminders_stopped_missing_variable',
+    ],
+    [
+      'internal (the send path threw)',
+      { rpc: { get_email_context: { error: { code: 'XX000' } } } },
+      'reminders_stopped_internal',
+    ],
+    [
+      're-issue error',
+      { reissue: () => ({ error: { code: 'XX000' } }) },
+      'reminders_stopped_reissue_failed',
+    ],
+    [
+      're-issue answer',
+      { reissue: () => ({ data: { email: 'x' } }) },
+      'reminders_stopped_reissue_invalid',
+    ],
+  ]
   await run(async () => {
-    const ids = [pid(1), pid(2), pid(3)]
-    const { handler, service, http } = harness({
+    for (const [label, opts, code] of cases) {
+      const { handler, service, http } = harness({ ids, ...opts })
+      const logged = await captureConsole('error', async () => {
+        const res = await handler(await jobRequest())
+        assertEquals(res.status, 200, label)
+      })
+      assertEquals(reissuedIds(service.calls), [pid(1)], label)
+      assertEquals(finished(service.calls), [['error', code]], label)
+      assert(http.calls.length <= 1, label)
+      // The run's code is reported with the org; nothing names the address.
+      const lines = logged.map((l) => JSON.parse(String(l[0])))
+      assert(lines.some((l) => l.code === code), label)
+      assert(!JSON.stringify(logged).includes(addressOf(pid(1))), label)
+    }
+  })
+})
+
+Deno.test('professionals-invitation-reminders: a refused address or a skipped file does not end the probe: files go one at a time until a reminder has gone out', async () => {
+  await run(async () => {
+    const ids = Array.from({ length: 5 }, (_, i) => pid(i + 1))
+    // pid 1 has an address the send refuses; pid 2 no longer qualifies.
+    const { handler, service } = harness({
       ids,
-      env: { EMAIL_TRANSPORT: 'carrier-pigeon' },
+      reissue: (id) =>
+        id === pid(1)
+          ? {
+            data: {
+              link_id: pid(900),
+              email: 'pas une adresse',
+              first_name: 'Nadia',
+              expires_at: EXPIRES,
+              clinic_name: 'Clinique MANA',
+            },
+          }
+          : id === pid(2)
+          ? { data: null }
+          : undefined,
     })
     await captureConsole('error', async () => {
       await handler(await jobRequest())
     })
-    assertEquals(
-      callsTo(service.calls, 'reissue_professional_invitation_for_service')
-        .length,
-      1,
-    )
-    assertEquals(http.calls, [])
-    assertEquals(finished(service.calls), [['error', 'email_not_configured']])
+    const events = service.calls
+      .filter((c) =>
+        c.fn === 'reissue_professional_invitation_for_service' ||
+        c.fn === 'queue_email'
+      )
+      .map((c) =>
+        c.fn === 'queue_email'
+          ? 'q'
+          : `r${Number(String(c.args.p_id).slice(-12))}`
+      )
+    // 1 (refused before queueing), 2 (skipped), 3 (sent) alone; then 4 and 5.
+    assertEquals(events.slice(0, 4), ['r1', 'r2', 'r3', 'q'])
+    assertEquals(events.slice(4, 6).sort(), ['r4', 'r5'])
+    assertEquals(finished(service.calls), [[
+      'ok',
+      'listed=5 reminded=3 skipped=1 failed=1',
+    ]])
+
+    // During the probe, the second file is the first to reach the provider.
+    const probe = harness({
+      ids,
+      reissue: (id) => id === pid(1) ? { data: null } : undefined,
+      mailpit: mailpitFailing(ids, 500),
+    })
+    await captureConsole('error', async () => {
+      await probe.handler(await jobRequest())
+    })
+    assertEquals(reissuedIds(probe.service.calls), [pid(1), pid(2)])
+    assertEquals(finished(probe.service.calls), [[
+      'error',
+      'reminders_stopped_provider_error',
+    ]])
   })
 })
 
-Deno.test('professionals-invitation-reminders: a failed re-issue or email is counted and reported with ids only; the run goes on', async () => {
+Deno.test('professionals-invitation-reminders: after the probe, a batch that hits provider_error or rate_limited stops the run before the next batch', async () => {
   await run(async () => {
-    const ids = [pid(1), pid(2), pid(3)]
-    let mails = 0
+    const ids = Array.from({ length: 60 }, (_, i) => pid(i + 1))
+    let consumed = 0
+    const cases: [Parameters<typeof harness>[0], string][] = [
+      [
+        { ids, mailpit: mailpitFailing([pid(7)], 500) },
+        'reminders_stopped_provider_error',
+      ],
+      [
+        {
+          ids,
+          rpc: {
+            // Two hits per send (emails.org_day, emails.same_address): after
+            // the probe and nine more sends, the batch meets a refusal.
+            consume_rate_limit: () => {
+              const allowed = ++consumed <= 20
+              return {
+                data: [{
+                  allowed,
+                  hits: consumed,
+                  retry_after_seconds: allowed ? 0 : 600,
+                }],
+              }
+            },
+          },
+        },
+        'reminders_stopped_rate_limited',
+      ],
+    ]
+    for (const [opts, code] of cases) {
+      const { handler, service } = harness(opts)
+      const logged = await captureConsole('error', async () => {
+        await handler(await jobRequest())
+      })
+      // The probe and the whole first batch, never the second.
+      assertEquals(reissuedIds(service.calls).length, 26, code)
+      assertEquals(finished(service.calls), [['error', code]], code)
+      const lines = logged.map((l) => JSON.parse(String(l[0])))
+      assert(
+        lines.some((l) =>
+          l.code === code.replace('reminders_stopped_', 'reminder_email_')
+        ),
+        code,
+      )
+    }
+  })
+})
+
+Deno.test("professionals-invitation-reminders: after the probe, a file's own failure (re-issue, address, template) is counted and reported with ids only; the run goes on", async () => {
+  await run(async () => {
+    const ids = [pid(1), pid(2), pid(3), pid(4)]
     const { handler, service, http } = harness({
       ids,
-      reissue: (id) => id === pid(2) ? { error: { code: 'XX000' } } : undefined,
-      mailpit: () =>
-        new Response(JSON.stringify({ ID: 'm' }), {
-          status: mails++ === 0 ? 500 : 200,
-        }),
+      reissue: (id) =>
+        id === pid(2) ? { error: { code: 'XX000' } } : id === pid(3)
+          ? {
+            data: {
+              link_id: pid(900),
+              email: 'pas une adresse',
+              first_name: 'Nadia',
+              expires_at: EXPIRES,
+              clinic_name: 'Clinique MANA',
+            },
+          }
+          : undefined,
     })
     const logged = await captureConsole('error', async () => {
       await handler(await jobRequest())
@@ -328,17 +529,77 @@ Deno.test('professionals-invitation-reminders: a failed re-issue or email is cou
       org_id: ORG_ID,
       professional_id: pid(2),
     })
-    assert(lines.some((l) => l.code === 'reminder_email_provider_error'))
-    const [[status, detail]] = finished(service.calls)
-    assertEquals(status, 'ok')
-    assertEquals(detail, 'listed=3 reminded=1 skipped=0 failed=2')
+    assert(lines.some((l) => l.code === 'reminder_email_invalid_recipient'))
+    assertEquals(finished(service.calls), [[
+      'ok',
+      'listed=4 reminded=2 skipped=0 failed=2',
+    ]])
     // No token or address in any line.
     const text = JSON.stringify(logged)
     for (const call of http.calls) {
       assert(!text.includes(emailedToken(call.body)))
       assert(!text.includes(JSON.parse(call.body).To[0].Email))
     }
+    assert(!text.includes('pas une adresse'))
     assert(!text.includes('#t='))
+  })
+})
+
+Deno.test('professionals-invitation-reminders: an abort before the re-issue rotates nothing; once a link has rotated, its email is still sent', async () => {
+  await run(async () => {
+    // Aborted before the run starts: nothing listed is re-issued.
+    const early = harness({ ids: [pid(1), pid(2)] })
+    const aborted = new AbortController()
+    aborted.abort()
+    assertEquals(
+      await remindOrg(early.deps, ORG_ID, early.service.client, aborted.signal),
+      'listed=2 reminded=0 skipped=0 failed=0',
+    )
+    assertEquals(reissuedIds(early.service.calls), [])
+    assertEquals(early.http.calls, [])
+
+    // The timeout fires during the batch's first re-issue: that file's link
+    // has rotated, so its email goes out (no signal reaches the send); the
+    // batch's other files see the abort before their re-issue.
+    const ids = Array.from({ length: 10 }, (_, i) => pid(i + 1))
+    const controller = new AbortController()
+    let reissues = 0
+    const mid = harness({
+      ids,
+      reissue: (id) => {
+        if (++reissues === 2) controller.abort()
+        return {
+          data: {
+            link_id: pid(900),
+            email: addressOf(id),
+            first_name: 'Nadia',
+            expires_at: EXPIRES,
+            clinic_name: 'Clinique MANA',
+          },
+        }
+      },
+    })
+    const detail = await remindOrg(
+      mid.deps,
+      ORG_ID,
+      mid.service.client,
+      controller.signal,
+    )
+    assertEquals(detail, 'listed=10 reminded=2 skipped=0 failed=0')
+    const reissued = reissuedIds(mid.service.calls)
+    assertEquals(reissued.length, 2)
+    assertEquals(reissued[0], pid(1))
+    // Both rotated links were emailed, each with the token its hash stored.
+    assertEquals(mid.http.calls.length, 2)
+    for (const call of mid.http.calls) {
+      const to = JSON.parse(call.body).To[0].Email
+      const id = reissued.find((i) => addressOf(i) === to)!
+      const hash = callsTo(
+        mid.service.calls,
+        'reissue_professional_invitation_for_service',
+      ).find((a) => a.p_id === id)!.p_token_hash
+      assertEquals(await hashToken(emailedToken(call.body)), hash)
+    }
   })
 })
 

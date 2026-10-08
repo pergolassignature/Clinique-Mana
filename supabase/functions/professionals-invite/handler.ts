@@ -17,8 +17,12 @@
  *    address) is ignored: the recipient is the file's address, from the RPC.
  * 3. `revoke`: `revoke_professional_invitation` as the caller → 200
  *    `{ ok: true }`. Nothing else below applies.
- * 4. `professionals.invite_user` (30 per hour per caller), on top of the
- *    email limits.
+ * 4. `send`, `resend`, `new_link`: `professionals.invite_file` first (1 per
+ *    5 s per file, whoever clicks), since each call revokes the live link:
+ *    a double click on « Renvoyer » or « Nouveau lien » must not kill the
+ *    link the first click emailed. Then `professionals.invite_user` (30 per
+ *    hour per caller; `request_update` too), on top of the email limits.
+ *    Both are consumed before anything is created.
  * 5. The email's URL before anything is created (an unusable `APP_URL` →
  *    500): `send`, `resend`, `new_link` → `generateToken`, `hashToken`,
  *    `linkUrl(APP_URL, '/invitation', token)`; `request_update` →
@@ -36,6 +40,9 @@
  *    `professionals.profile_update`, subject `professional` / id, to the
  *    address the RPC returned; `resend` and `new_link` are explicit re-sends
  *    (the 5 s double-click guard instead of the 60 s same-address limit).
+ *    The request's signal is not passed: once the link has rotated (or the
+ *    submission exists), the email is sent even if the caller has gone, as
+ *    `professionals-submit` does.
  * 8. 200 `{ ok: true, expires_at }` (an invitation) or `{ ok: true,
  *    submission_id }` (an update request).
  *
@@ -49,7 +56,8 @@
  *
  * Status mapping: 200; 400 `invalid_request` (body, P0001, 22023); 401 / 403
  * / 503 from `verifyAuth`; 403 `forbidden` (42501); 405; 413; 429
- * `rate_limited` with `Retry-After` (the caller's limit); 503
+ * `rate_limited` with `Retry-After` (the file's guard or the caller's
+ * limit, nothing created); 503
  * `not_configured` (the limiter failed closed); 500 `internal` (another RPC
  * error, reported) or `server_misconfigured` (`APP_URL`). Reports carry the
  * org, professional and submission ids only.
@@ -151,6 +159,18 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const service = deps.serviceClient()
     if (service instanceof Response) return service
     const client: SupabaseClient = service
+    // The file's guard first, so that a refused double click does not use
+    // up the caller's hourly count.
+    if (input.action !== 'request_update') {
+      const busy = limitResponse(
+        await consume(client, LIMITS.professionalInviteFile, [
+          orgId,
+          professionalId,
+        ]),
+        req,
+      )
+      if (busy) return busy
+    }
     const refused = limitResponse(
       await consume(client, LIMITS.professionalInviteUser, [orgId, actor]),
       req,
@@ -254,13 +274,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       let result: SendResult
       try {
         result = await sendTemplatedEmail(
-          {
-            fn: FN,
-            client,
-            env: deps.env,
-            fetch: deps.fetch,
-            signal: req.signal,
-          },
+          // No signal: what the email is about already exists (step 7).
+          { fn: FN, client, env: deps.env, fetch: deps.fetch },
           {
             orgId,
             templateKey: email.templateKey,

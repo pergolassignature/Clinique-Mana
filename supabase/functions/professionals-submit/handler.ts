@@ -6,31 +6,39 @@
  *    `professionals.self`.
  * 2. Body: a JSON object; every field is ignored (the submission is the
  *    caller's own open one, found by the RPC).
- * 3. `professionals.submit_user` (10 per hour per caller).
- * 4. `submit_my_submission` as the caller: every requested section complete,
+ * 3. `submit_my_submission` as the caller: every requested section complete,
  *    the staff checks, `submitted`, the file `in_review` for an onboarding,
  *    and the in-app notice to `professionals.review` (created in SQL, P4-181,
  *    so it exists whatever happens to the emails). P0001 → 400 with its French
  *    message, its HINT as `field` and, for incomplete sections, their keys as
  *    `sections`; 42501 → 403; 22023 → 400; anything else → 500, reported.
- * 5. Once submitted, the reviewers' email (`professionals.submission_received`):
+ *    Not rate-limited: a refusal sends nothing, and the caller could call
+ *    the RPC directly anyway.
+ * 4. Once submitted, `professionals.submit_user` (10 per hour per caller,
+ *    P4-261): it caps the reviewers' emails, so only successful submissions
+ *    count (a provider fixing incomplete steps is never locked out). A
+ *    refused or failed limiter skips the emails, reported
+ *    (`reviewer_emails_rate_limited` / `reviewer_emails_limit_unavailable`);
+ *    the in-app notice remains.
+ * 5. The reviewers' email (`professionals.submission_received`):
  *    `get_professional_submission_notice_for_service(p_actor)` with the
  *    service client (the actor `verifyAuth` verified; her clinic's active
  *    members holding `professionals.review`, at most 20, the provider
- *    excluded), then one send per reviewer, in parallel, subject
- *    `professional` / id, button to the file's documents tab. Each is an
- *    explicit send (P4-264): the 5 s guard per reviewer and provider instead
- *    of the 60 s same-address limit, so two providers submitting within a
- *    minute both reach the reviewers. The caller's signal is not passed: the
- *    submission is done, its emails go out even if the tab closes.
+ *    excluded; more than 20 is refused as `notice_invalid`, nothing sent),
+ *    then one send per reviewer, in parallel, subject `professional` / id,
+ *    button to the file's documents tab. Each is an explicit send (P4-264):
+ *    the 5 s guard per reviewer and provider instead of the 60 s
+ *    same-address limit, so two providers submitting within a minute both
+ *    reach the reviewers. The caller's signal is not passed: the submission
+ *    is done, its emails go out even if the tab closes.
  * 6. 200 `{ ok: true }`, whatever the emails did: a failure is reported (codes
  *    and ids only) and the in-app notice remains. The provider never learns
  *    who reviews nor whether an email failed.
  *
  * Status mapping: 200; 400 `invalid_request` (body, P0001, 22023); 401 / 403
- * / 503 from `verifyAuth`; 403 `forbidden` (42501); 405; 413; 429
- * `rate_limited` with `Retry-After`; 503 `not_configured` (the limiter failed
- * closed); 500 `internal` (another RPC error, reported). Reviewers' addresses
+ * / 503 from `verifyAuth`; 403 `forbidden` (42501); 405; 413; 500
+ * `internal` (another RPC error, reported). Never 429: the limit applies
+ * after the submission, to the emails only. Reviewers' addresses
  * never reach an answer, a log or a report.
  */
 import { z } from 'zod'
@@ -51,7 +59,7 @@ import {
   professionalsRpcError,
   submissionReceivedValues,
 } from '../_shared/professionals.ts'
-import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
+import { consume, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 
 const FN = 'professionals-submit'
@@ -92,12 +100,6 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const report = (code: string, ids: Record<string, string> = {}) =>
       reportError({ fn: FN, code, ids: { org_id: orgId, ...ids } }, deps.fetch)
 
-    const refused = limitResponse(
-      await consume(client, LIMITS.professionalSubmitUser, [orgId, actor]),
-      req,
-    )
-    if (refused) return refused
-
     const submitted = await auth.client.rpc('submit_my_submission')
     if (submitted.error) {
       if (!isExpectedRpcError(submitted.error)) await report('submit_failed')
@@ -106,6 +108,19 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const ok = () => jsonResponse({ ok: true }, 200, req)
 
     // Submitted: from here on the answer is 200; the emails are best effort.
+    // Only a submission that went through counts against the limit (step 4).
+    const limit = await consume(client, LIMITS.professionalSubmitUser, [
+      orgId,
+      actor,
+    ])
+    if (!limit.allowed) {
+      await report(
+        limit.reason === 'unavailable'
+          ? 'reviewer_emails_limit_unavailable'
+          : 'reviewer_emails_rate_limited',
+      )
+      return ok()
+    }
     const { data, error } = await client.rpc(
       'get_professional_submission_notice_for_service',
       { p_actor: actor },

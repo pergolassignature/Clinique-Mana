@@ -7,10 +7,10 @@
 -- as the job, null once the file no longer qualifies); the reminded link bound to the file's address
 -- (4b.1's P4-300: it resolves and is accepted while the address is the file's, and is refused once
 -- the address is corrected); the submission notice (the actor's submitted submission, reviewers by
--- permission, null otherwise).
+-- permission, at most 20, null otherwise).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(51);
+select plan(53);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A (admin 01, adjointe 02, provider 03 linked to P2, conseillère 04,
@@ -333,6 +333,25 @@ set local role service_role;
 select is(public.get_professional_submission_notice_for_service('a0000000-0000-0000-0000-000000000003') -> 'reviewers',
   '[{"user_id": "a0000000-0000-0000-0000-000000000001", "email": "admin@a.test"}]'::jsonb,
   'an override that removes professionals.review, or a disabled account, takes the reviewer out');
+reset role;
+
+-- At most 20 reviewers (P4-264; professionals-submit refuses a longer list): 22 more admins.
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+select ('a1000000-0000-0000-0000-0000000000' || lpad(n::text, 2, '0'))::uuid, '00000000-0000-0000-0000-000000000000',
+       'authenticated', 'authenticated', 'admin' || n || '@a.test', '', now(), '{}', '{}', now(), now()
+  from generate_series(1, 22) n;
+insert into public.profiles (user_id, org_id, display_name, email, status)
+select ('a1000000-0000-0000-0000-0000000000' || lpad(n::text, 2, '0'))::uuid, 'b0000000-0000-0000-0000-00000000000a',
+       'Admin ' || n, 'admin' || n || '@a.test', 'active'
+  from generate_series(1, 22) n;
+insert into public.user_roles (user_id, org_id, role)
+select ('a1000000-0000-0000-0000-0000000000' || lpad(n::text, 2, '0'))::uuid, 'b0000000-0000-0000-0000-00000000000a', 'admin'
+  from generate_series(1, 22) n;
+set local role service_role;
+select is(pg_catalog.jsonb_array_length(public.get_professional_submission_notice_for_service('a0000000-0000-0000-0000-000000000003') -> 'reviewers'),
+  20, '23 reviewers: the notice lists 20');
+select is(public.get_professional_submission_notice_for_service('a0000000-0000-0000-0000-000000000003') -> 'reviewers' -> 19 ->> 'user_id',
+  'a1000000-0000-0000-0000-000000000019', 'the 20 are the first by user id (stable from one submission to the next)');
 reset role;
 update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
 set local role service_role;

@@ -561,6 +561,14 @@ Deno.test('accept-invite: a redirect that is not a plain app path is dropped and
         '/a#x',
         '/a//b',
         '/\\evil.test',
+        // Encoded, scheme, control-character and newline variants.
+        '/%2F%2Fevil.test',
+        'javascript:alert(1)',
+        '/javascript:alert(1)',
+        '/\t/evil.test',
+        '/mon-profil/questionnaire\n',
+        '/mon-profil\n//evil.test',
+        ' /mon-profil',
         `/${'x'.repeat(250)}`,
         42,
       ]
