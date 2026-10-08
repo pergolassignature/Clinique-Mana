@@ -1,10 +1,10 @@
 /**
- * Reference contract for the renderer spike and bench (plan Task 3.29): six
- * Letter pages = four pages of clauses, Annexe A (12 × 4 table), signature
+ * Reference contract for the renderer tests and bench (plan Tasks 3.29–3.30):
+ * six Letter pages = four pages of clauses, Annexe A (12 × 4 table), signature
  * page. FR-CA text with accents, « », ’, œ and `$` amounts (NBSP separators,
- * as `Intl` formats them in fr-CA).
+ * as `Intl` formats them in fr-CA). Test data only: no `index.ts` imports it.
  */
-import type { Block, PdfDocument, Run } from './model.ts'
+import type { Block, PdfDocument, Run } from '../model.ts'
 
 const p = (...runs: (string | Run)[]): Block => ({
   type: 'paragraph',

@@ -15,7 +15,7 @@
  * values with samples; `test` does the same and prefixes the subject with
  * « [Test] ».
  */
-import { formatPhone } from './format.ts'
+import { formatPhone } from '../format.ts'
 import { type ClinicFooter, renderLayout, renderLayoutText } from './layout.ts'
 import { renderTemplate, safeUrl, type TemplateVariable } from './render.ts'
 

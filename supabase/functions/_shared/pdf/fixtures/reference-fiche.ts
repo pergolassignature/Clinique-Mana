@@ -1,9 +1,9 @@
 /**
- * Reference fiche for the renderer spike and bench (plan Task 3.29): two Letter
- * pages with a 600×200 PNG logo (with alpha) and a 400×400 JPEG photo. The
- * image bytes are passed as assets (`fixtures/logo.png`, `fixtures/photo.jpg`).
+ * Reference fiche for the renderer tests and bench (plan Tasks 3.29–3.30): two
+ * Letter pages with a 600×200 PNG logo (with alpha) and a 400×400 JPEG photo,
+ * passed as assets (`logo.png`, `photo.jpg` in this folder). Test data only.
  */
-import type { Block, PdfDocument } from './model.ts'
+import type { Block, PdfDocument } from '../model.ts'
 
 const p = (text: string, label?: string): Block => ({
   type: 'paragraph',

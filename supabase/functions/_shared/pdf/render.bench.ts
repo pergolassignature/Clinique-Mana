@@ -1,24 +1,24 @@
 /**
- * Warm render times of the reference documents (Task 3.29 measurement 1;
- * Task 3.30 keeps its renderer within the ADR 0008 numbers + 20 %). Run in
- * review, not in CI:
+ * Warm render times of the reference documents. The renderer must stay within
+ * the Task 3.29 numbers + 20 % (ADR 0008: contract median 134 ms, fiche
+ * 81 ms on the dev Mac). Run in review, not in CI:
  * deno bench --config supabase/functions/deno.json --allow-read supabase/functions/_shared/pdf/render.bench.ts
  */
-import { renderWithPdfmake } from './spike/pdfmake-spike.ts'
-import { referenceContract } from './spike/reference-contract.ts'
-import { referenceFiche } from './spike/reference-fiche.ts'
+import { referenceContract } from './fixtures/reference-contract.ts'
+import { referenceFiche } from './fixtures/reference-fiche.ts'
+import { renderPdf } from './render.ts'
 
 const fixture = (name: string) =>
-  Deno.readFile(new URL(`./spike/fixtures/${name}`, import.meta.url))
+  Deno.readFile(new URL(`./fixtures/${name}`, import.meta.url))
 const [logo, photo] = await Promise.all([
   fixture('logo.png'),
   fixture('photo.jpg'),
 ])
 
 Deno.bench('contract, 6 pages', async () => {
-  await renderWithPdfmake(referenceContract, {})
+  await renderPdf(referenceContract, {})
 })
 
 Deno.bench('fiche, 2 pages, PNG logo + JPEG photo', async () => {
-  await renderWithPdfmake(referenceFiche, { logo, photo })
+  await renderPdf(referenceFiche, { logo, photo })
 })

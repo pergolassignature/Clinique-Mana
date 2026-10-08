@@ -22,6 +22,7 @@
     "check:functions": "deno check --frozen --config supabase/functions/deno.json supabase/functions/",
     "lint:functions": "deno lint --config supabase/functions/deno.json supabase/functions/",
     "build:pdf-fonts": "deno run --no-config --allow-read=node_modules/@fontsource/inter --allow-write=supabase/functions/_shared/pdf/fonts.ts scripts/build-pdf-fonts.ts",
+    "build:pdfmake": "deno run --no-config --allow-run=deno --allow-read --allow-write=supabase/functions/_shared/pdf/vendor/pdfmake.js scripts/build-pdfmake.ts",
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",

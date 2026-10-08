@@ -1,6 +1,7 @@
 /**
- * FR-CA display formats for server-rendered text (emails, later PDFs),
- * mirroring the web app's `src/shared/lib/timezone.ts` and `format.ts`:
+ * FR-CA display formats for server-rendered text (emails and PDFs), mirroring
+ * the web app's `src/shared/lib/timezone.ts` and `format.ts`, and the one
+ * template value formatter both renderers use (`formatValue`):
  *
  * - timestamps (`timestamptz`) are shown in the clinic timezone;
  * - date-only values (`date`) are calendar dates: never converted;
@@ -134,4 +135,105 @@ const PHONE_E164 = /^\+1(\d{3})(\d{3})(\d{4})$/
 export function formatPhone(value: string): string {
   const match = PHONE_E164.exec(value)
   return match ? `${match[1]} ${match[2]}-${match[3]}` : value
+}
+
+/**
+ * The placeholder rule, as a regex source: `{{`, then any characters except
+ * `{`, `}` and line breaks (CR, LF), then `}}`. The variable path is the
+ * captured text with surrounding whitespace removed (`{{ clinic.name }}` is
+ * `clinic.name`). The one repeated class stops at the next brace, so each
+ * attempt scans its own stretch of text once and matching is linear.
+ *
+ * Email and PDF templates share it. The SQL checks (`save_email_template`,
+ * Task 3.6; `update_template_version`, Task 3.31) must use the same rule:
+ * `regexp_matches(text, '\{\{([^{}\r\n]*)\}\}', 'g')`, then `btrim` the capture.
+ * (`btrim` removes spaces only, so SQL can only be stricter than `trim()`.)
+ * Any `{{` or `}}` left after removing the matches is unclosed.
+ */
+export const PLACEHOLDER_SOURCE = String.raw`\{\{([^{}\r\n]*)\}\}`
+
+/** One template variable (`email_template_defaults.variables`, `document_template_versions.variables`). */
+export interface TemplateVariable {
+  path: string
+  label: string
+  sample: string
+  required: boolean
+  kind: 'text' | 'date' | 'datetime' | 'url'
+}
+
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+/** The value at a dot path, through own properties only (never `constructor`, `__proto__`). */
+export function valueAt(
+  values: Record<string, unknown>,
+  path: string,
+): unknown {
+  let current: unknown = values
+  for (const key of path.split('.')) {
+    if (
+      typeof current !== 'object' || current === null ||
+      !Object.hasOwn(current, key)
+    ) {
+      return undefined
+    }
+    current = (current as Record<string, unknown>)[key]
+  }
+  return current
+}
+
+/**
+ * An `https:` URL (or local `http:` when allowed) without credentials,
+ * normalised by the URL parser (which also drops tabs and line breaks); null
+ * for anything else.
+ */
+export function safeUrl(value: string, allowLocalHttp = false): string | null {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return null
+  }
+  // `https://user:pass@host` hides the real host from a quick reading.
+  if (url.username || url.password) return null
+  if (url.protocol === 'https:') return url.href
+  if (
+    url.protocol === 'http:' && allowLocalHttp && LOCAL_HOSTS.has(url.hostname)
+  ) return url.href
+  return null
+}
+
+/**
+ * A provided template value formatted for its variable's `kind`: `text` as
+ * is (a finite number as its digits), `datetime` in the clinic timezone,
+ * `date` with no conversion, `url` through `safeUrl`. Null when the value is
+ * absent, blank or unusable for the kind; the caller decides whether that is
+ * a missing value. Throws RangeError for an unknown timezone (check first
+ * with `isValidTimeZone`).
+ */
+export function formatValue(
+  variable: TemplateVariable,
+  value: unknown,
+  options: { timezone: string; allowLocalHttp?: boolean },
+): string | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && variable.kind === 'text'
+      ? String(value)
+      : null
+  }
+  if (value instanceof Date) {
+    return variable.kind === 'datetime'
+      ? formatEmailDateTime(value, options.timezone)
+      : null
+  }
+  if (typeof value !== 'string' || value.trim() === '') return null
+  switch (variable.kind) {
+    case 'text':
+      return value
+    case 'datetime':
+      return formatEmailDateTime(value, options.timezone)
+    case 'date':
+      return formatDateOnly(value)
+    case 'url':
+      return safeUrl(value, options.allowLocalHttp)
+  }
 }
