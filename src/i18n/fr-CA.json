@@ -872,7 +872,132 @@
     }
   },
   "modules": {
-    "professionals": { "name": "Professionnels", "placeholder": "Le module Professionnels est en préparation. Il sera disponible ici sous peu." }
+    "professionals": {
+      "name": "Professionnels",
+      "placeholder": "Le module Professionnels est en préparation. Il sera disponible ici sous peu.",
+      "settingsPlaceholder": "Cette section est en préparation. Elle sera disponible ici sous peu.",
+      "status": {
+        "draft": "À inviter",
+        "invited": "Invité",
+        "in_review": "À réviser",
+        "active": "Actif",
+        "inactive": "Inactif"
+      },
+      "gender": {
+        "female": "Femme",
+        "male": "Homme",
+        "unspecified": "Autre / non précisé"
+      },
+      "periods": {
+        "am": "Matin",
+        "pm": "Après-midi",
+        "evening": "Soir",
+        "weekend": "Fin de semaine"
+      },
+      "otherCategory": "Autres",
+      "display": {
+        "agesRange": "{name} ({min}–{max} ans)",
+        "agesFrom": "{name} ({min} ans et plus)"
+      },
+      "readiness": {
+        "items": {
+          "matching_profile": "Profil de jumelage complet"
+        },
+        "missing": {
+          "profession": "un titre professionnel",
+          "licence": "le numéro de permis",
+          "regulated_title": "un titre d'un ordre professionnel (motifs réservés)",
+          "language": "une langue",
+          "clientele": "une clientèle",
+          "motif": "un motif"
+        },
+        "warnings": {
+          "login_email_mismatch": "Le courriel du dossier diffère du courriel de connexion."
+        },
+        "nextAction": {
+          "completeMatching": "Complétez le profil de jumelage.",
+          "completeIdentity": "Complétez les titres et permis.",
+          "complete": "Compléter",
+          "readyToActivate": "Le dossier est prêt à être activé.",
+          "nothingToDo": "Rien à faire. Le dossier est complet."
+        }
+      },
+      "watch": {
+        "matching_incomplete": "Profil de jumelage incomplet",
+        "login_email_mismatch": "Courriel de connexion différent"
+      },
+      "toasts": {
+        "saved": "Modifications enregistrées.",
+        "created": "Professionnel créé.",
+        "activated": "Professionnel activé.",
+        "deactivated": "Professionnel désactivé.",
+        "archived": "Élément archivé.",
+        "restored": "Élément restauré."
+      },
+      "errors": {
+        "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez dans un instant."
+      },
+      "validation": {
+        "firstNameRequired": "Prénom requis.",
+        "lastNameRequired": "Nom requis.",
+        "maxChars": "{max} caractères au maximum.",
+        "email": "Courriel invalide.",
+        "invisibleChars": "Le texte contient des caractères invisibles ou non permis.",
+        "titleRequired": "Choisissez un titre.",
+        "titleArchived": "Ce titre est archivé.",
+        "titleRepeated": "Un titre ne peut être choisi qu'une fois.",
+        "professionsMax": "Un professionnel a au plus deux titres.",
+        "onePrimary": "Un seul titre principal.",
+        "licenceRequired": "Le numéro de permis est requis pour ce titre.",
+        "licenceFormat": "Numéro de permis invalide.",
+        "licenceOrderFormat": "Le numéro de permis pour {title} n'a pas le bon format.",
+        "yearsExperience": "Entre 0 et 60 ans.",
+        "ivac": "Numéro IVAC invalide : 3 à 30 lettres, chiffres ou traits d'union.",
+        "languagesRequired": "Au moins une langue est requise.",
+        "tooMany": "500 éléments au maximum.",
+        "motifArchived": "Le motif « {name} » est archivé.",
+        "motifRestricted": "Le motif « {name} » est réservé aux professions réglementées.",
+        "clienteleArchived": "La clientèle « {name} » est archivée.",
+        "specialtyArchived": "L'approche « {name} » est archivée.",
+        "languageArchived": "La langue « {name} » est archivée.",
+        "restrictedMotifsHeld": "Retirez d'abord les motifs réservés aux professions réglementées : {names}.",
+        "reasonRequired": "Choisissez une raison.",
+        "noteRequired": "Précisez la raison.",
+        "noteMax": "La note compte au plus 500 caractères.",
+        "overrideReason": "Indiquez la raison (au moins 5 caractères).",
+        "overrideReasonMax": "La raison compte au plus 500 caractères.",
+        "nameRequired": "Le nom est obligatoire.",
+        "nameTooLong": "Le nom ne peut pas dépasser 120 caractères.",
+        "acronym": "Sigle : 2 à 10 lettres majuscules.",
+        "licenceLabelTooLong": "Le libellé du permis ne peut pas dépasser 60 caractères.",
+        "licencePatternTooLong": "Le format de permis ne peut pas dépasser 200 caractères.",
+        "licencePattern": "Format de permis invalide.",
+        "categoryRequired": "Choisissez une catégorie.",
+        "ages": "Les âges vont de 0 à 120 ans.",
+        "maxAgeNeedsMin": "Un âge maximum demande un âge minimum.",
+        "maxAgeBelowMin": "L'âge maximum doit être supérieur ou égal à l'âge minimum.",
+        "descriptionTooLong": "La description ne peut pas dépasser 300 caractères.",
+        "icon": "Icône inconnue.",
+        "languageCode": "Code de langue : deux lettres (ISO 639-1)."
+      },
+      "settings": {
+        "professions": {
+          "title": "Professions et ordres"
+        },
+        "specialties": {
+          "title": "Spécialités"
+        },
+        "motifs": {
+          "title": "Motifs"
+        },
+        "languages": {
+          "title": "Langues"
+        },
+        "deactivationReasons": {
+          "title": "Raisons de désactivation"
+        }
+      }
+    }
   },
   "roles": {
     "admin": "Administrateur",
@@ -898,7 +1023,25 @@
       "org_scheduled_jobs": "Tâches planifiées",
       "email_settings": "Expéditeur des courriels",
       "email_templates": "Modèles de courriel",
-      "email_template_versions": "Versions des modèles de courriel"
+      "email_template_versions": "Versions des modèles de courriel",
+      "professional_orders": "Ordres professionnels",
+      "profession_categories": "Catégories de professions",
+      "profession_titles": "Titres professionnels",
+      "clienteles": "Clientèles",
+      "specialties": "Approches",
+      "motif_categories": "Catégories de motifs",
+      "motifs": "Motifs",
+      "languages": "Langues",
+      "deactivation_reasons": "Raisons de désactivation",
+      "professionals": "Professionnels",
+      "professional_public_profiles": "Profils publics des professionnels",
+      "professional_matching_profiles": "Profils de jumelage",
+      "professional_professions": "Titres des professionnels",
+      "professional_clienteles": "Clientèles des professionnels",
+      "professional_specialties": "Approches des professionnels",
+      "professional_motifs": "Motifs des professionnels",
+      "professional_languages": "Langues des professionnels",
+      "professional_payer_numbers": "Numéros de payeurs des professionnels"
     },
     "commonFields": {
       "id": "Identifiant",
@@ -1004,6 +1147,146 @@
       "email_template_versions": {
         "key": "Modèle",
         "last_version": "Dernière version"
+      },
+      "professional_orders": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif",
+        "acronym": "Sigle",
+        "licence_label": "Libellé du permis",
+        "licence_pattern": "Format du permis"
+      },
+      "profession_categories": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif"
+      },
+      "profession_titles": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif",
+        "category_id": "Catégorie",
+        "order_id": "Ordre professionnel"
+      },
+      "clienteles": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif",
+        "min_age": "Âge minimum",
+        "max_age": "Âge maximum"
+      },
+      "specialties": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif"
+      },
+      "motif_categories": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif",
+        "description": "Description",
+        "icon": "Icône"
+      },
+      "motifs": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif",
+        "category_id": "Catégorie",
+        "is_restricted": "Réservé aux professions réglementées"
+      },
+      "languages": {
+        "code": "Code",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Active"
+      },
+      "deactivation_reasons": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Élément protégé",
+        "sort_order": "Ordre d'affichage",
+        "is_active": "Actif",
+        "requires_note": "Note requise",
+        "disables_account": "Désactive le compte"
+      },
+      "professionals": {
+        "profile_id": "Compte",
+        "first_name": "Prénom",
+        "last_name": "Nom",
+        "email": "Courriel",
+        "personal_phone": "Téléphone personnel",
+        "address_line1": "Adresse",
+        "address_line2": "Complément d'adresse",
+        "city": "Ville",
+        "province": "Province",
+        "postal_code": "Code postal",
+        "country": "Pays",
+        "years_experience": "Années d'expérience",
+        "gender": "Genre",
+        "status": "Statut",
+        "status_changed_at": "Statut modifié le",
+        "status_changed_by": "Statut modifié par",
+        "deactivation_reason_id": "Raison de la désactivation",
+        "deactivation_note": "Note de désactivation",
+        "deactivation_disabled_account": "Compte désactivé avec le dossier",
+        "activation_override_reason": "Raison de l'activation d'un dossier incomplet"
+      },
+      "professional_public_profiles": {
+        "professional_id": "Professionnel",
+        "bio": "Présentation",
+        "approach": "Approche",
+        "public_email": "Courriel public",
+        "public_phone": "Téléphone public"
+      },
+      "professional_matching_profiles": {
+        "professional_id": "Professionnel",
+        "accepting_new_clients": "Accepte de nouveaux clients",
+        "availability_periods": "Disponibilités générales",
+        "availability_note": "Note sur les disponibilités"
+      },
+      "professional_professions": {
+        "professional_id": "Professionnel",
+        "profession_title_id": "Titre",
+        "licence_number": "Numéro de permis",
+        "is_primary": "Titre principal"
+      },
+      "professional_clienteles": {
+        "professional_id": "Professionnel",
+        "clientele_id": "Clientèle",
+        "is_specialized": "Spécialisé"
+      },
+      "professional_specialties": {
+        "professional_id": "Professionnel",
+        "specialty_id": "Approche",
+        "is_specialized": "Spécialisé"
+      },
+      "professional_motifs": {
+        "professional_id": "Professionnel",
+        "motif_id": "Motif"
+      },
+      "professional_languages": {
+        "professional_id": "Professionnel",
+        "language_id": "Langue"
+      },
+      "professional_payer_numbers": {
+        "professional_id": "Professionnel",
+        "payer_type": "Payeur",
+        "number": "Numéro"
       }
     },
     "actions": {

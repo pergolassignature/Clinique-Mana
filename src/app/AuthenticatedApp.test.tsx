@@ -97,6 +97,15 @@ const ALL_SECTIONS = [
   'settings.sections.audit', 'settings.sections.jobs', 'settings.sections.email',
 ] as const
 
+/** Professionnels' list sections, after the core ones (group « Modules »). */
+const PROFESSIONALS_SECTIONS = [
+  'modules.professionals.settings.professions.title', 'modules.professionals.settings.specialties.title',
+  'modules.professionals.settings.motifs.title', 'modules.professionals.settings.languages.title',
+  'modules.professionals.settings.deactivationReasons.title',
+] as const
+const PROFESSIONALS_SECTION_IDS = ['professions', 'specialties', 'motifs', 'languages', 'deactivation-reasons'].map((id) => `professionals:${id}`)
+const PROFESSIONALS_ROUTES = ['professionals:/professionnels', 'professionals:/professionnels/:id/:onglet?']
+
 const appAt = (path: string, access: Access = adminLike, auth: Parameters<typeof renderWithContexts>[1] = {}) => (
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     {renderWithContexts(<AuthenticatedApp />, { ...auth, access: { access }, path })}
@@ -128,7 +137,7 @@ describe('AuthenticatedApp', () => {
   it('shows Paramètres to the adjointe, with the clinic sections, « Tâches planifiées » and « Courriels », read-only', async () => {
     render(appAt('/parametres', assistantLike))
     expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.name'), t('nav.settings')])
-    const readOnly = (key: (typeof ALL_SECTIONS)[number]) => `${t(key)} ${t('settings.navReadOnlyHint')}`
+    const readOnly = (key: (typeof ALL_SECTIONS)[number] | (typeof PROFESSIONALS_SECTIONS)[number]) => `${t(key)} ${t('settings.navReadOnlyHint')}`
     expect(settingsLinks()).toEqual([
       readOnly('settings.sections.identity'),
       readOnly('settings.sections.tax'),
@@ -137,6 +146,8 @@ describe('AuthenticatedApp', () => {
       readOnly('settings.sections.privacy'),
       readOnly('settings.sections.jobs'),
       readOnly('settings.sections.email'),
+      // Professionnels' lists: seen with professionals.manage, changed with professionals.settings.
+      ...PROFESSIONALS_SECTIONS.map(readOnly),
     ])
     expect(await screen.findByRole('heading', { level: 2, name: t('settings.sections.identity') })).toBeInTheDocument()
     expect(screen.getByText(t('common.readOnlyNotice.body'))).toBeInTheDocument()
@@ -151,7 +162,7 @@ describe('AuthenticatedApp', () => {
 
   it('lists every section to an admin, at its French path, none of them locked', async () => {
     render(appAt('/parametres'))
-    expect(settingsLinks()).toEqual(ALL_SECTIONS.map((key) => t(key)))
+    expect(settingsLinks()).toEqual([...ALL_SECTIONS, ...PROFESSIONALS_SECTIONS].map((key) => t(key)))
     const nav = screen.getByRole('navigation', { name: t('settings.navLabel') })
     expect(within(nav).getByRole('link', { name: t('settings.sections.identity') })).toHaveAttribute('href', '/parametres/identite')
     expect(within(nav).getByRole('link', { name: t('settings.sections.audit') })).toHaveAttribute('href', '/parametres/journal')
@@ -333,7 +344,7 @@ describe('AuthenticatedApp — idle prefetch', () => {
     render(appAt('/accueil'))
     expect(preloaded()).toEqual([])
     runIdle()
-    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), 'professionals:/professionnels'])
+    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES])
   })
 
   it('skips the pages the user may not open', () => {
@@ -341,7 +352,7 @@ describe('AuthenticatedApp — idle prefetch', () => {
     render(appAt('/accueil', accessForRole('admin_assistant', { modules: ['professionals'] })))
     runIdle()
     // The adjointe's clinic sections (no bank, users, modules or audit), « Tâches planifiées », « Courriels », and Professionnels.
-    expect(preloaded()).toEqual(['identity', 'tax', 'signatory', 'region', 'privacy', 'jobs', 'email', 'professionals:/professionnels'])
+    expect(preloaded()).toEqual(['identity', 'tax', 'signatory', 'region', 'privacy', 'jobs', 'email', ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES])
   })
 
   it("skips a disabled module's pages and sections", () => {

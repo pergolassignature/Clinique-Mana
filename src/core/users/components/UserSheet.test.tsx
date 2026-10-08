@@ -7,7 +7,7 @@ import type { Access } from '@/core/access/access'
 import { accessKeys } from '@/core/access/access-context'
 import { userKeys } from '../hooks'
 import { renderWithContexts } from '@/test/contexts'
-import { accessForRole } from '@/test/role-fixtures'
+import { accessForRole, ROLE_PERMISSIONS } from '@/test/role-fixtures'
 import { customRole, testCatalog, testRoleDefaults, testRoles, testUsers } from '@/test/users-fixtures'
 import type { OrgUser } from '../api'
 import { UserSheet } from './UserSheet'
@@ -50,7 +50,7 @@ const adminCaller = accessForRole('admin', { user_id: admin.user_id, modules: ['
 const managerCaller = accessForRole('admin_assistant', {
   user_id: adjointe.user_id,
   modules: ['professionals'],
-  permissions: ['settings.view', 'professionals.view', 'users.view', 'users.manage'],
+  permissions: [...ROLE_PERMISSIONS.admin_assistant, 'users.view', 'users.manage'],
 })
 
 const P = {

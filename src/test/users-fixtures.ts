@@ -20,6 +20,13 @@ export const testCatalog: PermissionCatalog = {
     { key: 'settings.email_manage', module_key: 'core', description: 'Gérer les courriels de la clinique' },
     { key: 'settings.integrations_manage', module_key: 'core', description: "Gérer les clés d'intégration" },
     { key: 'professionals.view', module_key: 'professionals', description: 'Voir les professionnels' },
+    { key: 'professionals.manage', module_key: 'professionals', description: 'Gérer les dossiers des professionnels' },
+    { key: 'professionals.matching', module_key: 'professionals', description: 'Modifier le profil de jumelage' },
+    { key: 'professionals.activate_override', module_key: 'professionals', description: 'Activer un dossier incomplet (avec une raison)' },
+    { key: 'professionals.settings', module_key: 'professionals', description: 'Modifier les listes du module Professionnels' },
+    { key: 'professionals.compensation', module_key: 'professionals', description: 'Voir et modifier la rémunération' },
+    { key: 'professionals.private', module_key: 'professionals', description: 'Voir et modifier les renseignements fiscaux et bancaires' },
+    { key: 'professionals.self', module_key: 'professionals', description: 'Accéder à son propre dossier' },
     { key: 'billing.view', module_key: 'billing', description: 'Voir la facturation' },
   ],
   modules: [

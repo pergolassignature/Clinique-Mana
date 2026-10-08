@@ -4,8 +4,8 @@ import { testAccess } from './contexts'
 /**
  * Default permissions per role, mirroring the template public.role_permissions in the migrations
  * (20261007140517_core_access, 20261007140859_professionals_module, 20261007192359_core_roles_split,
- * 20261008015825_core_editable_roles, 20261008033613_core_shared_permissions), which every clinic
- * starts from (org_role_permissions).
+ * 20261008015825_core_editable_roles, 20261008033613_core_shared_permissions,
+ * 20261008081424_professionals_reference_data), which every clinic starts from (org_role_permissions).
  * Update it with the migrations.
  */
 export const ROLE_PERMISSIONS = {
@@ -21,9 +21,17 @@ export const ROLE_PERMISSIONS = {
     'settings.email_manage',
     'settings.integrations_manage',
     'professionals.view',
+    'professionals.manage',
+    'professionals.matching',
+    'professionals.activate_override',
+    'professionals.settings',
+    'professionals.compensation',
+    'professionals.private',
+    'professionals.self',
   ],
-  admin_assistant: ['settings.view', 'professionals.view'],
-  counselor: ['professionals.view'],
+  admin_assistant: ['settings.view', 'professionals.view', 'professionals.manage', 'professionals.matching'],
+  counselor: ['professionals.view', 'professionals.matching'],
+  provider: ['professionals.self'],
 } as const satisfies Record<string, readonly string[]>
 
 export type FixtureRole = keyof typeof ROLE_PERMISSIONS
