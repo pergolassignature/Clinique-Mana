@@ -14,7 +14,7 @@ import {
 
 const root = path.resolve(__dirname, '../../../..')
 const read = (file: string) => readFileSync(path.join(root, 'supabase/migrations', file), 'utf8')
-const REFERENCE = read('20261008081424_professionals_reference_data.sql')
+const REFERENCE = read('20261008083000_professionals_reference_data.sql')
 const CORE = read('20261008092451_professionals_core.sql')
 const LIFECYCLE = read('20261008100634_professionals_lifecycle.sql')
 

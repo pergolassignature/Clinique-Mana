@@ -1,7 +1,7 @@
 import { assert, assertEquals } from '@std/assert'
 import type { TemplateVariable } from '../format.ts'
 import type { PdfDocument } from './model.ts'
-import { fillTemplate } from './template.ts'
+import { fillTemplate, fillTexts } from './template.ts'
 
 const TORONTO = 'America/Toronto'
 const v = (
@@ -149,5 +149,31 @@ Deno.test('fillTemplate: an invalid clinic timezone is a result, not a throw', (
   assertEquals(
     fillTemplate(one('x'), [], {}, 'Mars/Olympus'),
     { ok: false, code: 'invalid_timezone' },
+  )
+})
+
+Deno.test('fillTexts: fills plain strings (the signing email) under the same rules', () => {
+  assertEquals(
+    fillTexts(
+      {
+        subject: 'Contrat — {{professional.name}}',
+        message: 'De {{ clinic.name }}\n',
+      },
+      variables,
+      { ...values, professional: { name: 'Ana\nCôté' } },
+      TORONTO,
+    ),
+    {
+      ok: true,
+      texts: { subject: 'Contrat — Ana Côté', message: 'De Clinique MANA\n' },
+    },
+  )
+  assertEquals(
+    fillTexts({ subject: '{{nope}}' }, variables, values, TORONTO),
+    { ok: false, code: 'unknown_variable', path: 'nope' },
+  )
+  assertEquals(
+    fillTexts({ subject: '{{a}}' }, [v('a')], {}, TORONTO),
+    { ok: false, code: 'missing_variable', path: 'a' },
   )
 })

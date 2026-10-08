@@ -6,6 +6,7 @@ import {
 } from '../documenso.ts'
 import { fakeDocumenso } from './fake-documenso.ts'
 import { fakeFetch } from './fake-fetch.ts'
+import { LOCAL_REACH } from './signing-fixtures.ts'
 
 const BASE = 'http://host.docker.internal:55390'
 const KEY = 'local-dev-documenso-key'
@@ -46,7 +47,7 @@ const field = (recipientId: string) => ({
 
 /** A fake with one distributed document; returns its ids. */
 async function sent(fake = fakeDocumenso()) {
-  const client = documensoClient(BASE, KEY, fake.fetch)
+  const client = documensoClient(BASE, KEY, fake.fetch, { reach: LOCAL_REACH })
   const { documentId, envelopeId, recipients } = await client.createDocument(
     PDF,
     input,
@@ -67,7 +68,9 @@ Deno.test('fake-documenso: the client round trip (create, fields, distribute, si
   assertEquals(documentId, '1')
   assertEquals(envelopeId, 'envelope_1')
   assertEquals(ids, ['101', '102'])
-  assertEquals((await client.get(documentId)).status, 'PENDING')
+  const read = await client.get(documentId)
+  assertEquals(read.status, 'PENDING')
+  assertEquals(read.externalId, 'req-1', 'the externalId round-trips')
 
   fake.open(documentId)
   fake.sign(documentId)
@@ -91,11 +94,15 @@ Deno.test('fake-documenso: the client round trip (create, fields, distribute, si
 
 Deno.test('fake-documenso: a wrong key → 401 (ping), a signer without a SIGNATURE field cannot be distributed', async () => {
   const fake = fakeDocumenso()
-  assertEquals(await documensoClient(BASE, 'wrong', fake.fetch).ping(), {
-    ok: false,
-    status: 401,
-  })
-  const client = documensoClient(BASE, KEY, fake.fetch)
+  assertEquals(
+    await documensoClient(BASE, 'wrong', fake.fetch, { reach: LOCAL_REACH })
+      .ping(),
+    {
+      ok: false,
+      status: 401,
+    },
+  )
+  const client = documensoClient(BASE, KEY, fake.fetch, { reach: LOCAL_REACH })
   assertEquals(await client.ping(), { ok: true })
   const { documentId, recipients } = await client.createDocument(PDF, input)
   await client.addFields(documentId, [field(recipients[0].id)])
@@ -156,7 +163,7 @@ Deno.test('fake-documenso: envelope cancel — pending → CANCELLED and kept, r
 
 Deno.test('fake-documenso: the expiry reaches the stored meta', async () => {
   const fake = fakeDocumenso()
-  const client = documensoClient(BASE, KEY, fake.fetch)
+  const client = documensoClient(BASE, KEY, fake.fetch, { reach: LOCAL_REACH })
   const { documentId } = await client.createDocument(PDF, {
     ...input,
     meta: { ...input.meta, expiryDays: 30 },
@@ -183,7 +190,7 @@ Deno.test('fake-documenso: reject stores the reason; redistribute needs a pendin
 
 Deno.test('fake-documenso: failures inject a status per operation until removed', async () => {
   const fake = fakeDocumenso()
-  const client = documensoClient(BASE, KEY, fake.fetch)
+  const client = documensoClient(BASE, KEY, fake.fetch, { reach: LOCAL_REACH })
   const { documentId, recipients } = await client.createDocument(PDF, input)
   await client.addFields(documentId, recipients.map((r) => field(r.id)))
   fake.failures.distribute = 500
@@ -196,6 +203,18 @@ Deno.test('fake-documenso: failures inject a status per operation until removed'
   delete fake.failures.distribute
   await client.distribute(documentId)
   assertEquals((await client.get(documentId)).status, 'PENDING')
+})
+
+Deno.test("fake-documenso: an externalId set to undefined is left out of reads → the client's bad response", async () => {
+  const { fake, client, documentId } = await sent()
+  fake.documents.get(documentId)!.externalId = undefined
+  const error = await assertRejects(
+    () => client.get(documentId),
+    DocumensoError,
+  )
+  assertEquals([error.code, error.status], ['provider_error', 200])
+  fake.documents.get(documentId)!.externalId = null
+  assertEquals((await client.get(documentId)).externalId, null)
 })
 
 Deno.test('fake-documenso: the webhook request carries the secret, the event, the external id and a ticking version', async () => {
@@ -222,7 +241,7 @@ Deno.test('fake-documenso: in-flight requests are counted; other origins go to t
     'GET http://storage.test/x': () => new Response('ok'),
   })
   const fake = fakeDocumenso({ latencyMs: 5, fallback: other.fetch })
-  const client = documensoClient(BASE, KEY, fake.fetch)
+  const client = documensoClient(BASE, KEY, fake.fetch, { reach: LOCAL_REACH })
   await Promise.all([client.ping(), client.ping(), client.ping()])
   assertEquals(fake.inFlight, { current: 0, max: 3 })
   assertEquals(await (await fake.fetch('http://storage.test/x')).text(), 'ok')

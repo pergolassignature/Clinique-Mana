@@ -23,14 +23,14 @@
 -- serially); renew's hold rule and « déjà un accès »; the hold rule with a disabled module; the
 -- inviter's standing at acceptance (P3-31: disabled, without users.manage, without a permission
 -- the role carries → link_invalid, nothing written, the link still valid; in good standing →
--- accepted); audit rows (the service RPCs name the actor and their source, and restore
+-- accepted; the orphan marker removed from the accepted account only); audit rows (the service RPCs name the actor and their source, and restore
 -- app.audit_actor, also after an error; a service JWT's sub never outranks app.audit_actor; accept
 -- is attributed to the new account; app.audit_actor never overrides an authenticated user).
 -- The whole file is one transaction, so now() is constant. Token hashes are computed as
 -- _shared/links.ts does: SHA-256 over the token string's UTF-8 bytes.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(122);
+select plan(124);
 
 -- =============================================================================
 -- Privileges, purpose, indexes
@@ -477,8 +477,10 @@ select set_config('test.inv_custom_link', (select secure_link_id::text from publ
 -- What accept-invite's auth.admin.createUser leaves behind, for the invited address and others.
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
-  ('a0000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'nouvelle@mana.test', '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'second@mana.test', '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'nouvelle@mana.test', '', now(),
+   '{"provider": "email", "invite_link_id": "c0000000-0000-0000-0000-0000000000aa"}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'second@mana.test', '', now(),
+   '{"provider": "email", "invite_link_id": "c0000000-0000-0000-0000-0000000000bb"}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'autre@mana.test', '', now(), '{}', '{}', now(), now());
 -- As the accept function's service client: no user in the claims.
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
@@ -513,6 +515,8 @@ $$, $$ values ('accepted'::text, 'a0000000-0000-0000-0000-000000000010'::uuid, n
 select is((select source from public.audit_log
             where table_name = 'profiles' and action = 'insert' and record_id = 'a0000000-0000-0000-0000-000000000010'),
   'rpc:accept_staff_invitation', 'the new profile''s audit row names the accepting RPC');
+select is((select raw_app_meta_data from auth.users where id = 'a0000000-0000-0000-0000-000000000010'),
+  '{"provider": "email"}'::jsonb, 'accepting removes the orphan marker (and only it) from the new account');
 set local role service_role;
 
 select is(public.accept_staff_invitation((select hash from t where name = 'renew1'), 'a0000000-0000-0000-0000-000000000011', '{}'),
@@ -535,6 +539,8 @@ select is(public.accept_staff_invitation((select hash from t where name = 'neutr
 reset role;
 select is_empty($$ select 1 from public.profiles where user_id = 'a0000000-0000-0000-0000-000000000011' $$,
   'the refused accepts created no profile');
+select is((select raw_app_meta_data ->> 'invite_link_id' from auth.users where id = 'a0000000-0000-0000-0000-000000000011'),
+  'c0000000-0000-0000-0000-0000000000bb', 'the refused accepts leave the marker (the orphan purge may still remove the account)');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000010","role":"authenticated"}', true);

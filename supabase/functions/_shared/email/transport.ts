@@ -37,6 +37,10 @@
  * the status or a snake_case error name, never from a message. Nothing here
  * logs a recipient, a subject or a body.
  */
+import { isLocalAppUrl } from '../auth.ts'
+
+// Re-exported for send.ts and the tests (the helper lives in auth.ts).
+export { isLocalAppUrl }
 
 /** One message, ready to send. Built by `send.ts`; every field comes from code or the database. */
 export interface OutgoingEmail {
@@ -126,8 +130,6 @@ const TO_FIELD = /[`'"]to[`'"]/
 const QUOTA_ERRORS = new Set(['daily_quota_exceeded', 'monthly_quota_exceeded'])
 /** A provider error name usable in a report code (Resend's are snake_case). */
 const ERROR_NAME = /^[a-z][a-z0-9_]{0,47}$/
-/** Hosts a console-transport `APP_URL` may name. */
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 /** The tag name a webhook reads to find its `email_log` row. */
 export const EMAIL_LOG_TAG = 'email_log_id'
@@ -147,13 +149,6 @@ export function emailLogTag(emailLogId: string): {
     resend: { name: EMAIL_LOG_TAG, value: emailLogId },
     mailpit: `${EMAIL_LOG_TAG}-${emailLogId}`,
   }
-}
-
-/** True when `appUrl` is a local `http` URL (`http://localhost:5173`). */
-export function isLocalAppUrl(appUrl: string | undefined): boolean {
-  if (!appUrl || !URL.canParse(appUrl.trim())) return false
-  const url = new URL(appUrl.trim())
-  return url.protocol === 'http:' && LOCAL_HOSTS.has(url.hostname)
 }
 
 const defaultSleep: Sleep = (ms, signal) =>

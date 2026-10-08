@@ -114,14 +114,16 @@ describe('TemplateEditorSheet — preview', () => {
   })
 
   it('pauses the preview while the draft has an error, and says why', async () => {
-    const user = userEvent.setup()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderSheet()
     await waitFor(() => expect(frame()).not.toBeNull())
     await user.type(subject(), ' {{{{client.diagnosis}}')
     // Testing Library reads non-breaking spaces as spaces.
     const paused = t('settings.email.preview.paused', { reason: 'Variable inconnue : {{client.diagnosis}}' }).replace(/\u00a0/g, ' ')
     expect(await screen.findByText(paused)).toBeInTheDocument()
-    await new Promise((resolve) => setTimeout(resolve, 450))
+    // Past the preview's debounce, on the fake clock: still the first call only.
+    await act(() => vi.advanceTimersByTimeAsync(450))
     expect(mocks.api.previewEmail).toHaveBeenCalledTimes(1)
   })
 
@@ -280,10 +282,11 @@ describe('TemplateEditorSheet — read-only (settings.view only)', () => {
   })
 
   it('a submit of the form saves nothing', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     renderSheet({ readOnly: true })
     // Any way the form could be submitted (an implicit submission, a future submit button).
     fireEvent.submit(subject().closest('form')!)
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await act(() => vi.advanceTimersByTimeAsync(50))
     expect(mocks.api.saveEmailTemplate).not.toHaveBeenCalled()
   })
 })

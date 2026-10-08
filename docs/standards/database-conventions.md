@@ -83,6 +83,7 @@ using (
 )
 ```
 
+- Use the array form for every row-level permission column: `stored_files.view_permission` / `owner_permission`, `email_log.view_permission`, `notifications.recipient_permission`, `document_templates.view_permission`, `signature_requests.view_permission`. A row whose permission belongs to a disabled module then disappears on its own (the key leaves the array), so the column must hold a permission **of the row's module** (enforce it: a composite FK to `permissions (key, module_key)`, or a trigger such as `stored_files_check_module_gate`). Never call `private.has_permission(<column>)` per row: it cannot be hoisted out of the scan.
 - **Every module policy includes a `has_permission` term.** It is the module gate: when an org disables a module, `has_permission('<module>.*')` turns false and the module's rows disappear. An ownership-only policy (`user_id = (select auth.uid())`) skips the gate, so combine it: `… and (select private.has_permission('trainings.view'))`.
 - **Never query `profiles` or `user_roles` inline in a policy** (legacy hit RLS recursion twice). Add a helper instead.
 - Write `with check` for every `update` policy; it usually repeats the org condition. (Clients have no `insert` privilege, so there are no client insert policies.)
@@ -148,6 +149,7 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 - Changes invisible to the row diff (e.g. a Vault value) get an explicit row from the RPC — see `set_org_secret`. Reads of `*_private` data are logged by their RPCs.
 - Catalogue tables changed only by migrations (`modules`, `permissions`, `role_permissions`) are not audited: git is their history.
 - **Operational logs are not audited either**, even with an `org_id`: `webhook_events`, `email_log`, `scheduled_job_runs`, `scheduled_job_dispatches`, `notifications`, `notification_reads` (and `rate_limits`, which has no `org_id`). They are written by the service role or by RPCs, hold recipient addresses or provider payloads, and are purged; auditing them would copy that data into the append-only `audit_log` forever (Loi 25; Phase 3 design §2.5). The list lives in `000_invariants` (§12): a new operational log is added there with its reason, never by disabling the check.
+- Operational logs keep no free text that could hold personal data: `detail` / `error` columns hold counts or codes (SQLSTATE, never `sqlerrm`), payloads hold ids only, and each log has a retention job (`scheduled_jobs`, maintenance). Read paths are RLS-filtered like any table.
 - **`user_preferences` is not audited** (`…_core_user_preferences.sql`): it is UI state (remembered list filters), private to its user and rewritten on every filter change, and the search text it keeps may name a client, which `audit_log` would then keep forever (Loi 25). It is in the same `000_invariants` exception list (§12).
 - `roles` is audited since custom roles exist (`…_core_editable_roles.sql`): admins create, rename and delete them through RPCs. `org_id` comes from the row and is null for the shared base roles. `org_role_permissions` (each clinic's role defaults) is audited like any org-scoped table.
 
@@ -164,6 +166,18 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 - Attach the audit trigger with the encrypted column **and every other value of the guarded data** redacted (masked column, related numbers, contact): `private.audit_trigger('<column>', …)`. `audit.view` must never show what the reveal permission guards; changes stay visible as `"[redacted]"`.
 - `private.pii_key`, `encrypt_pii` and `decrypt_pii` are SECURITY INVOKER and granted to no role (`service_role` included): never grant them, never log or select the key.
 - Only pass bytes read from an encrypted column to `decrypt_pii`, never caller-supplied bytes.
+
+## 8b. Catalogues and definer handlers (the shared-services pattern)
+
+Core services (Phase 3) are extended by **data**, never by core importing module code (ADR 0003). The pattern, used by `scheduled_jobs`, `email_template_defaults`, `upload_purposes` and `secure_link_purposes`:
+
+- **A global catalogue table, seeded by the owning module's migration** (`insert … on conflict do nothing`), not audited (git is its history, like `permissions`). Its key is `<module>.<name>` and a check pins the prefix to `module_key` (link purposes have no dot: `staff_invite`). A row is never deleted: retire it with `is_active = false` (jobs also `cron.unschedule` in the same migration).
+- **Every permission a row names belongs to the row's module** (composite FK to `permissions (key, module_key)`, `private.permission_in_module`, or a check trigger such as `check_upload_purpose`), so disabling the module closes everything the row opens. Core rows may name any permission.
+- **Limits live in one place:** a catalogue row stays within its parent's limits (a trigger checks `upload_purposes` against `storage.buckets`); SQL twins of TypeScript maps (`private.mime_extension` ↔ `FORMATS`) are compared by a Deno test that reads the migration.
+- **Handlers are named, not coded:** a row may name a function that core calls (`secure_link_purposes.resolve_rpc` / `accept_rpc`, called by name from `resolve-link` / `accept-invite`; `scheduled_jobs.sql_function` (`private.job_*`) or `function_name`). Names are checked by a regex in the table (`^[a-z][a-z0-9_]{2,62}$`, `^private\.job_[a-z0-9_]+$`), and a pgTAP test checks every seeded row against the handler contract: `public.<name>` with the exact arguments and return type, not overloaded, **`security definer`**, EXECUTE for `service_role` only (`020_core_secure_links`, which runs before any fixture so it sees only migration rows; `search_path` is checked by `000_invariants`). A handler does the module's whole work in one transaction (e.g. `accept_rpc` consumes the link with `private.consume_secure_link` and creates the account), and scopes every query to the org it is given.
+- **Module RPCs reach core state only through `private` helpers** granted to no role (`notify`, `issue_secure_link`, `consume_secure_link`, `revoke_secure_links`, `attach_stored_file`, `soft_delete_stored_file`): they are `security invoker`, so they work only inside the module's own `security definer` RPC, after its permission check. Edge functions use the service-role RPCs instead (`create_notification`, `register_system_file`, …).
+- **Per-org state for a catalogue row** is an ordinary audited org table: `org_scheduled_jobs` (a row for every org × job, created by triggers on both parents), `email_templates` (a clinic's override, created when it saves one).
+- **Service-role RPCs that act for a user take the actor explicitly** (`create_staff_invitation(p_actor, …)`): the function passes the user it verified (never an id from the body), the RPC re-checks the actor's permissions with `private.permission_keys_for(p_actor)` and sets `app.audit_actor` (and `app.audit_source = 'rpc:<name>'`) so the audit rows name that person. Use it whenever a secret (a token) must be generated server-side and never reach the caller.
 
 ## 9. Adding a module (recipe)
 
@@ -211,8 +225,8 @@ reset role; set local role service_role;
 Cover at least: privileges for `anon` and `authenticated`; cross-org isolation (org B sees nothing of org A); each role's allowed and refused actions; disabled users; the audit row of a write (and redaction where configured).
 
 Traps:
-- `throws_ok` on a function the role cannot EXECUTE segfaults Postgres image `.106`: use `function_privs_are`.
-- The local Postgres image (supabase/postgres 17.6.1.x) has segfaulted on pgTAP tests that define `pg_temp` plpgsql helpers with exception handlers. Don't define helper functions in tests; inline the logic or check function source via `pg_proc` instead.
+- **Never call a function as a role that lacks EXECUTE on it** (`set local role authenticated; select public.<service_role-only RPC>(…)`), whether through `throws_ok`, `lives_ok`, a plain `select` or a policy: the local Postgres image (supabase/postgres 17.6.1.106) crashes the backend instead of raising `42501`, and the whole test file fails. Assert denials with `function_privs_are` (and `table_privs_are` for tables); call service RPCs after `reset role; set local role service_role;`.
+- **No `pg_temp` helpers.** The same image has segfaulted on pgTAP tests that define `pg_temp` plpgsql helpers with exception handlers. Don't define helper functions in tests; inline the logic in plain SQL assertions, or check function source via `pg_proc` instead.
 - A table the role has no privilege on raises `42501`; it does not return 0 rows. RLS-filtered tables return 0 rows.
 - OrbStack may lack macOS access to `~/Documents`, so `supabase test db` finds no files. Grant OrbStack the Documents folder, or mirror the tests elsewhere and pass the path: `supabase test db /tmp/pgtap`.
 - The local seed writes rows (including audit rows): filter assertions by fixture ids, never count a whole table.

@@ -8,6 +8,9 @@ import { isBaseRoleKey, roleLabel } from './roles'
  * The clinic's roles and their defaults (decision #40), two queries so each change refetches only
  * what it touched: a cell → the defaults; a rename → the roles; a creation or a deletion → both.
  * Here, not in the users module, so the shell and the audit log can name a custom role.
+ * The users module's keys are narrow the same way (`userKeys` in `core/users/hooks.ts`):
+ * `userKeys.list()`, `userKeys.overrides(userId)` and `userKeys.invitations()` (an invitation
+ * change → the invitations; after a refusal, the list too).
  */
 export const roleKeys = {
   all: ['roles'] as const,

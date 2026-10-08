@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchOrganization, ORGANIZATION_COLUMNS, updateOrganization, type OrganizationUpdate } from './api'
+import { fetchOrganization, ORGANIZATION_COLUMNS, setOrgAsset, updateOrganization, type OrganizationUpdate } from './api'
 
 const mocks = vi.hoisted(() => {
   const single = vi.fn()
@@ -8,9 +8,10 @@ const mocks = vi.hoisted(() => {
   const select = vi.fn(() => ({ single }))
   const update = vi.fn(() => ({ eq }))
   const from = vi.fn(() => ({ select, update }))
-  return { from, select, single, update, eq, updateSelect }
+  const rpc = vi.fn()
+  return { from, select, single, update, eq, updateSelect, rpc }
 })
-vi.mock('@/core/supabase/client', () => ({ supabase: { from: mocks.from } }))
+vi.mock('@/core/supabase/client', () => ({ supabase: { from: mocks.from, rpc: mocks.rpc } }))
 
 afterEach(() => vi.clearAllMocks())
 
@@ -21,7 +22,7 @@ describe('ORGANIZATION_COLUMNS', () => {
     expect(ORGANIZATION_COLUMNS.split(', ')).toEqual([
       'id', 'name', 'timezone', 'default_locale', 'currency', 'legal_name', 'neq', 'address_line1', 'address_line2',
       'city', 'province', 'postal_code', 'country', 'phone', 'email', 'website', 'gst_number', 'qst_number',
-      'signatory_name', 'signatory_title', 'privacy_officer_name', 'privacy_officer_email', 'privacy_policy_url',
+      'signatory_name', 'signatory_title', 'signatory_email', 'logo_file_id', 'signature_file_id', 'privacy_officer_name', 'privacy_officer_email', 'privacy_policy_url',
       'record_retention_years', 'updated_at',
     ])
   })
@@ -79,7 +80,31 @@ describe('updateOrganization', () => {
       { id: 'o2' },
       // @ts-expect-error updated_at is set by the database.
       { updated_at: '2026-10-07T12:00:00Z' },
+      // @ts-expect-error the logo changes only through set_org_asset.
+      { logo_file_id: 'f1' },
+      // @ts-expect-error the signature image changes only through set_org_asset.
+      { signature_file_id: 'f1' },
     ]
-    expect(refused).toHaveLength(5)
+    expect(refused).toHaveLength(7)
+  })
+})
+
+describe('setOrgAsset', () => {
+  it('sets the logo or the signature image through set_org_asset', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: null })
+    await setOrgAsset('logo', 'f1')
+    expect(mocks.rpc).toHaveBeenCalledWith('set_org_asset', { p_kind: 'logo', p_file_id: 'f1' })
+  })
+
+  it('« Retirer » sends a null file', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: null })
+    await setOrgAsset('signature', null)
+    expect(mocks.rpc).toHaveBeenCalledWith('set_org_asset', { p_kind: 'signature', p_file_id: null })
+  })
+
+  it('throws the RPC error', async () => {
+    const error = { code: 'P0001', message: 'Fichier introuvable.' }
+    mocks.rpc.mockResolvedValue({ data: null, error })
+    await expect(setOrgAsset('logo', 'f1')).rejects.toBe(error)
   })
 })

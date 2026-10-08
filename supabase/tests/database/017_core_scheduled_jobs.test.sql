@@ -10,7 +10,10 @@
 -- missed tick, with the time-taking bodies of list_job_orgs / start_job_run (midnight crossing);
 -- retired (inactive) jobs; the reconcile job (HTTP outcomes, abandoned runs, dispatch purge);
 -- the run-log purge job.
--- The whole file is one transaction, so now() is constant.
+-- The whole file is one transaction, so now() is constant. Nothing depends on the time of day
+-- the suite runs at: local-hour checks take an explicit instant (pg_temp.t0(), a fixed past
+-- noon UTC) through the private *_at bodies, and the run log and dispatches start empty, so
+-- real cron rows committed since the reset never show.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(153);
@@ -19,7 +22,7 @@ select plan(153);
 -- Fixtures (as postgres)
 -- Org A (timezone UTC, professionals on): admin A, conseillère C.
 -- Org B (America/Toronto, professionals off): admin B.
--- Test jobs: core.test_business (function, at the current UTC hour), professionals.test_job
+-- Test jobs: core.test_business (function, local hour 12), professionals.test_job
 -- (function, no local hour), core.test_raises (sql, raises 22012), core.test_dispatch
 -- (function, reconcile cases), core.test_dst (function, 1:00) and core.test_late (function,
 -- 23:00) for the explicit-time cases, core.test_page (sql, keyset rows), core.test_retired and
@@ -49,7 +52,7 @@ create function private.job_test_raises() returns text
 language sql set search_path = '' as $$ select (1 / 0)::text $$;
 insert into public.scheduled_jobs (key, module_key, label, description, kind, sql_function, function_name, local_hour, is_maintenance, is_active) values
   ('core.test_business', 'core', 'Test métier', 'Test', 'function', null, 'test-business',
-   extract(hour from now() at time zone 'UTC')::smallint, false, true),
+   12, false, true),
   ('professionals.test_job', 'professionals', 'Test module', 'Test', 'function', null, 'test-pro', null, false, true),
   ('core.test_raises', 'core', 'Test erreur', 'Test', 'sql', 'private.job_test_raises', null, null, true, true),
   ('core.test_dispatch', 'core', 'Test envoi', 'Test', 'function', null, 'test-dispatch', null, false, true),
@@ -58,6 +61,13 @@ insert into public.scheduled_jobs (key, module_key, label, description, kind, sq
   ('core.test_page', 'core', 'Test pages', 'Test', 'sql', 'private.job_test_raises', null, null, true, true),
   ('core.test_retired', 'core', 'Test retirée', 'Test', 'function', null, 'test-retired', null, false, false),
   ('core.test_retired_sql', 'core', 'Test retirée SQL', 'Test', 'sql', 'private.job_test_raises', null, null, true, false);
+
+-- Real cron runs and dispatches committed since the reset (rolled back with the rest).
+delete from public.scheduled_job_runs;
+delete from public.scheduled_job_dispatches;
+
+-- The instant of the local-hour checks: 12:00 in org A (UTC), 7:00 in org B (EST, UTC−5).
+create function pg_temp.t0() returns timestamptz language sql immutable as $$ select '2026-01-15 12:00Z'::timestamptz $$;
 
 delete from vault.secrets where name in ('project_url', 'internal_function_secret');
 select vault.create_secret('http://kong.test/', 'project_url');
@@ -168,7 +178,7 @@ select results_eq(
                         'core.scheduled_jobs_reconcile', 'core.scheduled_job_runs_purge') order by jobname $$,
   $$ values ('core.rate_limits_cleanup'::text, '7 * * * *'::text, 'select private.run_sql_job(''core.rate_limits_cleanup'')'::text),
             ('core.scheduled_job_runs_purge', '20 8 * * *', 'select private.run_sql_job(''core.scheduled_job_runs_purge'')'),
-            ('core.scheduled_jobs_reconcile', '*/5 * * * *', 'select private.run_sql_job(''core.scheduled_jobs_reconcile'')'),
+            ('core.scheduled_jobs_reconcile', '*/15 * * * *', 'select private.run_sql_job(''core.scheduled_jobs_reconcile'')'),
             ('core.webhook_events_purge', '10 8 * * *', 'select private.run_sql_job(''core.webhook_events_purge'')') $$,
   'the cron entries run the SQL jobs on their schedules');
 select throws_ok($$ insert into public.scheduled_jobs (key, module_key, label, description, kind, function_name)
@@ -306,7 +316,7 @@ select is_empty(
   'no header carries the raw secret, and there is no Authorization header');
 select results_eq(
   $$ select d.job_key, d.org_id, d.trigger, d.request_id = (select id from posted), d.reconciled_at is null
-       from public.scheduled_job_dispatches d $$,
+       from public.scheduled_job_dispatches d where d.job_key = 'core.test_business' $$,
   $$ values ('core.test_business'::text, 'b0000000-0000-0000-0000-00000000000a'::uuid, 'manual'::text, true, true) $$,
   'the dispatch is recorded with pg_net''s request id');
 
@@ -385,12 +395,27 @@ update public.org_scheduled_jobs set enabled = true
  where job_key in ('core.test_business', 'professionals.test_job', 'core.test_dst', 'core.test_late', 'core.test_dispatch')
    and org_id in ('b0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b');
 
+-- The local-hour job at t0, through the time-taking bodies (as postgres): 12:00 in org A,
+-- 7:00 in org B. The public wrappers only add now() (privileges above).
+select results_eq($$ select * from private.list_job_orgs_at('core.test_business', pg_temp.t0()) $$,
+  $$ values ('b0000000-0000-0000-0000-00000000000a'::uuid) $$,
+  'list_job_orgs keeps the org at the job''s local hour (12:00 UTC), not the one at 7:00 America/Toronto');
+insert into runs select 'a_manual', private.start_job_run_at('core.test_business', 'b0000000-0000-0000-0000-00000000000a', 'manual', pg_temp.t0());
+-- Overlap guard: a_manual is still running.
+insert into runs select 'a_overlap', private.start_job_run_at('core.test_business', 'b0000000-0000-0000-0000-00000000000a', 'cron', pg_temp.t0());
+select lives_ok($$ select public.finish_job_run((select id from runs where step = 'a_manual'), 'ok', 'sent=3') $$,
+  'finish_job_run records an outcome');
+insert into runs select 'a_cron_1', private.start_job_run_at('core.test_business', 'b0000000-0000-0000-0000-00000000000a', 'cron', pg_temp.t0());
+select lives_ok($$ select public.finish_job_run((select id from runs where step = 'a_cron_1'), 'ok', 'sent=1') $$,
+  'the cron run finishes');
+-- The next hourly tick, the same clinic day.
+insert into runs select 'a_cron_2', private.start_job_run_at('core.test_business', 'b0000000-0000-0000-0000-00000000000a', 'cron', pg_temp.t0() + interval '1 hour');
+select is_empty($$ select * from private.list_job_orgs_at('core.test_business', pg_temp.t0() + interval '1 hour') $$,
+  'after its cron run, the org is not listed again the same clinic day (and org B is still before 12:00)');
+
 set local role service_role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
-select results_eq($$ select * from public.list_job_orgs('core.test_business') $$,
-  $$ values ('b0000000-0000-0000-0000-00000000000a'::uuid) $$,
-  'list_job_orgs keeps the org at the job''s local hour (UTC), not America/Toronto');
 select results_eq(
   $$ select * from public.list_job_orgs('professionals.test_job')
       where list_job_orgs in ('b0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b') $$,
@@ -402,15 +427,6 @@ select is_empty($$ select * from public.list_job_orgs('core.test_retired') $$, '
 select throws_ok($$ select * from public.list_job_orgs('core.rate_limits_cleanup') $$, '22023', null,
   'list_job_orgs refuses a SQL job');
 
-insert into runs select 'a_manual', public.start_job_run('core.test_business', 'b0000000-0000-0000-0000-00000000000a', 'manual');
--- Overlap guard: a_manual is still running.
-insert into runs select 'a_overlap', public.start_job_run('core.test_business', 'b0000000-0000-0000-0000-00000000000a', 'cron');
-select lives_ok($$ select public.finish_job_run((select id from runs where step = 'a_manual'), 'ok', 'sent=3') $$,
-  'finish_job_run records an outcome');
-insert into runs select 'a_cron_1', public.start_job_run('core.test_business', 'b0000000-0000-0000-0000-00000000000a', 'cron');
-select lives_ok($$ select public.finish_job_run((select id from runs where step = 'a_cron_1'), 'ok', 'sent=1') $$,
-  'the cron run finishes');
-insert into runs select 'a_cron_2', public.start_job_run('core.test_business', 'b0000000-0000-0000-0000-00000000000a', 'cron');
 insert into runs select 'b_manual', public.start_job_run('core.test_business', 'b0000000-0000-0000-0000-00000000000b', 'manual');
 insert into runs select 'b_module_off', public.start_job_run('professionals.test_job', 'b0000000-0000-0000-0000-00000000000b', 'manual');
 insert into runs select 'c_job_off', public.start_job_run('core.test_business', 'b0000000-0000-0000-0000-00000000000c', 'cron');
@@ -426,7 +442,7 @@ reset role;
 select results_eq(
   $$ select x.step, r.org_id, r.trigger, r.status, r.run_local_date
        from runs x join public.scheduled_job_runs r on r.id = x.id order by x.step $$,
-  $$ values ('a_cron_1'::text, 'b0000000-0000-0000-0000-00000000000a'::uuid, 'cron'::text, 'ok'::text, (now() at time zone 'UTC')::date),
+  $$ values ('a_cron_1'::text, 'b0000000-0000-0000-0000-00000000000a'::uuid, 'cron'::text, 'ok'::text, '2026-01-15'::date),
             ('a_manual', 'b0000000-0000-0000-0000-00000000000a', 'manual', 'ok', null),
             ('a_pro', 'b0000000-0000-0000-0000-00000000000a', 'cron', 'running', null),
             ('b_manual', 'b0000000-0000-0000-0000-00000000000b', 'manual', 'running', null) $$,
@@ -439,8 +455,6 @@ select ok(private.start_job_run_at('professionals.test_job', 'b0000000-0000-0000
 delete from public.scheduled_job_runs where job_key = 'professionals.test_job' and started_at > now();
 set local role service_role;
 
-select is_empty($$ select * from public.list_job_orgs('core.test_business') $$,
-  'after its cron run, the org is not listed again the same clinic day');
 select throws_ok($$ select public.start_job_run('core.test_business', 'b0000000-0000-0000-0000-00000000000a', 'later') $$,
   '22023', null, 'start_job_run refuses an unknown trigger');
 select throws_ok($$ select public.start_job_run('core.rate_limits_cleanup', 'b0000000-0000-0000-0000-00000000000a', 'cron') $$,

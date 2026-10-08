@@ -86,11 +86,37 @@ describe('recoverFromStaleChunk', () => {
     expect([recoverFromStaleChunk(), recoverFromStaleChunk(), recoverFromStaleChunk()]).toEqual([true, true, true])
   })
 
-  it('does not reload when sessionStorage is blocked (it could not stop a loop)', () => {
-    // The test runtime's sessionStorage may not be happy-dom's Storage: spy on its own prototype.
-    vi.spyOn(Object.getPrototypeOf(window.sessionStorage) as Storage, 'getItem').mockImplementation(() => {
-      throw new DOMException('blocked', 'SecurityError')
-    })
+  /**
+   * Replaces `sessionStorage` itself for one test. Spying on a Storage prototype is not enough:
+   * which Storage the tests get depends on Node (Node 25 has its own global one, Node 22 leaves
+   * happy-dom's), and happy-dom's copies each method onto the instance the first time it is read,
+   * so an earlier test's read makes a later prototype spy miss.
+   */
+  function replaceSessionStorage(descriptor: PropertyDescriptor) {
+    for (const target of new Set<object>([window, globalThis])) {
+      const original = Object.getOwnPropertyDescriptor(target, 'sessionStorage')
+      Object.defineProperty(target, 'sessionStorage', { configurable: true, ...descriptor })
+      cleanups.push(() => {
+        if (original) Object.defineProperty(target, 'sessionStorage', original)
+        else delete (target as { sessionStorage?: Storage }).sessionStorage
+      })
+    }
+  }
+
+  const blocked = () => {
+    throw new DOMException('blocked', 'SecurityError')
+  }
+
+  it.each([
+    // Safari and Chrome with site data blocked: reading `window.sessionStorage` throws.
+    ['reading sessionStorage throws', { get: blocked }],
+    // Storage present, but every call fails.
+    [
+      'its methods throw',
+      { value: { getItem: blocked, setItem: blocked, removeItem: blocked, clear: blocked, key: blocked, length: 0 } },
+    ],
+  ])('does not reload when sessionStorage is blocked: %s (it could not stop a loop)', (_case, descriptor) => {
+    replaceSessionStorage(descriptor)
     expect(recoverFromStaleChunk()).toBe(false)
     expect(reload).not.toHaveBeenCalled()
   })

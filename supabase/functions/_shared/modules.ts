@@ -9,6 +9,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { errorResponse } from './auth.ts'
+import { logErrorCode } from './log.ts'
 
 type RpcResult = { data: unknown; error: unknown }
 
@@ -19,7 +20,7 @@ function decide(
   req?: Request,
 ): Response | null {
   if (error) {
-    console.error(`[requireModule] ${rpc} failed`, error)
+    logErrorCode('requireModule', `${rpc} failed`, error)
     return errorResponse('internal', 'Module check failed', 500, req)
   }
   return data === true ? null : errorResponse(

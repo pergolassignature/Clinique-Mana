@@ -8,6 +8,7 @@
  * with `reason: 'unavailable'`: answer it 503 `not_configured`, not 429.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { errorResponse } from './auth.ts'
 import { byteaHex } from './bytea.ts'
 import { reportError } from './report.ts'
 
@@ -55,6 +56,91 @@ export const LIMITS = {
     bucket: 'links.accept_link',
     max: 5,
     windowSeconds: 3_600,
+  },
+  /**
+   * `staff-invite` (invite and « Renvoyer »), per caller: each call issues a
+   * link and sends an email, on top of the email limits.
+   */
+  staffInviteUser: {
+    bucket: 'invites.staff_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `storage-upload`, per caller: each call creates a pending row and signs
+   * an upload of up to the purpose's size cap.
+   */
+  storageUploadUser: {
+    bucket: 'storage.upload_user',
+    max: 60,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `storage-confirm`, per caller: each call may download and hash an object
+   * of up to the purpose's size cap. Retries after a lost answer count too.
+   */
+  storageConfirmUser: {
+    bucket: 'storage.confirm_user',
+    max: 120,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `storage-sign`, per caller: each call mints a 5-minute read URL. A page
+   * of previews signs one per file (the client caches each for 4 minutes).
+   */
+  storageSignUser: {
+    bucket: 'storage.sign_user',
+    max: 120,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `signing-sync` (« Synchroniser »), per caller: each call reads the
+   * document from Documenso and may download the signed PDF.
+   */
+  signingSyncUser: {
+    bucket: 'signing.sync_user',
+    max: 60,
+    windowSeconds: 3_600,
+  },
+  /** `signing-test-connection`, per caller: one Documenso read each. */
+  signingTestConnectionUser: {
+    bucket: 'signing.test_connection_user',
+    max: 30,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `signing-test-document`, per caller: each call renders a PDF and has
+   * Documenso email the caller.
+   */
+  signingTestDocumentUser: {
+    bucket: 'signing.test_document_user',
+    max: 10,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `email-preview`, per caller: each call renders a template on the server
+   * (the editor previews on demand, not per keystroke).
+   */
+  emailPreviewUser: {
+    bucket: 'emails.preview_user',
+    max: 300,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `resend-webhook`, per IP, before the org's secret is read (anyone can
+   * post there). Generous: Resend (Svix) delivers a clinic's bursts from a
+   * few addresses, and a refusal only delays the event (Resend retries).
+   */
+  resendWebhookIp: {
+    bucket: 'webhooks.resend_ip',
+    max: 600,
+    windowSeconds: 60,
+  },
+  /** `signing-webhook`, per IP, before the org's secret is read (as above). */
+  documensoWebhookIp: {
+    bucket: 'webhooks.documenso_ip',
+    max: 600,
+    windowSeconds: 60,
   },
 } as const satisfies Record<string, RateLimit>
 
@@ -146,15 +232,34 @@ function ipKey(ip: string): string {
   return `${groups.slice(0, 4).map((g) => g.toString(16)).join(':')}::/64`
 }
 
+/** What an IP header value may hold: IPv4, IPv6 (brackets, zone `%`). */
+const IP_FORMAT = /^[0-9a-fA-F:.[\]%]{2,64}$/
+
 /**
- * The caller's IP as a rate-limit key: the first `x-forwarded-for` hop,
- * trimmed, with IPv6 grouped by /64 (see `ipKey`). Requests without an IP all
- * get `'unknown'`, so they share one bucket per limit.
- * Verify on staging what the edge runtime forwards (design §3.2).
+ * The raw client IP from the header `CLIENT_IP_SOURCE` names, or null:
+ * - `xff-rightmost` (default, also for an unknown value): the **rightmost**
+ *   `x-forwarded-for` entry, the one the Supabase gateway appends. Entries to
+ *   its left come from the client and can be forged, so they are ignored.
+ * - `cf-connecting-ip`: that header only (a Cloudflare front that sets it);
+ *   no fallback to `x-forwarded-for`.
+ */
+function rawClientIp(req: Request): string | null {
+  if (Deno.env.get('CLIENT_IP_SOURCE') === 'cf-connecting-ip') {
+    return req.headers.get('cf-connecting-ip')?.trim() || null
+  }
+  return req.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() || null
+}
+
+/**
+ * The caller's IP as a rate-limit key: by default the rightmost
+ * `x-forwarded-for` entry (`CLIENT_IP_SOURCE`, see `rawClientIp`), checked
+ * against `IP_FORMAT`, with IPv6 grouped by /64 (see `ipKey`). A missing,
+ * empty or malformed value gives `'unknown'`: such requests share one bucket
+ * per limit. Verify on staging what the gateway appends (design §3.2).
  */
 export function clientIp(req: Request): string {
-  const first = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  return first ? ipKey(first) : 'unknown'
+  const ip = rawClientIp(req)
+  return ip && IP_FORMAT.test(ip) ? ipKey(ip) : 'unknown'
 }
 
 /**
@@ -222,4 +327,26 @@ export async function consume(
     hits: row.hits,
     retryAfter: row.retry_after_seconds,
   }
+}
+
+/**
+ * The answer for a refused hit, or null when allowed: 429 `rate_limited`
+ * with `Retry-After`, or 503 `not_configured` when the limiter itself failed.
+ */
+export function limitResponse(
+  result: RateLimitResult,
+  req?: Request,
+): Response | null {
+  if (result.allowed) return null
+  if (result.reason === 'unavailable') {
+    return errorResponse(
+      'not_configured',
+      'Rate limiting is unavailable',
+      503,
+      req,
+    )
+  }
+  const res = errorResponse('rate_limited', 'Too many attempts', 429, req)
+  res.headers.set('Retry-After', String(result.retryAfter))
+  return res
 }

@@ -110,6 +110,21 @@ function envelope(report: ErrorReport): string {
     .map((part) => `${JSON.stringify(part)}\n`).join('')
 }
 
+/**
+ * A signal that aborts with a `TimeoutError` after `ms`, like
+ * `AbortSignal.timeout`, but on `setTimeout` (so tests can fake the clock),
+ * and cleared by `done()` so a fast send leaves no timer behind.
+ */
+function timeoutSignal(ms: number): { signal: AbortSignal; done: () => void } {
+  const controller = new AbortController()
+  const timer = setTimeout(
+    () =>
+      controller.abort(new DOMException('Signal timed out.', 'TimeoutError')),
+    ms,
+  )
+  return { signal: controller.signal, done: () => clearTimeout(timer) }
+}
+
 /** True when Sentry accepted the event; failures are warned, never thrown. */
 async function sendToSentry(
   report: ErrorReport,
@@ -122,6 +137,7 @@ async function sendToSentry(
     return false
   }
   const [, key, host, projectId] = match
+  const timeout = timeoutSignal(SENTRY_TIMEOUT_MS)
   try {
     const res = await fetchFn(`https://${host}/api/${projectId}/envelope/`, {
       method: 'POST',
@@ -131,7 +147,7 @@ async function sendToSentry(
           `Sentry sentry_version=7, sentry_key=${key}, sentry_client=clinique-mana-edge/1.0`,
       },
       body: envelope(report),
-      signal: AbortSignal.timeout(SENTRY_TIMEOUT_MS),
+      signal: timeout.signal,
     })
     await res.body?.cancel()
     if (res.ok) return true
@@ -139,6 +155,8 @@ async function sendToSentry(
   } catch (error) {
     // A timeout rejects with a DOMException named TimeoutError.
     console.warn('[report] Sentry unreachable', (error as Error)?.name)
+  } finally {
+    timeout.done()
   }
   return false
 }

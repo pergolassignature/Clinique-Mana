@@ -40,6 +40,7 @@ function harness(opts: {
   access?: Record<string, unknown>
   context?: RpcRoute
   env?: Record<string, string>
+  limit?: RpcRoute
 } = {}) {
   const user = fakeSupabase({
     user: { id: ADMIN_ID },
@@ -47,6 +48,8 @@ function harness(opts: {
   })
   const service = fakeSupabase({
     rpc: {
+      consume_rate_limit: opts.limit ??
+        { data: [{ allowed: true, hits: 1, retry_after_seconds: 0 }] },
       get_email_context: opts.context ?? { data: emailContextFixture() },
     },
   })
@@ -65,9 +68,13 @@ async function errorOf(res: Response) {
   return { status: res.status, ...(await res.json()).error }
 }
 
-/** Runs `fn` with no Sentry, so reports are console lines. */
+/** Runs `fn` with no Sentry, so reports are console lines (and the limiter's key). */
 const quiet = (fn: () => Promise<void>) =>
-  withEnv({ SENTRY_DSN: undefined, ALLOWED_ORIGINS: undefined }, fn)
+  withEnv({
+    SENTRY_DSN: undefined,
+    ALLOWED_ORIGINS: undefined,
+    INTERNAL_FUNCTION_SECRET: 'local-dev-test-secret',
+  }, fn)
 
 Deno.test('email-preview: answers the CORS preflight', async () => {
   await quiet(async () => {
@@ -137,6 +144,7 @@ Deno.test('email-preview: unclosed braces → 400 invalid_request « Accolades n
         status: 400,
         code: 'invalid_request',
         message: 'Accolades non fermées dans le texte.',
+        refusal: true,
       }, JSON.stringify(over))
     }
     assertEquals(service.calls, [])
@@ -180,10 +188,47 @@ Deno.test('email-preview: renders the draft with samples, for the caller org', a
     assert(body.html.includes('Bonjour Ana Gagnon,'))
     assert(body.html.includes('Créer mon accès'))
     assert(body.text.includes('À bientôt.'))
-    assertEquals(service.calls, [{
-      fn: 'get_email_context',
-      args: { p_org_id: ORG_ID, p_template_key: 'core.staff_invite' },
-    }])
+    assertEquals(service.calls.map((c) => c.fn), [
+      'consume_rate_limit',
+      'get_email_context',
+    ])
+    assertEquals(service.calls[1].args, {
+      p_org_id: ORG_ID,
+      p_template_key: 'core.staff_invite',
+    })
+  })
+})
+
+Deno.test('email-preview: one hit per caller (emails.preview_user); over the limit → 429 with Retry-After; the limiter down → 503; nothing rendered', async () => {
+  await quiet(async () => {
+    const { handler, service } = harness()
+    assertEquals((await handler(post(draft()))).status, 200)
+    const limit = service.calls[0].args
+    assertEquals([limit.p_bucket, limit.p_max, limit.p_window_seconds], [
+      'emails.preview_user',
+      300,
+      3_600,
+    ])
+    for (
+      const [route, status, code] of [
+        [
+          { data: [{ allowed: false, hits: 301, retry_after_seconds: 90 }] },
+          429,
+          'rate_limited',
+        ],
+        [{ error: { code: '57014' } }, 503, 'not_configured'],
+      ] as const
+    ) {
+      const h = harness({ limit: route })
+      let res: Response | undefined
+      await captureConsole('error', async () => {
+        res = await h.handler(post(draft()))
+      })
+      assertEquals(res!.status, status)
+      assertEquals((await res!.json()).error.code, code)
+      if (status === 429) assertEquals(res!.headers.get('Retry-After'), '90')
+      assertEquals(h.service.calls.map((c) => c.fn), ['consume_rate_limit'])
+    }
   })
 })
 

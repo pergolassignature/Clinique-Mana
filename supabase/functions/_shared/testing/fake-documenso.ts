@@ -75,7 +75,11 @@ export interface FakeDocumensoField {
 export interface FakeDocumensoDocument {
   /** `1`, `2`, …; the envelope id is `envelope_<id>`. */
   id: string
-  externalId: string | null
+  /**
+   * From the create payload, else null. Set it to `undefined` and reads omit
+   * the field, as a Documenso without it would (the client's bad response).
+   */
+  externalId: string | null | undefined
   title: string
   status: DocumensoDocumentStatus
   createdAt: string

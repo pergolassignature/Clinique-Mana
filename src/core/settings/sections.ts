@@ -2,6 +2,7 @@ import {
   Blocks,
   Building2,
   CalendarClock,
+  FileSignature,
   Globe,
   Landmark,
   Mail,
@@ -126,5 +127,16 @@ export const coreSettingsSections: SettingsSection[] = [
     editPermission: ['settings.email_manage', 'settings.integrations_manage'],
     group: 'plateforme',
     component: lazyPage(() => import('./pages/EmailSettingsPage'), 'EmailSettingsPage'),
+  },
+  {
+    id: 'signing',
+    path: 'signature-electronique',
+    labelKey: 'settings.sections.signing',
+    icon: FileSignature,
+    permission: 'settings.view',
+    // Every part (address, keys, expiry, test tools) is an integration setting (P3-12).
+    editPermission: 'settings.integrations_manage',
+    group: 'plateforme',
+    component: lazyPage(() => import('./pages/SigningSettingsPage'), 'SigningSettingsPage'),
   },
 ]

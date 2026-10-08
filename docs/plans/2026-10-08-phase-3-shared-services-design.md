@@ -181,7 +181,7 @@ PS Hub's leased claim (`claim_contract_webhook_event`), generalised for Resend a
 - **RPCs** (service role only):
   - `claim_webhook_event(p_provider, p_event_id, p_org_id, p_event_type, p_payload, p_lease_seconds)` returns `claimed` / `duplicate` / `in_progress` (409, so the provider retries);
   - `complete_webhook_event(p_id, p_claim_token)` and `fail_webhook_event(p_id, p_claim_token, p_error)`.
-- **Event ids:** a Resend event is keyed by `svix-id`. A Documenso terminal event is keyed by `<event>:<document_id>` without a timestamp (PS Hub's `documensoEventId`).
+- **Event ids:** a Resend event is keyed by `svix-id`. A Documenso terminal event is keyed by `<event>:<document_id>` without a timestamp (PS Hub's `documensoEventId`); as built, the org comes first (`<org_id>:<event>:<document_id>`), since each clinic's instance numbers its documents alike (final Phase 3 review).
 - **Status in Settings:** « Dernier événement reçu » reads `max(received_at)` per provider for the org.
 
 ## 3. Secure links (`core/links`)
@@ -377,7 +377,7 @@ Requests send `Authorization: <api key>` (no `Bearer`), as PS Hub does. The base
 | Function | Role |
 |---|---|
 | `_shared/signing.ts` | `createSignatureRequest({ purpose, templateVersionId, subject, variables, signers })`: render → store the unsigned PDF (`documents` bucket, §7) → Documenso create + distribute → row `sent`. Used by module functions (`professionals-contract-send`, 4d) |
-| `signing-webhook` | `verify_jwt = false`. `X-Documenso-Secret` compared with **`timingSafeEqual`** (PS Hub uses `!==`: fixed) against that org's `documenso_webhook_secret`, from the `?org=` hint; fail closed when unset. The row is found by `externalId`, else by `documenso_document_id`, and must match the hinted org. `requireModuleForOrg(org, row.module_key)`, then `claim_webhook_event` |
+| `signing-webhook` | `verify_jwt = false`. `X-Documenso-Secret` compared with **`timingSafeEqual`** (PS Hub uses `!==`: fixed) against that org's `documenso_webhook_secret`, from the `?org=` hint; fail closed when unset. The row is found by `externalId`, else by `documenso_document_id`, and must match the hinted org (as built after the final Phase 3 review: by `externalId` only; a document without one is acked `ignored`). `requireModuleForOrg(org, row.module_key)`, then `claim_webhook_event` |
 | `signing-sync` | « Synchroniser » (legacy Keep), user-scoped with the row's `view_permission` and module gate. Pulls the document from Documenso and applies the same transitions. Also run daily for `sent`/`viewed` requests older than a day (reconciliation, in case a webhook was lost) |
 | `signing-test-connection` | `settings.integrations_manage`: a read call to the API; returns « Connexion réussie » or the HTTP status, never the key |
 | `signing-test-document` | `settings.integrations_manage`: sends a built-in one-page test document to the caller, which proves URL, key, webhook and storage end to end without a module |

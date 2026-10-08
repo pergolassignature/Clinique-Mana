@@ -236,6 +236,7 @@ Deno.test('email-test-send: unclosed braces in the draft → 400 invalid_request
         status: 400,
         code: 'invalid_request',
         message: 'Accolades non fermées dans le texte.',
+        refusal: true,
       })
     }
     assertEquals(service.calls, [])

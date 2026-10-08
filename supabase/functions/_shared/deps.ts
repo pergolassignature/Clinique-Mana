@@ -10,6 +10,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getServiceRoleClient, getUserClient } from './auth.ts'
+import type { ResolveDns } from './documenso.ts'
 
 /** The injected dependencies of a handler. */
 export interface Deps {
@@ -21,6 +22,11 @@ export interface Deps {
   serviceClient: () => SupabaseClient | Response
   /** Acts as the caller (RLS applies). */
   userClient: (token: string) => SupabaseClient | Response
+  /**
+   * DNS lookups before every Documenso request (P3-34, `documensoReach`);
+   * absent, `Deno.resolveDns`. Tests inject a fake.
+   */
+  resolveDns?: ResolveDns
 }
 
 /** The production dependencies: `Deno.env`, global `fetch`, the system clock, the auth client factories. */

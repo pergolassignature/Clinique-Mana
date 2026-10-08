@@ -245,7 +245,7 @@ select results_eq($$
 $$, $$ values
   ('core.email_log_retention'::text, 'sql'::text, 'private.job_email_log_retention'::text, true, '30 8 * * *'::text,
    'select private.run_sql_job(''core.email_log_retention'')'::text),
-  ('core.email_log_stale_queued', 'sql', 'private.job_email_log_stale_queued', true, '*/5 * * * *',
+  ('core.email_log_stale_queued', 'sql', 'private.job_email_log_stale_queued', true, '*/15 * * * *',
    'select private.run_sql_job(''core.email_log_stale_queued'')') $$,
   'both email maintenance jobs are catalogued and scheduled');
 

@@ -1,5 +1,5 @@
 -- =============================================================================
--- Storage: private buckets, file registry, one object read policy, org logo and signature
+-- Storage: private buckets, file registry (no client policy on objects), org logo and signature
 -- =============================================================================
 -- Design:  docs/plans/2026-10-08-phase-3-shared-services-design.md §7
 -- Plan:    docs/plans/2026-10-08-phase-3-shared-services-plan.md, Task 3.24 (P3-14, P3-17, P3-20,
@@ -101,7 +101,12 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
                                                                  'application/msword',
                                                                  'application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
   ('signed-documents', 'signed-documents', false, 20971520, array['application/pdf'])
-on conflict (id) do nothing;
+-- A bucket made by hand before this migration (same id) is brought to these settings: never left
+-- public, nor with other limits.
+on conflict (id) do update
+  set public = false,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
 
 -- The object extension of an accepted MIME type, null for any other value. Must equal FORMATS in
 -- supabase/functions/_shared/storage.ts (_shared/storage-map.test.ts checks it).
@@ -217,12 +222,15 @@ create table public.stored_files (
   owner_permission text references public.permissions(key),
   view_permission text references public.permissions(key),
   -- Shown and offered as the download name; never part of a path or URL. No slash, backslash,
-  -- control character or bidirectional control (U+200E-U+200F, U+202A-U+202E, U+2066-U+2069:
-  -- they can disguise a file's extension).
+  -- control character ([:cntrl:]: C0, DEL and C1 in the database's locale, 022 checks it), line
+  -- or paragraph separator (U+2028-U+2029, not in [:cntrl:]) or bidirectional control
+  -- (U+200E-U+200F, U+202A-U+202E, U+2066-U+2069: they can disguise a file's extension). The
+  -- browser (src/core/storage/file-name.ts) and storage-upload (_shared/file-name.ts) refuse the
+  -- same set: src/core/storage/file-name-parity.test.ts.
   original_name text not null check (
     pg_catalog.length(original_name) between 1 and 200
     and pg_catalog.btrim(original_name) <> ''
-    and original_name !~ '[/\\[:cntrl:]\u200e\u200f\u202a-\u202e\u2066-\u2069]'),
+    and original_name !~ '[/\\[:cntrl:]\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]'),
   mime_type text not null,
   ext text not null check (ext ~ '^[a-z0-9]{1,5}$'),
   size_bytes int not null check (size_bytes > 0),

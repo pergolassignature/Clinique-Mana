@@ -18,6 +18,9 @@ const OTHER_LOG_ID = '7f1c1b2e-3d4a-4b5c-8d9e-0f1a2b3c4d5f'
 const RESEND_ID = '56761188-7520-42d8-8898-ff6fc54ce618'
 const EVENT_ID = 'msg_2mXH7c0kB0nK1bU9qQe2f'
 const CLAIM = { status: 'claimed', id: 'we-1', claim_token: 'tok-1' }
+/** The rate limiter's HMAC key (`consume` reads it from the env). */
+const LIMITER_SECRET = 'local-dev-test-secret'
+const ALLOWED = { data: [{ allowed: true, hits: 1, retry_after_seconds: 0 }] }
 
 /** A Resend event as delivered (with the address, which must not be kept). */
 function event(type = 'email.delivered', data: Record<string, unknown> = {}) {
@@ -86,6 +89,7 @@ async function signed(
 function harness(rpc: Record<string, RpcRoute> = {}) {
   const service = fakeSupabase({
     rpc: {
+      consume_rate_limit: ALLOWED,
       get_org_secret: { data: SECRET },
       claim_webhook_event: { data: [CLAIM] },
       apply_email_event: { data: 'applied' },
@@ -102,9 +106,19 @@ function harness(rpc: Record<string, RpcRoute> = {}) {
     serviceClient: () => service.client,
     userClient: () => new Response(null, { status: 500 }),
   }
-  const names = () => service.calls.map((c) => c.fn)
+  /** The calls after the per-IP limit (its own tests check it). */
+  const names = () =>
+    service.calls.map((c) => c.fn).filter((fn) => fn !== 'consume_rate_limit')
   const args = (fn: string) => service.calls.find((c) => c.fn === fn)?.args
-  return { handler: createHandler(deps), service, names, args, clock }
+  const inner = createHandler(deps)
+  const handler = async (req: Request): Promise<Response> => {
+    let res: Response | undefined
+    await withEnv({ INTERNAL_FUNCTION_SECRET: LIMITER_SECRET }, async () => {
+      res = await inner(req)
+    })
+    return res!
+  }
+  return { handler, service, names, args, clock }
 }
 
 /** No Sentry: reports are console lines, returned for inspection. */
@@ -257,9 +271,53 @@ Deno.test('resend-webhook: a stale timestamp (301 s) → 401', async () => {
   })
 })
 
+Deno.test('resend-webhook: one hit per IP (the rightmost x-forwarded-for) before the secret is read', async () => {
+  await run(async () => {
+    const { handler, service } = harness()
+    const req = await signed(event())
+    req.headers.set('x-forwarded-for', '198.51.100.7, 203.0.113.9')
+    assertEquals((await handler(req)).status, 200)
+    assertEquals(service.calls.slice(0, 2).map((c) => c.fn), [
+      'consume_rate_limit',
+      'get_org_secret',
+    ])
+    const limit = service.calls[0].args
+    assertEquals([limit.p_bucket, limit.p_max, limit.p_window_seconds], [
+      'webhooks.resend_ip',
+      600,
+      60,
+    ])
+    assertFalse(JSON.stringify(limit).includes('203.0.113.9'), 'only a hash')
+  })
+})
+
+Deno.test('resend-webhook: over the per-IP limit → 429 with Retry-After; the limiter down → 503; the secret is never read', async () => {
+  await run(async () => {
+    for (
+      const [route, status, retryAfter] of [
+        [
+          { data: [{ allowed: false, hits: 601, retry_after_seconds: 42 }] },
+          429,
+          '42',
+        ],
+        [{ error: { code: '57014' } }, 503, null],
+      ] as const
+    ) {
+      const { handler, service } = harness({ consume_rate_limit: route })
+      let res: Response | undefined
+      await captureConsole('error', async () => {
+        res = await handler(await signed(event()))
+      })
+      assertEquals(res!.status, status)
+      assertEquals(res!.headers.get('Retry-After'), retryAfter)
+      assertEquals(service.calls.map((c) => c.fn), ['consume_rate_limit'])
+    }
+  })
+})
+
 Deno.test('resend-webhook: missing Svix headers → 401 before any RPC', async () => {
   await run(async () => {
-    const { handler, names } = harness()
+    const { handler, names, service } = harness()
     const res = await handler(
       new Request(`http://fn.test/resend-webhook?org=${ORG_ID}`, {
         method: 'POST',
@@ -268,6 +326,7 @@ Deno.test('resend-webhook: missing Svix headers → 401 before any RPC', async (
     )
     assertEquals(res.status, 401)
     assertEquals(names(), [])
+    assertEquals(service.calls, [], 'not even the rate limit')
   })
 })
 

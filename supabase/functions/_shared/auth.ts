@@ -26,13 +26,16 @@ import {
   type SupabaseClient,
   type User,
 } from '@supabase/supabase-js'
+import { logErrorCode } from './log.ts'
+import { reportError } from './report.ts'
 import { timingSafeEqual } from './timing-safe-equal.ts'
 
 /**
  * Error codes stay English; the UI maps each one to a French text (P3-28).
  * Usual statuses: `invalid_request` 400 (413 for a body over the cap),
- * `missing_variable` 400 (a template value is missing), `unauthenticated`
- * 401, `forbidden` / `module_disabled` 403, `not_found` 404, `conflict` 409,
+ * `missing_variable` 400 (a template value is missing), `weak_password`
+ * 400 (Auth refused a password), `unauthenticated` 401, `forbidden` /
+ * `module_disabled` 403, `not_found` 404, `conflict` 409,
  * `link_invalid` / `link_expired` / `link_used` 410, `rate_limited` 429,
  * `server_misconfigured` / `internal` 500, `provider_error` 502,
  * `auth_unavailable` / `not_configured` 503.
@@ -54,6 +57,7 @@ export type ErrorCode =
   | 'provider_error'
   | 'not_configured'
   | 'missing_variable'
+  | 'weak_password'
 
 // ---------------------------------------------------------------------------
 // CORS and responses
@@ -66,10 +70,65 @@ function allowedOrigins(): string[] | null {
   return raw.split(',').map((o) => o.trim()).filter(Boolean)
 }
 
+/** How long a browser may cache a preflight answer, in seconds. */
+const PREFLIGHT_MAX_AGE = '600'
+
+const LOCAL_HOSTS: ReadonlySet<string> = new Set([
+  'localhost',
+  '127.0.0.1',
+  '[::1]',
+])
+
+/**
+ * True when `appUrl` is a local `http` URL (`http://localhost:5173`): local
+ * dev. Gates what only a dev machine may do (the console email transport,
+ * the local Documenso fake, P3-34).
+ */
+export function isLocalAppUrl(appUrl: string | undefined): boolean {
+  if (!appUrl || !URL.canParse(appUrl.trim())) return false
+  const url = new URL(appUrl.trim())
+  return url.protocol === 'http:' && LOCAL_HOSTS.has(url.hostname)
+}
+
+/** True when `APP_URL` is set and is not a local origin. */
+function deployedAppUrl(): boolean {
+  const appUrl = Deno.env.get('APP_URL')
+  if (!appUrl) return false
+  try {
+    return !LOCAL_HOSTS.has(new URL(appUrl).hostname)
+  } catch {
+    return true
+  }
+}
+
+let originsUnsetReported = false
+
+/**
+ * `ALLOWED_ORIGINS` unset (so `*`) on a deployed project (`APP_URL` set and
+ * not local) is a misconfiguration: reported `cors_origins_unset`, once per
+ * isolate. The answer itself is unchanged (`*`).
+ */
+function reportOriginsUnset(): void {
+  if (originsUnsetReported || !deployedAppUrl()) return
+  originsUnsetReported = true
+  const sent = reportError({ fn: 'cors', code: 'cors_origins_unset' })
+  // Keep the isolate alive for the report when the edge runtime allows it.
+  const runtime = (globalThis as {
+    EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void }
+  }).EdgeRuntime
+  runtime?.waitUntil?.(sent)
+}
+
+/** Tests only: lets `cors_origins_unset` be reported again. */
+export function resetCorsReportForTests(): void {
+  originsUnsetReported = false
+}
+
 /**
  * CORS headers for a browser-facing response. With `ALLOWED_ORIGINS` set, the
  * request's `Origin` is echoed only when listed (plus `Vary: Origin`);
- * otherwise `*`. No `Content-Type` here: `jsonResponse` adds it.
+ * otherwise `*` (reported once per isolate when `APP_URL` is not local, see
+ * `reportOriginsUnset`). No `Content-Type` here: `jsonResponse` adds it.
  */
 export function corsHeaders(req?: Request): Record<string, string> {
   const headers: Record<string, string> = {
@@ -81,6 +140,7 @@ export function corsHeaders(req?: Request): Record<string, string> {
   }
   const allowed = allowedOrigins()
   if (allowed === null) {
+    reportOriginsUnset()
     headers['Access-Control-Allow-Origin'] = '*'
     return headers
   }
@@ -114,10 +174,38 @@ export function errorResponse(
   return jsonResponse({ error: { code, message } }, status, req)
 }
 
-/** Call first in every browser-facing handler: answers the CORS preflight. */
+/**
+ * A refusal the user can act on: 400 (or `status`) `invalid_request` whose
+ * French `message` the browser shows as is, flagged `refusal: true`
+ * (`src/core/supabase/functions.ts` `refusalMessage` shows nothing else). For
+ * a P0001 relayed from an RPC (`rpcErrorResponse`, `createSignatureRequest`)
+ * or a function's own French sentence (`storage-confirm`). Every other
+ * `invalid_request` carries an English message, never shown.
+ */
+export function refusalResponse(
+  message: string,
+  req?: Request,
+  status = 400,
+): Response {
+  return jsonResponse(
+    { error: { code: 'invalid_request', message, refusal: true } },
+    status,
+    req,
+  )
+}
+
+/**
+ * Call first in every browser-facing handler: answers the CORS preflight,
+ * cacheable for 10 minutes (`Access-Control-Max-Age: 600`).
+ */
 export function handleCors(req: Request): Response | null {
   return req.method === 'OPTIONS'
-    ? new Response(null, { headers: corsHeaders(req) })
+    ? new Response(null, {
+      headers: {
+        ...corsHeaders(req),
+        'Access-Control-Max-Age': PREFLIGHT_MAX_AGE,
+      },
+    })
     : null
 }
 
@@ -149,6 +237,10 @@ export interface CallerAccess {
   org_id: string
   /** `profiles.email` (copied from Auth): the caller's own address. */
   email: string
+  /** `profiles.display_name`: the caller's name, as others see it. */
+  display_name: string
+  /** The caller's organisation name (`organizations.name`). */
+  org_name: string
   status: 'active'
   role: string | null
   permissions: string[]
@@ -207,6 +299,8 @@ export function evaluateAccess(
     typeof a.user_id !== 'string' ||
     typeof a.org_id !== 'string' ||
     typeof a.email !== 'string' ||
+    typeof a.display_name !== 'string' ||
+    typeof a.org_name !== 'string' ||
     !Array.isArray(a.permissions) ||
     !Array.isArray(a.modules)
   ) {
@@ -274,7 +368,7 @@ export async function authorizeCaller(
 ): Promise<AuthResult | Response> {
   const { data, error } = await client.auth.getUser(token)
   if (error && isAuthOutage(error)) {
-    console.error('[verifyAuth] Auth unavailable', error)
+    logErrorCode('verifyAuth', 'Auth unavailable', error)
     return errorResponse(
       'auth_unavailable',
       'Authentication service unavailable',
@@ -296,7 +390,7 @@ export async function authorizeCaller(
   if (!decision.ok) {
     // The token was valid, so a 42501 here likely means a missing grant.
     if (decision.status === 500 || decision.status === 401) {
-      console.error('[verifyAuth] get_my_access failed', result.error)
+      logErrorCode('verifyAuth', 'get_my_access failed', result.error)
     }
     return errorResponse(decision.code, decision.message, decision.status, req)
   }

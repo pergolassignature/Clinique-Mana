@@ -94,7 +94,7 @@ const settingsLinks = () =>
 const ALL_SECTIONS = [
   'settings.sections.identity', 'settings.sections.tax', 'settings.sections.signatory', 'settings.sections.bank',
   'settings.sections.region', 'settings.sections.privacy', 'settings.sections.users', 'settings.sections.modules',
-  'settings.sections.audit', 'settings.sections.jobs', 'settings.sections.email',
+  'settings.sections.audit', 'settings.sections.jobs', 'settings.sections.email', 'settings.sections.signing',
 ] as const
 
 /** Professionnels' list sections, after the core ones (group « Modules »). */
@@ -134,7 +134,7 @@ describe('AuthenticatedApp', () => {
   const counselorLike: Access = accessForRole('counselor', { display_name: 'Camille Admin', modules: ['professionals'] })
 
   // Decision #19: Paramètres follows the accessible sections.
-  it('shows Paramètres to the adjointe, with the clinic sections, « Tâches planifiées » and « Courriels », read-only', async () => {
+  it('shows Paramètres to the adjointe, with the clinic sections, « Tâches planifiées », « Courriels » and « Signature électronique », read-only', async () => {
     render(appAt('/parametres', assistantLike))
     expect(menuLinks()).toEqual([t('nav.home'), t('modules.professionals.name'), t('nav.settings')])
     const readOnly = (key: (typeof ALL_SECTIONS)[number] | (typeof PROFESSIONALS_SECTIONS)[number]) => `${t(key)} ${t('settings.navReadOnlyHint')}`
@@ -146,6 +146,7 @@ describe('AuthenticatedApp', () => {
       readOnly('settings.sections.privacy'),
       readOnly('settings.sections.jobs'),
       readOnly('settings.sections.email'),
+      readOnly('settings.sections.signing'),
       // Professionnels' lists: seen with professionals.manage, changed with professionals.settings.
       ...PROFESSIONALS_SECTIONS.map(readOnly),
     ])
@@ -351,8 +352,9 @@ describe('AuthenticatedApp — idle prefetch', () => {
     const preloaded = spyOnPreloads()
     render(appAt('/accueil', accessForRole('admin_assistant', { modules: ['professionals'] })))
     runIdle()
-    // The adjointe's clinic sections (no bank, users, modules or audit), « Tâches planifiées », « Courriels », and Professionnels.
-    expect(preloaded()).toEqual(['identity', 'tax', 'signatory', 'region', 'privacy', 'jobs', 'email', ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES])
+    // The adjointe's clinic sections (no bank, users, modules or audit), « Tâches planifiées », « Courriels »,
+    // « Signature électronique », and Professionnels.
+    expect(preloaded()).toEqual(['identity', 'tax', 'signatory', 'region', 'privacy', 'jobs', 'email', 'signing', ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES])
   })
 
   it("skips a disabled module's pages and sections", () => {

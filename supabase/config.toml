@@ -108,3 +108,33 @@ verify_jwt = false
 verify_jwt = false
 [functions.resend-webhook]
 verify_jwt = false
+# Public token functions: no user and no gateway check; the token in the body authorizes, after
+# the per-IP rate limit, and the link's module gate applies (CLAUDE.md §7). Neither reads the
+# Authorization or apikey header, so they work whatever kind of public key the app sends.
+[functions.resolve-link]
+verify_jwt = false
+[functions.accept-invite]
+verify_jwt = false
+[functions.staff-invite]
+verify_jwt = false
+[functions.users-set-status]
+verify_jwt = false
+[functions.storage-upload]
+verify_jwt = false
+[functions.storage-confirm]
+verify_jwt = false
+[functions.storage-sign]
+verify_jwt = false
+# A job: runJob verifies X-Job-Signature.
+[functions.storage-cleanup]
+verify_jwt = false
+# Documenso webhook: the org's secret, compared with timingSafeEqual.
+[functions.signing-webhook]
+verify_jwt = false
+# « Synchroniser » (verifyAuth) and the job core.signing_reconcile (X-Job-Signature).
+[functions.signing-sync]
+verify_jwt = false
+[functions.signing-test-connection]
+verify_jwt = false
+[functions.signing-test-document]
+verify_jwt = false

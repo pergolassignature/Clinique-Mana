@@ -1,6 +1,6 @@
-import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
+import { FunctionCallError, invokeFunction } from '@/core/supabase/functions'
 
 /** Rows per page of « Historique d'envoi » (the RPC's default; it clamps the limit to 1–100). */
 export const EMAIL_LOG_PAGE_SIZE = 50
@@ -92,38 +92,26 @@ const previewSchema = z.object({ subject: z.string(), html: z.string(), text: z.
 type RenderedEmail = z.infer<typeof previewSchema>
 
 /**
- * A refusal from an email function: its English `code` (`rate_limited`, `invalid_request`…, see
- * `_shared/auth.ts`), the HTTP status, the function's message and, for an unknown placeholder,
- * the `variable`. `network` (status 0) when the function could not be reached; `internal` when the
- * answer is not the function's JSON.
+ * A refusal from an email function (`email-preview`, `email-test-send`): a FunctionCallError (its
+ * code, status, message, `Retry-After`), with an unknown placeholder's `variable`.
  */
-export class EmailFunctionError extends Error {
-  constructor(
-    readonly code: string,
-    readonly status: number,
-    message: string,
-    readonly variable?: string,
-  ) {
-    super(message)
-    this.name = 'EmailFunctionError'
+export class EmailFunctionError extends FunctionCallError {
+  override name = 'EmailFunctionError'
+
+  /** The unknown placeholder of a refused draft (`email-preview` 400 `invalid_request`). */
+  get variable(): string | undefined {
+    return typeof this.extra.variable === 'string' ? this.extra.variable : undefined
   }
 }
 
-const errorBodySchema = z.object({
-  error: z.object({ code: z.string(), message: z.string(), variable: z.string().optional() }),
-})
-
-/** The error of a failed `functions.invoke`, as an EmailFunctionError. */
-async function functionError(error: unknown): Promise<EmailFunctionError> {
-  if (error instanceof FunctionsHttpError) {
-    const response = error.context as Response
-    const body = errorBodySchema.safeParse(await response.json().catch(() => null))
-    return body.success
-      ? new EmailFunctionError(body.data.error.code, response.status, body.data.error.message, body.data.error.variable)
-      : new EmailFunctionError('internal', response.status, 'Unexpected answer')
+/** Calls an email function through `invokeFunction`; its refusal is thrown as an EmailFunctionError. */
+async function invokeEmailFunction(name: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+  try {
+    return await invokeFunction(name, body, { signal })
+  } catch (error) {
+    if (!(error instanceof FunctionCallError)) throw error
+    throw new EmailFunctionError(error.code, error.status, error.message, error.extra, error.retryAfter)
   }
-  if (error instanceof FunctionsFetchError) return new EmailFunctionError('network', 0, 'Function unreachable')
-  return new EmailFunctionError('internal', 0, error instanceof Error ? error.message : 'Unexpected error')
 }
 
 /** The sender of the caller's org (RLS returns only their own; `settings.view`). */
@@ -198,8 +186,7 @@ export async function lastWebhookEventAt(provider: 'resend'): Promise<string | n
 
 /** Renders a draft with the catalogue's sample values (`email-preview`, `settings.view`); stores and sends nothing. */
 export async function previewEmail(key: string, draft: EmailTemplateDraft, signal?: AbortSignal): Promise<RenderedEmail> {
-  const { data, error } = await supabase.functions.invoke('email-preview', { body: { template_key: key, ...draft }, signal })
-  if (error) throw await functionError(error)
+  const data = await invokeEmailFunction('email-preview', { template_key: key, ...draft }, signal)
   const preview = previewSchema.safeParse(data)
   if (!preview.success) throw new EmailFunctionError('internal', 200, 'Unexpected answer')
   return preview.data
@@ -210,8 +197,7 @@ export async function previewEmail(key: string, draft: EmailTemplateDraft, signa
  * and a « [Test] » subject, to the caller's own address (the function never takes a recipient).
  */
 export async function sendTestEmail(key: string, draft: EmailTemplateDraft): Promise<void> {
-  const { error } = await supabase.functions.invoke('email-test-send', { body: { template_key: key, ...draft } })
-  if (error) throw await functionError(error)
+  await invokeEmailFunction('email-test-send', { template_key: key, ...draft })
 }
 
 /** The address Resend posts delivery events to; `org` only routes the event (the function checks the signature). */

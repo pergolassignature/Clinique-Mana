@@ -8,6 +8,17 @@ const LONG_DIGIT_RUNS = /[0-9]{7,}/g
 export const redactDigitRuns = (text: string) => text.replace(LONG_DIGIT_RUNS, '[redacted]')
 
 /**
+ * An email address, written or percent-encoded in a URL (`ana%40example.com`, `ana%2Bx%40…`):
+ * a local part, `@` or `%40`, then a dotted domain.
+ */
+const EMAIL = /[A-Za-z0-9._%+-]+(?:@|%40)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/gi
+
+export const redactEmails = (text: string) => text.replace(EMAIL, '[email]')
+
+/** What a free text may not carry: email addresses, then long digit runs. */
+const redactText = (text: string) => redactDigitRuns(redactEmails(text))
+
+/**
  * Query params Supabase Auth puts in a URL (magic link, recovery, invite, PKCE callback). The
  * implicit flow puts the tokens in the `#…` fragment, which is always dropped.
  */
@@ -36,13 +47,16 @@ function scrubQuery(query: string): string {
     .join('&')
 }
 
-/** Drops the `#…` fragment and the auth query params from a URL, absolute or relative. */
+/**
+ * Drops the `#…` fragment and the auth query params from a URL, absolute or relative, and redacts
+ * the email addresses left in it (a path or a param such as `?email=ana%40example.com`).
+ */
 export function scrubUrl(url: string): string {
   const withoutFragment = beforeFragment(url)
   const queryStart = withoutFragment.indexOf('?')
-  if (queryStart === -1) return withoutFragment
+  if (queryStart === -1) return redactEmails(withoutFragment)
   const query = scrubQuery(withoutFragment.slice(queryStart + 1))
-  return withoutFragment.slice(0, queryStart) + (query ? `?${query}` : '')
+  return redactEmails(withoutFragment.slice(0, queryStart) + (query ? `?${query}` : ''))
 }
 
 type QueryString = NonNullable<NonNullable<SentryEvent['request']>['query_string']>
@@ -50,10 +64,16 @@ type QueryString = NonNullable<NonNullable<SentryEvent['request']>['query_string
 function scrubQueryString(query: QueryString): QueryString {
   if (typeof query === 'string') {
     const leading = query.startsWith('?') ? '?' : ''
-    return leading + scrubQuery(beforeFragment(query.slice(leading.length)))
+    return leading + redactEmails(scrubQuery(beforeFragment(query.slice(leading.length))))
   }
-  if (Array.isArray(query)) return query.filter(([key]) => !AUTH_PARAMS.has(key))
-  return Object.fromEntries(Object.entries(query).filter(([key]) => !AUTH_PARAMS.has(key)))
+  if (Array.isArray(query)) {
+    return query.filter(([key]) => !AUTH_PARAMS.has(key)).map(([key, value]) => [key, redactEmails(value)] as [string, string])
+  }
+  return Object.fromEntries(
+    Object.entries(query)
+      .filter(([key]) => !AUTH_PARAMS.has(key))
+      .map(([key, value]) => [key, typeof value === 'string' ? redactEmails(value) : value]),
+  )
 }
 
 /** Breadcrumb data keys that hold a URL: fetch/xhr `url`, navigation `from` / `to`. */
@@ -67,8 +87,10 @@ const BREADCRUMB_URL_KEYS = ['url', 'from', 'to'] as const
  * - PostgreSQL's `details` and `hint` (which can hold row values, « Failing row contains (…) ») are
  *   dropped from `extra.__serialized__`;
  * - console breadcrumbs lose their logged `data.arguments`;
- * - runs of 7+ digits are redacted in the event message, exception values and breadcrumb messages;
- * - URLs lose their `#…` fragment and the Supabase Auth params (`access_token`, `code`, `token_hash`…):
+ * - email addresses (`[email]`), then runs of 7+ digits, are redacted in the event message,
+ *   exception values and breadcrumb messages;
+ * - URLs lose their `#…` fragment and the Supabase Auth params (`access_token`, `code`, `token_hash`…),
+ *   and their email addresses, written or percent-encoded:
  *   `request.url`, `request.query_string`, the `Referer` header, and breadcrumb `data.url` (fetch,
  *   xhr) and `data.from` / `data.to` (navigation). A recovery or invite link would otherwise send a
  *   live session to Sentry. Breadcrumbs only leave inside an event, so no `beforeBreadcrumb`.
@@ -84,7 +106,7 @@ export function scrubSentryEvent<T extends SentryEvent>(event: T): T | null {
       delete fields.details
       delete fields.hint
     }
-    if (typeof event.message === 'string') event.message = redactDigitRuns(event.message)
+    if (typeof event.message === 'string') event.message = redactText(event.message)
     const request = event.request
     if (request) {
       if (typeof request.url === 'string') request.url = scrubUrl(request.url)
@@ -95,10 +117,10 @@ export function scrubSentryEvent<T extends SentryEvent>(event: T): T | null {
       }
     }
     for (const exception of event.exception?.values ?? []) {
-      if (typeof exception.value === 'string') exception.value = redactDigitRuns(exception.value)
+      if (typeof exception.value === 'string') exception.value = redactText(exception.value)
     }
     for (const breadcrumb of event.breadcrumbs ?? []) {
-      if (typeof breadcrumb.message === 'string') breadcrumb.message = redactDigitRuns(breadcrumb.message)
+      if (typeof breadcrumb.message === 'string') breadcrumb.message = redactText(breadcrumb.message)
       const data = breadcrumb.data
       if (!data) continue
       if (breadcrumb.category === 'console') delete data.arguments

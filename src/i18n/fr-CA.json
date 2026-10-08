@@ -53,7 +53,15 @@
     "notFound": { "title": "Page introuvable", "body": "Cette page n'existe pas ou a été déplacée." },
     "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." },
     "appError": { "title": "L'application a rencontré un problème", "body": "Réessayez dans un instant. Si le problème persiste, rechargez la page." },
-    "appUpdate": { "title": "Une nouvelle version de l'application est disponible.", "reload": "Recharger" }
+    "appUpdate": { "title": "Une nouvelle version de l'application est disponible.", "reload": "Recharger" },
+    "retryIn": {
+      "later": "Réessayez plus tard.",
+      "moment": "Réessayez dans un instant.",
+      "minuteOne": "Réessayez dans environ 1 minute.",
+      "minutesOther": "Réessayez dans environ {count} minutes.",
+      "hourOne": "Réessayez dans environ 1 heure.",
+      "hoursOther": "Réessayez dans environ {count} heures."
+    }
   },
   "auth": {
     "login": {
@@ -112,6 +120,33 @@
       "link_invalid": "Ce lien a expiré ou a déjà été utilisé.",
       "unknown": "Une erreur est survenue. Réessayez."
     }
+  },
+  "invitation": {
+    "title": "Invitation",
+    "welcome": "Bienvenue chez {clinic}",
+    "subtitle": "Choisissez un mot de passe pour activer votre compte.",
+    "checking": "Vérification du lien…",
+    "name": "Nom",
+    "email": "Courriel",
+    "expires": "Cette invitation expire le {date}.",
+    "password": "Mot de passe",
+    "confirm": "Confirmer le mot de passe",
+    "submit": "Activer mon compte",
+    "submitting": "Activation…",
+    "otherUser": "Vous êtes connecté en tant que {name}. Ce compte sera déconnecté de ce navigateur quand vous activerez le vôtre.",
+    "otherUserUnnamed": "Une autre personne est connectée sur ce navigateur. Son compte sera déconnecté quand vous activerez le vôtre.",
+    "states": {
+      "link_invalid": "Ce lien n'est pas valide.",
+      "link_expired": "Ce lien a expiré. Demandez une nouvelle invitation à la clinique.",
+      "link_used": "Ce lien a déjà été utilisé. Connectez-vous.",
+      "conflict": "Ce lien ne peut plus être utilisé. Communiquez avec la clinique.",
+      "rate_limited": "Trop de tentatives.",
+      "error": "Le lien n'a pas pu être vérifié. Vérifiez votre connexion et réessayez."
+    },
+    "latestEmailHint": "Si vous avez reçu plus d'un courriel d'invitation, utilisez le courriel le plus récent : chaque nouvel envoi remplace le lien précédent.",
+    "signIn": "Se connecter",
+    "activated": "Votre compte est activé. Connectez-vous avec votre courriel et votre mot de passe.",
+    "errors": { "generic": "Votre compte n'a pas pu être activé. Réessayez dans un instant." }
   },
   "account": {
     "title": "Mon compte",
@@ -186,6 +221,30 @@
     "account": "Mon compte"
   },
   "home": { "title": "Bienvenue", "body": "Les modules s'ajoutent ici au fur et à mesure qu'ils sont activés." },
+  "storage": {
+    "dropzone": {
+      "drop": "Glissez un fichier ici, ou",
+      "choose": "Choisir un fichier",
+      "progressLabel": "Téléversement",
+      "steps": { "preparing": "Préparation de {name}…", "sending": "Envoi de {name}…", "confirming": "Vérification de {name}…" },
+      "tooLarge": "Ce fichier dépasse la taille permise ({size} Mo).",
+      "imageTooLarge": "Cette image dépasse la taille permise ({side} pixels de côté).",
+      "empty": "Ce fichier est vide.",
+      "wrongType": "Ce type de fichier n'est pas accepté."
+    },
+    "preview": { "unavailable": "L'aperçu n'est pas disponible." },
+    "errors": {
+      "rateLimited": "Trop de téléversements.",
+      "signRateLimited": "Trop d'aperçus demandés.",
+      "expired": "Ce téléversement n'est plus valide. Choisissez le fichier de nouveau.",
+      "conflict": "Ce téléversement a été traité entre-temps. Choisissez le fichier de nouveau.",
+      "sendFailed": "L'envoi du fichier a échoué. Vérifiez votre connexion, puis réessayez.",
+      "sendRefused": "L'envoi du fichier a été refusé. Choisissez le fichier de nouveau.",
+      "unauthenticated": "Votre session a expiré. Reconnectez-vous.",
+      "network": "Le serveur ne répond pas. Vérifiez votre connexion, puis réessayez.",
+      "unavailable": "Le téléversement est momentanément indisponible. Réessayez plus tard."
+    }
+  },
   "notifications": {
     "bell": "Notifications",
     "title": "Notifications",
@@ -235,6 +294,24 @@
     },
     "errorCode": "Code : {code}"
   },
+  "signing": {
+    "status": {
+      "draft": "En cours d'envoi",
+      "sent": "Envoyé",
+      "viewed": "Consulté",
+      "signed": "Signé",
+      "rejected": "Refusé",
+      "cancelled": "Annulé",
+      "expired": "Expiré"
+    },
+    "failure": {
+      "abandoned": "Abandonné",
+      "failed": "Échec de l'envoi",
+      "providerUnavailable": "Le service de signature n'a pas répondu.",
+      "providerRefused": "Le service de signature a refusé la clé d'API."
+    },
+    "errorCode": "Code : {code}"
+  },
   "settings": {
     "title": "Paramètres",
     "navLabel": "Sections des paramètres",
@@ -251,7 +328,8 @@
       "modules": "Modules",
       "audit": "Journal d'audit",
       "jobs": "Tâches planifiées",
-      "email": "Courriels"
+      "email": "Courriels",
+      "signing": "Signature électronique"
     },
     "navReadOnlyHint": "(lecture seule)",
     "menuButtonPrefix": "Section des paramètres :",
@@ -356,6 +434,11 @@
       "saved": "Valeur enregistrée.",
       "saveError": "Impossible d'enregistrer cette valeur."
     },
+    "webhook": {
+      "copy": "Copier",
+      "copied": "Adresse copiée.",
+      "copyError": "Impossible de copier l'adresse. Sélectionnez-la pour la copier."
+    },
     "email": {
       "description": "Les courriels que l'application envoie au nom de la clinique : l'expéditeur, les textes et l'historique d'envoi.",
       "tabs": {
@@ -384,9 +467,6 @@
         "webhookSecretHelp": "Le secret de signature (whsec_…) du webhook créé chez Resend.",
         "webhookUrl": "Adresse du webhook",
         "webhookUrlHelp": "À indiquer chez Resend pour recevoir les confirmations de livraison.",
-        "copy": "Copier",
-        "webhookCopied": "Adresse copiée.",
-        "webhookCopyError": "Impossible de copier l'adresse. Sélectionnez-la pour la copier.",
         "lastEvent": "Dernier événement reçu le {date}",
         "noEvent": "Aucun événement reçu",
         "lastEventError": "Impossible de vérifier le dernier événement reçu.",
@@ -484,7 +564,7 @@
       },
       "errors": {
         "not_configured": "L'envoi de courriels n'est pas encore configuré.",
-        "rate_limited": "Trop d'envois en peu de temps. Réessayez dans quelques minutes.",
+        "rate_limited": "Trop de demandes en peu de temps.",
         "provider_error": "Le service d'envoi n'a pas répondu. Réessayez.",
         "module_disabled": "Ce module est désactivé pour la clinique.",
         "not_found": "Ce modèle n'existe plus. Rechargez la page.",
@@ -511,6 +591,94 @@
         "domain": "Domaine invalide (ex. : gestion.cliniquemana.com)."
       }
     },
+    "signing": {
+      "description": "Les documents à signer sont envoyés par Documenso, l'instance de signature de la clinique, qui écrit aux signataires.",
+      "tabs": {
+        "settings": "Réglages",
+        "templates": "Modèles de documents"
+      },
+      "loadError": "Impossible de charger les réglages de signature.",
+      "secretsLoadError": "Impossible de charger l'état des clés.",
+      "readOnlyNotice": "Seule une personne qui gère les clés d'intégration peut modifier ces réglages.",
+      "connection": {
+        "title": "Connexion",
+        "description": "L'adresse de l'instance Documenso et sa clé d'API. Une clé enregistrée n'est jamais affichée.",
+        "baseUrl": "Adresse de l'instance",
+        "baseUrlHelp": "Par exemple https://signature.cliniquemana.com.",
+        "saved": "Adresse de l'instance enregistrée.",
+        "savedKeyCleared": "Adresse de l'instance enregistrée. La clé d'API a été effacée ; saisissez-la de nouveau.",
+        "keyClearedWarning": "Changer l'adresse efface la clé d'API ; saisissez-la de nouveau.",
+        "publicHost": "Indiquez le nom de domaine public de l'instance, sans adresse IP ni nom interne.",
+        "apiKey": "Clé d'API",
+        "apiKeyHelp": "Une clé d'API créée dans Documenso pour l'équipe de la clinique.",
+        "test": "Tester la connexion",
+        "testing": "Test en cours…",
+        "testHelp": "Le test utilise l'adresse et la clé enregistrées.",
+        "success": "Connexion réussie",
+        "failed": "La connexion a échoué (code {status}).",
+        "keyRefused": "Vérifiez la clé d'API."
+      },
+      "webhook": {
+        "title": "Webhook",
+        "description": "Documenso avertit l'application de chaque signature par ce webhook.",
+        "url": "Adresse du webhook",
+        "urlHelp": "À indiquer dans Documenso pour recevoir le suivi des signatures.",
+        "secret": "Secret",
+        "secretHelp": "Le secret saisi dans Documenso pour ce webhook.",
+        "lastEvent": "Dernier événement reçu le {date}",
+        "noEvent": "Aucun événement reçu",
+        "lastEventError": "Impossible de vérifier le dernier événement reçu."
+      },
+      "send": {
+        "title": "Envoi",
+        "description": "Le délai laissé aux signataires, et un document test pour vérifier le circuit complet.",
+        "expiry": "Délai d'expiration (jours)",
+        "expiryHelp": "Une demande qui n'est pas signée dans ce délai expire.",
+        "expiryRange": "Entre 1 et 60 jours.",
+        "saved": "Délai d'expiration enregistré.",
+        "testDocument": "Envoyer un document test",
+        "testSending": "Envoi en cours…",
+        "testHelp": "Un document d'une page vous est envoyé, à {email}, pour être signé.",
+        "testSent": "Document test envoyé à {email}. Signez-le pour vérifier le circuit complet.",
+        "lastTest": "Dernier document test, envoyé le {date} :",
+        "noTest": "Aucun document test envoyé.",
+        "lastTestError": "Impossible de charger le dernier document test.",
+        "refresh": "Actualiser l'état",
+        "refreshing": "Actualisation…",
+        "synced": {
+          "updated": "État mis à jour.",
+          "unchanged": "État à jour.",
+          "sending": "L'envoi est encore en cours. Réessayez dans un instant.",
+          "orphanCompleted": "Documenso indique un document signé qui n'a pas pu être rattaché à cette demande."
+        }
+      },
+      "templates": {
+        "description": "Les documents que les modules envoient à signer. La version publiée d'un modèle est celle qui est envoyée.",
+        "empty": "Aucun modèle de document pour le moment.",
+        "emptyHint": "Les modules qui font signer des documents ajoutent leurs modèles ici.",
+        "loadError": "Impossible de charger les modèles de documents.",
+        "scrollLabel": "Liste des modèles de documents",
+        "coreModule": "Plateforme",
+        "columns": {
+          "template": "Modèle",
+          "module": "Module",
+          "version": "Version publiée"
+        },
+        "published": "Version {version}, publiée le {date}",
+        "notPublished": "Aucune version publiée",
+        "draft": "Brouillon en cours",
+        "inactive": "Désactivé"
+      },
+      "errors": {
+        "not_configured": "La configuration de la signature est incomplète ou a été refusée par Documenso. Vérifiez l'adresse et la clé.",
+        "provider_error": "Le service de signature n'a pas répondu. Réessayez.",
+        "conflict": "Un envoi est déjà en cours.",
+        "not_found": "Cette demande de signature n'existe plus. Rechargez la page.",
+        "rate_limited": "Trop d'essais en peu de temps.",
+        "unauthenticated": "Votre session a expiré. Reconnectez-vous, puis réessayez.",
+        "network": "Le service est injoignable. Vérifiez votre connexion et réessayez."
+      }
+    },
     "organization": {
       "loadError": "Impossible de charger les renseignements de la clinique."
     },
@@ -535,6 +703,18 @@
         "phone": "Téléphone",
         "email": "Courriel",
         "website": "Site web"
+      },
+      "logo": {
+        "title": "Logo",
+        "description": "Il figure sur les documents de la clinique (contrats, fiches, reçus).",
+        "hint": "PNG ou JPEG, {size} Mo et {side} pixels de côté au plus.",
+        "alt": "Logo de la clinique",
+        "empty": "Aucun logo.",
+        "replace": "Remplacer",
+        "remove": "Retirer",
+        "saved": "Logo enregistré.",
+        "removed": "Logo retiré.",
+        "removeConfirm": { "title": "Retirer le logo ?", "body": "Il ne figurera plus sur les documents de la clinique.", "confirm": "Retirer" }
       }
     },
     "signatory": {
@@ -543,11 +723,24 @@
         "title": "Représentant de la clinique",
         "saved": "Signataire enregistré."
       },
-      "note": "L'image de la signature s'ajoutera avec les contrats.",
       "fields": {
         "name": "Nom",
         "title": "Titre",
-        "titlePlaceholder": "Directrice"
+        "titlePlaceholder": "Directrice",
+        "email": "Courriel",
+        "emailHelp": "Pour recevoir les documents à signer au nom de la clinique."
+      },
+      "signature": {
+        "title": "Image de signature",
+        "description": "Utilisée pour la signature de la clinique sur les documents.",
+        "hint": "PNG à fond transparent recommandé (JPEG accepté), {size} Mo et {side} pixels de côté au plus.",
+        "alt": "Signature de la clinique",
+        "empty": "Aucune image de signature.",
+        "replace": "Remplacer",
+        "remove": "Retirer",
+        "saved": "Image de signature enregistrée.",
+        "removed": "Image de signature retirée.",
+        "removeConfirm": { "title": "Retirer l'image de signature ?", "body": "Les documents n'afficheront plus la signature de la clinique.", "confirm": "Retirer" }
       }
     },
     "region": {
@@ -613,15 +806,73 @@
     "users": {
       "description": "Qui utilise l'application, avec quel rôle et quelles permissions.",
       "tabs": { "users": "Utilisateurs", "roles": "Rôles" },
-      "addNote": "Pour ajouter une personne, contactez l'administrateur technique. Les invitations par courriel arriveront bientôt.",
       "tableLabel": "Utilisateurs de la clinique",
-      "columns": { "name": "Nom", "email": "Courriel", "role": "Rôle", "status": "Statut", "lastSignIn": "Dernière connexion" },
+      "columns": { "name": "Nom", "email": "Courriel", "role": "Rôle", "status": "Statut", "activity": "Activité" },
       "status": { "active": "Actif", "disabled": "Désactivé" },
       "never": "Jamais",
       "noRole": "Aucun rôle",
       "countOne": "1 utilisateur",
       "countOther": "{count} utilisateurs",
       "loadError": "La liste des utilisateurs n'a pas pu être chargée.",
+      "lastSignIn": "Dernière connexion :",
+      "invite": {
+        "button": "Inviter",
+        "title": "Inviter une personne",
+        "description": "Elle recevra un courriel avec un lien pour choisir son mot de passe. Le lien a une durée limitée : sa date d'expiration s'affiche dans la liste.",
+        "name": "Nom",
+        "email": "Courriel",
+        "role": "Rôle",
+        "rolePlaceholder": "Choisir un rôle",
+        "roleManagerLimit": "Seuls les rôles dont vous avez toutes les permissions sont proposés.",
+        "rolesLoadError": "Les rôles n'ont pas pu être chargés.",
+        "submit": "Envoyer l'invitation",
+        "submitting": "Envoi…",
+        "validation": {
+          "nameRequired": "Nom requis.",
+          "nameTooLong": "80 caractères au maximum.",
+          "nameInvalid": "Nom invalide.",
+          "emailInvalid": "Courriel invalide.",
+          "roleRequired": "Choisissez un rôle."
+        },
+        "adminConfirm": { "title": "Inviter un administrateur ?", "body": "Cette personne aura toutes les permissions.", "confirm": "Inviter" },
+        "sent": "Invitation envoyée à {email}.",
+        "sentExpires": "Invitation envoyée à {email}. Le lien expire le {date}.",
+        "createdNotSent": "Invitation créée, mais le courriel n'a pas pu être envoyé.",
+        "emailProblems": {
+          "not_configured": "L'envoi de courriels n'est pas encore configuré pour la clinique.",
+          "rate_limited": "Limite d'envoi de courriels atteinte.",
+          "provider_error": "Le service d'envoi n'a pas répondu.",
+          "invalid_request": "Le service d'envoi a refusé cette adresse. Vérifiez-la : révoquez l'invitation, puis invitez la personne à la bonne adresse.",
+          "other": "Le courriel n'a pas pu être envoyé."
+        },
+        "emailAdvice": "Utilisez « Renvoyer » dans un moment.",
+        "errors": {
+          "rateLimited": "Trop d'invitations en peu de temps.",
+          "network": "Le service est injoignable. Vérifiez votre connexion et réessayez.",
+          "unauthenticated": "Votre session a expiré. Reconnectez-vous, puis réessayez."
+        }
+      },
+      "invitations": {
+        "status": { "sent": "Invitation envoyée", "expired": "Expirée", "notDelivered": "Courriel non remis" },
+        "email": "Courriel : {status}",
+        "emailNone": "Courriel : non envoyé",
+        "expires": "Expire le {date}",
+        "expired": "Expirée le {date}",
+        "invitedBy": "Envoyée par {name}",
+        "actions": "Actions",
+        "resend": "Renvoyer",
+        "resendLabel": "Renvoyer l'invitation de {name}",
+        "resending": "Envoi…",
+        "resent": "Nouveau lien envoyé à {email}. L'ancien lien ne fonctionne plus.",
+        "resendNotSent": "Le nouveau courriel n'a pas pu être envoyé, et l'ancien lien ne fonctionne plus.",
+        "revoke": "Révoquer",
+        "revokeLabel": "Révoquer l'invitation de {name}",
+        "revokeConfirm": { "title": "Révoquer l'invitation de {name} ?", "body": "Le lien envoyé à {email} ne fonctionnera plus.", "confirm": "Révoquer" },
+        "revoked": "Invitation révoquée.",
+        "countOne": "1 invitation en attente",
+        "countOther": "{count} invitations en attente",
+        "loadError": "Les invitations en attente n'ont pas pu être chargées."
+      },
       "sheet": {
         "lastSignIn": "Dernière connexion : {date}",
         "selfBefore": "Modifiez votre compte dans",
@@ -650,10 +901,12 @@
           "label": "Compte actif",
           "reenableAdminOnly": "Seul un administrateur peut réactiver un compte.",
           "confirmTitle": "Désactiver ce compte ?",
-          "confirmBody": "{name} ne pourra plus se connecter.",
+          "confirmBody": "{name} ne pourra plus se connecter, et ses sessions ouvertes seront fermées.",
           "confirm": "Désactiver",
           "disabledSaved": "Compte désactivé.",
-          "enabledSaved": "Compte réactivé."
+          "signinNotBlocked": "Compte désactivé. Le blocage de connexion n'a pas pu être appliqué ; réessayez.",
+          "enabledSaved": "Compte réactivé.",
+          "reenableFailed": "Le compte n'a pas pu être réactivé. Réessayez."
         },
         "permissions": {
           "title": "Permissions",

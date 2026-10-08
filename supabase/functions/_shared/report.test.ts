@@ -1,4 +1,5 @@
 import { assertEquals, assertMatch } from '@std/assert'
+import { stub } from '@std/testing/mock'
 import { reportError } from './report.ts'
 import { captureConsole, withEnv } from './testing/env.ts'
 import { fakeFetch } from './testing/fake-fetch.ts'
@@ -213,18 +214,30 @@ Deno.test('reportError: a Sentry send that hangs is aborted after 3 s and falls 
     })
   }) as typeof fetch
   await withEnv({ SENTRY_DSN: DSN }, async () => {
+    // No real wait: the send's one timer is captured, checked, then fired.
+    const timers: { fire: () => void; ms: number }[] = []
+    using _set = stub(
+      globalThis,
+      'setTimeout',
+      ((fire: () => void, ms?: number) => {
+        timers.push({ fire, ms: ms ?? 0 })
+        return timers.length
+      }) as typeof setTimeout,
+    )
+    using _clear = stub(globalThis, 'clearTimeout', () => {})
     let lines: unknown[][] = []
-    const started = Date.now()
     const warnings = await captureConsole('warn', async () => {
-      lines = await captureConsole(
-        'error',
-        () => reportError({ fn: 'f', code: 'internal' }, hanging),
-      )
+      lines = await captureConsole('error', async () => {
+        const sent = reportError({ fn: 'f', code: 'internal' }, hanging)
+        while (signal === undefined) await Promise.resolve()
+        assertEquals(timers.map((t) => t.ms), [3_000])
+        assertEquals(signal?.aborted, false, 'nothing aborts before the timer')
+        timers[0].fire()
+        await sent
+      })
     })
-    const elapsed = Date.now() - started
     assertEquals(signal?.aborted, true)
     assertEquals((signal?.reason as Error).name, 'TimeoutError')
-    assertEquals(elapsed >= 2_900 && elapsed < 5_000, true)
     assertEquals(warnings.length, 1)
     assertEquals(String(warnings[0][1]), 'TimeoutError')
     assertEquals(lines, [[JSON.stringify({ fn: 'f', code: 'internal' })]])

@@ -7,6 +7,7 @@
 export const ORG_ID = '00000000-0000-4000-8000-000000000001'
 export const ADMIN_ID = '00000000-0000-4000-8000-0000000000a1'
 export const ADMIN_EMAIL = 'admin@mana.test'
+export const ADMIN_NAME = 'Christine Tremblay'
 
 /** A `get_email_context` result; `template` fields are merged, others replace. */
 export function emailContextFixture(over: {
@@ -92,6 +93,8 @@ export function accessFixture(
     user_id: ADMIN_ID,
     org_id: ORG_ID,
     email: ADMIN_EMAIL,
+    display_name: ADMIN_NAME,
+    org_name: 'Clinique MANA (local)',
     status: 'active',
     role: 'admin',
     permissions,
