@@ -39,18 +39,5 @@ export async function deleteUserPreference(userId: string, key: string): Promise
   if (error) throw error
 }
 
-/**
- * Calls `listener` with the session's user id (null once signed out) at every auth event: a
- * sign-out, a sign-in, or another tab of this browser switching the shared session. auth-js calls
- * it before React re-renders, so a writer can drop what it holds before the signed-in page unmounts.
- * Returns the unsubscribe function.
- */
-export function onSessionUserChange(listener: (userId: string | null) => void): () => void {
-  const { data } = supabase.auth.onAuthStateChange((event, session) => {
-    // The first report is not a change: when auth-js could not read the stored session it comes
-    // with none, which must not drop what the signed-in user just chose.
-    if (event === 'INITIAL_SESSION') return
-    listener(session?.user.id ?? null)
-  })
-  return () => data.subscription.unsubscribe()
-}
+// The writers drop what they hold at every auth event (`usePreferenceWriter`).
+export { onSessionUserChange } from '@/core/auth/session-events'

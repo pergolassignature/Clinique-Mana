@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { deleteUserPreference, fetchUserPreference, onSessionUserChange, saveUserPreference } from './api'
+import { deleteUserPreference, fetchUserPreference, saveUserPreference } from './api'
 
 const mocks = vi.hoisted(() => {
   const maybeSingle = vi.fn()
@@ -9,11 +9,9 @@ const mocks = vi.hoisted(() => {
   const select = vi.fn(() => chain)
   const from = vi.fn(() => ({ select }))
   const rpc = vi.fn()
-  const unsubscribe = vi.fn()
-  const onAuthStateChange = vi.fn(() => ({ data: { subscription: { unsubscribe } } }))
-  return { from, select, eq, maybeSingle, rpc, onAuthStateChange, unsubscribe }
+  return { from, select, eq, maybeSingle, rpc }
 })
-vi.mock('@/core/supabase/client', () => ({ supabase: { from: mocks.from, rpc: mocks.rpc, auth: { onAuthStateChange: mocks.onAuthStateChange } } }))
+vi.mock('@/core/supabase/client', () => ({ supabase: { from: mocks.from, rpc: mocks.rpc } }))
 
 afterEach(() => vi.clearAllMocks())
 
@@ -60,20 +58,5 @@ describe('saveUserPreference / deleteUserPreference', () => {
     mocks.rpc.mockResolvedValue({ data: null, error })
     await expect(saveUserPreference('u1', 'k', {})).rejects.toBe(error)
     await expect(deleteUserPreference('u1', 'k')).rejects.toBe(error)
-  })
-})
-
-describe('onSessionUserChange', () => {
-  it('reports the session’s user at each auth event (null once signed out), until unsubscribed', () => {
-    const listener = vi.fn()
-    const unsubscribe = onSessionUserChange(listener)
-    const [[callback]] = mocks.onAuthStateChange.mock.calls as unknown as [[(event: string, session: { user: { id: string } } | null) => void]]
-    // The first report is not a change, even without a session (auth-js could not read it).
-    callback('INITIAL_SESSION', null)
-    callback('SIGNED_IN', { user: { id: 'u2' } })
-    callback('SIGNED_OUT', null)
-    expect(listener.mock.calls).toEqual([['u2'], [null]])
-    unsubscribe()
-    expect(mocks.unsubscribe).toHaveBeenCalledOnce()
   })
 })

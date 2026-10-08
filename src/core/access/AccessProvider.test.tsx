@@ -13,6 +13,15 @@ import type { Access } from './access'
 
 const fetchMyAccess = vi.hoisted(() => vi.fn())
 vi.mock('./api', () => ({ fetchMyAccess }))
+// Auth events, as auth-js reports them before React re-renders: `authEvent(id)` plays one.
+const authListeners = vi.hoisted(() => new Set<(userId: string | null) => void>())
+vi.mock('@/core/auth/session-events', () => ({
+  onSessionUserChange: (listener: (userId: string | null) => void) => {
+    authListeners.add(listener)
+    return () => authListeners.delete(listener)
+  },
+}))
+const authEvent = (userId: string | null) => authListeners.forEach((listener) => listener(userId))
 
 const accessFor = (userId: string, org_timezone = 'America/Edmonton'): Access => ({
   user_id: userId,
@@ -131,6 +140,50 @@ describe('AccessProvider', () => {
     expect(log.filter((entry) => entry.sessionUser === 'B' && entry.accessUser === 'A')).toEqual([])
     expect(log.find((entry) => entry.sessionUser === 'B' && entry.status === 'ready')?.timezone).toBe('America/Halifax')
     expect(queryClient.getQueryData(accessKeys.me('A'))).toBeUndefined()
+  })
+
+  it('clears the cache at the auth event of another user, before any re-render, cancelling what is in flight', async () => {
+    fetchMyAccess.mockResolvedValueOnce({ access: accessFor('A') }).mockResolvedValueOnce({ access: accessFor('B') })
+    const { queryClient, log, tree } = setup()
+    const { rerender } = render(tree(sessionFor('A')))
+    await waitFor(() => expect(state()).toBe('ready:A:settled'))
+    queryClient.setQueryData(['records', 'r1'], { owner: 'A' })
+    // A focus refetch of A's page, already carrying B's token: it must never land.
+    let answer: (value: unknown) => void = () => {}
+    const inFlight = queryClient.fetchQuery({ queryKey: ['records', 'r2'], queryFn: () => new Promise((resolve) => (answer = resolve)) }).catch(() => 'cancelled')
+    const renders = log.length
+
+    authEvent('B')
+    expect(queryClient.getQueryCache().getAll()).toEqual([])
+    expect(log).toHaveLength(renders)
+    answer({ owner: 'B' })
+    expect(await inFlight).toBe('cancelled')
+    expect(queryClient.getQueryData(['records', 'r2'])).toBeUndefined()
+
+    rerender(tree(sessionFor('B')))
+    await waitFor(() => expect(state()).toBe('ready:B:settled'))
+    expect(fetchMyAccess).toHaveBeenCalledTimes(2)
+    expect(queryClient.getQueryData(accessKeys.me('A'))).toBeUndefined()
+  })
+
+  it('keeps the cache at an auth event of the same user (a token refresh)', async () => {
+    fetchMyAccess.mockResolvedValue({ access: accessFor('A') })
+    const { queryClient, tree } = setup()
+    render(tree(sessionFor('A')))
+    await waitFor(() => expect(state()).toBe('ready:A:settled'))
+    queryClient.setQueryData(['records', 'r1'], { owner: 'A' })
+    authEvent('A')
+    expect(queryClient.getQueryData(['records', 'r1'])).toEqual({ owner: 'A' })
+    expect(queryClient.getQueryData(accessKeys.me('A'))).toBeDefined()
+  })
+
+  it('clears the cache at a sign-out heard from auth', async () => {
+    fetchMyAccess.mockResolvedValue({ access: accessFor('A') })
+    const { queryClient, tree } = setup()
+    render(tree(sessionFor('A')))
+    await waitFor(() => expect(state()).toBe('ready:A:settled'))
+    authEvent(null)
+    expect(queryClient.getQueryCache().getAll()).toEqual([])
   })
 
   it('keeps can stable across a refetch that returns the same access', async () => {

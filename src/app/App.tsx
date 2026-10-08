@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/core/auth/AuthProvider'
 import { useAuth } from '@/core/auth/auth-context'
 import { AccessProvider } from '@/core/access/AccessProvider'
@@ -13,11 +13,10 @@ import { Toaster } from '@/shared/ui/sonner'
 import { lazyPage, useLazyPageReady, whenIdle } from '@/shared/lib/lazy-page'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
 import { ConfirmPage, InvitationPage } from './public-pages'
+import { createQueryClient } from './query-client'
 import { hasStoredSession, preloadRouteCode, routePage } from './route-preload'
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 2 * 60_000, gcTime: 5 * 60_000, retry: 1 } },
-})
+const queryClient = createQueryClient()
 
 /**
  * The signed-in app (shell, command palette, « Mon compte », settings, date libraries) is its own

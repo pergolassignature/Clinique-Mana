@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
  * A fresh client without retries, its wrapper, and spies on invalidation. Test-only. `appDefaults`
- * takes the app's freshness (App.tsx: data fresh for 2 min), for tests about refetching.
+ * takes the app's freshness (`src/app/query-client.ts`: data fresh for 2 min), for tests about refetching.
  */
 export function setupQueryClient({ appDefaults = false }: { appDefaults?: boolean } = {}) {
   const queryClient = new QueryClient({
