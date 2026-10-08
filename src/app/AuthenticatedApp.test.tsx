@@ -98,12 +98,15 @@ const ALL_SECTIONS = [
 ] as const
 
 /** Professionnels' list sections, after the core ones (group « Modules »). */
-const PROFESSIONALS_SECTIONS = [
+const PROFESSIONALS_LIST_SECTIONS = [
   'modules.professionals.settings.professions.title', 'modules.professionals.settings.specialties.title',
   'modules.professionals.settings.motifs.title', 'modules.professionals.settings.languages.title',
   'modules.professionals.settings.deactivationReasons.title',
 ] as const
-const PROFESSIONALS_SECTION_IDS = ['professions', 'specialties', 'motifs', 'languages', 'deactivation-reasons'].map((id) => `professionals:${id}`)
+/** Then « Rémunération » (`professionals.compensation`: the admin only, by default). */
+const PROFESSIONALS_SECTIONS = [...PROFESSIONALS_LIST_SECTIONS, 'modules.professionals.settings.compensation.title'] as const
+const PROFESSIONALS_LIST_SECTION_IDS = ['professions', 'specialties', 'motifs', 'languages', 'deactivation-reasons'].map((id) => `professionals:${id}`)
+const PROFESSIONALS_SECTION_IDS = [...PROFESSIONALS_LIST_SECTION_IDS, 'professionals:compensation']
 const PROFESSIONALS_ROUTES = ['professionals:/professionnels', 'professionals:/professionnels/:id/:onglet?']
 
 const appAt = (path: string, access: Access = adminLike, auth: Parameters<typeof renderWithContexts>[1] = {}) => (
@@ -148,7 +151,7 @@ describe('AuthenticatedApp', () => {
       readOnly('settings.sections.email'),
       readOnly('settings.sections.signing'),
       // Professionnels' lists: seen with professionals.manage, changed with professionals.settings.
-      ...PROFESSIONALS_SECTIONS.map(readOnly),
+      ...PROFESSIONALS_LIST_SECTIONS.map(readOnly),
     ])
     expect(await screen.findByRole('heading', { level: 2, name: t('settings.sections.identity') })).toBeInTheDocument()
     expect(screen.getByText(t('common.readOnlyNotice.body'))).toBeInTheDocument()
@@ -354,7 +357,9 @@ describe('AuthenticatedApp — idle prefetch', () => {
     runIdle()
     // The adjointe's clinic sections (no bank, users, modules or audit), « Tâches planifiées », « Courriels »,
     // « Signature électronique », and Professionnels.
-    expect(preloaded()).toEqual(['identity', 'tax', 'signatory', 'region', 'privacy', 'jobs', 'email', 'signing', ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES])
+    expect(preloaded()).toEqual([
+      'identity', 'tax', 'signatory', 'region', 'privacy', 'jobs', 'email', 'signing', ...PROFESSIONALS_LIST_SECTION_IDS, ...PROFESSIONALS_ROUTES,
+    ])
   })
 
   it("skips a disabled module's pages and sections", () => {

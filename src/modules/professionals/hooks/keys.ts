@@ -19,6 +19,11 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * |                                          | active rows only)                                              |
  * | a list reordered                         | `catalog()` (optimistic, rolled back on error)                 |
  * | module settings                          | none: the RPC returns the effective settings, written as is    |
+ * | a professional's margin or level (4a.18) | `compensation(id)`, `history(id)` (first page)                 |
+ * | a professional's private data, saved or  | `private(id)`, `history(id)` (first page); a reveal marks the  |
+ * | cleared (4a.18)                          | history stale only. A revealed value is never cached.          |
+ * | a clinic default range or rule (4a.18)   | `compensationTermsKeys.terms()`, every `compensation(…)`       |
+ * |                                          | (`compensations()`: what is in force follows the defaults)     |
  *
  * Labels never live in records or list rows (ids only), so a rename touches the catalogue alone.
  */
@@ -30,6 +35,12 @@ export const professionalKeys = {
   pages: (query: ProfessionalsPageQuery) => [...professionalKeys.lists(), 'pages', query] as const,
   record: (id: string) => [...professionalKeys.all, 'record', id] as const,
   history: (id: string) => [...professionalKeys.all, 'history', id] as const,
+  /** Every professional's compensation entry: a clinic default or rule changes what each one has in force. */
+  compensations: () => [...professionalKeys.all, 'compensation'] as const,
+  /** The « Rémunération » cards of a record: terms in force and dated rows (`professionals.compensation`). */
+  compensation: (id: string) => [...professionalKeys.compensations(), id] as const,
+  /** The masked private data (`professionals.private`); never a revealed value. */
+  private: (id: string) => [...professionalKeys.all, 'private', id] as const,
 }
 
 /** The nine lists (one cached payload) and their usage counts. */
@@ -42,4 +53,14 @@ export const professionalCatalogKeys = {
 export const professionalsSettingsKeys = {
   all: ['professionals-settings'] as const,
   settings: () => [...professionalsSettingsKeys.all, 'settings'] as const,
+}
+
+/**
+ * The clinic's compensation terms (Paramètres → Rémunération): the kinds (global, changed by
+ * migration: never refetched) and the dated default ranges and recognition rules.
+ */
+export const compensationTermsKeys = {
+  all: ['compensation-terms'] as const,
+  kinds: () => [...compensationTermsKeys.all, 'kinds'] as const,
+  terms: () => [...compensationTermsKeys.all, 'terms'] as const,
 }

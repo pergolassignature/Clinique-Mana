@@ -1,9 +1,10 @@
 import { t, type TranslationKey } from '@/i18n'
 import { fieldLabel } from '@/core/audit/labels'
 import { formatPhone } from '@/shared/lib/format'
-import { formatClinicDateFull, getClinicDateString } from '@/shared/lib/timezone'
+import { formatClinicDateFull, formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
 import type { HistoryEntry, ProfessionalRecord } from '../api/parse'
 import { OTHER_MOTIF_GROUP, type CatalogView } from './catalog-view'
+import { formatPercent } from './compensation'
 import { PAYER_TYPES, PROFESSIONAL_STATUSES, type AvailabilityPeriod, type PayerType, type ProfessionalStatus } from './constants'
 import { listLabel, periodsLabel, statusLabel } from './display'
 import { FEW_MOTIFS, type HeldMotif } from './motif-summary'
@@ -71,6 +72,18 @@ const PRIVATE_TABLE = 'professional_private'
 const PRIVATE_READ_FIELDS = { sin: 'sin', bank_account: 'bankAccount' } as const
 type PrivateReadField = keyof typeof PRIVATE_READ_FIELDS
 
+/**
+ * A professional's dated compensation rows (4a.17), shown only to `professionals.compensation`
+ * holders (the RPC filters them, P4-144), with their values (P4-149): « a fixé la marge
+ * Consultation à 28 % dès le 1 nov. 2026 ». Closing the previous row (on insert) or reopening it
+ * (on delete) is part of the same save and says nothing of its own.
+ */
+const DATED_TABLES = { professional_compensation: 'margin', professional_recognition: 'level' } as const
+type DatedTable = keyof typeof DATED_TABLES
+const isDatedTable = (table: string): table is DatedTable => Object.hasOwn(DATED_TABLES, table)
+/** A calendar date as stored (`yyyy-MM-dd`): shown with `formatDateOnlyShort`, never through a timezone. */
+const DATE_ONLY = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
+
 /** One line of an event's details, already in French. */
 export type HistoryLine =
   | { kind: 'change'; field: string; before: string; after: string }
@@ -103,6 +116,8 @@ export interface HistoryContext {
   catalog: CatalogView
   /** profession row id → title id: an update row names only what changed, not its title. */
   titleByRow: ReadonlyMap<string, string>
+  /** Compensation kind key → name (`compensation_kinds`), for margin rows; empty without the permission. */
+  kindNames: ReadonlyMap<string, string>
 }
 
 export const HISTORY_FILTERS = ['all', 'changes'] as const
@@ -127,7 +142,7 @@ const itemIdOf = (entry: HistoryEntry): string => entry.recordId.slice(entry.rec
 /** Rows written by one statement batch: same transaction time, same actor, same source. */
 const transactionOf = (entry: HistoryEntry): string => `${entry.createdAt}|${entry.actorId ?? ''}|${entry.source}`
 
-const unknown = (kind: 'motif' | 'clientele' | 'specialty' | 'language' | 'title' | 'reason') => t(`${H}.values.unknown.${kind}`)
+const unknown = (kind: 'motif' | 'clientele' | 'specialty' | 'language' | 'title' | 'reason' | 'kind') => t(`${H}.values.unknown.${kind}`)
 
 const isStatus = (value: unknown): value is ProfessionalStatus => typeof value === 'string' && (PROFESSIONAL_STATUSES as readonly string[]).includes(value)
 
@@ -315,6 +330,48 @@ function privateRead(entry: HistoryEntry): string {
   return t(`${H}.sentences.privateRead`, { fields: listLabel(fields) })
 }
 
+/** A compensation column's value for reading: dates date-only, percents French, kinds by name. */
+function datedValue(ctx: HistoryContext, column: string, value: unknown): string {
+  if (typeof value === 'string' && DATE_ONLY.test(value) && (column === 'effective_from' || column === 'effective_to')) return formatDateOnlyShort(value)
+  if (column === 'margin_pct' && typeof value === 'number') return formatPercent(value)
+  if (column === 'kind') return kindName(ctx, value)
+  return formatValue(ctx.catalog, column, value)
+}
+
+/** The kind's name, « (type inconnu) » for a key the tab cannot name (never the key itself). */
+const kindName = (ctx: HistoryContext, kind: unknown) => (typeof kind === 'string' && ctx.kindNames.get(kind)) || unknown('kind')
+
+/** « Note : … » (and « Séances comptées : 117 » for a level) under a new dated row. */
+function datedLines(ctx: HistoryContext, table: DatedTable, fields: Record<string, unknown>, columns: readonly string[]): HistoryLine[] {
+  return columns
+    .filter((column) => fields[column] !== null && fields[column] !== undefined && fields[column] !== '')
+    .map((column) => ({ kind: 'value', field: fieldLabel(table, column), value: datedValue(ctx, column, fields[column]) }))
+}
+
+/** A professional's margin or recognition level (P4-149: values shown, to `compensation` holders only). */
+function datedRow(ctx: HistoryContext, table: DatedTable, entry: HistoryEntry): Described | null {
+  const fields = readable(fieldsOf(entry))
+  const S = `${H}.sentences`
+  const date = datedValue(ctx, 'effective_from', fields.effective_from)
+  if (entry.action === 'update') {
+    const lines = Object.entries(fields).map(([column, value]): HistoryLine => {
+      const pair = pairOf(value)
+      const field = fieldLabel(table, column)
+      return pair ? { kind: 'change', field, before: datedValue(ctx, column, pair.before), after: datedValue(ctx, column, pair.after) } : { kind: 'value', field, value: t('audit.values.redacted') }
+    })
+    if (lines.length === 0) return null
+    const sentence = table === 'professional_compensation' ? t(`${S}.marginChanged`, { kind: kindName(ctx, fields.kind) }) : t(`${S}.levelChanged`)
+    return { kind: 'change', sentence, lines }
+  }
+  const added = entry.action === 'insert'
+  if (table === 'professional_compensation') {
+    const values = { kind: kindName(ctx, fields.kind), margin: datedValue(ctx, 'margin_pct', fields.margin_pct), date }
+    return { kind: 'change', sentence: t(added ? `${S}.marginSet` : `${S}.marginDeleted`, values), lines: added ? datedLines(ctx, table, fields, ['note']) : [] }
+  }
+  const values = { level: datedValue(ctx, 'level', fields.level), date }
+  return { kind: 'change', sentence: t(added ? `${S}.levelSet` : `${S}.levelDeleted`, values), lines: added ? datedLines(ctx, table, fields, ['sessions_counted', 'note']) : [] }
+}
+
 /** One audit row of a table that is not a set, as a sentence and its details. */
 function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null {
   if (entry.tableName === PRIVATE_TABLE) {
@@ -322,6 +379,7 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
       ? { kind: 'read', sentence: privateRead(entry), lines: [] }
       : { kind: 'change', sentence: t(`${H}.sentences.privateChanged`), lines: [] }
   }
+  if (isDatedTable(entry.tableName)) return datedRow(ctx, entry.tableName, entry)
   switch (entry.tableName) {
     case 'professionals':
       return professionalRow(ctx.catalog, entry)
@@ -469,6 +527,13 @@ const isSetTable = (table: string): table is SetTable => Object.hasOwn(SET_TABLE
  */
 export function buildHistoryEvents(rows: readonly HistoryEntry[], ctx: HistoryContext): HistoryEvent[] {
   const creations = new Set(rows.filter((r) => r.tableName === 'professionals' && r.action === 'insert').map(transactionOf))
+  // A dated row added or removed closes or reopens its neighbour in the same save (P4-145).
+  const datedWrites = new Set(rows.filter((r) => isDatedTable(r.tableName) && r.action !== 'update').map((r) => `${transactionOf(r)}|${r.tableName}`))
+  const isNeighbourUpdate = (entry: HistoryEntry) =>
+    isDatedTable(entry.tableName) &&
+    entry.action === 'update' &&
+    datedWrites.has(`${transactionOf(entry)}|${entry.tableName}`) &&
+    Object.keys(readable(fieldsOf(entry))).every((column) => column === 'effective_to')
   const units: (HistoryEntry | { first: HistoryEntry; batch: SetBatch })[] = []
   const batches = new Map<string, SetBatch>()
   for (const entry of rows) {
@@ -490,6 +555,7 @@ export function buildHistoryEvents(rows: readonly HistoryEntry[], ctx: HistoryCo
       continue
     }
     if (Object.hasOwn(PROFILE_TABLES, entry.tableName) && entry.action === 'insert' && creations.has(transactionOf(entry))) continue
+    if (isNeighbourUpdate(entry)) continue
     units.push(entry)
   }
 

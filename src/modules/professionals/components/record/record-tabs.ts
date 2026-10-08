@@ -13,13 +13,42 @@ export interface RecordTabDef {
   panel: ComponentType & Partial<Preloadable>
   /** Beyond `professionals.view`, which the route already requires. */
   visible: (can: Can) => boolean
-  /** Starts loading the tab's own data with its chunk (tab hover or focus), for a tab that fetches more than the record. */
-  prefetch?: (queryClient: QueryClient, id: string) => Promise<void>
+  /**
+   * Starts loading the tab's own data with its chunk (tab hover or focus), for a tab that fetches
+   * more than the record; `can` keeps it to what this user may read.
+   */
+  prefetch?: (queryClient: QueryClient, id: string, can: Can) => Promise<void>
 }
 
 const always = () => true
-/** One lazyPage per tab, so each later task swaps its own line for its real panel. */
-const inPreparation = () => lazyPage(() => import('./tabs/TabInPreparation'), 'TabInPreparation')
+
+// The compensation hooks are imported on demand: they ship in the tabs' chunks, not the page's.
+const compensationHooks = () => import('../../hooks/use-compensation')
+
+/**
+ * « Rémunération et fiscalité »: the terms (`professionals.compensation`), the masks and the SIN
+ * setting (`professionals.private`), each only for whoever may read it. Never a reveal.
+ */
+async function prefetchCompensationTab(queryClient: QueryClient, id: string, can: Can): Promise<void> {
+  const [compensation, privateData, settings] = await Promise.all([
+    compensationHooks(),
+    import('../../hooks/use-private'),
+    import('../../hooks/use-professionals-settings'),
+  ])
+  await Promise.all([
+    can('professionals.compensation') && compensation.prefetchProfessionalCompensation(queryClient, id),
+    can('professionals.private') && privateData.prefetchProfessionalPrivate(queryClient, id),
+    can('professionals.private') && settings.prefetchProfessionalsSettings(queryClient),
+  ])
+}
+
+/** Historique: its first page, and the compensation kinds that name margin rows (P4-161). */
+async function prefetchHistoryTab(queryClient: QueryClient, id: string, can: Can): Promise<void> {
+  await Promise.all([
+    prefetchProfessionalHistory(queryClient, id),
+    can('professionals.compensation') && compensationHooks().then((hooks) => hooks.prefetchCompensationKinds(queryClient)),
+  ])
+}
 
 /**
  * The record's tabs, in P4-13's order. Aperçu, the landing tab of nearly every visit, ships in the
@@ -31,8 +60,13 @@ export const RECORD_TAB_DEFS: readonly RecordTabDef[] = [
   { tab: 'jumelage', panel: lazyPage(() => import('./tabs/MatchingTab'), 'MatchingTab'), visible: always },
   { tab: 'profil-public', panel: lazyPage(() => import('./tabs/PublicProfileTab'), 'PublicProfileTab'), visible: always },
   { tab: 'identite', panel: lazyPage(() => import('./tabs/IdentityTab'), 'IdentityTab'), visible: always },
-  { tab: 'remuneration', panel: inPreparation(), visible: (can) => can('professionals.compensation') || can('professionals.private') }, // 4a.18
-  { tab: 'historique', panel: lazyPage(() => import('./tabs/HistoryTab'), 'HistoryTab'), visible: always, prefetch: prefetchProfessionalHistory },
+  {
+    tab: 'remuneration',
+    panel: lazyPage(() => import('./tabs/CompensationTab'), 'CompensationTab'),
+    visible: (can) => can('professionals.compensation') || can('professionals.private'),
+    prefetch: prefetchCompensationTab,
+  },
+  { tab: 'historique', panel: lazyPage(() => import('./tabs/HistoryTab'), 'HistoryTab'), visible: always, prefetch: prefetchHistoryTab },
 ]
 
 /** The tabs this user sees; a hidden tab is neither rendered nor reachable by its URL. */

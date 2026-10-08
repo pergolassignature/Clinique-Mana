@@ -44,21 +44,30 @@ describe('professionalsManifest', () => {
     expect(matchPath(`/${record.path}`, '/professionnels')).toBeNull()
   })
 
-  it('declares the five list sections of 4a.6–4a.9 in the Modules group', () => {
+  it('declares the five list sections of 4a.6–4a.9, then « Rémunération » (4a.18), in the Modules group', () => {
     expect(sections.map((s) => [s.id, s.path])).toEqual([
       ['professions', 'professions'],
       ['specialties', 'specialites'],
       ['motifs', 'motifs'],
       ['languages', 'langues'],
       ['deactivation-reasons', 'raisons-desactivation'],
+      ['compensation', 'remuneration'],
     ])
     for (const s of sections) {
       expect(s.group).toBe('modules')
+      expect(t(s.labelKey)).not.toBe(s.labelKey)
+    }
+    for (const s of sections.slice(0, 5)) {
       // Seen by whoever manages the records or the lists; changed only with professionals.settings.
       expect(s.permission).toEqual(['professionals.manage', 'professionals.settings'])
       expect(s.editPermission).toBe('professionals.settings')
-      expect(t(s.labelKey)).not.toBe(s.labelKey)
     }
+  })
+
+  it('opens « Rémunération » to compensation holders, who may also change it', () => {
+    const compensation = sections.find((s) => s.id === 'compensation')
+    expect(compensation?.permission).toBe('professionals.compensation')
+    expect(compensation?.editPermission).toBeUndefined()
   })
 
   it('has section ids and paths unique against the core sections', () => {

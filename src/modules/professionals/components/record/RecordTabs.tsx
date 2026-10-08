@@ -2,6 +2,7 @@ import { createElement, Suspense, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
 import { Loading } from '@/shared/components/LoadState'
 import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { useGuardedTabs } from '@/shared/lib/unsaved-changes-context'
@@ -28,6 +29,7 @@ interface RecordTabsProps {
 export function RecordTabs({ id, current, tabs }: RecordTabsProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { can } = useAccess()
   const isTab = useCallback((value: string): value is RecordTab => tabs.some((def) => def.tab === value), [tabs])
   const { onValueChange, triggerProps } = useGuardedTabs(current.tab, isTab, (tab) => navigate(recordPath(id, tab), { replace: true }))
 
@@ -41,7 +43,7 @@ export function RecordTabs({ id, current, tabs }: RecordTabsProps) {
               // Opening the tab loads it again and reports a real failure.
             })
             // A prefetch never throws; fresh data is not fetched again.
-            void prefetch?.(queryClient, id)
+            void prefetch?.(queryClient, id, can)
           }
           return (
             <TabsTrigger

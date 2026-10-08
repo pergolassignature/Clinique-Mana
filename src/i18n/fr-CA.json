@@ -1256,7 +1256,126 @@
           "remuneration": "Rémunération et fiscalité",
           "historique": "Historique"
         },
-        "tabInPreparation": "Cet onglet est en préparation. Il sera disponible ici sous peu.",
+        "compensation": {
+          "privacyNote": "Chaque affichage est inscrit à l'historique du dossier.",
+          "updated": "Renseignements modifiés le {date} par {name}.",
+          "updatedNoName": "Renseignements modifiés le {date}.",
+          "loadError": "Les conditions de rémunération n'ont pas pu être chargées.",
+          "privateLoadError": "Les renseignements fiscaux et bancaires n'ont pas pu être chargés.",
+          "stale": "Ces renseignements ont été modifiés entre-temps. Vérifiez-les, puis enregistrez de nouveau.",
+          "margin": {
+            "title": "Marge clinique",
+            "description": "La part de la clinique, par type de service. Sans marge propre au professionnel, la fourchette par défaut s'applique.",
+            "type": "Type",
+            "current": "Marge en vigueur",
+            "since": "Depuis",
+            "actions": "Actions",
+            "none": "Aucune marge",
+            "sinceLine": "Depuis le {date}",
+            "outside": "Hors de la fourchette par défaut ({range}).",
+            "upcoming": "Prévue : {margin} dès le {date}",
+            "historyLabel": "Historique de la marge {kind}",
+            "add": "Nouvelle marge",
+            "deleteLabel": "Supprimer la marge {kind} de {margin} dès le {date}",
+            "deleteTitle": "Supprimer cette marge ?",
+            "deleteBody": "La marge {kind} de {margin} dès le {date} sera supprimée. La marge précédente, ou la fourchette par défaut, s'appliquera de nouveau.",
+            "deleted": "Marge supprimée.",
+            "dialog": {
+              "title": "Nouvelle marge",
+              "description": "La marge s'applique à partir de la date choisie.",
+              "margin": "Marge (%)",
+              "fromHelp": "La marge actuelle de ce type se terminera la veille de cette date."
+            },
+            "saved": "Marge enregistrée.",
+            "savedOutside": "Marge enregistrée. Elle est hors de la fourchette par défaut."
+          },
+          "recognition": {
+            "title": "Programme de reconnaissance",
+            "description": "Le niveau atteint par le professionnel, inscrit à la main.",
+            "notComputed": "Calcul automatique à venir. Les montants ne sont pas encore calculés.",
+            "capUnconfirmed": "Interprétation du plafond de {cap} à confirmer.",
+            "level": "Niveau",
+            "sessions": "Séances comptées",
+            "since": "Depuis",
+            "none": "Aucun niveau inscrit",
+            "noneBody": "Inscrivez le niveau atteint avec « Mettre à jour ».",
+            "rule": "Règle en vigueur : palier de {step} séances, {bonus50} par séance de 50 min, {bonus30} par séance de 30 min, plafond de {cap}.",
+            "upcoming": "Prévu : niveau {level} dès le {date}",
+            "historyLabel": "Historique des niveaux",
+            "historyRow": "Niveau {level} · {sessions} séances",
+            "update": "Mettre à jour",
+            "deleteLabel": "Supprimer le niveau {level} dès le {date}",
+            "deleteTitle": "Supprimer ce niveau ?",
+            "deleteBody": "Le niveau {level} inscrit dès le {date} sera supprimé. Le niveau précédent s'appliquera de nouveau.",
+            "deleted": "Niveau supprimé.",
+            "dialog": {
+              "title": "Mettre à jour le niveau",
+              "description": "Le nouveau niveau s'applique à partir de la date choisie.",
+              "fromHelp": "Le niveau actuel se terminera la veille de cette date."
+            },
+            "saved": "Niveau enregistré."
+          },
+          "taxNumbers": {
+            "title": "Fiscalité",
+            "description": "Les numéros inscrits sur les factures du professionnel. Laissez un champ vide pour le retirer.",
+            "businessNumber": "Numéro d'entreprise (NE)",
+            "businessNumberHelp": "9 chiffres",
+            "gst": "Numéro de TPS",
+            "gstHelp": "Exemple : 123456789 RT 0001",
+            "qst": "Numéro de TVQ",
+            "qstHelp": "Exemple : 1234567890 TQ 0001",
+            "saved": "Numéros enregistrés."
+          },
+          "sin": {
+            "title": "Numéro d'assurance sociale (NAS)",
+            "label": "NAS",
+            "masked": "NAS masqué, se terminant par {last3}",
+            "notCollected": "Non recueilli",
+            "notCollectedHelp": "La collecte du NAS est désactivée.",
+            "collectionOff": "La collecte du NAS est désactivée : le NAS enregistré peut être affiché ou retiré, mais pas remplacé.",
+            "none": "Aucun NAS enregistré.",
+            "add": "Saisir le NAS",
+            "replace": "Remplacer",
+            "replaceLabel": "Remplacer le NAS",
+            "remove": "Retirer",
+            "removeLabel": "Retirer le NAS",
+            "removeTitle": "Retirer le NAS ?",
+            "removeBody": "Le NAS se terminant par {last3} sera retiré du dossier.",
+            "removeBodyOff": "Le NAS se terminant par {last3} sera retiré du dossier. La collecte du NAS étant désactivée, il ne pourra pas être saisi de nouveau.",
+            "removing": "Retrait…",
+            "removed": "NAS retiré.",
+            "show": "Afficher",
+            "showLabel": "Afficher le NAS",
+            "revealing": "Affichage…",
+            "revealingLabel": "Affichage du NAS…",
+            "hide": "Masquer",
+            "hideLabel": "Masquer le NAS",
+            "dialog": {
+              "addTitle": "Saisir le NAS",
+              "replaceTitle": "Remplacer le NAS",
+              "description": "Le NAS est chiffré dès l'enregistrement. Il ne sera ensuite affiché qu'à la demande.",
+              "field": "NAS",
+              "help": "9 chiffres, avec ou sans espaces."
+            },
+            "saved": "NAS enregistré."
+          },
+          "bank": {
+            "title": "Banque",
+            "description": "Le compte où le professionnel reçoit ses paiements.",
+            "noAccount": "Aucun numéro de compte",
+            "empty": {
+              "title": "Aucune coordonnée bancaire",
+              "body": "Ajoutez le compte où le professionnel reçoit ses paiements.",
+              "add": "Ajouter"
+            },
+            "removeAccount": "Retirer le numéro de compte",
+            "removeTitle": "Retirer le numéro de compte ?",
+            "removeBody": "Le numéro de compte se terminant par {last4} sera retiré. L'institution et le transit restent.",
+            "removing": "Retrait…",
+            "removed": "Numéro de compte retiré.",
+            "saved": "Coordonnées bancaires enregistrées."
+          }
+        },
         "header": {
           "languages": "Langues :",
           "notAccepting": "N'accepte pas de nouveaux clients"
@@ -1538,7 +1657,13 @@
           "privateRead": "a affiché {fields}",
           "privateReadOther": "a consulté des données privées",
           "other": "a modifié une autre section du dossier",
-          "otherRead": "a consulté une section du dossier"
+          "otherRead": "a consulté une section du dossier",
+          "marginSet": "a fixé la marge {kind} à {margin} dès le {date}",
+          "marginDeleted": "a supprimé la marge {kind} de {margin} (dès le {date})",
+          "marginChanged": "a modifié la marge {kind}",
+          "levelSet": "a fixé le niveau de reconnaissance à {level} dès le {date}",
+          "levelDeleted": "a supprimé le niveau de reconnaissance {level} (dès le {date})",
+          "levelChanged": "a modifié le niveau de reconnaissance"
         },
         "sets": {
           "professional_motifs": {
@@ -1624,7 +1749,8 @@
             "specialty": "Approche archivée",
             "language": "Langue archivée",
             "title": "Titre archivé",
-            "reason": "Raison archivée"
+            "reason": "Raison archivée",
+            "kind": "(type inconnu)"
           },
           "hidden": "(valeur non affichable)",
           "payers": {
@@ -1776,6 +1902,11 @@
         "noteMax": "La note compte au plus 500 caractères.",
         "overrideReason": "Indiquez la raison (au moins 5 caractères).",
         "overrideReasonMax": "La raison compte au plus 500 caractères.",
+        "businessNumber": "Le numéro d'entreprise (NE) compte 9 chiffres.",
+        "gstNumber": "Numéro de TPS : format attendu 123456789 RT 0001.",
+        "qstNumber": "Numéro de TVQ : format attendu 1234567890 TQ 0001.",
+        "sinRequired": "Saisissez le NAS au complet.",
+        "sinInvalid": "NAS invalide : il compte 9 chiffres, et le dernier doit correspondre aux huit autres.",
         "nameRequired": "Le nom est obligatoire.",
         "nameTooLong": "Le nom ne peut pas dépasser 120 caractères.",
         "acronym": "Sigle : 2 à 10 lettres majuscules.",
@@ -1802,6 +1933,46 @@
           "motifs": "Un motif porte déjà ce nom (il est peut-être archivé).",
           "languages": "Une langue porte déjà ce nom (elle est peut-être archivée).",
           "deactivation_reasons": "Une raison porte déjà ce nom (elle est peut-être archivée)."
+        }
+      },
+      "compensation": {
+        "statuses": {
+          "current": "En vigueur",
+          "upcoming": "À venir"
+        },
+        "period": {
+          "since": "Dès le {from}",
+          "between": "Du {from} au {to}",
+          "until": "Jusqu'au {date}"
+        },
+        "byDefault": "{range} (par défaut)",
+        "delete": "Supprimer",
+        "deleting": "Suppression…",
+        "history": "Historique",
+        "from": "À partir du",
+        "note": "Note",
+        "noteHelp": "Facultative, sur une ligne.",
+        "kind": "Type",
+        "add": "Ajouter",
+        "adding": "Ajout…",
+        "backdated": "Cette date est passée : la nouvelle valeur s'appliquera aussi depuis cette date.",
+        "validation": {
+          "date": "Date requise.",
+          "dateBounds": "La date doit être comprise entre le 1 janv. 2000 et le 31 déc. 2100.",
+          "afterOpen": {
+            "margin": "La nouvelle marge doit commencer après le {date}.",
+            "range": "La nouvelle fourchette doit commencer après le {date}.",
+            "level": "Le nouveau niveau doit commencer après le {date}.",
+            "rule": "La nouvelle règle doit commencer après le {date}."
+          },
+          "kind": "Choisissez un type.",
+          "percent": "Indiquez un pourcentage entre 0 et 100.",
+          "minMax": "La marge minimale ne peut pas dépasser la marge maximale.",
+          "level": "Le niveau est un nombre entier entre 0 et 1 000.",
+          "sessions": "Le nombre de séances est un nombre entier entre 0 et 100 000.",
+          "step": "Le palier est un nombre entier de 1 à 1 000 séances.",
+          "bonus": "Le boni est compris entre 0 et 100 $.",
+          "cap": "Le plafond est compris entre 0 et 100 %."
         }
       },
       "settings": {
@@ -1963,6 +2134,77 @@
           "no": "Non",
           "system": "Raison par défaut : ne peut pas être archivée."
         },
+        "compensation": {
+          "title": "Rémunération",
+          "description": "Les conditions communes à tous les professionnels : les marges par défaut et le programme de reconnaissance. La marge et le niveau de chacun s'inscrivent dans son dossier.",
+          "loadError": "Les conditions de rémunération n'ont pas pu être chargées.",
+          "defaults": {
+            "title": "Marges par défaut",
+            "description": "La fourchette qui s'applique à un professionnel sans marge propre, par type de service.",
+            "range": "Fourchette",
+            "from": "Du",
+            "to": "Au",
+            "status": "Statut",
+            "actions": "Actions",
+            "empty": "Aucune fourchette enregistrée.",
+            "add": "Nouvelle fourchette",
+            "deleteLabel": "Supprimer la fourchette {kind} de {range} dès le {date}",
+            "deleteTitle": "Supprimer cette fourchette ?",
+            "deleteBody": "La fourchette {kind} de {range} dès le {date} sera supprimée. La fourchette précédente s'appliquera de nouveau.",
+            "deleted": "Fourchette supprimée.",
+            "dialog": {
+              "title": "Nouvelle fourchette",
+              "description": "La fourchette s'applique à partir de la date choisie.",
+              "min": "Marge minimale (%)",
+              "max": "Marge maximale (%)",
+              "fromHelp": "La fourchette actuelle de ce type se terminera la veille de cette date."
+            },
+            "saved": "Fourchette enregistrée."
+          },
+          "rules": {
+            "title": "Programme de reconnaissance",
+            "description": "Les règles du programme, datées. Les montants ne sont pas encore calculés : les règles sont inscrites telles que le contrat les donne.",
+            "rule": "Règle",
+            "from": "Du",
+            "status": "Statut",
+            "actions": "Actions",
+            "summary": "Palier de {step} séances · {bonus50} par séance de 50 min · {bonus30} par séance de 30 min",
+            "cap": "Plafond de {cap} · base : {basis}",
+            "bases": {
+              "unconfirmed": "À confirmer",
+              "margin_reduction": "Réduction de la marge",
+              "fee_increase": "Augmentation des honoraires"
+            },
+            "empty": "Aucune règle enregistrée.",
+            "add": "Nouvelle règle",
+            "deleteLabel": "Supprimer la règle dès le {date}",
+            "deleteTitle": "Supprimer cette règle ?",
+            "deleteBody": "La règle dès le {date} sera supprimée. La règle précédente s'appliquera de nouveau.",
+            "deleted": "Règle supprimée.",
+            "dialog": {
+              "title": "Nouvelle règle",
+              "description": "La règle s'applique à partir de la date choisie.",
+              "step": "Palier (séances)",
+              "bonus50": "Boni par séance de 50 min ($)",
+              "bonus30": "Boni par séance de 30 min ($)",
+              "cap": "Plafond (%)",
+              "basis": "Base du plafond",
+              "basisHelp": "Comment lire « jusqu'à concurrence de … » dans le contrat.",
+              "fromHelp": "La règle actuelle se terminera la veille de cette date."
+            },
+            "saved": "Règle enregistrée."
+          },
+          "sin": {
+            "title": "Renseignements fiscaux",
+            "description": "Ce que le dossier des professionnels peut recueillir.",
+            "collect": "Recueillir le NAS",
+            "collectHelp": "Permet de saisir le NAS dans le dossier des professionnels. Désactivée, la collecte n'efface rien : un NAS enregistré reste affichable et peut être retiré.",
+            "confirmTitle": "Activer la collecte du NAS ?",
+            "confirmBody": "Activez seulement si votre comptable confirme que le NAS est requis (T4A / relevé).",
+            "confirm": "Activer",
+            "confirming": "Activation…"
+          }
+        },
         "list": {
           "loadError": "La liste n'a pas pu être chargée.",
           "table": "Tableau « {list} »",
@@ -2076,7 +2318,12 @@
       "professional_specialties": "Approches des professionnels",
       "professional_motifs": "Motifs des professionnels",
       "professional_languages": "Langues des professionnels",
-      "professional_payer_numbers": "Numéros de payeurs des professionnels"
+      "professional_payer_numbers": "Numéros de payeurs des professionnels",
+      "professional_private": "Données privées des professionnels",
+      "professional_compensation": "Marges des professionnels",
+      "professional_recognition": "Niveaux de reconnaissance des professionnels",
+      "compensation_defaults": "Marges par défaut",
+      "recognition_rules": "Règles du programme de reconnaissance"
     },
     "commonFields": {
       "id": "Identifiant",
@@ -2322,6 +2569,52 @@
         "professional_id": "Professionnel",
         "payer_type": "Payeur",
         "number": "Numéro"
+      },
+      "professional_private": {
+        "professional_id": "Professionnel",
+        "sin": "NAS",
+        "sin_last3": "NAS (3 derniers chiffres)",
+        "business_number": "Numéro d'entreprise (NE)",
+        "gst_number": "Numéro de TPS",
+        "qst_number": "Numéro de TVQ",
+        "bank_institution": "Numéro d'institution",
+        "bank_transit": "Numéro de transit",
+        "bank_account": "Numéro de compte",
+        "bank_account_last4": "Numéro de compte (4 derniers chiffres)",
+        "key_version": "Version de la clé de chiffrement"
+      },
+      "professional_compensation": {
+        "professional_id": "Professionnel",
+        "kind": "Type",
+        "margin_pct": "Marge (%)",
+        "effective_from": "En vigueur du",
+        "effective_to": "Fin (exclue)",
+        "note": "Note"
+      },
+      "professional_recognition": {
+        "professional_id": "Professionnel",
+        "level": "Niveau",
+        "sessions_counted": "Séances comptées",
+        "effective_from": "En vigueur du",
+        "effective_to": "Fin (exclue)",
+        "note": "Note"
+      },
+      "compensation_defaults": {
+        "kind": "Type",
+        "margin_min_pct": "Marge minimale (%)",
+        "margin_max_pct": "Marge maximale (%)",
+        "effective_from": "En vigueur du",
+        "effective_to": "Fin (exclue)"
+      },
+      "recognition_rules": {
+        "step_sessions": "Palier (séances)",
+        "bonus_per_50min_cents": "Boni par séance de 50 min (¢)",
+        "bonus_per_30min_cents": "Boni par séance de 30 min (¢)",
+        "cap_pct": "Plafond (%)",
+        "cap_basis": "Base du plafond",
+        "effective_from": "En vigueur du",
+        "effective_to": "Fin (exclue)",
+        "note": "Note"
       }
     },
     "actions": {

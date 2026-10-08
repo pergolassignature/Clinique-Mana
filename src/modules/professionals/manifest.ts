@@ -1,4 +1,4 @@
-import { Compass, GraduationCap, Languages, Tags, UserMinus, Users } from 'lucide-react'
+import { Compass, GraduationCap, HandCoins, Languages, Tags, UserMinus, Users } from 'lucide-react'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
@@ -69,6 +69,17 @@ export const professionalsManifest: ModuleManifest = {
       icon: UserMinus,
       ...LIST_SECTION,
       component: lazyPage(() => import('./pages/settings/DeactivationReasonsSettingsPage'), 'DeactivationReasonsSettingsPage'),
+    },
+    {
+      // The clinic's compensation terms: seen and changed with `professionals.compensation` (no
+      // read-only mode). « Recueillir le NAS » inside also needs `.private` and `.settings` (P4-160).
+      id: 'compensation',
+      path: 'remuneration',
+      labelKey: 'modules.professionals.settings.compensation.title',
+      icon: HandCoins,
+      permission: 'professionals.compensation',
+      group: 'modules',
+      component: lazyPage(() => import('./pages/settings/CompensationSettingsPage'), 'CompensationSettingsPage'),
     },
   ],
 }

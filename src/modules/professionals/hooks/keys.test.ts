@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { professionalCatalogKeys, professionalKeys, professionalsSettingsKeys } from './keys'
+import { compensationTermsKeys, professionalCatalogKeys, professionalKeys, professionalsSettingsKeys } from './keys'
 
 const startsWith = (key: readonly unknown[], prefix: readonly unknown[]) => expect(key.slice(0, prefix.length)).toEqual(prefix)
 
@@ -24,5 +24,14 @@ describe('query keys', () => {
     startsWith(professionalsSettingsKeys.settings(), professionalsSettingsKeys.all)
     expect(professionalCatalogKeys.all[0]).not.toBe(professionalKeys.all[0])
     expect(professionalsSettingsKeys.all[0]).not.toBe(professionalKeys.all[0])
+  })
+
+  it('nest every compensation entry under compensations(), apart from the private data (4a.18)', () => {
+    startsWith(professionalKeys.compensation('p1'), professionalKeys.compensations())
+    startsWith(professionalKeys.compensations(), professionalKeys.all)
+    expect(professionalKeys.private('p1').slice(0, 2)).not.toEqual(professionalKeys.compensations())
+    startsWith(compensationTermsKeys.kinds(), compensationTermsKeys.all)
+    startsWith(compensationTermsKeys.terms(), compensationTermsKeys.all)
+    expect(compensationTermsKeys.all[0]).not.toBe(professionalKeys.all[0])
   })
 })

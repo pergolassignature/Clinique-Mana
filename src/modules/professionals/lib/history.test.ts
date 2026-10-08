@@ -42,7 +42,8 @@ function row(tableName: string, action: HistoryEntry['action'], changedFields: H
 const junction = (table: string, column: string, id: string, action: HistoryEntry['action'] = 'insert', extra: Record<string, unknown> = {}) =>
   row(table, action, { org_id: ORG, professional_id: P, [column]: id, created_at: TX, ...extra }, { recordId: `${P}:${id}` })
 
-const ctx = (over: Partial<HistoryContext> = {}): HistoryContext => ({ catalog: CATALOG_VIEW, titleByRow: new Map(), ...over })
+const KINDS = new Map([['consultation', 'Consultation']])
+const ctx = (over: Partial<HistoryContext> = {}): HistoryContext => ({ catalog: CATALOG_VIEW, titleByRow: new Map(), kindNames: KINDS, ...over })
 const events = (rows: HistoryEntry[], context = ctx()) => buildHistoryEvents(rows, context)
 const only = (rows: HistoryEntry[], context = ctx()): HistoryEvent => {
   const list = events(rows, context)
@@ -401,6 +402,63 @@ describe('history — private data, actors, ids', () => {
     ])
     expect(printed([event])).not.toMatch(UUID)
     expect(printed([event])).not.toContain('[redacted]')
+  })
+})
+
+describe('history — compensation (4a.18)', () => {
+  const M1 = '00000000-0000-4000-8000-000000003001'
+  const M0 = '00000000-0000-4000-8000-000000003002'
+  const margin = (action: HistoryEntry['action'], fields: HistoryEntry['changedFields'], id = M1) =>
+    row('professional_compensation', action, fields, { recordId: `${P}:${id}` })
+  const level = (action: HistoryEntry['action'], fields: HistoryEntry['changedFields'], id = M1) =>
+    row('professional_recognition', action, fields, { recordId: `${P}:${id}` })
+  const NBSP = '\u00A0'
+
+  it('reads a new margin with its kind, value and date-only start; the closed one folded into it', () => {
+    const event = only([
+      margin('update', { effective_to: { before: null, after: '2026-11-01' } }, M0),
+      margin('insert', { id: M1, org_id: ORG, professional_id: P, kind: 'consultation', margin_pct: 28, effective_from: '2026-11-01', effective_to: null, note: 'Entente 2026', created_by: IDS.admin }),
+    ])
+    expect(event.sentence).toBe(`a fixé la marge Consultation à 28${NBSP}% dès le 1 nov. 2026`)
+    expect(event.lines).toEqual([{ kind: 'value', field: t('audit.fields.professional_compensation.note'), value: 'Entente 2026' }])
+  })
+
+  it('reads a deleted margin, the reopened one folded into it', () => {
+    const event = only([
+      margin('delete', { id: M1, kind: 'consultation', margin_pct: 27.5, effective_from: '2026-11-01', effective_to: null }),
+      margin('update', { effective_to: { before: '2026-11-01', after: null } }, M0),
+    ])
+    expect(event.sentence).toBe(`a supprimé la marge Consultation de 27,5${NBSP}% (dès le 1 nov. 2026)`)
+  })
+
+  it('keeps an end-date change alone (written outside the app) as a change, with readable values', () => {
+    const event = only([margin('update', { effective_to: { before: null, after: '2027-01-01' } }, M0)])
+    expect(event.sentence).toBe('a modifié la marge (type inconnu)')
+    expect(event.lines).toEqual([{ kind: 'change', field: t('audit.fields.professional_compensation.effective_to'), before: t('audit.values.empty'), after: '1 janv. 2027' }])
+  })
+
+  it('reads a kind the tab cannot name without its key', () => {
+    const event = only([margin('insert', { kind: 'secret_kind', margin_pct: 10, effective_from: '2026-11-01' })], ctx({ kindNames: new Map() }))
+    expect(event.sentence).toBe(`a fixé la marge (type inconnu) à 10${NBSP}% dès le 1 nov. 2026`)
+    expect(printed([event])).not.toContain('secret_kind')
+  })
+
+  it('reads a recognition level, its sessions and note in the details', () => {
+    const set = only([level('insert', { level: 2, sessions_counted: 117, effective_from: '2026-10-01', note: 'Compté dans GOrendezvous' })])
+    expect(set.sentence).toBe('a fixé le niveau de reconnaissance à 2 dès le 1 oct. 2026')
+    expect(set.lines).toEqual([
+      { kind: 'value', field: t('audit.fields.professional_recognition.sessions_counted'), value: '117' },
+      { kind: 'value', field: t('audit.fields.professional_recognition.note'), value: 'Compté dans GOrendezvous' },
+    ])
+    expect(only([level('delete', { level: 2, sessions_counted: 117, effective_from: '2026-10-01' })]).sentence).toBe(
+      'a supprimé le niveau de reconnaissance 2 (dès le 1 oct. 2026)',
+    )
+  })
+
+  it('prints no id and keeps both kinds of rows under « Modifications »', () => {
+    const list = events([margin('insert', { id: M1, org_id: ORG, professional_id: P, kind: 'consultation', margin_pct: 28, effective_from: '2026-11-01', created_by: IDS.admin })])
+    expect(printed(list)).not.toMatch(UUID)
+    expect(filterHistory(list, 'changes')).toHaveLength(1)
   })
 })
 

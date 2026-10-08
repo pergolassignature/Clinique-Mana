@@ -30,6 +30,18 @@ const COLUMNS = {
   professional_motifs: ['org_id', 'professional_id', 'motif_id', 'created_at'],
   professional_languages: ['org_id', 'professional_id', 'language_id', 'created_at'],
   professional_payer_numbers: ['org_id', 'professional_id', 'payer_type', 'number', 'created_at', 'updated_at'],
+  // 4a.17 (labels added by 4a.18): the private data (every value redacted in the log) and the four dated compensation tables.
+  professional_private: [
+    'professional_id', 'org_id', 'sin', 'sin_last3', 'business_number', 'gst_number', 'qst_number', 'bank_institution', 'bank_transit',
+    'bank_account', 'bank_account_last4', 'key_version', 'created_at', 'updated_at', 'updated_by',
+  ],
+  compensation_defaults: ['id', 'org_id', 'kind', 'margin_min_pct', 'margin_max_pct', 'effective_from', 'effective_to', 'created_at', 'created_by'],
+  professional_compensation: ['id', 'org_id', 'professional_id', 'kind', 'margin_pct', 'effective_from', 'effective_to', 'note', 'created_at', 'created_by'],
+  recognition_rules: [
+    'id', 'org_id', 'effective_from', 'effective_to', 'step_sessions', 'bonus_per_50min_cents', 'bonus_per_30min_cents', 'cap_pct', 'cap_basis',
+    'note', 'created_at', 'created_by',
+  ],
+  professional_recognition: ['id', 'org_id', 'professional_id', 'level', 'sessions_counted', 'effective_from', 'effective_to', 'note', 'created_at', 'created_by'],
 } as const
 
 type ModuleTable = keyof typeof COLUMNS
