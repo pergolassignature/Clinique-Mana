@@ -215,7 +215,7 @@ All forms must follow proper keyboard navigation patterns for professional SaaS 
 ### Tab Order Rules
 
 1. **Close buttons (X) should NOT be in the tab order** - Users expect Tab to navigate form fields, not UI chrome
-2. **Section navigation tabs should NOT be in the tab order** - These are clicked with mouse, not keyboard-navigated
+2. **Section navigation tabs inside a form or sheet should NOT be in the tab order** - These are clicked with mouse, not keyboard-navigated. **Page-level views** (e.g. « Utilisateurs / Rôles ») are different: they must be reachable by keyboard. Use real tabs (Radix Tabs: one tab stop, arrow keys switch), never `tabIndex={-1}` (decision #35).
 3. **Form fields should flow naturally** - Prénom → Nom → Sexe → Langue → etc.
 
 ### Implementation
