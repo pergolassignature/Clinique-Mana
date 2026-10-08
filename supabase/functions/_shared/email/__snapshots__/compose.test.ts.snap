@@ -1,0 +1,42 @@
+export const snapshot = {};
+
+snapshot[`composeEmail: staff-invite HTML snapshot (layout regressions) 1`] = `
+\`<!doctype html>
+<html lang="fr-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+</head>
+<body style="margin:0;padding:0;background-color:#F4F4F5;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:#1F1F20">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">Bonjour Ana Gagnon,</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4F4F5">
+<tr><td align="center" style="padding:32px 16px">
+<!--[if mso]><table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px">
+<tr><td style="background-color:#FFFFFF;border:1px solid #E4E4E7;border-radius:6px;padding:32px 28px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding:0 0 24px"><img src="https://app.cliniquemana.com/email/wordmark.png" width="120" height="53" alt="Clinique MANA" style="display:block;border:0;outline:none;text-decoration:none;width:120px;height:53px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:#1F1F20"></td></tr>
+<tr><td><p style="margin:0 0 16px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:#1F1F20">Bonjour Ana Gagnon,</p><p style="margin:0 0 16px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:#1F1F20">Christine Tremblay vous invite à créer votre accès à l’espace de travail de <strong style="font-weight:600">Clinique MANA</strong>.</p><p style="margin:0 0 16px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:#1F1F20">Le lien ci-dessous est personnel. Il est valide jusqu’au 15 octobre 2026 à 14 h 30.</p></td></tr>
+<tr><td style="padding:8px 0 0">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+<td style="border-radius:4px;background-color:#1E837C">
+<a href="https://app.cliniquemana.com/invitation#t=abc" target="_blank" style="display:inline-block;padding:12px 20px;border-radius:4px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;font-weight:600;color:#FFFFFF;text-decoration:none">Créer mon accès</a>
+</td></tr></table>
+<p style="margin:16px 0 0;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">Si le bouton ne fonctionne pas, copiez ce lien :<br><span style="word-break:break-all">https://app.cliniquemana.com/invitation#t=abc</span></p>
+</td></tr>
+</table>
+</td></tr>
+<tr><td style="padding:24px 28px 0;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">
+<p style="margin:0 0 12px;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">Clinique MANA<br>123, rue Saint-Denis<br>Bureau 200<br>Montréal QC H2X 1Y4<br>514 555-1234<br>https://cliniquemana.com<br>Confidentialité : Christine Tremblay, confidentialite@cliniquemana.com</p>
+<p style="margin:0;padding:12px 0 0;border-top:1px solid #E4E4E7;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6B6B6E">Vous recevez ce courriel parce que la clinique vous invite à créer votre accès.</p>
+</td></tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td></tr>
+</table>
+</body>
+</html>
+\`
+`;

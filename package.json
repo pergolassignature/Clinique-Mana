@@ -18,7 +18,7 @@
     "lint:migrations": "node scripts/check-migration-timestamps.mjs",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:functions": "deno test --frozen --allow-env --config supabase/functions/deno.json supabase/functions/",
+    "test:functions": "deno test --frozen --allow-env --allow-read=supabase/functions --config supabase/functions/deno.json supabase/functions/",
     "check:functions": "deno check --frozen --config supabase/functions/deno.json supabase/functions/",
     "lint:functions": "deno lint --config supabase/functions/deno.json supabase/functions/",
     "db:start": "supabase start",
