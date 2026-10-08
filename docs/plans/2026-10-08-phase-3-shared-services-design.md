@@ -100,7 +100,7 @@ Staff edit words, never HTML. **The button URL is not editable**: it is the secu
 - **RPCs** (`settings.email_manage`):
   - `save_email_template(p_key, p_subject, p_body, p_button_label)` validates placeholders and bumps `version`;
   - `reset_email_template(p_key)` deletes the override (« Rétablir le texte par défaut », with confirmation).
-- **History:** the audit trail keeps the before/after of each edit, and `email_log.template_version` says which version was sent. There is no draft/publish cycle: a template is short and the preview shows the result.
+- **History:** the audit trail keeps the before/after of each edit, and `email_log.template_version` says which version was sent. A version number is never reused within an org: « Rétablir le texte par défaut » deletes the override but keeps its counter (`email_template_versions.last_version`), so the next save continues from the highest version used (1, 2, reset, 3), and `queue_email` refuses a version other than the current one. There is no draft/publish cycle: a template is short and the preview shows the result.
 
 **Settings UI (« Courriels », §9).** Templates are grouped by module, one row each (label, « Personnalisé » or « Par défaut », last change). Opening a row shows a sheet with:
 
@@ -171,7 +171,7 @@ Staff edit words, never HTML. **The button URL is not editable**: it is the secu
 
 Resend's own per-team API rate also applies: the retry handles its 429.
 
-**Gating:** `email-preview` and `email-test-send` use `verifyAuth(req, { permission: 'settings.email_manage' })`. Module functions gate on their module (CLAUDE.md §7). `send-email` resolves the org and module from the row it acts on.
+**Gating:** `email-preview` uses `verifyAuth(req, { permission: 'settings.view' })` (it stores and sends nothing); `email-test-send` uses `verifyAuth(req, { permission: 'settings.email_manage' })`. Module functions gate on their module (CLAUDE.md §7). `send-email` resolves the org and module from the row it acts on.
 
 ### 2.7 Shared webhook claim (`webhook_events`)
 
@@ -516,7 +516,7 @@ They follow the Phase 2 patterns: `SettingsCard` stacks, outline « Enregistrer 
 
 | Function | Caller | `verify_jwt` | Auth | Module gate |
 |---|---|---|---|---|
-| `email-preview` | Settings | false | `verifyAuth`, `settings.email_manage` | core; a module template needs that module enabled |
+| `email-preview` | Settings | false | `verifyAuth`, `settings.view` | core; a module template needs that module enabled |
 | `email-test-send` | Settings | false | `verifyAuth`, `settings.email_manage` | same |
 | `send-email` | cron / internal | false | `verifyServiceRoleAuth` | `requireModuleForOrg` from the row |
 | `resend-webhook` | Resend | false | Svix signature, `timingSafeEqualBytes`, org secret | `requireModuleForOrg(org, email_log.module_key)`; ack if disabled |

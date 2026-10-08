@@ -486,7 +486,8 @@ select results_eq(
 select is_empty($$ select 1 from public.list_scheduled_job_runs(null, 100) where job_key = 'professionals.test_job' $$,
   'org B does not see the database-wide runs of a module it has disabled');
 select is((select count(*)::int from public.list_scheduled_job_runs(null, 0)), 1, 'p_limit is clamped to at least 1');
-select is_empty($$ select 1 from public.list_scheduled_job_runs(null, 100, now()) $$, 'p_before excludes later runs');
+-- Filtered by the test's job: real cron runs (committed before this transaction) would show.
+select is_empty($$ select 1 from public.list_scheduled_job_runs('core.test_business', 100, now()) $$, 'p_before excludes later runs');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select results_eq(

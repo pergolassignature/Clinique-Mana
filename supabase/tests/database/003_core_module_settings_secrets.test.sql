@@ -82,8 +82,10 @@ select functions_are('public', array[
   'list_scheduled_jobs', 'list_scheduled_job_runs', 'set_scheduled_job_enabled', 'run_scheduled_job_now',
   'set_email_sender', 'set_email_sending_domain', 'list_email_templates', 'save_email_template', 'reset_email_template',
   'list_email_log', 'list_subject_emails',
-  'get_email_context', 'queue_email', 'mark_email_sent', 'mark_email_failed', 'apply_email_event', 'count_org_emails_today'
-],'public schema exposes exactly the intended RPCs');
+  'get_email_context', 'queue_email', 'mark_email_sent', 'mark_email_failed', 'apply_email_event', 'count_org_emails_today',
+  'create_notification', 'list_my_notifications', 'count_my_unread_notifications', 'mark_notifications_read',
+  'mark_all_notifications_read'
+], 'public schema exposes exactly the intended RPCs');
 
 select throws_ok($$ insert into public.org_module_settings (org_id, module_key, settings) values ('b0000000-0000-0000-0000-00000000000b', 'test_parent', '[]') $$,
   '23514', null, 'module settings must be a JSON object');
