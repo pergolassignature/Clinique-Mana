@@ -1,4 +1,4 @@
-import { forwardRef, useRef, useState, type RefObject } from 'react'
+import { forwardRef, useMemo, useRef, useState, type RefObject } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus } from 'lucide-react'
@@ -97,7 +97,8 @@ interface RuleFormProps {
 
 function RuleForm({ rows, firstFieldRef, pending, refusal, dateError, onSubmit }: RuleFormProps) {
   const minDate = earliestStart(rows)
-  const [resolver] = useState(() => zodResolver(ruleSchema(minDate)))
+  // Rebuilt when the open rule changes (a refetch while the dialog is open).
+  const resolver = useMemo(() => zodResolver(ruleSchema(minDate)), [minDate])
   const form = useForm<RuleFormValues, unknown, RecognitionRuleInput>({
     resolver,
     defaultValues: startingValues(rows.find((row) => row.effectiveTo === null)),

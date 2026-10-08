@@ -20,8 +20,9 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * | a list reordered                         | `catalog()` (optimistic, rolled back on error)                 |
  * | module settings                          | none: the RPC returns the effective settings, written as is    |
  * | a professional's margin or level (4a.18) | `compensation(id)`, `history(id)` (first page)                 |
- * | a professional's private data, saved or  | `private(id)`, `history(id)` (first page); a reveal marks the  |
- * | cleared (4a.18)                          | history stale only. A revealed value is never cached.          |
+ * | a professional's private data, saved or  | `private(id)`, `history(id)` (first page); a save first writes |
+ * | cleared (4a.18)                          | its returned `updated_at` into `private(id)`; a reveal marks   |
+ * |                                          | the history stale only. A revealed value is never cached.      |
  * | a clinic default range or rule (4a.18)   | `compensationTermsKeys.terms()`, every `compensation(…)`       |
  * |                                          | (`compensations()`: what is in force follows the defaults)     |
  *

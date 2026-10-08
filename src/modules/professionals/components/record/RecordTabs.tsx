@@ -42,8 +42,9 @@ export function RecordTabs({ id, current, tabs }: RecordTabsProps) {
             void panel.preload?.().catch(() => {
               // Opening the tab loads it again and reports a real failure.
             })
-            // A prefetch never throws; fresh data is not fetched again.
-            void prefetch?.(queryClient, id, can)
+            // Fresh data is not fetched again. A failed query never rejects; a hooks chunk that
+            // does not load does: opening the tab loads it again and reports a real failure.
+            void prefetch?.(queryClient, id, can).catch(() => {})
           }
           return (
             <TabsTrigger

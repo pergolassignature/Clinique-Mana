@@ -14,6 +14,7 @@ import {
   setProfessionalTaxNumbers,
   type BankInput,
   type PrivateField,
+  type ProfessionalPrivate,
   type TaxNumbersInput,
 } from '../api/private'
 import { professionalKeys } from './keys'
@@ -45,6 +46,11 @@ export interface Refusal {
   detail: string | null
   /** HINT `stale`: the masks are being refetched; the next save may use them (`useExpectedVersion`). */
   stale: boolean
+  /**
+   * HINT `stale` only: the row's version once that refetch has settled (what the cache then holds;
+   * undefined when nothing is cached). For `useExpectedVersion().acceptLatest`.
+   */
+  refetched?: Promise<string | null | undefined>
 }
 
 const ROUTING_HINT = /^[a-z_]+$/
@@ -68,8 +74,10 @@ function usePrivateRefusal(id: string, action: 'save' | 'reveal') {
   const queryClient = useQueryClient()
   return (error: unknown): Refusal => {
     if (isStale(error)) {
-      void queryClient.invalidateQueries({ queryKey: professionalKeys.private(id) })
-      return { message: t(`${C}.stale`), detail: null, stale: true }
+      const key = professionalKeys.private(id)
+      // Resolves once the refetch has settled (a failed one too: the cache then keeps what it had).
+      const refetched = queryClient.invalidateQueries({ queryKey: key }).then(() => queryClient.getQueryData<ProfessionalPrivate>(key)?.updatedAt)
+      return { message: t(`${C}.stale`), detail: null, stale: true, refetched }
     }
     if (action === 'reveal') {
       // The caller's rights changed elsewhere: the access refetch hides the card.
@@ -83,18 +91,31 @@ function usePrivateRefusal(id: string, action: 'save' | 'reveal') {
 }
 
 /**
- * One card's save (P4-148): its own RPC with the `updated_at` the card read. On success the masks
- * and the history's first page are refetched (awaited, so the card closes onto fresh data). The
- * mutation keeps no variables once settled (`gcTime: 0`): a typed account or SIN never stays in
- * React Query.
+ * One card's save (P4-148): its own RPC with the `updated_at` the card read. The RPC returns the
+ * row's new `updated_at`: it goes into the masks' cache at once, with what the card wrote
+ * (`written`), so a refetch that fails afterwards never leaves the card on the old version (its
+ * next save would be refused as stale against itself). Then the masks and the history's first
+ * page are refetched (awaited, so the card closes onto fresh data). The mutation keeps no variables
+ * once settled (`gcTime: 0`): a typed account or SIN never stays in React Query.
  */
-function usePrivateMutation<V>(id: string, mutationFn: (variables: V) => Promise<unknown>, successMessage: string, onRefusal: (refusal: Refusal) => void) {
+function usePrivateMutation<V, R extends string | null | void>(
+  id: string,
+  mutationFn: (variables: V) => Promise<R>,
+  successMessage: string,
+  onRefusal: (refusal: Refusal) => void,
+  written?: (variables: V) => Partial<ProfessionalPrivate>,
+) {
   const queryClient = useQueryClient()
   const refusal = usePrivateRefusal(id, 'save')
   return useMutation({
     mutationFn,
     gcTime: 0,
-    onSuccess: async () => {
+    onSuccess: async (savedAt, variables) => {
+      if (savedAt !== undefined) {
+        queryClient.setQueryData<ProfessionalPrivate>(professionalKeys.private(id), (old) =>
+          old ? { ...old, ...written?.(variables), updatedAt: savedAt } : old,
+        )
+      }
       await Promise.all([queryClient.invalidateQueries({ queryKey: professionalKeys.private(id) }), refreshProfessionalHistory(queryClient, id)])
       toast.success(successMessage)
     },
@@ -106,23 +127,30 @@ function usePrivateMutation<V>(id: string, mutationFn: (variables: V) => Promise
  * The `updated_at` a card sends as `p_expected_updated_at` (P4-148): the version the person was
  * looking at when they started editing. While the form is clean it follows the masks (a refetch is
  * what they now see); once they type, a background refetch (window focus) no longer moves it, so
- * another person's save in between is refused (`stale`) rather than silently overwritten. After a
- * stale refusal (`acceptLatest`) the refetched version is taken: the card has said « Vérifiez-les,
- * puis enregistrez de nouveau ».
+ * another person's save in between is refused (`stale`) rather than silently overwritten.
+ * - `saved(version)`: after the card's own save, the version that save created (the RPC's return),
+ *   even if the form is still dirty (typed into while saving) or the refetch failed.
+ * - `acceptLatest(refetched)`: after a stale refusal, the version in the cache now (it may already
+ *   be the newer one: the same refetch then brings nothing new), then the refetched one when it
+ *   lands. The card has said « Vérifiez-les, puis enregistrez de nouveau »; the draft stays.
  */
 export function useExpectedVersion(updatedAt: string | null, dirty: boolean) {
   const base = useRef(updatedAt)
-  const resync = useRef(false)
+  const latest = useRef(updatedAt)
+  latest.current = updatedAt
   useEffect(() => {
-    if (!dirty || resync.current) {
-      base.current = updatedAt
-      resync.current = false
-    }
+    if (!dirty) base.current = updatedAt
   }, [dirty, updatedAt])
   return {
     expected: () => base.current,
-    acceptLatest: () => {
-      resync.current = true
+    saved: (version: string | null) => {
+      base.current = version
+    },
+    acceptLatest: (refetched?: Promise<string | null | undefined>) => {
+      base.current = latest.current
+      void refetched?.then((version) => {
+        if (version !== undefined) base.current = version
+      })
     },
   }
 }
@@ -138,6 +166,7 @@ export function useSaveTaxNumbers(id: string, onRefusal: (refusal: Refusal) => v
     ({ input, expectedUpdatedAt }: { input: TaxNumbersInput } & Expected) => setProfessionalTaxNumbers(id, input, expectedUpdatedAt),
     t(`${C}.taxNumbers.saved`),
     onRefusal,
+    ({ input }) => ({ businessNumber: input.businessNumber, gstNumber: input.gstNumber, qstNumber: input.qstNumber }),
   )
 }
 
@@ -147,6 +176,8 @@ export function useSaveBank(id: string, onRefusal: (refusal: Refusal) => void) {
     ({ input, expectedUpdatedAt }: { input: BankInput } & Expected) => setProfessionalBank(id, input, expectedUpdatedAt),
     t(`${C}.bank.saved`),
     onRefusal,
+    // A null account keeps the stored one (and its mask).
+    ({ input }) => ({ bankInstitution: input.institution, bankTransit: input.transit, ...(input.account !== null && { bankAccountLast4: input.account.slice(-4) }) }),
   )
 }
 
@@ -156,6 +187,8 @@ export function useSaveSin(id: string, onRefusal: (refusal: Refusal) => void) {
     ({ sin, expectedUpdatedAt }: { sin: string } & Expected) => setProfessionalSin(id, sin, expectedUpdatedAt),
     t(`${C}.sin.saved`),
     onRefusal,
+    // The mask only (« •••286 »), never the SIN.
+    ({ sin }) => ({ sinLast3: sin.slice(-3) }),
   )
 }
 

@@ -1,4 +1,4 @@
-import { forwardRef, useRef, useState, type RefObject } from 'react'
+import { forwardRef, useMemo, useRef, useState, type RefObject } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pencil } from 'lucide-react'
@@ -86,7 +86,8 @@ interface LevelFormProps {
 }
 
 function LevelForm({ minDate, firstFieldRef, pending, refusal, dateError, onSubmit }: LevelFormProps) {
-  const [resolver] = useState(() => zodResolver(levelSchema(minDate)))
+  // Rebuilt when the open level changes (a refetch while the dialog is open).
+  const resolver = useMemo(() => zodResolver(levelSchema(minDate)), [minDate])
   const form = useForm<LevelFormValues, unknown, LevelInput>({ resolver, defaultValues: { level: '', sessions: '', effectiveFrom: '', note: '' } })
   const { errors, isDirty } = form.formState
   useDateErrorOnField(form.setError, 'effectiveFrom', dateError)

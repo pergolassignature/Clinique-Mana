@@ -21,8 +21,9 @@ interface SinCardProps {
  * « Numéro d'assurance sociale (NAS) » (`professionals.private`): « •••286 » with « Afficher »
  * (audited; shown 60 s at most, component state only), « Saisir le NAS » or « Remplacer » while the
  * clinic collects SINs, and « Retirer » (confirmed) whenever one is stored, collection on or off
- * (Loi 25: removal stays possible). Collection off and nothing stored: « Non recueilli ». The tab
- * remounts the card after any private save (`key`), so a revealed SIN never outlives it.
+ * (Loi 25: removal stays possible). Collection off and nothing stored: « Non recueilli ». A new
+ * `updated_at` (any private save or removal, here or elsewhere) masks a revealed SIN again
+ * (`useRevealedPrivateValue`), so it never outlives the row it was read from.
  */
 export function SinCard({ professionalId, data, collect }: SinCardProps) {
   const revealed = useRevealedPrivateValue(professionalId, 'sin', data.updatedAt)
@@ -31,6 +32,8 @@ export function SinCard({ professionalId, data, collect }: SinCardProps) {
   const clear = useClearPrivateField(professionalId, 'sin', setRefusal)
   const removeButton = useRef<HTMLButtonElement | null>(null)
   const entryButton = useRef<HTMLButtonElement>(null)
+  // After « Retirer » with collection off, no button is left in the card: focus goes to its title.
+  const heading = useRef<HTMLHeadingElement>(null)
   const stored = data.sinLast3 !== null
   const shownRefusal = refusal ?? revealed.refusal
 
@@ -89,7 +92,7 @@ export function SinCard({ professionalId, data, collect }: SinCardProps) {
   )
 
   return (
-    <SettingsCard as="section" title={t(`${N}.title`)} footer={actions || undefined}>
+    <SettingsCard as="section" title={t(`${N}.title`)} footer={actions || undefined} headingRef={heading}>
       <dl>
         <dt className="text-xs text-muted-foreground">{t(`${N}.label`)}</dt>
         <dd className="mt-0.5 text-sm text-foreground">{value}</dd>
@@ -114,7 +117,7 @@ export function SinCard({ professionalId, data, collect }: SinCardProps) {
           setRefusal(null)
         }}
         triggerRef={removeButton}
-        fallbackRef={entryButton}
+        fallbackRef={collect ? entryButton : heading}
         confirmLabel={t(`${N}.remove`)}
         pendingLabel={t(`${N}.removing`)}
       />

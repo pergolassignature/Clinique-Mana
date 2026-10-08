@@ -1,4 +1,4 @@
-import { useContext, useId, type FormEventHandler, type ReactNode } from 'react'
+import { useContext, useId, type FormEventHandler, type ReactNode, type Ref } from 'react'
 import { FieldsReadOnlyContext } from '@/shared/ui/read-only-context'
 
 interface SettingsCardProps {
@@ -25,6 +25,8 @@ interface SettingsCardProps {
    * when inherited.
    */
   footer?: ReactNode
+  /** Makes the title a focus target (`tabIndex={-1}`, never a tab stop), e.g. where focus goes once the card's last action is gone. */
+  headingRef?: Ref<HTMLHeadingElement>
   children: ReactNode
 }
 
@@ -35,14 +37,14 @@ const CARD_CLASSES = 'rounded-lg border border-border bg-card p-4 text-card-fore
  * permission. Design system Card: hairline border, radius 6, padding 16, no shadow; title 14/600,
  * description 12px; actions aligned right under the fields.
  */
-export function SettingsCard({ as = 'form', title, description, readOnly: readOnlyProp = false, pending, onSubmit, footer, children }: SettingsCardProps) {
+export function SettingsCard({ as = 'form', title, description, readOnly: readOnlyProp = false, pending, onSubmit, footer, headingRef, children }: SettingsCardProps) {
   const titleId = useId()
   // Inside a read-only area the card is read-only too: a card can never make fields editable again.
   const inherited = useContext(FieldsReadOnlyContext)
   const readOnly = readOnlyProp || inherited
   const header = (
     <div className="mb-3 min-w-0">
-      <h3 id={titleId} className="text-base font-semibold tracking-tight">
+      <h3 id={titleId} ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="text-base font-semibold tracking-tight outline-none">
         {title}
       </h3>
       {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}

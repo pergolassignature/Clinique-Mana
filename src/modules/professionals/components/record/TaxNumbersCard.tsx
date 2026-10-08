@@ -31,7 +31,7 @@ export function TaxNumbersCard({ professionalId, data }: { professionalId: strin
   const version = useExpectedVersion(data.updatedAt, isDirty)
   const [refusal, setRefusal] = useState<Refusal | null>(null)
   const save = useSaveTaxNumbers(professionalId, (next) => {
-    if (next.stale) version.acceptLatest()
+    if (next.stale) version.acceptLatest(next.refetched)
     setRefusal(next)
   })
   useUnsavedChanges(isDirty)
@@ -41,7 +41,8 @@ export function TaxNumbersCard({ professionalId, data }: { professionalId: strin
     save.mutate(
       { input, expectedUpdatedAt: version.expected() },
       {
-        onSuccess: () => {
+        onSuccess: (savedAt) => {
+          version.saved(savedAt)
           const fresh = queryClient.getQueryData<ProfessionalPrivate>(professionalKeys.private(professionalId)) ?? data
           onSaved(toTaxNumbersFormValues(fresh))
         },

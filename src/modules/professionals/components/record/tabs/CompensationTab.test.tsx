@@ -152,6 +152,78 @@ describe('CompensationTab — private cards', () => {
     )
   })
 
+  it('after a stale refusal, sends the newer version the cache already held (a refetch while typing)', async () => {
+    mocks.private.setProfessionalTaxNumbers.mockRejectedValueOnce(STALE).mockResolvedValueOnce('2026-10-08T19:00:00.000001+00:00')
+    const { queryClient } = render()
+    const form = await screen.findByRole('form', { name: t(`${C}.taxNumbers.title`) })
+    const bn = within(form).getByRole('textbox', { name: t(`${C}.taxNumbers.businessNumber`) })
+    await userEvent.clear(bn)
+    await userEvent.type(bn, '987654321')
+    // A background refetch (window focus) brings another person's save: the dirty card keeps the
+    // version it started from, so its save is refused once; the refusal's refetch brings the same.
+    storedPrivate = privateFixture({ updatedAt: NEW_VERSION })
+    await act(() => queryClient.refetchQueries({ queryKey: professionalKeys.private(id) }))
+    await userEvent.click(within(form).getByRole('button', { name: t('common.save') }))
+    expect(await within(form).findByRole('alert')).toHaveTextContent(t(`${C}.stale`))
+    expect(mocks.private.setProfessionalTaxNumbers).toHaveBeenLastCalledWith(id, expect.anything(), PRIVATE_UPDATED_AT)
+    await waitFor(() => expect(mocks.private.fetchProfessionalPrivate).toHaveBeenCalledTimes(3))
+
+    await userEvent.click(within(form).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.private.setProfessionalTaxNumbers).toHaveBeenCalledTimes(2))
+    expect(mocks.private.setProfessionalTaxNumbers).toHaveBeenLastCalledWith(id, expect.objectContaining({ businessNumber: '987654321' }), NEW_VERSION)
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.taxNumbers.saved`)))
+  })
+
+  it('« Fiscalité » left dirty while « Banque » saves: refused once, then saved with the bank’s version', async () => {
+    mocks.private.setProfessionalBank.mockImplementation(async () => {
+      storedPrivate = privateFixture({ bankTransit: '12345', updatedAt: NEW_VERSION })
+      return NEW_VERSION
+    })
+    mocks.private.setProfessionalTaxNumbers.mockRejectedValueOnce(STALE).mockResolvedValueOnce('2026-10-08T19:00:00.000001+00:00')
+    render()
+    const tax = await screen.findByRole('form', { name: t(`${C}.taxNumbers.title`) })
+    const bn = within(tax).getByRole('textbox', { name: t(`${C}.taxNumbers.businessNumber`) })
+    await userEvent.clear(bn)
+    await userEvent.type(bn, '987654321')
+
+    const bankCard = screen.getByRole('region', { name: t(`${C}.bank.title`) })
+    await userEvent.click(within(bankCard).getByRole('button', { name: t('settings.bank.display.editLabel') }))
+    const bank = screen.getByRole('form', { name: t(`${C}.bank.title`) })
+    const transit = within(bank).getByRole('textbox', { name: t('settings.bank.fields.transit') })
+    await userEvent.clear(transit)
+    await userEvent.type(transit, '12345')
+    await userEvent.click(within(bank).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.private.setProfessionalBank).toHaveBeenCalledExactlyOnceWith(id, expect.anything(), PRIVATE_UPDATED_AT))
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.bank.saved`)))
+
+    await userEvent.click(within(tax).getByRole('button', { name: t('common.save') }))
+    expect(await within(tax).findByRole('alert')).toHaveTextContent(t(`${C}.stale`))
+    expect(mocks.private.setProfessionalTaxNumbers).toHaveBeenLastCalledWith(id, expect.anything(), PRIVATE_UPDATED_AT)
+    await userEvent.click(within(tax).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.private.setProfessionalTaxNumbers).toHaveBeenCalledTimes(2))
+    expect(mocks.private.setProfessionalTaxNumbers).toHaveBeenLastCalledWith(id, expect.objectContaining({ businessNumber: '987654321' }), NEW_VERSION)
+  })
+
+  it('sends the version a save returned when the refetch after it fails', async () => {
+    mocks.private.setProfessionalTaxNumbers.mockResolvedValueOnce(NEW_VERSION).mockResolvedValueOnce('2026-10-08T19:00:00.000001+00:00')
+    render()
+    const form = await screen.findByRole('form', { name: t(`${C}.taxNumbers.title`) })
+    mocks.private.fetchProfessionalPrivate.mockRejectedValue(new TypeError('Failed to fetch'))
+    const bn = within(form).getByRole('textbox', { name: t(`${C}.taxNumbers.businessNumber`) })
+    await userEvent.clear(bn)
+    await userEvent.type(bn, '987654321')
+    await userEvent.click(within(form).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.taxNumbers.saved`)))
+    // The card shows what it saved, not the numbers the failed refetch left in the cache.
+    expect(bn).toHaveValue('987654321')
+
+    await userEvent.clear(bn)
+    await userEvent.type(bn, '111111111')
+    await userEvent.click(within(form).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.private.setProfessionalTaxNumbers).toHaveBeenCalledTimes(2))
+    expect(mocks.private.setProfessionalTaxNumbers).toHaveBeenLastCalledWith(id, expect.objectContaining({ businessNumber: '111111111' }), NEW_VERSION)
+  })
+
   it('saves the bank without the account when it is left « Inchangé », with the version read', async () => {
     mocks.private.setProfessionalBank.mockResolvedValue(NEW_VERSION)
     render()
@@ -195,6 +267,29 @@ describe('CompensationTab — private cards', () => {
     await waitFor(() => expect(cacheDump(queryClient)).not.toContain('046454286'))
   })
 
+  it('in the SIN dialog, a stale refusal is followed by a save with the newer version', async () => {
+    mocks.private.setProfessionalSin.mockRejectedValueOnce(STALE).mockResolvedValueOnce('2026-10-08T19:00:00.000001+00:00')
+    const { queryClient } = render()
+    const sin = await screen.findByRole('region', { name: t(`${C}.sin.title`) })
+    await userEvent.click(within(sin).getByRole('button', { name: t(`${C}.sin.replaceLabel`) }))
+    const dialog = screen.getByRole('dialog', { name: t(`${C}.sin.dialog.replaceTitle`) })
+    // Another person's save reaches the cache while the dialog is open: it keeps the version it opened on.
+    storedPrivate = privateFixture({ updatedAt: NEW_VERSION })
+    await act(() => queryClient.refetchQueries({ queryKey: professionalKeys.private(id) }))
+    const field = within(dialog).getByRole('textbox', { name: `${t(`${C}.sin.dialog.field`)} ${t('common.form.required')}` })
+    await userEvent.type(field, '046 454 286')
+    await userEvent.click(within(dialog).getByRole('button', { name: t('common.save') }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(t(`${C}.stale`))
+    expect(mocks.private.setProfessionalSin).toHaveBeenLastCalledWith(id, '046454286', PRIVATE_UPDATED_AT)
+    expect(field).toHaveValue('046 454 286')
+
+    await userEvent.click(within(dialog).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.private.setProfessionalSin).toHaveBeenCalledTimes(2))
+    expect(mocks.private.setProfessionalSin).toHaveBeenLastCalledWith(id, '046454286', NEW_VERSION)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(cacheDump(queryClient)).not.toContain('046454286'))
+  })
+
   it('reads « Non recueilli » without collection and nothing stored, and offers no entry', async () => {
     storedPrivate = privateFixture({ sinLast3: null })
     mocks.settings.fetchProfessionalsSettings.mockResolvedValue({ collectSin: false })
@@ -207,7 +302,9 @@ describe('CompensationTab — private cards', () => {
 
   it('keeps « Retirer » for a stored SIN while collection is off, and removes it after confirmation', async () => {
     mocks.settings.fetchProfessionalsSettings.mockResolvedValue({ collectSin: false })
-    mocks.private.clearProfessionalPrivateField.mockResolvedValue(undefined)
+    mocks.private.clearProfessionalPrivateField.mockImplementation(async () => {
+      storedPrivate = privateFixture({ sinLast3: null, updatedAt: NEW_VERSION })
+    })
     render()
     const sin = await screen.findByRole('region', { name: t(`${C}.sin.title`) })
     expect(within(sin).queryByRole('button', { name: t(`${C}.sin.replaceLabel`) })).not.toBeInTheDocument()
@@ -215,6 +312,9 @@ describe('CompensationTab — private cards', () => {
     const confirm = screen.getByRole('alertdialog', { name: t(`${C}.sin.removeTitle`) })
     await userEvent.click(within(confirm).getByRole('button', { name: t(`${C}.sin.remove`) }))
     await waitFor(() => expect(mocks.private.clearProfessionalPrivateField).toHaveBeenCalledExactlyOnceWith(id, 'sin'))
+    // No button is left in the card (« Non recueilli »): the focus goes to its title.
+    expect(await within(sin).findByText(t(`${C}.sin.notCollected`))).toBeInTheDocument()
+    await waitFor(() => expect(within(sin).getByRole('heading', { name: t(`${C}.sin.title`) })).toHaveFocus())
   })
 
   it('reveals the SIN in component state only, never in the query cache, and masks it after 60 s', async () => {
@@ -230,6 +330,19 @@ describe('CompensationTab — private cards', () => {
     expect(cacheDump(queryClient)).not.toContain('046454286')
     act(() => vi.advanceTimersByTime(REVEAL_DURATION_MS))
     expect(within(sin).queryByText('046454286')).not.toBeInTheDocument()
+    expect(within(sin).getByText(t(`${C}.sin.masked`, { last3: '286' }))).toBeInTheDocument()
+  })
+
+  it('masks a revealed value again when the row’s updated_at changes', async () => {
+    mocks.private.revealProfessionalPrivate.mockResolvedValue('046454286')
+    const { queryClient } = render()
+    const sin = await screen.findByRole('region', { name: t(`${C}.sin.title`) })
+    await userEvent.click(within(sin).getByRole('button', { name: t(`${C}.sin.showLabel`) }))
+    expect(await within(sin).findByText('046454286')).toBeInTheDocument()
+    // Any private save, here or in another tab, gives the row a new version.
+    storedPrivate = privateFixture({ updatedAt: NEW_VERSION })
+    await act(() => queryClient.refetchQueries({ queryKey: professionalKeys.private(id) }))
+    await waitFor(() => expect(within(sin).queryByText('046454286')).not.toBeInTheDocument())
     expect(within(sin).getByText(t(`${C}.sin.masked`, { last3: '286' }))).toBeInTheDocument()
   })
 
@@ -284,6 +397,29 @@ describe('CompensationTab — compensation cards', () => {
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.margin.savedOutside`)))
   })
 
+  it('checks the start date against the open margin refetched while the dialog is open', async () => {
+    const { queryClient } = render({ permissions: ['professionals.view', 'professionals.compensation'] })
+    const margin = await screen.findByRole('region', { name: t(`${C}.margin.title`) })
+    await userEvent.click(within(margin).getByRole('button', { name: t(`${C}.margin.add`) }))
+    const dialog = screen.getByRole('dialog', { name: t(`${C}.margin.dialog.title`) })
+    // Someone else added a Consultation margin from 2027-01-01 meanwhile.
+    const previous = storedCompensation.marginRows[0]
+    if (!previous) throw new Error('fixture')
+    storedCompensation = compensationFixture({
+      marginRows: [
+        { ...previous, id: 'm-next', marginPct: 29, effectiveFrom: '2027-01-01', effectiveTo: null },
+        { ...previous, effectiveTo: '2026-12-31' },
+      ],
+    })
+    await act(() => queryClient.refetchQueries({ queryKey: professionalKeys.compensation(id) }))
+    await userEvent.type(within(dialog).getByRole('textbox', { name: `${t(`${C}.margin.dialog.margin`)} ${t('common.form.required')}` }), '30')
+    const date = within(dialog).getByLabelText(new RegExp(t('modules.professionals.compensation.from')))
+    fireEvent.change(date, { target: { value: '2026-12-01' } })
+    await userEvent.click(within(dialog).getByRole('button', { name: t('modules.professionals.compensation.add') }))
+    await waitFor(() => expect(date).toHaveAccessibleDescription(expect.stringContaining('1 janv. 2027')))
+    expect(mocks.compensation.setProfessionalMargin).not.toHaveBeenCalled()
+  })
+
   it('puts a date refusal (HINT effective_from) under the date field', async () => {
     mocks.compensation.setProfessionalMargin.mockRejectedValue({ code: 'P0001', message: 'La nouvelle marge doit commencer après le 2026-11-01.', hint: 'effective_from' })
     render({ permissions: ['professionals.view', 'professionals.compensation'] })
@@ -293,6 +429,9 @@ describe('CompensationTab — compensation cards', () => {
     await userEvent.selectOptions(within(dialog).getByRole('combobox'), 'workshop')
     await userEvent.type(within(dialog).getByRole('textbox', { name: `${t(`${C}.margin.dialog.margin`)} ${t('common.form.required')}` }), '25')
     const date = within(dialog).getByLabelText(new RegExp(t('modules.professionals.compensation.from')))
+    // No open Atelier margin: the RPCs' bounds only.
+    expect(date).toHaveAttribute('min', '2000-01-01')
+    expect(date).toHaveAttribute('max', '2100-12-31')
     fireEvent.change(date, { target: { value: '2026-12-01' } })
     await userEvent.click(within(dialog).getByRole('button', { name: t('modules.professionals.compensation.add') }))
     await waitFor(() => expect(date).toHaveAccessibleDescription(expect.stringContaining('La nouvelle marge doit commencer après le 2026-11-01.')))

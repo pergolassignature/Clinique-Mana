@@ -2199,6 +2199,7 @@
             "description": "Ce que le dossier des professionnels peut recueillir.",
             "collect": "Recueillir le NAS",
             "collectHelp": "Permet de saisir le NAS dans le dossier des professionnels. Désactivée, la collecte n'efface rien : un NAS enregistré reste affichable et peut être retiré.",
+            "loadError": "Impossible de charger le réglage de la collecte du NAS.",
             "confirmTitle": "Activer la collecte du NAS ?",
             "confirmBody": "Activez seulement si votre comptable confirme que le NAS est requis (T4A / relevé).",
             "confirm": "Activer",

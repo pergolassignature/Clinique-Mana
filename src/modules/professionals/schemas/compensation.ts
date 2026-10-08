@@ -17,9 +17,9 @@ import { tidyText } from './text'
 
 const V = 'modules.professionals.compensation.validation'
 
-/** The bounds of `private.assert_compensation_date`. */
-const FIRST_DATE = '2000-01-01'
-const LAST_DATE = '2100-12-31'
+/** The bounds of `private.assert_compensation_date` (P4-150), also the date inputs' `min` / `max`. */
+export const FIRST_DATE = '2000-01-01'
+export const LAST_DATE = '2100-12-31'
 
 const effectiveFrom = z
   .string()

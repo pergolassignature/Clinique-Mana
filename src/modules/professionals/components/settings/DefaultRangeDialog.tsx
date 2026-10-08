@@ -84,7 +84,8 @@ interface DefaultRangeFormProps extends DefaultRangeDialogProps {
 
 function DefaultRangeForm({ kinds, rows, firstFieldRef, pending, refusal, dateError, onSubmit }: DefaultRangeFormProps) {
   const minDateFor = useMemo(() => (kind: string) => earliestStart(rowsOfKind(rows, kind)), [rows])
-  const [resolver] = useState(() => zodResolver(defaultRangeSchema(minDateFor)))
+  // Rebuilt when the rows change (a refetch while the dialog is open): the date rule follows the open row.
+  const resolver = useMemo(() => zodResolver(defaultRangeSchema(minDateFor)), [minDateFor])
   const form = useForm<DefaultRangeFormValues, unknown, DefaultRangeInput>({
     resolver,
     defaultValues: { kind: kinds[0]?.key ?? '', min: '', max: '', effectiveFrom: '' },

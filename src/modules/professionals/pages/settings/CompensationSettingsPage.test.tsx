@@ -153,6 +153,16 @@ describe('CompensationSettingsPage', () => {
     await waitFor(() => expect(mocks.settings.saveProfessionalsSettings).toHaveBeenCalledExactlyOnceWith({ collectSin: false }))
   })
 
+  it('offers « Réessayer » when the SIN setting cannot be read, never a switch reading « off »', async () => {
+    mocks.settings.fetchProfessionalsSettings.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce({ collectSin: true })
+    render()
+    const card = await region(t(`${S}.sin.title`))
+    expect(await within(card).findByRole('alert')).toHaveTextContent(t(`${S}.sin.loadError`))
+    expect(within(card).queryByRole('switch')).not.toBeInTheDocument()
+    await userEvent.click(within(card).getByRole('button', { name: t('common.retry') }))
+    await waitFor(() => expect(within(card).getByRole('switch', { name: t(`${S}.sin.collect`) })).toBeChecked())
+  })
+
   it('shows « Renseignements fiscaux » only with professionals.private and professionals.settings', async () => {
     render(['professionals.view', 'professionals.compensation', 'professionals.settings'])
     await region(t(`${S}.defaults.title`))

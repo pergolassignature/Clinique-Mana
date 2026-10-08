@@ -22,6 +22,7 @@ import { DialogClose, DialogFooter } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import type { DatedStatus } from '../../lib/compensation'
+import { FIRST_DATE, LAST_DATE } from '../../schemas/compensation'
 
 /**
  * Pieces shared by the compensation cards of the record and of « Paramètres → Rémunération »:
@@ -113,8 +114,8 @@ interface EffectiveFromFieldProps {
 }
 
 /**
- * « À partir du »: a native date input (a `yyyy-MM-dd` string, sent as typed), `min` at the day
- * after the open row's start. A date already past in the clinic is allowed (corrections, P4-151)
+ * « À partir du »: a native date input (a `yyyy-MM-dd` string, sent as typed), within the
+ * RPCs' 2000–2100 and from the day after the open row's start. A date already past in the clinic is allowed (corrections, P4-151)
  * but said first, in a polite status.
  */
 export function EffectiveFromField({ registration, value, error, min, help }: EffectiveFromFieldProps) {
@@ -123,7 +124,7 @@ export function EffectiveFromField({ registration, value, error, min, help }: Ef
   return (
     <>
       <FormField label={t(`${W}.from`)} help={help} required error={error}>
-        {(field) => <Input {...field} {...registration} type="date" min={min ?? undefined} max="2100-12-31" />}
+        {(field) => <Input {...field} {...registration} type="date" min={min ?? FIRST_DATE} max={LAST_DATE} />}
       </FormField>
       <div role="status" className="empty:hidden">
         {backdated && (

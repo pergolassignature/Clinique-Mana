@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from 'react'
 import { t } from '@/i18n'
+import { LoadError } from '@/shared/components/LoadState'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { cn } from '@/shared/lib/utils'
@@ -24,7 +25,8 @@ const N = 'modules.professionals.settings.compensation.sin'
  * « Renseignements fiscaux » (`professionals.private` and `professionals.settings`): the switch
  * « Recueillir le NAS » (P4-7), saved at once. Turning it on asks first (only on the accountant's
  * word); turning it off needs no confirmation: nothing is erased (a stored SIN stays readable and
- * removable). Space or a click toggles it, never an arrow key.
+ * removable). Space or a click toggles it, never an arrow key. A failed read shows « Réessayer »,
+ * never a switch that would read « off » without knowing.
  */
 export function SinCollectionCard() {
   const settings = useProfessionalsSettings()
@@ -43,27 +45,31 @@ export function SinCollectionCard() {
 
   return (
     <SettingsCard as="section" title={t(`${N}.title`)} description={t(`${N}.description`)}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 space-y-0.5">
-          <Label htmlFor={`${id}-switch`}>{t(`${N}.collect`)}</Label>
-          <p id={`${id}-help`} className="text-xs text-muted-foreground">
-            {t(`${N}.collectHelp`)}
-          </p>
+      {settings.isError && !settings.data ? (
+        <LoadError message={t(`${N}.loadError`)} retrying={settings.isFetching} onRetry={() => void settings.refetch()} />
+      ) : (
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 space-y-0.5">
+            <Label htmlFor={`${id}-switch`}>{t(`${N}.collect`)}</Label>
+            <p id={`${id}-help`} className="text-xs text-muted-foreground">
+              {t(`${N}.collectHelp`)}
+            </p>
+          </div>
+          <Switch
+            ref={switchRef}
+            id={`${id}-switch`}
+            checked={pending && save.variables ? Boolean(save.variables.collectSin) : collect}
+            aria-describedby={`${id}-help`}
+            aria-disabled={pending || settings.isPending || undefined}
+            className={cn('mt-0.5', pending && 'cursor-progress')}
+            onCheckedChange={(checked) => {
+              if (pending || settings.isPending) return
+              if (checked) setConfirming(true)
+              else apply(false)
+            }}
+          />
         </div>
-        <Switch
-          ref={switchRef}
-          id={`${id}-switch`}
-          checked={pending && save.variables ? Boolean(save.variables.collectSin) : collect}
-          aria-describedby={`${id}-help`}
-          aria-disabled={pending || settings.isPending || undefined}
-          className={cn('mt-0.5', pending && 'cursor-progress')}
-          onCheckedChange={(checked) => {
-            if (pending || settings.isPending) return
-            if (checked) setConfirming(true)
-            else apply(false)
-          }}
-        />
-      </div>
+      )}
       {!confirming && refusal && <RefusalAlert message={refusal} />}
       <AlertDialog open={confirming} onOpenChange={(next) => !pending && !next && setConfirming(false)}>
         <AlertDialogContent

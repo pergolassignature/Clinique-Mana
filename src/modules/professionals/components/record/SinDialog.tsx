@@ -31,7 +31,7 @@ export const SinDialog = forwardRef<HTMLButtonElement, SinDialogProps>(function 
   const [refusal, setRefusal] = useState<Refusal | null>(null)
   const version = useExpectedVersion(updatedAt, open)
   const save = useSaveSin(professionalId, (next) => {
-    if (next.stale) version.acceptLatest()
+    if (next.stale) version.acceptLatest(next.refetched)
     setRefusal(next)
   })
   const field = useRef<HTMLInputElement | null>(null)
@@ -71,7 +71,8 @@ export const SinDialog = forwardRef<HTMLButtonElement, SinDialogProps>(function 
             save.mutate(
               { sin, expectedUpdatedAt: version.expected() },
               {
-                onSuccess: () => {
+                onSuccess: (savedAt) => {
+                  version.saved(savedAt)
                   setOpen(false)
                   // This component stays mounted (it holds the trigger): let go of the settled
                   // mutation, so the typed SIN leaves React Query now (`gcTime: 0`).

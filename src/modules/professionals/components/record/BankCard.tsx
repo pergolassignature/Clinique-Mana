@@ -189,7 +189,7 @@ function BankForm({ professionalId, data, onClose }: BankCardProps & { onClose: 
   const version = useExpectedVersion(data.updatedAt, isDirty)
   const [refusal, setRefusal] = useState<Refusal | null>(null)
   const save = useSaveBank(professionalId, (next) => {
-    if (next.stale) version.acceptLatest()
+    if (next.stale) version.acceptLatest(next.refetched)
     setRefusal(next)
   })
   useUnsavedChanges(isDirty)
@@ -202,7 +202,8 @@ function BankForm({ professionalId, data, onClose }: BankCardProps & { onClose: 
     save.mutate(
       { input, expectedUpdatedAt: version.expected() },
       {
-        onSuccess: () => {
+        onSuccess: (savedAt) => {
+          version.saved(savedAt)
           const fresh = queryClient.getQueryData<ProfessionalPrivate>(professionalKeys.private(professionalId)) ?? data
           onSaved(toBankFormValues(fresh))
           onClose()

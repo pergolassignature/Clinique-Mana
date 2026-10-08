@@ -91,7 +91,8 @@ interface MarginFormProps extends Omit<MarginDialogProps, 'professionalId'> {
 
 function MarginForm({ kinds, rows, firstFieldRef, pending, refusal, dateError, onSubmit }: MarginFormProps) {
   const minDateFor = useMemo(() => (kind: string) => earliestStart(rowsOfKind(rows, kind)), [rows])
-  const [resolver] = useState(() => zodResolver(marginSchema(minDateFor)))
+  // Rebuilt when the rows change (a refetch while the dialog is open): the date rule follows the open row.
+  const resolver = useMemo(() => zodResolver(marginSchema(minDateFor)), [minDateFor])
   const form = useForm<MarginFormValues, unknown, MarginInput>({
     resolver,
     defaultValues: { kind: kinds[0]?.kind ?? '', marginPct: '', effectiveFrom: '', note: '' },

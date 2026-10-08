@@ -15,7 +15,9 @@ export interface RecordTabDef {
   visible: (can: Can) => boolean
   /**
    * Starts loading the tab's own data with its chunk (tab hover or focus), for a tab that fetches
-   * more than the record; `can` keeps it to what this user may read.
+   * more than the record; `can` keeps it to what this user may read. A failed query is not thrown
+   * (`prefetchQuery`), but loading the hooks' chunk can reject: the caller ignores it (opening the
+   * tab loads and reports again).
    */
   prefetch?: (queryClient: QueryClient, id: string, can: Can) => Promise<void>
 }
@@ -27,7 +29,8 @@ const compensationHooks = () => import('../../hooks/use-compensation')
 
 /**
  * « Rémunération et fiscalité »: the terms (`professionals.compensation`), the masks and the SIN
- * setting (`professionals.private`), each only for whoever may read it. Never a reveal.
+ * setting (`professionals.private`), each only for whoever may read it. Never a reveal. Rejects
+ * only when a hooks chunk does not load.
  */
 async function prefetchCompensationTab(queryClient: QueryClient, id: string, can: Can): Promise<void> {
   const [compensation, privateData, settings] = await Promise.all([
@@ -42,7 +45,10 @@ async function prefetchCompensationTab(queryClient: QueryClient, id: string, can
   ])
 }
 
-/** Historique: its first page, and the compensation kinds that name margin rows (P4-161). */
+/**
+ * Historique: its first page, and the compensation kinds that name margin rows (P4-161). Rejects
+ * only when the compensation hooks' chunk does not load.
+ */
 async function prefetchHistoryTab(queryClient: QueryClient, id: string, can: Can): Promise<void> {
   await Promise.all([
     prefetchProfessionalHistory(queryClient, id),
