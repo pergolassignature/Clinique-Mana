@@ -12,14 +12,7 @@ import {
 } from 'lucide-react'
 import type { SettingsSection } from '@/core/modules/types'
 
-const ComingSoonSection = lazy(() =>
-  import('./pages/ComingSoonSection').then((m) => ({
-    default: m.ComingSoonSection,
-  }))
-)
-
 // English `id` for code, French `path` for the URL (decision #24). Menu order within each group.
-// Sections still on ComingSoonSection are built by Tasks 2.9–2.18.
 export const coreSettingsSections: SettingsSection[] = [
   {
     id: 'identity',
@@ -138,6 +131,10 @@ export const coreSettingsSections: SettingsSection[] = [
     icon: ScrollText,
     permission: 'audit.view',
     group: 'plateforme',
-    component: ComingSoonSection,
+    component: lazy(() =>
+      import('./pages/AuditLogPage').then((m) => ({
+        default: m.AuditLogPage,
+      }))
+    ),
   },
 ]

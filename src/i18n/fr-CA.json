@@ -189,7 +189,6 @@
     },
     "navReadOnlyHint": "(lecture seule)",
     "menuButtonPrefix": "Section des paramètres :",
-    "comingSoon": "Bientôt disponible",
     "modules": {
       "title": "Modules",
       "description": "Activez un module lorsqu'il est prêt. Un module désactivé disparaît du menu et de l'application.",
@@ -501,5 +500,172 @@
     "counselor": "Conseillère",
     "admin_assistant": "Adjointe administrative",
     "provider": "Professionnel"
+  }
+,
+  "audit": {
+    "description": "Les numéros bancaires n'y figurent jamais : seul le fait que les coordonnées ont changé y figure.",
+    "tables": {
+      "organizations": "Clinique",
+      "profiles": "Utilisateurs",
+      "user_roles": "Rôles",
+      "user_permission_overrides": "Exceptions de permissions",
+      "org_modules": "Modules",
+      "org_module_settings": "Paramètres de module",
+      "org_secrets": "Secrets",
+      "tax_rates": "Taux de taxes",
+      "organization_bank_details": "Coordonnées bancaires"
+    },
+    "commonFields": {
+      "id": "Identifiant",
+      "org_id": "Clinique",
+      "user_id": "Utilisateur",
+      "created_at": "Créé le",
+      "created_by": "Créé par",
+      "updated_at": "Modifié le",
+      "updated_by": "Modifié par"
+    },
+    "fields": {
+      "organizations": {
+        "id": "Identifiant",
+        "name": "Nom affiché",
+        "legal_name": "Raison sociale",
+        "neq": "NEQ",
+        "address_line1": "Adresse",
+        "address_line2": "Complément d'adresse",
+        "city": "Ville",
+        "province": "Province",
+        "postal_code": "Code postal",
+        "country": "Pays",
+        "phone": "Téléphone",
+        "email": "Courriel",
+        "website": "Site web",
+        "gst_number": "Numéro de TPS",
+        "qst_number": "Numéro de TVQ",
+        "signatory_name": "Nom du signataire",
+        "signatory_title": "Titre du signataire",
+        "privacy_officer_name": "Nom du responsable de la confidentialité",
+        "privacy_officer_email": "Courriel du responsable de la confidentialité",
+        "privacy_policy_url": "URL de la politique de confidentialité",
+        "record_retention_years": "Durée de conservation des dossiers (années)",
+        "timezone": "Fuseau horaire",
+        "default_locale": "Langue",
+        "currency": "Devise"
+      },
+      "profiles": {
+        "display_name": "Nom",
+        "email": "Courriel",
+        "status": "Statut"
+      },
+      "user_roles": {
+        "role": "Rôle"
+      },
+      "user_permission_overrides": {
+        "permission_key": "Permission",
+        "granted": "Accordée"
+      },
+      "org_modules": {
+        "module_key": "Module",
+        "enabled": "Activé"
+      },
+      "org_module_settings": {
+        "module_key": "Module",
+        "settings": "Paramètres"
+      },
+      "org_secrets": {
+        "key": "Clé",
+        "value": "Valeur",
+        "vault_secret_id": "Secret",
+        "version": "Version"
+      },
+      "tax_rates": {
+        "tax": "Taxe",
+        "rate": "Taux",
+        "effective_from": "En vigueur du",
+        "effective_to": "Fin (exclue)"
+      },
+      "organization_bank_details": {
+        "institution_number": "Numéro d'institution",
+        "transit_number": "Numéro de transit",
+        "account_number": "Numéro de compte",
+        "account_last4": "Fin du numéro de compte",
+        "etransfer_email": "Courriel Interac"
+      }
+    },
+    "actions": {
+      "insert": "Création",
+      "update": "Modification",
+      "delete": "Suppression",
+      "read": "Consultation"
+    },
+    "sources": {
+      "app": "Application",
+      "seed": "Données de test",
+      "bootstrap": "Installation",
+      "migration": "Mise à jour",
+      "auth": "Connexion",
+      "system": "Système"
+    },
+    "values": {
+      "empty": "(vide)",
+      "yes": "Oui",
+      "no": "Non",
+      "redacted": "(masqué)",
+      "status": {
+        "active": "Actif",
+        "disabled": "Désactivé"
+      }
+    },
+    "filters": {
+      "label": "Filtres du journal",
+      "table": "Section",
+      "allTables": "Toutes les sections",
+      "actor": "Personne",
+      "allActors": "Toutes les personnes",
+      "actorsError": "La liste des personnes n'a pas pu être chargée.",
+      "actorsRetry": "Réessayer de charger les personnes",
+      "period": "Période",
+      "periods": {
+        "today": "Aujourd'hui",
+        "7d": "7 jours",
+        "30d": "30 jours",
+        "all": "Tout"
+      },
+      "reset": "Réinitialiser les filtres"
+    },
+    "columns": {
+      "date": "Date",
+      "actor": "Personne",
+      "table": "Section",
+      "action": "Action",
+      "record": "Élément"
+    },
+    "scrollLabel": "Entrées du journal d'audit",
+    "row": {
+      "toggle": "Détails : {action}, {section}"
+    },
+    "details": {
+      "record": "Élément : {id}",
+      "change": "{field} : {before} → {after}",
+      "value": "{field} : {value}",
+      "readAccountNumber": "Consultation du numéro de compte",
+      "secretRotated": "Secret remplacé",
+      "readFields": "Champs consultés : {fields}",
+      "none": "Aucun détail."
+    },
+    "countOne": "1 entrée affichée",
+    "countOther": "{count} entrées affichées",
+    "loadMore": "Charger plus",
+    "loadingMore": "Chargement…",
+    "loadMoreError": "La suite du journal n'a pas pu être chargée.",
+    "end": "Début du journal",
+    "loadError": "Le journal n'a pas pu être chargé.",
+    "empty": {
+      "title": "Le journal est vide",
+      "body": "Les modifications des paramètres apparaîtront ici."
+    },
+    "emptyFiltered": {
+      "title": "Aucune entrée ne correspond",
+      "body": "Modifiez les filtres ou réinitialisez-les."
+    }
   }
 }

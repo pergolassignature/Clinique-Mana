@@ -24,4 +24,12 @@ describe('EmptyState', () => {
     expect(container.textContent).toBe('Aucune taxe')
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
+
+  it('can hide its title from screen readers when a live region already says it', () => {
+    const { rerender } = render(<EmptyState title="Aucune entrée ne correspond" body="Modifiez les filtres." titleAriaHidden />)
+    expect(screen.getByText('Aucune entrée ne correspond')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByText('Modifiez les filtres.')).not.toHaveAttribute('aria-hidden')
+    rerender(<EmptyState title="Aucune entrée ne correspond" />)
+    expect(screen.getByText('Aucune entrée ne correspond')).not.toHaveAttribute('aria-hidden')
+  })
 })
