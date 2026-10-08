@@ -36,6 +36,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # TODO(pin): pin supabase/setup-cli to a full commit SHA (`@<sha> # v1.x`); no SHA is recorded
+      # in the repo yet (every workflow uses @v1), and finding one needs GitHub, not done offline.
       - uses: supabase/setup-cli@v1
         with:
           version: 2.98.2

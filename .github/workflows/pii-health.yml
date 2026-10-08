@@ -2,8 +2,12 @@ name: PII key health check (staging)
 
 # ADR 0004 « Before Phase 4 », plan Task 4a.16: the same read-only check as the step « PII key
 # health check » of supabase-migrations.yml, every day, so a key deleted or edited in the dashboard
-# between two migration pushes turns a job red within a day. It links the project and runs
-# scripts/pii-health-check.sh, nothing else: it never pushes migrations and never writes.
+# between two migration pushes turns a job red within a day. It runs scripts/pii-health-check.sh,
+# nothing else: no Supabase CLI, no link, no access token; it never pushes migrations and never
+# writes. The pooler host is the constant below; the host cross-check with `supabase link` stays in
+# supabase-migrations.yml, which links anyway. Only the health-check step sees the secrets.
+# Possible hardening (Mise en service, not required): a dedicated login role holding EXECUTE on
+# public.pii_health_check() only, instead of the `postgres` password (docs/plans/2026-10-07-status.md).
 # A red run: docs/runbooks/pii-key-escrow.md (« La vérification échoue »).
 # GitHub runs schedules from the default branch only, pauses them after 60 days without activity
 # in a public repository, and mails a failed scheduled run to whoever last edited the cron line
@@ -28,32 +32,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_ID: vnmbjbdsjxmpijyjmmkh
       # Same value as in supabase-migrations.yml (keep both in step).
       SUPABASE_DB_POOLER_HOST: aws-1-ca-central-1.pooler.supabase.com
     steps:
       - uses: actions/checkout@v4
 
-      - uses: supabase/setup-cli@v1
-        with:
-          version: 2.98.2
-
-      - name: Check secrets
-        run: |
-          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
-            echo "::error::Repository secrets SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD are required."
-            exit 1
-          fi
-
-      # Only to cross-check the pooler host (supabase/.temp/pooler-url). No db push, no migration list.
-      - name: Link project
-        id: link
-        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
-
+      # The script fails with an ::error:: when SUPABASE_DB_PASSWORD is empty.
       - name: PII key health check
-        if: ${{ !cancelled() && steps.link.outcome == 'success' }}
         env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_DB_POOLER_URL: ${{ secrets.SUPABASE_DB_POOLER_URL }}
         run: bash scripts/pii-health-check.sh

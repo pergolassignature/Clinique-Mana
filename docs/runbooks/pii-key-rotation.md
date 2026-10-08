@@ -16,16 +16,17 @@
 - **Une version par ligne :** chaque ligne chiffrée garde la version avec laquelle **toutes** ses colonnes chiffrées ont été écrites (`key_version`). Une écriture de l'app re-chiffre toute la ligne avec la version courante (conventions §8).
 - **Écriture :** les nouvelles valeurs sont chiffrées avec la version la plus haute qui a un **témoin** dans `private.pii_canary` (`private.pii_current_key_version()`). Ajouter le témoin d'une nouvelle clé est donc le geste qui fait basculer les écritures vers elle.
 - **Lecture :** chaque ligne se déchiffre avec sa propre version. Les deux clés coexistent le temps du re-chiffrement.
-- **Vérification :** `select public.pii_health_check();` doit donner `true` à la fin de chaque étape (sauf pendant un retour en arrière, voir plus bas). Elle vérifie que chaque témoin se déchiffre **et** que chaque version qui chiffre des données a sa clé et son témoin. GitHub la lance aussi après chaque push de migrations et chaque jour (workflows « Apply Supabase migrations » et « PII key health check ») : un job rouge est une alerte, il ne bloque rien (Vercel déploie l'app quand même).
+- **Vérification :** `select public.pii_health_check();` doit donner `true` à la fin de chaque étape (sauf pendant un retour en arrière, voir plus bas). Elle vérifie que chaque témoin se déchiffre, que chaque version qui chiffre des données a sa clé et son témoin, **et** que chaque valeur chiffrée se déchiffre avec la version de sa ligne. GitHub la lance aussi après chaque push de migrations et chaque jour (workflows « Apply Supabase migrations » et « PII key health check ») : un job rouge est une alerte, il ne bloque rien (Vercel déploie l'app quand même).
 
 Les étapes ci-dessous passent de la version 1 à la version 2. Pour une rotation suivante, remplacer 1 par la version courante et 2 par la suivante, dans les nombres **et** dans les noms de secrets.
 
-**Tables chiffrées.** La liste qui fait foi est la fonction `private.pii_encrypted_values()` (une branche par colonne chiffrée) : la vérification et l'inventaire la lisent. Toute nouvelle colonne chiffrée s'y ajoute, et ici, dans le même changement (conventions §8) :
+**Tables chiffrées.** La liste qui fait foi est la fonction `private.pii_encrypted_values()` (une branche par colonne chiffrée, avec la clé de ligne) : la vérification et l'inventaire la lisent, et le test pgTAP `047` échoue si une table qui a une colonne `key_version` n'y figure pas. Toute nouvelle colonne chiffrée s'y ajoute, et ici (tableau et bloc de l'étape 4), dans le même changement (conventions §8) :
 
 | Table | Colonnes chiffrées | Clé de ligne |
 |---|---|---|
 | `public.organization_bank_details` | `account_number` | `org_id` |
 | `public.professional_private` (à partir de la Task 4a.17) | `sin`, `bank_account` | `professional_id` |
+| `public.professional_submission_private` (à partir de la Task 4b.1, P4-38 : valeurs saisies dans le questionnaire) | `sin`, `bank_account` | `submission_id` |
 
 ## Avant de commencer
 
@@ -96,6 +97,8 @@ begin
   --                               where x.key_version <> v_target order by x.professional_id limit 500);
   -- get diagnostics v_count = row_count;
   -- raise notice 'professional_private : % ligne(s) re-chiffrée(s)', v_count;
+
+  -- À partir de la Task 4b.1 : professional_submission_private, même forme (clé de ligne submission_id).
 end;
 $$;
 
@@ -106,7 +109,7 @@ select * from private.pii_key_versions_in_use() order by 1, 2;
 - il ne prend que les lignes qui ne sont pas encore en version 2 : une fois tout re-chiffré, il ne touche plus **aucune** ligne (rien n'est réécrit, aucune ligne d'historique) ;
 - chaque ligne se déchiffre avec **sa** version, lue dans la même instruction : une ligne enregistrée entre-temps par l'app (déjà en version 2) est au pire re-chiffrée en version 2, jamais abîmée ;
 - il refuse de tourner (exception, rien d'écrit) si la version d'écriture n'est pas celle visée : par exemple avant l'étape 3, ou avec un `v_target` mal tapé ;
-- une exécution qui échoue est annulée en entier : rien n'est à moitié re-chiffré.
+- une exécution qui échoue est annulée en entier : rien n'est à moitié re-chiffré. Une seule valeur illisible (`ERROR: Wrong key or corrupt data`) fait échouer chaque exécution : voir [« Une valeur illisible »](#une-valeur-illisible).
 
 À savoir :
 - Chaque ligne re-chiffrée écrit une ligne d'historique (`source = 'runbook:pii-key-rotation'`) : la valeur chiffrée y est masquée (« [redacted] »), `key_version` passe de 1 à 2.
@@ -175,6 +178,39 @@ Une erreur (« … rien n'est retiré ») : lire le message, corriger (souvent :
    Dès ce moment, `pii_health_check()` est **faux** (la version 2 chiffre encore des données mais n'a plus de témoin) : c'est attendu, et le job quotidien serait rouge. Faire le point 2 tout de suite.
 2. Re-chiffrer vers la version 1 les lignes déjà en version 2 : le bloc de l'étape 4 avec `v_target constant integer := 1`, relancé jusqu'à ce que l'inventaire ne montre plus que la version 1.
 3. `select public.pii_health_check();` → `true`. Le secret `pii_encryption_key_v2` peut rester (sans témoin, il ne sert à rien). Pour le supprimer, une fois l'inventaire entièrement en version 1 : le bloc de l'étape 7 avec `v_old constant integer := 2` (il refuse tant qu'une valeur est chiffrée en version 2). Garder son entrée du gestionnaire comme à l'étape 6.
+
+## Une valeur illisible
+
+Une valeur chiffrée qui ne se déchiffre pas avec la clé de sa version : typiquement une **copie de données de production sur staging** (voulue illisible, [copie](pii-key-escrow.md#staging-et-production--deux-clés-différentes-exprès)), ou une clé remplacée après l'écriture des données. Symptômes :
+- `pii_health_check()` est faux, avec l'avertissement `a value of <table>.<colonne> stored with key version N does not decrypt (SQLSTATE 39000)` ;
+- le bloc de l'étape 4 échoue à chaque exécution (`Wrong key or corrupt data`, rien n'est re-chiffré) ;
+- dans l'app, enregistrer les coordonnées bancaires **sans retaper le numéro de compte** échoue avec « Le numéro de compte enregistré ne peut pas être lu avec la clé de cet environnement. » (le compte gardé doit être re-chiffré, donc lu) ; « Afficher » échoue aussi.
+
+**Trouver les lignes en cause**, dans le SQL Editor. Le bloc n'affiche aucune valeur : la table, la colonne, la clé de ligne (un identifiant), la version et le SQLSTATE.
+```sql
+do $$
+declare
+  r record;
+  v_bad integer := 0;
+begin
+  for r in select e.table_name, e.column_name, e.row_key, e.key_version, e.ciphertext
+             from private.pii_encrypted_values() e order by 1, 3, 2 loop
+    begin
+      perform private.decrypt_pii(r.ciphertext, r.key_version);
+    exception when others then
+      v_bad := v_bad + 1;
+      raise notice '%.% ligne % : illisible avec la version % (SQLSTATE %)', r.table_name, r.column_name, r.row_key, r.key_version, sqlstate;
+    end;
+  end loop;
+  raise notice '% valeur(s) illisible(s)', v_bad;
+end;
+$$;
+```
+La clé de ligne est la colonne du tableau « Tables chiffrées » (`org_id`, `professional_id`, `submission_id`).
+
+**Que faire :**
+- **Sur staging** (copie de production, données de test) : ces valeurs sont perdues pour staging, c'est voulu. Supprimer la ligne, puis ressaisir des **valeurs de test** dans l'app. Pour les coordonnées bancaires de la clinique : `delete from public.organization_bank_details where org_id = '<clé de ligne>';` (une ligne d'historique est écrite), ou simplement retaper un numéro de compte complet dans Paramètres → Coordonnées bancaires (un nouveau numéro remplace l'ancien sans le lire). Pour les autres tables, la même suppression avec leur clé de ligne. Puis relancer le bloc ci-dessus (`0 valeur(s) illisible(s)`) et `select public.pii_health_check();` → `true`. **Ne jamais copier la clé de production dans staging** pour « réparer ».
+- **Sur la production : s'arrêter.** Ne rien supprimer, ne pas continuer la rotation, ne pas toucher aux secrets. Noter la sortie du bloc (sans valeur) et appeler le coordinateur : c'est le cas « La vérification échoue » du [runbook de copie](pii-key-escrow.md#la-vérification-échoue), points 4 et 5 (la bonne clé est peut-être dans le gestionnaire de mots de passe).
 
 ## Après la rotation
 
