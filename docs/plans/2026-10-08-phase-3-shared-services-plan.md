@@ -1598,6 +1598,12 @@ The raw token is never returned to the browser (P3-7). The browser cannot call c
 
 ---
 
+## Task 3.20b: DB follow-ups from the Task 3.20 review (DB lane)
+
+- **P3-32 (delegated, 2026-10-08, revisable): disabling a user ends their sessions in the database.** `set_user_status(…, 'disabled')` also runs `delete from auth.sessions where user_id = p_user_id` in the same transaction (refresh tokens go with it through `session_id`), so a refresh token taken from a compromised device does not come back to life on re-enable. The Auth ban stays (it blocks new sign-ins). Reason: supabase-js `auth.admin.signOut` takes the user's JWT, not an id, so there is no admin "sign out user X" call. Check that the migration owner may delete from `auth.sessions` locally and record the staging check in Mise en service. Test: a disabled user's sessions are gone; re-enable does not restore them.
+- **Orphan auth users:** a maintenance SQL job `core.invite_orphans_purge` (hourly) deletes `auth.users` rows whose `raw_app_meta_data ? 'invite_link_id'`, that have no `public.profiles` row, and that are older than 1 hour (accept-invite sets the marker; a killed function or a failed delete otherwise blocks the invitation with `email_exists` forever). Verify the owner may delete from `auth.users` locally; test with a fixture row.
+- `create_staff_invitation` returns `(id, expires_at)` like `renew` (removes the extra peek in `staff-invite`; lane F adjusts the call).
+
 ## Task 3.21: `/invitation` page
 
 **Lane:** U (after Task 3.20 merges). **Files:**
@@ -2418,6 +2424,8 @@ Nothing below is needed to build or test Phase 3. Each item is done by Jonathan,
 | 16 | **Inter TTF** (only if the spike needed it) | Download from the official Inter release | Requires Jonathan's OK (download rule); the agent then regenerates `_shared/pdf/fonts.ts` |
 | 16b | **Email change on staging** (Task 3.16) | After item 7 | Check that an email change needs **both** links on hosted GoTrue (locally one link of either address completes it). Then, one release after the new templates are live, remove the old `#…` link reader in `AuthProvider.tsx` (TRANSITION comment). |
 | 16c | **Outlook desktop** (Task 3.16) | Only if the clinic uses classic Outlook for Windows | GoTrue strips HTML comments, so auth emails lose the `<!--[if mso]>` 560 px table and span the window. Readable; the full fix is a Supabase Send Email Hook that sends auth emails through our layout and Resend (a later decision). |
+| 16d | **Auth password rules** (Task 3.20 review) | Dashboard → Auth | Admin-created accounts (accept-invite) bypass dashboard password rules: if staging adds character classes or the leaked-password check, mirror them in `password-schema.ts` and accept-invite's Zod rule. Also confirm `delete from auth.sessions` / `auth.users` by the migration owner works on hosted (P3-32, orphan purge). |
+| 16e | **Loi 25 note: Resend keeps bodies** | With item 15 | Invitation emails (and their link) are readable in the Resend dashboard until the link expires or is used; list it in the EFVP. |
 | 17 | **Merge = deploy** | GitHub | Push, PR and merge each need his go-ahead. After the merge, run the staging smoke test of design §11 step by step, each with a go-ahead |
 
 ---
