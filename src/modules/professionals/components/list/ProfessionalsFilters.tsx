@@ -23,6 +23,8 @@ interface ProfessionalsFiltersProps {
   catalog: CatalogView | undefined
   /** The rows that pass the filters; undefined while loading. */
   resultCount: number | undefined
+  /** The page shown and the number of pages: a page change is announced with the count. */
+  pagination?: { page: number; pageCount: number }
   onChange: (patch: FilterPatch) => void
   onToggleMotif: (id: string) => void
   onReset: () => void
@@ -36,7 +38,7 @@ interface ProfessionalsFiltersProps {
  * « Réinitialiser ». Every change goes to the URL through `onChange` (`useProfessionalsFilters`).
  */
 export function ProfessionalsFilters(props: ProfessionalsFiltersProps) {
-  const { filters, catalog, resultCount, onChange, onReset, filtersButtonRef } = props
+  const { filters, catalog, resultCount, pagination, onChange, onReset, filtersButtonRef } = props
   const focusFiltersButton = () => filtersButtonRef.current?.focus()
   const chips = catalog ? activeChips(filters, catalog, props) : []
   return (
@@ -57,11 +59,7 @@ export function ProfessionalsFilters(props: ProfessionalsFiltersProps) {
           ))}
         </Select>
         <MoreFilters {...props} />
-        {resultCount !== undefined && (
-          <p role="status" className="tabular ml-auto whitespace-nowrap text-xs text-muted-foreground">
-            {t(resultCount > 1 ? 'modules.professionals.list.resultsOther' : 'modules.professionals.list.resultsOne', { count: String(resultCount) })}
-          </p>
-        )}
+        {resultCount !== undefined && <ResultsStatus count={resultCount} pagination={pagination} />}
       </div>
       {!isDefaultFilters(filters) && (
         <div role="group" aria-label={t('modules.professionals.list.chips.label')} className="flex flex-wrap items-center gap-1.5">
@@ -94,6 +92,25 @@ export function ProfessionalsFilters(props: ProfessionalsFiltersProps) {
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * « N résultats » (polite): screen readers also hear « Page X sur Y » when there are several pages,
+ * so ‹ and ›, which keep the focus, say where they led.
+ */
+function ResultsStatus({ count, pagination }: { count: number; pagination: ProfessionalsFiltersProps['pagination'] }) {
+  const results = t(count > 1 ? 'modules.professionals.list.resultsOther' : 'modules.professionals.list.resultsOne', { count: String(count) })
+  const paged = pagination !== undefined && pagination.pageCount > 1
+  return (
+    <p role="status" aria-atomic="true" className="tabular ml-auto whitespace-nowrap text-xs text-muted-foreground">
+      <span aria-hidden={paged || undefined}>{results}</span>
+      {paged && (
+        <span className="sr-only">
+          {t('modules.professionals.list.resultsPage', { results, page: String(pagination.page), count: String(pagination.pageCount) })}
+        </span>
+      )}
+    </p>
   )
 }
 
@@ -227,7 +244,7 @@ function MotifFilter({ catalog, selected, onToggle }: { catalog: CatalogView; se
       </p>
       <Command filter={motifSearch} label={t(`${F}.motifs`)} className="rounded-md border border-border">
         <CommandInput placeholder={t(`${F}.motifsSearch`)} aria-labelledby={labelId} />
-        <CommandList className="max-h-52" aria-labelledby={labelId} aria-multiselectable>
+        <CommandList className="max-h-52" aria-labelledby={labelId}>
           <CommandEmpty>{t(`${F}.motifsEmpty`)}</CommandEmpty>
           {catalog.motifGroups.map((group) => {
             const motifs = group.motifs.filter((m) => m.isActive || selected.includes(m.id))

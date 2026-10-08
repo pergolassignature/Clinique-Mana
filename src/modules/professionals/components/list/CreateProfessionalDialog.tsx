@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
+import { useQueryClient } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from 'react-router-dom'
 import { CircleAlert, Plus } from 'lucide-react'
@@ -16,6 +17,7 @@ import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import type { NewProfessional } from '../../api/record'
 import { useProfessionalsCatalog } from '../../hooks/use-catalog'
+import { professionalCatalogKeys } from '../../hooks/keys'
 import { useCreateProfessional } from '../../hooks/use-professional-mutations'
 import { titleOrder, type CatalogView } from '../../lib/catalog-view'
 import { recordPath } from '../../lib/constants'
@@ -27,7 +29,8 @@ const C = 'modules.professionals.create'
  * « + Ajouter » (professionals.manage, the page's one teal action) and « Ajouter un professionnel »
  * (design §5.2, P4-35): Prénom, Nom, Courriel, Profession (active titles), and « N° de permis »
  * (the order's own label) when the title belongs to an order. Created as « À inviter »; then the
- * record opens. While creating, the dialog stays open; a refusal shows under its field.
+ * record opens. While creating, the dialog stays open; a refusal shows under the field its HINT
+ * names, when that field is on screen, else above the buttons.
  */
 export function CreateProfessionalDialog() {
   const [open, setOpen] = useState(false)
@@ -77,14 +80,23 @@ function CreateForm(props: CreateFormProps) {
 
 function CreateFormFields({ catalog, firstNameRef, onPendingChange, onCreated }: CreateFormProps & { catalog: CatalogView }) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const schema = useMemo(() => createProfessionalSchema(catalog), [catalog])
   const form = useForm<CreateProfessionalValues, unknown, NewProfessional>({ resolver: zodResolver(schema), defaultValues: CREATE_PROFESSIONAL_DEFAULTS })
   const { errors, isDirty } = form.formState
   const create = useCreateProfessional({
-    onErrorMessage: (message) => {
-      const field = createErrorField(message)
-      if (field) form.setError(field, { message }, { shouldFocus: true })
-      else form.setError('root.server', { message })
+    onErrorMessage: (message, error) => {
+      const field = createErrorField(error)
+      if (field === 'licenceNumber' && !titleOrder(catalog, form.getValues('titleId') || null)) {
+        // The title gained an order since the catalogue was read: no licence field to put it under.
+        // The refetched catalogue brings the field.
+        form.setError('root.server', { message: t(`${C}.licenceNowRequired`) })
+        void queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.catalog() })
+      } else if (field) {
+        form.setError(field, { message }, { shouldFocus: true })
+      } else {
+        form.setError('root.server', { message })
+      }
     },
   })
   const titleId = useWatch({ control: form.control, name: 'titleId' })

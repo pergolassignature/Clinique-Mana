@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
+import { rpcErrorCode, rpcErrorHint } from '@/core/modules/errors'
 import type { CatalogView } from '../lib/catalog-view'
 import type { NewProfessional } from '../api/record'
 import { checkLicence, licenceNumberField } from './professions'
@@ -34,14 +35,23 @@ export type CreateProfessionalValues = z.input<ReturnType<typeof createProfessio
 
 export const CREATE_PROFESSIONAL_DEFAULTS: CreateProfessionalValues = { firstName: '', lastName: '', email: '', titleId: '', licenceNumber: '' }
 
+/** The HINT of a `create_professional` refusal → the field it is about (migration `…_professionals_core.sql`). */
+const FIELD_BY_HINT = {
+  first_name: 'firstName',
+  last_name: 'lastName',
+  email: 'email',
+  title: 'titleId',
+  licence: 'licenceNumber',
+} as const satisfies Record<string, keyof CreateProfessionalValues>
+export type CreateErrorField = (typeof FIELD_BY_HINT)[keyof typeof FIELD_BY_HINT]
+
 /**
- * Where a refusal of `create_professional` belongs. The RPC's French messages name their field
- * (« Ce courriel est déjà utilisé. », « Le numéro de permis… », « Ce titre est archivé. »); any
- * other shows above the buttons.
+ * Where a refusal of `create_professional` belongs: the field its HINT names (P0001 only, the
+ * messages users read), else null (above the buttons). Never by the wording: « Le prénom contient
+ * des caractères invisibles ou non permis. » says « permis » and is about the first name.
  */
-export function createErrorField(message: string): 'email' | 'licenceNumber' | 'titleId' | null {
-  if (/courriel/i.test(message)) return 'email'
-  if (/\bpermis\b/i.test(message)) return 'licenceNumber'
-  if (/\btitre\b/i.test(message)) return 'titleId'
-  return null
+export function createErrorField(error: unknown): CreateErrorField | null {
+  if (rpcErrorCode(error) !== 'P0001') return null
+  const hint = rpcErrorHint(error)
+  return hint !== undefined && Object.hasOwn(FIELD_BY_HINT, hint) ? FIELD_BY_HINT[hint as keyof typeof FIELD_BY_HINT] : null
 }

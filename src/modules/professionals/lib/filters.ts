@@ -161,11 +161,25 @@ export function useProfessionalsFilters({ onChange }: { onChange?: (filters: Pro
 /** A known id, else null (no filter). */
 const known = (id: string | null, map: ReadonlyMap<string, unknown>) => (id !== null && map.has(id) ? id : null)
 
+/** The folded text the search looks in, per row: built once per list (`useMemo` on the rows), not per keystroke. */
+export type SearchHaystacks = ReadonlyMap<ProfessionalListRow, string>
+
+/** Pure: each row's name (either order), email and primary licence, folded (accents and case ignored). */
+export function searchHaystacks(rows: readonly ProfessionalListRow[]): SearchHaystacks {
+  return new Map(rows.map((row) => [row, foldSearch(`${row.firstName} ${row.lastName} ${row.email} ${row.primaryLicenceNumber ?? ''}`)]))
+}
+
 /**
  * Pure: the rows that pass every filter (« and »). The search splits on spaces; each word must
- * appear in the name (either order), the email or the primary licence.
+ * appear in the name (either order), the email or the primary licence. `haystacks` is
+ * `searchHaystacks(rows)`, passed in so the folding is not redone on each change.
  */
-export function filterProfessionals(rows: readonly ProfessionalListRow[], filters: ProfessionalsFilters, catalog: CatalogView): ProfessionalListRow[] {
+export function filterProfessionals(
+  rows: readonly ProfessionalListRow[],
+  filters: ProfessionalsFilters,
+  catalog: CatalogView,
+  haystacks: SearchHaystacks = searchHaystacks(rows),
+): ProfessionalListRow[] {
   const words = foldSearch(filters.q).split(/\s+/).filter(Boolean)
   const titleId = known(filters.titleId, catalog.byId.titles)
   const languageId = known(filters.languageId, catalog.byId.languages)
@@ -181,7 +195,7 @@ export function filterProfessionals(rows: readonly ProfessionalListRow[], filter
     if (filters.acceptingNewClients && !row.acceptingNewClients) return false
     if (filters.watch && watchFlags(row).length === 0) return false
     if (words.length === 0) return true
-    const haystack = foldSearch(`${row.firstName} ${row.lastName} ${row.email} ${row.primaryLicenceNumber ?? ''}`)
+    const haystack = haystacks.get(row) ?? ''
     return words.every((word) => haystack.includes(word))
   })
 }

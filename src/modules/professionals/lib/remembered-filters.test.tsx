@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { AccessContext, type AccessContextValue } from '@/core/access/access-context'
-import { PREFERENCE_WRITE_DELAY } from '@/core/preferences/hooks'
+import { PREFERENCE_WRITE_DELAY, useUserPreference } from '@/core/preferences/hooks'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
 import { testAccess } from '@/test/contexts'
 import { DEFAULT_FILTERS } from './filters'
@@ -12,7 +12,7 @@ import { fromRememberedFilters, LIST_FILTERS_PREFERENCE, toRememberedFilters, us
 import { setupQueryClient } from '../test/query-client'
 import { IDS } from '../test/fixtures'
 
-const mocks = vi.hoisted(() => ({ fetchUserPreference: vi.fn(), saveUserPreference: vi.fn(), deleteUserPreference: vi.fn() }))
+const mocks = vi.hoisted(() => ({ fetchUserPreference: vi.fn(), saveUserPreference: vi.fn(), deleteUserPreference: vi.fn(), onSessionUserChange: vi.fn(() => () => {}) }))
 vi.mock('@/core/preferences/api', () => mocks)
 
 const access: AccessContextValue = { status: 'ready', access: testAccess, problem: null, can: () => true, reload: () => {}, isReloading: false }
@@ -81,6 +81,45 @@ describe('useRememberedProfessionalsFilters', () => {
     expect(mocks.saveUserPreference).not.toHaveBeenCalled()
   })
 
+  it('stops restoring when the person types while the saved filters are being put in the URL', async () => {
+    mocks.fetchUserPreference.mockResolvedValue({ query: 'statut=inactif' })
+    let search = ''
+    function Probe() {
+      search = useLocation().search
+      return null
+    }
+    const { queryClient } = setupQueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <AccessContext.Provider value={access}>
+          <MemoryRouter initialEntries={['/professionnels']} future={ROUTER_FUTURE}>
+            {children}
+            <Probe />
+          </MemoryRouter>
+        </AccessContext.Provider>
+      </QueryClientProvider>
+    )
+    const hook = renderHook(
+      () => {
+        const state = useRememberedProfessionalsFilters()
+        const read = useUserPreference(LIST_FILTERS_PREFERENCE)
+        const typed = useRef(false)
+        // Runs in the same commit as the restore (declared after it): a keystroke lands before the
+        // restored URL does, so the URL never equals what was restored.
+        useEffect(() => {
+          if (read.isPending || typed.current) return
+          typed.current = true
+          state.setFilters({ q: 'mar' })
+        })
+        return state
+      },
+      { wrapper },
+    )
+    await waitFor(() => expect(hook.result.current.restoring).toBe(false))
+    expect(search).toBe('?q=mar&statut=inactif')
+    expect(hook.result.current.filters).toMatchObject({ q: 'mar', status: 'inactive' })
+  })
+
   it('leaves a URL that carries filters alone', async () => {
     mocks.fetchUserPreference.mockResolvedValue({ query: 'statut=inactif' })
     const { hook, search } = setup('?statut=actif')
@@ -104,10 +143,10 @@ describe('useRememberedProfessionalsFilters', () => {
       hook.result.current.setFilters({ q: 'marie' })
     })
     await act(() => vi.advanceTimersByTimeAsync(PREFERENCE_WRITE_DELAY))
-    expect(mocks.saveUserPreference).toHaveBeenCalledExactlyOnceWith(LIST_FILTERS_PREFERENCE, { query: 'q=marie' })
+    expect(mocks.saveUserPreference).toHaveBeenCalledExactlyOnceWith(testAccess.user_id, LIST_FILTERS_PREFERENCE, { query: 'q=marie' })
     act(() => hook.result.current.reset())
     await act(() => vi.advanceTimersByTimeAsync(PREFERENCE_WRITE_DELAY))
-    expect(mocks.deleteUserPreference).toHaveBeenCalledExactlyOnceWith(LIST_FILTERS_PREFERENCE)
+    expect(mocks.deleteUserPreference).toHaveBeenCalledExactlyOnceWith(testAccess.user_id, LIST_FILTERS_PREFERENCE)
   })
 
   it('does not save a page change', async () => {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { deleteUserPreference, fetchUserPreference, saveUserPreference } from './api'
+import { deleteUserPreference, fetchUserPreference, onSessionUserChange, saveUserPreference } from './api'
 
 const mocks = vi.hoisted(() => {
   const maybeSingle = vi.fn()
@@ -9,9 +9,11 @@ const mocks = vi.hoisted(() => {
   const select = vi.fn(() => chain)
   const from = vi.fn(() => ({ select }))
   const rpc = vi.fn()
-  return { from, select, eq, maybeSingle, rpc }
+  const unsubscribe = vi.fn()
+  const onAuthStateChange = vi.fn(() => ({ data: { subscription: { unsubscribe } } }))
+  return { from, select, eq, maybeSingle, rpc, onAuthStateChange, unsubscribe }
 })
-vi.mock('@/core/supabase/client', () => ({ supabase: { from: mocks.from, rpc: mocks.rpc } }))
+vi.mock('@/core/supabase/client', () => ({ supabase: { from: mocks.from, rpc: mocks.rpc, auth: { onAuthStateChange: mocks.onAuthStateChange } } }))
 
 afterEach(() => vi.clearAllMocks())
 
@@ -42,13 +44,13 @@ describe('fetchUserPreference', () => {
 })
 
 describe('saveUserPreference / deleteUserPreference', () => {
-  it('write through the RPCs, never the table', async () => {
+  it('write through the RPCs, never the table, naming the user who made the change', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: null })
-    await saveUserPreference('k', { query: 'q=a' })
-    await deleteUserPreference('k')
+    await saveUserPreference('u1', 'k', { query: 'q=a' })
+    await deleteUserPreference('u1', 'k')
     expect(mocks.rpc.mock.calls).toEqual([
-      ['set_user_preference', { p_key: 'k', p_value: { query: 'q=a' } }],
-      ['delete_user_preference', { p_key: 'k' }],
+      ['set_user_preference', { p_user_id: 'u1', p_key: 'k', p_value: { query: 'q=a' } }],
+      ['delete_user_preference', { p_user_id: 'u1', p_key: 'k' }],
     ])
     expect(mocks.from).not.toHaveBeenCalled()
   })
@@ -56,7 +58,20 @@ describe('saveUserPreference / deleteUserPreference', () => {
   it('throw the RPC error', async () => {
     const error = { code: '22023', message: 'Au plus 50 préférences par utilisateur' }
     mocks.rpc.mockResolvedValue({ data: null, error })
-    await expect(saveUserPreference('k', {})).rejects.toBe(error)
-    await expect(deleteUserPreference('k')).rejects.toBe(error)
+    await expect(saveUserPreference('u1', 'k', {})).rejects.toBe(error)
+    await expect(deleteUserPreference('u1', 'k')).rejects.toBe(error)
+  })
+})
+
+describe('onSessionUserChange', () => {
+  it('reports the session’s user at each auth event (null once signed out), until unsubscribed', () => {
+    const listener = vi.fn()
+    const unsubscribe = onSessionUserChange(listener)
+    const [[callback]] = mocks.onAuthStateChange.mock.calls as unknown as [[(event: string, session: { user: { id: string } } | null) => void]]
+    callback('SIGNED_IN', { user: { id: 'u2' } })
+    callback('SIGNED_OUT', null)
+    expect(listener.mock.calls).toEqual([['u2'], [null]])
+    unsubscribe()
+    expect(mocks.unsubscribe).toHaveBeenCalledOnce()
   })
 })

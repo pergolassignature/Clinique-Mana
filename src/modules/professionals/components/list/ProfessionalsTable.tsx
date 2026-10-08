@@ -15,17 +15,22 @@ import { watchFlags } from '../../lib/watch'
 const T = 'modules.professionals.list.table'
 
 /**
- * The columns follow the card's width (a container query), not the window's: the sidebar takes
- * 220px from md up, so the card is narrower at 768px than at 640px. Below 480px: Nom and Statut
+ * The columns follow the card's width (container queries: `container-inline` and the `cq-480:` /
+ * `cq-720:` / `cq-880:` variants, tailwind.config.js), not the window's: the sidebar takes 220px
+ * from md up, so the card is narrower at 768px than at 640px. Below 480px: Nom and Statut
  * (the email stays under the name); then Profession; from 720px À surveiller; from 880px Langues
  * (design system: `minmax(0,2fr) minmax(0,1.6fr) 96px 120px minmax(0,1.4fr)`). Every flexible
  * column is `minmax(0, …)` and every text ellipsed, so the table never scrolls sideways.
  */
-const GRID =
-  'grid grid-cols-[minmax(0,1fr)_96px] [@container(min-width:480px)]:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_120px] [@container(min-width:720px)]:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_120px_minmax(0,1.4fr)] [@container(min-width:880px)]:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_96px_120px_minmax(0,1.4fr)]'
-const PROFESSION_COLUMN = 'hidden [@container(min-width:480px)]:block'
-const WATCH_COLUMN = 'hidden [@container(min-width:720px)]:block'
-const LANGUAGES_COLUMN = 'hidden [@container(min-width:880px)]:block'
+const GRID = cn(
+  'grid grid-cols-[minmax(0,1fr)_96px]',
+  'cq-480:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_120px]',
+  'cq-720:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_120px_minmax(0,1.4fr)]',
+  'cq-880:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_96px_120px_minmax(0,1.4fr)]',
+)
+const PROFESSION_COLUMN = 'hidden cq-480:block'
+const WATCH_COLUMN = 'hidden cq-720:block'
+const LANGUAGES_COLUMN = 'hidden cq-880:block'
 const CELL = 'min-w-0 px-3 py-2'
 
 /** How long the pointer rests on a row before its record is prefetched. */
@@ -57,7 +62,7 @@ interface ProfessionalsTableProps {
  */
 export function ProfessionalsTable({ rows, catalog, onPrefetch, footer }: ProfessionalsTableProps) {
   return (
-    <div className="rounded-lg border border-border bg-card [container-type:inline-size]">
+    <div className="container-inline rounded-lg border border-border bg-card">
       <div role="table" aria-label={t(`${T}.label`)} aria-busy={rows === null || undefined} className="text-sm">
         <div role="rowgroup">
           <div role="row" className={cn(GRID, 'text-2xs font-medium uppercase tracking-wide text-muted-foreground')}>

@@ -66,16 +66,18 @@ function useRecordMutation<V extends { id: string }, R>(config: RecordMutation<V
 
 // --- Creation ------------------------------------------------------------------------------------
 
-/** « Créer »: resolves with the new id (the dialog navigates to it); refreshes the lists. */
+/**
+ * « Créer »: resolves with the new id as soon as the record exists (the dialog navigates to it);
+ * the lists and the usage counts are refetched behind it, not awaited: the record page does not
+ * show them, and a slow list must not hold the dialog open.
+ */
 export function useCreateProfessional(feedback?: MutationFeedback) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: NewProfessional) => createProfessional(input),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: professionalKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.usage() }),
-      ])
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: professionalKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.usage() })
       toast.success(t('modules.professionals.toasts.created'))
     },
     onError: (error) => showMutationError(queryClient, error, feedback),

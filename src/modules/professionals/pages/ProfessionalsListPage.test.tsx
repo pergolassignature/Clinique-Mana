@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   list: { fetchProfessionalsList: vi.fn() },
   catalog: { fetchProfessionalsCatalog: vi.fn() },
   record: { fetchProfessionalRecord: vi.fn() },
-  preferences: { fetchUserPreference: vi.fn(), saveUserPreference: vi.fn(), deleteUserPreference: vi.fn() },
+  preferences: { fetchUserPreference: vi.fn(), saveUserPreference: vi.fn(), deleteUserPreference: vi.fn(), onSessionUserChange: vi.fn(() => () => {}) },
 }))
 vi.mock('../api/list', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/list')>()), ...mocks.list }))
 vi.mock('../api/catalog', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/catalog')>()), ...mocks.catalog }))
@@ -189,12 +189,23 @@ describe('ProfessionalsListPage', () => {
     })
     renderPage()
     await waitFor(() => expect(names()).toHaveLength(PAGE_SIZE))
+    const status = screen.getByText('26 résultats').closest('[role="status"]')
+    expect(status).toHaveTextContent('26 résultats, page 1 sur 2')
     const next = screen.getByRole('button', { name: t(`${L}.footer.next`) })
     await userEvent.click(next)
     await waitFor(() => expect(names()).toHaveLength(1))
     expect(next).toHaveAttribute('aria-disabled', 'true')
     expect(next).toHaveFocus()
     expect(screen.getByText('26 sur 26 professionnels')).toBeInTheDocument()
+    // The focus stays on ›: the polite results status says where it led.
+    expect(status).toHaveTextContent('26 résultats, page 2 sur 2')
+    expect(status).toHaveAttribute('aria-atomic', 'true')
+  })
+
+  it('announces no page when there is only one', async () => {
+    renderPage()
+    await waitFor(() => expect(names()).toHaveLength(3))
+    expect(screen.getByText('3 résultats').closest('[role="status"]')).not.toHaveTextContent('page')
   })
 
   it('filters through « Filtres », shows the filters as chips, and removes one', async () => {
@@ -290,11 +301,11 @@ describe('ProfessionalsListPage — remembered filters', () => {
     await screen.findByRole('link', { name: 'Marie Tremblay' })
     await userEvent.selectOptions(screen.getByRole('combobox', { name: t(`${L}.statusFilter.label`) }), 'active')
     expect(mocks.preferences.saveUserPreference).not.toHaveBeenCalled()
-    await waitFor(() => expect(mocks.preferences.saveUserPreference).toHaveBeenCalledWith(LIST_FILTERS_PREFERENCE, { query: 'statut=actif' }), {
+    await waitFor(() => expect(mocks.preferences.saveUserPreference).toHaveBeenCalledWith('u1', LIST_FILTERS_PREFERENCE, { query: 'statut=actif' }), {
       timeout: PREFERENCE_WRITE_DELAY + 1000,
     })
     await userEvent.click(screen.getByRole('button', { name: t(`${L}.reset`) }))
-    await waitFor(() => expect(mocks.preferences.deleteUserPreference).toHaveBeenCalledWith(LIST_FILTERS_PREFERENCE), { timeout: PREFERENCE_WRITE_DELAY + 1000 })
+    await waitFor(() => expect(mocks.preferences.deleteUserPreference).toHaveBeenCalledWith('u1', LIST_FILTERS_PREFERENCE), { timeout: PREFERENCE_WRITE_DELAY + 1000 })
     expect(setItem).not.toHaveBeenCalled()
     expect(location()).toBe('/professionnels')
   })

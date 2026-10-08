@@ -1,3 +1,5 @@
+import plugin from 'tailwindcss/plugin'
+
 /** A design-system colour (RGB channels in src/styles/globals.css), opacity modifiers included. */
 const token = (name) => `rgb(var(--${name}) / <alpha-value>)`
 
@@ -176,5 +178,15 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // Container queries (Tailwind 3 has none built in; the official plugin is one more dependency
+    // for three widths): `container-inline` on the box whose width counts, then `cq-480:`,
+    // `cq-720:`, `cq-880:` (min-width) on what it holds. Used where a card's width, not the
+    // window's, decides the layout (the professionals table, P4-63: the sidebar makes the card
+    // narrower at 768px than at 640px).
+    plugin(({ addUtilities, addVariant }) => {
+      addUtilities({ '.container-inline': { 'container-type': 'inline-size' } })
+      for (const width of [480, 720, 880]) addVariant(`cq-${width}`, `@container (min-width: ${width}px)`)
+    }),
+  ],
 }

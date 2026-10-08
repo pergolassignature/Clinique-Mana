@@ -1228,6 +1228,7 @@
         "reset": "Réinitialiser",
         "resultsOne": "{count} résultat",
         "resultsOther": "{count} résultats",
+        "resultsPage": "{results}, page {page} sur {count}",
         "table": {
           "label": "Professionnels",
           "name": "Nom",
@@ -1256,7 +1257,7 @@
       },
       "create": {
         "heading": "Ajouter un professionnel",
-        "description": "Le dossier commence « À inviter ». Vous compléterez son profil avant de l'inviter.",
+        "description": "Le dossier est créé au statut « À inviter ». Vous compléterez son profil avant de l'inviter.",
         "firstName": "Prénom",
         "lastName": "Nom",
         "email": "Courriel",
@@ -1266,7 +1267,8 @@
         "licenceHelp": "Requis pour ce titre ({order}).",
         "submit": "Créer",
         "submitting": "Création…",
-        "catalogError": "Les titres n'ont pas pu être chargés."
+        "catalogError": "Les titres n'ont pas pu être chargés.",
+        "licenceNowRequired": "Ce titre demande maintenant un numéro de permis. Saisissez-le dans le champ ajouté, puis créez le dossier."
       },
       "toasts": {
         "saved": "Modifications enregistrées.",

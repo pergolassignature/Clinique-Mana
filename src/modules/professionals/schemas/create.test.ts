@@ -67,14 +67,29 @@ describe('createProfessionalSchema', () => {
 })
 
 describe('createErrorField', () => {
-  it('puts each refusal of create_professional under its field', () => {
-    expect(createErrorField('Ce courriel est déjà utilisé.')).toBe('email')
-    expect(createErrorField('Courriel invalide.')).toBe('email')
-    expect(createErrorField('Le numéro de permis est requis pour ce titre.')).toBe('licenceNumber')
-    expect(createErrorField("Le numéro de permis pour Psychologue n'a pas le bon format.")).toBe('licenceNumber')
-    expect(createErrorField('Ce titre est archivé.')).toBe('titleId')
-    expect(createErrorField("Aucune langue active n'est disponible.")).toBeNull()
-    expect(createErrorField(t('modules.professionals.errors.saveFailed'))).toBeNull()
-    expect(createErrorField(t('common.errors.forbidden'))).toBeNull()
+  const refusal = (message: string, hint?: string) => ({ code: 'P0001', message, ...(hint ? { hint } : {}) })
+
+  it('puts each refusal of create_professional under the field its HINT names', () => {
+    expect(createErrorField(refusal('Ce courriel est déjà utilisé.', 'email'))).toBe('email')
+    expect(createErrorField(refusal('Courriel invalide.', 'email'))).toBe('email')
+    expect(createErrorField(refusal('Le numéro de permis est requis pour ce titre.', 'licence'))).toBe('licenceNumber')
+    expect(createErrorField(refusal('Ce titre est archivé.', 'title'))).toBe('titleId')
+    expect(createErrorField(refusal('Le prénom est obligatoire.', 'first_name'))).toBe('firstName')
+    expect(createErrorField(refusal('Le nom ne peut pas dépasser 80 caractères.', 'last_name'))).toBe('lastName')
+  })
+
+  it('never routes by the wording', () => {
+    // « permis » is about the first name here, not the licence.
+    expect(createErrorField(refusal('Le prénom contient des caractères invisibles ou non permis.', 'first_name'))).toBe('firstName')
+    expect(createErrorField(refusal('Ce courriel est déjà utilisé.'))).toBeNull()
+    expect(createErrorField(refusal('Le numéro de permis est requis pour ce titre.'))).toBeNull()
+  })
+
+  it('keeps the rest above the buttons: no hint, an unknown hint, or not a P0001', () => {
+    expect(createErrorField(refusal("Aucune langue active n'est disponible."))).toBeNull()
+    expect(createErrorField(refusal('x', 'toString'))).toBeNull()
+    expect(createErrorField({ code: '22023', message: 'Titre inconnu.', hint: 'title' })).toBeNull()
+    expect(createErrorField({ code: '42501', message: 'Permission refusée' })).toBeNull()
+    expect(createErrorField(new Error('network'))).toBeNull()
   })
 })

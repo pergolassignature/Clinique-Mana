@@ -32,7 +32,7 @@ export function fromRememberedFilters(value: PreferenceValue | null | undefined)
   return isDefaultFilters(filters) ? null : filters
 }
 
-type RestoreState = { phase: 'waiting' } | { phase: 'applying'; target: string } | { phase: 'done' }
+type RestorePhase = 'waiting' | 'applying' | 'done'
 
 /**
  * `useProfessionalsFilters` plus the person's remembered filters. The URL stays the source of
@@ -44,34 +44,45 @@ type RestoreState = { phase: 'waiting' } | { phase: 'applying'; target: string }
  *
  * `restoring` is true until that first decision is applied (the preference is read in parallel
  * with the list), so the page shows its loading state rather than the unfiltered rows for a moment.
- * A failed read or write never blocks the list.
+ * Once the saved filters are written, it ends as soon as the URL carries any filter: the person
+ * may type in the search before the restored URL commits, and the URL is then the restored
+ * filters plus the typing, never exactly what was restored. A choice made at any point ends it
+ * too. A failed read or write never blocks the list.
  */
 export function useRememberedProfessionalsFilters() {
   const preference = useUserPreference(LIST_FILTERS_PREFERENCE)
   const { schedule } = usePreferenceWriter(LIST_FILTERS_PREFERENCE)
-  const onChange = useCallback((filters: ProfessionalsFilters) => schedule(toRememberedFilters(filters)), [schedule])
+  const [phase, setPhase] = useState<RestorePhase>('waiting')
+  const onChange = useCallback(
+    (filters: ProfessionalsFilters) => {
+      // The person chose: whatever the restore was waiting for, the list follows their choice now.
+      setPhase('done')
+      schedule(toRememberedFilters(filters))
+    },
+    [schedule],
+  )
   const state = useProfessionalsFilters({ onChange })
   const { filters, restore } = state
   const current = useMemo(() => queryOf(filters), [filters])
-  const [restoreState, setRestoreState] = useState<RestoreState>({ phase: 'waiting' })
 
   useEffect(() => {
-    if (restoreState.phase !== 'waiting' || preference.isPending) return
+    if (phase !== 'waiting' || preference.isPending) return
     const saved = current === '' ? fromRememberedFilters(preference.data) : null
     if (saved) {
       restore(saved)
-      setRestoreState({ phase: 'applying', target: queryOf(saved) })
+      setPhase('applying')
     } else {
-      setRestoreState({ phase: 'done' })
+      setPhase('done')
     }
-  }, [restoreState.phase, preference.isPending, preference.data, current, restore])
+  }, [phase, preference.isPending, preference.data, current, restore])
 
   // The URL update is a transition: the list waits for it rather than showing every row first.
-  const applied = restoreState.phase === 'applying' && current === restoreState.target
+  // Any filter in the URL ends the wait (the restored ones, or those typed meanwhile).
+  const applied = phase === 'applying' && current !== ''
   useEffect(() => {
-    if (applied) setRestoreState({ phase: 'done' })
+    if (applied) setPhase('done')
   }, [applied])
 
-  const restoring = restoreState.phase === 'waiting' || (restoreState.phase === 'applying' && !applied)
+  const restoring = phase === 'waiting' || (phase === 'applying' && !applied)
   return { ...state, restoring }
 }

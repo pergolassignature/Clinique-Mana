@@ -122,8 +122,8 @@ describe('CreateProfessionalDialog', () => {
     await waitFor(() => expect(mocks.record.createProfessional).toHaveBeenCalledWith(expect.objectContaining({ titleId: IDS.naturopathe, licenceNumber: null })))
   })
 
-  it('shows a duplicate email under Courriel, and stays open', async () => {
-    mocks.record.createProfessional.mockRejectedValue({ code: 'P0001', message: 'Ce courriel est déjà utilisé.' })
+  it('shows a duplicate email under Courriel (HINT email), and stays open', async () => {
+    mocks.record.createProfessional.mockRejectedValue({ code: 'P0001', message: 'Ce courriel est déjà utilisé.', hint: 'email' })
     renderDialog()
     await open()
     await fillNames()
@@ -133,6 +133,54 @@ describe('CreateProfessionalDialog', () => {
     expect(email).toHaveFocus()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(mocks.toast.error).not.toHaveBeenCalled()
+  })
+
+  it('routes by the HINT, not the wording: « …non permis » on the first name goes under Prénom', async () => {
+    const message = 'Le prénom contient des caractères invisibles ou non permis.'
+    mocks.record.createProfessional.mockRejectedValue({ code: 'P0001', message, hint: 'first_name' })
+    renderDialog()
+    await open()
+    await fillNames()
+    await userEvent.selectOptions(profession(), IDS.psychologue)
+    await userEvent.type(licence() as HTMLElement, '12345')
+    await userEvent.click(screen.getByRole('button', { name: t(`${C}.submit`) }))
+    const firstName = field(t(`${C}.firstName`))
+    await waitFor(() => expect(firstName).toHaveAccessibleDescription(expect.stringContaining(message)))
+    expect(firstName).toHaveFocus()
+    expect(licence()).not.toHaveAccessibleDescription(expect.stringContaining(message))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows a licence refusal under the licence field when it is there', async () => {
+    const message = "Le numéro de permis pour Psychologue n'a pas le bon format."
+    mocks.record.createProfessional.mockRejectedValue({ code: 'P0001', message, hint: 'licence' })
+    renderDialog()
+    await open()
+    await fillNames()
+    await userEvent.selectOptions(profession(), IDS.psychologue)
+    await userEvent.type(licence() as HTMLElement, '12345')
+    await userEvent.click(screen.getByRole('button', { name: t(`${C}.submit`) }))
+    await waitFor(() => expect(licence()).toHaveAccessibleDescription(expect.stringContaining(message)))
+    expect(licence()).toHaveFocus()
+  })
+
+  it('a licence refusal with no licence field (the title gained an order) goes above the buttons, and the titles are refetched', async () => {
+    mocks.record.createProfessional.mockRejectedValue({ code: 'P0001', message: 'Le numéro de permis est requis pour ce titre.', hint: 'licence' })
+    const { invalidated } = renderDialog()
+    await open()
+    await fillNames()
+    await userEvent.selectOptions(profession(), IDS.naturopathe)
+    expect(licence()).not.toBeInTheDocument()
+    // Meanwhile, naturopathe was put under an order.
+    mocks.catalog.fetchProfessionalsCatalog.mockResolvedValue({
+      ...CATALOG,
+      titles: CATALOG.titles.map((title) => (title.id === IDS.naturopathe ? { ...title, orderId: IDS.opq } : title)),
+    })
+    await userEvent.click(screen.getByRole('button', { name: t(`${C}.submit`) }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(t(`${C}.licenceNowRequired`))
+    expect(invalidated()).toContainEqual(['professionals-catalog', 'catalog'])
+    // The refetched catalogue brings the field.
+    expect(await screen.findByRole('textbox', { name: /^N° de permis/ })).toBeInTheDocument()
   })
 
   it('shows any other refusal above the buttons', async () => {

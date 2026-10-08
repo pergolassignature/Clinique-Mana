@@ -17,7 +17,7 @@ import { ProfessionalsTable } from '../components/list/ProfessionalsTable'
 import { useProfessionalsCatalog } from '../hooks/use-catalog'
 import { prefetchProfessionalRecord } from '../hooks/use-professional-record'
 import { useProfessionalsList } from '../hooks/use-professionals-list'
-import { filterProfessionals, paginate } from '../lib/filters'
+import { filterProfessionals, paginate, searchHaystacks } from '../lib/filters'
 import { useRememberedProfessionalsFilters } from '../lib/remembered-filters'
 import { professionalRecordPage } from '../manifest'
 import type { ProfessionalListRow } from '../api/parse'
@@ -48,7 +48,12 @@ export function ProfessionalsListPage() {
 
   const rows = list.data?.rows
   const catalogView = catalog.data
-  const filtered = useMemo(() => (rows && catalogView ? filterProfessionals(rows, filters, catalogView) : undefined), [rows, filters, catalogView])
+  // Folded once per list, not on every keystroke.
+  const haystacks = useMemo(() => (rows ? searchHaystacks(rows) : undefined), [rows])
+  const filtered = useMemo(
+    () => (rows && catalogView && haystacks ? filterProfessionals(rows, filters, catalogView, haystacks) : undefined),
+    [rows, filters, catalogView, haystacks],
+  )
   // Undefined while loading, and while the remembered filters are put in the URL.
   const shown = restoring ? undefined : filtered
   const page = shown ? paginate(shown, filters.page) : undefined
@@ -92,6 +97,7 @@ export function ProfessionalsListPage() {
             filters={filters}
             catalog={catalogView}
             resultCount={shown?.length}
+            pagination={page && { page: page.page, pageCount: page.pageCount }}
             onChange={setFilters}
             onToggleMotif={toggleMotif}
             onReset={reset}

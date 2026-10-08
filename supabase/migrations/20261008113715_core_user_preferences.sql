@@ -17,6 +17,11 @@
 --   INSERT or DELETE (conventions §3, 000_invariants), so clients only SELECT (RLS) and write
 --   through two definer RPCs, set_user_preference (upsert) and delete_user_preference. The RPCs
 --   take the user and org from the session, never from the caller.
+-- * Both RPCs also take the user the write is for (`p_user_id`, required) and refuse it unless it
+--   is the session's user (42501, HINT user_mismatch). The session is read when the request goes
+--   out, not when the person made the change: a write debounced or queued across a sign-out, a
+--   sign-in or another tab switching the shared session would otherwise land on the next user.
+--   The client drops that refusal quietly (src/core/preferences/hooks.ts).
 -- * org_id with a composite FK to profiles (conventions §4), on delete cascade: rows go with
 --   the profile (retention), and cannot drift to another org.
 -- * Limits: key `^[a-z0-9_.:-]{1,100}$`, value an object of at most 16 KB (as text), at most 50
@@ -66,9 +71,10 @@ create policy user_preferences_select on public.user_preferences
 -- -----------------------------------------------------------------------------
 -- RPCs (act for auth.uid(); service_role is revoked)
 -- -----------------------------------------------------------------------------
--- Saves (inserts or replaces) one preference of the caller. 42501 when the caller has no active
--- profile; 22023 for a null key or value, or a 51st key; 23514 from the table checks.
-create function public.set_user_preference(p_key text, p_value jsonb)
+-- Saves (inserts or replaces) one preference of the caller. 42501 HINT user_mismatch when
+-- p_user_id is not the caller (or is null); 42501 when the caller has no active profile; 22023
+-- for a null key or value, or a 51st key; 23514 from the table checks.
+create function public.set_user_preference(p_user_id uuid, p_key text, p_value jsonb)
 returns void
 language plpgsql
 security definer
@@ -78,6 +84,9 @@ declare
   v_uid uuid := auth.uid();
   v_org uuid;
 begin
+  if p_user_id is null or p_user_id is distinct from v_uid then
+    raise exception 'Cette préférence appartient à un autre utilisateur.' using errcode = '42501', hint = 'user_mismatch';
+  end if;
   -- Locks the caller's own profile row (conventions §6) so concurrent saves see each other's
   -- keys before the cap check.
   select p.org_id into v_org
@@ -102,15 +111,18 @@ begin
 end;
 $$;
 
--- Deletes one preference of the caller (no-op when absent). 42501 when the caller has no active
--- profile.
-create function public.delete_user_preference(p_key text)
+-- Deletes one preference of the caller (no-op when absent). 42501 HINT user_mismatch when
+-- p_user_id is not the caller (or is null); 42501 when the caller has no active profile.
+create function public.delete_user_preference(p_user_id uuid, p_key text)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
+  if p_user_id is null or p_user_id is distinct from auth.uid() then
+    raise exception 'Cette préférence appartient à un autre utilisateur.' using errcode = '42501', hint = 'user_mismatch';
+  end if;
   if private.current_user_org_id() is null then
     raise exception 'Permission refusée' using errcode = '42501';
   end if;
@@ -120,10 +132,10 @@ end;
 $$;
 
 revoke all on function
-  public.set_user_preference(text, jsonb),
-  public.delete_user_preference(text)
+  public.set_user_preference(uuid, text, jsonb),
+  public.delete_user_preference(uuid, text)
 from public, anon, authenticated, service_role;
 grant execute on function
-  public.set_user_preference(text, jsonb),
-  public.delete_user_preference(text)
+  public.set_user_preference(uuid, text, jsonb),
+  public.delete_user_preference(uuid, text)
 to authenticated;
