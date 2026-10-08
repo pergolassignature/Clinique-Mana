@@ -3,10 +3,12 @@ import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { roleLabel } from '@/core/access/roles'
 import { useSettingsSection } from '@/core/settings/section-context'
-import type { OrgUser } from '@/core/users/api'
+import type { OrgUser, StaffInvitation } from '@/core/users/api'
+import { InviteDialog } from '@/core/users/components/InviteDialog'
+import { PendingInvitationRows } from '@/core/users/components/PendingInvitationRows'
 import { RoleMatrix } from '@/core/users/components/RoleMatrix'
 import { UserSheet } from '@/core/users/components/UserSheet'
-import { useOrgUsers } from '@/core/users/hooks'
+import { useOrgUsers, useStaffInvitations } from '@/core/users/hooks'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
@@ -31,7 +33,8 @@ const isTab = (value: string): value is Tab => (TABS as string[]).includes(value
  * users.manage, a row opens the user's sheet (role, status, permission overrides), else the table
  * is read-only; the matrix follows roles.manage. The section is read-only (the lock, one notice
  * for the page) only without either; otherwise a read-only users tab has its own notice.
- * People are added by hand until invitations exist (decision #22).
+ * People join by invitation (« Inviter », users.manage; Task 3.22): pending invitations are rows of
+ * the same table.
  */
 export function UsersSettingsPage() {
   const { readOnly } = useSettingsSection()
@@ -72,8 +75,16 @@ export function UsersSettingsPage() {
   )
 }
 
+/**
+ * The users and the pending invitations: two queries started together (no waterfall); the table
+ * shows once both are in. A failed one shows the load error, and « Réessayer » asks again for what
+ * failed.
+ */
 function UsersTab({ canManage }: { canManage: boolean }) {
-  const { data: users, isPending, isError, isFetching, refetch } = useOrgUsers()
+  const usersQuery = useOrgUsers()
+  const invitationsQuery = useStaffInvitations()
+  const users = usersQuery.data
+  const failed = [usersQuery, invitationsQuery].filter((q) => q.isError && !q.data)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // From the list, so the sheet shows the refreshed user after each change.
   const selected = users?.find((u) => u.user_id === selectedId) ?? null
@@ -101,14 +112,24 @@ function UsersTab({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">{t('settings.users.addNote')}</p>
-      {isPending ? (
+      {/* The screen's one teal action (users.manage). */}
+      {canManage && (
+        <div className="flex justify-end">
+          <InviteDialog />
+        </div>
+      )}
+      {failed.length > 0 ? (
+        <LoadError
+          message={t('settings.users.loadError')}
+          onRetry={() => failed.forEach((q) => void q.refetch())}
+          retrying={failed.some((q) => q.isFetching)}
+        />
+      ) : !users || !invitationsQuery.data ? (
         <Loading />
-      ) : isError && !users ? (
-        <LoadError message={t('settings.users.loadError')} onRetry={() => void refetch()} retrying={isFetching} />
       ) : (
         <UsersTable
           users={users}
+          invitations={invitationsQuery.data}
           canManage={canManage}
           selectedId={selected?.user_id ?? null}
           onOpen={open}
@@ -130,6 +151,7 @@ function UsersTab({ canManage }: { canManage: boolean }) {
 
 interface UsersTableProps {
   users: OrgUser[]
+  invitations: StaffInvitation[]
   canManage: boolean
   selectedId: string | null
   onOpen: (userId: string) => void
@@ -141,10 +163,73 @@ interface UsersTableProps {
  * Nom (avatar, name; the email under it on phones), Courriel, Rôle, Statut, Dernière connexion.
  * On phones the email, status and last sign-in columns are hidden: the email shows under the name,
  * the status under the role, the last sign-in in the sheet. The name is a button for keyboard
- * users; a click anywhere on the row opens the sheet too.
+ * users; a click anywhere on the row opens the sheet too. The active users come first, then the
+ * pending invitations, then the disabled accounts; with users.manage and invitations, a last
+ * column holds the invitations' actions.
  */
-function UsersTable({ users, canManage, selectedId, onOpen, buttonRef }: UsersTableProps) {
+function UsersTable({ users, invitations, canManage, selectedId, onOpen, buttonRef }: UsersTableProps) {
   const lastSignIn = (u: OrgUser) => (u.last_sign_in_at ? formatClinicDateTime(u.last_sign_in_at) : t('settings.users.never'))
+  const actionsColumn = canManage && invitations.length > 0
+  const userRow = (u: OrgUser) => {
+    const active = u.status === 'active'
+    const status = <Badge variant={active ? 'success' : 'error'}>{t(active ? 'settings.users.status.active' : 'settings.users.status.disabled')}</Badge>
+    return (
+      <TableRow
+        key={u.user_id}
+        data-state={u.user_id === selectedId ? 'selected' : undefined}
+        onClick={
+          canManage
+            ? () => {
+                // Selecting text (to copy an email) is not a click on the row.
+                if (window.getSelection()?.toString()) return
+                onOpen(u.user_id)
+              }
+            : undefined
+        }
+        className={cn(canManage && 'cursor-pointer')}
+      >
+        <TableCell>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Avatar size="sm" aria-hidden>
+              <AvatarFallback className="text-muted-foreground">{initialsOf(u.display_name)}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              {canManage ? (
+                <button
+                  ref={buttonRef(u.user_id)}
+                  type="button"
+                  className={`block max-w-full truncate rounded-sm text-left font-medium hover:underline ${focusRing}`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onOpen(u.user_id)
+                  }}
+                >
+                  {u.display_name}
+                </button>
+              ) : (
+                <span className="block truncate font-medium">{u.display_name}</span>
+              )}
+              <span className="block truncate text-xs text-muted-foreground sm:hidden">{u.email}</span>
+            </div>
+          </div>
+        </TableCell>
+        <TableCell className="text-muted-foreground max-sm:hidden">{u.email}</TableCell>
+        <TableCell className="max-sm:whitespace-normal">
+          {u.role ? roleLabel(u.role, u.role_name) : <span className="text-muted-foreground">{t('settings.users.noRole')}</span>}
+          <span className="block sm:hidden">{status}</span>
+        </TableCell>
+        <TableCell className="max-sm:hidden">{status}</TableCell>
+        <TableCell className="text-muted-foreground max-sm:hidden">{lastSignIn(u)}</TableCell>
+        {actionsColumn && <TableCell />}
+      </TableRow>
+    )
+  }
+  const count = [
+    users.length === 1 ? t('settings.users.countOne') : t('settings.users.countOther', { count: String(users.length) }),
+    ...(invitations.length === 0
+      ? []
+      : [invitations.length === 1 ? t('settings.users.invitations.countOne') : t('settings.users.invitations.countOther', { count: String(invitations.length) })]),
+  ].join(' · ')
   return (
     <div className="rounded-lg border border-border bg-card">
       <Table scrollLabel={t('settings.users.tableLabel')} className="whitespace-nowrap">
@@ -162,69 +247,20 @@ function UsersTable({ users, canManage, selectedId, onOpen, buttonRef }: UsersTa
             <TableHead scope="col" className="max-sm:hidden">
               {t('settings.users.columns.lastSignIn')}
             </TableHead>
+            {actionsColumn && (
+              <TableHead scope="col">
+                <span className="sr-only">{t('settings.users.invitations.actions')}</span>
+              </TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {users.map((u) => {
-            const active = u.status === 'active'
-            const status = (
-              <Badge variant={active ? 'success' : 'error'}>{t(active ? 'settings.users.status.active' : 'settings.users.status.disabled')}</Badge>
-            )
-            return (
-              <TableRow
-                key={u.user_id}
-                data-state={u.user_id === selectedId ? 'selected' : undefined}
-                onClick={
-                  canManage
-                    ? () => {
-                        // Selecting text (to copy an email) is not a click on the row.
-                        if (window.getSelection()?.toString()) return
-                        onOpen(u.user_id)
-                      }
-                    : undefined
-                }
-                className={cn(canManage && 'cursor-pointer')}
-              >
-                <TableCell>
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <Avatar size="sm" aria-hidden>
-                      <AvatarFallback className="text-muted-foreground">{initialsOf(u.display_name)}</AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      {canManage ? (
-                        <button
-                          ref={buttonRef(u.user_id)}
-                          type="button"
-                          className={`block max-w-full truncate rounded-sm text-left font-medium hover:underline ${focusRing}`}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            onOpen(u.user_id)
-                          }}
-                        >
-                          {u.display_name}
-                        </button>
-                      ) : (
-                        <span className="block truncate font-medium">{u.display_name}</span>
-                      )}
-                      <span className="block truncate text-xs text-muted-foreground sm:hidden">{u.email}</span>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground max-sm:hidden">{u.email}</TableCell>
-                <TableCell className="max-sm:whitespace-normal">
-                  {u.role ? roleLabel(u.role, u.role_name) : <span className="text-muted-foreground">{t('settings.users.noRole')}</span>}
-                  <span className="block sm:hidden">{status}</span>
-                </TableCell>
-                <TableCell className="max-sm:hidden">{status}</TableCell>
-                <TableCell className="text-muted-foreground max-sm:hidden">{lastSignIn(u)}</TableCell>
-              </TableRow>
-            )
-          })}
+          {users.filter((u) => u.status === 'active').map(userRow)}
+          <PendingInvitationRows invitations={invitations} canManage={canManage} />
+          {users.filter((u) => u.status !== 'active').map(userRow)}
         </TableBody>
       </Table>
-      <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-        {users.length === 1 ? t('settings.users.countOne') : t('settings.users.countOther', { count: String(users.length) })}
-      </p>
+      <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">{count}</p>
     </div>
   )
 }

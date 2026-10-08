@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { FunctionCallError } from '@/core/supabase/functions'
 import {
   clearPermissionOverride,
   clearPermissionOverrides,
@@ -7,7 +8,11 @@ import {
   fetchOrgUsers,
   fetchRoleDefaults,
   fetchUserOverrides,
+  inviteStaff,
+  listStaffInvitations,
   renameRole,
+  resendInvitation,
+  revokeInvitation,
   setPermissionOverride,
   setRolePermission,
   setUserRole,
@@ -35,6 +40,11 @@ const mocks = vi.hoisted(() => {
   return { rpc, from, select, eq, results }
 })
 vi.mock('@/core/supabase/client', () => ({ supabase: { rpc: mocks.rpc, from: mocks.from } }))
+const invokeFunction = vi.hoisted(() => vi.fn())
+vi.mock('@/core/supabase/functions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/supabase/functions')>()),
+  invokeFunction,
+}))
 
 afterEach(() => {
   vi.clearAllMocks()
@@ -137,7 +147,6 @@ describe('fetchUserOverrides', () => {
 describe('write RPCs', () => {
   it.each([
     ['setUserRole', () => setUserRole('u2', 'admin_assistant'), 'set_user_role', { p_user_id: 'u2', p_role: 'admin_assistant' }],
-    ['setUserStatus', () => setUserStatus('u2', 'disabled'), 'set_user_status', { p_user_id: 'u2', p_status: 'disabled' }],
     [
       'setPermissionOverride',
       () => setPermissionOverride('u2', 'audit.view', true),
@@ -185,5 +194,140 @@ describe('write RPCs', () => {
 
     mocks.rpc.mockResolvedValue({ data: null, error: failure })
     await expect(createRole('Réception', null)).rejects.toBe(failure)
+  })
+})
+
+// ── Staff invitations and status (Task 3.22) ────────────────────────────────────────────────────
+
+const INVITATION_ROW = {
+  id: 'i1',
+  email: 'nouvelle@mana.test',
+  display_name: 'Nouvelle Personne',
+  role: 'counselor',
+  role_name: 'Conseillère',
+  status: 'pending',
+  expires_at: '2026-10-15T16:00:00+00:00',
+  is_expired: false,
+  invited_by_name: 'Admin Local',
+  created_at: '2026-10-08T16:00:00+00:00',
+  last_email_status: 'delivered',
+  last_email_at: '2026-10-08T16:00:02+00:00',
+}
+
+describe('listStaffInvitations', () => {
+  it('lists the pending invitations through list_staff_invitations, keeping the nullable columns null', async () => {
+    const orphan = { ...INVITATION_ROW, id: 'i2', role_name: null, expires_at: null, is_expired: true, invited_by_name: null, last_email_status: null, last_email_at: null }
+    mocks.rpc.mockResolvedValue({ data: [INVITATION_ROW, orphan], error: null })
+    await expect(listStaffInvitations()).resolves.toEqual([
+      {
+        id: 'i1',
+        email: 'nouvelle@mana.test',
+        display_name: 'Nouvelle Personne',
+        role: 'counselor',
+        role_name: 'Conseillère',
+        expires_at: '2026-10-15T16:00:00+00:00',
+        is_expired: false,
+        invited_by_name: 'Admin Local',
+        last_email_status: 'delivered',
+      },
+      {
+        id: 'i2',
+        email: 'nouvelle@mana.test',
+        display_name: 'Nouvelle Personne',
+        role: 'counselor',
+        role_name: null,
+        expires_at: null,
+        is_expired: true,
+        invited_by_name: null,
+        last_email_status: null,
+      },
+    ])
+    expect(mocks.rpc).toHaveBeenCalledWith('list_staff_invitations')
+  })
+
+  it('throws the RPC error', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: failure })
+    await expect(listStaffInvitations()).rejects.toBe(failure)
+  })
+})
+
+describe('inviteStaff and resendInvitation (the staff-invite function only)', () => {
+  it('invites through staff-invite, never an RPC, and returns the invitation', async () => {
+    invokeFunction.mockResolvedValue({ invitation_id: 'i1' })
+    await expect(inviteStaff({ email: 'nouvelle@mana.test', displayName: 'Nouvelle Personne', role: 'counselor' })).resolves.toEqual({
+      invitationId: 'i1',
+      emailProblem: null,
+    })
+    expect(invokeFunction).toHaveBeenCalledExactlyOnceWith('staff-invite', { email: 'nouvelle@mana.test', display_name: 'Nouvelle Personne', role: 'counselor' })
+    expect(mocks.rpc).not.toHaveBeenCalled()
+  })
+
+  it('« Renvoyer » sends the invitation id to staff-invite', async () => {
+    invokeFunction.mockResolvedValue({ invitation_id: 'i1' })
+    await expect(resendInvitation('i1')).resolves.toEqual({ invitationId: 'i1', emailProblem: null })
+    expect(invokeFunction).toHaveBeenCalledExactlyOnceWith('staff-invite', { invitation_id: 'i1' })
+    expect(mocks.rpc).not.toHaveBeenCalled()
+  })
+
+  it.each(['provider_error', 'not_configured', 'rate_limited', 'invalid_request'])(
+    'an email failure after the invitation exists (%s) resolves with the invitation and the problem',
+    async (code) => {
+      invokeFunction.mockRejectedValue(new FunctionCallError(code, 502, 'Invitation created, email not sent', { invitation_id: 'i1' }))
+      await expect(inviteStaff({ email: 'a@b.ca', displayName: 'A', role: 'counselor' })).resolves.toEqual({ invitationId: 'i1', emailProblem: code })
+      await expect(resendInvitation('i1')).resolves.toEqual({ invitationId: 'i1', emailProblem: code })
+    },
+  )
+
+  it('passes an RPC refusal on as that RPC error: P0001 with its French message, 42501', async () => {
+    invokeFunction.mockRejectedValue(new FunctionCallError('invalid_request', 400, 'Cette personne a déjà un accès.'))
+    await expect(inviteStaff({ email: 'a@b.ca', displayName: 'A', role: 'counselor' })).rejects.toEqual({ code: 'P0001', message: 'Cette personne a déjà un accès.' })
+    invokeFunction.mockRejectedValue(new FunctionCallError('forbidden', 403, 'Not allowed'))
+    await expect(resendInvitation('i1')).rejects.toEqual({ code: '42501', message: 'Not allowed' })
+  })
+
+  it("keeps the function's own refusals as they are (a refused body, a limit, the network)", async () => {
+    for (const error of [
+      new FunctionCallError('invalid_request', 400, 'Invalid request body'),
+      new FunctionCallError('rate_limited', 429, 'Too many attempts'),
+      new FunctionCallError('network', 0, 'Function unreachable'),
+    ]) {
+      invokeFunction.mockRejectedValue(error)
+      await expect(inviteStaff({ email: 'a@b.ca', displayName: 'A', role: 'counselor' })).rejects.toBe(error)
+    }
+  })
+})
+
+describe('revokeInvitation', () => {
+  it('calls revoke_staff_invitation and throws its error', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: null })
+    await revokeInvitation('i1')
+    expect(mocks.rpc).toHaveBeenCalledWith('revoke_staff_invitation', { p_id: 'i1' })
+    mocks.rpc.mockResolvedValue({ data: null, error: failure })
+    await expect(revokeInvitation('i1')).rejects.toBe(failure)
+  })
+})
+
+describe('setUserStatus (the users-set-status function)', () => {
+  it('disables through users-set-status and says whether the sessions were ended', async () => {
+    invokeFunction.mockResolvedValue({ status: 'disabled', sessions_ended: true })
+    await expect(setUserStatus('u2', 'disabled')).resolves.toEqual({ sessionsEnded: true })
+    expect(invokeFunction).toHaveBeenCalledExactlyOnceWith('users-set-status', { user_id: 'u2', status: 'disabled' })
+    expect(mocks.rpc).not.toHaveBeenCalled()
+
+    invokeFunction.mockResolvedValue({ status: 'disabled', sessions_ended: false })
+    await expect(setUserStatus('u2', 'disabled')).resolves.toEqual({ sessionsEnded: false })
+  })
+
+  it('re-enables (no sessions to end)', async () => {
+    invokeFunction.mockResolvedValue({ status: 'active' })
+    await expect(setUserStatus('u2', 'active')).resolves.toEqual({ sessionsEnded: true })
+  })
+
+  it('passes the guards on as RPC errors; an unban failure stays a FunctionCallError', async () => {
+    invokeFunction.mockRejectedValue(new FunctionCallError('invalid_request', 400, failure.message))
+    await expect(setUserStatus('u2', 'disabled')).rejects.toEqual(failure)
+    const unban = new FunctionCallError('provider_error', 502, 'Account could not be re-enabled')
+    invokeFunction.mockRejectedValue(unban)
+    await expect(setUserStatus('u2', 'active')).rejects.toBe(unban)
   })
 })

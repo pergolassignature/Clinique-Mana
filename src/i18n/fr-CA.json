@@ -638,7 +638,6 @@
     "users": {
       "description": "Qui utilise l'application, avec quel rôle et quelles permissions.",
       "tabs": { "users": "Utilisateurs", "roles": "Rôles" },
-      "addNote": "Pour ajouter une personne, contactez l'administrateur technique. Les invitations par courriel arriveront bientôt.",
       "tableLabel": "Utilisateurs de la clinique",
       "columns": { "name": "Nom", "email": "Courriel", "role": "Rôle", "status": "Statut", "lastSignIn": "Dernière connexion" },
       "status": { "active": "Actif", "disabled": "Désactivé" },
@@ -647,6 +646,57 @@
       "countOne": "1 utilisateur",
       "countOther": "{count} utilisateurs",
       "loadError": "La liste des utilisateurs n'a pas pu être chargée.",
+      "invite": {
+        "button": "Inviter",
+        "title": "Inviter une personne",
+        "description": "Elle recevra un courriel avec un lien pour choisir son mot de passe. Le lien est valide 7 jours.",
+        "name": "Nom",
+        "email": "Courriel",
+        "role": "Rôle",
+        "rolePlaceholder": "Choisir un rôle",
+        "roleManagerLimit": "Seuls les rôles dont vous avez toutes les permissions sont proposés.",
+        "rolesLoadError": "Les rôles n'ont pas pu être chargés.",
+        "submit": "Envoyer l'invitation",
+        "submitting": "Envoi…",
+        "validation": {
+          "nameRequired": "Nom requis.",
+          "nameTooLong": "80 caractères au maximum.",
+          "emailInvalid": "Courriel invalide.",
+          "roleRequired": "Choisissez un rôle."
+        },
+        "adminConfirm": { "title": "Inviter un administrateur ?", "body": "Cette personne aura toutes les permissions.", "confirm": "Inviter" },
+        "sent": "Invitation envoyée à {email}.",
+        "createdNotSent": "Invitation créée, mais le courriel n'a pas pu être envoyé. Utilisez « Renvoyer ».",
+        "emailProblems": {
+          "not_configured": "L'envoi de courriels n'est pas encore configuré.",
+          "rate_limited": "Limite d'envoi de courriels atteinte. Réessayez dans quelques minutes.",
+          "provider_error": "Le service d'envoi n'a pas répondu.",
+          "invalid_request": "Le service d'envoi a refusé cette adresse.",
+          "other": "Le courriel n'a pas pu être envoyé."
+        },
+        "errors": {
+          "rateLimited": "Trop d'invitations en peu de temps. Réessayez plus tard.",
+          "network": "Le service est injoignable. Vérifiez votre connexion et réessayez."
+        }
+      },
+      "invitations": {
+        "status": { "sent": "Invitation envoyée", "expired": "Expirée" },
+        "email": "Courriel : {status}",
+        "emailNone": "Courriel : non envoyé",
+        "expires": "Expire le {date}",
+        "expired": "Expirée le {date}",
+        "invitedBy": "Envoyée par {name}",
+        "actions": "Actions",
+        "resend": "Renvoyer",
+        "resending": "Envoi…",
+        "resent": "Nouveau lien envoyé à {email}. L'ancien lien ne fonctionne plus.",
+        "resendNotSent": "Le nouveau courriel n'a pas pu être envoyé, et l'ancien lien ne fonctionne plus. Réessayez « Renvoyer ».",
+        "revoke": "Révoquer",
+        "revokeConfirm": { "title": "Révoquer l'invitation de {name} ?", "body": "Le lien envoyé à {email} ne fonctionnera plus.", "confirm": "Révoquer" },
+        "revoked": "Invitation révoquée.",
+        "countOne": "1 invitation en attente",
+        "countOther": "{count} invitations en attente"
+      },
       "sheet": {
         "lastSignIn": "Dernière connexion : {date}",
         "selfBefore": "Modifiez votre compte dans",
@@ -675,10 +725,12 @@
           "label": "Compte actif",
           "reenableAdminOnly": "Seul un administrateur peut réactiver un compte.",
           "confirmTitle": "Désactiver ce compte ?",
-          "confirmBody": "{name} ne pourra plus se connecter.",
+          "confirmBody": "{name} ne pourra plus se connecter, et ses sessions ouvertes seront fermées.",
           "confirm": "Désactiver",
           "disabledSaved": "Compte désactivé.",
-          "enabledSaved": "Compte réactivé."
+          "sessionsNotEnded": "Accès bloqué. Les sessions ouvertes se fermeront d'ici une heure.",
+          "enabledSaved": "Compte réactivé.",
+          "reenableFailed": "Le compte n'a pas pu être réactivé. Réessayez."
         },
         "permissions": {
           "title": "Permissions",
