@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useContext, useEffect, useMemo } from 'react'
 import { t } from '@/i18n'
 import type { BankDetails } from '@/core/settings/bank/api'
 import { useSetBankDetails } from '@/core/settings/bank/hooks'
@@ -35,6 +35,8 @@ export function BankDetailsForm({ details, onClose }: BankDetailsFormProps) {
     formState: { errors, isDirty },
   } = form
   useUnsavedChanges(isDirty)
+  // Read-only nests: a surrounding read-only area wins, and the form adds its pending save.
+  const fieldsReadOnly = useContext(FieldsReadOnlyContext) || mutation.isPending
 
   useEffect(() => form.setFocus('institution'), [form])
 
@@ -50,7 +52,7 @@ export function BankDetailsForm({ details, onClose }: BankDetailsFormProps) {
       footer={<FormActions onCancel={onClose} dirty={isDirty} pending={mutation.isPending} cancelCloses />}
     >
       {/* Read-only while saving: the form closes on success, so anything typed meanwhile would be lost. */}
-      <FieldsReadOnlyContext.Provider value={mutation.isPending}>
+      <FieldsReadOnlyContext.Provider value={fieldsReadOnly}>
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField label={t('settings.bank.fields.institution')} help={t('settings.bank.fields.institutionHelp')} required error={errors.institution?.message}>
             {(field) => <Input {...field} {...register('institution')} inputMode="numeric" autoComplete="off" />}

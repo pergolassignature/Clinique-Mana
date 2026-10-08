@@ -81,6 +81,15 @@ describe('moduleErrorMessage', () => {
     expect(mocks.captureException).toHaveBeenLastCalledWith(expect.any(Error), { tags: { area: 'modules', code: 'unknown' } })
   })
 
+  it('keeps the stack and the name of a real Error (a JS stack never holds details)', () => {
+    const failure = new TypeError('Failed to fetch')
+    moduleErrorMessage(failure, FALLBACK)
+    expect(reported().name).toBe('RpcError unknown (TypeError)')
+    expect(reported().message).toBe('Failed to fetch')
+    expect(reported().stack).toBe(failure.stack)
+    expect(reported()).not.toBe(failure)
+  })
+
   it.each([[null], [undefined], ['boom'], [new Error('boom')]])('falls back for a non-database value (%s)', (value) => {
     expect(moduleErrorMessage(value, FALLBACK)).toBe(FALLBACK)
     expect(reported()).toBeInstanceOf(Error)
