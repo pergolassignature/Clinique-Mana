@@ -6,44 +6,14 @@
 import { parseISO, format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz'
+import { getClinicTimezone } from './clinic-timezone'
 
-// America/Toronto handles both EST (winter) and EDT (summer) automatically
-const DEFAULT_CLINIC_TIMEZONE = 'America/Toronto'
-
-// Set at sign-in from organizations.timezone (see core/access/AccessProvider).
-let clinicTimezone = DEFAULT_CLINIC_TIMEZONE
-// Last value passed to setClinicTimezone (valid or not), so repeated calls are no-ops.
-let lastRequestedTimezone: string | null = null
+// The setting itself lives in ./clinic-timezone (no date-fns), so the login page does not load
+// date-fns; it is re-exported here, the public entry point for all clinic date helpers.
+export { getClinicTimezone, resetClinicTimezone, setClinicTimezone } from './clinic-timezone'
 
 /** Placeholder shown for missing or invalid dates. */
 const EMPTY_DATE = '—'
-
-/**
- * Set the clinic timezone (IANA name, e.g. 'America/Vancouver').
- * An invalid value is ignored: the current timezone is kept and a warning logged.
- */
-export function setClinicTimezone(timezone: string): void {
-  // Called on every render by the access provider: a repeated value (even an invalid one) is a no-op.
-  if (timezone === lastRequestedTimezone) return
-  lastRequestedTimezone = timezone
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: timezone })
-  } catch {
-    console.warn(`Invalid clinic timezone "${timezone}", keeping "${clinicTimezone}".`)
-    return
-  }
-  clinicTimezone = timezone
-}
-
-export function getClinicTimezone(): string {
-  return clinicTimezone
-}
-
-/** Restore the default clinic timezone (e.g. on sign-out). */
-export function resetClinicTimezone(): void {
-  clinicTimezone = DEFAULT_CLINIC_TIMEZONE
-  lastRequestedTimezone = null
-}
 
 type DateInput = Date | string | null | undefined
 
@@ -67,7 +37,7 @@ export function formatInClinicTimezone(
 ): string {
   const dateObj = toValidDate(date)
   if (!dateObj) return EMPTY_DATE
-  return formatInTimeZone(dateObj, clinicTimezone, formatStr, { locale: fr })
+  return formatInTimeZone(dateObj, getClinicTimezone(), formatStr, { locale: fr })
 }
 
 /**
@@ -79,14 +49,14 @@ export function formatInClinicTimezone(
  */
 export function toClinicTime(date: Date | string): Date {
   const dateObj = typeof date === 'string' ? new Date(date) : date
-  return toZonedTime(dateObj, clinicTimezone)
+  return toZonedTime(dateObj, getClinicTimezone())
 }
 
 /**
  * Current time as a Date whose local values reflect the clinic timezone.
  */
 export function clinicNow(): Date {
-  return toZonedTime(new Date(), clinicTimezone)
+  return toZonedTime(new Date(), getClinicTimezone())
 }
 
 /**
@@ -110,7 +80,7 @@ export function isClinicToday(date: DateInput): boolean {
 export function clinicTimeToUTC(dateStr: string, timeStr: string): string {
   const time = timeStr.length === 5 ? `${timeStr}:00` : timeStr
   // Interpret the wall-clock string in the clinic timezone, then convert to UTC
-  return fromZonedTime(`${dateStr}T${time}`, clinicTimezone).toISOString()
+  return fromZonedTime(`${dateStr}T${time}`, getClinicTimezone()).toISOString()
 }
 
 /**

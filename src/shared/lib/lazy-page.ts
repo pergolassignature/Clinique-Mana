@@ -1,4 +1,4 @@
-import { createElement, lazy, useState, type ComponentType, type FunctionComponent } from 'react'
+import { createElement, lazy, useEffect, useState, type ComponentType, type FunctionComponent } from 'react'
 
 /** A code-split page: a component that loads its chunk on first render, or earlier through `preload()`. */
 export type LazyPage = FunctionComponent & {
@@ -77,6 +77,32 @@ export function lazyPage(load: () => Promise<Module>, exportName = 'default'): L
     preload: () => loadComponent().then(() => undefined),
     isLoaded: () => loaded !== null,
   })
+}
+
+/**
+ * Preloads `page` and returns whether it can render now, WITHOUT suspending: the caller keeps
+ * its own loading screen meanwhile, so no Suspense fallback (and its 300 ms hold) is involved.
+ * A failed load is thrown to the nearest error boundary; remounting tries again.
+ */
+export function useLazyPageReady(page: LazyPage): boolean {
+  const [state, setState] = useState<{ ready: boolean; error: unknown }>(() => ({ ready: page.isLoaded(), error: null }))
+  useEffect(() => {
+    if (state.ready) return
+    let active = true
+    page.preload().then(
+      () => {
+        if (active) setState({ ready: true, error: null })
+      },
+      (error: unknown) => {
+        if (active) setState({ ready: false, error: error ?? new Error('lazyPage: load failed') })
+      },
+    )
+    return () => {
+      active = false
+    }
+  }, [page, state.ready])
+  if (state.error) throw state.error
+  return state.ready
 }
 
 type IdleHandle = { cancel: () => void }

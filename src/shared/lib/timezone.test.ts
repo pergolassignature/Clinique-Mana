@@ -11,6 +11,7 @@ import {
   resetClinicTimezone,
   setClinicTimezone,
 } from './timezone'
+import * as clinicTimezone from './clinic-timezone'
 
 describe('clinic timezone', () => {
   afterEach(() => {
@@ -22,6 +23,15 @@ describe('clinic timezone', () => {
   it('runs tests with a host timezone different from the clinic', () => {
     // Pinned in vitest.config.ts so date-only tests prove there is no host shift.
     expect(new Date('2020-01-01T12:00:00Z').getTimezoneOffset()).toBe(480)
+  })
+
+  // AccessProvider sets it through ./clinic-timezone (no date-fns on the login page).
+  it('shares one setting with the date-fns-free clinic-timezone module', () => {
+    clinicTimezone.setClinicTimezone('America/Vancouver')
+    expect(getClinicTimezone()).toBe('America/Vancouver')
+    expect(formatInClinicTimezone('2026-01-21T20:00:00Z', 'HH:mm')).toBe('12:00')
+    resetClinicTimezone()
+    expect(clinicTimezone.getClinicTimezone()).toBe('America/Toronto')
   })
 
   it('defaults to America/Toronto', () => {

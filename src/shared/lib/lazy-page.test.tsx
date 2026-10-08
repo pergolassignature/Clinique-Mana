@@ -1,7 +1,7 @@
 import { Component, Suspense, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { lazyPage, preloadWhenIdle } from './lazy-page'
+import { lazyPage, preloadWhenIdle, useLazyPageReady, type LazyPage } from './lazy-page'
 
 const Page = () => <p>PAGE</p>
 
@@ -107,6 +107,41 @@ describe('lazyPage', () => {
     expect(await screen.findByRole('button', { name: '1' })).toBe(button)
     rerender(inSuspense(<LazyPage />))
     expect(screen.getByRole('button', { name: '1' })).toBe(button)
+  })
+})
+
+describe('useLazyPageReady', () => {
+  // Like App's SignedInApp: its own loading screen, no Suspense (no 300 ms fallback hold).
+  function Gate({ page: Page }: { page: LazyPage }) {
+    return useLazyPageReady(Page) ? <Page /> : <p role="status">WAITING</p>
+  }
+
+  it('shows the caller\'s loading screen, then the page, without suspending', async () => {
+    let resolve: (m: { default: typeof Page }) => void = () => {}
+    const LazyPage = lazyPage(() => new Promise<{ default: typeof Page }>((r) => (resolve = r)))
+    render(inSuspense(<Gate page={LazyPage} />))
+    expect(screen.getByRole('status')).toHaveTextContent('WAITING')
+    resolve({ default: Page })
+    expect(await screen.findByText('PAGE')).toBeInTheDocument()
+  })
+
+  it('renders at once when already loaded', async () => {
+    const LazyPage = lazyPage(async () => ({ default: Page }))
+    await LazyPage.preload()
+    render(inSuspense(<Gate page={LazyPage} />))
+    expect(screen.getByText('PAGE')).toBeInTheDocument()
+  })
+
+  it('sends a failed load to the error boundary, and loads again on remount', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const load = vi.fn<() => Promise<{ default: typeof Page }>>().mockRejectedValue(new Error('chunk failed'))
+    const LazyPage = lazyPage(load)
+    const { unmount } = render(inSuspense(<Gate page={LazyPage} />))
+    expect(await screen.findByRole('alert')).toHaveTextContent('chunk failed')
+    unmount()
+    load.mockResolvedValue({ default: Page })
+    render(inSuspense(<Gate page={LazyPage} />))
+    expect(await screen.findByText('PAGE')).toBeInTheDocument()
   })
 })
 
