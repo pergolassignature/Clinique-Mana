@@ -1,12 +1,33 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { agesLabel, clienteleLabel, fullName, genderLabel, languagesLabel, periodsLabel, primaryProfession, professionLine, statusLabel } from './display'
+import { MOTIF_CATEGORY_ICONS } from './constants'
+import {
+  agesLabel,
+  clienteleLabel,
+  fullName,
+  genderLabel,
+  languagesLabel,
+  motifIconLabel,
+  periodsLabel,
+  primaryProfession,
+  professionLine,
+  statusLabel,
+} from './display'
 import { CATALOG_VIEW, recordFixture } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
 
 describe('fullName', () => {
   it('is « Prénom Nom »', () => {
     expect(fullName({ firstName: 'Marie', lastName: 'Tremblay' })).toBe('Marie Tremblay')
+  })
+})
+
+describe('motifIconLabel', () => {
+  it('names each of the 20 icons in French, each differently', () => {
+    const labels = MOTIF_CATEGORY_ICONS.map(motifIconLabel)
+    for (const [i, icon] of MOTIF_CATEGORY_ICONS.entries()) expect(labels[i]).not.toContain(icon)
+    expect(new Set(labels).size).toBe(MOTIF_CATEGORY_ICONS.length)
+    expect(motifIconLabel('Heart')).toBe('Cœur')
   })
 })
 

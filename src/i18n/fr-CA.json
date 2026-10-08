@@ -1129,7 +1129,6 @@
     "professionals": {
       "name": "Professionnels",
       "placeholder": "Le module Professionnels est en préparation. Il sera disponible ici sous peu.",
-      "settingsPlaceholder": "Cette section est en préparation. Elle sera disponible ici sous peu.",
       "status": {
         "draft": "À inviter",
         "invited": "Invité",
@@ -1149,6 +1148,28 @@
         "weekend": "Fin de semaine"
       },
       "otherCategory": "Autres",
+      "icons": {
+        "Brain": "Cerveau",
+        "Users": "Personnes",
+        "AlertTriangle": "Avertissement",
+        "Briefcase": "Porte-documents",
+        "GraduationCap": "Toque de diplômé",
+        "Fingerprint": "Empreinte digitale",
+        "Shield": "Bouclier",
+        "Leaf": "Feuille",
+        "Heart": "Cœur",
+        "Activity": "Pouls",
+        "Star": "Étoile",
+        "Zap": "Éclair",
+        "Cloud": "Nuage",
+        "Sun": "Soleil",
+        "Moon": "Lune",
+        "Home": "Maison",
+        "Target": "Cible",
+        "Compass": "Boussole",
+        "Sparkles": "Étincelles",
+        "MessageCircle": "Bulle de dialogue"
+      },
       "display": {
         "withAges": "{name} ({ages})",
         "ages": {
@@ -1349,7 +1370,47 @@
           }
         },
         "motifs": {
-          "title": "Motifs"
+          "title": "Motifs",
+          "description": "Les motifs décrivent le besoin exprimé, pas un diagnostic.",
+          "add": "Ajouter un motif",
+          "createTitle": "Ajouter un motif",
+          "editTitle": "Modifier le motif",
+          "view": { "label": "Affichage", "byCategory": "Par catégorie", "alphabetical": "Liste A–Z" },
+          "categoryFilter": { "label": "Catégorie", "all": "Toutes les catégories" },
+          "category": "Catégorie",
+          "categoryNone": "Autres (aucune catégorie)",
+          "categoryHelp": "Sans catégorie active, le motif s'affiche sous « Autres ».",
+          "archivedCategory": "{name} (archivée)",
+          "restricted": "Réservé",
+          "restrictedCell": "Professions réglementées",
+          "notRestricted": "Non réservé",
+          "restrictedLabel": "Réservé aux professions réglementées",
+          "restrictedHelp": "Seuls les professionnels qui ont un titre d'un ordre professionnel pourront choisir ce motif.",
+          "restrictedNote": "Les professionnels qui ont déjà ce motif sans titre d'un ordre professionnel devront le retirer de leur dossier ou ajouter un tel titre.",
+          "manageCategories": "Gérer les catégories",
+          "viewCategories": "Voir les catégories",
+          "archive": {
+            "bodyNone": "Personne n'a ce motif. Il ne pourra plus être choisi.",
+            "bodyOne": "1 professionnel a ce motif. Il reste sur son dossier mais ne pourra plus être choisi.",
+            "bodyOther": "{count} professionnels ont ce motif. Il reste sur leur dossier mais ne pourra plus être choisi."
+          },
+          "categories": {
+            "title": "Catégories de motifs",
+            "description": "Elles regroupent les motifs à l'écran, par sphère de vie. Les motifs sans catégorie active s'affichent sous « Autres ».",
+            "add": "Ajouter une catégorie",
+            "createTitle": "Ajouter une catégorie",
+            "editTitle": "Modifier la catégorie",
+            "icon": "Icône",
+            "descriptionLabel": "Description",
+            "noDescription": "Aucune description",
+            "descriptionHelp": "Ce que la catégorie regroupe, par exemple « Deuil, santé et transitions de vie ».",
+            "motifCount": { "one": "1 motif", "other": "{count} motifs", "none": "Aucun motif" },
+            "archive": {
+              "bodyNone": "Aucun motif actif n'est dans cette catégorie. Elle ne pourra plus être choisie.",
+              "bodyOne": "Son motif actif s'affichera sous « Autres » tant qu'elle sera archivée.",
+              "bodyOther": "Ses {count} motifs actifs s'afficheront sous « Autres » tant qu'elle sera archivée."
+            }
+          }
         },
         "languages": {
           "title": "Langues",

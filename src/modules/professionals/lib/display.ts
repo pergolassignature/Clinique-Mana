@@ -1,5 +1,5 @@
 import { t } from '@/i18n'
-import { AVAILABILITY_PERIODS, type AvailabilityPeriod, type Gender, type ProfessionalStatus } from './constants'
+import { AVAILABILITY_PERIODS, type AvailabilityPeriod, type Gender, type MotifCategoryIcon, type ProfessionalStatus } from './constants'
 import { titleOrder, type CatalogView } from './catalog-view'
 import type { ProfessionalRecord, ProfessionRow } from '../api/parse'
 
@@ -17,6 +17,11 @@ export function statusLabel(status: ProfessionalStatus): string {
 
 export function genderLabel(gender: Gender): string {
   return t(`modules.professionals.gender.${gender}`)
+}
+
+/** What a motif category's icon shows, in words (« Cœur », « Boussole »): the icon picker's and the table's label. */
+export function motifIconLabel(icon: MotifCategoryIcon): string {
+  return t(`modules.professionals.icons.${icon}`)
 }
 
 /** A clientèle's age bounds: `minAge` null = not an age group (couples…); `maxAge` null = « et plus ». */

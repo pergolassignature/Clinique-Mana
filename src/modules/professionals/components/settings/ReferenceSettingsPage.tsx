@@ -20,6 +20,8 @@ export interface ReferenceSettingsData {
 interface ReferenceSettingsPageProps {
   title: string
   description?: string
+  /** Page-level buttons in the header (e.g. « Gérer les catégories »), once the data has loaded. */
+  actions?: (data: ReferenceSettingsData) => ReactNode
   /** The page's `ReferenceListCard`s. */
   children: (data: ReferenceSettingsData) => ReactNode
 }
@@ -30,14 +32,15 @@ interface ReferenceSettingsPageProps {
  * the usage counts have loaded. Both queries start together (no waterfall); the catalogue is the
  * module's shared cache (5 min), so a section opened after the list or a record shows at once.
  */
-export function ReferenceSettingsPage({ title, description, children }: ReferenceSettingsPageProps) {
+export function ReferenceSettingsPage({ title, description, actions, children }: ReferenceSettingsPageProps) {
   const { readOnly } = useSettingsSection()
   const catalog = useProfessionalsCatalog()
   const usage = useReferenceUsage()
+  const data: ReferenceSettingsData | null = catalog.data && usage.data ? { catalog: catalog.data, usage: usage.data, canEdit: !readOnly } : null
 
   let content: ReactNode
-  if (catalog.data && usage.data) {
-    content = <div className="space-y-4">{children({ catalog: catalog.data, usage: usage.data, canEdit: !readOnly })}</div>
+  if (data) {
+    content = <div className="space-y-4">{children(data)}</div>
   } else if ((catalog.isError && !catalog.data) || (usage.isError && !usage.data)) {
     content = (
       <LoadError
@@ -55,7 +58,7 @@ export function ReferenceSettingsPage({ title, description, children }: Referenc
 
   return (
     <div className="max-w-content space-y-5">
-      <PageHeader title={title} description={description} />
+      <PageHeader title={title} description={description} actions={data && actions?.(data)} />
       {readOnly && <ReadOnlyNotice />}
       {content}
     </div>

@@ -74,16 +74,4 @@ describe('professionalsManifest', () => {
     expect(await screen.findByText(t('modules.professionals.placeholder'))).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: t('modules.professionals.name') })).toBeInTheDocument()
   })
-
-  it('renders the settings placeholder until 4a.9', async () => {
-    const section = sections.find((s) => s.id === 'motifs')
-    if (!section) throw new Error('no section')
-    const Page = section.component
-    render(
-      <Suspense fallback={null}>
-        <Page />
-      </Suspense>,
-    )
-    expect(await screen.findByText(t('modules.professionals.settingsPlaceholder'))).toBeInTheDocument()
-  })
 })

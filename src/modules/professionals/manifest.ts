@@ -5,9 +5,8 @@ import { lazyPage } from '@/shared/lib/lazy-page'
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. Every page is a
 // lazyPage; the API, hooks and schemas load with them.
 
-/** Until 4a.7–4a.11 replace them: one lazyPage per entry, so each lane changes its own line. */
+/** Until 4a.10–4a.11 replace them: one lazyPage per entry, so each lane changes its own line. */
 const placeholder = () => lazyPage(() => import('./pages/ProfessionalsPlaceholderPage'), 'ProfessionalsPlaceholderPage')
-const settingsPlaceholder = () => lazyPage(() => import('./pages/ProfessionalsPlaceholderPage'), 'ProfessionalsSettingsPlaceholder')
 
 /**
  * The lists are seen by whoever manages records (the adjointe, read-only) or edits the lists
@@ -47,8 +46,14 @@ export const professionalsManifest: ModuleManifest = {
       ...LIST_SECTION,
       component: lazyPage(() => import('./pages/settings/SpecialtiesSettingsPage'), 'SpecialtiesSettingsPage'),
     },
-    // 4a.9
-    { id: 'motifs', path: 'motifs', labelKey: 'modules.professionals.settings.motifs.title', icon: Tags, ...LIST_SECTION, component: settingsPlaceholder() },
+    {
+      id: 'motifs',
+      path: 'motifs',
+      labelKey: 'modules.professionals.settings.motifs.title',
+      icon: Tags,
+      ...LIST_SECTION,
+      component: lazyPage(() => import('./pages/settings/MotifsSettingsPage'), 'MotifsSettingsPage'),
+    },
     {
       id: 'languages',
       path: 'langues',
