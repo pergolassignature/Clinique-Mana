@@ -3,6 +3,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
+import { closeButtonClasses, overlayClasses } from './overlay-classes'
 
 const Sheet = DialogPrimitive.Root
 const SheetTrigger = DialogPrimitive.Trigger
@@ -15,10 +16,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      'fixed inset-0 z-50 bg-foreground/20 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-      className
-    )}
+    className={cn(overlayClasses, className)}
     {...props}
   />
 ))
@@ -31,11 +29,12 @@ interface SheetContentProps
   hideClose?: boolean
 }
 
+/** Right (default): 480px, slides in over 240ms. Other sides fade in. */
 const sheetVariants = {
-  top: 'inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top',
-  bottom: 'inset-x-0 bottom-0 border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
-  left: 'inset-y-0 left-0 h-full border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left',
-  right: 'inset-y-0 right-0 h-full border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
+  top: 'inset-x-0 top-0 max-h-[80vh] border-b animate-fade-in motion-reduce:animate-none',
+  bottom: 'inset-x-0 bottom-0 max-h-[80vh] border-t animate-fade-in motion-reduce:animate-none',
+  left: 'inset-y-0 left-0 h-full w-full max-w-[480px] border-r animate-fade-in motion-reduce:animate-none',
+  right: 'inset-y-0 right-0 h-full w-full max-w-[480px] border-l animate-slide-in-right motion-reduce:animate-none',
 }
 
 const SheetContent = React.forwardRef<
@@ -46,8 +45,9 @@ const SheetContent = React.forwardRef<
     <SheetOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      aria-modal="true"
       className={cn(
-        'fixed z-50 gap-4 bg-background p-6 shadow-xl transition ease-in-out data-[state=closed]:duration-200 data-[state=open]:duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out',
+        'fixed z-50 flex flex-col bg-card text-foreground shadow-large',
         sheetVariants[side],
         className
       )}
@@ -57,7 +57,7 @@ const SheetContent = React.forwardRef<
       {!hideClose && (
         <DialogPrimitive.Close
           tabIndex={-1}
-          className="absolute right-4 top-4 rounded-lg opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-sage-500/30 focus:ring-offset-2 disabled:pointer-events-none"
+          className={closeButtonClasses}
         >
           <X className="h-4 w-4" />
           <span className="sr-only">{t('common.close')}</span>
@@ -72,16 +72,25 @@ const SheetHeader = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('flex flex-col space-y-2', className)} {...props} />
+  <div className={cn('flex shrink-0 flex-col gap-1.5 px-5 pb-3 pr-12 pt-4', className)} {...props} />
 )
 SheetHeader.displayName = 'SheetHeader'
+
+/** The scrolling middle of a sheet, between SheetHeader and SheetFooter. */
+const SheetBody = ({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('min-h-0 flex-1 overflow-y-auto px-5 pb-5', className)} {...props} />
+)
+SheetBody.displayName = 'SheetBody'
 
 const SheetFooter = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2', className)}
+    className={cn('flex shrink-0 flex-col-reverse gap-2 border-t border-border p-3 sm:flex-row sm:justify-end', className)}
     {...props}
   />
 )
@@ -105,7 +114,7 @@ const SheetDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn('text-sm text-foreground-secondary', className)}
+    className={cn('text-sm text-muted-foreground', className)}
     {...props}
   />
 ))
@@ -119,6 +128,7 @@ export {
   SheetClose,
   SheetContent,
   SheetHeader,
+  SheetBody,
   SheetFooter,
   SheetTitle,
   SheetDescription,

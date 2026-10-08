@@ -1,18 +1,28 @@
 import * as React from 'react'
 import { cn } from '@/shared/lib/utils'
+import { fieldClasses } from './field-classes'
+import { useFieldReadOnly } from './read-only-context'
 
 export type InputProps = React.InputHTMLAttributes<HTMLInputElement>
 
+/**
+ * Design system Input. Read-only (`readOnly`, or inside a read-only SettingsCard) keeps the value
+ * focusable and copyable, and drops the placeholder, which would read as a value.
+ */
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, readOnly: readOnlyProp, placeholder, ...props }, ref) => {
+    const readOnly = useFieldReadOnly(readOnlyProp)
     return (
       <input
         type={type}
         className={cn(
-          'flex h-10 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500/30 focus-visible:border-sage-300 disabled:cursor-not-allowed disabled:opacity-50',
+          fieldClasses,
+          'flex h-8 px-2.5 tabular file:border-0 file:bg-transparent file:text-sm file:font-medium',
           className
         )}
         ref={ref}
+        readOnly={readOnly}
+        placeholder={readOnly ? undefined : placeholder}
         {...props}
       />
     )

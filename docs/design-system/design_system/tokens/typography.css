@@ -1,0 +1,25 @@
+:root{
+--font-sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+--font-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+--font-features:"cv02","cv03","cv04","cv11","ss01";
+/* Scale — compact tool density */
+--text-2xs:11px;--leading-2xs:16px;
+--text-xs:12px;--leading-xs:16px;
+--text-sm:13px;--leading-sm:18px;
+--text-base:14px;--leading-base:20px;
+--text-lg:16px;--leading-lg:24px;
+--text-xl:20px;--leading-xl:28px;
+--text-2xl:24px;--leading-2xl:32px;
+--text-3xl:30px;--leading-3xl:36px;
+--weight-regular:400;--weight-medium:500;--weight-semibold:600;--weight-bold:700;
+--tracking-tight:-0.01em;--tracking-wide:0.06em;
+/* Roles */
+--type-page-title:var(--weight-semibold) var(--text-xl)/var(--leading-xl) var(--font-sans);
+--type-section-title:var(--weight-semibold) var(--text-lg)/var(--leading-lg) var(--font-sans);
+--type-card-title:var(--weight-semibold) var(--text-base)/var(--leading-base) var(--font-sans);
+--type-body:var(--weight-regular) var(--text-sm)/var(--leading-sm) var(--font-sans);
+--type-label:var(--weight-medium) var(--text-sm)/var(--leading-sm) var(--font-sans);
+--type-caption:var(--weight-regular) var(--text-xs)/var(--leading-xs) var(--font-sans);
+--type-overline:var(--weight-medium) var(--text-2xs)/var(--leading-2xs) var(--font-sans);
+--type-figure:var(--weight-semibold) var(--text-xl)/var(--leading-xl) var(--font-sans);
+}

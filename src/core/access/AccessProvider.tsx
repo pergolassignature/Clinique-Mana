@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ZodError } from 'zod'
 import { useAuth } from '@/core/auth/auth-context'
-import { getClinicTimezone, resetClinicTimezone, setClinicTimezone } from '@/shared/lib/timezone'
-import { can } from './access'
+import { getClinicTimezone, resetClinicTimezone, setClinicTimezone } from '@/shared/lib/clinic-timezone'
+import { permissionChecker } from './access'
 import { AccessContext, accessKeys, type AccessContextValue, type AccessStatus } from './access-context'
 import { fetchMyAccess } from './api'
 
@@ -55,16 +55,20 @@ export function AccessProvider({ children }: { children: ReactNode }) {
           ? 'denied'
           : 'ready'
 
+  // Stable while the access payload is: a background refetch (isFetching) does not rebuild it, so
+  // memos and effects that depend on `can` do not rerun.
+  const can = useMemo(() => permissionChecker(access), [access])
+
   const value = useMemo<AccessContextValue>(
     () => ({
       status,
       access,
       problem,
-      can: (permission) => can(access, permission),
+      can,
       reload: () => void refetch(),
       isReloading: isFetching,
     }),
-    [status, access, problem, refetch, isFetching],
+    [status, access, problem, can, refetch, isFetching],
   )
 
   return <AccessContext.Provider value={value}>{children}</AccessContext.Provider>

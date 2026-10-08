@@ -14,7 +14,7 @@ vi.mock('@/shared/ui/sonner', () => ({ toast }))
 
 afterEach(() => toast.success.mockReset())
 
-const recoverySession = { user: { id: 'u1', email: 'staff@mana.test' } } as Session
+const recoverySession = { user: { id: 'u1', email: 'adjointe@mana.test' } } as Session
 
 const resetAt = (auth: Partial<AuthContextValue>, path = '/') =>
   renderWithContexts(
@@ -92,7 +92,7 @@ describe('ResetPasswordPage', () => {
 
   it('tells password managers which account the new password belongs to', () => {
     const { container } = render(resetAt({}))
-    expect(container.querySelector('input[autocomplete="username"]')).toHaveValue('staff@mana.test')
+    expect(container.querySelector('input[autocomplete="username"]')).toHaveValue('adjointe@mana.test')
   })
 
   it('announces loading through the same live region', () => {
@@ -124,7 +124,8 @@ describe('ResetPasswordPage', () => {
     const signOut = vi.fn().mockResolvedValue(undefined)
     render(resetAt({ updatePassword, signOut }))
     await fill('un-long-mot-de-passe', 'un-long-mot-de-passe')
-    expect(signOut).toHaveBeenCalledOnce()
+    // No full page load: the forgotten-password page reads the `expired` navigation state.
+    expect(signOut).toHaveBeenCalledExactlyOnceWith({ reload: false })
     expect(await screen.findByRole('heading', { name: t('auth.forgot.title') })).toBeInTheDocument()
     expect(screen.getByText(t('auth.reset.invalidLink'))).toBeInTheDocument()
   })
@@ -133,7 +134,8 @@ describe('ResetPasswordPage', () => {
     const signOut = vi.fn().mockResolvedValue(undefined)
     render(resetAt({ signOut }))
     await userEvent.click(screen.getByRole('button', { name: t('auth.reset.cancel') }))
-    expect(signOut).toHaveBeenCalledOnce()
+    // An ordinary explicit sign-out: it ends with a full page load of /connexion.
+    expect(signOut).toHaveBeenCalledExactlyOnceWith()
     expect(await screen.findByText('LOGIN PAGE')).toBeInTheDocument()
     expect(screen.getByTestId('login-search')).toHaveTextContent('')
   })

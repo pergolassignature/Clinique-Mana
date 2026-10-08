@@ -2,22 +2,158 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Clinique MANA design system tokens (docs/design-system/design_system/tokens/*.css), ported with
+ * the design system's names. Colours are RGB channels so Tailwind's opacity modifiers work
+ * (`bg-ink/5`); tailwind.config.js maps them to the shadcn semantic names. Mapping and rules:
+ * docs/standards/brand.tokens.md.
+ */
 @layer base {
+  :root {
+    /* Brand scales. Wine is the logo colour only; teal is the single action colour. */
+    --wine-50: 251 242 244;  --wine-100: 246 225 231; --wine-200: 237 194 206; --wine-300: 222 147 168;
+    --wine-400: 200 92 122;  --wine-500: 155 27 60;   --wine-600: 134 23 47;   --wine-700: 110 19 39;
+    --wine-800: 86 16 32;    --wine-900: 67 13 26;
+    --teal-50: 238 248 247;  --teal-100: 216 239 237; --teal-200: 179 224 220; --teal-300: 127 203 196;
+    --teal-400: 70 172 165;  --teal-500: 36 157 149;  --teal-600: 30 131 124;  --teal-700: 26 107 102;
+    --teal-800: 23 85 81;    --teal-900: 19 69 66;
+    --mint-50: 241 248 245;  --mint-100: 226 241 235; --mint-200: 199 228 216; --mint-300: 165 211 193;
+    --pink-100: 254 231 238; --pink-200: 252 202 216; --pink-300: 247 163 187;
+    --yellow-100: 255 247 214; --yellow-200: 255 239 170; --yellow-300: 253 226 107; --yellow-500: 251 208 8;
+    --yellow-700: 154 123 5;   --yellow-800: 110 88 4;
+
+    /* Neutrals: ink text on white. */
+    --gray-0: 255 255 255;   --gray-50: 248 248 249;  --gray-100: 242 242 244; --gray-200: 230 230 233;
+    --gray-300: 212 212 216; --gray-400: 168 168 173; --gray-500: 142 142 146; --gray-600: 107 107 110;
+    --gray-700: 77 77 79;    --gray-800: 53 53 55;    --gray-900: 31 31 32;
+
+    /* Surfaces */
+    --bg: var(--gray-0);
+    --bg-secondary: 244 244 245;          /* #F4F4F5 disabled fill, ghost hover */
+    --bg-tertiary: 233 233 235;           /* #E9E9EB secondary-button hover, selected command item */
+    --surface-card: var(--gray-0);
+    --surface-panel: var(--gray-0);
+    --surface-panel-hover: 250 250 250;   /* #FAFAFA row hover */
+    --surface-sidebar: 247 247 248;       /* #F7F7F8 */
+    --surface-overlay: rgb(var(--gray-900) / 0.32);
+    --border: 228 228 231;                /* #E4E4E7 hairlines */
+    --border-light: 239 239 241;          /* #EFEFF1 */
+    --border-strong: 207 207 212;         /* #CFCFD4 control hover */
+
+    /* Text. Decision #30: informative text is --text-secondary (5.3:1); --text-muted (3.3:1) only
+       for placeholders, disabled text, separators and icons. */
+    --text-body: var(--gray-900);
+    --text-secondary: var(--gray-600);
+    --text-muted: var(--gray-500);
+    --text-inverse: 255 255 255;
+    --text-link: var(--teal-700);
+
+    /* Actions: one teal primary per view; ink for emphasis. */
+    --primary: var(--teal-600);
+    --primary-hover: var(--teal-700);
+    --primary-active: var(--teal-800);
+    --primary-fg: 255 255 255;
+    --primary-soft: var(--teal-50);
+    --primary-soft-fg: var(--teal-800);
+    --ink: var(--gray-900);
+    --ink-hover: var(--gray-800);
+    --accent: var(--teal-500);
+    --accent-soft: var(--mint-100);
+    --accent-soft-fg: var(--teal-700);
+
+    /* Status: a 6px dot (or an icon) next to plain text; no fills, no pills. */
+    --success: var(--teal-500);
+    --success-soft: var(--mint-100);
+    --success-fg: var(--teal-800);
+    --warning: 224 180 0;                 /* #E0B400 */
+    --warning-soft: var(--yellow-100);
+    --warning-fg: var(--yellow-800);
+    --danger: 179 38 30;                  /* #B3261E */
+    --danger-hover: 154 31 24;            /* #9A1F18 */
+    --danger-soft: 251 234 232;
+    --danger-fg: 140 29 23;
+    --info: var(--teal-400);
+    --info-soft: var(--teal-50);
+    --info-fg: var(--teal-700);
+    --neutral-soft: var(--gray-100);
+    --neutral-fg: var(--gray-600);
+    --neutral-dot: var(--gray-400);
+
+    /* Focus. Decision #30: a solid teal ring (4.6:1 on white) instead of the 35 % teal (1.6:1). */
+    --focus-ring: var(--teal-600);
+
+    /* Typography */
+    --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --text-2xs: 11px; --leading-2xs: 16px;
+    --text-xs: 12px;  --leading-xs: 16px;
+    --text-sm: 13px;  --leading-sm: 18px;
+    --text-base: 14px; --leading-base: 20px;
+    --text-lg: 16px;  --leading-lg: 24px;
+    --text-xl: 20px;  --leading-xl: 28px;
+    --text-2xl: 24px; --leading-2xl: 32px;
+    --text-3xl: 30px; --leading-3xl: 36px;
+    --tracking-tight: -0.01em;
+    --tracking-wide: 0.06em;
+
+    /* Spacing and layout (the 4px grid itself is Tailwind's default scale). */
+    --control-h-sm: 28px; --control-h: 32px; --control-h-lg: 36px;
+    --sidebar-w: 220px; --sidebar-w-collapsed: 56px; --topbar-h: 48px; --settings-nav-w: 200px;
+    --page-pad: 24px; --page-pad-sm: 16px; --card-pad: 16px; --card-pad-sm: 12px;
+    --content-max: 1120px; --form-max: 640px;
+
+    /* Radii: 4 controls · 6 cards/menus · 8 dialogs */
+    --radius-sm: 3px; --radius-md: 4px; --radius-lg: 6px; --radius-xl: 6px; --radius-2xl: 8px;
+    --radius-full: 9999px;
+
+    /* Shadows: none on surfaces; only floating layers cast one. */
+    --shadow-soft: 0 0 #0000;
+    --shadow-medium: 0 2px 8px rgb(31 31 32 / 0.08), 0 0 0 1px rgb(31 31 32 / 0.04);
+    --shadow-large: 0 12px 32px rgb(31 31 32 / 0.14), 0 0 0 1px rgb(31 31 32 / 0.05);
+    --ring: 0 0 0 2px rgb(var(--bg)), 0 0 0 4px rgb(var(--focus-ring));
+    --ring-inset: 0 0 0 1px rgb(var(--primary));
+    /* Decision #30 (extension): the #F4F4F5 highlight alone is ~1.1:1, so highlighted menu and
+       command items also get a 2px teal bar on the left. */
+    --highlight-bar: inset 2px 0 0 rgb(var(--primary));
+
+    /* Motion */
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --dur-fast: 120ms;
+    --dur: 160ms;
+    --dur-slow: 240ms;
+  }
+
   * {
     @apply border-border;
   }
 
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  /* Form controls do not inherit font-variant-numeric by default. */
+  button,
+  input,
+  select,
+  textarea,
+  optgroup {
+    font-variant-numeric: inherit;
   }
 
-  /* Smooth scrolling */
+  body {
+    /* The design system asks for Inter's cv02 cv03 cv04 cv11 ss01 alternates; the fontsource
+       (Google Fonts) build does not contain them, so they are not set. */
+    @apply bg-background text-sm text-foreground antialiased;
+  }
+
+  /* Links: the same teal focus ring as every control (components may restyle). */
+  a:focus-visible {
+    outline: 2px solid transparent;
+    box-shadow: var(--ring);
+    border-radius: var(--radius-sm);
+  }
+
   html {
     scroll-behavior: smooth;
   }
 
-  /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -32,31 +168,36 @@
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-foreground-muted;
+    @apply bg-subtle;
   }
 }
 
 @layer components {
-  /* Shimmer animation for skeletons */
+  /* Shimmer sweep for dashboard skeleton blocks */
   .shimmer {
     @apply relative overflow-hidden;
     background: linear-gradient(
       90deg,
-      theme('colors.background.secondary') 0%,
-      theme('colors.background.DEFAULT') 50%,
-      theme('colors.background.secondary') 100%
+      theme('colors.muted.DEFAULT') 0%,
+      theme('colors.card.DEFAULT') 50%,
+      theme('colors.muted.DEFAULT') 100%
     );
     background-size: 200% 100%;
     animation: shimmer 2s linear infinite;
   }
 
-  /* Focus ring utility */
+  /* Focus ring utility: 2px white gap + 2px solid teal */
   .focus-ring {
-    @apply outline-none ring-2 ring-sage-500/30 ring-offset-2 ring-offset-background;
+    @apply shadow-focus outline-none;
   }
 }
 
 @layer utilities {
+  /* Aligned figures for tables, amounts and inputs */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
   /* Hide scrollbar but keep functionality */
   .scrollbar-hide {
     -ms-overflow-style: none;
@@ -66,4 +207,20 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* Toasts (sonner.tsx). Outside @layer so they are never purged; the [data-sonner-toaster]
+   prefix outranks sonner's injected selectors. The large shadow lives here, not inline, so the
+   focus rule below can replace it: sonner's own focus cue is a faint 20 % black ring. */
+[data-sonner-toaster] [data-sonner-toast][data-styled='true'] {
+  box-shadow: var(--shadow-large);
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-styled='true']:focus-visible {
+  box-shadow: var(--ring), var(--shadow-large);
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-close-button]:focus-visible,
+[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-button]:focus-visible {
+  box-shadow: var(--ring);
 }

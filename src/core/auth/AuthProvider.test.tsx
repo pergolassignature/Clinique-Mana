@@ -1,5 +1,5 @@
 // SUPABASE_ALLOWED: test mocks the Supabase client module and builds real AuthApiError fixtures.
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render } from '@testing-library/react'
 import { AuthApiError, type AuthChangeEvent, type Session } from '@supabase/supabase-js'
 import { t } from '@/i18n'
@@ -18,6 +18,7 @@ const auth = vi.hoisted(() => ({
   signInWithPassword: vi.fn(),
   resetPasswordForEmail: vi.fn(),
   updateUser: vi.fn(),
+  reauthenticate: vi.fn(),
   signOut: vi.fn(),
   getSession: vi.fn(),
 }))
@@ -70,8 +71,16 @@ function renderReady() {
   return view.latest()
 }
 
+// An explicit sign-out ends with a full page load of /connexion; happy-dom would really navigate.
+const loadPage = vi.fn()
+beforeEach(() => {
+  vi.spyOn(window.location, 'replace').mockImplementation(loadPage)
+})
+
 afterEach(() => {
-  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.signOut, auth.getSession, sentry.captureMessage, sentry.captureException]) {
+  vi.restoreAllMocks()
+  loadPage.mockReset()
+  for (const fn of [auth.unsubscribe, auth.signInWithOtp, auth.signInWithPassword, auth.resetPasswordForEmail, auth.updateUser, auth.reauthenticate, auth.signOut, auth.getSession, sentry.captureMessage, sentry.captureException]) {
     fn.mockReset()
   }
   auth.listener = undefined
@@ -206,9 +215,9 @@ describe('password recovery across reloads and tabs', () => {
 describe('sendMagicLink', () => {
   it('never creates an account and returns to /accueil by default', async () => {
     auth.signInWithOtp.mockResolvedValue({ data: {}, error: null })
-    await expect(renderReady().sendMagicLink('staff@mana.test')).resolves.toBeNull()
+    await expect(renderReady().sendMagicLink('adjointe@mana.test')).resolves.toBeNull()
     expect(auth.signInWithOtp).toHaveBeenCalledWith({
-      email: 'staff@mana.test',
+      email: 'adjointe@mana.test',
       options: { shouldCreateUser: false, emailRedirectTo: `${origin}/accueil` },
     })
   })
@@ -218,7 +227,7 @@ describe('sendMagicLink', () => {
     ['//evil.test', `${origin}/accueil`],
   ])('keeps a safe redirect target (%s)', async (target, expected) => {
     auth.signInWithOtp.mockResolvedValue({ data: {}, error: null })
-    await renderReady().sendMagicLink('staff@mana.test', target)
+    await renderReady().sendMagicLink('adjointe@mana.test', target)
     expect(auth.signInWithOtp).toHaveBeenCalledWith(
       expect.objectContaining({ options: expect.objectContaining({ emailRedirectTo: expected }) }),
     )
@@ -235,13 +244,16 @@ describe('sendMagicLink', () => {
 
 describe('email rate limits (no account enumeration)', () => {
   const send = {
-    sendMagicLink: (value: AuthContextValue) => value.sendMagicLink('staff@mana.test'),
-    sendPasswordReset: (value: AuthContextValue) => value.sendPasswordReset('staff@mana.test'),
+    sendMagicLink: (value: AuthContextValue) => value.sendMagicLink('adjointe@mana.test'),
+    sendPasswordReset: (value: AuthContextValue) => value.sendPasswordReset('adjointe@mana.test'),
+    updateEmail: (value: AuthContextValue) => value.updateEmail('nouvelle@mana.test'),
   }
-  const mockFor = { sendMagicLink: auth.signInWithOtp, sendPasswordReset: auth.resetPasswordForEmail }
-  const fns = ['sendMagicLink', 'sendPasswordReset'] as const
+  const mockFor = { sendMagicLink: auth.signInWithOtp, sendPasswordReset: auth.resetPasswordForEmail, updateEmail: auth.updateUser }
+  const fns = ['sendMagicLink', 'sendPasswordReset', 'updateEmail'] as const
 
   // GoTrue only applies the per-email throttle to existing accounts: reporting it would reveal them.
+  // For an email change the throttle is per user, but GoTrue checks for a duplicate address first:
+  // within the window, « throttled » would mean « free » and « success » would mean « taken ».
   it.each(fns)('%s treats the per-email throttle as success', async (fn) => {
     mockFor[fn].mockResolvedValue(apiError('For security purposes, you can only request this after 60 seconds.', 429, 'over_email_send_rate_limit'))
     await expect(send[fn](renderReady())).resolves.toBeNull()
@@ -284,6 +296,71 @@ describe('error codes', () => {
   it('maps anything else to unknown', async () => {
     auth.updateUser.mockResolvedValue(apiError('boom', 500, 'unexpected_failure'))
     await expect(renderReady().updatePassword('x')).resolves.toBe('unknown')
+  })
+
+  it('maps email_address_invalid to invalid_email for an email change', async () => {
+    auth.updateUser.mockResolvedValue(apiError('some server message', 400, 'email_address_invalid'))
+    await expect(renderReady().updateEmail('a@mana.test')).resolves.toBe('invalid_email')
+  })
+
+  it('maps reauthentication_not_valid (wrong or expired code) to invalid_code', async () => {
+    auth.updateUser.mockResolvedValue(apiError('Requires reauthentication', 400, 'reauthentication_not_valid'))
+    await expect(renderReady().updatePassword('un-long-mot-de-passe', '123456')).resolves.toBe('invalid_code')
+  })
+})
+
+describe('updatePassword', () => {
+  it('sends only the password without a code', async () => {
+    auth.updateUser.mockResolvedValue({ data: {}, error: null })
+    await expect(renderReady().updatePassword('un-long-mot-de-passe')).resolves.toBeNull()
+    expect(auth.updateUser).toHaveBeenCalledExactlyOnceWith({ password: 'un-long-mot-de-passe' })
+  })
+
+  // GoTrue asks for a code (secure_password_change) when the session is older than 24 h.
+  it('passes the reauthentication code as the nonce', async () => {
+    auth.updateUser.mockResolvedValue({ data: {}, error: null })
+    await expect(renderReady().updatePassword('un-long-mot-de-passe', '123456')).resolves.toBeNull()
+    expect(auth.updateUser).toHaveBeenCalledExactlyOnceWith({ password: 'un-long-mot-de-passe', nonce: '123456' })
+  })
+})
+
+describe('sendReauthenticationCode', () => {
+  it('asks GoTrue to email a code', async () => {
+    auth.reauthenticate.mockResolvedValue({ data: { user: null, session: null }, error: null })
+    await expect(renderReady().sendReauthenticationCode()).resolves.toBeNull()
+    expect(auth.reauthenticate).toHaveBeenCalledOnce()
+  })
+
+  // The caller is signed in: no enumeration concern, so the per-email throttle is reported.
+  it('reports the email throttle as rate_limited', async () => {
+    auth.reauthenticate.mockResolvedValue(apiError('For security purposes, you can only request this after 60 seconds.', 429, 'over_email_send_rate_limit'))
+    await expect(renderReady().sendReauthenticationCode()).resolves.toBe('rate_limited')
+  })
+})
+
+describe('updateEmail', () => {
+  it('asks for the change and brings the confirmation links back to « Mon compte »', async () => {
+    auth.updateUser.mockResolvedValue({ data: {}, error: null })
+    await expect(renderReady().updateEmail('nouvelle@mana.test')).resolves.toBeNull()
+    expect(auth.updateUser).toHaveBeenCalledExactlyOnceWith({ email: 'nouvelle@mana.test' }, { emailRedirectTo: `${origin}/mon-compte` })
+  })
+
+  // Decision #38: never reveal that an address belongs to another account, even to a signed-in user.
+  it('treats an address used by another account (email_exists) as success', async () => {
+    auth.updateUser.mockResolvedValue(apiError('A user with this email address has already been registered', 422, 'email_exists'))
+    await expect(renderReady().updateEmail('adjointe@mana.test')).resolves.toBeNull()
+    expect(auth.updateUser).toHaveBeenCalledExactlyOnceWith({ email: 'adjointe@mana.test' }, { emailRedirectTo: `${origin}/mon-compte` })
+  })
+
+  // Older servers send no error code: the message is the fallback, as for the magic link.
+  it('treats an address used by another account as success when only the message says so', async () => {
+    auth.updateUser.mockResolvedValue(apiError('A user with this email address has already been registered', 422))
+    await expect(renderReady().updateEmail('adjointe@mana.test')).resolves.toBeNull()
+  })
+
+  it('still reports a real failure', async () => {
+    auth.updateUser.mockResolvedValue(apiError('boom', 500, 'unexpected_failure'))
+    await expect(renderReady().updateEmail('nouvelle@mana.test')).resolves.toBe('unknown')
   })
 })
 
@@ -410,6 +487,43 @@ describe('signOut (this device only)', () => {
     const latest = renderSignedIn()
     emit('SIGNED_OUT', null)
     expect(latest().signedOutHere).toBe(false)
+    // Nor reload: the guard keeps the way back (?redirect=) for this tab.
+    expect(loadPage).not.toHaveBeenCalled()
+  })
+
+  // Decisions #10, #17: a shared PC picks up a new deploy, and nothing of the user stays in memory.
+  it('then loads /connexion afresh, once the sign-out has finished', async () => {
+    let finish: (value: { error: null }) => void = () => {}
+    auth.signOut.mockReturnValue(new Promise((resolve) => (finish = resolve)))
+    const latest = renderSignedIn()
+    let pending: Promise<void> = Promise.resolve()
+    act(() => {
+      pending = latest().signOut()
+    })
+    expect(loadPage).not.toHaveBeenCalled()
+    await act(async () => {
+      finish({ error: null })
+      await pending
+    })
+    expect(loadPage).toHaveBeenCalledExactlyOnceWith('/connexion')
+  })
+
+  it('loads /connexion even when the sign-out call failed (the local session is forgotten anyway)', async () => {
+    auth.signOut.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ error: null })
+    auth.getSession.mockResolvedValue({ data: { session: null }, error: null })
+    const latest = renderSignedIn()
+    await signOut(latest)
+    expect(loadPage).toHaveBeenCalledExactlyOnceWith('/connexion')
+  })
+
+  it('does not reload with `reload: false` (the caller navigates itself)', async () => {
+    auth.signOut.mockResolvedValue({ error: null })
+    const latest = renderSignedIn()
+    await act(async () => {
+      await latest().signOut({ reload: false })
+    })
+    expect(latest().session).toBeNull()
+    expect(loadPage).not.toHaveBeenCalled()
   })
 
   it('leaves recovery mode and clears the marker', async () => {
@@ -423,6 +537,81 @@ describe('signOut (this device only)', () => {
   })
 })
 
+describe('signOutEverywhere', () => {
+  function renderSignedIn() {
+    const { latest } = renderAuth()
+    emit('INITIAL_SESSION', session('t1'))
+    return latest
+  }
+
+  async function signOutEverywhere(latest: () => AuthContextValue) {
+    let code: AuthErrorCode | null = null
+    await act(async () => {
+      code = await latest().signOutEverywhere()
+    })
+    return code
+  }
+
+  it('ends every session of the account, then forgets this one like signOut', async () => {
+    auth.signOut.mockResolvedValue({ error: null })
+    const latest = renderSignedIn()
+    emit('PASSWORD_RECOVERY', sessionWithId('s1'))
+    await expect(signOutEverywhere(latest)).resolves.toBeNull()
+    expect(auth.signOut).toHaveBeenCalledExactlyOnceWith({ scope: 'global' })
+    expect(latest().session).toBeNull()
+    expect(latest().signedOutHere).toBe(true)
+    expect(latest().isRecovery).toBe(false)
+    expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull()
+    expect(loadPage).toHaveBeenCalledExactlyOnceWith('/connexion')
+  })
+
+  // auth-js emits SIGNED_OUT during the call: RequireAuth must already know it was explicit (#17).
+  it('flags the explicit sign-out before the server answers', async () => {
+    let finish: (value: { error: null }) => void = () => {}
+    auth.signOut.mockReturnValue(new Promise((resolve) => (finish = resolve)))
+    const latest = renderSignedIn()
+    let pending: Promise<AuthErrorCode | null> = Promise.resolve(null)
+    act(() => {
+      pending = latest().signOutEverywhere()
+    })
+    expect(latest().signedOutHere).toBe(true)
+    await act(async () => {
+      finish({ error: null })
+      await pending
+    })
+    expect(latest().session).toBeNull()
+  })
+
+  // A token refresh during the call emits a session, which resets signedOutHere.
+  it('still flags the explicit sign-out when a refresh happened during the call', async () => {
+    auth.signOut.mockImplementation(async () => {
+      auth.listener?.('TOKEN_REFRESHED', session('t2'))
+      return { error: null }
+    })
+    const latest = renderSignedIn()
+    await expect(signOutEverywhere(latest)).resolves.toBeNull()
+    expect(latest().signedOutHere).toBe(true)
+    expect(latest().session).toBeNull()
+  })
+
+  it.each([
+    ['returns an error', () => auth.signOut.mockResolvedValue(apiError('boom', 500, 'unexpected_failure')), 'unknown', true],
+    ['is throttled', () => auth.signOut.mockResolvedValue(apiError('Request rate limit reached', 429, 'over_request_rate_limit')), 'rate_limited', false],
+    ['throws (offline, lock timeout)', () => auth.signOut.mockRejectedValue(new Error('network')), 'unknown', true],
+  ])('keeps this session and reports the failure when the call %s', async (_label, fail, code, reported) => {
+    fail()
+    const latest = renderSignedIn()
+    await expect(signOutEverywhere(latest)).resolves.toBe(code)
+    expect(auth.signOut).toHaveBeenCalledExactlyOnceWith({ scope: 'global' })
+    expect(latest().session?.access_token).toBe('t1')
+    expect(latest().signedOutHere).toBe(false)
+    expect(loadPage).not.toHaveBeenCalled()
+    // An unexpected failure goes to Sentry; throttling is expected and is not.
+    if (reported) expect(sentry.captureException).toHaveBeenCalledExactlyOnceWith(expect.anything(), { tags: { area: 'auth' } })
+    else expect(sentry.captureException).not.toHaveBeenCalled()
+  })
+})
+
 describe('FR-CA messages', () => {
   // Record<AuthErrorCode, …> fails to compile if a code is added without being listed here.
   const codes: Record<AuthErrorCode, true> = {
@@ -430,6 +619,8 @@ describe('FR-CA messages', () => {
     weak_password: true,
     same_password: true,
     reauthentication_needed: true,
+    invalid_code: true,
+    invalid_email: true,
     rate_limited: true,
     unknown: true,
   }

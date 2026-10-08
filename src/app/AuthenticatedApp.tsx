@@ -1,14 +1,19 @@
-import { createElement, Suspense, useMemo, type ReactNode } from 'react'
+import { createElement, Suspense, useEffect, useMemo, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Home, Settings } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { Forbidden, RequireAccess } from '@/core/access/guards'
+import { AccountPage } from '@/core/account/pages/AccountPage'
 import { resolveEnabledModules } from '@/core/modules/resolve'
 import { SettingsLayout } from '@/core/settings/SettingsLayout'
+import { SETTINGS_BASE_PATH, settingsSectionPath } from '@/core/settings/paths'
 import { coreSettingsSections } from '@/core/settings/sections'
+import { visibleSettingsSections } from '@/core/settings/visible-sections'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { RouteBoundary } from '@/shared/components/RouteBoundary'
+import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
+import { preloadWhenIdle } from '@/shared/lib/lazy-page'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { AppShell, type ShellNavItem } from './AppShell'
 import { HomePage } from './HomePage'
@@ -33,9 +38,27 @@ export function AuthenticatedApp() {
 
   const modules = useMemo(() => resolveEnabledModules(ALL_MODULES, new Set(enabledKeys)), [enabledKeys])
 
-  const settingsSections = useMemo(() => [...coreSettingsSections, ...modules.flatMap((m) => m.settingsSections)], [modules])
+  // Each module section carries its module's key, for its error scope (`settings:<moduleKey>:<id>`).
+  const settingsSections = useMemo(
+    () => [...coreSettingsSections, ...modules.flatMap((m) => m.settingsSections.map((s) => ({ ...s, moduleKey: m.key })))],
+    [modules],
+  )
+  const visibleSections = useMemo(() => visibleSettingsSections(settingsSections, can), [settingsSections, can])
   // Decision #19: « Paramètres » exists only when it would show at least one section.
-  const canOpenSettings = settingsSections.some((s) => can(s.permission))
+  const canOpenSettings = visibleSections.length > 0
+
+  // Prefetch the code of every page this user can open, once the browser is idle: a first visit
+  // then renders at once, without a Suspense fallback (and React's 300 ms hold of it). Static
+  // chunks only, the same for everyone: no data is fetched before the page itself mounts. Skipped
+  // with Data Saver or on 2G (preloadWhenIdle).
+  const routeComponents = useMemo(
+    () => modules.flatMap((m) => m.routes.filter((r) => can(r.permission)).map((r) => r.component)),
+    [modules, can],
+  )
+  useEffect(() => {
+    const idle = preloadWhenIdle([...visibleSections.map((s) => s.component), ...routeComponents])
+    return idle.cancel
+  }, [visibleSections, routeComponents])
 
   const navItems = useMemo<ShellNavItem[]>(() => {
     const moduleItems = modules
@@ -44,44 +67,65 @@ export function AuthenticatedApp() {
     return [
       { path: '/accueil', labelKey: 'nav.home', icon: Home },
       ...moduleItems,
-      ...(canOpenSettings ? [{ path: '/parametres', labelKey: 'nav.settings' as const, icon: Settings }] : []),
+      ...(canOpenSettings
+        ? [
+            {
+              path: SETTINGS_BASE_PATH,
+              labelKey: 'nav.settings' as const,
+              icon: Settings,
+              // Named in the topbar as « Paramètres / <section> ».
+              subPages: visibleSections.map((s) => ({ path: settingsSectionPath(s), labelKey: s.labelKey })),
+            },
+          ]
+        : []),
     ]
-  }, [modules, can, canOpenSettings])
+  }, [modules, can, canOpenSettings, visibleSections])
 
   return (
-    <AppShell navItems={navItems}>
-      <Routes>
-        <Route index element={<Navigate to="/accueil" replace />} />
-        <Route path="accueil" element={<HomePage />} />
-        {/* SettingsLayout wraps each section in its own RouteBoundary. */}
-        <Route
-          path="parametres/*"
-          element={
-            <RequireAnyAccess allowed={canOpenSettings}>
-              <SettingsLayout sections={settingsSections} />
-            </RequireAnyAccess>
-          }
-        />
-        {modules.flatMap((m) =>
-          m.routes.map((r) => (
-            <Route
-              key={`${m.key}:${r.path}`}
-              path={r.path}
-              element={
-                <RequireAccess permission={r.permission}>
-                  {/* Design §6.2: a crash or failed chunk stays inside its module. */}
-                  <RouteBoundary scope={m.key}>
-                    <Suspense fallback={<FullPageMessage role="status" title={t('common.loading')} />}>
-                      {createElement(r.component)}
-                    </Suspense>
-                  </RouteBoundary>
-                </RequireAccess>
-              }
-            />
-          )),
-        )}
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </AppShell>
+    <UnsavedChangesProvider>
+      <AppShell navItems={navItems}>
+        <Routes>
+          <Route index element={<Navigate to="/accueil" replace />} />
+          <Route path="accueil" element={<HomePage />} />
+          {/* « Mon compte »: outside Paramètres, so every role reaches it (ACCOUNT_PAGE in the shell). */}
+          <Route
+            path="mon-compte"
+            element={
+              <RouteBoundary scope="account">
+                <AccountPage />
+              </RouteBoundary>
+            }
+          />
+          {/* SettingsLayout wraps each section in its own RouteBoundary. */}
+          <Route
+            path="parametres/*"
+            element={
+              <RequireAnyAccess allowed={canOpenSettings}>
+                <SettingsLayout sections={settingsSections} />
+              </RequireAnyAccess>
+            }
+          />
+          {modules.flatMap((m) =>
+            m.routes.map((r) => (
+              <Route
+                key={`${m.key}:${r.path}`}
+                path={r.path}
+                element={
+                  <RequireAccess permission={r.permission}>
+                    {/* Design §6.2: a crash or failed chunk stays inside its module. */}
+                    <RouteBoundary scope={m.key}>
+                      <Suspense fallback={<FullPageMessage role="status" title={t('common.loading')} />}>
+                        {createElement(r.component)}
+                      </Suspense>
+                    </RouteBoundary>
+                  </RequireAccess>
+                }
+              />
+            )),
+          )}
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </AppShell>
+    </UnsavedChangesProvider>
   )
 }

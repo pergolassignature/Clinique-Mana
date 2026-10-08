@@ -9,11 +9,12 @@ import { safeRedirect } from '@/core/auth/redirect'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { emailSchema } from '@/shared/lib/email'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { AuthCard, StatusNotice } from './AuthCard'
 
 const schema = z.object({
-  email: z.email({ error: t('auth.errors.invalidEmail') }),
+  email: emailSchema(t('auth.errors.invalidEmail')),
   password: z.string().min(1, { error: t('auth.errors.required') }),
 })
 type Values = z.infer<typeof schema>
@@ -75,7 +76,7 @@ export function LoginPage() {
       status={magicSent ? <StatusNotice>{t('auth.login.magicLinkSent')}</StatusNotice> : null}
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <Label htmlFor="email">{t('auth.login.email')}</Label>
           <Input
             id="email"
@@ -89,7 +90,7 @@ export function LoginPage() {
           />
           {formState.errors.email && <p id="email-error" className="text-xs text-destructive">{formState.errors.email.message}</p>}
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <Label htmlFor="password">{t('auth.login.password')}</Label>
           <Input
             id="password"
@@ -110,11 +111,11 @@ export function LoginPage() {
           {t('auth.login.or')}
           <span className="h-px flex-1 bg-border" />
         </div>
-        <Button type="button" variant="outline" className="w-full whitespace-normal" onClick={onMagicLink} disabled={busy}>
+        <Button type="button" variant="outline" className="h-auto min-h-8 w-full whitespace-normal py-1.5" onClick={onMagicLink} disabled={busy}>
           {t('auth.login.magicLink')}
         </Button>
         <p className="text-center text-sm">
-          <Link to="/mot-de-passe-oublie" className="text-primary hover:underline">
+          <Link to="/mot-de-passe-oublie" className="text-link underline-offset-[3px] hover:underline">
             {t('auth.login.forgot')}
           </Link>
         </p>

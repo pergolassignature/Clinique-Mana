@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { cn } from '@/shared/lib/utils'
+import { focusRing } from './field-classes'
 
 /**
  * NavTabs - Navigation tabs that are excluded from keyboard tab order.
@@ -24,7 +25,7 @@ const NavTabs = React.forwardRef<HTMLDivElement, NavTabsProps>(
     <div
       ref={ref}
       role="tablist"
-      className={cn('flex', className)}
+      className={cn('flex overflow-x-auto overflow-y-hidden border-b border-border', className)}
       {...props}
     >
       {children}
@@ -36,10 +37,12 @@ NavTabs.displayName = 'NavTabs'
 interface NavTabProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   active?: boolean
   icon?: React.ReactNode
+  /** Small muted count after the label (e.g. documents). */
+  count?: number
 }
 
 const NavTab = React.forwardRef<HTMLButtonElement, NavTabProps>(
-  ({ className, active, icon, children, ...props }, ref) => (
+  ({ className, active, icon, count, children, ...props }, ref) => (
     <button
       ref={ref}
       type="button"
@@ -47,16 +50,17 @@ const NavTab = React.forwardRef<HTMLButtonElement, NavTabProps>(
       aria-selected={active}
       tabIndex={-1}
       className={cn(
-        'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px',
+        `-mb-px mr-3 flex items-center gap-1.5 whitespace-nowrap border-b-2 px-0.5 py-2 text-sm transition-colors ${focusRing} [&_svg]:size-3.5 [&_svg]:shrink-0`,
         active
-          ? 'border-sage-500 text-sage-700'
-          : 'border-transparent text-foreground-muted hover:text-foreground hover:border-border',
+          ? 'border-ink font-medium text-foreground'
+          : 'border-transparent text-muted-foreground hover:text-foreground',
         className
       )}
       {...props}
     >
       {icon}
       {children}
+      {count != null && <span className="tabular text-xs font-normal text-muted-foreground">{count}</span>}
     </button>
   )
 )

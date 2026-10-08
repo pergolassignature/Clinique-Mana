@@ -1,0 +1,178 @@
+import { createElement, lazy, useEffect, useState, type ComponentType, type FunctionComponent } from 'react'
+
+/** Code that can be loaded ahead of time: a lazyPage's chunk. */
+export interface Preloadable {
+  /** Starts loading the chunk (once). Resolves when the page can render without suspending. */
+  preload: () => Promise<void>
+  /** Whether the chunk has loaded, so the page renders synchronously. */
+  isLoaded: () => boolean
+}
+
+/**
+ * A code-split page: a component that loads its chunk on first render, or earlier through
+ * `preload()`. Module routes and settings sections take only this (core/modules/types.ts), so a
+ * plain React.lazy, which cannot be preloaded, does not type-check there.
+ */
+export type LazyPage = FunctionComponent & Preloadable
+
+type Module = Record<string, unknown>
+
+/** The keys of `M` whose value is a component that takes no props: the exports a page can be. */
+type ComponentExport<M> = { [K in keyof M]: M[K] extends ComponentType ? K : never }[keyof M] & string
+
+/**
+ * Like React.lazy, but once the chunk has loaded the page renders synchronously, so a NEW
+ * <Suspense> around it never shows its fallback. That matters with React 19: a fallback, once
+ * committed, stays on screen for at least 300 ms (FALLBACK_THROTTLE_MS), even when the chunk
+ * arrives a few milliseconds later. Preloading (idle prefetch, reload of a deep link) therefore
+ * removes the wait entirely.
+ *
+ * Before the chunk has loaded, the page suspends like React.lazy (it uses one). A failed load is
+ * not cached: the next preload() or mount tries again.
+ *
+ * `exportName` picks a named export: `lazyPage(() => import('./pages/X'), 'XPage')`.
+ * Chunks are static code, the same for every user: preloading never reads or renders user data.
+ */
+export function lazyPage(load: () => Promise<{ default: ComponentType }>): LazyPage
+export function lazyPage<M extends Module, K extends ComponentExport<M>>(load: () => Promise<M>, exportName: K): LazyPage
+export function lazyPage(load: () => Promise<Module>, exportName = 'default'): LazyPage {
+  let loaded: ComponentType | null = null
+  let pending: Promise<ComponentType> | null = null
+
+  const loadComponent = (): Promise<ComponentType> => {
+    pending ??= load()
+      .then((module) => {
+        const component = module[exportName]
+        if (typeof component !== 'function' && (typeof component !== 'object' || component === null)) {
+          throw new Error(`lazyPage: the chunk has no component export "${exportName}"`)
+        }
+        loaded = component as ComponentType
+        return loaded
+      })
+      .catch((error: unknown) => {
+        // Not cached: a failed idle prefetch is retried on real navigation.
+        pending = null
+        throw error
+      })
+    return pending
+  }
+
+  // Used only by an instance that mounts before the chunk has loaded. React.lazy keeps a rejection
+  // forever, so a failed load swaps in a fresh one: the next mount (error boundary retry,
+  // navigation) loads again.
+  const makeLazy = () =>
+    lazy(() =>
+      loadComponent().then(
+        (component) => ({ default: component }),
+        (error: unknown) => {
+          fallback = makeLazy()
+          throw error
+        },
+      ),
+    )
+  let fallback = makeLazy()
+
+  function Page() {
+    // Fixed for this instance's life: switching from the lazy wrapper to the component on a later
+    // render would remount the page and lose its state (an unsaved form).
+    const [type] = useState<ComponentType>(() => loaded ?? fallback)
+    return createElement(type)
+  }
+  Page.displayName = `LazyPage(${exportName})`
+
+  return Object.assign(Page, {
+    preload: () => loadComponent().then(() => undefined),
+    isLoaded: () => loaded !== null,
+  })
+}
+
+/**
+ * How long a caller's loading screen waits for `alsoWaitFor` (the page at the URL). Past it, the
+ * caller renders and the page's own Suspense boundary shows its fallback: a slow or stuck page
+ * chunk never holds the whole app on the loading screen.
+ */
+export const ALSO_WAIT_FOR_MAX_MS = 1000
+
+/**
+ * Preloads `page` and returns whether it can render now, WITHOUT suspending: the caller keeps
+ * its own loading screen meanwhile, so no Suspense fallback (and its 300 ms hold) is involved.
+ * A failed load is thrown to the nearest error boundary; remounting tries again.
+ *
+ * `alsoWaitFor` (e.g. the page at the URL, inside `page`) is waited for too, for at most
+ * ALSO_WAIT_FOR_MAX_MS, so its own Suspense boundary usually never shows a fallback either; its
+ * failure is ignored here (its boundary reports it).
+ */
+export function useLazyPageReady(page: LazyPage, alsoWaitFor?: Preloadable): boolean {
+  const [state, setState] = useState<{ ready: boolean; error: unknown }>(() => ({
+    ready: page.isLoaded() && (alsoWaitFor?.isLoaded() ?? true),
+    error: null,
+  }))
+  useEffect(() => {
+    if (state.ready) return
+    let active = true
+    let timer: number | undefined
+    const extra =
+      alsoWaitFor && !alsoWaitFor.isLoaded()
+        ? Promise.race([
+            alsoWaitFor.preload().catch(() => {}),
+            new Promise<void>((resolve) => {
+              timer = window.setTimeout(resolve, ALSO_WAIT_FOR_MAX_MS)
+            }),
+          ])
+        : undefined
+    Promise.all([page.preload(), extra]).then(
+      () => {
+        if (active) setState({ ready: true, error: null })
+      },
+      (error: unknown) => {
+        if (active) setState({ ready: false, error: error ?? new Error('lazyPage: load failed') })
+      },
+    )
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [page, alsoWaitFor, state.ready])
+  if (state.error) throw state.error
+  return state.ready
+}
+
+type IdleHandle = { cancel: () => void }
+
+/** Without requestIdleCallback (Safari): a short delay, so the task still runs after the current work. */
+const IDLE_FALLBACK_MS = 200
+
+/**
+ * Runs `task` when the browser is idle, and at the latest after `timeout` ms. Without
+ * requestIdleCallback, after a short delay, never later than `timeout` either.
+ */
+export function whenIdle(task: () => void, timeout = 2000): IdleHandle {
+  if (typeof window.requestIdleCallback === 'function') {
+    const id = window.requestIdleCallback(task, { timeout })
+    return { cancel: () => window.cancelIdleCallback(id) }
+  }
+  const id = window.setTimeout(task, Math.min(IDLE_FALLBACK_MS, timeout))
+  return { cancel: () => window.clearTimeout(id) }
+}
+
+type NetworkInformation = { saveData?: boolean; effectiveType?: string }
+
+/**
+ * Whether the connection asks for no speculative downloads: Data Saver is on, or the link is
+ * 2G-class. Unknown (no Network Information API: Firefox, Safari) counts as no.
+ */
+function prefersLessData(): boolean {
+  const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection
+  return connection?.saveData === true || connection?.effectiveType === '2g' || connection?.effectiveType === 'slow-2g'
+}
+
+/**
+ * Starts preloading pages at idle time; failures are ignored (navigation retries them). Skipped on
+ * a connection that asks for less data (checked when idle): each page then loads when opened.
+ */
+export function preloadWhenIdle(pages: Iterable<Preloadable>): IdleHandle {
+  return whenIdle(() => {
+    if (prefersLessData()) return
+    for (const page of pages) void page.preload().catch(() => {})
+  })
+}

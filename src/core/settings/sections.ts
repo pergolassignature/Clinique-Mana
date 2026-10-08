@@ -1,16 +1,106 @@
-import { lazy } from 'react'
-import { Blocks } from 'lucide-react'
+import {
+  Blocks,
+  Building2,
+  Globe,
+  Landmark,
+  PenLine,
+  Percent,
+  ScrollText,
+  ShieldCheck,
+  Users,
+} from 'lucide-react'
 import type { SettingsSection } from '@/core/modules/types'
+import { lazyPage } from '@/shared/lib/lazy-page'
 
-// Phase 2 adds: identité, fiscalité, signataire, banque, lieux, région, confidentialité,
-// utilisateurs, courriels, signature électronique, intégrations, tâches planifiées, audit.
+// English `id` for code, French `path` for the URL (decision #24). Menu order within each group.
 export const coreSettingsSections: SettingsSection[] = [
   {
+    id: 'identity',
+    path: 'identite',
+    labelKey: 'settings.sections.identity',
+    icon: Building2,
+    permission: 'settings.view',
+    editPermission: 'settings.manage',
+    group: 'clinique',
+    component: lazyPage(() => import('./pages/IdentitySettingsPage'), 'IdentitySettingsPage'),
+  },
+  {
+    id: 'tax',
+    path: 'fiscalite',
+    labelKey: 'settings.sections.tax',
+    icon: Percent,
+    permission: 'settings.view',
+    editPermission: 'settings.manage',
+    group: 'clinique',
+    component: lazyPage(() => import('./pages/TaxSettingsPage'), 'TaxSettingsPage'),
+  },
+  {
+    id: 'signatory',
+    path: 'signataire',
+    labelKey: 'settings.sections.signatory',
+    icon: PenLine,
+    permission: 'settings.view',
+    editPermission: 'settings.manage',
+    group: 'clinique',
+    component: lazyPage(() => import('./pages/SignatorySettingsPage'), 'SignatorySettingsPage'),
+  },
+  {
+    id: 'bank',
+    path: 'banque',
+    labelKey: 'settings.sections.bank',
+    icon: Landmark,
+    permission: 'settings.bank_manage',
+    group: 'clinique',
+    component: lazyPage(() => import('./pages/BankSettingsPage'), 'BankSettingsPage'),
+  },
+  {
+    id: 'region',
+    path: 'region',
+    labelKey: 'settings.sections.region',
+    icon: Globe,
+    permission: 'settings.view',
+    editPermission: 'settings.manage',
+    group: 'clinique',
+    component: lazyPage(() => import('./pages/RegionSettingsPage'), 'RegionSettingsPage'),
+  },
+  {
+    id: 'privacy',
+    path: 'confidentialite',
+    labelKey: 'settings.sections.privacy',
+    icon: ShieldCheck,
+    permission: 'settings.view',
+    editPermission: 'settings.manage',
+    group: 'clinique',
+    component: lazyPage(() => import('./pages/PrivacySettingsPage'), 'PrivacySettingsPage'),
+  },
+  {
+    id: 'users',
+    path: 'utilisateurs',
+    labelKey: 'settings.sections.users',
+    icon: Users,
+    // The « Rôles » tab needs roles.manage only (UsersSettingsPage shows « Utilisateurs » with users.view).
+    permission: ['users.view', 'roles.manage'],
+    // Read-only (the lock) only without either: each tab then follows its own (UsersSettingsPage).
+    editPermission: ['users.manage', 'roles.manage'],
+    group: 'plateforme',
+    component: lazyPage(() => import('./pages/UsersSettingsPage'), 'UsersSettingsPage'),
+  },
+  {
     id: 'modules',
+    path: 'modules',
     labelKey: 'settings.sections.modules',
     icon: Blocks,
     permission: 'modules.manage',
     group: 'plateforme',
-    component: lazy(() => import('./pages/ModulesSettingsPage').then((m) => ({ default: m.ModulesSettingsPage }))),
+    component: lazyPage(() => import('./pages/ModulesSettingsPage'), 'ModulesSettingsPage'),
+  },
+  {
+    id: 'audit',
+    path: 'journal',
+    labelKey: 'settings.sections.audit',
+    icon: ScrollText,
+    permission: 'audit.view',
+    group: 'plateforme',
+    component: lazyPage(() => import('./pages/AuditLogPage'), 'AuditLogPage'),
   },
 ]

@@ -1,12 +1,58 @@
 {
   "app": { "name": "Clinique MANA" },
-  "nav": { "label": "Menu principal", "skipToContent": "Aller au contenu", "home": "Accueil", "settings": "Paramètres", "logout": "Se déconnecter" },
+  "nav": {
+    "label": "Menu principal",
+    "skipToContent": "Aller au contenu",
+    "home": "Accueil",
+    "settings": "Paramètres",
+    "logout": "Se déconnecter",
+    "account": "Mon compte",
+    "openMenu": "Ouvrir le menu",
+    "menu": "Menu",
+    "userMenu": "Menu de {name}",
+    "collapse": "Réduire le menu",
+    "expand": "Agrandir le menu",
+    "breadcrumb": "Fil d'Ariane",
+    "search": "Rechercher…",
+    "searchLabel": "Rechercher une page",
+    "palette": {
+      "title": "Aller à une page",
+      "placeholder": "Rechercher une page…",
+      "empty": "Aucun résultat.",
+      "pages": "Pages",
+      "escape": "Échap"
+    }
+  },
   "common": {
     "loading": "Chargement…",
     "retry": "Réessayer",
     "close": "Fermer",
+    "readOnly": "Lecture seule",
+    "readOnlyNotice": {
+      "title": "Lecture seule",
+      "body": "Seule l'administration peut modifier ces informations."
+    },
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "cancel": "Annuler",
+    "form": { "required": "(requis)" },
+    "status": { "complete": "(terminé)", "pending": "(en attente)", "warning": "(à vérifier)" },
+    "toast": { "region": "Notifications", "close": "Fermer la notification" },
+    "errors": {
+      "forbidden": "Vous n'avez pas la permission de faire cette modification.",
+      "invalidValue": "Une des valeurs saisies n'est pas valide. Vérifiez le formulaire.",
+      "generic": "Un imprévu, ça arrive. Réessayez dans un instant."
+    },
+    "unsaved": {
+      "title": "Quitter sans enregistrer ?",
+      "body": "Vos modifications seront perdues.",
+      "stay": "Rester",
+      "leave": "Quitter sans enregistrer"
+    },
     "notFound": { "title": "Page introuvable", "body": "Cette page n'existe pas ou a été déplacée." },
-    "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." }
+    "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." },
+    "appError": { "title": "L'application a rencontré un problème", "body": "Réessayez dans un instant. Si le problème persiste, rechargez la page." },
+    "appUpdate": { "title": "Une nouvelle version de l'application est disponible.", "reload": "Recharger" }
   },
   "auth": {
     "login": {
@@ -48,8 +94,58 @@
       "weak_password": "Ce mot de passe est trop faible. Choisissez-en un plus long ou plus varié.",
       "same_password": "Le nouveau mot de passe doit être différent de l'ancien.",
       "reauthentication_needed": "Pour des raisons de sécurité, reconnectez-vous puis réessayez.",
+      "invalid_code": "Code invalide ou expiré.",
+      "invalid_email": "Courriel invalide.",
       "rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
       "unknown": "Une erreur est survenue. Réessayez."
+    }
+  },
+  "account": {
+    "title": "Mon compte",
+    "description": "Votre nom, votre courriel de connexion et votre mot de passe.",
+    "name": {
+      "title": "Nom affiché",
+      "description": "Le nom que vos collègues voient dans l'application.",
+      "label": "Nom affiché",
+      "saved": "Nom mis à jour."
+    },
+    "email": {
+      "title": "Courriel",
+      "description": "Il sert à vous connecter et à recevoir les liens de l'application.",
+      "current": "Courriel actuel",
+      "new": "Nouveau courriel",
+      "same": "C'est déjà votre courriel.",
+      "submit": "Changer le courriel",
+      "submitting": "Envoi…",
+      "pendingTitle": "Changement en attente vers {email}",
+      "pending": "Confirmez le changement dans les deux boîtes : l'ancienne et la nouvelle adresse.",
+      "requestedTitle": "Demande de changement envoyée",
+      "requested": "Si cette adresse peut être utilisée, un lien de confirmation a été envoyé à l'ancienne et à la nouvelle adresse. Le changement se fera une fois les deux liens confirmés."
+    },
+    "password": {
+      "title": "Mot de passe",
+      "description": "Au moins 10 caractères, et un mot de passe que vous n'utilisez nulle part ailleurs.",
+      "new": "Nouveau mot de passe",
+      "confirm": "Confirmer le mot de passe",
+      "code": "Code reçu par courriel",
+      "codeHelp": "Pour confirmer qu'il s'agit bien de vous, un code vient d'être envoyé à votre courriel.",
+      "codeRequired": "Entrez le code reçu par courriel.",
+      "resend": "Renvoyer le code",
+      "resent": "Un nouveau code vient d'être envoyé.",
+      "codeRecent": "Un code vous a été envoyé il y a peu : utilisez le plus récent. Pour en recevoir un autre, réessayez dans une minute.",
+      "submit": "Changer le mot de passe",
+      "submitting": "Changement en cours…",
+      "success": "Mot de passe mis à jour."
+    },
+    "sessions": {
+      "title": "Sessions",
+      "description": "Fermez votre session sur tous les appareils où elle est ouverte, y compris celui-ci.",
+      "signOutEverywhere": "Se déconnecter de tous les appareils",
+      "confirmTitle": "Se déconnecter de tous les appareils ?",
+      "confirmBody": "Vous devrez vous reconnecter sur chaque appareil, y compris celui-ci.",
+      "confirm": "Se déconnecter partout",
+      "pending": "Déconnexion…",
+      "failed": "Les autres appareils n'ont pas pu être déconnectés. Votre session reste ouverte ici."
     }
   },
   "access": {
@@ -60,7 +156,8 @@
       "no_role": "Aucun rôle n'est attribué à votre compte. Contactez la clinique.",
       "signOut": "Se déconnecter"
     },
-    "forbidden": { "title": "Accès refusé", "body": "Vous n'avez pas la permission d'ouvrir cette page." }
+    "forbidden": { "title": "Accès refusé", "body": "Vous n'avez pas la permission d'ouvrir cette page." },
+    "customRole": "Rôle personnalisé"
   },
   "pageTitles": {
     "login": "Connexion",
@@ -72,7 +169,8 @@
     "loading": "Chargement",
     "accessError": "Erreur de connexion",
     "accessDenied": "Compte indisponible",
-    "forbidden": "Accès refusé"
+    "forbidden": "Accès refusé",
+    "account": "Mon compte"
   },
   "home": { "title": "Bienvenue", "body": "Les modules s'ajoutent ici au fur et à mesure qu'ils sont activés." },
   "settings": {
@@ -80,18 +178,572 @@
     "navLabel": "Sections des paramètres",
     "empty": "Aucune section de paramètres n'est disponible pour votre rôle.",
     "groups": { "clinique": "Clinique", "plateforme": "Plateforme", "modules": "Modules", "compte": "Mon compte" },
-    "sections": { "modules": "Modules" },
+    "sections": {
+      "identity": "Identité légale",
+      "tax": "Fiscalité",
+      "signatory": "Signataire",
+      "bank": "Coordonnées bancaires",
+      "region": "Région",
+      "privacy": "Confidentialité",
+      "users": "Utilisateurs et accès",
+      "modules": "Modules",
+      "audit": "Journal d'audit"
+    },
+    "navReadOnlyHint": "(lecture seule)",
+    "menuButtonPrefix": "Section des paramètres :",
     "modules": {
-      "title": "Modules",
       "description": "Activez un module lorsqu'il est prêt. Un module désactivé disparaît du menu et de l'application.",
       "dependsOn": "Requiert :",
       "saved": "Modules mis à jour.",
       "error": "Impossible de modifier ce module.",
-      "loadError": "Impossible de charger les modules.",
-      "forbidden": "Vous n'avez pas la permission de modifier les modules."
+      "loadError": "Impossible de charger les modules."
+    },
+    "organization": {
+      "loadError": "Impossible de charger les renseignements de la clinique."
+    },
+    "identity": {
+      "description": "Ces renseignements figurent sur les contrats, reçus et factures.",
+      "clinic": { "title": "Clinique", "saved": "Identité enregistrée." },
+      "address": { "title": "Adresse du siège social", "saved": "Adresse enregistrée." },
+      "contact": { "title": "Coordonnées", "saved": "Coordonnées enregistrées." },
+      "fields": {
+        "name": "Nom affiché",
+        "nameHelp": "Le nom qui apparaît dans l'application.",
+        "legalName": "Raison sociale",
+        "neq": "NEQ",
+        "neqHelp": "Numéro d'entreprise du Québec, 10 chiffres.",
+        "addressLine1": "Adresse",
+        "addressLine2": "Complément",
+        "city": "Ville",
+        "province": "Province",
+        "provincePlaceholder": "Choisir une province…",
+        "provinceNone": "Aucune",
+        "postalCode": "Code postal",
+        "phone": "Téléphone",
+        "email": "Courriel",
+        "website": "Site web"
+      }
+    },
+    "signatory": {
+      "description": "La personne qui signe les contrats et les reçus au nom de la clinique.",
+      "representative": {
+        "title": "Représentant de la clinique",
+        "saved": "Signataire enregistré."
+      },
+      "note": "L'image de la signature s'ajoutera avec les contrats.",
+      "fields": {
+        "name": "Nom",
+        "title": "Titre",
+        "titlePlaceholder": "Directrice"
+      }
+    },
+    "region": {
+      "description": "Le fuseau horaire, la langue et la devise de la clinique.",
+      "timezone": {
+        "title": "Heure de la clinique",
+        "description": "Les dates et les heures de l'application suivent ce fuseau.",
+        "saved": "Fuseau horaire enregistré."
+      },
+      "fields": {
+        "timezone": "Fuseau horaire",
+        "other": "Autre fuseau…"
+      },
+      "picker": {
+        "title": "Choisir un fuseau horaire",
+        "placeholder": "Rechercher un fuseau (ex. : Paris)",
+        "empty": "Aucun fuseau trouvé.",
+        "current": "(fuseau actuel)",
+        "currentDescription": "Fuseau actuel : {zone}",
+        "canada": "Canada",
+        "others": "Autres fuseaux"
+      },
+      "zones": {
+        "toronto": "Heure de l'Est (Montréal, Toronto)",
+        "halifax": "Heure de l'Atlantique (Halifax)",
+        "stJohns": "Heure de Terre-Neuve (St. John's)",
+        "winnipeg": "Heure du Centre (Winnipeg)",
+        "regina": "Heure du Centre, sans heure avancée (Regina)",
+        "edmonton": "Heure des Rocheuses (Edmonton)",
+        "vancouver": "Heure du Pacifique (Vancouver)",
+        "whitehorse": "Heure du Yukon (Whitehorse)"
+      },
+      "locale": {
+        "title": "Langue et devise",
+        "language": "Langue",
+        "currency": "Devise",
+        "languages": {
+          "fr-CA": "Français (Canada)"
+        },
+        "currencies": {
+          "CAD": "dollar canadien (CAD)"
+        }
+      }
+    },
+    "privacy": {
+      "description": "Les renseignements exigés par la Loi 25 sur la protection des renseignements personnels.",
+      "officer": {
+        "title": "Responsable de la protection des renseignements personnels",
+        "saved": "Responsable enregistré."
+      },
+      "policy": {
+        "title": "Politique et conservation",
+        "saved": "Politique et conservation enregistrées."
+      },
+      "fields": {
+        "officerName": "Nom",
+        "officerEmail": "Courriel",
+        "policyUrl": "URL de la politique",
+        "retentionYears": "Durée de conservation des dossiers administratifs (années)",
+        "retentionYearsHelp": "Les notes cliniques ne sont pas conservées dans l'application."
+      }
+    },
+    "users": {
+      "description": "Qui utilise l'application, avec quel rôle et quelles permissions.",
+      "tabs": { "users": "Utilisateurs", "roles": "Rôles" },
+      "addNote": "Pour ajouter une personne, contactez l'administrateur technique. Les invitations par courriel arriveront bientôt.",
+      "tableLabel": "Utilisateurs de la clinique",
+      "columns": { "name": "Nom", "email": "Courriel", "role": "Rôle", "status": "Statut", "lastSignIn": "Dernière connexion" },
+      "status": { "active": "Actif", "disabled": "Désactivé" },
+      "never": "Jamais",
+      "noRole": "Aucun rôle",
+      "countOne": "1 utilisateur",
+      "countOther": "{count} utilisateurs",
+      "loadError": "La liste des utilisateurs n'a pas pu être chargée.",
+      "sheet": {
+        "lastSignIn": "Dernière connexion : {date}",
+        "selfBefore": "Modifiez votre compte dans",
+        "selfLink": "Mon compte",
+        "adminOnly": "Seul un administrateur peut modifier un administrateur.",
+        "role": {
+          "label": "Rôle",
+          "provider": "Géré dans le module Professionnels",
+          "managerLimit": "Vous ne pouvez attribuer qu'un rôle dont vous avez toutes les permissions.",
+          "loadError": "Les rôles disponibles n'ont pas pu être chargés.",
+          "saved": "Rôle modifié.",
+          "promote": {
+            "title": "Nommer {name} administrateur ?",
+            "body": "Un administrateur a toutes les permissions, y compris la gestion des utilisateurs et des modules.",
+            "overridesOne": "Son exception sera supprimée.",
+            "overridesOther": "Ses {count} exceptions seront supprimées.",
+            "confirm": "Nommer administrateur"
+          },
+          "demote": {
+            "title": "Retirer le rôle d'administrateur ?",
+            "body": "{name} n'aura plus que les permissions du rôle {role}.",
+            "confirm": "Retirer le rôle"
+          }
+        },
+        "status": {
+          "label": "Compte actif",
+          "reenableAdminOnly": "Seul un administrateur peut réactiver un compte.",
+          "confirmTitle": "Désactiver ce compte ?",
+          "confirmBody": "{name} ne pourra plus se connecter.",
+          "confirm": "Désactiver",
+          "disabledSaved": "Compte désactivé.",
+          "enabledSaved": "Compte réactivé."
+        },
+        "permissions": {
+          "title": "Permissions",
+          "description": "Chaque personne a les permissions de son rôle. Activez ou désactivez une permission pour créer une exception.",
+          "admin": "Un administrateur a toutes les permissions.",
+          "managerLimit": "Vous ne pouvez accorder que les permissions que vous avez.",
+          "coreGroup": "Général",
+          "yes": "Oui",
+          "no": "Non",
+          "exception": "Exception · rôle : {value}",
+          "lackedHint": "Seule une personne qui a cette permission peut l'accorder.",
+          "saved": {
+            "role": "{permission} : selon le rôle ({value}).",
+            "exception": "{permission} : {value} (exception)."
+          },
+          "values": { "on": "activée", "off": "désactivée" },
+          "loadError": "Les permissions n'ont pas pu être chargées.",
+          "reset": {
+            "label": "Rétablir les permissions du rôle",
+            "labelCount": "Rétablir les permissions du rôle ({count})",
+            "blocked": "Une exception retire une permission que vous n'avez pas : seule une personne qui l'a peut rétablir le rôle.",
+            "blockedHidden": "Une exception sur le module {module} (désactivé) retire une permission que vous n'avez pas : seule une personne qui l'a peut rétablir le rôle.",
+            "blockedHiddenOther": "Une exception sur les modules {modules} (désactivés) retire une permission que vous n'avez pas : seule une personne qui l'a peut rétablir le rôle.",
+            "title": "Rétablir les permissions du rôle ?",
+            "body": {
+              "one": "L'exception de {name} sera supprimée.",
+              "oneHidden": "L'exception de {name}, sur un module désactivé, sera supprimée.",
+              "other": "Les {count} exceptions de {name} seront supprimées.",
+              "otherHiddenOne": "Les {count} exceptions de {name}, dont une sur un module désactivé, seront supprimées.",
+              "otherHidden": "Les {count} exceptions de {name}, dont {hidden} sur des modules désactivés, seront supprimées.",
+              "otherAllHidden": "Les {count} exceptions de {name}, toutes sur des modules désactivés, seront supprimées.",
+              "role": "Ses permissions seront celles du rôle {role}.",
+              "noRole": "Cette personne n'a pas de rôle : elle n'aura plus aucune permission."
+            },
+            "confirm": "Rétablir",
+            "saved": "Permissions du rôle rétablies."
+          }
+        }
+      },
+      "matrix": {
+        "note": "Les permissions que chaque rôle donne par défaut. Pour une exception, modifiez la personne.",
+        "noteManage": "Chaque changement s'applique aussitôt à toutes les personnes qui ont ce rôle. Pour une exception, modifiez la personne.",
+        "adminNote": "L'administrateur a toujours toutes les permissions.",
+        "providerNote": "Les permissions des professionnels se gèrent dans le module Professionnels.",
+        "managerLimit": "Vous ne pouvez accorder que les permissions que vous avez.",
+        "ownRoleNote": "Vous ne pouvez pas ajouter de permissions à votre propre rôle.",
+        "tableLabel": "Permissions par rôle",
+        "permission": "Permission",
+        "yes": "Oui",
+        "no": "Non",
+        "cellLabel": "{role} : {permission}",
+        "saved": "{permission} : {value} pour le rôle {role}.",
+        "loadError": "Les rôles n'ont pas pu être chargés.",
+        "roleActions": "Actions du rôle {role}",
+        "newRole": "Nouveau rôle",
+        "rename": "Renommer",
+        "delete": "Supprimer",
+        "selfRemove": {
+          "title": "Retirer cette permission de votre rôle ?",
+          "body": "« {permission} » sera retirée du rôle {role} : vous la perdrez, comme les autres personnes qui ont ce rôle, sauf exception. Vous ne pourrez pas la remettre vous-même.",
+          "confirm": "Retirer"
+        }
+      },
+      "roleDialog": {
+        "createTitle": "Nouveau rôle",
+        "createDescription": "Le rôle s'ajoute comme une colonne du tableau. Vous choisirez ensuite ses permissions.",
+        "renameTitle": "Renommer le rôle",
+        "renameDescription": "Le nouveau nom s'affiche partout, aussi pour les personnes qui ont ce rôle.",
+        "name": "Nom du rôle",
+        "copyFrom": "Partir des permissions de",
+        "copyNone": "Aucune permission",
+        "copyHelp": "Les permissions sont copiées une seule fois : les deux rôles restent indépendants.",
+        "copyManagerLimit": "Vous ne pouvez partir que d'un rôle dont vous avez toutes les permissions.",
+        "create": "Créer",
+        "creating": "Création…",
+        "created": "Rôle « {name} » créé.",
+        "rename": "Renommer",
+        "renaming": "Enregistrement…",
+        "renamed": "Rôle renommé « {name} ».",
+        "validation": {
+          "nameRequired": "Le nom du rôle est requis.",
+          "nameTooLong": "Le nom du rôle ne peut pas dépasser 60 caractères.",
+          "nameTaken": "Un rôle porte déjà ce nom."
+        }
+      },
+      "roleDelete": {
+        "title": "Supprimer le rôle « {name} » ?",
+        "body": "Ses permissions par défaut seront supprimées. Un rôle encore attribué à quelqu'un ne peut pas être supprimé.",
+        "confirm": "Supprimer",
+        "deleting": "Suppression…",
+        "deleted": "Rôle « {name} » supprimé."
+      }
+    },
+    "tax": {
+      "description": "Les numéros d'inscription de la clinique et les taux de TPS et de TVQ appliqués aux factures.",
+      "numbers": { "title": "Numéros d'inscription", "saved": "Numéros d'inscription enregistrés." },
+      "fields": {
+        "gst": "Numéro de TPS",
+        "gstHelp": "9 chiffres + RT + 4 chiffres",
+        "qst": "Numéro de TVQ",
+        "qstHelp": "10 chiffres + TQ + 4 chiffres"
+      },
+      "taxes": {
+        "gst": { "title": "TPS", "description": "Taxe sur les produits et services." },
+        "qst": { "title": "TVQ", "description": "Taxe de vente du Québec." }
+      },
+      "rates": {
+        "rate": "Taux",
+        "from": "En vigueur du",
+        "to": "Jusqu'au",
+        "status": "Statut",
+        "actions": "Actions",
+        "scrollLabel": "Historique des taux de {tax}",
+        "until": "au {date}",
+        "statuses": { "current": "En vigueur", "upcoming": "À venir", "ended": "Terminé" },
+        "loadError": "Impossible de charger les taux.",
+        "empty": "Aucun taux enregistré.",
+        "add": "Nouveau taux",
+        "delete": "Supprimer",
+        "deleteLabel": "Supprimer le taux de {rate} à partir du {date}",
+        "deleting": "Suppression…",
+        "deleted": "Taux supprimé.",
+        "confirmTitle": "Supprimer ce taux ?",
+        "confirmBody": "Le taux de {rate} à partir du {date} sera supprimé. Le taux précédent s'appliquera de nouveau."
+      },
+      "dialog": {
+        "title": "Nouveau taux de {tax}",
+        "description": "Le nouveau taux s'appliquera à partir de la date choisie.",
+        "rate": "Taux (%)",
+        "from": "À partir du",
+        "fromHelp": "Le taux actuel se terminera la veille de cette date.",
+        "backdated": "Cette date est passée : le nouveau taux s'appliquera aussi aux calculs faits depuis cette date. Les factures déjà émises gardent leur taux.",
+        "submit": "Ajouter",
+        "submitting": "Ajout…",
+        "added": "Nouveau taux enregistré."
+      },
+      "validation": { "rate": "Taux invalide.", "date": "Date requise.", "afterOpen": "Le nouveau taux doit commencer après le {date}." }
+    },
+    "bank": {
+      "description": "Visibles par les administrateurs seulement. Chaque affichage du numéro de compte est inscrit au journal d'audit.",
+      "loadError": "Impossible de charger les coordonnées bancaires.",
+      "title": "Compte de la clinique",
+      "empty": {
+        "title": "Aucune coordonnée bancaire",
+        "body": "Ajoutez le compte où la clinique reçoit ses paiements.",
+        "add": "Ajouter"
+      },
+      "display": {
+        "institution": "Institution",
+        "transit": "Transit",
+        "account": "Compte",
+        "email": "Courriel Interac",
+        "none": "—",
+        "masked": "Numéro masqué, se terminant par {last4}",
+        "show": "Afficher",
+        "showLabel": "Afficher le numéro de compte",
+        "revealing": "Affichage…",
+        "revealingLabel": "Affichage du numéro de compte…",
+        "hide": "Masquer",
+        "hideLabel": "Masquer le numéro de compte",
+        "autoHide": "Masqué de nouveau dans une minute.",
+        "updated": "Modifié le {date} par {name}",
+        "updatedNoName": "Modifié le {date}",
+        "edit": "Modifier",
+        "editLabel": "Modifier les coordonnées bancaires"
+      },
+      "fields": {
+        "institution": "Numéro d'institution",
+        "institutionHelp": "3 chiffres",
+        "transit": "Numéro de transit",
+        "transitHelp": "5 chiffres",
+        "account": "Numéro de compte",
+        "accountHelp": "7 à 12 chiffres",
+        "accountKeepHelp": "7 à 12 chiffres. Laissez vide pour garder le compte se terminant par {last4}.",
+        "accountUnchanged": "Inchangé",
+        "email": "Courriel Interac",
+        "emailHelp": "L'adresse où la clinique reçoit les virements Interac."
+      },
+      "saved": "Coordonnées bancaires enregistrées.",
+      "validation": {
+        "institution": "Le numéro d'institution compte 3 chiffres.",
+        "transit": "Le numéro de transit compte 5 chiffres.",
+        "account": "Le numéro de compte compte de 7 à 12 chiffres.",
+        "accountRequired": "Le numéro de compte est requis.",
+        "email": "Courriel Interac invalide."
+      }
+    },
+    "provinces": {
+      "AB": "Alberta",
+      "BC": "Colombie-Britannique",
+      "MB": "Manitoba",
+      "NB": "Nouveau-Brunswick",
+      "NL": "Terre-Neuve-et-Labrador",
+      "NS": "Nouvelle-Écosse",
+      "NT": "Territoires du Nord-Ouest",
+      "NU": "Nunavut",
+      "ON": "Ontario",
+      "PE": "Île-du-Prince-Édouard",
+      "QC": "Québec",
+      "SK": "Saskatchewan",
+      "YT": "Yukon"
+    },
+    "validation": {
+      "nameRequired": "Le nom est requis.",
+      "maxLength": "{max} caractères maximum.",
+      "neq": "Le NEQ compte 10 chiffres.",
+      "gst": "Format attendu : 123456789 RT 0001.",
+      "qst": "Format attendu : 1234567890 TQ 0001.",
+      "province": "Province invalide.",
+      "postalCode": "Code postal invalide (ex. : H2X 1Y4).",
+      "phone": "Numéro à 10 chiffres.",
+      "https": "L'adresse doit commencer par https://",
+      "url": "Adresse web invalide.",
+      "controlChar": "Caractère invalide.",
+      "retention": "Entre 1 et 50 ans.",
+      "timezone": "Choisissez un fuseau horaire."
     }
   },
   "modules": {
     "professionals": { "name": "Professionnels", "placeholder": "Le module Professionnels est en préparation. Il sera disponible ici sous peu." }
+  },
+  "roles": {
+    "admin": "Administrateur",
+    "counselor": "Conseillère",
+    "admin_assistant": "Adjointe administrative",
+    "provider": "Professionnel"
+  }
+,
+  "audit": {
+    "description": "Les numéros bancaires n'y figurent jamais : seul le fait que les coordonnées ont changé y figure.",
+    "tables": {
+      "organizations": "Clinique",
+      "profiles": "Utilisateurs",
+      "user_roles": "Rôles attribués",
+      "user_permission_overrides": "Exceptions de permissions",
+      "roles": "Rôles",
+      "org_role_permissions": "Permissions des rôles",
+      "org_modules": "Modules",
+      "org_module_settings": "Paramètres de module",
+      "org_secrets": "Secrets",
+      "tax_rates": "Taux de taxes",
+      "organization_bank_details": "Coordonnées bancaires"
+    },
+    "commonFields": {
+      "id": "Identifiant",
+      "org_id": "Clinique",
+      "user_id": "Utilisateur",
+      "created_at": "Créé le",
+      "created_by": "Créé par",
+      "updated_at": "Modifié le",
+      "updated_by": "Modifié par"
+    },
+    "fields": {
+      "organizations": {
+        "id": "Identifiant",
+        "name": "Nom affiché",
+        "legal_name": "Raison sociale",
+        "neq": "NEQ",
+        "address_line1": "Adresse",
+        "address_line2": "Complément d'adresse",
+        "city": "Ville",
+        "province": "Province",
+        "postal_code": "Code postal",
+        "country": "Pays",
+        "phone": "Téléphone",
+        "email": "Courriel",
+        "website": "Site web",
+        "gst_number": "Numéro de TPS",
+        "qst_number": "Numéro de TVQ",
+        "signatory_name": "Nom du signataire",
+        "signatory_title": "Titre du signataire",
+        "privacy_officer_name": "Nom du responsable de la confidentialité",
+        "privacy_officer_email": "Courriel du responsable de la confidentialité",
+        "privacy_policy_url": "URL de la politique de confidentialité",
+        "record_retention_years": "Durée de conservation des dossiers (années)",
+        "timezone": "Fuseau horaire",
+        "default_locale": "Langue",
+        "currency": "Devise"
+      },
+      "profiles": {
+        "display_name": "Nom",
+        "email": "Courriel",
+        "status": "Statut"
+      },
+      "user_roles": {
+        "role": "Rôle"
+      },
+      "user_permission_overrides": {
+        "permission_key": "Permission",
+        "granted": "Accordée"
+      },
+      "roles": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Rôle de base"
+      },
+      "org_role_permissions": {
+        "role": "Rôle",
+        "permission_key": "Permission"
+      },
+      "org_modules": {
+        "module_key": "Module",
+        "enabled": "Activé"
+      },
+      "org_module_settings": {
+        "module_key": "Module",
+        "settings": "Paramètres"
+      },
+      "org_secrets": {
+        "key": "Clé",
+        "value": "Valeur",
+        "vault_secret_id": "Secret",
+        "version": "Version"
+      },
+      "tax_rates": {
+        "tax": "Taxe",
+        "rate": "Taux",
+        "effective_from": "En vigueur du",
+        "effective_to": "Fin (exclue)"
+      },
+      "organization_bank_details": {
+        "institution_number": "Numéro d'institution",
+        "transit_number": "Numéro de transit",
+        "account_number": "Numéro de compte",
+        "account_last4": "Fin du numéro de compte",
+        "etransfer_email": "Courriel Interac"
+      }
+    },
+    "actions": {
+      "insert": "Création",
+      "update": "Modification",
+      "delete": "Suppression",
+      "read": "Consultation"
+    },
+    "sources": {
+      "app": "Application",
+      "seed": "Données de test",
+      "bootstrap": "Installation",
+      "migration": "Mise à jour",
+      "auth": "Connexion",
+      "system": "Système"
+    },
+    "values": {
+      "empty": "(vide)",
+      "yes": "Oui",
+      "no": "Non",
+      "redacted": "(masqué)",
+      "status": {
+        "active": "Actif",
+        "disabled": "Désactivé"
+      }
+    },
+    "filters": {
+      "label": "Filtres du journal",
+      "table": "Section",
+      "allTables": "Toutes les sections",
+      "actor": "Personne",
+      "allActors": "Toutes les personnes",
+      "actorsError": "La liste des personnes n'a pas pu être chargée.",
+      "actorsRetry": "Réessayer de charger les personnes",
+      "period": "Période",
+      "periods": {
+        "today": "Aujourd'hui",
+        "7d": "7 jours",
+        "30d": "30 jours",
+        "all": "Tout"
+      },
+      "reset": "Réinitialiser les filtres"
+    },
+    "columns": {
+      "date": "Date",
+      "actor": "Personne",
+      "table": "Section",
+      "action": "Action",
+      "record": "Élément"
+    },
+    "scrollLabel": "Entrées du journal d'audit",
+    "row": {
+      "toggle": "Détails : {action}, {section}"
+    },
+    "details": {
+      "record": "Élément : {id}",
+      "change": "{field} : {before} → {after}",
+      "value": "{field} : {value}",
+      "readAccountNumber": "Consultation du numéro de compte",
+      "secretRotated": "Secret remplacé",
+      "readFields": "Champs consultés : {fields}",
+      "none": "Aucun détail."
+    },
+    "countOne": "1 entrée affichée",
+    "countOther": "{count} entrées affichées",
+    "loadMore": "Charger plus",
+    "loadingMore": "Chargement…",
+    "loadMoreError": "La suite du journal n'a pas pu être chargée.",
+    "end": "Début du journal",
+    "loadError": "Le journal n'a pas pu être chargé.",
+    "empty": {
+      "title": "Le journal est vide",
+      "body": "Les modifications des paramètres apparaîtront ici."
+    },
+    "emptyFiltered": {
+      "title": "Aucune entrée ne correspond",
+      "body": "Modifiez les filtres ou réinitialisez-les."
+    }
   }
 }

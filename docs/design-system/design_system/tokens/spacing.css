@@ -1,0 +1,13 @@
+:root{
+--space-0:0;--space-0-5:2px;--space-1:4px;--space-1-5:6px;--space-2:8px;--space-2-5:10px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;--space-10:40px;--space-12:48px;--space-16:64px;
+/* Component sizing — compact */
+--control-h-sm:28px;--control-h:32px;--control-h-lg:36px;
+--control-px-sm:8px;--control-px:12px;--control-px-lg:16px;
+--icon-xs:14px;--icon-sm:16px;--icon-md:18px;
+--avatar-sm:24px;--avatar:32px;--avatar-lg:48px;
+/* Layout */
+--sidebar-w:220px;--sidebar-w-collapsed:56px;--topbar-h:48px;--settings-nav-w:200px;
+--page-pad:24px;--page-pad-sm:16px;--card-pad:16px;--card-pad-sm:12px;
+--row-py:8px;--row-px:12px;
+--content-max:1120px;--form-max:640px;
+}

@@ -40,14 +40,20 @@ function getNestedValue(obj: unknown, path: string): string {
   return typeof current === 'string' ? current : path
 }
 
-export function t(key: TranslationKey): string {
+/**
+ * The French text of `key`. `{name}`-style placeholders are replaced from `values`
+ * (`t('nav.userMenu', { name: 'Camille' })`); a placeholder without a value stays as written.
+ */
+export function t(key: TranslationKey, values?: Record<string, string>): string {
   const dictionary = translations[currentLocale]
   if (!dictionary) {
     console.warn(`Missing locale: ${currentLocale}`)
     return key
   }
 
-  return getNestedValue(dictionary, key)
+  const text = getNestedValue(dictionary, key)
+  if (!values) return text
+  return text.replace(/\{(\w+)\}/g, (placeholder, name: string) => (Object.hasOwn(values, name) ? (values[name] ?? placeholder) : placeholder))
 }
 
 export function useTranslation() {

@@ -22,7 +22,7 @@ const ACTIVE = {
   user_id: 'u1',
   org_id: 'o1',
   status: 'active',
-  role: 'staff',
+  role: 'admin_assistant',
   permissions: ['professionals.view', 'settings.view'],
   modules: ['professionals'],
 }

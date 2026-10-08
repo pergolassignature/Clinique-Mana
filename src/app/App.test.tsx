@@ -1,5 +1,5 @@
 // SUPABASE_ALLOWED: test mocks the Supabase client module.
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
@@ -92,13 +92,28 @@ async function openAt(path: string, session: typeof fake.state.session = null) {
   return render(<App />)
 }
 
+// Warm the module transform once: the first cold import of the whole app can
+// exceed the 5 s test timeout on a loaded machine.
+beforeAll(async () => {
+  await import('./App')
+}, 30_000)
+
 const emit = (event: string, session: typeof fake.state.session) => act(() => fake.emit(event, session))
 const where = () => window.location.pathname + window.location.search
+
+// An explicit sign-out ends with a full page load of /connexion (AuthProvider); happy-dom would
+// really navigate, replacing the document.
+const loadPage = vi.fn()
+beforeEach(() => {
+  vi.spyOn(window.location, 'replace').mockImplementation(loadPage)
+})
 
 afterEach(() => {
   resetFake()
   localStorage.clear()
   window.history.replaceState(null, '', '/')
+  vi.restoreAllMocks()
+  loadPage.mockReset()
 })
 
 describe('App — signed out', () => {
@@ -172,6 +187,8 @@ describe('App — sign-out', () => {
     expect(window.location.pathname).toBe('/connexion')
     expect(window.location.search).toBe('')
     expect(fake.state.signOutScopes).toEqual(['local'])
+    // Then a full page load there: a new deploy, nothing of the user left in memory (#10).
+    await waitFor(() => expect(loadPage).toHaveBeenCalledExactlyOnceWith('/connexion'))
   })
 
   it('keeps the way back when the session ends elsewhere (another tab, expiry)', async () => {
@@ -180,6 +197,7 @@ describe('App — sign-out', () => {
     emit('SIGNED_OUT', null)
     expect(await screen.findByRole('heading', { name: t('auth.login.title') })).toBeInTheDocument()
     expect(where()).toBe('/connexion?redirect=%2Fparametres%2Fmodules')
+    expect(loadPage).not.toHaveBeenCalled()
   })
 })
 
@@ -233,6 +251,7 @@ describe('App — password recovery', () => {
     expect(fake.state.updateUserCalls).toEqual([{ password: 'un-long-mot-de-passe' }])
     expect(fake.state.signOutScopes).toEqual(['others'])
     expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull()
+    expect(loadPage).not.toHaveBeenCalled()
   })
 
   it('lets a recovery session cancel: signed out, back to the plain login page', async () => {
@@ -242,5 +261,6 @@ describe('App — password recovery', () => {
     await waitFor(() => expect(where()).toBe('/connexion'))
     expect(fake.state.signOutScopes).toEqual(['local'])
     expect(localStorage.getItem(RECOVERY_STORAGE_KEY)).toBeNull()
+    await waitFor(() => expect(loadPage).toHaveBeenCalledExactlyOnceWith('/connexion'))
   })
 })

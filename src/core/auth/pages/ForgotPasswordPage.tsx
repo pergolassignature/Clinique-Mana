@@ -8,10 +8,11 @@ import { useAuth, type AuthErrorCode } from '@/core/auth/auth-context'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { emailSchema } from '@/shared/lib/email'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { AuthCard, StatusNotice } from './AuthCard'
 
-const schema = z.object({ email: z.email({ error: t('auth.errors.invalidEmail') }) })
+const schema = z.object({ email: emailSchema(t('auth.errors.invalidEmail')) })
 type Values = z.infer<typeof schema>
 
 export function ForgotPasswordPage() {
@@ -51,7 +52,7 @@ export function ForgotPasswordPage() {
       {expired && !sent && <p className="mb-4 text-sm text-foreground">{t('auth.reset.invalidLink')}</p>}
       {!sent && (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <Label htmlFor="email">{t('auth.login.email')}</Label>
             <Input
               id="email"
@@ -72,7 +73,7 @@ export function ForgotPasswordPage() {
         </form>
       )}
       <p className="mt-4 text-center text-sm">
-        <Link to="/connexion" className="text-primary hover:underline">
+        <Link to="/connexion" className="text-link underline-offset-[3px] hover:underline">
           {t('auth.forgot.back')}
         </Link>
       </p>

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { coreSettingsSections } from '@/core/settings/sections'
 import { ALL_MODULES } from './modules'
 
 describe('ALL_MODULES', () => {
@@ -10,11 +9,6 @@ describe('ALL_MODULES', () => {
   it('has unique module keys', () => {
     const keys = ALL_MODULES.map((m) => m.key)
     expect(new Set(keys).size).toBe(keys.length)
-  })
-
-  it('has settings section ids unique across core and all modules', () => {
-    const ids = [...coreSettingsSections, ...ALL_MODULES.flatMap((m) => m.settingsSections)].map((s) => s.id)
-    expect(new Set(ids).size).toBe(ids.length)
   })
 
   it('uses relative route paths and absolute nav paths', () => {

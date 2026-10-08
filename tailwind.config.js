@@ -1,104 +1,145 @@
-/** @type {import('tailwindcss').Config} */
+/** A design-system colour (RGB channels in src/styles/globals.css), opacity modifiers included. */
+const token = (name) => `rgb(var(--${name}) / <alpha-value>)`
+
+/**
+ * Clinique MANA design system → Tailwind (docs/standards/brand.tokens.md).
+ * The values live as CSS variables in src/styles/globals.css; this file only maps them to the
+ * shadcn semantic names. New font-size or shadow keys must also be registered in
+ * src/shared/lib/utils.ts (tailwind-merge).
+ *
+ * @type {import('tailwindcss').Config}
+ */
 export default {
   darkMode: ['class'],
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
-        // Clinique MANA brand colors
-        background: {
-          DEFAULT: '#FDFBF7', // Warm off-white/cream
-          secondary: '#F8F5F0', // Slightly darker cream
-          tertiary: '#F2EDE5', // Light warm gray
-        },
-        foreground: {
-          DEFAULT: '#3D3D3D', // Dark gray (not pure black)
-          secondary: '#6B6B6B', // Medium gray
-          muted: '#9A9A9A', // Light gray
-        },
+        background: token('bg'),
+        foreground: token('text-body'),
+        // --text-muted: placeholders, disabled text, separators and icons only (3.3:1, decision #30).
+        subtle: token('text-muted'),
+        link: token('text-link'),
         border: {
-          DEFAULT: '#E8E4DC', // Soft neutral gray
-          light: '#F0EBE3',
+          DEFAULT: token('border'),
+          light: token('border-light'),
+          strong: token('border-strong'),
         },
-        // shadcn semantic tokens, mapped onto the palette below
-        primary: {
-          DEFAULT: '#567A5F', // sage-600 (readable as text on cream)
-          foreground: '#FFFFFF',
-        },
-        muted: {
-          DEFAULT: '#F8F5F0', // background.secondary
-          foreground: '#6B6B6B', // foreground.secondary
-        },
-        destructive: {
-          DEFAULT: '#8A5C5C', // wine-600 (legacy error text)
-          foreground: '#FFFFFF',
+        // Form-control borders: their own token (Task 2.2), hairline as designed (decision #30).
+        input: {
+          DEFAULT: token('border'),
+          hover: token('border-strong'),
         },
         card: {
-          DEFAULT: '#FFFFFF',
-          foreground: '#3D3D3D', // foreground
+          DEFAULT: token('surface-card'),
+          hover: token('surface-panel-hover'),
+          foreground: token('text-body'),
         },
-        // Primary accent: soft sage/mint green
-        sage: {
-          50: '#F4F7F5',
-          100: '#E8EFE9',
-          200: '#D1DFD4',
-          300: '#B3C9B8',
-          400: '#8FB097',
-          500: '#6B9775', // Primary
-          600: '#567A5F',
-          700: '#45634D',
-          800: '#3A5140',
-          900: '#324436',
+        muted: {
+          DEFAULT: token('bg-secondary'),
+          strong: token('bg-tertiary'),
+          // Informative secondary text (5.3:1, decision #30).
+          foreground: token('text-secondary'),
         },
-        // Secondary accent: muted warm yellow
-        honey: {
-          50: '#FDF9F0',
-          100: '#FAF1DC',
-          200: '#F5E3B8',
-          300: '#EDD08A',
-          400: '#E4BC5C',
-          500: '#D9A832', // Primary
-          600: '#C4912A',
-          700: '#A37325',
-          800: '#855C24',
-          900: '#6E4C21',
+        sidebar: token('surface-sidebar'),
+        overlay: 'var(--surface-overlay)',
+        primary: {
+          DEFAULT: token('primary'),
+          hover: token('primary-hover'),
+          active: token('primary-active'),
+          foreground: token('primary-fg'),
+          soft: token('primary-soft'),
+          'soft-foreground': token('primary-soft-fg'),
         },
-        // Tertiary accent: muted burgundy/wine (sparingly)
-        wine: {
-          50: '#FAF5F5',
-          100: '#F5EBEB',
-          200: '#EBDADA',
-          300: '#DCC0C0',
-          400: '#C79999',
-          500: '#A67373', // Primary
-          600: '#8A5C5C',
-          700: '#724C4C',
-          800: '#5E4040',
-          900: '#503838',
+        ink: {
+          DEFAULT: token('ink'),
+          hover: token('ink-hover'),
+          foreground: token('text-inverse'),
+        },
+        destructive: {
+          DEFAULT: token('danger'),
+          hover: token('danger-hover'),
+          foreground: token('text-inverse'),
+        },
+        // Status colours: dots and icons only, never text or fills.
+        success: token('success'),
+        warning: {
+          DEFAULT: token('warning'),
+          // yellow-700 (#9A7B05, ~4:1): a warning icon that must be seen, e.g. the pending clock (decision #30).
+          strong: token('yellow-700'),
+        },
+        info: token('info'),
+        neutral: token('neutral-dot'),
+        ring: token('focus-ring'),
+        gray: {
+          50: token('gray-50'),
+          100: token('gray-100'),
+          200: token('gray-200'),
+          300: token('gray-300'),
+          400: token('gray-400'),
+          500: token('gray-500'),
+          600: token('gray-600'),
+          700: token('gray-700'),
+          800: token('gray-800'),
+          900: token('gray-900'),
         },
       },
       fontFamily: {
-        sans: [
-          'Inter',
-          '-apple-system',
-          'BlinkMacSystemFont',
-          'Segoe UI',
-          'Roboto',
-          'sans-serif',
-        ],
+        sans: ['var(--font-sans)'],
+        mono: ['var(--font-mono)'],
+      },
+      fontSize: {
+        '2xs': ['var(--text-2xs)', 'var(--leading-2xs)'],
+        xs: ['var(--text-xs)', 'var(--leading-xs)'],
+        sm: ['var(--text-sm)', 'var(--leading-sm)'],
+        base: ['var(--text-base)', 'var(--leading-base)'],
+        lg: ['var(--text-lg)', 'var(--leading-lg)'],
+        xl: ['var(--text-xl)', 'var(--leading-xl)'],
+        '2xl': ['var(--text-2xl)', 'var(--leading-2xl)'],
+        '3xl': ['var(--text-3xl)', 'var(--leading-3xl)'],
+      },
+      letterSpacing: {
+        tight: 'var(--tracking-tight)',
+        wide: 'var(--tracking-wide)',
       },
       borderRadius: {
-        lg: '12px',
-        xl: '14px',
-        '2xl': '16px',
+        sm: 'var(--radius-sm)',
+        DEFAULT: 'var(--radius-md)',
+        md: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+        xl: 'var(--radius-xl)',
+        '2xl': 'var(--radius-2xl)',
       },
       boxShadow: {
-        soft: '0 2px 8px rgba(0, 0, 0, 0.04)',
-        medium: '0 4px 16px rgba(0, 0, 0, 0.06)',
-        large: '0 8px 32px rgba(0, 0, 0, 0.08)',
+        soft: 'var(--shadow-soft)',
+        medium: 'var(--shadow-medium)',
+        large: 'var(--shadow-large)',
+        // Keyboard focus: 2px white gap + 2px solid teal (buttons, controls)…
+        focus: 'var(--ring)',
+        // …and the 1px teal ring that fields add to their teal border.
+        'focus-inset': 'var(--ring-inset)',
+        // Highlighted menu and command items (arrow keys): a 2px teal bar on the left (decision #30).
+        highlight: 'var(--highlight-bar)',
+      },
+      maxWidth: {
+        form: 'var(--form-max)',
+        content: 'var(--content-max)',
+      },
+      transitionDuration: {
+        DEFAULT: '160ms',
+        120: '120ms',
+        160: '160ms',
+        240: '240ms',
+      },
+      transitionTimingFunction: {
+        DEFAULT: 'cubic-bezier(0.4, 0, 0.2, 1)',
       },
       animation: {
-        'shimmer': 'shimmer 2s linear infinite',
+        shimmer: 'shimmer 2s linear infinite',
+        'fade-in': 'fade-in 160ms cubic-bezier(0, 0, 0.2, 1)',
+        'dialog-in': 'dialog-in 160ms cubic-bezier(0, 0, 0.2, 1)',
+        'zoom-in': 'zoom-in 120ms cubic-bezier(0, 0, 0.2, 1)',
+        'slide-in-right': 'slide-in-right 240ms cubic-bezier(0, 0, 0.2, 1)',
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
       },
@@ -106,6 +147,23 @@ export default {
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
+        },
+        'fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        // Dialogs are centred with translate(-50%, -50%): the zoom keeps it.
+        'dialog-in': {
+          from: { opacity: '0', transform: 'translate(-50%, -50%) scale(0.95)' },
+          to: { opacity: '1', transform: 'translate(-50%, -50%) scale(1)' },
+        },
+        'zoom-in': {
+          from: { opacity: '0', transform: 'scale(0.95)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
+        'slide-in-right': {
+          from: { transform: 'translateX(100%)' },
+          to: { transform: 'translateX(0)' },
         },
         'accordion-down': {
           from: { height: '0' },

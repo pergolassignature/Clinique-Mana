@@ -1,34 +1,53 @@
 import * as React from 'react'
-import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/shared/lib/utils'
+import { StatusDot, type StatusTone } from './status-dot'
 
-const badgeVariants = cva(
-  'inline-flex items-center rounded-lg px-2.5 py-0.5 text-xs font-medium transition-colors',
-  {
-    variants: {
-      variant: {
-        default: 'bg-sage-100 text-sage-700',
-        secondary: 'bg-background-tertiary text-foreground-secondary',
-        outline: 'border border-border text-foreground-secondary',
-        success: 'bg-sage-100 text-sage-700',
-        warning: 'bg-honey-100 text-honey-700',
-        error: 'bg-wine-100 text-wine-700',
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
-    },
-  }
-)
+type BadgeVariant = 'default' | 'secondary' | 'outline' | 'success' | 'warning' | 'error' | 'info'
 
-export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
+const dotTone: Record<BadgeVariant, StatusTone> = {
+  default: 'default',
+  secondary: 'neutral',
+  outline: 'neutral',
+  success: 'success',
+  warning: 'warning',
+  error: 'error',
+  info: 'info',
+}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
+export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+  /** Sets the dot colour. */
+  variant?: BadgeVariant
+  /** Leading 6px status dot (default true). */
+  dot?: boolean
+  /**
+   * The one filled exception (« Urgent »): red with `error`, ink otherwise; white 11px text.
+   * Use sparingly, one per row at most.
+   */
+  filled?: boolean
+}
+
+/**
+ * Status as text: a 6px dot and a word, 12px medium secondary text. No pill, no fill
+ * (except `filled`). The word carries the meaning; the dot is decorative.
+ */
+function Badge({ className, variant = 'default', dot = true, filled = false, children, ...props }: BadgeProps) {
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+    <span
+      className={cn(
+        'inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap text-xs font-medium text-muted-foreground',
+        filled &&
+          cn(
+            'rounded-sm px-[5px] text-2xs font-semibold tracking-[0.02em] text-white',
+            variant === 'error' ? 'bg-destructive' : 'bg-ink',
+          ),
+        className,
+      )}
+      {...props}
+    >
+      {dot && !filled && <StatusDot tone={dotTone[variant]} />}
+      <span className="min-w-0 truncate">{children}</span>
+    </span>
   )
 }
 
-export { Badge, badgeVariants }
+export { Badge }

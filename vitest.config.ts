@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react-swc'
 import path from 'node:path'
 
 // Pin the host timezone to something other than the clinic default
@@ -13,6 +13,8 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     setupFiles: ['./src/test/setup.ts'],
+    // Every test starts with empty mock call history, whatever the order (`--sequence.shuffle`).
+    clearMocks: true,
     include: ['src/**/*.test.{ts,tsx}'],
     env: {
       VITE_SUPABASE_URL: 'http://127.0.0.1:55321',

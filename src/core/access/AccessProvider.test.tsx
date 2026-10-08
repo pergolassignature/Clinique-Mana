@@ -22,7 +22,7 @@ const accessFor = (userId: string, org_timezone = 'America/Edmonton'): Access =>
   display_name: `User ${userId}`,
   email: `${userId}@mana.test`,
   status: 'active',
-  role: 'staff',
+  role: 'admin_assistant',
   permissions: ['settings.view'],
   modules: ['professionals'],
 })
@@ -39,7 +39,10 @@ function authValue(session: Session | null): AuthContextValue {
     sendMagicLink: async () => null,
     sendPasswordReset: async () => null,
     updatePassword: async () => null,
+    sendReauthenticationCode: async () => null,
+    updateEmail: async () => null,
     signOut: async () => {},
+    signOutEverywhere: async () => null,
   }
 }
 
@@ -127,6 +130,46 @@ describe('AccessProvider', () => {
     expect(log.filter((entry) => entry.sessionUser === 'B' && entry.accessUser === 'A')).toEqual([])
     expect(log.find((entry) => entry.sessionUser === 'B' && entry.status === 'ready')?.timezone).toBe('America/Halifax')
     expect(queryClient.getQueryData(accessKeys.me('A'))).toBeUndefined()
+  })
+
+  it('keeps can stable across a refetch that returns the same access', async () => {
+    // The refetch is held in flight, so the tree renders while it runs (isReloading).
+    let finishRefetch: () => void = () => {}
+    fetchMyAccess
+      .mockResolvedValueOnce({ access: accessFor('A') })
+      .mockImplementationOnce(() => new Promise((resolve) => (finishRefetch = () => resolve({ access: accessFor('A') }))))
+    const queryClient = new QueryClient()
+    const seen: { can: unknown; isReloading: boolean }[] = []
+    function CanProbe() {
+      const { can, reload, isReloading } = useAccess()
+      seen.push({ can, isReloading })
+      return (
+        <>
+          <p data-testid="state">{isReloading ? 'reloading' : 'settled'}</p>
+          <p data-testid="can">{String(can('settings.view'))}</p>
+          <button onClick={reload}>reload</button>
+        </>
+      )
+    }
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthContext.Provider value={authValue(sessionFor('A'))}>
+          <AccessProvider>
+            <CanProbe />
+          </AccessProvider>
+        </AuthContext.Provider>
+      </QueryClientProvider>,
+    )
+    await waitFor(() => expect(screen.getByTestId('can').textContent).toBe('true'))
+    const settledCan = seen.at(-1)?.can
+    await userEvent.click(screen.getByRole('button', { name: 'reload' }))
+    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('reloading'))
+    finishRefetch()
+    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('settled'))
+    expect(fetchMyAccess).toHaveBeenCalledTimes(2)
+    // Every render since the first load (reloading, then settled) saw the same can.
+    const sinceLoad = seen.slice(seen.findIndex((entry) => entry.can === settledCan))
+    expect(new Set(sinceLoad.map((entry) => entry.can))).toEqual(new Set([settledCan]))
   })
 
   it('reports a failed load as an error, then recovers on reload', async () => {

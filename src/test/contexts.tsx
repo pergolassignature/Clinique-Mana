@@ -15,7 +15,7 @@ export const testAccess: Access = {
   display_name: 'Test',
   email: 't@mana.test',
   status: 'active',
-  role: 'staff',
+  role: 'admin_assistant',
   permissions: ['settings.view'],
   // Matches the real payload: enabled module keys, never 'core'.
   modules: ['professionals'],
@@ -34,7 +34,10 @@ export function renderWithContexts(
     sendMagicLink: async () => null,
     sendPasswordReset: async () => null,
     updatePassword: async () => null,
+    sendReauthenticationCode: async () => null,
+    updateEmail: async () => null,
     signOut: async () => {},
+    signOutEverywhere: async () => null,
     ...auth,
   }
   // `can` follows the effective access (an overridden one, or testAccess), unless overridden itself.

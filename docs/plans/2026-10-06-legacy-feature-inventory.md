@@ -86,6 +86,7 @@
 - [ ] Status per type (newest doc): missing → expired (`expires_at` past) → verified (`verified_at`) → pending. Completeness = verified / 3.
 - [ ] Documents tab: summary (verified / 4, missing, expired, "Complet"); required cards with upload, preview/download (1 h signed URL), verify / unverify, edit expiry, replace, delete (confirm); e-consent shows signer + date; "Autres documents" list. Limits 10 MB; pdf, doc, docx, jpg, png, webp (bucket enforces too). Expiry stored `YYYY-MM-DDT23:59:59.999Z`.
 - [ ] `deactivate_professionals_with_expired_insurance()`: active pros whose latest **verified** insurance is missing / no expiry / past → inactive, reason `insurance_expired` (never overrides `manual`). Reactivation trigger: insurance doc becomes verified with future expiry + pro inactive for `insurance_expired` → active, reason cleared. Daily `0 6 * * *` UTC (schedule set by hand, not in migrations).
+  - **Change (Jonathan, 2026-10-07):** no automatic deactivation; important in-app notification + email 7 days before expiry ([business context §5](../standards/business-context.md#product-notes-from-jonathan-2026-10-07)).
 
 ### A5. Contracts (DocuSeal today → Documenso)
 - [ ] Contract card: none → "Générer et envoyer"; sent → "Synchroniser", "Voir", "Régénérer" (confirm); signed → preview, download PDF, signature log (stored copy first), regenerate. Shows version, sent date, signed date, clinic signer, provider id. Status = newest `document_instances` with key `contrat_service`.
@@ -126,7 +127,7 @@
 8. Manual deactivation never writes `deactivation_reason`.
 9. Contract: `generated` shows no actions; declined/expired ignored; clinic signer always null; Annexe A says "taxes incluses" on pre-tax prices.
 10. Motifs of archived categories vanish in grouped view; categories can't be reordered; motif labels not editable.
-11. `education`, `languages`, `availability_notes` typed but never collected.
+11. `education`, `languages`, `availability_notes` typed but never collected. → **Languages are needed** (Jonathan, 2026-10-07): French by default, English and Spanish matter for matching.
 
 ---
 
@@ -366,10 +367,20 @@
 
 ## I. Paramètres, tâches planifiées, tableau de bord, auth
 
-- [ ] Settings tabs today: Motifs, Spécialités, Services, Clinique, Tâches planifiées, Gabarits (Profil, Notifications, Sécurité, Apparence disabled).
-- [ ] Clinic settings: IVAC provider number (admin), timezone (6 NA zones, default `America/Toronto`) — ⚠ saved timezone not used anywhere (hardcoded).
-- [ ] Scheduled tasks: lists pg_cron jobs + last 20 runs; card `check-insurance-expiry-daily` (`0 6 * * *` UTC) with "Exécuter" and setup SQL (schedule not in migrations).
-- [ ] Insurance deactivation: active pros whose latest **verified** insurance doc has `expires_at` null or past → `inactive`, reason `insurance_expired` (never overrides `manual`). Reactivation trigger when a new insurance doc is verified with future expiry and reason was `insurance_expired`. `next_insurance_expiry_date()` = next March 31. ⚠ functions callable by any authenticated user.
-- [ ] Dashboard = placeholder; Reports = link to IVAC report.
-- [ ] Auth: email/password; requires `profiles` row with status active (else signed out with `profile_not_found` / `profile_disabled`); redirect `/connexion?redirect=` → back or `/dashboard`. Roles admin/staff/provider; staff/providers update own `display_name` only; staff can create only provider profiles; `profile_audit_log` admin read.
-- [ ] i18n: single `fr-CA.json`, typed `t()` dot-paths returning key when missing; namespaces app, auth, nav, topbar, roles, professionals, pages, common, filters, clients, demandes, externalPayers, settings, commandPalette, errors, audit, facturation, recommendations. Many components hardcode French.
+**Status after Phase 2 (2026-10-07):** [x] = built in Phases 1–2 (core); every other item names its new home, from the [Phase 2 design §1](2026-10-07-phase-2-core-settings-design.md#1-goal-and-scope). Nothing is dropped.
+
+- [x] Settings tabs today: Motifs, Spécialités, Services, Clinique, Tâches planifiées, Gabarits (Profil, Notifications, Sécurité, Apparence disabled).
+  - Built: « Clinique » became the Phase 2 sections (Identité légale, Fiscalité, Signataire, Coordonnées bancaires, Région, Confidentialité) plus Utilisateurs et accès, Modules and Journal d'audit; « Profil » and « Sécurité » became « Mon compte » (`/mon-compte`).
+  - Moved: Motifs and Spécialités → Professionnels settings, Phase 4a (§A6–A7, [design](2026-10-08-professionals-module-design.md)); Services → Services et tarifs (§H); Tâches planifiées → Phase 3 scheduled jobs (below); Gabarits (contract templates) → Phase 3 signing tables + Professionnels 4d UI (§A5).
+  - Notifications and Apparence were disabled placeholders with no behaviour: nothing to port.
+- [x] Clinic settings: IVAC provider number (admin), timezone (6 NA zones, default `America/Toronto`) — ⚠ saved timezone not used anywhere (hardcoded).
+  - Built: timezone in « Région » (`organizations.timezone`, Canadian zones + « Autre… » over every zone), applied app-wide through `get_my_access().org_timezone` (legacy bug fixed).
+  - Moved: IVAC provider number → Payeurs externes settings (§G): it is module data.
+- [ ] Scheduled tasks: lists pg_cron jobs + last 20 runs; card `check-insurance-expiry-daily` (`0 6 * * *` UTC) with "Exécuter" and setup SQL (schedule not in migrations). → **Phase 3** ([design §8](2026-10-08-phase-3-shared-services-design.md)): job list, last runs and « Exécuter » kept; schedules in migrations, job functions service-role only. The first job (insurance notices) comes with Professionnels 4c.
+- [ ] Insurance deactivation: active pros whose latest **verified** insurance doc has `expires_at` null or past → `inactive`, reason `insurance_expired` (never overrides `manual`). Reactivation trigger when a new insurance doc is verified with future expiry and reason was `insurance_expired`. `next_insurance_expiry_date()` = next March 31. ⚠ functions callable by any authenticated user. → **Professionnels 4c** (§A4; Change approved by Jonathan: no automatic deactivation, see the [Professionnels design](2026-10-08-professionals-module-design.md) A4.5).
+- [ ] Dashboard = placeholder; Reports = link to IVAC report. → Dashboard: « Accueil » is still a placeholder (`src/app/HomePage.tsx`), designed when the first modules give it data; Reports → Payeurs externes (§G, IVAC report).
+- [x] Auth: email/password; requires `profiles` row with status active (else signed out with `profile_not_found` / `profile_disabled`); redirect `/connexion?redirect=` → back or `/dashboard`. Roles admin/staff/provider; staff/providers update own `display_name` only; staff can create only provider profiles; `profile_audit_log` admin read.
+  - Built: Phase 1 auth (password, magic link, recovery, `RequireAuth` / `RequireAccess`, ADR 0006); Phase 2 roles `admin`, `counselor`, `admin_assistant`, `provider` + custom roles per clinic (`staff` split, decisions #23, #40); every user edits their own `display_name` in « Mon compte »; the audit trail is read in « Journal d'audit » (`audit.view`, admin by default).
+  - Moved: creating professional (provider) profiles → Professionnels 4a/4b; staff invitations → after Phase 3 (decision #22).
+- [x] i18n: single `fr-CA.json`, typed `t()` dot-paths returning key when missing; namespaces app, auth, nav, topbar, roles, professionals, pages, common, filters, clients, demandes, externalPayers, settings, commandPalette, errors, audit, facturation, recommendations. Many components hardcode French.
+  - Built: `src/i18n/fr-CA.json` + typed `t()` with `{placeholders}`; every user-facing string goes through it (`CLAUDE.md` §8). Each module adds its own namespace when it is built.

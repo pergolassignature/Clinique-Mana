@@ -12,18 +12,18 @@ select plan(50);
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
   ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@a.test', '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'staff@a.test', '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'adjointe@a.test', '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test', '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A'),
   ('b0000000-0000-0000-0000-00000000000b', 'Org B');
 insert into public.profiles (user_id, org_id, display_name, email) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A', 'admin@a.test'),
-  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Staff A', 'staff@a.test'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe A', 'adjointe@a.test'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B', 'admin@b.test');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
-  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'staff'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin');
 insert into public.modules (key, name) values ('test_mod', 'Module test');
 insert into public.org_modules (org_id, module_key, enabled) values
@@ -83,12 +83,12 @@ select results_eq(
   'module settings are audited');
 
 -- Email sync from auth.users is tagged, and does not leak its tag.
-update auth.users set email = 'staff.new@a.test' where id = 'a0000000-0000-0000-0000-000000000002';
+update auth.users set email = 'adjointe.new@a.test' where id = 'a0000000-0000-0000-0000-000000000002';
 select results_eq(
   $$ select source, changed_fields -> 'email' from public.audit_log where table_name = 'profiles' and action = 'update' and record_id = 'a0000000-0000-0000-0000-000000000002' $$,
-  $$ values ('auth:email_change'::text, '{"before": "staff@a.test", "after": "staff.new@a.test"}'::jsonb) $$,
+  $$ values ('auth:email_change'::text, '{"before": "adjointe@a.test", "after": "adjointe.new@a.test"}'::jsonb) $$,
   'auth email change is audited with source auth:email_change');
-update auth.users set email = 'staff.new@a.test' where id = 'a0000000-0000-0000-0000-000000000002';
+update auth.users set email = 'adjointe.new@a.test' where id = 'a0000000-0000-0000-0000-000000000002';
 select is((select count(*)::int from public.audit_log where table_name = 'profiles' and action = 'update' and record_id = 'a0000000-0000-0000-0000-000000000002'),
   1, 'an unchanged auth email writes no audit row');
 update public.organizations set name = 'Org B bis' where id = 'b0000000-0000-0000-0000-00000000000b';
@@ -99,7 +99,7 @@ delete from public.user_roles where user_id = 'a0000000-0000-0000-0000-000000000
 select is((select org_id from public.audit_log where table_name = 'user_roles' and action = 'delete' and record_id = 'a0000000-0000-0000-0000-000000000002'),
   'b0000000-0000-0000-0000-00000000000a'::uuid, 'deleted user_roles rows keep their org_id');
 insert into public.user_roles (user_id, org_id, role) values
-  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'staff');
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant');
 
 -- Redaction ---------------------------------------------------------------------
 insert into public.zz_audit_probe values (1, 'b0000000-0000-0000-0000-00000000000a', '123 456 789', 'first');
@@ -156,9 +156,9 @@ select throws_ok($$ update public.audit_log set source = 'x' $$, '42501', null, 
 select throws_ok($$ insert into public.audit_log (table_name, record_id, action) values ('x', 'x', 'insert') $$, '42501', null, 'clients cannot forge audit rows');
 select throws_ok($$ truncate public.audit_log $$, '42501', null, 'clients cannot truncate the log');
 
--- Staff (no audit.view) ------------------------------------------------------
+-- Adjointe (no audit.view) ---------------------------------------------------
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select is((select count(*)::int from public.audit_log), 0, 'staff without audit.view sees nothing');
+select is((select count(*)::int from public.audit_log), 0, 'adjointe without audit.view sees nothing');
 
 -- Admin of org B ---------------------------------------------------------------
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);

@@ -13,6 +13,7 @@ interface FullPageMessageProps {
   compact?: boolean
 }
 
+/** Centred text state for not-found, forbidden and module errors (no icon, no box). */
 export function FullPageMessage({ title, body, action, role, headingLevel = 1, compact = false }: FullPageMessageProps) {
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
   return (

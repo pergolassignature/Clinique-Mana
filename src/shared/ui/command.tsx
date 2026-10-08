@@ -10,7 +10,7 @@ const Command = React.forwardRef<
   <CommandPrimitive
     ref={ref}
     className={cn(
-      'flex h-full w-full flex-col overflow-hidden rounded-xl bg-background',
+      'flex h-full w-full flex-col overflow-hidden rounded-lg bg-card text-foreground',
       className
     )}
     {...props}
@@ -20,18 +20,22 @@ Command.displayName = CommandPrimitive.displayName
 
 const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
-  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
->(({ className, ...props }, ref) => (
-  <div className="flex items-center border-b border-border px-3" cmdk-input-wrapper="">
-    <Search className="mr-2 h-4 w-4 shrink-0 text-foreground-muted" />
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & {
+    /** Shown at the end of the input row, e.g. a « Échap » key hint. */
+    trailing?: React.ReactNode
+  }
+>(({ className, trailing, ...props }, ref) => (
+  <div className="flex items-center gap-2 border-b border-border px-3 focus-within:border-primary" cmdk-input-wrapper="">
+    <Search className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        'flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-50',
+        'flex h-10 w-full bg-transparent text-lg outline-none placeholder:text-subtle sm:text-sm disabled:cursor-not-allowed disabled:opacity-50',
         className
       )}
       {...props}
     />
+    {trailing}
   </div>
 ))
 CommandInput.displayName = CommandPrimitive.Input.displayName
@@ -42,7 +46,7 @@ const CommandList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.List
     ref={ref}
-    className={cn('max-h-[300px] overflow-y-auto overflow-x-hidden', className)}
+    className={cn('max-h-[300px] overflow-y-auto overflow-x-hidden p-1', className)}
     {...props}
   />
 ))
@@ -54,7 +58,7 @@ const CommandEmpty = React.forwardRef<
 >((props, ref) => (
   <CommandPrimitive.Empty
     ref={ref}
-    className="py-6 text-center text-sm text-foreground-muted"
+    className="py-6 text-center text-sm text-muted-foreground"
     {...props}
   />
 ))
@@ -67,7 +71,7 @@ const CommandGroup = React.forwardRef<
   <CommandPrimitive.Group
     ref={ref}
     className={cn(
-      'overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-foreground-muted',
+      'overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground',
       className
     )}
     {...props}
@@ -94,8 +98,8 @@ const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center rounded-lg px-2 py-2 text-sm outline-none',
-      'data-[selected=true]:bg-background-tertiary data-[selected=true]:text-foreground',
+      'relative flex cursor-pointer select-none items-center gap-2.5 rounded-lg p-2 text-sm outline-none [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-subtle',
+      'data-[selected=true]:bg-muted-strong data-[selected=true]:text-foreground data-[selected=true]:shadow-highlight',
       'data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50',
       className
     )}

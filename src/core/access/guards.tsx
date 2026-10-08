@@ -9,7 +9,8 @@ import type { AccessProblem } from './access'
 import { useAccess } from './access-context'
 
 // Each guard screen titles the browser tab, so it never shows the previous page's title.
-function Loading() {
+/** The loading screen while access (or the signed-in app's code) loads. */
+export function Loading() {
   usePageTitle(t('pageTitles.loading'))
   return <FullPageMessage role="status" title={t('common.loading')} />
 }

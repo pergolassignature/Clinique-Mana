@@ -1,17 +1,19 @@
 import * as React from 'react'
 import { cn } from '@/shared/lib/utils'
+import { fieldClasses } from './field-classes'
+import { useFieldReadOnly } from './read-only-context'
 
 export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, ...props }, ref) => {
+  ({ className, readOnly: readOnlyProp, placeholder, ...props }, ref) => {
+    const readOnly = useFieldReadOnly(readOnlyProp)
     return (
       <textarea
-        className={cn(
-          'flex min-h-[120px] w-full rounded-xl border border-border bg-background px-3 py-3 text-sm text-foreground placeholder:text-foreground-muted transition-colors resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500/30 focus-visible:border-sage-300 disabled:cursor-not-allowed disabled:opacity-50',
-          className
-        )}
+        className={cn(fieldClasses, 'flex min-h-24 resize-y px-2.5 py-2', className)}
         ref={ref}
+        readOnly={readOnly}
+        placeholder={readOnly ? undefined : placeholder}
         {...props}
       />
     )

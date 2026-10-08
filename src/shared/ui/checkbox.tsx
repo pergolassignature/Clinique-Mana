@@ -2,26 +2,52 @@ import * as React from 'react'
 import * as CheckboxPrimitive from '@radix-ui/react-checkbox'
 import { Check } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
+import { focusRing } from './field-classes'
+import { useFieldReadOnly } from './read-only-context'
 
+/**
+ * 16px, radius 3; the unchecked border is #8E8E92 (3.3:1, decision #30) rather than the design
+ * system's #CFCFD4. Checked = teal fill with a 12px white check. An invisible ::after enlarges the
+ * hit area to 32×32 without changing the look: it is placed against the 14px padding box (16px
+ * minus the 1px border), so -9px on each side gives 14 + 18 = 32.
+ */
 const Checkbox = React.forwardRef<
   React.ElementRef<typeof CheckboxPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
->(({ className, ...props }, ref) => (
-  <CheckboxPrimitive.Root
-    ref={ref}
-    className={cn(
-      'peer h-4 w-4 shrink-0 rounded border border-border shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500/30 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-sage-500 data-[state=checked]:border-sage-500 data-[state=checked]:text-white',
-      className
-    )}
-    {...props}
-  >
-    <CheckboxPrimitive.Indicator
-      className={cn('flex items-center justify-center text-current')}
-    >
-      <Check className="h-3 w-3" />
-    </CheckboxPrimitive.Indicator>
-  </CheckboxPrimitive.Root>
-))
+  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root> & {
+    /** Shows the state without letting it change (inside a read-only SettingsCard by default). */
+    readOnly?: boolean
+  }
+>(
+  (
+    { className, readOnly: readOnlyProp, onCheckedChange, onClick, ...props },
+    ref
+  ) => {
+    const readOnly = useFieldReadOnly(readOnlyProp)
+    return (
+      <CheckboxPrimitive.Root
+        ref={ref}
+        aria-readonly={readOnly || undefined}
+        onCheckedChange={readOnly ? undefined : onCheckedChange}
+        // Click, Space and Enter all reach the button as a click: preventing it skips Radix's toggle.
+        onClick={(event) => {
+          onClick?.(event)
+          if (readOnly) event.preventDefault()
+        }}
+        className={cn(
+          `peer relative h-4 w-4 shrink-0 rounded-sm border border-subtle bg-card text-primary-foreground transition-colors duration-120 after:absolute after:-inset-[9px] after:content-[''] ${focusRing} disabled:cursor-not-allowed disabled:opacity-50 aria-readonly:cursor-default data-[state=checked]:border-primary data-[state=checked]:bg-primary`,
+          className
+        )}
+        {...props}
+      >
+        <CheckboxPrimitive.Indicator
+          className={cn('flex items-center justify-center text-current')}
+        >
+          <Check className="h-3 w-3" strokeWidth={2.5} />
+        </CheckboxPrimitive.Indicator>
+      </CheckboxPrimitive.Root>
+    )
+  }
+)
 Checkbox.displayName = CheckboxPrimitive.Root.displayName
 
 export { Checkbox }
