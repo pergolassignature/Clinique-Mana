@@ -161,12 +161,21 @@ create trigger professional_private_audit            -- Loi 25: no PII or cipher
 
 **Encrypted columns** (reference: `organization_bank_details`, migration `…_core_bank_details.sql`):
 - Store the value in a `bytea` column, on a table with no client privilege (RLS on, no policy), revoked from `service_role` too: `revoke all on public.<table> from anon, authenticated, service_role;`.
-- Encrypt with `private.encrypt_pii(text)` inside a SECURITY DEFINER RPC (owned by `postgres`) that checks its permission first. Key: Vault secret `pii_encryption_key`; AES-256 with a SHA-256 key derivation, via pgcrypto.
+- Add `key_version smallint not null default 1` with `check (key_version >= 1)`: one version for all the row's encrypted columns.
+- Encrypt with `private.encrypt_pii(value, v)` inside a SECURITY DEFINER RPC (owned by `postgres`) that checks its permission first, where `v := private.pii_current_key_version()`, and store `v` in `key_version` in the same write. A write that keeps the stored ciphertext keeps its version. AES-256 with a SHA-256 key derivation, via pgcrypto.
 - Keep a `*_last4` (or otherwise masked) column for display; the « get » RPC returns only that.
-- A reveal RPC decrypts with `private.decrypt_pii(bytea)` and writes an `audit_log` row: action `read`, `source = 'rpc:<function>'`, `changed_fields = {"fields": ["<column>", …]}` (the names of the revealed columns, never values). No stored value → return null, no audit row.
+- A reveal RPC decrypts with `private.decrypt_pii(<column>, <row>.key_version)` and writes an `audit_log` row: action `read`, `source = 'rpc:<function>'`, `changed_fields = {"fields": ["<column>", …]}` (the names of the revealed columns, never values). No stored value → return null, no audit row.
 - Attach the audit trigger with the encrypted column **and every other value of the guarded data** redacted (masked column, related numbers, contact): `private.audit_trigger('<column>', …)`. `audit.view` must never show what the reveal permission guards; changes stay visible as `"[redacted]"`.
-- `private.pii_key`, `encrypt_pii` and `decrypt_pii` are SECURITY INVOKER and granted to no role (`service_role` included): never grant them, never log or select the key.
-- Only pass bytes read from an encrypted column to `decrypt_pii`, never caller-supplied bytes.
+- `private.pii_key`, `encrypt_pii`, `decrypt_pii` and `pii_current_key_version` are SECURITY INVOKER and granted to no role (`service_role` included): never grant them, never log or select the key.
+- Only pass bytes read from an encrypted column to `decrypt_pii`, with that row's `key_version`, never caller-supplied bytes.
+- List the table and its encrypted columns in [`pii-key-rotation.md`](../runbooks/pii-key-rotation.md) (table, inventory query, re-encryption block), in the same change.
+
+**Key versions** (migration `…_core_pii_key_versions.sql`, ADR 0004 « Before Phase 4 »):
+- Version 1 is the Vault secret `pii_encryption_key`; version n ≥ 2 is `pii_encryption_key_v<n>`. `private.pii_key(v)` returns null for a missing version, and `encrypt_pii` / `decrypt_pii` then raise `55000`. The version arguments are `integer` (a `smallint` column casts to it implicitly, while an integer literal such as `2` would not resolve to a `smallint` parameter).
+- The one-argument forms (`pii_key()`, `encrypt_pii(text)`, `decrypt_pii(bytea)`) mean version 1. They stay for compatibility only: new code always passes a version, or it breaks once version 1 is retired.
+- **Canary:** `private.pii_canary` holds the fixed test value `'mana-pii-canary'` encrypted with each live version (no grant, RLS on, no policy). The highest version with a canary is the write version (`private.pii_current_key_version()`), so adding a key's canary is what switches writes to it.
+- **Health check:** `public.pii_health_check()` (definer, `service_role` only) returns true when every canary decrypts, false otherwise; it never raises for a key problem and never returns a key or a value. The deploy job runs it after `supabase db push` and fails unless it prints `t`.
+- **Runbooks:** [`pii-key-escrow.md`](../runbooks/pii-key-escrow.md) (owner's copy of each version, restore before loading data, what to do when the deploy check fails) and [`pii-key-rotation.md`](../runbooks/pii-key-rotation.md). Never create a canary to make the check pass, except as those runbooks say.
 
 ## 8b. Catalogues and definer handlers (the shared-services pattern)
 
