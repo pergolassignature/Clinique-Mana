@@ -1176,6 +1176,7 @@
         "draft": "À inviter",
         "invited": "Invité",
         "in_review": "À réviser",
+        "preparing": "En préparation",
         "active": "Actif",
         "inactive": "Inactif"
       },
@@ -1254,12 +1255,131 @@
           "readyToActivate": "Le dossier est prêt à être activé.",
           "readyToReactivate": "Le dossier peut être réactivé.",
           "nothingToDo": "Rien à faire. Le dossier est complet.",
-          "awaitingOnboarding": "Le profil de jumelage est complet. Il reste l'accès du professionnel et son questionnaire."
+          "reactivateIncomplete": "Le dossier peut être réactivé, même s'il reste des éléments à compléter.",
+          "notInvited": "{firstName} n'a pas encore reçu d'invitation pour créer son accès et remplir son questionnaire.",
+          "invitationExpired": "Le lien d'invitation a expiré le {date} sans être utilisé.",
+          "invitationRevoked": "L'invitation de {firstName} a été révoquée : son lien ne fonctionne plus.",
+          "invitationUsedNoAccount": "{firstName} a créé son accès avec le lien d'invitation le {date}, mais ce compte n'existe plus.",
+          "invitationSent": "Invitation envoyée le {date}. {firstName} n'a pas encore créé son accès.",
+          "invitationOpened": "{firstName} a ouvert le lien d'invitation le {date}, mais n'a pas encore créé son accès.",
+          "questionnaireInProgress": "{firstName} n'a pas encore envoyé son questionnaire. Il apparaîtra ici, à réviser, dès son envoi.",
+          "updateInProgress": "Une demande de mise à jour est en cours : {firstName} ne l'a pas encore envoyée.",
+          "awaitingQuestionnaire": "Le questionnaire de {firstName} n'a pas encore été approuvé.",
+          "reviewOnboarding": "{firstName} a envoyé son questionnaire le {date}. Il attend votre révision.",
+          "reviewOnboardingUndated": "{firstName} a envoyé son questionnaire. Il attend votre révision.",
+          "reviewUpdate": "{firstName} a envoyé une mise à jour de son profil le {date}. Elle attend votre révision.",
+          "reviewUpdateUndated": "{firstName} a envoyé une mise à jour de son profil. Elle attend votre révision.",
+          "review": "Réviser le profil"
         }
       },
       "watch": {
+        "submission_to_review": "Dossier à réviser",
+        "update_to_review": "Mise à jour à réviser",
+        "invitation_expired": "Invitation expirée",
+        "invitation_unanswered": "Invitation sans réponse depuis {count} jours",
         "matching_incomplete": "Profil de jumelage incomplet",
         "login_email_mismatch": "Courriel de connexion différent"
+      },
+      "onboarding": {
+        "actions": {
+          "send": "Envoyer l'invitation",
+          "resend": "Renvoyer l'invitation",
+          "new_link": "Envoyer un nouveau lien",
+          "revoke": "Révoquer l'invitation",
+          "requestUpdate": "Demander une mise à jour"
+        },
+        "sections": {
+          "personal": "Renseignements personnels",
+          "professional": "Profil professionnel",
+          "portrait": "Portrait",
+          "languages": "Langues",
+          "clienteles": "Clientèles",
+          "motifs": "Motifs",
+          "availability": "Disponibilités générales",
+          "photo": "Photo",
+          "insurance": "Assurance",
+          "tax_bank": "Fiscalité et banque",
+          "consent": "Consentement"
+        },
+        "invitation": {
+          "none": "Aucune invitation envoyée.",
+          "sent": "Invitation envoyée le {sent} · expire le {expires}",
+          "opened": "Invitation envoyée le {sent} · ouverte le {opened} · expire le {expires}",
+          "expired": "Lien expiré le {expires} — envoyez un nouveau lien.",
+          "used": "Invitation acceptée le {used}",
+          "revoked": "Invitation révoquée : le lien ne fonctionne plus."
+        },
+        "questionnaire": {
+          "afterInvitation": "S'ouvre quand l'invitation est acceptée.",
+          "inProgress": "En cours : pas encore envoyé.",
+          "none": "Aucun questionnaire en cours.",
+          "submitted": "Envoyé le {date} — à réviser.",
+          "submittedUndated": "Envoyé — à réviser."
+        },
+        "dialog": {
+          "send": {
+            "title": "Envoyer l'invitation à {name} ?",
+            "body": "Un courriel sera envoyé à {email} avec un lien pour créer son accès et remplir son questionnaire."
+          },
+          "resend": {
+            "title": "Renvoyer l'invitation à {name} ?",
+            "body": "Un nouveau lien sera envoyé à {email}. Le lien envoyé le {sent} ne fonctionnera plus."
+          },
+          "new_link": {
+            "title": "Envoyer un nouveau lien à {name} ?",
+            "body": "Le lien envoyé le {sent} a expiré le {expires}. Un nouveau lien sera envoyé à {email}."
+          },
+          "revoke": {
+            "title": "Révoquer l'invitation de {name} ?",
+            "body": "Le lien envoyé à {email} ne fonctionnera plus.",
+          "closesQuestionnaire": "Le questionnaire envoyé sera fermé sans être appliqué.",
+          "inviteAgain": "Vous pourrez inviter {firstName} de nouveau.",
+            "backToDraft": "Le dossier redeviendra « À inviter »."
+          },
+          "validForOne": "Le lien sera valide {count} jour.",
+          "validForOther": "Le lien sera valide {count} jours.",
+          "sending": "Envoi…",
+          "revoking": "Révocation…"
+        },
+        "requestUpdate": {
+          "title": "Demander une mise à jour à {name}",
+          "body": "{firstName} recevra un courriel à {email} pour revoir les sections choisies. Rien ne change dans le dossier avant votre révision.",
+          "legend": "Sections à revoir",
+          "required": "Choisissez au moins une section.",
+          "confirm": "Envoyer la demande",
+          "sending": "Envoi…"
+        },
+        "toasts": {
+          "sent": "Invitation envoyée à {email}.",
+          "sentExpires": "Invitation envoyée à {email}. Le lien expire le {date}.",
+          "createdNotSent": "Invitation créée, mais le courriel n'a pas pu être envoyé.",
+          "revoked": "Invitation révoquée. Le lien ne fonctionne plus.",
+          "updateSent": "Demande de mise à jour envoyée à {email}.",
+          "updateNotSent": "Demande créée, mais le courriel n'a pas pu être envoyé."
+        },
+        "emailProblems": {
+          "not_configured": "L'envoi de courriels n'est pas encore configuré pour la clinique.",
+          "rate_limited": "Limite d'envoi de courriels atteinte.",
+          "provider_error": "Le service d'envoi n'a pas répondu.",
+          "invalid_request": "Le service d'envoi a refusé cette adresse. Corrigez-la dans l'onglet « Identité et permis », puis utilisez « Envoyer l'invitation ».",
+          "invalid_request_update": "Le service d'envoi a refusé l'adresse du dossier. {firstName} a un compte : c'est dans « Mon compte » que cette adresse se modifie (il n'y a pas d'invitation à renvoyer).",
+          "module_disabled": "Le module Professionnels est désactivé pour la clinique.",
+          "other": "Le courriel n'a pas pu être envoyé."
+        },
+        "emailAdvice": {
+          "invitation": "Utilisez « Renvoyer l'invitation » dans un moment.",
+          "update": "La demande reste ouverte : prévenez {firstName} qu'elle l'attend dans son questionnaire."
+        },
+        "errors": {
+          "rateLimited": "Trop de demandes en peu de temps.",
+          "moduleDisabled": "Le module Professionnels est désactivé pour la clinique.",
+          "network": "Le service est injoignable. Vérifiez votre connexion et réessayez.",
+          "unauthenticated": "Votre session a expiré. Reconnectez-vous, puis réessayez.",
+          "unavailable": "Le service est momentanément indisponible. Réessayez dans un instant.",
+          "sendFailed": "L'invitation n'a pas pu être envoyée. Réessayez dans un instant.",
+          "revokeFailed": "L'invitation n'a pas pu être révoquée. Réessayez dans un instant.",
+          "updateFailed": "La demande de mise à jour n'a pas pu être envoyée. Réessayez dans un instant."
+        }
       },
       "record": {
         "loadError": "Le dossier n'a pas pu être chargé.",
@@ -1475,6 +1595,8 @@
           "reasonPlaceholder": "Choisir une raison",
           "note": "Note",
           "accountOff": "{firstName} ne pourra plus se connecter.",
+          "invitationStops": "Le lien d'invitation envoyé à {email} ne fonctionnera plus.",
+          "questionnaireCloses": "Le questionnaire en cours sera fermé sans être appliqué.",
           "confirm": "Désactiver",
           "pending": "Désactivation…"
         },
@@ -1636,6 +1758,7 @@
           "changeEmail": {
             "title": "Modifier le courriel de connexion",
             "description": "L'invitation sera envoyée à cette adresse et elle servira à se connecter.",
+            "invitationStops": "Le lien d'invitation déjà envoyé ne fonctionnera plus : envoyez une nouvelle invitation à la nouvelle adresse.",
             "email": "Courriel"
           },
           "professions": {
@@ -1673,7 +1796,8 @@
         "filter": {
           "label": "Afficher",
           "all": "Tout",
-          "changes": "Modifications"
+          "changes": "Modifications",
+          "emails": "Courriels"
         },
         "actors": {
           "system": "Le système",
@@ -1710,6 +1834,27 @@
           "privateRead": "a affiché {fields}",
           "privateReadOther": "a consulté des données privées",
           "other": "a modifié une autre section du dossier",
+          "submission": {
+            "opened": "a ouvert le questionnaire d'accueil",
+            "updateRequested": "a demandé une mise à jour du profil",
+            "sections": "Sections",
+            "submitted": "a envoyé ses réponses au questionnaire",
+            "approved": "a approuvé les réponses au questionnaire",
+            "sentBack": "a renvoyé les réponses pour correction",
+            "note": "Note",
+            "cancelled": "a fermé le questionnaire en cours sans l'appliquer",
+            "privateSent": "a transmis des renseignements fiscaux ou bancaires",
+            "update": {
+              "submitted": "a envoyé sa mise à jour du profil",
+              "approved": "a approuvé la mise à jour du profil",
+              "sentBack": "a renvoyé la mise à jour du profil pour correction",
+              "cancelled": "a fermé la demande de mise à jour sans l'appliquer"
+            }
+          },
+          "consent": {
+            "recorded": "a enregistré le consentement au droit à l'image",
+            "withdrawn": "a enregistré le retrait du consentement au droit à l'image"
+          },
           "otherRead": "a consulté une section du dossier",
           "rateSet": {
             "initial": "a fixé le taux de départ à {rate} dès le {date}",
@@ -1828,6 +1973,19 @@
           "title": "Aucune modification à afficher",
           "body": "Choisissez « Tout » pour voir tout l'historique."
         },
+        "emptyEmails": {
+          "title": "Aucun courriel envoyé",
+          "body": "Les invitations et les demandes de mise à jour envoyées à {firstName} s'afficheront ici."
+        },
+        "emailsLoadError": "Les courriels n'ont pas pu être chargés.",
+        "email": {
+          "sentTo": "a envoyé « {template} » à {email}",
+          "sent": "a envoyé « {template} »",
+          "notDelivered": "Le service d'envoi n'a pas pu livrer ce courriel.",
+          "markedAsSpam": "Ce courriel a été signalé comme indésirable : le service d'envoi n'écrira plus à cette adresse.",
+          "checkAddress": "Vérifiez l'adresse dans l'onglet",
+          "identityTab": "Identité et permis"
+        },
         "moneyFields": {
           "client_price_cents": "Prix client",
           "professional_amount_cents": "Versé au professionnel"
@@ -1891,6 +2049,7 @@
           "next": "Page suivante"
         },
         "truncated": "Plus de 500 professionnels : affinez la recherche.",
+        "statesError": "Les invitations n'ont pas pu être chargées : les statuts affichés sont ceux des dossiers, sans les invitations ni les questionnaires.",
         "loadError": "La liste des professionnels n'a pas pu être chargée.",
         "empty": {
           "title": "Aucun professionnel pour l'instant",
@@ -1902,7 +2061,8 @@
       },
       "create": {
         "heading": "Ajouter un professionnel",
-        "description": "Le dossier est créé au statut « À inviter ». Vous compléterez son profil avant de l'inviter.",
+        "description": "Une invitation lui sera envoyée par courriel pour créer son accès et remplir son questionnaire.",
+        "descriptionNoInvite": "Le dossier sera créé sans invitation. Elle pourra être envoyée plus tard depuis la fiche, avec « Envoyer l'invitation ».",
         "firstName": "Prénom",
         "lastName": "Nom",
         "email": "Courriel",
@@ -1911,7 +2071,12 @@
         "professionNone": "Aucune pour l'instant",
         "licenceHelp": "Requis pour ce titre ({order}).",
         "submit": "Créer",
+        "submitAndInvite": "Créer et inviter",
         "submitting": "Création…",
+        "inviting": "Envoi de l'invitation…",
+        "inviteNow": "Envoyer l'invitation maintenant",
+        "inviteNowHelp": "Décochez pour compléter le dossier d'abord : vous enverrez l'invitation depuis la fiche.",
+        "notInvited": "Le dossier est créé, mais l'invitation n'a pas été envoyée. Utilisez « Envoyer l'invitation » dans la fiche.",
         "catalogError": "Les titres n'ont pas pu être chargés.",
         "licenceNowRequired": "Ce titre demande maintenant un numéro de permis. Saisissez-le dans le champ ajouté, puis créez le dossier."
       },
@@ -2304,6 +2469,46 @@
           "yes": "Oui",
           "no": "Non",
           "system": "Raison par défaut : ne peut pas être archivée."
+        },
+        "invitations": {
+          "title": "Invitations",
+          "description": "Le lien que reçoit un professionnel invité, et le rappel s'il ne l'ouvre pas.",
+          "loadError": "Les réglages des invitations n'ont pas pu être chargés.",
+          "link": {
+            "title": "Lien d'invitation",
+            "description": "Le lien sert une seule fois. Un nouvel envoi remplace le lien précédent.",
+            "expiryDays": "Durée de validité du lien",
+            "expiryHelp": "De 1 à 30 jours. S'applique aux prochains envois.",
+            "days": "jours"
+          },
+          "reminder": {
+            "title": "Rappel automatique",
+            "description": "Un seul rappel par envoi, avec un nouveau lien, si l'invitation n'a pas été ouverte.",
+            "enabled": "Envoyer un rappel",
+            "enabledHelp": "Sinon, les invitations sans réponse restent dans « À surveiller ».",
+            "afterDays": "Rappel après",
+            "afterHelp": "Jours sans ouverture du lien, moins que sa durée de validité ({max} jours au plus).",
+            "days": "jours"
+          },
+          "job": {
+            "title": "Envoi des rappels",
+            "description": "Les rappels partent une fois par jour, par la tâche planifiée « Rappels d'invitation ».",
+            "on": "Les rappels partent chaque jour vers {hour} h (heure de la clinique).",
+            "onNoHour": "Les rappels partent une fois par jour.",
+            "off": "Aucun rappel ne part pour l'instant : la tâche planifiée « Rappels d'invitation » est désactivée.",
+            "enable": "Activer la tâche planifiée",
+            "enabling": "Activation…",
+            "askAdmin": "Un administrateur peut l'activer dans Paramètres → Tâches planifiées.",
+            "openJobs": "Ouvrir Tâches planifiées",
+            "unknown": "Les rappels partent seulement si la tâche planifiée « Rappels d'invitation » est activée (Paramètres → Tâches planifiées).",
+            "loadError": "L'état de la tâche planifiée n'a pas pu être chargé.",
+            "disabledReminder": "Le rappel automatique est désactivé : aucun rappel ne part."
+          },
+          "validation": {
+            "expiryRange": "Entrez un nombre entier de 1 à 30.",
+            "reminderRange": "Entrez un nombre entier de 1 à 29.",
+            "reminderBeforeExpiry": "Le rappel doit partir avant la fin de validité du lien : moins de {max} jours."
+          }
         },
         "compensation": {
           "title": "Rémunération",

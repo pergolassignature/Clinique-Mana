@@ -48,15 +48,27 @@ export function recordFixture(): ProfessionalRecord {
 }
 
 /**
- * The record fixture with another status, its file complete (readiness done) or not (the
- * fixture's gaps: a clientèle and a motif).
+ * The record fixture with another status, its file complete (readiness done: the matching profile,
+ * the account and the approved questionnaire, 4b.1) or not (the fixture's gaps: a clientèle and a
+ * motif; no account).
  */
 export function recordWithStatus(status: ProfessionalStatus, complete: boolean): ProfessionalRecord {
   const record = recordFixture()
+  if (!complete) return { ...record, professional: { ...record.professional, status } }
   return {
     ...record,
-    professional: { ...record.professional, status },
-    readiness: complete ? { ...record.readiness, complete, done: 1, items: [{ key: 'matching_profile', done: true, missing: [] }] } : record.readiness,
+    professional: { ...record.professional, status, profileId: IDS.providerUser },
+    readiness: {
+      ...record.readiness,
+      complete,
+      done: 3,
+      total: 3,
+      items: [
+        { key: 'matching_profile', done: true, missing: [] },
+        { key: 'account_created', done: true, missing: [] },
+        { key: 'submission_approved', done: true, missing: [] },
+      ],
+    },
   }
 }
 

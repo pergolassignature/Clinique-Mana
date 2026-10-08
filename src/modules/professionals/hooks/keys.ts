@@ -20,6 +20,8 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * |                                          | active rows only)                                              |
  * | a list reordered                         | `catalog()` (optimistic, rolled back on error)                 |
  * | module settings                          | none: the RPC returns the effective settings, written as is    |
+ * | an invitation sent, revoked, or an update | `record(id)` (its `onboarding(id)` too), `lists()` (the        |
+ * | request (Task 4b.3), failed or not        | invitation states too), `history(id)` (its `emails(id)` too)   |
  * | a professional's sessions, rate or client | `compensation(id)`, `history(id)` (first page), `reviews()`    |
  * | agreement (P4-186, P4-187)               |                                                                |
  * | the review's batch of sessions (P4-190)  | `reviews()`, every `compensation(…)`, each row's `history(id)` |
@@ -37,8 +39,20 @@ export const professionalKeys = {
   lists: () => [...professionalKeys.all, 'list'] as const,
   list: () => [...professionalKeys.lists(), 'all'] as const,
   pages: (query: ProfessionalsPageQuery) => [...professionalKeys.lists(), 'pages', query] as const,
+  /**
+   * The onboarding states of the whole clinic (`list_professional_invitation_states`), joined by
+   * the list page: under `lists()`, so whatever refreshes the lists refreshes them.
+   */
+  invitationStates: () => [...professionalKeys.lists(), 'invitation-states'] as const,
   record: (id: string) => [...professionalKeys.all, 'record', id] as const,
+  /**
+   * The record's onboarding line (`get_professional_onboarding`, P4-270), requested with the record:
+   * under `record(id)`, so every record refresh refreshes it.
+   */
+  onboarding: (id: string) => [...professionalKeys.record(id), 'onboarding'] as const,
   history: (id: string) => [...professionalKeys.all, 'history', id] as const,
+  /** The emails about the professional (`list_subject_emails`): under `history(id)`, refreshed with it. */
+  emails: (id: string) => [...professionalKeys.history(id), 'emails'] as const,
   /** Every professional's compensation entry: a clinic grid changes what each one is suggested. */
   compensations: () => [...professionalKeys.all, 'compensation'] as const,
   /** The « Rétention » card of a record: the state and the dated rows (`professionals.compensation`). */

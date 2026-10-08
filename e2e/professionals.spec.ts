@@ -58,7 +58,9 @@ test('the adjointe creates and matches a professional, the admin activates it, a
   await create.getByLabel('Profession').selectOption({ label: 'Psychologue' })
   // Psychologue belongs to an order: its licence field appears (P4-35).
   await create.getByRole('textbox', { name: /^N° de permis/ }).fill(String(stamp).slice(-5))
-  await create.getByRole('button', { name: 'Créer' }).click()
+  // The invitation waits until the file is complete (no edge functions in this path, 4b.3).
+  await create.getByRole('checkbox', { name: "Envoyer l'invitation maintenant" }).click()
+  await create.getByRole('button', { name: 'Créer', exact: true }).click()
 
   // The record opens on Aperçu, with the matching profile still to complete.
   await expect(page).toHaveURL(RECORD_URL)
@@ -101,9 +103,11 @@ test('the adjointe creates and matches a professional, the admin activates it, a
   await expect(page.getByRole('region', { name: 'Langues' }).getByText('Anglais')).toBeVisible()
 
   // Aperçu: the matching profile is complete; the account and the questionnaire are still to come
-  // (4b.1, P4-179), so only the admin can activate, with the override reason.
+  // (4b.1, P4-179): « Prochaine action » offers the invitation (4b.3), and only the admin can
+  // activate, with the override reason.
   await openTab(page, 'Aperçu')
-  await expect(page.getByText("Le profil de jumelage est complet. Il reste l'accès du professionnel et son questionnaire.")).toBeVisible()
+  await expect(page.getByText("Rosalie n'a pas encore reçu d'invitation pour créer son accès et remplir son questionnaire.")).toBeVisible()
+  await expect(page.getByText('Aucune invitation envoyée.')).toBeVisible()
   const recordUrl = page.url()
 
   // The admin activates it: « Activer » → « Activer quand même » with the suggested reason → Actif.

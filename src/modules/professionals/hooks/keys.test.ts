@@ -37,4 +37,11 @@ describe('query keys', () => {
     startsWith(compensationTermsKeys.terms(), compensationTermsKeys.all)
     expect(compensationTermsKeys.all[0]).not.toBe(professionalKeys.all[0])
   })
+
+  it('nest the onboarding queries where their refreshes come from (Task 4b.3)', () => {
+    startsWith(professionalKeys.invitationStates(), professionalKeys.lists())
+    startsWith(professionalKeys.onboarding('p1'), professionalKeys.record('p1'))
+    startsWith(professionalKeys.emails('p1'), professionalKeys.history('p1'))
+    expect(professionalKeys.onboarding('p1')).not.toEqual(professionalKeys.onboarding('p2'))
+  })
 })

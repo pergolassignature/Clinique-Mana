@@ -5,8 +5,8 @@ import { testAccess } from './contexts'
  * Default permissions per role, mirroring the template public.role_permissions in the migrations
  * (20261007140517_core_access, 20261007140859_professionals_module, 20261007192359_core_roles_split,
  * 20261008015825_core_editable_roles, 20261008033613_core_shared_permissions,
- * 20261008082847_professionals_reference_data), which every clinic starts from (org_role_permissions).
- * Update it with the migrations.
+ * 20261008082847_professionals_reference_data, 20261008191219_professionals_onboarding), which
+ * every clinic starts from (org_role_permissions). Update it with the migrations.
  */
 export const ROLE_PERMISSIONS = {
   admin: [
@@ -28,8 +28,10 @@ export const ROLE_PERMISSIONS = {
     'professionals.compensation',
     'professionals.private',
     'professionals.self',
+    'professionals.invite',
+    'professionals.review',
   ],
-  admin_assistant: ['settings.view', 'professionals.view', 'professionals.manage', 'professionals.matching'],
+  admin_assistant: ['settings.view', 'professionals.view', 'professionals.manage', 'professionals.matching', 'professionals.invite', 'professionals.review'],
   counselor: ['professionals.view', 'professionals.matching'],
   provider: ['professionals.self'],
 } as const satisfies Record<string, readonly string[]>

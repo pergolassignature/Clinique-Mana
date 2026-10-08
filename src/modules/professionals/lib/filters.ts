@@ -1,10 +1,11 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { foldSearch } from '@/shared/lib/list-search'
-import { MAX_SET_SIZE, PAGE_SIZE, PROFESSIONAL_STATUSES, type ProfessionalStatus } from './constants'
+import { DISPLAY_STATUSES, MAX_SET_SIZE, PAGE_SIZE, type DisplayStatus } from './constants'
 import type { CatalogView } from './catalog-view'
+import { displayStatus } from './onboarding'
 import { watchFlags } from './watch'
-import type { ProfessionalListRow } from '../api/parse'
+import type { Onboarding, ProfessionalListRow } from '../api/parse'
 
 /**
  * The list's filters, with the URL as the source of truth (PS Hub `useCrmUrlState`): a reload, a
@@ -15,7 +16,8 @@ import type { ProfessionalListRow } from '../api/parse'
  */
 export interface ProfessionalsFilters {
   q: string
-  status: ProfessionalStatus | null
+  /** As staff read it (P4-43): « À réviser » and « En préparation » are both stored `in_review`. */
+  status: DisplayStatus | null
   /** The primary title (the list row carries only that one). */
   titleId: string | null
   languageId: string | null
@@ -45,14 +47,15 @@ export const DEFAULT_FILTERS: ProfessionalsFilters = {
 export const SEARCH_MAX_LENGTH = 280
 
 /** The statuses as URL values (French, like the routes). */
-const STATUS_PARAMS: Readonly<Record<ProfessionalStatus, string>> = {
+const STATUS_PARAMS: Readonly<Record<DisplayStatus, string>> = {
   draft: 'a-inviter',
   invited: 'invite',
   in_review: 'a-reviser',
+  preparing: 'en-preparation',
   active: 'actif',
   inactive: 'inactif',
 }
-const STATUS_BY_PARAM = new Map(PROFESSIONAL_STATUSES.map((s) => [STATUS_PARAMS[s], s]))
+const STATUS_BY_PARAM = new Map(DISPLAY_STATUSES.map((s) => [STATUS_PARAMS[s], s]))
 
 const PARAMS = ['q', 'statut', 'profession', 'langue', 'clientele', 'motif', 'nouveaux', 'surveiller', 'page'] as const
 
@@ -187,7 +190,7 @@ export function filterProfessionals(
   const motifIds = filters.motifIds.filter((id) => catalog.byId.motifs.has(id))
 
   return rows.filter((row) => {
-    if (filters.status && row.status !== filters.status) return false
+    if (filters.status && displayStatus(row.status, row.onboarding) !== filters.status) return false
     if (titleId && row.primaryTitleId !== titleId) return false
     if (languageId && !row.languageIds.includes(languageId)) return false
     if (clienteleId && !row.clienteleIds.includes(clienteleId)) return false
@@ -198,6 +201,14 @@ export function filterProfessionals(
     const haystack = haystacks.get(row) ?? ''
     return words.every((word) => haystack.includes(word))
   })
+}
+
+/**
+ * The rows with their onboarding (`list_professional_invitation_states`, one request for the
+ * clinic, P4-270), joined in memory; a file without link or submission has none.
+ */
+export function withOnboarding(rows: readonly ProfessionalListRow[], states: ReadonlyMap<string, Onboarding>): ProfessionalListRow[] {
+  return rows.map((row) => ({ ...row, onboarding: states.get(row.id) ?? null }))
 }
 
 /** One page of `rows` (PAGE_SIZE), the page clamped to the last one; an empty list is one page. */

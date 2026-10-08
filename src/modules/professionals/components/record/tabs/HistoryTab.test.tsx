@@ -1,11 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { renderWithContexts } from '@/test/contexts'
 import { accessForRole } from '@/test/role-fixtures'
-import type { HistoryEntry } from '../../../api/parse'
+import type { SubjectEmail } from '../../../api/invitations'
+import type { HistoryEntry, Onboarding, ProfessionalRecord } from '../../../api/parse'
 import { setupQueryClient } from '../../../test/query-client'
 import { CATALOG_VIEW, recordFixture, seventyTwoMotifsCatalog } from '../../../test/fixtures-domain'
 import { IDS } from '../../../test/fixtures'
@@ -14,13 +15,30 @@ import { refreshProfessionalHistory } from '../../../hooks/use-professional-reco
 import { RecordContext } from '../record-context'
 import { HistoryTab } from './HistoryTab'
 
-const mocks = vi.hoisted(() => ({ fetchProfessionalHistory: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  fetchProfessionalHistory: vi.fn(),
+  fetchProfessionalEmails: vi.fn(),
+  fetchProfessionalsSettings: vi.fn(),
+}))
 // Two rows per page, so paging is easy to drive.
 vi.mock('../../../api/history', () => ({ fetchProfessionalHistory: mocks.fetchProfessionalHistory, PROFESSIONAL_HISTORY_PAGE_SIZE: 2 }))
+vi.mock('../../../api/invitations', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../api/invitations')>()),
+  fetchProfessionalEmails: mocks.fetchProfessionalEmails,
+}))
+vi.mock('../../../api/settings', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../api/settings')>()),
+  fetchProfessionalsSettings: mocks.fetchProfessionalsSettings,
+}))
 
+beforeEach(() => {
+  mocks.fetchProfessionalEmails.mockResolvedValue([])
+  mocks.fetchProfessionalsSettings.mockResolvedValue({ collectSin: false, invitationExpiryDays: 7, invitationReminderAfterDays: 3 })
+})
 afterEach(() => {
   cleanup()
   mocks.fetchProfessionalHistory.mockReset()
+  mocks.fetchProfessionalEmails.mockReset()
 })
 
 const H = 'modules.professionals.history'
@@ -41,11 +59,17 @@ const entry = (id: number, createdAt: string, tableName: string, action: History
 const motif = (id: number, createdAt: string, motifId: string) =>
   entry(id, createdAt, 'professional_motifs', 'insert', { professional_id: P, motif_id: motifId }, `${P}:${motifId}`)
 
-function renderTab(catalog: CatalogView = CATALOG_VIEW, queryClient: QueryClient = setupQueryClient().queryClient, role: 'counselor' | 'admin' = 'counselor') {
+function renderTab(
+  catalog: CatalogView = CATALOG_VIEW,
+  queryClient: QueryClient = setupQueryClient().queryClient,
+  role: 'counselor' | 'admin' = 'counselor',
+  onboarding: Onboarding | null = null,
+  record: ProfessionalRecord = recordFixture(),
+) {
   return render(
     <QueryClientProvider client={queryClient}>
       {renderWithContexts(
-        <RecordContext.Provider value={{ record: recordFixture(), catalog, focusHeading: () => {} }}>
+        <RecordContext.Provider value={{ record, catalog, onboarding, focusHeading: () => {} }}>
           <HistoryTab />
         </RecordContext.Provider>,
         { access: { access: accessForRole(role) } },
@@ -283,6 +307,32 @@ describe('HistoryTab', () => {
     expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined]])
   })
 
+  it('reads on by itself past pages made only of draft saves (the questionnaire’s autosave)', async () => {
+    const draft = (id: number, minute: number) =>
+      entry(id, `2026-10-08T17:${String(minute).padStart(2, '0')}:00+00:00`, 'professional_submissions', 'update', { submitted_values: '[redacted]' }, `${P}:s1`)
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([draft(9, 50), draft(8, 40)])
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([draft(7, 30), draft(6, 20)])
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([entry(5, '2026-10-08T16:00:00+00:00', 'professionals', 'update', { years_experience: { before: 1, after: 2 } })])
+    renderTab()
+    expect(await screen.findByText(/a modifié les années d'expérience : 1 → 2/)).toBeInTheDocument()
+    expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined], [P, 8], [P, 6]])
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByText(t(`${H}.end`))).toBeInTheDocument()
+  })
+
+  it('« Charger plus » reads on past a page of draft saves instead of seeming to do nothing', async () => {
+    const draft = (id: number, minute: number) =>
+      entry(id, `2026-10-08T17:${String(minute).padStart(2, '0')}:00+00:00`, 'professional_submissions', 'update', { submitted_values: '[redacted]' }, `${P}:s1`)
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([entry(10, '2026-10-08T18:30:00+00:00', 'professionals', 'update', { city: '[redacted]' }), draft(9, 50)])
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([draft(8, 40), draft(7, 30)])
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([entry(6, '2026-10-08T16:00:00+00:00', 'professionals', 'update', { years_experience: { before: 1, after: 2 } })])
+    renderTab()
+    await userEvent.click(await screen.findByRole('button', { name: t(`${H}.loadMore`) }))
+    expect(await screen.findByText(/a modifié les années d'expérience : 1 → 2/)).toBeInTheDocument()
+    expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined], [P, 9], [P, 7]])
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+  })
+
   it('shows the empty state', async () => {
     mocks.fetchProfessionalHistory.mockResolvedValueOnce([])
     renderTab()
@@ -296,5 +346,136 @@ describe('HistoryTab', () => {
     expect(await screen.findByText(t(`${H}.loadError`))).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: t('common.retry') }))
     expect(await screen.findByText(t(`${H}.empty.title`))).toBeInTheDocument()
+  })
+})
+
+describe('HistoryTab — Courriels (Task 4b.3)', () => {
+  const email = (id: string, createdAt: string, over: Partial<SubjectEmail> = {}): SubjectEmail => ({
+    id,
+    templateKey: 'professionals.invite',
+    templateLabel: "Invitation d'un professionnel",
+    status: 'delivered',
+    toEmail: 'marie.t@exemple.ca',
+    sentBy: IDS.admin,
+    sentByName: 'Admin Local',
+    createdAt,
+    errorCode: null,
+    ...over,
+  })
+  const live: Onboarding = {
+    invitation: { state: 'sent', sentAt: '2026-10-08T17:00:00Z', expiresAt: '2026-10-15T17:00:00Z', openedAt: null, usedAt: null },
+    submission: null,
+    onboardingApproved: false,
+  }
+  // Thursday 8 October 2026, 16:00 in Toronto: the link above is live.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-08T20:00:00Z'))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('merges the emails with the changes by time, each with who sent it and its outcome', async () => {
+    mocks.fetchProfessionalHistory.mockResolvedValueOnce([entry(9, '2026-10-08T18:30:00+00:00', 'professionals', 'update', { city: '[redacted]' })])
+    mocks.fetchProfessionalEmails.mockResolvedValue([email('m1', '2026-10-08T19:00:00+00:00'), email('m0', '2026-10-08T17:00:00+00:00', { sentBy: null, sentByName: null, templateKey: 'professionals.invite_reminder', templateLabel: "Rappel d'invitation d'un professionnel", status: 'sent' })])
+    renderTab()
+    const today = await screen.findByRole('region', { name: 'Jeudi 8 octobre 2026' })
+    const items = within(today).getAllByRole('listitem')
+    expect(items).toHaveLength(3)
+    const [first, second, third] = items as [HTMLElement, HTMLElement, HTMLElement]
+    expect(within(first).getByText('15:00')).toBeInTheDocument()
+    expect(first).toHaveTextContent("Admin Local a envoyé « Invitation d'un professionnel » à marie.t@exemple.ca")
+    expect(within(first).getByText(t('email.status.delivered'))).toBeInTheDocument()
+    expect(second).toHaveTextContent('Admin Local a modifié la ville')
+    expect(within(third).getByText('13:00')).toBeInTheDocument()
+    expect(third).toHaveTextContent("Le système a envoyé « Rappel d'invitation d'un professionnel » à marie.t@exemple.ca")
+    expect(within(third).getByText(t('email.status.sent'))).toBeInTheDocument()
+    expect(mocks.fetchProfessionalEmails).toHaveBeenCalledWith(P)
+  })
+
+  it('« Courriels » shows the emails only; empty, it says what will show', async () => {
+    mocks.fetchProfessionalHistory.mockResolvedValue([entry(9, '2026-10-08T18:30:00+00:00', 'professionals', 'update', { city: '[redacted]' })])
+    renderTab()
+    await screen.findByRole('region', { name: 'Jeudi 8 octobre 2026' })
+    await userEvent.click(screen.getByRole('button', { name: t(`${H}.filter.emails`) }))
+    expect(await screen.findByText(t(`${H}.emptyEmails.title`))).toBeInTheDocument()
+    expect(screen.getByText(t(`${H}.emptyEmails.body`, { firstName: 'Marie' }))).toBeInTheDocument()
+  })
+
+  it('a failed invitation email offers « Renvoyer l’invitation » to an inviter, on the newest one only', async () => {
+    mocks.fetchProfessionalHistory.mockResolvedValue([])
+    mocks.fetchProfessionalEmails.mockResolvedValue([
+      email('m2', '2026-10-08T19:00:00+00:00', { status: 'failed', errorCode: 'provider_rejected' }),
+      email('m1', '2026-10-07T19:00:00+00:00', { status: 'failed', errorCode: 'provider_rejected' }),
+    ])
+    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'admin', live)
+    await screen.findByRole('region', { name: 'Jeudi 8 octobre 2026' })
+    expect(screen.getAllByText(t('email.failure.rejected'))).toHaveLength(2)
+    const resend = screen.getAllByRole('button', { name: "Renvoyer l'invitation" })
+    expect(resend).toHaveLength(1)
+    await userEvent.click(resend[0] as HTMLElement)
+    expect(await screen.findByRole('alertdialog', { name: "Renvoyer l'invitation à Marie Tremblay ?" })).toBeInTheDocument()
+  })
+
+  it('a refused address: no « Renvoyer », where to correct it instead', async () => {
+    mocks.fetchProfessionalHistory.mockResolvedValue([])
+    mocks.fetchProfessionalEmails.mockResolvedValue([email('m1', '2026-10-08T19:00:00+00:00', { status: 'bounced' })])
+    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'admin', live)
+    await screen.findByText(t('email.status.bounced'))
+    expect(screen.queryByRole('button', { name: "Renvoyer l'invitation" })).not.toBeInTheDocument()
+    const link = screen.getByRole('link', { name: t(`${H}.email.identityTab`) })
+    expect(link).toHaveAttribute('href', `/professionnels/${P}/identite`)
+    expect(link.parentElement).toHaveTextContent("Le service d'envoi n'a pas pu livrer ce courriel. Vérifiez l'adresse dans l'onglet Identité et permis.")
+  })
+
+  it('an email marked as spam (complained) is a refused address: no « Renvoyer », says why', async () => {
+    mocks.fetchProfessionalHistory.mockResolvedValue([])
+    mocks.fetchProfessionalEmails.mockResolvedValue([email('m1', '2026-10-08T19:00:00+00:00', { status: 'complained' })])
+    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'admin', live)
+    await screen.findByText(t('email.status.complained'))
+    expect(screen.queryByRole('button', { name: "Renvoyer l'invitation" })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t(`${H}.email.identityTab`) }).parentElement).toHaveTextContent(
+      "Ce courriel a été signalé comme indésirable : le service d'envoi n'écrira plus à cette adresse. Vérifiez l'adresse dans l'onglet Identité et permis.",
+    )
+  })
+
+  it('a refused address corrected since (the file has another one): « Renvoyer » again, no hint', async () => {
+    mocks.fetchProfessionalHistory.mockResolvedValue([])
+    mocks.fetchProfessionalEmails.mockResolvedValue([email('m1', '2026-10-08T19:00:00+00:00', { status: 'bounced', toEmail: 'marie.ancienne@exemple.ca' })])
+    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'admin', live)
+    await screen.findByText(t('email.status.bounced'))
+    expect(screen.getByRole('button', { name: "Renvoyer l'invitation" })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: t(`${H}.email.identityTab`) })).not.toBeInTheDocument()
+  })
+
+  it('no hint and no « Renvoyer » without professionals.invite, nor on an inactive file', async () => {
+    mocks.fetchProfessionalHistory.mockResolvedValue([])
+    mocks.fetchProfessionalEmails.mockResolvedValue([email('m1', '2026-10-08T19:00:00+00:00', { status: 'bounced' })])
+    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'counselor', live)
+    await screen.findByText(t('email.status.bounced'))
+    expect(screen.queryByRole('link', { name: t(`${H}.email.identityTab`) })).not.toBeInTheDocument()
+    cleanup()
+    const inactive = { ...recordFixture(), professional: { ...recordFixture().professional, status: 'inactive' as const } }
+    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'admin', live, inactive)
+    await screen.findByText(t('email.status.bounced'))
+    expect(screen.queryByRole('link', { name: t(`${H}.email.identityTab`) })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: "Renvoyer l'invitation" })).not.toBeInTheDocument()
+  })
+
+  it('no « Renvoyer » for a counselor, nor for an update request (P4-267)', async () => {
+    mocks.fetchProfessionalHistory.mockResolvedValue([])
+    mocks.fetchProfessionalEmails.mockResolvedValue([email('m1', '2026-10-08T19:00:00+00:00', { status: 'failed', errorCode: 'provider_rejected', templateKey: 'professionals.profile_update' })])
+    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'admin', live)
+    await screen.findByText(t('email.failure.rejected'))
+    expect(screen.queryByRole('button', { name: "Renvoyer l'invitation" })).not.toBeInTheDocument()
+  })
+
+  it('emails that cannot load: the changes still show, with « Réessayer » for the emails', async () => {
+    mocks.fetchProfessionalHistory.mockResolvedValue([entry(9, '2026-10-08T18:30:00+00:00', 'professionals', 'update', { city: '[redacted]' })])
+    mocks.fetchProfessionalEmails.mockRejectedValueOnce(Object.assign(new Error('boom'), { code: 'XX000' }))
+    renderTab()
+    expect(await screen.findByText(t(`${H}.emailsLoadError`))).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Jeudi 8 octobre 2026' })).toHaveTextContent('Admin Local a modifié la ville')
+    await userEvent.click(screen.getByRole('button', { name: t('common.retry') }))
+    await waitFor(() => expect(screen.queryByText(t(`${H}.emailsLoadError`))).not.toBeInTheDocument())
   })
 })

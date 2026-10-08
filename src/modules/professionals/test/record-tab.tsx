@@ -6,7 +6,7 @@ import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvid
 import { renderWithContexts } from '@/test/contexts'
 import { LocationProbe } from '@/test/LocationProbe'
 import { accessForRole, type FixtureRole } from '@/test/role-fixtures'
-import type { ProfessionalRecord } from '../api/parse'
+import type { Onboarding, ProfessionalRecord } from '../api/parse'
 import { professionalKeys } from '../hooks/keys'
 import type { CatalogView } from '../lib/catalog-view'
 import { CATALOG_VIEW } from './fixtures-domain'
@@ -32,7 +32,8 @@ export function renderRecordTab(
     role = 'admin_assistant',
     permissions,
     catalog = CATALOG_VIEW,
-  }: { record: ProfessionalRecord; role?: FixtureRole; permissions?: string[]; catalog?: CatalogView },
+    onboarding = null,
+  }: { record: ProfessionalRecord; role?: FixtureRole; permissions?: string[]; catalog?: CatalogView; onboarding?: Onboarding | null },
 ) {
   const { queryClient, invalidated } = setupQueryClient()
   queryClient.setQueryData(professionalKeys.record(IDS.professional), record)
@@ -42,7 +43,9 @@ export function renderRecordTab(
         <UnsavedChangesProvider>
           <GuardedNavLink to="/ailleurs">{LEAVE_LINK}</GuardedNavLink>
           <LocationProbe />
-          <RecordHarness catalog={catalog}>{ui}</RecordHarness>
+          <RecordHarness catalog={catalog} onboarding={onboarding}>
+            {ui}
+          </RecordHarness>
         </UnsavedChangesProvider>,
         { access: { access: accessForRole(current, permissions ? { permissions } : {}) }, path: `/professionnels/${IDS.professional}/identite` },
       )}

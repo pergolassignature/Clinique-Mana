@@ -45,13 +45,14 @@ describe('professionalsManifest', () => {
     expect(matchPath(`/${record.path}`, '/professionnels')).toBeNull()
   })
 
-  it('declares the five list sections of 4a.6–4a.9, then « Rémunération » (4a.18), in the Modules group', () => {
+  it('declares the five list sections of 4a.6–4a.9, « Invitations » (4b.3), then « Rémunération » (4a.18), in the Modules group', () => {
     expect(sections.map((s) => [s.id, s.path])).toEqual([
       ['professions', 'professions'],
       ['clienteles', 'clienteles'],
       ['motifs', 'motifs'],
       ['languages', 'langues'],
       ['deactivation-reasons', 'raisons-desactivation'],
+      ['invitations', 'invitations'],
       ['compensation', 'remuneration'],
     ])
     for (const s of sections) {
@@ -63,6 +64,12 @@ describe('professionalsManifest', () => {
       expect(s.permission).toEqual(['professionals.manage', 'professionals.settings'])
       expect(s.editPermission).toBe('professionals.settings')
     }
+  })
+
+  it('opens « Invitations » to whoever invites, changed with professionals.settings', () => {
+    const invitations = sections.find((s) => s.id === 'invitations')
+    expect(invitations?.permission).toEqual(['professionals.invite', 'professionals.settings'])
+    expect(invitations?.editPermission).toBe('professionals.settings')
   })
 
   it('opens « Rémunération » to compensation holders, who may also change it', () => {
@@ -98,6 +105,7 @@ describe('professionalsManifest', () => {
         { path: '/professionnels/0b6c/apercu' },
       ),
     )
-    expect(await screen.findByRole('heading', { level: 1, name: t('modules.professionals.record.notFound.title') })).toBeInTheDocument()
+    // The page's chunk is transformed on first import (cold, under load: over a second).
+    expect(await screen.findByRole('heading', { level: 1, name: t('modules.professionals.record.notFound.title') }, { timeout: 10_000 })).toBeInTheDocument()
   })
 })

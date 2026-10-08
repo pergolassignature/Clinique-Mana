@@ -29,6 +29,11 @@ interface ChangeEmailDialogProps {
    * message, until closed; only the trigger goes.
    */
   canChange: boolean
+  /**
+   * An invitation link is live: a new address revokes it and puts an invited file back to « À
+   * inviter » (P4-300), which the dialog says before the change.
+   */
+  invitationLive: boolean
   /** Where focus returns on close once the trigger is gone (the login email field). */
   fallbackFocus: RefObject<HTMLInputElement | null>
 }
@@ -39,7 +44,7 @@ interface ChangeEmailDialogProps {
  * under the field. Any other refusal (an account was created meanwhile, the permission withdrawn)
  * shows above the buttons and refetches the record, which then hides the trigger.
  */
-export function ChangeEmailDialog({ professionalId, email, canChange, fallbackFocus }: ChangeEmailDialogProps) {
+export function ChangeEmailDialog({ professionalId, email, canChange, invitationLive, fallbackFocus }: ChangeEmailDialogProps) {
   const [open, setOpen] = useState(false)
   const input = useRef<HTMLInputElement | null>(null)
   const trigger = useRef<HTMLButtonElement | null>(null)
@@ -95,7 +100,10 @@ export function ChangeEmailDialog({ professionalId, email, canChange, fallbackFo
         <FieldsReadOnlyContext.Provider value={false}>
           <DialogHeader>
             <DialogTitle>{t(`${E}.changeEmail.title`)}</DialogTitle>
-            <DialogDescription>{t(`${E}.changeEmail.description`)}</DialogDescription>
+            <DialogDescription>
+              {t(`${E}.changeEmail.description`)}
+              {invitationLive && ` ${t(`${E}.changeEmail.invitationStops`)}`}
+            </DialogDescription>
           </DialogHeader>
           <form
             noValidate

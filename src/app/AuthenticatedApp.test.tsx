@@ -103,9 +103,11 @@ const PROFESSIONALS_LIST_SECTIONS = [
   'modules.professionals.settings.motifs.title', 'modules.professionals.settings.languages.title',
   'modules.professionals.settings.deactivationReasons.title',
 ] as const
+/** Then « Invitations » (seen with `professionals.invite`, changed with `.settings`; Task 4b.3). */
+const PROFESSIONALS_SEEN_SECTIONS = [...PROFESSIONALS_LIST_SECTIONS, 'modules.professionals.settings.invitations.title'] as const
 /** Then « Rémunération » (`professionals.compensation`: the admin only, by default). */
-const PROFESSIONALS_SECTIONS = [...PROFESSIONALS_LIST_SECTIONS, 'modules.professionals.settings.compensation.title'] as const
-const PROFESSIONALS_LIST_SECTION_IDS = ['professions', 'clienteles', 'motifs', 'languages', 'deactivation-reasons'].map((id) => `professionals:${id}`)
+const PROFESSIONALS_SECTIONS = [...PROFESSIONALS_SEEN_SECTIONS, 'modules.professionals.settings.compensation.title'] as const
+const PROFESSIONALS_LIST_SECTION_IDS = ['professions', 'clienteles', 'motifs', 'languages', 'deactivation-reasons', 'invitations'].map((id) => `professionals:${id}`)
 const PROFESSIONALS_SECTION_IDS = [...PROFESSIONALS_LIST_SECTION_IDS, 'professionals:compensation']
 const PROFESSIONALS_ROUTES = ['professionals:/professionnels', 'professionals:/professionnels/:id/:onglet?']
 /** « Révision mensuelle »: professionals.compensation only (admin by default). */
@@ -152,8 +154,8 @@ describe('AuthenticatedApp', () => {
       readOnly('settings.sections.jobs'),
       readOnly('settings.sections.email'),
       readOnly('settings.sections.signing'),
-      // Professionnels' lists: seen with professionals.manage, changed with professionals.settings.
-      ...PROFESSIONALS_LIST_SECTIONS.map(readOnly),
+      // Professionnels' lists (professionals.manage) and « Invitations » (professionals.invite): changed with professionals.settings.
+      ...PROFESSIONALS_SEEN_SECTIONS.map(readOnly),
     ])
     expect(await screen.findByRole('heading', { level: 2, name: t('settings.sections.identity') })).toBeInTheDocument()
     expect(screen.getByText(t('common.readOnlyNotice.body'))).toBeInTheDocument()

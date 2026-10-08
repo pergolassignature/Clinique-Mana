@@ -22,10 +22,12 @@ const mocks = vi.hoisted(() => ({
   catalog: { fetchProfessionalsCatalog: vi.fn() },
   record: { fetchProfessionalRecord: vi.fn(), deactivateProfessional: vi.fn() },
   history: { fetchProfessionalHistory: vi.fn() },
+  invitations: { fetchProfessionalOnboarding: vi.fn(), fetchProfessionalEmails: vi.fn() },
 }))
 vi.mock('../api/catalog', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/catalog')>()), ...mocks.catalog }))
 vi.mock('../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/record')>()), ...mocks.record }))
 vi.mock('../api/history', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/history')>()), ...mocks.history }))
+vi.mock('../api/invitations', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/invitations')>()), ...mocks.invitations }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 const R = 'modules.professionals.record'
@@ -89,6 +91,8 @@ beforeEach(() => {
   mocks.catalog.fetchProfessionalsCatalog.mockResolvedValue(CATALOG)
   mocks.record.fetchProfessionalRecord.mockResolvedValue(recordFixture())
   mocks.history.fetchProfessionalHistory.mockResolvedValue([])
+  mocks.invitations.fetchProfessionalOnboarding.mockResolvedValue(null)
+  mocks.invitations.fetchProfessionalEmails.mockResolvedValue([])
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -97,11 +101,12 @@ afterEach(() => {
 })
 
 describe('ProfessionalRecordPage', () => {
-  it('requests the record and the catalogue in the same tick', () => {
+  it('requests the record, its onboarding line and the catalogue in the same tick (P4-270)', () => {
     mocks.record.fetchProfessionalRecord.mockReturnValue(new Promise(() => {}))
     mocks.catalog.fetchProfessionalsCatalog.mockReturnValue(new Promise(() => {}))
     renderPage()
     expect(mocks.record.fetchProfessionalRecord).toHaveBeenCalledWith(IDS.professional)
+    expect(mocks.invitations.fetchProfessionalOnboarding).toHaveBeenCalledWith(IDS.professional)
     expect(mocks.catalog.fetchProfessionalsCatalog).toHaveBeenCalledTimes(1)
     expect(screen.getByRole('status')).toHaveTextContent(t('common.loading'))
   })
@@ -307,6 +312,24 @@ describe('ProfessionalRecordPage', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })).toBeInTheDocument()
     expect(mocks.record.fetchProfessionalRecord).toHaveBeenCalledTimes(2)
     expect(mocks.catalog.fetchProfessionalsCatalog).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the status as staff read it: « En préparation » once the questionnaire is approved (P4-43)', async () => {
+    const record = recordFixture()
+    mocks.record.fetchProfessionalRecord.mockResolvedValue({ ...record, professional: { ...record.professional, status: 'in_review', profileId: IDS.providerUser } })
+    mocks.invitations.fetchProfessionalOnboarding.mockResolvedValue({ invitation: null, submission: null, onboardingApproved: true })
+    renderPage()
+    const header = (await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })).closest('header') as HTMLElement
+    expect(within(header).getByText(t('modules.professionals.status.preparing'))).toBeInTheDocument()
+  })
+
+  it('offers « Réessayer » when the onboarding line fails, and retries only it', async () => {
+    mocks.invitations.fetchProfessionalOnboarding.mockRejectedValueOnce(Object.assign(new Error('boom'), { code: 'XX000' }))
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: t('common.retry') }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })).toBeInTheDocument()
+    expect(mocks.invitations.fetchProfessionalOnboarding).toHaveBeenCalledTimes(2)
+    expect(mocks.record.fetchProfessionalRecord).toHaveBeenCalledTimes(1)
   })
 
   it('offers « Réessayer » when the catalogue fails, and retries only the catalogue', async () => {

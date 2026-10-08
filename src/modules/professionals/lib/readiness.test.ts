@@ -3,21 +3,24 @@ import { t } from '@/i18n'
 import { MISSING_TAB, missingLabel, nextAction, readinessItemLabel, warningLabel } from './readiness'
 import { READINESS_MISSING } from './constants'
 import { recordFixture } from '../test/fixtures-domain'
-import type { ProfessionalRecord } from '../api/parse'
+import type { InvitationInfo, Onboarding, ProfessionalRecord } from '../api/parse'
 import type { ReadinessMissing } from './constants'
 
 const T = (key: Parameters<typeof t>[0]) => t(key)
 
+/** A complete file has an account (`account_created` is one of its items since 4b.1). */
 function withReadiness(missing: ReadinessMissing[], status: ProfessionalRecord['professional']['status'] = 'draft'): ProfessionalRecord {
   const record = recordFixture()
   return {
     ...record,
-    professional: { ...record.professional, status },
+    professional: { ...record.professional, status, profileId: missing.length === 0 ? 'user-1' : null },
     readiness: { ...record.readiness, complete: missing.length === 0, done: missing.length === 0 ? 1 : 0, items: [{ key: 'matching_profile', done: missing.length === 0, missing }] },
   }
 }
 
 const can = (...keys: string[]) => (permission: string) => keys.includes(permission)
+/** Thursday 8 October 2026, 16:00 in Toronto. */
+const NOW = Date.parse('2026-10-08T20:00:00Z')
 
 describe('labels', () => {
   it('names the item, each gap and the warning', () => {
@@ -66,24 +69,104 @@ describe('nextAction', () => {
     ['complete, without manage: the sentence alone', [], 'in_review', ['professionals.matching'], { message: T('modules.professionals.readiness.nextAction.readyToActivate'), action: null }],
     ['active: nothing to do', [], 'active', ['professionals.manage'], { message: T('modules.professionals.readiness.nextAction.nothingToDo'), action: null }],
   ])('%s', (_, missing, status, keys, expected) => {
-    expect(nextAction(withReadiness(missing, status), can(...keys))).toEqual(expected)
+    expect(nextAction(withReadiness(missing, status), null, can(...keys), NOW)).toEqual(expected)
   })
 
-  it('matching done, account and questionnaire missing (4b.1): the sentence alone, no tab', () => {
-    const record = withReadiness([], 'invited')
-    const incomplete: ProfessionalRecord = {
+  it('names the two onboarding items (4b.1)', () => {
+    expect(readinessItemLabel('account_created')).toBe('Compte créé (invitation acceptée)')
+    expect(readinessItemLabel('submission_approved')).toBe('Questionnaire approuvé')
+  })
+})
+
+describe('nextAction with the onboarding (Task 4b.3)', () => {
+  const N = 'modules.professionals.readiness.nextAction'
+  const INVITE = ['professionals.invite', 'professionals.manage', 'professionals.matching']
+
+  /** Matching done; account and questionnaire still to come. */
+  function onboardingFile(profileId: string | null = null, status: ProfessionalRecord['professional']['status'] = 'invited'): ProfessionalRecord {
+    const record = withReadiness([], status)
+    return {
       ...record,
+      professional: { ...record.professional, profileId },
       readiness: {
         ...record.readiness,
         complete: false,
-        items: [...record.readiness.items, { key: 'account_created', done: false, missing: [] }, { key: 'submission_approved', done: false, missing: [] }],
+        items: [...record.readiness.items, { key: 'account_created', done: profileId !== null, missing: [] }, { key: 'submission_approved', done: false, missing: [] }],
       },
     }
-    expect(nextAction(incomplete, can('professionals.manage', 'professionals.matching'))).toEqual({
-      message: T('modules.professionals.readiness.nextAction.awaitingOnboarding'),
+  }
+  const invitation = (state: InvitationInfo['state'], extra: Partial<InvitationInfo> = {}): Onboarding => ({
+    invitation: { state, sentAt: '2026-10-08T14:00:00Z', expiresAt: '2026-10-15T14:00:00Z', openedAt: null, usedAt: null, ...extra },
+    submission: null,
+    onboardingApproved: false,
+  })
+
+  it('no invitation yet: says so, with « Envoyer l’invitation » for an inviter', () => {
+    expect(nextAction(onboardingFile(null, 'draft'), null, can(...INVITE), NOW)).toEqual({
+      message: t(`${N}.notInvited`, { firstName: 'Marie' }),
+      action: { kind: 'invite', label: "Envoyer l'invitation", action: 'send' },
+    })
+    expect(nextAction(onboardingFile(null, 'draft'), null, can('professionals.manage'), NOW).action).toBeNull()
+  })
+
+  it('an expired link comes before the matching gaps, with « Envoyer un nouveau lien »', () => {
+    const gaps = { ...withReadiness(['motif'], 'invited') }
+    expect(nextAction(gaps, invitation('expired'), can(...INVITE), NOW)).toEqual({
+      message: t(`${N}.invitationExpired`, { date: '15 oct.' }),
+      action: { kind: 'invite', label: "Envoyer un nouveau lien", action: 'new_link' },
+    })
+  })
+
+  it('a revoked link, or one used by an account since removed: says which, with « Envoyer l’invitation »', () => {
+    const send = { kind: 'invite', label: "Envoyer l'invitation", action: 'send' }
+    expect(nextAction(onboardingFile(null, 'draft'), invitation('revoked'), can(...INVITE), NOW)).toEqual({
+      message: "L'invitation de Marie a été révoquée : son lien ne fonctionne plus.",
+      action: send,
+    })
+    expect(nextAction(onboardingFile(null, 'draft'), invitation('used', { usedAt: '2026-10-09T13:00:00Z' }), can(...INVITE), NOW)).toEqual({
+      message: "Marie a créé son accès avec le lien d'invitation le 9 oct., mais ce compte n'existe plus.",
+      action: send,
+    })
+  })
+
+  it('a link read as sent but past its expiry reads expired, with « Envoyer un nouveau lien »', () => {
+    expect(nextAction(onboardingFile(), invitation('sent', { expiresAt: '2026-10-08T19:00:00Z' }), can(...INVITE), NOW)).toEqual({
+      message: t(`${N}.invitationExpired`, { date: '8 oct.' }),
+      action: { kind: 'invite', label: 'Envoyer un nouveau lien', action: 'new_link' },
+    })
+  })
+
+  it('matching gaps come before an invitation not yet sent', () => {
+    expect(nextAction(withReadiness(['motif'], 'draft'), null, can(...INVITE), NOW).message).toBe(t(`${N}.completeMatching`))
+  })
+
+  it('a live link: waiting for the professional, no button (the menu re-sends)', () => {
+    expect(nextAction(onboardingFile(), invitation('sent'), can(...INVITE), NOW)).toEqual({
+      message: t(`${N}.invitationSent`, { firstName: 'Marie', date: '8 oct.' }),
       action: null,
     })
-    expect(readinessItemLabel('account_created')).toBe('Compte créé (invitation acceptée)')
-    expect(readinessItemLabel('submission_approved')).toBe('Questionnaire approuvé')
+    expect(nextAction(onboardingFile(), invitation('opened', { openedAt: '2026-10-09T13:00:00Z' }), can(...INVITE), NOW).message).toBe(
+      t(`${N}.invitationOpened`, { firstName: 'Marie', date: '9 oct.' }),
+    )
+  })
+
+  it('the questionnaire being filled in, then waiting for the review', () => {
+    const draft: Onboarding = { invitation: null, submission: { id: 's1', kind: 'onboarding', status: 'draft', submittedAt: null }, onboardingApproved: false }
+    expect(nextAction(onboardingFile('user-1'), draft, can(...INVITE), NOW).message).toBe(t(`${N}.questionnaireInProgress`, { firstName: 'Marie' }))
+    const submitted: Onboarding = { ...draft, submission: { id: 's1', kind: 'onboarding', status: 'submitted', submittedAt: '2026-10-10T15:00:00Z' } }
+    // No button until 4b.5 sets REVIEW_TAB, even for a reviewer.
+    expect(nextAction(onboardingFile('user-1', 'in_review'), submitted, can('professionals.review'), NOW)).toEqual({
+      message: t(`${N}.reviewOnboarding`, { firstName: 'Marie', date: '10 oct.' }),
+      action: null,
+    })
+  })
+
+  it('an update waiting for review comes first, even on an active file', () => {
+    const update: Onboarding = { invitation: null, submission: { id: 's2', kind: 'update', status: 'submitted', submittedAt: '2026-10-10T15:00:00Z' }, onboardingApproved: true }
+    expect(nextAction(withReadiness([], 'active'), update, can(...INVITE), NOW).message).toBe(t(`${N}.reviewUpdate`, { firstName: 'Marie', date: '10 oct.' }))
+  })
+
+  it('an account without an approved questionnaire and nothing open', () => {
+    expect(nextAction(onboardingFile('user-1'), null, can(...INVITE), NOW)).toEqual({ message: t(`${N}.awaitingQuestionnaire`, { firstName: 'Marie' }), action: null })
   })
 })

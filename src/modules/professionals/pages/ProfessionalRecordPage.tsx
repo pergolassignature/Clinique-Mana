@@ -13,6 +13,7 @@ import { RecordTabs } from '../components/record/RecordTabs'
 import { RecordContext, type RecordData } from '../components/record/record-context'
 import { visibleRecordTabs } from '../components/record/record-tabs'
 import { useProfessionalsCatalog } from '../hooks/use-catalog'
+import { useProfessionalOnboarding } from '../hooks/use-invitations'
 import { useProfessionalRecord } from '../hooks/use-professional-record'
 import { recordPath } from '../lib/constants'
 import { fullName } from '../lib/display'
@@ -24,8 +25,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * A professional's record (« fiche », design §5.3): the header band, then the tabs, the tab being
- * the URL's last segment. One request for the record (`get_professional_record`) and the cached
- * catalogue, both started at mount; the tabs read them from `RecordContext`. An unknown or hidden
+ * the URL's last segment. One request for the record (`get_professional_record`), one for its
+ * onboarding line (`get_professional_onboarding`, P4-270) and the cached catalogue, all started at
+ * mount; the tabs read them from `RecordContext`. An unknown or hidden
  * tab goes to « Aperçu ».
  */
 export function ProfessionalRecordPage() {
@@ -37,6 +39,7 @@ export function ProfessionalRecordPage() {
 function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) {
   const { can } = useAccess()
   const record = useProfessionalRecord(id)
+  const onboarding = useProfessionalOnboarding(id)
   const catalog = useProfessionalsCatalog()
   const tabs = useMemo(() => visibleRecordTabs(can), [can])
   const current = tabs.find((def) => def.tab === onglet)
@@ -46,13 +49,14 @@ function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) 
   const data = record.data
   usePageTitle(data ? fullName(data.professional) : t(data === null ? `${R}.notFound.title` : 'modules.professionals.name'), { crumb: Boolean(data) })
   const value = useMemo<RecordData | null>(
-    () => (data && catalog.data ? { record: data, catalog: catalog.data, focusHeading } : null),
-    [data, catalog.data, focusHeading],
+    () =>
+      data && catalog.data && onboarding.data !== undefined ? { record: data, catalog: catalog.data, onboarding: onboarding.data, focusHeading } : null,
+    [data, catalog.data, onboarding.data, focusHeading],
   )
 
   if (data === null) return <RecordNotFound />
   if (!current) return <Navigate to={recordPath(id)} replace />
-  const failed = [record, catalog].filter((q) => q.isError && !q.data)
+  const failed = [record, onboarding, catalog].filter((q) => q.isError && q.data === undefined)
   if (failed.length > 0) {
     return (
       <LoadError message={t(`${R}.loadError`)} onRetry={() => failed.forEach((q) => void q.refetch())} retrying={failed.some((q) => q.isFetching)} />
@@ -61,7 +65,7 @@ function RecordView({ id, onglet }: { id: string; onglet: string | undefined }) 
   if (!value) return <RecordSkeleton />
   return (
     <RecordContext.Provider value={value}>
-      <RecordHeader record={value.record} catalog={value.catalog} headingRef={heading} actions={<RecordActions />} />
+      <RecordHeader record={value.record} onboarding={value.onboarding} catalog={value.catalog} headingRef={heading} actions={<RecordActions />} />
       <RecordTabs id={id} current={current} tabs={tabs} />
     </RecordContext.Provider>
   )

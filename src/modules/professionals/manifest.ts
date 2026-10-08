@@ -1,4 +1,4 @@
-import { Compass, GraduationCap, HandCoins, Languages, Tags, UserMinus, Users } from 'lucide-react'
+import { Compass, GraduationCap, HandCoins, Languages, Send, Tags, UserMinus, Users } from 'lucide-react'
 import type { ModuleManifest } from '@/core/modules/types'
 import { lazyPage } from '@/shared/lib/lazy-page'
 
@@ -77,6 +77,18 @@ export const professionalsManifest: ModuleManifest = {
       icon: UserMinus,
       ...LIST_SECTION,
       component: lazyPage(() => import('./pages/settings/DeactivationReasonsSettingsPage'), 'DeactivationReasonsSettingsPage'),
+    },
+    {
+      // The invitation link's lifetime and the automatic reminder (Task 4b.3): seen by whoever
+      // invites or edits the module's settings, changed with `professionals.settings`.
+      id: 'invitations',
+      path: 'invitations',
+      labelKey: 'modules.professionals.settings.invitations.title',
+      icon: Send,
+      permission: ['professionals.invite', 'professionals.settings'],
+      editPermission: 'professionals.settings',
+      group: 'modules',
+      component: lazyPage(() => import('./pages/settings/InvitationsSettingsPage'), 'InvitationsSettingsPage'),
     },
     {
       // The clinic's compensation terms: seen and changed with `professionals.compensation` (no

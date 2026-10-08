@@ -59,7 +59,9 @@
 --   new row, so 4a.4's « profile, then professional » order is kept.
 -- * Audit: every table is audited. professional_submissions redacts `prefill` and `submitted_values`
 --   (phone and address, as professionals does); the private step shows through `private_saved_at`.
---   The history adds submissions and consents, never the private table.
+--   The history adds submissions and consents, never the private table; list_professional_history
+--   leaves out the draft saves (rows that change only the answers or the link) and names each
+--   submission row's kind (4b.3 review).
 -- * Security review (P4-300 … P4-308):
 --   - The invitation is bound to the file's address: the link's scope holds {"email": …} (lower
 --     case, private.issue_professional_invitation_link, which 4b.2's re-issue calls too); both
@@ -1901,6 +1903,74 @@ as $$
                'professional_motifs', 'professional_languages', 'professional_payer_numbers',
                'professional_private', 'professional_retention', 'professional_session_counts',
                'professional_client_agreements', 'professional_submissions', 'professional_consents']
+$$;
+
+-- Same signature, grants, checks and paging as *_professionals_compensation_private.sql (private rows
+-- without values, compensation rows for professionals.compensation only), and two changes for the
+-- questionnaire (4b.3 review):
+-- * a submission row that changes only draft content (`submitted_values`, redacted: the provider's
+--   autosave and consent signature; `secure_link_id`: the link the draft points at) is left out:
+--   a page of autosaves would otherwise show nothing, and these are not events;
+-- * every other submission row carries the submission's `kind` ('onboarding' or 'update') in
+--   changed_fields (an update row only lists what changed), so the history says « mise à jour »
+--   for an update request. The column never changes, so the key never clashes with a change.
+create or replace function public.list_professional_history(p_id uuid, p_before_id bigint default null, p_limit int default 50)
+returns table (
+  id bigint, created_at timestamptz, table_name text, record_id text, action text,
+  changed_fields jsonb, actor_id uuid, actor_name text, actor_role text, source text
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_org uuid := private.current_user_org_id();
+  v_before bigint := coalesce(p_before_id, 9223372036854775807);
+  v_limit int := least(greatest(coalesce(p_limit, 50), 1), 200);
+  v_prefix text := p_id::text;
+  v_tables text[] := private.professional_history_tables();
+begin
+  if not private.has_permission('professionals.view') then
+    raise exception 'Permission refusée : professionals.view' using errcode = '42501';
+  end if;
+  if not private.has_permission('professionals.compensation') then
+    v_tables := array(select t from pg_catalog.unnest(v_tables) t
+                       where t <> all (private.professional_compensation_history_tables()));
+  end if;
+  return query
+    select a.id, a.created_at, a.table_name, a.record_id, a.action,
+           case
+             when a.table_name = 'professional_submissions' and a.action <> 'insert' and sk.kind is not null
+                  and pg_catalog.jsonb_typeof(a.changed_fields) = 'object'
+               then a.changed_fields || pg_catalog.jsonb_build_object('kind', sk.kind)
+             when a.table_name <> 'professional_private' then a.changed_fields
+             when a.action = 'read' and pg_catalog.jsonb_typeof(a.changed_fields -> 'fields') = 'array'
+               then pg_catalog.jsonb_build_object('fields', (
+                      select coalesce(pg_catalog.jsonb_agg(f.value order by f.ord), '[]'::jsonb)
+                        from pg_catalog.jsonb_array_elements(a.changed_fields -> 'fields') with ordinality as f(value, ord)
+                       where f.value in ('"sin"'::jsonb, '"bank_account"'::jsonb)))
+           end,
+           a.actor_id, pr.display_name, a.actor_role, a.source
+      from public.audit_log a
+      left join public.profiles pr on pr.user_id = a.actor_id and pr.org_id = a.org_id
+      -- record_id is '<professional_id>:<submission id>' (the primary key's columns).
+      left join lateral (select s.kind from public.professional_submissions s
+                          where a.table_name = 'professional_submissions'
+                            and s.professional_id = p_id and s.org_id = v_org
+                            and s.id::text = pg_catalog.substr(a.record_id, 38)) sk on true
+     where a.org_id = v_org
+       and left(a.record_id, 36) = v_prefix
+       and a.id < v_before
+       and a.table_name = any (v_tables)
+       and not (a.table_name = 'professional_submissions' and a.action = 'update'
+                and pg_catalog.jsonb_typeof(a.changed_fields) = 'object'
+                and not exists (select 1 from pg_catalog.jsonb_object_keys(a.changed_fields) k(key)
+                                 where k.key not in ('submitted_values', 'secure_link_id')))
+     order by a.id desc
+     limit v_limit;
+end;
 $$;
 
 -- -----------------------------------------------------------------------------

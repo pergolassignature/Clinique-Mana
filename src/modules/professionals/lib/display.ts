@@ -1,6 +1,6 @@
 import { t } from '@/i18n'
 import type { BadgeProps } from '@/shared/ui/badge'
-import { AVAILABILITY_PERIODS, type AvailabilityPeriod, type Gender, type MotifCategoryIcon, type ProfessionalStatus } from './constants'
+import { AVAILABILITY_PERIODS, type AvailabilityPeriod, type DisplayStatus, type Gender, type MotifCategoryIcon } from './constants'
 import { titleOrder, type CatalogView } from './catalog-view'
 import { titleLabel } from './title-label'
 import type { ProfessionalRecord, ProfessionRow } from '../api/parse'
@@ -12,22 +12,26 @@ export function fullName(p: { firstName: string; lastName: string }): string {
   return `${p.firstName} ${p.lastName}`
 }
 
-/** « À inviter », « Invité », « À réviser », « Actif », « Inactif ». */
-export function statusLabel(status: ProfessionalStatus): string {
+/**
+ * « À inviter », « Invité », « À réviser », « En préparation », « Actif », « Inactif ». A stored
+ * status reads as itself; the list and the record pass the displayed one (`displayStatus`, P4-43).
+ */
+export function statusLabel(status: DisplayStatus): string {
   return t(`modules.professionals.status.${status}`)
 }
 
-const STATUS_TONE: Readonly<Record<ProfessionalStatus, NonNullable<BadgeProps['variant']>>> = {
+const STATUS_TONE: Readonly<Record<DisplayStatus, NonNullable<BadgeProps['variant']>>> = {
   draft: 'secondary',
   invited: 'secondary',
-  // P4-43: waiting for a review (4b splits off « En préparation », neutral).
+  // P4-43: waiting for a review (yellow), then approved and being prepared for activation (neutral).
   in_review: 'warning',
+  preparing: 'secondary',
   active: 'success',
   inactive: 'error',
 }
 
 /** The status dot's colour (Badge variant), the same in the list and the record. */
-export function statusTone(status: ProfessionalStatus): NonNullable<BadgeProps['variant']> {
+export function statusTone(status: DisplayStatus): NonNullable<BadgeProps['variant']> {
   return STATUS_TONE[status]
 }
 

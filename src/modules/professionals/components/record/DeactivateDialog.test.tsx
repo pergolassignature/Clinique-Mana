@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
 import { accessKeys } from '@/core/access/access-context'
-import type { ProfessionalRecord, StatusChange } from '../../api/parse'
+import type { Onboarding, ProfessionalRecord, StatusChange } from '../../api/parse'
 import { professionalCatalogKeys, professionalKeys } from '../../hooks/keys'
 import { recordWithStatus } from '../../test/fixtures-domain'
 import { IDS } from '../../test/fixtures'
@@ -35,9 +35,9 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks())
 
 /** The adjointe on a complete draft, the « … » menu opened and « Désactiver » chosen. */
-async function openDeactivate(record: ProfessionalRecord = recordWithStatus('draft', true)) {
+async function openDeactivate(record: ProfessionalRecord = recordWithStatus('draft', true), onboarding: Onboarding | null = null) {
   stored = record
-  const rendered = renderRecordTab(<RecordActions />, { record, role: 'admin_assistant' })
+  const rendered = renderRecordTab(<RecordActions />, { record, role: 'admin_assistant', onboarding })
   await userEvent.click(screen.getByRole('button', { name: t('modules.professionals.record.actions.more') }))
   await userEvent.click(await screen.findByRole('menuitem', { name: t('modules.professionals.record.actions.deactivate') }))
   await screen.findByRole('alertdialog')
@@ -114,9 +114,30 @@ describe('DeactivateDialog', () => {
   })
 
   it('says nothing about an account the professional does not have', async () => {
-    await openDeactivate()
+    await openDeactivate(recordWithStatus('draft', false))
     await userEvent.selectOptions(reasonSelect(), 'Fin de collaboration')
     expect(within(dialog()).queryByText(accountWarning())).not.toBeInTheDocument()
+  })
+
+  it('says the invitation link stops working and the questionnaire in progress closes (4b.1, P4-301)', async () => {
+    const invited = recordWithStatus('invited', false)
+    await openDeactivate(invited, {
+      invitation: { state: 'sent', sentAt: '2026-10-05T14:00:00Z', expiresAt: '2099-10-12T14:00:00Z', openedAt: null, usedAt: null },
+      submission: { id: 's1', kind: 'onboarding', status: 'draft', submittedAt: null },
+      onboardingApproved: false,
+    })
+    expect(dialog()).toHaveAccessibleDescription(
+      `${t(`${D}.body`, { firstName: 'Marie' })} ${t(`${D}.invitationStops`, { email: 'marie.t@exemple.ca' })} ${t(`${D}.questionnaireCloses`)}`,
+    )
+  })
+
+  it('says nothing of a link that no longer works', async () => {
+    await openDeactivate(recordWithStatus('invited', false), {
+      invitation: { state: 'expired', sentAt: '2026-10-05T14:00:00Z', expiresAt: '2026-10-06T14:00:00Z', openedAt: null, usedAt: null },
+      submission: null,
+      onboardingApproved: false,
+    })
+    expect(dialog()).toHaveAccessibleDescription(t(`${D}.body`, { firstName: 'Marie' }))
   })
 
   it('never acts on arrow keys, Enter or Space in the reason select (decision #36)', async () => {

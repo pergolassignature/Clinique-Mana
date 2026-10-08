@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from 'react-router-dom'
 import { CircleAlert, Plus } from 'lucide-react'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
+import { CheckboxField } from '@/shared/components/CheckboxField'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { SaveButton } from '@/shared/components/SaveButton'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
@@ -15,9 +17,11 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
+import { toast } from '@/shared/ui/sonner'
 import type { NewProfessional } from '../../api/record'
 import { useProfessionalsCatalog } from '../../hooks/use-catalog'
 import { professionalCatalogKeys } from '../../hooks/keys'
+import { useSendInvitation } from '../../hooks/use-invitations'
 import { useCreateProfessional } from '../../hooks/use-professional-mutations'
 import { titleOrder, type CatalogView } from '../../lib/catalog-view'
 import { recordPath } from '../../lib/constants'
@@ -28,17 +32,31 @@ const C = 'modules.professionals.create'
 /**
  * « + Ajouter » (professionals.manage, the page's one teal action) and « Ajouter un professionnel »
  * (design §5.2, P4-35): Prénom, Nom, Courriel, Profession (active titles), and « N° de permis »
- * (the order's own label) when the title belongs to an order. Created as « À inviter »; then the
- * record opens. While creating, the dialog stays open; a refusal shows under the field its HINT
- * names, when that field is on screen, else above the buttons.
+ * (the order's own label) when the title belongs to an order. With `professionals.invite`, « Envoyer
+ * l'invitation maintenant » (ticked; Task 4b.3) makes the button « Créer et inviter »: the file is
+ * created, then the invitation emailed to its address (the link is never shown, P4-260). Then the
+ * record opens. While creating, the dialog stays open; a refusal of the creation shows under the
+ * field its HINT names, when that field is on screen, else above the buttons. An invitation that
+ * fails after the creation is a toast: the file exists, « Envoyer l'invitation » is in its record.
  */
 export function CreateProfessionalDialog() {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
+  // Here, not in the form: the description says whether an invitation will leave.
+  const [inviteNow, setInviteNow] = useState(true)
+  const { can } = useAccess()
+  const invite = can('professionals.invite') && inviteNow
   const firstName = useRef<HTMLInputElement | null>(null)
 
+  const changeOpen = (next: boolean) => {
+    if (pending) return
+    // Each opening starts ticked, as the form starts empty.
+    if (next) setInviteNow(true)
+    setOpen(next)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
         <Button>
           <Plus aria-hidden />
@@ -54,9 +72,15 @@ export function CreateProfessionalDialog() {
       >
         <DialogHeader>
           <DialogTitle>{t(`${C}.heading`)}</DialogTitle>
-          <DialogDescription>{t(`${C}.description`)}</DialogDescription>
+          <DialogDescription>{t(invite ? `${C}.description` : `${C}.descriptionNoInvite`)}</DialogDescription>
         </DialogHeader>
-        <CreateForm firstNameRef={firstName} onPendingChange={setPending} onCreated={() => setOpen(false)} />
+        <CreateForm
+          firstNameRef={firstName}
+          inviteNow={inviteNow}
+          onInviteNowChange={setInviteNow}
+          onPendingChange={setPending}
+          onCreated={() => setOpen(false)}
+        />
       </DialogContent>
     </Dialog>
   )
@@ -64,6 +88,9 @@ export function CreateProfessionalDialog() {
 
 interface CreateFormProps {
   firstNameRef: RefObject<HTMLInputElement | null>
+  /** « Envoyer l'invitation maintenant » (shown with `professionals.invite`). */
+  inviteNow: boolean
+  onInviteNowChange: (inviteNow: boolean) => void
   onPendingChange: (pending: boolean) => void
   onCreated: () => void
 }
@@ -78,9 +105,16 @@ function CreateForm(props: CreateFormProps) {
   return <Loading />
 }
 
-function CreateFormFields({ catalog, firstNameRef, onPendingChange, onCreated }: CreateFormProps & { catalog: CatalogView }) {
+function CreateFormFields({ catalog, firstNameRef, inviteNow, onInviteNowChange, onPendingChange, onCreated }: CreateFormProps & { catalog: CatalogView }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { can } = useAccess()
+  const mayInvite = can('professionals.invite')
+  const invite = mayInvite && inviteNow
+  const sendInvitation = useSendInvitation({
+    // The file exists: the dialog closes on its record, the toast says what is left to do.
+    onErrorMessage: (message) => toast.error(t(`${C}.notInvited`), { description: message }),
+  })
   const schema = useMemo(() => createProfessionalSchema(catalog), [catalog])
   const form = useForm<CreateProfessionalValues, unknown, NewProfessional>({ resolver: zodResolver(schema), defaultValues: CREATE_PROFESSIONAL_DEFAULTS })
   const { errors, isDirty } = form.formState
@@ -112,6 +146,10 @@ function CreateFormFields({ catalog, firstNameRef, onPendingChange, onCreated }:
     onPendingChange(true)
     try {
       const id = await create.mutateAsync(values)
+      if (invite) {
+        // Its outcome is a toast either way (sent, created but not emailed, or refused).
+        await sendInvitation.mutateAsync({ id, action: 'send', email: values.email }).catch(() => {})
+      }
       onCreated()
       navigate(recordPath(id))
     } catch {
@@ -121,7 +159,7 @@ function CreateFormFields({ catalog, firstNameRef, onPendingChange, onCreated }:
     }
   })
 
-  const pending = create.isPending
+  const pending = create.isPending || sendInvitation.isPending
   const alert = errors.root?.server?.message
   return (
     <form noValidate onSubmit={(event) => void submit(event)} className="grid gap-3.5" aria-busy={pending || undefined}>
@@ -172,6 +210,14 @@ function CreateFormFields({ catalog, firstNameRef, onPendingChange, onCreated }:
           {(field) => <Input {...field} {...form.register('licenceNumber')} autoComplete="off" className="tabular" />}
         </FormField>
       )}
+      {mayInvite && (
+        <CheckboxField
+          label={t(`${C}.inviteNow`)}
+          help={t(`${C}.inviteNowHelp`)}
+          checked={inviteNow}
+          onCheckedChange={onInviteNowChange}
+        />
+      )}
       {alert && (
         <Alert variant="destructive" role="alert">
           <CircleAlert aria-hidden />
@@ -194,8 +240,8 @@ function CreateFormFields({ catalog, firstNameRef, onPendingChange, onCreated }:
           pending={pending}
           disabled={!isDirty}
           variant={isDirty || pending ? 'default' : 'outline'}
-          label={t(`${C}.submit`)}
-          pendingLabel={t(`${C}.submitting`)}
+          label={t(invite ? `${C}.submitAndInvite` : `${C}.submit`)}
+          pendingLabel={t(sendInvitation.isPending ? `${C}.inviting` : `${C}.submitting`)}
         />
       </DialogFooter>
     </form>

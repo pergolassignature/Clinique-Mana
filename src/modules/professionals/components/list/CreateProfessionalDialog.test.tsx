@@ -3,9 +3,10 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
+import { FunctionCallError } from '@/core/supabase/functions'
 import { renderWithContexts } from '@/test/contexts'
 import { LocationProbe } from '@/test/LocationProbe'
-import { accessForRole } from '@/test/role-fixtures'
+import { accessForRole, ROLE_PERMISSIONS } from '@/test/role-fixtures'
 import { setupQueryClient } from '../../test/query-client'
 import { CATALOG } from '../../test/fixtures-domain'
 import { IDS } from '../../test/fixtures'
@@ -14,18 +15,22 @@ import { CreateProfessionalDialog } from './CreateProfessionalDialog'
 const mocks = vi.hoisted(() => ({
   catalog: { fetchProfessionalsCatalog: vi.fn() },
   record: { createProfessional: vi.fn() },
-  toast: { success: vi.fn(), error: vi.fn() },
+  invitations: { sendProfessionalInvitation: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 vi.mock('../../api/catalog', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/catalog')>()), ...mocks.catalog }))
 vi.mock('../../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/record')>()), ...mocks.record }))
+vi.mock('../../api/invitations', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/invitations')>()), ...mocks.invitations }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 const C = 'modules.professionals.create'
 const NEW_ID = '00000000-0000-4000-8000-00000000abcd'
 
-function renderDialog() {
+/** The adjointe; without `professionals.invite` unless asked (the 4a tests create only). */
+function renderDialog({ invite = false } = {}) {
   const { queryClient, invalidated } = setupQueryClient()
+  const permissions = ROLE_PERMISSIONS.admin_assistant.filter((p) => invite || p !== 'professionals.invite')
   render(
     <QueryClientProvider client={queryClient}>
       {renderWithContexts(
@@ -33,7 +38,7 @@ function renderDialog() {
           <CreateProfessionalDialog />
           <LocationProbe />
         </>,
-        { path: '/professionnels', access: { access: accessForRole('admin_assistant') } },
+        { path: '/professionnels', access: { access: accessForRole('admin_assistant', { permissions }) } },
       )}
     </QueryClientProvider>,
   )
@@ -202,5 +207,71 @@ describe('CreateProfessionalDialog', () => {
     await fillNames()
     await userEvent.click(screen.getByRole('button', { name: t(`${C}.submit`) }))
     expect(await screen.findByRole('alert')).toHaveTextContent("Aucune langue active n'est disponible.")
+  })
+})
+
+describe('CreateProfessionalDialog — invite now (Task 4b.3)', () => {
+  const INVITE = t(`${C}.inviteNow`)
+
+  async function create() {
+    await fillNames()
+    await userEvent.click(screen.getByRole('button', { name: t(`${C}.submitAndInvite`) }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(`/professionnels/${NEW_ID}/apercu`))
+  }
+
+  it('offers « Envoyer l’invitation maintenant », ticked, only with professionals.invite; the description follows it', async () => {
+    renderDialog({ invite: true })
+    await open()
+    const dialog = screen.getByRole('dialog')
+    expect(screen.getByRole('checkbox', { name: INVITE })).toBeChecked()
+    expect(screen.getByRole('button', { name: t(`${C}.submitAndInvite`) })).toBeInTheDocument()
+    expect(dialog).toHaveAccessibleDescription(t(`${C}.description`))
+    await userEvent.click(screen.getByRole('checkbox', { name: INVITE }))
+    expect(screen.getByRole('button', { name: t(`${C}.submit`) })).toBeInTheDocument()
+    expect(dialog).toHaveAccessibleDescription(t(`${C}.descriptionNoInvite`))
+  })
+
+  it('without professionals.invite, the description says no invitation leaves', async () => {
+    renderDialog()
+    await open()
+    expect(screen.queryByRole('checkbox', { name: INVITE })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(t(`${C}.descriptionNoInvite`))
+  })
+
+  it('creates, then sends the invitation to the file’s address, and says where it went', async () => {
+    mocks.invitations.sendProfessionalInvitation.mockResolvedValue({ expiresAt: '2026-10-15T14:00:00Z', emailProblem: null })
+    renderDialog({ invite: true })
+    await open()
+    await create()
+    expect(mocks.invitations.sendProfessionalInvitation).toHaveBeenCalledWith(NEW_ID, 'send')
+    expect(mocks.toast.success).toHaveBeenCalledWith(t('modules.professionals.onboarding.toasts.sentExpires', { email: 'marie.t@exemple.ca', date: '15 oct. 2026' }))
+  })
+
+  it('sends nothing when unticked', async () => {
+    renderDialog({ invite: true })
+    await open()
+    await fillNames()
+    await userEvent.click(screen.getByRole('checkbox', { name: INVITE }))
+    await userEvent.click(screen.getByRole('button', { name: t(`${C}.submit`) }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(`/professionnels/${NEW_ID}/apercu`))
+    expect(mocks.invitations.sendProfessionalInvitation).not.toHaveBeenCalled()
+  })
+
+  it('the link created but its email failed: a warning that says what to do, the record opens', async () => {
+    mocks.invitations.sendProfessionalInvitation.mockResolvedValue({ expiresAt: null, emailProblem: { code: 'provider_error', retryAfter: null } })
+    renderDialog({ invite: true })
+    await open()
+    await create()
+    expect(mocks.toast.warning).toHaveBeenCalledWith(t('modules.professionals.onboarding.toasts.createdNotSent'), {
+      description: `${t('modules.professionals.onboarding.emailProblems.provider_error')} ${t('modules.professionals.onboarding.emailAdvice.invitation')}`,
+    })
+  })
+
+  it('the invitation refused after the creation: the file exists, the toast says so and why', async () => {
+    mocks.invitations.sendProfessionalInvitation.mockRejectedValue(new FunctionCallError('network', 0, 'Function unreachable'))
+    renderDialog({ invite: true })
+    await open()
+    await create()
+    expect(mocks.toast.error).toHaveBeenCalledWith(t(`${C}.notInvited`), { description: t('modules.professionals.onboarding.errors.network') })
   })
 })

@@ -1,5 +1,7 @@
 import { memo, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
+import { emailStatusLabel } from '@/core/email/status'
 import { EmptyState } from '@/shared/components/EmptyState'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
@@ -8,10 +10,13 @@ import { formatClinicTime } from '@/shared/lib/timezone'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent } from '@/shared/ui/card'
+import { StatusDot } from '@/shared/ui/status-dot'
+import type { SubjectEmail } from '../../../api/invitations'
+import { useProfessionalEmails } from '../../../hooks/use-invitations'
 import { useProfessionalHistory } from '../../../hooks/use-professional-record'
 import {
   buildHistoryEvents,
-  filterHistory,
+  buildTimeline,
   groupHistoryByDay,
   HISTORY_FILTERS,
   historyReadsOn,
@@ -20,9 +25,14 @@ import {
   type HistoryEvent,
   type HistoryFilter,
   type HistoryLine,
+  type TimelineEntry,
 } from '../../../lib/history'
+import { onboardingActionLabel, onboardingActions, type InviteAction } from '../../../lib/onboarding'
+import { InvitationDialog } from '../InvitationDialog'
 import { CategoryNames, Disclosure } from '../MotifsSummary'
 import { useRecordData } from '../record-context'
+import { focusAfterClose } from '../status-dialog'
+import { TabLink } from '../TabLink'
 
 const H = 'modules.professionals.history'
 
@@ -30,12 +40,16 @@ const H = 'modules.professionals.history'
  * « Historique » (Task 4a.15): the file's audit trail as one timeline, newest first, by clinic
  * day. Each entry reads « {qui} {a fait quoi} » and unfolds to its details; nothing shows raw JSON,
  * an id or a redacted value (D5, Loi 25). Fetched when the tab opens (or on its hover), 50 rows a
- * page; « Charger plus » reads on.
+ * page; « Charger plus » reads on. The emails about the professional (Task 4b.3: invitations,
+ * reminders, update requests) are requested in parallel and merged by time (`buildTimeline`), each
+ * with its outcome (« Envoyé », « Livré », « Adresse introuvable », « Échec »); « Tout ·
+ * Modifications · Courriels » filters them.
  */
 export function HistoryTab() {
   const { record, catalog } = useRecordData()
   const { data, isPending, isError, isFetching, refetch, hasNextPage, fetchNextPage, isFetchingNextPage, isFetchNextPageError } =
     useProfessionalHistory(record.professional.id)
+  const emails = useProfessionalEmails(record.professional.id)
   const [filter, setFilter] = useState<HistoryFilter>('all')
   const endRef = useRef<HTMLParagraphElement>(null)
   const loadMorePressed = useRef(false)
@@ -43,17 +57,25 @@ export function HistoryTab() {
   const pages = data?.pages
   const rows = useMemo(() => pages?.flat() ?? [], [pages])
   const settled = useMemo(() => settledHistoryRows(rows, hasNextPage), [rows, hasNextPage])
-  const events = useMemo(
-    () => buildHistoryEvents(settled, { catalog, titleByRow: professionTitlesByRow(rows, record), gender: record.professional.gender }),
-    [settled, rows, catalog, record],
+  const context = useMemo(
+    () => ({ catalog, titleByRow: professionTitlesByRow(rows, record), gender: record.professional.gender }),
+    [rows, catalog, record],
   )
-  const days = useMemo(() => groupHistoryByDay(filterHistory(events, filter)), [events, filter])
+  const events = useMemo(() => buildHistoryEvents(settled, context), [settled, context])
+  const emailRows = emails.data
+  const timeline = useMemo(
+    () => buildTimeline(events, emailRows ?? [], { filter, morePages: hasNextPage }),
+    [events, emailRows, filter, hasNextPage],
+  )
+  const days = useMemo(() => groupHistoryByDay(timeline), [timeline])
+  // « Renvoyer l'invitation » goes on the newest invitation email only, when it failed.
+  const latestInvitationEmail = emailRows?.find((email) => INVITATION_TEMPLATES.has(email.templateKey))?.id
 
-  // A last page holding only the held-back save added nothing to the screen (the first page, or
-  // the one « Charger plus » brought): read on, page by page, until the save ends (P4-101). It
-  // stops on an error, an empty page or the end of the history. Each new page re-runs this
-  // (`pageCount`): a quick fetch may never render as pending.
-  const readsOn = historyReadsOn(pages ?? [], hasNextPage)
+  // A last page that added nothing to the screen (the first page, or the one « Charger plus »
+  // brought): only the held-back save, or rows that give no event (draft saves). Read on, page by
+  // page, until something shows (P4-101). It stops on an error, an empty page or the end of the
+  // history. Each new page re-runs this (`pageCount`): a quick fetch may never render as pending.
+  const readsOn = useMemo(() => historyReadsOn(pages ?? [], hasNextPage, context), [pages, hasNextPage, context])
   const chaining = readsOn && !isFetchNextPageError
   const pageCount = pages?.length ?? 0
   useEffect(() => {
@@ -69,8 +91,20 @@ export function HistoryTab() {
     if (!hasNextPage) endRef.current?.focus()
   }, [hasNextPage, isFetchingNextPage, readsOn])
 
+  const emailsFailed = emails.isError && !emails.data
+  const emailsRetry = <LoadError message={t(`${H}.emailsLoadError`)} retrying={emails.isFetching} onRetry={() => void emails.refetch()} />
   let content: ReactNode
-  if (isPending || (chaining && events.length === 0)) {
+  if (filter === 'emails') {
+    content = emailsFailed ? (
+      emailsRetry
+    ) : emails.isPending ? (
+      <Loading />
+    ) : days.length === 0 ? (
+      <EmptyState title={t(`${H}.emptyEmails.title`)} body={t(`${H}.emptyEmails.body`, { firstName: record.professional.firstName })} />
+    ) : (
+      <TimelineDays days={days} latestInvitationEmail={latestInvitationEmail} />
+    )
+  } else if (isPending || (chaining && events.length === 0) || (filter === 'all' && emails.isPending)) {
     content = <Loading />
   } else if (isError && !data) {
     content = <LoadError message={t(`${H}.loadError`)} retrying={isFetching} onRetry={() => void refetch()} />
@@ -80,17 +114,14 @@ export function HistoryTab() {
   } else {
     content = (
       <>
-        {events.length === 0 && !hasNextPage ? (
+        {filter === 'all' && emailsFailed && <div className="mb-4">{emailsRetry}</div>}
+        {timeline.length === 0 && !hasNextPage && filter === 'all' ? (
           <EmptyState title={t(`${H}.empty.title`)} body={t(`${H}.empty.body`)} />
         ) : days.length === 0 ? (
           // Only a filter can empty loaded entries; without one, the list waits for « Charger plus ».
           filter !== 'all' && <EmptyState title={t(`${H}.emptyFiltered.title`)} body={t(`${H}.emptyFiltered.body`)} />
         ) : (
-          <div className="space-y-5">
-            {days.map((day) => (
-              <HistoryDaySection key={day.key} label={day.label} events={day.events} />
-            ))}
-          </div>
+          <TimelineDays days={days} latestInvitationEmail={latestInvitationEmail} />
         )}
         <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border-light pt-3 text-xs text-muted-foreground">
           {hasNextPage ? (
@@ -137,7 +168,20 @@ export function HistoryTab() {
   )
 }
 
-function HistoryDaySection({ label, events }: { label: string; events: readonly HistoryEvent[] }) {
+/** The invitation's emails: a failed one can be sent again (an update request cannot, P4-267). */
+const INVITATION_TEMPLATES = new Set(['professionals.invite', 'professionals.invite_reminder'])
+
+function TimelineDays({ days, latestInvitationEmail }: { days: readonly { key: string; label: string; events: TimelineEntry[] }[]; latestInvitationEmail: string | undefined }) {
+  return (
+    <div className="space-y-5">
+      {days.map((day) => (
+        <HistoryDaySection key={day.key} label={day.label} entries={day.events} latestInvitationEmail={latestInvitationEmail} />
+      ))}
+    </div>
+  )
+}
+
+function HistoryDaySection({ label, entries, latestInvitationEmail }: { label: string; entries: readonly TimelineEntry[]; latestInvitationEmail: string | undefined }) {
   const headingId = useId()
   return (
     <section aria-labelledby={headingId}>
@@ -145,11 +189,90 @@ function HistoryDaySection({ label, events }: { label: string; events: readonly 
         {label}
       </h3>
       <ol className="mt-2 space-y-2">
-        {events.map((event) => (
-          <HistoryItem key={event.id} event={event} />
-        ))}
+        {entries.map((entry) =>
+          entry.type === 'event' ? (
+            <HistoryItem key={entry.key} event={entry.event} />
+          ) : (
+            <EmailItem key={entry.key} email={entry.email} latest={entry.email.id === latestInvitationEmail} />
+          ),
+        )}
       </ol>
     </section>
+  )
+}
+
+/** Who sent it: the person, « Une personne qui n'a plus accès », or the system (the reminders job). */
+function emailActor(email: SubjectEmail): { actor: string; byPerson: boolean } {
+  if (email.sentByName) return { actor: email.sentByName, byPerson: true }
+  return { actor: t(email.sentBy ? `${H}.actors.unknown` : `${H}.actors.system`), byPerson: false }
+}
+
+/**
+ * An address sending again cannot reach: refused by the provider or nonexistent (`bounced`,
+ * `invalid_recipient`), or whose owner marked the email as spam (`complained`: the provider stops
+ * sending there).
+ */
+const addressRefused = (email: SubjectEmail) => email.status === 'bounced' || email.status === 'complained' || email.errorCode === 'invalid_recipient'
+
+/** The file's address is no longer the one this email went to (corrected since, in Identité et permis). */
+const addressChanged = (email: SubjectEmail, current: string) => email.toEmail !== null && email.toEmail.trim().toLowerCase() !== current.trim().toLowerCase()
+
+/**
+ * « 14:30  Admin Local a envoyé « Invitation d'un professionnel » à marie@… », then its outcome as
+ * a dot and a word. When the newest invitation email failed and the user can invite on this file
+ * (`professionals.invite`, no account, not inactive): « Renvoyer l'invitation » (a new link, after
+ * its confirmation) where that can help — any failure, or a refused address since corrected —
+ * else where to correct the address.
+ */
+function EmailItem({ email, latest }: { email: SubjectEmail; latest: boolean }) {
+  const { record, onboarding, focusHeading } = useRecordData()
+  const { can } = useAccess()
+  const [dialog, setDialog] = useState<InviteAction | null>(null)
+  const button = useRef<HTMLButtonElement>(null)
+  const { actor, byPerson } = emailActor(email)
+  const outcome = emailStatusLabel(email.status, email.errorCode)
+  const failed = outcome.tone === 'error'
+  const invite = latest && failed && INVITATION_TEMPLATES.has(email.templateKey) ? onboardingActions(record.professional, onboarding, can).invite : null
+  // A refused address only blocks while the file still has it.
+  const blocked = addressRefused(email) && !addressChanged(email, record.professional.email)
+  const sentence = email.toEmail
+    ? t(`${H}.email.sentTo`, { template: email.templateLabel, email: email.toEmail })
+    : t(`${H}.email.sent`, { template: email.templateLabel })
+  return (
+    <li className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-x-2 text-sm">
+      <time dateTime={email.createdAt} className="tabular-nums text-muted-foreground">
+        {formatClinicTime(email.createdAt)}
+      </time>
+      <div className="min-w-0 pl-[18px] [overflow-wrap:anywhere]">
+        <p>
+          <span className={cn('font-medium', !byPerson && 'text-muted-foreground')}>{actor}</span> {sentence}
+        </p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <StatusDot tone={outcome.tone} />
+            {outcome.label}
+          </span>
+          {outcome.detail && <span className="text-xs text-muted-foreground">{outcome.detail}</span>}
+        </div>
+        {invite && blocked && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t(email.status === 'complained' ? `${H}.email.markedAsSpam` : `${H}.email.notDelivered`)} {t(`${H}.email.checkAddress`)}{' '}
+            <TabLink id={record.professional.id} tab="identite">
+              {t(`${H}.email.identityTab`)}
+            </TabLink>
+            .
+          </p>
+        )}
+        {invite && !blocked && (
+          <Button ref={button} type="button" variant="outline" size="sm" className="mt-1.5 max-sm:h-11" onClick={() => setDialog(invite)}>
+            {onboardingActionLabel(invite)}
+          </Button>
+        )}
+        {dialog && (
+          <InvitationDialog action={dialog} onClose={() => setDialog(null)} onCloseAutoFocus={(event) => focusAfterClose(event, [button.current], focusHeading)} />
+        )}
+      </div>
+    </li>
   )
 }
 

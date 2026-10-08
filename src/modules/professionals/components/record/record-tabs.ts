@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { lazyPage, type Preloadable } from '@/shared/lib/lazy-page'
+import { prefetchProfessionalEmails } from '../../hooks/use-invitations'
 import { prefetchProfessionalHistory } from '../../hooks/use-professional-record'
 import type { RecordTab } from '../../lib/constants'
 import { OverviewTab } from './tabs/OverviewTab'
@@ -45,9 +46,9 @@ async function prefetchCompensationTab(queryClient: QueryClient, id: string, can
   ])
 }
 
-/** Historique: its first page (its compensation rows need no other list, P4-193). */
+/** Historique: its first page (its compensation rows need no other list, P4-193) and the emails (4b.3). */
 async function prefetchHistoryTab(queryClient: QueryClient, id: string): Promise<void> {
-  await prefetchProfessionalHistory(queryClient, id)
+  await Promise.all([prefetchProfessionalHistory(queryClient, id), prefetchProfessionalEmails(queryClient, id)])
 }
 
 /**

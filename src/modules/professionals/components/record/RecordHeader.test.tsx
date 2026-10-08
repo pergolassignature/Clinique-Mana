@@ -10,7 +10,7 @@ import { RecordHeader } from './RecordHeader'
 const H = 'modules.professionals.record.header'
 
 function renderHeader(change: (record: ProfessionalRecord) => ProfessionalRecord = (r) => r) {
-  render(<RecordHeader record={change(recordFixture())} catalog={CATALOG_VIEW} />)
+  render(<RecordHeader record={change(recordFixture())} onboarding={null} catalog={CATALOG_VIEW} />)
 }
 
 describe('RecordHeader', () => {
@@ -25,10 +25,10 @@ describe('RecordHeader', () => {
   })
 
   it('names the title in the professional\'s form (P4-342)', () => {
-    const { unmount } = render(<RecordHeader record={socialWorkerRecord('female')} catalog={GENDERED_CATALOG_VIEW} />)
+    const { unmount } = render(<RecordHeader record={socialWorkerRecord('female')} onboarding={null} catalog={GENDERED_CATALOG_VIEW} />)
     expect(screen.getByText('Travailleuse sociale · OPQ TS04518 · marie.t@exemple.ca')).toBeInTheDocument()
     unmount()
-    render(<RecordHeader record={socialWorkerRecord('male')} catalog={GENDERED_CATALOG_VIEW} />)
+    render(<RecordHeader record={socialWorkerRecord('male')} onboarding={null} catalog={GENDERED_CATALOG_VIEW} />)
     expect(screen.getByText('Travailleur social · OPQ TS04518 · marie.t@exemple.ca')).toBeInTheDocument()
   })
 
@@ -46,7 +46,7 @@ describe('RecordHeader', () => {
   })
 
   it('puts the actions after the identity, which keeps 16rem before they wrap under it', () => {
-    render(<RecordHeader record={recordFixture()} catalog={CATALOG_VIEW} actions={<button type="button">Activer</button>} />)
+    render(<RecordHeader record={recordFixture()} onboarding={null} catalog={CATALOG_VIEW} actions={<button type="button">Activer</button>} />)
     const header = screen.getByRole('banner')
     expect(header).toHaveClass('flex-wrap')
     expect(header.lastElementChild).toBe(screen.getByRole('button', { name: 'Activer' }))
