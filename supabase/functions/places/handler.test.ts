@@ -62,6 +62,7 @@ function harness(opts: {
   limit?: RpcRoute
   access?: Record<string, unknown> | null
   now?: () => number
+  timeoutMs?: number
 } = {}) {
   const google = fakePlaces()
   const user = fakeSupabase({
@@ -92,7 +93,7 @@ function harness(opts: {
     userClient: () => user.client,
   }
   return {
-    handler: createHandler(deps),
+    handler: createHandler(deps, { timeoutMs: opts.timeoutMs }),
     google,
     service,
     user,
@@ -141,10 +142,16 @@ Deno.test('places: autocomplete → Google suggestions, with the session token, 
       action: 'autocomplete',
       sessionToken: SESSION,
     }])
-    // One hit per caller, keyed on org and user (hashed), on the places bucket.
+    // One hit per caller (org and user, hashed), then one on the org's ceiling.
     assertEquals(
       service.calls.map((c) => [c.fn, c.args.p_bucket, c.args.p_max]),
-      [['consume_rate_limit', 'places.user', 600]],
+      [
+        ['consume_rate_limit', 'places.user', 600],
+        ['consume_rate_limit', 'places.org', 3_000],
+      ],
+    )
+    assert(
+      service.calls[0].args.p_key_hash !== service.calls[1].args.p_key_hash,
     )
   })
 })
@@ -352,7 +359,7 @@ Deno.test('places: any active profile may use it (a provider, no permission need
   })
 })
 
-Deno.test('places: no key → 503 not_configured before the limiter or Google; reported once on a deployed project, never locally', async () => {
+Deno.test('places: no key → 503 not_configured before the limiter or Google; reported at most once per 5 minutes on a deployed project, never locally', async () => {
   await run(async () => {
     const deployed = harness({ env: { GOOGLE_PLACES_API_KEY: undefined } })
     const lines = await reports(async () => {
@@ -386,6 +393,35 @@ Deno.test('places: no key → 503 not_configured before the limiter or Google; r
       )
     })
     assertEquals(localLines, [])
+  })
+})
+
+Deno.test('places: GOOGLE_PLACES_BASE_URL with APP_URL unset is ignored: not_configured, reported, Google and the fake not called', async () => {
+  await run(async () => {
+    const seen: string[] = []
+    const { handler, service } = harness({
+      fetch: (input, init) => {
+        seen.push(new Request(input, init).url)
+        return Promise.resolve(Response.json({ suggestions: [] }))
+      },
+      env: {
+        APP_URL: undefined,
+        GOOGLE_PLACES_BASE_URL: 'http://host.docker.internal:55391',
+      },
+    })
+    const lines = await reports(async () => {
+      assertEquals(
+        await errorOf(await handler(post(typed('rue laurier')))),
+        {
+          status: 503,
+          code: 'not_configured',
+          message: 'Address suggestions are not configured',
+        },
+      )
+    })
+    assertEquals(seen, [])
+    assertEquals(service.calls, [])
+    assertEquals(lines.map((l) => l.code), ['places_base_url_ignored'])
   })
 })
 
@@ -446,6 +482,51 @@ Deno.test('places: rate limited → 429 with Retry-After, Google not called; lim
       )
     })
     assertEquals(down.google.calls, [])
+  })
+})
+
+Deno.test('places: the org ceiling (places.org) refused → 429 with its Retry-After; down → 503; Google not called', async () => {
+  await run(async () => {
+    const route = (org: { allowed: boolean } | 'down'): RpcRoute => (args) => {
+      if (args.p_bucket === 'places.user') {
+        return { data: [{ allowed: true, hits: 1, retry_after_seconds: 0 }] }
+      }
+      if (org === 'down') return { error: { message: 'boom' } }
+      return {
+        data: [{ allowed: org.allowed, hits: 3_001, retry_after_seconds: 900 }],
+      }
+    }
+    const full = harness({ limit: route({ allowed: false }) })
+    const res = await full.handler(post(typed('rue saint-denis')))
+    assertEquals(res.status, 429)
+    assertEquals((await res.json()).error.code, 'rate_limited')
+    assertEquals(res.headers.get('Retry-After'), '900')
+    assertEquals(full.google.calls, [])
+
+    const down = harness({ limit: route('down') })
+    await captureConsole('error', async () => {
+      assertEquals(
+        await errorOf(await down.handler(post(typed('rue saint-denis')))),
+        {
+          status: 503,
+          code: 'not_configured',
+          message: 'Rate limiting is unavailable',
+        },
+      )
+    })
+    assertEquals(down.google.calls, [])
+
+    // The caller's own limit refused: the org's bucket is not touched.
+    const user = harness({
+      limit: { data: [{ allowed: false, hits: 601, retry_after_seconds: 60 }] },
+    })
+    assertEquals(
+      (await user.handler(post(typed('rue saint-denis')))).status,
+      429,
+    )
+    assertEquals(user.service.calls.map((c) => c.args.p_bucket), [
+      'places.user',
+    ])
   })
 })
 
@@ -540,13 +621,77 @@ Deno.test('places: a Google call slower than the timeout → 502, reported place
           () => reject(new DOMException('timed out', 'TimeoutError')),
         )
       })
-    const { handler } = harness({ fetch: hang })
+    // A short timeout for the test; the deployed one is PLACES_TIMEOUT_MS.
+    const { handler } = harness({ fetch: hang, timeoutMs: 50 })
     const started = performance.now()
     const lines = await reports(async () => {
       assertEquals((await handler(post(typed('rue saint-denis')))).status, 502)
     })
-    assert(performance.now() - started >= PLACES_TIMEOUT_MS - 50)
+    const elapsed = performance.now() - started
+    assert(elapsed >= 40 && elapsed < PLACES_TIMEOUT_MS, String(elapsed))
     assertEquals(lines.map((l) => l.code), ['places_timeout'])
+    assertEquals(PLACES_TIMEOUT_MS, 5_000)
+  })
+})
+
+Deno.test('places: an oversized Google answer (declared or read) → 502 places_unusable_answer', async () => {
+  await run(async () => {
+    const big = JSON.stringify({ suggestions: [], pad: 'x'.repeat(300_000) })
+    const cases: Array<[string, typeof fetch]> = [
+      [
+        'declared',
+        () =>
+          Promise.resolve(
+            new Response('{"suggestions":[]}', {
+              headers: { 'Content-Length': '300000' },
+            }),
+          ),
+      ],
+      ['read', () => Promise.resolve(new Response(big))],
+    ]
+    for (const [name, fetchFn] of cases) {
+      resetPlacesReportsForTests()
+      const { handler } = harness({ fetch: fetchFn })
+      const lines = await reports(async () => {
+        assertEquals(
+          (await errorOf(await handler(post(typed('rue saint-denis'))))).code,
+          'provider_error',
+          name,
+        )
+      })
+      assertEquals(lines.map((l) => l.code), ['places_unusable_answer'], name)
+    }
+  })
+})
+
+Deno.test('places: Google calls refuse redirects (redirect: error) → 502 places_unreachable, the key never follows one', async () => {
+  await run(async () => {
+    const modes: RequestRedirect[] = []
+    // As fetch does: with `redirect: 'error'`, a 3xx is a network error.
+    const redirecting: typeof fetch = (input, init) => {
+      const { redirect } = new Request(input, init)
+      modes.push(redirect)
+      return redirect === 'error'
+        ? Promise.reject(new TypeError('redirect was not allowed'))
+        : Promise.resolve(Response.redirect('https://attacker.example/', 302))
+    }
+    const { handler } = harness({ fetch: redirecting })
+    const lines = await reports(async () => {
+      assertEquals(
+        (await errorOf(await handler(post(typed('rue saint-denis'))))).code,
+        'provider_error',
+      )
+      resetPlacesReportsForTests()
+      assertEquals(
+        (await errorOf(await handler(post(picked(FAKE_PLACES.unit.id))))).code,
+        'provider_error',
+      )
+    })
+    assertEquals(modes, ['error', 'error'])
+    assertEquals(lines.map((l) => l.code), [
+      'places_unreachable',
+      'places_unreachable',
+    ])
   })
 })
 

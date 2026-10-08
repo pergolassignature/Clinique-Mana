@@ -104,7 +104,9 @@ describe('IdentitySettingsPage', () => {
     expect(provinceSelect()).toHaveValue('QC')
     expect(within(provinceSelect()).getByRole('option', { selected: true })).toHaveTextContent('Québec')
     expect(field('postalCode')).toHaveValue('H2X 1Y4')
-    expect(field('postalCode')).toHaveAttribute('autocomplete', 'postal-code')
+    // The browser's address autofill is off on every address field, as in « Coordonnées » (P4-222).
+    for (const name of ['addressLine2', 'city', 'postalCode'] as const) expect(field(name)).toHaveAttribute('autocomplete', 'off')
+    expect(provinceSelect()).toHaveAttribute('autocomplete', 'off')
     expect(field('phone')).toHaveValue('514 555-1234')
     expect(field('phone')).toHaveAttribute('type', 'tel')
     expect(field('email')).toHaveValue('info@cliniquemana.com')

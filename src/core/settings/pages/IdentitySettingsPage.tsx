@@ -86,6 +86,8 @@ export function IdentitySettingsPage() {
                     <FormField label={t('settings.identity.fields.addressLine1')} error={errors.address_line1?.message}>
                       {(field) => (
                         // Google suggestions with manual override (P4-220); the other fields stay plain inputs.
+                        // The browser's address autofill is off on every address field (P4-222): it would
+                        // offer the admin's own address and fill line 2 over the person's value.
                         <AddressAutocomplete
                           {...field}
                           {...register('address_line1')}
@@ -96,10 +98,10 @@ export function IdentitySettingsPage() {
                     </FormField>
                   </div>
                   <FormField label={t('settings.identity.fields.addressLine2')} error={errors.address_line2?.message}>
-                    {(field) => <Input {...field} {...register('address_line2')} placeholder={t('address.line2Placeholder')} autoComplete="address-line2" />}
+                    {(field) => <Input {...field} {...register('address_line2')} placeholder={t('address.line2Placeholder')} autoComplete="off" />}
                   </FormField>
                   <FormField label={t('settings.identity.fields.city')} error={errors.city?.message}>
-                    {(field) => <Input {...field} {...register('city')} autoComplete="address-level2" />}
+                    {(field) => <Input {...field} {...register('city')} autoComplete="off" />}
                   </FormField>
                   <FormField label={t('settings.identity.fields.province')} error={errors.province?.message}>
                     {(field) => (
@@ -116,7 +118,7 @@ export function IdentitySettingsPage() {
                             placeholder={t('settings.identity.fields.provincePlaceholder')}
                             clearable
                             clearLabel={t('settings.identity.fields.provinceNone')}
-                            autoComplete="address-level1"
+                            autoComplete="off"
                           >
                             {PROVINCE_OPTIONS.map((option) => (
                               <option key={option.value} value={option.value}>
@@ -134,7 +136,7 @@ export function IdentitySettingsPage() {
                         {...field}
                         // h2x1y4 → H2X 1Y4 as soon as the field is left; the schema checks it on save.
                         {...register('postal_code', regroupOnBlur(form, 'postal_code', (v) => formatPostalCode(v.trim())))}
-                        autoComplete="postal-code"
+                        autoComplete="off"
                         autoCapitalize="characters"
                       />
                     )}

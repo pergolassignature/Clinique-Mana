@@ -109,6 +109,13 @@ describe('IdentityTab', () => {
     const contact = card(t(`${I}.contact.title`))
     const address = within(contact).getByRole('combobox', { name: t(`${I}.contact.addressLine1`) })
     expect(address).toHaveValue('123, rue Saint-Denis')
+    // The browser's address autofill is off on every address field, as in « Identité légale » (P4-222).
+    expect(address).toHaveAttribute('autocomplete', 'off')
+    for (const key of ['addressLine2', 'city', 'postalCode'] as const) {
+      expect(within(contact).getByRole('textbox', { name: t(`${I}.contact.${key}`) })).toHaveAttribute('autocomplete', 'off')
+    }
+    // « Province » is required: its accessible name carries the required mark.
+    expect(within(contact).getByRole('combobox', { name: new RegExp(`^${t(`${I}.contact.province`)}`) })).toHaveAttribute('autocomplete', 'off')
     await userEvent.clear(address)
     await userEvent.type(address, '3450 drummond')
     await screen.findByRole('listbox')

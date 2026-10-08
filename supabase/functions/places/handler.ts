@@ -16,9 +16,12 @@
  *    from the browser), the same for a field's autocompletes and the one
  *    details call that ends them, so Google bills them as one session.
  * 3. `GOOGLE_PLACES_API_KEY` unset → 503 `not_configured`: the field then
- *    works as a plain input (reported once per isolate, except on a dev
- *    machine, where no key is the normal case).
- * 4. One hit on `LIMITS.placesUser` (600 an hour per caller).
+ *    works as a plain input (reported `places_key_missing`, at most once per
+ *    5 minutes per isolate like every code, except on a dev machine, where
+ *    no key is the normal case).
+ * 4. One hit on `LIMITS.placesUser` (600 an hour per caller), then one on
+ *    `LIMITS.placesOrg` (3,000 an hour per org): either refused → 429; the
+ *    limiter down → 503 (fails closed).
  * 5. The Google call (`google.ts`: 5 s timeout, the caller's disconnect
  *    stops it). Answers `{ suggestions: [{ place_id, main_text,
  *    secondary_text }] }` (at most 5) or `{ address: { line1, line2, city,
@@ -112,8 +115,16 @@ function placesOrigin(deps: Deps): { origin: string } | { ignored: true } {
   return { ignored: true }
 }
 
+/** Test seams: a shorter Google timeout. */
+export interface HandlerOptions {
+  timeoutMs?: number
+}
+
 /** The places handler; see the module comment. */
-export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
+export function createHandler(
+  deps: Deps,
+  handlerOptions: HandlerOptions = {},
+): (req: Request) => Promise<Response> {
   return async (req) => {
     const preflight = handleCors(req)
     if (preflight) return preflight
@@ -163,12 +174,19 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       req,
     )
     if (limited) return limited
+    // The clinic's ceiling, whoever types (after the caller's own limit).
+    const orgLimited = limitResponse(
+      await consume(service, LIMITS.placesOrg, [orgId]),
+      req,
+    )
+    if (orgLimited) return orgLimited
 
     const options = {
       fetch: deps.fetch,
       key,
       origin: target.origin,
       signal: req.signal,
+      timeoutMs: handlerOptions.timeoutMs,
     }
     try {
       if (input.action === 'autocomplete') {

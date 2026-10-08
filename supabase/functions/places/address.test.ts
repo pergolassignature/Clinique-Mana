@@ -1,5 +1,6 @@
 import { assertEquals } from '@std/assert'
 import {
+  type AddressComponent,
   canonicalPostalCode,
   provinceCode,
   streetLine,
@@ -63,7 +64,9 @@ Deno.test('address: a unit goes to line 2 as Google gives it, never into line 1'
   assertEquals(address.postal_code, 'H3G 1Y2')
 })
 
-Deno.test('address: a road without a number → the road alone; a postal prefix (J0R) → no postal code', () => {
+// The function does not know the typed text: the app puts the typed civic number back in front
+// (`src/core/address/autofill.ts`, « 12, chemin du Lac-Écho »).
+Deno.test('address: a road without a number → the road alone (the app keeps the typed number); a postal prefix (J0R) → no postal code', () => {
   const address = map('noNumber')
   assertEquals(address.line1, 'chemin du Lac-Écho')
   assertEquals(address.postal_code, null)
@@ -79,6 +82,44 @@ Deno.test('address: outside Québec, the number has no comma and the street keep
     postal_code: 'M5H 2N2',
     country: 'CA',
   })
+})
+
+Deno.test('address: outside Québec, a French-named street keeps Google’s form (no comma, capitalised generic)', () => {
+  const address = toPlaceAddress([
+    { longText: '100', types: ['street_number'] },
+    { longText: 'Rue Principale', types: ['route'] },
+    { longText: 'Caraquet', types: ['locality', 'political'] },
+    {
+      longText: 'Nouveau-Brunswick',
+      shortText: 'NB',
+      types: ['administrative_area_level_1', 'political'],
+    },
+    { longText: 'E1W 1A1', types: ['postal_code'] },
+    { longText: 'Canada', shortText: 'CA', types: ['country', 'political'] },
+  ])
+  assertEquals(address.line1, '100 Rue Principale')
+  assertEquals(address.province, 'NB')
+  assertEquals(
+    streetLine('5', 'Boulevard Saint-Pierre', false),
+    '5 Boulevard Saint-Pierre',
+  )
+})
+
+Deno.test('address: the newer French generics are lowered in Québec too', () => {
+  for (
+    const [route, expected] of [
+      ['Rond-Point Des Érables', 'rond-point Des Érables'],
+      ['Carrefour Du Lac', 'carrefour Du Lac'],
+      ['Parc Industriel', 'parc Industriel'],
+      ['Pointe Saint-Charles', 'pointe Saint-Charles'],
+      ['Cité Des Jeunes', 'cité Des Jeunes'],
+      ['Jardin Des Lilas', 'jardin Des Lilas'],
+      ['Rampe Du Quai', 'rampe Du Quai'],
+      ['Concession 4', 'concession 4'],
+    ]
+  ) {
+    assertEquals(streetLine('10', route, true), `10, ${expected}`)
+  }
 })
 
 Deno.test('address: the generic is lowered only when it is a French generic', () => {
@@ -169,6 +210,48 @@ Deno.test("address: no route → the formatted address's first segment, unless i
     'Complexe Desjardins',
   )
   assertEquals(toPlaceAddress([montreal]).line1, null)
+})
+
+Deno.test('address: a place that is no address (a sublocality, a neighbourhood, a province, a country) → no line 1, so line 1 stays as typed', () => {
+  const c = (types: string[], longText: string, shortText = longText) => ({
+    longText,
+    shortText,
+    types,
+  })
+  const QC = c(['administrative_area_level_1', 'political'], 'Québec', 'QC')
+  const CA = c(['country', 'political'], 'Canada', 'CA')
+  const MTL = c(['locality', 'political'], 'Montréal')
+  const cases: Array<[AddressComponent[], string]> = [
+    [
+      [
+        c(
+          ['sublocality_level_1', 'sublocality', 'political'],
+          'Le Plateau-Mont-Royal',
+        ),
+        MTL,
+        QC,
+        CA,
+      ],
+      'Le Plateau-Mont-Royal, Montréal, QC, Canada',
+    ],
+    [
+      [c(['neighborhood', 'political'], 'Mile End'), MTL, QC, CA],
+      'Mile End, Montréal, QC, Canada',
+    ],
+    [[QC, CA], 'Québec, Canada'],
+    [[CA], 'Canada'],
+    // A province named in the text but absent from the components.
+    [[CA], 'Ontario, Canada'],
+  ]
+  for (const [components, formatted] of cases) {
+    assertEquals(toPlaceAddress(components, formatted).line1, null, formatted)
+  }
+  // A named place is still a line 1.
+  assertEquals(
+    toPlaceAddress([MTL, QC, CA], 'Complexe Desjardins, Montréal, QC, Canada')
+      .line1,
+    'Complexe Desjardins',
+  )
 })
 
 Deno.test('address: whitespace and control characters are cleaned; a malformed country is dropped', () => {

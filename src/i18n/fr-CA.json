@@ -331,6 +331,7 @@
       "manualOn": "Saisie manuelle : plus de suggestions dans ce champ tant qu'il n'est pas vidé.",
       "filled": "Adresse remplie. Vérifiez la ville, la province et le code postal.",
       "partial": "Seule la rue a pu être remplie. Complétez la ville, la province et le code postal.",
+      "unreadable": "L'adresse choisie n'a pas pu être lue. Complétez les champs à la main.",
       "attribution": "Google Maps"
     }
   },

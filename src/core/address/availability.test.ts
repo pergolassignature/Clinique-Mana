@@ -18,6 +18,9 @@ describe('address suggestions availability', () => {
     expect(pauseFor(new Error('zod'))).toBe(60_000)
     // A stale place id says nothing about the service.
     expect(pauseFor(error('not_found', 404))).toBe(0)
+    // Nor does a refused text (the client normalises it first; P4-221).
+    expect(pauseFor(error('invalid_request', 400))).toBe(0)
+    expect(pauseFor(error('invalid_request', 413))).toBe(0)
   })
 
   it('is paused until the pause ends, and a shorter failure never shortens a longer pause', () => {

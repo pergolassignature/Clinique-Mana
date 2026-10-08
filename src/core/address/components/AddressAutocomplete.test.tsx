@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -6,7 +7,10 @@ import { t } from '@/i18n'
 import { FunctionCallError } from '@/core/supabase/functions'
 import type { AddressSuggestion, PlaceAddress } from '../api'
 import { addressAutofill } from '../autofill'
-import { resetSuggestionsPause } from '../availability'
+import { resetSuggestionsPause, suggestionsPaused } from '../availability'
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from '@/shared/ui/alert-dialog'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/shared/ui/dialog'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/shared/ui/sheet'
 import { AddressAutocomplete } from './AddressAutocomplete'
 
 const mocks = vi.hoisted(() => ({
@@ -61,7 +65,46 @@ function Harness({ defaults = {}, readOnly = false, onSubmit = () => {} }: { def
       <label htmlFor="postal">Code postal</label>
       <input id="postal" {...form.register('postal')} />
       <button type="submit">Enregistrer</button>
+      <button type="button" onClick={() => form.reset()}>
+        Annuler
+      </button>
     </form>
+  )
+}
+
+/** The harness in a real Sheet, Dialog or AlertDialog (the shared ones), open until dismissed. */
+function InModal({ kind }: { kind: 'Sheet' | 'Dialog' | 'AlertDialog' }) {
+  const [open, setOpen] = useState(true)
+  if (kind === 'Sheet') {
+    return (
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent>
+          <SheetTitle>Coordonnées</SheetTitle>
+          <SheetDescription>Adresse du domicile</SheetDescription>
+          <Harness />
+        </SheetContent>
+      </Sheet>
+    )
+  }
+  if (kind === 'Dialog') {
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogTitle>Coordonnées</DialogTitle>
+          <DialogDescription>Adresse du domicile</DialogDescription>
+          <Harness />
+        </DialogContent>
+      </Dialog>
+    )
+  }
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogContent>
+        <AlertDialogTitle>Coordonnées</AlertDialogTitle>
+        <AlertDialogDescription>Adresse du domicile</AlertDialogDescription>
+        <Harness />
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
@@ -198,22 +241,34 @@ describe('AddressAutocomplete', () => {
     expect(mocks.fetchPlaceAddress.mock.calls[0]?.[2]).toHaveProperty('aborted', true)
   })
 
-  it('lets the person ignore the list: Échap closes it without leaving a dialog, Entrée then submits, the text stays as typed', async () => {
+  it.each(['Sheet', 'Dialog', 'AlertDialog'] as const)(
+    'in a real %s: the first Échap closes the list and the modal stays open; the second closes the modal',
+    async (kind) => {
+      render(<InModal kind={kind} />)
+      const modal = () => screen.queryByRole(kind === 'AlertDialog' ? 'alertdialog' : 'dialog', { name: 'Coordonnées' })
+      await userEvent.type(combobox(), '1234 saint-denis')
+      await screen.findByRole('listbox')
+
+      await userEvent.keyboard('{Escape}')
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+      expect(combobox()).toHaveAttribute('aria-expanded', 'false')
+      expect(modal()).toBeInTheDocument()
+      expect(combobox()).toHaveFocus()
+      expect(combobox()).toHaveValue('1234 saint-denis')
+
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => expect(modal()).not.toBeInTheDocument())
+      expect(mocks.fetchPlaceAddress).not.toHaveBeenCalled()
+    },
+  )
+
+  it('lets the person ignore the list: Échap closes it, Entrée then submits, the text stays as typed', async () => {
     const onSubmit = vi.fn()
-    const outer = vi.fn()
-    render(
-      <div onKeyDown={(e) => e.key === 'Escape' && outer()}>
-        <Harness onSubmit={onSubmit} />
-      </div>,
-    )
+    render(<Harness onSubmit={onSubmit} />)
     await userEvent.type(combobox(), '99 rue inconnue')
     await screen.findByRole('listbox')
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
-    expect(outer).not.toHaveBeenCalled()
-    // Closed: Échap reaches the surrounding dialog again.
-    await userEvent.keyboard('{Escape}')
-    expect(outer).toHaveBeenCalledOnce()
 
     await userEvent.keyboard('{Enter}')
     await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
@@ -250,6 +305,92 @@ describe('AddressAutocomplete', () => {
     await waitFor(() => expect(mocks.fetchAddressSuggestions).toHaveBeenCalledTimes(2))
   })
 
+  it('« Saisir manuellement » ends when the form puts another value in the field (« Annuler »)', async () => {
+    render(<Harness defaults={{ line1: '123, rue Saint-Denis' }} />)
+    await userEvent.clear(combobox())
+    await userEvent.type(combobox(), '1234 saint-denis')
+    await userEvent.click(await screen.findByRole('option', { name: t('address.suggestions.manual') }))
+    await userEvent.type(combobox(), ' app 4')
+    await settle()
+    expect(mocks.fetchAddressSuggestions).toHaveBeenCalledOnce()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Annuler' }))
+    expect(combobox()).toHaveValue('123, rue Saint-Denis')
+    await userEvent.click(combobox())
+    await userEvent.type(combobox(), ' est')
+    await waitFor(() => expect(mocks.fetchAddressSuggestions).toHaveBeenCalledTimes(2))
+    expect(mocks.fetchAddressSuggestions.mock.calls[1]?.[0]).toBe('123, rue Saint-Denis est')
+  })
+
+  it('« Annuler » while the choice resolves: nothing is filled', async () => {
+    let answer: (a: PlaceAddress) => void = () => {}
+    mocks.fetchPlaceAddress.mockReturnValue(new Promise<PlaceAddress>((resolve) => (answer = resolve)))
+    render(<Harness defaults={{ line1: '123, rue Saint-Denis', city: 'Laval' }} />)
+    await userEvent.clear(combobox())
+    await userEvent.type(combobox(), '1234 saint-denis')
+    await userEvent.click(await screen.findByRole('option', { name: /1234 Rue Saint-Denis/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Annuler' }))
+    answer(PLATEAU)
+    await settle()
+    expect(combobox()).toHaveValue('123, rue Saint-Denis')
+    expect(box('Ville')).toHaveValue('Laval')
+    expect(box('Code postal')).toHaveValue('')
+    expect(liveRegion().textContent).not.toBe(t('address.suggestions.filled'))
+    expect(combobox()).not.toHaveAttribute('aria-busy')
+  })
+
+  it('leaving the form while the choice resolves (unmount) stops it', async () => {
+    let answer: (a: PlaceAddress) => void = () => {}
+    mocks.fetchPlaceAddress.mockReturnValue(new Promise<PlaceAddress>((resolve) => (answer = resolve)))
+    const errors = vi.spyOn(console, 'error')
+    const { unmount } = render(<Harness />)
+    await userEvent.type(combobox(), '1234 saint-denis')
+    await userEvent.click(await screen.findByRole('option', { name: /1234 Rue Saint-Denis/ }))
+    unmount()
+    answer(PLATEAU)
+    await settle()
+    expect(mocks.fetchPlaceAddress.mock.calls[0]?.[2]).toHaveProperty('aborted', true)
+    expect(errors).not.toHaveBeenCalled()
+    errors.mockRestore()
+  })
+
+  it('a second choice clears what the first left and nobody touched (postal code, unit)', async () => {
+    mocks.fetchPlaceAddress.mockResolvedValueOnce({ ...PLATEAU, line1: '3450, rue Drummond', line2: '402', postalCode: 'H3G 1Y2' })
+    mocks.fetchPlaceAddress.mockResolvedValueOnce({ ...PLATEAU, postalCode: null })
+    render(<Harness />)
+    await userEvent.type(combobox(), '3450 drummond')
+    await userEvent.click(await screen.findByRole('option', { name: /1234 Rue Saint-Denis/ }))
+    await waitFor(() => expect(box('Code postal')).toHaveValue('H3G 1Y2'))
+    expect(box('Appartement ou bureau')).toHaveValue('402')
+
+    await userEvent.clear(combobox())
+    await userEvent.type(combobox(), '1234 saint-denis')
+    await userEvent.click(await screen.findByRole('option', { name: /1234 Rue Saint-Denis/ }))
+    await waitFor(() => expect(combobox()).toHaveValue('1234, rue Saint-Denis'))
+    expect(box('Code postal')).toHaveValue('')
+    expect(box('Appartement ou bureau')).toHaveValue('')
+    expect(box('Ville')).toHaveValue('Montréal')
+  })
+
+  it('sends the typed text normalised: control characters (a pasted tab) become spaces', async () => {
+    render(<Harness />)
+    await userEvent.click(combobox())
+    await userEvent.paste('1234\tsaint-denis\u0085 est')
+    await waitFor(() => expect(mocks.fetchAddressSuggestions).toHaveBeenCalledOnce())
+    expect(mocks.fetchAddressSuggestions.mock.calls[0]?.[0]).toBe('1234 saint-denis est')
+  })
+
+  it('a refused request (invalid_request) does not pause the suggestions', async () => {
+    mocks.fetchAddressSuggestions.mockRejectedValueOnce(new FunctionCallError('invalid_request', 400, 'Invalid body'))
+    render(<Harness />)
+    await userEvent.type(combobox(), '1234 saint-denis')
+    await waitFor(() => expect(mocks.fetchAddressSuggestions).toHaveBeenCalledOnce())
+    await settle()
+    expect(suggestionsPaused()).toBe(false)
+    await userEvent.type(combobox(), ' est')
+    await waitFor(() => expect(mocks.fetchAddressSuggestions).toHaveBeenCalledTimes(2))
+  })
+
   it('when the service is not configured: a plain field, quietly (no toast, no report), and no request per keystroke', async () => {
     mocks.fetchAddressSuggestions.mockRejectedValue(new FunctionCallError('not_configured', 503, 'Address suggestions are not configured'))
     render(<Harness />)
@@ -265,15 +406,25 @@ describe('AddressAutocomplete', () => {
     expect(mocks.captureException).not.toHaveBeenCalled()
   })
 
-  it('when the chosen place cannot be read: only the street is filled, the rest is left to the person', async () => {
+  it('when the chosen place cannot be read: only the street is filled, in the Québec form, the rest is left to the person', async () => {
     mocks.fetchPlaceAddress.mockRejectedValue(new FunctionCallError('provider_error', 502, 'Address suggestions are unavailable'))
     render(<Harness defaults={{ city: 'Laval' }} />)
     await userEvent.type(combobox(), '1234 saint-denis')
     await userEvent.click(await screen.findByRole('option', { name: /1234 Rue Saint-Denis/ }))
-    await waitFor(() => expect(combobox()).toHaveValue('1234 Rue Saint-Denis'))
+    await waitFor(() => expect(combobox()).toHaveValue('1234, rue Saint-Denis'))
     expect(box('Ville')).toHaveValue('Laval')
     expect(liveRegion().textContent).toBe(t('address.suggestions.partial'))
     expect(mocks.toast.error).not.toHaveBeenCalled()
+  })
+
+  it('when a chosen place that is no street cannot be read: line 1 stays as typed', async () => {
+    mocks.fetchAddressSuggestions.mockResolvedValue([{ placeId: 'ChIJfakeArea00000009', mainText: 'Le Plateau-Mont-Royal', secondaryText: 'Montréal, QC, Canada' }])
+    mocks.fetchPlaceAddress.mockRejectedValue(new FunctionCallError('provider_error', 502, 'Address suggestions are unavailable'))
+    render(<Harness />)
+    await userEvent.type(combobox(), 'plateau mont')
+    await userEvent.click(await screen.findByRole('option', { name: /Le Plateau-Mont-Royal/ }))
+    await waitFor(() => expect(liveRegion().textContent).toBe(t('address.suggestions.unreadable')))
+    expect(combobox()).toHaveValue('plateau mont')
   })
 
   it('ignores a province that is not one of the 13 codes', async () => {

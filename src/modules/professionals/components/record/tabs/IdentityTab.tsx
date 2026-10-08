@@ -117,6 +117,7 @@ export function IdentityTab() {
                 <FormField label={t(`${I}.contact.addressLine1`)} error={errors.addressLine1?.message}>
                   {(field) => (
                     // Google suggestions with manual override (P4-220, replaces P4-12's manual-only entry).
+                    // The browser's address autofill is off on every address field (P4-222).
                     <AddressAutocomplete
                       {...field}
                       {...register('addressLine1')}
@@ -138,7 +139,7 @@ export function IdentityTab() {
                     control={control}
                     name="province"
                     render={({ field: province }) => (
-                      <Select {...field} {...province}>
+                      <Select {...field} {...province} autoComplete="off">
                         {PROVINCE_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
                             {t(option.labelKey)}

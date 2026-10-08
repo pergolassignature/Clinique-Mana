@@ -9,13 +9,25 @@ export const MIN_QUERY_LENGTH = 3
 /** More characters than this ask nothing (not an address). */
 export const MAX_QUERY_LENGTH = 200
 
+// eslint-disable-next-line no-control-regex -- removing control characters is the point
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]+/g
+
+/**
+ * What is sent for a typed text: NFC, control characters (a pasted tab or line break) as spaces,
+ * spaces collapsed, trimmed. The function refuses control characters (400), so they never leave.
+ */
+export function suggestionQuery(text: string): string {
+  return text.normalize('NFC').replace(CONTROL_CHARS, ' ').replace(/\s+/g, ' ').trim()
+}
+
 /**
  * Suggestions for one address field (P4-220). Not React Query on purpose: the typed text is personal
  * data, so it is kept in no cache and in no query key (devtools, error reports), only in this
  * field's state.
  *
- * - `search(text)`: asks after `SUGGEST_DEBOUNCE_MS` of no typing, for 3–200 characters, unless the
- *   suggestions are paused (`availability.ts`); a newer search cancels the older request.
+ * - `search(text)`: asks after `SUGGEST_DEBOUNCE_MS` of no typing, for 3–200 characters once
+ *   normalised (`suggestionQuery`), unless the suggestions are paused (`availability.ts`); a newer
+ *   search cancels the older request.
  * - `resolve(suggestion)`: the place's address, or null when it could not be read; it ends the
  *   session (the next search starts a new token).
  * - `cancel()`: stops a pending search and clears the list.
@@ -50,7 +62,7 @@ export function useAddressSuggestions() {
   const search = useCallback(
     (text: string) => {
       stop()
-      const query = text.trim()
+      const query = suggestionQuery(text)
       if (query.length < MIN_QUERY_LENGTH || query.length > MAX_QUERY_LENGTH || suggestionsPaused()) {
         setLoading(false)
         setSuggestions([])

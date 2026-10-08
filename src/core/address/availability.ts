@@ -8,6 +8,8 @@ import { FunctionCallError } from '@/core/supabase/functions'
  * - not configured (no Google key, Google refusing it, the limiter down), no session, no access:
  *   10 minutes;
  * - too many requests: the `Retry-After` the function sent (1 minute when absent);
+ * - a refused request (`invalid_request`: that text, not the service) or an unknown place
+ *   (`not_found`): no pause;
  * - anything else (network, Google slow or failing, an unexpected answer): 1 minute.
  * After the pause, the next typed letters try again.
  */
@@ -21,7 +23,7 @@ let pausedUntil = 0
 /** How long to pause after `error`, in milliseconds (0: do not pause, e.g. an unknown place id). */
 export function pauseFor(error: unknown): number {
   if (!(error instanceof FunctionCallError)) return SHORT_PAUSE_MS
-  if (error.code === 'not_found') return 0
+  if (error.code === 'not_found' || error.code === 'invalid_request') return 0
   if (LONG_CODES.has(error.code)) return LONG_PAUSE_MS
   if (error.code === 'rate_limited') return (error.retryAfter ?? 60) * 1000
   return SHORT_PAUSE_MS

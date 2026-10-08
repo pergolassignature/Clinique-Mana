@@ -270,6 +270,7 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     signingTestDocumentUser: ['signing.test_document_user', 10, 3_600],
     emailPreviewUser: ['emails.preview_user', 300, 3_600],
     placesUser: ['places.user', 600, 3_600],
+    placesOrg: ['places.org', 3_000, 3_600],
     resendWebhookIp: ['webhooks.resend_ip', 600, 60],
     documensoWebhookIp: ['webhooks.documenso_ip', 600, 60],
   })
