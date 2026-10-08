@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { t } from '@/i18n'
@@ -7,11 +7,13 @@ import { LEAVE_LINK, renderOrganizationPage, testOrganization } from '@/test/org
 import { IdentitySettingsPage } from './IdentitySettingsPage'
 
 const mocks = vi.hoisted(() => ({
-  api: { fetchOrganization: vi.fn(), updateOrganization: vi.fn() },
+  api: { fetchOrganization: vi.fn(), updateOrganization: vi.fn(), setOrgAsset: vi.fn() },
+  storage: { uploadFile: vi.fn(), signedFileUrl: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn() },
   captureException: vi.fn(),
 }))
 vi.mock('@/core/settings/organization/api', () => mocks.api)
+vi.mock('@/core/storage/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/storage/api')>()), ...mocks.storage }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 
@@ -71,11 +73,12 @@ describe('IdentitySettingsPage', () => {
     expect(screen.getByRole('status')).toHaveTextContent(t('common.loading'))
 
     expect(await screen.findByRole('form', { name: t('settings.identity.clinic.title') })).toBeInTheDocument()
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByText(t('common.loading'))).not.toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
       t('settings.identity.clinic.title'),
       t('settings.identity.address.title'),
       t('settings.identity.contact.title'),
+      t('settings.identity.logo.title'),
     ])
     expect(field('name')).toHaveValue('Clinique MANA')
     expect(field('legalName')).toHaveValue('9999-9999 Québec inc.')
@@ -316,6 +319,117 @@ describe('IdentitySettingsPage', () => {
       await userEvent.click(screen.getByRole('link', { name: LEAVE_LINK }))
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
       expect(mocks.api.updateOrganization).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('« Logo »', () => {
+    const LOGO_ID = '22222222-2222-4222-8222-222222222222'
+    const NEW_ID = '33333333-3333-4333-8333-333333333333'
+    const withLogo = { ...testOrganization, logo_file_id: LOGO_ID }
+    const logoCard = () => screen.getByRole('region', { name: t('settings.identity.logo.title') })
+    const preview = () => within(logoCard()).getByRole('img', { name: t('settings.identity.logo.alt') })
+    const fileInput = () => logoCard().querySelector('input[type="file"]') as HTMLInputElement
+    const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0])
+
+    beforeEach(() => {
+      mocks.storage.signedFileUrl.mockImplementation(async (fileId: string) => ({ url: `https://x.test/${fileId}.png?token=t`, expiresAt: '2026-10-08T12:05:00Z' }))
+    })
+
+    it('comes last, after the three forms, with its description and the formats', async () => {
+      await renderPage({ organization: withLogo })
+      expect(screen.getAllByRole('heading', { level: 3 }).at(-1)).toHaveTextContent(t('settings.identity.logo.title'))
+      expect(within(logoCard()).getByText(t('settings.identity.logo.description'))).toBeInTheDocument()
+      expect(within(logoCard()).getByRole('button', { name: t('settings.identity.logo.replace') })).toHaveAccessibleDescription(t('settings.identity.logo.hint'))
+    })
+
+    it('shows the logo through a signed URL, with « Remplacer » and « Retirer »', async () => {
+      await renderPage({ organization: withLogo })
+      await waitFor(() => expect(preview()).toHaveAttribute('src', `https://x.test/${LOGO_ID}.png?token=t`))
+      expect(mocks.storage.signedFileUrl).toHaveBeenCalledWith(LOGO_ID, expect.anything())
+      expect(within(logoCard()).getAllByRole('button').map((b) => b.textContent)).toEqual([t('settings.identity.logo.replace'), t('settings.identity.logo.remove')])
+    })
+
+    it('without a logo: says so, asks for no URL, offers « Choisir un fichier » and no « Retirer »', async () => {
+      await renderPage()
+      expect(within(logoCard()).getByText(t('settings.identity.logo.empty'))).toBeInTheDocument()
+      expect(within(logoCard()).getAllByRole('button').map((b) => b.textContent)).toEqual([t('storage.dropzone.choose')])
+      expect(mocks.storage.signedFileUrl).not.toHaveBeenCalled()
+    })
+
+    it('« Remplacer »: uploads the image as org_logo, sets it as the logo, confirms, and shows the new one', async () => {
+      mocks.storage.uploadFile.mockResolvedValue({ fileId: NEW_ID })
+      mocks.api.setOrgAsset.mockResolvedValue(undefined)
+      await renderPage({ organization: withLogo })
+      const file = new File([PNG], 'nouveau.jpg', { type: 'image/jpeg' })
+      await userEvent.upload(fileInput(), file)
+
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.identity.logo.saved')))
+      expect(mocks.storage.uploadFile).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ purpose: 'org_logo', subjectType: 'organization', subjectId: 'o1', file, mimeType: 'image/png' }),
+      )
+      expect(mocks.api.setOrgAsset).toHaveBeenCalledExactlyOnceWith('logo', NEW_ID)
+      expect(mocks.storage.uploadFile.mock.invocationCallOrder[0]).toBeLessThan(mocks.api.setOrgAsset.mock.invocationCallOrder[0] ?? 0)
+      await waitFor(() => expect(preview()).toHaveAttribute('src', `https://x.test/${NEW_ID}.png?token=t`))
+      // The organization is not fetched again: the cache takes the new id.
+      expect(mocks.api.fetchOrganization).toHaveBeenCalledTimes(1)
+    })
+
+    it("shows the functions' refusal in the card, and keeps the logo", async () => {
+      const { FunctionCallError } = await import('@/core/supabase/functions')
+      mocks.storage.uploadFile.mockRejectedValue(new FunctionCallError('invalid_request', 400, "Ce fichier n'est pas du type annoncé."))
+      await renderPage({ organization: withLogo })
+      await userEvent.upload(fileInput(), new File([PNG], 'a.png', { type: 'image/png' }))
+      expect(await within(logoCard()).findByRole('alert')).toHaveTextContent("Ce fichier n'est pas du type annoncé.")
+      expect(mocks.api.setOrgAsset).not.toHaveBeenCalled()
+      expect(mocks.toast.success).not.toHaveBeenCalled()
+      expect(preview()).toBeInTheDocument()
+    })
+
+    it('« Retirer » asks first; confirmed, removes the logo and returns focus to the upload button', async () => {
+      mocks.api.setOrgAsset.mockResolvedValue(undefined)
+      await renderPage({ organization: withLogo })
+      await userEvent.click(within(logoCard()).getByRole('button', { name: t('settings.identity.logo.remove') }))
+      const dialog = await screen.findByRole('alertdialog', { name: t('settings.identity.logo.removeConfirm.title') })
+      expect(mocks.api.setOrgAsset).not.toHaveBeenCalled()
+      await userEvent.click(within(dialog).getByRole('button', { name: t('settings.identity.logo.removeConfirm.confirm') }))
+
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.identity.logo.removed')))
+      expect(mocks.api.setOrgAsset).toHaveBeenCalledExactlyOnceWith('logo', null)
+      expect(await within(logoCard()).findByText(t('settings.identity.logo.empty'))).toBeInTheDocument()
+      expect(within(logoCard()).queryByRole('button', { name: t('settings.identity.logo.remove') })).not.toBeInTheDocument()
+      await waitFor(() => expect(within(logoCard()).getByRole('button', { name: t('storage.dropzone.choose') })).toHaveFocus())
+    })
+
+    it('« Retirer » cancelled changes nothing', async () => {
+      await renderPage({ organization: withLogo })
+      await userEvent.click(within(logoCard()).getByRole('button', { name: t('settings.identity.logo.remove') }))
+      const dialog = await screen.findByRole('alertdialog')
+      await userEvent.click(within(dialog).getByRole('button', { name: t('common.cancel') }))
+      expect(mocks.api.setOrgAsset).not.toHaveBeenCalled()
+      expect(preview()).toBeInTheDocument()
+    })
+
+    it('a refused removal shows the error', async () => {
+      mocks.api.setOrgAsset.mockRejectedValue({ code: '42501', message: 'Permission refusée : settings.manage' })
+      await renderPage({ organization: withLogo })
+      await userEvent.click(within(logoCard()).getByRole('button', { name: t('settings.identity.logo.remove') }))
+      await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('settings.identity.logo.removeConfirm.confirm') }))
+      await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith(t('common.errors.forbidden')))
+      expect(preview()).toBeInTheDocument()
+    })
+
+    it('read-only: the preview, and no button nor file input', async () => {
+      await renderPage({ organization: withLogo, readOnly: true })
+      await waitFor(() => expect(preview()).toHaveAttribute('src', `https://x.test/${LOGO_ID}.png?token=t`))
+      expect(within(logoCard()).queryByRole('button')).not.toBeInTheDocument()
+      expect(fileInput()).toBeNull()
+    })
+
+    it('a preview that cannot be signed says so', async () => {
+      const { FunctionCallError } = await import('@/core/supabase/functions')
+      mocks.storage.signedFileUrl.mockRejectedValue(new FunctionCallError('not_found', 404, 'File not found'))
+      await renderPage({ organization: withLogo })
+      expect(await within(logoCard()).findByText(t('storage.preview.unavailable'))).toBeInTheDocument()
     })
   })
 })

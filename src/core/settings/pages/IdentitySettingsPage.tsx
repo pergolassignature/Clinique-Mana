@@ -15,6 +15,7 @@ import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { OrganizationCard } from '../components/OrganizationCard'
+import { OrgAssetCard } from '../components/OrgAssetCard'
 import { OrganizationSettingsPage } from '../components/OrganizationSettingsPage'
 
 /** Full width in the card's two-column grid (long values); the others share a row from `md` up. */
@@ -28,8 +29,9 @@ function regroupPhone(value: string): string {
 }
 
 /**
- * Paramètres → Identité légale: the clinic's name and legal identity, its head-office address and
- * its contact details, one card each. The reference page for the organization settings pages.
+ * Paramètres → Identité légale: the clinic's name and legal identity, its head-office address, its
+ * contact details and its logo, one card each. The reference page for the organization settings
+ * pages.
  */
 export function IdentitySettingsPage() {
   return (
@@ -164,6 +166,8 @@ export function IdentitySettingsPage() {
               )
             }}
           </OrganizationCard>
+
+          <OrgAssetCard organization={organization} kind="logo" />
         </>
       )}
     </OrganizationSettingsPage>
