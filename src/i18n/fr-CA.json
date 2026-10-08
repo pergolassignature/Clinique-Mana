@@ -293,6 +293,24 @@
     },
     "errorCode": "Code : {code}"
   },
+  "signing": {
+    "status": {
+      "draft": "En cours d'envoi",
+      "sent": "Envoyé",
+      "viewed": "Consulté",
+      "signed": "Signé",
+      "rejected": "Refusé",
+      "cancelled": "Annulé",
+      "expired": "Expiré"
+    },
+    "failure": {
+      "abandoned": "Abandonné",
+      "failed": "Échec de l'envoi",
+      "providerUnavailable": "Le service de signature n'a pas répondu.",
+      "providerRefused": "Le service de signature a refusé la clé d'API."
+    },
+    "errorCode": "Code : {code}"
+  },
   "settings": {
     "title": "Paramètres",
     "navLabel": "Sections des paramètres",
@@ -309,7 +327,8 @@
       "modules": "Modules",
       "audit": "Journal d'audit",
       "jobs": "Tâches planifiées",
-      "email": "Courriels"
+      "email": "Courriels",
+      "signing": "Signature électronique"
     },
     "navReadOnlyHint": "(lecture seule)",
     "menuButtonPrefix": "Section des paramètres :",
@@ -414,6 +433,11 @@
       "saved": "Valeur enregistrée.",
       "saveError": "Impossible d'enregistrer cette valeur."
     },
+    "webhook": {
+      "copy": "Copier",
+      "copied": "Adresse copiée.",
+      "copyError": "Impossible de copier l'adresse. Sélectionnez-la pour la copier."
+    },
     "email": {
       "description": "Les courriels que l'application envoie au nom de la clinique : l'expéditeur, les textes et l'historique d'envoi.",
       "tabs": {
@@ -442,9 +466,6 @@
         "webhookSecretHelp": "Le secret de signature (whsec_…) du webhook créé chez Resend.",
         "webhookUrl": "Adresse du webhook",
         "webhookUrlHelp": "À indiquer chez Resend pour recevoir les confirmations de livraison.",
-        "copy": "Copier",
-        "webhookCopied": "Adresse copiée.",
-        "webhookCopyError": "Impossible de copier l'adresse. Sélectionnez-la pour la copier.",
         "lastEvent": "Dernier événement reçu le {date}",
         "noEvent": "Aucun événement reçu",
         "lastEventError": "Impossible de vérifier le dernier événement reçu.",
@@ -567,6 +588,91 @@
         "fromAddressTooLong": "Adresse trop longue.",
         "mailbox": "Une seule adresse, sans nom (ex. : info@cliniquemana.ca).",
         "domain": "Domaine invalide (ex. : gestion.cliniquemana.com)."
+      }
+    },
+    "signing": {
+      "description": "Les documents à signer sont envoyés par Documenso, l'instance de signature de la clinique, qui écrit aux signataires.",
+      "tabs": {
+        "settings": "Réglages",
+        "templates": "Modèles de documents"
+      },
+      "loadError": "Impossible de charger les réglages de signature.",
+      "secretsLoadError": "Impossible de charger l'état des clés.",
+      "connection": {
+        "title": "Connexion",
+        "description": "L'adresse de l'instance Documenso et sa clé d'API. Une clé enregistrée n'est jamais affichée.",
+        "readOnlyDescription": "L'adresse de l'instance Documenso et sa clé d'API. Seule une personne qui gère les clés d'intégration peut les modifier.",
+        "baseUrl": "Adresse de l'instance",
+        "baseUrlHelp": "Par exemple https://signature.cliniquemana.com.",
+        "saved": "Adresse de l'instance enregistrée.",
+        "apiKey": "Clé d'API",
+        "apiKeyHelp": "Une clé d'API créée dans Documenso pour l'équipe de la clinique.",
+        "test": "Tester la connexion",
+        "testing": "Test en cours…",
+        "testHelp": "Le test utilise l'adresse et la clé enregistrées.",
+        "success": "Connexion réussie",
+        "failed": "La connexion a échoué (code {status}).",
+        "keyRefused": "Vérifiez la clé d'API."
+      },
+      "webhook": {
+        "title": "Webhook",
+        "description": "Documenso avertit l'application de chaque signature par ce webhook.",
+        "url": "Adresse du webhook",
+        "urlHelp": "À indiquer dans Documenso pour recevoir le suivi des signatures.",
+        "secret": "Secret",
+        "secretHelp": "Le secret saisi dans Documenso pour ce webhook.",
+        "lastEvent": "Dernier événement reçu le {date}",
+        "noEvent": "Aucun événement reçu",
+        "lastEventError": "Impossible de vérifier le dernier événement reçu."
+      },
+      "send": {
+        "title": "Envoi",
+        "description": "Le délai laissé aux signataires, et un document test pour vérifier le circuit complet.",
+        "expiry": "Délai d'expiration (jours)",
+        "expiryHelp": "Une demande qui n'est pas signée dans ce délai expire.",
+        "expiryRange": "Entre 1 et 60 jours.",
+        "saved": "Délai d'expiration enregistré.",
+        "testDocument": "Envoyer un document test",
+        "testSending": "Envoi en cours…",
+        "testHelp": "Un document d'une page vous est envoyé, à {email}, pour être signé.",
+        "testSent": "Document test envoyé à {email}. Signez-le pour vérifier le circuit complet.",
+        "lastTest": "Dernier document test, envoyé le {date} :",
+        "noTest": "Aucun document test envoyé.",
+        "lastTestError": "Impossible de charger le dernier document test.",
+        "refresh": "Actualiser l'état",
+        "refreshing": "Actualisation…",
+        "synced": {
+          "updated": "État mis à jour.",
+          "unchanged": "Aucun changement chez Documenso.",
+          "sending": "L'envoi est encore en cours. Réessayez dans un instant.",
+          "orphanCompleted": "Documenso indique un document signé qui n'a pas pu être rattaché à cette demande."
+        }
+      },
+      "templates": {
+        "description": "Les documents que les modules envoient à signer. La version publiée d'un modèle est celle qui est envoyée.",
+        "empty": "Aucun modèle de document pour le moment.",
+        "emptyHint": "Les modules qui font signer des documents ajoutent leurs modèles ici.",
+        "loadError": "Impossible de charger les modèles de documents.",
+        "scrollLabel": "Liste des modèles de documents",
+        "coreModule": "Plateforme",
+        "columns": {
+          "template": "Modèle",
+          "module": "Module",
+          "version": "Version publiée"
+        },
+        "published": "Version {version}, publiée le {date}",
+        "notPublished": "Aucune version publiée",
+        "draft": "Brouillon en cours",
+        "inactive": "Désactivé"
+      },
+      "errors": {
+        "not_configured": "La signature électronique n'est pas configurée : enregistrez l'adresse de l'instance et la clé d'API.",
+        "provider_error": "Le service de signature n'a pas répondu. Réessayez.",
+        "conflict": "Un envoi est déjà en cours.",
+        "not_found": "Ce document test n'existe plus. Rechargez la page.",
+        "rate_limited": "Trop d'essais en peu de temps.",
+        "unauthenticated": "Votre session a expiré. Reconnectez-vous, puis réessayez.",
+        "network": "Le service est injoignable. Vérifiez votre connexion et réessayez."
       }
     },
     "organization": {

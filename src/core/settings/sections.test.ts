@@ -34,6 +34,7 @@ describe('coreSettingsSections', () => {
       ['audit', 'journal', 'plateforme'],
       ['jobs', 'taches-planifiees', 'plateforme'],
       ['email', 'courriels', 'plateforme'],
+      ['signing', 'signature-electronique', 'plateforme'],
     ])
   })
 
@@ -50,6 +51,7 @@ describe('coreSettingsSections', () => {
       "Journal d'audit",
       'Tâches planifiées',
       'Courriels',
+      'Signature électronique',
     ])
   })
 
@@ -68,6 +70,8 @@ describe('coreSettingsSections', () => {
       jobs: ['settings.view', 'settings.manage'],
       // Any of them: the sender and templates need settings.email_manage, the keys settings.integrations_manage.
       email: ['settings.view', ['settings.email_manage', 'settings.integrations_manage']],
+      // Every part (address, keys, expiry, test tools) is an integration setting.
+      signing: ['settings.view', 'settings.integrations_manage'],
     })
   })
 

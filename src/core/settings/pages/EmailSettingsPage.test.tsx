@@ -138,9 +138,9 @@ describe('EmailSettingsPage', () => {
       renderPage(ADMIN)
       const url = `http://127.0.0.1:55321/functions/v1/resend-webhook?org=${testAccess.org_id}`
       expect(within(keysCard()).getByLabelText(t('settings.email.keys.webhookUrl'))).toHaveValue(url)
-      await user.click(within(keysCard()).getByRole('button', { name: t('settings.email.keys.copy') }))
+      await user.click(within(keysCard()).getByRole('button', { name: t('settings.webhook.copy') }))
       expect(writeText).toHaveBeenCalledWith(url)
-      expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.email.keys.webhookCopied'))
+      expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.webhook.copied'))
       expect(await within(keysCard()).findByText(t('settings.email.keys.lastEvent', { date: '08 oct. 2026 à 08:00' }))).toBeInTheDocument()
     })
 
