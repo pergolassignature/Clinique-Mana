@@ -653,6 +653,8 @@ Expected: `ok | N passed | 0 failed`.
 
 ## Task 3.6: Email schema
 
+**From lane F (Task 3.7 review):** the placeholder rule is `\{\{([^{}\n]*)\}\}` with the captured path trimmed in code (linear; no newline inside a placeholder). `save_email_template`'s placeholder check in SQL must use exactly this rule so validation and rendering agree; probe it with `{{` + 10 000 spaces (must return fast). `get_email_context` must return `why_line`. Lane F's compose step maps `unknown_variable` → `missing_variable` and reports an invalid clinic timezone as a configuration error.
+
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_email.sql`
 - Create: `supabase/tests/database/018_core_email.test.sql`
@@ -1675,6 +1677,8 @@ Content, 15–30 lines:
 
 ## Task 3.24: Storage (database)
 
+**From lane F (Task 3.25, `_shared/storage.ts`, commit 40fea35), match these:** MIME → extension map `application/pdf→pdf`, `image/png→png`, `image/jpeg→jpg`, `image/webp→webp`, `application/msword→doc`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document→docx` (exact MIME strings, no aliases); `stored_files.sha256` and `confirm_stored_file(p_sha256 text)` take **64 lower-case hex characters** (not `\x…` bytea); object paths `{org_id}/{module_key}/{subject_id}/{file_id}.{ext}` with canonical lower-case UUIDs; the DB stays the source of truth for the path.
+
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_storage.sql`
 - Create: `supabase/tests/database/022_core_storage.test.sql`
@@ -1828,6 +1832,8 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string>
 ---
 
 ## Task 3.26: `storage-upload`, `storage-confirm`, `storage-cleanup`
+
+**From Task 3.25:** use `buildObjectPath` to check the path the RPC returns before signing it; `storage-confirm` also checks that the stored object's content type equals the declared MIME (the client sets that header on the signed upload), then streams the object through `inspectStream` (hash + sniff under the size cap).
 
 **Lane:** F (after Task 3.24 merges). **Files:** the three function folders; `config.toml` (`verify_jwt = false` for all three).
 
