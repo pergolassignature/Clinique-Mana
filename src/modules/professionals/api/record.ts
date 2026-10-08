@@ -91,13 +91,15 @@ const MATCHING_PROFILE_COLUMNS = {
   acceptingNewClients: 'accepting_new_clients',
   availabilityPeriods: 'availability_periods',
   availabilityNote: 'availability_note',
+  minClientAge: 'min_client_age',
+  womenOnly: 'women_only',
 } as const satisfies Partial<Record<keyof MatchingProfile, keyof TablesUpdate<'professional_matching_profiles'>>>
 
 /** Identity, contact and experience (`professionals.manage`). Any other column is a compile error. */
 export type ProfessionalPatch = Partial<Pick<Professional, keyof typeof PROFESSIONAL_COLUMNS>>
 /** Portrait and public contact (`professionals.manage`). */
 export type PublicProfilePatch = Partial<Pick<PublicProfile, keyof typeof PUBLIC_PROFILE_COLUMNS>>
-/** General availability and new clients (`professionals.matching`). */
+/** General availability, new clients and the client limits (`professionals.matching`). */
 export type MatchingProfilePatch = Partial<Pick<MatchingProfile, keyof typeof MATCHING_PROFILE_COLUMNS>>
 
 type PatchTable = 'professionals' | 'professional_public_profiles' | 'professional_matching_profiles'
@@ -150,7 +152,6 @@ export async function setProfessions(id: string, items: ProfessionInput[]): Prom
 }
 
 const clienteleRows = z.array(z.object({ clientele_id: z.string(), is_specialized: z.boolean() }))
-const specialtyRows = z.array(z.object({ specialty_id: z.string(), is_specialized: z.boolean() }))
 const idRows = z.array(z.string())
 
 /** Replaces the clientèles (`[]` clears them). */
@@ -158,13 +159,6 @@ export async function setClienteles(id: string, items: SpecializedRef[]): Promis
   const { data, error } = await supabase.rpc('set_professional_clienteles', { p_id: id, p_items: items.map((i) => ({ id: i.id, specialized: i.specialized })) })
   if (error) throw error
   return parseRpc(clienteleRows, data).map((r) => ({ id: r.clientele_id, specialized: r.is_specialized }))
-}
-
-/** Replaces the approaches (`[]` clears them). */
-export async function setSpecialties(id: string, items: SpecializedRef[]): Promise<SpecializedRef[]> {
-  const { data, error } = await supabase.rpc('set_professional_specialties', { p_id: id, p_items: items.map((i) => ({ id: i.id, specialized: i.specialized })) })
-  if (error) throw error
-  return parseRpc(specialtyRows, data).map((r) => ({ id: r.specialty_id, specialized: r.is_specialized }))
 }
 
 /** Replaces the motifs. A newly added archived motif, or a restricted one without a regulated title, is a French `P0001`. */

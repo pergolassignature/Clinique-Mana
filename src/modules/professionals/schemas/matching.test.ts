@@ -2,23 +2,37 @@ import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
 import {
   availabilitySchema,
+  clientLimitsSchema,
   clienteleItemsSchema,
   holdsRegulatedTitle,
   languageIdsSchema,
   motifIdsSchema,
-  specialtyItemsSchema,
   toAvailabilityFormValues,
+  toClientLimitsFormValues,
 } from './matching'
 import { CATALOG_VIEW, recordFixture } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
 import { errorAt } from '../test/schema-helpers'
 
+describe('clientLimitsSchema (P4-245)', () => {
+  it('reads the matching profile and sends the youngest age as a number, empty as null', () => {
+    const values = toClientLimitsFormValues(recordFixture().matchingProfile)
+    expect(values).toEqual({ minClientAge: '', womenOnly: false })
+    expect(clientLimitsSchema.parse(values)).toEqual({ minClientAge: null, womenOnly: false })
+    expect(clientLimitsSchema.parse({ minClientAge: ' 14 ', womenOnly: true })).toEqual({ minClientAge: 14, womenOnly: true })
+  })
+
+  it.each(['121', '8.5', 'huit'])('refuses « %s » (0–120, whole years)', (age) => {
+    expect(errorAt(clientLimitsSchema, { minClientAge: age, womenOnly: false }, 'minClientAge')).toBe(t('modules.professionals.validation.ages'))
+  })
+})
+
 describe('availabilitySchema', () => {
   it('turns the flat checkboxes into the periods array, in order', () => {
     const values = toAvailabilityFormValues(recordFixture().matchingProfile)
-    expect(values).toEqual({ am: true, pm: false, evening: true, weekend: false, acceptingNewClients: true, note: '' })
-    expect(availabilitySchema.parse({ ...values, weekend: true, note: ' Pas le vendredi. ' })).toEqual({
-      availabilityPeriods: ['am', 'evening', 'weekend'],
+    expect(values).toEqual({ am: true, pm: false, end_of_day: false, evening: true, weekend: false, acceptingNewClients: true, note: '' })
+    expect(availabilitySchema.parse({ ...values, end_of_day: true, weekend: true, note: ' Pas le vendredi. ' })).toEqual({
+      availabilityPeriods: ['am', 'end_of_day', 'evening', 'weekend'],
       acceptingNewClients: true,
       availabilityNote: 'Pas le vendredi.',
     })
@@ -74,7 +88,7 @@ describe('languageIdsSchema', () => {
   })
 })
 
-describe('clienteleItemsSchema and specialtyItemsSchema', () => {
+describe('clienteleItemsSchema', () => {
   it('keep the stars and refuse a newly added archived row', () => {
     expect(clienteleItemsSchema(CATALOG_VIEW, { heldIds: [] }).parse([{ id: IDS.couples, specialized: true }])).toEqual([{ id: IDS.couples, specialized: true }])
     const archived = {
@@ -82,15 +96,11 @@ describe('clienteleItemsSchema and specialtyItemsSchema', () => {
       byId: {
         ...CATALOG_VIEW.byId,
         clienteles: new Map([[IDS.couples, { ...CATALOG_VIEW.clienteles[2]!, isActive: false }]]),
-        specialties: new Map([[IDS.cbt, { ...CATALOG_VIEW.specialties[0]!, isActive: false }]]),
       },
     }
     expect(errorAt(clienteleItemsSchema(archived, { heldIds: [] }), [{ id: IDS.couples, specialized: false }])).toBe(
       t('modules.professionals.validation.clienteleArchived', { name: 'Couples' }),
     )
-    expect(errorAt(specialtyItemsSchema(archived, { heldIds: [] }), [{ id: IDS.cbt, specialized: false }])).toBe(
-      t('modules.professionals.validation.specialtyArchived', { name: 'Thérapie cognitivo-comportementale (TCC)' }),
-    )
-    expect(specialtyItemsSchema(archived, { heldIds: [IDS.cbt] }).safeParse([{ id: IDS.cbt, specialized: true }]).success).toBe(true)
+    expect(clienteleItemsSchema(archived, { heldIds: [IDS.couples] }).safeParse([{ id: IDS.couples, specialized: true }]).success).toBe(true)
   })
 })

@@ -51,9 +51,10 @@ describe('constants mirror the SQL checks', () => {
     expect([...missing.matchAll(/then '([a-z_]+)'/g)].map((m) => m[1])).toEqual([...READINESS_MISSING])
   })
 
-  it('reference kinds are the nine list tables', () => {
+  it('reference kinds are the eight list tables (no approaches, P4-240)', () => {
     for (const kind of REFERENCE_KINDS) expect(REFERENCE).toContain(`create table public.${kind} (`)
-    expect(REFERENCE_KINDS).toHaveLength(9)
+    expect(REFERENCE_KINDS).toHaveLength(8)
+    expect(REFERENCE).not.toContain('create table public.specialties')
   })
 
   it('record tabs are the seven of P4-13, as URL segments', () => {

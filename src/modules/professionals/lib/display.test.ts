@@ -4,6 +4,8 @@ import { MOTIF_CATEGORY_ICONS, PROFESSIONAL_STATUSES } from './constants'
 import {
   agesLabel,
   clienteleLabel,
+  minAgeClienteleLabel,
+  minClientAgeLabel,
   fullName,
   genderLabel,
   languagesLabel,
@@ -56,6 +58,14 @@ describe('agesLabel', () => {
     [{ minAge: null, maxAge: 12 }, 'Sans âge'],
   ])('%o → %s', (bounds, label) => {
     expect(agesLabel(bounds)).toBe(label)
+  })
+})
+
+describe('minAgeClienteleLabel and minClientAgeLabel (P4-245)', () => {
+  it('say the youngest client age in the website’s words', () => {
+    expect(minAgeClienteleLabel('Adolescents', 14)).toBe('Adolescents (14 ans et +)')
+    expect(minAgeClienteleLabel('Enfants', 1)).toBe('Enfants (1 an et +)')
+    expect(minClientAgeLabel(8)).toBe('Âge minimum\u00a0: 8 ans')
   })
 })
 
@@ -117,6 +127,9 @@ describe('labels', () => {
     expect(statusLabel('in_review')).toBe('À réviser')
     expect(genderLabel('unspecified')).toBe('Autre / non précisé')
     expect(periodsLabel(['evening', 'am'])).toBe('Matin · Soir')
+    // « Fin de journée » (P4-250) sits between the afternoon and the evening.
+    expect(periodsLabel(['weekend', 'evening', 'end_of_day', 'pm', 'am'])).toBe('Matin · Après-midi · Fin de journée · Soir · Fin de semaine')
+    expect(periodsLabel(['end_of_day', 'am'])).toBe('Matin · Fin de journée')
     expect(periodsLabel([])).toBe('')
   })
 })

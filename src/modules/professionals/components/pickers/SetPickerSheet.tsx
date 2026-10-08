@@ -51,7 +51,7 @@ export interface SetPickerSheetProps {
   /** One group is a flat list; several are collapsible categories. */
   groups: readonly PickerGroup[]
   selected: PickerSelection
-  /** ★ on held items (clientèles, approaches); held items are listed first. */
+  /** ★ on held items (clientèles); held items are listed first. */
   withStars?: boolean
   searchPlaceholder: string
   /** The set needs at least one item: the last one cannot be unticked, and this says why. */

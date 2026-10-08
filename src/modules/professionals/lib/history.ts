@@ -57,7 +57,6 @@ const SET_TABLES = {
   professional_motifs: 'motif_id',
   professional_languages: 'language_id',
   professional_clienteles: 'clientele_id',
-  professional_specialties: 'specialty_id',
 } as const
 type SetTable = keyof typeof SET_TABLES
 type SetChange = 'added' | 'removed' | 'specialized' | 'unspecialized'
@@ -142,7 +141,7 @@ const itemIdOf = (entry: HistoryEntry): string => entry.recordId.slice(entry.rec
 /** Rows written by one statement batch: same transaction time, same actor, same source. */
 const transactionOf = (entry: HistoryEntry): string => `${entry.createdAt}|${entry.actorId ?? ''}|${entry.source}`
 
-const unknown = (kind: 'motif' | 'clientele' | 'specialty' | 'language' | 'title' | 'reason' | 'kind') => t(`${H}.values.unknown.${kind}`)
+const unknown = (kind: 'motif' | 'clientele' | 'language' | 'title' | 'reason' | 'kind') => t(`${H}.values.unknown.${kind}`)
 
 const isStatus = (value: unknown): value is ProfessionalStatus => typeof value === 'string' && (PROFESSIONAL_STATUSES as readonly string[]).includes(value)
 
@@ -405,7 +404,7 @@ interface SetBatch {
   table: SetTable
   change: SetChange
   ids: string[]
-  /** Items added with the ★ (clientèles, approaches). */
+  /** Items added with the ★ (clientèles). */
   specialized: Set<string>
 }
 
@@ -418,7 +417,7 @@ function setChangeOf(entry: HistoryEntry): SetChange | null {
 }
 
 type ListTable = Exclude<SetTable, 'professional_motifs'>
-const LIST_KIND = { professional_languages: 'language', professional_clienteles: 'clientele', professional_specialties: 'specialty' } as const
+const LIST_KIND = { professional_languages: 'language', professional_clienteles: 'clientele' } as const
 
 /** The names of a batch, and how many of them (the last ones) the catalogue no longer knows. */
 interface BatchNames {
@@ -427,12 +426,12 @@ interface BatchNames {
 }
 
 /**
- * The items of a language, clientèle or approach batch, in the catalogue's order, archived ones
+ * The items of a language or clientèle batch, in the catalogue's order, archived ones
  * last and marked, unknown ones after them (as motifs, P4-100); « (spécialisé) » after the ones
  * added with the ★.
  */
 function listItems(catalog: CatalogView, batch: SetBatch & { table: ListTable }): BatchNames {
-  const list = batch.table === 'professional_languages' ? catalog.languages : batch.table === 'professional_clienteles' ? catalog.clienteles : catalog.specialties
+  const list = batch.table === 'professional_languages' ? catalog.languages : catalog.clienteles
   const held = new Set(batch.ids)
   const known = list.filter((item) => held.has(item.id)).map((item) => ({ id: item.id, name: item.name, archived: !item.isActive }))
   const knownIds = new Set(known.map((item) => item.id))
@@ -443,7 +442,7 @@ function listItems(catalog: CatalogView, batch: SetBatch & { table: ListTable })
   return { groups: [{ key: batch.table, name: null, items }], unknownCount: missing.length }
 }
 
-/** The motifs by category (the record's grouping, P4-73), archived ones last in each, unknown ones last under « Autres ». */
+/** The motifs by category (the record's grouping, P4-249), archived ones last in each, unknown ones last under « Sans catégorie ». */
 function motifGroups(catalog: CatalogView, ids: readonly string[]): BatchNames {
   const held = new Set(ids)
   const groups: HistoryNameGroup[] = []
@@ -457,7 +456,7 @@ function motifGroups(catalog: CatalogView, ids: readonly string[]): BatchNames {
   if (missing > 0) {
     const items = ids.filter((id) => !catalog.byId.motifs.has(id)).map((id) => ({ id, name: unknown('motif'), archived: false }))
     const other = groups.find((group) => group.key === OTHER_MOTIF_GROUP)
-    // « Autres » is the catalogue's last group (catalog-view), so the unknown ones end the list.
+    // « Sans catégorie » is the catalogue's last group (catalog-view), so the unknown ones end the list.
     if (other) other.items.push(...items)
     else groups.push({ key: OTHER_MOTIF_GROUP, name: t('modules.professionals.otherCategory'), items })
   }
@@ -494,8 +493,8 @@ function describeSet(catalog: CatalogView, batch: SetBatch): Pick<HistoryEvent, 
     const sentence = names.length === 1 ? t(`${S}.${batch.change}One`, { name: names[0] ?? '' }) : t(`${S}.${batch.change}Few`, { names: listLabel(names) })
     return { sentence, groups: [] }
   }
-  // Only clientèles and approaches carry the ★ (setChangeOf reads `is_specialized`).
-  const S = `${H}.sets.${batch.table as 'professional_clienteles' | 'professional_specialties'}` as const
+  // Only clientèles carry the ★ (setChangeOf reads `is_specialized`).
+  const S = `${H}.sets.${batch.table as 'professional_clienteles'}` as const
   if (names.length > FEW_MOTIFS) return { sentence: t(`${S}.${batch.change}Many`, { count }), groups }
   return { sentence: t(`${S}.${batch.change}Few`, { names: listLabel(names) }), groups: [] }
 }

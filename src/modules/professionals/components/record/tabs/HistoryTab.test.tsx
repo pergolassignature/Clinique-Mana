@@ -108,9 +108,12 @@ describe('HistoryTab', () => {
     expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined], [P, 8], [P, 6]])
     await userEvent.click(toggle)
     const panel = document.getElementById(toggle.getAttribute('aria-controls') ?? '') as HTMLElement
-    expect(within(panel).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      'Catégorie 1\u00a0: Motif 1.1',
-      'Catégorie 2\u00a0: Motif 2.1 · Motif 2.2 · Motif 2.3',
+    // Each category's title on its own line, every name under it (P4-249).
+    const categories = within(panel).getAllByRole('listitem').filter((li) => li.querySelector('p'))
+    expect(categories.map((li) => li.querySelector('p')?.textContent)).toEqual(['Catégorie 1', 'Catégorie 2'])
+    expect(categories.map((li) => [...li.querySelectorAll('li')].map((name) => name.textContent))).toEqual([
+      ['Motif 1.1'],
+      ['Motif 2.1', 'Motif 2.2', 'Motif 2.3'],
     ])
   })
 

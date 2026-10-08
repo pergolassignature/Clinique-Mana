@@ -109,7 +109,7 @@ describe('MotifsSettingsPage', () => {
   it('says motifs are needs, not a diagnosis; one teal « Ajouter un motif », the categories in the header', async () => {
     await renderPage()
     expect(screen.getByRole('heading', { level: 2, name: t(`${M}.title`) })).toBeInTheDocument()
-    expect(screen.getByText(t(`${M}.description`))).toHaveTextContent('Les motifs décrivent le besoin exprimé, pas un diagnostic.')
+    expect(screen.getByText(t(`${M}.description`))).toHaveTextContent("Les motifs pour lesquels les clients consultent, dans les mots de la clinique. Chaque professionnel choisit ceux qu'il accompagne.")
     // The page holds one list: its heading is for screen readers only.
     expect(within(card()).getByRole('heading', { level: 3, name: t(`${M}.title`) }).parentElement).toHaveClass('sr-only')
     expect(addButton()).toHaveClass('bg-primary')

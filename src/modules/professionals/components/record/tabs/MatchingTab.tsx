@@ -8,23 +8,26 @@ import { SettingsCard } from '@/shared/components/SettingsCard'
 import { Button } from '@/shared/ui/button'
 import type { SpecializedRef } from '../../../api/parse'
 import type { MutationFeedback } from '../../../hooks/mutation-feedback'
-import { useSetClienteles, useSetLanguages, useSetMotifs, useSetSpecialties } from '../../../hooks/use-professional-mutations'
+import { useSetClienteles, useSetLanguages, useSetMotifs } from '../../../hooks/use-professional-mutations'
 import { fullName } from '../../../lib/display'
 import { matchingDigest } from '../../../lib/matching-digest'
-import { clienteleGroups, languageGroups, motifGroups, recordSelections, specialtyGroups } from '../../../lib/matching-pickers'
-import { clienteleItemsSchema, holdsRegulatedTitle, languageIdsSchema, motifIdsSchema, specialtyItemsSchema } from '../../../schemas/matching'
+import { clienteleGroups, languageGroups, motifGroups, recordSelections } from '../../../lib/matching-pickers'
+import { clienteleItemsSchema, holdsRegulatedTitle, languageIdsSchema, motifIdsSchema } from '../../../schemas/matching'
 import { SetPickerSheet, type PickerDraft, type SetPickerSheetProps } from '../../pickers/SetPickerSheet'
 import { AvailabilityCard } from '../AvailabilityCard'
 import { HeldChips } from '../Chips'
+import { ClientLimitsCard } from '../ClientLimitsCard'
 import { MotifsSummary } from '../MotifsSummary'
 import { useRecordData } from '../record-context'
 
 const M = 'modules.professionals.record.matching'
 
 /**
- * « Jumelage »: what matching reads, in one curated place. Clientèles, approaches, motifs and
- * languages each show what is held (motifs summarised per category, P4-73) and open a picker
- * sheet that saves the whole set at once; general availability is a form card. Editable with
+ * « Jumelage »: what matching reads, in one curated place. Clientèles, motifs and languages each
+ * show what is held (motifs by category, every name written out, P4-249) and open a picker sheet
+ * that saves the whole set at once; the client limits (P4-245) and general availability are form
+ * cards (the youngest age also reads on the youngest age group's chip). There are no approaches
+ * (P4-240). Editable with
  * `professionals.matching` (conseillères included); read-only otherwise. Everything comes from
  * the record bundle: the tab makes no request of its own until a save.
  */
@@ -41,16 +44,13 @@ export function MatchingTab() {
           <SetCard list="clienteles" picker={pickers?.clienteles}>
             <HeldChips items={digest.clienteles} empty={t(`${M}.clienteles.empty`)} />
           </SetCard>
-          <SetCard list="approaches" picker={pickers?.approaches}>
-            <HeldChips items={digest.approaches} empty={t(`${M}.approaches.empty`)} />
-          </SetCard>
+          {/* Next to the clientèles it qualifies, before the long motif list on a phone. */}
+          <ClientLimitsCard readOnly={!canEdit} />
           <SetCard list="motifs" picker={pickers?.motifs}>
-            {digest.motifs.selected + digest.motifs.archived.length === 0 ? (
+            {digest.motifs.groups.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t(`${M}.motifs.empty`)}</p>
             ) : (
-              <div className="text-sm">
-                <MotifsSummary summary={digest.motifs} />
-              </div>
+              <MotifsSummary summary={digest.motifs} />
             )}
           </SetCard>
         </div>
@@ -65,7 +65,7 @@ export function MatchingTab() {
   )
 }
 
-type SetList = 'clienteles' | 'approaches' | 'motifs' | 'languages'
+type SetList = 'clienteles' | 'motifs' | 'languages'
 type PickerConfig = Omit<SetPickerSheetProps, 'trigger' | 'title'>
 
 /** One held set: what is held, and « Modifier » opening its picker (none when read-only). */
@@ -96,7 +96,7 @@ function SetCard({ list, picker, children }: { list: SetList; picker: PickerConf
 }
 
 /**
- * The four pickers' lists, selections and saves, or null without `professionals.matching`. Each
+ * The three pickers' lists, selections and saves, or null without `professionals.matching`. Each
  * save checks the draft with the module's schema (no new archived item, a restricted motif only
  * with a regulated title, at least one language), then calls its set RPC; a refusal stays in the
  * sheet. The mutation hooks write the returned set into the record and refetch it.
@@ -105,7 +105,6 @@ function useMatchingPickers(canEdit: boolean): Record<SetList, PickerConfig> | n
   const { record, catalog } = useRecordData()
   const id = record.professional.id
   const saveClienteles = useSetSave(useSetClienteles)
-  const saveSpecialties = useSetSave(useSetSpecialties)
   const saveMotifs = useSetSave(useSetMotifs)
   const saveLanguages = useSetSave(useSetLanguages)
   const regulated = holdsRegulatedTitle(record.professions, catalog)
@@ -123,15 +122,6 @@ function useMatchingPickers(canEdit: boolean): Record<SetList, PickerConfig> | n
       searchPlaceholder: t(`${M}.clienteles.search`),
       onSave: (draft) =>
         checked(clienteleItemsSchema(catalog, { heldIds: [...held.clienteles.keys()] }), starred(draft), (items) => saveClienteles({ id, items })),
-    },
-    approaches: {
-      subject,
-      groups: specialtyGroups(catalog, held.specialties),
-      selected: held.specialties,
-      withStars: true,
-      searchPlaceholder: t(`${M}.approaches.search`),
-      onSave: (draft) =>
-        checked(specialtyItemsSchema(catalog, { heldIds: [...held.specialties.keys()] }), starred(draft), (items) => saveSpecialties({ id, items })),
     },
     motifs: {
       subject,

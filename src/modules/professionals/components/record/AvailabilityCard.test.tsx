@@ -31,7 +31,7 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks())
 
 const A = 'modules.professionals.record.matching.availability'
-const period = (p: 'am' | 'pm' | 'evening' | 'weekend') => screen.getByRole('checkbox', { name: t(`modules.professionals.periods.${p}`) })
+const period = (p: 'am' | 'pm' | 'end_of_day' | 'evening' | 'weekend') => screen.getByRole('checkbox', { name: t(`modules.professionals.periods.${p}`) })
 const saveButton = () => screen.getByRole('button', { name: t('common.save') })
 
 describe('AvailabilityCard', () => {
@@ -64,10 +64,11 @@ describe('AvailabilityCard', () => {
   it('leaves new clients out of a save that did not change it, and the lists alone', async () => {
     const { invalidated } = renderRecordTab(<AvailabilityCard readOnly={false} />, { record: stored })
     await userEvent.click(period('weekend'))
+    await userEvent.click(period('end_of_day'))
     await userEvent.click(saveButton())
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalled())
     expect(mocks.record.updateMatchingProfile).toHaveBeenCalledExactlyOnceWith(IDS.professional, {
-      availabilityPeriods: ['am', 'evening', 'weekend'],
+      availabilityPeriods: ['am', 'end_of_day', 'evening', 'weekend'],
       availabilityNote: null,
     })
     expect(invalidated()).toEqual([professionalKeys.record(IDS.professional), professionalKeys.history(IDS.professional)])

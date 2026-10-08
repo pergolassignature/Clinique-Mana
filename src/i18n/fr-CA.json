@@ -1187,10 +1187,11 @@
       "periods": {
         "am": "Matin",
         "pm": "Après-midi",
+        "end_of_day": "Fin de journée",
         "evening": "Soir",
         "weekend": "Fin de semaine"
       },
-      "otherCategory": "Autres",
+      "otherCategory": "Sans catégorie",
       "icons": {
         "Brain": "Cerveau",
         "Users": "Personnes",
@@ -1215,6 +1216,9 @@
       },
       "display": {
         "withAges": "{name} ({ages})",
+        "withMinAge": "{name} ({age} {unit} et +)",
+        "minClientAge": "Âge minimum : {age} {unit}",
+        "womenOnly": "Femmes seulement",
         "ages": {
           "range": "{min} à {max} {unit}",
           "single": "{age} {unit}",
@@ -1443,13 +1447,6 @@
             "empty": "Aucune clientèle choisie",
             "search": "Rechercher une clientèle…"
           },
-          "approaches": {
-            "title": "Approches",
-            "description": "Les façons d'accompagner. ★ : spécialisé.",
-            "edit": "Modifier les approches",
-            "empty": "Aucune approche choisie",
-            "search": "Rechercher une approche…"
-          },
           "motifs": {
             "title": "Motifs",
             "description": "Les besoins pour lesquels un client peut être jumelé à ce dossier.",
@@ -1464,6 +1461,14 @@
             "edit": "Modifier les langues",
             "empty": "Aucune langue choisie",
             "search": "Rechercher une langue…"
+          },
+          "limits": {
+            "title": "Limites de clientèle",
+            "description": "Ce que le jumelage exclut, au-delà des clientèles.",
+            "minAge": "Âge minimum des clients",
+            "minAgeHelp": "Par exemple 8 pour « Enfants (8 ans et +) ». Laissez vide s'il n'y en a pas.",
+            "womenOnly": "Femmes seulement",
+            "womenOnlyHelp": "Le jumelage ne propose ce dossier qu'aux clientes."
           },
           "availability": {
             "title": "Disponibilités générales",
@@ -1513,7 +1518,6 @@
             "title": "Profil de jumelage",
             "edit": "Modifier",
             "clienteles": "Clientèles",
-            "approaches": "Approches",
             "motifs": "Motifs",
             "languages": "Langues",
             "availability": "Disponibilités générales",
@@ -1524,20 +1528,11 @@
             "specialized": "(spécialisé)",
             "archived": "archivé",
             "motifSummary": {
-              "all": "Tous",
-              "allOverall": "Tous les motifs ({count})",
-              "allBut": "Tous sauf {names}",
-              "allButOverall": "Tous sauf {names} ({selected} sur {total})",
               "countShort": "{selected} / {total}",
-              "countSr": "({selected} sur {total})",
-              "openAll": "Tout ouvrir",
-              "closeAll": "Tout fermer",
-              "archivedOne": "Motif archivé : {name}",
-              "archivedOther": "Motifs archivés : {names}"
+              "countSr": "({selected} sur {total})"
             },
             "empty": {
               "clienteles": "Aucune clientèle choisie",
-              "approaches": "Aucune approche choisie",
               "motifs": "Aucun motif choisi",
               "languages": "Aucune langue choisie",
               "availability": "Aucune disponibilité indiquée"
@@ -1708,18 +1703,6 @@
             "specializedMany": "a indiqué une spécialisation pour {count} clientèles",
             "unspecializedFew": "a retiré la spécialisation pour : {names}",
             "unspecializedMany": "a retiré la spécialisation pour {count} clientèles"
-          },
-          "professional_specialties": {
-            "addedOne": "a ajouté l'approche {name}",
-            "addedFew": "a ajouté les approches {names}",
-            "addedMany": "a ajouté {count} approches",
-            "removedOne": "a retiré l'approche {name}",
-            "removedFew": "a retiré les approches {names}",
-            "removedMany": "a retiré {count} approches",
-            "specializedFew": "a indiqué une spécialisation pour : {names}",
-            "specializedMany": "a indiqué une spécialisation pour {count} approches",
-            "unspecializedFew": "a retiré la spécialisation pour : {names}",
-            "unspecializedMany": "a retiré la spécialisation pour {count} approches"
           }
         },
         "fields": {
@@ -1752,7 +1735,9 @@
           "professional_matching_profiles": {
             "accepting_new_clients": "l'accueil de nouveaux clients",
             "availability_periods": "les disponibilités générales",
-            "availability_note": "la note sur les disponibilités"
+            "availability_note": "la note sur les disponibilités",
+            "min_client_age": "l'âge minimum des clients",
+            "women_only": "« femmes seulement »"
           }
         },
         "values": {
@@ -1761,7 +1746,6 @@
           "unknown": {
             "motif": "Motif archivé",
             "clientele": "Clientèle archivée",
-            "specialty": "Approche archivée",
             "language": "Langue archivée",
             "title": "Titre archivé",
             "reason": "Raison archivée",
@@ -1909,7 +1893,6 @@
         "motifArchived": "Le motif « {name} » est archivé.",
         "motifRestricted": "Le motif « {name} » est réservé aux professions réglementées.",
         "clienteleArchived": "La clientèle « {name} » est archivée.",
-        "specialtyArchived": "L'approche « {name} » est archivée.",
         "languageArchived": "La langue « {name} » est archivée.",
         "restrictedMotifsHeld": "Retirez d'abord les motifs réservés aux professions réglementées : {names}.",
         "reasonRequired": "Choisissez une raison.",
@@ -1943,7 +1926,6 @@
           "profession_categories": "Une catégorie porte déjà ce nom (elle est peut-être archivée).",
           "profession_titles": "Un titre porte déjà ce nom (il est peut-être archivé).",
           "clienteles": "Une clientèle porte déjà ce nom (elle est peut-être archivée).",
-          "specialties": "Une approche porte déjà ce nom (elle est peut-être archivée).",
           "motif_categories": "Une catégorie porte déjà ce nom (elle est peut-être archivée).",
           "motifs": "Un motif porte déjà ce nom (il est peut-être archivé).",
           "languages": "Une langue porte déjà ce nom (elle est peut-être archivée).",
@@ -2055,43 +2037,32 @@
             }
           }
         },
-        "specialties": {
-          "title": "Spécialités",
-          "description": "Les clientèles et les approches des professionnels, qui servent au jumelage.",
-          "clienteles": {
-            "title": "Clientèles",
-            "description": "Le jumelage filtre selon la clientèle : l'âge de la personne principale, ou couple, famille, groupe.",
-            "add": "Ajouter une clientèle",
-            "createTitle": "Ajouter une clientèle",
-            "editTitle": "Modifier la clientèle",
-            "system": "Utilisée par le jumelage : ne peut pas être archivée.",
-            "ages": "Âges",
-            "minAge": "Âge minimum",
-            "maxAge": "Âge maximum",
-            "minAgeHelp": "Laissez vide pour une clientèle sans âge, par exemple Couples.",
-            "maxAgeHelp": "Laissez vide pour « et plus », par exemple 65 ans et plus.",
-            "systemAgeGroup": "Le jumelage s'appuie sur ce groupe d'âge : l'âge minimum reste requis.",
-            "systemNoAges": "Le jumelage s'appuie sur cette clientèle telle quelle : elle reste sans âge."
-          },
-          "approaches": {
-            "title": "Approches",
-            "description": "Les approches orientent le jumelage sans l'exclure.",
-            "add": "Ajouter une approche",
-            "createTitle": "Ajouter une approche",
-            "editTitle": "Modifier l'approche"
-          }
+        "clienteles": {
+          "title": "Clientèles",
+          "description": "Les clientèles que les professionnels reçoivent. Le jumelage filtre selon l'âge de la personne principale, ou selon le format : couple, famille, parents.",
+          "add": "Ajouter une clientèle",
+          "createTitle": "Ajouter une clientèle",
+          "editTitle": "Modifier la clientèle",
+          "system": "Utilisée par le jumelage : ne peut pas être archivée.",
+          "ages": "Âges",
+          "minAge": "Âge minimum",
+          "maxAge": "Âge maximum",
+          "minAgeHelp": "Laissez vide pour une clientèle sans âge, par exemple Couples.",
+          "maxAgeHelp": "Laissez vide pour « et plus », par exemple 18 ans et plus.",
+          "systemAgeGroup": "Le jumelage s'appuie sur ce groupe d'âge : l'âge minimum reste requis.",
+          "systemNoAges": "Le jumelage s'appuie sur cette clientèle telle quelle : elle reste sans âge."
         },
         "motifs": {
           "title": "Motifs",
-          "description": "Les motifs décrivent le besoin exprimé, pas un diagnostic.",
+          "description": "Les motifs pour lesquels les clients consultent, dans les mots de la clinique. Chaque professionnel choisit ceux qu'il accompagne.",
           "add": "Ajouter un motif",
           "createTitle": "Ajouter un motif",
           "editTitle": "Modifier le motif",
           "view": { "label": "Affichage", "byCategory": "Par catégorie", "alphabetical": "Liste A–Z" },
           "categoryFilter": { "label": "Catégorie", "all": "Toutes les catégories" },
           "category": "Catégorie",
-          "categoryNone": "Autres (aucune catégorie)",
-          "categoryHelp": "Sans catégorie active, le motif s'affiche sous « Autres ».",
+          "categoryNone": "Sans catégorie",
+          "categoryHelp": "Un motif sans catégorie active s'affiche sous « Sans catégorie ».",
           "archivedCategory": "{name} (archivée)",
           "restricted": "Réservé",
           "restrictedCell": "Professions réglementées",
@@ -2321,7 +2292,6 @@
       "profession_categories": "Catégories de professions",
       "profession_titles": "Titres professionnels",
       "clienteles": "Clientèles",
-      "specialties": "Approches",
       "motif_categories": "Catégories de motifs",
       "motifs": "Motifs",
       "languages": "Langues",
@@ -2331,7 +2301,6 @@
       "professional_matching_profiles": "Profils de jumelage",
       "professional_professions": "Titres des professionnels",
       "professional_clienteles": "Clientèles des professionnels",
-      "professional_specialties": "Approches des professionnels",
       "professional_motifs": "Motifs des professionnels",
       "professional_languages": "Langues des professionnels",
       "professional_payer_numbers": "Numéros de payeurs des professionnels",
@@ -2481,13 +2450,6 @@
         "min_age": "Âge minimum",
         "max_age": "Âge maximum"
       },
-      "specialties": {
-        "key": "Clé",
-        "name": "Nom",
-        "is_system": "Élément protégé",
-        "sort_order": "Ordre d'affichage",
-        "is_active": "Actif"
-      },
       "motif_categories": {
         "key": "Clé",
         "name": "Nom",
@@ -2555,7 +2517,9 @@
         "professional_id": "Professionnel",
         "accepting_new_clients": "Accepte de nouveaux clients",
         "availability_periods": "Disponibilités générales",
-        "availability_note": "Note sur les disponibilités"
+        "availability_note": "Note sur les disponibilités",
+        "min_client_age": "Âge minimum des clients",
+        "women_only": "Femmes seulement"
       },
       "professional_professions": {
         "professional_id": "Professionnel",
@@ -2566,11 +2530,6 @@
       "professional_clienteles": {
         "professional_id": "Professionnel",
         "clientele_id": "Clientèle",
-        "is_specialized": "Spécialisé"
-      },
-      "professional_specialties": {
-        "professional_id": "Professionnel",
-        "specialty_id": "Approche",
         "is_specialized": "Spécialisé"
       },
       "professional_motifs": {

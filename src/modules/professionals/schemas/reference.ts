@@ -92,7 +92,7 @@ const motifCategorySchema = z.object({
 
 const motifSchema = z.object({
   name: name(),
-  /** '' = « Autres » (no category). */
+  /** '' = « Sans catégorie » (no category). */
   categoryId: z.string().transform(emptyToNull),
   isRestricted: z.boolean(),
 })
@@ -113,7 +113,6 @@ export interface ReferenceFormValues {
   profession_categories: { name: string }
   profession_titles: { name: string; categoryId: string; orderId: string }
   clienteles: { name: string; minAge: string; maxAge: string }
-  specialties: { name: string }
   motif_categories: { name: string; description: string; icon: string }
   motifs: { name: string; categoryId: string; isRestricted: boolean }
   languages: { name: string; code: string }
@@ -126,7 +125,6 @@ export const referenceSchemas = {
   profession_categories: nameOnlySchema,
   profession_titles: titleSchema,
   clienteles: clienteleSchema,
-  specialties: nameOnlySchema,
   motif_categories: motifCategorySchema,
   motifs: motifSchema,
   languages: languageSchema,
@@ -177,7 +175,6 @@ const TO_FORM: { [K in ReferenceKind]: (row: ReferenceRow<K> | null) => Referenc
   profession_categories: (r) => ({ name: r?.name ?? '' }),
   profession_titles: (r) => ({ name: r?.name ?? '', categoryId: r?.categoryId ?? '', orderId: r?.orderId ?? '' }),
   clienteles: (r) => ({ name: r?.name ?? '', minAge: str(r?.minAge ?? null), maxAge: str(r?.maxAge ?? null) }),
-  specialties: (r) => ({ name: r?.name ?? '' }),
   motif_categories: (r) => ({ name: r?.name ?? '', description: r?.description ?? '', icon: r?.icon ?? DEFAULT_ICON }),
   motifs: (r) => ({ name: r?.name ?? '', categoryId: r?.categoryId ?? '', isRestricted: r?.isRestricted ?? false }),
   languages: (r) => ({ name: r?.name ?? '', code: r?.code ?? '' }),

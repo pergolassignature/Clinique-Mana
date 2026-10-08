@@ -6,7 +6,7 @@ import { pickerItems, type PickerGroup, type PickerSelection } from './set-picke
 
 /**
  * What each Jumelage picker lists, from the cached catalogue and the record: one flat group for
- * clientèles, approaches and languages; the motif categories in their order (« Autres » last,
+ * clientèles and languages; the motif categories in their order (« Sans catégorie » last,
  * empty categories left out) for motifs.
  */
 
@@ -17,10 +17,6 @@ export const plainSelection = (ids: readonly string[]): PickerSelection => new M
 
 export function clienteleGroups(catalog: CatalogView, held: PickerSelection): PickerGroup[] {
   return [{ key: FLAT, label: '', items: pickerItems(catalog.clienteles, held, (c) => ({ label: clienteleLabel(c) })) }]
-}
-
-export function specialtyGroups(catalog: CatalogView, held: PickerSelection): PickerGroup[] {
-  return [{ key: FLAT, label: '', items: pickerItems(catalog.specialties, held) }]
 }
 
 export function languageGroups(catalog: CatalogView, held: PickerSelection): PickerGroup[] {
@@ -50,7 +46,6 @@ export function motifGroups(catalog: CatalogView, held: PickerSelection, hasRegu
 export function recordSelections(record: ProfessionalRecord) {
   return {
     clienteles: starredSelection(record.clienteles),
-    specialties: starredSelection(record.specialties),
     motifs: plainSelection(record.motifIds),
     languages: plainSelection(record.languageIds),
   }

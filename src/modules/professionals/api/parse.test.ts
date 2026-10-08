@@ -56,10 +56,9 @@ describe('catalogPayload', () => {
     expect(catalog.languages[0]).toEqual({ id: IDS.fr, code: 'fr', name: 'Français', isSystem: true, sortOrder: 10, isActive: true })
     expect(catalog.deactivationReasons.find((r) => r.key === 'other')).toMatchObject({ requiresNote: true, disablesAccount: false })
     expect(catalog.categories).toHaveLength(2)
-    expect(catalog.specialties).toHaveLength(1)
   })
 
-  it('reads the nine empty lists of a caller without access', () => {
+  it('reads the eight empty lists of a caller without access', () => {
     const empty = Object.fromEntries(Object.keys(CATALOG_JSON).map((k) => [k, []]))
     expect(Object.values(parseRpc(catalogPayload, empty)).every((list) => Array.isArray(list) && list.length === 0)).toBe(true)
   })
@@ -92,11 +91,12 @@ describe('recordPayload', () => {
       acceptingNewClients: true,
       availabilityPeriods: ['am', 'evening'],
       availabilityNote: null,
+      minClientAge: null,
+      womenOnly: false,
       updatedAt: '2026-10-08T12:00:00+00:00',
     })
     expect(record?.professions).toEqual([{ id: IDS.professionRow, titleId: IDS.psychologue, licenceNumber: '12345', isPrimary: true }])
     expect(record?.clienteles).toEqual([{ id: IDS.couples, specialized: true }])
-    expect(record?.specialties).toEqual([])
     expect(record?.motifIds).toEqual([IDS.anxiete])
     expect(record?.languageIds).toEqual([IDS.fr])
     expect(record?.payerNumbers).toEqual([{ type: 'ivac', number: '123456' }])
@@ -158,7 +158,6 @@ describe('listRowPayload', () => {
       primaryLicenceNumber: '12345',
       languageIds: [IDS.fr],
       clienteleIds: [IDS.couples],
-      specialtyIds: [],
       motifIds: [IDS.anxiete],
       acceptingNewClients: true,
       matchingComplete: true,

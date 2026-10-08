@@ -17,13 +17,15 @@ import {
   reportCsv,
   reportName,
   resolveTarget,
+  normalizeLicence,
   rowToPayload,
   run,
 } from './import-professionals.mjs'
 
 const BOM = String.fromCharCode(0xfeff)
-const HEADER = 'prenom,nom,courriel,telephone,ville,province,code_postal,annees_experience,titre_1,permis_1,titre_2,permis_2,langues,clienteles,approches,motifs,ivac,activer'
-const ROW = 'Élodie,Gagnon,elodie.gagnon@example.test,514 555-0142,Montréal,QC,H2J 3K5,14,psychologue,54321,,,fr;en,adults*;couples,cbt*;act,anxiete;deuil,IVAC-1,oui'
+const HEADER =
+  'prenom,nom,courriel,telephone,ville,province,code_postal,annees_experience,titre_1,permis_1,titre_2,permis_2,langues,clienteles,age_minimum,femmes_seulement,motifs,ivac,activer'
+const ROW = 'Élodie,Gagnon,elodie.gagnon@example.test,514 555-0142,Montréal,QC,H2J 3K5,14,psychologue,54321,,,fr;en,adults*;couples,14,oui,anxiete;deuil,IVAC-1,oui'
 
 describe('parseCsv', () => {
   it('reads quoted cells holding commas, doubled quotes and line breaks, and keeps each record’s first line', () => {
@@ -126,10 +128,8 @@ describe('rowToPayload', () => {
           { key: 'adults', specialized: true },
           { key: 'couples', specialized: false },
         ],
-        approaches: [
-          { key: 'cbt', specialized: true },
-          { key: 'act', specialized: false },
-        ],
+        min_client_age: 14,
+        women_only: true,
         motifs: ['anxiete', 'deuil'],
         ivac: 'IVAC-1',
         activate: true,
@@ -151,16 +151,65 @@ describe('rowToPayload', () => {
 
   it('reports what the CSV encodes wrongly, under the client schemas’ field names', () => {
     const { errors } = rowToPayload(
-      values({ annees_experience: 'douze', activer: 'peut-être', langues: 'fr*', clienteles: '*', titre_1: '', permis_1: '123', titre_2: 'psychologue' }),
+      values({
+        annees_experience: 'douze',
+        activer: 'peut-être',
+        langues: 'fr*',
+        clienteles: '*',
+        age_minimum: '14+',
+        femmes_seulement: 'f',
+        titre_1: '',
+        permis_1: '123',
+        titre_2: 'psychologue',
+      }),
     )
     expect(errors).toEqual([
       { field: 'yearsExperience', message: 'Entre 0 et 60 ans.' },
       { field: 'professions.0.licenceNumber', message: 'Un numéro de permis demande un titre.' },
       { field: 'professions.0.titleId', message: 'Indiquez le titre principal dans titre_1.' },
-      { field: 'languages', message: 'Le « * » ne s’applique qu’aux clientèles et aux approches.' },
+      { field: 'languages', message: 'Le « * » ne s’applique qu’aux clientèles.' },
       { field: 'clienteles', message: 'Une clé manque avant le « * ».' },
+      { field: 'minClientAge', message: 'Entre 0 et 120 ans.' },
+      { field: 'womenOnly', message: 'Indiquez oui ou non.' },
       { field: 'activate', message: 'Indiquez oui ou non.' },
     ])
+  })
+
+  it('sends a permis as the bare number, as the website writes it (P4-247, P4-248)', () => {
+    const permis = (titre_1, permis_1) => rowToPayload(values({ titre_1, permis_1 }))
+    expect(permis('psychologue', 'Membre de l’OPQ 10000-20').payload.professions).toEqual([
+      { title_key: 'psychologue', licence_number: '10000-20', is_primary: true },
+    ])
+    expect(permis('coach_professionnel', 'Membre de XYZA 1234').errors).toEqual([
+      {
+        field: 'professions.0.licenceNumber',
+        message: 'XYZA n’est pas un ordre professionnel : une adhésion n’est pas un permis (laissez permis vide, notez-la au profil public).',
+      },
+    ])
+  })
+
+  it('rejects the « approches » column (P4-240)', () => {
+    expect(() => readRows('prenom,nom,courriel,approches\nLéa,Roy,lea@example.test,cbt\n')).toThrow(/Colonnes inconnues : approches/)
+  })
+})
+
+describe('normalizeLicence', () => {
+  it.each([
+    ['Membre de l’OPQ 10000-20', 'psychologue', '10000-20'],
+    ["Membre de l'OPSQ 200001-001", 'sexologue', '200001-001'],
+    ['OTSTCFQ ABCD0101010TS', 'travailleur_social', 'ABCD0101010TS'],
+    ['Membre de l’OTSFCQ ABCD0101010TS', 'travailleur_social', 'ABCD0101010TS'],
+    ['Membre de l’OPPQ 1000020,', 'psychoeducateur', '10000-20'],
+    ['1000020', 'psychoeducateur', '10000-20'],
+    [' 10000-20. ', 'psychoeducateur', '10000-20'],
+    ['1000020', 'psychologue', '1000020'],
+    ['TS 04518', 'travailleur_social', 'TS 04518'],
+  ])('%s (%s) → %s', (cell, title, expected) => {
+    expect(normalizeLicence(cell, title)).toEqual({ value: expected })
+  })
+
+  it('refuses a membership of an association that is not an order', () => {
+    expect(normalizeLicence('Membre de RITMA 1234', 'coach_professionnel')).toHaveProperty('error')
   })
 
   it('flags an email repeated in the file from its second line on', () => {

@@ -11,11 +11,11 @@ describe('matching pickers', () => {
     expect(group?.items.map((i) => i.label)).toEqual(['Enfants (0 à 12 ans)', 'Aînés (65 ans et plus)', 'Couples'])
   })
 
-  it('groups motifs by active category, « Autres » last, archived ones only while held', () => {
+  it('groups motifs by active category, « Sans catégorie » last, archived ones only while held', () => {
     const groups = motifGroups(CATALOG_VIEW, plainSelection([]), true)
     expect(groups.map((g) => [g.label, g.items.map((i) => i.label)])).toEqual([
       ['Vie intérieure', ['Anxiété', 'Psychose']],
-      ['Autres', ['Deuil', 'Sans catégorie']],
+      ['Sans catégorie', ['Deuil', 'Sans catégorie']],
     ])
     const held = motifGroups(CATALOG_VIEW, plainSelection([IDS.archivedMotif]), true)
     expect(held[0]?.items.find((i) => i.id === IDS.archivedMotif)).toMatchObject({ archived: true })
