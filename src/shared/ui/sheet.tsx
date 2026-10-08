@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
 import { closeButtonClasses, overlayClasses } from './overlay-classes'
+import { keepOpenForCombobox } from './overlay-escape'
 
 const Sheet = DialogPrimitive.Root
 const SheetTrigger = DialogPrimitive.Trigger
@@ -40,7 +41,7 @@ const sheetVariants = {
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   SheetContentProps
->(({ side = 'right', hideClose = false, className, children, ...props }, ref) => (
+>(({ side = 'right', hideClose = false, className, children, onEscapeKeyDown, ...props }, ref) => (
   <SheetPortal>
     <SheetOverlay />
     <DialogPrimitive.Content
@@ -52,6 +53,8 @@ const SheetContent = React.forwardRef<
         className
       )}
       {...props}
+      // Échap from an open address list closes the list, not the sheet (P4-223).
+      onEscapeKeyDown={keepOpenForCombobox(onEscapeKeyDown)}
     >
       {children}
       {!hideClose && (

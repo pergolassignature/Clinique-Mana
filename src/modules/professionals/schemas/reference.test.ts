@@ -8,7 +8,7 @@ import { errorAt } from '../test/schema-helpers'
 const V = (key: Parameters<typeof t>[0]) => t(key)
 
 describe('names (every list)', () => {
-  const schema = referenceSchemas.specialties
+  const schema = referenceSchemas.profession_categories
 
   it('tidies the name like reference_text', () => {
     expect(schema.parse({ name: '  Thérapie   d’impact ' })).toEqual({ name: 'Thérapie d’impact' })

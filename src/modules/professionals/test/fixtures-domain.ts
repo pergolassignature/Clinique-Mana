@@ -61,7 +61,12 @@ export function motifsCatalog(sizes: readonly number[]): CatalogView {
   return buildCatalogView({ ...CATALOG, motifCategories: categories, motifs: [...motifs, archived] })
 }
 
-/** The legacy motif list's shape: 8 categories of 9 motifs, 72 active. For the « everything held » cases. */
+/** The website catalogue's shape (P4-241): 13 categories, 124 motifs. For the « everything held » cases. */
+export function websiteSizedCatalog(): CatalogView {
+  return motifsCatalog([19, 7, 5, 11, 8, 18, 10, 6, 4, 8, 6, 12, 10])
+}
+
+/** The legacy motif list's shape: 8 categories of 9 motifs, 72 active. A large catalogue for the history and picker cases. */
 export function seventyTwoMotifsCatalog(): CatalogView {
   return motifsCatalog(Array.from({ length: 8 }, () => 9))
 }

@@ -2,6 +2,7 @@ import * as React from 'react'
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 import { cn } from '@/shared/lib/utils'
 import { overlayClasses, overlayContentClasses } from './overlay-classes'
+import { keepOpenForCombobox } from './overlay-escape'
 import { buttonVariants } from './button'
 
 const AlertDialog = AlertDialogPrimitive.Root
@@ -23,7 +24,7 @@ AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
 const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
->(({ className, ...props }, ref) => (
+>(({ className, onEscapeKeyDown, ...props }, ref) => (
   <AlertDialogPortal>
     <AlertDialogOverlay />
     <AlertDialogPrimitive.Content
@@ -31,6 +32,8 @@ const AlertDialogContent = React.forwardRef<
       aria-modal="true"
       className={cn(overlayContentClasses, className)}
       {...props}
+      // Échap from an open address list closes the list, not the dialog (P4-223).
+      onEscapeKeyDown={keepOpenForCombobox(onEscapeKeyDown)}
     />
   </AlertDialogPortal>
 ))

@@ -6,7 +6,7 @@ import { hasUnsavedChanges } from '@/shared/lib/unsaved-changes-registry'
 import type { FixtureRole } from '@/test/role-fixtures'
 import type { ProfessionalRecord, SpecializedRef } from '../../../api/parse'
 import type { CatalogView } from '../../../lib/catalog-view'
-import { CATALOG_VIEW, recordFixture, seventyTwoMotifsCatalog } from '../../../test/fixtures-domain'
+import { CATALOG_VIEW, recordFixture, websiteSizedCatalog } from '../../../test/fixtures-domain'
 import { IDS } from '../../../test/fixtures'
 import { LEAVE_LINK, renderRecordTab } from '../../../test/record-tab'
 import { MatchingTab } from './MatchingTab'
@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   api: {
     fetchProfessionalRecord: vi.fn(),
     setClienteles: vi.fn(),
-    setSpecialties: vi.fn(),
     setMotifs: vi.fn(),
     setLanguages: vi.fn(),
     updateMatchingProfile: vi.fn(),
@@ -56,7 +55,7 @@ function renderTab({
 }
 
 const card = (title: string) => screen.getByRole('heading', { level: 3, name: title }).closest('section, form') as HTMLElement
-const openPicker = async (list: 'clienteles' | 'approaches' | 'motifs' | 'languages') => {
+const openPicker = async (list: 'clienteles' | 'motifs' | 'languages') => {
   await userEvent.click(screen.getByRole('button', { name: t(`${M}.${list}.edit`) }))
   return screen.getByRole('dialog', { name: t(`${M}.${list}.title`) })
 }
@@ -64,36 +63,43 @@ const unfold = (dialog: HTMLElement, group: string) => userEvent.click(within(di
 const regulatedNo = (r: ProfessionalRecord): ProfessionalRecord => ({ ...r, professions: [{ ...r.professions[0]!, titleId: IDS.naturopathe, licenceNumber: null }] })
 
 describe('MatchingTab — what is held', () => {
-  it('shows the sets as chips (★ first), the motifs summarised, and « Modifier » on each list', () => {
+  it('shows the sets as chips (★ first), the motifs by name, and « Modifier » on each list; no approaches', () => {
     renderTab({ change: (r) => ({ ...r, clienteles: [{ id: IDS.children, specialized: false }, { id: IDS.couples, specialized: true }], languageIds: [IDS.fr, IDS.en] }) })
     const chips = within(card(t(`${M}.clienteles.title`))).getAllByRole('listitem').map((li) => li.textContent)
     expect(chips).toEqual([`★ Couples ${t(`${M}.specialized`)}`, 'Enfants (0 à 12 ans)'])
-    expect(within(card(t(`${M}.approaches.title`))).getByText(t(`${M}.approaches.empty`))).toBeInTheDocument()
-    expect(within(card(t(`${M}.motifs.title`))).getByText('Anxiété', { exact: false })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 3, name: 'Approches' })).not.toBeInTheDocument()
+    expect(within(card(t(`${M}.motifs.title`))).getByText('Anxiété', { selector: 'li' })).toBeInTheDocument()
     expect(within(card(t(`${M}.languages.title`))).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Français', 'Anglais'])
-    for (const list of ['clienteles', 'approaches', 'motifs', 'languages'] as const) {
+    for (const list of ['clienteles', 'motifs', 'languages'] as const) {
       expect(screen.getByRole('button', { name: t(`${M}.${list}.edit`) })).toBeInTheDocument()
     }
     expect(screen.queryByText(t(`${M}.readOnly`))).not.toBeInTheDocument()
   })
 
-  it('keeps 72 held motifs to one line over eight folded categories, and the picker to eight folded categories', async () => {
-    const big = seventyTwoMotifsCatalog()
+  it('writes out every held motif by category, never « Tous »; the picker keeps its folded categories', async () => {
+    const big = websiteSizedCatalog()
     renderTab({ catalog: big, change: (r) => ({ ...r, motifIds: big.motifs.filter((m) => m.isActive).map((m) => m.id) }) })
     const motifs = card(t(`${M}.motifs.title`))
-    const line = within(motifs).getByRole('button', { name: t('modules.professionals.record.overview.matching.motifSummary.allOverall', { count: '72' }) })
-    expect(line).toHaveAttribute('aria-expanded', 'false')
-    await userEvent.click(line)
-    // Eight folded categories; one opened lists its motifs.
-    const categories = within(motifs).getAllByRole('button', { expanded: false })
-    expect(categories.filter((b) => b.textContent?.startsWith('Catégorie'))).toHaveLength(8)
-    expect(within(motifs).getByText('Motif 8.9')).not.toBeVisible()
-    await userEvent.click(within(motifs).getByRole('button', { name: /^Catégorie 8/ }))
-    expect(within(motifs).getByText('Motif 8.9')).toBeVisible()
+    for (const motif of big.motifs.filter((m) => m.isActive)) expect(within(motifs).getByText(motif.name, { selector: 'li' })).toBeVisible()
+    expect(within(motifs).queryByText(/^Tous/)).not.toBeInTheDocument()
+    expect(within(motifs).getAllByRole('button').map((b) => b.textContent)).toEqual([t(`${M}.edit`)])
     const dialog = await openPicker('motifs')
-    expect(within(dialog).getByText(t(`${P}.count`, { selected: '72', total: '72' }))).toBeInTheDocument()
-    expect(within(dialog).getAllByRole('button', { expanded: false })).toHaveLength(8)
+    expect(within(dialog).getByText(t(`${P}.count`, { selected: '124', total: '124' }))).toBeInTheDocument()
+    expect(within(dialog).getAllByRole('button', { expanded: false })).toHaveLength(13)
     expect(within(dialog).queryAllByRole('checkbox')).toEqual([])
+  })
+
+  it('edits the client limits on the matching profile and reads the age on the youngest group (P4-245)', async () => {
+    mocks.api.updateMatchingProfile.mockImplementation(async (_id: string, patch: Partial<ProfessionalRecord['matchingProfile']>) => {
+      stored = { ...stored, matchingProfile: { ...stored.matchingProfile, ...patch } }
+    })
+    renderTab({ change: (r) => ({ ...r, clienteles: [{ id: IDS.children, specialized: false }] }) })
+    const limits = card(t(`${M}.limits.title`))
+    await userEvent.type(within(limits).getByRole('textbox', { name: t(`${M}.limits.minAge`) }), '8')
+    await userEvent.click(within(limits).getByRole('switch', { name: t(`${M}.limits.womenOnly`) }))
+    await userEvent.click(within(limits).getByRole('button', { name: t('common.save') }))
+    await waitFor(() => expect(mocks.api.updateMatchingProfile).toHaveBeenCalledWith(IDS.professional, { minClientAge: 8, womenOnly: true }))
+    await waitFor(() => expect(within(card(t(`${M}.clienteles.title`))).getByText('Enfants (8 ans et +)')).toBeInTheDocument())
   })
 
   it('is read-only without professionals.matching: no « Modifier », no footer, the notice', () => {
@@ -132,7 +138,7 @@ describe('MatchingTab — pickers', () => {
   it('refuses a held restricted motif without a regulated title before calling the database (P4-55)', async () => {
     renderTab({ change: (r) => ({ ...regulatedNo(r), motifIds: [IDS.psychose] }) })
     const dialog = await openPicker('motifs')
-    await unfold(dialog, 'Autres')
+    await unfold(dialog, t('modules.professionals.otherCategory'))
     await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Sans catégorie' }))
     await userEvent.click(within(dialog).getByRole('button', { name: t('common.save') }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(t('modules.professionals.validation.motifRestricted', { name: 'Psychose' }))
@@ -143,7 +149,7 @@ describe('MatchingTab — pickers', () => {
     mocks.api.setMotifs.mockRejectedValue(Object.assign(new Error('Le motif « Sans catégorie » est archivé.'), { code: 'P0001' }))
     renderTab()
     const dialog = await openPicker('motifs')
-    await unfold(dialog, 'Autres')
+    await unfold(dialog, t('modules.professionals.otherCategory'))
     await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Sans catégorie' }))
     await userEvent.click(within(dialog).getByRole('button', { name: t('common.save') }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Le motif « Sans catégorie » est archivé.')

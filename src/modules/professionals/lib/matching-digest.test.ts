@@ -9,8 +9,14 @@ function record(overrides: Partial<ProfessionalRecord> = {}): ProfessionalRecord
   return { ...recordFixture(), ...overrides }
 }
 
+/** The fixture with the matching profile's client limits (P4-245). */
+function limited(minClientAge: number | null, womenOnly: boolean, clienteles: ProfessionalRecord['clienteles']): ProfessionalRecord {
+  const base = recordFixture()
+  return { ...base, clienteles, matchingProfile: { ...base.matchingProfile, minClientAge, womenOnly } }
+}
+
 describe('matchingDigest', () => {
-  it('puts specialised clientèles and approaches first, then the catalogue order', () => {
+  it('puts specialised clientèles first, then the catalogue order', () => {
     const digest = matchingDigest(
       record({
         clienteles: [
@@ -18,7 +24,6 @@ describe('matchingDigest', () => {
           { id: IDS.couples, specialized: true },
           { id: IDS.seniors, specialized: false },
         ],
-        specialties: [{ id: IDS.cbt, specialized: true }],
       }),
       CATALOG_VIEW,
     )
@@ -27,19 +32,18 @@ describe('matchingDigest', () => {
       ['Enfants (0 à 12 ans)', false],
       ['Aînés (65 ans et plus)', false],
     ])
-    expect(digest.approaches).toEqual([{ id: IDS.cbt, label: 'Thérapie cognitivo-comportementale (TCC)', specialized: true, archived: false }])
+    expect(digest).not.toHaveProperty('approaches')
   })
 
-  it('keeps a held archived clientèle or approach, marked « (archivé) », in its place', () => {
+  it('keeps a held archived clientèle, marked « (archivé) », in its place', () => {
     const archive = <T extends { id: string; isActive: boolean }>(rows: T[], id: string) => rows.map((row) => (row.id === id ? { ...row, isActive: false } : row))
-    const catalog = buildCatalogView({ ...CATALOG, clienteles: archive(CATALOG.clienteles, IDS.couples), specialties: archive(CATALOG.specialties, IDS.cbt) })
+    const catalog = buildCatalogView({ ...CATALOG, clienteles: archive(CATALOG.clienteles, IDS.couples) })
     const digest = matchingDigest(
       record({
         clienteles: [
           { id: IDS.children, specialized: false },
           { id: IDS.couples, specialized: true },
         ],
-        specialties: [{ id: IDS.cbt, specialized: false }],
       }),
       catalog,
     )
@@ -47,12 +51,29 @@ describe('matchingDigest', () => {
       ['Couples', true, true],
       ['Enfants (0 à 12 ans)', false, false],
     ])
-    expect(digest.approaches).toEqual([{ id: IDS.cbt, label: 'Thérapie cognitivo-comportementale (TCC)', specialized: false, archived: true }])
   })
 
-  it('summarises the motifs (summarizeMotifs)', () => {
+  it('reads the youngest client age on the youngest held age group: « Enfants (8 ans et +) » (P4-245)', () => {
+    const both = [
+      { id: IDS.seniors, specialized: false },
+      { id: IDS.children, specialized: true },
+    ]
+    const digest = matchingDigest(limited(8, true, both), CATALOG_VIEW)
+    expect(digest.clienteles.map((c) => c.label)).toEqual(['Enfants (8 ans et +)', 'Aînés (65 ans et plus)'])
+    expect(digest).toMatchObject({ minClientAge: null, womenOnly: true })
+    // An age the youngest group already starts at adds nothing.
+    expect(matchingDigest(limited(0, false, both), CATALOG_VIEW).clienteles.map((c) => c.label)).toEqual(['Enfants (0 à 12 ans)', 'Aînés (65 ans et plus)'])
+  })
+
+  it('says the youngest client age apart when no age group is held', () => {
+    const digest = matchingDigest(limited(14, false, [{ id: IDS.couples, specialized: false }]), CATALOG_VIEW)
+    expect(digest.clienteles.map((c) => c.label)).toEqual(['Couples'])
+    expect(digest).toMatchObject({ minClientAge: 14, womenOnly: false })
+  })
+
+  it('lists the motifs by category (summarizeMotifs)', () => {
     const digest = matchingDigest(record({ motifIds: [IDS.orphan, IDS.anxiete] }), CATALOG_VIEW)
-    expect(digest.motifs.groups.map((g) => g.name)).toEqual(['Vie intérieure', 'Autres'])
+    expect(digest.motifs.groups.map((g) => g.name)).toEqual(['Vie intérieure', 'Sans catégorie'])
   })
 
   it('names the languages and the availability, and skips ids the catalogue does not know', () => {
@@ -67,9 +88,9 @@ describe('matchingDigest', () => {
   it('is empty without any choice', () => {
     const base = recordFixture()
     const digest = matchingDigest(
-      record({ clienteles: [], specialties: [], motifIds: [], languageIds: [], matchingProfile: { ...base.matchingProfile, availabilityPeriods: [], availabilityNote: ' Pas le vendredi. ' } }),
+      record({ clienteles: [], motifIds: [], languageIds: [], matchingProfile: { ...base.matchingProfile, availabilityPeriods: [], availabilityNote: ' Pas le vendredi. ' } }),
       CATALOG_VIEW,
     )
-    expect(digest).toMatchObject({ clienteles: [], approaches: [], languages: [], periods: '', note: 'Pas le vendredi.' })
+    expect(digest).toMatchObject({ clienteles: [], minClientAge: null, womenOnly: false, languages: [], periods: '', note: 'Pas le vendredi.' })
   })
 })

@@ -19,12 +19,14 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * |                                          | active rows only)                                              |
  * | a list reordered                         | `catalog()` (optimistic, rolled back on error)                 |
  * | module settings                          | none: the RPC returns the effective settings, written as is    |
- * | a professional's margin or level (4a.18) | `compensation(id)`, `history(id)` (first page)                 |
+ * | a professional's sessions, rate or client | `compensation(id)`, `history(id)` (first page), `reviews()`    |
+ * | agreement (P4-186, P4-187)               |                                                                |
+ * | the review's batch of sessions (P4-190)  | `reviews()`, every `compensation(…)`, each row's `history(id)` |
  * | a professional's private data, saved or  | `private(id)`, `history(id)` (first page); a save first writes |
  * | cleared (4a.18)                          | its returned `updated_at` into `private(id)`; a reveal marks   |
  * |                                          | the history stale only. A revealed value is never cached.      |
- * | a clinic default range or rule (4a.18)   | `compensationTermsKeys.terms()`, every `compensation(…)`       |
- * |                                          | (`compensations()`: what is in force follows the defaults)     |
+ * | a clinic grid or other rate (P4-185)     | `compensationTermsKeys.terms()`, every `compensation(…)` and   |
+ * |                                          | `review(…)` (the suggestions follow the grids)                 |
  *
  * Labels never live in records or list rows (ids only), so a rename touches the catalogue alone.
  */
@@ -36,10 +38,14 @@ export const professionalKeys = {
   pages: (query: ProfessionalsPageQuery) => [...professionalKeys.lists(), 'pages', query] as const,
   record: (id: string) => [...professionalKeys.all, 'record', id] as const,
   history: (id: string) => [...professionalKeys.all, 'history', id] as const,
-  /** Every professional's compensation entry: a clinic default or rule changes what each one has in force. */
+  /** Every professional's compensation entry: a clinic grid changes what each one is suggested. */
   compensations: () => [...professionalKeys.all, 'compensation'] as const,
-  /** The « Rémunération » cards of a record: terms in force and dated rows (`professionals.compensation`). */
+  /** The « Rétention » card of a record: the state and the dated rows (`professionals.compensation`). */
   compensation: (id: string) => [...professionalKeys.compensations(), id] as const,
+  /** Every « Révision mensuelle » month read. */
+  reviews: () => [...professionalKeys.all, 'review'] as const,
+  /** One month (`yyyy-MM-01`) of « Révision mensuelle ». */
+  review: (month: string) => [...professionalKeys.reviews(), month] as const,
   /** The masked private data (`professionals.private`); never a revealed value. */
   private: (id: string) => [...professionalKeys.all, 'private', id] as const,
 }
@@ -57,8 +63,8 @@ export const professionalsSettingsKeys = {
 }
 
 /**
- * The clinic's compensation terms (Paramètres → Rémunération): the kinds (global, changed by
- * migration: never refetched) and the dated default ranges and recognition rules.
+ * The clinic's compensation terms (Paramètres → Rémunération): the other kinds (global, changed by
+ * migration: never refetched), the dated grids and the other kinds' rates.
  */
 export const compensationTermsKeys = {
   all: ['compensation-terms'] as const,

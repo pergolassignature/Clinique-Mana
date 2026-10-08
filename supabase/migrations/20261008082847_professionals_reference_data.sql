@@ -2,7 +2,7 @@
 -- Professionnels: permissions and per-clinic reference lists
 -- =============================================================================
 -- Design:  docs/plans/2026-10-08-professionals-module-design.md §3.1–3.2, §4
--- Plan:    docs/plans/2026-10-08-professionals-module-plan.md Task 4a.1 (P4-6, P4-28, P4-31, P4-32, P4-40, P4-42, P4-51)
+-- Plan:    docs/plans/2026-10-08-professionals-module-plan.md Task 4a.1 (P4-6, P4-28, P4-31, P4-32, P4-40, P4-42, P4-240–P4-246)
 -- Rules:   docs/standards/database-conventions.md
 --
 -- Key choices
@@ -10,9 +10,10 @@
 --   and for existing clinics below. Keys are ASCII snake_case and frozen by a
 --   trigger, like org_id (seeded rows keep their legacy keys, P4-31). Names are
 --   French and editable.
--- * Soft delete only (is_active). is_system rows (clientèles, French, « Autre »)
---   cannot be archived: matching and creation rely on them (P4-42; enforced by
---   the settings RPCs of the next migration, the only writers).
+-- * Soft delete only (is_active). is_system rows (the five age and format clientèles
+--   matching relies on, French, « Autre ») cannot be archived: matching and creation
+--   rely on them (P4-42; enforced by the settings RPCs of the next migration, the
+--   only writers).
 -- * Read by anyone holding a professionals key: staff with view or any other staff
 --   key (manage, matching, settings… by default or by override), providers with
 --   self. Written only through the settings RPCs of the next migration. Each policy
@@ -22,11 +23,14 @@
 -- * Names: no leading or trailing whitespace, no control or invisible character
 --   (private.is_tidy_text), unique per clinic compared as lower(normalize(name, NFKC)),
 --   like roles (core_editable_roles): two names that look the same are the same name.
--- * Seeded content is legacy-v1 (P4-21): the 72 motifs and 8 « sphères de vie »
---   categories, the 10 therapy_type approaches, the 8 legacy titles plus
---   « Nutritionniste » (P4-6). Legacy-archived rows are left out (D7, P4-28).
---   Motif and category labels are reworded in non-clinical terms and five legacy
---   typos fixed (P4-51); keys are unchanged, so the import maps them as before.
+-- * Seeded motifs, motif categories and clientèles are the clinic's own, from the
+--   « Motifs de consultation » and « Clientèle » of the 43 profiles on
+--   cliniquemana.com (Jonathan, 2026-10-08, P4-241–P4-245): 13 categories and 124
+--   motifs in the site's order and wording (apostrophes ’, « / » spaced, the two
+--   labels listed under two headings told apart), 8 clientèles. Titles are the 8
+--   legacy titles plus « Nutritionniste » (P4-6). The seed is only a start: the
+--   clinic edits, archives and reorders every list in Paramètres. There are no
+--   therapeutic approaches (P4-240).
 -- =============================================================================
 
 select pg_catalog.set_config('app.audit_source', 'migration:professionals_reference_data', true);
@@ -57,7 +61,7 @@ insert into public.role_permissions (role, permission_key) values
 on conflict do nothing;
 
 -- -----------------------------------------------------------------------------
--- Read access to the lists (one helper for the nine policies)
+-- Read access to the lists (one helper for the eight policies)
 -- -----------------------------------------------------------------------------
 -- One evaluation of the caller's permissions (current_permission_keys applies the module gate
 -- and drops disabled users). Any professionals key reads the lists: view, or another staff key
@@ -204,28 +208,7 @@ create unique index clienteles_org_name_key on public.clienteles (org_id, lower(
 create index clienteles_org_sort_idx on public.clienteles (org_id, sort_order);
 
 -- -----------------------------------------------------------------------------
--- specialties: therapeutic approaches (soft scoring in matching)
--- -----------------------------------------------------------------------------
-create table public.specialties (
-  id uuid primary key default gen_random_uuid(),
-  org_id uuid not null references public.organizations(id) on delete cascade,
-  key text not null,
-  name text not null,
-  is_system boolean not null default false,
-  sort_order int not null default 0,
-  is_active boolean not null default true,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint specialties_key_check check (key ~ '^[a-z][a-z0-9_]{0,49}$'),
-  constraint specialties_name_check check (char_length(name) between 1 and 120 and private.is_tidy_text(name)),
-  constraint specialties_org_id_key_key unique (org_id, key),
-  constraint specialties_org_id_id_key unique (org_id, id)
-);
-create unique index specialties_org_name_key on public.specialties (org_id, lower(normalize(name, NFKC)));
-create index specialties_org_sort_idx on public.specialties (org_id, sort_order);
-
--- -----------------------------------------------------------------------------
--- motif_categories: display groups of motifs (« sphères de vie »)
+-- motif_categories: display groups of motifs (the website's headings)
 -- -----------------------------------------------------------------------------
 create table public.motif_categories (
   id uuid primary key default gen_random_uuid(),
@@ -322,14 +305,14 @@ create unique index deactivation_reasons_org_name_key on public.deactivation_rea
 create index deactivation_reasons_org_sort_idx on public.deactivation_reasons (org_id, sort_order);
 
 -- -----------------------------------------------------------------------------
--- Privileges, RLS, triggers (same block for the nine lists)
+-- Privileges, RLS, triggers (same block for the eight lists)
 -- -----------------------------------------------------------------------------
 revoke all on public.professional_orders, public.profession_categories, public.profession_titles,
-              public.clienteles, public.specialties, public.motif_categories, public.motifs,
+              public.clienteles, public.motif_categories, public.motifs,
               public.languages, public.deactivation_reasons
   from anon, authenticated;
 grant select on public.professional_orders, public.profession_categories, public.profession_titles,
-                public.clienteles, public.specialties, public.motif_categories, public.motifs,
+                public.clienteles, public.motif_categories, public.motifs,
                 public.languages, public.deactivation_reasons
   to authenticated;
 
@@ -337,7 +320,6 @@ alter table public.professional_orders enable row level security;
 alter table public.profession_categories enable row level security;
 alter table public.profession_titles enable row level security;
 alter table public.clienteles enable row level security;
-alter table public.specialties enable row level security;
 alter table public.motif_categories enable row level security;
 alter table public.motifs enable row level security;
 alter table public.languages enable row level security;
@@ -355,9 +337,6 @@ create policy profession_titles_select on public.profession_titles
 create policy clienteles_select on public.clienteles
   for select to authenticated
   using (org_id = (select private.current_user_org_id()) and (select private.can_read_professionals_reference()));
-create policy specialties_select on public.specialties
-  for select to authenticated
-  using (org_id = (select private.current_user_org_id()) and (select private.can_read_professionals_reference()));
 create policy motif_categories_select on public.motif_categories
   for select to authenticated
   using (org_id = (select private.current_user_org_id()) and (select private.can_read_professionals_reference()));
@@ -373,7 +352,7 @@ create policy deactivation_reasons_select on public.deactivation_reasons
 
 -- A row's identity never changes: its key (code for languages) is what imports, matching and
 -- the settings RPCs refer to, and its org scopes it. Like private.roles_freeze_identity; one
--- function for the nine tables (a table without key or code reads null on both sides).
+-- function for the eight tables (a table without key or code reads null on both sides).
 create function private.freeze_reference_identity()
 returns trigger
 language plpgsql
@@ -404,8 +383,6 @@ create trigger profession_titles_freeze_identity before update on public.profess
   for each row execute function private.freeze_reference_identity();
 create trigger clienteles_freeze_identity before update on public.clienteles
   for each row execute function private.freeze_reference_identity();
-create trigger specialties_freeze_identity before update on public.specialties
-  for each row execute function private.freeze_reference_identity();
 create trigger motif_categories_freeze_identity before update on public.motif_categories
   for each row execute function private.freeze_reference_identity();
 create trigger motifs_freeze_identity before update on public.motifs
@@ -430,10 +407,6 @@ create trigger profession_titles_audit after insert or update or delete on publi
 create trigger clienteles_set_updated_at before update on public.clienteles
   for each row execute function private.set_updated_at();
 create trigger clienteles_audit after insert or update or delete on public.clienteles
-  for each row execute function private.audit_trigger();
-create trigger specialties_set_updated_at before update on public.specialties
-  for each row execute function private.set_updated_at();
-create trigger specialties_audit after insert or update or delete on public.specialties
   for each row execute function private.audit_trigger();
 create trigger motif_categories_set_updated_at before update on public.motif_categories
   for each row execute function private.set_updated_at();
@@ -481,16 +454,17 @@ begin
 
   for r in
     select * from (values
-      ('opq',     'Ordre des psychologues du Québec', 'OPQ', 10),
-      ('otstcfq', 'Ordre des travailleurs sociaux et des thérapeutes conjugaux et familiaux du Québec', 'OTSTCFQ', 20),
-      ('oppq',    'Ordre des psychoéducateurs et psychoéducatrices du Québec', 'OPPQ', 30),
-      ('opsq',    'Ordre professionnel des sexologues du Québec', 'OPSQ', 40),
-      ('occoq',   'Ordre des conseillers et conseillères d''orientation du Québec', 'OCCOQ', 50),
-      ('odnq',    'Ordre des diététistes-nutritionnistes du Québec', 'ODNQ', 60)
-    ) as v(key, name, acronym, sort_order)
+      ('opq',     'Ordre des psychologues du Québec', 'OPQ', null, 10),
+      ('otstcfq', 'Ordre des travailleurs sociaux et des thérapeutes conjugaux et familiaux du Québec', 'OTSTCFQ', null, 20),
+      -- OPPQ permits read NNNNN-AA on every profile of the website (P4-248).
+      ('oppq',    'Ordre des psychoéducateurs et psychoéducatrices du Québec', 'OPPQ', '^[0-9]{5}-[0-9]{2}$', 30),
+      ('opsq',    'Ordre professionnel des sexologues du Québec', 'OPSQ', null, 40),
+      ('occoq',   'Ordre des conseillers et conseillères d''orientation du Québec', 'OCCOQ', null, 50),
+      ('odnq',    'Ordre des diététistes-nutritionnistes du Québec', 'ODNQ', null, 60)
+    ) as v(key, name, acronym, licence_pattern, sort_order)
   loop
-    insert into public.professional_orders (org_id, key, name, acronym, sort_order)
-    values (p_org, r.key, r.name, r.acronym, r.sort_order)
+    insert into public.professional_orders (org_id, key, name, acronym, licence_pattern, sort_order)
+    values (p_org, r.key, r.name, r.acronym, r.licence_pattern, r.sort_order)
     on conflict do nothing;
     select x.id into v_id from public.professional_orders x
      where x.org_id = p_org
@@ -538,41 +512,39 @@ begin
     ) as t(key, name, category_key, order_key, sort_order)
   on conflict do nothing;
 
-  -- Keys matching relies on (P4-42); lgbtq, indigenous and newcomers are not re-seeded (D7).
+  -- The clientèles of the website's profiles (P4-244), in the site's order of age then format.
+  -- The five legacy keys matching relies on stay (P4-31, P4-42) and are is_system; the three new
+  -- ones (English like them) can be archived. Adultes has no upper bound: there are no Aînés.
+  -- « Enfants (8+) » and « Femmes exclusivement » are per professional (matching profile, P4-245).
   insert into public.clienteles (org_id, key, name, min_age, max_age, is_system, sort_order) values
     (p_org, 'children', 'Enfants', 0, 12, true, 10), (p_org, 'adolescents', 'Adolescents', 13, 17, true, 20),
-    (p_org, 'adults', 'Adultes', 18, 64, true, 30), (p_org, 'seniors', 'Aînés', 65, null, true, 40),
+    (p_org, 'young_adults', 'Jeunes adultes', 18, 25, false, 30), (p_org, 'adults', 'Adultes', 18, null, true, 40),
     (p_org, 'couples', 'Couples', null, null, true, 50), (p_org, 'families', 'Familles', null, null, true, 60),
-    (p_org, 'groups', 'Groupes', null, null, true, 70)
+    (p_org, 'parents', 'Parents', null, null, false, 70), (p_org, 'athletes', 'Athlètes', null, null, false, 80)
   on conflict do nothing;
 
-  -- Approaches: the legacy therapy_type rows, keys and names unchanged
-  -- (_legacy/supabase/migrations/20260118000003_professionals_schema.sql, lines 352–361).
-  insert into public.specialties (org_id, key, name, sort_order) values
-    (p_org, 'cbt', 'Thérapie cognitivo-comportementale (TCC)', 10), (p_org, 'psychodynamic', 'Thérapie psychodynamique', 20),
-    (p_org, 'humanistic', 'Approche humaniste', 30), (p_org, 'systemic', 'Thérapie systémique', 40),
-    (p_org, 'gestalt', 'Gestalt-thérapie', 50), (p_org, 'emdr', 'EMDR', 60),
-    (p_org, 'act', 'Thérapie d''acceptation et d''engagement (ACT)', 70),
-    (p_org, 'dbt', 'Thérapie comportementale dialectique (DBT)', 80),
-    (p_org, 'art_therapy', 'Art-thérapie', 90), (p_org, 'play_therapy', 'Thérapie par le jeu', 100)
-  on conflict do nothing;
-
-  -- Motif categories: legacy 20260127000002_motif_categories_seed.sql (keys, names, icons;
-  -- display_order 1–8 becomes sort_order 10–80); three descriptions reworded (P4-51).
+  -- Motif categories: the 13 headings of « Motifs de consultation » on the website, in its order
+  -- (P4-241; « Gestion des écrans », on one profile only, after « Famille et parentalité »). The
+  -- icons are ours (the site has none); no description.
   for r in
     select * from (values
-      ('inner_life',    'Vie intérieure',       'Anxiété, dépression, estime de soi et bien-être émotionnel', 'Brain',         10),
-      ('relationships', 'Relations et famille', 'Relations amoureuses, familiales et interpersonnelles',      'Users',         20),
-      ('dependencies',  'Dépendances',          'Dépendances comportementales et substances',                 'AlertTriangle', 30),
-      ('work',          'Vie professionnelle',  'Carrière, épuisement et difficultés au travail',             'Briefcase',     40),
-      ('development',   'Développement',        'Apprentissage, attention et développement',                  'GraduationCap', 50),
-      ('identity',      'Identité',             'Genre, orientation sexuelle et identité personnelle',        'Fingerprint',   60),
-      ('trauma',        'Trauma',               'Abus, violence et expériences traumatiques',                 'Shield',        70),
-      ('life_changes',  'Changements de vie',   'Deuil, santé et transitions de vie',                         'Leaf',          80)
-    ) as v(key, name, description, icon, sort_order)
+      ('sante_mentale',       'Santé mentale / Troubles psychologiques',   'Brain',          10),
+      ('personnalite',        'Personnalité et comportements',             'Compass',        20),
+      ('dependances',         'Dépendances',                               'AlertTriangle',  30),
+      ('neurodiversite',      'Neurodiversité / apprentissages',           'Sparkles',       40),
+      ('couple_relationnel',  'Couple et relationnel',                     'Heart',          50),
+      ('famille_parentalite', 'Famille et parentalité',                    'Home',           60),
+      ('gestion_ecrans',      'Gestion des écrans et de l’ère numérique',  'Zap',            70),
+      ('travail_carriere',    'Travail, carrière et organisation',         'Briefcase',      80),
+      ('ecole_scolarite',     'École, scolarité',                          'GraduationCap',  90),
+      ('violence_abus',       'Violence / abus / victimisation',           'Shield',         100),
+      ('sante_physique',      'Santé physique et maladies',                'Activity',       110),
+      ('sexualite_identite',  'Sexualité / identité / intimité',           'Fingerprint',    120),
+      ('autres',              'Autres',                                    'Leaf',           130)
+    ) as v(key, name, icon, sort_order)
   loop
-    insert into public.motif_categories (org_id, key, name, description, icon, sort_order)
-    values (p_org, r.key, r.name, r.description, r.icon, r.sort_order)
+    insert into public.motif_categories (org_id, key, name, icon, sort_order)
+    values (p_org, r.key, r.name, r.icon, r.sort_order)
     on conflict do nothing;
     select x.id into v_id from public.motif_categories x
      where x.org_id = p_org
@@ -583,90 +555,145 @@ begin
     v_motif_categories := v_motif_categories || pg_catalog.jsonb_build_object(r.key, v_id);
   end loop;
 
-  -- Motifs: the 72 keys of legacy 20260118000008_motifs_seed.sql (P4-21) with the category of
-  -- 20260127000003_motif_category_assignments.sql (every motif has one). Names as there, except
-  -- the non-clinical rewordings and typo fixes of P4-51. sort_order = 10 × the row's rank by
-  -- name (accents and case ignored).
+  -- Motifs: the 122 labels of the 43 profiles (P4-241), 124 motifs: « Communication » and
+  -- « Anxiété de performance » are under two headings each, so each gets two motifs (P4-242). In
+  -- the site's order within each heading (alphabetical, as every profile lists them) and its
+  -- wording, which the clinic chose (P4-243): straight apostrophes become ’, « / » is spaced and
+  -- the site's trailing U+202F is dropped. Keys are French ASCII slugs (P4-31). None restricted.
+  -- sort_order = 10 × the motif's rank in the whole list.
   insert into public.motifs (org_id, key, name, category_id, sort_order)
   select p_org, m.key, m.name, (v_motif_categories ->> m.category_key)::uuid, m.sort_order
     from (values
-      ('abus_sexuel',                           'Abus sexuel',                                                'trauma',         10),
-      ('accumulation_compulsive',               'Accumulation compulsive',                                    'inner_life',     20),
-      ('adoption',                              'Adoption',                                                   'relationships',  30),
-      ('anxiete',                               'Anxiété',                                                    'inner_life',     40),
-      ('automutilation',                        'Automutilation',                                             'inner_life',     50),
-      ('trouble_bipolaire',                     'Bipolarité',                                                 'inner_life',     60),
-      ('comportement_sexuels_abusif',           'Comportements sexuels abusifs',                              'trauma',         70),
-      ('consommation_alcool',                   'Consommation d''alcool',                                     'dependencies',   80),
-      ('consommation_drogue',                   'Consommation de drogue',                                     'dependencies',   90),
-      ('cyberdependance',                       'Cyberdépendance',                                            'dependencies',  100),
-      ('deficience_intellectuelle',             'Déficience intellectuelle',                                  'development',   110),
-      ('deficit_attention_hyperactivite',       'Déficit de l''attention / hyperactivité (TDA, TDAH)',        'development',   120),
-      ('dependance',                            'Dépendance',                                                 'dependencies',  130),
-      ('dependance_affective',                  'Dépendance affective',                                       'relationships', 140),
-      ('dependance_jeu',                        'Dépendance au jeu',                                          'dependencies',  150),
-      ('dependance_medicament',                 'Dépendance au médicament',                                   'dependencies',  160),
-      ('dependance_travail',                    'Dépendance au travail',                                      'dependencies',  170),
-      ('dependance_jeux_video',                 'Dépendance aux jeux vidéo',                                  'dependencies',  180),
-      ('dependance_sexuelle',                   'Dépendance sexuelle',                                        'dependencies',  190),
-      ('depression',                            'Dépression',                                                 'inner_life',    200),
-      ('deuil',                                 'Deuil',                                                      'life_changes',  210),
-      ('difficultes_apprentissage',             'Difficultés d''apprentissage',                               'development',   220),
-      ('difficultes_comportement',              'Difficultés de comportement',                                'development',   230),
-      ('trouble_conduites',                     'Difficultés de conduite',                                    'development',   240),
-      ('difficultes_language',                  'Difficultés de langage',                                     'development',   250),
-      ('trouble_sommeil',                       'Difficultés de sommeil',                                     'inner_life',    260),
-      ('difficultes_professionnelles',          'Difficultés professionnelles',                               'work',          270),
-      ('dysfonctions_sexuelle',                 'Difficultés sexuelles',                                      'identity',      280),
-      ('douance',                               'Douance',                                                    'development',   290),
-      ('dyslexie',                              'Dyslexie',                                                   'development',   300),
-      ('epuisement_professionnel',              'Épuisement professionnel',                                   'work',          310),
-      ('estime_de_soi',                         'Estime de soi',                                              'inner_life',    320),
-      ('famille_recomposee',                    'Famille recomposée',                                         'relationships', 330),
-      ('gestion_colere',                        'Gestion de la colère',                                       'inner_life',    340),
-      ('grossesse_prenatal_post_partum',        'Grossesse, Prénatal, Post-partum',                           'relationships', 350),
-      ('guerre_conflit_arme_veterans',          'Guerre / Conflit armé (Vétérans)',                           'trauma',        360),
-      ('guerre_conflit_arme_victimes_civiles',  'Guerre / Conflit armé (Victimes civiles)',                   'trauma',        370),
-      ('idees_suicidaires',                     'Idées suicidaires',                                          'inner_life',    380),
-      ('identite_genre',                        'Identité de genre',                                          'identity',      390),
-      ('identite_orientation_sexuelle',         'Identité et Orientation sexuelle',                           'identity',      400),
-      ('identite_raciale',                      'Identité raciale',                                           'identity',      410),
-      ('infertilite',                           'Infertilité',                                                'relationships', 420),
-      ('infidelite',                            'Infidélité',                                                 'relationships', 430),
-      ('insomnie',                              'Insomnie',                                                   'inner_life',    440),
-      ('intimidation',                          'Intimidation',                                               'relationships', 450),
-      ('maladies_degeneratives',                'Maladies dégénératives',                                     'life_changes',  460),
-      ('monoparentalite',                       'Monoparentalité',                                            'relationships', 470),
-      ('trouble_obsessionnel_compulsif',        'Obsessions et compulsions (TOC)',                            'inner_life',    480),
-      ('trouble_oppositionnel_provocation',     'Opposition et provocation (TOP)',                            'development',   490),
-      ('orientation_professionnelle',           'Orientation professionnelle',                                'work',          500),
-      ('trouble_personnalite_limite',           'Personnalité limite (TPL)',                                  'inner_life',    510),
-      ('problemes_financiers',                  'Problèmes financiers',                                       'work',          520),
-      ('psychose',                              'Psychose',                                                   'inner_life',    530),
-      ('readaptation_professionnelle',          'Réadaptation professionnelle',                               'work',          540),
-      ('troubles_alimentaires',                 'Relation à l''alimentation',                                 'dependencies',  550),
-      ('relations_amoureuses',                  'Relations amoureuses',                                       'relationships', 560),
-      ('relations_familiales',                  'Relations familiales',                                       'relationships', 570),
-      ('relations_interpersonnelles',           'Relations interpersonnelles',                                'relationships', 580),
-      ('retard_developpement',                  'Retard de développement',                                    'development',   590),
-      ('retard_global_developpement',           'Retard global de développement (RGD)',                       'development',   600),
-      ('separation_divorce',                    'Séparation, Divorce',                                        'relationships', 610),
-      ('sexualite',                             'Sexualité',                                                  'identity',      620),
-      ('situations_crises',                     'Situations de crise',                                        'inner_life',    630),
-      ('trouble_spectre_autisme',               'Spectre de l''autisme (TSA)',                                'development',   640),
-      ('syndrome_gilles_tourette',              'Syndrome de Gilles de la Tourette',                          'development',   650),
-      ('trouble_personnalite_narcissique',      'Traits narcissiques',                                        'inner_life',    660),
-      ('transsexualite',                        'Transidentité',                                              'identity',      670),
-      ('traumatisme_cranio_cerebral',           'Traumatisme cranio-cérébral (TCC)',                          'trauma',        680),
-      ('traumatisme_stress_post_traumatique',   'Traumatisme et stress post-traumatique',                     'inner_life',    690),
-      ('victime_agression_sexuelle',            'Victime d''agression sexuelle',                              'trauma',        700),
-      ('victime_violence',                      'Victime de violence',                                        'trauma',        710),
-      ('violence_conjugale_familiale',          'Violence conjugale ou familiale',                            'relationships', 720)
+      ('anxiete',                                      'Anxiété',                                                                               'sante_mentale',         10),
+      ('automutilation',                               'Automutilation',                                                                        'sante_mentale',         20),
+      ('depression',                                   'Dépression',                                                                            'sante_mentale',         30),
+      ('deuil_par_suicide',                            'Deuil par suicide',                                                                     'sante_mentale',         40),
+      ('estime_de_soi',                                'Estime de soi',                                                                         'sante_mentale',         50),
+      ('gestion_colere',                               'Gestion de la colère',                                                                  'sante_mentale',         60),
+      ('gestion_des_emotions',                         'Gestion des émotions',                                                                  'sante_mentale',         70),
+      ('gestion_du_stress',                            'Gestion du stress',                                                                     'sante_mentale',         80),
+      ('hypersensibilite',                             'Hypersensibilité',                                                                      'sante_mentale',         90),
+      ('idees_suicidaires',                            'Idées suicidaires',                                                                     'sante_mentale',        100),
+      ('isolement_et_rejet_social',                    'Isolement et rejet social',                                                             'sante_mentale',        110),
+      ('phobies',                                      'Phobies',                                                                               'sante_mentale',        120),
+      ('situations_crises',                            'Situations de crise',                                                                   'sante_mentale',        130),
+      ('trouble_humeur_bipolarite',                    'Trouble de l’humeur, bipolarité',                                                       'sante_mentale',        140),
+      ('trouble_stress_post_traumatique_tspt',         'Trouble de stress post-traumatique (TSPT)',                                             'sante_mentale',        150),
+      ('trouble_obsessionnel_compulsif',               'Trouble obsessionnel-compulsif (TOC)',                                                  'sante_mentale',        160),
+      ('troubles_alimentaires',                        'Troubles alimentaires',                                                                 'sante_mentale',        170),
+      ('troubles_anxieux',                             'Troubles anxieux',                                                                      'sante_mentale',        180),
+      ('troubles_du_sommeil_insomnie',                 'Troubles du sommeil / insomnie',                                                        'sante_mentale',        190),
+      ('difficultes_comportement',                     'Difficultés de comportement',                                                           'personnalite',         200),
+      ('difficultes_comportement_enfant',              'Difficultés de comportement chez l’enfant',                                             'personnalite',         210),
+      ('trouble_de_personnalite',                      'Trouble de personnalité',                                                               'personnalite',         220),
+      ('trouble_personnalite_limite',                  'Trouble de personnalité limite (TPL)',                                                  'personnalite',         230),
+      ('trouble_personnalite_narcissique',             'Trouble de personnalité narcissique (TPN)',                                             'personnalite',         240),
+      ('trouble_conduites',                            'Trouble des conduites',                                                                 'personnalite',         250),
+      ('trouble_oppositionnel_provocation',            'Trouble oppositionnel avec provocation (TOP)',                                          'personnalite',         260),
+      ('dependance_affective',                         'Dépendance affective',                                                                  'dependances',          270),
+      ('dependance_travail',                           'Dépendance au travail',                                                                 'dependances',          280),
+      ('dependance_sexuelle',                          'Dépendance sexuelle',                                                                   'dependances',          290),
+      ('dependances_alcool_drogue_medicament',         'Dépendances (alcool, drogue, médicament, vapotage)',                                    'dependances',          300),
+      ('dependances_jeu_jeux_video_cyberdependance',   'Dépendances (jeu, jeux vidéo, cyberdépendance)',                                        'dependances',          310),
+      ('adaptation_a_l_ecole',                         'Adaptation à l’école',                                                                  'neurodiversite',       320),
+      ('deficience_intellectuelle',                    'Déficience intellectuelle',                                                             'neurodiversite',       330),
+      ('deficit_attention_hyperactivite',              'Déficit de l’attention / hyperactivité (TDA/H)',                                        'neurodiversite',       340),
+      ('difficultes_adaptation_neurodivergence',       'Difficultés d’adaptation liées à la neurodivergence',                                   'neurodiversite',       350),
+      ('douance',                                      'Douance',                                                                               'neurodiversite',       360),
+      ('soutien_parents_enfants_neuroatypiques',       'Soutien aux parents d’enfants neuroatypiques',                                          'neurodiversite',       370),
+      ('syndrome_gilles_tourette',                     'Syndrome de Gilles de la Tourette',                                                     'neurodiversite',       380),
+      ('trouble_d_adaptation',                         'Trouble d’adaptation',                                                                  'neurodiversite',       390),
+      ('trouble_spectre_autisme',                      'Trouble du spectre de l’autisme',                                                       'neurodiversite',       400),
+      ('troubles_difficultes_apprentissage',           'Troubles / difficultés d’apprentissage',                                                'neurodiversite',       410),
+      ('troubles_neuropsychologiques',                 'Troubles neuropsychologiques',                                                          'neurodiversite',       420),
+      ('communication_couple',                         'Communication (couple)',                                                                'couple_relationnel',   430),
+      ('difficultes_conjugales',                       'Difficultés conjugales',                                                                'couple_relationnel',   440),
+      ('difficultes_relationnelles_pairs',             'Difficultés relationnelles avec les pairs',                                             'couple_relationnel',   450),
+      ('infidelite',                                   'Infidélité',                                                                            'couple_relationnel',   460),
+      ('relations_amoureuses',                         'Relations amoureuses',                                                                  'couple_relationnel',   470),
+      ('relations_interpersonnelles',                  'Relations interpersonnelles',                                                           'couple_relationnel',   480),
+      ('separation_divorce',                           'Séparation, divorce',                                                                   'couple_relationnel',   490),
+      ('troubles_de_l_attachement',                    'Troubles de l’attachement',                                                             'couple_relationnel',   500),
+      ('adaptation_vie_enfant_besoins_particuliers',   'Adaptation à la vie avec un enfant ayant des besoins particuliers',                     'famille_parentalite',  510),
+      ('adoption_internationale',                      'Adoption internationale',                                                               'famille_parentalite',  520),
+      ('alienation_parentale',                         'Aliénation parentale',                                                                  'famille_parentalite',  530),
+      ('coaching_parental',                            'Coaching parental',                                                                     'famille_parentalite',  540),
+      ('communication_famille',                        'Communication (famille)',                                                               'famille_parentalite',  550),
+      ('conflits_parent_enfant',                       'Conflits parent-enfant',                                                                'famille_parentalite',  560),
+      ('coparentalite',                                'Coparentalité',                                                                         'famille_parentalite',  570),
+      ('deuil_perinatal',                              'Deuil périnatal',                                                                       'famille_parentalite',  580),
+      ('difficultes_familiales',                       'Difficultés familiales',                                                                'famille_parentalite',  590),
+      ('discipline_encadrement',                       'Discipline / Encadrement',                                                              'famille_parentalite',  600),
+      ('epuisement_parental',                          'Épuisement parental',                                                                   'famille_parentalite',  610),
+      ('fertilite_procreation_assistee_infertilite',   'Fertilité, procréation assistée, infertilité',                                          'famille_parentalite',  620),
+      ('garde_enfants',                                'Garde d’enfants',                                                                       'famille_parentalite',  630),
+      ('monoparentalite_famille_recomposee',           'Monoparentalité, famille recomposée',                                                   'famille_parentalite',  640),
+      ('opposition_gestion_comportements',             'Opposition et gestion des comportements',                                               'famille_parentalite',  650),
+      ('perinatalite_grossesse_post_partum',           'Périnatalité, grossesse, post-partum',                                                  'famille_parentalite',  660),
+      ('relations_familiales',                         'Relations familiales',                                                                  'famille_parentalite',  670),
+      ('suivi_familial',                               'Suivi familial',                                                                        'famille_parentalite',  680),
+      ('ecrans_usage_excessif',                        'Accompagnement pour usage excessif ou préoccupant des écrans',                          'gestion_ecrans',       690),
+      ('ecrans_saines_habitudes',                      'Besoin d’outils pour instaurer de saines habitudes numériques',                         'gestion_ecrans',       700),
+      ('ecrans_conflits_familiaux',                    'Conflits familiaux liés aux écrans',                                                    'gestion_ecrans',       710),
+      ('ecrans_desaccord_parental',                    'Désaccord parental concernant l’encadrement',                                           'gestion_ecrans',       720),
+      ('ecrans_limites',                               'Difficulté à établir ou faire respecter des limites',                                   'gestion_ecrans',       730),
+      ('ecrans_autoregulation',                        'Difficulté d’autorégulation chez l’enfant ou l’adolescent',                             'gestion_ecrans',       740),
+      ('ecrans_communication_parent_enfant',           'Difficulté de communication parent-enfant',                                             'gestion_ecrans',       750),
+      ('ecrans_impacts_bien_etre',                     'Impacts sur le sommeil, l’humeur, la motivation, les apprentissages ou le bien-être',   'gestion_ecrans',       760),
+      ('ecrans_reseaux_sociaux_jeux_ia',               'Questions liées aux réseaux sociaux, aux jeux vidéo ou à l’intelligence artificielle',  'gestion_ecrans',       770),
+      ('ecrans_perte_controle',                        'Sentiment de perte de contrôle, d’impuissance ou de culpabilité',                       'gestion_ecrans',       780),
+      ('climat_de_travail',                            'Climat de travail',                                                                     'travail_carriere',     790),
+      ('difficultes_professionnelles',                 'Difficultés professionnelles',                                                          'travail_carriere',     800),
+      ('epuisement_professionnel',                     'Épuisement professionnel / burnout',                                                    'travail_carriere',     810),
+      ('gestion_de_carriere',                          'Gestion de carrière',                                                                   'travail_carriere',     820),
+      ('orientation_scolaire_professionnelle',         'Orientation scolaire et professionnelle',                                               'travail_carriere',     830),
+      ('sante_psychologique_au_travail',               'Santé psychologique au travail',                                                        'travail_carriere',     840),
+      ('anxiete_de_performance',                       'Anxiété de performance',                                                                'ecole_scolarite',      850),
+      ('demotivation',                                 'Démotivation',                                                                          'ecole_scolarite',      860),
+      ('descolarisation',                              'Déscolarisation',                                                                       'ecole_scolarite',      870),
+      ('intimidation',                                 'Intimidation',                                                                          'ecole_scolarite',      880),
+      ('abus_sexuel_auteur',                           'Abus sexuel (auteur.e)',                                                                'violence_abus',        890),
+      ('abus_sexuel_victime',                          'Abus sexuel (victime)',                                                                 'violence_abus',        900),
+      ('harcelement_et_intimidation',                  'Harcèlement et intimidation',                                                           'violence_abus',        910),
+      ('prevention_agressions_sexuelles',              'Prévention des agressions sexuelles',                                                   'violence_abus',        920),
+      ('traumas',                                      'Traumas',                                                                               'violence_abus',        930),
+      ('violence_auteur',                              'Violence (auteur.e)',                                                                   'violence_abus',        940),
+      ('violence_victime',                             'Violence (victime)',                                                                    'violence_abus',        950),
+      ('violence_conjugale_familiale',                 'Violence conjugale ou familiale',                                                       'violence_abus',        960),
+      ('douleurs_chroniques',                          'Douleurs chroniques',                                                                   'sante_physique',       970),
+      ('maladies_degeneratives',                       'Maladies dégénératives',                                                                'sante_physique',       980),
+      ('maladies_physiques_handicaps',                 'Maladies physiques / handicaps',                                                        'sante_physique',       990),
+      ('oncologie_soins_palliatifs',                   'Oncologie / soins palliatifs',                                                          'sante_physique',      1000),
+      ('proche_aidance',                               'Proche aidance',                                                                        'sante_physique',      1010),
+      ('vieillissement',                               'Vieillissement',                                                                        'sante_physique',      1020),
+      ('anxiete_performance_sexuelle',                 'Anxiété de performance sexuelle',                                                       'sexualite_identite',  1030),
+      ('comportements_sexuels_abusifs',                'Comportements sexuels abusifs',                                                         'sexualite_identite',  1040),
+      ('comportements_sexuels_problematiques',         'Comportements sexuels inadéquats, préoccupants ou problématiques',                      'sexualite_identite',  1050),
+      ('dysfonctions_sexuelles',                       'Dysfonctions sexuelles',                                                                'sexualite_identite',  1060),
+      ('identite_diversite_orientation_lgbtq',         'Identité, diversité et orientation sexuelle, LGBTQ+',                                   'sexualite_identite',  1070),
+      ('intimite',                                     'Intimité',                                                                              'sexualite_identite',  1080),
+      ('sexualisation_precoce',                        'Sexualisation précoce',                                                                 'sexualite_identite',  1090),
+      ('sexualite',                                    'Sexualité',                                                                             'sexualite_identite',  1100),
+      ('soutien_parental_education_sexualite',         'Soutien parental pour l’éducation à la sexualité',                                      'sexualite_identite',  1110),
+      ('transsexualite',                               'Transsexualité',                                                                        'sexualite_identite',  1120),
+      ('troubles_sexuels',                             'Troubles sexuels',                                                                      'sexualite_identite',  1130),
+      ('vie_amoureuse_sexuelle_insatisfaisante',       'Vie amoureuse / sexuelle insatisfaisante',                                              'sexualite_identite',  1140),
+      ('communautes_culturelles_parcours_migratoire',  'Communautés culturelles et parcours migratoire',                                        'autres',              1150),
+      ('crise_existentielle_perte_de_sens',            'Crise existentielle / perte de sens',                                                   'autres',              1160),
+      ('cycle_de_vie',                                 'Cycle de vie',                                                                          'autres',              1170),
+      ('defis_adaptation_sport_performance',           'Défis d’adaptation reliés au sport et à la performance',                                'autres',              1180),
+      ('deuil',                                        'Deuil',                                                                                 'autres',              1190),
+      ('developpement_cheminement_personnel',          'Développement et cheminement personnel',                                                'autres',              1200),
+      ('problematiques_agriculteurs',                  'Problématiques propres aux agriculteurs',                                               'autres',              1210),
+      ('psychologie_du_sport',                         'Psychologie du sport',                                                                  'autres',              1220),
+      ('soutien_entrepreneurs_travailleurs_autonomes', 'Soutien aux entrepreneurs et travailleurs autonomes',                                   'autres',              1230),
+      ('spiritualite',                                 'Spiritualité',                                                                          'autres',              1240)
     ) as m(key, name, category_key, sort_order)
   on conflict do nothing;
 
   insert into public.languages (org_id, code, name, is_system, sort_order) values
-    (p_org, 'fr', 'Français', true, 10), (p_org, 'en', 'Anglais', false, 20), (p_org, 'es', 'Espagnol', false, 30)
+    (p_org, 'fr', 'Français', true, 10), (p_org, 'en', 'Anglais', false, 20), (p_org, 'es', 'Espagnol', false, 30),
+    (p_org, 'ca', 'Catalan', false, 40)
   on conflict do nothing;
 
   insert into public.deactivation_reasons (org_id, key, name, requires_note, disables_account, is_system, sort_order) values

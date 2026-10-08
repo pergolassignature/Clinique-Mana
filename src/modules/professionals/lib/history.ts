@@ -2,9 +2,10 @@ import { t, type TranslationKey } from '@/i18n'
 import { fieldLabel } from '@/core/audit/labels'
 import { formatPhone } from '@/shared/lib/format'
 import { formatClinicDateFull, formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
+import { DECISIONS, DURATIONS, type Decision, type Duration } from '../api/compensation'
 import type { HistoryEntry, ProfessionalRecord } from '../api/parse'
 import { OTHER_MOTIF_GROUP, type CatalogView } from './catalog-view'
-import { formatPercent } from './compensation'
+import { durationLabel, formatCents, formatPercent, formatSessions, monthLabel, sessionsLabel } from './compensation'
 import { PAYER_TYPES, PROFESSIONAL_STATUSES, type AvailabilityPeriod, type PayerType, type ProfessionalStatus } from './constants'
 import { listLabel, periodsLabel, statusLabel } from './display'
 import { FEW_MOTIFS, type HeldMotif } from './motif-summary'
@@ -37,6 +38,11 @@ const TECHNICAL = new Set([
   'updated_by',
   'status_changed_at',
   'status_changed_by',
+  // A client agreement's future Clients id (P4-183): never shown.
+  'client_id',
+  // A client agreement's client reference: redacted by the audit trigger (Loi 25, P4-193); the
+  // history shows the duration, the dates and the amounts only.
+  'client_label',
   // The fiche's last download or email (P4-203): bookkeeping, not a change to the file.
   'fiche_generated_at',
 ])
@@ -59,7 +65,6 @@ const SET_TABLES = {
   professional_motifs: 'motif_id',
   professional_languages: 'language_id',
   professional_clienteles: 'clientele_id',
-  professional_specialties: 'specialty_id',
 } as const
 type SetTable = keyof typeof SET_TABLES
 type SetChange = 'added' | 'removed' | 'specialized' | 'unspecialized'
@@ -75,12 +80,14 @@ const PRIVATE_READ_FIELDS = { sin: 'sin', bank_account: 'bankAccount' } as const
 type PrivateReadField = keyof typeof PRIVATE_READ_FIELDS
 
 /**
- * A professional's dated compensation rows (4a.17), shown only to `professionals.compensation`
- * holders (the RPC filters them, P4-144), with their values (P4-149): « a fixé la marge
- * Consultation à 28 % dès le 1 nov. 2026 ». Closing the previous row (on insert) or reopening it
- * (on delete) is part of the same save and says nothing of its own.
+ * A professional's retention rows (P4-193), shown only to `professionals.compensation` holders
+ * (the RPC filters them, P4-144), with their values (P4-149): « a appliqué le taux suggéré de
+ * 27,5 % dès le 1 nov. 2026 », « a ajouté une entente particulière (50 min) dès le … ». Closing the
+ * previous row (on insert) or reopening it (on delete) is part of the same save and says nothing
+ * of its own. The months of sessions (`professional_session_counts`) are not dated rows.
  */
-const DATED_TABLES = { professional_compensation: 'margin', professional_recognition: 'level' } as const
+const DATED_TABLES = { professional_retention: 'rate', professional_client_agreements: 'agreement' } as const
+const SESSIONS_TABLE = 'professional_session_counts'
 type DatedTable = keyof typeof DATED_TABLES
 const isDatedTable = (table: string): table is DatedTable => Object.hasOwn(DATED_TABLES, table)
 /** A calendar date as stored (`yyyy-MM-dd`): shown with `formatDateOnlyShort`, never through a timezone. */
@@ -118,8 +125,6 @@ export interface HistoryContext {
   catalog: CatalogView
   /** profession row id → title id: an update row names only what changed, not its title. */
   titleByRow: ReadonlyMap<string, string>
-  /** Compensation kind key → name (`compensation_kinds`), for margin rows; empty without the permission. */
-  kindNames: ReadonlyMap<string, string>
 }
 
 export const HISTORY_FILTERS = ['all', 'changes'] as const
@@ -144,7 +149,7 @@ const itemIdOf = (entry: HistoryEntry): string => entry.recordId.slice(entry.rec
 /** Rows written by one statement batch: same transaction time, same actor, same source. */
 const transactionOf = (entry: HistoryEntry): string => `${entry.createdAt}|${entry.actorId ?? ''}|${entry.source}`
 
-const unknown = (kind: 'motif' | 'clientele' | 'specialty' | 'language' | 'title' | 'reason' | 'kind') => t(`${H}.values.unknown.${kind}`)
+const unknown = (kind: 'motif' | 'clientele' | 'language' | 'title' | 'reason') => t(`${H}.values.unknown.${kind}`)
 
 const isStatus = (value: unknown): value is ProfessionalStatus => typeof value === 'string' && (PROFESSIONAL_STATUSES as readonly string[]).includes(value)
 
@@ -332,46 +337,92 @@ function privateRead(entry: HistoryEntry): string {
   return t(`${H}.sentences.privateRead`, { fields: listLabel(fields) })
 }
 
-/** A compensation column's value for reading: dates date-only, percents French, kinds by name. */
-function datedValue(ctx: HistoryContext, column: string, value: unknown): string {
-  if (typeof value === 'string' && DATE_ONLY.test(value) && (column === 'effective_from' || column === 'effective_to')) return formatDateOnlyShort(value)
-  if (column === 'margin_pct' && typeof value === 'number') return formatPercent(value)
-  if (column === 'kind') return kindName(ctx, value)
+const PERCENT_COLUMNS = new Set(['retention_pct', 'suggested_pct'])
+const MONEY_COLUMNS = new Set(['professional_amount_cents', 'client_price_cents'])
+const SESSION_COLUMNS = new Set(['sessions_total', 'adjustment'])
+const isDecision = (value: unknown): value is Decision => typeof value === 'string' && (DECISIONS as readonly string[]).includes(value)
+const isDuration = (value: unknown): value is Duration => typeof value === 'number' && (DURATIONS as readonly number[]).includes(value)
+
+/** A compensation column's value for reading: dates date-only, percents and money French, labels by name. */
+function compensationValue(ctx: HistoryContext, column: string, value: unknown): string {
+  if (typeof value === 'string' && DATE_ONLY.test(value)) {
+    if (column === 'month') return monthLabel(value)
+    if (column === 'effective_from' || column === 'effective_to') return formatDateOnlyShort(value)
+  }
+  if (typeof value === 'number') {
+    if (PERCENT_COLUMNS.has(column)) return formatPercent(value)
+    if (MONEY_COLUMNS.has(column)) return formatCents(value)
+    if (SESSION_COLUMNS.has(column)) return formatSessions(value)
+    if (column === 'duration' && isDuration(value)) return durationLabel(value)
+  }
+  if (column === 'decision' && isDecision(value)) return t(`modules.professionals.compensation.decisions.${value}`)
   return formatValue(ctx.catalog, column, value)
 }
 
-/** The kind's name, « (type inconnu) » for a key the tab cannot name (never the key itself). */
-const kindName = (ctx: HistoryContext, kind: unknown) => (typeof kind === 'string' && ctx.kindNames.get(kind)) || unknown('kind')
+/** A compensation column's label: money columns read « Prix client », not the log's « (¢) » label. */
+const compensationLabel = (table: string, column: string): string =>
+  column === 'client_price_cents' || column === 'professional_amount_cents' ? t(`${H}.moneyFields.${column}`) : fieldLabel(table, column)
 
-/** « Note : … » (and « Séances comptées : 117 » for a level) under a new dated row. */
-function datedLines(ctx: HistoryContext, table: DatedTable, fields: Record<string, unknown>, columns: readonly string[]): HistoryLine[] {
+/** « Note : … », « Séances cumulées : 55,5 »… under a new row, for the columns that hold something. */
+function valueLines(ctx: HistoryContext, table: string, fields: Record<string, unknown>, columns: readonly string[]): HistoryLine[] {
   return columns
-    .filter((column) => fields[column] !== null && fields[column] !== undefined && fields[column] !== '')
-    .map((column) => ({ kind: 'value', field: fieldLabel(table, column), value: datedValue(ctx, column, fields[column]) }))
+    .filter((column) => fields[column] !== null && fields[column] !== undefined && fields[column] !== '' && fields[column] !== 0)
+    .map((column) => ({ kind: 'value', field: compensationLabel(table, column), value: compensationValue(ctx, column, fields[column]) }))
 }
 
-/** A professional's margin or recognition level (P4-149: values shown, to `compensation` holders only). */
+/** An update's « Champ : avant → après » lines, values read as compensation values. */
+function compensationChanges(ctx: HistoryContext, table: string, fields: Record<string, unknown>): HistoryLine[] {
+  return Object.entries(fields).map(([column, value]): HistoryLine => {
+    const pair = pairOf(value)
+    const field = compensationLabel(table, column)
+    return pair
+      ? { kind: 'change', field, before: compensationValue(ctx, column, pair.before), after: compensationValue(ctx, column, pair.after) }
+      : { kind: 'value', field, value: t('audit.values.redacted') }
+  })
+}
+
+/** A professional's applied rate or client agreement (P4-149: values shown, to `compensation` holders only). */
 function datedRow(ctx: HistoryContext, table: DatedTable, entry: HistoryEntry): Described | null {
   const fields = readable(fieldsOf(entry))
   const S = `${H}.sentences`
-  const date = datedValue(ctx, 'effective_from', fields.effective_from)
   if (entry.action === 'update') {
-    const lines = Object.entries(fields).map(([column, value]): HistoryLine => {
-      const pair = pairOf(value)
-      const field = fieldLabel(table, column)
-      return pair ? { kind: 'change', field, before: datedValue(ctx, column, pair.before), after: datedValue(ctx, column, pair.after) } : { kind: 'value', field, value: t('audit.values.redacted') }
-    })
+    const lines = compensationChanges(ctx, table, fields)
     if (lines.length === 0) return null
-    const sentence = table === 'professional_compensation' ? t(`${S}.marginChanged`, { kind: kindName(ctx, fields.kind) }) : t(`${S}.levelChanged`)
-    return { kind: 'change', sentence, lines }
+    return { kind: 'change', sentence: t(table === 'professional_retention' ? `${S}.rateChanged` : `${S}.agreementChanged`), lines }
   }
   const added = entry.action === 'insert'
-  if (table === 'professional_compensation') {
-    const values = { kind: kindName(ctx, fields.kind), margin: datedValue(ctx, 'margin_pct', fields.margin_pct), date }
-    return { kind: 'change', sentence: t(added ? `${S}.marginSet` : `${S}.marginDeleted`, values), lines: added ? datedLines(ctx, table, fields, ['note']) : [] }
+  const date = compensationValue(ctx, 'effective_from', fields.effective_from)
+  if (table === 'professional_retention') {
+    const rate = compensationValue(ctx, 'retention_pct', fields.retention_pct)
+    if (!added) return { kind: 'change', sentence: t(`${S}.rateDeleted`, { rate, date }), lines: [] }
+    const decision = isDecision(fields.decision) ? fields.decision : 'initial'
+    const tier = typeof fields.tier_threshold === 'number' ? sessionsLabel(fields.tier_threshold) : '—'
+    return { kind: 'change', sentence: t(`${S}.rateSet.${decision}`, { rate, date, tier }), lines: valueLines(ctx, table, fields, ['sessions_total', 'suggested_pct', 'note']) }
   }
-  const values = { level: datedValue(ctx, 'level', fields.level), date }
-  return { kind: 'change', sentence: t(added ? `${S}.levelSet` : `${S}.levelDeleted`, values), lines: added ? datedLines(ctx, table, fields, ['sessions_counted', 'note']) : [] }
+  const duration = compensationValue(ctx, 'duration', fields.duration)
+  if (!added) return { kind: 'change', sentence: t(`${S}.agreementDeleted`, { duration, date }), lines: [] }
+  return {
+    kind: 'change',
+    sentence: t(`${S}.agreementAdded`, { duration, date }),
+    lines: valueLines(ctx, table, fields, ['client_price_cents', 'professional_amount_cents', 'effective_to', 'note']),
+  }
+}
+
+/** A month of sessions: entered, changed (the update names only what changed), removed. */
+function sessionsRow(ctx: HistoryContext, entry: HistoryEntry): Described | null {
+  const fields = readable(fieldsOf(entry))
+  const S = `${H}.sentences`
+  if (entry.action === 'update') {
+    const lines = compensationChanges(ctx, SESSIONS_TABLE, fields)
+    return lines.length === 0 ? null : { kind: 'change', sentence: t(`${S}.sessionsChanged`), lines }
+  }
+  const month = compensationValue(ctx, 'month', fields.month)
+  if (entry.action === 'delete') return { kind: 'change', sentence: t(`${S}.sessionsDeleted`, { month }), lines: [] }
+  return {
+    kind: 'change',
+    sentence: t(`${S}.sessionsSet`, { month }),
+    lines: valueLines(ctx, SESSIONS_TABLE, fields, ['sessions_50_60', 'sessions_30', 'adjustment', 'note']),
+  }
 }
 
 /** One audit row of a table that is not a set, as a sentence and its details. */
@@ -382,6 +433,7 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
       : { kind: 'change', sentence: t(`${H}.sentences.privateChanged`), lines: [] }
   }
   if (isDatedTable(entry.tableName)) return datedRow(ctx, entry.tableName, entry)
+  if (entry.tableName === SESSIONS_TABLE) return sessionsRow(ctx, entry)
   switch (entry.tableName) {
     case 'professionals':
       return professionalRow(ctx.catalog, entry)
@@ -407,7 +459,7 @@ interface SetBatch {
   table: SetTable
   change: SetChange
   ids: string[]
-  /** Items added with the ★ (clientèles, approaches). */
+  /** Items added with the ★ (clientèles). */
   specialized: Set<string>
 }
 
@@ -420,7 +472,7 @@ function setChangeOf(entry: HistoryEntry): SetChange | null {
 }
 
 type ListTable = Exclude<SetTable, 'professional_motifs'>
-const LIST_KIND = { professional_languages: 'language', professional_clienteles: 'clientele', professional_specialties: 'specialty' } as const
+const LIST_KIND = { professional_languages: 'language', professional_clienteles: 'clientele' } as const
 
 /** The names of a batch, and how many of them (the last ones) the catalogue no longer knows. */
 interface BatchNames {
@@ -429,12 +481,12 @@ interface BatchNames {
 }
 
 /**
- * The items of a language, clientèle or approach batch, in the catalogue's order, archived ones
+ * The items of a language or clientèle batch, in the catalogue's order, archived ones
  * last and marked, unknown ones after them (as motifs, P4-100); « (spécialisé) » after the ones
  * added with the ★.
  */
 function listItems(catalog: CatalogView, batch: SetBatch & { table: ListTable }): BatchNames {
-  const list = batch.table === 'professional_languages' ? catalog.languages : batch.table === 'professional_clienteles' ? catalog.clienteles : catalog.specialties
+  const list = batch.table === 'professional_languages' ? catalog.languages : catalog.clienteles
   const held = new Set(batch.ids)
   const known = list.filter((item) => held.has(item.id)).map((item) => ({ id: item.id, name: item.name, archived: !item.isActive }))
   const knownIds = new Set(known.map((item) => item.id))
@@ -445,7 +497,7 @@ function listItems(catalog: CatalogView, batch: SetBatch & { table: ListTable })
   return { groups: [{ key: batch.table, name: null, items }], unknownCount: missing.length }
 }
 
-/** The motifs by category (the record's grouping, P4-73), archived ones last in each, unknown ones last under « Autres ». */
+/** The motifs by category (the record's grouping, P4-249), archived ones last in each, unknown ones last under « Sans catégorie ». */
 function motifGroups(catalog: CatalogView, ids: readonly string[]): BatchNames {
   const held = new Set(ids)
   const groups: HistoryNameGroup[] = []
@@ -459,7 +511,7 @@ function motifGroups(catalog: CatalogView, ids: readonly string[]): BatchNames {
   if (missing > 0) {
     const items = ids.filter((id) => !catalog.byId.motifs.has(id)).map((id) => ({ id, name: unknown('motif'), archived: false }))
     const other = groups.find((group) => group.key === OTHER_MOTIF_GROUP)
-    // « Autres » is the catalogue's last group (catalog-view), so the unknown ones end the list.
+    // « Sans catégorie » is the catalogue's last group (catalog-view), so the unknown ones end the list.
     if (other) other.items.push(...items)
     else groups.push({ key: OTHER_MOTIF_GROUP, name: t('modules.professionals.otherCategory'), items })
   }
@@ -496,8 +548,8 @@ function describeSet(catalog: CatalogView, batch: SetBatch): Pick<HistoryEvent, 
     const sentence = names.length === 1 ? t(`${S}.${batch.change}One`, { name: names[0] ?? '' }) : t(`${S}.${batch.change}Few`, { names: listLabel(names) })
     return { sentence, groups: [] }
   }
-  // Only clientèles and approaches carry the ★ (setChangeOf reads `is_specialized`).
-  const S = `${H}.sets.${batch.table as 'professional_clienteles' | 'professional_specialties'}` as const
+  // Only clientèles carry the ★ (setChangeOf reads `is_specialized`).
+  const S = `${H}.sets.${batch.table as 'professional_clienteles'}` as const
   if (names.length > FEW_MOTIFS) return { sentence: t(`${S}.${batch.change}Many`, { count }), groups }
   return { sentence: t(`${S}.${batch.change}Few`, { names: listLabel(names) }), groups: [] }
 }

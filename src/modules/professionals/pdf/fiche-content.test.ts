@@ -94,7 +94,6 @@ describe('buildFicheContent', () => {
           { id: IDS.couples, specialized: true },
           { id: IDS.seniors, specialized: false },
         ],
-        specialties: [{ id: IDS.cbt, specialized: true }],
         languageIds: [IDS.en, IDS.fr],
       }),
     )

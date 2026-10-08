@@ -47,6 +47,8 @@ grant update (title, starts_on) on public.trainings to authenticated;   -- colum
 | Only `public.profiles` references `auth.users` | — |
 | `auth.users` is the only source of `profiles.email` (a trigger copies it on insert/update and on auth email change) | — |
 | Index every FK column that is not a prefix of the PK | `create index trainings_updated_by_idx on public.trainings (updated_by);` |
+| **Composite org FKs** to per-clinic reference rows (P4-40): every reference list has `unique (org_id, id)`, and a row that points at it uses `(org_id, <x>_id)`, so a row of clinic A can never point at clinic B's row, even through a bug in an RPC | `foreign key (org_id, motif_id) references public.motifs (org_id, id)` |
+| **Child rows: the primary key starts with the parent id** (P4-36). A junction's key is `(parent_id, x_id)`; a child with its own id uses `primary key (parent_id, id)` plus `unique (id)` for other modules' FKs. Audit record ids then start with the parent id, so the parent's history finds every child row, deleted ones included, through one expression index (`audit_log_org_record_prefix_idx` on `(org_id, left(record_id, 36), id desc)`) | `primary key (professional_id, id)`, `unique (id)` on `professional_professions` |
 | Reference data is soft-deleted (`is_active`), never hard-deleted | — |
 | Enumerations that may grow are lookup tables with text keys, not Postgres enums | `roles(key)`, `user_roles.role references roles(key)` |
 | JSON settings are objects | `check (jsonb_typeof(settings) = 'object')` |
@@ -94,11 +96,34 @@ using (
 Cross-module reads go through views published by the owning module (design §6.2). A plain view runs as its **owner**, which bypasses RLS and leaks across orgs. Views are always `security_invoker = true` (enforced by `000_invariants`), and like tables they start with no client grants:
 
 ```sql
+-- Shortened from 20261008100634_professionals_lifecycle.sql (the real view also publishes the
+-- professions, clientèles with ages, the client limits, motif keys, years, gender, insurance_status, ready).
 create view public.professionals_directory with (security_invoker = true) as
-  select p.id, p.org_id, p.display_name from public.professionals p where p.is_active;
+select p.id, p.org_id, p.status,
+       mp.accepting_new_clients,
+       p.first_name || ' ' || p.last_name as display_name,
+       coalesce(l.codes, '{}') as language_codes,
+       coalesce(m.ids, '{}')   as motif_ids,
+       greatest(p.updated_at, mp.updated_at) as updated_at
+  from public.professionals p
+  left join public.professional_matching_profiles mp on mp.professional_id = p.id
+  -- One pre-aggregated join per set (grouped once per statement), never a function call per row.
+  left join (select x.professional_id, array_agg(g.code order by g.sort_order, g.code) as codes
+               from public.professional_languages x
+               join public.languages g on g.org_id = x.org_id and g.id = x.language_id
+              group by x.professional_id) l on l.professional_id = p.id
+  left join (select x.professional_id, array_agg(x.motif_id order by k.key) as ids
+               from public.professional_motifs x
+               join public.motifs k on k.org_id = x.org_id and k.id = x.motif_id
+              group by x.professional_id) m on m.professional_id = p.id
+ -- The tables' RLS already scopes rows to the caller's clinic; this term keeps the provider's
+ -- own row (readable through the self policies) out of a staff view.
+ where (select private.has_permission('professionals.view'));
 revoke all on public.professionals_directory from anon, authenticated;
 grant select on public.professionals_directory to authenticated;
 ```
+
+A published view is a contract: other modules read it (and its sibling catalogue views) instead of the owning module's tables, it keeps ids and keys rather than labels, and a later batch only appends columns. The Professionnels contract is in [`docs/modules/professionals.md`](../modules/professionals.md#what-the-module-publishes).
 
 ## 6. Functions
 

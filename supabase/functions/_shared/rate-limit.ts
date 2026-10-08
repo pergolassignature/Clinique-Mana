@@ -137,6 +137,30 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `places` (address suggestions and the chosen place's address), per
+   * caller: every call is a billed Google request. The field asks after a
+   * pause in typing (250 ms, 3 characters at least), so one address takes a
+   * handful of calls; 600 an hour covers a long data-entry session and caps
+   * what one account can spend (P4-221).
+   */
+  placesUser: {
+    bucket: 'places.user',
+    max: 600,
+    windowSeconds: 3_600,
+  },
+  /**
+   * `places`, per org, checked after `placesUser`: a ceiling on what the
+   * whole clinic can spend in an hour, however many accounts type at once
+   * (a leaked session, a script). 3,000 an hour is about five people typing
+   * addresses non-stop; Google's own daily quotas (status doc, « Mise en
+   * service ») are the hard cap behind it (P4-221).
+   */
+  placesOrg: {
+    bucket: 'places.org',
+    max: 3_000,
+    windowSeconds: 3_600,
+  },
+  /**
    * `resend-webhook`, per IP, before the org's secret is read (anyone can
    * post there). Generous: Resend (Svix) delivers a clinic's bursts from a
    * few addresses, and a refusal only delays the event (Resend retries).

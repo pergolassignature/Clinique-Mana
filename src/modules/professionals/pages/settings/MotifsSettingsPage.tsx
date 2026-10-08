@@ -40,13 +40,13 @@ const LABELS: Partial<ReferenceListLabels> = {
 
 const collator = new Intl.Collator('fr-CA', { sensitivity: 'base', numeric: true })
 
-/** The motif's active category, or null: no category, or an archived one, shows under « Autres ». */
+/** The motif's active category, or null: no category, or an archived one, shows under « Sans catégorie ». */
 const activeCategory = (catalog: CatalogView, row: Motif): MotifCategory | null => {
   const category = row.categoryId === null ? undefined : catalog.byId.motifCategories.get(row.categoryId)
   return category?.isActive ? category : null
 }
 
-/** The motif's group: its active category in the categories' order, else « Autres », last. */
+/** The motif's group: its active category in the categories' order, else « Sans catégorie », last. */
 function motifGroup(catalog: CatalogView, row: Motif): ReferenceGroup {
   const category = activeCategory(catalog, row)
   return category
@@ -79,7 +79,7 @@ const RESTRICTED_COLUMN: ReferenceColumn<'motifs'> = {
     ),
 }
 
-/** « Catégorie » (A–Z only: grouped, the group says it). An archived one is marked; none reads « Autres », muted. */
+/** « Catégorie » (A–Z only: grouped, the group says it). An archived one is marked; none reads « Sans catégorie », muted. */
 function categoryColumn(catalog: CatalogView): ReferenceColumn<'motifs'> {
   const category = (row: Motif) => (row.categoryId === null ? undefined : catalog.byId.motifCategories.get(row.categoryId))
   return {
@@ -100,7 +100,7 @@ function categoryColumn(catalog: CatalogView): ReferenceColumn<'motifs'> {
 // --- Dialog --------------------------------------------------------------------------------------
 
 /**
- * Catégorie (« Autres » first, sent as null; active categories, plus the archived one the motif
+ * Catégorie (« Sans catégorie » first, sent as null; active categories, plus the archived one the motif
  * already has, marked, so a rename keeps it) and the « Réservé » switch. A motif that becomes
  * restricted while professionals have it: the note says what they will need before saving.
  */
@@ -157,7 +157,7 @@ function MotifFields({ form, row, catalog, usage }: ReferenceFormProps<'motifs'>
 // --- List ----------------------------------------------------------------------------------------
 
 /**
- * The motifs, « Par catégorie » (group rows in the categories' order, « Autres » last; reorder
+ * The motifs, « Par catégorie » (group rows in the categories' order, « Sans catégorie » last; reorder
  * within a group) or « Liste A–Z » (by name, with a Catégorie column; no reorder), narrowed by a
  * category (which « Ajouter » then starts with).
  */

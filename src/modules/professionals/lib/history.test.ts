@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
 import type { HistoryEntry } from '../api/parse'
 import { CATALOG, CATALOG_VIEW, recordFixture, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
-import { buildCatalogView } from './catalog-view'
+import { buildCatalogView, OTHER_MOTIF_GROUP } from './catalog-view'
 import { IDS } from '../test/fixtures'
 import {
   buildHistoryEvents,
@@ -42,8 +42,7 @@ function row(tableName: string, action: HistoryEntry['action'], changedFields: H
 const junction = (table: string, column: string, id: string, action: HistoryEntry['action'] = 'insert', extra: Record<string, unknown> = {}) =>
   row(table, action, { org_id: ORG, professional_id: P, [column]: id, created_at: TX, ...extra }, { recordId: `${P}:${id}` })
 
-const KINDS = new Map([['consultation', 'Consultation']])
-const ctx = (over: Partial<HistoryContext> = {}): HistoryContext => ({ catalog: CATALOG_VIEW, titleByRow: new Map(), kindNames: KINDS, ...over })
+const ctx = (over: Partial<HistoryContext> = {}): HistoryContext => ({ catalog: CATALOG_VIEW, titleByRow: new Map(), ...over })
 const events = (rows: HistoryEntry[], context = ctx()) => buildHistoryEvents(rows, context)
 const only = (rows: HistoryEntry[], context = ctx()): HistoryEvent => {
   const list = events(rows, context)
@@ -117,8 +116,8 @@ describe('history — the record row', () => {
   })
 
   it('reads the matching profile: periods by name, booleans Oui / Non', () => {
-    expect(only([row('professional_matching_profiles', 'update', { availability_periods: { before: [], after: ['evening', 'am'] } })]).sentence).toBe(
-      `a modifié les disponibilités générales\u00a0: ${t('audit.values.empty')} → Matin · Soir`,
+    expect(only([row('professional_matching_profiles', 'update', { availability_periods: { before: [], after: ['evening', 'end_of_day', 'am'] } })]).sentence).toBe(
+      `a modifié les disponibilités générales\u00a0: ${t('audit.values.empty')} → Matin · Fin de journée · Soir`,
     )
     expect(only([row('professional_matching_profiles', 'update', { accepting_new_clients: { before: true, after: false } })]).sentence).toBe(
       "a modifié l'accueil de nouveaux clients\u00a0: Oui → Non",
@@ -186,7 +185,7 @@ describe('history — the record row', () => {
   })
 })
 
-describe('history — sets (motifs, languages, clientèles, approaches)', () => {
+describe('history — sets (motifs, languages, clientèles)', () => {
   it('names up to three motifs in the catalogue order', () => {
     const event = only([junction('professional_motifs', 'motif_id', IDS.psychose), junction('professional_motifs', 'motif_id', IDS.anxiete)])
     expect(event.sentence).toBe('a ajouté les motifs Anxiété et Psychose')
@@ -207,7 +206,7 @@ describe('history — sets (motifs, languages, clientèles, approaches)', () => 
     expect(event.groups[0]?.items[0]).toMatchObject({ name: 'Motif 1.1', archived: false })
   })
 
-  it('marks archived motifs and names unknown ones « Motif archivé », under « Autres »', () => {
+  it('marks archived motifs and names unknown ones « Motif archivé », under « Sans catégorie »', () => {
     const event = only(
       [IDS.anxiete, IDS.archivedMotif, IDS.deuil, IDS.orphan, ORG].map((id) => junction('professional_motifs', 'motif_id', id, 'delete')),
     )
@@ -216,8 +215,8 @@ describe('history — sets (motifs, languages, clientèles, approaches)', () => 
     expect(names).toEqual([
       { key: 'inner_life', name: 'Vie intérieure', items: [{ name: 'Anxiété', archived: false }, { name: 'Ancien motif', archived: true }] },
       {
-        key: 'autres',
-        name: 'Autres',
+        key: OTHER_MOTIF_GROUP,
+        name: t('modules.professionals.otherCategory'),
         items: [
           { name: 'Deuil', archived: false },
           { name: 'Sans catégorie', archived: false },
@@ -244,7 +243,7 @@ describe('history — sets (motifs, languages, clientèles, approaches)', () => 
     expect(split.map((e) => e.sentence)).toEqual(['a ajouté le motif Anxiété', 'a ajouté le motif Psychose'])
   })
 
-  it('marks specialised clientèles and approaches, and reads a change of the star', () => {
+  it('marks specialised clientèles, and reads a change of the star', () => {
     expect(only([junction('professional_clienteles', 'clientele_id', IDS.couples, 'insert', { is_specialized: true })]).sentence).toBe(
       'a ajouté la clientèle Couples (spécialisé)',
     )
@@ -253,9 +252,8 @@ describe('history — sets (motifs, languages, clientèles, approaches)', () => 
         .sentence,
     ).toBe('a indiqué une spécialisation pour\u00a0: Enfants')
     expect(
-      only([row('professional_specialties', 'update', { is_specialized: { before: true, after: false } }, { recordId: `${P}:${IDS.cbt}` })]).sentence,
-    ).toBe('a retiré la spécialisation pour\u00a0: Thérapie cognitivo-comportementale (TCC)')
-    expect(only([junction('professional_specialties', 'specialty_id', ORG)]).sentence).toBe(`a ajouté l'approche ${t(`${H}.values.unknown.specialty`)}`)
+      only([row('professional_clienteles', 'update', { is_specialized: { before: true, after: false } }, { recordId: `${P}:${IDS.couples}` })]).sentence,
+    ).toBe('a retiré la spécialisation pour\u00a0: Couples')
   })
 
   it('puts archived items last, then unknown ones, for every set', () => {
@@ -409,58 +407,100 @@ describe('history — private data, actors, ids', () => {
   })
 })
 
-describe('history — compensation (4a.18)', () => {
-  const M1 = '00000000-0000-4000-8000-000000003001'
-  const M0 = '00000000-0000-4000-8000-000000003002'
-  const margin = (action: HistoryEntry['action'], fields: HistoryEntry['changedFields'], id = M1) =>
-    row('professional_compensation', action, fields, { recordId: `${P}:${id}` })
-  const level = (action: HistoryEntry['action'], fields: HistoryEntry['changedFields'], id = M1) =>
-    row('professional_recognition', action, fields, { recordId: `${P}:${id}` })
+describe('history — retention (P4-193)', () => {
+  const R1 = '00000000-0000-4000-8000-000000003001'
+  const R0 = '00000000-0000-4000-8000-000000003002'
+  const rate = (action: HistoryEntry['action'], fields: HistoryEntry['changedFields'], id = R1) =>
+    row('professional_retention', action, fields, { recordId: `${P}:${id}` })
+  const months = (action: HistoryEntry['action'], fields: HistoryEntry['changedFields'], id = R1) =>
+    row('professional_session_counts', action, fields, { recordId: `${P}:${id}` })
+  const agreement = (action: HistoryEntry['action'], fields: HistoryEntry['changedFields'], id = R1) =>
+    row('professional_client_agreements', action, fields, { recordId: `${P}:${id}` })
   const NBSP = '\u00A0'
 
-  it('reads a new margin with its kind, value and date-only start; the closed one folded into it', () => {
+  it('reads an applied suggestion with its snapshot; the closed rate folded into it', () => {
     const event = only([
-      margin('update', { effective_to: { before: null, after: '2026-11-01' } }, M0),
-      margin('insert', { id: M1, org_id: ORG, professional_id: P, kind: 'consultation', margin_pct: 28, effective_from: '2026-11-01', effective_to: null, note: 'Entente 2026', created_by: IDS.admin }),
+      rate('update', { effective_to: { before: null, after: '2026-11-01' } }, R0),
+      rate('insert', {
+        id: R1,
+        org_id: ORG,
+        professional_id: P,
+        retention_pct: 27.5,
+        decision: 'suggested',
+        tier_threshold: 51,
+        suggested_pct: 27.5,
+        sessions_total: 55.5,
+        effective_from: '2026-11-01',
+        effective_to: null,
+        note: null,
+        created_by: IDS.admin,
+      }),
     ])
-    expect(event.sentence).toBe(`a fixé la marge Consultation à 28${NBSP}% dès le 1 nov. 2026`)
-    expect(event.lines).toEqual([{ kind: 'value', field: t('audit.fields.professional_compensation.note'), value: 'Entente 2026' }])
-  })
-
-  it('reads a deleted margin, the reopened one folded into it', () => {
-    const event = only([
-      margin('delete', { id: M1, kind: 'consultation', margin_pct: 27.5, effective_from: '2026-11-01', effective_to: null }),
-      margin('update', { effective_to: { before: '2026-11-01', after: null } }, M0),
+    expect(event.sentence).toBe(`a appliqué le taux suggéré de 27,5${NBSP}% dès le 1 nov. 2026`)
+    expect(event.lines).toEqual([
+      { kind: 'value', field: t('audit.fields.professional_retention.sessions_total'), value: '55,5' },
+      { kind: 'value', field: t('audit.fields.professional_retention.suggested_pct'), value: `27,5${NBSP}%` },
     ])
-    expect(event.sentence).toBe(`a supprimé la marge Consultation de 27,5${NBSP}% (dès le 1 nov. 2026)`)
   })
 
-  it('keeps an end-date change alone (written outside the app) as a change, with readable values', () => {
-    const event = only([margin('update', { effective_to: { before: null, after: '2027-01-01' } }, M0)])
-    expect(event.sentence).toBe('a modifié la marge (type inconnu)')
-    expect(event.lines).toEqual([{ kind: 'change', field: t('audit.fields.professional_compensation.effective_to'), before: t('audit.values.empty'), after: '1 janv. 2027' }])
-  })
-
-  it('reads a kind the tab cannot name without its key', () => {
-    const event = only([margin('insert', { kind: 'secret_kind', margin_pct: 10, effective_from: '2026-11-01' })], ctx({ kindNames: new Map() }))
-    expect(event.sentence).toBe(`a fixé la marge (type inconnu) à 10${NBSP}% dès le 1 nov. 2026`)
-    expect(printed([event])).not.toContain('secret_kind')
-  })
-
-  it('reads a recognition level, its sessions and note in the details', () => {
-    const set = only([level('insert', { level: 2, sessions_counted: 117, effective_from: '2026-10-01', note: 'Compté dans GOrendezvous' })])
-    expect(set.sentence).toBe('a fixé le niveau de reconnaissance à 2 dès le 1 oct. 2026')
-    expect(set.lines).toEqual([
-      { kind: 'value', field: t('audit.fields.professional_recognition.sessions_counted'), value: '117' },
-      { kind: 'value', field: t('audit.fields.professional_recognition.note'), value: 'Compté dans GOrendezvous' },
-    ])
-    expect(only([level('delete', { level: 2, sessions_counted: 117, effective_from: '2026-10-01' })]).sentence).toBe(
-      'a supprimé le niveau de reconnaissance 2 (dès le 1 oct. 2026)',
+  it('names each decision, a maintained rate with its tier', () => {
+    expect(only([rate('insert', { retention_pct: 28, decision: 'maintained', tier_threshold: 51, effective_from: '2026-09-01' })]).sentence).toBe(
+      `a maintenu le taux à 28${NBSP}% au palier de 51 séances, dès le 1 sept. 2026`,
     )
+    expect(only([rate('insert', { retention_pct: 30, decision: 'maintained', tier_threshold: 0, effective_from: '2026-09-01' })]).sentence).toBe(
+      `a maintenu le taux à 30${NBSP}% au palier de 0 séance, dès le 1 sept. 2026`,
+    )
+    expect(only([rate('insert', { retention_pct: 26, decision: 'custom', effective_from: '2026-09-01', note: 'Entente' })]).lines).toEqual([
+      { kind: 'value', field: t('audit.fields.professional_retention.note'), value: 'Entente' },
+    ])
+    expect(only([rate('delete', { retention_pct: 26, decision: 'custom', effective_from: '2026-09-01' })]).sentence).toBe(`a supprimé le taux de 26${NBSP}% (dès le 1 sept. 2026)`)
   })
 
-  it('prints no id and keeps both kinds of rows under « Modifications »', () => {
-    const list = events([margin('insert', { id: M1, org_id: ORG, professional_id: P, kind: 'consultation', margin_pct: 28, effective_from: '2026-11-01', created_by: IDS.admin })])
+  it('reads a month of sessions: entered, changed, removed', () => {
+    const set = only([months('insert', { month: '2026-09-01', sessions_50_60: 20, sessions_30: 4, adjustment: 0, note: null })])
+    expect(set.sentence).toBe('a saisi les séances de septembre 2026')
+    expect(set.lines).toEqual([
+      { kind: 'value', field: t('audit.fields.professional_session_counts.sessions_50_60'), value: '20' },
+      { kind: 'value', field: t('audit.fields.professional_session_counts.sessions_30'), value: '4' },
+    ])
+    const changed = only([months('update', { sessions_30: { before: 4, after: 6 } })])
+    expect(changed.sentence).toBe('a modifié les séances d’un mois')
+    expect(changed.lines).toEqual([{ kind: 'change', field: t('audit.fields.professional_session_counts.sessions_30'), before: '4', after: '6' }])
+    expect(only([months('delete', { month: '2026-09-01', sessions_50_60: 20 })]).sentence).toBe('a retiré les séances de septembre 2026')
+  })
+
+  it('reads a client agreement with both amounts in dollars, never its client reference (redacted, Loi 25) nor its future client id', () => {
+    const event = only([
+      agreement('insert', {
+        client_label: '[redacted]',
+        client_id: '00000000-0000-4000-8000-00000000c11e',
+        duration: 50,
+        professional_amount_cents: 8500,
+        client_price_cents: 12000,
+        effective_from: '2026-10-01',
+        effective_to: null,
+        note: null,
+      }),
+    ])
+    expect(event.sentence).toBe('a ajouté une entente particulière (50 min) dès le 1 oct. 2026')
+    expect(event.lines).toEqual([
+      { kind: 'value', field: t('modules.professionals.history.moneyFields.client_price_cents'), value: `120,00${NBSP}$` },
+      { kind: 'value', field: t('modules.professionals.history.moneyFields.professional_amount_cents'), value: `85,00${NBSP}$` },
+    ])
+    expect(printed([event])).not.toMatch(UUID)
+    expect(printed([event])).not.toMatch(/redacted|masqué/i)
+  })
+
+  it('keeps an end-date change alone (an agreement ended) as a change, with readable values', () => {
+    const event = only([agreement('update', { effective_to: { before: null, after: '2027-03-01' } })])
+    expect(event.sentence).toBe('a modifié une entente particulière')
+    expect(event.lines).toEqual([
+      { kind: 'change', field: t('audit.fields.professional_client_agreements.effective_to'), before: t('audit.values.empty'), after: '1 mars 2027' },
+    ])
+  })
+
+  it('prints no id and keeps the rows under « Modifications »', () => {
+    const list = events([rate('insert', { id: R1, org_id: ORG, professional_id: P, retention_pct: 28, decision: 'initial', effective_from: '2026-07-01', created_by: IDS.admin })])
     expect(printed(list)).not.toMatch(UUID)
     expect(filterHistory(list, 'changes')).toHaveLength(1)
   })

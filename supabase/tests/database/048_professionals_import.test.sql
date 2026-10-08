@@ -2,7 +2,8 @@
 -- Covers: privileges (the RPC and its private helpers, security invoker); the dry run, by default,
 -- writes nothing (no row, no audit row, no sequence but audit_log's identity moves, the audit
 -- source put back); the real run writes through the app's paths (normalised values, titles and
--- licences, sets with stars, IVAC, activation, audit source `import` and the person as actor);
+-- licences, sets with stars, the client limits, IVAC, activation, audit source `import` and the
+-- person as actor; no approaches, P4-240);
 -- idempotent re-runs (`skipped`); unknown keys reported per field, never more than three named,
 -- only key-shaped values quoted (anything else masked); the forms' messages for plain fields; the
 -- RPCs' refusals routed to their field (names, email, licence by title row, a repeated title, IVAC
@@ -13,7 +14,7 @@
 -- rollback puts the deferred mode back.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(89);
+select plan(92);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
@@ -45,7 +46,7 @@ insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'professionals', true),
   ('b0000000-0000-0000-0000-00000000000b', 'professionals', true);
 -- A restricted motif (none is by default, P4-16).
-update public.motifs set is_restricted = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'psychose';
+update public.motifs set is_restricted = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'idees_suicidaires';
 
 -- The rows imported below (JSON as the script sends it).
 select set_config('test.row', $json${
@@ -55,14 +56,14 @@ select set_config('test.row', $json${
                   {"title_key": "psychotherapeute", "licence_number": "PT-99"}],
   "languages": ["fr", "EN"],
   "clienteles": [{"key": "adults", "specialized": true}, {"key": "couples"}],
-  "approaches": [{"key": "cbt", "specialized": true}, {"key": "act"}],
+  "min_client_age": 14, "women_only": true,
   "motifs": ["anxiete", "deuil", "estime_de_soi"],
   "ivac": "ivac-1234", "activate": true
 }$json$, true);
 select set_config('test.unknown', $json${
   "first_name": "Hugo", "last_name": "Lemieux", "email": "hugo.lemieux@example.test",
   "professions": [{"title_key": "psy"}], "languages": ["fr", "xx"], "clienteles": [{"key": "adultes"}],
-  "approaches": [{"key": "tcc"}], "motifs": ["anxiete", "anxite"]
+  "motifs": ["anxiete", "anxite"]
 }$json$, true);
 
 set local role authenticated;
@@ -150,9 +151,9 @@ select results_eq(
       where pc.professional_id = current_setting('test.id')::uuid order by c.key $$,
   $$ values ('adults'::text, true), ('couples', false) $$, 'clientèles with their star');
 select results_eq(
-  $$ select s.key, ps.is_specialized from public.professional_specialties ps join public.specialties s on s.id = ps.specialty_id
-      where ps.professional_id = current_setting('test.id')::uuid order by s.key $$,
-  $$ values ('act'::text, false), ('cbt', true) $$, 'approaches with their star');
+  $$ select mp.min_client_age::int, mp.women_only from public.professional_matching_profiles mp
+      where mp.professional_id = current_setting('test.id')::uuid $$,
+  $$ values (14, true) $$, 'the client limits on the matching profile (P4-245)');
 select is((select array_agg(m.key order by m.key) from public.professional_motifs pm join public.motifs m on m.id = pm.motif_id
             where pm.professional_id = current_setting('test.id')::uuid), array['anxiete', 'deuil', 'estime_de_soi'], 'motifs');
 select is((select number from public.professional_payer_numbers where professional_id = current_setting('test.id')::uuid),
@@ -192,7 +193,7 @@ select set_config('test.unknown_result', public.import_professional(current_sett
 select set_config('test.many', public.import_professional(
   '{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "motifs": ["a1", "b2", "jean@exemple.test", "c3", "d4", "a1", "deuil"]}', true)::text, true);
 select set_config('test.three', public.import_professional(
-  '{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "languages": ["xx", "5145550101", " "], "approaches": [{"key": "a"}, {"key": "b"}]}', true)::text, true);
+  '{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "languages": ["xx", "5145550101", " "], "clienteles": [{"key": "a"}, {"key": "b"}]}', true)::text, true);
 reset role;
 
 select is(current_setting('test.unknown_result')::jsonb - 'errors',
@@ -201,7 +202,6 @@ select is(current_setting('test.unknown_result')::jsonb -> 'errors',
   '[{"field": "professions.0.titleId", "message": "Titre inconnu : psy"},
     {"field": "languages", "message": "Langue inconnue : xx"},
     {"field": "clienteles", "message": "Clientèle inconnue : adultes"},
-    {"field": "approaches", "message": "Approche inconnue : tcc"},
     {"field": "motifs", "message": "Motif inconnu : anxite"}]'::jsonb,
   'one error per field, naming the unknown key; no consequential error from the skipped steps');
 select is((select count(*)::int from public.professionals where email = 'hugo.lemieux@example.test'), 0, 'unknown keys: nothing written');
@@ -211,7 +211,7 @@ select is(current_setting('test.many')::jsonb -> 'errors',
   'more than three: three named (once each), then a count; an address is masked');
 select is(current_setting('test.three')::jsonb -> 'errors',
   '[{"field": "languages", "message": "Langues inconnues : xx et (valeur masquée)"},
-    {"field": "approaches", "message": "Approches inconnues : a et b"}]'::jsonb,
+    {"field": "clienteles", "message": "Clientèles inconnues : a et b"}]'::jsonb,
   'two or three named with « et »; a number is masked; a blank key is ignored');
 
 set local role authenticated;
@@ -232,13 +232,14 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select is(public.import_professional(jsonb_build_object(
     'first_name', 'Léa', 'last_name', 'Roy', 'email', 'lea.roy@example.test', 'personal_phone', 'abc', 'city', repeat('a', 101),
-    'province', 'QQ', 'postal_code', 'XYZ', 'years_experience', 75), true) -> 'errors',
+    'province', 'QQ', 'postal_code', 'XYZ', 'years_experience', 75, 'min_client_age', 121), true) -> 'errors',
   '[{"field": "personalPhone", "message": "Numéro à 10 chiffres."},
     {"field": "city", "message": "100 caractères maximum."},
     {"field": "province", "message": "Province invalide."},
     {"field": "postalCode", "message": "Code postal invalide (ex. : H2X 1Y4)."},
-    {"field": "yearsExperience", "message": "Entre 0 et 60 ans."}]'::jsonb,
-  'phone, city, province, postal code and years: every error of the row');
+    {"field": "yearsExperience", "message": "Entre 0 et 60 ans."},
+    {"field": "minClientAge", "message": "Entre 0 et 120 ans."}]'::jsonb,
+  'phone, city, province, postal code, years and youngest client age: every error of the row');
 select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "years_experience": 3.5}', true) -> 'errors',
   '[{"field": "yearsExperience", "message": "Entre 0 et 60 ans."}]'::jsonb, 'years: whole numbers only');
 select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "personal_phone": "+44 20 7946 0958"}', true) -> 'errors',
@@ -268,14 +269,14 @@ select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy",
   '[{"field": "ivac", "message": "Numéro IVAC invalide : 3 à 30 lettres, chiffres ou traits d''union."}]'::jsonb, 'invalid IVAC number');
 select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "ivac": " ivac-777 "}', true) -> 'errors',
   '[{"field": "ivac", "message": "Ce numéro IVAC est déjà attribué à un autre professionnel."}]'::jsonb, 'IVAC number held by another professional');
-select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": [{"title_key": "naturopathe"}], "motifs": ["psychose", "deuil"]}', true) -> 'errors',
-  '[{"field": "motifs", "message": "Le motif « Psychose » est réservé aux professions réglementées."}]'::jsonb, 'restricted motif without a regulated title');
-select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": [{"title_key": "psychologue"}], "motifs": ["psychose"], "ivac": "x", "postal_code": "nope"}', false) -> 'errors',
+select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": [{"title_key": "naturopathe"}], "motifs": ["idees_suicidaires", "deuil"]}', true) -> 'errors',
+  '[{"field": "motifs", "message": "Le motif « Idées suicidaires » est réservé aux professions réglementées."}]'::jsonb, 'restricted motif without a regulated title');
+select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": [{"title_key": "psychologue"}], "motifs": ["idees_suicidaires"], "ivac": "x", "postal_code": "nope"}', false) -> 'errors',
   '[{"field": "postalCode", "message": "Code postal invalide (ex. : H2X 1Y4)."},
     {"field": "professions.0.licenceNumber", "message": "Le numéro de permis est requis pour ce titre."},
     {"field": "ivac", "message": "Numéro IVAC invalide : 3 à 30 lettres, chiffres ou traits d''union."}]'::jsonb,
   'several steps refused at once; motifs skipped after a refused title (no repeated refusal)');
-select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": [{"title_key": "psychologue", "licence_number": "1"}], "motifs": ["psychose"], "languages": []}', true) ->> 'status',
+select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": [{"title_key": "psychologue", "licence_number": "1"}], "motifs": ["idees_suicidaires"], "languages": []}', true) ->> 'status',
   'ok', 'a restricted motif with a regulated title; an empty language list keeps French');
 select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": [{"title_key": "psychologue", "licence_number": "1"}, {"title_key": " Psychologue", "licence_number": "2"}]}', true) -> 'errors',
   '[{"field": "professions.1.titleId", "message": "Un titre ne peut être choisi qu''une fois."}]'::jsonb,
@@ -338,26 +339,23 @@ update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-
 -- =============================================================================
 update public.profession_titles set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'sexologue';
 update public.languages set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 'es';
-update public.clienteles set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'groups';
-update public.specialties set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'gestalt';
+update public.clienteles set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'athletes';
 update public.motifs set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'deuil';
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "professions": [{"title_key": "sexologue", "licence_number": "1"}]}', true) -> 'errors',
   '[{"field": "professions.0.titleId", "message": "Ce titre est archivé."}]'::jsonb, 'an archived title: refused under its row');
-select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "languages": ["es"], "clienteles": [{"key": "groups"}], "approaches": [{"key": "gestalt"}], "motifs": ["deuil"]}', true) -> 'errors',
+select is(public.import_professional('{"first_name": "Léa", "last_name": "Roy", "email": "lea.roy@example.test", "languages": ["es"], "clienteles": [{"key": "athletes"}], "motifs": ["deuil"]}', true) -> 'errors',
   jsonb_build_array(
     jsonb_build_object('field', 'languages', 'message', 'La langue « Espagnol » est archivée.'),
-    jsonb_build_object('field', 'clienteles', 'message', 'La clientèle « Groupes » est archivée.'),
-    jsonb_build_object('field', 'approaches', 'message', 'L''approche « Gestalt-thérapie » est archivée.'),
+    jsonb_build_object('field', 'clienteles', 'message', 'La clientèle « Athlètes » est archivée.'),
     jsonb_build_object('field', 'motifs', 'message', format('Le motif « %s » est archivé.',
       (select name from public.motifs where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'deuil')))),
-  'archived language, clientèle, approach and motif: each refused under its field');
+  'archived language, clientèle and motif: each refused under its field');
 reset role;
 update public.profession_titles set is_active = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'sexologue';
 update public.languages set is_active = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and code = 'es';
-update public.clienteles set is_active = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'groups';
-update public.specialties set is_active = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'gestalt';
+update public.clienteles set is_active = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'athletes';
 update public.motifs set is_active = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'deuil';
 
 -- =============================================================================
@@ -403,6 +401,9 @@ select throws_ok($$ select public.import_professional('{"motif": ["deuil"]}') $$
 select throws_ok($$ select public.import_professional('{"years_experience": "12"}') $$, '22023', 'Nombre attendu : years_experience', 'years as text');
 select throws_ok($$ select public.import_professional('{"first_name": 12}') $$, '22023', 'Texte attendu : first_name', 'a name as a number');
 select throws_ok($$ select public.import_professional('{"activate": "oui"}') $$, '22023', 'Booléen attendu : activate', 'activate as text');
+select throws_ok($$ select public.import_professional('{"min_client_age": "8"}') $$, '22023', 'Nombre attendu : min_client_age', 'the youngest client age as text');
+select throws_ok($$ select public.import_professional('{"women_only": "oui"}') $$, '22023', 'Booléen attendu : women_only', '« femmes seulement » as text');
+select throws_ok($$ select public.import_professional('{"approaches": [{"key": "cbt"}]}') $$, '22023', 'Clé inconnue : approaches', 'approaches are not imported (P4-240)');
 select throws_ok($$ select public.import_professional('{"motifs": "deuil"}') $$, '22023', 'Liste de 500 éléments au plus attendue : motifs', 'a list as text');
 select throws_ok($$ select public.import_professional('{"professions": [{"title": "psychologue"}]}') $$, '22023', null, 'a title item with an unknown key');
 select throws_ok($$ select public.import_professional('{"professions": ["psychologue"]}') $$, '22023', null, 'a title item that is not an object');

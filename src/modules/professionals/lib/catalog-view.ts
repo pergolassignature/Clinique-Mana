@@ -10,13 +10,15 @@ import type {
   ProfessionalsCatalog,
   ProfessionCategory,
   ProfessionTitle,
-  Specialty,
 } from '../api/parse'
 
-/** The key of the « Autres » motif group (as `get_professional_public_profile` names it). */
-export const OTHER_MOTIF_GROUP = 'autres'
+/**
+ * The key of the « Sans catégorie » motif group (no category, or an archived one). Not a key a
+ * category can have (they start with a letter): « Autres » is one of the clinic's categories (P4-246).
+ */
+export const OTHER_MOTIF_GROUP = '_none'
 
-/** Motifs of one active category, or of « Autres » (no category, or an archived one). */
+/** Motifs of one active category, or of « Sans catégorie » (no category, or an archived one). */
 export interface MotifGroup {
   key: string
   categoryId: string | null
@@ -36,13 +38,12 @@ export interface CatalogView extends ProfessionalsCatalog {
     categories: ReadonlyMap<string, ProfessionCategory>
     titles: ReadonlyMap<string, ProfessionTitle>
     clienteles: ReadonlyMap<string, Clientele>
-    specialties: ReadonlyMap<string, Specialty>
     motifCategories: ReadonlyMap<string, MotifCategory>
     motifs: ReadonlyMap<string, Motif>
     languages: ReadonlyMap<string, Language>
     deactivationReasons: ReadonlyMap<string, DeactivationReason>
   }
-  /** Active categories in their order (empty ones included), then « Autres » when it has motifs. */
+  /** Active categories in their order (empty ones included), then « Sans catégorie » when it has motifs. */
   motifGroups: MotifGroup[]
 }
 
@@ -71,7 +72,6 @@ export function buildCatalogView(catalog: ProfessionalsCatalog): CatalogView {
       categories: byId(catalog.categories),
       titles: byId(catalog.titles),
       clienteles: byId(catalog.clienteles),
-      specialties: byId(catalog.specialties),
       motifCategories: byId(catalog.motifCategories),
       motifs: byId(catalog.motifs),
       languages: byId(catalog.languages),

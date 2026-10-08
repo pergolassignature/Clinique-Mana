@@ -13,21 +13,20 @@ import {
   type ProfessionalsCatalog,
   type ProfessionCategory,
   type ProfessionTitle,
-  type Specialty,
 } from './parse'
 import { sqlArgs } from './sql-args'
 
 export type { ReferenceKind } from '../lib/constants'
 
 /**
- * The nine per-clinic lists (« Paramètres → Professionnels ») and their settings RPCs
+ * The eight per-clinic lists (« Paramètres → Professionnels ») and their settings RPCs
  * (20261008084945_professionals_reference_settings.sql). Every function throws the PostgREST
  * error unchanged; the hooks map it for users (`moduleErrorMessage`).
  */
 
 /**
- * The nine lists in one payload, archived rows included (`isActive`), each in its sort order.
- * A caller without a professionals permission (or with the module off) gets nine empty lists.
+ * The eight lists in one payload, archived rows included (`isActive`), each in its sort order.
+ * A caller without a professionals permission (or with the module off) gets eight empty lists.
  */
 export async function fetchProfessionalsCatalog(): Promise<ProfessionalsCatalog> {
   const { data, error } = await supabase.rpc('get_professionals_catalog')
@@ -57,7 +56,6 @@ export interface ReferenceRows {
   profession_categories: ProfessionCategory
   profession_titles: ProfessionTitle
   clienteles: Clientele
-  specialties: Specialty
   motif_categories: MotifCategory
   motifs: Motif
   languages: Language
@@ -71,7 +69,6 @@ const CATALOG_LIST = {
   profession_categories: 'categories',
   profession_titles: 'titles',
   clienteles: 'clienteles',
-  specialties: 'specialties',
   motif_categories: 'motifCategories',
   motifs: 'motifs',
   languages: 'languages',
@@ -106,7 +103,6 @@ export interface ReferenceFieldsByKind {
   profession_categories: { name: string }
   profession_titles: { name: string; categoryId: string; orderId: string | null }
   clienteles: { name: string; minAge: number | null; maxAge: number | null }
-  specialties: { name: string }
   motif_categories: { name: string; description: string | null; icon: MotifCategoryIcon }
   motifs: { name: string; categoryId: string | null; isRestricted: boolean }
   /** The code is set on create; on update send the row's code (the RPC refuses a change). */
@@ -139,7 +135,6 @@ const SAVERS: { [K in ReferenceKind]: Saver<K> } = {
     ),
   clienteles: (i) =>
     supabase.rpc('save_clientele', sqlArgs<'save_clientele'>({ p_id: i.id, p_name: i.name, p_min_age: i.minAge, p_max_age: i.maxAge })),
-  specialties: (i) => supabase.rpc('save_specialty', sqlArgs<'save_specialty'>({ p_id: i.id, p_name: i.name })),
   motif_categories: (i) =>
     supabase.rpc(
       'save_motif_category',

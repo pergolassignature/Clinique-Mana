@@ -197,12 +197,6 @@ describe('FicheDocument', () => {
     expect(priced).not.toContain(t(`${P}.feesPending`))
   })
 
-  it('prints no « Approches » list, even when the record holds some (P4-210)', async () => {
-    const text = all((await render({ record: record({ specialties: [{ id: IDS.cbt, specialized: true }] }) })).pages)
-    expect(text).not.toContain('Thérapie cognitivo-comportementale')
-    expect(text).not.toMatch(/APPROCHES/)
-  })
-
   it('marks specialised clientèles with the star and its legend', async () => {
     const text = all((await render()).pages)
     expect(text).toContain(t(`${P}.specialized`))

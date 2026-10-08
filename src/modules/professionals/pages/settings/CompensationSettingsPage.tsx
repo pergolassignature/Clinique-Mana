@@ -2,39 +2,43 @@ import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
-import { DefaultRangesCard, RecognitionRulesCard } from '../../components/settings/CompensationTermsCards'
+import { OtherRatesCard } from '../../components/settings/CompensationTermsCards'
+import { RetentionGridsCard } from '../../components/settings/RetentionGridsCard'
 import { SinCollectionCard } from '../../components/settings/SinCollectionCard'
+import { useProfessionalsCatalog } from '../../hooks/use-catalog'
 import { useCompensationKinds, useCompensationTerms } from '../../hooks/use-compensation'
 
 const S = 'modules.professionals.settings.compensation'
 
 /**
  * Paramètres → Rémunération (`professionals.compensation`, which both sees and edits it: no
- * read-only mode): the clinic's dated default margins and recognition rules (4a.17), and, for
- * whoever also holds `professionals.private` and `professionals.settings`, « Recueillir le NAS ».
- * The kinds and the terms load together; each card's changes are dated rows, never edits in place.
+ * read-only mode): the retention grids per profession (P4-185), the other kinds' rates (P4-181),
+ * and, for whoever also holds `professionals.private` and `professionals.settings`, « Recueillir
+ * le NAS ». The titles (catalogue), the kinds and the terms load together; every change is a
+ * dated row, never an edit in place.
  */
 export function CompensationSettingsPage() {
   const { can } = useAccess()
+  const catalog = useProfessionalsCatalog()
   const kinds = useCompensationKinds()
   const terms = useCompensationTerms()
+  const queries = [catalog, kinds, terms]
 
   let content
-  if (kinds.data && terms.data) {
+  if (catalog.data && kinds.data && terms.data) {
     content = (
       <>
-        <DefaultRangesCard kinds={kinds.data} rows={terms.data.defaults} />
-        <RecognitionRulesCard rows={terms.data.rules} />
+        <RetentionGridsCard titles={catalog.data.titles} grids={terms.data.grids} />
+        <OtherRatesCard kinds={kinds.data} rows={terms.data.rates} />
       </>
     )
-  } else if ((kinds.isError && !kinds.data) || (terms.isError && !terms.data)) {
+  } else if (queries.some((query) => query.isError && !query.data)) {
     content = (
       <LoadError
         message={t(`${S}.loadError`)}
-        retrying={kinds.isFetching || terms.isFetching}
+        retrying={queries.some((query) => query.isFetching)}
         onRetry={() => {
-          if (kinds.isError) void kinds.refetch()
-          if (terms.isError) void terms.refetch()
+          for (const query of queries) if (query.isError) void query.refetch()
         }}
       />
     )

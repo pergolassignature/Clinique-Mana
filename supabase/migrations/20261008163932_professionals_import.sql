@@ -1,24 +1,24 @@
 -- =============================================================================
 -- Professionnels: import of the existing professionals, one row at a time, dry run by default
 -- =============================================================================
--- Plan:    docs/plans/2026-10-08-professionals-module-plan.md Task 4a.19 (P4-20, P4-120–P4-125)
+-- Plan:    docs/plans/2026-10-08-professionals-module-plan.md Task 4a.19 (P4-20, P4-120–P4-125, P4-245, P4-247)
 -- Runbook: docs/runbooks/import-professionals.md (scripts/import-professionals.mjs calls it)
 -- Rules:   docs/standards/database-conventions.md
 --
 -- Key choices
 -- * One RPC, import_professional(row, dry_run = true). It writes through the module's own RPCs
---   (create_professional, set_professional_professions / _languages / _clienteles /
---   _specialties / _motifs, set_professional_payer_number, activate_professional) and the plain
---   column update the record's « Coordonnées » card makes, so guards, HINTs, readiness and the
---   audit trail are the app's. It is SECURITY INVOKER (P4-121): it adds no privilege, the plain
+--   (create_professional, set_professional_professions / _languages / _clienteles / _motifs,
+--   set_professional_payer_number, activate_professional) and the plain column updates the
+--   record's « Coordonnées » and Jumelage « Clientèle » cards make, so guards, HINTs, readiness
+--   and the audit trail are the app's. It is SECURITY INVOKER (P4-121): it adds no privilege, the plain
 --   update goes through the column grants and RLS like the card's, and every write is checked by
 --   the RPC that makes it. The audit source is `import` (« L'importation » in Historique, P4-104);
 --   the actor is the person who runs it.
 -- * Data errors never raise: {status: 'error', errors: [{field, message}]}, every error of the row
 --   at once (P4-122). Fields are the client schemas' names (firstName, lastName, email,
---   personalPhone, city, province, postalCode, yearsExperience, ivac), professions.<i>.titleId /
---   .licenceNumber like the professions editor, the import keys for the sets (languages,
---   clienteles, approaches, motifs), activate, or null for the whole row. Keys are resolved first
+--   personalPhone, city, province, postalCode, yearsExperience, minClientAge, ivac),
+--   professions.<i>.titleId / .licenceNumber like the professions editor, the import keys for the
+--   sets (languages, clienteles, motifs), activate, or null for the whole row. Keys are resolved first
 --   (« Motif inconnu : anxite »); then every write step runs in its own sub-block, so a refusal
 --   of one step (a licence, an IVAC number) is reported with the others. A step whose input
 --   failed is skipped, and so are motifs when the titles failed (a restricted motif would only
@@ -66,8 +66,8 @@ begin
   end if;
   select k into v_key from pg_catalog.jsonb_object_keys(p_row) as k
    where k <> all (array['first_name', 'last_name', 'email', 'personal_phone', 'city', 'province', 'postal_code',
-                         'years_experience', 'professions', 'languages', 'clienteles', 'approaches', 'motifs',
-                         'ivac', 'activate'])
+                         'years_experience', 'min_client_age', 'women_only', 'professions', 'languages',
+                         'clienteles', 'motifs', 'ivac', 'activate'])
    limit 1;
   if v_key is not null then
     raise exception 'Clé inconnue : %', v_key using errcode = '22023';
@@ -79,14 +79,20 @@ begin
   if v_key is not null then
     raise exception 'Texte attendu : %', v_key using errcode = '22023';
   end if;
-  if pg_catalog.jsonb_typeof(p_row -> 'years_experience') not in ('number', 'null') then
-    raise exception 'Nombre attendu : years_experience' using errcode = '22023';
+  select k into v_key from pg_catalog.unnest(array['years_experience', 'min_client_age']) as k
+   where pg_catalog.jsonb_typeof(p_row -> k) not in ('number', 'null')
+   limit 1;
+  if v_key is not null then
+    raise exception 'Nombre attendu : %', v_key using errcode = '22023';
   end if;
-  if pg_catalog.jsonb_typeof(p_row -> 'activate') not in ('boolean', 'null') then
-    raise exception 'Booléen attendu : activate' using errcode = '22023';
+  select k into v_key from pg_catalog.unnest(array['women_only', 'activate']) as k
+   where pg_catalog.jsonb_typeof(p_row -> k) not in ('boolean', 'null')
+   limit 1;
+  if v_key is not null then
+    raise exception 'Booléen attendu : %', v_key using errcode = '22023';
   end if;
   -- Lists: arrays of at most 500 items (no reference list holds more).
-  select k into v_key from pg_catalog.unnest(array['professions', 'languages', 'clienteles', 'approaches', 'motifs']) as k
+  select k into v_key from pg_catalog.unnest(array['professions', 'languages', 'clienteles', 'motifs']) as k
    where pg_catalog.jsonb_typeof(p_row -> k) not in ('array', 'null')
       or (pg_catalog.jsonb_typeof(p_row -> k) = 'array' and pg_catalog.jsonb_array_length(p_row -> k) > 500)
    limit 1;
@@ -104,8 +110,7 @@ begin
     raise exception 'Titre invalide : {"title_key": texte, "licence_number": texte, "is_primary": booléen} attendu.'
       using errcode = '22023';
   end if;
-  if exists (select 1 from pg_catalog.unnest(array['clienteles', 'approaches']) as k,
-                           pg_catalog.jsonb_array_elements(coalesce(nullif(p_row -> k, 'null'), '[]')) as e(v)
+  if exists (select 1 from pg_catalog.jsonb_array_elements(coalesce(nullif(p_row -> 'clienteles', 'null'), '[]')) as e(v)
               where case when pg_catalog.jsonb_typeof(e.v) <> 'object' then true
                          else exists (select 1 from pg_catalog.jsonb_object_keys(e.v) as ok where ok <> all (array['key', 'specialized']))
                               or pg_catalog.jsonb_typeof(e.v -> 'key') is distinct from 'string'
@@ -155,11 +160,13 @@ as $$
 $$;
 
 -- -----------------------------------------------------------------------------
--- The record's plain fields, as the « Coordonnées » and « Expérience » cards check them
+-- The record's plain fields, as the « Coordonnées », « Expérience » and Jumelage « Clientèle »
+-- cards check them
 -- -----------------------------------------------------------------------------
--- {"values": {personal_phone, city, province, postal_code, years_experience}, "errors": [...]}.
--- Absent or blank → null (province: null keeps the column default, QC). The bracket classes
--- below hold a hyphen, an en dash (U+2013) and an em dash (U+2014), as the forms accept them.
+-- {"values": {personal_phone, city, province, postal_code, years_experience},
+--  "matching": {min_client_age, women_only}, "errors": [...]}. Absent or blank → null (province:
+-- null keeps the column default, QC; women_only: null is false). The bracket classes below hold a
+-- hyphen, an en dash (U+2013) and an em dash (U+2014), as the forms accept them.
 create function private.import_professional_contact(p_row jsonb)
 returns jsonb
 language plpgsql
@@ -175,6 +182,8 @@ declare
   v_postal text := nullif(pg_catalog.upper(pg_catalog.regexp_replace(coalesce(p_row ->> 'postal_code', ''), '[[:space:]–—-]', '', 'g')), '');
   v_years numeric := (p_row ->> 'years_experience')::numeric;
   v_years_int int;
+  v_min_age numeric := (p_row ->> 'min_client_age')::numeric;
+  v_min_age_int int;
 begin
   -- parsePhone (src/shared/lib/format.ts): digits and the usual separators; 10 digits, or 11 led
   -- by 1; with a leading +, exactly +1 and 10 digits.
@@ -212,9 +221,17 @@ begin
   else
     v_years_int := v_years;   -- 12.0 → 12
   end if;
+  -- The youngest client age the professional takes (professional_matching_profiles_min_client_age_check).
+  if v_min_age is not null and (v_min_age <> pg_catalog.trunc(v_min_age) or v_min_age not between 0 and 120) then
+    v_errors := v_errors || pg_catalog.jsonb_build_object('field', 'minClientAge', 'message', 'Entre 0 et 120 ans.');
+  else
+    v_min_age_int := v_min_age;
+  end if;
   return pg_catalog.jsonb_build_object(
     'values', pg_catalog.jsonb_build_object('personal_phone', v_phone, 'city', v_city, 'province', v_province,
                                             'postal_code', v_postal, 'years_experience', v_years_int),
+    'matching', pg_catalog.jsonb_build_object('min_client_age', v_min_age_int,
+                                              'women_only', coalesce((p_row ->> 'women_only')::boolean, false)),
     'errors', v_errors);
 end;
 $$;
@@ -223,8 +240,7 @@ $$;
 -- Keys → the clinic's ids, ready for the set RPCs
 -- -----------------------------------------------------------------------------
 -- {"professions": [{title_id, licence_number, is_primary}] | null, "language_ids": [...] | null,
---  "clienteles": [{id, specialized}] | null, "specialties": [...] | null, "motif_ids": [...] | null,
---  "errors": [...]}. A list that is absent or empty is null (nothing to set: French stays, from
+--  "clienteles": [{id, specialized}] | null, "motif_ids": [...] | null, "errors": [...]}. A list that is absent or empty is null (nothing to set: French stays, from
 -- create_professional); a list with an unknown key is null too, with its error. Archived rows are
 -- resolved: the set RPCs refuse them with their own message. Blank keys are ignored. Security
 -- invoker: the caller's RLS reads the lists (any professionals key may read them).
@@ -288,21 +304,6 @@ begin
       'message', private.import_unknown_message('Clientèle inconnue', 'Clientèles inconnues', v_unknown));
   elsif v_list is not null then
     v_out := v_out || pg_catalog.jsonb_build_object('clienteles', v_list);
-  end if;
-
-  -- Approaches (the specialties table), with their star.
-  select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id', s.id, 'specialized', coalesce((e.v ->> 'specialized')::boolean, false))
-                              order by e.ord) filter (where s.id is not null),
-         pg_catalog.array_agg(e.v ->> 'key' order by e.ord) filter (where s.id is null)
-    into v_list, v_unknown
-    from pg_catalog.jsonb_array_elements(coalesce(nullif(p_row -> 'approaches', 'null'), '[]')) with ordinality as e(v, ord)
-    left join public.specialties s on s.org_id = p_org and s.key = pg_catalog.lower(pg_catalog.btrim(e.v ->> 'key', E' \t\r\n'))
-   where pg_catalog.btrim(e.v ->> 'key', E' \t\r\n') <> '';
-  if v_unknown is not null then
-    v_errors := v_errors || pg_catalog.jsonb_build_object('field', 'approaches',
-      'message', private.import_unknown_message('Approche inconnue', 'Approches inconnues', v_unknown));
-  elsif v_list is not null then
-    v_out := v_out || pg_catalog.jsonb_build_object('specialties', v_list);
   end if;
 
   -- Motifs.
@@ -375,6 +376,21 @@ begin
     end if;
   end if;
 
+  -- The matching profile's client limits, as Jumelage « Clientèle » writes them (create_professional
+  -- made the row with no limit), once valid and only when the row sets one.
+  if p_contact -> 'errors' = '[]'
+     and (p_contact -> 'matching' ->> 'min_client_age' is not null or (p_contact -> 'matching' ->> 'women_only')::boolean) then
+    update public.professional_matching_profiles mp
+       set min_client_age = (p_contact -> 'matching' ->> 'min_client_age')::smallint,
+           women_only = (p_contact -> 'matching' ->> 'women_only')::boolean
+     where mp.professional_id = import_professional_apply.id;
+    get diagnostics v_rows = row_count;
+    if v_rows <> 1 then
+      errors := errors || pg_catalog.jsonb_build_object('field', null,
+        'message', 'Les limites de clientèle (âge minimum, femmes seulement) n''ont pas pu être enregistrées.');
+    end if;
+  end if;
+
   if p_sets ? 'professions' then
     begin
       perform public.set_professional_professions(id, p_sets -> 'professions');
@@ -407,15 +423,6 @@ begin
     exception when sqlstate 'P0001' then
       get stacked diagnostics v_message = message_text;
       errors := errors || pg_catalog.jsonb_build_object('field', 'clienteles', 'message', v_message);
-    end;
-  end if;
-
-  if p_sets ? 'specialties' then
-    begin
-      perform public.set_professional_specialties(id, p_sets -> 'specialties');
-    exception when sqlstate 'P0001' then
-      get stacked diagnostics v_message = message_text;
-      errors := errors || pg_catalog.jsonb_build_object('field', 'approaches', 'message', v_message);
     end;
   end if;
 
@@ -458,8 +465,8 @@ $$;
 -- import_professional
 -- -----------------------------------------------------------------------------
 -- p_row: {first_name, last_name, email, personal_phone?, city?, province?, postal_code?,
--- years_experience?, professions?: [{title_key, licence_number?, is_primary?}], languages?: [code],
--- clienteles?: [{key, specialized?}], approaches?: [{key, specialized?}], motifs?: [key], ivac?,
+-- years_experience?, min_client_age?, women_only?, professions?: [{title_key, licence_number?,
+-- is_primary?}], languages?: [code], clienteles?: [{key, specialized?}], motifs?: [key], ivac?,
 -- activate?}. Returns {status: ok | skipped | error, dry_run, id, …}: ok adds activated, complete
 -- and missing (what the real run does or did), skipped adds reason, error adds errors.
 create function public.import_professional(p_row jsonb, p_dry_run boolean default true)

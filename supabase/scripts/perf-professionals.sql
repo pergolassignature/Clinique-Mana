@@ -1,7 +1,7 @@
 -- Performance probe for the Professionnels read models (plan Phase 4 Task 4a.4, step 4).
 -- LOCAL ONLY, needs the local seed (seed org and conseillère). Everything runs in one transaction
--- that is rolled back: 200 professionals with 2 professions, 3 languages, 4 clientèles,
--- 3 approaches and 25 motifs each (≈ 8 000 audit rows), then EXPLAIN (ANALYZE, BUFFERS) of the
+-- that is rolled back: 200 professionals with 2 professions, 3 languages, 4 clientèles and
+-- 25 motifs each (≈ 7 000 audit rows), then EXPLAIN (ANALYZE, BUFFERS) of the
 -- read models as the seed conseillère. Function bodies are shown as prepared generic plans
 -- (auto_explain cannot be loaded by postgres in the Supabase image).
 --
@@ -38,26 +38,21 @@ insert into public.professional_languages (org_id, professional_id, language_id)
 select :'org', i.id, l.id
   from perf_ids i
   join public.languages l on l.org_id = :'org' and l.code in ('fr', 'en', 'es');
--- Rotating windows over the seeded lists: 4 of 7 clientèles, 3 of 10 approaches, 25 of 72 motifs.
+-- Rotating windows over the seeded lists: 4 of 8 clientèles, 25 of 124 motifs.
 insert into public.professional_clienteles (org_id, professional_id, clientele_id, is_specialized)
-select :'org', i.id, c.id, c.rn = i.n % 7
+select :'org', i.id, c.id, c.rn = i.n % 8
   from perf_ids i
   join (select x.id, row_number() over (order by x.sort_order) - 1 as rn from public.clienteles x where x.org_id = :'org') c
-    on (c.rn - i.n % 7 + 7) % 7 < 4;
-insert into public.professional_specialties (org_id, professional_id, specialty_id, is_specialized)
-select :'org', i.id, s.id, s.rn = i.n % 10
-  from perf_ids i
-  join (select x.id, row_number() over (order by x.sort_order) - 1 as rn from public.specialties x where x.org_id = :'org') s
-    on (s.rn - i.n % 10 + 10) % 10 < 3;
+    on (c.rn - i.n % 8 + 8) % 8 < 4;
 insert into public.professional_motifs (org_id, professional_id, motif_id)
 select :'org', i.id, m.id
   from perf_ids i
   join (select x.id, row_number() over (order by x.sort_order) - 1 as rn from public.motifs x where x.org_id = :'org') m
-    on (m.rn - i.n % 72 + 72) % 72 < 25;
+    on (m.rn - i.n % 124 + 124) % 124 < 25;
 -- Constraint triggers (one primary title) run now, not at the rollback.
 set constraints all immediate;
 analyze public.professionals, public.professional_professions, public.professional_languages, public.professional_clienteles,
-        public.professional_specialties, public.professional_motifs, public.professional_matching_profiles, public.audit_log;
+        public.professional_motifs, public.professional_matching_profiles, public.audit_log;
 
 select (select count(*) from perf_ids) as professionals,
        (select count(*) from public.professional_motifs x join perf_ids i on i.id = x.professional_id) as motif_rows,
@@ -96,7 +91,7 @@ prepare history(uuid, text, bigint, int) as
      and left(a.record_id, 36) = $2
      and a.id < $3
      and a.table_name = any (array['professionals', 'professional_public_profiles', 'professional_matching_profiles',
-                                   'professional_professions', 'professional_clienteles', 'professional_specialties',
+                                   'professional_professions', 'professional_clienteles',
                                    'professional_motifs', 'professional_languages', 'professional_payer_numbers'])
    order by a.id desc
    limit $4;

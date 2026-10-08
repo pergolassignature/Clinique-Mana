@@ -63,6 +63,7 @@
 - **Fiche PDF** is client-facing: sent to the client after the discovery call (download or email from the app).
 - **B2B** (ateliers / conférences, MANA's own PAE offer to employers, schools) is a separate future area. It is not in the legacy app.
 - **Loi 25:** the privacy officer is Christine Sirois (ext. 222). Clients can request a copy or destruction of their data, so retention and export must be planned per module.
+- **Today's intake and matching workbook** (demandes journals, availability matrix, KPIs, manual procedure) is analysed in [research: intake and matching workbook](../research/2026-10-08-intake-workbook.md); read it before designing Demandes.
 
 ### Product notes from Jonathan (2026-10-07)
 

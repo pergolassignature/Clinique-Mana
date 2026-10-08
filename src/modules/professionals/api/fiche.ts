@@ -3,7 +3,7 @@ import { supabase } from '@/core/supabase/client'
 import { invokeFunction } from '@/core/supabase/functions'
 
 /**
- * The fiche PDF (Task 4c.5; 20261008191110_professionals_fiche.sql, 20261008191422_professionals_fiche_email.sql).
+ * The fiche PDF (Task 4c.5; 20261008211740_professionals_fiche.sql, 20261008211742_professionals_fiche_email.sql).
  * The PDF itself is made in the browser (`../pdf/`); the database keeps when it was last made, and
  * `professionals-fiche` emails an uploaded fiche.
  */

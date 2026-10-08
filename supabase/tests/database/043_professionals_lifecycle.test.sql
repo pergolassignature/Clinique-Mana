@@ -74,13 +74,12 @@ select set_config('test.opq',    (select o.id::text from public.professional_ord
 select set_config('test.b_psy',  (select t.id::text from public.profession_titles t where t.org_id = 'b0000000-0000-0000-0000-00000000000b' and t.key = 'psychologue'), true);
 select set_config('test.adults',  (select c.id::text from public.clienteles c where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.key = 'adults'), true);
 select set_config('test.couples', (select c.id::text from public.clienteles c where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.key = 'couples'), true);
-select set_config('test.cbt',  (select s.id::text from public.specialties s where s.org_id = 'b0000000-0000-0000-0000-00000000000a' and s.key = 'cbt'), true);
 select set_config('test.fr',   (select l.id::text from public.languages l where l.org_id = 'b0000000-0000-0000-0000-00000000000a' and l.code = 'fr'), true);
 select set_config('test.en',   (select l.id::text from public.languages l where l.org_id = 'b0000000-0000-0000-0000-00000000000a' and l.code = 'en'), true);
 select set_config('test.b_fr', (select l.id::text from public.languages l where l.org_id = 'b0000000-0000-0000-0000-00000000000b' and l.code = 'fr'), true);
 select set_config('test.anxiete',  (select m.id::text from public.motifs m where m.org_id = 'b0000000-0000-0000-0000-00000000000a' and m.key = 'anxiete'), true);
 select set_config('test.deuil',    (select m.id::text from public.motifs m where m.org_id = 'b0000000-0000-0000-0000-00000000000a' and m.key = 'deuil'), true);
-select set_config('test.adoption', (select m.id::text from public.motifs m where m.org_id = 'b0000000-0000-0000-0000-00000000000a' and m.key = 'adoption'), true);
+select set_config('test.adoption', (select m.id::text from public.motifs m where m.org_id = 'b0000000-0000-0000-0000-00000000000a' and m.key = 'adoption_internationale'), true);
 select set_config('test.leave',     (select r.id::text from public.deactivation_reasons r where r.org_id = 'b0000000-0000-0000-0000-00000000000a' and r.key = 'leave'), true);
 select set_config('test.ended',     (select r.id::text from public.deactivation_reasons r where r.org_id = 'b0000000-0000-0000-0000-00000000000a' and r.key = 'collaboration_ended'), true);
 select set_config('test.other',     (select r.id::text from public.deactivation_reasons r where r.org_id = 'b0000000-0000-0000-0000-00000000000a' and r.key = 'other'), true);
@@ -106,8 +105,6 @@ insert into public.professional_motifs (org_id, professional_id, motif_id) value
   ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002', current_setting('test.anxiete')::uuid);
 insert into public.professional_clienteles (org_id, professional_id, clientele_id, is_specialized) values
   ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002', current_setting('test.adults')::uuid, true);
-insert into public.professional_specialties (org_id, professional_id, specialty_id) values
-  ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002', current_setting('test.cbt')::uuid);
 
 -- P1, P4, P5 through the RPC, as the adjointe (1:1 rows and French come with it).
 set local role authenticated;
@@ -455,17 +452,17 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select set_eq($$ select l.id from public.professionals_list l $$,
   array[current_setting('test.p1')::uuid, current_setting('test.p2')::uuid, current_setting('test.p4')::uuid, current_setting('test.p5')::uuid],
   'the conseillère lists every org-A professional, nothing of org B');
-select results_eq($$ select l.primary_title_id, l.primary_licence_number, l.language_ids, l.clientele_ids, l.specialty_ids, l.motif_ids,
+select results_eq($$ select l.primary_title_id, l.primary_licence_number, l.language_ids, l.clientele_ids, l.motif_ids,
                             l.accepting_new_clients, l.matching_complete, l.ready, l.has_account, l.email_matches_login, l.status
                        from public.professionals_list l where l.id = current_setting('test.p2')::uuid $$,
   $$ values (current_setting('test.psy')::uuid, 'OPQ-2000'::text, array[current_setting('test.fr')::uuid], array[current_setting('test.adults')::uuid],
-             array[current_setting('test.cbt')::uuid], array[current_setting('test.anxiete')::uuid], true, true, true, true, true, 'active'::text) $$,
+             array[current_setting('test.anxiete')::uuid], true, true, true, true, true, 'active'::text) $$,
   'a list row carries ids, flags and readiness');
 select results_eq($$ select d.display_name, d.primary_title_key, d.category_key, d.order_acronym, d.licence_number, d.language_codes,
                             d.clienteles, d.motif_ids, d.motif_keys, d.insurance_status, d.ready
                        from public.professionals_directory d where d.id = current_setting('test.p2')::uuid $$,
   $$ values ('Pia Deux'::text, 'psychologue'::text, 'psychologie'::text, 'OPQ'::text, 'OPQ-2000'::text, array['fr']::text[],
-             jsonb_build_array(jsonb_build_object('id', current_setting('test.adults'), 'key', 'adults', 'specialized', true, 'min_age', 18, 'max_age', 64)),
+             jsonb_build_array(jsonb_build_object('id', current_setting('test.adults'), 'key', 'adults', 'specialized', true, 'min_age', 18, 'max_age', null)),
              array[current_setting('test.anxiete')::uuid], array['anxiete']::text[], 'unknown'::text, true) $$,
   'a directory row carries what matching needs');
 select is((select d.professions from public.professionals_directory d where d.id = current_setting('test.p2')::uuid),
@@ -473,9 +470,10 @@ select is((select d.professions from public.professionals_directory d where d.id
     'title_id', current_setting('test.psy'), 'title_key', 'psychologue', 'title_name', 'Psychologue', 'category_key', 'psychologie',
     'order_acronym', 'OPQ', 'licence_number', 'OPQ-2000', 'is_primary', true)),
   'the directory lists every profession');
-select is((select d.specialties from public.professionals_directory d where d.id = current_setting('test.p2')::uuid),
-  jsonb_build_array(jsonb_build_object('id', current_setting('test.cbt'), 'key', 'cbt', 'specialized', false)),
-  'the directory lists the approaches');
+select results_eq($$ select d.min_client_age::int, d.women_only from public.professionals_directory d
+                     where d.id = current_setting('test.p2')::uuid $$,
+  $$ values (null::int, false) $$,
+  'the directory carries the client limits matching must honour (P4-245): none by default');
 select ok((select d.updated_at >= p.updated_at from public.professionals_directory d join public.professionals p on p.id = d.id
             where d.id = current_setting('test.p2')::uuid), 'the directory updated_at is at least the record''s');
 
@@ -548,18 +546,17 @@ select public.set_professional_payer_number(current_setting('test.p2')::uuid, 'i
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select is((select array_agg(k order by k) from jsonb_object_keys(public.get_professional_record(current_setting('test.p1')::uuid)) k),
   array['clienteles', 'language_ids', 'matching_profile', 'motif_ids', 'payer_numbers', 'professional', 'professions',
-        'public_profile', 'readiness', 'specialties'],
+        'public_profile', 'readiness'],
   'the record bundles the professional, its 1:1 rows, its sets and readiness');
 select ok(not (public.get_professional_record(current_setting('test.p1')::uuid) -> 'professional' ? 'org_id')
           and not (public.get_professional_record(current_setting('test.p1')::uuid) -> 'public_profile' ? 'org_id')
           and not (public.get_professional_record(current_setting('test.p1')::uuid) -> 'matching_profile' ? 'org_id'),
   'no org_id in the record');
-select results_eq($$ select r -> 'professional' ->> 'first_name', r -> 'motif_ids', r -> 'language_ids', r -> 'clienteles', r -> 'specialties',
+select results_eq($$ select r -> 'professional' ->> 'first_name', r -> 'motif_ids', r -> 'language_ids', r -> 'clienteles',
                             r -> 'payer_numbers', r -> 'public_profile' ->> 'bio', r -> 'matching_profile' -> 'accepting_new_clients'
                        from public.get_professional_record(current_setting('test.p2')::uuid) r $$,
   $$ values ('Pia'::text, jsonb_build_array(current_setting('test.anxiete')), jsonb_build_array(current_setting('test.fr')),
              jsonb_build_array(jsonb_build_object('id', current_setting('test.adults'), 'specialized', true)),
-             jsonb_build_array(jsonb_build_object('id', current_setting('test.cbt'), 'specialized', false)),
              '[{"payer_type": "ivac", "number": "IV-123"}]'::jsonb, 'Accompagne les adultes.'::text, 'true'::jsonb) $$,
   'the record carries the sets as ids');
 select is(public.get_professional_record(current_setting('test.p2')::uuid) -> 'professions',
@@ -575,28 +572,28 @@ select ok(public.get_professional_record(current_setting('test.p2')::uuid) is no
 select ok(public.get_professional_record(current_setting('test.p1')::uuid) is null, 'the provider reads no other record');
 
 -- =============================================================================
--- get_professional_public_profile (P2: anxiété in « Vie intérieure », deuil without a category,
--- adoption whose category is archived)
+-- get_professional_public_profile (P2: anxiété in « Santé mentale », deuil without a category,
+-- adoption internationale whose category is archived)
 -- =============================================================================
 reset role;
 update public.motifs set category_id = null where id = current_setting('test.deuil')::uuid;
-update public.motif_categories set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'relationships';
+update public.motif_categories set is_active = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'famille_parentalite';
 insert into public.professional_motifs (org_id, professional_id, motif_id) values
   ('b0000000-0000-0000-0000-00000000000a', current_setting('test.p2')::uuid, current_setting('test.deuil')::uuid),
   ('b0000000-0000-0000-0000-00000000000a', current_setting('test.p2')::uuid, current_setting('test.adoption')::uuid);
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select is(public.get_professional_public_profile(current_setting('test.p2')::uuid) -> 'motif_groups',
-  '[{"category_key": "inner_life", "category_name": "Vie intérieure", "icon": "Brain", "motifs": ["Anxiété"]},
-    {"category_key": "autres", "category_name": "Autres", "icon": null, "motifs": ["Adoption", "Deuil"]}]'::jsonb,
-  'motifs grouped by active category, « Autres » last');
+  '[{"category_key": "sante_mentale", "category_name": "Santé mentale / Troubles psychologiques", "icon": "Brain", "motifs": ["Anxiété"]},
+    {"category_key": null, "category_name": "Sans catégorie", "icon": null, "motifs": ["Adoption internationale", "Deuil"]}]'::jsonb,
+  'motifs grouped by active category, « Sans catégorie » last (P4-246)');
 select is(public.get_professional_public_profile(current_setting('test.p2')::uuid) - 'motif_groups',
   jsonb_build_object('first_name', 'Pia', 'last_name', 'Deux', 'bio', 'Accompagne les adultes.', 'approach', null,
     'public_email', 'pia@clinique.ca', 'public_phone', null, 'primary_title_name', 'Psychologue', 'order_acronym', 'OPQ',
     'licence_number', 'OPQ-2000',
-    'clienteles', jsonb_build_array(jsonb_build_object('name', 'Adultes', 'min_age', 18, 'max_age', 64, 'specialized', true)),
-    'approaches', jsonb_build_array(jsonb_build_object('name', 'Thérapie cognitivo-comportementale (TCC)', 'specialized', false))),
-  'portrait, public contact, clientèles and approaches with names');
+    'clienteles', jsonb_build_array(jsonb_build_object('name', 'Adultes', 'min_age', 18, 'max_age', null, 'specialized', true)),
+    'min_client_age', null, 'women_only', false),
+  'portrait, public contact, clientèles with names and the client limits; no approaches (P4-240)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select ok(public.get_professional_public_profile(current_setting('test.p2')::uuid) is not null, 'the provider reads their own public profile');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);

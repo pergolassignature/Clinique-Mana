@@ -10,7 +10,6 @@ import {
   setPayerNumber,
   setProfessionalEmail,
   setProfessions,
-  setSpecialties,
   updateMatchingProfile,
   updateProfessional,
   updatePublicProfile,
@@ -150,14 +149,10 @@ describe('set RPCs', () => {
     expect(rows[1]).toEqual({ id: 'row-2', titleId: IDS.naturopathe, licenceNumber: null, isPrimary: true })
   })
 
-  it('setClienteles and setSpecialties send {id, specialized} and map the returned set', async () => {
+  it('setClienteles sends {id, specialized} and maps the returned set', async () => {
     ok([{ clientele_id: IDS.couples, is_specialized: true }])
     await expect(setClienteles(ID, [{ id: IDS.couples, specialized: true }])).resolves.toEqual([{ id: IDS.couples, specialized: true }])
     expect(mocks.rpc).toHaveBeenCalledWith('set_professional_clienteles', { p_id: ID, p_items: [{ id: IDS.couples, specialized: true }] })
-
-    ok([{ specialty_id: IDS.cbt, is_specialized: false }])
-    await expect(setSpecialties(ID, [{ id: IDS.cbt, specialized: false }])).resolves.toEqual([{ id: IDS.cbt, specialized: false }])
-    expect(mocks.rpc).toHaveBeenCalledWith('set_professional_specialties', { p_id: ID, p_items: [{ id: IDS.cbt, specialized: false }] })
   })
 
   it('setMotifs and setLanguages send the ids and return the new set', async () => {

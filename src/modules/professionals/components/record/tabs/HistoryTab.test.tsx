@@ -14,18 +14,13 @@ import { refreshProfessionalHistory } from '../../../hooks/use-professional-reco
 import { RecordContext } from '../record-context'
 import { HistoryTab } from './HistoryTab'
 
-const mocks = vi.hoisted(() => ({ fetchProfessionalHistory: vi.fn(), fetchCompensationKinds: vi.fn() }))
+const mocks = vi.hoisted(() => ({ fetchProfessionalHistory: vi.fn() }))
 // Two rows per page, so paging is easy to drive.
 vi.mock('../../../api/history', () => ({ fetchProfessionalHistory: mocks.fetchProfessionalHistory, PROFESSIONAL_HISTORY_PAGE_SIZE: 2 }))
-vi.mock('../../../api/compensation', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../../api/compensation')>()),
-  fetchCompensationKinds: mocks.fetchCompensationKinds,
-}))
 
 afterEach(() => {
   cleanup()
   mocks.fetchProfessionalHistory.mockReset()
-  mocks.fetchCompensationKinds.mockReset()
 })
 
 const H = 'modules.professionals.history'
@@ -108,9 +103,12 @@ describe('HistoryTab', () => {
     expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined], [P, 8], [P, 6]])
     await userEvent.click(toggle)
     const panel = document.getElementById(toggle.getAttribute('aria-controls') ?? '') as HTMLElement
-    expect(within(panel).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      'Catégorie 1\u00a0: Motif 1.1',
-      'Catégorie 2\u00a0: Motif 2.1 · Motif 2.2 · Motif 2.3',
+    // Each category's title on its own line, every name under it (P4-249).
+    const categories = within(panel).getAllByRole('listitem').filter((li) => li.querySelector('p'))
+    expect(categories.map((li) => li.querySelector('p')?.textContent)).toEqual(['Catégorie 1', 'Catégorie 2'])
+    expect(categories.map((li) => [...li.querySelectorAll('li')].map((name) => name.textContent))).toEqual([
+      ['Motif 1.1'],
+      ['Motif 2.1', 'Motif 2.2', 'Motif 2.3'],
     ])
   })
 
@@ -283,19 +281,6 @@ describe('HistoryTab', () => {
     await waitFor(() => expect(mocks.fetchProfessionalHistory).toHaveBeenCalled())
     expect(await screen.findByText(/a modifié les années d'expérience : 2 → 3/)).toBeInTheDocument()
     expect(mocks.fetchProfessionalHistory.mock.calls).toEqual([[P, undefined]])
-  })
-
-  it('reads the compensation kinds only for professionals.compensation holders (P4-161)', async () => {
-    mocks.fetchProfessionalHistory.mockResolvedValue([])
-    mocks.fetchCompensationKinds.mockResolvedValue([{ key: 'consultation', name: 'Consultation' }])
-    renderTab()
-    expect(await screen.findByText(t(`${H}.empty.title`))).toBeInTheDocument()
-    expect(mocks.fetchCompensationKinds).not.toHaveBeenCalled()
-    cleanup()
-
-    renderTab(CATALOG_VIEW, setupQueryClient().queryClient, 'admin')
-    expect(await screen.findByText(t(`${H}.empty.title`))).toBeInTheDocument()
-    expect(mocks.fetchCompensationKinds).toHaveBeenCalledOnce()
   })
 
   it('shows the empty state', async () => {

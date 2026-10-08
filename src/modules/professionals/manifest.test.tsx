@@ -18,6 +18,7 @@ describe('professionalsManifest', () => {
     expect(professionalsManifest.routes.map((r) => [r.path, r.permission])).toEqual([
       ['professionnels', 'professionals.view'],
       ['professionnels/:id/:onglet?', 'professionals.view'],
+      ['professionnels/revision-mensuelle', 'professionals.compensation'],
     ])
   })
 
@@ -47,7 +48,7 @@ describe('professionalsManifest', () => {
   it('declares the five list sections of 4a.6–4a.9, then « Rémunération » (4a.18), in the Modules group', () => {
     expect(sections.map((s) => [s.id, s.path])).toEqual([
       ['professions', 'professions'],
-      ['specialties', 'specialites'],
+      ['clienteles', 'clienteles'],
       ['motifs', 'motifs'],
       ['languages', 'langues'],
       ['deactivation-reasons', 'raisons-desactivation'],

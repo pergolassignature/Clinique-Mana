@@ -99,15 +99,17 @@ const ALL_SECTIONS = [
 
 /** Professionnels' list sections, after the core ones (group « Modules »). */
 const PROFESSIONALS_LIST_SECTIONS = [
-  'modules.professionals.settings.professions.title', 'modules.professionals.settings.specialties.title',
+  'modules.professionals.settings.professions.title', 'modules.professionals.settings.clienteles.title',
   'modules.professionals.settings.motifs.title', 'modules.professionals.settings.languages.title',
   'modules.professionals.settings.deactivationReasons.title',
 ] as const
 /** Then « Rémunération » (`professionals.compensation`: the admin only, by default). */
 const PROFESSIONALS_SECTIONS = [...PROFESSIONALS_LIST_SECTIONS, 'modules.professionals.settings.compensation.title'] as const
-const PROFESSIONALS_LIST_SECTION_IDS = ['professions', 'specialties', 'motifs', 'languages', 'deactivation-reasons'].map((id) => `professionals:${id}`)
+const PROFESSIONALS_LIST_SECTION_IDS = ['professions', 'clienteles', 'motifs', 'languages', 'deactivation-reasons'].map((id) => `professionals:${id}`)
 const PROFESSIONALS_SECTION_IDS = [...PROFESSIONALS_LIST_SECTION_IDS, 'professionals:compensation']
 const PROFESSIONALS_ROUTES = ['professionals:/professionnels', 'professionals:/professionnels/:id/:onglet?']
+/** « Révision mensuelle »: professionals.compensation only (admin by default). */
+const PROFESSIONALS_REVIEW_ROUTE = 'professionals:/professionnels/revision-mensuelle'
 
 const appAt = (path: string, access: Access = adminLike, auth: Parameters<typeof renderWithContexts>[1] = {}) => (
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -348,7 +350,7 @@ describe('AuthenticatedApp — idle prefetch', () => {
     render(appAt('/accueil'))
     expect(preloaded()).toEqual([])
     runIdle()
-    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES])
+    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), ...PROFESSIONALS_SECTION_IDS, ...PROFESSIONALS_ROUTES, PROFESSIONALS_REVIEW_ROUTE])
   })
 
   it('skips the pages the user may not open', () => {

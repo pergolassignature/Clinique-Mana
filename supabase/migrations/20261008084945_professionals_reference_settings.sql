@@ -6,7 +6,7 @@
 -- Rules:   docs/standards/database-conventions.md
 --
 -- Key choices
--- * The nine lists of *_professionals_reference_data.sql are written only here, by security
+-- * The eight lists of *_professionals_reference_data.sql are written only here, by security
 --   definer RPCs gated by professionals.settings: save_<list> (create or update, returns the id),
 --   set_professionals_reference_active (archive / restore), reorder_professionals_reference.
 --   Static branches per list, no dynamic SQL.
@@ -16,14 +16,14 @@
 --   ends, inner runs folded to one space, invisible or control characters refused with a French
 --   P0001. Duplicates are compared as lower(normalize(name, NFKC)), the expression of the unique
 --   indexes, so the friendly message fires exactly when the index would.
--- * System rows keep what other modules rely on: the 7 clientèles are never archived and keep
+-- * System rows keep what other modules rely on: the 5 system clientèles are never archived and keep
 --   their kind (age group or not), « Autre » always requires a note. Order acronyms are unique
 --   per clinic, ignoring case.
 -- * Keys are generated from the French name on create (private.reference_key, P4-31) with a
 --   numeric suffix when taken, and never change (the 4a.1 freeze trigger backs this). Languages
 --   take an ISO 639-1 code instead, validated on create and refused on change.
 -- * A list holds at most 500 rows, archived ones included (~70 today): the catalogue is bounded.
--- * get_professionals_catalog: the nine lists in one jsonb payload for the client cache, archived
+-- * get_professionals_catalog: the eight lists in one jsonb payload for the client cache, archived
 --   rows included (records still show them). Security definer with the policies' own predicate
 --   (org and can_read_professionals_reference), evaluated once instead of once per list.
 -- * Catalogue views (motifs_catalog, clienteles_catalog, languages_catalog): active rows, for
@@ -388,46 +388,6 @@ begin
 end;
 $$;
 
-create function public.save_specialty(p_id uuid, p_name text)
-returns uuid
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_org uuid := private.lock_for_professionals_settings();
-  v_name text := private.reference_text(p_name, 'Le nom', 120, true, true);
-  v_id uuid;
-begin
-  if p_id is not null and not exists (select 1 from public.specialties x where x.id = p_id and x.org_id = v_org) then
-    raise exception 'Approche introuvable.' using errcode = 'P0001';
-  end if;
-  if exists (
-    select 1 from public.specialties x
-     where x.org_id = v_org and x.id is distinct from p_id
-       and pg_catalog.lower(pg_catalog.normalize(x.name, 'NFKC')) = pg_catalog.lower(pg_catalog.normalize(v_name, 'NFKC'))
-  ) then
-    raise exception 'Une approche porte déjà ce nom (elle est peut-être archivée).' using errcode = 'P0001';
-  end if;
-
-  if p_id is null then
-    perform private.assert_reference_room((select count(*) from public.specialties x where x.org_id = v_org));
-    insert into public.specialties (org_id, key, name, sort_order)
-    values (v_org,
-            private.unique_reference_key(private.reference_key(v_name),
-              array(select x.key from public.specialties x where x.org_id = v_org)),
-            v_name,
-            coalesce((select max(x.sort_order) from public.specialties x where x.org_id = v_org), 0) + 10)
-    returning id into v_id;
-  else
-    update public.specialties x set name = v_name
-     where x.id = p_id and x.org_id = v_org
-    returning x.id into v_id;
-  end if;
-  return v_id;
-end;
-$$;
-
 -- The description is set as given (blank clears it); a null icon keeps the current one (Brain
 -- on create).
 create function public.save_motif_category(p_id uuid, p_name text, p_description text, p_icon text)
@@ -479,8 +439,8 @@ begin
 end;
 $$;
 
--- The representative save RPC. p_category_id null: « Autres ». A new category must be active; a
--- motif may keep the archived category it has (its motifs then show under « Autres »).
+-- The representative save RPC. p_category_id null: « Sans catégorie ». A new category must be active; a
+-- motif may keep the archived category it has (its motifs then show under « Sans catégorie »).
 create function public.save_motif(p_id uuid, p_name text, p_category_id uuid, p_is_restricted boolean)
 returns uuid
 language plpgsql
@@ -640,10 +600,10 @@ $$;
 
 -- -----------------------------------------------------------------------------
 -- Archive / restore. p_kind is the table name. Rules:
--- * is_system rows (the 7 clientèles, French, the reason « Autre ») are never archived (P4-42);
+-- * is_system rows (the 5 system clientèles, French, the reason « Autre ») are never archived (P4-42);
 -- * an order or a profession category is archived only once no active title uses it, so an
 --   active title always has an active category and order; a title is restored only once both are;
--- * motifs, approaches, motif categories (their motifs show under « Autres »), titles: free.
+-- * motifs, motif categories (their motifs show under « Sans catégorie »), titles: free.
 -- A row already in the requested state is left untouched (no audit row, no updated_at bump).
 -- -----------------------------------------------------------------------------
 create function public.set_professionals_reference_active(p_kind text, p_id uuid, p_active boolean)
@@ -669,8 +629,6 @@ begin
       select x.is_system into v_system from public.profession_titles x where x.id = p_id and x.org_id = v_org;
     when 'clienteles' then
       select x.is_system into v_system from public.clienteles x where x.id = p_id and x.org_id = v_org;
-    when 'specialties' then
-      select x.is_system into v_system from public.specialties x where x.id = p_id and x.org_id = v_org;
     when 'motif_categories' then
       select x.is_system into v_system from public.motif_categories x where x.id = p_id and x.org_id = v_org;
     when 'motifs' then
@@ -726,8 +684,6 @@ begin
       update public.profession_titles x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
     when 'clienteles' then
       update public.clienteles x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
-    when 'specialties' then
-      update public.specialties x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
     when 'motif_categories' then
       update public.motif_categories x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
     when 'motifs' then
@@ -774,8 +730,6 @@ begin
       select count(*) into v_found from public.profession_titles t where t.org_id = v_org and t.id = any (p_ids);
     when 'clienteles' then
       select count(*) into v_found from public.clienteles t where t.org_id = v_org and t.id = any (p_ids);
-    when 'specialties' then
-      select count(*) into v_found from public.specialties t where t.org_id = v_org and t.id = any (p_ids);
     when 'motif_categories' then
       select count(*) into v_found from public.motif_categories t where t.org_id = v_org and t.id = any (p_ids);
     when 'motifs' then
@@ -804,9 +758,6 @@ begin
     when 'clienteles' then
       update public.clienteles t set sort_order = x.ord * 10 from pg_catalog.unnest(p_ids) with ordinality as x(id, ord)
        where t.id = x.id and t.org_id = v_org and t.sort_order <> x.ord * 10;
-    when 'specialties' then
-      update public.specialties t set sort_order = x.ord * 10 from pg_catalog.unnest(p_ids) with ordinality as x(id, ord)
-       where t.id = x.id and t.org_id = v_org and t.sort_order <> x.ord * 10;
     when 'motif_categories' then
       update public.motif_categories t set sort_order = x.ord * 10 from pg_catalog.unnest(p_ids) with ordinality as x(id, ord)
        where t.id = x.id and t.org_id = v_org and t.sort_order <> x.ord * 10;
@@ -824,10 +775,10 @@ end;
 $$;
 
 -- -----------------------------------------------------------------------------
--- Catalogue: the nine lists of the caller's clinic in one payload (cached by the client, 5 min),
+-- Catalogue: the eight lists of the caller's clinic in one payload (cached by the client, 5 min),
 -- each in its sort order, archived rows included and flagged by is_active. Rows carry every
 -- column but org_id, created_at and updated_at. Callers without a professionals key (or with the
--- module off) get nine empty lists, as the tables' policies would show them.
+-- module off) get eight empty lists, as the tables' policies would show them.
 -- -----------------------------------------------------------------------------
 create function public.get_professionals_catalog()
 returns jsonb
@@ -837,7 +788,7 @@ security definer
 set search_path = ''
 as $$
   with me as materialized (
-    -- The policies' predicate, evaluated once for the nine lists.
+    -- The policies' predicate, evaluated once for the eight lists.
     select private.current_user_org_id() as org_id
      where private.can_read_professionals_reference()
   )
@@ -854,9 +805,6 @@ as $$
     'clienteles', coalesce((
       select pg_catalog.jsonb_agg(pg_catalog.to_jsonb(x) - '{org_id,created_at,updated_at}'::text[] order by x.sort_order, x.name)
         from public.clienteles x join me on x.org_id = me.org_id), '[]'::jsonb),
-    'specialties', coalesce((
-      select pg_catalog.jsonb_agg(pg_catalog.to_jsonb(x) - '{org_id,created_at,updated_at}'::text[] order by x.sort_order, x.name)
-        from public.specialties x join me on x.org_id = me.org_id), '[]'::jsonb),
     'motif_categories', coalesce((
       select pg_catalog.jsonb_agg(pg_catalog.to_jsonb(x) - '{org_id,created_at,updated_at}'::text[] order by x.sort_order, x.name)
         from public.motif_categories x join me on x.org_id = me.org_id), '[]'::jsonb),
@@ -874,7 +822,7 @@ $$;
 
 -- -----------------------------------------------------------------------------
 -- Published catalogue views (other modules: Demandes). Active rows only; a motif whose category
--- is archived has no category (shown under « Autres »). security_invoker: the lists' RLS applies.
+-- is archived has no category (shown under « Sans catégorie »). security_invoker: the lists' RLS applies.
 -- -----------------------------------------------------------------------------
 create view public.motifs_catalog with (security_invoker = true) as
   select m.id, m.org_id, m.key, m.name, m.is_restricted, m.sort_order,
@@ -1034,7 +982,6 @@ revoke all on function
   public.save_profession_category(uuid, text),
   public.save_profession_title(uuid, text, uuid, uuid),
   public.save_clientele(uuid, text, int, int),
-  public.save_specialty(uuid, text),
   public.save_motif_category(uuid, text, text, text),
   public.save_motif(uuid, text, uuid, boolean),
   public.save_language(uuid, text, text),
@@ -1050,7 +997,6 @@ grant execute on function
   public.save_profession_category(uuid, text),
   public.save_profession_title(uuid, text, uuid, uuid),
   public.save_clientele(uuid, text, int, int),
-  public.save_specialty(uuid, text),
   public.save_motif_category(uuid, text, text, text),
   public.save_motif(uuid, text, uuid, boolean),
   public.save_language(uuid, text, text),

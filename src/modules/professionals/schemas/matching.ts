@@ -18,6 +18,7 @@ export const availabilitySchema = z
   .object({
     am: z.boolean(),
     pm: z.boolean(),
+    end_of_day: z.boolean(),
     evening: z.boolean(),
     weekend: z.boolean(),
     acceptingNewClients: z.boolean(),
@@ -35,11 +36,32 @@ export function toAvailabilityFormValues(m: MatchingProfile): AvailabilityValues
   return {
     am: held.has('am'),
     pm: held.has('pm'),
+    end_of_day: held.has('end_of_day'),
     evening: held.has('evening'),
     weekend: held.has('weekend'),
     acceptingNewClients: m.acceptingNewClients,
     note: m.availabilityNote ?? '',
   }
+}
+
+// --- Limites de clientèle (P4-245) --------------------------------------------------------------
+
+/**
+ * The youngest client age (empty = none, 0–120, `professional_matching_profiles_min_client_age_check`)
+ * and « Femmes seulement », out as the matching profile's columns.
+ */
+export const clientLimitsSchema = z.object({
+  minClientAge: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || (/^[0-9]{1,3}$/.test(v) && Number(v) <= 120), { error: t('modules.professionals.validation.ages') })
+    .transform((v) => (v === '' ? null : Number(v))),
+  womenOnly: z.boolean(),
+})
+export type ClientLimitsValues = z.input<typeof clientLimitsSchema>
+
+export function toClientLimitsFormValues(m: MatchingProfile): ClientLimitsValues {
+  return { minClientAge: m.minClientAge === null ? '' : String(m.minClientAge), womenOnly: m.womenOnly }
 }
 
 // --- Sets ----------------------------------------------------------------------------------------
@@ -96,19 +118,6 @@ export function clienteleItemsSchema(catalog: CatalogView, { heldIds }: { heldId
       catalog.byId.clienteles,
       heldIds,
       (name) => t('modules.professionals.validation.clienteleArchived', { name }),
-      ctx,
-    ),
-  )
-}
-
-/** Approaches with their « spécialisé » star: no new archived approach. */
-export function specialtyItemsSchema(catalog: CatalogView, { heldIds }: { heldIds: readonly string[] }): z.ZodType<SpecializedRef[]> {
-  return specializedItems().superRefine((items, ctx) =>
-    refuseNewArchived(
-      items.map((i) => i.id),
-      catalog.byId.specialties,
-      heldIds,
-      (name) => t('modules.professionals.validation.specialtyArchived', { name }),
       ctx,
     ),
   )

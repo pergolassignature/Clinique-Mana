@@ -91,7 +91,6 @@ describe('saveReference', () => {
       'save_clientele',
       { p_id: null, p_name: 'Aînés', p_min_age: 65, p_max_age: null },
     ],
-    specialties: [{ id: null, name: 'EMDR' }, 'save_specialty', { p_id: null, p_name: 'EMDR' }],
     motif_categories: [
       { id: null, name: 'Vie intérieure', description: null, icon: 'Brain' },
       'save_motif_category',

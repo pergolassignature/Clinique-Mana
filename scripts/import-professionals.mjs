@@ -26,9 +26,15 @@
 // CSV: UTF-8 (a BOM is fine), comma- or semicolon-separated (read from the header line), RFC 4180
 // quotes. Columns (header names are matched without case or accents):
 //   prenom, nom, courriel, telephone, ville, province, code_postal, annees_experience,
-//   titre_1, permis_1, titre_2, permis_2, langues, clienteles, approches, motifs, ivac, activer
-// Lists hold keys separated by « ; » (or « , »); in clienteles and approches, « * » after a key marks
-// it specialized (adults*;couples). titre_1 is the primary title. activer: oui, non or empty (non).
+//   titre_1, permis_1, titre_2, permis_2, langues, clienteles, age_minimum, femmes_seulement,
+//   motifs, ivac, activer, retenue, seances_cumulees
+// Lists hold keys separated by « ; » (or « , »); in clienteles, « * » after a key marks it
+// specialized (adults*;couples). titre_1 is the primary title. age_minimum: the youngest client age
+// (0–120, empty for none). femmes_seulement and activer: oui, non or empty (non). A permis may be
+// pasted as the website shows it: normalizeLicence keeps the bare number (P4-247).
+// retenue (the clinic's retention %, « 27,5 % ») and seances_cumulees (the cumulative sessions
+// through last month, « 237,5 ») are numbers typed the Québec way; both need
+// professionals.compensation (P4-192).
 import { closeSync, fsyncSync, openSync, readFileSync, unlinkSync, writeSync } from 'node:fs'
 import { ReadStream, WriteStream } from 'node:tty'
 import { pathToFileURL } from 'node:url'
@@ -107,7 +113,8 @@ const count = (text, ch) => text.split(ch).length - 1
 /** The columns the import reads, by their normalised header name. */
 export const COLUMNS = [
   'prenom', 'nom', 'courriel', 'telephone', 'ville', 'province', 'code_postal', 'annees_experience',
-  'titre_1', 'permis_1', 'titre_2', 'permis_2', 'langues', 'clienteles', 'approches', 'motifs', 'ivac', 'activer',
+  'titre_1', 'permis_1', 'titre_2', 'permis_2', 'langues', 'clienteles', 'age_minimum', 'femmes_seulement',
+  'motifs', 'ivac', 'activer', 'retenue', 'seances_cumulees',
 ]
 const REQUIRED_COLUMNS = ['prenom', 'nom', 'courriel']
 
@@ -177,10 +184,13 @@ const FIELD_COLUMNS = {
   professions: 'titre_1, titre_2',
   languages: 'langues',
   clienteles: 'clienteles',
-  approaches: 'approches',
+  minClientAge: 'age_minimum',
+  womenOnly: 'femmes_seulement',
   motifs: 'motifs',
   ivac: 'ivac',
   activate: 'activer',
+  retentionPct: 'retenue',
+  cumulativeSessions: 'seances_cumulees',
 }
 export const columnOf = (field) => (field == null ? 'ligne' : (FIELD_COLUMNS[field] ?? field))
 
@@ -194,7 +204,66 @@ const splitList = (cell) =>
 const starredList = (cell) =>
   splitList(cell).map((item) => (item.endsWith('*') ? { key: item.slice(0, -1).trim(), specialized: true } : { key: item, specialized: false }))
 
-const STAR_ONLY = 'Le « * » ne s’applique qu’aux clientèles et aux approches.'
+const STAR_ONLY = 'Le « * » ne s’applique qu’aux clientèles.'
+
+/** oui → true, non or empty → false, anything else → null (an error for the caller). */
+const yesNo = (cell) => {
+  const value = (cell ?? '').toLowerCase()
+  return value === 'oui' ? true : value === '' || value === 'non' ? false : null
+}
+
+/**
+ * The acronyms a permis cell may start with: the seeded orders', and « OTSFCQ », a typo of
+ * OTSTCFQ on the clinic's website (P4-247). OTSTCFQ before OTSFCQ is irrelevant: whole words.
+ */
+const ORDER_ACRONYMS = { OPQ: 'OPQ', OTSTCFQ: 'OTSTCFQ', OTSFCQ: 'OTSTCFQ', OPPQ: 'OPPQ', OPSQ: 'OPSQ', OCCOQ: 'OCCOQ', ODNQ: 'ODNQ' }
+
+/**
+ * A permis cell → the bare licence number (P4-247), as the website's « Membre de l’OPQ 10000-20 »
+ * lines read: the « Membre de l’ » prefix and an order acronym before the number are dropped (the
+ * order comes from the title; « OTSFCQ » is read as OTSTCFQ), trailing punctuation is dropped
+ * (« 1000020, »), and a 7-digit OPPQ number gets its dash (« 1000020 » → « 10000-20 », the order's
+ * NNNNN-AA format, P4-248). A membership of an association that is not an order (« Membre de RITMA
+ * 1234 ») is not a licence: { error }. Anything else is sent as is, for the database to check.
+ */
+export function normalizeLicence(cell, titleKey = '') {
+  let value = cell.trim().replace(/[\s.,;:]+$/u, '')
+  const member = /^membre\s+de\s+(?:l\s*['’]\s*)?/iu.exec(value)
+  if (member) value = value.slice(member[0].length)
+  let order = null
+  const prefix = /^([A-Za-z]{2,10})\s+(?=\S)/u.exec(value)
+  if (prefix) {
+    const acronym = prefix[1].toUpperCase()
+    if (acronym in ORDER_ACRONYMS) {
+      order = ORDER_ACRONYMS[acronym]
+      value = value.slice(prefix[0].length)
+    } else if (member) {
+      return { error: `${acronym} n’est pas un ordre professionnel : une adhésion n’est pas un permis (laissez permis vide, notez-la au profil public).` }
+    }
+  }
+  if (/^[0-9]{7}$/.test(value) && (order === 'OPPQ' || titleKey.trim().toLowerCase() === 'psychoeducateur')) {
+    value = `${value.slice(0, 5)}-${value.slice(5)}`
+  }
+  return { value }
+}
+
+/**
+ * A number typed the Québec way → a JSON number, or null when the cell is not one: « 27,5 »,
+ * « 27.5 », « 1 237,5 » (spaces, no-break ones included, between groups of three digits). Only the
+ * shape is checked here; the bounds (0–100 %, half sessions…) are import_professional's.
+ */
+export function parseQuebecNumber(cell) {
+  const text = cell.replace(/[\u00a0\u202f]/g, ' ').trim()
+  if (!/^-?(?:[0-9]+|[0-9]{1,3}(?: [0-9]{3})+)(?:[.,][0-9]+)?$/.test(text)) return null
+  const value = Number(text.replaceAll(' ', '').replace(',', '.'))
+  return Number.isFinite(value) ? value : null
+}
+
+/** The CSV's numeric columns: a percent sign is allowed after the retention (« 27,5 % »). */
+const NUMBERS = [
+  ['retenue', 'retention_pct', 'retentionPct', /\s*%$/, 'Indiquez un pourcentage, par exemple 27,5 ou 27,5 %.'],
+  ['seances_cumulees', 'cumulative_sessions', 'cumulativeSessions', null, 'Indiquez un nombre de séances, par exemple 237 ou 237,5.'],
+]
 
 /**
  * One CSV row → { payload, errors }. Only what the CSV encodes is checked here (numbers, oui/non,
@@ -226,14 +295,26 @@ export function rowToPayload(values) {
     if (keys.some((k) => k.endsWith('*'))) errors.push({ field: key, message: STAR_ONLY })
     else if (keys.length > 0) payload[key] = keys
   }
-  for (const [column, key] of [['clienteles', 'clienteles'], ['approches', 'approaches']]) {
-    const items = starredList(values[column] ?? '')
-    if (items.some((i) => i.key === '')) errors.push({ field: key, message: 'Une clé manque avant le « * ».' })
-    else if (items.length > 0) payload[key] = items
+  const clienteles = starredList(values.clienteles ?? '')
+  if (clienteles.some((i) => i.key === '')) errors.push({ field: 'clienteles', message: 'Une clé manque avant le « * ».' })
+  else if (clienteles.length > 0) payload.clienteles = clienteles
+  const minAge = values.age_minimum ?? ''
+  if (/^[0-9]{1,3}$/.test(minAge)) payload.min_client_age = Number(minAge)
+  else if (minAge !== '') errors.push({ field: 'minClientAge', message: 'Entre 0 et 120 ans.' })
+  const womenOnly = yesNo(values.femmes_seulement)
+  if (womenOnly === null) errors.push({ field: 'womenOnly', message: 'Indiquez oui ou non.' })
+  else if (womenOnly) payload.women_only = true
+  const activate = yesNo(values.activer)
+  if (activate === null) errors.push({ field: 'activate', message: 'Indiquez oui ou non.' })
+  else if (activate) payload.activate = true
+  // Never the cell in the message: the value is the clinic's, not something to print.
+  for (const [column, key, field, suffix, message] of NUMBERS) {
+    const cell = (values[column] ?? '').trim()
+    if (cell === '') continue
+    const value = parseQuebecNumber(suffix ? cell.replace(suffix, '') : cell)
+    if (value === null) errors.push({ field, message })
+    else payload[key] = value
   }
-  const activate = (values.activer ?? '').toLowerCase()
-  if (activate === 'oui') payload.activate = true
-  else if (activate !== '' && activate !== 'non') errors.push({ field: 'activate', message: 'Indiquez oui ou non.' })
   return { payload, errors }
 }
 
@@ -251,7 +332,12 @@ function professionsOf(values, errors) {
       errors.push({ field: 'professions.0.titleId', message: 'Indiquez le titre principal dans titre_1.' })
       continue
     }
-    professions.push({ title_key: title, ...(licence !== '' && { licence_number: licence }), is_primary: n === 1 })
+    const normalized = licence === '' ? null : normalizeLicence(licence, title)
+    if (normalized?.error) {
+      errors.push({ field: `professions.${n - 1}.licenceNumber`, message: normalized.error })
+      continue
+    }
+    professions.push({ title_key: title, ...(normalized && { licence_number: normalized.value }), is_primary: n === 1 })
   }
   return professions
 }
@@ -472,19 +558,25 @@ function outcomeText(result) {
   return `activé, dossier incomplet (${missing})`
 }
 
-/** Counts, never the lists themselves (motifs: a summary, never a wall). */
+/**
+ * Counts, never the lists themselves (motifs: a summary, never a wall); the retention and the
+ * cumulative sessions are named when given, never their values.
+ */
 function contentText(payload) {
   const parts = [
     [payload.professions?.length, 'titre', 'titres'],
     [payload.languages?.length, 'langue', 'langues'],
     [payload.clienteles?.length, 'clientèle', 'clientèles'],
-    [payload.approaches?.length, 'approche', 'approches'],
     [payload.motifs?.length, 'motif', 'motifs'],
   ]
-  return parts
-    .filter(([n]) => n)
-    .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
-    .join(', ')
+  const flags = [
+    ['retention_pct', 'retenue'],
+    ['cumulative_sessions', 'séances cumulées'],
+  ]
+  return [
+    ...parts.filter(([n]) => n).map(([n, one, many]) => `${n} ${n === 1 ? one : many}`),
+    ...flags.filter(([key]) => key in payload).map(([, label]) => label),
+  ].join(', ')
 }
 
 /** CSV order: the row as a whole first, then column by column (a stable sort keeps each side's order). */
