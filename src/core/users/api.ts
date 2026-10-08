@@ -1,5 +1,5 @@
 import { supabase } from '@/core/supabase/client'
-import { FunctionCallError, invokeFunction } from '@/core/supabase/functions'
+import { FunctionCallError, invokeFunction, refusalMessage } from '@/core/supabase/functions'
 import type { PermissionOverride, RolePermission } from './permissions'
 
 export type UserStatus = 'active' | 'disabled'
@@ -148,15 +148,6 @@ export interface StaffInvitation {
   last_email_error_code: string | null
 }
 
-/**
- * `last_email_error_code`, which the database lane adds to `list_staff_invitations`: read when the
- * row has it (null until then, so a failed email reads « Courriel non remis »).
- */
-function lastEmailErrorCode(row: object): string | null {
-  const value = 'last_email_error_code' in row ? row.last_email_error_code : null
-  return typeof value === 'string' ? value : null
-}
-
 /** The clinic's pending invitations, newest first. */
 export async function listStaffInvitations(): Promise<StaffInvitation[]> {
   const { data, error } = await supabase.rpc('list_staff_invitations')
@@ -171,7 +162,7 @@ export async function listStaffInvitations(): Promise<StaffInvitation[]> {
     is_expired: row.is_expired,
     invited_by_name: (row.invited_by_name as string | null) ?? null,
     last_email_status: (row.last_email_status as string | null) ?? null,
-    last_email_error_code: lastEmailErrorCode(row),
+    last_email_error_code: (row.last_email_error_code as string | null) ?? null,
   }))
 }
 
@@ -194,13 +185,6 @@ export interface InvitationSendResult {
 }
 
 /**
- * The messages of the fieldless 400s a function writes itself (a body it cannot read, 22023):
- * nothing else tells them from a P0001's French message, and they are never shown. A body check
- * that concerns a field carries its `field` instead.
- */
-const TECHNICAL_MESSAGES = new Set(['Invalid request', 'Invalid request body', 'Invalid JSON body'])
-
-/**
  * The functions pass an RPC's refusal on: P0001 as 400 `invalid_request` with its French message,
  * 42501 as 403 `forbidden`. Rethrown as that RPC error (`{ code, message }`), so
  * `moduleErrorMessage` shows the message and a 42501 refreshes the caller's access, as for the
@@ -209,9 +193,8 @@ const TECHNICAL_MESSAGES = new Set(['Invalid request', 'Invalid request body', '
  */
 function asRpcRefusal(error: unknown): unknown {
   if (!(error instanceof FunctionCallError)) return error
-  if (error.status === 400 && error.code === 'invalid_request' && error.field === undefined && !TECHNICAL_MESSAGES.has(error.message)) {
-    return { code: 'P0001', message: error.message }
-  }
+  const refusal = refusalMessage(error)
+  if (refusal !== null) return { code: 'P0001', message: refusal }
   if (error.status === 403 && error.code === 'forbidden') return { code: '42501', message: error.message }
   return error
 }

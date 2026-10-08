@@ -1,9 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { accessKeys } from '@/core/access/access-context'
 import { moduleErrorMessage } from '@/core/modules/errors'
+import { uploadFile } from '@/core/storage/api'
+import type { UploadStep } from '@/shared/lib/files'
 import { toast } from '@/shared/ui/sonner'
-import { fetchOrganization, updateOrganization, type Organization, type OrganizationUpdate } from './api'
+import { fetchOrganization, setOrgAsset, updateOrganization, type Organization, type OrganizationUpdate, type OrgAssetKind } from './api'
 
 export const organizationKeys = {
   all: ['organization'] as const,
@@ -51,6 +53,68 @@ export function useUpdateOrganization(successMessage: string) {
       // Awaited: the mutation stays pending until the fresh values are in the cache. A failed
       // refetch does not reject (invalidateQueries swallows it), so the save is still confirmed.
       await Promise.all(invalidations)
+      toast.success(successMessage)
+    },
+    onError: (error) => {
+      toast.error(moduleErrorMessage(error, t('common.errors.generic'), 'settings'))
+    },
+  })
+}
+
+/** The organization column that holds each image's file. */
+export const ORG_ASSET_COLUMN = { logo: 'logo_file_id', signature: 'signature_file_id' } as const satisfies Record<OrgAssetKind, keyof Organization>
+
+/**
+ * Caches the organization as `set_org_asset` left it: read again, since the function bumps
+ * `updated_at` and only the row read afterwards carries that instant. Merged by `newer`, like a
+ * save: a card save that answers later with a row read before the asset changed (the old file
+ * id) cannot then replace it. If the read fails, the new id is put in the cached row (its
+ * `updated_at` unchanged), then the organization is marked stale either way.
+ */
+async function cacheOrgAsset(queryClient: QueryClient, kind: OrgAssetKind, fileId: string | null) {
+  const fresh = await fetchOrganization().catch(() => null)
+  queryClient.setQueryData<Organization>(organizationKeys.current(), (cached) => {
+    if (fresh) return cached && newer(cached.updated_at, fresh.updated_at) ? cached : fresh
+    return cached && { ...cached, [ORG_ASSET_COLUMN[kind]]: fileId }
+  })
+  await queryClient.invalidateQueries({ queryKey: organizationKeys.all, refetchType: 'none' })
+}
+
+export interface OrgAssetUpload {
+  organizationId: string
+  file: File
+  mimeType: string
+  onStep: (step: UploadStep) => void
+}
+
+/**
+ * Uploads a new logo or signature image (purpose `org_logo` / `org_signature`, subject the
+ * organization), then makes it the clinic's (`set_org_asset`, which soft-deletes the previous one),
+ * and confirms with `successMessage`. Errors are not toasted: the upload widget shows them where
+ * the file was chosen. A file uploaded but never set stays staged and is purged after a day.
+ */
+export function useUploadOrgAsset(kind: OrgAssetKind, successMessage: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ organizationId, file, mimeType, onStep }: OrgAssetUpload) => {
+      const { fileId } = await uploadFile({ purpose: `org_${kind}`, subjectType: 'organization', subjectId: organizationId, file, mimeType, onStep })
+      await setOrgAsset(kind, fileId)
+      return fileId
+    },
+    onSuccess: async (fileId) => {
+      await cacheOrgAsset(queryClient, kind, fileId)
+      toast.success(successMessage)
+    },
+  })
+}
+
+/** « Retirer »: the clinic has no logo (or signature image) any more; toasts the outcome. */
+export function useRemoveOrgAsset(kind: OrgAssetKind, successMessage: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => setOrgAsset(kind, null),
+    onSuccess: async () => {
+      await cacheOrgAsset(queryClient, kind, null)
       toast.success(successMessage)
     },
     onError: (error) => {

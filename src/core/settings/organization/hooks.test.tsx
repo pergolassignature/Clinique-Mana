@@ -4,14 +4,16 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { accessKeys } from '@/core/access/access-context'
-import { organizationKeys, useOrganization, useUpdateOrganization } from './hooks'
+import { organizationKeys, useOrganization, useRemoveOrgAsset, useUpdateOrganization, useUploadOrgAsset } from './hooks'
 
 const mocks = vi.hoisted(() => ({
-  api: { fetchOrganization: vi.fn(), updateOrganization: vi.fn() },
+  api: { fetchOrganization: vi.fn(), updateOrganization: vi.fn(), setOrgAsset: vi.fn() },
+  uploadFile: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn() },
   captureException: vi.fn(),
 }))
 vi.mock('./api', () => mocks.api)
+vi.mock('@/core/storage/api', () => ({ uploadFile: mocks.uploadFile }))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 
@@ -238,5 +240,61 @@ describe('useUpdateOrganization', () => {
       expect.objectContaining({ name: 'RpcError 57014', message: error.message }),
       { tags: { area: 'settings', code: '57014' } },
     )
+  })
+})
+
+describe('useUploadOrgAsset / useRemoveOrgAsset', () => {
+  const OLD_ID = '22222222-2222-4222-8222-222222222222'
+  const NEW_ID = '33333333-3333-4333-8333-333333333333'
+  const BEFORE = { ...SAVED, city: 'Montréal', logo_file_id: OLD_ID, updated_at: '2026-10-08T12:00:00+00:00' }
+  const upload = { organizationId: 'o1', file: new File(['x'], 'logo.png', { type: 'image/png' }), mimeType: 'image/png', onStep: () => {} }
+
+  it('caches the organization read after set_org_asset (with the updated_at it bumped)', async () => {
+    const { queryClient, wrapper } = setup()
+    const after = { ...BEFORE, logo_file_id: NEW_ID, updated_at: '2026-10-08T12:00:05+00:00' }
+    queryClient.setQueryData(organizationKeys.current(), BEFORE)
+    mocks.uploadFile.mockResolvedValue({ fileId: NEW_ID })
+    mocks.api.setOrgAsset.mockResolvedValue(undefined)
+    mocks.api.fetchOrganization.mockResolvedValue(after)
+
+    const { result } = renderHook(() => useUploadOrgAsset('logo', 'Logo enregistré.'), { wrapper })
+    result.current.mutate(upload)
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(queryClient.getQueryData(organizationKeys.current())).toEqual(after)
+    expect(mocks.api.setOrgAsset.mock.invocationCallOrder[0]).toBeLessThan(mocks.api.fetchOrganization.mock.invocationCallOrder[0] ?? 0)
+    expect(mocks.toast.success).toHaveBeenCalledWith('Logo enregistré.')
+  })
+
+  it('a card save answering afterwards with a row read before the new logo cannot bring the old logo back', async () => {
+    const { queryClient, wrapper } = setup()
+    queryClient.setQueryData(organizationKeys.current(), BEFORE)
+    // The card save was read at 12:00:02 (old logo); set_org_asset ran at 12:00:05.
+    let answerSave: (row: unknown) => void = () => {}
+    mocks.api.updateOrganization.mockReturnValue(new Promise((resolve) => (answerSave = resolve)))
+    mocks.uploadFile.mockResolvedValue({ fileId: NEW_ID })
+    mocks.api.setOrgAsset.mockResolvedValue(undefined)
+    mocks.api.fetchOrganization.mockResolvedValue({ ...BEFORE, city: 'Laval', logo_file_id: NEW_ID, updated_at: '2026-10-08T12:00:05+00:00' })
+
+    const { result } = renderHook(() => ({ save: useUpdateOrganization('Enregistré.'), upload: useUploadOrgAsset('logo', 'Logo enregistré.') }), { wrapper })
+    result.current.save.mutate({ id: 'o1', patch: { city: 'Laval' } })
+    result.current.upload.mutate(upload)
+    await waitFor(() => expect(result.current.upload.isSuccess).toBe(true))
+    answerSave({ ...BEFORE, city: 'Laval', updated_at: '2026-10-08T12:00:02+00:00' })
+    await waitFor(() => expect(result.current.save.isSuccess).toBe(true))
+
+    expect(queryClient.getQueryData(organizationKeys.current())).toMatchObject({ city: 'Laval', logo_file_id: NEW_ID })
+  })
+
+  it('when the organization cannot be read again, puts the new id in the cached row', async () => {
+    const { queryClient, wrapper } = setup()
+    queryClient.setQueryData(organizationKeys.current(), BEFORE)
+    mocks.api.setOrgAsset.mockResolvedValue(undefined)
+    mocks.api.fetchOrganization.mockRejectedValue({ code: '', message: 'TypeError: Failed to fetch' })
+
+    const { result } = renderHook(() => useRemoveOrgAsset('logo', 'Logo retiré.'), { wrapper })
+    result.current.mutate()
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(queryClient.getQueryData(organizationKeys.current())).toEqual({ ...BEFORE, logo_file_id: null })
+    expect(mocks.toast.success).toHaveBeenCalledWith('Logo retiré.')
   })
 })

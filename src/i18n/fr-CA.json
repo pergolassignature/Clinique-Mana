@@ -220,6 +220,30 @@
     "account": "Mon compte"
   },
   "home": { "title": "Bienvenue", "body": "Les modules s'ajoutent ici au fur et à mesure qu'ils sont activés." },
+  "storage": {
+    "dropzone": {
+      "drop": "Glissez un fichier ici, ou",
+      "choose": "Choisir un fichier",
+      "progressLabel": "Téléversement",
+      "steps": { "preparing": "Préparation de {name}…", "sending": "Envoi de {name}…", "confirming": "Vérification de {name}…" },
+      "tooLarge": "Ce fichier dépasse la taille permise ({size} Mo).",
+      "imageTooLarge": "Cette image dépasse la taille permise ({side} pixels de côté).",
+      "empty": "Ce fichier est vide.",
+      "wrongType": "Ce type de fichier n'est pas accepté."
+    },
+    "preview": { "unavailable": "L'aperçu n'est pas disponible." },
+    "errors": {
+      "rateLimited": "Trop de téléversements.",
+      "signRateLimited": "Trop d'aperçus demandés.",
+      "expired": "Ce téléversement n'est plus valide. Choisissez le fichier de nouveau.",
+      "conflict": "Ce téléversement a été traité entre-temps. Choisissez le fichier de nouveau.",
+      "sendFailed": "L'envoi du fichier a échoué. Vérifiez votre connexion, puis réessayez.",
+      "sendRefused": "L'envoi du fichier a été refusé. Choisissez le fichier de nouveau.",
+      "unauthenticated": "Votre session a expiré. Reconnectez-vous.",
+      "network": "Le serveur ne répond pas. Vérifiez votre connexion, puis réessayez.",
+      "unavailable": "Le téléversement est momentanément indisponible. Réessayez plus tard."
+    }
+  },
   "notifications": {
     "bell": "Notifications",
     "title": "Notifications",
@@ -569,6 +593,18 @@
         "phone": "Téléphone",
         "email": "Courriel",
         "website": "Site web"
+      },
+      "logo": {
+        "title": "Logo",
+        "description": "Il figure sur les documents de la clinique (contrats, fiches, reçus).",
+        "hint": "PNG ou JPEG, {size} Mo et {side} pixels de côté au plus.",
+        "alt": "Logo de la clinique",
+        "empty": "Aucun logo.",
+        "replace": "Remplacer",
+        "remove": "Retirer",
+        "saved": "Logo enregistré.",
+        "removed": "Logo retiré.",
+        "removeConfirm": { "title": "Retirer le logo ?", "body": "Il ne figurera plus sur les documents de la clinique.", "confirm": "Retirer" }
       }
     },
     "signatory": {
@@ -577,11 +613,24 @@
         "title": "Représentant de la clinique",
         "saved": "Signataire enregistré."
       },
-      "note": "L'image de la signature s'ajoutera avec les contrats.",
       "fields": {
         "name": "Nom",
         "title": "Titre",
-        "titlePlaceholder": "Directrice"
+        "titlePlaceholder": "Directrice",
+        "email": "Courriel",
+        "emailHelp": "Pour recevoir les documents à signer au nom de la clinique."
+      },
+      "signature": {
+        "title": "Image de signature",
+        "description": "Utilisée pour la signature de la clinique sur les documents.",
+        "hint": "PNG à fond transparent recommandé (JPEG accepté), {size} Mo et {side} pixels de côté au plus.",
+        "alt": "Signature de la clinique",
+        "empty": "Aucune image de signature.",
+        "replace": "Remplacer",
+        "remove": "Retirer",
+        "saved": "Image de signature enregistrée.",
+        "removed": "Image de signature retirée.",
+        "removeConfirm": { "title": "Retirer l'image de signature ?", "body": "Les documents n'afficheront plus la signature de la clinique.", "confirm": "Retirer" }
       }
     },
     "region": {

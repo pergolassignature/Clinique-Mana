@@ -247,7 +247,7 @@ describe('listStaffInvitations', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('list_staff_invitations')
   })
 
-  it("reads the last email's error code once the RPC returns it", async () => {
+  it("reads the last email's error code (provider_unavailable reads « Résultat inconnu »)", async () => {
     mocks.rpc.mockResolvedValue({ data: [{ ...INVITATION_ROW, last_email_status: 'failed', last_email_error_code: 'provider_unavailable' }], error: null })
     await expect(listStaffInvitations()).resolves.toMatchObject([{ last_email_status: 'failed', last_email_error_code: 'provider_unavailable' }])
   })

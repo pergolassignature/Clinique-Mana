@@ -188,10 +188,11 @@ export function toTaxNumbersFormValues(org: Organization): z.input<typeof taxNum
 export const signatorySchema = z.object({
   signatory_name: optionalText(120),
   signatory_title: optionalText(120),
+  signatory_email: optionalEmail(),
 })
 
 export function toSignatoryFormValues(org: Organization): z.input<typeof signatorySchema> {
-  return { signatory_name: str(org.signatory_name), signatory_title: str(org.signatory_title) }
+  return { signatory_name: str(org.signatory_name), signatory_title: str(org.signatory_title), signatory_email: str(org.signatory_email) }
 }
 
 // --- Confidentialité (Loi 25): « Responsable de la protection des renseignements personnels » ---

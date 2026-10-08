@@ -28,6 +28,24 @@ export class FunctionCallError extends Error {
   }
 }
 
+/**
+ * The messages of the fieldless 400s a function writes itself (a body it cannot read, 22023):
+ * nothing else tells them from a P0001's French message, and they are never shown. A body check
+ * that concerns a field carries its `field` instead.
+ */
+const TECHNICAL_MESSAGES = new Set(['Invalid request', 'Invalid request body', 'Invalid JSON body'])
+
+/**
+ * The French text of a refusal the user can act on: a 400 `invalid_request` with no `field`
+ * whose message is not a technical one, i.e. an RPC's P0001 passed on, or a function's own French
+ * message (« Ce fichier n'est pas du type annoncé. »). Null otherwise.
+ */
+export function refusalMessage(error: FunctionCallError): string | null {
+  return error.status === 400 && error.code === 'invalid_request' && error.field === undefined && !TECHNICAL_MESSAGES.has(error.message)
+    ? error.message
+    : null
+}
+
 const errorBodySchema = z.looseObject({ error: z.looseObject({ code: z.string(), message: z.string() }) })
 
 /** `Retry-After` in seconds (the functions send a number), or null. */
