@@ -55,17 +55,24 @@ const L = {
   active: t('settings.users.sheet.status.label'),
   save: t('common.save'),
   cancel: t('common.cancel'),
-  exception: t('settings.users.sheet.permissions.exception'),
-  exceptionRoleYes: t('settings.users.sheet.permissions.exceptionSr', { value: t('settings.users.sheet.permissions.yes') }),
-  exceptionRoleNo: t('settings.users.sheet.permissions.exceptionSr', { value: t('settings.users.sheet.permissions.no') }),
+  /** Any « Exception · rôle : … » marker. */
+  exception: /^Exception · rôle/,
+  exceptionRoleYes: t('settings.users.sheet.permissions.exception', { value: t('settings.users.sheet.permissions.yes') }),
+  exceptionRoleNo: t('settings.users.sheet.permissions.exception', { value: t('settings.users.sheet.permissions.no') }),
   lacked: t('settings.users.sheet.permissions.lackedHint'),
   reset: t('settings.users.sheet.permissions.reset.label'),
   resetCount: (count: number) => t('settings.users.sheet.permissions.reset.labelCount', { count: String(count) }),
   resetTitle: t('settings.users.sheet.permissions.reset.title'),
   resetConfirm: t('settings.users.sheet.permissions.reset.confirm'),
 }
-const savedToast = (permission: string, state: 'role' | 'granted' | 'revoked') =>
-  t('settings.users.sheet.permissions.saved', { permission, state: t(`settings.users.sheet.permissions.states.${state}`) })
+/** The toast of a switch: `role` when the exception is cleared, `exception` when one is set; `on` is the new value. */
+const savedToast = (permission: string, kind: 'role' | 'exception', on: boolean) =>
+  t(`settings.users.sheet.permissions.saved.${kind}`, {
+    permission,
+    value: t(on ? 'settings.users.sheet.permissions.values.on' : 'settings.users.sheet.permissions.values.off'),
+  })
+/** The reset confirmation: the exceptions removed, then the role sentence. */
+const resetBody = (removed: string, role: string) => `${removed} ${t('settings.users.sheet.permissions.reset.body.role', { role })}`
 const LAST_ADMIN = 'La clinique doit garder au moins un administrateur actif.'
 
 function renderSheet(user: OrgUser, caller: Access = adminCaller) {
@@ -277,7 +284,7 @@ describe('UserSheet', () => {
       expect(screen.queryByText(L.exception)).not.toBeInTheDocument()
     })
 
-    it('an override shows its value and the « Exception » marker, with the role value for screen readers', async () => {
+    it('an override shows its value and the « Exception · rôle : Oui/Non » marker (also its description)', async () => {
       mocks.fetchUserOverrides.mockResolvedValue([
         { permission_key: 'audit.view', granted: true },
         { permission_key: 'professionals.view', granted: false },
@@ -287,8 +294,13 @@ describe('UserSheet', () => {
       expect(permission(P.audit)).toHaveAccessibleDescription(L.exceptionRoleNo)
       expect(permission(P.professionals)).not.toBeChecked()
       expect(permission(P.professionals)).toHaveAccessibleDescription(L.exceptionRoleYes)
+      // Visible, not screen-reader only (getByText turns U+00A0 into a space).
+      expect(screen.getByText(L.exceptionRoleNo.replace(/\s+/g, ' '))).not.toHaveClass('sr-only')
+      expect(screen.getByText(L.exceptionRoleYes.replace(/\s+/g, ' '))).not.toHaveClass('sr-only')
+      // One text per marker: no screen-reader duplicate.
+      expect(screen.getAllByText(/rôle\s: (Oui|Non)/)).toHaveLength(2)
       expect(screen.getAllByText(L.exception)).toHaveLength(2)
-      expect(L.exceptionRoleNo).toBe('(exception — rôle\u00a0: Non)')
+      expect(L.exceptionRoleNo).toBe('Exception · rôle\u00a0: Non')
       expect(mocks.fetchUserOverrides).toHaveBeenCalledWith('u-conseillere')
     })
 
@@ -302,18 +314,19 @@ describe('UserSheet', () => {
 
       await userEvent.click(permission(P.settings))
       await waitFor(() => expect(mocks.setPermissionOverride).toHaveBeenCalledWith('u-adjointe', 'settings.view', false))
-      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.settings, 'revoked')))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.settings, 'exception', false)))
 
       await userEvent.click(permission('Voir les utilisateurs'))
       await waitFor(() => expect(mocks.setPermissionOverride).toHaveBeenCalledWith('u-adjointe', 'users.view', true))
-      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(savedToast('Voir les utilisateurs', 'granted')))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(savedToast('Voir les utilisateurs', 'exception', true)))
 
       await userEvent.click(permission(P.audit))
       await waitFor(() => expect(mocks.clearPermissionOverride).toHaveBeenCalledWith('u-adjointe', 'audit.view'))
-      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.audit, 'role')))
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.audit, 'role', false)))
       expect(mocks.setPermissionOverride).toHaveBeenCalledTimes(2)
       expect(mocks.toast.error).not.toHaveBeenCalled()
-      expect(savedToast(P.audit, 'granted')).toBe("Consulter le journal d'audit\u00a0: accordée.")
+      expect(savedToast(P.audit, 'exception', true)).toBe("Consulter le journal d'audit\u00a0: activée (exception).")
+      expect(savedToast(P.audit, 'role', false)).toBe("Consulter le journal d'audit\u00a0: selon le rôle (désactivée).")
     })
 
     it('the marker follows the switch: on as an exception, then off again', async () => {
@@ -333,8 +346,9 @@ describe('UserSheet', () => {
       expect(permission(P.audit)).not.toBeChecked()
     })
 
-    it('the arrow keys do nothing; Space toggles', async () => {
+    it('the arrow keys do nothing; Space and Enter toggle (a Radix button)', async () => {
       mocks.setPermissionOverride.mockResolvedValue(undefined)
+      mocks.clearPermissionOverride.mockResolvedValue(undefined)
       renderSheet(conseillere)
       await screen.findByRole('switch', { name: P.audit })
       permission(P.audit).focus()
@@ -344,9 +358,16 @@ describe('UserSheet', () => {
       expect(mocks.setPermissionOverride).not.toHaveBeenCalled()
       expect(mocks.clearPermissionOverride).not.toHaveBeenCalled()
 
+      mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'audit.view', granted: true }])
       await userEvent.keyboard(' ')
       await waitFor(() => expect(mocks.setPermissionOverride).toHaveBeenCalledWith('u-conseillere', 'audit.view', true))
       expect(mocks.setPermissionOverride).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(permission(P.audit)).not.toHaveAttribute('aria-disabled'))
+      expect(permission(P.audit)).toBeChecked()
+      expect(permission(P.audit)).toHaveFocus()
+
+      await userEvent.keyboard('{Enter}')
+      await waitFor(() => expect(mocks.clearPermissionOverride).toHaveBeenCalledWith('u-conseillere', 'audit.view'))
     })
 
     it('shows the new state at once and ignores other toggles while saving', async () => {
@@ -396,7 +417,7 @@ describe('UserSheet', () => {
       expect(permission(P.settings)).toBeChecked()
       expect(permission(P.audit)).not.toBeChecked()
       expect(mocks.toast.error).toHaveBeenCalledWith("Vous ne pouvez pas accorder une permission que vous n'avez pas.")
-      expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.settings, 'granted'))
+      expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.settings, 'exception', true))
     })
 
     it('refetches the users list (override_count) once the last of two overlapping saves settles', async () => {
@@ -468,10 +489,7 @@ describe('UserSheet', () => {
       await userEvent.click(reset)
       const dialog = await screen.findByRole('alertdialog', { name: L.resetTitle })
       expect(dialog).toHaveAccessibleDescription(
-        t('settings.users.sheet.permissions.reset.bodyOther', { count: '2', name: conseillere.display_name, role: t('roles.counselor') }),
-      )
-      expect(t('settings.users.sheet.permissions.reset.bodyOther', { count: '2', name: 'Camille', role: 'Conseillère' })).toBe(
-        'Les 2 exceptions de Camille seront supprimées. Ses permissions seront celles du rôle Conseillère.',
+        'Les 2 exceptions de Conseillère Locale seront supprimées. Ses permissions seront celles du rôle Conseillère.',
       )
       await userEvent.click(within(dialog).getByRole('button', { name: L.cancel }))
       expect(mocks.clearPermissionOverrides).not.toHaveBeenCalled()
@@ -493,7 +511,7 @@ describe('UserSheet', () => {
       renderSheet(conseillere)
       await userEvent.click(await screen.findByRole('button', { name: L.resetCount(1) }))
       expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
-        t('settings.users.sheet.permissions.reset.bodyOne', { name: conseillere.display_name, role: t('roles.counselor') }),
+        resetBody(t('settings.users.sheet.permissions.reset.body.one', { name: conseillere.display_name }), t('roles.counselor')),
       )
     })
 
@@ -501,13 +519,104 @@ describe('UserSheet', () => {
       const refused = "Vous ne pouvez pas accorder une permission que vous n'avez pas."
       mocks.clearPermissionOverrides.mockRejectedValue({ code: 'P0001', message: refused })
       mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'audit.view', granted: true }])
-      renderSheet(conseillere)
+      const { queryClient } = renderSheet(conseillere)
       await userEvent.click(await screen.findByRole('button', { name: L.resetCount(1) }))
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
       await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: L.resetConfirm }))
       await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith(refused))
+      // What the sheet decided from may be stale: the overrides are refetched.
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: userKeys.overrides('u-conseillere') })
+      await waitFor(() => expect(mocks.fetchUserOverrides).toHaveBeenCalledTimes(2))
       expect(mocks.toast.success).not.toHaveBeenCalled()
       expect(permission(P.audit)).toBeChecked()
       expect(screen.getByRole('button', { name: L.resetCount(1) })).not.toHaveAttribute('aria-disabled')
+    })
+
+    it('counts the exceptions of disabled modules too (no row), and says so in the confirmation', async () => {
+      // billing is disabled for the caller: billing.view has no row.
+      mocks.fetchUserOverrides.mockResolvedValue([
+        { permission_key: 'audit.view', granted: true },
+        { permission_key: 'billing.view', granted: true },
+      ])
+      renderSheet(conseillere)
+      await userEvent.click(await screen.findByRole('button', { name: L.resetCount(2) }))
+      expect(screen.queryByRole('switch', { name: 'Voir la facturation' })).not.toBeInTheDocument()
+      expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
+        resetBody('Les 2 exceptions de Conseillère Locale, dont une sur un module désactivé, seront supprimées.', t('roles.counselor')),
+      )
+    })
+
+    it.each([
+      [
+        'one exception, on a disabled module',
+        [{ permission_key: 'billing.view', granted: true }],
+        "L'exception de Conseillère Locale, sur un module désactivé, sera supprimée.",
+      ],
+      [
+        'two of three on disabled modules',
+        [
+          { permission_key: 'audit.view', granted: true },
+          { permission_key: 'billing.view', granted: true },
+          { permission_key: 'billing.manage', granted: false },
+        ],
+        'Les 3 exceptions de Conseillère Locale, dont 2 sur des modules désactivés, seront supprimées.',
+      ],
+      [
+        'all on disabled modules',
+        [
+          { permission_key: 'billing.view', granted: true },
+          { permission_key: 'billing.manage', granted: false },
+        ],
+        'Les 2 exceptions de Conseillère Locale, toutes sur des modules désactivés, seront supprimées.',
+      ],
+    ])('the confirmation with %s', async (_case, overrides, removed) => {
+      mocks.fetchPermissionCatalog.mockResolvedValue({
+        ...testCatalog,
+        permissions: [...testCatalog.permissions, { key: 'billing.manage', module_key: 'billing', description: 'Gérer la facturation' }],
+      })
+      mocks.fetchUserOverrides.mockResolvedValue(overrides)
+      renderSheet(conseillere)
+      await userEvent.click(await screen.findByRole('button', { name: L.resetCount(overrides.length) }))
+      expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(resetBody(removed, t('roles.counselor')))
+    })
+
+    it('for a person without a role, says they will have no permission left', async () => {
+      mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'audit.view', granted: true }])
+      renderSheet({ ...conseillere, role: null, role_name: null })
+      await userEvent.click(await screen.findByRole('button', { name: L.resetCount(1) }))
+      expect(await screen.findByRole('alertdialog')).toHaveAccessibleDescription(
+        "L'exception de Conseillère Locale sera supprimée. Cette personne n'a pas de rôle\u00a0: elle n'aura plus aucune permission.",
+      )
+    })
+
+    it('the switches ignore toggles while the reset saves', async () => {
+      mocks.clearPermissionOverrides.mockReturnValue(new Promise(() => {}))
+      mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'audit.view', granted: true }])
+      renderSheet(conseillere)
+      await userEvent.click(await screen.findByRole('button', { name: L.resetCount(1) }))
+      await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: L.resetConfirm }))
+      await waitFor(() => expect(mocks.clearPermissionOverrides).toHaveBeenCalledWith('u-conseillere'))
+      const settings = permission(P.settings)
+      await waitFor(() => expect(settings).toHaveAttribute('aria-disabled', 'true'))
+      await userEvent.click(settings)
+      settings.focus()
+      await userEvent.keyboard(' ')
+      expect(settings).not.toBeChecked()
+      expect(mocks.setPermissionOverride).not.toHaveBeenCalled()
+      expect(mocks.clearPermissionOverride).not.toHaveBeenCalled()
+    })
+
+    it('focus returns to the reset button after « Rétablir »', async () => {
+      mocks.clearPermissionOverrides.mockResolvedValue(1)
+      mocks.fetchUserOverrides.mockResolvedValue([{ permission_key: 'audit.view', granted: true }])
+      renderSheet(conseillere)
+      await userEvent.click(await screen.findByRole('button', { name: L.resetCount(1) }))
+      mocks.fetchUserOverrides.mockResolvedValue([])
+      await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: L.resetConfirm }))
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(screen.getByRole('button', { name: new RegExp(L.reset) })).toHaveFocus())
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.users.sheet.permissions.reset.saved')))
+      expect(screen.getByRole('button', { name: L.reset })).toHaveFocus()
     })
   })
 
@@ -604,6 +713,9 @@ describe('UserSheet', () => {
       const modules = permission('Activer ou désactiver des modules')
       expect(modules).toHaveAttribute('aria-readonly', 'true')
       expect(modules).toHaveAccessibleDescription(L.lacked)
+      // The reason is in each read-only switch's description only; the note above says it once.
+      for (const hint of screen.getAllByText(L.lacked)) expect(hint).toHaveClass('sr-only')
+      expect(screen.getByText(new RegExp(t('settings.users.sheet.permissions.managerLimit')))).not.toHaveClass('sr-only')
       await userEvent.click(modules)
       expect(modules).not.toBeChecked()
       expect(mocks.setPermissionOverride).not.toHaveBeenCalled()
@@ -628,6 +740,23 @@ describe('UserSheet', () => {
       const blocked = await screen.findByRole('button', { name: L.resetCount(1) })
       expect(blocked).toHaveAttribute('aria-disabled', 'true')
       expect(blocked).toHaveAccessibleDescription(t('settings.users.sheet.permissions.reset.blocked'))
+    })
+
+    it('when the blocking revoke has no row (disabled module), the hint names the module', async () => {
+      mocks.fetchUserOverrides.mockResolvedValue([
+        { permission_key: 'audit.view', granted: true },
+        { permission_key: 'billing.view', granted: false },
+      ])
+      renderSheet(conseillere, managerCaller)
+      const blocked = await screen.findByRole('button', { name: L.resetCount(2) })
+      expect(blocked).toHaveAttribute('aria-disabled', 'true')
+      const hint = t('settings.users.sheet.permissions.reset.blockedHidden', { module: 'Facturation' })
+      expect(blocked).toHaveAccessibleDescription(hint)
+      expect(hint).toBe(
+        "Une exception sur le module Facturation (désactivé) retire une permission que vous n'avez pas\u00a0: seule une personne qui l'a peut rétablir le rôle.",
+      )
+      await userEvent.click(blocked)
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     })
 
     it('may reset when the revokes are on permissions they hold', async () => {

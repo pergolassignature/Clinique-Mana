@@ -433,6 +433,12 @@ function PermissionsSection({ user, locked, callerIsAdmin }: SectionProps) {
   } else {
     const roleSet = roleGrants(user.role, catalog.data.rolePermissions)
     const groups = groupPermissionsByModule(catalog.data.permissions, catalog.data.modules, access?.modules ?? [])
+    // The permissions of disabled modules have no row, but their exceptions stay (and the reset clears them).
+    const shown = new Set(groups.flatMap((group) => group.permissions.map((p) => p.key)))
+    const moduleNames = new Map(catalog.data.modules.map((m) => [m.key, permissionGroupName(m)]))
+    const hiddenModules = new Map(
+      catalog.data.permissions.filter((p) => !shown.has(p.key)).map((p) => [p.key, moduleNames.get(p.module_key) ?? p.module_key]),
+    )
     body = (
       <div className="space-y-5">
         <div className="space-y-3">
@@ -444,6 +450,7 @@ function PermissionsSection({ user, locked, callerIsAdmin }: SectionProps) {
             <ResetPermissions
               user={user}
               overrides={overrides.data}
+              hiddenModules={hiddenModules}
               callerIsAdmin={callerIsAdmin}
               pending={reset.isPending}
               onConfirm={() => reset.mutate({ userId: user.user_id })}
@@ -489,27 +496,66 @@ function PermissionsSection({ user, locked, callerIsAdmin }: SectionProps) {
 interface ResetPermissionsProps {
   user: OrgUser
   overrides: PermissionOverride[]
+  /** The permissions without a row (their module is disabled), with the module's name. */
+  hiddenModules: Map<string, string>
   callerIsAdmin: boolean
   pending: boolean
   onConfirm: () => void
 }
 
+const listFormat = new Intl.ListFormat('fr-CA', { type: 'conjunction' })
+
+/** The confirmation: which exceptions go (those of disabled modules named), then what the person keeps. */
+function resetBody(user: OrgUser, count: number, hidden: number): string {
+  const values = { name: user.display_name, count: String(count), hidden: String(hidden) }
+  const removed =
+    count === 1
+      ? t(hidden === 1 ? 'settings.users.sheet.permissions.reset.body.oneHidden' : 'settings.users.sheet.permissions.reset.body.one', values)
+      : hidden === 0
+        ? t('settings.users.sheet.permissions.reset.body.other', values)
+        : hidden === count
+          ? t('settings.users.sheet.permissions.reset.body.otherAllHidden', values)
+          : hidden === 1
+            ? t('settings.users.sheet.permissions.reset.body.otherHiddenOne', values)
+            : t('settings.users.sheet.permissions.reset.body.otherHidden', values)
+  const after = user.role
+    ? t('settings.users.sheet.permissions.reset.body.role', { role: roleLabel(user.role, user.role_name) })
+    : t('settings.users.sheet.permissions.reset.body.noRole')
+  return `${removed} ${after}`
+}
+
 /**
  * « Rétablir les permissions du rôle (n) »: removes all of the person's exceptions after a
- * confirmation (one atomic RPC). Inactive without exceptions, while it or a switch saves, and for
- * a non-admin manager when an exception revokes a permission they lack (the server would refuse).
- * Inactive means `aria-disabled`: after the reset the button keeps focus.
+ * confirmation (one atomic RPC). The count is all of them, those of disabled modules included
+ * (no row shows them; the confirmation says how many). Inactive without exceptions, while it or a
+ * switch saves, and for a non-admin manager when an exception revokes a permission they lack (the
+ * server would refuse; the hint names the module when that exception has no row). Inactive means
+ * `aria-disabled`: after the reset the button keeps focus.
  */
-function ResetPermissions({ user, overrides, callerIsAdmin, pending, onConfirm }: ResetPermissionsProps) {
+function ResetPermissions({ user, overrides, hiddenModules, callerIsAdmin, pending, onConfirm }: ResetPermissionsProps) {
   const { can } = useAccess()
   const switchSaving = useIsSavingPermission(user.user_id)
   const [confirming, setConfirming] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const hintId = useId()
   const count = overrides.length
+  const hidden = overrides.filter((o) => hiddenModules.has(o.permission_key)).length
   const blocked = count > 0 && !canResetOverrides({ callerIsAdmin, callerCan: can, overrides })
   const inactive = count === 0 || blocked || pending || switchSaving
-  const role = user.role ? roleLabel(user.role, user.role_name) : t('settings.users.noRole')
+  // The modules of the blocking revokes that have no row, by name.
+  const blockingHidden = blocked
+    ? [
+        ...new Set(
+          overrides.filter((o) => !o.granted && !can(o.permission_key)).flatMap((o) => hiddenModules.get(o.permission_key) ?? []),
+        ),
+      ].sort((a, b) => a.localeCompare(b, 'fr-CA'))
+    : []
+  const hint =
+    blockingHidden.length === 0
+      ? t('settings.users.sheet.permissions.reset.blocked')
+      : blockingHidden.length === 1
+        ? t('settings.users.sheet.permissions.reset.blockedHidden', { module: blockingHidden[0] ?? '' })
+        : t('settings.users.sheet.permissions.reset.blockedHiddenOther', { modules: listFormat.format(blockingHidden) })
 
   return (
     <div className="space-y-1">
@@ -528,7 +574,7 @@ function ResetPermissions({ user, overrides, callerIsAdmin, pending, onConfirm }
       </Button>
       {blocked && (
         <p id={hintId} className="text-xs text-muted-foreground">
-          {t('settings.users.sheet.permissions.reset.blocked')}
+          {hint}
         </p>
       )}
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
@@ -541,11 +587,7 @@ function ResetPermissions({ user, overrides, callerIsAdmin, pending, onConfirm }
         >
           <AlertDialogHeader>
             <AlertDialogTitle>{t('settings.users.sheet.permissions.reset.title')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {count === 1
-                ? t('settings.users.sheet.permissions.reset.bodyOne', { name: user.display_name, role })
-                : t('settings.users.sheet.permissions.reset.bodyOther', { count: String(count), name: user.display_name, role })}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{resetBody(user, count, hidden)}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
@@ -564,7 +606,7 @@ interface PermissionRowProps {
   byRole: boolean
   /** The effective permission: the exception's value, else the role default. */
   on: boolean
-  /** An override exists (shown as « Exception »). */
+  /** An override exists (shown as « Exception · rôle : Oui/Non »). */
   isException: boolean
   /** The caller may flip it (a non-admin manager turns on only what they hold). */
   canToggle: boolean
@@ -574,10 +616,14 @@ interface PermissionRowProps {
 }
 
 /**
- * One permission: its description and a switch showing the effective permission. Turning it to
- * the role value removes the exception; turning it to the other value creates one. Only Space or
- * a click toggles (a switch ignores the arrow keys, decision #36); the change is saved at once
- * (optimistic, with a toast), and further toggles are ignored while it saves.
+ * One permission: its description and a switch showing the effective permission, with
+ * « Exception · rôle : Oui/Non » when an override sets it (the role default stays visible, which
+ * matters most when the exception equals it). Turning it to the role value removes the exception;
+ * turning it to the other value creates one. A click, Space or Enter toggles (the switch is a
+ * Radix button); the arrow keys do nothing (decision #36). The change is saved at once
+ * (optimistic, with a toast), and further toggles are ignored while it or the reset saves. When
+ * the caller may not turn it on, the switch is read-only; the reason is in its description only
+ * (visually hidden): the section's note says it once for all rows.
  */
 function PermissionRow({ userId, permission, byRole, on, isException, canToggle, locked, resetting }: PermissionRowProps) {
   const switchId = useId()
@@ -596,13 +642,10 @@ function PermissionRow({ userId, permission, byRole, on, isException, canToggle,
             {permission.description}
           </Label>
           {isException && (
-            <Badge variant="info">
-              <span aria-hidden="true">{t('settings.users.sheet.permissions.exception')}</span>
-              <span id={exceptionId} className="sr-only">
-                {t('settings.users.sheet.permissions.exceptionSr', {
-                  value: t(byRole ? 'settings.users.sheet.permissions.yes' : 'settings.users.sheet.permissions.no'),
-                })}
-              </span>
+            <Badge id={exceptionId} variant="info">
+              {t('settings.users.sheet.permissions.exception', {
+                value: t(byRole ? 'settings.users.sheet.permissions.yes' : 'settings.users.sheet.permissions.no'),
+              })}
             </Badge>
           )}
         </div>
@@ -615,14 +658,14 @@ function PermissionRow({ userId, permission, byRole, on, isException, canToggle,
           className={cn('mt-0.5', busy && 'cursor-progress')}
           onCheckedChange={(next) => {
             if (busy) return
-            save.mutate({ key: permission.key, state: stateForSwitch(byRole, next), label: permission.description })
+            save.mutate({ key: permission.key, state: stateForSwitch(byRole, next), on: next, label: permission.description })
           }}
         />
       </div>
       {lacked && (
-        <p id={hintId} className="mt-1 text-xs text-muted-foreground">
+        <span id={hintId} className="sr-only">
           {t('settings.users.sheet.permissions.lackedHint')}
-        </p>
+        </span>
       )}
     </div>
   )

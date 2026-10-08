@@ -349,19 +349,31 @@
           "coreGroup": "Général",
           "yes": "Oui",
           "no": "Non",
-          "exception": "Exception",
-          "exceptionSr": "(exception — rôle : {value})",
+          "exception": "Exception · rôle : {value}",
           "lackedHint": "Seule une personne qui a cette permission peut l'accorder.",
-          "saved": "{permission} : {state}.",
-          "states": { "role": "selon le rôle", "granted": "accordée", "revoked": "retirée" },
+          "saved": {
+            "role": "{permission} : selon le rôle ({value}).",
+            "exception": "{permission} : {value} (exception)."
+          },
+          "values": { "on": "activée", "off": "désactivée" },
           "loadError": "Les permissions n'ont pas pu être chargées.",
           "reset": {
             "label": "Rétablir les permissions du rôle",
             "labelCount": "Rétablir les permissions du rôle ({count})",
             "blocked": "Une exception retire une permission que vous n'avez pas : seule une personne qui l'a peut rétablir le rôle.",
+            "blockedHidden": "Une exception sur le module {module} (désactivé) retire une permission que vous n'avez pas : seule une personne qui l'a peut rétablir le rôle.",
+            "blockedHiddenOther": "Une exception sur les modules {modules} (désactivés) retire une permission que vous n'avez pas : seule une personne qui l'a peut rétablir le rôle.",
             "title": "Rétablir les permissions du rôle ?",
-            "bodyOne": "L'exception de {name} sera supprimée. Ses permissions seront celles du rôle {role}.",
-            "bodyOther": "Les {count} exceptions de {name} seront supprimées. Ses permissions seront celles du rôle {role}.",
+            "body": {
+              "one": "L'exception de {name} sera supprimée.",
+              "oneHidden": "L'exception de {name}, sur un module désactivé, sera supprimée.",
+              "other": "Les {count} exceptions de {name} seront supprimées.",
+              "otherHiddenOne": "Les {count} exceptions de {name}, dont une sur un module désactivé, seront supprimées.",
+              "otherHidden": "Les {count} exceptions de {name}, dont {hidden} sur des modules désactivés, seront supprimées.",
+              "otherAllHidden": "Les {count} exceptions de {name}, toutes sur des modules désactivés, seront supprimées.",
+              "role": "Ses permissions seront celles du rôle {role}.",
+              "noRole": "Cette personne n'a pas de rôle : elle n'aura plus aucune permission."
+            },
             "confirm": "Rétablir",
             "saved": "Permissions du rôle rétablies."
           }

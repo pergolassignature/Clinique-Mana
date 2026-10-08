@@ -119,7 +119,8 @@ Phase 4 reuses the same helpers for professionals' SIN and bank accounts. The au
   - `set_user_role(p_user_id, p_role)`;
   - `set_user_status(p_user_id, p_status)`;
   - `set_permission_override(p_user_id, p_key, p_granted)`;
-  - `clear_permission_override(p_user_id, p_key)`.
+  - `clear_permission_override(p_user_id, p_key)`;
+  - `clear_permission_overrides(p_user_id)` (« Rétablir les permissions du rôle », decision #39): removes all of the user's overrides in one call and returns how many. A non-admin manager is refused if any revoke is on a permission they lack.
 - **Guards**, enforced in the database with French `P0001` messages:
   - nobody changes their own role or status;
   - the `provider` role can be neither given nor removed here, since the Professionnels module owns it;

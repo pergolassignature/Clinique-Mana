@@ -101,14 +101,27 @@ export function useSetUserStatus() {
   )
 }
 
-/** « Rétablir les permissions du rôle »: removes all of the user's overrides (one atomic RPC). */
+/**
+ * « Rétablir les permissions du rôle »: removes all of the user's overrides (one atomic RPC). A
+ * refusal refetches the overrides too: the sheet decided from what it had, which may be stale
+ * (another manager may have added a revoke meanwhile).
+ */
 export function useResetPermissions() {
-  return useUserMutation(
-    async ({ userId }: { userId: string }) => {
+  const queryClient = useQueryClient()
+  const { access } = useAccess()
+  return useMutation({
+    mutationFn: async ({ userId }: { userId: string }) => {
       await clearPermissionOverrides(userId)
     },
-    () => t('settings.users.sheet.permissions.reset.saved'),
-  )
+    onSuccess: async (_data, { userId }) => {
+      await invalidateUser(queryClient, userId, access?.user_id)
+      toast.success(t('settings.users.sheet.permissions.reset.saved'))
+    },
+    onError: (error, { userId }) => {
+      void queryClient.invalidateQueries({ queryKey: userKeys.overrides(userId) })
+      onUserMutationError(queryClient, error)
+    },
+  })
 }
 
 /** The key of one user's permission switch saves (useSetPermissionState). */
@@ -128,6 +141,8 @@ function withState(overrides: PermissionOverride[], key: string, state: Override
 interface PermissionStateVariables {
   key: string
   state: OverrideState
+  /** The effective permission once saved (the role default when `state` is `role`), named in the toast. */
+  on: boolean
   /** The permission's description, named in the toast. */
   label: string
 }
@@ -157,8 +172,9 @@ export function useSetPermissionState(userId: string) {
       queryClient.setQueryData<PermissionOverride[]>(userKeys.overrides(userId), (cached) => withState(cached ?? [], key, state))
       return { previous }
     },
-    onSuccess: (_data, { label, state }) => {
-      toast.success(t('settings.users.sheet.permissions.saved', { permission: label, state: t(`settings.users.sheet.permissions.states.${state}`) }))
+    onSuccess: (_data, { label, state, on }) => {
+      const value = t(on ? 'settings.users.sheet.permissions.values.on' : 'settings.users.sheet.permissions.values.off')
+      toast.success(t(state === 'role' ? 'settings.users.sheet.permissions.saved.role' : 'settings.users.sheet.permissions.saved.exception', { permission: label, value }))
     },
     onError: (error, { key }, context) => {
       if (context) queryClient.setQueryData<PermissionOverride[]>(userKeys.overrides(userId), (cached) => withState(cached ?? [], key, context.previous))
