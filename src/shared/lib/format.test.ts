@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatPhone, formatPostalCode, formatRate, initialsOf, parsePhone, parseRate } from './format'
+import { compactTaxNumber, formatPhone, formatPostalCode, formatRate, formatTaxNumber, initialsOf, parsePhone, parseRate } from './format'
 
 // French typography puts a no-break space before « % ». Engines differ on which one Intl emits
 // (U+00A0 or the narrow U+202F), so the assertions compare with every space made regular.
@@ -127,5 +127,40 @@ describe('initialsOf', () => {
     expect(initialsOf('')).toBe('?')
     expect(initialsOf('   ')).toBe('?')
     expect(initialsOf(null)).toBe('?')
+  })
+})
+
+describe('formatTaxNumber', () => {
+  it('groups a stored GST or QST number around its program identifier', () => {
+    expect(formatTaxNumber('123456789RT0001')).toBe('123456789 RT 0001')
+    expect(formatTaxNumber('1234567890TQ0001')).toBe('1234567890 TQ 0001')
+  })
+
+  it('regroups a number typed with spaces, dashes or in lower case', () => {
+    expect(formatTaxNumber(' 123456789 rt-0001 ')).toBe('123456789 RT 0001')
+    expect(formatTaxNumber('1234567890\u2013tq\u20140001')).toBe('1234567890 TQ 0001')
+  })
+
+  it('shows nothing for a missing number', () => {
+    expect(formatTaxNumber(null)).toBe('')
+    expect(formatTaxNumber(undefined)).toBe('')
+    expect(formatTaxNumber('')).toBe('')
+  })
+
+  it('leaves a value it does not recognise as typed (the schema reports it)', () => {
+    expect(formatTaxNumber('12345 RT')).toBe('12345 RT')
+    expect(formatTaxNumber('123456789XX0001')).toBe('123456789XX0001')
+  })
+})
+
+describe('compactTaxNumber', () => {
+  it('removes spaces, hyphens and en/em dashes, and upper-cases', () => {
+    expect(compactTaxNumber(' 123456789 rt-0001 ')).toBe('123456789RT0001')
+    expect(compactTaxNumber('1234567890\u2013tq\u20140001')).toBe('1234567890TQ0001')
+    expect(compactTaxNumber('123456789 RT 0001')).toBe('123456789RT0001')
+  })
+
+  it('does not validate', () => {
+    expect(compactTaxNumber('12 x')).toBe('12X')
   })
 })

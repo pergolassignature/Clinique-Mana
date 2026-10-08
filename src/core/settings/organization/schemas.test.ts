@@ -347,7 +347,7 @@ describe('toFormValues', () => {
       postal_code: 'H2X 1Y4',
     })
     expect(toContactFormValues(ORG)).toEqual({ phone: '514 555-1234', email: 'info@cliniquemana.com', website: 'https://cliniquemana.com' })
-    expect(toTaxNumbersFormValues(ORG)).toEqual({ gst_number: '123456789RT0001', qst_number: '1234567890TQ0001' })
+    expect(toTaxNumbersFormValues(ORG)).toEqual({ gst_number: '123456789 RT 0001', qst_number: '1234567890 TQ 0001' })
     expect(toSignatoryFormValues(ORG)).toEqual({ signatory_name: 'Marie Tremblay', signatory_title: 'Directrice' })
     expect(toPrivacyOfficerFormValues(ORG)).toEqual({ privacy_officer_name: 'Julie Roy', privacy_officer_email: 'vie-privee@cliniquemana.com' })
     expect(toPrivacyPolicyFormValues(ORG)).toEqual({ privacy_policy_url: 'https://cliniquemana.com/confidentialite', record_retention_years: '7' })
