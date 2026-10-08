@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ZodError } from 'zod'
-import { fetchMyAccess, fetchOrgRoles } from './api'
+import { fetchMyAccess, fetchOrgRoles, fetchPermissionCatalog } from './api'
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), select: vi.fn(), captureException: vi.fn() }))
 vi.mock('@/core/supabase/client', () => ({ supabase: { rpc: mocks.rpc, from: (table: string) => ({ select: (columns: string) => mocks.select(table, columns) }) } }))
@@ -42,5 +42,31 @@ describe('fetchOrgRoles', () => {
     const error = { code: 'PGRST301', message: 'JWT expired' }
     mocks.select.mockResolvedValue({ data: null, error })
     await expect(fetchOrgRoles()).rejects.toBe(error)
+  })
+})
+
+describe('fetchPermissionCatalog', () => {
+  const tables = (results: Record<string, { data: unknown; error: unknown }>) =>
+    mocks.select.mockImplementation((table: string) => Promise.resolve(results[table]))
+
+  it('reads the permissions and modules (the template; the role defaults are per clinic)', async () => {
+    tables({
+      permissions: { data: [{ key: 'audit.view', module_key: 'core', description: "Consulter le journal d'audit" }], error: null },
+      modules: { data: [{ key: 'core', name: 'Noyau' }], error: null },
+    })
+    await expect(fetchPermissionCatalog()).resolves.toEqual({
+      permissions: [{ key: 'audit.view', module_key: 'core', description: "Consulter le journal d'audit" }],
+      modules: [{ key: 'core', name: 'Noyau' }],
+    })
+    expect(mocks.select.mock.calls).toEqual([
+      ['permissions', 'key, module_key, description'],
+      ['modules', 'key, name'],
+    ])
+  })
+
+  it('throws the first error', async () => {
+    const error = { code: 'PGRST301', message: 'JWT expired' }
+    tables({ permissions: { data: [], error: null }, modules: { data: null, error } })
+    await expect(fetchPermissionCatalog()).rejects.toBe(error)
   })
 })

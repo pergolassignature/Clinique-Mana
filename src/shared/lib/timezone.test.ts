@@ -10,6 +10,7 @@ import {
   isClinicToday,
   resetClinicTimezone,
   setClinicTimezone,
+  shiftCalendarDay,
 } from './timezone'
 import * as clinicTimezone from './clinic-timezone'
 
@@ -103,5 +104,22 @@ describe('clinic timezone', () => {
     expect(formatDateOnly('2020-01-01T00:00:00Z')).toBe('1 janvier 2020')
     expect(formatDateOnly('2020-01-01 00:00:00+00')).toBe('1 janvier 2020')
     expect(formatDateOnly(null)).toBe('—')
+  })
+})
+
+describe('shiftCalendarDay', () => {
+  it('moves a date-only string by whole calendar days, across months, years and leap days', () => {
+    expect(shiftCalendarDay('2026-10-08', 1)).toBe('2026-10-09')
+    expect(shiftCalendarDay('2026-03-01', -1)).toBe('2026-02-28')
+    expect(shiftCalendarDay('2028-03-01', -1)).toBe('2028-02-29')
+    expect(shiftCalendarDay('2026-12-31', 1)).toBe('2027-01-01')
+    expect(shiftCalendarDay('2026-10-08', -29)).toBe('2026-09-09')
+    expect(shiftCalendarDay('2026-10-08', 0)).toBe('2026-10-08')
+  })
+
+  it('is not shifted by a DST change (host in America/Vancouver for the tests)', () => {
+    expect(shiftCalendarDay('2026-03-08', 1)).toBe('2026-03-09')
+    expect(shiftCalendarDay('2026-11-01', 1)).toBe('2026-11-02')
+    expect(shiftCalendarDay('2026-11-02', -1)).toBe('2026-11-01')
   })
 })

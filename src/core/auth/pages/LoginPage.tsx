@@ -9,11 +9,12 @@ import { safeRedirect } from '@/core/auth/redirect'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { emailSchema } from '@/shared/lib/email'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { AuthCard, StatusNotice } from './AuthCard'
 
 const schema = z.object({
-  email: z.email({ error: t('auth.errors.invalidEmail') }),
+  email: emailSchema(t('auth.errors.invalidEmail')),
   password: z.string().min(1, { error: t('auth.errors.required') }),
 })
 type Values = z.infer<typeof schema>

@@ -5,7 +5,6 @@ import {
   actionLabel,
   AUDITED_TABLES,
   auditDetailLines,
-  auditDetailText,
   auditValue,
   fieldLabel,
   formatAuditValue,
@@ -13,6 +12,7 @@ import {
   shortRecordId,
   sourceLabel,
   tableLabel,
+  type AuditDetailLine,
   type AuditLookups,
 } from './labels'
 
@@ -201,7 +201,18 @@ describe('auditDetailLines', () => {
     changed_fields,
   })
   const NB = '\u00a0'
-  const lines = (e: Parameters<typeof auditDetailLines>[0], lookups?: AuditLookups) => auditDetailLines(e, lookups).map(auditDetailText)
+  /** A line as plain text (« NEQ : (vide) → 1234567890 »); the page renders the same templates. */
+  const asText = (line: AuditDetailLine): string => {
+    switch (line.kind) {
+      case 'change':
+        return t('audit.details.change', { field: line.field, before: line.before.text, after: line.after.text })
+      case 'value':
+        return t('audit.details.value', { field: line.field, value: line.value.text })
+      case 'text':
+        return line.text
+    }
+  }
+  const lines = (e: Parameters<typeof auditDetailLines>[0], lookups?: AuditLookups) => auditDetailLines(e, lookups).map(asText)
 
   it('lists each change of an update as « Champ : avant → après », in French', () => {
     expect(

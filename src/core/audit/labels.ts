@@ -67,7 +67,7 @@ export function sourceLabel(source: string): string {
 }
 
 /** The value `private.audit_trigger` writes in place of a redacted column (decision #31). */
-export const REDACTED = '[redacted]'
+const REDACTED = '[redacted]'
 
 /** Columns holding a calendar date (`date`): shown without any timezone conversion. */
 const DATE_ONLY_COLUMNS = new Set(['effective_from', 'effective_to'])
@@ -227,16 +227,4 @@ export function auditDetailLines(
     }
     return { kind: 'value', field, value: auditValue(table, column, value, lookups) }
   })
-}
-
-/** A detail line as plain text (« NEQ : (vide) → 1234567890 »). */
-export function auditDetailText(line: AuditDetailLine): string {
-  switch (line.kind) {
-    case 'change':
-      return t('audit.details.change', { field: line.field, before: line.before.text, after: line.after.text })
-    case 'value':
-      return t('audit.details.value', { field: line.field, value: line.value.text })
-    case 'text':
-      return line.text
-  }
 }

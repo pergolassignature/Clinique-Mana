@@ -35,7 +35,6 @@
     "save": "Enregistrer",
     "saving": "Enregistrement…",
     "cancel": "Annuler",
-    "edit": "Modifier",
     "form": { "required": "(requis)" },
     "status": { "complete": "(terminé)", "pending": "(en attente)", "warning": "(à vérifier)" },
     "toast": { "region": "Notifications", "close": "Fermer la notification" },
@@ -193,7 +192,6 @@
     "navReadOnlyHint": "(lecture seule)",
     "menuButtonPrefix": "Section des paramètres :",
     "modules": {
-      "title": "Modules",
       "description": "Activez un module lorsqu'il est prêt. Un module désactivé disparaît du menu et de l'application.",
       "dependsOn": "Requiert :",
       "saved": "Modules mis à jour.",

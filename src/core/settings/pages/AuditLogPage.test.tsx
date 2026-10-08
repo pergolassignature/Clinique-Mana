@@ -8,13 +8,18 @@ import { renderInSettingsSection } from '@/test/settings-section'
 import { AuditLogPage } from './AuditLogPage'
 
 const mocks = vi.hoisted(() => ({
-  api: { fetchAuditEntries: vi.fn(), fetchAuditActors: vi.fn(), fetchAuditCatalog: vi.fn(), AUDIT_PAGE_SIZE: 2 },
+  api: { fetchAuditEntries: vi.fn(), fetchAuditActors: vi.fn(), AUDIT_PAGE_SIZE: 2 },
+  fetchPermissionCatalog: vi.fn(),
   /** The clinic date the page sees; null = the real one (from the possibly faked clock). */
   clinicDate: { value: null as string | null },
   fetchOrgRoles: vi.fn(),
 }))
 vi.mock('@/core/audit/api', () => mocks.api)
-vi.mock('@/core/access/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/access/api')>()), fetchOrgRoles: mocks.fetchOrgRoles }))
+vi.mock('@/core/access/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/access/api')>()),
+  fetchOrgRoles: mocks.fetchOrgRoles,
+  fetchPermissionCatalog: mocks.fetchPermissionCatalog,
+}))
 vi.mock('@/shared/lib/use-clinic-date', async () => {
   const { getClinicDateString } = await vi.importActual<typeof import('@/shared/lib/timezone')>('@/shared/lib/timezone')
   return { useClinicDate: () => mocks.clinicDate.value ?? getClinicDateString(new Date()) }
@@ -89,8 +94,8 @@ async function renderPage({ pages = [[UPDATE, BANK_READ]] as AuditEntry[][], que
     { actor_id: MARIE, actor_name: 'Marie Tremblay' },
     { actor_id: 'a2', actor_name: 'Julie Roy' },
   ])
-  mocks.api.fetchAuditCatalog.mockResolvedValue({
-    permissions: [{ key: 'audit.view', description: "Consulter le journal d'audit" }],
+  mocks.fetchPermissionCatalog.mockResolvedValue({
+    permissions: [{ key: 'audit.view', module_key: 'core', description: "Consulter le journal d'audit" }],
     modules: [{ key: 'professionals', name: 'Professionnels' }],
   })
   const ui = () => <QueryClientProvider client={queryClient}>{renderInSettingsSection(<AuditLogPage />)}</QueryClientProvider>
@@ -408,7 +413,7 @@ describe('AuditLogPage', () => {
     const user = userEvent.setup()
     mocks.api.fetchAuditActors.mockRejectedValueOnce(new Error('boom'))
     mocks.api.fetchAuditEntries.mockResolvedValue([UPDATE])
-    mocks.api.fetchAuditCatalog.mockResolvedValue({ permissions: [], modules: [] })
+    mocks.fetchPermissionCatalog.mockResolvedValue({ permissions: [], modules: [] })
     render(<QueryClientProvider client={appQueryClient()}>{renderInSettingsSection(<AuditLogPage />)}</QueryClientProvider>)
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(t('audit.filters.actorsError'))

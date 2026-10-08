@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react'
 import type { SettingsSection } from '@/core/modules/types'
 import { canAny } from './visible-sections'
 
-export interface SettingsSectionState {
+interface SettingsSectionState {
   section: SettingsSection
   /** The user can see the section but lacks its `editPermission`: show the notice once, render the fields read-only (never disabled). */
   readOnly: boolean

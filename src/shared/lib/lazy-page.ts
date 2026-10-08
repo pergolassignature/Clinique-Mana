@@ -161,7 +161,7 @@ type NetworkInformation = { saveData?: boolean; effectiveType?: string }
  * Whether the connection asks for no speculative downloads: Data Saver is on, or the link is
  * 2G-class. Unknown (no Network Information API: Firefox, Safari) counts as no.
  */
-export function prefersLessData(): boolean {
+function prefersLessData(): boolean {
   const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection
   return connection?.saveData === true || connection?.effectiveType === '2g' || connection?.effectiveType === 'slow-2g'
 }

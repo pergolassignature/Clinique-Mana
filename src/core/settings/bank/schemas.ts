@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
-import { EMAIL, withoutControlChars } from '@/core/settings/organization/schemas'
+import { withoutControlChars } from '@/core/settings/organization/schemas'
+import { EMAIL_PATTERN } from '@/shared/lib/email'
 import type { BankDetails, BankDetailsInput } from './api'
 
 /**
@@ -57,7 +58,7 @@ export function bankDetailsSchema(hasStoredAccount: boolean): z.ZodType<BankDeta
       z
         .string()
         .transform((v) => v.toLowerCase())
-        .refine((v) => v === '' || EMAIL.test(v), { error: MESSAGES.email })
+        .refine((v) => v === '' || EMAIL_PATTERN.test(v), { error: MESSAGES.email })
         .transform((v) => (v === '' ? null : v)),
     ),
   })

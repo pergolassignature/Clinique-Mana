@@ -423,7 +423,9 @@ describe('SettingsLayout', () => {
       const elsewhere = screen.getByRole('link', { name: 'Ailleurs' })
       await userEvent.click(elsewhere)
       const heading = await screen.findByRole('heading', { name: landing })
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      // Flush the navigation's effects and any MutationObserver callback (microtasks): the focus
+      // decision is made there, so nothing can move focus after this.
+      await act(async () => {})
       expect(heading).not.toHaveFocus()
       expect(elsewhere).toHaveFocus()
       expect(nav()).toHaveAttribute('data-state', 'closed')

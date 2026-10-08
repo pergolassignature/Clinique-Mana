@@ -23,7 +23,6 @@ const mocks = vi.hoisted(() => ({
   captureException: vi.fn(),
 }))
 vi.mock('../api', () => ({
-  fetchPermissionCatalog: mocks.fetchPermissionCatalog,
   fetchRoleDefaults: mocks.fetchRoleDefaults,
   setRolePermission: mocks.setRolePermission,
   createRole: mocks.createRole,
@@ -31,7 +30,11 @@ vi.mock('../api', () => ({
   deleteRole: mocks.deleteRole,
 }))
 // The clinic's roles come from the access module (shared with the shell and the audit log).
-vi.mock('@/core/access/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/core/access/api')>()), fetchOrgRoles: mocks.fetchOrgRoles }))
+vi.mock('@/core/access/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/access/api')>()),
+  fetchOrgRoles: mocks.fetchOrgRoles,
+  fetchPermissionCatalog: mocks.fetchPermissionCatalog,
+}))
 vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 

@@ -31,3 +31,27 @@ export async function fetchOrgRoles(): Promise<OrgRole[]> {
   if (error) throw error
   return data
 }
+
+export interface CatalogPermission {
+  key: string
+  module_key: string
+  /** French, shown as is. */
+  description: string
+}
+
+/** The permission template: what exists, by module. It changes only with a migration. */
+export interface PermissionCatalog {
+  permissions: CatalogPermission[]
+  modules: { key: string; name: string }[]
+}
+
+/** Permissions and modules, readable by every authenticated user. */
+export async function fetchPermissionCatalog(): Promise<PermissionCatalog> {
+  const [permissions, modules] = await Promise.all([
+    supabase.from('permissions').select('key, module_key, description'),
+    supabase.from('modules').select('key, name'),
+  ])
+  if (permissions.error) throw permissions.error
+  if (modules.error) throw modules.error
+  return { permissions: permissions.data, modules: modules.data }
+}

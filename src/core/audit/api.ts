@@ -62,22 +62,3 @@ export async function fetchAuditActors(): Promise<AuditActor[]> {
   return z.array(auditActorSchema).parse(data)
 }
 
-const catalogSchema = z.object({
-  permissions: z.array(z.object({ key: z.string(), description: z.string() })),
-  modules: z.array(z.object({ key: z.string(), name: z.string() })),
-})
-export type AuditCatalog = z.infer<typeof catalogSchema>
-
-/**
- * The permission descriptions and module names, so the details show them instead of keys. Both
- * catalogues are readable by every signed-in user.
- */
-export async function fetchAuditCatalog(): Promise<AuditCatalog> {
-  const [permissions, modules] = await Promise.all([
-    supabase.from('permissions').select('key, description'),
-    supabase.from('modules').select('key, name'),
-  ])
-  if (permissions.error) throw permissions.error
-  if (modules.error) throw modules.error
-  return catalogSchema.parse({ permissions: permissions.data, modules: modules.data })
-}

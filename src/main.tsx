@@ -14,7 +14,8 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     // A chunk that fails to load is a deploy since the tab opened, not a bug: the error boundaries
     // reload to the new version (shared/lib/app-update.ts).
     ignoreErrors: [...CHUNK_ERROR_PATTERNS],
-    // Backstop: no PostgreSQL details/hint, no long digit runs (account numbers…) leave the browser.
+    // Backstop: no PostgreSQL details/hint, no long digit runs (account numbers…), no auth tokens in
+    // URLs (fragments, `code`, `token_hash`…) leave the browser.
     beforeSend: (event) => scrubSentryEvent(event),
   })
 }

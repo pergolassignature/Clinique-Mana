@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { AuditEntry, AuditFilters } from './api'
-import { auditKeys, useAuditActors, useAuditCatalog, useAuditEntries } from './hooks'
+import { auditKeys, useAuditActors, useAuditEntries } from './hooks'
 
-const mocks = vi.hoisted(() => ({ api: { fetchAuditEntries: vi.fn(), fetchAuditActors: vi.fn(), fetchAuditCatalog: vi.fn(), AUDIT_PAGE_SIZE: 3 } }))
+const mocks = vi.hoisted(() => ({ api: { fetchAuditEntries: vi.fn(), fetchAuditActors: vi.fn(), AUDIT_PAGE_SIZE: 3 } }))
 vi.mock('./api', () => mocks.api)
 
 afterEach(() => vi.clearAllMocks())
@@ -98,15 +98,5 @@ describe('useAuditActors', () => {
     const { wrapper } = setup()
     const { result } = renderHook(() => useAuditActors(), { wrapper })
     await waitFor(() => expect(result.current.data).toEqual([{ actor_id: 'a1', actor_name: 'Marie Tremblay' }]))
-  })
-})
-
-describe('useAuditCatalog', () => {
-  it('loads the catalogue', async () => {
-    const catalog = { permissions: [{ key: 'audit.view', description: 'Consulter' }], modules: [] }
-    mocks.api.fetchAuditCatalog.mockResolvedValue(catalog)
-    const { wrapper } = setup()
-    const { result } = renderHook(() => useAuditCatalog(), { wrapper })
-    await waitFor(() => expect(result.current.data).toEqual(catalog))
   })
 })

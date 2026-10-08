@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -42,6 +42,17 @@ vi.mock('./modules', async (importOriginal) => {
         : m,
     ),
   }
+})
+
+// Warm the module cache for the code-split pages the tests wait on: a cold transform of a page's
+// import graph can outlast findBy's 1 s timeout when the suite is shuffled. The pages themselves
+// still load lazily (their lazyPage is not preloaded).
+beforeAll(async () => {
+  await Promise.all([
+    import('@/core/settings/pages/IdentitySettingsPage'),
+    import('@/core/settings/pages/TaxSettingsPage'),
+    import('@/modules/professionals/pages/ProfessionalsPlaceholderPage'),
+  ])
 })
 
 afterEach(() => {

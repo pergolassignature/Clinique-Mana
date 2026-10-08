@@ -1,4 +1,4 @@
-import { addDays, format, parseISO } from 'date-fns'
+import { shiftCalendarDay } from '@/shared/lib/timezone'
 import type { TaxRate } from './api'
 
 export type TaxRateStatus = 'current' | 'upcoming' | 'ended'
@@ -22,7 +22,7 @@ export function taxRateStatus(rate: Pick<TaxRate, 'effective_from' | 'effective_
  * with no timezone.
  */
 export function lastDayOf(effectiveTo: string | null): string | null {
-  return effectiveTo === null ? null : shiftDay(effectiveTo, -1)
+  return effectiveTo === null ? null : shiftCalendarDay(effectiveTo, -1)
 }
 
 /**
@@ -31,12 +31,7 @@ export function lastDayOf(effectiveTo: string | null): string | null {
  */
 export function earliestNewRateStart(rates: readonly TaxRate[]): string | null {
   const open = rates.find((rate) => rate.effective_to === null)
-  return open ? shiftDay(open.effective_from, 1) : null
-}
-
-/** `yyyy-MM-dd` ± days, as calendar dates (parsed as local midnight, so no timezone or DST shift). */
-function shiftDay(date: string, days: number): string {
-  return format(addDays(parseISO(date), days), 'yyyy-MM-dd')
+  return open ? shiftCalendarDay(open.effective_from, 1) : null
 }
 
 /**

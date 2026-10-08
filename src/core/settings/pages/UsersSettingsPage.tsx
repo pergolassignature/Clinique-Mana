@@ -5,9 +5,9 @@ import { roleLabel } from '@/core/access/roles'
 import { useSettingsSection } from '@/core/settings/section-context'
 import type { OrgUser } from '@/core/users/api'
 import { RoleMatrix } from '@/core/users/components/RoleMatrix'
-import { LoadError, Loading } from '@/core/users/components/LoadState'
 import { UserSheet } from '@/core/users/components/UserSheet'
 import { useOrgUsers } from '@/core/users/hooks'
+import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
 import { initialsOf } from '@/shared/lib/format'
@@ -77,6 +77,19 @@ function UsersTab({ canManage }: { canManage: boolean }) {
   // The name buttons, so focus returns to the opened row's button when the sheet closes (also
   // after a click elsewhere on the row).
   const nameButtons = useRef(new Map<string, HTMLButtonElement>())
+  // One stable callback ref per user (an inline one would detach and reattach on every render).
+  const buttonRefs = useRef(new Map<string, (button: HTMLButtonElement | null) => void>())
+  const buttonRef = (userId: string) => {
+    let ref = buttonRefs.current.get(userId)
+    if (!ref) {
+      ref = (button) => {
+        if (button) nameButtons.current.set(userId, button)
+        else nameButtons.current.delete(userId)
+      }
+      buttonRefs.current.set(userId, ref)
+    }
+    return ref
+  }
   const lastOpened = useRef<string | null>(null)
   const open = (userId: string) => {
     lastOpened.current = userId
@@ -96,10 +109,7 @@ function UsersTab({ canManage }: { canManage: boolean }) {
           canManage={canManage}
           selectedId={selected?.user_id ?? null}
           onOpen={open}
-          registerButton={(userId, button) => {
-            if (button) nameButtons.current.set(userId, button)
-            else nameButtons.current.delete(userId)
-          }}
+          buttonRef={buttonRef}
         />
       )}
       {canManage && (
@@ -120,7 +130,8 @@ interface UsersTableProps {
   canManage: boolean
   selectedId: string | null
   onOpen: (userId: string) => void
-  registerButton: (userId: string, button: HTMLButtonElement | null) => void
+  /** The name button's callback ref, the same function for a user on every render. */
+  buttonRef: (userId: string) => (button: HTMLButtonElement | null) => void
 }
 
 /**
@@ -129,7 +140,7 @@ interface UsersTableProps {
  * the status under the role, the last sign-in in the sheet. The name is a button for keyboard
  * users; a click anywhere on the row opens the sheet too.
  */
-function UsersTable({ users, canManage, selectedId, onOpen, registerButton }: UsersTableProps) {
+function UsersTable({ users, canManage, selectedId, onOpen, buttonRef }: UsersTableProps) {
   const lastSignIn = (u: OrgUser) => (u.last_sign_in_at ? formatClinicDateTime(u.last_sign_in_at) : t('settings.users.never'))
   return (
     <div className="rounded-lg border border-border bg-card">
@@ -179,7 +190,7 @@ function UsersTable({ users, canManage, selectedId, onOpen, registerButton }: Us
                     <div className="min-w-0">
                       {canManage ? (
                         <button
-                          ref={(button) => registerButton(u.user_id, button)}
+                          ref={buttonRef(u.user_id)}
                           type="button"
                           className={`block max-w-full truncate rounded-sm text-left font-medium hover:underline ${focusRing}`}
                           onClick={(event) => {

@@ -7,6 +7,7 @@ import type { Tax, TaxRate } from '@/core/settings/tax/api'
 import { useDeleteTaxRate, useTaxRates } from '@/core/settings/tax/hooks'
 import { canDeleteTaxRate, earliestNewRateStart, lastDayOf, taxRateStatus, type TaxRateStatus } from '@/core/settings/tax/rates'
 import { EmptyState } from '@/shared/components/EmptyState'
+import { LoadError, Loading } from '@/shared/components/LoadState'
 import { SettingsCard } from '@/shared/components/SettingsCard'
 import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { formatRate } from '@/shared/lib/format'
@@ -76,20 +77,9 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
 
   let content
   if (isPending) {
-    content = (
-      <p role="status" className="text-sm text-muted-foreground">
-        {t('common.loading')}
-      </p>
-    )
+    content = <Loading />
   } else if (isError && !data) {
-    content = (
-      <div role="alert" className="flex flex-wrap items-center gap-3">
-        <p className="text-sm text-muted-foreground">{t('settings.tax.rates.loadError')}</p>
-        <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
-          {t('common.retry')}
-        </Button>
-      </div>
-    )
+    content = <LoadError message={t('settings.tax.rates.loadError')} retrying={isFetching} onRetry={() => void refetch()} />
   } else if (rates.length === 0) {
     content = <EmptyState title={t('settings.tax.rates.empty')} />
   } else {

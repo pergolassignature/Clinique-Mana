@@ -10,7 +10,6 @@ import {
   createRole,
   deleteRole,
   fetchOrgUsers,
-  fetchPermissionCatalog,
   fetchRoleDefaults,
   fetchUserOverrides,
   renameRole,
@@ -28,19 +27,9 @@ export const userKeys = {
   overrides: (userId: string) => [...userKeys.all, 'overrides', userId] as const,
 }
 
-/** The permission catalogue has its own root: user and role changes never touch it. */
-export const permissionCatalogKeys = {
-  all: ['permission-catalog'] as const,
-}
-
 /** Always fresh on mount: another manager may have changed someone meanwhile. */
 export function useOrgUsers() {
   return useQuery({ queryKey: userKeys.list(), queryFn: fetchOrgUsers, staleTime: 0 })
-}
-
-/** The permission catalogue changes only with a migration: fresh for five minutes. */
-export function usePermissionCatalog() {
-  return useQuery({ queryKey: permissionCatalogKeys.all, queryFn: fetchPermissionCatalog, staleTime: 5 * 60_000 })
 }
 
 /** The key of the role matrix's cell saves (useSetRolePermission). */

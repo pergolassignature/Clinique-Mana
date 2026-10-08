@@ -8,10 +8,11 @@ import { useAuth, type AuthErrorCode } from '@/core/auth/auth-context'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { emailSchema } from '@/shared/lib/email'
 import { usePageTitle } from '@/shared/lib/use-page-title'
 import { AuthCard, StatusNotice } from './AuthCard'
 
-const schema = z.object({ email: z.email({ error: t('auth.errors.invalidEmail') }) })
+const schema = z.object({ email: emailSchema(t('auth.errors.invalidEmail')) })
 type Values = z.infer<typeof schema>
 
 export function ForgotPasswordPage() {
