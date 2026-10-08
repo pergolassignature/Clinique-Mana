@@ -3201,6 +3201,41 @@ export type Database = {
           },
         ]
       }
+      user_preferences: {
+        Row: {
+          created_at: string
+          key: string
+          org_id: string
+          updated_at: string
+          user_id: string
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          key: string
+          org_id: string
+          updated_at?: string
+          user_id: string
+          value: Json
+        }
+        Update: {
+          created_at?: string
+          key?: string
+          org_id?: string
+          updated_at?: string
+          user_id?: string
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_preferences_user_id_org_id_fkey"
+            columns: ["user_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -3693,6 +3728,7 @@ export type Database = {
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_role: { Args: { p_role: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
+      delete_user_preference: { Args: { p_key: string }; Returns: undefined }
       expire_signature_request: { Args: { p_id: string }; Returns: boolean }
       fail_webhook_event: {
         Args: { p_claim_token: string; p_error: string; p_id: string }
@@ -4360,6 +4396,10 @@ export type Database = {
       }
       set_signing_settings: {
         Args: { p_base_url: string; p_expiry_days: number }
+        Returns: undefined
+      }
+      set_user_preference: {
+        Args: { p_key: string; p_value: Json }
         Returns: undefined
       }
       set_user_role: {
