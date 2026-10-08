@@ -74,6 +74,7 @@ select functions_are('public', array[
   'tax_rate_on', 'add_tax_rate', 'delete_tax_rate',
   'get_bank_details', 'reveal_bank_account_number', 'set_bank_details',
   'list_org_users', 'set_user_role', 'set_user_status', 'set_permission_override', 'clear_permission_override',
+  'clear_permission_overrides',
   'list_audit_entries', 'list_audit_actors'
 ], 'public schema exposes exactly the intended RPCs');
 

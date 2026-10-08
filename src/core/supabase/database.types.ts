@@ -626,6 +626,10 @@ export type Database = {
         Args: { p_permission_key: string; p_user_id: string }
         Returns: undefined
       }
+      clear_permission_overrides: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
       get_bank_details: {
