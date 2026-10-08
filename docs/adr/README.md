@@ -10,6 +10,8 @@ One file per decision that is hard to reverse or that later work must respect: `
 | [0004](0004-secrets-in-vault.md) | Secrets in Vault, write-only from the UI; encrypted `*_private` tables | Accepted |
 | [0005](0005-documenso-replaces-docuseal.md) | Self-hosted Documenso replaces DocuSeal | Accepted |
 | [0006](0006-session-and-recovery-policy.md) | Session and recovery policy (shared reception PCs, enumeration-safe auth) | Accepted |
+| [0007](0007-secure-links-and-public-token-functions.md) | Secure links: hashed single-use tokens in the URL fragment, pluggable purposes, public token functions | Accepted |
+| [0008](0008-server-side-pdf-rendering.md) | Server-side PDF rendering with a vendored pdfmake, isolated from the other functions | Accepted |
 
 ## Template
 

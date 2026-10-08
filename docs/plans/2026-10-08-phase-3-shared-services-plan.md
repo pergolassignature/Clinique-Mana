@@ -2310,6 +2310,8 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 ## Task 3.35: ADR 0005 status and ADR 0008
 
+**Status (2026-10-08):** ADR 0008 finalised (final sizes: 1.35 MB for a non-PDF function, 2.18 MB for a rendering one, after the latin-ext and vietnamese fonts). The ADR 0005 part waits for Task 3.33.
+
 **From Task 3.30:** update ADR 0008: pdfmake is vendored (`npm run build:pdfmake`, pinned by `scripts/build-pdfmake.lock`), not an npm import in `deno.json`; uploaded sizes are ≈1.35 MB for a non-PDF function and ≈1.86 MB for a rendering one; `isolation.test.ts` guards it.
 
 **Lane:** coordinator. **Files:** `docs/adr/0005-documenso-replaces-docuseal.md`, `docs/adr/0008-server-side-pdf-rendering.md`, `docs/adr/README.md`.
