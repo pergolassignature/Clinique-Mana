@@ -1,0 +1,823 @@
+-- Signing (migration *_core_signing.sql, plan Phase 3 Task 3.31, design §6.2, P3-3, P3-19, P3-26,
+-- P3-30, inconsistencies #9 and #11).
+-- Covers: privileges (the five tables select-only for authenticated, nothing for anon and
+-- service_role; user RPCs for authenticated, service RPCs for service_role; the private helpers
+-- for no client role); indexes; the signing_source / signing_signed purposes; the
+-- core.signing_reconcile job; signing_settings (seeded per org, base_url forms, expiry range,
+-- permission, visibility); document templates (create guards, the module gate of their
+-- permissions, visibility through view_permission, a disabled module's template invisible);
+-- versions (one draft, one published, publish archives the previous one, draft-only edits,
+-- undeclared placeholders in any body string, publish readiness, the immutability trigger,
+-- archive); get_signing_context; create_signature_request (idempotency, every guard);
+-- mark_signature_request_sent / _failed; apply_signing_event (monotonic transitions, terminal
+-- states, a draft, a disabled module, another org, unknown events); complete_signature_request;
+-- list_subject_signature_requests (visibility, signers without addresses, keyset paging);
+-- get_signature_request; list_signature_requests_to_reconcile and expire_signature_request;
+-- audit rows (signers' email and name redacted, versions' body redacted).
+-- The whole file is one transaction, so now() is constant.
+begin;
+create extension if not exists pgtap with schema extensions;
+select plan(160);
+
+-- =============================================================================
+-- Privileges, indexes, purposes, job
+-- =============================================================================
+select table_privs_are('public', t, 'anon', array[]::text[], 'anon: nothing on ' || t)
+  from unnest(array['signing_settings', 'document_templates', 'document_template_versions',
+                    'signature_requests', 'signature_request_signers']) t;
+select table_privs_are('public', t, 'authenticated', array['SELECT'], 'authenticated: select only on ' || t)
+  from unnest(array['signing_settings', 'document_templates', 'document_template_versions',
+                    'signature_requests', 'signature_request_signers']) t;
+select table_privs_are('public', t, 'service_role', array[]::text[], 'service_role: RPCs only on ' || t)
+  from unnest(array['signing_settings', 'document_templates', 'document_template_versions',
+                    'signature_requests', 'signature_request_signers']) t;
+select is_empty($$
+  select 1 from information_schema.column_privileges
+   where table_schema = 'public'
+     and table_name in ('signing_settings', 'document_templates', 'document_template_versions',
+                        'signature_requests', 'signature_request_signers')
+     and grantee in ('anon', 'authenticated') and privilege_type <> 'SELECT'
+$$, 'no column write privilege on the signing tables');
+
+select results_eq($$
+  select p.oid::regprocedure::text collate "default",
+         has_function_privilege('anon', p.oid, 'execute'),
+         has_function_privilege('authenticated', p.oid, 'execute'),
+         has_function_privilege('service_role', p.oid, 'execute'),
+         p.prosecdef
+    from pg_proc p
+   where p.pronamespace = 'public'::regnamespace
+     and p.proname in ('set_signing_settings', 'create_document_template', 'create_template_version',
+                       'update_template_version', 'publish_template_version', 'archive_template_version',
+                       'list_document_templates', 'list_subject_signature_requests', 'get_signature_request',
+                       'get_signing_context', 'create_signature_request', 'mark_signature_request_sent',
+                       'mark_signature_request_failed', 'apply_signing_event', 'complete_signature_request',
+                       'list_signature_requests_to_reconcile', 'expire_signature_request')
+   order by p.proname collate "C"
+$$, $$ values
+  ('apply_signing_event(uuid,uuid,text,text,text,timestamp with time zone,text)'::text, false, false, true, true),
+  ('archive_template_version(uuid)', false, true, false, true),
+  ('complete_signature_request(uuid,uuid,text)', false, false, true, true),
+  ('create_document_template(text,text,text,text,text,text)', false, true, false, true),
+  ('create_signature_request(jsonb)', false, false, true, true),
+  ('create_template_version(uuid)', false, true, false, true),
+  ('expire_signature_request(uuid)', false, false, true, true),
+  ('get_signature_request(uuid)', false, true, false, false),
+  ('get_signing_context(uuid,uuid)', false, false, true, true),
+  ('list_document_templates(text)', false, true, false, false),
+  ('list_signature_requests_to_reconcile(uuid,integer)', false, false, true, true),
+  ('list_subject_signature_requests(text,uuid,integer,timestamp with time zone,uuid)', false, true, false, false),
+  ('mark_signature_request_failed(uuid,text,text,text)', false, false, true, true),
+  ('mark_signature_request_sent(uuid,text,text,uuid,jsonb,timestamp with time zone)', false, false, true, true),
+  ('publish_template_version(uuid)', false, true, false, true),
+  ('set_signing_settings(text,integer)', false, true, false, true),
+  ('update_template_version(uuid,jsonb,jsonb,jsonb,text,text)', false, true, false, true)
+$$, 'user RPCs for authenticated (reads are invoker: RLS applies), service RPCs for service_role only');
+select results_eq($$
+  select p.oid::regprocedure::text collate "default",
+         has_function_privilege('anon', p.oid, 'execute'),
+         has_function_privilege('authenticated', p.oid, 'execute'),
+         has_function_privilege('service_role', p.oid, 'execute')
+    from pg_proc p
+   where p.pronamespace = 'private'::regnamespace
+     and p.proname in ('signing_signers_valid', 'seed_org_signing_settings', 'guard_template_version')
+   order by p.proname collate "C"
+$$, $$ values
+  ('private.guard_template_version()'::text, false, false, false),
+  ('private.seed_org_signing_settings()', false, false, false),
+  ('private.signing_signers_valid(jsonb)', false, false, false)
+$$, 'the private helpers are callable by no client role');
+
+select is((select pg_get_indexdef('public.signature_requests_subject_idx'::regclass)),
+  'CREATE INDEX signature_requests_subject_idx ON public.signature_requests USING btree (org_id, subject_type, subject_id, created_at DESC, id DESC)',
+  'a subject''s requests, newest first (list_subject_signature_requests keyset, the org FK and RLS predicate)');
+select is((select pg_get_indexdef('public.signature_requests_open_idx'::regclass)),
+  'CREATE INDEX signature_requests_open_idx ON public.signature_requests USING btree (org_id, created_at) WHERE ((status = ANY (ARRAY[''sent''::text, ''viewed''::text])) OR ((status = ''draft''::text) AND (COALESCE(last_error, ''''::text) <> ''abandoned''::text)))',
+  'the open requests of an org (reconcile), abandoned drafts left out');
+select is((select pg_get_indexdef('public.document_template_versions_published_idx'::regclass)),
+  'CREATE UNIQUE INDEX document_template_versions_published_idx ON public.document_template_versions USING btree (template_id) WHERE (status = ''published''::text)',
+  'one published version per template');
+select is((select pg_get_indexdef('public.document_template_versions_draft_idx'::regclass)),
+  'CREATE UNIQUE INDEX document_template_versions_draft_idx ON public.document_template_versions USING btree (template_id) WHERE (status = ''draft''::text)',
+  'one draft per template');
+
+select results_eq($$
+  select key, module_key, bucket, upload_permission, view_permission, owner_permission, max_bytes, mime_types,
+         max_image_side, retain_days
+    from public.upload_purposes where key in ('signing_signed', 'signing_source') order by key
+$$, $$ values
+  ('signing_signed'::text, 'core'::text, 'signed-documents'::text, 'settings.integrations_manage'::text,
+   'settings.integrations_manage'::text, null::text, 20971520, array['application/pdf'], null::int, 1),
+  ('signing_source', 'core', 'documents', 'settings.integrations_manage', 'settings.integrations_manage', null,
+   10485760, array['application/pdf'], null, 1)
+$$, 'signing_source and signing_signed: PDF, staged one day until the request takes them');
+
+select results_eq($$
+  select j.key, j.module_key, j.kind, j.function_name, j.is_maintenance, c.schedule, c.command
+    from public.scheduled_jobs j join cron.job c on c.jobname = j.cron_job_name
+   where j.key = 'core.signing_reconcile'
+$$, $$ values ('core.signing_reconcile'::text, 'core'::text, 'function'::text, 'signing-sync'::text,
+               true, '50 8 * * *'::text, 'select private.invoke_job_function(''core.signing_reconcile'')'::text) $$,
+  'core.signing_reconcile is a maintenance function job, daily at 08:50 UTC');
+
+-- =============================================================================
+-- Fixtures
+-- =============================================================================
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+values
+  ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@a.test',    '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'adjointe@a.test', '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'c@a.test',        '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'p@a.test',        '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'x@a.test',        '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',    '', now(), '{}', '{}', now(), now());
+insert into public.organizations (id, name, timezone) values
+  ('b0000000-0000-0000-0000-00000000000a', 'Org A', 'America/Toronto'),
+  ('b0000000-0000-0000-0000-00000000000b', 'Org B', 'America/Toronto');
+insert into public.profiles (user_id, org_id, display_name, email, status) values
+  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A',         'admin@a.test',    'active'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe D',      'adjointe@a.test', 'active'),
+  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère C',   'c@a.test',        'active'),
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Professionnel P', 'p@a.test',        'active'),
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'Admin désactivé', 'x@a.test',        'disabled'),
+  ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',         'admin@b.test',    'active');
+insert into public.user_roles (user_id, org_id, role) values
+  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant'),
+  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'counselor'),
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'provider'),
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
+  ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000b', 'admin');
+insert into public.org_modules (org_id, module_key, enabled) values
+  ('b0000000-0000-0000-0000-00000000000a', 'professionals', true);
+update public.organizations
+   set signatory_name = 'Christine Signataire', signatory_title = 'Directrice', signatory_email = 'direction@a.test'
+ where id = 'b0000000-0000-0000-0000-00000000000a';
+
+-- The org A signature image (ready, set as the asset).
+insert into public.stored_files (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id,
+  view_permission, original_name, mime_type, ext, size_bytes, sha256, status, confirmed_at)
+values ('e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'org-assets',
+  'b0000000-0000-0000-0000-00000000000a/core/b0000000-0000-0000-0000-00000000000a/e0000000-0000-0000-0000-000000000001.png',
+  'core', 'org_signature', 'organization', 'b0000000-0000-0000-0000-00000000000a', 'settings.manage', 'signature.png',
+  'image/png', 'png', 1000, repeat('a', 64), 'ready', now());
+update public.organizations set signature_file_id = 'e0000000-0000-0000-0000-000000000001'
+ where id = 'b0000000-0000-0000-0000-00000000000a';
+
+create temp table t (step text primary key, id uuid) on commit drop;
+grant select, insert, update on t to authenticated, service_role;
+
+-- A complete body, its variables and signers.
+create temp table fx (k text primary key, v jsonb) on commit drop;
+grant select on fx to authenticated, service_role;
+insert into fx (k, v) values
+  ('body', $j${"title": "Contrat {{clinic.name}}", "header": {"text": "Contrat", "initialsFor": ["professional"]},
+    "footer": {"text": "{{clinic.name}}"},
+    "blocks": [{"type": "paragraph", "runs": [{"text": "Entre {{clinic.name}} et "}, {"text": "{{ professional.name }}", "bold": true}]},
+               {"type": "signaturePage", "signers": [{"role": "professional", "label": "Le professionnel"},
+                                                     {"role": "clinic", "label": "La clinique"}]}]}$j$),
+  ('variables', $j$[{"path": "clinic.name", "label": "Nom de la clinique", "sample": "Clinique MANA", "required": true, "kind": "text"},
+                    {"path": "professional.name", "label": "Nom du professionnel", "sample": "Marie Tremblay", "required": true, "kind": "text"}]$j$),
+  ('signers', $j$[{"role": "professional", "label": "Professionnel", "order": 1, "required": true},
+                  {"role": "clinic", "label": "Clinique", "order": 2, "required": false}]$j$);
+
+-- =============================================================================
+-- signing_settings
+-- =============================================================================
+select results_eq($$
+  select org_id, base_url, expiry_days from public.signing_settings
+   where org_id in ('b0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b') order by org_id
+$$, $$ values ('b0000000-0000-0000-0000-00000000000a'::uuid, null::text, 7),
+              ('b0000000-0000-0000-0000-00000000000b'::uuid, null::text, 7) $$,
+  'every new org gets its signing settings (no instance, 7 days)');
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok($$ select public.set_signing_settings('http://evil.test', 7) $$, '23514', null,
+  'base_url: plain http to any host but the local fake → 23514');
+select throws_ok($$ select public.set_signing_settings('https://sign.test/?x=1', 7) $$, '23514', null,
+  'base_url: no query string');
+select throws_ok($$ select public.set_signing_settings('https://sign.test', 61) $$, '23514', null,
+  'expiry_days: at most 60');
+select lives_ok($$ select public.set_signing_settings(' http://host.docker.internal:55390 ', 7) $$,
+  'base_url: the local fake form');
+select lives_ok($$ select public.set_signing_settings('https://sign.cliniquemana.com/', 14) $$,
+  'base_url: https');
+select results_eq($$ select base_url, expiry_days, updated_by from public.signing_settings $$,
+  $$ values ('https://sign.cliniquemana.com'::text, 14, 'a0000000-0000-0000-0000-000000000001'::uuid) $$,
+  'trimmed, trailing slash removed; admin A reads only her org''s row');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok($$ select public.set_signing_settings(null, 7) $$, '42501', null,
+  'the adjointe (no settings.integrations_manage) cannot change them');
+select is((select count(*)::int from public.signing_settings), 1, 'the adjointe reads them (settings.view)');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select is((select count(*)::int from public.signing_settings), 0, 'the conseillère does not (no settings.view)');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+select lives_ok($$ select public.set_signing_settings('', 30) $$, 'admin B: an empty address clears it');
+select results_eq($$ select org_id, base_url, expiry_days from public.signing_settings $$,
+  $$ values ('b0000000-0000-0000-0000-00000000000b'::uuid, null::text, 30) $$, 'admin B changes and reads only her org''s row');
+reset role;
+
+-- =============================================================================
+-- Document templates
+-- =============================================================================
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+insert into t (step, id)
+values ('t1', public.create_document_template('core.test_contract', 'core', ' Contrat test ', 'Pour les tests',
+                                              'settings.view', 'settings.manage'));
+select results_eq($$
+  select key, module_key, title, description, view_permission, edit_permission, is_active, created_by
+    from public.document_templates where id = (select id from t where step = 't1')
+$$, $$ values ('core.test_contract'::text, 'core'::text, 'Contrat test'::text, 'Pour les tests'::text,
+               'settings.view'::text, 'settings.manage'::text, true, 'a0000000-0000-0000-0000-000000000001'::uuid) $$,
+  'create_document_template: trimmed title, created_by');
+select throws_ok($$ select public.create_document_template('core.test_contract', 'core', 'Autre', null,
+                      'settings.view', 'settings.manage') $$,
+  'P0001', 'Un modèle avec cette clé existe déjà.', 'a key is unique per org');
+select throws_ok($$ select public.create_document_template('professionals.x', 'core', 'X', null, 'settings.view', 'settings.manage') $$,
+  '23514', null, 'the key starts with the module key');
+select throws_ok($$ select public.create_document_template('core.x', 'core', 'X', null, 'professionals.view', 'settings.manage') $$,
+  '22023', null, 'the view permission belongs to the template''s module (the module gate)');
+select throws_ok($$ select public.create_document_template('professionals.x', 'professionals', 'X', null,
+                      'professionals.view', 'settings.manage') $$,
+  '22023', null, 'the edit permission belongs to the template''s module');
+select throws_ok($$ select public.create_document_template('core.y', 'core', '  ', null, 'settings.view', 'settings.manage') $$,
+  'P0001', 'Le titre est obligatoire.', 'a title is required');
+insert into t (step, id)
+values ('t2', public.create_document_template('professionals.test_contract', 'professionals', 'Contrat pro', null,
+                                              'professionals.view', 'professionals.view'));
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok($$ select public.create_document_template('core.z', 'core', 'Z', null, 'settings.view', 'settings.manage') $$,
+  '42501', null, 'the caller must hold the edit permission');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+select throws_ok($$ select public.create_document_template('core.z', 'core', 'Z', null, 'settings.view', 'settings.manage') $$,
+  '42501', null, 'a disabled admin → 42501');
+
+-- Versions
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+insert into t (step, id) values ('v1', public.create_template_version((select id from t where step = 't1')));
+select results_eq($$
+  select version, status, body, variables, signers, email_subject, email_message, created_by
+    from public.document_template_versions where id = (select id from t where step = 'v1')
+$$, $$ values (1, 'draft'::text, '{}'::jsonb, '[]'::jsonb, '[]'::jsonb, ''::text, ''::text,
+               'a0000000-0000-0000-0000-000000000001'::uuid) $$,
+  'the first version is an empty draft');
+select throws_ok($$ select public.create_template_version((select id from t where step = 't1')) $$,
+  'P0001', 'Une version brouillon existe déjà.', 'one draft at a time');
+select throws_ok($$ select public.publish_template_version((select id from t where step = 'v1')) $$,
+  'P0001', 'Le modèle doit se terminer par une page de signature.', 'an empty draft cannot be published');
+select throws_ok($$ select public.update_template_version((select id from t where step = 'v1'),
+                      (select v from fx where k = 'body'), '[]', (select v from fx where k = 'signers'), 'Votre contrat', 'Merci') $$,
+  'P0001', 'Variable inconnue : {{clinic.name}}', 'an undeclared placeholder in the body → the email message');
+select throws_ok($$ select public.update_template_version((select id from t where step = 'v1'),
+                      '{"title": "x", "footer": {"text": "{{clinic.name"}, "blocks": []}', (select v from fx where k = 'variables'),
+                      '[]', 's', 'm') $$,
+  'P0001', 'Accolades non fermées dans le texte.', 'an unclosed placeholder in any string');
+select throws_ok($$ select public.update_template_version((select id from t where step = 'v1'),
+                      (select v from fx where k = 'body'), (select v from fx where k = 'variables'),
+                      (select v from fx where k = 'signers'), 'Contrat de {{professional.nom}}', 'Merci') $$,
+  'P0001', 'Variable inconnue : {{professional.nom}}', 'the email subject and message follow the same rule');
+select throws_ok($$ select public.update_template_version((select id from t where step = 'v1'),
+                      jsonb_build_object('title', repeat('x', 270000)), '[]', '[]', 's', 'm') $$,
+  'P0001', 'Le modèle dépasse la taille permise (256 Ko).', 'a body over 256 KB');
+select throws_ok($$ select public.update_template_version((select id from t where step = 'v1'),
+                      '[]', '[]', '[]', 's', 'm') $$,
+  '22023', null, 'the body is an object');
+select throws_ok($$ select public.update_template_version((select id from t where step = 'v1'),
+                      '{}', '[]', '[{"role": "notary", "label": "Notaire", "order": 1, "required": true}]', 's', 'm') $$,
+  '22023', null, 'signer roles are professional, clinic or client');
+select throws_ok($$ select public.update_template_version((select id from t where step = 'v1'),
+                      '{}', '[]', '[]', E'a\nb', 'm') $$,
+  'P0001', 'L''objet du courriel de signature doit tenir sur une seule ligne.', 'the subject is one line');
+select lives_ok($$ select public.update_template_version((select id from t where step = 'v1'),
+                      (select v from fx where k = 'body'), (select v from fx where k = 'variables'),
+                      '[{"role": "professional", "label": "Professionnel", "order": 1, "required": true}]',
+                      ' Votre contrat ', 'Merci de signer.') $$,
+  'update_template_version: a draft with declared placeholders');
+select throws_ok($$ select public.publish_template_version((select id from t where step = 'v1')) $$,
+  'P0001', 'Les signataires du modèle et ceux de la page de signature doivent être les mêmes.',
+  'publish: every signer has a place on the signature page, and only them');
+select lives_ok($$ select public.update_template_version((select id from t where step = 'v1'),
+                      (select v from fx where k = 'body'), (select v from fx where k = 'variables'),
+                      (select v from fx where k = 'signers'), 'Votre contrat', 'Merci de signer.') $$,
+  'update_template_version again');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok($$ select public.update_template_version((select id from t where step = 'v1'), '{}', '[]', '[]', 's', 'm') $$,
+  '42501', null, 'a non-holder of edit_permission cannot edit');
+select throws_ok($$ select public.publish_template_version((select id from t where step = 'v1')) $$,
+  '42501', null, 'nor publish');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+select throws_ok($$ select public.publish_template_version((select id from t where step = 'v1')) $$,
+  '22023', null, 'another org''s version is unknown');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select lives_ok($$ select public.publish_template_version((select id from t where step = 'v1')) $$, 'publish v1');
+select throws_ok($$ select public.publish_template_version((select id from t where step = 'v1')) $$,
+  'P0001', 'Seule une version brouillon peut être publiée.', 'a version is published once');
+select throws_ok($$ select public.update_template_version((select id from t where step = 'v1'), '{}', '[]', '[]', 's', 'm') $$,
+  'P0001', 'Seule une version brouillon peut être modifiée.', 'a published version cannot be edited');
+
+insert into t (step, id) values ('v2', public.create_template_version((select id from t where step = 't1')));
+select results_eq($$
+  select v2.version, v2.status, v2.body = v1.body, v2.variables = v1.variables, v2.signers = v1.signers,
+         v2.email_subject, v2.email_message
+    from public.document_template_versions v1, public.document_template_versions v2
+   where v1.id = (select id from t where step = 'v1') and v2.id = (select id from t where step = 'v2')
+$$, $$ values (2, 'draft'::text, true, true, true, 'Votre contrat'::text, 'Merci de signer.'::text) $$,
+  'a new version copies the published one');
+select lives_ok($$ select public.publish_template_version((select id from t where step = 'v2')) $$, 'publish v2');
+select results_eq($$
+  select id, status, published_by is not null, archived_at is not null from public.document_template_versions
+   where template_id = (select id from t where step = 't1') order by version
+$$, $$ select (select id from t where step = 'v1'), 'archived'::text, true, true
+       union all select (select id from t where step = 'v2'), 'published', true, false $$,
+  'publishing v2 archives v1: one published version per template');
+insert into t (step, id) values ('v3', public.create_template_version((select id from t where step = 't1')));
+select lives_ok($$ select public.archive_template_version((select id from t where step = 'v3')) $$,
+  'archive_template_version discards a draft');
+select throws_ok($$ select public.archive_template_version((select id from t where step = 'v3')) $$,
+  'P0001', 'Cette version est déjà archivée.', 'a version is archived once');
+
+-- The professionals template, published.
+insert into t (step, id) values ('vp', public.create_template_version((select id from t where step = 't2')));
+select public.update_template_version((select id from t where step = 'vp'), (select v from fx where k = 'body'),
+  (select v from fx where k = 'variables'), (select v from fx where k = 'signers'), 'Votre contrat', 'Merci');
+select public.publish_template_version((select id from t where step = 'vp'));
+reset role;
+
+-- The immutability trigger holds for every role, the owner included.
+select throws_ok($$ update public.document_template_versions set body = '{}' where id = (select id from t where step = 'v2') $$,
+  'P0001', 'Seule une version brouillon peut être modifiée.', 'a published version is immutable, even for the owner');
+select throws_ok($$ update public.document_template_versions set status = 'draft' where id = (select id from t where step = 'v2') $$,
+  '22023', null, 'a version never goes back to draft');
+select throws_ok($$ update public.document_template_versions set status = 'published' where id = (select id from t where step = 'v1') $$,
+  '22023', null, 'an archived version stays archived');
+
+-- Visibility
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select results_eq($$ select key, can_edit, published_version, draft_version_id from public.list_document_templates() $$,
+  $$ values ('core.test_contract'::text, false, 2, null::uuid), ('professionals.test_contract', true, 1, null) $$,
+  'the adjointe (settings.view, professionals.view) lists both; she edits only the one whose edit permission she holds');
+select is((select count(*)::int from public.document_template_versions
+            where template_id = (select id from t where step = 't1')), 3, 'the adjointe reads the core versions');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select results_eq($$ select key from public.list_document_templates() $$,
+  $$ values ('professionals.test_contract'::text) $$, 'the conseillère (no settings.view) sees only the professionals template');
+select is((select count(*)::int from public.document_template_versions
+            where template_id = (select id from t where step = 't1')), 0, 'nor its versions');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select results_eq($$ select key, can_edit, published_version_id from public.list_document_templates('core') $$,
+  $$ values ('core.test_contract'::text, true, (select id from t where step = 'v2')) $$, 'admin: filtered by module, editable');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+select is_empty($$ select 1 from public.list_document_templates() $$, 'org B sees none of org A''s templates');
+reset role;
+update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select is_empty($$ select 1 from public.document_templates $$, 'a template with a disabled module''s permission is invisible');
+reset role;
+update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
+
+-- =============================================================================
+-- Service role: context and creation
+-- =============================================================================
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select results_eq($$
+  select c -> 'version' ->> 'id', c -> 'version' ->> 'template_key', c -> 'version' -> 'signers',
+         c -> 'version' ->> 'email_subject', c ->> 'module_key', c ->> 'module_enabled', c ->> 'timezone',
+         c -> 'settings', c -> 'clinic' ->> 'signatory_email', c -> 'logo', c -> 'signature'
+    from public.get_signing_context('b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'v2')) c
+$$, $$ select (select id::text from t where step = 'v2'), 'core.test_contract'::text, (select v from fx where k = 'signers'),
+              'Votre contrat'::text, 'core'::text, 'true'::text, 'America/Toronto'::text,
+              '{"base_url": "https://sign.cliniquemana.com", "expiry_days": 14}'::jsonb, 'direction@a.test'::text,
+              'null'::jsonb,
+              jsonb_build_object('file_id', 'e0000000-0000-0000-0000-000000000001', 'bucket', 'org-assets',
+                'object_path', 'b0000000-0000-0000-0000-00000000000a/core/b0000000-0000-0000-0000-00000000000a/e0000000-0000-0000-0000-000000000001.png') $$,
+  'get_signing_context: version, settings, clinic, module state, assets as {bucket, object_path}');
+select results_eq($$
+  select c -> 'version', c ->> 'module_key', c -> 'clinic' ->> 'signatory_name'
+    from public.get_signing_context('b0000000-0000-0000-0000-00000000000a', null) c
+$$, $$ values ('null'::jsonb, 'core'::text, 'Christine Signataire'::text) $$,
+  'get_signing_context without a version (the built-in test document)');
+select throws_ok($$ select public.get_signing_context('b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'v1')) $$,
+  '22023', null, 'an archived version gives no context');
+select throws_ok($$ select public.get_signing_context('b0000000-0000-0000-0000-00000000000b', (select id from t where step = 'v2')) $$,
+  '22023', null, 'another org''s version gives no context');
+
+-- Requests on subject d…01 (users.view) and others.
+create temp table rq (k text primary key, p jsonb) on commit drop;
+grant select on rq to service_role, authenticated;
+insert into rq (k, p)
+select k, jsonb_build_object(
+  'org_id', 'b0000000-0000-0000-0000-00000000000a', 'module_key', 'core', 'purpose', 'core.test_contract',
+  'template_version_id', (select id from t where step = 'v2'), 'subject_type', 'test_subject',
+  'subject_id', 'd0000000-0000-0000-0000-000000000001', 'title', 'Contrat de service — Marie Tremblay',
+  'view_permission', 'users.view', 'idempotency_key', 'key-' || k, 'sent_by', 'a0000000-0000-0000-0000-000000000001',
+  'signers', jsonb_build_array(
+    jsonb_build_object('role', 'professional', 'name', 'Marie Tremblay', 'email', 'marie@pro.test', 'order', 1),
+    jsonb_build_object('role', 'clinic', 'name', 'Christine Signataire', 'email', 'direction@a.test', 'order', 2)))
+  from unnest(array['r1', 'r2', 'r3', 'r4']) k;
+
+select results_eq($$ select existing, status from public.create_signature_request((select p from rq where k = 'r1')) $$,
+  $$ values (false, 'draft'::text) $$, 'create_signature_request: a new draft');
+reset role;
+insert into t (step, id) select 'r1', id from public.signature_requests where idempotency_key = 'key-r1';
+set local role service_role;
+select results_eq($$ select id, existing, status from public.create_signature_request((select p from rq where k = 'r1')) $$,
+  $$ select (select id from t where step = 'r1'), true, 'draft'::text $$, 'the same idempotency key → the existing row');
+insert into t (step, id) select k, r.id from rq, lateral public.create_signature_request(rq.p) r where rq.k in ('r2', 'r3', 'r4');
+insert into t (step, id)
+select 'rp', r.id from public.create_signature_request(jsonb_build_object(
+  'org_id', 'b0000000-0000-0000-0000-00000000000a', 'module_key', 'professionals', 'purpose', 'professionals.test_contract',
+  'template_version_id', (select id from t where step = 'vp'), 'subject_type', 'professional',
+  'subject_id', 'd0000000-0000-0000-0000-000000000002', 'title', 'Contrat', 'view_permission', 'professionals.view',
+  'idempotency_key', 'key-rp', 'sent_by', null,
+  'signers', '[{"role": "professional", "name": "Paul", "email": "paul@pro.test", "order": 1}]'::jsonb)) r;
+insert into t (step, id)
+select 'rt', r.id from public.create_signature_request(jsonb_build_object(
+  'org_id', 'b0000000-0000-0000-0000-00000000000a', 'module_key', 'core', 'purpose', 'core.signing_test',
+  'template_version_id', null, 'subject_type', 'signing_test', 'subject_id', 'a0000000-0000-0000-0000-000000000001',
+  'title', 'Document test', 'view_permission', 'settings.integrations_manage', 'idempotency_key', 'key-rt',
+  'sent_by', 'a0000000-0000-0000-0000-000000000001',
+  'signers', '[{"role": "clinic", "name": "Admin A", "email": "admin@a.test", "order": 1}]'::jsonb)) r;
+select is((select count(*)::int from t where step in ('r1', 'r2', 'r3', 'r4', 'rp', 'rt') and id is not null), 6,
+  'six requests created');
+
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"idempotency_key": "k-x", "template_version_id": null}') $$,
+  '22023', null, 'only the built-in test document has no template version');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || jsonb_build_object('idempotency_key', 'k-x', 'template_version_id', (select id from t where step = 'v1'))) $$,
+  '22023', null, 'the template version must be published');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"idempotency_key": "k-x", "view_permission": "professionals.view"}') $$,
+  '22023', null, 'the view permission belongs to the request''s module (the module gate)');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"idempotency_key": "k-x", "purpose": "professionals.test_contract"}') $$,
+  '22023', null, 'the purpose starts with the module key');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"idempotency_key": "k-x", "signers": [{"role": "clinic", "name": "C", "email": "c@a.test", "order": 1}]}') $$,
+  '22023', null, 'every required signer of the version is present');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"idempotency_key": "k-x", "signers": [{"role": "professional", "name": "M", "email": "m@a.test", "order": 1},
+                                                                 {"role": "client", "name": "C", "email": "c@a.test", "order": 2}]}') $$,
+  '22023', null, 'a signer''s role must be one of the version''s');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"idempotency_key": "k-x", "signers": [{"role": "professional", "name": "M", "email": "pas une adresse", "order": 1}]}') $$,
+  '22023', null, 'a signer''s address is one mailbox');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"idempotency_key": "k-x", "signers": [{"role": "professional", "name": "M", "email": "Same@a.test", "order": 1},
+                                                                 {"role": "clinic", "name": "C", "email": "same@a.test", "order": 2}]}') $$,
+  'P0001', 'Chaque signataire doit avoir sa propre adresse courriel.', 'two signers cannot share an address');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"idempotency_key": "k-x", "sent_by": "a0000000-0000-0000-0000-000000000006"}') $$,
+  '22023', null, 'the sender is a member of the org');
+select throws_ok($$ select * from public.create_signature_request((select p from rq where k = 'r1')
+                      || '{"idempotency_key": "k-x", "org_id": "b0000000-0000-0000-0000-00000000000b"}') $$,
+  '22023', null, 'the template version belongs to the org');
+reset role;
+update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
+set local role service_role;
+select throws_ok($$ select * from public.create_signature_request(jsonb_build_object(
+  'org_id', 'b0000000-0000-0000-0000-00000000000a', 'module_key', 'professionals', 'purpose', 'professionals.test_contract',
+  'template_version_id', (select id from t where step = 'vp'), 'subject_type', 'professional',
+  'subject_id', 'd0000000-0000-0000-0000-000000000002', 'title', 'Contrat', 'view_permission', 'professionals.view',
+  'idempotency_key', 'key-rp2', 'sent_by', null,
+  'signers', '[{"role": "professional", "name": "Paul", "email": "paul@pro.test", "order": 1}]'::jsonb)) $$,
+  '22023', null, 'a disabled module cannot create a request');
+reset role;
+update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
+
+select results_eq($$
+  select r.status, r.module_key, r.purpose, r.view_permission, r.sent_by, r.documenso_document_id, r.last_error,
+         (select jsonb_agg(jsonb_build_array(s.role, s.name, s.email, s.signing_order, s.status) order by s.signing_order)
+            from public.signature_request_signers s where s.request_id = r.id)
+    from public.signature_requests r where r.id = (select id from t where step = 'r1')
+$$, $$ values ('draft'::text, 'core'::text, 'core.test_contract'::text, 'users.view'::text,
+               'a0000000-0000-0000-0000-000000000001'::uuid, null::text, null::text,
+               '[["professional", "Marie Tremblay", "marie@pro.test", 1, "pending"],
+                 ["clinic", "Christine Signataire", "direction@a.test", 2, "pending"]]'::jsonb) $$,
+  'the request and its signers are inserted together');
+select is((select count(*)::int from public.signature_requests where org_id = 'b0000000-0000-0000-0000-00000000000a'
+            and idempotency_key = 'key-r1'), 1, 'one row per idempotency key');
+
+-- =============================================================================
+-- Sent / failed
+-- =============================================================================
+-- An org B request already sent (document 900).
+insert into public.signature_requests (id, org_id, module_key, purpose, subject_type, subject_id, title, status,
+  documenso_document_id, idempotency_key, view_permission, sent_at, expires_at)
+values ('c0000000-0000-0000-0000-0000000000b1', 'b0000000-0000-0000-0000-00000000000b', 'core', 'core.signing_test',
+  'signing_test', 'a0000000-0000-0000-0000-000000000006', 'Document test', 'sent', '900', 'key-b1',
+  'settings.integrations_manage', now(), now() + interval '7 days');
+
+set local role service_role;
+insert into t (step, id)
+select 'src_' || k, f.file_id
+  from unnest(array['r1', 'r2', 'r3', 'rp']) k,
+       lateral public.register_system_file('b0000000-0000-0000-0000-00000000000a', 'documents', 'core', 'signing_source',
+         'signature_request', (select id from t where step = k), 'application/pdf', 5000, repeat('c', 64),
+         case k when 'rp' then 'professionals.view' else 'users.view' end, 'Contrat.pdf') f;
+insert into t (step, id)
+select 'src_bad', f.file_id
+  from public.register_system_file('b0000000-0000-0000-0000-00000000000a', 'documents', 'core', 'signing_source',
+         'signature_request', (select id from t where step = 'r4'), 'application/pdf', 5000, repeat('c', 64),
+         'settings.view', 'Contrat.pdf') f;
+reset role;
+
+-- The recipients map of each request: professional → <n>01, clinic → <n>02.
+create temp table rc (k text primary key, p jsonb) on commit drop;
+grant select on rc to service_role;
+insert into rc (k, p)
+select k, (select jsonb_agg(jsonb_build_object('signer_id', s.id,
+                              'recipient_id', n || case s.role when 'professional' then '01' else '02' end))
+             from public.signature_request_signers s where s.request_id = (select id from t where step = k))
+  from (values ('r1', '1'), ('r2', '2'), ('r3', '3'), ('r4', '4'), ('rp', '5')) v (k, n);
+
+set local role service_role;
+select throws_ok($$ select public.mark_signature_request_sent((select id from t where step = 'r1'), '11', 'envelope_11',
+                      (select id from t where step = 'src_r1'), (select p from rc where k = 'r1') - 1, now() + interval '14 days') $$,
+  '22023', null, 'mark_sent: every signer gets a recipient id');
+select throws_ok($$ select public.mark_signature_request_sent((select id from t where step = 'r1'), '11', 'envelope_11',
+                      (select id from t where step = 'src_r2'), (select p from rc where k = 'r1'), now() + interval '14 days') $$,
+  '22023', null, 'mark_sent: the source file is this request''s');
+select throws_ok($$ select public.mark_signature_request_sent((select id from t where step = 'r4'), '14', 'envelope_14',
+                      (select id from t where step = 'src_bad'), (select p from rc where k = 'r4'), now() + interval '14 days') $$,
+  '22023', null, 'mark_sent: the source file has the request''s view permission');
+select throws_ok($$ select public.mark_signature_request_sent((select id from t where step = 'r1'), 'abc', 'envelope_11',
+                      (select id from t where step = 'src_r1'), (select p from rc where k = 'r1'), now() + interval '14 days') $$,
+  '22023', null, 'mark_sent: a Documenso document id is numeric');
+select throws_ok($$ select public.mark_signature_request_sent((select id from t where step = 'r1'), '11', 'envelope_11',
+                      (select id from t where step = 'src_r1'), (select p from rc where k = 'r1'), now() - interval '1 minute') $$,
+  '22023', null, 'mark_sent: the expiry is in the future');
+select lives_ok($$ select public.mark_signature_request_sent((select id from t where step = 'r1'), '11', 'envelope_11',
+                     (select id from t where step = 'src_r1'), (select p from rc where k = 'r1'), now() + interval '14 days') $$,
+  'mark_signature_request_sent');
+select throws_ok($$ select public.mark_signature_request_sent((select id from t where step = 'r1'), '11', 'envelope_11',
+                      (select id from t where step = 'src_r1'), (select p from rc where k = 'r1'), now() + interval '14 days') $$,
+  '22023', null, 'mark_sent: only a draft');
+select public.mark_signature_request_sent((select id from t where step = k), n, 'envelope_' || n,
+         (select id from t where step = 'src_' || k), (select p from rc where k = v.k), now() + interval '7 days')
+  from (values ('r2', '12'), ('r3', '13'), ('rp', '15')) v (k, n);
+select throws_ok($$ select public.mark_signature_request_failed((select id from t where step = 'r4'), 'Bad Code') $$,
+  '22023', null, 'mark_failed: the error is a code');
+select lives_ok($$ select public.mark_signature_request_failed((select id from t where step = 'r4'), 'provider_error', '14', 'envelope_14') $$,
+  'mark_signature_request_failed keeps the document Documenso created');
+select throws_ok($$ select public.mark_signature_request_failed((select id from t where step = 'r1'), 'provider_error') $$,
+  '22023', null, 'mark_failed: only a draft');
+reset role;
+
+select results_eq($$
+  select r.status, r.documenso_document_id, r.envelope_id, r.source_file_id = (select id from t where step = 'src_r1'),
+         r.sent_at, r.expires_at, r.last_error,
+         (select array_agg(s.documenso_recipient_id order by s.signing_order) from public.signature_request_signers s where s.request_id = r.id),
+         (select f.retain_until from public.stored_files f where f.id = r.source_file_id)
+    from public.signature_requests r where r.id = (select id from t where step = 'r1')
+$$, $$ values ('sent'::text, '11'::text, 'envelope_11'::text, true, now(), now() + interval '14 days', null::text,
+               array['101', '102'], null::timestamptz) $$,
+  'sent: document, envelope, recipients, expiry; the source file is no longer staged');
+select results_eq($$ select status, documenso_document_id, envelope_id, last_error from public.signature_requests
+                      where id = (select id from t where step = 'r4') $$,
+  $$ values ('draft'::text, '14'::text, 'envelope_14'::text, 'provider_error'::text) $$,
+  'failed: stays a draft with last_error and the document id (reconcile cancels it)');
+
+-- =============================================================================
+-- apply_signing_event
+-- =============================================================================
+set local role service_role;
+select results_eq($$ select outcome, request_id, module_key, needs_download from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r1'), '11', 'DOCUMENT_OPENED', '101', now(), null) $$,
+  $$ select 'applied'::text, (select id from t where step = 'r1'), 'core'::text, false $$, 'opened → applied');
+select results_eq($$ select outcome from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r1'), '11', 'DOCUMENT_OPENED', '101', now(), null) $$,
+  $$ values ('ignored'::text) $$, 'opened twice → ignored');
+select results_eq($$ select outcome from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r1'), '11', 'DOCUMENT_SIGNED', '101', now(), null) $$,
+  $$ values ('applied'::text) $$, 'a recipient signed → applied');
+select results_eq($$ select outcome from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r1'), '11', 'DOCUMENT_OPENED', '101', now(), null) $$,
+  $$ values ('ignored'::text) $$, 'opened after signed → ignored');
+reset role;
+select results_eq($$
+  select r.status, r.viewed_at,
+         (select jsonb_agg(jsonb_build_array(s.status, s.viewed_at is not null, s.signed_at is not null) order by s.signing_order)
+            from public.signature_request_signers s where s.request_id = r.id)
+    from public.signature_requests r where r.id = (select id from t where step = 'r1')
+$$, $$ values ('viewed'::text, now(), '[["signed", true, true], ["pending", false, false]]'::jsonb) $$,
+  'sent → viewed; the signer viewed then signed, never back');
+
+set local role service_role;
+select results_eq($$ select outcome, request_id, needs_download from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', null, '11', 'DOCUMENT_COMPLETED', null, now(), null) $$,
+  $$ select 'applied'::text, (select id from t where step = 'r1'), true $$,
+  'completed (found by document id) → needs_download');
+select results_eq($$ select outcome, needs_download from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', null, '11', 'DOCUMENT_COMPLETED', null, now(), null) $$,
+  $$ values ('applied'::text, true) $$, 'completed again before the download is stored → needs_download again');
+insert into t (step, id)
+select 'signed_r1', f.file_id
+  from public.register_system_file('b0000000-0000-0000-0000-00000000000a', 'signed-documents', 'core', 'signing_signed',
+         'signature_request', (select id from t where step = 'r1'), 'application/pdf', 6000, repeat('d', 64),
+         'users.view', 'Contrat signé.pdf') f;
+select throws_ok($$ select public.complete_signature_request((select id from t where step = 'r1'),
+                      (select id from t where step = 'signed_r1'), repeat('e', 64)) $$,
+  '22023', null, 'complete: the hash is the stored file''s');
+select throws_ok($$ select public.complete_signature_request((select id from t where step = 'r2'),
+                      (select id from t where step = 'signed_r1'), repeat('d', 64)) $$,
+  '22023', null, 'complete: the file is this request''s');
+select lives_ok($$ select public.complete_signature_request((select id from t where step = 'r1'),
+                     (select id from t where step = 'signed_r1'), repeat('d', 64)) $$, 'complete_signature_request');
+select lives_ok($$ select public.complete_signature_request((select id from t where step = 'r1'),
+                     (select id from t where step = 'signed_r1'), repeat('d', 64)) $$, 'complete is idempotent');
+select results_eq($$ select outcome, needs_download from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', null, '11', 'DOCUMENT_COMPLETED', null, now(), null) $$,
+  $$ values ('ignored'::text, false) $$, 'completed after signed → ignored');
+reset role;
+select results_eq($$
+  select r.status, r.completed_at, r.signed_sha256, r.signed_file_id = (select id from t where step = 'signed_r1'),
+         (select array_agg(s.status order by s.signing_order) from public.signature_request_signers s where s.request_id = r.id),
+         (select f.retain_until from public.stored_files f where f.id = r.signed_file_id)
+    from public.signature_requests r where r.id = (select id from t where step = 'r1')
+$$, $$ values ('signed'::text, now(), repeat('d', 64), true, array['signed', 'signed'], null::timestamptz) $$,
+  'signed: completed_at, the hash, every signer signed, the signed file kept');
+
+set local role service_role;
+select results_eq($$ select outcome from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r2'), '12', 'DOCUMENT_REJECTED', '201', now(),
+    E'Je refuse\u0007 ' || repeat('x', 600)) $$,
+  $$ values ('applied'::text) $$, 'rejected → applied');
+select results_eq($$ select outcome from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r2'), '12', 'DOCUMENT_SIGNED', '202', now(), null) $$,
+  $$ values ('ignored'::text) $$, 'an event after rejected → ignored');
+select results_eq($$ select outcome from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r3'), '13', 'DOCUMENT_CANCELLED', null, now(), null) $$,
+  $$ values ('applied'::text) $$, 'cancelled → applied');
+select results_eq($$ select outcome from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r3'), '13', 'DOCUMENT_OPENED', '301', now(), null) $$,
+  $$ values ('ignored'::text) $$, 'a cancelled request ignores later events');
+select results_eq($$ select outcome, request_id from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', null, '900', 'DOCUMENT_OPENED', null, now(), null) $$,
+  $$ values ('not_found'::text, null::uuid) $$, 'another org''s document id → not_found');
+select results_eq($$ select outcome from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000b', (select id from t where step = 'r2'), null, 'DOCUMENT_OPENED', null, now(), null) $$,
+  $$ values ('not_found'::text) $$, 'a request of another org than the hinted one → not_found');
+select results_eq($$ select outcome from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r1'), '12', 'DOCUMENT_OPENED', null, now(), null) $$,
+  $$ values ('not_found'::text) $$, 'the request id and the document id name two different requests → not_found');
+select results_eq($$ select outcome from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'r4'), '14', 'DOCUMENT_OPENED', '401', now(), null) $$,
+  $$ values ('ignored'::text) $$, 'a draft ignores events (reconcile handles it)');
+select results_eq($$ select outcome from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', (select id from t where step = 'rp'), '15', 'DOCUMENT_SENT', null, now(), null) $$,
+  $$ values ('ignored'::text) $$, 'an event without an effect → ignored');
+select throws_ok($$ select * from public.apply_signing_event('b0000000-0000-0000-0000-00000000000a', null, '15', null, null, now(), null) $$,
+  '22023', null, 'an event name is required');
+reset role;
+update public.org_modules set enabled = false where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
+set local role service_role;
+select results_eq($$ select outcome, module_key from public.apply_signing_event(
+    'b0000000-0000-0000-0000-00000000000a', null, '15', 'DOCUMENT_OPENED', '501', now(), null) $$,
+  $$ values ('ignored'::text, 'professionals'::text) $$, 'a disabled module → ignored');
+reset role;
+update public.org_modules set enabled = true where org_id = 'b0000000-0000-0000-0000-00000000000a' and module_key = 'professionals';
+select results_eq($$
+  select k, r.status, r.rejected_at is not null, r.cancelled_at is not null, length(r.rejection_reason),
+         left(r.rejection_reason, 10),
+         (select array_agg(s.status order by s.signing_order) from public.signature_request_signers s where s.request_id = r.id)
+    from (values ('r2'), ('r3'), ('rp')) v (k)
+    join public.signature_requests r on r.id = (select id from t where step = v.k)
+   order by k
+$$, $$ values ('r2'::text, 'rejected'::text, true, false, 500, 'Je refuse '::text, array['rejected', 'pending']),
+              ('r3', 'cancelled', false, true, null, null, array['pending', 'pending']),
+              ('rp', 'sent', false, false, null, null, array['pending']) $$,
+  'rejected keeps a reason cut to 500 characters, control characters removed; cancelled; the disabled module''s request unchanged');
+
+-- =============================================================================
+-- User reads
+-- =============================================================================
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select results_eq($$
+  select l.status, l.template_version, l.title, jsonb_path_query_array(l.signers, '$[*].role'),
+         jsonb_path_query_array(l.signers, '$[*].status'), jsonb_path_query_array(l.signers, '$[*].name')
+    from public.list_subject_signature_requests('test_subject', 'd0000000-0000-0000-0000-000000000001') l
+   where l.id = (select id from t where step = 'r2')
+$$, $$ values ('rejected'::text, 2, 'Contrat de service — Marie Tremblay'::text, '["professional", "clinic"]'::jsonb,
+              '["rejected", "pending"]'::jsonb, '["Marie Tremblay", "Christine Signataire"]'::jsonb) $$,
+  'list_subject_signature_requests: status, template version, signers in signing order');
+select is((select count(*)::int from public.list_subject_signature_requests('test_subject', 'd0000000-0000-0000-0000-000000000001')),
+  4, 'admin A lists the subject''s four requests (users.view)');
+select ok(not exists (
+  select 1 from public.list_subject_signature_requests('test_subject', 'd0000000-0000-0000-0000-000000000001') l,
+         jsonb_array_elements(l.signers) s where s ? 'email'), 'the signers carry roles and statuses, never an address');
+select results_eq($$ select id from public.list_subject_signature_requests('test_subject', 'd0000000-0000-0000-0000-000000000001', 2) $$,
+  $$ select id from t where step in ('r1', 'r2', 'r3', 'r4') order by id desc limit 2 $$, 'newest first, limit 2');
+select results_eq($$ select id from public.list_subject_signature_requests('test_subject', 'd0000000-0000-0000-0000-000000000001', 2,
+                      now(), (select id from t where step in ('r1', 'r2', 'r3', 'r4') order by id desc offset 1 limit 1)) $$,
+  $$ select id from t where step in ('r1', 'r2', 'r3', 'r4') order by id desc offset 2 $$, 'keyset: the next page after (created_at, id)');
+select results_eq($$ select id, org_id, module_key, status, documenso_document_id, envelope_id
+                      from public.get_signature_request((select id from t where step = 'r1')) $$,
+  $$ select (select id from t where step = 'r1'), 'b0000000-0000-0000-0000-00000000000a'::uuid, 'core'::text, 'signed'::text,
+            '11'::text, 'envelope_11'::text $$, 'get_signature_request: one row');
+select is((select count(*)::int from public.signature_request_signers
+            where request_id in (select id from t where step in ('r1', 'r2'))), 4, 'admin A reads the signers through the request');
+
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select is_empty($$ select 1 from public.list_subject_signature_requests('test_subject', 'd0000000-0000-0000-0000-000000000001') $$,
+  'the conseillère (no users.view) sees none of them');
+select is_empty($$ select 1 from public.get_signature_request((select id from t where step = 'r1')) $$,
+  'nor through get_signature_request');
+select is_empty($$ select 1 from public.signature_request_signers where request_id = (select id from t where step = 'r1') $$,
+  'nor their signers');
+select results_eq($$ select id from public.list_subject_signature_requests('professional', 'd0000000-0000-0000-0000-000000000002') $$,
+  $$ select id from t where step = 'rp' $$, 'she sees the professionals request (professionals.view)');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+select is_empty($$ select 1 from public.signature_requests where id in (select id from t) $$, 'org B sees none of org A''s requests');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+select is_empty($$ select 1 from public.signature_requests $$, 'a disabled admin sees nothing');
+reset role;
+
+-- =============================================================================
+-- Reconcile and expiry
+--   x1 sent 2 days ago (sync)        x2 draft 2 days old (abandon)   x3 abandoned draft (not listed)
+--   x4 viewed, past its expiry       x5 sent an hour ago (not listed) x6 org B, sent 2 days ago
+-- =============================================================================
+insert into public.signature_requests (id, org_id, module_key, purpose, subject_type, subject_id, title, status,
+  documenso_document_id, envelope_id, idempotency_key, view_permission, last_error, created_at, sent_at, expires_at)
+select x.id, x.org, 'core', 'core.signing_test', 'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Test', x.status,
+       x.doc, case when x.doc is not null then 'envelope_' || x.doc end, 'key-' || x.id, 'settings.integrations_manage',
+       x.err, x.created, x.sent, x.expires
+  from (values
+    ('c0000000-0000-0000-0000-000000000001'::uuid, 'b0000000-0000-0000-0000-00000000000a'::uuid, 'sent', '601', null::text,
+     now() - interval '2 days', now() - interval '2 days', now() + interval '5 days'),
+    ('c0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'draft', '602', 'provider_error',
+     now() - interval '2 days', null, null),
+    ('c0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'draft', null, 'abandoned',
+     now() - interval '3 days', null, null),
+    ('c0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'viewed', '604', null,
+     now() - interval '8 days', now() - interval '8 days', now() - interval '1 hour'),
+    ('c0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'sent', '605', null,
+     now() - interval '1 hour', now() - interval '1 hour', now() + interval '7 days'),
+    ('c0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000b', 'sent', '606', null,
+     now() - interval '2 days', now() - interval '2 days', now() + interval '5 days')
+  ) as x (id, org, status, doc, err, created, sent, expires);
+
+set local role service_role;
+select results_eq($$
+  select id, status, documenso_document_id, envelope_id, action
+    from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a')
+$$, $$ values
+  ('c0000000-0000-0000-0000-000000000004'::uuid, 'viewed'::text, '604'::text, 'envelope_604'::text, 'expire'::text),
+  ('c0000000-0000-0000-0000-000000000001', 'sent', '601', 'envelope_601', 'sync'),
+  ('c0000000-0000-0000-0000-000000000002', 'draft', '602', 'envelope_602', 'abandon')
+$$, 'org A: overdue → expire, sent over a day ago → sync, stale draft → abandon; oldest first');
+select results_eq($$ select id from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a', 1) $$,
+  $$ values ('c0000000-0000-0000-0000-000000000004'::uuid) $$, 'p_limit pages the list');
+select ok(public.expire_signature_request('c0000000-0000-0000-0000-000000000004'), 'expire an overdue request');
+select ok(not public.expire_signature_request('c0000000-0000-0000-0000-000000000001'), 'a request not yet overdue is left as is');
+select ok(not public.expire_signature_request('c0000000-0000-0000-0000-000000000004'), 'an expired request stays expired');
+select lives_ok($$ select public.mark_signature_request_failed('c0000000-0000-0000-0000-000000000002', 'abandoned') $$,
+  'reconcile abandons the stale draft');
+select results_eq($$ select id from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a') $$,
+  $$ values ('c0000000-0000-0000-0000-000000000001'::uuid) $$, 'expired and abandoned requests leave the list');
+reset role;
+select results_eq($$ select status, expired_at from public.signature_requests where id = 'c0000000-0000-0000-0000-000000000004' $$,
+  $$ values ('expired'::text, now()) $$, 'expired: status and expired_at');
+
+-- =============================================================================
+-- Audit
+-- =============================================================================
+select results_eq($$
+  select l.action, l.changed_fields -> 'email', l.changed_fields -> 'name', l.changed_fields ->> 'role'
+    from public.audit_log l
+   where l.table_name = 'signature_request_signers' and l.action = 'insert'
+     and l.record_id in (select s.id::text from public.signature_request_signers s where s.request_id = (select id from t where step = 'r1'))
+   order by l.changed_fields ->> 'signing_order'
+$$, $$ values ('insert'::text, '"[redacted]"'::jsonb, '"[redacted]"'::jsonb, 'professional'::text),
+              ('insert', '"[redacted]"'::jsonb, '"[redacted]"'::jsonb, 'clinic') $$,
+  'the signers'' audit rows redact the address and the name: the timeline shows roles');
+select results_eq($$
+  select l.changed_fields -> 'status' from public.audit_log l
+   where l.table_name = 'signature_requests' and l.record_id = (select id::text from t where step = 'r1') and l.action = 'update'
+     and l.changed_fields ? 'status'
+   order by l.id
+$$, $$ values ('{"before": "draft", "after": "sent"}'::jsonb), ('{"before": "sent", "after": "viewed"}'::jsonb),
+              ('{"before": "viewed", "after": "signed"}'::jsonb) $$,
+  'signature_requests is audited: draft → sent → viewed → signed');
+select results_eq($$
+  select l.action, l.changed_fields -> 'body', l.actor_id from public.audit_log l
+   where l.table_name = 'document_template_versions' and l.record_id = (select id::text from t where step = 'v1')
+     and l.changed_fields ? 'body'
+   order by l.id
+$$, $$ values ('insert'::text, '"[redacted]"'::jsonb, 'a0000000-0000-0000-0000-000000000001'::uuid),
+              ('update', '"[redacted]"'::jsonb, 'a0000000-0000-0000-0000-000000000001'::uuid) $$,
+  'versions are audited with the body redacted (the immutable version is the record)');
+select ok(exists (
+  select 1 from public.audit_log l
+   where l.table_name = 'signing_settings' and l.record_id = 'b0000000-0000-0000-0000-00000000000a' and l.action = 'update'
+     and l.changed_fields -> 'expiry_days' = '{"before": 7, "after": 14}'), 'signing_settings is audited');
+
+select * from finish();
+rollback;

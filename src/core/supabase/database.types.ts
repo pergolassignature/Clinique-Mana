@@ -48,6 +48,166 @@ export type Database = {
         }
         Relationships: []
       }
+      document_template_versions: {
+        Row: {
+          archived_at: string | null
+          body: Json
+          created_at: string
+          created_by: string | null
+          email_message: string
+          email_subject: string
+          id: string
+          org_id: string
+          published_at: string | null
+          published_by: string | null
+          signers: Json
+          status: string
+          template_id: string
+          updated_at: string
+          variables: Json
+          version: number
+        }
+        Insert: {
+          archived_at?: string | null
+          body?: Json
+          created_at?: string
+          created_by?: string | null
+          email_message?: string
+          email_subject?: string
+          id?: string
+          org_id: string
+          published_at?: string | null
+          published_by?: string | null
+          signers?: Json
+          status?: string
+          template_id: string
+          updated_at?: string
+          variables?: Json
+          version: number
+        }
+        Update: {
+          archived_at?: string | null
+          body?: Json
+          created_at?: string
+          created_by?: string | null
+          email_message?: string
+          email_subject?: string
+          id?: string
+          org_id?: string
+          published_at?: string | null
+          published_by?: string | null
+          signers?: Json
+          status?: string
+          template_id?: string
+          updated_at?: string
+          variables?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_template_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "document_template_versions_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "document_template_versions_template_id_org_id_fkey"
+            columns: ["template_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "document_templates"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      document_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          edit_permission: string
+          id: string
+          is_active: boolean
+          key: string
+          module_key: string
+          org_id: string
+          title: string
+          updated_at: string
+          view_permission: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          edit_permission: string
+          id?: string
+          is_active?: boolean
+          key: string
+          module_key: string
+          org_id: string
+          title: string
+          updated_at?: string
+          view_permission: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          edit_permission?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          module_key?: string
+          org_id?: string
+          title?: string
+          updated_at?: string
+          view_permission?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "document_templates_edit_permission_module_key_fkey"
+            columns: ["edit_permission", "module_key"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key", "module_key"]
+          },
+          {
+            foreignKeyName: "document_templates_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "document_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_templates_view_permission_module_key_fkey"
+            columns: ["view_permission", "module_key"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key", "module_key"]
+          },
+        ]
+      }
       email_log: {
         Row: {
           attachment_count: number
@@ -1337,6 +1497,247 @@ export type Database = {
           },
         ]
       }
+      signature_request_signers: {
+        Row: {
+          created_at: string
+          documenso_recipient_id: string | null
+          email: string
+          id: string
+          name: string
+          org_id: string
+          rejected_at: string | null
+          request_id: string
+          role: string
+          signed_at: string | null
+          signing_order: number
+          status: string
+          updated_at: string
+          viewed_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          documenso_recipient_id?: string | null
+          email: string
+          id?: string
+          name: string
+          org_id: string
+          rejected_at?: string | null
+          request_id: string
+          role: string
+          signed_at?: string | null
+          signing_order: number
+          status?: string
+          updated_at?: string
+          viewed_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          documenso_recipient_id?: string | null
+          email?: string
+          id?: string
+          name?: string
+          org_id?: string
+          rejected_at?: string | null
+          request_id?: string
+          role?: string
+          signed_at?: string | null
+          signing_order?: number
+          status?: string
+          updated_at?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_request_signers_request_id_org_id_fkey"
+            columns: ["request_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "signature_requests"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      signature_requests: {
+        Row: {
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          documenso_document_id: string | null
+          envelope_id: string | null
+          expired_at: string | null
+          expires_at: string | null
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          module_key: string
+          org_id: string
+          purpose: string
+          rejected_at: string | null
+          rejection_reason: string | null
+          sent_at: string | null
+          sent_by: string | null
+          signed_file_id: string | null
+          signed_sha256: string | null
+          source_file_id: string | null
+          status: string
+          subject_id: string
+          subject_type: string
+          template_version_id: string | null
+          title: string
+          updated_at: string
+          view_permission: string
+          viewed_at: string | null
+        }
+        Insert: {
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          documenso_document_id?: string | null
+          envelope_id?: string | null
+          expired_at?: string | null
+          expires_at?: string | null
+          id?: string
+          idempotency_key: string
+          last_error?: string | null
+          module_key: string
+          org_id: string
+          purpose: string
+          rejected_at?: string | null
+          rejection_reason?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          signed_file_id?: string | null
+          signed_sha256?: string | null
+          source_file_id?: string | null
+          status?: string
+          subject_id: string
+          subject_type: string
+          template_version_id?: string | null
+          title: string
+          updated_at?: string
+          view_permission: string
+          viewed_at?: string | null
+        }
+        Update: {
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          documenso_document_id?: string | null
+          envelope_id?: string | null
+          expired_at?: string | null
+          expires_at?: string | null
+          id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          module_key?: string
+          org_id?: string
+          purpose?: string
+          rejected_at?: string | null
+          rejection_reason?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          signed_file_id?: string | null
+          signed_sha256?: string | null
+          source_file_id?: string | null
+          status?: string
+          subject_id?: string
+          subject_type?: string
+          template_version_id?: string | null
+          title?: string
+          updated_at?: string
+          view_permission?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_requests_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "signature_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_sent_by_org_id_fkey"
+            columns: ["sent_by", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id", "org_id"]
+          },
+          {
+            foreignKeyName: "signature_requests_signed_file_id_fkey"
+            columns: ["signed_file_id"]
+            isOneToOne: false
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_source_file_id_fkey"
+            columns: ["source_file_id"]
+            isOneToOne: false
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_template_version_id_org_id_fkey"
+            columns: ["template_version_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "document_template_versions"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "signature_requests_view_permission_module_key_fkey"
+            columns: ["view_permission", "module_key"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key", "module_key"]
+          },
+        ]
+      }
+      signing_settings: {
+        Row: {
+          base_url: string | null
+          expiry_days: number
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          base_url?: string | null
+          expiry_days?: number
+          org_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          base_url?: string | null
+          expiry_days?: number
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signing_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signing_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       staff_invitations: {
         Row: {
           accepted_at: string | null
@@ -1835,6 +2236,24 @@ export type Database = {
         }
         Returns: string
       }
+      apply_signing_event: {
+        Args: {
+          p_at: string
+          p_documenso_document_id: string
+          p_event: string
+          p_org_id: string
+          p_reason: string
+          p_recipient_id: string
+          p_request_id: string
+        }
+        Returns: {
+          module_key: string
+          needs_download: boolean
+          outcome: string
+          request_id: string
+        }[]
+      }
+      archive_template_version: { Args: { p_id: string }; Returns: undefined }
       claim_webhook_event: {
         Args: {
           p_event_id: string
@@ -1857,6 +2276,14 @@ export type Database = {
       clear_permission_overrides: {
         Args: { p_user_id: string }
         Returns: number
+      }
+      complete_signature_request: {
+        Args: {
+          p_id: string
+          p_signed_file_id: string
+          p_signed_sha256: string
+        }
+        Returns: undefined
       }
       complete_webhook_event: {
         Args: { p_claim_token: string; p_id: string }
@@ -1887,6 +2314,17 @@ export type Database = {
         }[]
       }
       count_org_emails_today: { Args: { p_org_id: string }; Returns: number }
+      create_document_template: {
+        Args: {
+          p_description: string
+          p_edit_permission: string
+          p_key: string
+          p_module_key: string
+          p_title: string
+          p_view_permission: string
+        }
+        Returns: string
+      }
       create_notification: {
         Args: {
           p_body: string
@@ -1924,6 +2362,14 @@ export type Database = {
         Args: { p_copy_from?: string; p_name: string }
         Returns: string
       }
+      create_signature_request: {
+        Args: { p: Json }
+        Returns: {
+          existing: boolean
+          id: string
+          status: string
+        }[]
+      }
       create_staff_invitation: {
         Args: {
           p_actor: string
@@ -1932,11 +2378,19 @@ export type Database = {
           p_role: string
           p_token_hash: string
         }
+        Returns: {
+          expires_at: string
+          id: string
+        }[]
+      }
+      create_template_version: {
+        Args: { p_template_id: string }
         Returns: string
       }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
       delete_role: { Args: { p_role: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
+      expire_signature_request: { Args: { p_id: string }; Returns: boolean }
       fail_webhook_event: {
         Args: { p_claim_token: string; p_error: string; p_id: string }
         Returns: boolean
@@ -1976,6 +2430,29 @@ export type Database = {
           size_bytes: number
         }[]
       }
+      get_signature_request: {
+        Args: { p_id: string }
+        Returns: {
+          completed_at: string
+          documenso_document_id: string
+          envelope_id: string
+          expires_at: string
+          id: string
+          last_error: string
+          module_key: string
+          org_id: string
+          purpose: string
+          sent_at: string
+          status: string
+          subject_id: string
+          subject_type: string
+          title: string
+        }[]
+      }
+      get_signing_context: {
+        Args: { p_org_id: string; p_template_version_id: string }
+        Returns: Json
+      }
       last_webhook_event_at: { Args: { p_provider: string }; Returns: string }
       list_audit_actors: {
         Args: never
@@ -2004,6 +2481,25 @@ export type Database = {
           record_id: string
           source: string
           table_name: string
+        }[]
+      }
+      list_document_templates: {
+        Args: { p_module_key?: string }
+        Returns: {
+          can_edit: boolean
+          description: string
+          draft_version_id: string
+          edit_permission: string
+          id: string
+          is_active: boolean
+          key: string
+          module_key: string
+          published_at: string
+          published_version: number
+          published_version_id: string
+          title: string
+          updated_at: string
+          view_permission: string
         }[]
       }
       list_email_log: {
@@ -2140,6 +2636,18 @@ export type Database = {
           schedule: string
         }[]
       }
+      list_signature_requests_to_reconcile: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          action: string
+          documenso_document_id: string
+          envelope_id: string
+          expires_at: string
+          id: string
+          module_key: string
+          status: string
+        }[]
+      }
       list_staff_invitations: {
         Args: never
         Returns: {
@@ -2173,6 +2681,37 @@ export type Database = {
           to_email: string
         }[]
       }
+      list_subject_signature_requests: {
+        Args: {
+          p_before?: string
+          p_before_id?: string
+          p_limit?: number
+          p_subject_id: string
+          p_subject_type: string
+        }
+        Returns: {
+          cancelled_at: string
+          completed_at: string
+          created_at: string
+          expired_at: string
+          expires_at: string
+          id: string
+          last_error: string
+          module_key: string
+          purpose: string
+          rejected_at: string
+          rejection_reason: string
+          sent_at: string
+          sent_by: string
+          signed_file_id: string
+          signers: Json
+          status: string
+          template_version: number
+          template_version_id: string
+          title: string
+          viewed_at: string
+        }[]
+      }
       mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_email_failed: {
         Args: { p_attempts: number; p_error_code: string; p_id: string }
@@ -2187,6 +2726,26 @@ export type Database = {
         Returns: number
       }
       mark_notifications_read: { Args: { p_ids: string[] }; Returns: undefined }
+      mark_signature_request_failed: {
+        Args: {
+          p_documenso_document_id?: string
+          p_envelope_id?: string
+          p_error_code: string
+          p_id: string
+        }
+        Returns: undefined
+      }
+      mark_signature_request_sent: {
+        Args: {
+          p_documenso_document_id: string
+          p_envelope_id: string
+          p_expires_at: string
+          p_id: string
+          p_signer_recipients: Json
+          p_source_file_id: string
+        }
+        Returns: undefined
+      }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
@@ -2196,6 +2755,7 @@ export type Database = {
         Args: { p_mark_opened: boolean; p_token_hash: string }
         Returns: Json
       }
+      publish_template_version: { Args: { p_id: string }; Returns: undefined }
       queue_email: {
         Args: {
           p_attachment_count: number
@@ -2306,6 +2866,10 @@ export type Database = {
         Args: { p_enabled: boolean; p_key: string }
         Returns: undefined
       }
+      set_signing_settings: {
+        Args: { p_base_url: string; p_expiry_days: number }
+        Returns: undefined
+      }
       set_user_role: {
         Args: { p_role: string; p_user_id: string }
         Returns: undefined
@@ -2319,6 +2883,17 @@ export type Database = {
         Returns: string
       }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
+      update_template_version: {
+        Args: {
+          p_body: Json
+          p_email_message: string
+          p_email_subject: string
+          p_id: string
+          p_signers: Json
+          p_variables: Json
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

@@ -80,3 +80,16 @@ insert into public.org_secrets (org_id, key, vault_secret_id)
 values ('00000000-0000-0000-0000-000000000001', 'resend_webhook_secret',
         vault.create_secret('whsec_bG9jYWwtZGV2LXJlc2VuZC13ZWJob29r',
                             'org:00000000-0000-0000-0000-000000000001:resend_webhook_secret'));
+
+-- Local signing (plan Task 3.32): the fake Documenso (`npm run fake:documenso`, port 55390, seen
+-- from the edge-runtime container) and its fake key and webhook secret, stored as set_org_secret
+-- stores them.
+update public.signing_settings set base_url = 'http://host.docker.internal:55390'
+ where org_id = '00000000-0000-0000-0000-000000000001';
+insert into public.org_secrets (org_id, key, vault_secret_id)
+values
+  ('00000000-0000-0000-0000-000000000001', 'documenso_api_key',
+   vault.create_secret('local-dev-documenso-key', 'org:00000000-0000-0000-0000-000000000001:documenso_api_key')),
+  ('00000000-0000-0000-0000-000000000001', 'documenso_webhook_secret',
+   vault.create_secret('local-dev-documenso-webhook-secret',
+                       'org:00000000-0000-0000-0000-000000000001:documenso_webhook_secret'));
