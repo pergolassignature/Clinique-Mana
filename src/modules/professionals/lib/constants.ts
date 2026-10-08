@@ -1,5 +1,5 @@
 /**
- * The module's fixed vocabularies, mirroring the SQL checks (migrations 20261008083000 to
+ * The module's fixed vocabularies, mirroring the SQL checks (migrations 20261008082847 to
  * 20261008100634). Identifiers are English; their French labels live in `modules.professionals.*`.
  */
 
