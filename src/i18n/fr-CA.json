@@ -50,6 +50,10 @@
       "stay": "Rester",
       "leave": "Quitter sans enregistrer"
     },
+    "star": {
+      "add": "Marquer comme spécialisé",
+      "remove": "Retirer la spécialisation"
+    },
     "notFound": { "title": "Page introuvable", "body": "Cette page n'existe pas ou a été déplacée." },
     "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." },
     "appError": { "title": "L'application a rencontré un problème", "body": "Réessayez dans un instant. Si le problème persiste, rechargez la page." },
@@ -1250,6 +1254,78 @@
         "header": {
           "languages": "Langues :",
           "notAccepting": "N'accepte pas de nouveaux clients"
+        },
+        "matching": {
+          "edit": "Modifier",
+          "readOnly": "Vous pouvez consulter le profil de jumelage, sans le modifier.",
+          "specialized": "(spécialisé)",
+          "archived": "archivé",
+          "clienteles": {
+            "title": "Clientèles",
+            "description": "Les personnes accompagnées, par âge ou par situation. ★ : spécialisé.",
+            "edit": "Modifier les clientèles",
+            "empty": "Aucune clientèle choisie",
+            "search": "Rechercher une clientèle…"
+          },
+          "approaches": {
+            "title": "Approches",
+            "description": "Les façons d'accompagner. ★ : spécialisé.",
+            "edit": "Modifier les approches",
+            "empty": "Aucune approche choisie",
+            "search": "Rechercher une approche…"
+          },
+          "motifs": {
+            "title": "Motifs",
+            "description": "Les besoins pour lesquels un client peut être jumelé à ce dossier.",
+            "edit": "Modifier les motifs",
+            "empty": "Aucun motif choisi",
+            "search": "Rechercher un motif ou une catégorie…",
+            "blocked": "Réservé aux professionnels qui ont un titre d'un ordre professionnel. Ajoutez d'abord un tel titre dans « Identité et permis »."
+          },
+          "languages": {
+            "title": "Langues",
+            "description": "Les langues dans lesquelles les rencontres peuvent se faire.",
+            "edit": "Modifier les langues",
+            "empty": "Aucune langue choisie",
+            "search": "Rechercher une langue…"
+          },
+          "availability": {
+            "title": "Disponibilités générales",
+            "description": "Les moments de la semaine où les rencontres sont habituellement possibles.",
+            "periods": "Moments de la semaine",
+            "accepting": "Accepte de nouveaux clients",
+            "acceptingHelp": "Désactivé, le dossier reste actif pour les clients déjà jumelés.",
+            "note": "Note",
+            "notePlaceholder": "Par exemple : pas le vendredi."
+          },
+          "picker": {
+            "starsHint": "L'étoile marque une spécialisation.",
+            "searchLabel": "Rechercher dans la liste",
+            "count": "Sélection : {selected} sur {total}",
+            "selectedOnly": "Sélectionnés seulement",
+            "expandAll": "Tout déplier",
+            "collapseAll": "Tout replier",
+            "groupCount": "{selected} sur {total}",
+            "selectAll": "Tout sélectionner",
+            "deselectAll": "Tout désélectionner",
+            "inGroup": "({group})",
+            "restricted": "Réservé",
+            "archived": "Archivé",
+            "noResults": {
+              "title": "Aucun résultat",
+              "body": "Essayez un autre mot, ou le nom d'une catégorie."
+            },
+            "noneSelected": {
+              "title": "Rien n'est sélectionné",
+              "body": "Désactivez « Sélectionnés seulement » pour voir toute la liste."
+            },
+            "discard": {
+              "title": "Abandonner les modifications ?",
+              "body": "Les changements faits dans cette liste ne seront pas enregistrés.",
+              "keep": "Continuer la modification",
+              "confirm": "Abandonner"
+            }
+          }
         },
         "overview": {
           "matching": {

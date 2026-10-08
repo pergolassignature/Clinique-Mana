@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { t } from '@/i18n'
 import { initialsOf } from '@/shared/lib/format'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
@@ -6,6 +5,7 @@ import { Badge } from '@/shared/ui/badge'
 import type { ProfessionalRecord } from '../../api/parse'
 import type { CatalogView } from '../../lib/catalog-view'
 import { fullName, languagesLabel, primaryProfession, professionLine, statusLabel, statusTone } from '../../lib/display'
+import { Chip, ChipList } from './Chips'
 
 const H = 'modules.professionals.record.header'
 
@@ -40,7 +40,7 @@ export function RecordHeader({ record, catalog }: RecordHeaderProps) {
         </div>
         <p className="mt-0.5 text-sm text-muted-foreground [overflow-wrap:anywhere]">{line}</p>
         {(languages || !matchingProfile.acceptingNewClients) && (
-          <ul className="mt-2 flex flex-wrap gap-1.5">
+          <ChipList className="mt-2">
             {languages && (
               <Chip>
                 <span className="sr-only">{t(`${H}.languages`)} </span>
@@ -48,19 +48,9 @@ export function RecordHeader({ record, catalog }: RecordHeaderProps) {
               </Chip>
             )}
             {!matchingProfile.acceptingNewClients && <Chip>{t(`${H}.notAccepting`)}</Chip>}
-          </ul>
+          </ChipList>
         )}
       </div>
     </header>
-  )
-}
-
-/** A quiet tag: hairline border, secondary 12px text, no fill (design system: no pastel). */
-function Chip({ children }: { children: ReactNode }) {
-  return (
-    <li className="inline-flex h-5 min-w-0 max-w-full items-center rounded-sm border border-border px-1.5 text-xs text-muted-foreground">
-      {/* `truncate` on the text, not the flex item: a flex container draws no ellipsis. */}
-      <span className="min-w-0 truncate">{children}</span>
-    </li>
   )
 }

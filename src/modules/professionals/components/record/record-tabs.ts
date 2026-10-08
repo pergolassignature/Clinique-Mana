@@ -24,7 +24,7 @@ const inPreparation = () => lazyPage(() => import('./tabs/TabInPreparation'), 'T
  */
 export const RECORD_TAB_DEFS: readonly RecordTabDef[] = [
   { tab: 'apercu', panel: OverviewTab, visible: always },
-  { tab: 'jumelage', panel: inPreparation(), visible: always }, // 4a.12
+  { tab: 'jumelage', panel: lazyPage(() => import('./tabs/MatchingTab'), 'MatchingTab'), visible: always },
   { tab: 'profil-public', panel: inPreparation(), visible: always }, // 4a.13
   { tab: 'identite', panel: inPreparation(), visible: always }, // 4a.13
   { tab: 'remuneration', panel: inPreparation(), visible: (can) => can('professionals.compensation') || can('professionals.private') }, // 4a.18
