@@ -1741,27 +1741,33 @@ export type Database = {
           availability_note: string | null
           availability_periods: string[]
           created_at: string
+          min_client_age: number | null
           org_id: string
           professional_id: string
           updated_at: string
+          women_only: boolean
         }
         Insert: {
           accepting_new_clients?: boolean
           availability_note?: string | null
           availability_periods?: string[]
           created_at?: string
+          min_client_age?: number | null
           org_id: string
           professional_id: string
           updated_at?: string
+          women_only?: boolean
         }
         Update: {
           accepting_new_clients?: boolean
           availability_note?: string | null
           availability_periods?: string[]
           created_at?: string
+          min_client_age?: number | null
           org_id?: string
           professional_id?: string
           updated_at?: string
+          women_only?: boolean
         }
         Relationships: [
           {
@@ -2260,69 +2266,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "professionals_readiness"
             referencedColumns: ["org_id", "professional_id"]
-          },
-        ]
-      }
-      professional_specialties: {
-        Row: {
-          created_at: string
-          is_specialized: boolean
-          org_id: string
-          professional_id: string
-          specialty_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          is_specialized?: boolean
-          org_id: string
-          professional_id: string
-          specialty_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          is_specialized?: boolean
-          org_id?: string
-          professional_id?: string
-          specialty_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "professional_specialties_professional_fkey"
-            columns: ["org_id", "professional_id"]
-            isOneToOne: false
-            referencedRelation: "professionals"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "professional_specialties_professional_fkey"
-            columns: ["org_id", "professional_id"]
-            isOneToOne: false
-            referencedRelation: "professionals_directory"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "professional_specialties_professional_fkey"
-            columns: ["org_id", "professional_id"]
-            isOneToOne: false
-            referencedRelation: "professionals_list"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "professional_specialties_professional_fkey"
-            columns: ["org_id", "professional_id"]
-            isOneToOne: false
-            referencedRelation: "professionals_readiness"
-            referencedColumns: ["org_id", "professional_id"]
-          },
-          {
-            foreignKeyName: "professional_specialties_specialty_fkey"
-            columns: ["org_id", "specialty_id"]
-            isOneToOne: false
-            referencedRelation: "specialties"
-            referencedColumns: ["org_id", "id"]
           },
         ]
       }
@@ -3229,50 +3172,6 @@ export type Database = {
           },
         ]
       }
-      specialties: {
-        Row: {
-          created_at: string
-          id: string
-          is_active: boolean
-          is_system: boolean
-          key: string
-          name: string
-          org_id: string
-          sort_order: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          is_system?: boolean
-          key: string
-          name: string
-          org_id: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          is_system?: boolean
-          key?: string
-          name?: string
-          org_id?: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "specialties_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       staff_invitations: {
         Row: {
           accepted_at: string | null
@@ -3891,6 +3790,7 @@ export type Database = {
           insurance_status: string | null
           language_codes: string[] | null
           licence_number: string | null
+          min_client_age: number | null
           motif_ids: string[] | null
           motif_keys: string[] | null
           order_acronym: string | null
@@ -3900,9 +3800,9 @@ export type Database = {
           primary_title_name: string | null
           professions: Json | null
           ready: boolean | null
-          specialties: Json | null
           status: string | null
           updated_at: string | null
+          women_only: boolean | null
           years_experience: number | null
         }
         Relationships: [
@@ -3934,7 +3834,6 @@ export type Database = {
           primary_licence_number: string | null
           primary_title_id: string | null
           ready: boolean | null
-          specialty_ids: string[] | null
           status: string | null
           status_changed_at: string | null
           updated_at: string | null
@@ -4518,7 +4417,6 @@ export type Database = {
           primary_licence_number: string | null
           primary_title_id: string | null
           ready: boolean | null
-          specialty_ids: string[] | null
           status: string | null
           status_changed_at: string | null
           updated_at: string | null
@@ -4850,10 +4748,6 @@ export type Database = {
         }
         Returns: string
       }
-      save_specialty: {
-        Args: { p_id: string; p_name: string }
-        Returns: string
-      }
       set_bank_details: {
         Args: {
           p_account_number: string
@@ -4973,13 +4867,6 @@ export type Database = {
       set_professional_sin: {
         Args: { p_expected_updated_at: string; p_id: string; p_sin: string }
         Returns: string
-      }
-      set_professional_specialties: {
-        Args: { p_id: string; p_items: Json }
-        Returns: {
-          is_specialized: boolean
-          specialty_id: string
-        }[]
       }
       set_professional_tax_numbers: {
         Args: {

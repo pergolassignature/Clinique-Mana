@@ -1,7 +1,8 @@
 -- Professionnels reference settings (migration *_professionals_reference_settings.sql, plan Phase 4 Task 4a.2).
 -- Covers: privileges of the settings RPCs, the catalogue and the catalogue views; key generation
--- (private.reference_key); the nine save RPCs (tidy names, NFKC duplicates with friendly messages,
--- generated and frozen keys, each list's own rules, the per-list cap); archive / restore with the
+-- (private.reference_key); the eight save RPCs, none for approaches (P4-240) (tidy names, NFKC
+-- duplicates with friendly messages, generated and frozen keys, each list's own rules, the
+-- per-list cap); archive / restore with the
 -- system and dependency rules; reorder; the cached catalogue (one payload, no org_id, org isolation,
 -- module gate, disabled users); the published views; module settings (defaults, the per-key
 -- validator, collect_sin needs professionals.private, audit); system clientèle kinds, the reason
@@ -9,7 +10,7 @@
 -- of a rename.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(188);
+select plan(185);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider, a conseillère, K in a
@@ -59,7 +60,7 @@ insert into public.user_permission_overrides (user_id, org_id, permission_key, g
 
 -- Org B's ids, read now (as postgres) for the cross-org checks below.
 select set_config('test.b_trauma', (select c.id::text from public.motif_categories c
-  where c.org_id = 'b0000000-0000-0000-0000-00000000000b' and c.key = 'trauma'), true);
+  where c.org_id = 'b0000000-0000-0000-0000-00000000000b' and c.key = 'violence_abus'), true);
 select set_config('test.b_anxiete', (select m.id::text from public.motifs m
   where m.org_id = 'b0000000-0000-0000-0000-00000000000b' and m.key = 'anxiete'), true);
 
@@ -74,8 +75,7 @@ select function_privs_are('public', 'save_profession_title', array['uuid', 'text
 select function_privs_are('public', 'save_profession_title', array['uuid', 'text', 'uuid', 'uuid'], 'authenticated', array['EXECUTE'], 'authenticated may call save_profession_title');
 select function_privs_are('public', 'save_clientele', array['uuid', 'text', 'integer', 'integer'], 'anon', array[]::text[], 'anon cannot call save_clientele');
 select function_privs_are('public', 'save_clientele', array['uuid', 'text', 'integer', 'integer'], 'authenticated', array['EXECUTE'], 'authenticated may call save_clientele');
-select function_privs_are('public', 'save_specialty', array['uuid', 'text'], 'anon', array[]::text[], 'anon cannot call save_specialty');
-select function_privs_are('public', 'save_specialty', array['uuid', 'text'], 'authenticated', array['EXECUTE'], 'authenticated may call save_specialty');
+select hasnt_function('public', 'save_specialty', 'there is no save RPC for approaches (P4-240)');
 select function_privs_are('public', 'save_motif_category', array['uuid', 'text', 'text', 'text'], 'anon', array[]::text[], 'anon cannot call save_motif_category');
 select function_privs_are('public', 'save_motif_category', array['uuid', 'text', 'text', 'text'], 'authenticated', array['EXECUTE'], 'authenticated may call save_motif_category');
 select function_privs_are('public', 'save_motif', array['uuid', 'text', 'uuid', 'boolean'], 'anon', array[]::text[], 'anon cannot call save_motif');
@@ -123,40 +123,40 @@ select is(private.reference_key('Accompagnement des personnes proches aidantes a
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 
-select set_config('test.motif', public.save_motif(null, 'Proche aidance',
-  (select c.id from public.motif_categories c where c.key = 'inner_life'), false)::text, true);
+select set_config('test.motif', public.save_motif(null, 'Soutien scolaire',
+  (select c.id from public.motif_categories c where c.key = 'sante_mentale'), false)::text, true);
 select results_eq($$ select m.key, m.name, c.key, m.is_restricted, m.is_active from public.motifs m
                       join public.motif_categories c on c.id = m.category_id
                      where m.id = current_setting('test.motif')::uuid $$,
-  $$ values ('proche_aidance'::text, 'Proche aidance'::text, 'inner_life'::text, false, true) $$,
+  $$ values ('soutien_scolaire'::text, 'Soutien scolaire'::text, 'sante_mentale'::text, false, true) $$,
   'save_motif creates a motif with a key generated from its name');
 select ok((select m.sort_order > (select max(x.sort_order) from public.motifs x where x.id <> m.id)
              from public.motifs m where m.id = current_setting('test.motif')::uuid),
   'a new motif goes to the end of the list');
-select set_config('test.motif2', public.save_motif(null, 'Proche-aidance', null, null)::text, true);
+select set_config('test.motif2', public.save_motif(null, 'Soutien-scolaire', null, null)::text, true);
 select results_eq($$ select m.key, m.category_id, m.is_restricted from public.motifs m where m.id = current_setting('test.motif2')::uuid $$,
-  $$ values ('proche_aidance_2'::text, null::uuid, false) $$,
-  'a different name with the same key base gets the next free key (« Proche-aidance » → proche_aidance_2)');
-select throws_ok($$ select public.save_motif(null, 'PROCHE AIDANCE', null, false) $$,
+  $$ values ('soutien_scolaire_2'::text, null::uuid, false) $$,
+  'a different name with the same key base gets the next free key (« Soutien-scolaire » → soutien_scolaire_2)');
+select throws_ok($$ select public.save_motif(null, 'SOUTIEN SCOLAIRE', null, false) $$,
   'P0001', 'Un motif porte déjà ce nom (il est peut-être archivé).', 'names are unique ignoring case');
-select throws_ok($$ select public.save_motif(null, E'Proche\u00A0aidance', null, false) $$,
+select throws_ok($$ select public.save_motif(null, E'Soutien\u00A0scolaire', null, false) $$,
   'P0001', 'Un motif porte déjà ce nom (il est peut-être archivé).', 'names are unique ignoring look-alike spaces (a no-break space, NFKC)');
 select throws_ok($$ select public.save_motif(null, E'Anxie\u0301te\u0301', null, false) $$,
   'P0001', 'Un motif porte déjà ce nom (il est peut-être archivé).', 'a decomposed « Anxiété » is the seeded one (NFKC)');
-select lives_ok($$ select public.save_motif(current_setting('test.motif')::uuid, 'Proche aidance et soutien',
-                    (select c.id from public.motif_categories c where c.key = 'inner_life'), null) $$,
+select lives_ok($$ select public.save_motif(current_setting('test.motif')::uuid, 'Soutien scolaire et devoirs',
+                    (select c.id from public.motif_categories c where c.key = 'sante_mentale'), null) $$,
   'admin A renames a motif');
 select results_eq($$ select m.key, m.name, m.is_restricted from public.motifs m where m.id = current_setting('test.motif')::uuid $$,
-  $$ values ('proche_aidance'::text, 'Proche aidance et soutien'::text, false) $$,
+  $$ values ('soutien_scolaire'::text, 'Soutien scolaire et devoirs'::text, false) $$,
   'renaming keeps the key; a null flag keeps its value');
-select lives_ok($$ select public.save_motif(current_setting('test.motif')::uuid, 'PROCHE AIDANCE ET SOUTIEN',
-                    (select c.id from public.motif_categories c where c.key = 'inner_life'), true) $$,
+select lives_ok($$ select public.save_motif(current_setting('test.motif')::uuid, 'SOUTIEN SCOLAIRE ET DEVOIRS',
+                    (select c.id from public.motif_categories c where c.key = 'sante_mentale'), true) $$,
   'a motif may change the case of its own name');
 select is((select m.is_restricted from public.motifs m where m.id = current_setting('test.motif')::uuid), true,
   'the restricted flag is stored');
-select set_config('test.motif3', public.save_motif(null, E'\u00A0Deuil   périnatal\u3000', null, false)::text, true);
+select set_config('test.motif3', public.save_motif(null, E'\u00A0Deuil   animalier\u3000', null, false)::text, true);
 select results_eq($$ select m.key, m.name from public.motifs m where m.id = current_setting('test.motif3')::uuid $$,
-  $$ values ('deuil_perinatal'::text, 'Deuil périnatal'::text) $$,
+  $$ values ('deuil_animalier'::text, 'Deuil animalier'::text) $$,
   'Unicode spaces (no-break, ideographic) are stripped at both ends and inner runs fold to one space');
 select throws_ok($$ select public.save_motif(null, '  ', null, false) $$,
   'P0001', 'Le nom est obligatoire.', 'a blank name is refused');
@@ -220,14 +220,14 @@ select throws_ok($$ select public.save_profession_title(null, 'Titre sans catég
   'P0001', 'Choisissez une catégorie.', 'a title needs a category');
 
 -- Clientèles
-select set_config('test.clientele', public.save_clientele(null, 'Jeunes adultes', 18, 25)::text, true);
+select set_config('test.clientele', public.save_clientele(null, 'Aînés', 65, 80)::text, true);
 select results_eq($$ select c.key, c.min_age::int, c.max_age::int, c.is_system from public.clienteles c
                      where c.id = current_setting('test.clientele')::uuid $$,
-  $$ values ('jeunes_adultes'::text, 18, 25, false) $$, 'save_clientele creates an age group');
-select lives_ok($$ select public.save_clientele(current_setting('test.clientele')::uuid, 'Jeunes adultes (18-30)', 18, 30) $$,
+  $$ values ('aines'::text, 65, 80, false) $$, 'save_clientele creates an age group');
+select lives_ok($$ select public.save_clientele(current_setting('test.clientele')::uuid, 'Aînés (65-90)', 65, 90) $$,
   'save_clientele updates bounds');
 select results_eq($$ select c.key, c.max_age::int from public.clienteles c where c.id = current_setting('test.clientele')::uuid $$,
-  $$ values ('jeunes_adultes'::text, 30) $$, 'the clientèle keeps its key');
+  $$ values ('aines'::text, 90) $$, 'the clientèle keeps its key');
 select lives_ok($$ select public.save_clientele((select c.id from public.clienteles c where c.key = 'children'), 'Enfants', 0, 11) $$,
   'a system clientèle''s bounds stay editable (P4-42)');
 select throws_ok($$ select public.save_clientele((select c.id from public.clienteles c where c.key = 'children'), 'Enfants', null, null) $$,
@@ -236,7 +236,7 @@ select throws_ok($$ select public.save_clientele((select c.id from public.client
   'P0001', 'Cette clientèle garde son type (groupe d''âge ou non).', 'a system clientèle without bounds (couples) cannot become an age group');
 select lives_ok($$ select public.save_clientele((select c.id from public.clienteles c where c.key = 'couples'), 'Couples et partenaires', null, null) $$,
   'a system clientèle without bounds is renamed, still without bounds');
-select lives_ok($$ select public.save_clientele(current_setting('test.clientele')::uuid, 'Jeunes adultes (18-30)', null, null) $$,
+select lives_ok($$ select public.save_clientele(current_setting('test.clientele')::uuid, 'Aînés (65-90)', null, null) $$,
   'a clinic''s own clientèle may change kind');
 select throws_ok($$ select public.save_clientele(null, 'Mauvais intervalle', 13, 12) $$,
   'P0001', 'L''âge maximum doit être supérieur ou égal à l''âge minimum.', 'max age below min age is refused');
@@ -244,17 +244,10 @@ select throws_ok($$ select public.save_clientele(null, 'Sans minimum', null, 30)
   'P0001', 'Un âge maximum demande un âge minimum.', 'a max age needs a min age');
 select throws_ok($$ select public.save_clientele(null, 'Centenaires', 121, null) $$,
   'P0001', 'Les âges vont de 0 à 120 ans.', 'ages stay within 0–120');
-
--- Approaches
-select set_config('test.specialty', public.save_specialty(null, 'Thérapie narrative')::text, true);
-select is((select s.key from public.specialties s where s.id = current_setting('test.specialty')::uuid),
-  'therapie_narrative', 'save_specialty creates an approach');
-select lives_ok($$ select public.save_specialty(current_setting('test.specialty')::uuid, 'Approche narrative') $$,
-  'save_specialty renames an approach');
-select results_eq($$ select s.key, s.name from public.specialties s where s.id = current_setting('test.specialty')::uuid $$,
-  $$ values ('therapie_narrative'::text, 'Approche narrative'::text) $$, 'the approach keeps its key');
-select throws_ok($$ select public.save_specialty(null, E'\uFF25\uFF2D\uFF24\uFF32') $$,
-  'P0001', 'Une approche porte déjà ce nom (elle est peut-être archivée).', 'a full-width EMDR (U+FF25…) is the seeded EMDR (NFKC)');
+select lives_ok($$ select public.set_professionals_reference_active('clienteles', (select c.id from public.clienteles c where c.key = 'athletes'), false) $$,
+  'a clientèle the clinic added from the website (athletes) can be archived (P4-244)');
+select throws_ok($$ select public.save_clientele(null, E'\uFF30\uFF41\uFF52\uFF45\uFF4E\uFF54\uFF53', null, null) $$,
+  'P0001', 'Une clientèle porte déjà ce nom (elle est peut-être archivée).', 'a full-width « Ｐａｒｅｎｔｓ » is the seeded Parents (NFKC)');
 
 -- Motif categories
 select set_config('test.mcat', public.save_motif_category(null, 'Proches et soutien', 'Aidance et entourage', 'Heart')::text, true);
@@ -349,28 +342,28 @@ select throws_ok($$ select public.set_professionals_reference_active('motifs', c
   'P0001', 'Élément introuvable.', 'a motif of org B cannot be archived from org A');
 
 -- An archived motif category: its motifs stay, shown without a category in motifs_catalog.
-select lives_ok($$ select public.save_motif(current_setting('test.motif2')::uuid, 'Proche-aidance', current_setting('test.mcat')::uuid, null) $$,
+select lives_ok($$ select public.save_motif(current_setting('test.motif2')::uuid, 'Soutien-scolaire', current_setting('test.mcat')::uuid, null) $$,
   'a motif moves to the new category');
 select lives_ok($$ select public.set_professionals_reference_active('motif_categories', current_setting('test.mcat')::uuid, false) $$,
   'a motif category with motifs can be archived');
 select results_eq($$ select c.category_id, c.category_key, c.category_name from public.motifs_catalog c where c.id = current_setting('test.motif2')::uuid $$,
   $$ values (null::uuid, null::text, null::text) $$,
   'in motifs_catalog, a motif of an archived category has no category');
-select lives_ok($$ select public.save_motif(current_setting('test.motif2')::uuid, 'Proche-aidance (entourage)', current_setting('test.mcat')::uuid, null) $$,
+select lives_ok($$ select public.save_motif(current_setting('test.motif2')::uuid, 'Soutien-scolaire (devoirs)', current_setting('test.mcat')::uuid, null) $$,
   'a motif keeps its archived category when renamed');
 
 -- =============================================================================
 -- Reorder (admin A)
 -- =============================================================================
-select set_config('test.c1', (select c.id::text from public.motif_categories c where c.key = 'inner_life'), true);
-select set_config('test.c2', (select c.id::text from public.motif_categories c where c.key = 'relationships'), true);
-select set_config('test.c3', (select c.id::text from public.motif_categories c where c.key = 'dependencies'), true);
+select set_config('test.c1', (select c.id::text from public.motif_categories c where c.key = 'sante_mentale'), true);
+select set_config('test.c2', (select c.id::text from public.motif_categories c where c.key = 'personnalite'), true);
+select set_config('test.c3', (select c.id::text from public.motif_categories c where c.key = 'dependances'), true);
 select lives_ok($$ select public.reorder_professionals_reference('motif_categories',
                     array[current_setting('test.c3'), current_setting('test.c1'), current_setting('test.c2')]::uuid[]) $$,
   'admin A reorders three motif categories');
 select results_eq($$ select c.key, c.sort_order from public.motif_categories c
-                     where c.key in ('inner_life', 'relationships', 'dependencies') order by c.sort_order $$,
-  $$ values ('dependencies'::text, 10), ('inner_life', 20), ('relationships', 30) $$,
+                     where c.key in ('sante_mentale', 'personnalite', 'dependances') order by c.sort_order $$,
+  $$ values ('dependances'::text, 10), ('sante_mentale', 20), ('personnalite', 30) $$,
   'their sort orders become 10, 20, 30 in the given order');
 select throws_ok($$ select public.reorder_professionals_reference('motif_categories',
                      array[current_setting('test.c1'), current_setting('test.motif')]::uuid[]) $$,
@@ -402,12 +395,12 @@ select throws_ok($$ select public.reorder_professionals_reference('motif_categor
   '22023', null, 'a repeated id is refused');
 select throws_ok($$ select public.reorder_professionals_reference('nope', array[current_setting('test.c1')]::uuid[]) $$,
   '22023', null, 'an unknown kind is refused');
-select lives_ok($$ select public.reorder_professionals_reference('specialties',
-                    array(select s.id from public.specialties s order by s.name desc)) $$,
-  'admin A reorders every approach');
-select results_eq($$ select s.key from public.specialties s order by s.sort_order $$,
-  $$ select s.key from public.specialties s order by s.name desc $$,
-  'the approaches follow the new order');
+select lives_ok($$ select public.reorder_professionals_reference('deactivation_reasons',
+                    array(select r.id from public.deactivation_reasons r order by r.name desc)) $$,
+  'admin A reorders every deactivation reason');
+select results_eq($$ select r.key from public.deactivation_reasons r order by r.sort_order $$,
+  $$ select r.key from public.deactivation_reasons r order by r.name desc $$,
+  'the reasons follow the new order');
 
 -- =============================================================================
 -- Catalogue (one payload, every list including archived rows, no org_id)
@@ -415,11 +408,11 @@ select results_eq($$ select s.key from public.specialties s order by s.sort_orde
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select set_config('test.catalog', public.get_professionals_catalog()::text, true);
 select results_eq($$ select k from jsonb_object_keys(current_setting('test.catalog')::jsonb) k order by k $$,
-  array['categories', 'clienteles', 'deactivation_reasons', 'languages', 'motif_categories', 'motifs', 'orders', 'specialties', 'titles'],
-  'the catalogue holds the 9 lists');
+  array['categories', 'clienteles', 'deactivation_reasons', 'languages', 'motif_categories', 'motifs', 'orders', 'titles'],
+  'the catalogue holds the 8 lists');
 select results_eq($$ select (select count(*)::int from jsonb_array_elements(current_setting('test.catalog')::jsonb -> 'motifs')),
                             (select count(*)::int from public.motifs) $$,
-  $$ values (75, 75) $$, 'the conseillère gets every motif of org A (72 + 3 created), as RLS shows them');
+  $$ values (127, 127) $$, 'the conseillère gets every motif of org A (124 + 3 created), as RLS shows them');
 select results_eq($$ select k from jsonb_object_keys((current_setting('test.catalog')::jsonb -> 'motifs') -> 0) k order by k $$,
   array['category_id', 'id', 'is_active', 'is_restricted', 'is_system', 'key', 'name', 'sort_order'],
   'a motif entry carries its id, key, name, category, flags and order');
@@ -430,28 +423,28 @@ select is((select (e ->> 'is_active')::boolean from jsonb_array_elements(current
   'archived rows are in the catalogue, flagged is_active false');
 select ok(current_setting('test.catalog') !~ '"(org_id|created_at|updated_at)"', 'no org_id, created_at or updated_at anywhere');
 select results_eq($$ select e ->> 'key' from jsonb_array_elements(current_setting('test.catalog')::jsonb -> 'motif_categories') e limit 3 $$,
-  array['dependencies', 'inner_life', 'relationships'], 'lists come in their sort order');
+  array['dependances', 'sante_mentale', 'personnalite'], 'lists come in their sort order');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select is(jsonb_array_length(public.get_professionals_catalog() -> 'clienteles'), 8, 'the provider reads the catalogue (professionals.self)');
+select is(jsonb_array_length(public.get_professionals_catalog() -> 'clienteles'), 9, 'the provider reads the catalogue (professionals.self)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
 select is(public.get_professionals_catalog(),
-  '{"orders": [], "categories": [], "titles": [], "clienteles": [], "specialties": [], "motif_categories": [], "motifs": [], "languages": [], "deactivation_reasons": []}'::jsonb,
-  'K, without a professionals key, gets 9 empty lists');
+  '{"orders": [], "categories": [], "titles": [], "clienteles": [], "motif_categories": [], "motifs": [], "languages": [], "deactivation_reasons": []}'::jsonb,
+  'K, without a professionals key, gets 8 empty lists');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000008","role":"authenticated"}', true);
 select is(public.get_professionals_catalog(),
-  '{"orders": [], "categories": [], "titles": [], "clienteles": [], "specialties": [], "motif_categories": [], "motifs": [], "languages": [], "deactivation_reasons": []}'::jsonb,
-  'a disabled admin gets 9 empty lists');
+  '{"orders": [], "categories": [], "titles": [], "clienteles": [], "motif_categories": [], "motifs": [], "languages": [], "deactivation_reasons": []}'::jsonb,
+  'a disabled admin gets 8 empty lists');
 
 -- Published views (conseillère A)
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-select is((select count(*)::int from public.motifs_catalog), 75, 'motifs_catalog lists the active motifs of org A');
+select is((select count(*)::int from public.motifs_catalog), 127, 'motifs_catalog lists the active motifs of org A');
 select results_eq($$ select c.category_key, c.category_name, c.category_icon from public.motifs_catalog c
                      join public.motifs m on m.id = c.id where m.key = 'anxiete' $$,
-  $$ values ('inner_life'::text, 'Vie intérieure'::text, 'Brain'::text) $$, 'motifs_catalog carries the category');
-select results_eq($$ select c.key, c.min_age::int, c.max_age::int from public.clienteles_catalog c where c.key in ('children', 'seniors') order by c.sort_order $$,
-  $$ values ('children'::text, 0, 11), ('seniors', 65, null) $$, 'clienteles_catalog lists clientèles with their bounds');
+  $$ values ('sante_mentale'::text, 'Santé mentale / Troubles psychologiques'::text, 'Brain'::text) $$, 'motifs_catalog carries the category');
+select results_eq($$ select c.key, c.min_age::int, c.max_age::int from public.clienteles_catalog c where c.key in ('children', 'adults', 'athletes') order by c.sort_order $$,
+  $$ values ('children'::text, 0, 11), ('adults', 18, null) $$, 'clienteles_catalog lists active clientèles with their bounds');
 select results_eq($$ select l.code from public.languages_catalog l order by l.sort_order $$,
-  array['fr', 'en', 'es', 'de'], 'languages_catalog lists the active languages in order');
+  array['fr', 'en', 'es', 'ca', 'de'], 'languages_catalog lists the active languages in order');
 
 -- =============================================================================
 -- Module settings
@@ -496,19 +489,19 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select throws_ok($$ select public.save_motif(null, 'Motif de la conseillère', null, false) $$, '42501', null, 'the conseillère cannot save a motif');
 select throws_ok($$ select public.save_language(null, 'Italien', 'it') $$, '42501', null, 'the conseillère cannot save a language');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000007","role":"authenticated"}', true);
-select lives_ok($$ select public.save_specialty(null, 'Pleine conscience') $$, 'S saves an approach through the professionals.settings override');
+select lives_ok($$ select public.save_motif_category(null, 'Pleine conscience', null, null) $$, 'S saves a motif category through the professionals.settings override');
 
 -- =============================================================================
 -- Per-list cap (admin B): a list holds at most 500 rows, archived ones included
 -- =============================================================================
 reset role;
-insert into public.specialties (org_id, key, name, is_active)
-select 'b0000000-0000-0000-0000-00000000000b', 'bulk_' || g, 'Approche ' || g, g % 2 = 0 from generate_series(1, 490) g;
+insert into public.clienteles (org_id, key, name, is_active)
+select 'b0000000-0000-0000-0000-00000000000b', 'bulk_' || g, 'Clientèle ' || g, g % 2 = 0 from generate_series(1, 492) g;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
-select throws_ok($$ select public.save_specialty(null, 'Une de trop') $$,
+select throws_ok($$ select public.save_clientele(null, 'Une de trop', null, null) $$,
   'P0001', 'Cette liste compte déjà 500 éléments (archivés compris).', 'a list never exceeds 500 rows, so the catalogue stays bounded');
-select lives_ok($$ select public.save_specialty((select s.id from public.specialties s where s.key = 'bulk_1'), 'Approche un') $$,
+select lives_ok($$ select public.save_clientele((select c.id from public.clienteles c where c.key = 'bulk_1'), 'Clientèle un', null, null) $$,
   'a full list still accepts renames');
 
 -- Org isolation of the catalogue: admin B gets exactly org B's rows (compared as postgres).
@@ -519,7 +512,6 @@ select bag_eq($$ select (e ->> 'id')::uuid from jsonb_each(current_setting('test
      union all select id from public.profession_categories where org_id = 'b0000000-0000-0000-0000-00000000000b'
      union all select id from public.profession_titles where org_id = 'b0000000-0000-0000-0000-00000000000b'
      union all select id from public.clienteles where org_id = 'b0000000-0000-0000-0000-00000000000b'
-     union all select id from public.specialties where org_id = 'b0000000-0000-0000-0000-00000000000b'
      union all select id from public.motif_categories where org_id = 'b0000000-0000-0000-0000-00000000000b'
      union all select id from public.motifs where org_id = 'b0000000-0000-0000-0000-00000000000b'
      union all select id from public.languages where org_id = 'b0000000-0000-0000-0000-00000000000b'
@@ -530,7 +522,7 @@ set local role authenticated;
 -- Module gate: with the module off, the catalogue is empty and the settings closed.
 select lives_ok($$ select public.set_module_enabled('professionals', false) $$, 'admin B disables professionals');
 select is(jsonb_array_length(public.get_professionals_catalog() -> 'motifs'), 0, 'with the module off, the catalogue is empty');
-select throws_ok($$ select public.save_specialty(null, 'Après désactivation') $$, '42501', null, 'with the module off, nothing is saved');
+select throws_ok($$ select public.save_clientele(null, 'Après désactivation', null, null) $$, '42501', null, 'with the module off, nothing is saved');
 
 -- =============================================================================
 -- Audit (as postgres)
@@ -539,7 +531,7 @@ reset role;
 select is((select a.changed_fields -> 'name' from public.audit_log a
             where a.table_name = 'motifs' and a.record_id = current_setting('test.motif') and a.action = 'update'
             order by a.id limit 1),
-  '{"before": "Proche aidance", "after": "Proche aidance et soutien"}'::jsonb,
+  '{"before": "Soutien scolaire", "after": "Soutien scolaire et devoirs"}'::jsonb,
   'a rename writes an update row with the name before and after');
 select results_eq($$ select a.action, a.source, a.actor_id, a.changed_fields -> 'settings' from public.audit_log a
                      where a.table_name = 'org_module_settings' and a.record_id = 'b0000000-0000-0000-0000-00000000000a:professionals' $$,

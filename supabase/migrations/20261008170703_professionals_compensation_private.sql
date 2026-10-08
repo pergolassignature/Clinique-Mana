@@ -1322,7 +1322,7 @@ immutable
 set search_path = ''
 as $$
   select array['professionals', 'professional_public_profiles', 'professional_matching_profiles',
-               'professional_professions', 'professional_clienteles', 'professional_specialties',
+               'professional_professions', 'professional_clienteles',
                'professional_motifs', 'professional_languages', 'professional_payer_numbers',
                'professional_private', 'professional_compensation', 'professional_recognition']
 $$;

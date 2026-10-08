@@ -105,22 +105,25 @@ values
 -- the status `in_review` (4b sets it when a questionnaire is submitted). No `invited`: an
 -- invitation needs its secure link (4b).
 --
---   01 Geneviève Tremblay    active     Psychologue (OPQ)                          72 motifs (all), IVAC
+--   01 Geneviève Tremblay    active     Psychologue (OPQ)                          124 motifs (all), IVAC
 --   02 Isabelle Gagnon       active     Travailleuse sociale (OTSTCFQ) + Psychothérapeute (OPQ)
---                                                                                  65 motifs (« Tous sauf … »)
---   03 Camille Roy           active     Psychologue (OPQ), FR · EN · ES            25 motifs, 7 categories
+--                                                                                  all motifs but 13
+--   03 Camille Roy           active     Psychologue (OPQ), FR · EN · ES, women only, 14 and over
+--                                                                                  25 motifs, 10 categories
 --   04 Félix Gauthier        active     Sexologue (OPSQ), linked to provider@mana.test   3 motifs
---   05 Sophie Lavoie         active     Coach professionnelle (no order)           8 motifs
+--   05 Sophie Lavoie         active     Coach professionnelle (no order)           14 motifs (« écrans »)
 --   06 Marc-André Pelletier  active     Psychothérapeute (OPQ), not accepting      12 motifs
 --   07 Étienne Fortin        active     Travailleur social (OTSTCFQ)               15 motifs
 --   08 Nadia Côté            draft      Naturopathe (no order), gaps: clientèle, motif   0 motifs
---   09 Olivier Bergeron      in_review  Psychologue (OPQ), complete                6 motifs
---   10 Julie Morin           inactive   Psychoéducatrice (OPPQ), « Congé » + note  7 motifs
+--   09 Olivier Bergeron      in_review  Psychologue (OPQ), complete, 8 and over    6 motifs
+--   10 Julie Morin           inactive   Psychoéducatrice (OPPQ), « Congé » + note, 12 and over
+--                                                                                  7 motifs
 --
--- « Psychose » and « Idées suicidaires » are marked restricted here (P4-16; none is by default) so
--- the rule holds something: only 01, 02 and 03 (titles from an order) carry them. The seeded
--- orders have no licence_pattern, so any number passes; these follow the usual shapes (OPQ 5
--- digits, OTSTCFQ « TS » + 5 digits, OPSQ « SX » + 4 digits, OPPQ 4 digits). Emails and phones are
+-- Motif and clientèle keys are the website catalogue's (P4-241, P4-244). « Idées suicidaires » and
+-- « Trouble de personnalité limite (TPL) » are marked restricted here (P4-16; none is by default)
+-- so the rule holds something: only titles from an order carry them. Only OPPQ has a
+-- licence_pattern (NNNNN-AA, P4-248), so any other number passes; these follow the usual shapes
+-- (OPQ 5 digits, OTSTCFQ « TS » + 5 digits, OPSQ « SX » + 4 digits). Emails and phones are
 -- fake (@exemple.test, 555); 04's email is the provider's login, so the two match.
 -- One `do` block: the CLI sends the seed as one batch, so no statement may call a function
 -- created earlier in the file.
@@ -132,8 +135,7 @@ declare
      "gender": "female", "years": 18, "city": "Québec", "status": "active",
      "titles": [{"key": "psychologue", "licence": "08417"}],
      "languages": ["fr", "en"],
-     "clienteles": ["adults", "seniors", "couples"], "clienteles_star": ["adults"],
-     "approaches": ["cbt", "act", "emdr"], "approaches_star": ["cbt", "emdr"],
+     "clienteles": ["young_adults", "adults", "couples"], "clienteles_star": ["adults"],
      "motifs": "all",
      "accepting": true, "periods": ["am", "pm"], "availability_note": "Lundi au jeudi, de 9 h à 17 h.",
      "ivac": "IVAC-20417",
@@ -145,10 +147,11 @@ declare
      "gender": "female", "years": 14, "city": "Lévis", "status": "active",
      "titles": [{"key": "travailleur_social", "licence": "TS04518"}, {"key": "psychotherapeute", "licence": "31562"}],
      "languages": ["fr", "en"],
-     "clienteles": ["adults", "couples", "families"], "clienteles_star": ["couples", "families"],
-     "approaches": ["systemic", "humanistic"], "approaches_star": ["systemic"],
-     "motifs_except": ["dependance_jeu", "dependance_jeux_video", "cyberdependance", "dependance_medicament",
-                       "guerre_conflit_arme_veterans", "guerre_conflit_arme_victimes_civiles", "syndrome_gilles_tourette"],
+     "clienteles": ["adults", "couples", "families", "parents"], "clienteles_star": ["couples", "families"],
+     "motifs_except": ["ecrans_usage_excessif", "ecrans_saines_habitudes", "ecrans_conflits_familiaux", "ecrans_desaccord_parental",
+                       "ecrans_limites", "ecrans_autoregulation", "ecrans_communication_parent_enfant", "ecrans_impacts_bien_etre",
+                       "ecrans_reseaux_sociaux_jeux_ia", "ecrans_perte_controle", "psychologie_du_sport",
+                       "defis_adaptation_sport_performance", "problematiques_agriculteurs"],
      "accepting": false, "periods": ["pm", "evening"], "availability_note": "Liste d'attente jusqu'en janvier.",
      "bio": "Travailleuse sociale et psychothérapeute, Isabelle travaille avec les couples et les familles qui traversent une séparation, une recomposition ou des tensions qui s'installent. Elle aide chacun à retrouver sa place et une façon de se parler.",
      "approach": "Approche systémique : on regarde ensemble les liens, les rôles et ce qui se répète, pour ouvrir d'autres possibles.",
@@ -158,18 +161,18 @@ declare
      "gender": "female", "years": 7, "city": "Montréal", "status": "active",
      "titles": [{"key": "psychologue", "licence": "12873"}],
      "languages": ["fr", "en", "es"],
-     "clienteles": ["adolescents", "adults"], "clienteles_star": ["adolescents"],
-     "approaches": ["cbt", "dbt", "act"], "approaches_star": ["dbt"],
-     "motifs": ["anxiete", "depression", "estime_de_soi", "automutilation", "idees_suicidaires", "trouble_sommeil",
-                "trouble_obsessionnel_compulsif", "situations_crises",
-                "relations_familiales", "relations_interpersonnelles", "intimidation", "separation_divorce",
-                "famille_recomposee", "dependance_affective",
-                "cyberdependance", "dependance_jeux_video", "troubles_alimentaires",
-                "deficit_attention_hyperactivite", "difficultes_apprentissage", "douance", "trouble_spectre_autisme",
-                "identite_genre", "identite_orientation_sexuelle",
-                "victime_violence", "deuil"],
+     "clienteles": ["adolescents", "young_adults", "adults"], "clienteles_star": ["adolescents"],
+     "min_client_age": 14, "women_only": true,
+     "motifs": ["anxiete", "depression", "estime_de_soi", "automutilation", "idees_suicidaires", "troubles_du_sommeil_insomnie",
+                "trouble_obsessionnel_compulsif", "situations_crises", "trouble_personnalite_limite",
+                "relations_interpersonnelles", "relations_amoureuses", "separation_divorce",
+                "relations_familiales", "monoparentalite_famille_recomposee", "dependance_affective",
+                "dependances_jeu_jeux_video_cyberdependance", "troubles_alimentaires",
+                "deficit_attention_hyperactivite", "troubles_difficultes_apprentissage", "douance", "trouble_spectre_autisme",
+                "identite_diversite_orientation_lgbtq", "intimidation",
+                "violence_victime", "deuil"],
      "accepting": true, "periods": ["pm", "evening"],
-     "bio": "Camille accompagne surtout les adolescents et les jeunes adultes, en français, en anglais ou en espagnol. Elle prend le temps de comprendre ce que la personne vit à l'école, en famille ou avec ses amis.",
+     "bio": "Camille accompagne les adolescentes et les jeunes femmes, en français, en anglais ou en espagnol. Elle prend le temps de comprendre ce que la personne vit à l'école, en famille ou avec ses amies.",
      "approach": "Thérapie comportementale dialectique (DBT) et TCC, avec des outils concrets pour mieux traverser les émotions intenses.",
      "public_email": "c.roy@exemple.test", "public_phone": "+15145550103"},
 
@@ -179,8 +182,7 @@ declare
      "titles": [{"key": "sexologue", "licence": "SX0731"}],
      "languages": ["fr"],
      "clienteles": ["adults", "couples"], "clienteles_star": ["couples"],
-     "approaches": ["humanistic"],
-     "motifs": ["sexualite", "dysfonctions_sexuelle", "identite_orientation_sexuelle"],
+     "motifs": ["sexualite", "dysfonctions_sexuelles", "identite_diversite_orientation_lgbtq"],
      "accepting": true, "periods": ["evening"], "availability_note": "Soirs de semaine seulement.",
      "bio": "Sexologue, Félix reçoit les personnes et les couples qui souhaitent parler d'intimité, de désir ou d'identité, sans jugement et à leur rythme.",
      "approach": "Approche humaniste, centrée sur la personne et sur ce qu'elle souhaite changer.",
@@ -190,13 +192,13 @@ declare
      "gender": "female", "years": 11, "city": "Gatineau", "status": "active",
      "titles": [{"key": "coach_professionnel"}],
      "languages": ["fr", "en"],
-     "clienteles": ["adults"], "clienteles_star": ["adults"],
-     "approaches": ["act"],
-     "motifs": ["epuisement_professionnel", "difficultes_professionnelles", "orientation_professionnelle",
-                "readaptation_professionnelle", "problemes_financiers", "estime_de_soi", "gestion_colere",
-                "dependance_travail"],
+     "clienteles": ["adults", "parents"], "clienteles_star": ["parents"],
+     "motifs": ["ecrans_usage_excessif", "ecrans_saines_habitudes", "ecrans_conflits_familiaux", "ecrans_desaccord_parental",
+                "ecrans_limites", "ecrans_autoregulation", "ecrans_communication_parent_enfant", "ecrans_impacts_bien_etre",
+                "ecrans_reseaux_sociaux_jeux_ia", "ecrans_perte_controle",
+                "epuisement_professionnel", "difficultes_professionnelles", "gestion_de_carriere", "estime_de_soi"],
      "accepting": true, "periods": ["am", "weekend"],
-     "bio": "Coach professionnelle certifiée, Sophie accompagne les personnes en questionnement de carrière, en retour au travail ou qui cherchent un meilleur équilibre.",
+     "bio": "Coach professionnelle certifiée, Sophie accompagne les parents qui cherchent de saines habitudes numériques à la maison, et les personnes en questionnement de carrière.",
      "approach": "Coaching orienté vers vos objectifs, inspiré de l'approche d'acceptation et d'engagement (ACT).",
      "public_email": "s.lavoie@exemple.test", "public_phone": "+18195550105"},
 
@@ -204,11 +206,10 @@ declare
      "gender": "male", "years": 25, "city": "Trois-Rivières", "status": "active",
      "titles": [{"key": "psychotherapeute", "licence": "27349"}],
      "languages": ["fr"],
-     "clienteles": ["adults", "seniors"], "clienteles_star": ["seniors"],
-     "approaches": ["psychodynamic", "gestalt"], "approaches_star": ["psychodynamic"],
-     "motifs": ["anxiete", "depression", "deuil", "maladies_degeneratives", "separation_divorce", "relations_amoureuses",
-                "infidelite", "insomnie", "traumatisme_stress_post_traumatique", "victime_violence",
-                "epuisement_professionnel", "estime_de_soi"],
+     "clienteles": ["adults"], "clienteles_star": ["adults"],
+     "motifs": ["anxiete", "depression", "deuil", "maladies_degeneratives", "vieillissement", "proche_aidance",
+                "separation_divorce", "relations_amoureuses", "infidelite", "trouble_stress_post_traumatique_tspt",
+                "violence_victime", "estime_de_soi"],
      "accepting": false, "periods": ["pm"],
      "bio": "Psychothérapeute d'expérience, Marc-André accompagne les adultes et les aînés dans les deuils, la maladie et les grands changements de la vie.",
      "approach": "Approche psychodynamique et gestaltiste : comprendre son histoire pour mieux vivre le présent.",
@@ -218,11 +219,11 @@ declare
      "gender": "male", "years": 5, "city": "Saguenay", "status": "active",
      "titles": [{"key": "travailleur_social", "licence": "TS11273"}],
      "languages": ["fr"],
-     "clienteles": ["adults", "families", "groups"], "clienteles_star": ["families"],
-     "approaches": ["systemic"],
-     "motifs": ["relations_familiales", "famille_recomposee", "monoparentalite", "violence_conjugale_familiale",
-                "separation_divorce", "consommation_alcool", "consommation_drogue", "dependance", "problemes_financiers",
-                "situations_crises", "deuil", "intimidation", "adoption", "victime_violence", "relations_interpersonnelles"],
+     "clienteles": ["adults", "families", "parents"], "clienteles_star": ["families"],
+     "motifs": ["relations_familiales", "monoparentalite_famille_recomposee", "coparentalite", "violence_conjugale_familiale",
+                "separation_divorce", "dependances_alcool_drogue_medicament", "dependance_affective", "garde_enfants",
+                "situations_crises", "deuil", "intimidation", "adoption_internationale", "violence_victime",
+                "relations_interpersonnelles", "communautes_culturelles_parcours_migratoire"],
      "accepting": true, "periods": ["am", "pm", "weekend"],
      "bio": "Travailleur social, Étienne soutient les familles et les adultes qui vivent une période de crise, une séparation ou des difficultés liées à la consommation.",
      "approach": "Approche systémique et concrète, en lien avec les ressources de votre milieu.",
@@ -237,24 +238,24 @@ declare
      "gender": "male", "years": 3, "city": "Laval", "status": "in_review",
      "titles": [{"key": "psychologue", "licence": "15026"}],
      "languages": ["fr"],
-     "clienteles": ["children", "adolescents"], "clienteles_star": ["children"],
-     "approaches": ["play_therapy", "cbt"], "approaches_star": ["play_therapy"],
-     "motifs": ["deficit_attention_hyperactivite", "difficultes_apprentissage", "difficultes_comportement", "anxiete",
+     "clienteles": ["children", "adolescents", "parents"], "clienteles_star": ["children"],
+     "min_client_age": 8,
+     "motifs": ["deficit_attention_hyperactivite", "troubles_difficultes_apprentissage", "difficultes_comportement_enfant", "anxiete",
                 "douance", "trouble_spectre_autisme"],
      "accepting": true, "periods": ["am", "pm"],
-     "bio": "Olivier accompagne les enfants et les adolescents, ainsi que leurs parents, dans les défis scolaires, l'attention et l'anxiété.",
+     "bio": "Olivier accompagne les enfants à partir de 8 ans et les adolescents, ainsi que leurs parents, dans les défis scolaires, l'attention et l'anxiété.",
      "approach": "Thérapie par le jeu pour les plus jeunes, TCC adaptée pour les adolescents.",
      "public_email": "o.bergeron@exemple.test", "public_phone": "+14505550109"},
 
     {"n": 10, "first": "Julie", "last": "Morin", "email": "julie.morin@exemple.test",
      "gender": "female", "years": 12, "city": "Longueuil", "status": "inactive",
      "deactivation_reason": "leave", "deactivation_note": "Congé parental, retour prévu en mars 2027.",
-     "titles": [{"key": "psychoeducateur", "licence": "4127"}],
+     "titles": [{"key": "psychoeducateur", "licence": "41270-15"}],
      "languages": ["fr", "en"],
-     "clienteles": ["children", "adolescents", "families"], "clienteles_star": ["children", "adolescents"],
-     "approaches": ["systemic", "play_therapy"],
+     "clienteles": ["children", "adolescents", "families", "parents"], "clienteles_star": ["children", "adolescents"],
+     "min_client_age": 12,
      "motifs": ["difficultes_comportement", "trouble_oppositionnel_provocation", "trouble_conduites",
-                "deficit_attention_hyperactivite", "retard_developpement", "retard_global_developpement",
+                "deficit_attention_hyperactivite", "opposition_gestion_comportements", "discipline_encadrement",
                 "relations_familiales"],
      "accepting": true, "periods": ["am"],
      "bio": "Psychoéducatrice, Julie accompagne les enfants, les adolescents et leurs familles dans les défis du quotidien, à la maison comme à l'école.",
@@ -272,7 +273,7 @@ begin
 
   perform public.save_motif(m.id, m.name, m.category_id, true)
      from public.motifs m
-    where m.org_id = v_org and m.key in ('psychose', 'idees_suicidaires');
+    where m.org_id = v_org and m.key in ('idees_suicidaires', 'trouble_personnalite_limite');
 
   for p in select x from jsonb_array_elements(v_people) as x loop
     v_id := ('5eed0000-0000-0000-0000-' || lpad(p ->> 'n', 12, '0'))::uuid;
@@ -292,7 +293,9 @@ begin
     update public.professional_matching_profiles
        set accepting_new_clients = (p ->> 'accepting')::boolean,
            availability_periods = array(select jsonb_array_elements_text(coalesce(p -> 'periods', '[]'))),
-           availability_note = p ->> 'availability_note'
+           availability_note = p ->> 'availability_note',
+           min_client_age = (p ->> 'min_client_age')::smallint,
+           women_only = coalesce((p ->> 'women_only')::boolean, false)
      where professional_id = v_id;
     update public.professional_public_profiles
        set bio = p ->> 'bio', approach = p ->> 'approach',
@@ -318,7 +321,7 @@ begin
     end if;
     perform public.set_professional_languages(v_id, v_ids);
 
-    -- Clientèles and approaches, ★ where listed.
+    -- Clientèles, ★ where listed.
     v_keys := array(select jsonb_array_elements_text(coalesce(p -> 'clienteles', '[]')));
     select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'specialized', coalesce(p -> 'clienteles_star', '[]') ? c.key)), '[]'),
            count(*)
@@ -328,16 +331,6 @@ begin
       raise exception 'seed: unknown clientèle in %', v_keys;
     end if;
     perform public.set_professional_clienteles(v_id, v_items);
-
-    v_keys := array(select jsonb_array_elements_text(coalesce(p -> 'approaches', '[]')));
-    select coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'specialized', coalesce(p -> 'approaches_star', '[]') ? s.key)), '[]'),
-           count(*)
-      into v_items, v_n
-      from public.specialties s where s.org_id = v_org and s.key = any (v_keys);
-    if v_n <> cardinality(v_keys) then
-      raise exception 'seed: unknown approach in %', v_keys;
-    end if;
-    perform public.set_professional_specialties(v_id, v_items);
 
     -- Motifs: "all", every active one except "motifs_except", or a list of keys.
     if p ->> 'motifs' = 'all' then

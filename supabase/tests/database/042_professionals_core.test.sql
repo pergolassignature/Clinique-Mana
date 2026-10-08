@@ -3,8 +3,9 @@
 -- email, 1:1 rows, French, primary profession, duplicates in the clinic only, licence rule,
 -- atomicity, permission); column updates under RLS; set_professional_professions (≤ 2, one
 -- primary, promotion, row ids kept, licence format and order pattern, archived titles, the
--- deferred primary check, restricted motifs kept consistent); the clientèle, approach, motif and
--- language sets (replace, specialized flags, archived and restricted rules, org of the ids);
+-- deferred primary check, restricted motifs kept consistent); the clientèle, motif and
+-- language sets (replace, specialized flags, archived and restricted rules, org of the ids; no
+-- approaches, P4-240); the matching profile's client limits (P4-245);
 -- the HINT of each field refusal (first_name, last_name, email, title, licence, ivac: the forms
 -- route by it, never by the French text; for titles and licences DETAIL names the title); IVAC numbers (stored upper-case, unique whatever the case); email changes and the profile → professional email sync (a conflict leaves the
 -- professional's email, neutrally); private.current_professional_id(); provider RLS and the
@@ -13,7 +14,7 @@
 -- audit noise, personal fields redacted).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(241);
+select plan(234);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
@@ -60,16 +61,12 @@ select set_config('test.psy_cat', (select c.id::text from public.profession_cate
 select set_config('test.adults',   (select c.id::text from public.clienteles c where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.key = 'adults'), true);
 select set_config('test.couples',  (select c.id::text from public.clienteles c where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.key = 'couples'), true);
 select set_config('test.b_adults', (select c.id::text from public.clienteles c where c.org_id = 'b0000000-0000-0000-0000-00000000000b' and c.key = 'adults'), true);
-select set_config('test.cbt',     (select s.id::text from public.specialties s where s.org_id = 'b0000000-0000-0000-0000-00000000000a' and s.key = 'cbt'), true);
-select set_config('test.emdr',    (select s.id::text from public.specialties s where s.org_id = 'b0000000-0000-0000-0000-00000000000a' and s.key = 'emdr'), true);
-select set_config('test.gestalt', (select s.id::text from public.specialties s where s.org_id = 'b0000000-0000-0000-0000-00000000000a' and s.key = 'gestalt'), true);
-select set_config('test.b_cbt',   (select s.id::text from public.specialties s where s.org_id = 'b0000000-0000-0000-0000-00000000000b' and s.key = 'cbt'), true);
 select set_config('test.fr',   (select l.id::text from public.languages l where l.org_id = 'b0000000-0000-0000-0000-00000000000a' and l.code = 'fr'), true);
 select set_config('test.en',   (select l.id::text from public.languages l where l.org_id = 'b0000000-0000-0000-0000-00000000000a' and l.code = 'en'), true);
 select set_config('test.b_fr', (select l.id::text from public.languages l where l.org_id = 'b0000000-0000-0000-0000-00000000000b' and l.code = 'fr'), true);
 select set_config('test.anxiete',  (select m.id::text from public.motifs m where m.org_id = 'b0000000-0000-0000-0000-00000000000a' and m.key = 'anxiete'), true);
 select set_config('test.deuil',    (select m.id::text from public.motifs m where m.org_id = 'b0000000-0000-0000-0000-00000000000a' and m.key = 'deuil'), true);
-select set_config('test.psychose', (select m.id::text from public.motifs m where m.org_id = 'b0000000-0000-0000-0000-00000000000a' and m.key = 'psychose'), true);
+select set_config('test.restricted', (select m.id::text from public.motifs m where m.org_id = 'b0000000-0000-0000-0000-00000000000a' and m.key = 'idees_suicidaires'), true);
 select set_config('test.b_anxiete', (select m.id::text from public.motifs m where m.org_id = 'b0000000-0000-0000-0000-00000000000b' and m.key = 'anxiete'), true);
 
 insert into public.professionals (id, org_id, profile_id, first_name, last_name, email) values
@@ -98,18 +95,15 @@ insert into public.professional_motifs (org_id, professional_id, motif_id) value
   ('b0000000-0000-0000-0000-00000000000b', 'c0000000-0000-0000-0000-000000000003', current_setting('test.b_anxiete')::uuid);
 insert into public.professional_clienteles (org_id, professional_id, clientele_id, is_specialized) values
   ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002', current_setting('test.adults')::uuid, true);
-insert into public.professional_specialties (org_id, professional_id, specialty_id) values
-  ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002', current_setting('test.cbt')::uuid);
 
 -- Reference states the rules need: an archived motif already held by P1 (deuil), a restricted
--- motif (psychose), an order with a licence pattern (OCCOQ), an archived title (psychoéducateur),
--- an archived approach (Gestalt).
+-- motif (idées suicidaires), an order with a licence pattern (OCCOQ), an archived title
+-- (psychoéducateur).
 update public.motifs set is_active = false where id = current_setting('test.deuil')::uuid;
-update public.motifs set is_restricted = true where id = current_setting('test.psychose')::uuid;
+update public.motifs set is_restricted = true where id = current_setting('test.restricted')::uuid;
 update public.professional_orders set licence_pattern = '^[0-9]{5}$'
  where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'occoq';
 update public.profession_titles set is_active = false where id = current_setting('test.psyed')::uuid;
-update public.specialties set is_active = false where id = current_setting('test.gestalt')::uuid;
 
 select set_config('test.p1_psy_row', (select pp.id::text from public.professional_professions pp
   where pp.professional_id = current_setting('test.p1')::uuid and pp.profession_title_id = current_setting('test.psy')::uuid), true);
@@ -183,17 +177,18 @@ select table_privs_are('public', 'professional_matching_profiles', 'anon', array
 select column_privs_are('public', 'professional_matching_profiles', 'accepting_new_clients', 'authenticated', array['SELECT', 'UPDATE'], 'accepting_new_clients is updatable');
 select column_privs_are('public', 'professional_matching_profiles', 'availability_periods',  'authenticated', array['SELECT', 'UPDATE'], 'availability_periods is updatable');
 select column_privs_are('public', 'professional_matching_profiles', 'availability_note',     'authenticated', array['SELECT', 'UPDATE'], 'availability_note is updatable');
+select column_privs_are('public', 'professional_matching_profiles', 'min_client_age',        'authenticated', array['SELECT', 'UPDATE'], 'min_client_age is updatable (P4-245)');
+select column_privs_are('public', 'professional_matching_profiles', 'women_only',            'authenticated', array['SELECT', 'UPDATE'], 'women_only is updatable (P4-245)');
 select column_privs_are('public', 'professional_matching_profiles', 'professional_id', 'authenticated', array['SELECT'], 'matching profile key is not updatable');
 
 select table_privs_are('public', 'professional_professions',   'authenticated', array['SELECT'], 'authenticated: select only on professions');
 select table_privs_are('public', 'professional_clienteles',    'authenticated', array['SELECT'], 'authenticated: select only on clientèles');
-select table_privs_are('public', 'professional_specialties',   'authenticated', array['SELECT'], 'authenticated: select only on approaches');
+select hasnt_table('public', 'professional_specialties', 'there is no approaches junction (P4-240)');
 select table_privs_are('public', 'professional_motifs',        'authenticated', array['SELECT'], 'authenticated: select only on motifs');
 select table_privs_are('public', 'professional_languages',     'authenticated', array['SELECT'], 'authenticated: select only on languages');
 select table_privs_are('public', 'professional_payer_numbers', 'authenticated', array['SELECT'], 'authenticated: select only on payer numbers');
 select table_privs_are('public', 'professional_professions',   'anon', array[]::text[], 'anon: nothing on professions');
 select table_privs_are('public', 'professional_clienteles',    'anon', array[]::text[], 'anon: nothing on clientèles');
-select table_privs_are('public', 'professional_specialties',   'anon', array[]::text[], 'anon: nothing on approaches');
 select table_privs_are('public', 'professional_motifs',        'anon', array[]::text[], 'anon: nothing on motifs');
 select table_privs_are('public', 'professional_languages',     'anon', array[]::text[], 'anon: nothing on languages');
 select table_privs_are('public', 'professional_payer_numbers', 'anon', array[]::text[], 'anon: nothing on payer numbers');
@@ -206,8 +201,7 @@ select function_privs_are('public', 'set_professional_professions', array['uuid'
 select function_privs_are('public', 'set_professional_professions', array['uuid', 'jsonb'], 'authenticated', array['EXECUTE'], 'authenticated may call set_professional_professions');
 select function_privs_are('public', 'set_professional_clienteles', array['uuid', 'jsonb'], 'anon', array[]::text[], 'anon cannot call set_professional_clienteles');
 select function_privs_are('public', 'set_professional_clienteles', array['uuid', 'jsonb'], 'authenticated', array['EXECUTE'], 'authenticated may call set_professional_clienteles');
-select function_privs_are('public', 'set_professional_specialties', array['uuid', 'jsonb'], 'anon', array[]::text[], 'anon cannot call set_professional_specialties');
-select function_privs_are('public', 'set_professional_specialties', array['uuid', 'jsonb'], 'authenticated', array['EXECUTE'], 'authenticated may call set_professional_specialties');
+select hasnt_function('public', 'set_professional_specialties', 'there is no approaches set RPC (P4-240)');
 select function_privs_are('public', 'set_professional_motifs', array['uuid', 'uuid[]'], 'anon', array[]::text[], 'anon cannot call set_professional_motifs');
 select function_privs_are('public', 'set_professional_motifs', array['uuid', 'uuid[]'], 'authenticated', array['EXECUTE'], 'authenticated may call set_professional_motifs');
 select function_privs_are('public', 'set_professional_languages', array['uuid', 'uuid[]'], 'anon', array[]::text[], 'anon cannot call set_professional_languages');
@@ -230,7 +224,6 @@ select has_index('public', 'professionals', 'professionals_org_status_idx', 'sta
 select has_index('public', 'professionals', 'professionals_org_email_key', 'email unique per clinic');
 select has_index('public', 'professional_professions', 'professional_professions_org_title_idx', 'professions by title');
 select has_index('public', 'professional_clienteles', 'professional_clienteles_org_clientele_idx', 'matching lookup by clientèle');
-select has_index('public', 'professional_specialties', 'professional_specialties_org_specialty_idx', 'matching lookup by approach');
 select has_index('public', 'professional_motifs', 'professional_motifs_org_motif_idx', 'matching lookup by motif');
 select has_index('public', 'professional_languages', 'professional_languages_org_language_idx', 'matching lookup by language');
 
@@ -363,6 +356,14 @@ select results_eq($$ with u as (update public.professional_matching_profiles set
 select throws_ok($$ update public.professional_matching_profiles set availability_periods = array['am', 'am']
                      where professional_id = current_setting('test.p1')::uuid $$,
   '23514', null, 'availability periods are distinct');
+select results_eq($$ with u as (update public.professional_matching_profiles set min_client_age = 14, women_only = true
+                                  where professional_id = current_setting('test.p1')::uuid
+                                  returning min_client_age::int, women_only)
+                    select * from u $$,
+  $$ values (14, true) $$, 'the conseillère sets the youngest client age and « femmes seulement » (P4-245)');
+select throws_ok($$ update public.professional_matching_profiles set min_client_age = 121
+                     where professional_id = current_setting('test.p1')::uuid $$,
+  '23514', null, 'the youngest client age stays within 0–120');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select results_eq($$ with u as (update public.professional_matching_profiles set accepting_new_clients = false
@@ -472,7 +473,7 @@ select throws_ok($$ select public.set_professional_professions(current_setting('
   '22023', null, 'a malformed title id gives 22023, not 22P02');
 
 -- =============================================================================
--- set_professional_clienteles / _specialties (conseillère A, P1)
+-- set_professional_clienteles (conseillère A, P1)
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select results_eq($$ select x.clientele_id, x.is_specialized from public.set_professional_clienteles(current_setting('test.p1')::uuid,
@@ -492,20 +493,6 @@ select throws_ok($$ select public.set_professional_clienteles(current_setting('t
   '22023', null, 'a clientèle of another clinic is refused');
 select throws_ok($$ select public.set_professional_clienteles(current_setting('test.p1')::uuid, '[{"id": "12345"}]'::jsonb) $$,
   '22023', null, 'a malformed clientèle id gives 22023, not 22P02');
-select results_eq($$ select x.specialty_id, x.is_specialized from public.set_professional_specialties(current_setting('test.p1')::uuid,
-                        jsonb_build_array(jsonb_build_object('id', current_setting('test.cbt'), 'specialized', true),
-                                          jsonb_build_object('id', current_setting('test.emdr')))) x
-                     order by x.is_specialized desc $$,
-  $$ values (current_setting('test.cbt')::uuid, true), (current_setting('test.emdr')::uuid, false) $$,
-  'approaches set with their specialized flag');
-select throws_ok($$ select public.set_professional_specialties(current_setting('test.p1')::uuid,
-                     jsonb_build_array(jsonb_build_object('id', current_setting('test.gestalt')))) $$,
-  'P0001', 'L''approche « Gestalt-thérapie » est archivée.', 'an archived approach cannot be added');
-select throws_ok($$ select public.set_professional_specialties(current_setting('test.p1')::uuid,
-                     jsonb_build_array(jsonb_build_object('id', current_setting('test.b_cbt')))) $$,
-  '22023', null, 'an approach of another clinic is refused');
-select is((select count(*)::int from public.set_professional_specialties(current_setting('test.p1')::uuid, '[]'::jsonb)), 0,
-  'an empty list clears the approaches');
 
 -- =============================================================================
 -- set_professional_motifs (conseillère A)
@@ -521,12 +508,12 @@ select throws_ok($$ select public.set_professional_motifs(current_setting('test.
                      array[current_setting('test.anxiete')::uuid, current_setting('test.deuil')::uuid]) $$,
   'P0001', 'Le motif « Deuil » est archivé.', 'an archived motif cannot be added back');
 select throws_ok($$ select public.set_professional_motifs(current_setting('test.naturo_pro')::uuid,
-                     array[current_setting('test.psychose')::uuid]) $$,
-  'P0001', 'Le motif « Psychose » est réservé aux professions réglementées.',
+                     array[current_setting('test.restricted')::uuid]) $$,
+  'P0001', 'Le motif « Idées suicidaires » est réservé aux professions réglementées.',
   'a restricted motif needs a regulated profession (naturopathe only)');
 select results_eq($$ select x from public.set_professional_motifs(current_setting('test.p1')::uuid,
-                        array[current_setting('test.anxiete')::uuid, current_setting('test.psychose')::uuid, null]) x order by x $$,
-  $$ select x from unnest(array[current_setting('test.anxiete')::uuid, current_setting('test.psychose')::uuid]) x order by x $$,
+                        array[current_setting('test.anxiete')::uuid, current_setting('test.restricted')::uuid, null]) x order by x $$,
+  $$ select x from unnest(array[current_setting('test.anxiete')::uuid, current_setting('test.restricted')::uuid]) x order by x $$,
   'a psychologue may hold a restricted motif (null ids ignored)');
 select throws_ok($$ select public.set_professional_motifs(current_setting('test.p1')::uuid,
                      array[current_setting('test.b_anxiete')::uuid]) $$,
@@ -538,7 +525,7 @@ select throws_ok($$ select public.set_professional_motifs(current_setting('test.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.set_professional_professions(current_setting('test.p1')::uuid, jsonb_build_array(
                      jsonb_build_object('title_id', current_setting('test.naturo')))) $$,
-  'P0001', 'Retirez d''abord les motifs réservés aux professions réglementées : Psychose.',
+  'P0001', 'Retirez d''abord les motifs réservés aux professions réglementées : Idées suicidaires.',
   'removing the only regulated title is refused while a restricted motif is held');
 
 -- =============================================================================
@@ -670,7 +657,6 @@ select results_eq('select distinct x.professional_id from public.professional_ma
 select results_eq('select distinct x.professional_id from public.professional_professions x', array[current_setting('test.p2')::uuid], 'own professions only');
 select results_eq('select distinct x.professional_id from public.professional_motifs x', array[current_setting('test.p2')::uuid], 'own motifs only');
 select results_eq('select distinct x.professional_id from public.professional_clienteles x', array[current_setting('test.p2')::uuid], 'own clientèles only');
-select results_eq('select distinct x.professional_id from public.professional_specialties x', array[current_setting('test.p2')::uuid], 'own approaches only');
 select results_eq('select distinct x.professional_id from public.professional_languages x', array[current_setting('test.p2')::uuid], 'own languages only');
 
 reset role;
@@ -682,8 +668,6 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select is((select count(*)::int from public.professionals), 0, 'module off: the conseillère sees nothing');
 select throws_ok($$ select public.set_professional_clienteles(current_setting('test.p1')::uuid, '[]'::jsonb) $$,
   '42501', null, 'module off: set_professional_clienteles is refused');
-select throws_ok($$ select public.set_professional_specialties(current_setting('test.p1')::uuid, '[]'::jsonb) $$,
-  '42501', null, 'module off: set_professional_specialties is refused');
 select throws_ok($$ select public.set_professional_motifs(current_setting('test.p1')::uuid, array[]::uuid[]) $$,
   '42501', null, 'module off: set_professional_motifs is refused');
 select throws_ok($$ select public.set_professional_languages(current_setting('test.p1')::uuid, array[current_setting('test.fr')::uuid]) $$,
@@ -723,8 +707,6 @@ select throws_ok($$ select * from public.list_professionals_reference_usage() $$
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select throws_ok($$ select public.set_professional_clienteles(current_setting('test.p1')::uuid, '[]'::jsonb) $$,
   '42501', null, 'disabled conseillère: set_professional_clienteles is refused');
-select throws_ok($$ select public.set_professional_specialties(current_setting('test.p1')::uuid, '[]'::jsonb) $$,
-  '42501', null, 'disabled conseillère: set_professional_specialties is refused');
 select throws_ok($$ select public.set_professional_motifs(current_setting('test.p1')::uuid, array[]::uuid[]) $$,
   '42501', null, 'disabled conseillère: set_professional_motifs is refused');
 select throws_ok($$ select public.set_professional_languages(current_setting('test.p1')::uuid, array[current_setting('test.fr')::uuid]) $$,
@@ -745,8 +727,6 @@ select throws_ok($$ select public.set_professional_professions(current_setting('
   'P0001', 'Professionnel introuvable.', 'set_professional_professions: not found');
 select throws_ok($$ select public.set_professional_clienteles(current_setting('test.p1')::uuid, '[]'::jsonb) $$,
   'P0001', 'Professionnel introuvable.', 'set_professional_clienteles: not found');
-select throws_ok($$ select public.set_professional_specialties(current_setting('test.p1')::uuid, '[]'::jsonb) $$,
-  'P0001', 'Professionnel introuvable.', 'set_professional_specialties: not found');
 select throws_ok($$ select public.set_professional_motifs(current_setting('test.p1')::uuid, array[]::uuid[]) $$,
   'P0001', 'Professionnel introuvable.', 'set_professional_motifs: not found');
 select throws_ok($$ select public.set_professional_languages(current_setting('test.p1')::uuid, array[current_setting('test.b_fr')::uuid]) $$,
@@ -759,8 +739,8 @@ select throws_ok($$ select public.set_professional_payer_number(current_setting(
 -- =============================================================================
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select results_eq($$ select u.kind, u.id, u.usage from public.list_professionals_reference_usage() u
-                     where u.id = current_setting('test.psychose')::uuid $$,
-  $$ values ('motifs'::text, current_setting('test.psychose')::uuid, 1) $$, 'a motif held once counts 1');
+                     where u.id = current_setting('test.restricted')::uuid $$,
+  $$ values ('motifs'::text, current_setting('test.restricted')::uuid, 1) $$, 'a motif held once counts 1');
 select results_eq($$ select u.usage from public.list_professionals_reference_usage() u
                      where u.kind = 'motifs' and u.id = current_setting('test.anxiete')::uuid $$,
   array[2], 'a motif held by two professionals counts 2');
@@ -784,7 +764,7 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select is((select count(*)::int from public.professional_motifs), 0, 'settings only: the junction rows are not readable');
 select results_eq($$ select u.kind, u.usage from public.list_professionals_reference_usage() u
-                     where u.id in (current_setting('test.anxiete')::uuid, current_setting('test.psychose')::uuid)
+                     where u.id in (current_setting('test.anxiete')::uuid, current_setting('test.restricted')::uuid)
                      order by u.usage desc $$,
   $$ values ('motifs'::text, 2), ('motifs'::text, 1) $$,
   'settings only: the counts are still the clinic''s');
@@ -803,7 +783,7 @@ select set_config('test.audit_count', (select count(*)::text from public.audit_l
                                          where left(a.record_id, 36) = current_setting('test.p1')), true);
 set local role authenticated;
 select public.set_professional_motifs(current_setting('test.p1')::uuid,
-  array[current_setting('test.psychose')::uuid, current_setting('test.anxiete')::uuid]);
+  array[current_setting('test.restricted')::uuid, current_setting('test.anxiete')::uuid]);
 select public.set_professional_languages(current_setting('test.p1')::uuid,
   array[current_setting('test.en')::uuid, current_setting('test.fr')::uuid]);
 reset role;
@@ -813,7 +793,7 @@ select is((select count(*)::text from public.audit_log a where left(a.record_id,
 select results_eq($$ select distinct a.table_name from public.audit_log a
                      where left(a.record_id, 36) = current_setting('test.p1') order by 1 $$,
   array['professional_clienteles', 'professional_languages', 'professional_matching_profiles', 'professional_motifs',
-        'professional_payer_numbers', 'professional_professions', 'professional_public_profiles', 'professional_specialties',
+        'professional_payer_numbers', 'professional_professions', 'professional_public_profiles',
         'professionals']::text[],
   'every write on P1 and its child rows is audited under a record id starting with P1');
 select ok(exists (select 1 from public.audit_log a
