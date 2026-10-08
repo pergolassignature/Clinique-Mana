@@ -50,6 +50,9 @@ jobs:
       - run: npm run check:functions
       - run: npm run lint:functions
       - run: npm run test:functions
+      # supabase/templates/*.html are generated from _shared/email (P3-27):
+      # fails when a committed template differs from the build output.
+      - run: npm run check:auth-templates
 
   database:
     name: Migrations, RLS tests, types drift

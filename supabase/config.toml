@@ -58,6 +58,9 @@ secure_password_change = true
 enable_confirmations = false
 
 # Auth email templates, in French with the clinic's identity (supabase/templates/).
+# All but invite.html are GENERATED from supabase/functions/_shared/email/auth-templates.ts
+# (npm run build:auth-templates; CI checks they match). Edit the source, not the HTML.
+# The subjects below must equal AUTH_SUBJECTS there (the build checks it).
 # Staging/production: paste the same subject + HTML in Dashboard → Authentication → Emails
 # → Templates (config.toml is not pushed to remote projects). Keep both in sync.
 [auth.email.template.recovery]

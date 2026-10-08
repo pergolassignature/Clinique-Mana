@@ -29,6 +29,17 @@ describe('confirmNext', () => {
     },
   )
 
+  it('reads a ? and & inside next once the magic-link template URL-encodes it', () => {
+    // The template writes `&next={{ .RedirectTo | urlquery }}` last (Task 3.15): Go's QueryEscape.
+    const queryEscape = (value: string) =>
+      encodeURIComponent(value).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`).replace(/%20/g, '+')
+    const redirectTo = 'http://localhost:5173/parametres/identite?onglet=adresse&mode=edition#haut'
+    const search = `?token_hash=abc&type=email&next=${queryEscape(redirectTo)}`
+    const params = new URLSearchParams(search)
+    expect(params.get('type')).toBe('email')
+    expect(confirmNext(params.get('next'), origin)).toBe('/parametres/identite?onglet=adresse&mode=edition#haut')
+  })
+
   it('still applies safeRedirect to the path of a same-origin URL', () => {
     expect(confirmNext('http://localhost:5173/\\evil.test', origin)).toBe('/accueil')
   })
