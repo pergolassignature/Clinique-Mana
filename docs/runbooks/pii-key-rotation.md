@@ -25,7 +25,7 @@ Les étapes ci-dessous passent de la version 1 à la version 2. Pour une rotatio
 | Table | Colonnes chiffrées | Clé de ligne |
 |---|---|---|
 | `public.organization_bank_details` | `account_number` | `org_id` |
-| `public.professional_private` (à partir de la Task 4a.17) | `sin`, `bank_account` | `professional_id` |
+| `public.professional_private` (Task 4a.17) | `sin`, `bank_account` | `professional_id` |
 | `public.professional_submission_private` (à partir de la Task 4b.1, P4-38 : valeurs saisies dans le questionnaire) | `sin`, `bank_account` | `submission_id` |
 
 ## Avant de commencer
@@ -88,15 +88,15 @@ begin
   get diagnostics v_count = row_count;
   raise notice 'organization_bank_details : % ligne(s) re-chiffrée(s)', v_count;
 
-  -- À partir de la Task 4a.17 (une valeur absente reste absente) :
-  -- update public.professional_private p
-  --    set sin = private.encrypt_pii(private.decrypt_pii(p.sin, p.key_version), v_target),
-  --        bank_account = private.encrypt_pii(private.decrypt_pii(p.bank_account, p.key_version), v_target),
-  --        key_version = v_target
-  --  where p.professional_id in (select x.professional_id from public.professional_private x
-  --                               where x.key_version <> v_target order by x.professional_id limit 500);
-  -- get diagnostics v_count = row_count;
-  -- raise notice 'professional_private : % ligne(s) re-chiffrée(s)', v_count;
+  -- Une valeur absente reste absente (encrypt_pii et decrypt_pii rendent null pour null).
+  update public.professional_private p
+     set sin = private.encrypt_pii(private.decrypt_pii(p.sin, p.key_version), v_target),
+         bank_account = private.encrypt_pii(private.decrypt_pii(p.bank_account, p.key_version), v_target),
+         key_version = v_target
+   where p.professional_id in (select x.professional_id from public.professional_private x
+                                where x.key_version <> v_target order by x.professional_id limit 500);
+  get diagnostics v_count = row_count;
+  raise notice 'professional_private : % ligne(s) re-chiffrée(s)', v_count;
 
   -- À partir de la Task 4b.1 : professional_submission_private, même forme (clé de ligne submission_id).
 end;
@@ -118,8 +118,9 @@ select * from private.pii_key_versions_in_use() order by 1, 2;
 ### 5. Vérifier
 
 1. L'inventaire (« Avant de commencer », point 4) ne montre plus que la version 2.
+   S'il montre encore des lignes en version 1, relancer le bloc de l'étape 4, puis revérifier : une écriture de l'app commencée avant l'étape 3 peut se terminer après l'étape 4, encore en version 1.
 2. `select public.pii_health_check();` → `true`.
-3. Dans l'app : Paramètres → Coordonnées bancaires → « Afficher » montre le bon numéro (et, après la Task 4a.17, le compte d'un professionnel).
+3. Dans l'app : Paramètres → Coordonnées bancaires → « Afficher » montre le bon numéro ; dans la fiche d'un professionnel qui en a un, « Rémunération et fiscalité » → « Afficher » montre son compte.
 
 ### 6. Garder l'ancienne version un temps
 
