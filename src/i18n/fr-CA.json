@@ -598,10 +598,10 @@
       },
       "loadError": "Impossible de charger les réglages de signature.",
       "secretsLoadError": "Impossible de charger l'état des clés.",
+      "readOnlyNotice": "Seule une personne qui gère les clés d'intégration peut modifier ces réglages.",
       "connection": {
         "title": "Connexion",
         "description": "L'adresse de l'instance Documenso et sa clé d'API. Une clé enregistrée n'est jamais affichée.",
-        "readOnlyDescription": "L'adresse de l'instance Documenso et sa clé d'API. Seule une personne qui gère les clés d'intégration peut les modifier.",
         "baseUrl": "Adresse de l'instance",
         "baseUrlHelp": "Par exemple https://signature.cliniquemana.com.",
         "saved": "Adresse de l'instance enregistrée.",
@@ -646,7 +646,7 @@
         "refreshing": "Actualisation…",
         "synced": {
           "updated": "État mis à jour.",
-          "unchanged": "Aucun changement chez Documenso.",
+          "unchanged": "État à jour.",
           "sending": "L'envoi est encore en cours. Réessayez dans un instant.",
           "orphanCompleted": "Documenso indique un document signé qui n'a pas pu être rattaché à cette demande."
         }
@@ -669,7 +669,7 @@
         "inactive": "Désactivé"
       },
       "errors": {
-        "not_configured": "La signature électronique n'est pas configurée : enregistrez l'adresse de l'instance et la clé d'API.",
+        "not_configured": "La configuration de la signature est incomplète ou a été refusée par Documenso. Vérifiez l'adresse et la clé.",
         "provider_error": "Le service de signature n'a pas répondu. Réessayez.",
         "conflict": "Un envoi est déjà en cours.",
         "not_found": "Ce document test n'existe plus. Rechargez la page.",

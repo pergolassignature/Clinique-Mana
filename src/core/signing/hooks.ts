@@ -106,21 +106,25 @@ export function useSendSigningTestDocument() {
   return { send, isPending: mutation.isPending }
 }
 
-/** « Actualiser l'état »: `signing-sync` for one request, then the reads again. */
+/**
+ * « Actualiser l'état »: `signing-sync` for one request, then the reads again. No toast: the card
+ * shows the outcome next to the button (`syncOutcomeText`, in its status region).
+ */
 export function useSyncSignatureRequest() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (requestId: string) => syncSignatureRequest(requestId),
-    onSuccess: async ({ outcome }) => {
-      if (outcome === 'orphan_completed') toast.error(t('settings.signing.send.synced.orphanCompleted'))
-      else if (outcome === 'unchanged') toast.success(t('settings.signing.send.synced.unchanged'))
-      else if (outcome === 'sending') toast.success(t('settings.signing.send.synced.sending'))
-      // `signed`, `updated`.
-      else toast.success(t('settings.signing.send.synced.updated'))
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: signingKeys.all })
     },
-    onError: (error) => {
-      toast.error(signingErrorMessage(error))
-    },
   })
+}
+
+/** The French text of a `signing-sync` outcome, and whether it is a problem. */
+export function syncOutcomeText(outcome: string): { ok: boolean; text: string } {
+  if (outcome === 'orphan_completed') return { ok: false, text: t('settings.signing.send.synced.orphanCompleted') }
+  if (outcome === 'unchanged') return { ok: true, text: t('settings.signing.send.synced.unchanged') }
+  if (outcome === 'sending') return { ok: true, text: t('settings.signing.send.synced.sending') }
+  // `signed`, `updated`.
+  return { ok: true, text: t('settings.signing.send.synced.updated') }
 }

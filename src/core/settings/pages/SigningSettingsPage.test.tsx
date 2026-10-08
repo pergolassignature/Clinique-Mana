@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { FileSignature } from 'lucide-react'
@@ -73,14 +73,15 @@ function renderPage(
   {
     settings = { base_url: 'https://sign.cliniquemana.com', expiry_days: 7 } as { base_url: string | null; expiry_days: number },
     lastEvent = '2026-10-08T12:00:00Z' as string | null,
-    lastTest = null as SignatureRequestRow | null,
+    lastTest = null as SignatureRequestRow | null | Promise<never>,
     templates = [TEMPLATE] as DocumentTemplate[],
     secretKeys = [{ key: 'documenso_api_key', updated_at: '2026-10-08T12:00:00Z' }] as { key: string; updated_at: string }[],
   } = {},
 ) {
   mocks.signing.fetchSigningSettings.mockResolvedValue(settings)
   mocks.signing.lastDocumensoEventAt.mockResolvedValue(lastEvent)
-  mocks.signing.lastSigningTest.mockResolvedValue(lastTest)
+  if (lastTest instanceof Promise) mocks.signing.lastSigningTest.mockReturnValue(lastTest)
+  else mocks.signing.lastSigningTest.mockResolvedValue(lastTest)
   mocks.signing.listDocumentTemplates.mockResolvedValue(templates)
   mocks.secrets.listOrgSecretKeys.mockResolvedValue(secretKeys)
   const readOnly = !permissions.includes('settings.integrations_manage')
@@ -149,7 +150,7 @@ describe('SigningSettingsPage', () => {
       expect(within(sending()).getByRole('button', { name: t('settings.signing.send.testDocument') })).toBeInTheDocument()
     })
 
-    it('saves the instance address, normalised, with the stored expiry', async () => {
+    it('saves the instance address alone, normalised (the expiry is not sent: no lost update)', async () => {
       const user = userEvent.setup()
       mocks.signing.setSigningSettings.mockResolvedValue({ api_key_cleared: false })
       renderPage(ADMIN)
@@ -157,9 +158,7 @@ describe('SigningSettingsPage', () => {
       await user.clear(field)
       await user.type(field, 'HTTPS://Signature.CliniqueMana.com/')
       await user.click(within(connection()).getByRole('button', { name: t('common.save') }))
-      await waitFor(() =>
-        expect(mocks.signing.setSigningSettings).toHaveBeenCalledExactlyOnceWith({ base_url: 'https://signature.cliniquemana.com', expiry_days: 7 }),
-      )
+      await waitFor(() => expect(mocks.signing.setSigningSettings).toHaveBeenCalledExactlyOnceWith({ base_url: 'https://signature.cliniquemana.com' }))
       expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.signing.connection.saved'))
     })
 
@@ -218,7 +217,7 @@ describe('SigningSettingsPage', () => {
       expect(mocks.signing.setSigningSettings).not.toHaveBeenCalled()
     })
 
-    it('saves the expiry with the stored address, and refuses one outside 1–60', async () => {
+    it('saves the expiry alone (the address is not sent: no lost update), and refuses one outside 1–60', async () => {
       const user = userEvent.setup()
       mocks.signing.setSigningSettings.mockResolvedValue({ api_key_cleared: false })
       renderPage(ADMIN)
@@ -232,7 +231,7 @@ describe('SigningSettingsPage', () => {
       await user.type(field, '14')
       await user.click(within(sending()).getByRole('button', { name: t('common.save') }))
       await waitFor(() =>
-        expect(mocks.signing.setSigningSettings).toHaveBeenCalledExactlyOnceWith({ base_url: 'https://sign.cliniquemana.com', expiry_days: 14 }),
+        expect(mocks.signing.setSigningSettings).toHaveBeenCalledExactlyOnceWith({ expiry_days: 14 }),
       )
     })
 
@@ -290,9 +289,10 @@ describe('SigningSettingsPage', () => {
       expect(await within(webhook()).findByText(t('settings.signing.webhook.lastEvent', { date: '08 oct. 2026 à 08:00' }))).toBeInTheDocument()
     })
 
-    it('says when no event was received yet', async () => {
+    it('says when no event was received yet, without announcing it (it is what the page loaded)', async () => {
       renderPage(ADMIN, { lastEvent: null })
       expect(await within(webhook()).findByText(t('settings.signing.webhook.noEvent'))).toBeInTheDocument()
+      expect(within(webhook()).queryByRole('status')).not.toBeInTheDocument()
     })
 
     it('sends a secret once and never renders it', async () => {
@@ -356,13 +356,49 @@ describe('SigningSettingsPage', () => {
         expect(within(sending()).queryByRole('button', { name: t('settings.signing.send.refresh') })).not.toBeInTheDocument()
       })
 
-      it('« Actualiser l’état » reads an open test back from Documenso', async () => {
+      it('one status region, mounted and empty from the start: loading and the last test are not announced', async () => {
+        renderPage(ADMIN, { lastTest: new Promise<never>(() => {}) })
+        await expiry()
+        // Loading: « Chargement… » shows, outside the region.
+        const region = within(sending()).getByRole('status')
+        expect(within(sending()).getByText(t('common.loading'))).toBeInTheDocument()
+        expect(region).toBeEmptyDOMElement()
+        cleanup()
+        renderPage(ADMIN, { lastTest: { ...TEST_REQUEST, status: 'sent' } })
+        await expiry()
+        expect(await within(sending()).findByText(t('signing.status.sent'))).toBeInTheDocument()
+        const loaded = within(sending()).getByRole('status')
+        expect(loaded).toBeEmptyDOMElement()
+      })
+
+      it('« Actualiser l’état » reads an open test back from Documenso; the outcome shows in the status region, not a toast', async () => {
         const user = userEvent.setup()
         mocks.signing.syncSignatureRequest.mockResolvedValue({ request_id: TEST_REQUEST.id, outcome: 'unchanged' })
         renderPage(ADMIN, { lastTest: { ...TEST_REQUEST, status: 'sent' } })
+        await expiry()
+        const region = within(sending()).getByRole('status')
         await user.click(await within(sending()).findByRole('button', { name: t('settings.signing.send.refresh') }))
-        await waitFor(() => expect(mocks.signing.syncSignatureRequest).toHaveBeenCalledExactlyOnceWith(TEST_REQUEST.id))
-        expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.signing.send.synced.unchanged'))
+        await waitFor(() => expect(region).toHaveTextContent(t('settings.signing.send.synced.unchanged')))
+        expect(t('settings.signing.send.synced.unchanged')).toBe('État à jour.')
+        expect(mocks.signing.syncSignatureRequest).toHaveBeenCalledExactlyOnceWith(TEST_REQUEST.id)
+        expect(mocks.toast.success).not.toHaveBeenCalled()
+        expect(within(sending()).getByRole('status')).toBe(region)
+      })
+
+      it('« Actualiser l’état »: a change and a failure show in the same region', async () => {
+        const user = userEvent.setup()
+        mocks.signing.syncSignatureRequest
+          .mockResolvedValueOnce({ request_id: TEST_REQUEST.id, outcome: 'updated' })
+          .mockRejectedValueOnce(new FunctionCallError('provider_error', 502, 'Documenso did not answer'))
+        renderPage(ADMIN, { lastTest: { ...TEST_REQUEST, status: 'viewed' } })
+        await expiry()
+        const region = within(sending()).getByRole('status')
+        const button = await within(sending()).findByRole('button', { name: t('settings.signing.send.refresh') })
+        await user.click(button)
+        await waitFor(() => expect(region).toHaveTextContent(t('settings.signing.send.synced.updated')))
+        await user.click(within(sending()).getByRole('button', { name: t('settings.signing.send.refresh') }))
+        await waitFor(() => expect(region).toHaveTextContent(t('settings.signing.errors.provider_error')))
+        expect(mocks.toast.error).not.toHaveBeenCalled()
       })
     })
   })
@@ -371,6 +407,9 @@ describe('SigningSettingsPage', () => {
     it('shows the notice, read-only fields and the keys’ state, without any action', async () => {
       renderPage(ASSISTANT)
       expect(screen.getByText(t('common.readOnlyNotice.title'))).toBeInTheDocument()
+      // One wording: the notice names the right; the cards do not repeat it.
+      expect(screen.getByText(t('settings.signing.readOnlyNotice'))).toBeInTheDocument()
+      expect(within(connection()).getByText(t('settings.signing.connection.description'))).toBeInTheDocument()
       expect(await baseUrl()).toHaveAttribute('readonly')
       expect(await expiry()).toHaveAttribute('readonly')
       expect(await within(connection()).findByText(t('settings.secrets.configured'))).toBeInTheDocument()

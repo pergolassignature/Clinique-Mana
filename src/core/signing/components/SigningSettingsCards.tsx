@@ -8,6 +8,7 @@ import { useOrgSecretKeys } from '@/core/settings/secrets/hooks'
 import { webhookUrl, type SignatureRequestRow, type SigningSettings } from '@/core/signing/api'
 import { signingErrorMessage } from '@/core/signing/errors'
 import {
+  syncOutcomeText,
   useLastDocumensoEvent,
   useLastSigningTest,
   useSendSigningTestDocument,
@@ -33,10 +34,15 @@ import { StatusDot } from '@/shared/ui/status-dot'
 
 /*
  * The « Réglages » tab of « Signature électronique » (design §6.4): three cards, each changed with
- * `settings.integrations_manage` only (`readOnly` without it). The address and the expiry are
- * saved by one RPC (`set_signing_settings`): each card sends its own field with the other's stored
- * value. Every read starts on the first render (each card calls its queries before any loading
- * state), so nothing waits on anything else.
+ * `settings.integrations_manage` only (`readOnly` without it; the page's one notice says so). The
+ * address and the expiry are saved by one RPC (`set_signing_settings`), which takes a patch: each
+ * card sends only its own field, so neither writes back a stale copy of the other's (P3-34).
+ * Every read starts on the first render (each card calls its queries before any loading state),
+ * so nothing waits on anything else.
+ *
+ * Live regions: only what a click here changes is announced (the connection test's and « Actualiser
+ * l'état »'s outcomes), each in one region mounted with its card, empty until then. What the page
+ * loads (the last event, the last test) is plain text: nothing is read out on arrival.
  */
 interface CardProps {
   readOnly: boolean
@@ -53,11 +59,7 @@ export function SigningConnectionCard({ readOnly }: CardProps) {
   // What the test reads; a new address or key makes the last outcome stale: the test remounts, empty.
   const tested = settings.data && secrets.data ? `${settings.data.base_url}|${apiKeyAt}` : null
   return (
-    <SettingsCard
-      as="section"
-      title={t('settings.signing.connection.title')}
-      description={t(readOnly ? 'settings.signing.connection.readOnlyDescription' : 'settings.signing.connection.description')}
-    >
+    <SettingsCard as="section" title={t('settings.signing.connection.title')} description={t('settings.signing.connection.description')}>
       <SettingsLoad query={settings}>{(data) => <BaseUrlForm settings={data} readOnly={readOnly} hasApiKey={apiKeyAt !== null} />}</SettingsLoad>
       <DocumensoSecret
         secretKey="documenso_api_key"
@@ -83,7 +85,8 @@ export function SigningWebhookCard({ readOnly }: CardProps) {
         help={t('settings.signing.webhook.secretHelp')}
         readOnly={readOnly}
       />
-      <p role="status" className="text-sm text-muted-foreground">
+      {/* Not a live region: it is what the page loaded, not the outcome of anything done here. */}
+      <p className="text-sm text-muted-foreground">
         {lastEvent.isPending
           ? t('common.loading')
           : lastEvent.isError
@@ -131,8 +134,8 @@ function DocumensoSecret({ secretKey, label, help, readOnly }: { secretKey: stri
 const preventSubmit = (event: FormEvent<HTMLFormElement>) => event.preventDefault()
 
 /**
- * « Adresse de l'instance », saved with the stored expiry. A new address origin deletes the stored
- * API key (P3-34): while the address is being changed and a key is stored, the help says so.
+ * « Adresse de l'instance », saved alone. A new address origin deletes the stored API key (P3-34):
+ * while the address is being changed and a key is stored, the help says so.
  */
 function BaseUrlForm({ settings, readOnly, hasApiKey }: { settings: SigningSettings; readOnly: boolean; hasApiKey: boolean }) {
   const values = useMemo(() => toBaseUrlFormValues(settings), [settings])
@@ -141,9 +144,7 @@ function BaseUrlForm({ settings, readOnly, hasApiKey }: { settings: SigningSetti
   const { isDirty, errors } = form.formState
   useUnsavedChanges(isDirty && !readOnly)
 
-  const onSubmit = handleSave(({ base_url }, onSaved) =>
-    mutation.mutate({ base_url, expiry_days: settings.expiry_days }, { onSuccess: () => onSaved({ base_url: base_url ?? '' }) }),
-  )
+  const onSubmit = handleSave(({ base_url }, onSaved) => mutation.mutate({ base_url }, { onSuccess: () => onSaved({ base_url: base_url ?? '' }) }))
   const help = t('settings.signing.connection.baseUrlHelp')
 
   return (
@@ -167,7 +168,7 @@ function BaseUrlForm({ settings, readOnly, hasApiKey }: { settings: SigningSetti
   )
 }
 
-/** « Délai d'expiration (jours) », saved with the stored address. */
+/** « Délai d'expiration (jours) », saved alone. */
 function ExpiryForm({ settings, readOnly }: { settings: SigningSettings; readOnly: boolean }) {
   const values = useMemo(() => toExpiryFormValues(settings), [settings])
   const { form, cancel, handleSave } = useSettingsForm({ schema: expirySchema, values })
@@ -175,9 +176,7 @@ function ExpiryForm({ settings, readOnly }: { settings: SigningSettings; readOnl
   const { isDirty, errors } = form.formState
   useUnsavedChanges(isDirty && !readOnly)
 
-  const onSubmit = handleSave(({ expiry_days }, onSaved) =>
-    mutation.mutate({ base_url: settings.base_url, expiry_days }, { onSuccess: () => onSaved({ expiry_days: String(expiry_days) }) }),
-  )
+  const onSubmit = handleSave(({ expiry_days }, onSaved) => mutation.mutate({ expiry_days }, { onSuccess: () => onSaved({ expiry_days: String(expiry_days) }) }))
 
   return (
     <form onSubmit={readOnly ? preventSubmit : (event) => void onSubmit(event)} noValidate aria-busy={mutation.isPending || undefined} className="space-y-2">
@@ -223,33 +222,56 @@ function ConnectionTest() {
       onError: (error) => setOutcome({ ok: false, text: signingErrorMessage(error) }),
     })
   }
-  const Icon = outcome?.ok ? CircleCheck : CircleAlert
-
   return (
     <div className="space-y-1.5 border-t border-border-light pt-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Button type="button" variant="outline" aria-disabled={test.isPending || undefined} onClick={ignoreWhenInactive(test.isPending, run)} className={PENDING_OUTLINE}>
           {test.isPending ? t('settings.signing.connection.testing') : t('settings.signing.connection.test')}
         </Button>
-        <div role="status" className="min-w-0 text-sm">
-          {outcome && (
-            <p className="inline-flex items-start gap-1.5 text-foreground">
-              <Icon aria-hidden className={cn('mt-0.5 size-3.5 shrink-0', outcome.ok ? 'text-success' : 'text-destructive')} />
-              <span>{outcome.text}</span>
-            </p>
-          )}
-          {outcome?.hint && <p className="text-xs text-muted-foreground">{outcome.hint}</p>}
-        </div>
+        <OutcomeStatus outcome={outcome} />
       </div>
       <p className="text-xs text-muted-foreground">{t('settings.signing.connection.testHelp')}</p>
     </div>
   )
 }
 
-/** « Envoyer un document test » to the caller, and the state of the last one. */
+/**
+ * The one live region of an action: always mounted (a region added with its text is not reliably
+ * read), empty until the action ends, emptied when it starts again so the same text is read again.
+ */
+function OutcomeStatus({ outcome }: { outcome: Outcome | null }) {
+  const Icon = outcome?.ok ? CircleCheck : CircleAlert
+  return (
+    <div role="status" className="min-w-0 text-sm">
+      {outcome && (
+        <p className="inline-flex items-start gap-1.5 text-foreground">
+          <Icon aria-hidden className={cn('mt-0.5 size-3.5 shrink-0', outcome.ok ? 'text-success' : 'text-destructive')} />
+          <span>{outcome.text}</span>
+        </p>
+      )}
+      {outcome?.hint && <p className="text-xs text-muted-foreground">{outcome.hint}</p>}
+    </div>
+  )
+}
+
+/**
+ * « Envoyer un document test » to the caller, and the state of the last one (plain text: it is what
+ * the page loaded). « Actualiser l'état »'s outcome goes in this block's one status region, beside
+ * the button rather than in a toast, and only for the test it was asked for.
+ */
 function TestDocument({ lastTest }: { lastTest: ReturnType<typeof useLastSigningTest> }) {
   const { email } = useReadyAccess()
   const { send, isPending } = useSendSigningTestDocument()
+  const sync = useSyncSignatureRequest()
+  const [synced, setSynced] = useState<{ requestId: string; outcome: Outcome } | null>(null)
+  const request = lastTest.data ?? null
+  const refresh = (requestId: string) => {
+    setSynced(null)
+    sync.mutate(requestId, {
+      onSuccess: ({ outcome }) => setSynced({ requestId, outcome: syncOutcomeText(outcome) }),
+      onError: (error) => setSynced({ requestId, outcome: { ok: false, text: signingErrorMessage(error) } }),
+    })
+  }
   return (
     <div className="space-y-2 border-t border-border-light pt-3">
       <div className="space-y-1">
@@ -258,17 +280,14 @@ function TestDocument({ lastTest }: { lastTest: ReturnType<typeof useLastSigning
         </Button>
         <p className="text-xs text-muted-foreground">{t('settings.signing.send.testHelp', { email })}</p>
       </div>
-      {lastTest.data ? (
-        <LastTest request={lastTest.data} />
+      {request ? (
+        <LastTest request={request} refreshing={sync.isPending} onRefresh={() => refresh(request.id)} />
       ) : (
-        <p role="status" className="text-sm text-muted-foreground">
-          {lastTest.isPending
-            ? t('common.loading')
-            : lastTest.isError
-              ? t('settings.signing.send.lastTestError')
-              : t('settings.signing.send.noTest')}
+        <p className="text-sm text-muted-foreground">
+          {lastTest.isPending ? t('common.loading') : lastTest.isError ? t('settings.signing.send.lastTestError') : t('settings.signing.send.noTest')}
         </p>
       )}
+      <OutcomeStatus outcome={synced && synced.requestId === request?.id ? synced.outcome : null} />
     </div>
   )
 }
@@ -276,13 +295,12 @@ function TestDocument({ lastTest }: { lastTest: ReturnType<typeof useLastSigning
 /** Statuses Documenso may still move: « Actualiser l'état » reads them back. */
 const OPEN = new Set(['sent', 'viewed'])
 
-/** The last test's state (a live region: it changes once the signature arrives), with « Actualiser l'état » while open. */
-function LastTest({ request }: { request: SignatureRequestRow }) {
-  const sync = useSyncSignatureRequest()
+/** The last test's state, with « Actualiser l'état » while open. */
+function LastTest({ request, refreshing, onRefresh }: { request: SignatureRequestRow; refreshing: boolean; onRefresh: () => void }) {
   const { label, tone, detail } = signatureStatusLabel(request.status, request.last_error)
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-      <p role="status" className="flex flex-wrap items-center gap-x-1.5">
+      <p className="flex flex-wrap items-center gap-x-1.5">
         <span>{t('settings.signing.send.lastTest', { date: formatClinicDateTime(request.sent_at ?? request.created_at) })}</span>
         <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
           <StatusDot tone={tone} />
@@ -295,11 +313,11 @@ function LastTest({ request }: { request: SignatureRequestRow }) {
           type="button"
           variant="outline"
           size="sm"
-          aria-disabled={sync.isPending || undefined}
-          onClick={ignoreWhenInactive(sync.isPending, () => sync.mutate(request.id))}
+          aria-disabled={refreshing || undefined}
+          onClick={ignoreWhenInactive(refreshing, onRefresh)}
           className={PENDING_OUTLINE}
         >
-          {sync.isPending ? t('settings.signing.send.refreshing') : t('settings.signing.send.refresh')}
+          {refreshing ? t('settings.signing.send.refreshing') : t('settings.signing.send.refresh')}
         </Button>
       )}
     </div>

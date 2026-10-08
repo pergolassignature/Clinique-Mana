@@ -18,8 +18,9 @@ const isTab = (value: string): value is Tab => (TABS as string[]).includes(value
 /**
  * Paramètres → Signature électronique (`settings.view`; design §6.4). Two tabs:
  * - « Réglages »: « Connexion », « Webhook » and « Envoi », changed with
- *   `settings.integrations_manage` only (the section's edit permission: read-only, with the one
- *   notice, without it). The test tools and the last test document need it too;
+ *   `settings.integrations_manage` only (the section's edit permission: read-only without it, with
+ *   one notice naming that right; the cards repeat nothing). The test tools and the last test
+ *   document need it too;
  * - « Modèles de documents »: the templates the caller may see, read-only (Task 3.34 lists them;
  *   versions are edited with their module).
  */
@@ -32,7 +33,7 @@ export function SigningSettingsPage() {
   return (
     <div className="max-w-content space-y-5">
       <PageHeader title={t('settings.sections.signing')} description={t('settings.signing.description')} />
-      {readOnly && <ReadOnlyNotice />}
+      {readOnly && <ReadOnlyNotice body={t('settings.signing.readOnlyNotice')} />}
       <Tabs value={tab} onValueChange={onValueChange}>
         <TabsList>
           {TABS.map((value) => (
