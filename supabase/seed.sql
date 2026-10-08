@@ -93,3 +93,291 @@ values
   ('00000000-0000-0000-0000-000000000001', 'documenso_webhook_secret',
    vault.create_secret('local-dev-documenso-webhook-secret',
                        'org:00000000-0000-0000-0000-000000000001:documenso_webhook_secret'));
+
+-- =============================================================================
+-- Local test professionals (plan Task 4a.20 « Seed »)
+-- =============================================================================
+-- Ten fictional professionals in the seed org, fixed ids 5eed0000-0000-0000-0000-0000000000NN so
+-- links stay stable across resets. Written through the module's RPCs as « Admin Local »
+-- (request.jwt.claims), the way the app writes them: guards, readiness and audit run as usual
+-- (audit source `seed`). Two steps have no RPC yet and are plain writes: the record row itself
+-- (create_professional draws a random id; the insert below mirrors it: 1:1 rows and French) and
+-- the status `in_review` (4b sets it when a questionnaire is submitted). No `invited`: an
+-- invitation needs its secure link (4b).
+--
+--   01 Geneviève Tremblay    active     Psychologue (OPQ)                          72 motifs (all), IVAC
+--   02 Isabelle Gagnon       active     Travailleuse sociale (OTSTCFQ) + Psychothérapeute (OPQ)
+--                                                                                  65 motifs (« Tous sauf … »)
+--   03 Camille Roy           active     Psychologue (OPQ), FR · EN · ES            25 motifs, 7 categories
+--   04 Félix Gauthier        active     Sexologue (OPSQ), linked to provider@mana.test   3 motifs
+--   05 Sophie Lavoie         active     Coach professionnelle (no order)           8 motifs
+--   06 Marc-André Pelletier  active     Psychothérapeute (OPQ), not accepting      12 motifs
+--   07 Étienne Fortin        active     Travailleur social (OTSTCFQ)               15 motifs
+--   08 Nadia Côté            draft      Naturopathe (no order), gaps: clientèle, motif   0 motifs
+--   09 Olivier Bergeron      in_review  Psychologue (OPQ), complete                6 motifs
+--   10 Julie Morin           inactive   Psychoéducatrice (OPPQ), « Congé » + note  7 motifs
+--
+-- « Psychose » and « Idées suicidaires » are marked restricted here (P4-16; none is by default) so
+-- the rule holds something: only 01, 02 and 03 (titles from an order) carry them. The seeded
+-- orders have no licence_pattern, so any number passes; these follow the usual shapes (OPQ 5
+-- digits, OTSTCFQ « TS » + 5 digits, OPSQ « SX » + 4 digits, OPPQ 4 digits). Emails and phones are
+-- fake (@exemple.test, 555); 04's email is the provider's login, so the two match.
+-- One `do` block: the CLI sends the seed as one batch, so no statement may call a function
+-- created earlier in the file.
+do $seed$
+declare
+  v_org constant uuid := '00000000-0000-0000-0000-000000000001';
+  v_people constant jsonb := $json$[
+    {"n": 1, "first": "Geneviève", "last": "Tremblay", "email": "genevieve.tremblay@exemple.test",
+     "gender": "female", "years": 18, "city": "Québec", "status": "active",
+     "titles": [{"key": "psychologue", "licence": "08417"}],
+     "languages": ["fr", "en"],
+     "clienteles": ["adults", "seniors", "couples"], "clienteles_star": ["adults"],
+     "approaches": ["cbt", "act", "emdr"], "approaches_star": ["cbt", "emdr"],
+     "motifs": "all",
+     "accepting": true, "periods": ["am", "pm"], "availability_note": "Lundi au jeudi, de 9 h à 17 h.",
+     "ivac": "IVAC-20417",
+     "bio": "Psychologue depuis près de vingt ans, Geneviève accompagne les adultes et les couples dans les périodes où la vie pèse plus lourd : anxiété, deuil, transitions, relations. Elle offre un espace calme où l'on peut déposer ce qu'on vit, à son rythme.",
+     "approach": "Approche cognitivo-comportementale et EMDR, intégrées avec souplesse selon vos besoins et vos objectifs.",
+     "public_email": "g.tremblay@exemple.test", "public_phone": "+15145550101"},
+
+    {"n": 2, "first": "Isabelle", "last": "Gagnon", "email": "isabelle.gagnon@exemple.test",
+     "gender": "female", "years": 14, "city": "Lévis", "status": "active",
+     "titles": [{"key": "travailleur_social", "licence": "TS04518"}, {"key": "psychotherapeute", "licence": "31562"}],
+     "languages": ["fr", "en"],
+     "clienteles": ["adults", "couples", "families"], "clienteles_star": ["couples", "families"],
+     "approaches": ["systemic", "humanistic"], "approaches_star": ["systemic"],
+     "motifs_except": ["dependance_jeu", "dependance_jeux_video", "cyberdependance", "dependance_medicament",
+                       "guerre_conflit_arme_veterans", "guerre_conflit_arme_victimes_civiles", "syndrome_gilles_tourette"],
+     "accepting": false, "periods": ["pm", "evening"], "availability_note": "Liste d'attente jusqu'en janvier.",
+     "bio": "Travailleuse sociale et psychothérapeute, Isabelle travaille avec les couples et les familles qui traversent une séparation, une recomposition ou des tensions qui s'installent. Elle aide chacun à retrouver sa place et une façon de se parler.",
+     "approach": "Approche systémique : on regarde ensemble les liens, les rôles et ce qui se répète, pour ouvrir d'autres possibles.",
+     "public_email": "i.gagnon@exemple.test", "public_phone": "+14185550102"},
+
+    {"n": 3, "first": "Camille", "last": "Roy", "email": "camille.roy@exemple.test",
+     "gender": "female", "years": 7, "city": "Montréal", "status": "active",
+     "titles": [{"key": "psychologue", "licence": "12873"}],
+     "languages": ["fr", "en", "es"],
+     "clienteles": ["adolescents", "adults"], "clienteles_star": ["adolescents"],
+     "approaches": ["cbt", "dbt", "act"], "approaches_star": ["dbt"],
+     "motifs": ["anxiete", "depression", "estime_de_soi", "automutilation", "idees_suicidaires", "trouble_sommeil",
+                "trouble_obsessionnel_compulsif", "situations_crises",
+                "relations_familiales", "relations_interpersonnelles", "intimidation", "separation_divorce",
+                "famille_recomposee", "dependance_affective",
+                "cyberdependance", "dependance_jeux_video", "troubles_alimentaires",
+                "deficit_attention_hyperactivite", "difficultes_apprentissage", "douance", "trouble_spectre_autisme",
+                "identite_genre", "identite_orientation_sexuelle",
+                "victime_violence", "deuil"],
+     "accepting": true, "periods": ["pm", "evening"],
+     "bio": "Camille accompagne surtout les adolescents et les jeunes adultes, en français, en anglais ou en espagnol. Elle prend le temps de comprendre ce que la personne vit à l'école, en famille ou avec ses amis.",
+     "approach": "Thérapie comportementale dialectique (DBT) et TCC, avec des outils concrets pour mieux traverser les émotions intenses.",
+     "public_email": "c.roy@exemple.test", "public_phone": "+15145550103"},
+
+    {"n": 4, "first": "Félix", "last": "Gauthier", "email": "provider@mana.test",
+     "profile": "33333333-3333-3333-3333-333333333333",
+     "gender": "male", "years": 9, "city": "Sherbrooke", "status": "active",
+     "titles": [{"key": "sexologue", "licence": "SX0731"}],
+     "languages": ["fr"],
+     "clienteles": ["adults", "couples"], "clienteles_star": ["couples"],
+     "approaches": ["humanistic"],
+     "motifs": ["sexualite", "dysfonctions_sexuelle", "identite_orientation_sexuelle"],
+     "accepting": true, "periods": ["evening"], "availability_note": "Soirs de semaine seulement.",
+     "bio": "Sexologue, Félix reçoit les personnes et les couples qui souhaitent parler d'intimité, de désir ou d'identité, sans jugement et à leur rythme.",
+     "approach": "Approche humaniste, centrée sur la personne et sur ce qu'elle souhaite changer.",
+     "public_email": "f.gauthier@exemple.test", "public_phone": "+18195550104"},
+
+    {"n": 5, "first": "Sophie", "last": "Lavoie", "email": "sophie.lavoie@exemple.test",
+     "gender": "female", "years": 11, "city": "Gatineau", "status": "active",
+     "titles": [{"key": "coach_professionnel"}],
+     "languages": ["fr", "en"],
+     "clienteles": ["adults"], "clienteles_star": ["adults"],
+     "approaches": ["act"],
+     "motifs": ["epuisement_professionnel", "difficultes_professionnelles", "orientation_professionnelle",
+                "readaptation_professionnelle", "problemes_financiers", "estime_de_soi", "gestion_colere",
+                "dependance_travail"],
+     "accepting": true, "periods": ["am", "weekend"],
+     "bio": "Coach professionnelle certifiée, Sophie accompagne les personnes en questionnement de carrière, en retour au travail ou qui cherchent un meilleur équilibre.",
+     "approach": "Coaching orienté vers vos objectifs, inspiré de l'approche d'acceptation et d'engagement (ACT).",
+     "public_email": "s.lavoie@exemple.test", "public_phone": "+18195550105"},
+
+    {"n": 6, "first": "Marc-André", "last": "Pelletier", "email": "marc-andre.pelletier@exemple.test",
+     "gender": "male", "years": 25, "city": "Trois-Rivières", "status": "active",
+     "titles": [{"key": "psychotherapeute", "licence": "27349"}],
+     "languages": ["fr"],
+     "clienteles": ["adults", "seniors"], "clienteles_star": ["seniors"],
+     "approaches": ["psychodynamic", "gestalt"], "approaches_star": ["psychodynamic"],
+     "motifs": ["anxiete", "depression", "deuil", "maladies_degeneratives", "separation_divorce", "relations_amoureuses",
+                "infidelite", "insomnie", "traumatisme_stress_post_traumatique", "victime_violence",
+                "epuisement_professionnel", "estime_de_soi"],
+     "accepting": false, "periods": ["pm"],
+     "bio": "Psychothérapeute d'expérience, Marc-André accompagne les adultes et les aînés dans les deuils, la maladie et les grands changements de la vie.",
+     "approach": "Approche psychodynamique et gestaltiste : comprendre son histoire pour mieux vivre le présent.",
+     "public_email": "ma.pelletier@exemple.test", "public_phone": "+18195550106"},
+
+    {"n": 7, "first": "Étienne", "last": "Fortin", "email": "etienne.fortin@exemple.test",
+     "gender": "male", "years": 5, "city": "Saguenay", "status": "active",
+     "titles": [{"key": "travailleur_social", "licence": "TS11273"}],
+     "languages": ["fr"],
+     "clienteles": ["adults", "families", "groups"], "clienteles_star": ["families"],
+     "approaches": ["systemic"],
+     "motifs": ["relations_familiales", "famille_recomposee", "monoparentalite", "violence_conjugale_familiale",
+                "separation_divorce", "consommation_alcool", "consommation_drogue", "dependance", "problemes_financiers",
+                "situations_crises", "deuil", "intimidation", "adoption", "victime_violence", "relations_interpersonnelles"],
+     "accepting": true, "periods": ["am", "pm", "weekend"],
+     "bio": "Travailleur social, Étienne soutient les familles et les adultes qui vivent une période de crise, une séparation ou des difficultés liées à la consommation.",
+     "approach": "Approche systémique et concrète, en lien avec les ressources de votre milieu.",
+     "public_email": "e.fortin@exemple.test", "public_phone": "+14185550107"},
+
+    {"n": 8, "first": "Nadia", "last": "Côté", "email": "nadia.cote@exemple.test", "status": "draft",
+     "titles": [{"key": "naturopathe"}],
+     "languages": ["fr"],
+     "accepting": true},
+
+    {"n": 9, "first": "Olivier", "last": "Bergeron", "email": "olivier.bergeron@exemple.test",
+     "gender": "male", "years": 3, "city": "Laval", "status": "in_review",
+     "titles": [{"key": "psychologue", "licence": "15026"}],
+     "languages": ["fr"],
+     "clienteles": ["children", "adolescents"], "clienteles_star": ["children"],
+     "approaches": ["play_therapy", "cbt"], "approaches_star": ["play_therapy"],
+     "motifs": ["deficit_attention_hyperactivite", "difficultes_apprentissage", "difficultes_comportement", "anxiete",
+                "douance", "trouble_spectre_autisme"],
+     "accepting": true, "periods": ["am", "pm"],
+     "bio": "Olivier accompagne les enfants et les adolescents, ainsi que leurs parents, dans les défis scolaires, l'attention et l'anxiété.",
+     "approach": "Thérapie par le jeu pour les plus jeunes, TCC adaptée pour les adolescents.",
+     "public_email": "o.bergeron@exemple.test", "public_phone": "+14505550109"},
+
+    {"n": 10, "first": "Julie", "last": "Morin", "email": "julie.morin@exemple.test",
+     "gender": "female", "years": 12, "city": "Longueuil", "status": "inactive",
+     "deactivation_reason": "leave", "deactivation_note": "Congé parental, retour prévu en mars 2027.",
+     "titles": [{"key": "psychoeducateur", "licence": "4127"}],
+     "languages": ["fr", "en"],
+     "clienteles": ["children", "adolescents", "families"], "clienteles_star": ["children", "adolescents"],
+     "approaches": ["systemic", "play_therapy"],
+     "motifs": ["difficultes_comportement", "trouble_oppositionnel_provocation", "trouble_conduites",
+                "deficit_attention_hyperactivite", "retard_developpement", "retard_global_developpement",
+                "relations_familiales"],
+     "accepting": true, "periods": ["am"],
+     "bio": "Psychoéducatrice, Julie accompagne les enfants, les adolescents et leurs familles dans les défis du quotidien, à la maison comme à l'école.",
+     "approach": "Intervention psychoéducative axée sur le vécu partagé et les forces de l'enfant.",
+     "public_email": "j.morin@exemple.test", "public_phone": "+14505550110"}
+  ]$json$;
+  p jsonb;
+  v_id uuid;
+  v_keys text[];
+  v_ids uuid[];
+  v_items jsonb;
+  v_n int;
+begin
+  perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', false);
+
+  perform public.save_motif(m.id, m.name, m.category_id, true)
+     from public.motifs m
+    where m.org_id = v_org and m.key in ('psychose', 'idees_suicidaires');
+
+  for p in select x from jsonb_array_elements(v_people) as x loop
+    v_id := ('5eed0000-0000-0000-0000-' || lpad(p ->> 'n', 12, '0'))::uuid;
+
+    -- The record as create_professional writes it: the row, its 1:1 rows, French.
+    insert into public.professionals (id, org_id, profile_id, first_name, last_name, email, status_changed_by, created_by)
+    values (v_id, v_org, (p ->> 'profile')::uuid, p ->> 'first', p ->> 'last', p ->> 'email', auth.uid(), auth.uid());
+    insert into public.professional_public_profiles (org_id, professional_id) values (v_org, v_id);
+    insert into public.professional_matching_profiles (org_id, professional_id) values (v_org, v_id);
+    insert into public.professional_languages (org_id, professional_id, language_id)
+    select v_org, v_id, l.id from public.languages l where l.org_id = v_org and l.code = 'fr';
+
+    -- Plain fields: what the record's forms write (column grants).
+    update public.professionals
+       set gender = p ->> 'gender', years_experience = (p ->> 'years')::smallint, city = p ->> 'city'
+     where id = v_id;
+    update public.professional_matching_profiles
+       set accepting_new_clients = (p ->> 'accepting')::boolean,
+           availability_periods = array(select jsonb_array_elements_text(coalesce(p -> 'periods', '[]'))),
+           availability_note = p ->> 'availability_note'
+     where professional_id = v_id;
+    update public.professional_public_profiles
+       set bio = p ->> 'bio', approach = p ->> 'approach',
+           public_email = p ->> 'public_email', public_phone = p ->> 'public_phone'
+     where professional_id = v_id;
+
+    -- Titles and licences.
+    select coalesce(jsonb_agg(jsonb_build_object('title_id', t.id, 'licence_number', e.v ->> 'licence') order by e.ord), '[]'),
+           count(t.id)
+      into v_items, v_n
+      from jsonb_array_elements(p -> 'titles') with ordinality as e(v, ord)
+      left join public.profession_titles t on t.org_id = v_org and t.key = e.v ->> 'key';
+    if v_n <> jsonb_array_length(p -> 'titles') then
+      raise exception 'seed: unknown title in %', p -> 'titles';
+    end if;
+    perform public.set_professional_professions(v_id, v_items);
+
+    -- Languages.
+    v_keys := array(select jsonb_array_elements_text(p -> 'languages'));
+    v_ids := array(select l.id from public.languages l where l.org_id = v_org and l.code = any (v_keys));
+    if cardinality(v_ids) <> cardinality(v_keys) then
+      raise exception 'seed: unknown language in %', v_keys;
+    end if;
+    perform public.set_professional_languages(v_id, v_ids);
+
+    -- Clientèles and approaches, ★ where listed.
+    v_keys := array(select jsonb_array_elements_text(coalesce(p -> 'clienteles', '[]')));
+    select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'specialized', coalesce(p -> 'clienteles_star', '[]') ? c.key)), '[]'),
+           count(*)
+      into v_items, v_n
+      from public.clienteles c where c.org_id = v_org and c.key = any (v_keys);
+    if v_n <> cardinality(v_keys) then
+      raise exception 'seed: unknown clientèle in %', v_keys;
+    end if;
+    perform public.set_professional_clienteles(v_id, v_items);
+
+    v_keys := array(select jsonb_array_elements_text(coalesce(p -> 'approaches', '[]')));
+    select coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'specialized', coalesce(p -> 'approaches_star', '[]') ? s.key)), '[]'),
+           count(*)
+      into v_items, v_n
+      from public.specialties s where s.org_id = v_org and s.key = any (v_keys);
+    if v_n <> cardinality(v_keys) then
+      raise exception 'seed: unknown approach in %', v_keys;
+    end if;
+    perform public.set_professional_specialties(v_id, v_items);
+
+    -- Motifs: "all", every active one except "motifs_except", or a list of keys.
+    if p ->> 'motifs' = 'all' then
+      v_ids := array(select m.id from public.motifs m where m.org_id = v_org and m.is_active);
+    elsif p ? 'motifs_except' then
+      v_keys := array(select jsonb_array_elements_text(p -> 'motifs_except'));
+      if (select count(*) from public.motifs m where m.org_id = v_org and m.key = any (v_keys)) <> cardinality(v_keys) then
+        raise exception 'seed: unknown motif in %', v_keys;
+      end if;
+      v_ids := array(select m.id from public.motifs m where m.org_id = v_org and m.is_active and m.key <> all (v_keys));
+    else
+      v_keys := array(select jsonb_array_elements_text(coalesce(p -> 'motifs', '[]')));
+      v_ids := array(select m.id from public.motifs m where m.org_id = v_org and m.key = any (v_keys));
+      if cardinality(v_ids) <> cardinality(v_keys) then
+        raise exception 'seed: unknown motif in %', v_keys;
+      end if;
+    end if;
+    perform public.set_professional_motifs(v_id, v_ids);
+
+    if p ? 'ivac' then
+      perform public.set_professional_payer_number(v_id, 'ivac', p ->> 'ivac');
+    end if;
+
+    -- Status: activation runs the readiness check (no override: every file is complete).
+    if p ->> 'status' in ('active', 'inactive') then
+      perform public.activate_professional(v_id);
+    end if;
+    if p ->> 'status' = 'inactive' then
+      perform public.deactivate_professional(
+        v_id,
+        (select r.id from public.deactivation_reasons r where r.org_id = v_org and r.key = p ->> 'deactivation_reason'),
+        p ->> 'deactivation_note');
+    end if;
+    if p ->> 'status' = 'in_review' then
+      update public.professionals
+         set status = 'in_review', status_changed_at = now(), status_changed_by = auth.uid()
+       where id = v_id;
+    end if;
+  end loop;
+
+  perform set_config('request.jwt.claims', '', false);
+end;
+$seed$;
