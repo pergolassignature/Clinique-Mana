@@ -21,8 +21,6 @@ function toCode(error: AuthError | null): AuthErrorCode | null {
       return 'reauthentication_needed'
     case 'reauthentication_not_valid':
       return 'invalid_code'
-    case 'email_exists':
-      return 'email_exists'
     case 'email_address_invalid':
       return 'invalid_email'
     case 'over_request_rate_limit':
@@ -166,8 +164,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return code
       },
       sendReauthenticationCode: async () => toCode((await supabase.auth.reauthenticate()).error),
-      updateEmail: async (email) =>
-        toCode((await supabase.auth.updateUser({ email }, { emailRedirectTo: absolute('/mon-compte') })).error),
+      // Neutral too (decision #38, ADR 0006): an address used by another account answers like a
+      // success, so « Mon compte » never reveals that an account exists. So does the per-user email
+      // throttle: GoTrue checks for a duplicate before it, so reporting the throttle would turn each
+      // request made within the window into a « taken or not » answer.
+      updateEmail: async (email) => {
+        const { error } = await supabase.auth.updateUser({ email }, { emailRedirectTo: absolute('/mon-compte') })
+        if (error?.code === 'email_exists') return null
+        return toNeutralCode(error)
+      },
       // "Se déconnecter" signs out THIS device only, and must always work — reception PCs are shared,
       // so a failed call (offline, server error, lock timeout) must never leave the next person
       // signed in as the previous one. When the server can't be reached, the local session is

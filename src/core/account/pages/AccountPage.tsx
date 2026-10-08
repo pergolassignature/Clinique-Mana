@@ -104,15 +104,15 @@ const emailSchema = z.object({
     .pipe(z.email({ error: t('auth.errors.invalidEmail') })),
 })
 
-/** Errors GoTrue reports about the address itself: shown on the field. */
-const EMAIL_FIELD_ERRORS: AuthErrorCode[] = ['email_exists', 'invalid_email']
-
 function EmailCard() {
   const { updateEmail } = useAuth()
   const user = useAccountUser()
   const queryClient = useQueryClient()
   const current = user?.email ?? ''
-  const [requested, setRequested] = useState<string | null>(null)
+  // A change was asked from this page. Its notice is neutral: an address used by another account
+  // answers like a success (decision #38), so the page never names a change the server may not
+  // have recorded.
+  const [requested, setRequested] = useState(false)
   const [error, setError] = useState<AuthErrorCode | null>(null)
   const form = useForm<z.input<typeof emailSchema>, unknown, z.output<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
@@ -121,10 +121,11 @@ function EmailCard() {
   const { errors, isDirty, isSubmitting } = form.formState
   useUnsavedChanges(isDirty)
 
-  // The address just requested wins; otherwise GoTrue's pending one (new_email), so the notice
-  // survives a reload.
-  const pendingEmail = requested ?? user?.new_email
-  const showPending = Boolean(pendingEmail) && pendingEmail?.toLowerCase() !== current.toLowerCase()
+  // Without a request from this page: the change GoTrue has recorded (new_email), after a reload.
+  // After one, the neutral notice wins, even once new_email comes back: otherwise a real change and
+  // an address already taken would end up looking different.
+  const pendingEmail = user?.new_email
+  const showPending = !requested && Boolean(pendingEmail) && pendingEmail?.toLowerCase() !== current.toLowerCase()
 
   const onSubmit = form.handleSubmit(async ({ email }) => {
     setError(null)
@@ -132,16 +133,17 @@ function EmailCard() {
       form.setError('email', { message: t('account.email.same') }, { shouldFocus: true })
       return
     }
+    // Neutral (decision #38): an address used by another account comes back as null, like a success.
     const code = await updateEmail(email)
-    if (code && EMAIL_FIELD_ERRORS.includes(code)) {
-      form.setError('email', { message: t(`auth.errors.${code}`) }, { shouldFocus: true })
+    if (code === 'invalid_email') {
+      form.setError('email', { message: t('auth.errors.invalid_email') }, { shouldFocus: true })
       return
     }
     if (code) {
       setError(code)
       return
     }
-    setRequested(email)
+    setRequested(true)
     form.reset()
     void queryClient.invalidateQueries({ queryKey: accountKeys.all })
   })
@@ -173,6 +175,13 @@ function EmailCard() {
       {/* Always rendered, so screen readers announce the notice when it appears inside. Empty, it
           takes no room (empty:!mt-0 cancels the card's spacing). */}
       <div role="status" className="empty:!mt-0">
+        {requested && (
+          <Alert>
+            <MailCheck aria-hidden />
+            <AlertTitle>{t('account.email.requestedTitle')}</AlertTitle>
+            <AlertDescription>{t('account.email.requested')}</AlertDescription>
+          </Alert>
+        )}
         {showPending && (
           <Alert>
             <MailCheck aria-hidden />

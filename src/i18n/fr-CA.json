@@ -94,7 +94,6 @@
       "same_password": "Le nouveau mot de passe doit être différent de l'ancien.",
       "reauthentication_needed": "Pour des raisons de sécurité, reconnectez-vous puis réessayez.",
       "invalid_code": "Code invalide ou expiré.",
-      "email_exists": "Ce courriel est déjà utilisé par un autre compte.",
       "invalid_email": "Courriel invalide.",
       "rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
       "unknown": "Une erreur est survenue. Réessayez."
@@ -118,7 +117,9 @@
       "submit": "Changer le courriel",
       "submitting": "Envoi…",
       "pendingTitle": "Changement en attente vers {email}",
-      "pending": "Confirmez le changement dans les deux boîtes : l'ancienne et la nouvelle adresse."
+      "pending": "Confirmez le changement dans les deux boîtes : l'ancienne et la nouvelle adresse.",
+      "requestedTitle": "Demande de changement envoyée",
+      "requested": "Si cette adresse peut être utilisée, un lien de confirmation a été envoyé à l'ancienne et à la nouvelle adresse. Le changement se fera une fois les deux liens confirmés."
     },
     "password": {
       "title": "Mot de passe",

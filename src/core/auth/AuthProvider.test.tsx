@@ -238,11 +238,14 @@ describe('email rate limits (no account enumeration)', () => {
   const send = {
     sendMagicLink: (value: AuthContextValue) => value.sendMagicLink('adjointe@mana.test'),
     sendPasswordReset: (value: AuthContextValue) => value.sendPasswordReset('adjointe@mana.test'),
+    updateEmail: (value: AuthContextValue) => value.updateEmail('nouvelle@mana.test'),
   }
-  const mockFor = { sendMagicLink: auth.signInWithOtp, sendPasswordReset: auth.resetPasswordForEmail }
-  const fns = ['sendMagicLink', 'sendPasswordReset'] as const
+  const mockFor = { sendMagicLink: auth.signInWithOtp, sendPasswordReset: auth.resetPasswordForEmail, updateEmail: auth.updateUser }
+  const fns = ['sendMagicLink', 'sendPasswordReset', 'updateEmail'] as const
 
   // GoTrue only applies the per-email throttle to existing accounts: reporting it would reveal them.
+  // For an email change the throttle is per user, but GoTrue checks for a duplicate address first:
+  // within the window, « throttled » would mean « free » and « success » would mean « taken ».
   it.each(fns)('%s treats the per-email throttle as success', async (fn) => {
     mockFor[fn].mockResolvedValue(apiError('For security purposes, you can only request this after 60 seconds.', 429, 'over_email_send_rate_limit'))
     await expect(send[fn](renderReady())).resolves.toBeNull()
@@ -287,12 +290,9 @@ describe('error codes', () => {
     await expect(renderReady().updatePassword('x')).resolves.toBe('unknown')
   })
 
-  it.each([
-    ['email_exists', 'email_exists'],
-    ['email_address_invalid', 'invalid_email'],
-  ] as const)('maps %s for an email change', async (serverCode, code) => {
-    auth.updateUser.mockResolvedValue(apiError('some server message', 422, serverCode))
-    await expect(renderReady().updateEmail('a@mana.test')).resolves.toBe(code)
+  it('maps email_address_invalid to invalid_email for an email change', async () => {
+    auth.updateUser.mockResolvedValue(apiError('some server message', 400, 'email_address_invalid'))
+    await expect(renderReady().updateEmail('a@mana.test')).resolves.toBe('invalid_email')
   })
 
   it('maps reauthentication_not_valid (wrong or expired code) to invalid_code', async () => {
@@ -337,9 +337,16 @@ describe('updateEmail', () => {
     expect(auth.updateUser).toHaveBeenCalledExactlyOnceWith({ email: 'nouvelle@mana.test' }, { emailRedirectTo: `${origin}/mon-compte` })
   })
 
-  it('reports the email throttle as rate_limited', async () => {
-    auth.updateUser.mockResolvedValue(apiError('For security purposes, you can only request this after 60 seconds.', 429, 'over_email_send_rate_limit'))
-    await expect(renderReady().updateEmail('nouvelle@mana.test')).resolves.toBe('rate_limited')
+  // Decision #38: never reveal that an address belongs to another account, even to a signed-in user.
+  it('treats an address used by another account (email_exists) as success', async () => {
+    auth.updateUser.mockResolvedValue(apiError('A user with this email address has already been registered', 422, 'email_exists'))
+    await expect(renderReady().updateEmail('adjointe@mana.test')).resolves.toBeNull()
+    expect(auth.updateUser).toHaveBeenCalledExactlyOnceWith({ email: 'adjointe@mana.test' }, { emailRedirectTo: `${origin}/mon-compte` })
+  })
+
+  it('still reports a real failure', async () => {
+    auth.updateUser.mockResolvedValue(apiError('boom', 500, 'unexpected_failure'))
+    await expect(renderReady().updateEmail('nouvelle@mana.test')).resolves.toBe('unknown')
   })
 })
 
@@ -560,7 +567,6 @@ describe('FR-CA messages', () => {
     same_password: true,
     reauthentication_needed: true,
     invalid_code: true,
-    email_exists: true,
     invalid_email: true,
     rate_limited: true,
     unknown: true,

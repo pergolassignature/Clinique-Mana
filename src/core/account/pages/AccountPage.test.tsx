@@ -216,17 +216,35 @@ describe('« Courriel »', () => {
     expect(updateEmail).not.toHaveBeenCalled()
   })
 
-  it('requests the change and announces, in the status region, to confirm in both mailboxes', async () => {
+  // Neutral (decision #38): the same notice whether or not the address could be used, so it
+  // names no address and claims no pending change.
+  it('requests the change and announces, in the status region, a neutral notice', async () => {
     const updateEmail = vi.fn().mockResolvedValue(null)
     renderPage({ updateEmail })
     await waitFor(() => expect(mocks.fetchAuthUser).toHaveBeenCalledTimes(1))
     await userEvent.type(newEmail(), ' nouvelle@mana.test ')
     await userEvent.click(submit())
-    expect(await within(status()).findByText(t('account.email.pending'))).toBeInTheDocument()
-    expect(within(status()).getByText(t('account.email.pendingTitle', { email: 'nouvelle@mana.test' }))).toBeInTheDocument()
+    expect(await within(status()).findByText(t('account.email.requested'))).toBeInTheDocument()
+    expect(within(status()).getByText(t('account.email.requestedTitle'))).toBeInTheDocument()
+    expect(t('account.email.requested')).toMatch(/^Si cette adresse peut être utilisée, /)
+    expect(status()).not.toHaveTextContent('nouvelle@mana.test')
     expect(updateEmail).toHaveBeenCalledExactlyOnceWith('nouvelle@mana.test')
     expect(newEmail()).toHaveValue('')
     await waitFor(() => expect(mocks.fetchAuthUser).toHaveBeenCalledTimes(2)) // read again after the request
+  })
+
+  // A real change: GoTrue then reports new_email. Switching to « en attente vers … » would make a
+  // real change look different from an address already taken.
+  it('keeps the neutral notice once the server reports the requested address', async () => {
+    mocks.fetchAuthUser
+      .mockResolvedValueOnce({ id: 'u1', email: 'adjointe@mana.test' })
+      .mockResolvedValue({ id: 'u1', email: 'adjointe@mana.test', new_email: 'nouvelle@mana.test' })
+    renderPage({ updateEmail: vi.fn().mockResolvedValue(null) })
+    await userEvent.type(newEmail(), 'nouvelle@mana.test')
+    await userEvent.click(submit())
+    await waitFor(() => expect(mocks.fetchAuthUser).toHaveBeenCalledTimes(2))
+    expect(await within(status()).findByText(t('account.email.requested'))).toBeInTheDocument()
+    expect(status()).not.toHaveTextContent('nouvelle@mana.test')
   })
 
   // After a reload: GoTrue keeps the pending address on the user (new_email).
@@ -235,18 +253,20 @@ describe('« Courriel »', () => {
     expect(within(status()).getByText(t('account.email.pendingTitle', { email: 'nouvelle@mana.test' }))).toBeInTheDocument()
   })
 
-  it('names the address just requested over an older pending one', async () => {
+  it('after a request, shows the neutral notice instead of an older pending change', async () => {
     renderPage({ session: session({ new_email: 'ancienne-demande@mana.test' }), updateEmail: vi.fn().mockResolvedValue(null) })
     await userEvent.type(newEmail(), 'nouvelle@mana.test')
     await userEvent.click(submit())
-    expect(await within(status()).findByText(t('account.email.pendingTitle', { email: 'nouvelle@mana.test' }))).toBeInTheDocument()
+    expect(await within(status()).findByText(t('account.email.requested'))).toBeInTheDocument()
+    expect(status()).not.toHaveTextContent('ancienne-demande@mana.test')
+    expect(status()).not.toHaveTextContent('nouvelle@mana.test')
   })
 
-  it('shows an address taken by another account on the field', async () => {
-    renderPage({ updateEmail: vi.fn().mockResolvedValue('email_exists') })
-    await userEvent.type(newEmail(), 'autre@mana.test')
+  it('shows an address the server finds invalid on the field', async () => {
+    renderPage({ updateEmail: vi.fn().mockResolvedValue('invalid_email') })
+    await userEvent.type(newEmail(), 'nouvelle@mana.test')
     await userEvent.click(submit())
-    expect(await within(emailCard()).findByText(t('auth.errors.email_exists'))).toBeInTheDocument()
+    expect(await within(emailCard()).findByText(t('auth.errors.invalid_email'))).toBeInTheDocument()
     expect(newEmail()).toHaveAttribute('aria-invalid', 'true')
     expect(status()).toBeEmptyDOMElement()
   })

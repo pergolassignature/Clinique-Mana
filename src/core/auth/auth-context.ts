@@ -8,7 +8,6 @@ export type AuthErrorCode =
   | 'reauthentication_needed'
   /** The reauthentication code is wrong or expired. */
   | 'invalid_code'
-  | 'email_exists'
   | 'invalid_email'
   | 'rate_limited'
   | 'unknown'
@@ -32,7 +31,11 @@ export interface AuthContextValue {
   updatePassword: (password: string, nonce?: string) => Promise<AuthErrorCode | null>
   /** Emails the signed-in user a code that confirms a password change. */
   sendReauthenticationCode: () => Promise<AuthErrorCode | null>
-  /** Asks for an email change: both addresses get a confirmation link (`double_confirm_changes`). */
+  /**
+   * Asks for an email change: both addresses get a confirmation link (`double_confirm_changes`).
+   * Neutral: an address already used by another account, or the per-user email throttle, returns
+   * null like a success (decision #38).
+   */
   updateEmail: (email: string) => Promise<AuthErrorCode | null>
   /** Signs out this device only (decision #13); always forgets the local session. */
   signOut: () => Promise<void>
