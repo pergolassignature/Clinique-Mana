@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { redactDigitRuns, scrubSentryEvent, scrubUrl } from './sentry-scrub'
+import { redactDigitRuns, redactEmails, scrubSentryEvent, scrubUrl } from './sentry-scrub'
 
 type Event = Parameters<typeof scrubSentryEvent>[0]
 
@@ -10,7 +10,55 @@ describe('redactDigitRuns', () => {
   })
 })
 
+describe('redactEmails', () => {
+  it('redacts addresses, written or percent-encoded, and keeps the rest', () => {
+    expect(redactEmails('Invitation pour ana.gagnon+test@example.com refusée')).toBe('Invitation pour [email] refusée')
+    expect(redactEmails('email=ana%40clinique.qc.ca&x=1')).toBe('email=[email]&x=1')
+    expect(redactEmails('ana%2Bx%40example.com')).toBe('[email]')
+    expect(redactEmails('a@b and c@d.ca')).toBe('a@b and [email]')
+    expect(redactEmails('@mention, x@y, 23514, version 1.2.3')).toBe('@mention, x@y, 23514, version 1.2.3')
+  })
+})
+
 describe('scrubSentryEvent', () => {
+  it('redacts email addresses in the message, exception values and breadcrumb messages', () => {
+    const event = {
+      type: undefined,
+      message: 'Échec pour ana@example.com',
+      exception: { values: [{ type: 'RpcError P0001', value: 'Cette personne (ana@example.com) a déjà un accès.' }] },
+      breadcrumbs: [{ category: 'console', message: 'invite marie.tremblay@clinique.ca 1234567' }],
+    } as Event
+    const scrubbed = scrubSentryEvent(event)!
+    expect(scrubbed.message).toBe('Échec pour [email]')
+    expect(scrubbed.exception?.values?.[0]?.value).toBe('Cette personne ([email]) a déjà un accès.')
+    expect(scrubbed.breadcrumbs?.[0]?.message).toBe('invite [email] [redacted]')
+    expect(JSON.stringify(scrubbed)).not.toMatch(/@example\.com|@clinique\.ca/)
+  })
+
+  it('redacts email addresses in every reported URL', () => {
+    const event = {
+      type: undefined,
+      request: {
+        url: 'https://app.test/utilisateurs?email=ana%40example.com&page=2',
+        query_string: 'email=ana%40example.com&page=2',
+        headers: { Referer: 'https://app.test/profil/ana@example.com' },
+      },
+      breadcrumbs: [
+        { category: 'fetch', data: { url: '/rest/v1/profiles?email=eq.ana%40example.com' } },
+        { category: 'navigation', data: { from: '/x?to=ana@example.com', to: '/y' } },
+      ],
+    } as Event
+    const scrubbed = scrubSentryEvent(event)!
+    expect(scrubbed.request?.url).toBe('https://app.test/utilisateurs?email=[email]&page=2')
+    expect(scrubbed.request?.query_string).toBe('email=[email]&page=2')
+    expect(scrubbed.request?.headers).toEqual({ Referer: 'https://app.test/profil/[email]' })
+    expect(scrubbed.breadcrumbs?.map((b) => b.data)).toEqual([{ url: '/rest/v1/profiles?email=[email]' }, { from: '/x?to=[email]', to: '/y' }])
+    const asPairs = { type: undefined, request: { query_string: [['email', 'ana@example.com']] } } as Event
+    expect(scrubSentryEvent(asPairs)?.request?.query_string).toEqual([['email', '[email]']])
+    const asRecord = { type: undefined, request: { query_string: { email: 'ana@example.com' } } } as Event
+    expect(scrubSentryEvent(asRecord)?.request?.query_string).toEqual({ email: '[email]' })
+  })
+
   it('drops details and hint from a serialized object, keeping the rest', () => {
     const event = {
       type: undefined,

@@ -385,7 +385,9 @@ Deno.test('authorizeCaller: invalid token gives 401 and skips the access RPC', a
 Deno.test('authorizeCaller: Auth server error (5xx) gives 503 auth_unavailable', async () => {
   const { client } = fakeClient({
     user: null,
-    userError: Object.assign(new Error('upstream'), { status: 502 }),
+    userError: Object.assign(new Error('upstream: ana@example.com'), {
+      status: 502,
+    }),
   })
   const logged = await captureConsole('error', async () => {
     const result = await authorizeCaller(client, 'tok')
@@ -393,7 +395,7 @@ Deno.test('authorizeCaller: Auth server error (5xx) gives 503 auth_unavailable',
     assertEquals(result.status, 503)
     assertEquals((await errorOf(result)).code, 'auth_unavailable')
   })
-  assertEquals(logged.length, 1)
+  assertEquals(logged, [['[verifyAuth] Auth unavailable (status=502)']])
 })
 
 Deno.test('authorizeCaller: network failure (AuthRetryableFetchError) gives 503', async () => {
@@ -424,14 +426,20 @@ Deno.test('authorizeCaller: 42501 after a valid token is logged (missing grant)'
 Deno.test('authorizeCaller: other RPC errors give 500 and are logged', async () => {
   const { client } = fakeClient({
     user: { id: 'u1' },
-    access: { data: null, error: { code: 'XX000', message: 'boom' } },
+    access: {
+      data: null,
+      error: {
+        code: 'XX000',
+        message: 'Failing row contains (ana@example.com)',
+      },
+    },
   })
   const logged = await captureConsole('error', async () => {
     const result = await authorizeCaller(client, 'tok')
     assert(result instanceof Response)
     assertEquals(result.status, 500)
   })
-  assertEquals(logged.length, 1)
+  assertEquals(logged, [['[verifyAuth] get_my_access failed (code=XX000)']])
 })
 
 Deno.test('authorizeCaller: inactive caller is refused even without options', async () => {

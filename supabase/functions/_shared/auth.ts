@@ -26,6 +26,7 @@ import {
   type SupabaseClient,
   type User,
 } from '@supabase/supabase-js'
+import { logErrorCode } from './log.ts'
 import { reportError } from './report.ts'
 import { timingSafeEqual } from './timing-safe-equal.ts'
 
@@ -347,7 +348,7 @@ export async function authorizeCaller(
 ): Promise<AuthResult | Response> {
   const { data, error } = await client.auth.getUser(token)
   if (error && isAuthOutage(error)) {
-    console.error('[verifyAuth] Auth unavailable', error)
+    logErrorCode('verifyAuth', 'Auth unavailable', error)
     return errorResponse(
       'auth_unavailable',
       'Authentication service unavailable',
@@ -369,7 +370,7 @@ export async function authorizeCaller(
   if (!decision.ok) {
     // The token was valid, so a 42501 here likely means a missing grant.
     if (decision.status === 500 || decision.status === 401) {
-      console.error('[verifyAuth] get_my_access failed', result.error)
+      logErrorCode('verifyAuth', 'get_my_access failed', result.error)
     }
     return errorResponse(decision.code, decision.message, decision.status, req)
   }
