@@ -118,7 +118,10 @@ describe('SpecialtiesSettingsPage', () => {
     expect(within(card('clienteles')).getByRole('columnheader', { name: t(`${S}.clienteles.ages`) })).toBeInTheDocument()
     expect(cells('clienteles', 'Enfants')).toEqual(['0 à 12 ans', '1 professionnel', ''])
     expect(cells('clienteles', 'Aînés').slice(0, 1)).toEqual(['65 ans et plus'])
-    expect(cells('clienteles', 'Couples').slice(0, 2)).toEqual(["Sans limite d'âge", '2 professionnels'])
+    // P4-52: « Sans âge », not « Sans limite d'âge » (which reads like « Tous les âges »); muted like the lists' « — ».
+    expect(cells('clienteles', 'Couples').slice(0, 2)).toEqual(['Sans âge', '2 professionnels'])
+    expect(within(rowOf('clienteles', 'Couples')).getByText('Sans âge')).toHaveClass('text-subtle')
+    expect(within(rowOf('clienteles', 'Enfants')).getByText('0 à 12 ans')).not.toHaveClass('text-subtle')
     expect(cells('clienteles', 'Jeunes adultes').slice(0, 1)).toEqual(['18 à 25 ans'])
     expect(cells('approaches', 'Thérapie cognitivo-comportementale (TCC)')).toEqual(['3 professionnels', ''])
   })
@@ -194,6 +197,18 @@ describe('SpecialtiesSettingsPage', () => {
     expect(mocks.api.saveReference).not.toHaveBeenCalled()
   })
 
+  it('a system age group’s bounds can change: Enfants 0–12 → 0–11 is saved', async () => {
+    await renderPage()
+    mocks.api.saveReference.mockResolvedValue(IDS.children)
+    await chooseAction('Enfants', 'edit')
+    const max = textbox(t(`${S}.clienteles.maxAge`))
+    expect(max).not.toHaveAttribute('readonly')
+    await userEvent.clear(max)
+    await userEvent.type(max, '11')
+    await submit(t('common.save'))
+    await waitFor(() => expect(mocks.api.saveReference).toHaveBeenCalledWith('clienteles', { id: IDS.children, name: 'Enfants', minAge: 0, maxAge: 11 }))
+  })
+
   it('a system clientèle without ages keeps none: its ages are read-only', async () => {
     await renderPage()
     mocks.api.saveReference.mockResolvedValue(IDS.couples)
@@ -202,6 +217,9 @@ describe('SpecialtiesSettingsPage', () => {
     expect(min).toHaveAttribute('readonly')
     expect(min).toHaveAccessibleDescription(t(`${S}.clienteles.systemNoAges`))
     expect(textbox(t(`${S}.clienteles.maxAge`))).toHaveAttribute('readonly')
+    // One help line under both locked fields, read with each.
+    expect(textbox(t(`${S}.clienteles.maxAge`))).toHaveAccessibleDescription(t(`${S}.clienteles.systemNoAges`))
+    expect(within(dialog()).getAllByText(t(`${S}.clienteles.systemNoAges`))).toHaveLength(1)
     expect(textbox('Nom')).toHaveFocus()
     await userEvent.clear(textbox('Nom'))
     await userEvent.type(textbox('Nom'), 'Couples et partenaires')
@@ -265,6 +283,22 @@ describe('SpecialtiesSettingsPage', () => {
     await waitFor(() =>
       expect(mocks.api.reorderReference).toHaveBeenCalledWith('clienteles', [IDS.children, IDS.seniors, YOUNG_ADULTS, IDS.couples]),
     )
+  })
+
+  it('at phone width a reorderable list keeps its « … » menu in view (secondary text wraps, no reorder, no « Utilisé par »)', async () => {
+    await renderPage()
+    const list = card('clienteles')
+    expect(within(list).getByRole('columnheader', { name: t(`${LIST}.columns.usage`) })).toHaveClass('max-sm:hidden')
+    // The table is `whitespace-nowrap`; the list's own columns wrap.
+    expect(within(list).getByRole('table')).toHaveClass('whitespace-nowrap')
+    expect(within(rowOf('clienteles', 'Aînés')).getAllByRole('cell')[0]).toHaveClass('whitespace-normal')
+    for (const name of [t(`${LIST}.actions.moveUp`, { name: 'Aînés' }), t(`${LIST}.actions.moveDown`, { name: 'Aînés' })]) {
+      expect(within(list).getByRole('button', { name })).toHaveClass('max-sm:hidden')
+    }
+    const menu = within(list).getByRole('button', { name: t(`${LIST}.actions.menu`, { name: 'Aînés' }) })
+    expect(menu).not.toHaveClass('max-sm:hidden')
+    // The actions cell is as narrow as its buttons.
+    expect(menu.closest('td')).toHaveClass('w-0', 'pl-1', 'pr-2')
   })
 
   it('an empty list: « Archivés » and « Tous » show the empty state, nothing breaks (A10.5)', async () => {

@@ -14,12 +14,23 @@ describe('agesLabel', () => {
   it.each([
     [{ minAge: 6, maxAge: 12 }, '6 à 12 ans'],
     [{ minAge: 0, maxAge: 1 }, '0 à 1 an'],
+    // The unit follows the maximum: « an » under 2, « ans » from 2.
+    [{ minAge: 0, maxAge: 2 }, '0 à 2 ans'],
+    [{ minAge: 1, maxAge: 2 }, '1 à 2 ans'],
     [{ minAge: 18, maxAge: null }, '18 ans et plus'],
     [{ minAge: 1, maxAge: null }, '1 an et plus'],
+    [{ minAge: 2, maxAge: null }, '2 ans et plus'],
     [{ minAge: 12, maxAge: 12 }, '12 ans'],
     [{ minAge: 1, maxAge: 1 }, '1 an'],
+    [{ minAge: 2, maxAge: 2 }, '2 ans'],
+    // « 0 an » is not French: a group of babies under their first birthday.
+    [{ minAge: 0, maxAge: 0 }, 'Moins de 1 an'],
     [{ minAge: 0, maxAge: null }, 'Tous les âges'],
-    [{ minAge: null, maxAge: null }, "Sans limite d'âge"],
+    [{ minAge: 120, maxAge: 120 }, '120 ans'],
+    // Not an age group (couples, familles, groupes); P4-52: not « Sans limite d'âge », which reads like « Tous les âges ».
+    [{ minAge: null, maxAge: null }, 'Sans âge'],
+    // A maximum without a minimum cannot be saved (schema and database); the minimum decides.
+    [{ minAge: null, maxAge: 12 }, 'Sans âge'],
   ])('%o → %s', (bounds, label) => {
     expect(agesLabel(bounds)).toBe(label)
   })

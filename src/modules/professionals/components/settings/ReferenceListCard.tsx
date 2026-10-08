@@ -36,7 +36,7 @@ export interface ReferenceColumn<K extends ReferenceKind> {
   cell: (row: ReferenceRow<K>, context: ReferenceCellContext) => ReactNode
   /** Text the search also looks in (a code, a sigle). The name is always searched. */
   searchText?: (row: ReferenceRow<K>) => string
-  /** Classes of the header and the cells (e.g. `max-sm:hidden` for a secondary column, `whitespace-nowrap`). */
+  /** Classes of the header and the cells (e.g. `max-sm:hidden` for a secondary column). Cells wrap; `whitespace-nowrap` keeps one on one line. */
   className?: string
 }
 
@@ -100,7 +100,8 @@ export interface ReferenceListCardProps<K extends ReferenceKind> {
   groupBy?: (row: ReferenceRow<K>) => ReferenceGroup
   /**
    * « Monter » / « Descendre » on each row, saved at once (`reorderReference`, every id). Shown
-   * under « Actifs » or « Tous » only, with no search and no `filterRow`.
+   * under « Actifs » or « Tous » only, with no search and no `filterRow`, and from `sm` up (at
+   * phone width they would push the « … » menu out of view).
    */
   reorderable?: boolean
   /** `useSettingsSection().readOnly === false`. Without it: no « Ajouter », no actions, no reorder. */
@@ -137,6 +138,13 @@ const KEEP_FILTER: Record<ListStatusFilterValue, (row: { isActive: boolean }) =>
 
 /** The name cell (`<th scope="row">`) looks like the other cells. */
 const ROW_HEADER = 'tabular h-10 max-w-[320px] whitespace-normal px-3 py-2 text-left align-middle font-normal'
+
+/**
+ * The actions cell: as narrow as its buttons (the 28px buttons carry their own space, so 4px left
+ * and 8px right instead of the cells' 12px). With the columns wrapping and « Monter / Descendre »
+ * hidden below `sm`, every list keeps its « … » menu in view at 375px.
+ */
+const ACTIONS_CELL = 'w-0 py-1 pl-1 pr-2 text-right'
 
 /** One stable callback ref per key (an inline one would detach and reattach on every render). */
 function useElementMap<E extends HTMLElement>() {
@@ -185,8 +193,9 @@ function groupRows<K extends ReferenceKind>(rows: readonly ReferenceRow<K>[], gr
  *   ignored, the match highlighted; the list's `toolbar`; « + Ajouter ».
  * - Table (named by the title): « Nom » (the row header; lock on system rows, « Archivé » on
  *   archived ones, muted), the list's columns, « Utilisé par » (hidden at phone width), then the
- *   row's « Monter / Descendre » and « … » menu (Modifier, Archiver or Restaurer; never Archiver on
- *   a system row). With `groupBy`, group header rows. The scroll wrapper is a tab stop only while
+ *   row's « Monter / Descendre » (hidden at phone width) and « … » menu (Modifier, Archiver or
+ *   Restaurer; never Archiver on a system row). The list's columns wrap, so the menu stays in view
+ *   at 375px. With `groupBy`, group header rows. The scroll wrapper is a tab stop only while
  *   the table is wider than the card.
  * - `filterRow` narrows the list before the counts; `createDefaults` seeds « Ajouter ».
  * - Dialogs: `ReferenceEditDialog` (add, edit) and `ArchiveReferenceDialog` (archive, restore);
@@ -330,7 +339,8 @@ export function ReferenceListCard<K extends ReferenceKind>({
           </span>
         </th>
         {columns.map((column) => (
-          <TableCell key={column.id} className={column.className}>
+          // Wraps (the table is `whitespace-nowrap`), so a short column never pushes the actions out at phone width.
+          <TableCell key={column.id} className={cn('whitespace-normal', column.className)}>
             {column.cell(row, { highlight })}
           </TableCell>
         ))}
@@ -345,7 +355,7 @@ export function ReferenceListCard<K extends ReferenceKind>({
           )}
         </TableCell>
         {showActions && (
-          <TableCell className="w-0 py-1 text-right">
+          <TableCell className={ACTIONS_CELL}>
             <span className="inline-flex items-center gap-0.5">
               {showReorder && (
                 <>
@@ -543,7 +553,10 @@ function MoveButton({ buttonRef, label, icon, inactive, onMove }: MoveButtonProp
       aria-label={label}
       aria-disabled={inactive || undefined}
       onClick={ignoreWhenInactive(inactive, onMove)}
-      className={cn(softDisabledClasses, 'aria-disabled:hover:bg-transparent')}
+      // Hidden below `sm`: with them, a list with a secondary column (Titres, Clientèles) is wider
+      // than a 375px screen and pushes « … » out of view. Reordering is a desk task; on a phone the
+      // menu stays, and the order is changed from a wider screen.
+      className={cn(softDisabledClasses, 'aria-disabled:hover:bg-transparent max-sm:hidden')}
     >
       {icon}
     </Button>

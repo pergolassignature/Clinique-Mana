@@ -29,14 +29,15 @@ interface AgeBounds {
 const years = (age: number) => t(age < 2 ? 'modules.professionals.display.ages.year' : 'modules.professionals.display.ages.years')
 
 /**
- * A clientèle's ages in words: « 6 à 12 ans », « 12 ans », « 18 ans et plus », « Tous les âges »
- * (from 0, no maximum), « Sans limite d'âge » (not an age group: couples, families, groups).
+ * A clientèle's ages in words: « 6 à 12 ans », « 12 ans », « Moins de 1 an » (0 to 0), « 18 ans et
+ * plus », « Tous les âges » (from 0, no maximum), « Sans âge » (not an age group: couples,
+ * families, groups; P4-52: « Sans limite d'âge » read like « Tous les âges »).
  */
 export function agesLabel({ minAge, maxAge }: AgeBounds): string {
   const A = 'modules.professionals.display.ages'
   if (minAge === null) return t(`${A}.none`)
   if (maxAge === null) return minAge === 0 ? t(`${A}.all`) : t(`${A}.from`, { min: String(minAge), unit: years(minAge) })
-  if (maxAge === minAge) return t(`${A}.single`, { age: String(minAge), unit: years(minAge) })
+  if (maxAge === minAge) return minAge === 0 ? t(`${A}.underOne`) : t(`${A}.single`, { age: String(minAge), unit: years(minAge) })
   return t(`${A}.range`, { min: String(minAge), max: String(maxAge), unit: years(maxAge) })
 }
 

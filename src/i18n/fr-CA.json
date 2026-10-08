@@ -1156,7 +1156,8 @@
           "single": "{age} {unit}",
           "from": "{min} {unit} et plus",
           "all": "Tous les âges",
-          "none": "Sans limite d'âge",
+          "underOne": "Moins de 1 an",
+          "none": "Sans âge",
           "year": "an",
           "years": "ans"
         }

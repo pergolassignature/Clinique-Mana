@@ -1,6 +1,7 @@
+import { useId } from 'react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
-import { FormField } from '@/shared/ui/form-field'
+import { FormField, type FieldControlProps } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import { ReferenceListCard, type ReferenceColumn, type ReferenceFormProps } from '../../components/settings/ReferenceListCard'
 import { ReferenceSettingsPage } from '../../components/settings/ReferenceSettingsPage'
@@ -14,8 +15,8 @@ const CLIENTELE_COLUMNS: ReferenceColumn<'clienteles'>[] = [
   {
     id: 'ages',
     header: t(`${S}.clienteles.ages`),
-    // « 6 à 12 ans », « 65 ans et plus », « Sans limite d'âge » (couples, familles, groupes: muted).
-    cell: (row) => <span className={cn('tabular', row.minAge === null && 'text-muted-foreground')}>{agesLabel(row)}</span>,
+    // « 6 à 12 ans », « 65 ans et plus », « Sans âge » (couples, familles, groupes: muted like the lists' « — »).
+    cell: (row) => <span className={cn('tabular', row.minAge === null && 'text-subtle')}>{agesLabel(row)}</span>,
   },
 ]
 
@@ -33,31 +34,43 @@ const AGE_INPUT = { autoComplete: 'off', inputMode: 'numeric', maxLength: 3, cla
  * « Âge minimum » and « Âge maximum » (empty = none). A system clientèle keeps its kind, as
  * `save_clientele` requires (matching relies on it): an age group keeps a minimum (marked required,
  * the schema says why if it is cleared), a clientèle without ages (couples, familles, groupes)
- * keeps none (both read-only). The database checks again.
+ * keeps none: both read-only, under one help line that describes both. The database checks again.
  */
 function ClienteleFields({ form, row }: ReferenceFormProps<'clienteles'>) {
   const { errors } = form.formState
+  const lockedHelpId = useId()
   const systemAgeGroup = row?.isSystem === true && row.minAge !== null
   const systemNoAges = row?.isSystem === true && row.minAge === null
+  /** The locked fields also read the shared help line. */
+  const describedBy = (field: FieldControlProps) =>
+    systemNoAges ? [field['aria-describedby'], lockedHelpId].filter(Boolean).join(' ') : field['aria-describedby']
   return (
-    <div className="grid gap-3.5 sm:grid-cols-2">
-      <FormField
-        label={t(`${S}.clienteles.minAge`)}
-        required={systemAgeGroup}
-        readOnly={systemNoAges}
-        help={t(systemAgeGroup ? `${S}.clienteles.systemAgeGroup` : systemNoAges ? `${S}.clienteles.systemNoAges` : `${S}.clienteles.minAgeHelp`)}
-        error={errors.minAge?.message}
-      >
-        {(field) => <Input {...field} {...form.register('minAge')} {...AGE_INPUT} />}
-      </FormField>
-      <FormField
-        label={t(`${S}.clienteles.maxAge`)}
-        readOnly={systemNoAges}
-        help={systemNoAges ? undefined : t(`${S}.clienteles.maxAgeHelp`)}
-        error={errors.maxAge?.message}
-      >
-        {(field) => <Input {...field} {...form.register('maxAge')} {...AGE_INPUT} />}
-      </FormField>
+    <div className="space-y-1">
+      <div className="grid gap-3.5 sm:grid-cols-2">
+        <FormField
+          label={t(`${S}.clienteles.minAge`)}
+          required={systemAgeGroup}
+          // Never `false`: a surrounding read-only context stays read-only.
+          readOnly={systemNoAges || undefined}
+          help={systemNoAges ? undefined : t(systemAgeGroup ? `${S}.clienteles.systemAgeGroup` : `${S}.clienteles.minAgeHelp`)}
+          error={errors.minAge?.message}
+        >
+          {(field) => <Input {...field} aria-describedby={describedBy(field)} {...form.register('minAge')} {...AGE_INPUT} />}
+        </FormField>
+        <FormField
+          label={t(`${S}.clienteles.maxAge`)}
+          readOnly={systemNoAges || undefined}
+          help={systemNoAges ? undefined : t(`${S}.clienteles.maxAgeHelp`)}
+          error={errors.maxAge?.message}
+        >
+          {(field) => <Input {...field} aria-describedby={describedBy(field)} {...form.register('maxAge')} {...AGE_INPUT} />}
+        </FormField>
+      </div>
+      {systemNoAges && (
+        <p id={lockedHelpId} className="text-xs text-muted-foreground">
+          {t(`${S}.clienteles.systemNoAges`)}
+        </p>
+      )}
     </div>
   )
 }
