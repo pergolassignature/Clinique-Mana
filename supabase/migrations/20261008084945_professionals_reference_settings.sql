@@ -16,6 +16,9 @@
 --   ends, inner runs folded to one space, invisible or control characters refused with a French
 --   P0001. Duplicates are compared as lower(normalize(name, NFKC)), the expression of the unique
 --   indexes, so the friendly message fires exactly when the index would.
+-- * System rows keep what other modules rely on: the 7 clientèles are never archived and keep
+--   their kind (age group or not), « Autre » always requires a note. Order acronyms are unique
+--   per clinic, ignoring case.
 -- * Keys are generated from the French name on create (private.reference_key, P4-31) with a
 --   numeric suffix when taken, and never change (the 4a.1 freeze trigger backs this). Languages
 --   take an ISO 639-1 code instead, validated on create and refused on change.
@@ -25,8 +28,9 @@
 --   (org and can_read_professionals_reference), evaluated once instead of once per list.
 -- * Catalogue views (motifs_catalog, clienteles_catalog, languages_catalog): active rows, for
 --   other modules (Demandes); security_invoker, so the lists' RLS applies.
--- * Module settings live in org_module_settings (module professionals): typed keys with defaults
---   (collect_sin = false, P4-7). org_module_settings has an audit trigger: the RPC sets the audit
+-- * Module settings live in org_module_settings (module professionals): known keys with defaults
+--   (collect_sin = false, P4-7), each value checked by its own rule in
+--   private.validate_professionals_setting (later batches add their keys there). org_module_settings has an audit trigger: the RPC sets the audit
 --   source rpc:set_professionals_settings around its write instead of a second, explicit row.
 -- =============================================================================
 
@@ -91,7 +95,7 @@ immutable
 set search_path = ''
 as $$
 declare
-  v_ws constant text := '[\t\n\v\f\r \u0085   -     　]+';
+  v_ws constant text := '[\t\n\v\f\r \u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+';
   v_text text;
 begin
   v_text := pg_catalog.regexp_replace(coalesce(p_value, ''), '^' || v_ws || '|' || v_ws || '$', '', 'g');
@@ -193,6 +197,15 @@ begin
        and pg_catalog.lower(pg_catalog.normalize(x.name, 'NFKC')) = pg_catalog.lower(pg_catalog.normalize(v_name, 'NFKC'))
   ) then
     raise exception 'Un ordre porte déjà ce nom (il est peut-être archivé).' using errcode = 'P0001';
+  end if;
+  -- Acronyms are unique per clinic, archived orders included, ignoring case (a null acronym,
+  -- should the column ever allow one, matches nothing). The org lock makes this check race-free.
+  if exists (
+    select 1 from public.professional_orders x
+     where x.org_id = v_org and x.id is distinct from p_id
+       and pg_catalog.upper(x.acronym) = v_acronym
+  ) then
+    raise exception 'Un ordre porte déjà ce sigle (il est peut-être archivé).' using errcode = 'P0001';
   end if;
 
   if p_id is null then
@@ -316,7 +329,9 @@ end;
 $$;
 
 -- Ages are set as given (null = no bound): an age group has a minimum and maybe a maximum;
--- couples, families and groups have neither. System clientèles keep editable bounds (P4-42).
+-- couples, families and groups have neither. System clientèles keep editable bounds (P4-42) but
+-- not their kind, which matching relies on: an age group (min_age set) stays one, and a
+-- clientèle seeded without bounds (couples, families, groups) gets none.
 create function public.save_clientele(p_id uuid, p_name text, p_min_age int, p_max_age int)
 returns uuid
 language plpgsql
@@ -326,6 +341,7 @@ as $$
 declare
   v_org uuid := private.lock_for_professionals_settings();
   v_name text := private.reference_text(p_name, 'Le nom', 120, true, true);
+  v_current public.clienteles;
   v_id uuid;
 begin
   if p_min_age not between 0 and 120 or p_max_age not between 0 and 120 then
@@ -337,8 +353,14 @@ begin
   if p_max_age < p_min_age then
     raise exception 'L''âge maximum doit être supérieur ou égal à l''âge minimum.' using errcode = 'P0001';
   end if;
-  if p_id is not null and not exists (select 1 from public.clienteles x where x.id = p_id and x.org_id = v_org) then
-    raise exception 'Clientèle introuvable.' using errcode = 'P0001';
+  if p_id is not null then
+    select * into v_current from public.clienteles x where x.id = p_id and x.org_id = v_org;
+    if not found then
+      raise exception 'Clientèle introuvable.' using errcode = 'P0001';
+    end if;
+    if v_current.is_system and (v_current.min_age is null) <> (p_min_age is null) then
+      raise exception 'Cette clientèle garde son type (groupe d''âge ou non).' using errcode = 'P0001';
+    end if;
   end if;
   if exists (
     select 1 from public.clienteles x
@@ -563,6 +585,8 @@ begin
 end;
 $$;
 
+-- A null flag keeps its value on update. The system reason « Autre » (key other) keeps
+-- requires_note = true.
 create function public.save_deactivation_reason(p_id uuid, p_name text, p_requires_note boolean, p_disables_account boolean)
 returns uuid
 language plpgsql
@@ -572,10 +596,18 @@ as $$
 declare
   v_org uuid := private.lock_for_professionals_settings();
   v_name text := private.reference_text(p_name, 'Le nom', 120, true, true);
+  v_current public.deactivation_reasons;
   v_id uuid;
 begin
-  if p_id is not null and not exists (select 1 from public.deactivation_reasons x where x.id = p_id and x.org_id = v_org) then
-    raise exception 'Raison introuvable.' using errcode = 'P0001';
+  if p_id is not null then
+    select * into v_current from public.deactivation_reasons x where x.id = p_id and x.org_id = v_org;
+    if not found then
+      raise exception 'Raison introuvable.' using errcode = 'P0001';
+    end if;
+    -- The system reason « Autre » is pinned to requires_note: it says nothing without a note.
+    if v_current.is_system and v_current.key = 'other' and not coalesce(p_requires_note, true) then
+      raise exception 'La raison « Autre » demande toujours une note.' using errcode = 'P0001';
+    end if;
   end if;
   if exists (
     select 1 from public.deactivation_reasons x
@@ -672,14 +704,14 @@ begin
     if exists (
       select 1 from public.profession_titles t
         join public.profession_categories c on c.org_id = t.org_id and c.id = t.category_id
-       where t.id = p_id and not c.is_active
+       where t.id = p_id and t.org_id = v_org and not c.is_active
     ) then
       raise exception 'Restaurez d''abord sa catégorie.' using errcode = 'P0001';
     end if;
     if exists (
       select 1 from public.profession_titles t
         join public.professional_orders o on o.org_id = t.org_id and o.id = t.order_id
-       where t.id = p_id and not o.is_active
+       where t.id = p_id and t.org_id = v_org and not o.is_active
     ) then
       raise exception 'Restaurez d''abord son ordre.' using errcode = 'P0001';
     end if;
@@ -687,31 +719,35 @@ begin
 
   case p_kind
     when 'professional_orders' then
-      update public.professional_orders x set is_active = p_active where x.id = p_id and x.is_active <> p_active;
+      update public.professional_orders x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
     when 'profession_categories' then
-      update public.profession_categories x set is_active = p_active where x.id = p_id and x.is_active <> p_active;
+      update public.profession_categories x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
     when 'profession_titles' then
-      update public.profession_titles x set is_active = p_active where x.id = p_id and x.is_active <> p_active;
+      update public.profession_titles x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
     when 'clienteles' then
-      update public.clienteles x set is_active = p_active where x.id = p_id and x.is_active <> p_active;
+      update public.clienteles x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
     when 'specialties' then
-      update public.specialties x set is_active = p_active where x.id = p_id and x.is_active <> p_active;
+      update public.specialties x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
     when 'motif_categories' then
-      update public.motif_categories x set is_active = p_active where x.id = p_id and x.is_active <> p_active;
+      update public.motif_categories x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
     when 'motifs' then
-      update public.motifs x set is_active = p_active where x.id = p_id and x.is_active <> p_active;
+      update public.motifs x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
     when 'languages' then
-      update public.languages x set is_active = p_active where x.id = p_id and x.is_active <> p_active;
+      update public.languages x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
     when 'deactivation_reasons' then
-      update public.deactivation_reasons x set is_active = p_active where x.id = p_id and x.is_active <> p_active;
+      update public.deactivation_reasons x set is_active = p_active where x.id = p_id and x.org_id = v_org and x.is_active <> p_active;
   end case;
 end;
 $$;
 
 -- -----------------------------------------------------------------------------
--- Reorder: the given rows get sort_order 10, 20, 30… in the array's order (the others keep
--- theirs; the client sends the list it shows). Every id must be a row of the caller's clinic in
--- that list, once. Only rows whose order changes are written.
+-- Reorder: the given rows get sort_order 10, 20, 30… in the array's order; rows left out keep
+-- theirs. Every id must be a row of the caller's clinic in that list, once (1 to 500 ids).
+-- Only rows whose order changes are written: resending the current order writes nothing.
+-- API contract: wherever the order is global (one sort_order across the whole list, active and
+-- archived rows alike, as the catalogue sorts it: every list today), callers send the FULL list,
+-- archived rows included, in its new order. Sending only the visible (active) rows would
+-- renumber them from 10 over the archived rows' orders, which then collide or interleave.
 -- -----------------------------------------------------------------------------
 create function public.reorder_professionals_reference(p_kind text, p_ids uuid[])
 returns void
@@ -865,8 +901,8 @@ grant select on public.motifs_catalog, public.clienteles_catalog, public.languag
 -- -----------------------------------------------------------------------------
 -- Module settings (org_module_settings, module professionals)
 -- -----------------------------------------------------------------------------
--- Every known key with its default; a key's JSON type is the type its values must have. Later
--- batches (4b, 4c) create or replace this function to add theirs.
+-- Every known key with its default. Later batches (4b, 4c) create or replace this function to
+-- add theirs, together with private.validate_professionals_setting (keep the two in step).
 create function private.professionals_settings_defaults()
 returns jsonb
 language sql
@@ -900,10 +936,38 @@ as $$
   select private.professionals_settings(p_org) -> p_key
 $$;
 
+-- The rule of each known key: returns when p_value is valid for p_key, otherwise raises 22023
+-- with a message naming the key and what it takes. An unknown key is refused. p_value is the
+-- patch's JSON value (a JSON null is 'null'::jsonb; an SQL null is treated the same).
+-- Later batches (4b, 4c) `create or replace` this function to add their keys, each with its own
+-- `when` branch, and add the same keys to private.professionals_settings_defaults(). For
+-- example 4b adds invitation_expiry_days (an integer from 1 to 30, never null) and
+-- invitation_reminder_after_days (an integer from 1 to 29, or null: no reminder).
+create function private.validate_professionals_setting(p_key text, p_value jsonb)
+returns void
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v jsonb := coalesce(p_value, 'null'::jsonb);
+begin
+  case p_key
+    when 'collect_sin' then   -- boolean, never null
+      if pg_catalog.jsonb_typeof(v) <> 'boolean' then
+        raise exception 'Réglage collect_sin invalide : true ou false attendu.' using errcode = '22023';
+      end if;
+    else
+      raise exception 'Réglage inconnu : %', coalesce(p_key, '(null)') using errcode = '22023';
+  end case;
+end;
+$$;
+
 revoke all on function
   private.professionals_settings_defaults(),
   private.professionals_settings(uuid),
-  private.professionals_setting(uuid, text)
+  private.professionals_setting(uuid, text),
+  private.validate_professionals_setting(text, jsonb)
 from public, anon, authenticated, service_role;
 
 create function public.get_professionals_settings()
@@ -915,14 +979,15 @@ set search_path = ''
 as $$
 begin
   if not private.can_read_professionals_reference() then
-    raise exception 'Permission refusée : professionals.view' using errcode = '42501';
+    raise exception 'Accès refusé aux réglages des professionnels.' using errcode = '42501';
   end if;
   return private.professionals_settings(private.current_user_org_id());
 end;
 $$;
 
--- Merges a patch of known keys with values of the right type; returns the effective settings.
--- collect_sin also needs professionals.private: it opens the collection of SINs (P4-7).
+-- Merges a patch of known keys, each value checked by private.validate_professionals_setting;
+-- returns the effective settings. collect_sin also needs professionals.private: it opens the
+-- collection of SINs (P4-7).
 create function public.set_professionals_settings(p_patch jsonb)
 returns jsonb
 language plpgsql
@@ -931,7 +996,6 @@ set search_path = ''
 as $$
 declare
   v_org uuid := private.current_user_org_id();
-  v_defaults constant jsonb := private.professionals_settings_defaults();
   v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
   r record;
 begin
@@ -942,12 +1006,7 @@ begin
     raise exception 'Réglages invalides : objet JSON attendu' using errcode = '22023';
   end if;
   for r in select e.key, e.value from pg_catalog.jsonb_each(p_patch) e loop
-    if not v_defaults ? r.key then
-      raise exception 'Réglage inconnu : %', r.key using errcode = '22023';
-    end if;
-    if pg_catalog.jsonb_typeof(r.value) <> pg_catalog.jsonb_typeof(v_defaults -> r.key) then
-      raise exception 'Type invalide pour le réglage %', r.key using errcode = '22023';
-    end if;
+    perform private.validate_professionals_setting(r.key, r.value);
   end loop;
   if p_patch ? 'collect_sin' and not private.has_permission('professionals.private') then
     raise exception 'Permission refusée : professionals.private' using errcode = '42501';

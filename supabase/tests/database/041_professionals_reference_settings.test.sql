@@ -3,16 +3,18 @@
 -- (private.reference_key); the nine save RPCs (tidy names, NFKC duplicates with friendly messages,
 -- generated and frozen keys, each list's own rules, the per-list cap); archive / restore with the
 -- system and dependency rules; reorder; the cached catalogue (one payload, no org_id, org isolation,
--- module gate); the published views; module settings (defaults, typed patch, collect_sin needs
--- professionals.private, audit); permissions per role; audit rows of a rename.
+-- module gate, disabled users); the published views; module settings (defaults, the per-key
+-- validator, collect_sin needs professionals.private, audit); system clientèle kinds, the reason
+-- « Autre » and unique acronyms; no-op writes without audit rows; permissions per role; audit rows
+-- of a rename.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(169);
+select plan(188);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider, a conseillère, K in a
--- custom role without any professionals key and S, an adjointe holding professionals.settings by
--- override (but not professionals.private); org B with an admin. Both orgs are created after the
+-- custom role without any professionals key, S, an adjointe holding professionals.settings by
+-- override (but not professionals.private), and a disabled admin; org B with an admin. Both orgs are created after the
 -- migrations, so the reference lists are seeded.
 -- =============================================================================
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
@@ -23,7 +25,8 @@ values
   ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'conseillere@a.test', '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@b.test',       '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'k@a.test',           '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 's@a.test',           '', now(), '{}', '{}', now(), now());
+  ('a0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 's@a.test',           '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'x@a.test',           '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A'),
   ('b0000000-0000-0000-0000-00000000000b', 'Org B');
@@ -34,7 +37,8 @@ insert into public.profiles (user_id, org_id, display_name, email, status) value
   ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère A', 'conseillere@a.test', 'active'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',       'admin@b.test',       'active'),
   ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'K (sans clé)',  'k@a.test',           'active'),
-  ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'S (settings)',  's@a.test',           'active');
+  ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'S (settings)',  's@a.test',           'active'),
+  ('a0000000-0000-0000-0000-000000000008', 'b0000000-0000-0000-0000-00000000000a', 'Admin désactivé', 'x@a.test',         'disabled');
 insert into public.roles (key, name, org_id) values ('custom_0000000a', 'Lecture seule', 'b0000000-0000-0000-0000-00000000000a');
 insert into public.org_role_permissions (org_id, role, permission_key) values
   ('b0000000-0000-0000-0000-00000000000a', 'custom_0000000a', 'settings.view');
@@ -45,7 +49,8 @@ insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'counselor'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin'),
   ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'custom_0000000a'),
-  ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant');
+  ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant'),
+  ('a0000000-0000-0000-0000-000000000008', 'b0000000-0000-0000-0000-00000000000a', 'admin');
 insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'professionals', true),
   ('b0000000-0000-0000-0000-00000000000b', 'professionals', true);
@@ -93,6 +98,7 @@ select function_privs_are('private', 'reference_key', array['text'], 'authentica
 select function_privs_are('private', 'reference_key', array['text'], 'service_role', array[]::text[], 'service_role cannot call private.reference_key');
 select function_privs_are('private', 'professionals_setting', array['uuid', 'text'], 'authenticated', array[]::text[], 'clients cannot call private.professionals_setting');
 select function_privs_are('private', 'professionals_setting', array['uuid', 'text'], 'service_role', array[]::text[], 'service_role cannot call private.professionals_setting');
+select function_privs_are('private', 'validate_professionals_setting', array['text', 'jsonb'], 'authenticated', array[]::text[], 'clients cannot call private.validate_professionals_setting');
 
 select table_privs_are('public', 'motifs_catalog',     'anon', array[]::text[], 'anon: nothing on motifs_catalog');
 select table_privs_are('public', 'clienteles_catalog', 'anon', array[]::text[], 'anon: nothing on clienteles_catalog');
@@ -133,9 +139,9 @@ select results_eq($$ select m.key, m.category_id, m.is_restricted from public.mo
   'a different name with the same key base gets the next free key (« Proche-aidance » → proche_aidance_2)');
 select throws_ok($$ select public.save_motif(null, 'PROCHE AIDANCE', null, false) $$,
   'P0001', 'Un motif porte déjà ce nom (il est peut-être archivé).', 'names are unique ignoring case');
-select throws_ok($$ select public.save_motif(null, E'Proche aidance', null, false) $$,
-  'P0001', 'Un motif porte déjà ce nom (il est peut-être archivé).', 'names are unique ignoring look-alike spaces (NFKC)');
-select throws_ok($$ select public.save_motif(null, E'Anxiété', null, false) $$,
+select throws_ok($$ select public.save_motif(null, E'Proche\u00A0aidance', null, false) $$,
+  'P0001', 'Un motif porte déjà ce nom (il est peut-être archivé).', 'names are unique ignoring look-alike spaces (a no-break space, NFKC)');
+select throws_ok($$ select public.save_motif(null, E'Anxie\u0301te\u0301', null, false) $$,
   'P0001', 'Un motif porte déjà ce nom (il est peut-être archivé).', 'a decomposed « Anxiété » is the seeded one (NFKC)');
 select lives_ok($$ select public.save_motif(current_setting('test.motif')::uuid, 'Proche aidance et soutien',
                     (select c.id from public.motif_categories c where c.key = 'inner_life'), null) $$,
@@ -148,15 +154,15 @@ select lives_ok($$ select public.save_motif(current_setting('test.motif')::uuid,
   'a motif may change the case of its own name');
 select is((select m.is_restricted from public.motifs m where m.id = current_setting('test.motif')::uuid), true,
   'the restricted flag is stored');
-select set_config('test.motif3', public.save_motif(null, E' Deuil   périnatal　', null, false)::text, true);
+select set_config('test.motif3', public.save_motif(null, E'\u00A0Deuil   périnatal\u3000', null, false)::text, true);
 select results_eq($$ select m.key, m.name from public.motifs m where m.id = current_setting('test.motif3')::uuid $$,
   $$ values ('deuil_perinatal'::text, 'Deuil périnatal'::text) $$,
-  'Unicode spaces are stripped at both ends and inner runs fold to one space');
+  'Unicode spaces (no-break, ideographic) are stripped at both ends and inner runs fold to one space');
 select throws_ok($$ select public.save_motif(null, '  ', null, false) $$,
   'P0001', 'Le nom est obligatoire.', 'a blank name is refused');
 select throws_ok($$ select public.save_motif(null, repeat('a', 121), null, false) $$,
   'P0001', 'Le nom ne peut pas dépasser 120 caractères.', 'a 121-character name is refused');
-select throws_ok($$ select public.save_motif(null, E'Anxi​été sociale', null, false) $$,
+select throws_ok($$ select public.save_motif(null, E'Anxi\u200Bété sociale', null, false) $$,
   'P0001', 'Le nom contient des caractères invisibles ou non permis.', 'a zero-width space is refused with a message');
 select throws_ok($$ select public.save_motif(null, 'Motif croisé', current_setting('test.b_trauma')::uuid, false) $$,
   'P0001', 'Catégorie introuvable ou archivée.', 'a category of org B is refused');
@@ -186,6 +192,8 @@ select throws_ok($$ select public.save_professional_order(null, 'Ordre au format
   'P0001', 'Format de permis invalide.', 'an invalid licence pattern is refused');
 select throws_ok($$ select public.save_professional_order(null, 'ordre des psychologues du québec', 'OPQ', null, null) $$,
   'P0001', 'Un ordre porte déjà ce nom (il est peut-être archivé).', 'order names are unique');
+select throws_ok($$ select public.save_professional_order(null, 'Ordre bis des psychologues', 'opq', null, null) $$,
+  'P0001', 'Un ordre porte déjà ce sigle (il est peut-être archivé).', 'acronyms are unique per clinic, ignoring case');
 
 -- Profession categories
 select set_config('test.category', public.save_profession_category(null, 'Art-thérapie')::text, true);
@@ -222,6 +230,14 @@ select results_eq($$ select c.key, c.max_age::int from public.clienteles c where
   $$ values ('jeunes_adultes'::text, 30) $$, 'the clientèle keeps its key');
 select lives_ok($$ select public.save_clientele((select c.id from public.clienteles c where c.key = 'children'), 'Enfants', 0, 11) $$,
   'a system clientèle''s bounds stay editable (P4-42)');
+select throws_ok($$ select public.save_clientele((select c.id from public.clienteles c where c.key = 'children'), 'Enfants', null, null) $$,
+  'P0001', 'Cette clientèle garde son type (groupe d''âge ou non).', 'a system age group cannot lose its bounds');
+select throws_ok($$ select public.save_clientele((select c.id from public.clienteles c where c.key = 'couples'), 'Couples', 18, null) $$,
+  'P0001', 'Cette clientèle garde son type (groupe d''âge ou non).', 'a system clientèle without bounds (couples) cannot become an age group');
+select lives_ok($$ select public.save_clientele((select c.id from public.clienteles c where c.key = 'couples'), 'Couples et partenaires', null, null) $$,
+  'a system clientèle without bounds is renamed, still without bounds');
+select lives_ok($$ select public.save_clientele(current_setting('test.clientele')::uuid, 'Jeunes adultes (18-30)', null, null) $$,
+  'a clinic''s own clientèle may change kind');
 select throws_ok($$ select public.save_clientele(null, 'Mauvais intervalle', 13, 12) $$,
   'P0001', 'L''âge maximum doit être supérieur ou égal à l''âge minimum.', 'max age below min age is refused');
 select throws_ok($$ select public.save_clientele(null, 'Sans minimum', null, 30) $$,
@@ -237,8 +253,8 @@ select lives_ok($$ select public.save_specialty(current_setting('test.specialty'
   'save_specialty renames an approach');
 select results_eq($$ select s.key, s.name from public.specialties s where s.id = current_setting('test.specialty')::uuid $$,
   $$ values ('therapie_narrative'::text, 'Approche narrative'::text) $$, 'the approach keeps its key');
-select throws_ok($$ select public.save_specialty(null, E'ＥＭＤＲ') $$,
-  'P0001', 'Une approche porte déjà ce nom (elle est peut-être archivée).', 'a full-width « ＥＭＤＲ » is the seeded EMDR');
+select throws_ok($$ select public.save_specialty(null, E'\uFF25\uFF2D\uFF24\uFF32') $$,
+  'P0001', 'Une approche porte déjà ce nom (elle est peut-être archivée).', 'a full-width EMDR (U+FF25…) is the seeded EMDR (NFKC)');
 
 -- Motif categories
 select set_config('test.mcat', public.save_motif_category(null, 'Proches et soutien', 'Aidance et entourage', 'Heart')::text, true);
@@ -281,6 +297,10 @@ select results_eq($$ select r.key, r.name, r.requires_note, r.disables_account f
                      where r.id = current_setting('test.reason')::uuid $$,
   $$ values ('retraite'::text, 'Départ à la retraite'::text, false, true) $$,
   'the reason keeps its key; a null flag keeps its value');
+select throws_ok($$ select public.save_deactivation_reason((select r.id from public.deactivation_reasons r where r.key = 'other'), 'Autre', false, null) $$,
+  'P0001', 'La raison « Autre » demande toujours une note.', 'the system reason « Autre » keeps requires_note');
+select lives_ok($$ select public.save_deactivation_reason((select r.id from public.deactivation_reasons r where r.key = 'other'), 'Autre raison', null, true) $$,
+  'the reason « Autre » is renamed, its note requirement kept by a null flag');
 
 -- =============================================================================
 -- Archive / restore (admin A)
@@ -353,6 +373,28 @@ select results_eq($$ select c.key, c.sort_order from public.motif_categories c
   $$ values ('dependencies'::text, 10), ('inner_life', 20), ('relationships', 30) $$,
   'their sort orders become 10, 20, 30 in the given order');
 select throws_ok($$ select public.reorder_professionals_reference('motif_categories',
+                     array[current_setting('test.c1'), current_setting('test.motif')]::uuid[]) $$,
+  '22023', 'Éléments inconnus.', 'an id of another list of the same clinic is refused');
+select throws_ok($$ select public.reorder_professionals_reference('motif_categories', array[]::uuid[]) $$,
+  '22023', 'Liste d''éléments invalide (vide, en double ou trop longue).', 'an empty list is refused');
+select throws_ok($$ select public.reorder_professionals_reference('motif_categories',
+                     array(select gen_random_uuid() from generate_series(1, 501))) $$,
+  '22023', 'Liste d''éléments invalide (vide, en double ou trop longue).', 'a list of more than 500 ids is refused');
+
+-- No-op writes leave no audit row (audit_log read as postgres).
+reset role;
+select set_config('test.audit_count', (select count(*)::text from public.audit_log), true);
+set local role authenticated;
+select lives_ok($$ select public.set_professionals_reference_active('motifs', current_setting('test.motif')::uuid, true) $$,
+  'restoring an active motif is accepted');
+select lives_ok($$ select public.reorder_professionals_reference('motif_categories',
+                    array[current_setting('test.c3'), current_setting('test.c1'), current_setting('test.c2')]::uuid[]) $$,
+  'resending the current order is accepted');
+reset role;
+select is((select count(*)::text from public.audit_log), current_setting('test.audit_count'),
+  'a no-op archive and a no-op reorder write no audit row');
+set local role authenticated;
+select throws_ok($$ select public.reorder_professionals_reference('motif_categories',
                      array[current_setting('test.c1')::uuid, current_setting('test.b_trauma')::uuid]) $$,
   '22023', 'Éléments inconnus.', 'an id of org B is refused');
 select throws_ok($$ select public.reorder_professionals_reference('motif_categories',
@@ -395,6 +437,10 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select is(public.get_professionals_catalog(),
   '{"orders": [], "categories": [], "titles": [], "clienteles": [], "specialties": [], "motif_categories": [], "motifs": [], "languages": [], "deactivation_reasons": []}'::jsonb,
   'K, without a professionals key, gets 9 empty lists');
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000008","role":"authenticated"}', true);
+select is(public.get_professionals_catalog(),
+  '{"orders": [], "categories": [], "titles": [], "clienteles": [], "specialties": [], "motif_categories": [], "motifs": [], "languages": [], "deactivation_reasons": []}'::jsonb,
+  'a disabled admin gets 9 empty lists');
 
 -- Published views (conseillère A)
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
@@ -418,14 +464,21 @@ select is(public.set_professionals_settings('{"collect_sin": true}'), '{"collect
 select is(current_setting('app.audit_source', true), 'test:outer', 'set_professionals_settings gives the audit source back');
 select set_config('app.audit_source', '', true);
 select is(public.get_professionals_settings(), '{"collect_sin": true}'::jsonb, 'the setting is stored');
-select throws_ok($$ select public.set_professionals_settings('{"unknown": 1}') $$, '22023', null, 'an unknown key is refused');
-select throws_ok($$ select public.set_professionals_settings('{"collect_sin": "yes"}') $$, '22023', null, 'a value of the wrong type is refused');
+select throws_ok($$ select public.set_professionals_settings('{"unknown": 1}') $$,
+  '22023', 'Réglage inconnu : unknown', 'an unknown key is refused');
+select throws_ok($$ select public.set_professionals_settings('{"collect_sin": "yes"}') $$,
+  '22023', 'Réglage collect_sin invalide : true ou false attendu.', 'a value of the wrong type is refused');
+select throws_ok($$ select public.set_professionals_settings('{"collect_sin": null}') $$,
+  '22023', 'Réglage collect_sin invalide : true ou false attendu.', 'collect_sin cannot be null');
+select throws_ok($$ select public.set_professionals_settings('{"collect_sin": false, "unknown": 1}') $$,
+  '22023', 'Réglage inconnu : unknown', 'one bad key refuses the whole patch');
 select throws_ok($$ select public.set_professionals_settings('[]') $$, '22023', null, 'a patch is a JSON object');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000007","role":"authenticated"}', true);
 select throws_ok($$ select public.set_professionals_settings('{"collect_sin": false}') $$,
   '42501', null, 'S holds professionals.settings but not professionals.private: collect_sin is refused');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
-select throws_ok($$ select public.get_professionals_settings() $$, '42501', null, 'K, without a professionals key, cannot read the settings');
+select throws_ok($$ select public.get_professionals_settings() $$,
+  '42501', 'Accès refusé aux réglages des professionnels.', 'K, without a professionals key, cannot read the settings');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select is(public.get_professionals_settings(), '{"collect_sin": false}'::jsonb, 'org B keeps its own default');
 
@@ -458,6 +511,22 @@ select throws_ok($$ select public.save_specialty(null, 'Une de trop') $$,
 select lives_ok($$ select public.save_specialty((select s.id from public.specialties s where s.key = 'bulk_1'), 'Approche un') $$,
   'a full list still accepts renames');
 
+-- Org isolation of the catalogue: admin B gets exactly org B's rows (compared as postgres).
+select set_config('test.catalog_b', public.get_professionals_catalog()::text, true);
+reset role;
+select bag_eq($$ select (e ->> 'id')::uuid from jsonb_each(current_setting('test.catalog_b')::jsonb) l(k, v), jsonb_array_elements(l.v) e $$,
+  $$ select id from public.professional_orders where org_id = 'b0000000-0000-0000-0000-00000000000b'
+     union all select id from public.profession_categories where org_id = 'b0000000-0000-0000-0000-00000000000b'
+     union all select id from public.profession_titles where org_id = 'b0000000-0000-0000-0000-00000000000b'
+     union all select id from public.clienteles where org_id = 'b0000000-0000-0000-0000-00000000000b'
+     union all select id from public.specialties where org_id = 'b0000000-0000-0000-0000-00000000000b'
+     union all select id from public.motif_categories where org_id = 'b0000000-0000-0000-0000-00000000000b'
+     union all select id from public.motifs where org_id = 'b0000000-0000-0000-0000-00000000000b'
+     union all select id from public.languages where org_id = 'b0000000-0000-0000-0000-00000000000b'
+     union all select id from public.deactivation_reasons where org_id = 'b0000000-0000-0000-0000-00000000000b' $$,
+  'admin B''s catalogue holds exactly the rows of org B');
+set local role authenticated;
+
 -- Module gate: with the module off, the catalogue is empty and the settings closed.
 select lives_ok($$ select public.set_module_enabled('professionals', false) $$, 'admin B disables professionals');
 select is(jsonb_array_length(public.get_professionals_catalog() -> 'motifs'), 0, 'with the module off, the catalogue is empty');
@@ -480,6 +549,8 @@ select is(private.professionals_setting('b0000000-0000-0000-0000-00000000000a', 
   'professionals_setting reads the stored value');
 select is(private.professionals_setting('b0000000-0000-0000-0000-00000000000b', 'collect_sin'), 'false'::jsonb,
   'professionals_setting falls back to the default');
+select lives_ok($$ select private.validate_professionals_setting(d.key, d.value) from jsonb_each(private.professionals_settings_defaults()) d $$,
+  'every default passes its own rule (defaults and validator in step)');
 
 select * from finish();
 rollback;
