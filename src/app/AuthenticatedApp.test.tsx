@@ -190,8 +190,8 @@ describe('AuthenticatedApp', () => {
     expect(await screen.findByText('MODULES PAGE')).toBeInTheDocument()
   })
 
-  it('renders the module placeholder at its route', async () => {
-    render(appAt('/professionnels'))
+  it('renders the module placeholder at its route (the record, until 4a.11)', async () => {
+    render(appAt('/professionnels/0b6c/apercu'))
     expect(await screen.findByText(t('modules.professionals.placeholder'))).toBeInTheDocument()
   })
 

@@ -9,6 +9,7 @@ import {
   PROFESSIONAL_STATUSES,
   READINESS_MISSING,
   RECORD_TABS,
+  recordPath,
   REFERENCE_KINDS,
 } from './constants'
 
@@ -57,5 +58,10 @@ describe('constants mirror the SQL checks', () => {
 
   it('record tabs are the seven of P4-13, as URL segments', () => {
     expect(RECORD_TABS).toEqual(['apercu', 'jumelage', 'profil-public', 'identite', 'documents', 'remuneration', 'historique'])
+  })
+
+  it('a record opens on « Aperçu » unless a tab is named', () => {
+    expect(recordPath('p1')).toBe('/professionnels/p1/apercu')
+    expect(recordPath('p1', 'historique')).toBe('/professionnels/p1/historique')
   })
 })

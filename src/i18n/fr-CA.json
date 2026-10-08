@@ -1189,6 +1189,85 @@
         "matching_incomplete": "Profil de jumelage incomplet",
         "login_email_mismatch": "Courriel de connexion différent"
       },
+      "list": {
+        "countOne": "{count} professionnel",
+        "countOther": "{count} professionnels",
+        "activeOne": "{count} actif",
+        "activeOther": "{count} actifs",
+        "add": "Ajouter",
+        "search": {
+          "label": "Rechercher un professionnel",
+          "placeholder": "Rechercher par nom, courriel ou permis…"
+        },
+        "statusFilter": { "label": "Statut", "all": "Tous les statuts" },
+        "filters": {
+          "button": "Filtres",
+          "buttonCount": "Filtres ({count})",
+          "label": "Plus de filtres",
+          "title": "Titre principal",
+          "titleAll": "Tous les titres",
+          "language": "Langue",
+          "languageAll": "Toutes les langues",
+          "clientele": "Clientèle",
+          "clienteleAll": "Toutes les clientèles",
+          "motifs": "Motifs",
+          "motifsSearch": "Rechercher un motif…",
+          "motifsEmpty": "Aucun motif ne correspond.",
+          "acceptingNewClients": "Accepte de nouveaux clients",
+          "watch": "À surveiller",
+          "archived": "{name} (archivé)"
+        },
+        "chips": {
+          "label": "Filtres actifs",
+          "title": "Titre principal : {name}",
+          "language": "Langue : {name}",
+          "clientele": "Clientèle : {name}",
+          "motif": "Motif : {name}",
+          "remove": "Retirer le filtre « {label} »"
+        },
+        "reset": "Réinitialiser",
+        "resultsOne": "{count} résultat",
+        "resultsOther": "{count} résultats",
+        "table": {
+          "label": "Professionnels",
+          "name": "Nom",
+          "profession": "Profession",
+          "languages": "Langues",
+          "status": "Statut",
+          "watch": "À surveiller",
+          "nothingToWatch": "Rien à surveiller"
+        },
+        "footer": {
+          "countOne": "{shown} sur {total} professionnel",
+          "countOther": "{shown} sur {total} professionnels",
+          "pagination": "Pagination",
+          "page": "Page {page} sur {count}",
+          "previous": "Page précédente",
+          "next": "Page suivante"
+        },
+        "truncated": "Plus de 500 professionnels : affinez la recherche.",
+        "loadError": "La liste des professionnels n'a pas pu être chargée.",
+        "empty": {
+          "title": "Aucun professionnel pour l'instant",
+          "body": "Ajoutez le premier professionnel de la clinique.",
+          "bodyReadOnly": "Les professionnels de la clinique s'afficheront ici."
+        },
+        "noMatch": { "title": "Aucun professionnel ne correspond", "body": "Modifiez la recherche ou les filtres." }
+      },
+      "create": {
+        "heading": "Ajouter un professionnel",
+        "description": "Le dossier commence « À inviter ». Vous compléterez son profil avant de l'inviter.",
+        "firstName": "Prénom",
+        "lastName": "Nom",
+        "email": "Courriel",
+        "emailHelp": "L'adresse où l'invitation sera envoyée. Elle servira à se connecter.",
+        "profession": "Profession",
+        "professionNone": "Aucune pour l'instant",
+        "licenceHelp": "Requis pour ce titre ({order}).",
+        "submit": "Créer",
+        "submitting": "Création…",
+        "catalogError": "Les titres n'ont pas pu être chargés."
+      },
       "toasts": {
         "saved": "Modifications enregistrées.",
         "created": "Professionnel créé.",

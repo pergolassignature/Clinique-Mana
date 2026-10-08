@@ -77,6 +77,9 @@ export type ReadinessWarning = (typeof READINESS_WARNINGS)[number]
 export const RECORD_TABS = ['apercu', 'jumelage', 'profil-public', 'identite', 'documents', 'remuneration', 'historique'] as const
 export type RecordTab = (typeof RECORD_TABS)[number]
 
+/** A record's URL, on « Aperçu » unless a tab is named. */
+export const recordPath = (id: string, tab: RecordTab = 'apercu') => `/professionnels/${id}/${tab}`
+
 /** Rows per page of the list (4a.10; the page number is in the URL). */
 export const PAGE_SIZE = 25
 

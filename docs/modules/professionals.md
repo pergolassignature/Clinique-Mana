@@ -23,10 +23,12 @@ PS Hub (`NEW PS Hub`, read-only) settles uncertain choices (P4-39). Where this m
   - `useProfessionalsFilters` follows `useCrmUrlState`: the URL is the source of truth, unknown values fall back to the defaults, and typing replaces the history entry.
   - Parameters are French (`statut`, `langue`, `surveiller`…), like the routes.
   - Each setter starts from the current URL, not the last render. PS Hub's setters copy the `searchParams` of their render, so two changes in one event lose the first one.
-- **Remembered search and filters (planned for 4a.10).**
+- **Remembered search and filters (4a.10, `lib/remembered-filters.ts`, `src/core/preferences/`).**
   - PS Hub's `useCrmUrlState` restores each user's last search and assignee filter through `usePersistedSearch`. It stores them per user in `user_search_preferences (user_id, page_key, search_state)`, and that table has RLS on the user's own rows.
-  - 4a.5 does not port this. 4a.10 adds the same per-user model for the Professionnels list. The filters are stored server-side in a core `user_preferences (user_id, key, value jsonb)` table, with RLS limited to the user's own rows (a DB-lane item), under the key `professionals.list_filters`. They come back when the same person signs in on any computer.
+  - We follow the same model: the core `user_preferences` table (migration `…_core_user_preferences.sql`), key `professionals.list_filters`, read and written only for the signed-in user. The filters come back when the same person signs in on any computer.
+  - As in PS Hub: the URL wins over the saved filters, writes wait for a 1.5 s pause, a pending write goes out when the person leaves the list, and only the filters a person chooses are saved (a link, Back or a page change is not).
   - Écart: PS Hub also keeps a copy in `localStorage`, tagged with the user id. We keep none (decision #10: reception computers are shared), so the server row is the only copy.
+  - Écart: PS Hub upserts the table directly. Clients here only read it and write through `set_user_preference` / `delete_user_preference` (conventions §3). Clearing every filter deletes the row instead of saving an empty value.
 - **Playwright (4a.0).** We follow PS Hub's `playwright.config.ts` and `e2e/fixtures/auth.ts` structure: the `e2e/` folder, Chromium only, a trace on first retry and a screenshot on failure, at the same version (1.58.1). We differ in four ways:
   - There is no remote Supabase URL fallback: the config refuses a `VITE_SUPABASE_URL` that is not local.
   - Tests sign in through the real login page instead of injecting a session.

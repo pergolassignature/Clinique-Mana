@@ -5,9 +5,12 @@ import { lazyPage } from '@/shared/lib/lazy-page'
 // On the login page's entry path (ALL_MODULES): icons, lazyPage and types only. Every page is a
 // lazyPage; the API, hooks and schemas load with them.
 
-/** Until 4a.7–4a.11 replace them: one lazyPage per entry, so each lane changes its own line. */
+/** Until 4a.9 and 4a.11 replace them: one lazyPage per entry, so each lane changes its own line. */
 const placeholder = () => lazyPage(() => import('./pages/ProfessionalsPlaceholderPage'), 'ProfessionalsPlaceholderPage')
 const settingsPlaceholder = () => lazyPage(() => import('./pages/ProfessionalsPlaceholderPage'), 'ProfessionalsSettingsPlaceholder')
+
+/** The record page, also preloaded by the list (row hover or focus). 4a.11: ProfessionalRecordPage. */
+export const professionalRecordPage = placeholder()
 
 /**
  * The lists are seen by whoever manages records (the adjointe, read-only) or edits the lists
@@ -25,10 +28,9 @@ export const professionalsManifest: ModuleManifest = {
   dependsOn: [],
   nav: { path: '/professionnels', labelKey: 'modules.professionals.name', icon: Users, permission: 'professionals.view', order: 10 },
   routes: [
-    // 4a.10: ProfessionalsListPage
-    { path: 'professionnels', permission: 'professionals.view', component: placeholder() },
-    // 4a.11: ProfessionalRecordPage (the tab is a URL segment: apercu, jumelage… RECORD_TABS)
-    { path: 'professionnels/:id/:onglet?', permission: 'professionals.view', component: placeholder() },
+    { path: 'professionnels', permission: 'professionals.view', component: lazyPage(() => import('./pages/ProfessionalsListPage'), 'ProfessionalsListPage') },
+    // The tab is a URL segment: apercu, jumelage… (RECORD_TABS)
+    { path: 'professionnels/:id/:onglet?', permission: 'professionals.view', component: professionalRecordPage },
   ],
   settingsSections: [
     {

@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { t } from '@/i18n'
-import { CREATE_PROFESSIONAL_DEFAULTS, createProfessionalSchema } from './create'
+import { CREATE_PROFESSIONAL_DEFAULTS, createErrorField, createProfessionalSchema } from './create'
 import type { NewProfessional } from '../api/record'
 import { CATALOG, CATALOG_VIEW } from '../test/fixtures-domain'
 import { buildCatalogView } from '../lib/catalog-view'
@@ -63,5 +63,18 @@ describe('createProfessionalSchema', () => {
   it('refuses a malformed licence, and drops one typed without a title', () => {
     expect(errorAt(schema, values({ titleId: IDS.naturopathe, licenceNumber: '#1' }), 'licenceNumber')).toBe('Numéro de permis invalide.')
     expect(schema.parse(values({ licenceNumber: '12345' })).licenceNumber).toBeNull()
+  })
+})
+
+describe('createErrorField', () => {
+  it('puts each refusal of create_professional under its field', () => {
+    expect(createErrorField('Ce courriel est déjà utilisé.')).toBe('email')
+    expect(createErrorField('Courriel invalide.')).toBe('email')
+    expect(createErrorField('Le numéro de permis est requis pour ce titre.')).toBe('licenceNumber')
+    expect(createErrorField("Le numéro de permis pour Psychologue n'a pas le bon format.")).toBe('licenceNumber')
+    expect(createErrorField('Ce titre est archivé.')).toBe('titleId')
+    expect(createErrorField("Aucune langue active n'est disponible.")).toBeNull()
+    expect(createErrorField(t('modules.professionals.errors.saveFailed'))).toBeNull()
+    expect(createErrorField(t('common.errors.forbidden'))).toBeNull()
   })
 })

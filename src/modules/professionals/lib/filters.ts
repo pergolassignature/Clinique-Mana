@@ -97,6 +97,9 @@ export function isDefaultFilters(filters: ProfessionalsFilters): boolean {
   return filtersToSearchParams({ ...filters, page: 1 }).toString() === ''
 }
 
+/** A filter change: replaces the history entry (typing must not stack entries) and is the person's choice. */
+const CHOSEN = { replace: true, chosen: true } as const
+
 /**
  * The URL's filters and their setters. A filter change goes back to page 1 and replaces the
  * history entry (typing must not stack entries); a page change pushes one, so Back returns to the
@@ -107,25 +110,32 @@ export function isDefaultFilters(filters: ProfessionalsFilters): boolean {
  * current URL is `latest`, not `setSearchParams`'s updater argument: react-router 6 hands that
  * updater the search params of its last render, so a second call in the same tick would undo the
  * first. `latest` follows every render (Back, links) and every write made here.
+ *
+ * `onChange` hears the filters a person chose (`setFilters`, `toggleMotif`, `reset`), not a page
+ * change, a link, Back, or `restore`: what the list remembers for them (4a.10).
  */
-export function useProfessionalsFilters() {
+export function useProfessionalsFilters({ onChange }: { onChange?: (filters: ProfessionalsFilters) => void } = {}) {
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = useMemo(() => parseProfessionalsFilters(searchParams), [searchParams])
   const latest = useRef(searchParams)
+  const changed = useRef(onChange)
   useLayoutEffect(() => {
     latest.current = searchParams
-  }, [searchParams])
+    changed.current = onChange
+  }, [searchParams, onChange])
 
   const update = useCallback(
-    (change: (current: ProfessionalsFilters) => ProfessionalsFilters, replace: boolean) => {
-      const next = filtersToSearchParams(change(parseProfessionalsFilters(latest.current)), latest.current)
+    (change: (current: ProfessionalsFilters) => ProfessionalsFilters, { replace, chosen }: { replace: boolean; chosen: boolean }) => {
+      const nextFilters = change(parseProfessionalsFilters(latest.current))
+      const next = filtersToSearchParams(nextFilters, latest.current)
       latest.current = next
       setSearchParams(next, { replace })
+      if (chosen) changed.current?.(nextFilters)
     },
     [setSearchParams],
   )
   const setFilters = useCallback(
-    (patch: Partial<Omit<ProfessionalsFilters, 'page'>>) => update((current) => ({ ...current, ...patch, page: 1 }), true),
+    (patch: Partial<Omit<ProfessionalsFilters, 'page'>>) => update((current) => ({ ...current, ...patch, page: 1 }), CHOSEN),
     [update],
   )
   const toggleMotif = useCallback(
@@ -136,14 +146,16 @@ export function useProfessionalsFilters() {
           motifIds: current.motifIds.includes(id) ? current.motifIds.filter((m) => m !== id) : [...current.motifIds, id],
           page: 1,
         }),
-        true,
+        CHOSEN,
       ),
     [update],
   )
-  const setPage = useCallback((page: number) => update((current) => ({ ...current, page }), false), [update])
-  const reset = useCallback(() => update(() => DEFAULT_FILTERS, true), [update])
+  const setPage = useCallback((page: number) => update((current) => ({ ...current, page }), { replace: false, chosen: false }), [update])
+  const reset = useCallback(() => update(() => DEFAULT_FILTERS, CHOSEN), [update])
+  /** Puts saved filters in the URL (page 1), replacing the entry; `onChange` is not called. */
+  const restore = useCallback((saved: ProfessionalsFilters) => update(() => ({ ...saved, page: 1 }), { replace: true, chosen: false }), [update])
 
-  return { filters, setFilters, toggleMotif, setPage, reset }
+  return { filters, setFilters, toggleMotif, setPage, reset, restore }
 }
 
 /** A known id, else null (no filter). */
