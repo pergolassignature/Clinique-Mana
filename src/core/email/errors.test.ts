@@ -14,10 +14,17 @@ const fail = (code: string, status: number, message = 'x', variable?: string) =>
 describe('emailErrorMessage', () => {
   it.each([
     ['not_configured', 503, "L'envoi de courriels n'est pas encore configuré."],
-    ['rate_limited', 429, "Trop d'envois en peu de temps. Réessayez dans quelques minutes."],
     ['provider_error', 502, "Le service d'envoi n'a pas répondu. Réessayez."],
   ])('says %s in French', (code, status, text) => {
     expect(emailErrorMessage(fail(code, status))).toBe(text)
+    expect(mocks.captureException).not.toHaveBeenCalled()
+  })
+
+  it('says when to retry after a 429, from its Retry-After', () => {
+    const limited = (retryAfter: number | null) => new EmailFunctionError('rate_limited', 429, 'Too many attempts', {}, retryAfter)
+    expect(emailErrorMessage(limited(2700))).toBe(`Trop de demandes en peu de temps. ${t('common.retryIn.minutesOther', { count: '45' })}`)
+    expect(emailErrorMessage(limited(30))).toBe(`Trop de demandes en peu de temps. ${t('common.retryIn.moment')}`)
+    expect(emailErrorMessage(limited(null))).toBe(`Trop de demandes en peu de temps. ${t('common.retryIn.later')}`)
     expect(mocks.captureException).not.toHaveBeenCalled()
   })
 

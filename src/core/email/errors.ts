@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/react'
 import { t } from '@/i18n'
 import { EmailFunctionError } from './api'
 import { UNCLOSED_BRACES_MESSAGE } from './schemas'
+import { retryInText } from '@/shared/lib/retry-after'
 
 /** The codes that have their own French text (`settings.email.errors.<code>`); not reported. */
 const KNOWN = new Set(['not_configured', 'rate_limited', 'provider_error', 'module_disabled', 'not_found', 'unauthenticated', 'network'] as const)
@@ -17,7 +18,8 @@ const INVALID_RECIPIENT_MESSAGE = 'Invalid recipient'
 /**
  * The French text of a failed email function call (`email-preview`, `email-test-send`; P3-28).
  * The function's English message is never shown, except SQL's unclosed-braces sentence, which it
- * sends as is; an unknown placeholder names its `variable`. Unexpected codes go to Sentry (code and
+ * sends as is; an unknown placeholder names its `variable`; a 429 says when to retry (its
+ * `Retry-After`, `retryInText`). Unexpected codes go to Sentry (code and
  * message only: the functions' messages carry no address or value) and read as the generic text.
  */
 export function emailErrorMessage(error: unknown): string {
@@ -30,6 +32,7 @@ export function emailErrorMessage(error: unknown): string {
       return status === 413 ? t('settings.email.errors.tooLarge') : t('settings.email.errors.invalid_request')
     }
     if (code === 'forbidden') return t('common.errors.forbidden')
+    if (code === 'rate_limited') return `${t('settings.email.errors.rate_limited')} ${retryInText(error.retryAfter)}`
     if (isKnown(code)) return t(`settings.email.errors.${code}`)
   }
   const code = error instanceof EmailFunctionError ? error.code : 'unknown'

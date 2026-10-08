@@ -563,7 +563,7 @@
       },
       "errors": {
         "not_configured": "L'envoi de courriels n'est pas encore configuré.",
-        "rate_limited": "Trop d'envois en peu de temps. Réessayez dans quelques minutes.",
+        "rate_limited": "Trop de demandes en peu de temps.",
         "provider_error": "Le service d'envoi n'a pas répondu. Réessayez.",
         "module_disabled": "Ce module est désactivé pour la clinique.",
         "not_found": "Ce modèle n'existe plus. Rechargez la page.",
