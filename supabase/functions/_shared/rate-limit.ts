@@ -66,6 +66,15 @@ export const LIMITS = {
     max: 30,
     windowSeconds: 3_600,
   },
+  /**
+   * `storage-upload`, per caller: each call creates a pending row and signs
+   * an upload of up to the purpose's size cap.
+   */
+  storageUploadUser: {
+    bucket: 'storage.upload_user',
+    max: 60,
+    windowSeconds: 3_600,
+  },
 } as const satisfies Record<string, RateLimit>
 
 /**

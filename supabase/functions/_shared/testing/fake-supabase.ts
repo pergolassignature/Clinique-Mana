@@ -1,7 +1,8 @@
 /**
  * A Supabase client double for function tests. Functions reach the database
  * only through `rpc` and `storage` (plan « Conventions »), so the fake is a
- * router over those two, with a call log, plus `auth.getUser` for a caller's
+ * router over those two, with a call log (a storage call also answers
+ * `.asStream()`, for `download`), plus `auth.getUser` for a caller's
  * client (`verifyAuth`) and the `auth.admin` methods a service client uses
  * (`createUser`, `deleteUser`, `updateUserById`). Test-only: never deployed.
  */
@@ -121,9 +122,12 @@ export function fakeSupabase(
         routedMethods(
           'storage',
           routes.storage,
-          (method, route: StorageRoute) => async (...args: unknown[]) => {
+          (method, route: StorageRoute) => (...args: unknown[]) => {
             storageCalls.push({ bucket, method, args })
-            return normalise(await route(bucket, ...args))
+            const result =
+              (async () => normalise(await route(bucket, ...args)))()
+            // `download(path).asStream()`: the route returns the stream as data.
+            return Object.assign(result, { asStream: () => result })
           },
         ),
     },

@@ -36,6 +36,7 @@
  * only the functions that render PDFs may import it (CLAUDE.md §7). The model
  * (`model.ts`) and template filling (`template.ts`) do not.
  */
+import { imageSize } from '../image-size.ts'
 import { sniff } from '../storage.ts'
 import {
   INTER_RANGES,
@@ -211,49 +212,6 @@ const runs = (items: Run[]) =>
   )
 
 /**
- * Width and height in pixels, from the PNG IHDR or the first JPEG frame
- * header (SOFn), or null when the header is missing or malformed.
- */
-function imageSize(
-  type: 'png' | 'jpeg',
-  bytes: Uint8Array,
-): [number, number] | null {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  if (type === 'png') {
-    // Signature (8), IHDR length (4) and type (4), then width and height.
-    if (bytes.length < 24) return null
-    return [view.getUint32(16), view.getUint32(20)]
-  }
-  let i = 2 // after SOI
-  while (i + 4 <= bytes.length) {
-    if (bytes[i] !== 0xff) return null
-    const marker = bytes[i + 1]
-    if (marker === 0xff) { // fill byte
-      i++
-      continue
-    }
-    // Markers without a length: TEM, RSTn.
-    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
-      i += 2
-      continue
-    }
-    if (marker === 0xd8 || marker === 0xd9 || marker === 0xda) return null
-    const length = view.getUint16(i + 2)
-    if (length < 2) return null
-    // SOF0–SOF15, except DHT (C4), JPG (C8) and DAC (CC).
-    if (
-      marker >= 0xc0 && marker <= 0xcf &&
-      ![0xc4, 0xc8, 0xcc].includes(marker)
-    ) {
-      if (i + 9 > bytes.length) return null
-      return [view.getUint16(i + 7), view.getUint16(i + 5)]
-    }
-    i += 2 + length
-  }
-  return null
-}
-
-/**
  * The image as a data URL, or a PdfError when it is not PNG or JPEG or is
  * over `MAX_IMAGE_SIDE` pixels a side (checked before pdfkit decodes it).
  */
@@ -264,10 +222,10 @@ function dataUrl(key: string, bytes: Uint8Array | undefined): string {
     throw new PdfError('unsupported_image', `asset « ${key} » is not PNG/JPEG`)
   }
   const size = imageSize(type, bytes)
-  if (!size || size[0] === 0 || size[1] === 0) {
+  if (!size || size.width === 0 || size.height === 0) {
     throw new PdfError('unsupported_image', `asset « ${key} »: no image size`)
   }
-  if (size[0] > MAX_IMAGE_SIDE || size[1] > MAX_IMAGE_SIDE) {
+  if (size.width > MAX_IMAGE_SIDE || size.height > MAX_IMAGE_SIDE) {
     throw new PdfError(
       'image_too_large',
       `asset « ${key} » is over ${MAX_IMAGE_SIDE} px a side`,

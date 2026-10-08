@@ -118,3 +118,10 @@ verify_jwt = true
 verify_jwt = false
 [functions.users-set-status]
 verify_jwt = false
+[functions.storage-upload]
+verify_jwt = false
+[functions.storage-confirm]
+verify_jwt = false
+# A job: runJob verifies X-Job-Signature.
+[functions.storage-cleanup]
+verify_jwt = false

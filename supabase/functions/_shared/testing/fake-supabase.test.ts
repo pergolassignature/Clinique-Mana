@@ -42,6 +42,23 @@ Deno.test('fakeSupabase: storage methods are routed by name, with the bucket log
   }])
 })
 
+Deno.test('fakeSupabase: download(...).asStream() resolves to the same routed result', async () => {
+  const stream = new Blob(['%PDF']).stream()
+  const { client, storageCalls } = fakeSupabase({
+    storage: { download: () => ({ data: stream }) },
+  })
+  const { data, error } = await client.storage.from('documents').download(
+    'a.pdf',
+  ).asStream()
+  assertEquals(data, stream)
+  assertEquals(error, null)
+  assertEquals(storageCalls, [{
+    bucket: 'documents',
+    method: 'download',
+    args: ['a.pdf'],
+  }])
+})
+
 Deno.test('fakeSupabase: an unrouted storage method throws, naming it', () => {
   const { client, storageCalls } = fakeSupabase({
     storage: { remove: () => ({ data: null }) },
