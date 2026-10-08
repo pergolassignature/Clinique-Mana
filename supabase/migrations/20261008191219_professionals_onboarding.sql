@@ -3,7 +3,7 @@
 -- =============================================================================
 -- Design:  docs/plans/2026-10-08-professionals-module-design.md §3.4, §3.7, §5.4–§5.6
 -- Plan:    docs/plans/2026-10-08-professionals-module-plan.md Task 4b.1 (P4-37, P4-38, P4-43, P4-44,
---          P4-50, P4-170 … P4-186)
+--          P4-50, P4-170 … P4-179, P4-270 … P4-276)
 -- Needs:   Phase 3 secure links (…_core_secure_links.sql, ADR 0007), the staff invitation actor
 --          model (…_core_staff_invitations.sql, Task 3.18), email templates, notifications, storage
 -- Rules:   docs/standards/database-conventions.md (§7 audit, §8 encrypted columns and key versions)
@@ -25,9 +25,9 @@
 --   account's address, and creates the profile with the role provider (this module owns it,
 --   decision #28) in one transaction. A refused re-check rolls the consumption back (P4-172).
 -- * Submissions (P4-37): one row per questionnaire, `onboarding` (all eleven sections) or `update`
---   (the sections asked, P4-44: no link). « Approches » are being removed from the app (P4-186):
---   no section, no helper, not in the history list; set_professional_specialties and
---   get_professional_record are left as 4a built them. No motif or clientèle key is named here.
+--   (the sections asked, P4-44: no link). There are no « Approches » (P4-240, P4-276): no
+--   section, no helper, not in the history list; get_professional_record is left as 4a built it.
+--   No motif or clientèle key is named here.
 --   Status draft → submitted → approved; a rejection returns the submission to draft with the
 --   reviewer's note (P4-170); `cancelled` closes it without review (P4-301). At most one open
 --   (draft or submitted) submission per professional. `prefill` is a snapshot of the record at creation; `submitted_values`
@@ -74,7 +74,7 @@
 --     when its key is present, and applying never touches a field that was not answered (P4-176).
 --   - Inactive files: the provider RPCs, update requests, apply and acceptance refuse (P4-303).
 --     Self-review is refused (P4-304). Apply re-checks the consent version and the insurance's
---     expiry (P4-305); the SIN is not an available field while collect_sin is off (P4-182).
+--     expiry (P4-305); the SIN is not an available field while collect_sin is off (P4-272).
 --   - Staged files must belong to this submission (subject), drafts of the consent text are read
 --     by staff only, and the reminder must leave before the link expires (P4-306 … P4-308).
 -- =============================================================================
@@ -309,7 +309,8 @@ on conflict do nothing;
 -- kind: plain (a column), set (a set RPC's input), file (a staged upload), private (an encrypted or
 -- plain value of professional_submission_private), consent (the signature). A field's value is
 -- submitted_values -> section -> field, except file and consent fields, whose value is the
--- section's whole object.
+-- section's whole object. The client limits (min_client_age, women_only: P4-245) belong to the
+-- clientèles section: they qualify who the professional sees.
 create function private.submission_fields()
 returns table (section text, field text, kind text, ord int)
 language sql
@@ -324,21 +325,22 @@ as $$
     ('portrait', 'bio', 'plain', 9), ('portrait', 'approach', 'plain', 10),
     ('portrait', 'public_email', 'plain', 11), ('portrait', 'public_phone', 'plain', 12),
     ('languages', 'language_ids', 'set', 13),
-    ('clienteles', 'clienteles', 'set', 14),
-    ('motifs', 'motif_ids', 'set', 15),
-    ('availability', 'accepting_new_clients', 'plain', 16), ('availability', 'availability_periods', 'plain', 17),
-    ('availability', 'availability_note', 'plain', 18),
-    ('photo', 'photo', 'file', 19),
-    ('insurance', 'insurance', 'file', 20),
-    ('tax_bank', 'business_number', 'private', 21), ('tax_bank', 'gst_number', 'private', 22),
-    ('tax_bank', 'qst_number', 'private', 23), ('tax_bank', 'bank_institution', 'private', 24),
-    ('tax_bank', 'bank_transit', 'private', 25), ('tax_bank', 'bank_account', 'private', 26),
-    ('tax_bank', 'sin', 'private', 27),
-    ('consent', 'consent', 'consent', 28)
+    ('clienteles', 'clienteles', 'set', 14), ('clienteles', 'min_client_age', 'plain', 15),
+    ('clienteles', 'women_only', 'plain', 16),
+    ('motifs', 'motif_ids', 'set', 17),
+    ('availability', 'accepting_new_clients', 'plain', 18), ('availability', 'availability_periods', 'plain', 19),
+    ('availability', 'availability_note', 'plain', 20),
+    ('photo', 'photo', 'file', 21),
+    ('insurance', 'insurance', 'file', 22),
+    ('tax_bank', 'business_number', 'private', 23), ('tax_bank', 'gst_number', 'private', 24),
+    ('tax_bank', 'qst_number', 'private', 25), ('tax_bank', 'bank_institution', 'private', 26),
+    ('tax_bank', 'bank_transit', 'private', 27), ('tax_bank', 'bank_account', 'private', 28),
+    ('tax_bank', 'sin', 'private', 29),
+    ('consent', 'consent', 'consent', 30)
   ) as x(section, field, kind, ord)
 $$;
 
--- The eleven section keys, in questionnaire order (no « Approches »: removed from the app, P4-186).
+-- The eleven section keys, in questionnaire order (no « Approches »: removed from the app, P4-240, P4-276).
 create function private.submission_sections()
 returns text[]
 language sql
@@ -431,7 +433,7 @@ create table public.professional_submissions (
   constraint professional_submissions_applied_fields_check check (
     applied_fields <@ array['personal_phone', 'address_line1', 'address_line2', 'city', 'province', 'postal_code',
                             'professions', 'years_experience', 'bio', 'approach', 'public_email', 'public_phone',
-                            'language_ids', 'clienteles', 'motif_ids', 'accepting_new_clients',
+                            'language_ids', 'clienteles', 'min_client_age', 'women_only', 'motif_ids', 'accepting_new_clients',
                             'availability_periods', 'availability_note', 'photo', 'insurance', 'business_number',
                             'gst_number', 'qst_number', 'bank_institution', 'bank_transit', 'bank_account', 'sin',
                             'consent']),
@@ -1107,9 +1109,8 @@ revoke all on function
   private.apply_professional_professions(uuid, uuid, uuid[], text[], boolean[], boolean)
 from public, anon, authenticated, service_role;
 
--- Four set RPCs of *_professionals_core.sql, now thin wrappers (set_professional_specialties is left
--- as 4a built it: « Approches » are being removed, P4-186) (same signatures, grants,
--- order of checks, refusals and results).
+-- Four set RPCs of *_professionals_core.sql, now thin wrappers (no approaches: P4-240, P4-276)
+-- (same signatures, grants, order of checks, refusals and results).
 create or replace function public.set_professional_motifs(p_id uuid, p_motif_ids uuid[])
 returns setof uuid
 language plpgsql
@@ -1233,14 +1234,15 @@ as $$
       'clienteles', coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id', x.clientele_id, 'specialized', x.is_specialized)
                                      order by x.clientele_id)
                                 from public.professional_clienteles x
-                               where x.professional_id = p.id and x.org_id = p.org_id), '[]')),
+                               where x.professional_id = p.id and x.org_id = p.org_id), '[]'),
+      'min_client_age', mp.min_client_age, 'women_only', mp.women_only),
     'motifs', pg_catalog.jsonb_build_object(
       'motif_ids', coalesce((select pg_catalog.jsonb_agg(x.motif_id order by x.motif_id)
                                from public.professional_motifs x
                               where x.professional_id = p.id and x.org_id = p.org_id), '[]')),
     'availability', pg_catalog.jsonb_build_object(
       'accepting_new_clients', mp.accepting_new_clients,
-      'availability_periods', coalesce((select pg_catalog.jsonb_agg(x order by pg_catalog.array_position(array['am', 'pm', 'evening', 'weekend'], x))
+      'availability_periods', coalesce((select pg_catalog.jsonb_agg(x order by pg_catalog.array_position(array['am', 'pm', 'end_of_day', 'evening', 'weekend'], x))
                                           from pg_catalog.unnest(mp.availability_periods) as x), '[]'),
       'availability_note', mp.availability_note))
     from public.professionals p
@@ -1534,9 +1536,22 @@ begin
 
   when 'clienteles' then
     select x.ids, x.flags into v_ids, v_flags from private.parse_specialized_items(coalesce(v -> p_section, '[]')) x;
+    -- The client limits (P4-245): the youngest client age (null: none) and « Femmes seulement ».
+    if coalesce(pg_catalog.jsonb_typeof(v -> 'min_client_age'), 'null') not in ('number', 'null') then
+      raise exception 'Valeur invalide : nombre attendu.' using errcode = '22023', hint = 'min_client_age';
+    end if;
+    v_num := (v ->> 'min_client_age')::numeric;
+    if v_num is not null and (v_num not between 0 and 120 or v_num <> pg_catalog.trunc(v_num)) then
+      raise exception 'Les âges vont de 0 à 120 ans.' using errcode = 'P0001', hint = 'min_client_age';
+    end if;
+    if coalesce(pg_catalog.jsonb_typeof(v -> 'women_only'), 'null') not in ('boolean', 'null') then
+      raise exception 'Valeur invalide : booléen attendu.' using errcode = '22023', hint = 'women_only';
+    end if;
     v_out := pg_catalog.jsonb_build_object(p_section,
       coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id', x.id, 'specialized', x.flag) order by x.id)
-                  from unnest(v_ids, v_flags) as x(id, flag)), '[]'));
+                  from unnest(v_ids, v_flags) as x(id, flag)), '[]'),
+      'min_client_age', v_num::int,
+      'women_only', coalesce(v -> 'women_only', 'null'::jsonb));
 
   when 'availability' then
     if coalesce(pg_catalog.jsonb_typeof(v -> 'accepting_new_clients'), 'null') not in ('boolean', 'null') then
@@ -1544,13 +1559,13 @@ begin
     end if;
     if coalesce(pg_catalog.jsonb_typeof(v -> 'availability_periods'), 'null') not in ('array', 'null')
        or exists (select 1 from pg_catalog.jsonb_array_elements(coalesce(v -> 'availability_periods', '[]')) as e(x)
-                   where coalesce(e.x #>> '{}', '') not in ('am', 'pm', 'evening', 'weekend')
+                   where coalesce(e.x #>> '{}', '') not in ('am', 'pm', 'end_of_day', 'evening', 'weekend')
                       or pg_catalog.jsonb_typeof(e.x) <> 'string') then
-      raise exception 'Périodes invalides : am, pm, evening, weekend attendues.' using errcode = '22023', hint = 'availability_periods';
+      raise exception 'Périodes invalides : am, pm, end_of_day, evening, weekend attendues.' using errcode = '22023', hint = 'availability_periods';
     end if;
     v_out := pg_catalog.jsonb_build_object(
       'accepting_new_clients', coalesce(v -> 'accepting_new_clients', 'null'::jsonb),
-      'availability_periods', coalesce((select pg_catalog.jsonb_agg(d.x order by pg_catalog.array_position(array['am', 'pm', 'evening', 'weekend'], d.x))
+      'availability_periods', coalesce((select pg_catalog.jsonb_agg(d.x order by pg_catalog.array_position(array['am', 'pm', 'end_of_day', 'evening', 'weekend'], d.x))
                                           from (select distinct e.x #>> '{}' as x
                                                   from pg_catalog.jsonb_array_elements(coalesce(v -> 'availability_periods', '[]')) as e(x)) d), '[]'),
       'availability_note', private.submission_long_text(private.submission_string(v, 'availability_note'), 'La note', 500, 'availability_note'));
@@ -1751,7 +1766,7 @@ revoke all on function private.professional_onboarding_states(uuid, uuid) from p
 -- The record's onboarding line, requested with the record (same tick, no waterfall): the latest
 -- link's state and times, the open submission and whether an onboarding was approved; null when the
 -- file has neither a link nor a submission. professionals.view; another clinic's id reads null.
--- Not folded into get_professional_record while « Approches » are being removed from it (P4-180).
+-- Not folded into get_professional_record yet (P4-270): 4b.3 may fold it in.
 create function public.get_professional_onboarding(p_id uuid)
 returns jsonb
 language plpgsql
@@ -1873,7 +1888,7 @@ as $$
 $$;
 
 -- -----------------------------------------------------------------------------
--- History: submissions and consents (never the private table); « Approches » no longer listed (P4-186)
+-- History: submissions and consents (never the private table); « Approches » no longer listed (P4-276)
 -- -----------------------------------------------------------------------------
 create or replace function private.professional_history_tables()
 returns text[]
@@ -1884,8 +1899,8 @@ as $$
   select array['professionals', 'professional_public_profiles', 'professional_matching_profiles',
                'professional_professions', 'professional_clienteles',
                'professional_motifs', 'professional_languages', 'professional_payer_numbers',
-               'professional_private', 'professional_compensation', 'professional_recognition',
-               'professional_submissions', 'professional_consents']
+               'professional_private', 'professional_retention', 'professional_session_counts',
+               'professional_client_agreements', 'professional_submissions', 'professional_consents']
 $$;
 
 -- -----------------------------------------------------------------------------
@@ -2408,7 +2423,7 @@ $$;
 
 -- The private step (P4-38): encrypted at once, never in submitted_values. Plain numbers as given
 -- (blank clears), the SIN and the account kept when blank. Same tidying and messages as the staff
--- cards (4a.17), with the field as HINT; a SIN only while collect_sin is on (P4-183). One key
+-- cards (4a.17), with the field as HINT; a SIN only while collect_sin is on (P4-272). One key
 -- version per row (conventions §8).
 create function public.save_my_submission_private(
   p_sin text,
@@ -2547,7 +2562,7 @@ $$;
 revoke all on function private.unreadable_submission_field(uuid, uuid, boolean, boolean)
   from public, anon, authenticated, service_role;
 
--- Signs the latest published consent (P4-184): the typed name must be the file's « Prénom Nom »,
+-- Signs the latest published consent (P4-273): the typed name must be the file's « Prénom Nom »,
 -- accents, case and spaces aside. Stored in the draft with the server's time; professional_consents
 -- receives it on approval.
 create function public.sign_my_consent(p_version_id uuid, p_signer_name text)
@@ -2630,7 +2645,7 @@ begin
      where p.id = v_pid and p.org_id = v_org;
   end if;
 
-  -- One notice per sending (a resubmission after a refusal notifies again, P4-181): the key holds the
+  -- One notice per sending (a resubmission after a refusal notifies again, P4-271): the key holds the
   -- clock time, not the transaction's, so two sendings never share it.
   perform private.notify(
     v_org, 'professionals', 'professionals.submission_received', 'normal',
@@ -2700,9 +2715,9 @@ $$;
 -- Review (professionals.review)
 -- -----------------------------------------------------------------------------
 -- The fields a submission can apply, in registry order: a plain or set field whose key was saved
--- (P4-176: a key never sent is no answer; a null answer for province or accepting_new_clients is
--- none either: their columns are never null), a file with a file id, a signed consent, a private
--- value entered (the SIN only while collect_sin is on, P4-182).
+-- (P4-176: a key never sent is no answer; a null answer for province, women_only or
+-- accepting_new_clients is none either: their columns are never null), a file with a file id, a signed consent, a private
+-- value entered (the SIN only while collect_sin is on, P4-272).
 create function private.submission_available_fields(p_sub public.professional_submissions)
 returns text[]
 language sql
@@ -2716,7 +2731,7 @@ as $$
    where f.section = any (p_sub.requested_sections)
      and case f.kind
            when 'plain' then coalesce((p_sub.submitted_values -> f.section) ? f.field, false)
-                             and not (f.field in ('province', 'accepting_new_clients')
+                             and not (f.field in ('province', 'women_only', 'accepting_new_clients')
                                       and coalesce(p_sub.submitted_values -> f.section -> f.field, 'null'::jsonb) = 'null'::jsonb)
            when 'set' then coalesce((p_sub.submitted_values -> f.section) ? f.field, false)
            when 'file' then (p_sub.submitted_values -> f.section ->> 'file_id') is not null
@@ -2827,7 +2842,7 @@ $$;
 -- Moves the chosen private values of a submission to professional_private (P4-176): a value entered
 -- replaces the stored one, nothing else changes; the whole row ends on the write version (bytes
 -- copied when already on it, re-encrypted inside the database otherwise); the SIN only while
--- collect_sin is on (P4-183). A value that does not decrypt raises a clean P0001.
+-- collect_sin is on (P4-272). A value that does not decrypt raises a clean P0001.
 create function private.apply_submission_private(p_org uuid, p_pid uuid, p_submission_id uuid, p_fields text[])
 returns void
 language plpgsql
@@ -2915,7 +2930,7 @@ revoke all on function private.apply_submission_private(uuid, uuid, uuid, text[]
 -- is deleted. An empty selection approves without changing the record. Refused: an inactive file
 -- (P4-303), the reviewer's own file (P4-304), a consent signed on a version that is no longer the
 -- latest published one and an insurance that has expired since it was sent (P4-305), the SIN while
--- collect_sin is off (P4-182).
+-- collect_sin is off (P4-272).
 create function public.apply_professional_submission(p_submission_id uuid, p_fields text[] default null)
 returns void
 language plpgsql
@@ -3008,9 +3023,14 @@ begin
            public_phone = case when 'public_phone' = any (v_fields) then v_values #>> '{portrait,public_phone}' else x.public_phone end
      where x.professional_id = v_pid and x.org_id = v_org;
   end if;
-  if v_fields && array['accepting_new_clients', 'availability_periods', 'availability_note'] then
+  if v_fields && array['min_client_age', 'women_only', 'accepting_new_clients', 'availability_periods', 'availability_note'] then
     update public.professional_matching_profiles x
-       set accepting_new_clients = case when 'accepting_new_clients' = any (v_fields)
+       set min_client_age = case when 'min_client_age' = any (v_fields)
+                                 then (v_values #>> '{clienteles,min_client_age}')::smallint else x.min_client_age end,
+           women_only = case when 'women_only' = any (v_fields)
+                             then coalesce((v_values #>> '{clienteles,women_only}')::boolean, x.women_only)
+                             else x.women_only end,
+           accepting_new_clients = case when 'accepting_new_clients' = any (v_fields)
                                         then coalesce((v_values #>> '{availability,accepting_new_clients}')::boolean, x.accepting_new_clients)
                                         else x.accepting_new_clients end,
            availability_periods = case when 'availability_periods' = any (v_fields)

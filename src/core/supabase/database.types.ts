@@ -171,6 +171,60 @@ export type Database = {
           },
         ]
       }
+      consent_versions: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          key: string
+          org_id: string
+          published_at: string | null
+          published_by: string | null
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          key: string
+          org_id: string
+          published_at?: string | null
+          published_by?: string | null
+          title: string
+          updated_at?: string
+          version: number
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          key?: string
+          org_id?: string
+          published_at?: string | null
+          published_by?: string | null
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_versions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_versions_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       deactivation_reasons: {
         Row: {
           created_at: string
@@ -1670,6 +1724,91 @@ export type Database = {
           },
         ]
       }
+      professional_consents: {
+        Row: {
+          consent_version_id: string
+          created_at: string
+          expires_on: string
+          id: string
+          org_id: string
+          professional_id: string
+          signed_at: string
+          signer_name: string
+          submission_id: string | null
+          withdrawal_effective_on: string | null
+          withdrawn_at: string | null
+        }
+        Insert: {
+          consent_version_id: string
+          created_at?: string
+          expires_on: string
+          id?: string
+          org_id: string
+          professional_id: string
+          signed_at: string
+          signer_name: string
+          submission_id?: string | null
+          withdrawal_effective_on?: string | null
+          withdrawn_at?: string | null
+        }
+        Update: {
+          consent_version_id?: string
+          created_at?: string
+          expires_on?: string
+          id?: string
+          org_id?: string
+          professional_id?: string
+          signed_at?: string
+          signer_name?: string
+          submission_id?: string | null
+          withdrawal_effective_on?: string | null
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_consents_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_consents_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_consents_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_consents_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "professional_consents_submission_fkey"
+            columns: ["professional_id", "submission_id"]
+            isOneToOne: false
+            referencedRelation: "professional_submissions"
+            referencedColumns: ["professional_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_consents_version_fkey"
+            columns: ["org_id", "consent_version_id"]
+            isOneToOne: false
+            referencedRelation: "consent_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       professional_languages: {
         Row: {
           created_at: string
@@ -2362,6 +2501,199 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      professional_submission_private: {
+        Row: {
+          bank_account: string | null
+          bank_account_last4: string | null
+          bank_institution: string | null
+          bank_transit: string | null
+          business_number: string | null
+          created_at: string
+          gst_number: string | null
+          key_version: number
+          org_id: string
+          professional_id: string
+          qst_number: string | null
+          sin: string | null
+          sin_last3: string | null
+          submission_id: string
+          updated_at: string
+        }
+        Insert: {
+          bank_account?: string | null
+          bank_account_last4?: string | null
+          bank_institution?: string | null
+          bank_transit?: string | null
+          business_number?: string | null
+          created_at?: string
+          gst_number?: string | null
+          key_version?: number
+          org_id: string
+          professional_id: string
+          qst_number?: string | null
+          sin?: string | null
+          sin_last3?: string | null
+          submission_id: string
+          updated_at?: string
+        }
+        Update: {
+          bank_account?: string | null
+          bank_account_last4?: string | null
+          bank_institution?: string | null
+          bank_transit?: string | null
+          business_number?: string | null
+          created_at?: string
+          gst_number?: string | null
+          key_version?: number
+          org_id?: string
+          professional_id?: string
+          qst_number?: string | null
+          sin?: string | null
+          sin_last3?: string | null
+          submission_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_submission_private_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_submission_private_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_submission_private_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_submission_private_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "professional_submission_private_submission_fkey"
+            columns: ["professional_id", "submission_id"]
+            isOneToOne: false
+            referencedRelation: "professional_submissions"
+            referencedColumns: ["professional_id", "id"]
+          },
+        ]
+      }
+      professional_submissions: {
+        Row: {
+          applied_fields: string[] | null
+          created_at: string
+          decision_note: string | null
+          id: string
+          kind: string
+          org_id: string
+          prefill: Json
+          private_saved_at: string | null
+          professional_id: string
+          requested_sections: string[]
+          reviewed_at: string | null
+          reviewed_by: string | null
+          secure_link_id: string | null
+          status: string
+          submitted_at: string | null
+          submitted_values: Json
+          updated_at: string
+        }
+        Insert: {
+          applied_fields?: string[] | null
+          created_at?: string
+          decision_note?: string | null
+          id?: string
+          kind: string
+          org_id: string
+          prefill?: Json
+          private_saved_at?: string | null
+          professional_id: string
+          requested_sections: string[]
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          secure_link_id?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_values?: Json
+          updated_at?: string
+        }
+        Update: {
+          applied_fields?: string[] | null
+          created_at?: string
+          decision_note?: string | null
+          id?: string
+          kind?: string
+          org_id?: string
+          prefill?: Json
+          private_saved_at?: string | null
+          professional_id?: string
+          requested_sections?: string[]
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          secure_link_id?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_values?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_submissions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_submissions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_submissions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_submissions_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "professional_submissions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "professional_submissions_secure_link_fkey"
+            columns: ["secure_link_id"]
+            isOneToOne: false
+            referencedRelation: "secure_links"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4006,6 +4338,7 @@ export type Database = {
       }
       professionals_readiness: {
         Row: {
+          account_created: boolean | null
           email_matches_login: boolean | null
           has_clientele: boolean | null
           has_language: boolean | null
@@ -4017,6 +4350,7 @@ export type Database = {
           professional_id: string | null
           ready: boolean | null
           restricted_motifs_ok: boolean | null
+          submission_approved: boolean | null
         }
         Relationships: [
           {
@@ -4055,6 +4389,10 @@ export type Database = {
           p_status: string
         }
         Returns: string
+      }
+      apply_professional_submission: {
+        Args: { p_fields?: string[]; p_submission_id: string }
+        Returns: undefined
       }
       apply_signing_event: {
         Args: {
@@ -4200,6 +4538,10 @@ export type Database = {
         }
         Returns: string
       }
+      create_professional_invitation: {
+        Args: { p_actor: string; p_id: string; p_token_hash: string }
+        Returns: Json
+      }
       create_role: {
         Args: { p_copy_from?: string; p_name: string }
         Returns: string
@@ -4304,6 +4646,20 @@ export type Database = {
         Returns: Json
       }
       get_my_access: { Args: never; Returns: Json }
+      get_my_professional_private: {
+        Args: never
+        Returns: {
+          bank_account_last4: string
+          bank_institution: string
+          bank_transit: string
+          business_number: string
+          gst_number: string
+          qst_number: string
+          sin_last3: string
+          updated_at: string
+        }[]
+      }
+      get_my_submission: { Args: never; Returns: Json }
       get_org_secret: {
         Args: { p_key: string; p_org_id: string }
         Returns: string
@@ -4323,6 +4679,7 @@ export type Database = {
         Args: { p_id: string; p_on?: string }
         Returns: Json
       }
+      get_professional_onboarding: { Args: { p_id: string }; Returns: Json }
       get_professional_private: {
         Args: { p_id: string }
         Returns: {
@@ -4340,6 +4697,10 @@ export type Database = {
       get_professional_public_profile: { Args: { p_id: string }; Returns: Json }
       get_professional_readiness: { Args: { p_id: string }; Returns: Json }
       get_professional_record: { Args: { p_id: string }; Returns: Json }
+      get_professional_submission_notice_for_service: {
+        Args: { p_actor: string }
+        Returns: Json
+      }
       get_professionals_catalog: { Args: never; Returns: Json }
       get_professionals_settings: { Args: never; Returns: Json }
       get_signature_request: {
@@ -4377,11 +4738,19 @@ export type Database = {
         Args: { p_id: string; p_org_id: string }
         Returns: Json
       }
+      get_submission_review: {
+        Args: { p_submission_id: string }
+        Returns: Json
+      }
       import_professional: {
         Args: { p_dry_run?: boolean; p_row: Json }
         Returns: Json
       }
       last_webhook_event_at: { Args: { p_provider: string }; Returns: string }
+      link_professional_account: {
+        Args: { p_payload: Json; p_token_hash: string; p_user_id: string }
+        Returns: Json
+      }
       list_audit_actors: {
         Args: never
         Returns: {
@@ -4545,6 +4914,26 @@ export type Database = {
           source: string
           table_name: string
         }[]
+      }
+      list_professional_invitation_states: {
+        Args: never
+        Returns: {
+          expires_at: string
+          onboarding_approved: boolean
+          opened_at: string
+          professional_id: string
+          sent_at: string
+          state: string
+          submission_id: string
+          submission_kind: string
+          submission_status: string
+          submitted_at: string
+          used_at: string
+        }[]
+      }
+      list_professional_invitations_to_remind_for_service: {
+        Args: { p_limit?: number; p_org: string }
+        Returns: string[]
       }
       list_professionals: {
         Args: {
@@ -4817,6 +5206,14 @@ export type Database = {
           object_path: string
         }[]
       }
+      reissue_professional_invitation_for_service: {
+        Args: { p_id: string; p_org: string; p_token_hash: string }
+        Returns: Json
+      }
+      reject_professional_submission: {
+        Args: { p_note: string; p_submission_id: string }
+        Returns: undefined
+      }
       reject_stored_file: { Args: { p_file_id: string }; Returns: undefined }
       rename_role: {
         Args: { p_name: string; p_role: string }
@@ -4834,12 +5231,24 @@ export type Database = {
         Args: { p_ids: string[]; p_kind: string }
         Returns: undefined
       }
+      request_professional_update: {
+        Args: { p_id: string; p_sections: string[] }
+        Returns: Json
+      }
       reset_email_template: { Args: { p_key: string }; Returns: undefined }
+      resolve_professional_invitation: {
+        Args: { p_link_id: string }
+        Returns: Json
+      }
       resolve_staff_invitation: { Args: { p_link_id: string }; Returns: Json }
       reveal_bank_account_number: { Args: never; Returns: string }
       reveal_professional_private: {
         Args: { p_field: string; p_id: string }
         Returns: string
+      }
+      revoke_professional_invitation: {
+        Args: { p_id: string }
+        Returns: undefined
       }
       revoke_staff_invitation: { Args: { p_id: string }; Returns: undefined }
       run_scheduled_job_now: { Args: { p_key: string }; Returns: undefined }
@@ -4891,6 +5300,22 @@ export type Database = {
           p_name: string
         }
         Returns: string
+      }
+      save_my_submission_draft: {
+        Args: { p_section: string; p_values: Json }
+        Returns: string
+      }
+      save_my_submission_private: {
+        Args: {
+          p_bank_account: string
+          p_bank_institution: string
+          p_bank_transit: string
+          p_business_number: string
+          p_gst_number: string
+          p_qst_number: string
+          p_sin: string
+        }
+        Returns: undefined
       }
       save_profession_category: {
         Args: { p_id: string; p_name: string }
@@ -5072,10 +5497,19 @@ export type Database = {
         Args: { p_status: string; p_user_id: string }
         Returns: undefined
       }
+      sign_my_consent: {
+        Args: { p_signer_name: string; p_version_id: string }
+        Returns: undefined
+      }
       start_job_run: {
         Args: { p_key: string; p_org_id: string; p_trigger: string }
         Returns: string
       }
+      start_my_profile_update: {
+        Args: { p_sections: string[] }
+        Returns: string
+      }
+      submit_my_submission: { Args: never; Returns: undefined }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
       update_template_version: {
         Args: {

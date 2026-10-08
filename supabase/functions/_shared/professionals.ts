@@ -61,7 +61,7 @@ export function appPageUrl(
   return origin && APP_PATH.test(path) ? `${origin}${path}` : null
 }
 
-/** The record page a reviewer opens (the in-app notice's link, P4-181). */
+/** The record page a reviewer opens (the in-app notice's link, P4-271). */
 export function professionalDocumentsPath(professionalId: string): string {
   return `/professionnels/${professionalId}/documents`
 }

@@ -8,7 +8,7 @@
  *    caller's own open one, found by the RPC).
  * 3. `submit_my_submission` as the caller: every requested section complete,
  *    the staff checks, `submitted`, the file `in_review` for an onboarding,
- *    and the in-app notice to `professionals.review` (created in SQL, P4-181,
+ *    and the in-app notice to `professionals.review` (created in SQL, P4-271,
  *    so it exists whatever happens to the emails). P0001 → 400 with its French
  *    message, its HINT as `field` and, for incomplete sections, their keys as
  *    `sections`; 42501 → 403; 22023 → 400; anything else → 500, reported.

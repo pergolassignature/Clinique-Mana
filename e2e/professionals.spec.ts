@@ -38,7 +38,7 @@ async function tickMotif(sheet: Locator, name: string) {
   await search.fill('')
 }
 
-test('the adjointe creates, matches and activates a professional, who is then found by language', async ({
+test('the adjointe creates and matches a professional, the admin activates it, and it is found by language', async ({
   page,
   signIn,
 }) => {
@@ -100,17 +100,33 @@ test('the adjointe creates, matches and activates a professional, who is then fo
 
   await expect(page.getByRole('region', { name: 'Langues' }).getByText('Anglais')).toBeVisible()
 
-  // Aperçu: ready to activate → « Activer » → Actif.
+  // Aperçu: the matching profile is complete; the account and the questionnaire are still to come
+  // (4b.1, P4-179), so only the admin can activate, with the override reason.
   await openTab(page, 'Aperçu')
-  await expect(page.getByText('Le dossier est prêt à être activé.')).toBeVisible()
-  // The header's teal « Activer » (Aperçu's « Prochaine action » has one too, later in the page).
+  await expect(page.getByText("Le profil de jumelage est complet. Il reste l'accès du professionnel et son questionnaire.")).toBeVisible()
+  const recordUrl = page.url()
+
+  // The admin activates it: « Activer » → « Activer quand même » with the suggested reason → Actif.
+  await page.context().clearCookies()
+  await page.evaluate(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+  await signIn('admin')
+  // Straight to the record (not through the list, whose search the admin's filters would remember).
+  // Accueil may still be navigating right after the sign-in: retry an aborted load.
+  await expect(async () => {
+    await page.goto(recordUrl)
+    await expect(page.getByRole('heading', { level: 1, name: fullName })).toBeVisible()
+  }).toPass({ timeout: 15_000 })
+  // The header's teal « Activer » (Aperçu's « Prochaine action » may have one too, later in the page).
   await page.getByRole('main').getByRole('button', { name: 'Activer', exact: true }).first().click()
   const confirm = page.getByRole('alertdialog', { name: `Activer ${fullName} ?` })
-  await confirm.getByRole('button', { name: 'Activer' }).click()
+  await confirm.getByRole('textbox', { name: /^Raison de l'activation/ }).fill('Dossier complété hors application')
+  await confirm.getByRole('button', { name: 'Activer quand même' }).click()
   await expect(confirm).toBeHidden()
   await expect(page.getByText('Actif', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('À inviter', { exact: true })).toHaveCount(0)
-  const recordUrl = page.url()
 
   // List: « Langue : Anglais » finds the new professional.
   await page.getByRole('navigation', { name: "Fil d'Ariane" }).getByRole('link', { name: 'Professionnels' }).click()
@@ -122,7 +138,7 @@ test('the adjointe creates, matches and activates a professional, who is then fo
   await expect(page).toHaveURL(/langue=/)
   await page.getByRole('searchbox', { name: 'Rechercher un professionnel' }).fill(lastName)
   await expect(page.getByRole('link', { name: new RegExp(fullName) })).toBeVisible()
-  // The list remembers the adjointe's filters (P4-60, written after a 1.5 s pause): « Réinitialiser »
+  // The list remembers the user's filters (P4-60, written after a 1.5 s pause): « Réinitialiser »
   // forgets them. Checked from a fresh load, which reads the saved filters from the server again.
   await page.getByRole('button', { name: 'Réinitialiser' }).click()
   await expect(page.getByRole('group', { name: 'Filtres actifs' })).toHaveCount(0)

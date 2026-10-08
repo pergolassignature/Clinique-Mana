@@ -185,7 +185,7 @@ function groupRows<K extends ReferenceKind>(rows: readonly ReferenceRow<K>[], gr
 }
 
 /**
- * A per-clinic list of « Paramètres → Professionnels » (langues, raisons, approches, titres…):
+ * A per-clinic list of « Paramètres → Professionnels » (langues, raisons, clientèles, titres…):
  * the pattern every list section uses (4a.6–4a.9).
  *
  * - Header: title and description; « Actifs · Archivés · Tous » with counts (one tab stop, arrows

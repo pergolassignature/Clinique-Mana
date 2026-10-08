@@ -33,7 +33,7 @@
 --   is never sent to an address the file no longer has. Audit source
 --   `job:professionals.invitation_reminders`, no actor.
 -- * get_professional_submission_notice_for_service(p_actor): what professionals-submit emails after
---   submit_my_submission succeeded (the in-app notice is already created there, P4-181): the
+--   submit_my_submission succeeded (the in-app notice is already created there, P4-271): the
 --   caller's submitted submission (one open per file), the professional's name, and up to 20 active
 --   members of the clinic holding professionals.review (private.permission_keys_for: role defaults,
 --   overrides and the module switch), the actor excluded. p_actor is the user the function verified

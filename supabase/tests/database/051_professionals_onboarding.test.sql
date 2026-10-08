@@ -8,7 +8,8 @@
 -- new account, link_used / link_expired / link_invalid, the inviter re-check rolling the consumption
 -- back, an address that does not match); revocation and deactivation (links revoked); the provider's
 -- questionnaire (draft normalisation, every refusal of the staff paths through the rolled-back dry
--- run, restricted motifs across sections, files, insurance dates, unknown and private keys);
+-- run, restricted motifs across sections, files, insurance dates, unknown and private keys, the
+-- client limits and « Fin de journée » of the website catalogue, P4-245, P4-250);
 -- private answers (encrypted at once, never in the draft or the audit, masks, collect_sin, blank
 -- keeps, one key version per row during a rotation, a clean P0001 for an unreadable kept value);
 -- consent signature; submit (gaps, status, notice); isolation (provider's own row only, other
@@ -25,7 +26,7 @@
 -- at apply; draft consent text; staged files of another submission; reminder before expiry.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(305);
+select plan(311);
 
 -- The HINT / DETAIL of the error p_sql raises (null when none): throws_ok checks code and message.
 create function private.test_error_hint(p_sql text) returns text
@@ -268,7 +269,7 @@ select is_empty($$
           or has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute')
           or has_function_privilege('service_role', p.oid, 'execute'))
 $$, 'the private helpers are granted to no role');
-select hasnt_function('public', 'set_professional_approaches', 'no approaches path is added (P4-186)');
+select hasnt_function('public', 'set_professional_approaches', 'no approaches path is added (P4-276)');
 select has_index('public', 'professional_submissions', 'professional_submissions_open_key', 'one open submission per professional');
 
 -- =============================================================================
@@ -330,7 +331,7 @@ select results_eq($$ select s.kind, s.status, s.requested_sections, s.secure_lin
              array['personal', 'professional', 'portrait', 'languages', 'clienteles', 'motifs', 'availability', 'photo',
                    'insurance', 'tax_bank', 'consent'],
              (current_setting('test.inv1')::jsonb ->> 'link_id')::uuid, jsonb_build_array(current_setting('test.fr'))) $$,
-  'the onboarding draft: all eleven sections (no « Approches », P4-186), the link, the record''s values as prefill');
+  'the onboarding draft: all eleven sections (no « Approches », P4-276), the link, the record''s values as prefill');
 select ok(exists (select 1 from public.audit_log a where a.id > current_setting('test.audit_start')::bigint
                    and a.table_name = 'professionals' and a.record_id = current_setting('test.p1')
                    and a.actor_id = 'a0000000-0000-0000-0000-000000000002' and a.source = 'rpc:create_professional_invitation'),
@@ -500,7 +501,7 @@ select throws_ok($$ select public.save_my_submission_draft('personal', '{"sin": 
 select throws_ok($$ select public.save_my_submission_draft('personal', '{"nickname": "Paulo"}') $$, '22023', null, 'unknown keys are refused');
 select throws_ok($$ select public.save_my_submission_draft('tax_bank', '{}') $$, '22023', null, 'the private step has its own RPC');
 select throws_ok($$ select public.save_my_submission_draft('hobbies', '{}') $$, '22023', null, 'an unknown section is refused');
-select throws_ok($$ select public.save_my_submission_draft('approaches', '{}') $$, '22023', null, '« Approches » is no section (P4-186)');
+select throws_ok($$ select public.save_my_submission_draft('approaches', '{}') $$, '22023', null, '« Approches » is no section (P4-276)');
 select throws_ok($$ select public.save_my_submission_draft('personal', '{"city": 12}') $$, '22023', null, 'a value of the wrong type is refused');
 select throws_ok($$ select public.save_my_submission_draft('personal', '{"postal_code": "H2X"}') $$, 'P0001', 'Code postal invalide : format A1A 1A1 attendu.',
   'postal code format');
@@ -559,9 +560,22 @@ select is((select jsonb_array_length(s.submitted_values -> 'motifs' -> 'motif_id
 set local role authenticated;
 
 select lives_ok($$ select public.save_my_submission_draft('languages', jsonb_build_object('language_ids', jsonb_build_array(current_setting('test.fr'), current_setting('test.en')))) $$, 'languages');
-select lives_ok($$ select public.save_my_submission_draft('clienteles', jsonb_build_object('clienteles', jsonb_build_array(jsonb_build_object('id', current_setting('test.adults'), 'specialized', true)))) $$, 'clientèles');
-select lives_ok($$ select public.save_my_submission_draft('availability', '{"accepting_new_clients": false, "availability_periods": ["evening", "am", "am"], "availability_note": " Mardi soir "}') $$, 'availability');
+select throws_ok($$ select public.save_my_submission_draft('clienteles', '{"min_client_age": 121}') $$,
+  'P0001', 'Les âges vont de 0 à 120 ans.', 'the youngest client age: 0–120 (P4-245)');
+select is(private.test_error_hint($$ select public.save_my_submission_draft('clienteles', '{"min_client_age": 7.5}') $$), 'min_client_age',
+  '… a whole number, HINT min_client_age');
+select throws_ok($$ select public.save_my_submission_draft('clienteles', '{"women_only": "oui"}') $$, '22023', null, '« Femmes seulement » is a boolean');
+select lives_ok($$ select public.save_my_submission_draft('clienteles', jsonb_build_object('clienteles', jsonb_build_array(jsonb_build_object('id', current_setting('test.adults'), 'specialized', true)),
+  'min_client_age', 14, 'women_only', true)) $$, 'clientèles and the client limits');
+select lives_ok($$ select public.save_my_submission_draft('availability', '{"accepting_new_clients": false, "availability_periods": ["evening", "end_of_day", "am", "am"], "availability_note": " Mardi soir "}') $$, 'availability');
 select throws_ok($$ select public.save_my_submission_draft('availability', '{"availability_periods": ["night"]}') $$, '22023', null, 'unknown periods');
+reset role;
+select is((select (s.submitted_values -> 'clienteles') - 'clienteles' from public.professional_submissions s where s.professional_id = current_setting('test.p1')::uuid),
+  '{"min_client_age": 14, "women_only": true}'::jsonb, 'the client limits are part of the clientèles section (P4-245)');
+select is((select s.submitted_values -> 'availability' -> 'availability_periods' from public.professional_submissions s
+            where s.professional_id = current_setting('test.p1')::uuid),
+  '["am", "end_of_day", "evening"]'::jsonb, '« Fin de journée » is a period, in its place between the afternoon and the evening (P4-250)');
+set local role authenticated;
 select lives_ok($$ select public.save_my_submission_draft('portrait', E'{"bio": "Accompagne les adultes.\\n\\nEn français et en anglais.", "public_email": " Paul@Exemple.TEST "}') $$, 'portrait');
 select throws_ok($$ select public.save_my_submission_draft('portrait', jsonb_build_object('bio', repeat('x', 4001))) $$,
   'P0001', 'La présentation ne peut pas dépasser 4000 caractères.', 'the presentation has at most 4000 characters');
@@ -714,7 +728,7 @@ select throws_ok($$ select public.apply_professional_submission(current_setting(
 select throws_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['address_line2']) $$, '22023', 'Champ non soumis.',
   'a field without an answer is refused');
 select throws_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['sin']) $$, 'P0001',
-  'La collecte du NAS n''est pas activée.', 'the SIN while collect_sin is off is refused (P4-182)');
+  'La collecte du NAS n''est pas activée.', 'the SIN while collect_sin is off is refused (P4-272)');
 
 -- One transaction: a refused field rolls back the others (the anxiety motif archived meanwhile).
 reset role;
@@ -785,11 +799,14 @@ update public.professional_submissions
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select lives_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid,
-  array['consent', 'postal_code', 'personal_phone', 'professions', 'motif_ids', 'language_ids', 'clienteles', 'photo', 'bank_account', 'bank_institution']) $$,
+  array['consent', 'postal_code', 'personal_phone', 'professions', 'motif_ids', 'language_ids', 'clienteles', 'women_only', 'photo', 'bank_account', 'bank_institution']) $$,
   'the adjointe applies a selection, private values included, without seeing them');
 reset role;
 select results_eq($$ select p.personal_phone, p.postal_code, p.city, p.status from public.professionals p where p.id = current_setting('test.p1')::uuid $$,
   $$ values ('+15145550101'::text, 'H2X 1Y4'::text, null::text, 'in_review'::text) $$, 'only the chosen fields; the city is not applied');
+select results_eq($$ select mp.women_only, mp.min_client_age, mp.availability_periods from public.professional_matching_profiles mp
+                      where mp.professional_id = current_setting('test.p1')::uuid $$,
+  $$ values (true, null::smallint, '{}'::text[]) $$, '« Femmes seulement » is applied; the age and the periods, not chosen, are not');
 select results_eq($$ select x.profession_title_id, x.licence_number, x.is_primary from public.professional_professions x
                       where x.professional_id = current_setting('test.p1')::uuid $$,
   $$ values (current_setting('test.psy')::uuid, 'OPQ-1234'::text, true) $$, 'the title through the staff path');
@@ -813,7 +830,7 @@ select results_eq($$ select pp.bank_institution, pp.bank_account_last4, pp.busin
   'the chosen private values moved to professional_private (the business number was not chosen)');
 select results_eq($$ select s.status, s.reviewed_by, s.applied_fields from public.professional_submissions s where s.id = current_setting('test.s1')::uuid $$,
   $$ values ('approved'::text, 'a0000000-0000-0000-0000-000000000002'::uuid,
-             array['personal_phone', 'postal_code', 'professions', 'language_ids', 'clienteles', 'motif_ids', 'photo', 'bank_institution',
+             array['personal_phone', 'postal_code', 'professions', 'language_ids', 'clienteles', 'women_only', 'motif_ids', 'photo', 'bank_institution',
                    'bank_account', 'consent']) $$, 'approved, with the fields applied in questionnaire order');
 select is_empty($$ select 1 from public.professional_submission_private sp where sp.submission_id = current_setting('test.s1')::uuid $$,
   'the submission''s private copy is deleted (Loi 25)');
@@ -883,7 +900,7 @@ select throws_ok($$ select public.start_my_profile_update(array['portrait']) $$,
   'no second submission from « Mon profil »');
 select throws_ok($$ select public.save_my_submission_draft('portrait', '{"bio": "x"}') $$, '22023', null, 'a section not asked is refused');
 select lives_ok($$ select public.save_my_submission_draft('motifs', jsonb_build_object('motif_ids', jsonb_build_array(current_setting('test.deuil')))) $$, 'motifs');
-select lives_ok($$ select public.save_my_submission_draft('availability', '{"accepting_new_clients": false, "availability_periods": ["weekend"]}') $$, 'availability');
+select lives_ok($$ select public.save_my_submission_draft('availability', '{"accepting_new_clients": false, "availability_periods": ["weekend", "end_of_day"]}') $$, 'availability');
 select lives_ok($$ select public.submit_my_submission() $$, 'the update is sent');
 reset role;
 select results_eq($$ select p.status, n.title from public.professionals p
@@ -898,7 +915,7 @@ reset role;
 select results_eq($$ select mp.accepting_new_clients, mp.availability_periods, mp.availability_note,
                             (select array_agg(x.motif_id) from public.professional_motifs x where x.professional_id = mp.professional_id)
                        from public.professional_matching_profiles mp where mp.professional_id = current_setting('test.p2')::uuid $$,
-  $$ values (false, array['weekend'], 'Les mardis'::text, array[current_setting('test.deuil')::uuid]) $$,
+  $$ values (false, array['end_of_day', 'weekend'], 'Les mardis'::text, array[current_setting('test.deuil')::uuid]) $$,
   'every answered field is applied; the note, never sent, keeps its value (P4-176)');
 select is((select s.applied_fields from public.professional_submissions s where s.id = (current_setting('test.u2')::jsonb ->> 'submission_id')::uuid),
   array['motif_ids', 'accepting_new_clients', 'availability_periods'], 'applied fields recorded');
@@ -973,7 +990,7 @@ select results_eq($$ select pp.key_version::int, private.decrypt_pii(pp.bank_acc
                        from public.professional_private pp where pp.professional_id = current_setting('test.p5')::uuid $$,
   $$ values (2, '7654321'::text, '123456789'::text) $$, '… lands on version 2 (re-encrypted inside the database)');
 -- =============================================================================
--- The SIN in the questionnaire (P4-182): collect_sin on, Luhn, last three digits, a rotation, an
+-- The SIN in the questionnaire (P4-272): collect_sin on, Luhn, last three digits, a rotation, an
 -- unreadable kept value at save and at apply, applied; partial saves (P4-176); self-review (P4-304)
 -- =============================================================================
 set local role authenticated;
@@ -1073,7 +1090,7 @@ select results_eq($$ select x.bio, x.approach, x.public_email, x.public_phone fr
   $$ values ('Nouvelle présentation.'::text, 'Approche actuelle'::text, 'pia@exemple.test'::text, '+15145550199'::text) $$,
   'apply all: the answered fields change, the fields never sent keep their values (P4-176)');
 
--- collect_sin turned off between the save and the review: the SIN is not applied (P4-182).
+-- collect_sin turned off between the save and the review: the SIN is not applied (P4-272).
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select ok(set_config('test.u4', public.start_my_profile_update(array['tax_bank'])::text, true) is not null, 'a second update: tax and bank');
