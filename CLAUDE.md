@@ -9,14 +9,16 @@ Clinique MANA is the management platform of a **dispatch clinic**: conseillères
 - The old app lives in `_legacy/` (tag `legacy-v1`). It is **read-only**: never edit or import it; it is excluded from TypeScript, ESLint, Vite and CI.
 - **Legacy guidance lives in `_legacy/` too and must not be followed**: the old `claude.md`, the `.claude/workflows/` module pipeline and `.claude/skills/`, the old module status files, data contracts, deploy/testing guides and standards (listed in `_legacy/README.md`). Current rules: this file, `docs/standards/`, `docs/adr/`.
 - Nothing the legacy app does may be lost silently: the parity checklist is [`docs/plans/2026-10-06-legacy-feature-inventory.md`](docs/plans/2026-10-06-legacy-feature-inventory.md).
-- Built so far: the core (auth, access, modules, settings shell, audit, secrets) and module `professionals` as an empty placeholder.
+- Built so far:
+  - **Phase 1:** the core (auth, access, modules, settings shell, audit, secrets) and module `professionals` as an empty placeholder;
+  - **Phase 2** ([design](docs/plans/2026-10-07-phase-2-core-settings-design.md), [plan](docs/plans/2026-10-07-phase-2-core-settings-plan.md)): the design system and shell, roles `counselor` / `admin_assistant` (replacing `staff`), « Mon compte », the clinic settings (Identité légale, Fiscalité with dated TPS/TVQ rates, Signataire, Coordonnées bancaires encrypted, Région, Confidentialité), « Utilisateurs et accès » (roles, status, permission switches, editable roles per clinic), « Journal d'audit », and the load-performance work (lazy pages, cache headers, stale-chunk recovery). Details: [core module doc](docs/modules/core.md), [status](docs/plans/2026-10-07-status.md).
 
 ## 2. Environments
 
 | Environment | Where | Notes |
 |---|---|---|
-| Local | `supabase start` (ports **553xx**: API 55321, DB 55322, Studio 55323, Mailpit 55324) + `npm run dev` on **`http://localhost:5173`** | Use `localhost`, not `127.0.0.1`: a second origin means a second session. PS Hub's stack uses 543xx; never touch it. Test logins: see the header of `supabase/seed.sql`. |
-| Staging | Supabase project `vnmbjbdsjxmpijyjmmkh` (Canada Central) | The only remote environment. It still holds the legacy schema until it is re-baselined (plan Task 1.21, needs Jonathan's go-ahead). |
+| Local | `supabase start` (ports **553xx**: API 55321, DB 55322, Studio 55323, Mailpit 55324) + `npm run dev` on **`http://localhost:5173`** | Use `localhost`, not `127.0.0.1`: a second origin means a second session. PS Hub's stack uses 543xx; never touch it. Test logins (four roles): see the header of `supabase/seed.sql`. |
+| Staging | Supabase project `vnmbjbdsjxmpijyjmmkh` (Canada Central), app on `https://app.cliniquemana.com` | The only remote environment. Re-baselined on 2026-10-07 (Task 1.21, [log](docs/audit/2026-10-07-staging-snapshot.md)); since then it receives what `main` holds (§11). |
 
 Node **22** everywhere (`.nvmrc`, `package.json` `engines`, CI; decision #20). Production does not exist yet. `.env.local` (from `.env.example`) holds `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`; never put a service-role key in a `VITE_` variable.
 
@@ -25,14 +27,14 @@ Node **22** everywhere (`.nvmrc`, `package.json` `engines`, CI; decision #20). P
 ```bash
 npm run dev              # Vite on http://localhost:5173
 npm run typecheck        # tsc --noEmit
-npm run lint             # ESLint (incl. module import boundaries)
+npm run lint             # ESLint (incl. module import boundaries) + design-token class guard
 npm run lint:supabase    # no Supabase client in .tsx files
 npm run lint:migrations  # migration timestamps (BASE_REF=origin/main by default)
 npm run test:run         # Vitest, once (npm test = watch)
 npm run test:functions   # deno test, all of supabase/functions (--frozen lock)
 npm run check:functions  # deno check, all of supabase/functions (--frozen lock)
 npm run lint:functions   # deno lint, all of supabase/functions
-npm run build            # typecheck + vite build (build:only = vite build)
+npm run build            # typecheck + vite build + login-chunk guard (build:only = vite build)
 
 npm run db:start         # supabase start
 npm run db:reset         # supabase db reset (migrations + seed.sql)
@@ -50,15 +52,20 @@ src/
   core/
     auth/         AuthProvider, auth-context (useAuth), recovery marker, safeRedirect, pages/ (login, forgot, reset)
     access/       AccessProvider, access-context (useAccess, useReadyAccess, accessKeys), org-roles (useOrgId, useOrgRoles, useRoleLabel, roleKeys), guards (RequireAuth, RequireAccess)
+    account/      « Mon compte » (/mon-compte): api, hooks, pages/
     modules/      manifest types, resolveEnabledModules, list/toggle API + hooks (moduleKeys), error allow-list
-    settings/     SettingsLayout, coreSettingsSections, pages/ (modules toggle)
+    settings/     SettingsLayout, sections.ts (coreSettingsSections), paths, visible-sections, pages/ (one per section)
+      organization/ tax/ bank/   api, hooks, Zod schemas (mirror the DB checks)
+      components/ OrganizationCard, TaxRatesCard, BankDetailsCard/Form, TimezonePicker…
+    users/        « Utilisateurs et accès »: api, hooks, permissions.ts (mirrors the DB guards), components/ (UserSheet, RoleMatrix…)
+    audit/        « Journal d'audit »: api, hooks, labels (French field names/values), period
     supabase/     client.ts (the only client), database.types.ts (generated, never edited)
   modules/<name>/ manifest.ts, index.ts (public entry), pages/ — later api/, hooks/, components/
-  shared/         ui/ (shadcn), components/ (RouteBoundary, ErrorBoundary, FullPageMessage), lib/ (timezone, usePageTitle, cn)
+  shared/         ui/ (shadcn + design system: form-field, table, tabs, switch…), components/ (SettingsCard, FormActions, SaveButton, PageHeader, EmptyState, ReadOnlyNotice, UnsavedChangesProvider, GuardedNavLink, RouteBoundary, ErrorBoundary, FullPageMessage), lib/ (timezone, lazy-page, app-update, unsaved-changes-*, use-settings-form, format, sentry-scrub, usePageTitle, cn)
   i18n/           fr-CA.json + typed t()
   test/           renderWithContexts, testAccess, setup
 supabase/
-  migrations/     core_access, core_audit, core_module_settings_secrets, professionals_module
+  migrations/     core_* (access, audit, secrets; Phase 2: roles split, organization profile, tax rates, bank details, user admin, audit viewer, editable roles…), professionals_module
   functions/      _shared/ (auth.ts, modules.ts, timing-safe-equal.ts) + deno.json/deno.lock
   tests/database/ pgTAP, one file per migration + 000_invariants
   seed.sql        LOCAL ONLY
@@ -74,7 +81,7 @@ supabase/
   - `src/modules/**`: no `@/modules/<name>/…` deep path (so a module's own files are imported relatively) and no `@/app/…`.
   Not enforced yet: a module importing only the modules listed in its `dependsOn`, and relative `../<other-module>/` paths between modules — review them.
 - A disabled module contributes nothing: `AuthenticatedApp` keeps only the manifests that are in `useReadyAccess().modules` and whose dependencies are enabled too (`resolveEnabledModules`); each module route is wrapped in a `RouteBoundary` (scope = module key), and `SettingsLayout` wraps each settings section in its own boundary.
-- « Paramètres » follows its sections (decision #19): the nav item shows, and `parametres/*` opens, only when the user can access **at least one** settings section (core or enabled module); otherwise the route shows the forbidden page. `settings.view` alone does not open it (staff have it but no section yet).
+- « Paramètres » follows its sections (decision #19): the nav item shows, and `parametres/*` opens, only when the user can access **at least one** settings section (core or enabled module); otherwise the route shows the forbidden page. With the defaults, the adjointe (`settings.view`) sees the clinic sections read-only; the conseillère and the professionnel see no « Paramètres ».
 - A module owns its tables and publishes views/RPCs for other modules; never read another module's raw tables. Migrations are additive within a release.
 - Each module ships pgTAP, unit and (from Phase 4) Playwright tests, and a `docs/modules/<name>.md`.
 - Before building a module, mark every item of its inventory section **Keep / Change / Drop** in its design doc (Drop needs Jonathan's OK).
@@ -117,6 +124,15 @@ The full rules, with examples, are in **[`docs/standards/database-conventions.md
 - **All user-facing text goes through `t()`** from `@/i18n` (keys typed from `src/i18n/fr-CA.json`). Pages title the browser tab with `usePageTitle()`.
 - Toasts: `toast` from `@/shared/ui/sonner`. RPC errors shown to users go through `moduleErrorMessage` (`src/core/modules/errors.ts`): `P0001` message as is, `42501` → generic permission text (not reported), `23514` (check violation) → « valeur invalide » text, also reported to Sentry (it only follows a bypass or a Zod/SQL parity bug), anything else → the caller's fallback + Sentry. Pass the third argument (`area`, e.g. `'settings'`) to tag the report. The report is a fresh `Error` named `RpcError <code>` with the message only: never pass a raw PostgREST error to Sentry (its `details`/`hint` can hold row values). `main.tsx`'s `beforeSend` (`scrubSentryEvent`) is the backstop.
 - Route and settings crashes stay local: `RouteBoundary` (`@/shared/components/RouteBoundary`); full-page states use `FullPageMessage`.
+- **Pages are code-split with `lazyPage(load, exportName)`** (`@/shared/lib/lazy-page`), never a bare `React.lazy`: module routes and settings sections only accept a `LazyPage` (it can be preloaded; the shell prefetches visible pages at idle and loads the page's chunk with the shell's on reload).
+- **Stale chunks after a deploy:** the error boundaries call `recoverFromStaleChunk()` (`@/shared/lib/app-update`) on a chunk-load error: one reload (at most 3 per minute), never while a form is dirty (it asks the unsaved-changes registry), else a « Recharger » button. No global `vite:preloadError` reload. `npm run build` fails if the login page's JS pulls in the signed-in app (`scripts/check-entry-chunk.mjs`).
+- **Settings sections** (`SettingsSection`, `src/core/modules/types.ts`; core ones in `src/core/settings/sections.ts`): an English `id` (error scope, React key) and a French `path` (URL segment, decision #24), both unique across core and modules (unit test). `permission` (to see) and `editPermission` (to change; without it the section is read-only: a lock in the menu and one « Lecture seule » notice) take one key or an array meaning **any of**.
+- **Settings pages are stacks of cards**, each with its own form and « Enregistrer »:
+  - `SettingsCard` (`@/shared/components/SettingsCard`) with `FormActions` (« Annuler / Enregistrer »; the save button is teal only while the card is dirty, decision #34);
+  - `OrganizationCard` (`src/core/settings/components/`) for cards that edit `organizations` columns: `useSettingsForm` + the card's Zod schema from `organization/schemas.ts` (the database checks repeat it);
+  - `FormField` (`@/shared/ui/form-field`) wires label, help, error and required marker. Read-only fields are `readOnly`, never `disabled` (focusable, copyable).
+- **Unsaved changes:** `UnsavedChangesProvider` wraps the signed-in app. A form calls `useUnsavedChanges(dirty)`; links that leave use `GuardedNavLink` or `useConfirmLeave()`, which confirm while any form is dirty; `beforeunload` covers closing the tab. A sheet or dialog checks its own form's dirty state, not the global one. Code outside React (error boundary, stale-chunk recovery) asks `hasUnsavedChanges()` (`unsaved-changes-registry`).
+- **Never cache a revealed sensitive value**: a revealed bank account number lives in component state only (`useRevealedAccountNumber`), never in React Query, and is dropped after 60 s, when the tab is hidden and on unmount; mutations that carry one use `gcTime: 0`. The same goes for the SINs of Phase 4.
 - Tests: Vitest + Testing Library; render with `renderWithContexts` (`src/test/contexts.tsx`), whose router `future` flags mirror `App.tsx` (`ROUTER_FUTURE`).
 
 ## 9. Timezone Handling (IMPORTANT)
@@ -206,7 +222,7 @@ formatDateOnlyShort(payer.expiry_date)    // "1 janv. 2020"
 
 ### Configuration
 
-The clinic timezone is `organizations.timezone` (validated against `pg_timezone_names`; default `America/Toronto`). It reaches the app in the access payload (`get_my_access().org_timezone`): `AccessProvider` calls `setClinicTimezone()` as soon as access loads, before any page renders, and `resetClinicTimezone()` on sign-out. The Settings section to change it comes in Phase 2 (« Région »).
+The clinic timezone is `organizations.timezone` (validated against `pg_timezone_names`; default `America/Toronto`). It reaches the app in the access payload (`get_my_access().org_timezone`): `AccessProvider` calls `setClinicTimezone()` as soon as access loads, before any page renders, and `resetClinicTimezone()` on sign-out. It is changed in Paramètres → « Région »; saving reloads the access, which re-applies it (known gap: status doc follow-ups, « Clinic timezone propagation »).
 
 ## 10. Form Accessibility & Tab Order (IMPORTANT)
 
@@ -304,6 +320,6 @@ Both `SheetContent` and `DialogContent` support `hideClose` prop to prevent doub
   - `apply-edge-functions.yml` deploys the changed functions (all of them when `_shared/` or `deno.json`/`deno.lock` change), honouring `verify_jwt` from `config.toml`;
   - Vercel builds the web app from `main`.
   Both workflows need the repository secrets `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`, and can be re-run by hand (`workflow_dispatch`). Never also apply by hand what the merge deploys.
-- The web app is hosted on Vercel. `vercel.json` rewrites every path to `/index.html` so SPA deep links (`/accueil`, `/reinitialiser-mot-de-passe`, …) do not 404; keep it when adding Vercel config.
+- The web app is hosted on Vercel. `vercel.json` rewrites every path **except `/assets/`** to `/index.html`, so SPA deep links (`/accueil`, `/reinitialiser-mot-de-passe`, …) do not 404 while a missing chunk does (the stale-chunk recovery relies on it); `/assets/*` is `immutable`, HTML `no-cache`. Keep these rules when adding Vercel config.
 - Any remote reset uses `supabase db reset --linked --no-seed` (the seed is local only), and only with the go-ahead above.
 - Pull requests must be green on CI (`ci.yml`: typecheck, lint, `lint:supabase`, Vitest, build, Deno check/lint/test of every function, pgTAP, types drift; `migration-lint.yml`).
