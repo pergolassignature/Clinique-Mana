@@ -7,6 +7,7 @@ import {
   authorizeCaller,
   bearerToken,
   corsHeaders,
+  type ErrorCode,
   errorResponse,
   evaluateAccess,
   getServiceRoleClient,
@@ -17,6 +18,7 @@ import {
   verifyAuth,
   verifyServiceRoleAuth,
 } from './auth.ts'
+import { captureConsole, withEnv } from './testing/env.ts'
 
 const ACTIVE = {
   user_id: 'u1',
@@ -31,41 +33,6 @@ type ErrorBody = { error: { code: string; message: string } }
 
 async function errorOf(res: Response): Promise<ErrorBody['error']> {
   return ((await res.json()) as ErrorBody).error
-}
-
-/** Runs fn with the given env vars set (undefined = unset), then restores them. */
-async function withEnv(
-  vars: Record<string, string | undefined>,
-  fn: () => void | Promise<void>,
-) {
-  const previous = Object.fromEntries(
-    Object.keys(vars).map((k) => [k, Deno.env.get(k)]),
-  )
-  const apply = (v: Record<string, string | undefined>) => {
-    for (const [k, value] of Object.entries(v)) {
-      if (value === undefined) Deno.env.delete(k)
-      else Deno.env.set(k, value)
-    }
-  }
-  apply(vars)
-  try {
-    await fn()
-  } finally {
-    apply(previous)
-  }
-}
-
-/** Silences console.error and records the calls. */
-async function captureErrors(fn: () => Promise<void> | void) {
-  const original = console.error
-  const calls: unknown[][] = []
-  console.error = (...args: unknown[]) => calls.push(args)
-  try {
-    await fn()
-  } finally {
-    console.error = original
-  }
-  return calls
 }
 
 const NO_SERVICE_KEYS = {
@@ -84,6 +51,25 @@ Deno.test('errorResponse: { error: { code, message } } as JSON', async () => {
   assertEquals(await res.json(), {
     error: { code: 'forbidden', message: 'Nope' },
   })
+})
+
+Deno.test('errorResponse: the Phase 3 codes (P3-28) with their statuses', async () => {
+  const codes: Array<[ErrorCode, number]> = [
+    ['rate_limited', 429],
+    ['invalid_request', 400],
+    ['link_invalid', 410],
+    ['link_expired', 410],
+    ['link_used', 410],
+    ['conflict', 409],
+    ['not_found', 404],
+    ['provider_error', 502],
+    ['not_configured', 503],
+  ]
+  for (const [code, status] of codes) {
+    const res = errorResponse(code, 'Message', status)
+    assertEquals(res.status, status)
+    assertEquals((await errorOf(res)).code, code)
+  }
 })
 
 Deno.test('jsonResponse: JSON body, content type and CORS headers', async () => {
@@ -322,7 +308,7 @@ Deno.test('authorizeCaller: Auth server error (5xx) gives 503 auth_unavailable',
     user: null,
     userError: Object.assign(new Error('upstream'), { status: 502 }),
   })
-  const logged = await captureErrors(async () => {
+  const logged = await captureConsole('error', async () => {
     const result = await authorizeCaller(client, 'tok')
     assert(result instanceof Response)
     assertEquals(result.status, 503)
@@ -336,7 +322,7 @@ Deno.test('authorizeCaller: network failure (AuthRetryableFetchError) gives 503'
     user: null,
     userError: new AuthRetryableFetchError('fetch failed', 0),
   })
-  await captureErrors(async () => {
+  await captureConsole('error', async () => {
     const result = await authorizeCaller(client, 'tok')
     assert(result instanceof Response)
     assertEquals(result.status, 503)
@@ -348,7 +334,7 @@ Deno.test('authorizeCaller: 42501 after a valid token is logged (missing grant)'
     user: { id: 'u1' },
     access: { data: null, error: { code: '42501', message: 'denied' } },
   })
-  const logged = await captureErrors(async () => {
+  const logged = await captureConsole('error', async () => {
     const result = await authorizeCaller(client, 'tok')
     assert(result instanceof Response)
     assertEquals(result.status, 401)
@@ -361,7 +347,7 @@ Deno.test('authorizeCaller: other RPC errors give 500 and are logged', async () 
     user: { id: 'u1' },
     access: { data: null, error: { code: 'XX000', message: 'boom' } },
   })
-  const logged = await captureErrors(async () => {
+  const logged = await captureConsole('error', async () => {
     const result = await authorizeCaller(client, 'tok')
     assert(result instanceof Response)
     assertEquals(result.status, 500)
@@ -414,7 +400,7 @@ Deno.test('verifyAuth: missing SUPABASE_URL / anon key gives 500 server_misconfi
   await withEnv(
     { SUPABASE_URL: undefined, SUPABASE_ANON_KEY: 'anon' },
     async () => {
-      const logged = await captureErrors(async () => {
+      const logged = await captureConsole('error', async () => {
         const result = await verifyAuth(
           new Request('http://x', { headers: { Authorization: 'Bearer tok' } }),
         )
@@ -435,7 +421,7 @@ Deno.test('getUserClient / getServiceRoleClient: Response when env is missing', 
       ...NO_SERVICE_KEYS,
     },
     async () => {
-      await captureErrors(() => {
+      await captureConsole('error', () => {
         assert(getUserClient('tok') instanceof Response)
         assert(getServiceRoleClient() instanceof Response)
       })
@@ -485,7 +471,7 @@ Deno.test('serviceKeys: collects every configured key, ignoring empty values', a
 
 Deno.test('verifyServiceRoleAuth: fails closed (500) when no key is configured', async () => {
   await withEnv(NO_SERVICE_KEYS, async () => {
-    await captureErrors(async () => {
+    await captureConsole('error', async () => {
       const res = verifyServiceRoleAuth(authReq('Bearer anything'))
       assertEquals(res?.status, 500)
       assertEquals((await errorOf(res!)).code, 'server_misconfigured')

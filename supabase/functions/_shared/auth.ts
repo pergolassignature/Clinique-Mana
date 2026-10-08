@@ -28,6 +28,14 @@ import {
 } from '@supabase/supabase-js'
 import { timingSafeEqual } from './timing-safe-equal.ts'
 
+/**
+ * Error codes stay English; the UI maps each one to a French text (P3-28).
+ * Usual statuses: `invalid_request` 400 (413 for a body over the cap),
+ * `unauthenticated` 401, `forbidden` / `module_disabled` 403, `not_found` 404,
+ * `conflict` 409, `link_invalid` / `link_expired` / `link_used` 410,
+ * `rate_limited` 429, `server_misconfigured` / `internal` 500,
+ * `provider_error` 502, `auth_unavailable` / `not_configured` 503.
+ */
 export type ErrorCode =
   | 'unauthenticated'
   | 'forbidden'
@@ -35,6 +43,15 @@ export type ErrorCode =
   | 'server_misconfigured'
   | 'auth_unavailable'
   | 'internal'
+  | 'rate_limited'
+  | 'invalid_request'
+  | 'link_invalid'
+  | 'link_expired'
+  | 'link_used'
+  | 'conflict'
+  | 'not_found'
+  | 'provider_error'
+  | 'not_configured'
 
 // ---------------------------------------------------------------------------
 // CORS and responses
@@ -340,10 +357,17 @@ export function serviceKeys(): string[] {
 }
 
 /**
- * For internal-only functions (cron, other functions). Contract: the caller
- * sends `Authorization: Bearer <key>` with one of `serviceKeys()`.
+ * For internal-only functions called by a holder of a service key (another
+ * function, an operator script). Contract: the caller sends
+ * `Authorization: Bearer <key>` with one of `serviceKeys()`.
  * Returns null when authorised, otherwise a Response. Fails closed (500) when
  * no key is configured. Every key is compared in constant time.
+ *
+ * **Never for `pg_net` callers** (cron, « Exécuter maintenant »): pg_net keeps
+ * queued request headers in `net.http_request_queue`, readable by every
+ * database role, so a bearer sent from SQL leaks. Scheduled jobs verify a
+ * short-lived `X-Job-Signature` instead (`runJob` in `jobs.ts`). No function
+ * calls this one today.
  */
 export function verifyServiceRoleAuth(req: Request): Response | null {
   const keys = serviceKeys()
