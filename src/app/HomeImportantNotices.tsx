@@ -3,16 +3,24 @@ import { TriangleAlert } from 'lucide-react'
 import { t } from '@/i18n'
 import type { Notice } from '@/core/notifications/api'
 import { noticeAge, noticeLinkPath } from '@/core/notifications/display'
-import { useImportantNotices, useOpenNotice } from '@/core/notifications/hooks'
+import { useImportantNotices, useIsMarkingNotice, useOpenNotice } from '@/core/notifications/hooks'
+import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
 import { formatClinicDateTime } from '@/shared/lib/timezone'
 import { useNow } from '@/shared/lib/use-now'
+import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 
 /**
- * Accueil « À surveiller » (design system Accueil): up to 5 important unread notices, polled like
- * the bell. Nothing at all when there are none, or when they cannot load (the bell still shows
- * them). « Ouvrir » marks the notice read and goes to its page; a notice without a link can only
- * be marked read.
+ * Accueil « À surveiller » (design system Accueil): up to 5 important unread notices, reloaded
+ * when the bell's polled count changes (no timer of its own: useImportantNotices). Nothing at all
+ * when there are none, or when they cannot load (the bell still shows them). « Ouvrir » goes to
+ * the notice's page and marks it read once there (not after « Rester »); a notice without a link
+ * can only be marked read. Each button waits while its notice is being marked.
+ *
+ * The title is the design system's Accueil section heading (`.kit-sec h3`: --type-card-title,
+ * 14 px semibold, which is `text-base` here). The icon is the design system's warning triangle in
+ * `warning-strong` (#9A7B05, ~4:1): the kit's `--warning` #E0B400 is ~2.2:1 on white, below the
+ * 3:1 a meaningful icon needs (decision #30, as for the pending clock).
  */
 export function HomeImportantNotices() {
   const headingId = useId()
@@ -37,10 +45,11 @@ export function HomeImportantNotices() {
 function NoticeRow({ notice, now }: { notice: Notice; now: number }) {
   const titleId = useId()
   const openNotice = useOpenNotice()
+  const pending = useIsMarkingNotice(notice.id)
   const linked = noticeLinkPath(notice.link_path) !== null
   return (
     <li className="flex items-start gap-2.5 px-3 py-2.5">
-      <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden />
+      <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-strong" aria-hidden />
       <div className="min-w-0 flex-1">
         <p id={titleId} className="text-sm font-medium text-foreground">
           {notice.title}
@@ -54,8 +63,15 @@ function NoticeRow({ notice, now }: { notice: Notice; now: number }) {
         variant={linked ? 'outline' : 'ghost'}
         size="sm"
         aria-describedby={titleId}
-        onClick={() => openNotice(notice)}
-        className="shrink-0 max-sm:h-11"
+        aria-disabled={pending || undefined}
+        onClick={ignoreWhenInactive(pending, () => openNotice(notice))}
+        className={cn(
+          softDisabledClasses,
+          'shrink-0 max-sm:h-11',
+          linked
+            ? 'aria-disabled:hover:border-border aria-disabled:hover:bg-card'
+            : 'aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted-foreground',
+        )}
       >
         {linked ? t('notifications.watch.open') : t('notifications.watch.dismiss')}
       </Button>

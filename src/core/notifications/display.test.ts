@@ -28,8 +28,8 @@ describe('noticeAge', () => {
   })
 
   it('counts minutes, then hours within the same clinic day', () => {
-    expect(noticeAge('2026-10-08T18:25:00Z', now)).toBe('il y a 5 min')
-    expect(noticeAge('2026-10-08T16:29:00Z', now)).toBe('il y a 2 h')
+    expect(noticeAge('2026-10-08T18:25:00Z', now)).toBe('Il y a 5 min')
+    expect(noticeAge('2026-10-08T16:29:00Z', now)).toBe('Il y a 2 h')
   })
 
   // 23:30 on 2026-10-07 in the clinic, 20:30 in the browser's zone (America/Vancouver, the tests' TZ);
@@ -39,12 +39,30 @@ describe('noticeAge', () => {
 
   it('counts calendar days in the clinic timezone, not the browser’s', () => {
     expect(noticeAge(lateEvening, afterMidnight)).toBe('Hier')
-    expect(noticeAge('2026-10-05T12:00:00Z', now)).toBe('il y a 3 j')
+    expect(noticeAge('2026-10-05T12:00:00Z', now)).toBe('Il y a 3 j')
   })
 
   it('follows the clinic timezone setting', () => {
     setClinicTimezone('America/Vancouver')
-    expect(noticeAge(lateEvening, afterMidnight)).toBe('il y a 1 h')
+    expect(noticeAge(lateEvening, afterMidnight)).toBe('Il y a 1 h')
+  })
+
+  // 2026-11-01: the clinic falls back from EDT to EST at 02:00 (a 25-hour day). The browser's
+  // zone (America/Vancouver) falls back three hours later, at 09:00Z.
+  describe('on the night clocks fall back', () => {
+    it('counts elapsed hours, not wall-clock hours', () => {
+      // 00:30 EDT → 03:30 EST: three hours on the wall clock, four elapsed.
+      expect(noticeAge('2026-11-01T04:30:00Z', Date.parse('2026-11-01T08:30:00Z'))).toBe('Il y a 4 h')
+    })
+
+    it('keeps the 25-hour day one calendar day', () => {
+      // 00:10 EDT → 23:50 EST the same day: 24 h 40 elapsed, still today.
+      expect(noticeAge('2026-11-01T04:10:00Z', Date.parse('2026-11-02T04:50:00Z'))).toBe('Il y a 24 h')
+      // 23:50 EDT on Oct 31 → 23:10 EST on Nov 1: yesterday.
+      expect(noticeAge('2026-11-01T03:50:00Z', Date.parse('2026-11-02T04:10:00Z'))).toBe('Hier')
+      // 23:50 EDT on Oct 31 → 00:10 EST on Nov 2: two calendar days.
+      expect(noticeAge('2026-11-01T03:50:00Z', Date.parse('2026-11-02T05:10:00Z'))).toBe('Il y a 2 j')
+    })
   })
 
   it('gives the date from a week back', () => {

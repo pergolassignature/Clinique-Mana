@@ -48,18 +48,30 @@ describe('countMyUnreadNotifications', () => {
 })
 
 describe('listMyNotifications', () => {
-  it('asks for the newest page', async () => {
+  it('asks for the newest page, plus one row to know whether more follow', async () => {
     mocks.rpc.mockResolvedValue({ data: [NOTICE], error: null })
-    await expect(listMyNotifications(null)).resolves.toEqual([NOTICE])
+    await expect(listMyNotifications(null)).resolves.toEqual({ notices: [NOTICE], hasMore: false })
     expect(NOTIFICATIONS_PAGE_SIZE).toBe(20)
-    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('list_my_notifications', { p_limit: 20 })
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('list_my_notifications', { p_limit: 21 })
+  })
+
+  it('a full page and no extra row: nothing more', async () => {
+    const page = Array.from({ length: 20 }, (_, i) => ({ ...NOTICE, id: `id-${i}` }))
+    mocks.rpc.mockResolvedValue({ data: page, error: null })
+    await expect(listMyNotifications(null)).resolves.toEqual({ notices: page, hasMore: false })
+  })
+
+  it('the extra row says more follow, and is dropped', async () => {
+    const rows = Array.from({ length: 21 }, (_, i) => ({ ...NOTICE, id: `id-${i}` }))
+    mocks.rpc.mockResolvedValue({ data: rows, error: null })
+    await expect(listMyNotifications(null)).resolves.toEqual({ notices: rows.slice(0, 20), hasMore: true })
   })
 
   it('pages on the last row seen: both cursor fields, always', async () => {
     mocks.rpc.mockResolvedValue({ data: [], error: null })
     await listMyNotifications({ before: NOTICE.created_at, beforeId: NOTICE.id })
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('list_my_notifications', {
-      p_limit: 20,
+      p_limit: 21,
       p_before: NOTICE.created_at,
       p_before_id: NOTICE.id,
     })
@@ -68,7 +80,7 @@ describe('listMyNotifications', () => {
   it('accepts a notice without body, link or subject', async () => {
     const bare = { ...NOTICE, body: null, link_path: null, subject_type: null, subject_id: null, importance: 'normal', is_read: true }
     mocks.rpc.mockResolvedValue({ data: [bare], error: null })
-    await expect(listMyNotifications(null)).resolves.toEqual([bare])
+    await expect(listMyNotifications(null)).resolves.toEqual({ notices: [bare], hasMore: false })
   })
 
   it('throws the RPC error', async () => {

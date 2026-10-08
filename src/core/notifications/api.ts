@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
 
-/** Notices per page of the bell's list (the RPC clamps the limit to 1–50). */
+/** Notices per page of the bell's list (the RPC clamps the limit to 1–50; a page asks for one more). */
 export const NOTIFICATIONS_PAGE_SIZE = 20
 
 /** At most this many notices in Accueil « À surveiller ». */
@@ -48,14 +48,25 @@ export async function countMyUnreadNotifications(): Promise<UnreadCount> {
   return row ?? { total: 0, important: 0 }
 }
 
-/** One page of the caller's notices, newest first: the newest page for a null cursor. */
-export async function listMyNotifications(cursor: NoticesCursor | null): Promise<Notice[]> {
+/** One page of the bell's list, and whether another one follows. */
+export interface NoticesPage {
+  notices: Notice[]
+  hasMore: boolean
+}
+
+/**
+ * One page of the caller's notices, newest first: the newest page for a null cursor. Asks for
+ * one row more than a page: that row only says another page follows (so « Charger plus » never
+ * leads to an empty page), and is dropped.
+ */
+export async function listMyNotifications(cursor: NoticesCursor | null): Promise<NoticesPage> {
   const { data, error } = await supabase.rpc('list_my_notifications', {
-    p_limit: NOTIFICATIONS_PAGE_SIZE,
+    p_limit: NOTIFICATIONS_PAGE_SIZE + 1,
     ...(cursor && { p_before: cursor.before, p_before_id: cursor.beforeId }),
   })
   if (error) throw error
-  return z.array(noticeSchema).parse(data)
+  const rows = z.array(noticeSchema).parse(data)
+  return { notices: rows.slice(0, NOTIFICATIONS_PAGE_SIZE), hasMore: rows.length > NOTIFICATIONS_PAGE_SIZE }
 }
 
 /** Accueil « À surveiller »: the newest important unread notices (90 days, like the count). */

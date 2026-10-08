@@ -13,9 +13,10 @@ export function noticeLinkPath(path: string | null): string | null {
 }
 
 /**
- * How long ago a notice came, in a few words: « À l'instant », « il y a 5 min », « il y a 2 h »
- * (same day), « Hier », « il y a 3 j », then the date. Days are calendar days in the clinic
- * timezone (toClinicTime), not the browser's.
+ * How long ago a notice came, in a few words, each capitalised (it stands alone under the
+ * title): « À l'instant », « Il y a 5 min », « Il y a 2 h » (same day), « Hier », « Il y a 3 j »,
+ * then the date. Minutes and hours are elapsed time (a DST night is 23 or 25 hours long); days
+ * are calendar days in the clinic timezone (toClinicTime), not the browser's.
  */
 export function noticeAge(createdAt: string, now: number): string {
   const minutes = Math.floor((now - Date.parse(createdAt)) / 60_000)

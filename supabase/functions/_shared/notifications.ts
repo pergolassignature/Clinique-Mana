@@ -4,6 +4,11 @@
  * `private.notify`. SQL callers (module RPCs, SQL jobs) call `private.notify`
  * directly.
  *
+ * Callers check the module first: an edge function or job that notifies on a
+ * module's behalf runs `requireModuleForOrg(serviceClient, orgId, moduleKey)`
+ * (modules.ts) before `notify`, so a disabled module creates no notice. This
+ * wrapper does not check it again.
+ *
  * A notice reaches every holder of `recipientPermission` in the org (optionally
  * narrowed to one user) and shows in their topbar bell; an important one also
  * shows in Accueil « À surveiller ». Titles and bodies are French, ready to
@@ -17,6 +22,10 @@
  *   cap (title 160, body 500, link 500, dedupe key 200);
  * - 22023: the permission is not the module's own, the narrowed user is not an
  *   active member of the org, or `expiresAt` is not in the future.
+ *
+ * One check happens here, before the RPC: an `expiresAt` that is an invalid
+ * Date throws `FunctionError('invalid_request')` (`toISOString` would throw a
+ * bare RangeError).
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { FunctionError } from './errors.ts'
@@ -34,9 +43,18 @@ export interface NotifyInput {
   title: string
   /** French, at most 500 characters. */
   body?: string | null
-  /** Where a click on the notice goes: an app path such as `/professionnels/<id>`. */
+  /**
+   * Where a click on the notice goes: an app path such as `/professionnels/<id>`.
+   * Pass it already encoded and normalised (`encodeURIComponent` on each
+   * dynamic segment, no `.`/`..` segments, no doubled slashes): it is stored and
+   * followed as given, and the UI only checks that it stays in the app.
+   */
   linkPath?: string | null
-  /** The record the notice is about, so the module can find (or expire) its notices. */
+  /**
+   * The record the notice is about, so the module can find (or expire) its
+   * notices. `id` is the record's UUID (`notifications.subject_id` is a `uuid`
+   * column: anything else fails with 22P02).
+   */
   subject?: { type: string; id: string } | null
   /** Who sees it: every holder of this permission of `moduleKey` in the org. */
   recipientPermission: string
@@ -53,13 +71,17 @@ export interface NotifyInput {
 
 /**
  * Creates a notice (or finds the one with the same dedupe key) and returns its
- * id. Needs a service-role client. Throws `FunctionError('internal')` on an RPC
- * error or an unexpected result.
+ * id. Needs a service-role client, after `requireModuleForOrg`. Throws
+ * `FunctionError('invalid_request')` for an invalid `expiresAt` (before any
+ * call), `FunctionError('internal')` on an RPC error or an unexpected result.
  */
 export async function notify(
   client: SupabaseClient,
   input: NotifyInput,
 ): Promise<string> {
+  if (input.expiresAt && Number.isNaN(input.expiresAt.getTime())) {
+    throw new FunctionError('invalid_request', 'notify: invalid expiresAt')
+  }
   const { data, error } = await client.rpc('create_notification', {
     p_org_id: input.orgId,
     p_module_key: input.moduleKey,

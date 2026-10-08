@@ -192,7 +192,8 @@
     "unreadOther": "{count} non lues",
     "importantOne": "dont 1 importante",
     "importantOther": "dont {count} importantes",
-    "unreadItem": "Non lue",
+    "itemUnread": "non lue",
+    "itemImportant": "importante",
     "important": "Important",
     "empty": "Aucune notification.",
     "loadError": "Impossible de charger les notifications.",
@@ -203,10 +204,10 @@
     "markError": "Impossible de mettre à jour les notifications. Réessayez dans un instant.",
     "age": {
       "now": "À l'instant",
-      "minutes": "il y a {count} min",
-      "hours": "il y a {count} h",
+      "minutes": "Il y a {count} min",
+      "hours": "Il y a {count} h",
       "yesterday": "Hier",
-      "days": "il y a {count} j"
+      "days": "Il y a {count} j"
     },
     "watch": {
       "title": "À surveiller",

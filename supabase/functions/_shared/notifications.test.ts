@@ -111,3 +111,41 @@ Deno.test('notify: a result that is not an id throws internal', async () => {
   )
   assertEquals(error.code, 'internal')
 })
+
+Deno.test('notify: an invalid expiresAt throws invalid_request before any call', async () => {
+  const { client, calls } = fakeSupabase({
+    rpc: { create_notification: { data: 'n1' } },
+  })
+  const error = await assertRejects(
+    () => notify(client, { ...FULL, expiresAt: new Date('pas une date') }),
+    FunctionError,
+  )
+  assertEquals(error.code, 'invalid_request')
+  assertStringIncludes(error.message, 'expiresAt')
+  assertEquals(calls, [])
+})
+
+Deno.test('notify: a null expiresAt never expires, and is not checked', async () => {
+  const { client, calls } = fakeSupabase({
+    rpc: { create_notification: { data: 'n1' } },
+  })
+  assertEquals(await notify(client, { ...FULL, expiresAt: null }), 'n1')
+  assertEquals(calls[0]?.args.p_expires_at, null)
+})
+
+Deno.test('notify: the link and the subject id are passed as given', async () => {
+  const { client, calls } = fakeSupabase({
+    rpc: { create_notification: { data: 'n1' } },
+  })
+  const id = 'b0000000-0000-0000-0000-000000000001'
+  await notify(client, {
+    ...FULL,
+    linkPath: `/professionnels/${encodeURIComponent(id)}?onglet=documents`,
+    subject: { type: 'professional', id },
+  })
+  assertEquals(
+    calls[0]?.args.p_link_path,
+    `/professionnels/${id}?onglet=documents`,
+  )
+  assertEquals(calls[0]?.args.p_subject_id, id)
+})

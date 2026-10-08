@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Bell } from 'lucide-react'
 import { t } from '@/i18n'
 import type { Notice, UnreadCount } from '@/core/notifications/api'
@@ -37,34 +38,36 @@ const NO_UNREAD: UnreadCount = { total: 0, important: 0 }
 
 /**
  * The topbar bell (design system Topbar: icon 16, a 6 px dot). The dot is teal when something is
- * unread, red when one of them is important; the count polls every minute (P3-24). The popover
+ * unread, red when one of them is important; the count polls every minute (P3-24). The popover is
+ * modal: focus stays inside while it is open and goes back to the bell however it closes. It
  * loads the list only while open. Choosing a notice closes the popover, gives focus back to the
- * bell, then marks the notice read and goes to its link through the unsaved-changes guard (so
- * after « Rester » focus is on the bell, not on <body>).
+ * bell, then opens the notice (useOpenNotice: through the unsaved-changes guard, so after
+ * « Rester » focus is on the bell, not on <body>).
  */
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
   const titleId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  // The notice chosen in the list: opened once the popover has closed (onCloseAutoFocus).
-  const chosen = useRef<Notice | null>(null)
+  // Set when a notice was chosen: focus is already on the bell, and the unsaved-changes dialog
+  // may have opened since; the popover's late close focus must not take it back.
+  const focusHandled = useRef(false)
   const count = useUnreadNotificationCount().data ?? NO_UNREAD
   const list = useNotificationList(open)
   const openNotice = useOpenNotice()
 
   const choose = (notice: Notice) => {
-    chosen.current = notice
-    setOpen(false)
+    focusHandled.current = true
+    // Close now (unmounting the trapped panel), so the bell can take focus before the notice opens.
+    flushSync(() => setOpen(false))
+    triggerRef.current?.focus()
+    openNotice(notice)
   }
 
   const onClosed = (event: Event) => {
-    const notice = chosen.current
-    chosen.current = null
-    if (!notice) return
+    if (!focusHandled.current) return
+    focusHandled.current = false
     event.preventDefault()
-    triggerRef.current?.focus()
-    openNotice(notice)
   }
 
   // Focus the panel itself (it is announced by its title), not « Tout marquer comme lu »: one more
@@ -75,7 +78,7 @@ export function NotificationBell() {
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <TopbarIconButton ref={triggerRef} aria-label={bellLabel(count)}>
           <span className="relative">
@@ -125,15 +128,18 @@ function NotificationPanel({ titleId, list, hasUnread, onChoose }: NotificationP
   const loadMoreFrom = useRef<number | null>(null)
   const { data, isPending, isError, isFetching, refetch, hasNextPage, fetchNextPage, isFetchingNextPage, isFetchNextPageError } =
     list
-  const notices = data?.pages.flat() ?? []
+  const notices = data?.pages.flatMap((page) => page.notices) ?? []
   const anyUnread = hasUnread || notices.some((n) => !n.is_read)
 
+  // On the render that ends the load (the data may land in the same render as the fetch start,
+  // so the pages count too). A failed load leaves focus on « Charger plus ».
+  const pageCount = data?.pages.length ?? 0
   useEffect(() => {
     const from = loadMoreFrom.current
     if (isFetchingNextPage || from === null) return
     loadMoreFrom.current = null
     listRef.current?.querySelectorAll<HTMLButtonElement>(':scope > li > button')[from]?.focus()
-  }, [isFetchingNextPage])
+  }, [isFetchingNextPage, pageCount])
 
   let content
   if (isPending) {
@@ -148,35 +154,7 @@ function NotificationPanel({ titleId, list, hasUnread, onChoose }: NotificationP
     content = (
       <ul ref={listRef} className="divide-y divide-border">
         {notices.map((notice) => (
-          <li key={notice.id}>
-            <button
-              type="button"
-              onClick={() => onChoose(notice)}
-              className={`flex w-full gap-2.5 px-4 py-2.5 text-left transition-colors duration-120 hover:bg-gray-50 ${focusRing} focus-visible:shadow-focus-inset`}
-            >
-              <span
-                aria-hidden
-                className={cn('mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full', notice.is_read ? 'bg-transparent' : 'bg-primary')}
-              />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-baseline gap-2">
-                  <span className={cn('min-w-0 flex-1 text-sm', notice.is_read ? 'text-muted-foreground' : 'font-medium text-foreground')}>
-                    {notice.title}
-                  </span>
-                  {notice.importance === 'important' && <Badge variant="error">{t('notifications.important')}</Badge>}
-                </span>
-                {!notice.is_read && <span className="sr-only">{t('notifications.unreadItem')}</span>}
-                {notice.body && <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{notice.body}</span>}
-                <time
-                  dateTime={notice.created_at}
-                  title={formatClinicDateTime(notice.created_at)}
-                  className="mt-1 block text-xs text-subtle"
-                >
-                  {noticeAge(notice.created_at, now)}
-                </time>
-              </span>
-            </button>
-          </li>
+          <NoticeItem key={notice.id} notice={notice} now={now} onChoose={onChoose} />
         ))}
       </ul>
     )
@@ -194,7 +172,10 @@ function NotificationPanel({ titleId, list, hasUnread, onChoose }: NotificationP
             size="sm"
             aria-disabled={!anyUnread || markAll.isPending || undefined}
             onClick={ignoreWhenInactive(!anyUnread || markAll.isPending, () => markAll.mutate())}
-            className={cn(softDisabledClasses, '-mr-2 aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted-foreground')}
+            className={cn(
+              softDisabledClasses,
+              '-mr-2 max-sm:h-11 aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted-foreground',
+            )}
           >
             {t('notifications.markAllRead')}
           </Button>
@@ -216,12 +197,63 @@ function NotificationPanel({ titleId, list, hasUnread, onChoose }: NotificationP
               loadMoreFrom.current = notices.length
               void fetchNextPage()
             })}
-            className={cn(softDisabledClasses, 'aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
+            className={cn(softDisabledClasses, 'max-sm:h-11 aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
           >
             {isFetchingNextPage ? t('notifications.loadingMore') : t('notifications.loadMore')}
           </Button>
         </div>
       )}
     </>
+  )
+}
+
+/** « Assurance expirée, non lue, importante »: the row's name; the body and the age describe it. */
+function noticeName(notice: Notice): string {
+  const status = [
+    !notice.is_read && t('notifications.itemUnread'),
+    notice.importance === 'important' && t('notifications.itemImportant'),
+  ].filter(Boolean)
+  return [notice.title, ...status].join(', ')
+}
+
+function NoticeItem({ notice, now, onChoose }: { notice: Notice; now: number; onChoose: (notice: Notice) => void }) {
+  const bodyId = useId()
+  const ageId = useId()
+  return (
+    <li>
+      <button
+        type="button"
+        aria-label={noticeName(notice)}
+        aria-describedby={notice.body ? `${bodyId} ${ageId}` : ageId}
+        onClick={() => onChoose(notice)}
+        className={`flex w-full gap-2.5 px-4 py-2.5 text-left transition-colors duration-120 hover:bg-gray-50 ${focusRing} focus-visible:shadow-focus-inset`}
+      >
+        <span
+          aria-hidden
+          className={cn('mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full', notice.is_read ? 'bg-transparent' : 'bg-primary')}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline gap-2">
+            <span className={cn('min-w-0 flex-1 text-sm', notice.is_read ? 'text-muted-foreground' : 'font-medium text-foreground')}>
+              {notice.title}
+            </span>
+            {notice.importance === 'important' && <Badge variant="error">{t('notifications.important')}</Badge>}
+          </span>
+          {notice.body && (
+            <span id={bodyId} className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
+              {notice.body}
+            </span>
+          )}
+          <time
+            id={ageId}
+            dateTime={notice.created_at}
+            title={formatClinicDateTime(notice.created_at)}
+            className="mt-1 block text-xs text-subtle"
+          >
+            {noticeAge(notice.created_at, now)}
+          </time>
+        </span>
+      </button>
+    </li>
   )
 }
