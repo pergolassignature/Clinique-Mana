@@ -25,6 +25,9 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * | a professional's private data, saved or  | `private(id)`, `history(id)` (first page); a save first writes |
  * | cleared (4a.18)                          | its returned `updated_at` into `private(id)`; a reveal marks   |
  * |                                          | the history stale only. A revealed value is never cached.      |
+ * | the provider's questionnaire (4b.4): a    | `mySubmission()` written in place; a private save, a signature |
+ * | section saved, the private step, the     | or « Envoyer mon profil » refetch `mySubmission()` (the        |
+ * | consent, the submission                  | private step also `myPrivate()`)                               |
  * | a clinic grid or other rate (P4-185)     | `compensationTermsKeys.terms()`, every `compensation(…)` and   |
  * |                                          | `review(…)` (the suggestions follow the grids)                 |
  *
@@ -48,6 +51,14 @@ export const professionalKeys = {
   review: (month: string) => [...professionalKeys.reviews(), month] as const,
   /** The masked private data (`professionals.private`); never a revealed value. */
   private: (id: string) => [...professionalKeys.all, 'private', id] as const,
+  /**
+   * The signed-in professional's open submission (4b.4). The questionnaire writes each saved
+   * section into it (no refetch while the provider types); a private save, a signature or a
+   * submission refetches it.
+   */
+  mySubmission: () => [...professionalKeys.all, 'my-submission'] as const,
+  /** The signed-in professional's private data on file, masked (`get_my_professional_private`). */
+  myPrivate: () => [...professionalKeys.all, 'my-private'] as const,
 }
 
 /** The nine lists (one cached payload) and their usage counts. */

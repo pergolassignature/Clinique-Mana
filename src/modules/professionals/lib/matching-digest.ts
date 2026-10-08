@@ -36,14 +36,14 @@ interface Row {
 }
 
 /** The held rows in the catalogue's order; unknown ids (a catalogue older than the record) are skipped. */
-function held<T extends Row>(rows: readonly T[], specialized: ReadonlyMap<string, boolean>, label: (row: T) => string = (row) => row.name): DigestItem[] {
+export function held<T extends Row>(rows: readonly T[], specialized: ReadonlyMap<string, boolean>, label: (row: T) => string = (row) => row.name): DigestItem[] {
   return rows
     .filter((row) => specialized.has(row.id))
     .map((row) => ({ id: row.id, label: label(row), specialized: specialized.get(row.id) === true, archived: !row.isActive }))
 }
 
 /** ★ first (a stable sort keeps the catalogue order within each half), as the legacy pickers did. */
-function starredFirst<T extends Row>(rows: readonly T[], refs: readonly SpecializedRef[], label?: (row: T) => string): DigestItem[] {
+export function starredFirst<T extends Row>(rows: readonly T[], refs: readonly SpecializedRef[], label?: (row: T) => string): DigestItem[] {
   return held(rows, new Map(refs.map((r) => [r.id, r.specialized])), label).sort((a, b) => Number(b.specialized) - Number(a.specialized))
 }
 

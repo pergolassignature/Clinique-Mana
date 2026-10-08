@@ -35,6 +35,13 @@ export const professionalsManifest: ModuleManifest = {
       permission: 'professionals.compensation',
       component: lazyPage(() => import('./pages/RetentionReviewPage'), 'RetentionReviewPage'),
     },
+    // The provider's questionnaire (4b.4): where an accepted invitation lands (P4-266) and where an
+    // update request leads. No nav item: « Mon profil » (4b.5) and Accueil link to it.
+    {
+      path: 'mon-profil/questionnaire',
+      permission: 'professionals.self',
+      component: lazyPage(() => import('./pages/self/QuestionnairePage'), 'QuestionnairePage'),
+    },
   ],
   settingsSections: [
     {
