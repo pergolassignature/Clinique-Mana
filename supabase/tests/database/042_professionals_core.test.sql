@@ -12,7 +12,7 @@
 -- audit noise, personal fields redacted).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(213);
+select plan(215);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A with an admin, an adjointe, a provider and a conseillère; org B
@@ -537,6 +537,15 @@ select results_eq($$ select p.id, p.email from public.professionals p
 update auth.users set email = 'provider.again@a.test' where id = 'a0000000-0000-0000-0000-000000000003';
 select is((select p.email from public.professionals p where p.id = current_setting('test.p2')::uuid), 'provider.again@a.test',
   'without conflict the email syncs again');
+-- An address GoTrue accepts but professionals_email_check refuses (no dot in the domain): the
+-- login change still succeeds and the professional keeps its email.
+select lives_ok($$ update auth.users set email = 'provider@intranet' where id = 'a0000000-0000-0000-0000-000000000003' $$,
+  'a login email the professional''s check refuses still changes');
+select results_eq($$ select pr.email, p.email from public.profiles pr join public.professionals p on p.profile_id = pr.user_id
+                     where pr.user_id = 'a0000000-0000-0000-0000-000000000003' $$,
+  $$ values ('provider@intranet'::text, 'provider.again@a.test'::text) $$,
+  'on a check violation the profile follows the account and the professional keeps its email');
+update auth.users set email = 'provider.again@a.test' where id = 'a0000000-0000-0000-0000-000000000003';
 
 -- =============================================================================
 -- private.current_professional_id()

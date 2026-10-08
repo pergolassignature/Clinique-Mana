@@ -527,12 +527,13 @@ $$;
 
 -- Once linked, the account's email (auth.users → profiles) is the professional's email.
 -- Conflict: the new login address is already the email of an unlinked professional of the clinic
--- (professionals_org_email_key). Raising here would fail GoTrue's email-change confirmation, and
--- « Mon compte » answers every email change neutrally: it never reveals that an address is used
--- (decision #38, ADR 0006). So the login change goes through and professionals.email keeps its
--- old value; nothing is raised or shown. The two addresses then differ; 4a.4 readiness or a
--- staff notification can flag the mismatch later. No UI pre-check either: it would reveal the
--- address.
+-- (professionals_org_email_key), or GoTrue accepted an address professionals_email_check refuses
+-- (no dot in the domain, over 254 characters). Raising here would fail GoTrue's email-change
+-- confirmation, and « Mon compte » answers every email change neutrally: it never reveals that an
+-- address is used (decision #38, ADR 0006). So the login change goes through and
+-- professionals.email keeps its old value; nothing is raised or shown. The two addresses then
+-- differ: 4a.4 readiness reports it (warning login_email_mismatch). No UI pre-check either: it
+-- would reveal the address.
 create function private.professionals_email_from_profile()
 returns trigger
 language plpgsql
@@ -543,8 +544,9 @@ begin
   begin
     update public.professionals p set email = pg_catalog.lower(new.email)
      where p.profile_id = new.user_id and p.email is distinct from pg_catalog.lower(new.email);
-  exception when unique_violation then
-    -- Only professionals_org_email_key can be violated: the statement changes email alone.
+  exception when unique_violation or check_violation then
+    -- The statement changes email alone: only professionals_org_email_key (23505) or
+    -- professionals_email_check (23514) can be violated.
     null;
   end;
   return null;
