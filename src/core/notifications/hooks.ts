@@ -35,18 +35,27 @@ export const notificationKeys = {
 const MARK_READ_KEY = [...notificationKeys.all, 'mark-read'] as const
 
 /**
+ * How long a loaded count is fresh. A return to the tab, or a new observer (the bell mounting
+ * again), refetches only once it is older than this: resizing or moving the desktop window can
+ * report the page hidden and visible again several times a second, and with a count that was
+ * always stale each return was one more request (seen as a burst of `count_my_unread_notifications`
+ * in the 4a.20 walkthrough). The 60 s poll and the invalidations after a change made here ignore it.
+ */
+export const UNREAD_COUNT_FRESH_MS = 15_000
+
+/**
  * The bell's dot: unread notices (90 days) and how many are important. The one polled query
- * (P3-24, instead of Realtime): every minute while the tab is visible, at once when it comes back
- * (always stale, so any return refetches), never in a background tab. Only the bell observes it
- * (one timer for the app); Accueil follows it without observing it (useImportantNotices). Only
- * signed-in screens poll: the bell lives in the signed-in shell, and the cache is cleared when the
- * user changes (#10).
+ * (P3-24, instead of Realtime): every minute while the tab is visible, when it comes back (once
+ * the count is older than UNREAD_COUNT_FRESH_MS), never in a background tab. Only the bell
+ * observes it (one timer for the app); Accueil follows it without observing it
+ * (useImportantNotices). Only signed-in screens poll: the bell lives in the signed-in shell, and
+ * the cache is cleared when the user changes (#10).
  */
 export function useUnreadNotificationCount() {
   return useQuery({
     queryKey: notificationKeys.count(),
     queryFn: countMyUnreadNotifications,
-    staleTime: 0,
+    staleTime: UNREAD_COUNT_FRESH_MS,
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,

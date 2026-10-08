@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import type { Notice, NoticesPage } from '@/core/notifications/api'
-import { notificationKeys } from '@/core/notifications/hooks'
+import { notificationKeys, UNREAD_COUNT_FRESH_MS } from '@/core/notifications/hooks'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
 import { useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
 import { renderWithContexts } from '@/test/contexts'
@@ -121,7 +121,43 @@ describe('NotificationBell: the dot and the label', () => {
       refetchInterval: 60_000,
       refetchIntervalInBackground: false,
       refetchOnWindowFocus: true,
+      staleTime: UNREAD_COUNT_FRESH_MS,
     })
+  })
+
+  it('asks once for a burst of returns to the tab or remounts, again once the count is older', async () => {
+    const queryClient = renderBell()
+    await waitFor(() => expect(mocks.api.countMyUnreadNotifications).toHaveBeenCalledTimes(1))
+
+    // A window resize can report the page hidden, then visible, several times in a row.
+    for (let i = 0; i < 5; i++) {
+      act(() => focusManager.setFocused(false))
+      act(() => focusManager.setFocused(true))
+    }
+    // The bell mounting again (a new observer) while the count is fresh.
+    cleanup()
+    render(
+      renderWithContexts(
+        <QueryClientProvider client={queryClient}>
+          <UnsavedChangesProvider>
+            <NotificationBell />
+          </UnsavedChangesProvider>
+        </QueryClientProvider>,
+      ),
+    )
+    await screen.findByRole('button', { name: /^Notifications/ })
+    expect(mocks.api.countMyUnreadNotifications).toHaveBeenCalledTimes(1)
+
+    // Once the count is older than the freshness window, a return to the tab refetches it.
+    act(() => {
+      queryClient.setQueryData(notificationKeys.count(), { total: 0, important: 0 }, {
+        updatedAt: Date.now() - UNREAD_COUNT_FRESH_MS - 1,
+      })
+    })
+    act(() => focusManager.setFocused(false))
+    act(() => focusManager.setFocused(true))
+    await waitFor(() => expect(mocks.api.countMyUnreadNotifications).toHaveBeenCalledTimes(2))
+    act(() => focusManager.setFocused(undefined))
   })
 })
 
