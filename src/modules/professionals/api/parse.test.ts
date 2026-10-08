@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   catalogPayload,
   historyEntryPayload,
+  invitationStateRowPayload,
   listRowPayload,
+  onboardingPayload,
   parseRpc,
   recordPayload,
   settingsPayload,
@@ -165,6 +167,8 @@ describe('listRowPayload', () => {
       emailMatchesLogin: true,
       createdAt: '2026-10-08T12:00:00+00:00',
       updatedAt: '2026-10-08T12:00:00+00:00',
+      // Joined by the list page from list_professional_invitation_states (P4-270).
+      onboarding: null,
     })
   })
 
@@ -194,8 +198,71 @@ describe('historyEntryPayload', () => {
 })
 
 describe('settingsPayload', () => {
-  it('maps the module settings', () => {
-    expect(parseRpc(settingsPayload, { collect_sin: false })).toEqual({ collectSin: false })
+  it('maps the module settings, the invitation ones included (4b.1)', () => {
+    expect(parseRpc(settingsPayload, { collect_sin: false, invitation_expiry_days: 7, invitation_reminder_after_days: 3 })).toEqual({
+      collectSin: false,
+      invitationExpiryDays: 7,
+      invitationReminderAfterDays: 3,
+    })
+    expect(parseRpc(settingsPayload, { collect_sin: true, invitation_expiry_days: 14, invitation_reminder_after_days: null }).invitationReminderAfterDays).toBeNull()
+  })
+})
+
+describe('onboardingPayload', () => {
+  it('maps the record’s onboarding line, null without link or submission', () => {
+    expect(
+      parseRpc(onboardingPayload, {
+        invitation: { state: 'opened', sent_at: '2026-10-08T14:00:00Z', expires_at: '2026-10-15T14:00:00Z', opened_at: '2026-10-09T10:00:00Z', used_at: null },
+        submission: { id: 's1', kind: 'onboarding', status: 'draft', submitted_at: null },
+        onboarding_approved: false,
+      }),
+    ).toEqual({
+      invitation: { state: 'opened', sentAt: '2026-10-08T14:00:00Z', expiresAt: '2026-10-15T14:00:00Z', openedAt: '2026-10-09T10:00:00Z', usedAt: null },
+      submission: { id: 's1', kind: 'onboarding', status: 'draft', submittedAt: null },
+      onboardingApproved: false,
+    })
+    expect(parseRpc(onboardingPayload, null)).toBeNull()
+    expect(parseRpc(onboardingPayload, { invitation: null, submission: null, onboarding_approved: true })).toEqual({ invitation: null, submission: null, onboardingApproved: true })
+  })
+
+  it('refuses a state the UI does not know', () => {
+    expect(() => parseRpc(onboardingPayload, { invitation: { state: 'lost', sent_at: 'x', expires_at: 'x', opened_at: null, used_at: null }, submission: null, onboarding_approved: false })).toThrow(SHAPE_ERROR)
+  })
+})
+
+describe('invitationStateRowPayload', () => {
+  const ROW = {
+    professional_id: IDS.professional,
+    state: null,
+    sent_at: null,
+    expires_at: null,
+    opened_at: null,
+    used_at: null,
+    submission_id: null,
+    submission_kind: null,
+    submission_status: null,
+    submitted_at: null,
+    onboarding_approved: false,
+  }
+
+  it('folds the flat row into the onboarding shape', () => {
+    expect(parseRpc(invitationStateRowPayload, ROW)).toEqual({ professionalId: IDS.professional, onboarding: { invitation: null, submission: null, onboardingApproved: false } })
+    const full = parseRpc(invitationStateRowPayload, {
+      ...ROW,
+      state: 'sent',
+      sent_at: '2026-10-08T14:00:00Z',
+      expires_at: '2026-10-15T14:00:00Z',
+      submission_id: 's1',
+      submission_kind: 'update',
+      submission_status: 'submitted',
+      submitted_at: '2026-10-09T14:00:00Z',
+      onboarding_approved: true,
+    })
+    expect(full.onboarding).toEqual({
+      invitation: { state: 'sent', sentAt: '2026-10-08T14:00:00Z', expiresAt: '2026-10-15T14:00:00Z', openedAt: null, usedAt: null },
+      submission: { id: 's1', kind: 'update', status: 'submitted', submittedAt: '2026-10-09T14:00:00Z' },
+      onboardingApproved: true,
+    })
   })
 })
 

@@ -19,11 +19,13 @@ const mocks = vi.hoisted(() => ({
   list: { fetchProfessionalsList: vi.fn() },
   catalog: { fetchProfessionalsCatalog: vi.fn() },
   record: { fetchProfessionalRecord: vi.fn() },
+  invitations: { fetchInvitationStates: vi.fn(), fetchProfessionalOnboarding: vi.fn() },
   preferences: { fetchUserPreference: vi.fn(), saveUserPreference: vi.fn(), deleteUserPreference: vi.fn(), onSessionUserChange: vi.fn(() => () => {}) },
 }))
 vi.mock('../api/list', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/list')>()), ...mocks.list }))
 vi.mock('../api/catalog', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/catalog')>()), ...mocks.catalog }))
 vi.mock('../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/record')>()), ...mocks.record }))
+vi.mock('../api/invitations', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/invitations')>()), ...mocks.invitations }))
 vi.mock('@/core/preferences/api', () => mocks.preferences)
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
@@ -77,6 +79,8 @@ beforeEach(() => {
   mocks.list.fetchProfessionalsList.mockResolvedValue({ rows: ROWS, truncated: false })
   mocks.catalog.fetchProfessionalsCatalog.mockResolvedValue(CATALOG)
   mocks.record.fetchProfessionalRecord.mockReturnValue(new Promise(() => {}))
+  mocks.invitations.fetchInvitationStates.mockResolvedValue(new Map())
+  mocks.invitations.fetchProfessionalOnboarding.mockReturnValue(new Promise(() => {}))
   mocks.preferences.fetchUserPreference.mockResolvedValue(null)
   mocks.preferences.saveUserPreference.mockResolvedValue(undefined)
   mocks.preferences.deleteUserPreference.mockResolvedValue(undefined)
@@ -105,10 +109,11 @@ describe('ProfessionalsListPage', () => {
     expect(screen.getByText('Page 1 sur 1')).toBeInTheDocument()
   })
 
-  it('loads the list, the catalogue and the remembered filters in parallel', () => {
+  it('loads the list, the onboarding states, the catalogue and the remembered filters in parallel', () => {
     mocks.list.fetchProfessionalsList.mockReturnValue(new Promise(() => {}))
     renderPage()
     expect(mocks.list.fetchProfessionalsList).toHaveBeenCalledTimes(1)
+    expect(mocks.invitations.fetchInvitationStates).toHaveBeenCalledTimes(1)
     expect(mocks.catalog.fetchProfessionalsCatalog).toHaveBeenCalledTimes(1)
     expect(mocks.preferences.fetchUserPreference).toHaveBeenCalledWith('u1', LIST_FILTERS_PREFERENCE)
     expect(table()).toHaveAttribute('aria-busy', 'true')
@@ -166,6 +171,31 @@ describe('ProfessionalsListPage', () => {
     renderPage({ path: `/professionnels?statut=inactif` })
     await waitFor(() => expect(names()).toEqual(['Paul Gagnon']))
     expect(screen.getByRole('combobox', { name: t(`${L}.statusFilter.label`) })).toHaveValue('inactive')
+  })
+
+  it('joins the onboarding states: P4-43 statuses, the invitation and review flags, and the status filter', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-08T20:00:00Z'))
+    const states = new Map([
+      [HELENE.id, { invitation: { state: 'sent' as const, sentAt: '2026-10-04T14:00:00Z', expiresAt: '2026-10-11T14:00:00Z', openedAt: null, usedAt: null }, submission: null, onboardingApproved: false }],
+      [MARIE.id, { invitation: null, submission: { id: 's1', kind: 'update' as const, status: 'submitted' as const, submittedAt: '2026-10-07T12:00:00Z' }, onboardingApproved: true }],
+      [PAUL.id, { invitation: null, submission: null, onboardingApproved: true }],
+    ])
+    mocks.invitations.fetchInvitationStates.mockResolvedValue(states)
+    mocks.list.fetchProfessionalsList.mockResolvedValue({
+      rows: [{ ...HELENE, status: 'invited', matchingComplete: true }, { ...PAUL, status: 'in_review', hasAccount: true }, { ...MARIE, hasAccount: true }],
+      truncated: false,
+    })
+    renderPage()
+    await waitFor(() => expect(names()).toEqual(['Hélène Côté', 'Paul Gagnon', 'Marie Tremblay']))
+    const row = (name: string) => screen.getByRole('link', { name }).closest('[role=row]') as HTMLElement
+    expect(within(row('Hélène Côté')).getByText('Invitation sans réponse depuis 4 jours')).toBeInTheDocument()
+    expect(within(row('Paul Gagnon')).getByText(t('modules.professionals.status.preparing'))).toBeInTheDocument()
+    expect(within(row('Marie Tremblay')).getByText('Mise à jour à réviser')).toBeInTheDocument()
+    vi.useRealTimers()
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: t(`${L}.statusFilter.label`) }), 'preparing')
+    await waitFor(() => expect(names()).toEqual(['Paul Gagnon']))
+    expect(location()).toBe('/professionnels?statut=en-preparation')
   })
 
   it('narrows by status and goes back to page 1', async () => {

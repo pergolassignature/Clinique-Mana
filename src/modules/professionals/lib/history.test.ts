@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
+import type { SubjectEmail } from '../api/invitations'
 import type { HistoryEntry } from '../api/parse'
 import { CATALOG, CATALOG_VIEW, recordFixture, seventyTwoMotifsCatalog } from '../test/fixtures-domain'
 import { buildCatalogView, OTHER_MOTIF_GROUP } from './catalog-view'
 import { IDS } from '../test/fixtures'
 import {
   buildHistoryEvents,
-  filterHistory,
+  buildTimeline,
   groupHistoryByDay,
   historyReadsOn,
   professionTitlesByRow,
@@ -498,7 +499,7 @@ describe('history — retention (P4-193)', () => {
   it('prints no id and keeps the rows under « Modifications »', () => {
     const list = events([rate('insert', { id: R1, org_id: ORG, professional_id: P, retention_pct: 28, decision: 'initial', effective_from: '2026-07-01', created_by: IDS.admin })])
     expect(printed(list)).not.toMatch(UUID)
-    expect(filterHistory(list, 'changes')).toHaveLength(1)
+    expect(buildTimeline(list, [], { filter: 'changes', morePages: false })).toHaveLength(1)
   })
 })
 
@@ -568,7 +569,88 @@ describe('history — pages, days, filter', () => {
 
   it('« Modifications » leaves out consultations', () => {
     const list = events([row('professional_private', 'read', null), row('professionals', 'update', { years_experience: { before: 1, after: 2 } })])
-    expect(filterHistory(list, 'all')).toHaveLength(2)
-    expect(filterHistory(list, 'changes').map((e) => e.kind)).toEqual(['change'])
+    expect(buildTimeline(list, [], { filter: 'all', morePages: false })).toHaveLength(2)
+    expect(buildTimeline(list, [], { filter: 'changes', morePages: false }).map((e) => (e.type === 'event' ? e.event.kind : 'email'))).toEqual(['change'])
+  })
+})
+
+describe('history — emails in the timeline (Task 4b.3)', () => {
+  const email = (id: string, createdAt: string, over: Partial<SubjectEmail> = {}): SubjectEmail => ({
+    id,
+    templateKey: 'professionals.invite',
+    templateLabel: 'Invitation d’un professionnel',
+    status: 'delivered',
+    toEmail: 'marie.t@exemple.ca',
+    sentBy: IDS.admin,
+    sentByName: 'Admin Local',
+    createdAt,
+    errorCode: null,
+    ...over,
+  })
+  const change = (createdAt: string) => row('professionals', 'update', { years_experience: { before: 1, after: 2 } }, { createdAt })
+  const keys = (entries: ReturnType<typeof buildTimeline>) => entries.map((entry) => (entry.type === 'email' ? entry.email.id : entry.event.createdAt.slice(0, 16)))
+
+  it('merges the emails and the events by time, newest first', () => {
+    const list = events([change('2026-10-08T15:00:00+00:00'), change('2026-10-08T13:00:00+00:00')])
+    const mails = [email('m2', '2026-10-08T16:00:00+00:00'), email('m1', '2026-10-08T14:00:00+00:00')]
+    expect(keys(buildTimeline(list, mails, { filter: 'all', morePages: false }))).toEqual(['m2', '2026-10-08T15:00', 'm1', '2026-10-08T13:00'])
+  })
+
+  it('while older pages remain, an email older than the oldest event loaded waits for them', () => {
+    const list = events([change('2026-10-08T15:00:00+00:00')])
+    const mails = [email('m2', '2026-10-08T16:00:00+00:00'), email('m1', '2026-10-01T14:00:00+00:00')]
+    expect(keys(buildTimeline(list, mails, { filter: 'all', morePages: true }))).toEqual(['m2', '2026-10-08T15:00'])
+    expect(keys(buildTimeline(list, mails, { filter: 'all', morePages: false }))).toEqual(['m2', '2026-10-08T15:00', 'm1'])
+  })
+
+  it('« Courriels » shows every email and nothing else; « Modifications » no email', () => {
+    const list = events([change('2026-10-08T15:00:00+00:00')])
+    const mails = [email('m2', '2026-10-08T16:00:00+00:00'), email('m1', '2026-10-01T14:00:00+00:00')]
+    expect(keys(buildTimeline(list, mails, { filter: 'emails', morePages: true }))).toEqual(['m2', 'm1'])
+    expect(keys(buildTimeline(list, mails, { filter: 'changes', morePages: false }))).toEqual(['2026-10-08T15:00'])
+  })
+
+  it('groups emails and events by clinic day together', () => {
+    const days = groupHistoryByDay(buildTimeline(events([change('2026-10-08T15:00:00+00:00')]), [email('m1', '2026-10-07T14:00:00+00:00')], { filter: 'all', morePages: false }))
+    expect(days.map((d) => [d.label, d.events.length])).toEqual([
+      ['Jeudi 8 octobre 2026', 1],
+      ['Mercredi 7 octobre 2026', 1],
+    ])
+  })
+})
+
+describe('history — the questionnaire (Task 4b.3)', () => {
+  const S = 'modules.professionals.history.sentences.submission'
+  const submission = (action: HistoryEntry['action'], fields: Record<string, unknown>) => row('professional_submissions', action, fields)
+
+  it('names each step of the questionnaire', () => {
+    expect(only([submission('insert', { kind: 'onboarding', status: 'draft', prefill: '[redacted]' })]).sentence).toBe(t(`${S}.opened`))
+    expect(only([submission('update', { status: { before: 'draft', after: 'submitted' } })]).sentence).toBe(t(`${S}.submitted`))
+    expect(only([submission('update', { status: { before: 'submitted', after: 'approved' } })]).sentence).toBe(t(`${S}.approved`))
+    expect(only([submission('update', { status: { before: 'draft', after: 'cancelled' } })]).sentence).toBe(t(`${S}.cancelled`))
+    expect(only([submission('update', { private_saved_at: { before: null, after: '2026-10-08T14:00:00Z' } })]).sentence).toBe(t(`${S}.privateSent`))
+  })
+
+  it('an update request lists its sections; a correction request shows its note', () => {
+    const request = only([submission('insert', { kind: 'update', status: 'draft', requested_sections: ['portrait', 'languages', 'unknown'] })])
+    expect(request.sentence).toBe(t(`${S}.updateRequested`))
+    expect(request.lines).toEqual([{ kind: 'value', field: 'Sections', value: 'Portrait et Langues' }])
+    const sentBack = only([submission('update', { status: { before: 'submitted', after: 'draft' }, decision_note: { before: null, after: 'Ajoutez votre permis.' } })])
+    expect(sentBack.sentence).toBe(t(`${S}.sentBack`))
+    expect(sentBack.lines).toEqual([{ kind: 'value', field: 'Note', value: 'Ajoutez votre permis.' }])
+  })
+
+  it('draft saves are not events (the autosave would flood the history)', () => {
+    expect(events([submission('update', { submitted_values: '[redacted]', updated_at: { before: TX, after: TX } })])).toEqual([])
+    expect(events([submission('update', { secure_link_id: { before: null, after: '00000000-0000-4000-8000-000000000001' } })])).toEqual([])
+  })
+
+  it('the consent: recorded, withdrawn', () => {
+    expect(only([row('professional_consents', 'insert', { signer_name: 'Marie Tremblay' })]).sentence).toBe(
+      t('modules.professionals.history.sentences.consent.recorded'),
+    )
+    expect(only([row('professional_consents', 'update', { withdrawn_at: { before: null, after: '2027-01-01T00:00:00Z' } })]).sentence).toBe(
+      t('modules.professionals.history.sentences.consent.withdrawn'),
+    )
   })
 })

@@ -10,7 +10,7 @@ import { Label } from '@/shared/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
 import { Select } from '@/shared/ui/select'
 import type { CatalogView } from '../../lib/catalog-view'
-import { PROFESSIONAL_STATUSES, type ProfessionalStatus } from '../../lib/constants'
+import { DISPLAY_STATUSES, type DisplayStatus } from '../../lib/constants'
 import { statusLabel } from '../../lib/display'
 import { isDefaultFilters, SEARCH_MAX_LENGTH, type ProfessionalsFilters } from '../../lib/filters'
 
@@ -48,11 +48,11 @@ export function ProfessionalsFilters(props: ProfessionalsFiltersProps) {
         <Select
           aria-label={t('modules.professionals.list.statusFilter.label')}
           value={filters.status ?? ''}
-          onChange={(event) => onChange({ status: (event.target.value || null) as ProfessionalStatus | null })}
+          onChange={(event) => onChange({ status: (event.target.value || null) as DisplayStatus | null })}
           className="w-40"
         >
           <option value="">{t('modules.professionals.list.statusFilter.all')}</option>
-          {PROFESSIONAL_STATUSES.map((status) => (
+          {DISPLAY_STATUSES.map((status) => (
             <option key={status} value={status}>
               {statusLabel(status)}
             </option>

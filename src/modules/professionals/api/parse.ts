@@ -3,12 +3,15 @@ import { PROVINCES } from '@/shared/lib/field-schemas'
 import {
   AVAILABILITY_PERIODS,
   GENDERS,
+  INVITATION_STATES,
   MOTIF_CATEGORY_ICONS,
+  OPEN_SUBMISSION_STATUSES,
   PAYER_TYPES,
   PROFESSIONAL_STATUSES,
   READINESS_ITEMS,
   READINESS_MISSING,
   READINESS_WARNINGS,
+  SUBMISSION_KINDS,
 } from '../lib/constants'
 
 /**
@@ -249,6 +252,90 @@ export const recordPayload = z
   .nullable()
 export type ProfessionalRecord = NonNullable<z.output<typeof recordPayload>>
 
+// --- Onboarding (get_professional_onboarding, list_professional_invitation_states) ---------------
+
+/** The invitation link that matters (A2.5): its state and times (timestamps, clinic timezone for display). */
+export interface InvitationInfo {
+  state: (typeof INVITATION_STATES)[number]
+  sentAt: string
+  expiresAt: string
+  openedAt: string | null
+  usedAt: string | null
+}
+
+/** The file's open submission (at most one): the onboarding questionnaire or an update request. */
+export interface OpenSubmission {
+  id: string
+  kind: (typeof SUBMISSION_KINDS)[number]
+  status: (typeof OPEN_SUBMISSION_STATUSES)[number]
+  submittedAt: string | null
+}
+
+/**
+ * Where the file stands in its onboarding (P4-270): the invitation link, the open submission and
+ * whether an onboarding questionnaire was ever approved. A file with neither link nor submission
+ * has none (null).
+ */
+export interface Onboarding {
+  invitation: InvitationInfo | null
+  submission: OpenSubmission | null
+  onboardingApproved: boolean
+}
+
+const invitationPayload = z
+  .object({
+    state: z.enum(INVITATION_STATES),
+    sent_at: z.string(),
+    expires_at: z.string(),
+    opened_at: z.string().nullable(),
+    used_at: z.string().nullable(),
+  })
+  .transform((r): InvitationInfo => ({ state: r.state, sentAt: r.sent_at, expiresAt: r.expires_at, openedAt: r.opened_at, usedAt: r.used_at }))
+
+const openSubmissionPayload = z
+  .object({ id: z.string(), kind: z.enum(SUBMISSION_KINDS), status: z.enum(OPEN_SUBMISSION_STATUSES), submitted_at: z.string().nullable() })
+  .transform((r): OpenSubmission => ({ id: r.id, kind: r.kind, status: r.status, submittedAt: r.submitted_at }))
+
+/** `get_professional_onboarding`: the record's onboarding line, null without link or submission. */
+export const onboardingPayload = z
+  .object({ invitation: invitationPayload.nullable(), submission: openSubmissionPayload.nullable(), onboarding_approved: z.boolean() })
+  .transform((r): Onboarding => ({ invitation: r.invitation, submission: r.submission, onboardingApproved: r.onboarding_approved }))
+  .nullable()
+
+/**
+ * One row of `list_professional_invitation_states` (the whole clinic in one request, joined by the
+ * list in memory). Flat columns: a file without a link has a null state and times, one without an
+ * open submission null submission columns.
+ */
+export const invitationStateRowPayload = z
+  .object({
+    professional_id: z.string(),
+    state: z.enum(INVITATION_STATES).nullable(),
+    sent_at: z.string().nullable(),
+    expires_at: z.string().nullable(),
+    opened_at: z.string().nullable(),
+    used_at: z.string().nullable(),
+    submission_id: z.string().nullable(),
+    submission_kind: z.enum(SUBMISSION_KINDS).nullable(),
+    submission_status: z.enum(OPEN_SUBMISSION_STATUSES).nullable(),
+    submitted_at: z.string().nullable(),
+    onboarding_approved: z.boolean(),
+  })
+  .transform((r): { professionalId: string; onboarding: Onboarding } => ({
+    professionalId: r.professional_id,
+    onboarding: {
+      invitation:
+        r.state && r.sent_at && r.expires_at
+          ? { state: r.state, sentAt: r.sent_at, expiresAt: r.expires_at, openedAt: r.opened_at, usedAt: r.used_at }
+          : null,
+      submission:
+        r.submission_id && r.submission_kind && r.submission_status
+          ? { id: r.submission_id, kind: r.submission_kind, status: r.submission_status, submittedAt: r.submitted_at }
+          : null,
+      onboardingApproved: r.onboarding_approved,
+    },
+  }))
+
 // --- List (professionals_list, list_professionals) -----------------------------------------------
 
 /**
@@ -298,6 +385,11 @@ export const listRowPayload = z
     emailMatchesLogin: r.email_matches_login,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    /**
+     * Not a column of the view: the list joins `list_professional_invitation_states` in memory
+     * (`withOnboarding`, P4-270); null until then, and for a file without link or submission.
+     */
+    onboarding: null as Onboarding | null,
   }))
 export type ProfessionalListRow = z.output<typeof listRowPayload>
 
@@ -356,6 +448,16 @@ export type StatusChange = z.output<typeof statusChangePayload>
 
 // --- Module settings (get_professionals_settings) ------------------------------------------------
 
-/** `collectSin` is off until an admin turns it on after the accountant confirms (P4-7). */
-export const settingsPayload = z.object({ collect_sin: z.boolean() }).transform((s) => ({ collectSin: s.collect_sin }))
+/**
+ * `collectSin` is off until an admin turns it on after the accountant confirms (P4-7). The
+ * invitation's lifetime (1–30 days) and its reminder delay (1–29 days, null for no reminder; shorter
+ * than the lifetime, P4-308) are « Invitations »'s (4b.1).
+ */
+export const settingsPayload = z
+  .object({ collect_sin: z.boolean(), invitation_expiry_days: z.number().int(), invitation_reminder_after_days: z.number().int().nullable() })
+  .transform((s) => ({
+    collectSin: s.collect_sin,
+    invitationExpiryDays: s.invitation_expiry_days,
+    invitationReminderAfterDays: s.invitation_reminder_after_days,
+  }))
 export type ProfessionalsSettings = z.output<typeof settingsPayload>

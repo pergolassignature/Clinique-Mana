@@ -7,6 +7,45 @@
 export const PROFESSIONAL_STATUSES = ['draft', 'invited', 'in_review', 'active', 'inactive'] as const
 export type ProfessionalStatus = (typeof PROFESSIONAL_STATUSES)[number]
 
+/**
+ * The status as staff read it (P4-43): the stored `in_review` reads « À réviser » while a
+ * submission waits for review and « En préparation » once the onboarding questionnaire is
+ * approved (`displayStatus`, `lib/onboarding.ts`). The list's status filter uses these.
+ */
+export const DISPLAY_STATUSES = ['draft', 'invited', 'in_review', 'preparing', 'active', 'inactive'] as const
+export type DisplayStatus = (typeof DISPLAY_STATUSES)[number]
+
+/**
+ * The state of a file's invitation link (`private.professional_onboarding_states`, A2.5): the
+ * link that matters is the used one, else the live one, else the newest.
+ */
+export const INVITATION_STATES = ['sent', 'opened', 'expired', 'used', 'revoked'] as const
+export type InvitationState = (typeof INVITATION_STATES)[number]
+
+/** `professional_submissions.kind`: the questionnaire of the invitation, or an update request. */
+export const SUBMISSION_KINDS = ['onboarding', 'update'] as const
+export type SubmissionKind = (typeof SUBMISSION_KINDS)[number]
+
+/** The statuses of an open submission (one per file at most): being filled in, or sent for review. */
+export const OPEN_SUBMISSION_STATUSES = ['draft', 'submitted'] as const
+export type OpenSubmissionStatus = (typeof OPEN_SUBMISSION_STATUSES)[number]
+
+/** `private.submission_sections()`: the questionnaire's eleven sections, in its order (P4-276). */
+export const SUBMISSION_SECTIONS = [
+  'personal',
+  'professional',
+  'portrait',
+  'languages',
+  'clienteles',
+  'motifs',
+  'availability',
+  'photo',
+  'insurance',
+  'tax_bank',
+  'consent',
+] as const
+export type SubmissionSection = (typeof SUBMISSION_SECTIONS)[number]
+
 /** `professionals_gender_check` (P4-5: staff only, for the client's preference). */
 export const GENDERS = ['female', 'male', 'unspecified'] as const
 export type Gender = (typeof GENDERS)[number]

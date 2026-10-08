@@ -3,10 +3,19 @@ import { fieldLabel } from '@/core/audit/labels'
 import { formatPhone } from '@/shared/lib/format'
 import { formatClinicDateFull, formatDateOnlyShort, getClinicDateString } from '@/shared/lib/timezone'
 import { DECISIONS, DURATIONS, type Decision, type Duration } from '../api/compensation'
+import type { SubjectEmail } from '../api/invitations'
 import type { HistoryEntry, ProfessionalRecord } from '../api/parse'
 import { OTHER_MOTIF_GROUP, type CatalogView } from './catalog-view'
 import { durationLabel, formatCents, formatPercent, formatSessions, monthLabel, sessionsLabel } from './compensation'
-import { PAYER_TYPES, PROFESSIONAL_STATUSES, type AvailabilityPeriod, type PayerType, type ProfessionalStatus } from './constants'
+import {
+  PAYER_TYPES,
+  PROFESSIONAL_STATUSES,
+  SUBMISSION_SECTIONS,
+  type AvailabilityPeriod,
+  type PayerType,
+  type ProfessionalStatus,
+  type SubmissionSection,
+} from './constants'
 import { listLabel, periodsLabel, statusLabel } from './display'
 import { FEW_MOTIFS, type HeldMotif } from './motif-summary'
 
@@ -125,7 +134,8 @@ export interface HistoryContext {
   titleByRow: ReadonlyMap<string, string>
 }
 
-export const HISTORY_FILTERS = ['all', 'changes'] as const
+/** « Tout », « Modifications » (the record's changes), « Courriels » (the emails about the professional, Task 4b.3). */
+export const HISTORY_FILTERS = ['all', 'changes', 'emails'] as const
 export type HistoryFilter = (typeof HISTORY_FILTERS)[number]
 
 // --- Small readers ---------------------------------------------------------------------------------
@@ -423,6 +433,52 @@ function sessionsRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   }
 }
 
+const SUBMISSIONS_TABLE = 'professional_submissions'
+const CONSENTS_TABLE = 'professional_consents'
+
+const isSection = (value: unknown): value is SubmissionSection => typeof value === 'string' && (SUBMISSION_SECTIONS as readonly string[]).includes(value)
+
+/**
+ * The questionnaire's life (Task 4b.3, 4b.1's `professional_submissions`): opened with the
+ * invitation, an update requested (with its sections), sent, approved, sent back for correction,
+ * closed unapplied, and the private answers transmitted (P4-178: « Renseignements fiscaux ou
+ * bancaires transmis », never their values). Draft saves (the answers, redacted, and the link the
+ * draft points at) are not events: the provider's autosave would flood the history.
+ */
+function submissionRow(entry: HistoryEntry): Described | null {
+  const S = `${H}.sentences.submission`
+  const fields = fieldsOf(entry)
+  if (entry.action === 'insert') {
+    if (fields.kind !== 'update') return { kind: 'change', sentence: t(`${S}.opened`), lines: [] }
+    const sections = Array.isArray(fields.requested_sections) ? fields.requested_sections.filter(isSection) : []
+    const lines: HistoryLine[] =
+      sections.length > 0 ? [{ kind: 'value', field: t(`${S}.sections`), value: listLabel(sections.map((section) => t(`modules.professionals.onboarding.sections.${section}`))) }] : []
+    return { kind: 'change', sentence: t(`${S}.updateRequested`), lines }
+  }
+  if (entry.action !== 'update') return null
+  const status = pairOf(fields.status)
+  if (status?.after === 'submitted') return { kind: 'change', sentence: t(`${S}.submitted`), lines: [] }
+  if (status?.after === 'approved') return { kind: 'change', sentence: t(`${S}.approved`), lines: [] }
+  if (status?.after === 'cancelled') return { kind: 'change', sentence: t(`${S}.cancelled`), lines: [] }
+  if (status?.before === 'submitted' && status.after === 'draft') {
+    const note = pairOf(fields.decision_note)?.after
+    const lines: HistoryLine[] = typeof note === 'string' && note !== '' && note !== REDACTED ? [{ kind: 'value', field: t(`${S}.note`), value: note }] : []
+    return { kind: 'change', sentence: t(`${S}.sentBack`), lines }
+  }
+  const privateSaved = pairOf(fields.private_saved_at)
+  if (privateSaved && privateSaved.after !== null) return { kind: 'change', sentence: t(`${S}.privateSent`), lines: [] }
+  return null
+}
+
+/** The image-rights consent (`professional_consents`): recorded on approval, withdrawn later (4c). */
+function consentRow(entry: HistoryEntry): Described | null {
+  const S = `${H}.sentences.consent`
+  if (entry.action === 'insert') return { kind: 'change', sentence: t(`${S}.recorded`), lines: [] }
+  const withdrawn = pairOf(fieldsOf(entry).withdrawn_at)
+  if (entry.action === 'update' && withdrawn && withdrawn.after !== null) return { kind: 'change', sentence: t(`${S}.withdrawn`), lines: [] }
+  return null
+}
+
 /** One audit row of a table that is not a set, as a sentence and its details. */
 function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null {
   if (entry.tableName === PRIVATE_TABLE) {
@@ -432,6 +488,8 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   }
   if (isDatedTable(entry.tableName)) return datedRow(ctx, entry.tableName, entry)
   if (entry.tableName === SESSIONS_TABLE) return sessionsRow(ctx, entry)
+  if (entry.tableName === SUBMISSIONS_TABLE) return submissionRow(entry)
+  if (entry.tableName === CONSENTS_TABLE) return consentRow(entry)
   switch (entry.tableName) {
     case 'professionals':
       return professionalRow(ctx.catalog, entry)
@@ -664,11 +722,33 @@ export function professionTitlesByRow(rows: readonly HistoryEntry[], record: Pic
   return titles
 }
 
-export function filterHistory(events: readonly HistoryEvent[], filter: HistoryFilter): readonly HistoryEvent[] {
-  return filter === 'all' ? events : events.filter((event) => event.kind === 'change')
+/**
+ * The timeline (Task 4b.3): the audit's events and the professional's emails, newest first. The
+ * audit is read page by page; the emails all at once (`list_subject_emails`, at most 100). While
+ * older audit pages remain, an email older than the oldest event loaded waits for them, so the
+ * timeline never shows a gap that « Charger plus » would later fill above it.
+ * « Modifications » shows the record's changes only, « Courriels » every email.
+ */
+export type TimelineEntry = { type: 'event'; key: string; createdAt: string; event: HistoryEvent } | { type: 'email'; key: string; createdAt: string; email: SubjectEmail }
+
+export function buildTimeline(
+  events: readonly HistoryEvent[],
+  emails: readonly SubjectEmail[],
+  { filter, morePages }: { filter: HistoryFilter; morePages: boolean },
+): TimelineEntry[] {
+  const eventEntries = (filter === 'changes' ? events.filter((event) => event.kind === 'change') : events).map(
+    (event): TimelineEntry => ({ type: 'event', key: `e${event.id}`, createdAt: event.createdAt, event }),
+  )
+  const emailEntries = emails.map((email): TimelineEntry => ({ type: 'email', key: `m${email.id}`, createdAt: email.createdAt, email }))
+  if (filter === 'emails') return emailEntries
+  if (filter === 'changes') return eventEntries
+  const oldest = events.at(-1)?.createdAt
+  const shown = morePages ? emailEntries.filter((entry) => oldest !== undefined && Date.parse(entry.createdAt) >= Date.parse(oldest)) : emailEntries
+  // Both lists are newest first: a stable sort keeps each one's order among equal times.
+  return [...eventEntries, ...shown].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
 }
 
-export interface HistoryDay {
+export interface HistoryDay<T extends { createdAt: string } = HistoryEvent> {
   /**
    * Unique among the days: `yyyy-MM-dd` in the clinic's timezone, then `-2`, `-3`… when the same
    * day comes back (rows are ordered by audit id, and a long transaction may commit after a
@@ -679,12 +759,12 @@ export interface HistoryDay {
   date: string
   /** « Jeudi 8 octobre 2026 ». */
   label: string
-  events: HistoryEvent[]
+  events: T[]
 }
 
-/** Events (newest first) by clinic day, newest day first. */
-export function groupHistoryByDay(events: readonly HistoryEvent[]): HistoryDay[] {
-  const days: HistoryDay[] = []
+/** Entries (newest first) by clinic day, newest day first. */
+export function groupHistoryByDay<T extends { createdAt: string }>(events: readonly T[]): HistoryDay<T>[] {
+  const days: HistoryDay<T>[] = []
   const seen = new Map<string, number>()
   for (const event of events) {
     const date = getClinicDateString(event.createdAt)

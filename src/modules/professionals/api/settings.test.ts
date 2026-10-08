@@ -9,8 +9,8 @@ afterEach(() => vi.clearAllMocks())
 
 describe('fetchProfessionalsSettings', () => {
   it('reads the effective settings (defaults merged in SQL)', async () => {
-    mocks.rpc.mockResolvedValue({ data: { collect_sin: false }, error: null })
-    await expect(fetchProfessionalsSettings()).resolves.toEqual({ collectSin: false })
+    mocks.rpc.mockResolvedValue({ data: { collect_sin: false, invitation_expiry_days: 7, invitation_reminder_after_days: 3 }, error: null })
+    await expect(fetchProfessionalsSettings()).resolves.toEqual({ collectSin: false, invitationExpiryDays: 7, invitationReminderAfterDays: 3 })
     expect(mocks.rpc).toHaveBeenCalledWith('get_professionals_settings')
   })
 
@@ -22,9 +22,16 @@ describe('fetchProfessionalsSettings', () => {
 
 describe('saveProfessionalsSettings', () => {
   it('sends only the changed keys, in SQL names, and returns the effective settings', async () => {
-    mocks.rpc.mockResolvedValue({ data: { collect_sin: true }, error: null })
-    await expect(saveProfessionalsSettings({ collectSin: true })).resolves.toEqual({ collectSin: true })
+    const saved = { collect_sin: true, invitation_expiry_days: 7, invitation_reminder_after_days: 3 }
+    mocks.rpc.mockResolvedValue({ data: saved, error: null })
+    await expect(saveProfessionalsSettings({ collectSin: true })).resolves.toEqual({ collectSin: true, invitationExpiryDays: 7, invitationReminderAfterDays: 3 })
     expect(mocks.rpc).toHaveBeenCalledWith('set_professionals_settings', { p_patch: { collect_sin: true } })
+  })
+
+  it('sends the invitation keys, a reminder switched off as null (4b.3)', async () => {
+    mocks.rpc.mockResolvedValue({ data: { collect_sin: false, invitation_expiry_days: 10, invitation_reminder_after_days: null }, error: null })
+    await saveProfessionalsSettings({ invitationExpiryDays: 10, invitationReminderAfterDays: null })
+    expect(mocks.rpc).toHaveBeenCalledWith('set_professionals_settings', { p_patch: { invitation_expiry_days: 10, invitation_reminder_after_days: null } })
   })
 
   it('throws the refusal unchanged (collect_sin needs professionals.private)', async () => {

@@ -1,26 +1,35 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { renderWithContexts } from '@/test/contexts'
 import { accessForRole, type FixtureRole } from '@/test/role-fixtures'
 import { buildCatalogView } from '../../../lib/catalog-view'
 import { CATALOG, CATALOG_VIEW, recordFixture, websiteSizedCatalog } from '../../../test/fixtures-domain'
 import { IDS } from '../../../test/fixtures'
-import type { ProfessionalRecord } from '../../../api/parse'
+import type { Onboarding, ProfessionalRecord } from '../../../api/parse'
 import { RecordContext } from '../record-context'
 import { OverviewTab } from './OverviewTab'
 
 const O = 'modules.professionals.record.overview'
 const base = `/professionnels/${IDS.professional}`
 
-function renderOverview(change: (record: ProfessionalRecord) => ProfessionalRecord = (r) => r, role: FixtureRole = 'counselor', catalog = CATALOG_VIEW) {
+function renderOverview(
+  change: (record: ProfessionalRecord) => ProfessionalRecord = (r) => r,
+  role: FixtureRole = 'counselor',
+  catalog = CATALOG_VIEW,
+  onboarding: Onboarding | null = null,
+) {
   render(
-    renderWithContexts(
-      <RecordContext.Provider value={{ record: change(recordFixture()), catalog, focusHeading: () => {} }}>
-        <OverviewTab />
-      </RecordContext.Provider>,
-      { access: { access: accessForRole(role) } },
-    ),
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      {renderWithContexts(
+        <RecordContext.Provider value={{ record: change(recordFixture()), catalog, onboarding, focusHeading: () => {} }}>
+          <OverviewTab />
+        </RecordContext.Provider>,
+        { access: { access: accessForRole(role) } },
+      )}
+    </QueryClientProvider>,
   )
 }
 
@@ -28,9 +37,38 @@ const card = (title: string) => screen.getByRole('heading', { level: 3, name: ti
 /** The digest's value for a label (`<dt>` → `<dd>`). */
 const value = (label: string) => within(card(t(`${O}.matching.title`))).getByText(label, { selector: 'dt' }).nextElementSibling?.textContent
 
+/** Complete: matching done, the account created, the questionnaire approved (4b.1). */
 const complete = (r: ProfessionalRecord): ProfessionalRecord => ({
   ...r,
-  readiness: { complete: true, done: 1, total: 1, items: [{ key: 'matching_profile', done: true, missing: [] }], warnings: [] },
+  professional: { ...r.professional, profileId: 'user-1' },
+  readiness: {
+    complete: true,
+    done: 3,
+    total: 3,
+    items: [
+      { key: 'matching_profile', done: true, missing: [] },
+      { key: 'account_created', done: true, missing: [] },
+      { key: 'submission_approved', done: true, missing: [] },
+    ],
+    warnings: [],
+  },
+})
+
+/** Matching done; the account and the questionnaire still to come (an invited file). */
+const awaitingOnboarding = (r: ProfessionalRecord): ProfessionalRecord => ({
+  ...r,
+  professional: { ...r.professional, status: 'invited' },
+  readiness: {
+    complete: false,
+    done: 1,
+    total: 3,
+    items: [
+      { key: 'matching_profile', done: true, missing: [] },
+      { key: 'account_created', done: false, missing: [] },
+      { key: 'submission_approved', done: false, missing: [] },
+    ],
+    warnings: [],
+  },
 })
 
 describe('OverviewTab — Profil de jumelage', () => {
@@ -112,12 +150,13 @@ describe('OverviewTab — Profil de jumelage', () => {
   it('has no « Modifier » without professionals.matching', () => {
     render(
       renderWithContexts(
-        <RecordContext.Provider value={{ record: recordFixture(), catalog: CATALOG_VIEW, focusHeading: () => {} }}>
+        <RecordContext.Provider value={{ record: recordFixture(), catalog: CATALOG_VIEW, onboarding: null, focusHeading: () => {} }}>
           <OverviewTab />
         </RecordContext.Provider>,
         { access: { access: accessForRole('counselor', { permissions: ['professionals.view'] }) } },
       ),
     )
+    
     expect(screen.queryByRole('link', { name: t(`${O}.matching.edit`) })).not.toBeInTheDocument()
   })
 })
@@ -175,5 +214,69 @@ describe('OverviewTab — À surveiller and Prochaine action', () => {
     expect(within(next).getByText(t('modules.professionals.readiness.nextAction.readyToActivate'))).toBeInTheDocument()
     expect(within(next).queryByRole('link')).not.toBeInTheDocument()
     expect(within(next).queryByRole('button')).not.toBeInTheDocument()
+  })
+})
+
+describe('OverviewTab — the onboarding (Task 4b.3)', () => {
+  // Thursday 8 October 2026, 16:00 in Toronto: the dates read « 8 oct. ».
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-08T20:00:00Z'))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  const sent = (state: 'sent' | 'opened' | 'expired' | 'revoked' | 'used'): Onboarding => ({
+    invitation: {
+      state,
+      sentAt: '2026-10-05T14:00:00Z',
+      expiresAt: '2026-10-12T14:00:00Z',
+      openedAt: state === 'opened' ? '2026-10-06T14:00:00Z' : null,
+      usedAt: state === 'used' ? '2026-10-06T15:00:00Z' : null,
+    },
+    submission: null,
+    onboardingApproved: false,
+  })
+  const R = 'modules.professionals.readiness'
+
+  it('says where the invitation stands under « Compte créé », in plain words', () => {
+    renderOverview(awaitingOnboarding, 'admin_assistant', CATALOG_VIEW, sent('opened'))
+    const dossier = card(t(`${O}.readiness.title`))
+    expect(within(dossier).getByText('Invitation envoyée le 5 oct. · ouverte le 6 oct. · expire le 12 oct.')).toBeInTheDocument()
+    expect(within(dossier).getByText(t('modules.professionals.onboarding.questionnaire.afterInvitation'))).toBeInTheDocument()
+  })
+
+  it('an expired link: the line says to send a new one, « Prochaine action » offers it, « À surveiller » flags it', () => {
+    renderOverview(awaitingOnboarding, 'admin_assistant', CATALOG_VIEW, { ...sent('expired') })
+    expect(within(card(t(`${O}.readiness.title`))).getByText('Lien expiré le 12 oct. — envoyez un nouveau lien.')).toBeInTheDocument()
+    expect(within(card(t(`${O}.watch.title`))).getByText('Invitation expirée')).toBeInTheDocument()
+    const next = card(t(`${O}.nextAction.title`))
+    expect(within(next).getByText(t(`${R}.nextAction.invitationExpired`, { date: '12 oct.' }))).toBeInTheDocument()
+  })
+
+  it('no invitation yet: « Envoyer l’invitation » for an inviter opens its confirmation, naming the address', async () => {
+    vi.useRealTimers()
+    const user = userEvent.setup()
+    renderOverview(awaitingOnboarding, 'admin', CATALOG_VIEW, null)
+    expect(within(card(t(`${O}.readiness.title`))).getByText('Aucune invitation envoyée.')).toBeInTheDocument()
+    const next = card(t(`${O}.nextAction.title`))
+    expect(within(next).getByText(t(`${R}.nextAction.notInvited`, { firstName: 'Marie' }))).toBeInTheDocument()
+    await user.click(within(next).getByRole('button', { name: "Envoyer l'invitation" }))
+    const dialog = await screen.findByRole('alertdialog', { name: "Envoyer l'invitation à Marie Tremblay ?" })
+    expect(within(dialog).getByText(/marie\.t@exemple\.ca/)).toBeInTheDocument()
+  })
+
+  it('a counselor reads the same sentence, without the button', () => {
+    renderOverview(awaitingOnboarding, 'counselor', CATALOG_VIEW, null)
+    const next = card(t(`${O}.nextAction.title`))
+    expect(within(next).getByText(t(`${R}.nextAction.notInvited`, { firstName: 'Marie' }))).toBeInTheDocument()
+    expect(within(next).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('a questionnaire sent: « Dossier à réviser » and « Envoyé le … — à réviser »', () => {
+    const submitted: Onboarding = { invitation: sent('used').invitation, submission: { id: 's1', kind: 'onboarding', status: 'submitted', submittedAt: '2026-10-07T15:00:00Z' }, onboardingApproved: false }
+    renderOverview((r) => ({ ...awaitingOnboarding(r), professional: { ...r.professional, status: 'in_review', profileId: 'user-1' } }), 'admin', CATALOG_VIEW, submitted)
+    expect(within(card(t(`${O}.readiness.title`))).getByText('Envoyé le 7 oct. — à réviser.')).toBeInTheDocument()
+    expect(within(card(t(`${O}.watch.title`))).getByText('Dossier à réviser')).toBeInTheDocument()
+    expect(within(card(t(`${O}.nextAction.title`))).getByText(t(`${R}.nextAction.reviewOnboarding`, { firstName: 'Marie', date: '7 oct.' }))).toBeInTheDocument()
   })
 })

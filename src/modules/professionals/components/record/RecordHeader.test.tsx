@@ -10,7 +10,7 @@ import { RecordHeader } from './RecordHeader'
 const H = 'modules.professionals.record.header'
 
 function renderHeader(change: (record: ProfessionalRecord) => ProfessionalRecord = (r) => r) {
-  render(<RecordHeader record={change(recordFixture())} catalog={CATALOG_VIEW} />)
+  render(<RecordHeader record={change(recordFixture())} onboarding={null} catalog={CATALOG_VIEW} />)
 }
 
 describe('RecordHeader', () => {
@@ -38,7 +38,7 @@ describe('RecordHeader', () => {
   })
 
   it('puts the actions after the identity, which keeps 16rem before they wrap under it', () => {
-    render(<RecordHeader record={recordFixture()} catalog={CATALOG_VIEW} actions={<button type="button">Activer</button>} />)
+    render(<RecordHeader record={recordFixture()} onboarding={null} catalog={CATALOG_VIEW} actions={<button type="button">Activer</button>} />)
     const header = screen.getByRole('banner')
     expect(header).toHaveClass('flex-wrap')
     expect(header.lastElementChild).toBe(screen.getByRole('button', { name: 'Activer' }))

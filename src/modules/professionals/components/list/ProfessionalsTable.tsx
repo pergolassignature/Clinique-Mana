@@ -10,6 +10,7 @@ import type { ProfessionalListRow } from '../../api/parse'
 import { titleOrder, type CatalogView } from '../../lib/catalog-view'
 import { recordPath } from '../../lib/constants'
 import { fullName, languagesLabel, statusLabel, statusTone } from '../../lib/display'
+import { displayStatus } from '../../lib/onboarding'
 import { watchFlags } from '../../lib/watch'
 
 const T = 'modules.professionals.list.table'
@@ -19,14 +20,15 @@ const T = 'modules.professionals.list.table'
  * `cq-720:` / `cq-880:` variants, tailwind.config.js), not the window's: the sidebar takes 220px
  * from md up, so the card is narrower at 768px than at 640px. Below 480px: Nom and Statut
  * (the email stays under the name); then Profession; from 720px À surveiller; from 880px Langues
- * (design system: `minmax(0,2fr) minmax(0,1.6fr) 96px 120px minmax(0,1.4fr)`). Every flexible
+ * (design system: `minmax(0,2fr) minmax(0,1.6fr) 96px 120px minmax(0,1.4fr)`; the status column is 136px
+ * so the longest status, « En préparation » (P4-43), is never cut). Every flexible
  * column is `minmax(0, …)` and every text ellipsed, so the table never scrolls sideways.
  */
 const GRID = cn(
-  'grid grid-cols-[minmax(0,1fr)_96px]',
-  'cq-480:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_120px]',
-  'cq-720:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_120px_minmax(0,1.4fr)]',
-  'cq-880:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_96px_120px_minmax(0,1.4fr)]',
+  'grid grid-cols-[minmax(0,1fr)_136px]',
+  'cq-480:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_136px]',
+  'cq-720:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_136px_minmax(0,1.4fr)]',
+  'cq-880:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_96px_136px_minmax(0,1.4fr)]',
 )
 const PROFESSION_COLUMN = 'hidden cq-480:block'
 const WATCH_COLUMN = 'hidden cq-720:block'
@@ -98,6 +100,7 @@ const ProfessionalRow = memo(function ProfessionalRow({
   const title = row.primaryTitleId ? catalog.byId.titles.get(row.primaryTitleId) : undefined
   const licence = [titleOrder(catalog, row.primaryTitleId)?.acronym, row.primaryLicenceNumber].filter(Boolean).join(' ')
   const flag = watchFlags(row)[0]
+  const status = displayStatus(row.status, row.onboarding)
   const prefetch = () => onPrefetch(row.id)
   // A pointer resting on the row, not one crossing the list on its way elsewhere.
   const hover = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -142,9 +145,13 @@ const ProfessionalRow = memo(function ProfessionalRow({
         {languagesLabel(row.languageIds, catalog) || <Nothing />}
       </div>
       <div role="cell" className={cn(CELL, 'flex')}>
-        <Badge variant={statusTone(row.status)}>{statusLabel(row.status)}</Badge>
+        <Badge variant={statusTone(status)}>{statusLabel(status)}</Badge>
       </div>
-      <div role="cell" className={cn(CELL, 'truncate text-xs', WATCH_COLUMN, flag?.tone === 'danger' ? 'text-destructive' : 'text-muted-foreground')}>
+      <div
+        role="cell"
+        title={flag?.label}
+        className={cn(CELL, 'truncate text-xs', WATCH_COLUMN, flag?.tone === 'danger' ? 'text-destructive' : 'text-muted-foreground')}
+      >
         {flag ? flag.label : <Nothing label={t(`${T}.nothingToWatch`)} />}
       </div>
     </div>

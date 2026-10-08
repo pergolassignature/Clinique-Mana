@@ -16,9 +16,10 @@ import { CreateProfessionalDialog } from '../components/list/CreateProfessionalD
 import { ProfessionalsFilters } from '../components/list/ProfessionalsFilters'
 import { ProfessionalsTable } from '../components/list/ProfessionalsTable'
 import { useProfessionalsCatalog } from '../hooks/use-catalog'
+import { prefetchProfessionalOnboarding, useInvitationStates } from '../hooks/use-invitations'
 import { prefetchProfessionalRecord } from '../hooks/use-professional-record'
 import { useProfessionalsList } from '../hooks/use-professionals-list'
-import { filterProfessionals, paginate, searchHaystacks } from '../lib/filters'
+import { filterProfessionals, paginate, searchHaystacks, withOnboarding } from '../lib/filters'
 import { useRememberedProfessionalsFilters } from '../lib/remembered-filters'
 import { professionalRecordPage } from '../manifest'
 import type { ProfessionalListRow } from '../api/parse'
@@ -36,18 +37,24 @@ function subtitle(rows: readonly ProfessionalListRow[]): string {
  * « Professionnels » (design §5.1, design system §4): the clinic's professionals, filtered in the
  * browser (≤ 500 rows, `professionals_list`) by the URL's filters, which each person finds as they
  * left them (`useRememberedProfessionalsFilters`). The list, the catalogue and the remembered
- * filters load in parallel; rows open the record (prefetched on hover or focus).
+ * filters load in parallel, with the clinic's onboarding states (joined in memory: the status as
+ * staff read it, P4-43, and the invitation flags); rows open the record (prefetched on hover or
+ * focus).
  */
 export function ProfessionalsListPage() {
   usePageTitle(t('modules.professionals.name'))
   const { can } = useAccess()
   const queryClient = useQueryClient()
   const list = useProfessionalsList()
+  const states = useInvitationStates()
   const catalog = useProfessionalsCatalog()
   const { filters, setFilters, toggleMotif, setPage, reset, restoring } = useRememberedProfessionalsFilters()
   const filtersButton = useRef<HTMLButtonElement>(null)
 
-  const rows = list.data?.rows
+  // The onboarding states joined in memory (P4-270): one request, in parallel with the list.
+  const listRows = list.data?.rows
+  const stateMap = states.data
+  const rows = useMemo(() => (listRows && stateMap ? withOnboarding(listRows, stateMap) : undefined), [listRows, stateMap])
   const catalogView = catalog.data
   // Folded once per list, not on every keystroke.
   const haystacks = useMemo(() => (rows ? searchHaystacks(rows) : undefined), [rows])
@@ -62,6 +69,7 @@ export function ProfessionalsListPage() {
   const prefetch = useCallback(
     (id: string) => {
       void prefetchProfessionalRecord(queryClient, id)
+      void prefetchProfessionalOnboarding(queryClient, id)
       void professionalRecordPage.preload().catch(() => {
         // Opening the record loads it again and reports a real failure.
       })
@@ -74,7 +82,7 @@ export function ProfessionalsListPage() {
     filtersButton.current?.focus()
   }, [reset])
 
-  const failed = [list, catalog].filter((q) => q.isError && !q.data)
+  const failed = [list, states, catalog].filter((q) => q.isError && !q.data)
 
   return (
     <>

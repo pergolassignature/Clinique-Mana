@@ -30,6 +30,8 @@ export const IDS = {
   professional: '00000000-0000-4000-8000-000000001001',
   professionRow: '00000000-0000-4000-8000-000000001101',
   admin: '00000000-0000-4000-8000-000000002001',
+  /** The professional's own account (`profile_id`), once the invitation is accepted. */
+  providerUser: '00000000-0000-4000-8000-000000002002',
 } as const
 
 const ref = (id: string, key: string, name: string, sort_order: number, extra: Record<string, unknown> = {}) => ({

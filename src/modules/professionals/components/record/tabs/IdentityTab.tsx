@@ -26,6 +26,7 @@ import {
   toIdentityFormValues,
   toPayerNumbersFormValues,
 } from '../../../schemas/identity'
+import { isLiveInvitation } from '../../../lib/onboarding'
 import { ChangeEmailDialog } from '../ChangeEmailDialog'
 import { editingHelp } from '../editing-help'
 import { ProfessionalCard } from '../ProfessionalCard'
@@ -222,7 +223,8 @@ export function IdentityTab() {
  * opens its dialog; once the professional has an account, « Mon compte » owns it.
  */
 function LoginEmail({ readOnly }: { readOnly: boolean }) {
-  const { professional } = useRecordData().record
+  const { record, onboarding } = useRecordData()
+  const { professional } = record
   const hasAccount = professional.profileId !== null
   const input = useRef<HTMLInputElement | null>(null)
   return (
@@ -230,7 +232,13 @@ function LoginEmail({ readOnly }: { readOnly: boolean }) {
       {(field) => (
         <div className="flex min-w-0 items-center gap-2">
           <Input {...field} ref={input} value={professional.email} className="min-w-0 flex-1" />
-          <ChangeEmailDialog professionalId={professional.id} email={professional.email} canChange={!readOnly && !hasAccount} fallbackFocus={input} />
+          <ChangeEmailDialog
+            professionalId={professional.id}
+            email={professional.email}
+            canChange={!readOnly && !hasAccount}
+            invitationLive={isLiveInvitation(onboarding?.invitation)}
+            fallbackFocus={input}
+          />
         </div>
       )}
     </FormField>

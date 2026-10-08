@@ -48,13 +48,13 @@ describe('visibleRecordTabs', () => {
     expect(await prefetched(['professionals.private'])).toEqual([professionalKeys.private('p1'), professionalsSettingsKeys.settings()])
   })
 
-  it('prefetches only Historique’s first page, whatever the permissions (P4-193)', async () => {
+  it('prefetches only Historique’s first page and its emails, whatever the permissions (P4-193, 4b.3)', async () => {
     const queryClient = new QueryClient()
     const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined)
     const infinite = vi.spyOn(queryClient, 'prefetchInfiniteQuery').mockResolvedValue(undefined)
     const def = RECORD_TAB_DEFS.find((d) => d.tab === 'historique')
     await def?.prefetch?.(queryClient, 'p1', () => true)
-    expect(prefetch).not.toHaveBeenCalled()
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual([professionalKeys.emails('p1')])
     expect(infinite).toHaveBeenCalledOnce()
   })
 })
