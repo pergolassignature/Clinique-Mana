@@ -44,9 +44,10 @@
 -- * `core.signing_requests_unverified` (one notice per org and episode): the reconcile works for
 --   the org (an `ok` run started in the last 6 hours) but a request of an enabled module, with a
 --   Documenso envelope and no known completion (that is the unsaved case), has not been read
---   successfully for 6 hours: a sent or viewed one whose last successful read
---   (signature_request_syncs.synced_at, else its send) is over 6 hours old, or a draft that fails
---   to settle for over 6 hours (failing_since; `orphan_completed` is the unsaved case). Either a
+--   successfully for 6 hours: a sent or viewed one whose last successful read since its send
+--   (greatest(signature_request_syncs.synced_at, sent_at): a read of the draft before the send
+--   does not count) is over 6 hours old, or a draft that fails to settle for over 6 hours
+--   (failing_since; `orphan_completed` is the unsaved case). Either a
 --   request fails on its own (deleted at Documenso → 404, a signed PDF over 20 MB, another
 --   instance's envelope), or the runs never reach it, or (a clinic with a single open request)
 --   the address, the key or the instance is wrong: the notice does not claim the reconcile works.
@@ -71,6 +72,11 @@
 --   Same recipients as the others (the task's audience); re-enabling needs modules.manage, so the
 --   notice says to ask a person who manages the modules (an administrator, usually) and links to
 --   « Modules » for those who can.
+-- * The unsaved case (20261008151625's) keeps an orphan draft's notice while the draft stays open
+--   on the same envelope, whatever its last_error: begin_signature_request_send clears it at every
+--   claim and the reconcile re-claims an orphan about every 2 hours, and the key is never posted
+--   twice, so a notice expired by a claim would never come back. It expires once the request is
+--   signed, cancelled, abandoned, re-sent on another envelope, or gone.
 -- * No notice names a person or a request (titles may name one), and only the unsaved one has a
 --   subject. Expiry is bounded to notices of the last 90 days, the window « À surveiller » shows,
 --   like the existing clean-up.
@@ -131,10 +137,13 @@ create trigger org_modules_disabled_at
 -- -----------------------------------------------------------------------------
 -- The open requests of an enabled module, with a Documenso envelope and no known completion (that
 -- is the unsaved case), not read successfully for 6 hours: a sent or viewed one whose last
--- successful read (signature_request_syncs.synced_at, else its send) is over 6 hours old, or a
--- draft failing to settle for over 6 hours (failing_since; `orphan_completed` is the unsaved
--- case). `p_org_id` null: every org (the alert job). Invoker, granted to no role: called by the job
--- and by list_unverified_signature_requests (definer, after its permission check).
+-- successful read since its send (greatest(signature_request_syncs.synced_at, sent_at): a read of
+-- the draft before the send, on an earlier envelope or none, does not count for the sent one) is
+-- over 6 hours old, or a draft failing to settle for over 6 hours (failing_since;
+-- `orphan_completed` is the unsaved case). `synced_at` is returned only when it is that send's
+-- (null when earlier than sent_at). `p_org_id` null: every org (the alert job). Invoker, granted
+-- to no role: called by the job and by list_unverified_signature_requests (definer, after its
+-- permission check).
 create function private.signing_unverified_requests(p_org_id uuid)
 returns table (
   request_id uuid,
@@ -147,14 +156,16 @@ language sql
 stable
 set search_path = ''
 as $$
-  select r.id, r.org_id, s.synced_at, s.failing_since, s.error_code
+  select r.id, r.org_id,
+         case when r.sent_at is null or s.synced_at >= r.sent_at then s.synced_at end,
+         s.failing_since, s.error_code
     from public.signature_requests r
     left join public.signature_request_syncs s on s.request_id = r.id
    where (p_org_id is null or r.org_id = p_org_id)
      and r.envelope_id is not null
      and r.completed_event_at is null
      and ((r.status in ('sent', 'viewed')
-           and coalesce(s.synced_at, r.sent_at) < pg_catalog.now() - interval '6 hours')
+           and greatest(s.synced_at, r.sent_at) < pg_catalog.now() - interval '6 hours')
           or (r.status = 'draft'
               and coalesce(r.last_error, '') not in ('abandoned', 'orphan_completed')
               and s.failing_since < pg_catalog.now() - interval '6 hours'))
@@ -164,8 +175,9 @@ $$;
 revoke all on function private.signing_unverified_requests(uuid) from public, anon, authenticated, service_role;
 
 -- « Signature électronique » (settings.integrations_manage): the caller's org's requests no read
--- reaches (header), oldest successful read first. `title` is null unless the caller may see the
--- request (its view_permission). 42501 without the permission.
+-- reaches (header), oldest successful read since the send first. `synced_at` is null when no read
+-- succeeded since the send (an earlier one, of the draft, is not shown). `title` is null unless the
+-- caller may see the request (its view_permission). 42501 without the permission.
 create function public.list_unverified_signature_requests()
 returns table (
   id uuid,
@@ -194,7 +206,7 @@ begin
          r.sent_at, u.synced_at, u.failing_since, u.error_code
     from private.signing_unverified_requests(v_org) u
     join public.signature_requests r on r.id = u.request_id
-   order by coalesce(u.synced_at, r.sent_at, r.created_at), r.id
+   order by coalesce(greatest(u.synced_at, r.sent_at), r.created_at), r.id
    limit 100;
 end;
 $$;
@@ -241,6 +253,11 @@ begin
                         where n.org_id = r.org_id and n.kind = 'core.signed_document_unsaved'
                           and n.dedupe_key = r.id::text || ':' || r.envelope_id);
 
+    -- An orphan draft's notice stays while the draft is open on the same envelope, whatever its
+    -- last_error: begin_signature_request_send clears it at every claim, and the reconcile
+    -- re-claims an orphan every couple of hours; the key is never posted twice, so a notice
+    -- expired then would never come back. It ends once the request is signed, cancelled,
+    -- abandoned, re-sent on another envelope, or gone.
     update public.notifications n
        set expires_at = pg_catalog.now()
      where n.kind = 'core.signed_document_unsaved'
@@ -250,7 +267,7 @@ begin
                         where r.id = n.subject_id and r.org_id = n.org_id
                           and n.dedupe_key = r.id::text || ':' || r.envelope_id
                           and ((r.status in ('sent', 'viewed') and r.completed_event_at is not null)
-                               or (r.status = 'draft' and r.last_error = 'orphan_completed')));
+                               or (r.status = 'draft' and coalesce(r.last_error, '') <> 'abandoned')));
     get diagnostics v_ended = row_count;
     v_parts := v_parts || ('notified=' || v_posted) || ('cleared=' || v_ended);
   exception when others then

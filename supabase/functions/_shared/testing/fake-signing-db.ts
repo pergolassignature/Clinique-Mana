@@ -744,13 +744,15 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
         reported: {},
       }
       row.attempted_at = iso()
-      if (code === null) {
+      if (code !== null) {
+        row.failing_since ??= iso()
+        row.error_code = code
+      } else if (a.p_read !== false) {
+        // A read (the SQL default); `p_read` false: the attempt only.
         row.synced_at = iso()
         row.failing_since = null
-      } else {
-        row.failing_since ??= iso()
+        row.error_code = null
       }
-      row.error_code = code
       syncs.set(r.id, row)
       const dayAgo = new Date(now().getTime() - DAY_MS).toISOString()
       const due = [...new Set((a.p_report_codes ?? []) as string[])].sort()

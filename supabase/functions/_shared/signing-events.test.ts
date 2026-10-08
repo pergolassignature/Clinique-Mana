@@ -1154,6 +1154,8 @@ Deno.test('isDocumensoOutage: Documenso unusable (key refused, no answer, redire
       documenso('provider_error', 408),
       documenso('provider_error', 429),
       documenso('provider_error', 503),
+      // A 200 to a read that is no envelope (a wrong base URL serving a page).
+      new DocumensoError('provider_error', 200, 'x', null, false, true),
       new SigningFailure('not_configured'),
     ]
   ) assert(isDocumensoOutage(outage), `${outage.code} ${outage.message}`)
@@ -1456,6 +1458,147 @@ Deno.test('reconcileOrg: a draft skipped as sending is not a read: with every ot
       )
     })
     assertEquals(s.db.requests.get(draft.id)!.status, 'draft', 'left alone')
+  })
+})
+
+/** A fetch that answers every read of `envelopes` (all when null) with a 200 HTML page. */
+function pageAt(
+  envelopes: string[] | null,
+  fallback: typeof fetch,
+): typeof fetch {
+  return (input, init) => {
+    const path = new URL(new Request(input, init).url).pathname
+    const hit = envelopes === null
+      ? path.startsWith('/api/v2/envelope/')
+      : envelopes.some((id) => path.endsWith(`/${id}`))
+    return hit
+      ? Promise.resolve(
+        new Response('<html>Bienvenue</html>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+      )
+      : fallback(input, init)
+  }
+}
+
+Deno.test('reconcileOrg: every read answers a 200 that is no envelope (a wrong base URL serving a page) → reconcile_failed', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    await sentRequest(s.fake, s.db)
+    await sentRequest(s.fake, s.db)
+    const perOrg = reconcileOrg(
+      {
+        fetch: pageAt(null, s.fake.fetch),
+        now: s.clock.now,
+        reach: LOCAL_REACH,
+      },
+      'signing-sync',
+    )
+    await captureConsole('error', async () => {
+      const error = await assertRejects(() =>
+        perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+      )
+      assertEquals((error as { code: string }).code, 'reconcile_failed')
+    })
+    assertEquals(s.db.syncs.size, 2)
+    for (const sync of s.db.syncs.values()) {
+      assertEquals([sync.error_code, sync.synced_at], ['provider_error', null])
+    }
+  })
+})
+
+Deno.test('reconcileOrg: one read answers a 200 that is no envelope among real reads → partial, the run is ok', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const odd = await sentRequest(s.fake, s.db)
+    const fine = await sentRequest(s.fake, s.db)
+    const perOrg = reconcileOrg(
+      {
+        fetch: pageAt([odd.envelope_id!], s.fake.fetch),
+        now: s.clock.now,
+        reach: LOCAL_REACH,
+      },
+      'signing-sync',
+    )
+    let detail = ''
+    await captureConsole('error', async () => {
+      detail = await perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+    })
+    assertEquals(
+      detail,
+      '1 demande suivie (1 inchangée) ; 1 demande non vérifiée',
+    )
+    assertEquals(s.db.syncs.get(odd.id)!.error_code, 'provider_error')
+    assertEquals(s.db.syncs.get(fine.id)!.synced_at, NOW)
+  })
+})
+
+Deno.test('reconcileOrg: a draft skipped as sending is recorded as an attempt only: its last read and failure streak stay', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const draft = await deadDraft(s, false)
+    const before = {
+      attempted_at: '2026-10-08T10:00:00.000Z',
+      synced_at: '2026-10-08T05:00:00.000Z',
+      error_code: 'provider_unreachable',
+      failing_since: '2026-10-08T06:00:00.000Z',
+      reported: {},
+    }
+    s.db.syncs.set(draft.id, { ...before })
+    // Two hours later the draft is listed, but a send claimed it 5 minutes ago.
+    s.clock.advance(2 * 3_600_000)
+    s.db.requests.get(draft.id)!.send_started_at = new Date(
+      s.clock.now().getTime() - 5 * 60_000,
+    ).toISOString()
+    assertEquals(
+      await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal),
+      '1 demande suivie (1 en cours d’envoi)',
+    )
+    assertEquals(s.db.syncs.get(draft.id), {
+      ...before,
+      attempted_at: s.clock.now().toISOString(),
+    })
+    assertEquals(
+      s.supabase.calls.find((c) => c.fn === 'record_signature_sync')?.args,
+      {
+        p_org_id: SIGNING_ORG,
+        p_id: draft.id,
+        p_error_code: null,
+        p_read: false,
+        p_report_codes: [],
+      },
+    )
+  })
+})
+
+Deno.test('reconcileOrg: a request settled without a Documenso read (a draft with no envelope, abandoned) is no read: the attempt only', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    s.db.insertRequest({ id: 'r1', created_at: '2026-10-06T12:00:00.000Z' })
+    assertEquals(
+      await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal),
+      '1 demande suivie (1 abandonnée)',
+    )
+    const sync = s.db.syncs.get('r1')!
+    assertEquals(
+      [sync.attempted_at, sync.synced_at, sync.error_code, sync.failing_since],
+      [NOW, null, null, null],
+    )
+  })
+})
+
+Deno.test('reconcileOrg: a read records a success (p_read true)', async () => {
+  await run(async () => {
+    const s = cronSetup()
+    const row = await sentRequest(s.fake, s.db)
+    await s.perOrg(SIGNING_ORG, s.supabase.client, s.signal)
+    assertEquals(
+      s.supabase.calls.find((c) => c.fn === 'record_signature_sync')?.args
+        .p_read,
+      true,
+    )
+    assertEquals(s.db.syncs.get(row.id)!.synced_at, NOW)
   })
 })
 

@@ -310,6 +310,15 @@ export class DocumensoError extends FunctionError {
      * (E-14: callers tell an outage from a missing envelope).
      */
     readonly notFound: boolean = false,
+    /**
+     * True only for a 2xx answer to an envelope read that is not a usable
+     * envelope (not JSON, not the envelope's shape, over 1 MB, or another
+     * envelope's id): something other than Documenso answered at the address
+     * (a wrong base URL serving a 200 page, a proxy), like a 404 without
+     * `notFound`. Every other failure is false, a download's unusable 2xx
+     * included (a signed PDF over the cap is the request's own).
+     */
+    readonly unusableRead: boolean = false,
   ) {
     super(code, message)
     this.name = 'DocumensoError'
@@ -578,11 +587,19 @@ function statusError(
   )
 }
 
-function badResponse(operation: Operation, status: number): DocumensoError {
+/** A 2xx we cannot use; `unusableRead` for an envelope read's (`DocumensoError`). */
+function badResponse(
+  operation: Operation,
+  status: number,
+  unusableRead = false,
+): DocumensoError {
   return new DocumensoError(
     'provider_error',
     status,
     `Documenso ${operation}: unexpected response`,
+    null,
+    false,
+    unusableRead,
   )
 }
 
@@ -807,7 +824,9 @@ export function documensoClient(
   ): Promise<z.output<S>> {
     const { operation, res } = exchange
     const result = schema.safeParse(await readJson(exchange, MAX_JSON_BYTES))
-    if (!result.success) throw badResponse(operation, res.status)
+    if (!result.success) {
+      throw badResponse(operation, res.status, operation === 'read')
+    }
     return result.data
   }
 
@@ -819,7 +838,7 @@ export function documensoClient(
       { method: 'GET' },
     )
     const envelope = await parsed(exchange, envelopeSchema)
-    if (envelope.id !== id) throw badResponse('read', exchange.res.status)
+    if (envelope.id !== id) throw badResponse('read', exchange.res.status, true)
     return envelope
   }
 

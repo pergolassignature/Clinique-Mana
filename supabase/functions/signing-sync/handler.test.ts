@@ -248,6 +248,38 @@ Deno.test('signing-sync: a successful « Synchroniser » records the read (recor
   })
 })
 
+Deno.test('signing-sync: a « Synchroniser » that read nothing at Documenso (no envelope) records the attempt only: the « non vérifiée » state stays', async () => {
+  await run(async () => {
+    const s = setup()
+    const row = s.db.insertRequest({
+      id: crypto.randomUUID(),
+      status: 'sent',
+      envelope_id: null,
+    })
+    const before = {
+      attempted_at: '2026-10-08T03:00:00.000Z',
+      synced_at: '2026-10-08T01:00:00.000Z',
+      error_code: 'provider_unreachable',
+      failing_since: '2026-10-08T02:00:00.000Z',
+      reported: {},
+    }
+    s.db.syncs.set(row.id, { ...before })
+    const res = await s.handler(post({ request_id: row.id }))
+    assertEquals(await json(res), {
+      status: 200,
+      request_id: row.id,
+      outcome: 'unchanged',
+    })
+    assertEquals(s.db.syncs.get(row.id), { ...before, attempted_at: NOW })
+    assertEquals(
+      s.service.calls.find((c) => c.fn === 'record_signature_sync')?.args
+        .p_read,
+      false,
+    )
+    assertEquals(s.fake.calls.length, 0)
+  })
+})
+
 Deno.test('signing-sync: a failed « Synchroniser » records its code (a 404 is provider_not_found), still 502', async () => {
   await run(async () => {
     const s = setup()

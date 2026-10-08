@@ -36,8 +36,10 @@
  *    claimed).
  * 7. For a sent or viewed request, the attempt is recorded like the
  *    reconcile's (`record_signature_sync`, best effort, nothing reported): a
- *    successful « Synchroniser » clears the request's « non vérifiée » state
- *    (`…_core_signing_blind_alert`), a failure records its code.
+ *    successful « Synchroniser » that read the request's own envelope
+ *    (`trackOwnReads`) clears its « non vérifiée » state
+ *    (`…_core_signing_blind_alert`), a failure records its code, and one
+ *    that read nothing (no envelope) records the attempt only.
  * 8. 200 `{ request_id, outcome }` (`signed`, `updated`, `unchanged`,
  *    `orphan_completed`, `sending`).
  *
@@ -68,7 +70,9 @@ import {
   RECONCILE_TIMEOUT_MS,
   reconcileOrg,
   recordAttempt,
+  type SyncAttempt,
   syncRequest,
+  trackOwnReads,
 } from '../_shared/signing-events.ts'
 
 const FN = 'signing-sync'
@@ -174,19 +178,21 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       )
     }
     // A sent or viewed request's read is recorded like the reconcile's
-    // (`record_signature_sync`, nothing reported): a successful click clears
-    // its « non vérifiée » state, a failed one counts. A draft's state is its
-    // settle's, which a click never runs.
-    const record = (code: string | null) =>
+    // (`record_signature_sync`, nothing reported): a successful click that
+    // read its own envelope clears its « non vérifiée » state, a failed one
+    // counts, one that read nothing is an attempt only. A draft's state is
+    // its settle's, which a click never runs.
+    const tracked = trackOwnReads(signing, row.data.id)
+    const record = (attempt: SyncAttempt) =>
       row.data.status === 'draft'
         ? Promise.resolve()
-        : recordAttempt(service, orgId, row.data.id, code, [], deps.fetch)
+        : recordAttempt(service, orgId, row.data.id, attempt, [], deps.fetch)
     try {
       const outcome = await syncRequest(
         {
           client: service,
           orgId,
-          signing,
+          signing: tracked.signing,
           now: deps.now,
           fn: FN,
           fetch: deps.fetch,
@@ -194,10 +200,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         row.data,
         { settleDrafts: false },
       )
-      await record(null)
+      await record({ read: tracked.seen() })
       return jsonResponse({ request_id: row.data.id, outcome }, 200, req)
     } catch (error) {
-      await record(failureCode(error))
+      await record({ code: failureCode(error) })
       return await failure(error)
     }
   }

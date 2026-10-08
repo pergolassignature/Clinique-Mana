@@ -9,15 +9,16 @@
 -- maintenance job whose body no role may call; it posts one important core notice per request and
 -- envelope (to settings.integrations_manage, in the request's org, linked to « Signature
 -- électronique ») when Documenso completed it over 6 hours ago and the signed PDF is still not
--- stored, or when it is a draft left `orphan_completed`; never twice; expires the notice once the
--- request no longer meets that condition (signed, or the orphan cancelled); deletes the sync state
--- of closed requests. The full detail (the blind cases are 046's) is checked here too. Built on
+-- stored, or when it is a draft left `orphan_completed`; never twice; keeps an orphan's notice
+-- across claims (which clear its last_error); expires the notice once the request no longer meets
+-- that condition (signed, the orphan abandoned or re-sent on another envelope); deletes the sync
+-- state of closed requests. record_signature_sync also records an attempt that read nothing. The full detail (the blind cases are 046's) is checked here too. Built on
 -- the envelope API (*_core_signing_envelope.sql, applied first): the list and the alert read
 -- `envelope_id`, never the deprecated `documenso_document_id`.
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(40);
+select plan(52);
 
 -- =============================================================================
 -- Jobs: catalogue, schedules, privileges
@@ -50,7 +51,7 @@ $$, $$ values (false, false, false, false) $$, 'the alert body: no role may call
 select results_eq($$
   select has_function_privilege('anon', p.oid, 'execute'), has_function_privilege('authenticated', p.oid, 'execute'),
          has_function_privilege('service_role', p.oid, 'execute'), p.prosecdef
-    from pg_proc p where p.oid = 'public.record_signature_sync(uuid,uuid,text,text[])'::regprocedure
+    from pg_proc p where p.oid = 'public.record_signature_sync(uuid,uuid,text,text[],boolean)'::regprocedure
 $$, $$ values (false, false, true, true) $$, 'record_signature_sync: the service role only, definer');
 
 -- =============================================================================
@@ -188,6 +189,26 @@ select results_eq($$
    where request_id = 'c0000000-0000-0000-0000-0000000000e3'
 $$, $$ values (now(), null::text, null::timestamptz) $$, 'a success clears the failure and its start');
 
+-- An attempt that read nothing at Documenso (a draft skipped as `sending`, …: p_read false) moves
+-- only attempted_at: neither the last read nor the failure streak.
+update public.signature_request_syncs
+   set attempted_at = now() - interval '1 hour', synced_at = now() - interval '2 hours',
+       error_code = 'provider_error', failing_since = now() - interval '3 hours'
+ where request_id = 'c0000000-0000-0000-0000-0000000000e3';
+set local role service_role;
+select is(public.record_signature_sync('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000000e3',
+            null, '{}', false),
+  '{}'::text[], 'an attempt that read nothing');
+select throws_ok($$ select public.record_signature_sync('b0000000-0000-0000-0000-00000000000a',
+                     'c0000000-0000-0000-0000-0000000000e3', null, '{}', null) $$,
+  '22023', null, 'whether it read is required');
+reset role;
+select results_eq($$
+  select attempted_at = now(), synced_at, error_code, failing_since from public.signature_request_syncs
+   where request_id = 'c0000000-0000-0000-0000-0000000000e3'
+$$, $$ values (true, now() - interval '2 hours', 'provider_error'::text, now() - interval '3 hours') $$,
+  'nothing read: the attempt is stamped (the rotation), the last read and the failure streak stay');
+
 -- =============================================================================
 -- The alert (as postgres, like run_sql_job)
 -- =============================================================================
@@ -249,33 +270,56 @@ $$, $$ values ('c0000000-0000-0000-0000-0000000000a1'::uuid, now()),
 select results_eq($$ select request_id from public.signature_request_syncs $$,
   $$ values ('c0000000-0000-0000-0000-0000000000e3'::uuid) $$, 'the open request''s sync state stays');
 
--- The orphan draft f1 is cancelled by a person (abandoned): its notice expires, it is not signed.
-update public.signature_requests set last_error = 'abandoned' where id = 'c0000000-0000-0000-0000-0000000000f1';
+-- The reconcile claims the orphan draft f1 again (about every 2 hours): begin_signature_request_send
+-- clears its last_error. The notice stays: its key is never posted twice, so it would never come back.
+select ok(public.begin_signature_request_send('b0000000-0000-0000-0000-00000000000a',
+            'c0000000-0000-0000-0000-0000000000f1', interval '10 minutes'),
+  'f1 is claimed again (its last_error cleared)');
+select is(private.job_signing_unsaved_alert(),
+  'notified=0 cleared=0 stalled=0 resumed=0 unverified=0 verified=0 module_disabled=0 module_cleared=0 syncs_purged=0',
+  'an orphan draft claimed again, on the same envelope: its notice stays');
+select is((select expires_at from public.notifications
+            where kind = 'core.signed_document_unsaved' and subject_id = 'c0000000-0000-0000-0000-0000000000f1'),
+  null::timestamptz, 'still open');
+
+-- Then a person cancels it (abandoned): its notice expires, it is not signed.
+select lives_ok($$ select public.mark_signature_request_failed('c0000000-0000-0000-0000-0000000000f1', 'abandoned') $$,
+  'f1 is abandoned');
 select is(private.job_signing_unsaved_alert(),
   'notified=0 cleared=1 stalled=0 resumed=0 unverified=0 verified=0 module_disabled=0 module_cleared=0 syncs_purged=0',
-  'an orphan draft no longer left orphan_completed: its notice expires at the next run');
+  'an orphan draft abandoned: its notice expires at the next run');
 select is((select expires_at from public.notifications
             where kind = 'core.signed_document_unsaved' and subject_id = 'c0000000-0000-0000-0000-0000000000f1'),
   now(), 'expired now, not in 90 days');
 
--- b1 is re-sent on another envelope (a new key): the old notice expires; once Documenso completed
--- the new one over 6 hours ago without its PDF, a new notice is posted.
-update public.signature_requests set envelope_id = 'envelope_708', completed_event_at = null
- where id = 'c0000000-0000-0000-0000-0000000000b1';
+-- The draft d1 (envelope_706) is left orphan_completed: a notice. It is re-sent (claimed; the send
+-- fails after creating envelope_708, which the draft records): the old notice expires. Once
+-- Documenso completes envelope_708 with unmatched recipients again, a new notice (a new key).
+select lives_ok($$ select public.mark_signature_request_failed('c0000000-0000-0000-0000-0000000000d1', 'orphan_completed') $$,
+  'd1 is left orphan_completed');
+select is(private.job_signing_unsaved_alert(),
+  'notified=1 cleared=0 stalled=0 resumed=0 unverified=0 verified=0 module_disabled=0 module_cleared=0 syncs_purged=0',
+  'd1''s orphan is notified');
+select ok(public.begin_signature_request_send('b0000000-0000-0000-0000-00000000000a',
+            'c0000000-0000-0000-0000-0000000000d1', interval '10 minutes'),
+  'd1 is claimed for a re-send');
+select lives_ok($$ select public.mark_signature_request_failed('c0000000-0000-0000-0000-0000000000d1', 'provider_error',
+                     'envelope_708') $$,
+  'the re-send records its new envelope, then fails');
 select is(private.job_signing_unsaved_alert(),
   'notified=0 cleared=1 stalled=0 resumed=0 unverified=0 verified=0 module_disabled=0 module_cleared=0 syncs_purged=0',
   'another envelope, not completed: the old notice expires');
-update public.signature_requests set completed_event_at = now() - interval '7 hours'
- where id = 'c0000000-0000-0000-0000-0000000000b1';
+select lives_ok($$ select public.mark_signature_request_failed('c0000000-0000-0000-0000-0000000000d1', 'orphan_completed') $$,
+  'the new envelope is completed with unmatched recipients');
 select is(private.job_signing_unsaved_alert(),
   'notified=1 cleared=0 stalled=0 resumed=0 unverified=0 verified=0 module_disabled=0 module_cleared=0 syncs_purged=0',
-  'the new envelope completed without its PDF: a new notice (new key)');
+  'a new notice for the new envelope (a new key)');
 select results_eq($$
   select dedupe_key, expires_at is null from public.notifications
-   where kind = 'core.signed_document_unsaved' and subject_id = 'c0000000-0000-0000-0000-0000000000b1'
+   where kind = 'core.signed_document_unsaved' and subject_id = 'c0000000-0000-0000-0000-0000000000d1'
    order by dedupe_key
-$$, $$ values ('c0000000-0000-0000-0000-0000000000b1:envelope_707'::text, false),
-              ('c0000000-0000-0000-0000-0000000000b1:envelope_708', true) $$,
+$$, $$ values ('c0000000-0000-0000-0000-0000000000d1:envelope_706'::text, false),
+              ('c0000000-0000-0000-0000-0000000000d1:envelope_708', true) $$,
   'one notice per envelope of the request');
 
 select lives_ok($$ select private.run_sql_job('core.signing_unsaved_alert') $$, 'run_sql_job runs it');

@@ -83,16 +83,21 @@ create table public.signature_request_syncs (
 alter table public.signature_request_syncs enable row level security;
 revoke all on public.signature_request_syncs from anon, authenticated, service_role;
 
--- Records one reconcile attempt of a request (signing-sync, service role): `p_error_code` null for
--- a success, else the failure's code. Returns, among `p_report_codes` (the codes the function
--- would report for this request: its failure, signing_orphan_completed, …), those not reported
--- for this request in the last day, and stamps them: the function reports only those. '{}' for a
--- request of another org (nothing recorded). Codes are identifiers (22023 otherwise), 10 at most.
+-- Records one reconcile attempt of a request (signing-sync, service role): `p_error_code` the
+-- failure's code, or null when it did not fail; then `p_read` says whether Documenso returned the
+-- request's own envelope (a success: synced_at stamped, the failure cleared) or nothing was read
+-- (a draft skipped as `sending`, one abandoned without a read, no envelope: attempted_at only, so
+-- neither the last read nor the failure streak moves). `p_read` is ignored with a code; null →
+-- 22023. Returns, among `p_report_codes` (the codes the function would report for this request:
+-- its failure, signing_orphan_completed, …), those not reported for this request in the last day,
+-- and stamps them: the function reports only those. '{}' for a request of another org (nothing
+-- recorded). Codes are identifiers (22023 otherwise), 10 at most.
 create function public.record_signature_sync(
   p_org_id uuid,
   p_id uuid,
   p_error_code text default null,
-  p_report_codes text[] default '{}'
+  p_report_codes text[] default '{}',
+  p_read boolean default true
 )
 returns text[]
 language plpgsql
@@ -103,8 +108,11 @@ as $$
 declare
   v_reported jsonb;
   v_due text[];
+  -- A success: read, no failure.
+  v_ok boolean := p_error_code is null and p_read;
 begin
   if p_error_code !~ '^[A-Za-z0-9_]{1,64}$'
+     or p_read is null
      or pg_catalog.cardinality(p_report_codes) > 10
      or exists (select 1 from pg_catalog.unnest(p_report_codes) c(code)
                  where c.code is null or c.code !~ '^[A-Za-z0-9_]{1,64}$') then
@@ -114,7 +122,7 @@ begin
   insert into public.signature_request_syncs as s
     (request_id, org_id, attempted_at, synced_at, error_code, failing_since)
   select r.id, r.org_id, pg_catalog.now(),
-         case when p_error_code is null then pg_catalog.now() end,
+         case when v_ok then pg_catalog.now() end,
          p_error_code,
          case when p_error_code is not null then pg_catalog.now() end
     from public.signature_requests r
@@ -122,9 +130,12 @@ begin
   on conflict (request_id) do update
     set attempted_at = excluded.attempted_at,
         synced_at = coalesce(excluded.synced_at, s.synced_at),
-        error_code = excluded.error_code,
-        failing_since = case when excluded.error_code is null then null
-                             else coalesce(s.failing_since, excluded.failing_since) end
+        -- Nothing read and nothing failed: the streak stays as it was.
+        error_code = case when p_error_code is null and not v_ok then s.error_code
+                          else excluded.error_code end,
+        failing_since = case when p_error_code is not null then coalesce(s.failing_since, excluded.failing_since)
+                             when v_ok then null
+                             else s.failing_since end
   returning s.reported into v_reported;
   if v_reported is null then
     return '{}';
@@ -149,8 +160,8 @@ begin
 end;
 $$;
 
-revoke all on function public.record_signature_sync(uuid, uuid, text, text[]) from public, anon, authenticated;
-grant execute on function public.record_signature_sync(uuid, uuid, text, text[]) to service_role;
+revoke all on function public.record_signature_sync(uuid, uuid, text, text[], boolean) from public, anon, authenticated;
+grant execute on function public.record_signature_sync(uuid, uuid, text, text[], boolean) to service_role;
 
 -- -----------------------------------------------------------------------------
 -- The reconcile list: every sent or viewed request, completed-without-PDF first, then rotation
@@ -258,7 +269,9 @@ begin
                           and n.dedupe_key = r.id::text || ':' || r.envelope_id);
 
     -- Ends once the request no longer meets the condition for the envelope the notice names:
-    -- signed, an orphan draft cancelled (`abandoned`) or re-sent, or another envelope since.
+    -- signed, an orphan draft cancelled (`abandoned`) or re-sent, or another envelope since. An
+    -- orphan draft open on the same envelope keeps it whatever its last_error (each claim clears
+    -- it, and the key is never posted twice).
     update public.notifications n
        set expires_at = pg_catalog.now()
      where n.kind = 'core.signed_document_unsaved'
@@ -268,7 +281,7 @@ begin
                         where r.id = n.subject_id and r.org_id = n.org_id
                           and n.dedupe_key = r.id::text || ':' || r.envelope_id
                           and ((r.status in ('sent', 'viewed') and r.completed_event_at is not null)
-                               or (r.status = 'draft' and r.last_error = 'orphan_completed')));
+                               or (r.status = 'draft' and coalesce(r.last_error, '') <> 'abandoned')));
     get diagnostics v_cleared = row_count;
     v_parts := v_parts || ('notified=' || v_notified) || ('cleared=' || v_cleared);
   exception when others then

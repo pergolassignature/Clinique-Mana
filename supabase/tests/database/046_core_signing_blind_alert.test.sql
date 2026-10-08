@@ -23,7 +23,8 @@
 -- * The org_modules.disabled_at backfill of modules already disabled (the migration's own
 --   statement, replayed on rows as they were before it).
 -- * list_unverified_signature_requests: settings.integrations_manage only, the caller's org, the
---   same condition as the notice, a request's title only for those who may see the request.
+--   same condition as the notice, a request's title only for those who may see the request; a
+--   read before the send (of the draft) neither counts nor shows (greatest(synced_at, sent_at)).
 -- The whole file is one transaction, so now() is constant: an `ok` run « after » a notice is
 -- written with a finished_at in the future.
 begin;
@@ -384,7 +385,8 @@ alter table public.org_modules
 -- list_unverified_signature_requests (« Signature électronique »)
 -- Org M: an admin; an adjointe granted settings.integrations_manage and refused professionals.view;
 -- a plain adjointe. m1 (core, last read 8 h ago, 404 since 7 h), m2 (Professionnels, never read),
--- m3 (core, read 1 h ago: verified). Org K's unverified request is another org's.
+-- m3 (core, read 1 h ago: verified), m4 and m0 (a read before the send, below). Org K's unverified
+-- request is another org's.
 -- =============================================================================
 select results_eq($$
   select p.prosecdef, has_function_privilege('anon', p.oid, 'execute'),
@@ -442,6 +444,24 @@ values
    now() - interval '8 hours', 'provider_not_found', now() - interval '7 hours'),
   ('c3000000-0000-0000-0000-0000000000a3', 'b0000000-0000-0000-0000-00000000003a', now() - interval '1 hour',
    now() - interval '1 hour', null, null);
+-- A read of the draft, before the send, does not count for the sent envelope (greatest, not
+-- coalesce): m4 sent 1 h ago, last read 8 h before its send (not 6 h since the send: not
+-- unverified); m0 sent 7 h ago, last read 1 h before its send (unverified, listed with no read).
+insert into public.signature_requests (id, org_id, module_key, purpose, subject_type, subject_id, title, status,
+  envelope_id, idempotency_key, view_permission, created_at, sent_at, expires_at)
+select x.id, 'b0000000-0000-0000-0000-00000000003a', 'core', 'core.signing_test', 'signing_test',
+       'a0000000-0000-0000-0000-000000000001', x.title, 'sent', 'envelope_' || x.doc, 'key-' || x.id,
+       'settings.integrations_manage', now() - interval '3 days', x.sent, now() + interval '4 days'
+  from (values
+    ('c3000000-0000-0000-0000-0000000000a4'::uuid, 'Envoyé il y a 1 h', '904', now() - interval '1 hour'),
+    ('c3000000-0000-0000-0000-0000000000a0', 'Envoyé il y a 7 h', '900', now() - interval '7 hours')
+  ) as x (id, title, doc, sent);
+insert into public.signature_request_syncs (request_id, org_id, attempted_at, synced_at)
+values
+  ('c3000000-0000-0000-0000-0000000000a4', 'b0000000-0000-0000-0000-00000000003a', now() - interval '9 hours',
+   now() - interval '9 hours'),
+  ('c3000000-0000-0000-0000-0000000000a0', 'b0000000-0000-0000-0000-00000000003a', now() - interval '8 hours',
+   now() - interval '8 hours');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a3000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
@@ -450,13 +470,16 @@ select results_eq($$ select id, module_key, title, sent_at, synced_at, failing_s
   $$ values ('c3000000-0000-0000-0000-0000000000a2'::uuid, 'professionals'::text, 'Contrat de Jeanne Exemple'::text,
              now() - interval '3 days', null::timestamptz, null::timestamptz, null::text),
             ('c3000000-0000-0000-0000-0000000000a1', 'core', 'Document test', now() - interval '3 days',
-             now() - interval '8 hours', now() - interval '7 hours', 'provider_not_found') $$,
-  'an admin: the org''s requests no read reaches, oldest successful read first, with their titles (not m3, read 1 h ago; not org K''s)');
+             now() - interval '8 hours', now() - interval '7 hours', 'provider_not_found'),
+            ('c3000000-0000-0000-0000-0000000000a0', 'core', 'Envoyé il y a 7 h', now() - interval '7 hours',
+             null, null, null) $$,
+  'an admin: the org''s requests no read reaches, oldest successful read since the send first, with their titles (not m3, read 1 h ago; not m4, sent 1 h ago though last read 9 h ago; m0''s read before its send is not shown; not org K''s)');
 
 select set_config('request.jwt.claims', '{"sub":"a3000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select results_eq($$ select id, title from public.list_unverified_signature_requests() $$,
   $$ values ('c3000000-0000-0000-0000-0000000000a2'::uuid, null::text),
-            ('c3000000-0000-0000-0000-0000000000a1', 'Document test') $$,
+            ('c3000000-0000-0000-0000-0000000000a1', 'Document test'),
+            ('c3000000-0000-0000-0000-0000000000a0', 'Envoyé il y a 7 h') $$,
   'an integration manager who may not see a request: listed, its title withheld');
 
 select set_config('request.jwt.claims', '{"sub":"a3000000-0000-0000-0000-000000000003","role":"authenticated"}', true);

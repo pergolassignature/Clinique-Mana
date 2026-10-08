@@ -4293,6 +4293,7 @@ export type Database = {
           p_error_code?: string
           p_id: string
           p_org_id: string
+          p_read?: boolean
           p_report_codes?: string[]
         }
         Returns: string[]

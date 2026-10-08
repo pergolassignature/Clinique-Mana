@@ -965,7 +965,9 @@ export function failureCode(error: unknown): string {
  * one request is bad: not configured or the key refused (`not_configured`:
  * no URL or key, 401, 403), no complete answer (network, timeout, an address
  * `reach` refuses), a redirect, a 404 that is not Documenso's own (a proxy or
- * another server at the address: `notFound` false, E-14), 408, 429 or a 5xx.
+ * another server at the address: `notFound` false, E-14), 408, 429, a 5xx, or
+ * a 2xx to an envelope read that is no envelope (`unusableRead`: a wrong base
+ * URL serving a 200 page, a proxy; not Documenso).
  * Documenso's own 404 (the envelope was deleted there), another 4xx, input
  * refused before any request (`invalid_request`, status null: no request was
  * made), a signed PDF over the cap, or a failure of ours
@@ -975,6 +977,7 @@ export function isDocumensoOutage(error: unknown): boolean {
   if (error instanceof DocumensoError) {
     if (error.code === 'not_configured') return true
     if (error.code !== 'provider_error') return false
+    if (error.unusableRead) return true
     const status = error.status
     return status === null || (status >= 300 && status < 400) ||
       (status === 404 && !error.notFound) || status === 408 ||
@@ -1033,6 +1036,17 @@ export function trackOwnReads(
 }
 
 /**
+ * What one attempt did, as `record_signature_sync` records it: it failed
+ * (`code`, `failureCode`), or it did not and either read the request's own
+ * envelope at Documenso (`read`, `trackOwnReads`: a success, the last read
+ * stamped, the failure cleared) or read nothing (a draft skipped as
+ * `sending`, one abandoned without a read, a request with no envelope: only
+ * the attempt is stamped, for the rotation; its « non vérifiée » state is
+ * left as it was).
+ */
+export type SyncAttempt = { code: string } | { read: boolean }
+
+/**
  * Records one request's attempt (`record_signature_sync`: the rotation, the
  * last success, the failure code), then sends its reports whose code was
  * not reported for that request in the last day, one per code. When the
@@ -1042,7 +1056,7 @@ export async function recordAttempt(
   client: SupabaseClient,
   orgId: string,
   id: string,
-  code: string | null,
+  attempt: SyncAttempt,
   reports: ErrorReport[],
   fetchFn: typeof fetch,
 ): Promise<void> {
@@ -1052,7 +1066,8 @@ export async function recordAttempt(
     const { data, error } = await client.rpc('record_signature_sync', {
       p_org_id: orgId,
       p_id: id,
-      p_error_code: code,
+      p_error_code: 'code' in attempt ? attempt.code : null,
+      p_read: 'read' in attempt && attempt.read,
       p_report_codes: codes,
     })
     if (!error && Array.isArray(data)) due = new Set(data.map(String))
@@ -1075,8 +1090,10 @@ export async function recordAttempt(
  * After `softDeadlineMs` (default `RECONCILE_SOFT_DEADLINE_MS`) no new batch
  * starts: the rest waits for the next run, and the detail says how many.
  *
- * Each attempted request is recorded (`recordAttempt`), success or failure;
- * its reports (its failure, `signing_orphan_completed`, …) reach Sentry at
+ * Each attempted request is recorded (`recordAttempt`): a failure with its
+ * code, a success as a read only when Documenso returned the request's own
+ * envelope (`trackOwnReads`), else as an attempt alone (`SyncAttempt`); its
+ * reports (its failure, `signing_orphan_completed`, …) reach Sentry at
  * most once a day per request and code. A request that fails does not fail
  * the run: the others go on, the detail counts it (« non vérifiée »), and
  * `core.signing_unsaved_alert` tells a person when a request stays
@@ -1143,24 +1160,35 @@ export function reconcileOrg(
             fetch: deps.fetch,
             report: (report) => reports.push(report),
           }
-          let code: string | null = null
+          let attempt: SyncAttempt
           try {
             const outcome = await reconcileRow(client, orgId, ctx, row)
             counts.set(outcome, (counts.get(outcome) ?? 0) + 1)
-            if (tracked?.seen() && outcome !== 'sending') read++
+            // A draft skipped as `sending` was not settled: not a read.
+            const own = (tracked?.seen() ?? false) && outcome !== 'sending'
+            if (own) read++
+            attempt = { read: own }
           } catch (error) {
             failed++
             if (tracked?.seen()) read++
             else if (isDocumensoOutage(error)) unreachable++
             else if (isDocumentMissing(error)) missing++
-            code = failureCode(error)
+            const code = failureCode(error)
+            attempt = { code }
             reports.push({
               fn,
               code,
               ids: { org_id: orgId, signature_request_id: row.id },
             })
           }
-          await recordAttempt(client, orgId, row.id, code, reports, deps.fetch)
+          await recordAttempt(
+            client,
+            orgId,
+            row.id,
+            attempt,
+            reports,
+            deps.fetch,
+          )
         }),
       )
     }

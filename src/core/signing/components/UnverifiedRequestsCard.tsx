@@ -10,7 +10,7 @@ import { formatClinicDateTime } from '@/shared/lib/timezone'
  * « Demandes non vérifiées » (`settings.integrations_manage` only: the caller of `enabled`): the
  * requests the hourly reconcile has not read successfully for over 6 hours, the list the
  * `core.signing_requests_unverified` notice points to (`…_core_signing_blind_alert`). Each names
- * the request (its title when the caller may see it, else its module), its last successful read,
+ * the request (its title when the caller may see it, else its module), its last successful read since the send,
  * since when it fails and why. Nothing while loading or when the list is empty; a failed read
  * shows, so a problem is never hidden by its own list. No link: no record type that signs has a
  * page to open yet (a subject route goes here when one does).
