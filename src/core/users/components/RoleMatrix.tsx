@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type FocusEvent, type RefObject } from 'react'
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type FocusEvent, type RefObject } from 'react'
 import { Check, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { t } from '@/i18n'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
@@ -217,9 +217,10 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
   }
   const noteIds = { admin: useId(), provider: useId(), lacked: useId(), ownRole: useId() }
 
-  const roles = orderRoles(unordered)
-  const grants = new Map(roles.map((role) => [role.key, roleGrants(role.key, rolePermissions)]))
-  const groups = groupPermissionsByModule(permissions, modules, enabledModules)
+  // Recomputed only when their data changes, not on every save or focus change.
+  const roles = useMemo(() => orderRoles(unordered), [unordered])
+  const grants = useMemo(() => new Map(roles.map((role) => [role.key, roleGrants(role.key, rolePermissions)])), [roles, rolePermissions])
+  const groups = useMemo(() => groupPermissionsByModule(permissions, modules, enabledModules), [permissions, modules, enabledModules])
 
   /**
    * Back to the role's menu button when the role is still there, else to « Nouveau rôle ». After a
@@ -245,18 +246,33 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
   const lockDescription = (role: string, lock: RoleCellLock | null) =>
     lock === null ? undefined : lock === 'locked' ? (role === 'admin' ? noteIds.admin : noteIds.provider) : noteIds[lock]
 
-  /** Saves one cell, unless it is already saving. */
-  const save = (variables: RolePermissionVariables) => {
-    const cell = `${variables.role}:${variables.permissionKey}`
-    if (saving.current.has(cell)) return
-    saving.current.add(cell)
-    // mutateAsync settles per call (mutate's own callbacks would only run for the latest cell).
-    // The hook shows the outcome: the rejection is handled there.
-    setPermission
-      .mutateAsync(variables)
-      .catch(() => undefined)
-      .finally(() => saving.current.delete(cell))
-  }
+  const { mutateAsync: savePermission } = setPermission
+  /** Saves one cell, unless it is already saving. Stable, so the memoized cells do not re-render. */
+  const save = useCallback(
+    (variables: RolePermissionVariables) => {
+      const cell = `${variables.role}:${variables.permissionKey}`
+      if (saving.current.has(cell)) return
+      saving.current.add(cell)
+      // mutateAsync settles per call (mutate's own callbacks would only run for the latest cell).
+      // The hook shows the outcome: the rejection is handled there.
+      savePermission(variables)
+        .catch(() => undefined)
+        .finally(() => saving.current.delete(cell))
+    },
+    [savePermission],
+  )
+  /** A cell toggled: removing roles.manage or users.manage from her own role asks first. */
+  const toggleCell = useCallback(
+    (variables: RolePermissionVariables) => {
+      const { role, permissionKey, granted: next } = variables
+      if (confirmsSelfRemoval({ callerRole, role, permissionKey, next })) setRemoval(variables)
+      else save(variables)
+    },
+    [callerRole, save],
+  )
+  const pressCell = useCallback((element: HTMLElement) => {
+    toggledSwitch.current = element
+  }, [])
 
   return (
     <div ref={rootRef} className="space-y-3" onFocus={trackFocus}>
@@ -321,41 +337,22 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
                   </th>
                   {roles.map((role) => {
                     const on = grants.get(role.key)?.has(permission.key) ?? false
-                    if (!canManage) {
-                      return (
-                        <TableCell key={role.key} className="text-center">
-                          {on ? <Check aria-hidden className="mx-auto inline h-3.5 w-3.5 text-foreground" /> : <span aria-hidden className="text-subtle">—</span>}
-                          <span className="sr-only">{t(on ? 'settings.users.matrix.yes' : 'settings.users.matrix.no')}</span>
-                        </TableCell>
-                      )
-                    }
-                    const name = roleLabel(role.key, role.name)
+                    if (!canManage) return <RoleCell key={role.key} on={on} />
                     const lock = roleCellLock({ callerIsAdmin, callerCan: can, callerRole, role: role.key, permissionKey: permission.key, on })
-                    const busy = pending.has(`${role.key}:${permission.key}`)
                     return (
-                      <TableCell key={role.key} className="text-center">
-                        <Switch
-                          checked={on}
-                          readOnly={lock !== null}
-                          aria-label={t('settings.users.matrix.cellLabel', { role: name, permission: permission.description })}
-                          aria-describedby={lockDescription(role.key, lock)}
-                          aria-disabled={busy || undefined}
-                          className={cn('align-middle', busy && 'cursor-progress')}
-                          // Click, Space and Enter all arrive as a click, before onCheckedChange (Safari
-                          // does not focus a clicked button, so document.activeElement would not do).
-                          onClick={(event) => {
-                            toggledSwitch.current = event.currentTarget
-                          }}
-                          onCheckedChange={(next) => {
-                            const variables = { role: role.key, permissionKey: permission.key, granted: next, roleName: name, permissionLabel: permission.description }
-                            if (confirmsSelfRemoval({ callerRole, role: role.key, permissionKey: permission.key, next })) {
-                              setRemoval(variables)
-                            } else {
-                              save(variables)
-                            }
-                          }}
-                        />
-                      </TableCell>
+                      <RoleCell
+                        key={role.key}
+                        on={on}
+                        role={role.key}
+                        roleName={roleLabel(role.key, role.name)}
+                        permissionKey={permission.key}
+                        permissionLabel={permission.description}
+                        readOnly={lock !== null}
+                        describedBy={lockDescription(role.key, lock)}
+                        busy={pending.has(`${role.key}:${permission.key}`)}
+                        onToggle={toggleCell}
+                        onPress={pressCell}
+                      />
                     )
                   })}
                 </TableRow>
@@ -409,6 +406,55 @@ function MatrixTable({ permissions, modules, roles: unordered, rolePermissions }
     </div>
   )
 }
+
+type RoleCellProps =
+  | { on: boolean; role?: undefined }
+  | {
+      on: boolean
+      role: string
+      roleName: string
+      permissionKey: string
+      permissionLabel: string
+      readOnly: boolean
+      describedBy: string | undefined
+      busy: boolean
+      onToggle: (variables: RolePermissionVariables) => void
+      onPress: (element: HTMLElement) => void
+    }
+
+/**
+ * One cell of the matrix: ✓ or — without roles.manage, else the switch « Rôle : Permission »
+ * (see `MatrixTable`). Memoized on primitive props and the table's stable callbacks: a save or a
+ * focus change re-renders only the cells it changes.
+ */
+const RoleCell = memo(function RoleCell(props: RoleCellProps) {
+  const { on } = props
+  if (props.role === undefined) {
+    return (
+      <TableCell className="text-center">
+        {on ? <Check aria-hidden className="mx-auto inline h-3.5 w-3.5 text-foreground" /> : <span aria-hidden className="text-subtle">—</span>}
+        <span className="sr-only">{t(on ? 'settings.users.matrix.yes' : 'settings.users.matrix.no')}</span>
+      </TableCell>
+    )
+  }
+  const { role, roleName, permissionKey, permissionLabel, readOnly, describedBy, busy, onToggle, onPress } = props
+  return (
+    <TableCell className="text-center">
+      <Switch
+        checked={on}
+        readOnly={readOnly}
+        aria-label={t('settings.users.matrix.cellLabel', { role: roleName, permission: permissionLabel })}
+        aria-describedby={describedBy}
+        aria-disabled={busy || undefined}
+        className={cn('align-middle', busy && 'cursor-progress')}
+        // Click, Space and Enter all arrive as a click, before onCheckedChange (Safari does not
+        // focus a clicked button, so document.activeElement would not do).
+        onClick={(event) => onPress(event.currentTarget)}
+        onCheckedChange={(next) => onToggle({ role, permissionKey, granted: next, roleName, permissionLabel })}
+      />
+    </TableCell>
+  )
+})
 
 interface RoleMenuProps {
   role: OrgRole
