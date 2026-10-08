@@ -1,7 +1,8 @@
 /**
  * `resolve-link` (Task 3.20, design §3.2): what a secure link opens, for the
  * page that reads `#t=` (`/invitation`). A public token function (CLAUDE.md
- * §7): `verify_jwt = true` (the anon key), no user; the token authorizes.
+ * §7): `verify_jwt = false`, no user; the token authorizes. Nothing here
+ * reads `Authorization` or `apikey`: the gateway checks nothing either.
  *
  * 1. CORS (`ALLOWED_ORIGINS`); `POST` only.
  * 2. `links.resolve_ip` (30 per 10 min) on `clientIp`, before the body is

@@ -1,8 +1,9 @@
 /**
  * `accept-invite` (Task 3.20, design §3.2 and §4, P3-8, P3-16): creates the
  * invitee's account from a secure link and the password she chose. A public
- * token function (CLAUDE.md §7): `verify_jwt = true` (the anon key), no user;
- * the token authorizes.
+ * token function (CLAUDE.md §7): `verify_jwt = false`, no user; the token
+ * authorizes. Nothing here reads `Authorization` or `apikey`: the gateway
+ * checks nothing either.
  *
  * 1. CORS (`ALLOWED_ORIGINS`); `POST` only.
  * 2. `links.accept_ip` (10 per hour) on `clientIp`, before the body is read.

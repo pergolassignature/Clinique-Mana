@@ -300,7 +300,7 @@ A notice reaches every holder of `recipient_permission` in its org, optionally n
 | `users-set-status` | user | `users.manage` | disable (sessions end, Auth ban) or enable |
 | `storage-upload`, `storage-confirm`, `storage-sign` | user | the purpose's / the row's permissions (RLS) | uploads and 5-min read URLs |
 | `signing-test-connection`, `signing-test-document` | user | `settings.integrations_manage` | Documenso check; built-in test document |
-| `resolve-link`, `accept-invite` | public token | anon key + the token | link page data; account creation |
+| `resolve-link`, `accept-invite` | public token | the token (`verify_jwt = false`), per-IP limits | link page data; account creation |
 | `resend-webhook` | webhook | Svix signature, `?org=` | email statuses |
 | `signing-webhook` | webhook | `X-Documenso-Secret` (`timingSafeEqual`), `?org=` | signing events, signed PDF |
 | `storage-cleanup` | job | `X-Job-Signature` | `core.storage_cleanup` |

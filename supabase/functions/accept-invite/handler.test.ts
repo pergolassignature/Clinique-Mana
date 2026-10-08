@@ -165,6 +165,25 @@ Deno.test('accept-invite: happy path: peek → createUser → accept_rpc → 200
   })
 })
 
+Deno.test('accept-invite: verify_jwt = false: no key, or any Authorization / apikey header, changes nothing (the token is the credential)', async () => {
+  await run(async () => {
+    for (
+      const headers of [
+        {},
+        { Authorization: 'Bearer not-a-jwt', apikey: 'sb_publishable_x' },
+      ]
+    ) {
+      const { handler } = harness()
+      const req = accept()
+      for (const [k, v] of Object.entries(headers)) req.headers.set(k, v)
+      assertEquals(req.headers.has('Authorization'), 'Authorization' in headers)
+      const res = await handler(req)
+      assertEquals(res.status, 200)
+      assertEquals((await res.json()).status, 'accepted')
+    }
+  })
+})
+
 Deno.test('accept-invite: the created user carries the orphan marker app_metadata.invite_link_id (the link id only)', async () => {
   await run(async () => {
     const { handler, service } = harness()

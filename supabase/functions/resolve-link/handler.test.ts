@@ -80,6 +80,27 @@ async function snapshot(res: Response) {
   return { status: res.status, headers, body: await res.text() }
 }
 
+Deno.test('resolve-link: verify_jwt = false: no key, or any Authorization / apikey header, changes nothing (the token is the credential)', async () => {
+  await run(async () => {
+    const hash = await hashToken(TOKEN)
+    const answers: unknown[] = []
+    for (
+      const headers of [
+        {},
+        { Authorization: 'Bearer not-a-jwt', apikey: 'sb_publishable_x' },
+      ]
+    ) {
+      const { handler } = harness({ peeks: { [hash]: peekValid() } })
+      const req = post({ token: TOKEN })
+      for (const [k, v] of Object.entries(headers)) req.headers.set(k, v)
+      const res = await handler(req)
+      assertEquals(res.status, 200)
+      answers.push(await res.json())
+    }
+    assertEquals(answers[0], answers[1])
+  })
+})
+
 Deno.test('resolve-link: a valid link → 200 { purpose, display }, marked opened only past the module gate, no token echoed', async () => {
   await run(async () => {
     const hash = await hashToken(TOKEN)
