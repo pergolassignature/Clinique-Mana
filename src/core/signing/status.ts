@@ -15,16 +15,22 @@ export type SignatureStatus = keyof typeof SIGNATURE_STATUSES
 export const isSignatureStatus = (status: string): status is SignatureStatus => Object.hasOwn(SIGNATURE_STATUSES, status)
 
 /**
- * The `last_error` of a draft whose send failed, as `_shared/signing.ts` stores it
- * (`mark_signature_request_failed`), when it has French words: Documenso unreachable or failing,
- * refusing the key, or the document refused before it was sent (subject or message too long,
- * two signers with one address). Every other code (`render_failed`, `storage_failed`, `mark_sent_failed`,
- * `previous_cancel_failed`…) reads « Code : … ».
+ * The `last_error` of a draft whose send failed, when it has French words. `_shared/signing.ts`
+ * stores a send's (`mark_signature_request_failed`): Documenso unreachable or failing, refusing the
+ * key, or the document refused before it was sent (subject or message too long, two signers with
+ * one address). The reconcile stores a failed settle's with its own codes (`failureCode`,
+ * `_shared/signing-events.ts`): the envelope not found at Documenso, the request refused, Documenso
+ * unreachable, the key refused. Every other code (`render_failed`, `storage_failed`,
+ * `mark_sent_failed`, `previous_cancel_failed`, `provider_error`…) reads « Code : … ».
  */
 const FAILURES = {
   provider_unavailable: 'signing.failure.providerUnavailable',
   provider_not_configured: 'signing.failure.providerRefused',
   provider_invalid_request: 'signing.failure.providerInvalidRequest',
+  provider_not_found: 'signing.failure.providerNotFound',
+  provider_rejected: 'signing.failure.providerRejected',
+  provider_unreachable: 'signing.failure.providerUnreachable',
+  not_configured: 'signing.failure.providerRefused',
 } as const
 const isKnownFailure = (code: string): code is keyof typeof FAILURES => Object.hasOwn(FAILURES, code)
 

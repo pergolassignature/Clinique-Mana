@@ -58,7 +58,7 @@ $$, $$ values (false, false, false) $$, 'its trigger function: no role may call 
 --   J  a partial `ok` run 1 h ago (one request not verified); its request last read 8 h ago,
 --      failing since 7 h (404 at Documenso)                  → unverified, not failing
 --   K  `ok` run 1 h ago; its request never reached           → unverified
---   L  `ok` run 1 h ago; a draft with a document failing to settle for 7 h → unverified
+--   L  `ok` run 1 h ago; a draft with an envelope failing to settle for 7 h → unverified
 -- =============================================================================
 insert into public.organizations (id, name, timezone)
 select ('b0000000-0000-0000-0000-0000000000' || x)::uuid, 'Org ' || x, 'America/Toronto'
@@ -80,10 +80,10 @@ values
   ('d1000000-0000-0000-0000-00000000001b', 'd0000000-0000-0000-0000-00000000001b', 'b0000000-0000-0000-0000-00000000001b', 1);
 
 insert into public.signature_requests (id, org_id, module_key, purpose, template_version_id, subject_type, subject_id,
-  title, status, documenso_document_id, envelope_id, idempotency_key, view_permission, last_error, created_at, sent_at,
+  title, status, envelope_id, idempotency_key, view_permission, last_error, created_at, sent_at,
   expires_at, completed_event_at)
 select x.id, x.org, x.module, x.purpose, x.version, 'signing_test', 'a0000000-0000-0000-0000-000000000001',
-       'Contrat de Jeanne Exemple', x.status, x.doc, 'envelope_' || x.doc, 'key-' || x.id, x.perm, x.err,
+       'Contrat de Jeanne Exemple', x.status, 'envelope_' || x.doc, 'key-' || x.id, x.perm, x.err,
        x.sent, case when x.status = 'draft' then null else x.sent end,
        case when x.status = 'draft' then null else now() + interval '4 days' end, x.completed
   from (values
@@ -361,12 +361,12 @@ insert into public.org_modules (org_id, module_key, enabled, updated_at)
 values ('b0000000-0000-0000-0000-00000000000c', 'professionals', true, '2026-09-02 12:00:00+00');
 select is((select count(*)::int
              from supabase_migrations.schema_migrations m, unnest(m.statements) st
-            where m.version = '20261008130552' and st ~ 'set disabled_at = updated_at where not enabled'), 1,
+            where m.version = '20261008151626' and st ~ 'set disabled_at = updated_at where not enabled'), 1,
   'the migration holds one backfill statement');
 do $$
 begin
   execute (select st from supabase_migrations.schema_migrations m, unnest(m.statements) st
-            where m.version = '20261008130552' and st ~ 'set disabled_at = updated_at where not enabled');
+            where m.version = '20261008151626' and st ~ 'set disabled_at = updated_at where not enabled');
 end $$;
 select results_eq($$
   select org_id, enabled, disabled_at from public.org_modules
@@ -424,9 +424,9 @@ insert into public.document_template_versions (id, template_id, org_id, version)
 values ('d1000000-0000-0000-0000-00000000003a', 'd0000000-0000-0000-0000-00000000003a',
         'b0000000-0000-0000-0000-00000000003a', 1);
 insert into public.signature_requests (id, org_id, module_key, purpose, template_version_id, subject_type, subject_id,
-  title, status, documenso_document_id, envelope_id, idempotency_key, view_permission, created_at, sent_at, expires_at)
+  title, status, envelope_id, idempotency_key, view_permission, created_at, sent_at, expires_at)
 select x.id, 'b0000000-0000-0000-0000-00000000003a', x.module, x.purpose, x.version, 'signing_test',
-       'a0000000-0000-0000-0000-000000000001', x.title, 'sent', x.doc, 'envelope_' || x.doc, 'key-' || x.id, x.perm,
+       'a0000000-0000-0000-0000-000000000001', x.title, 'sent', 'envelope_' || x.doc, 'key-' || x.id, x.perm,
        now() - interval '3 days', now() - interval '3 days', now() + interval '4 days'
   from (values
     ('c3000000-0000-0000-0000-0000000000a1'::uuid, 'core', 'core.signing_test', null::uuid, 'Document test', '901',

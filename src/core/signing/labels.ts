@@ -13,6 +13,7 @@ const FAILURES = [
   'provider_not_found',
   'provider_rejected',
   'provider_unreachable',
+  'provider_invalid_request',
   'provider_error',
   'not_configured',
   'signing_foreign_document',

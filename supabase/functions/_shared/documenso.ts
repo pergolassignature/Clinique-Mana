@@ -928,7 +928,7 @@ export function documensoClient(
               envelopeExpirationPeriod: { unit: 'day', amount: expiryDays },
             }),
             // No owner email when a signing link expires (E-13): the app shows
-            // it and its daily job closes the request. Documenso fills the
+            // it and its reconcile job closes the request. Documenso fills the
             // other settings with its defaults (all on), which replace the
             // org's email preferences for this envelope; the clinic keeps
             // them at those defaults (runbook §6).

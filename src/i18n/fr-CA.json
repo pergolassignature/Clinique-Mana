@@ -309,7 +309,10 @@
       "failed": "Échec de l'envoi",
       "providerUnavailable": "Le service de signature n'a pas répondu.",
       "providerRefused": "Le service de signature a refusé la clé d'API.",
-      "providerInvalidRequest": "Documenso a refusé le document (sujet ou message trop long, ou adresse en double)."
+      "providerInvalidRequest": "Documenso a refusé le document (sujet ou message trop long, ou adresse en double).",
+      "providerNotFound": "Le document est introuvable dans le service de signature (supprimé, ou connexion à une autre instance).",
+      "providerRejected": "Le service de signature a refusé la demande.",
+      "providerUnreachable": "Le service de signature est injoignable."
     },
     "errorCode": "Code : {code}"
   },
@@ -667,6 +670,7 @@
           "provider_not_found": "Document introuvable dans Documenso (supprimé, ou connexion à une autre instance ou équipe)",
           "provider_rejected": "Documenso a refusé la demande",
           "provider_unreachable": "Documenso est injoignable",
+          "provider_invalid_request": "Documenso a refusé le document (sujet ou message trop long, ou adresse en double)",
           "provider_error": "Documenso a répondu par une erreur ou une réponse inattendue",
           "not_configured": "Connexion incomplète, ou clé d'API refusée par Documenso",
           "signing_foreign_document": "Documenso contient un autre document sous ce numéro (autre instance ?)",

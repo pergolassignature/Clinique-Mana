@@ -15,7 +15,7 @@ describe('syncFailureLabel', () => {
     expect(syncFailureLabel('provider_not_found')).toBe(t('settings.signing.unverified.failures.provider_not_found'))
     expect(syncFailureLabel('provider_error')).toBe(t('settings.signing.unverified.failures.provider_error'))
     expect(syncFailureLabel('provider_not_found')).not.toBe(syncFailureLabel('provider_error'))
-    for (const code of ['provider_rejected', 'provider_unreachable', 'not_configured', 'signing_foreign_document'] as const) {
+    for (const code of ['provider_rejected', 'provider_unreachable', 'provider_invalid_request', 'not_configured', 'signing_foreign_document'] as const) {
       expect(syncFailureLabel(code)).toBe(t(`settings.signing.unverified.failures.${code}`))
     }
   })

@@ -7,15 +7,17 @@
 -- clients, written by record_signature_sync: attempt, success, failure streak, reports at most
 -- once a day per request and code); core.signing_unsaved_alert is a catalogued, hourly SQL
 -- maintenance job whose body no role may call; it posts one important core notice per request and
--- document (to settings.integrations_manage, in the request's org, linked to « Signature
+-- envelope (to settings.integrations_manage, in the request's org, linked to « Signature
 -- électronique ») when Documenso completed it over 6 hours ago and the signed PDF is still not
 -- stored, or when it is a draft left `orphan_completed`; never twice; expires the notice once the
 -- request no longer meets that condition (signed, or the orphan cancelled); deletes the sync state
--- of closed requests. The full detail (the blind cases are 046's) is checked here too.
+-- of closed requests. The full detail (the blind cases are 046's) is checked here too. Built on
+-- the envelope API (*_core_signing_envelope.sql, applied first): the list and the alert read
+-- `envelope_id`, never the deprecated `documenso_document_id`.
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(40);
 
 -- =============================================================================
 -- Jobs: catalogue, schedules, privileges
@@ -69,7 +71,7 @@ select ok(not exists (select 1 from pg_trigger t where t.tgrelid = 'public.signa
 --   e1 sent 10 minutes ago (not completed)     e2 viewed, sent 2 h ago, completed 30 min ago
 --   e3 sent 9 days ago, overdue                a1 sent 3 days ago, completed 7 h ago
 --   f1 draft left `orphan_completed`, last claimed 50 min ago (not listed yet: an hour)
---   d1 draft with a document, re-sent 30 min ago (not listed: an hour)
+--   d1 draft with an envelope, re-sent 30 min ago (not listed: an hour)
 -- and org B's b1, sent 3 days ago, completed 7 h ago.
 -- =============================================================================
 insert into public.organizations (id, name, timezone) values
@@ -77,10 +79,10 @@ insert into public.organizations (id, name, timezone) values
   ('b0000000-0000-0000-0000-00000000000b', 'Org B', 'America/Toronto');
 
 insert into public.signature_requests (id, org_id, module_key, purpose, subject_type, subject_id, title, status,
-  documenso_document_id, envelope_id, idempotency_key, view_permission, last_error, created_at, sent_at, expires_at,
+  envelope_id, idempotency_key, view_permission, last_error, created_at, sent_at, expires_at,
   completed_event_at, last_send_at)
 select x.id, x.org, 'core', 'core.signing_test', 'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Test', x.status,
-       x.doc, 'envelope_' || x.doc, 'key-' || x.id, 'settings.integrations_manage', x.err, x.created, x.sent, x.expires,
+       'envelope_' || x.doc, 'key-' || x.id, 'settings.integrations_manage', x.err, x.created, x.sent, x.expires,
        x.completed, x.last_send
   from (values
     ('c0000000-0000-0000-0000-0000000000e1'::uuid, 'b0000000-0000-0000-0000-00000000000a'::uuid, 'sent', '701', null::text,
@@ -126,6 +128,14 @@ $$, $$ values ('c0000000-0000-0000-0000-0000000000a1'::uuid, 'sync'::text),
   'every sent or viewed request is read at each run, even sent 10 minutes ago; the ones Documenso completed without their PDF come first (then expire, then by expiry); drafts keep their hour');
 select results_eq($$ select id from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a', 1) $$,
   $$ values ('c0000000-0000-0000-0000-0000000000a1'::uuid) $$, 'with a full page, a request known to be completed without its PDF comes first');
+select ok((select bool_and(l.documenso_document_id is null and l.envelope_id like 'envelope\_%')
+             from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a') l)
+          and not exists (select 1 from pg_proc p
+                           where p.oid in ('public.list_signature_requests_to_reconcile(uuid,int)'::regprocedure,
+                                           'private.job_signing_unsaved_alert()'::regprocedure,
+                                           'private.signing_unverified_requests(uuid)'::regprocedure)
+                             and p.prosrc ~ 'documenso_document_id|superseded_document_ids'),
+  'built on the envelope (*_core_signing_envelope): the list returns the envelope id and a null document id; neither the list, the alert nor its unverified condition (*_core_signing_blind_alert) reads the deprecated columns');
 
 -- =============================================================================
 -- record_signature_sync and the rotation (service role)
@@ -191,14 +201,14 @@ select results_eq($$
 $$, $$ values
   ('b0000000-0000-0000-0000-00000000000a'::uuid, 'core'::text, 'core.signed_document_unsaved'::text, 'important'::text,
    '/parametres/signature-electronique'::text, 'signature_request'::text, 'c0000000-0000-0000-0000-0000000000a1'::uuid,
-   'settings.integrations_manage'::text, null::uuid, 'c0000000-0000-0000-0000-0000000000a1:704'::text, null::timestamptz),
+   'settings.integrations_manage'::text, null::uuid, 'c0000000-0000-0000-0000-0000000000a1:envelope_704'::text, null::timestamptz),
   ('b0000000-0000-0000-0000-00000000000b', 'core', 'core.signed_document_unsaved', 'important',
    '/parametres/signature-electronique', 'signature_request', 'c0000000-0000-0000-0000-0000000000b1',
-   'settings.integrations_manage', null, 'c0000000-0000-0000-0000-0000000000b1:707', null),
+   'settings.integrations_manage', null, 'c0000000-0000-0000-0000-0000000000b1:envelope_707', null),
   ('b0000000-0000-0000-0000-00000000000a', 'core', 'core.signed_document_unsaved', 'important',
    '/parametres/signature-electronique', 'signature_request', 'c0000000-0000-0000-0000-0000000000f1',
-   'settings.integrations_manage', null, 'c0000000-0000-0000-0000-0000000000f1:705', null)
-$$, 'one important core notice per request and document (key <request>:<document>), in its own org, for settings.integrations_manage, linked to Signature électronique');
+   'settings.integrations_manage', null, 'c0000000-0000-0000-0000-0000000000f1:envelope_705', null)
+$$, 'one important core notice per request and envelope (key <request>:<envelope>), in its own org, for settings.integrations_manage, linked to Signature électronique');
 select ok((select bool_and(title = 'Un document signé n''est pas encore sauvegardé'
                            and body like '%Documenso n''est pas sauvegardée%'
                            and body !~ 'Test')
@@ -248,24 +258,25 @@ select is((select expires_at from public.notifications
             where kind = 'core.signed_document_unsaved' and subject_id = 'c0000000-0000-0000-0000-0000000000f1'),
   now(), 'expired now, not in 90 days');
 
--- b1 is re-sent on another document (a new key): the old notice expires; once Documenso completed
+-- b1 is re-sent on another envelope (a new key): the old notice expires; once Documenso completed
 -- the new one over 6 hours ago without its PDF, a new notice is posted.
-update public.signature_requests set documenso_document_id = '708', completed_event_at = null
+update public.signature_requests set envelope_id = 'envelope_708', completed_event_at = null
  where id = 'c0000000-0000-0000-0000-0000000000b1';
 select is(private.job_signing_unsaved_alert(),
   'notified=0 cleared=1 stalled=0 resumed=0 unverified=0 verified=0 module_disabled=0 module_cleared=0 syncs_purged=0',
-  'another document, not completed: the old notice expires');
+  'another envelope, not completed: the old notice expires');
 update public.signature_requests set completed_event_at = now() - interval '7 hours'
  where id = 'c0000000-0000-0000-0000-0000000000b1';
 select is(private.job_signing_unsaved_alert(),
   'notified=1 cleared=0 stalled=0 resumed=0 unverified=0 verified=0 module_disabled=0 module_cleared=0 syncs_purged=0',
-  'the new document completed without its PDF: a new notice (new key)');
+  'the new envelope completed without its PDF: a new notice (new key)');
 select results_eq($$
   select dedupe_key, expires_at is null from public.notifications
    where kind = 'core.signed_document_unsaved' and subject_id = 'c0000000-0000-0000-0000-0000000000b1'
    order by dedupe_key
-$$, $$ values ('c0000000-0000-0000-0000-0000000000b1:707'::text, false), ('c0000000-0000-0000-0000-0000000000b1:708', true) $$,
-  'one notice per document of the request');
+$$, $$ values ('c0000000-0000-0000-0000-0000000000b1:envelope_707'::text, false),
+              ('c0000000-0000-0000-0000-0000000000b1:envelope_708', true) $$,
+  'one notice per envelope of the request');
 
 select lives_ok($$ select private.run_sql_job('core.signing_unsaved_alert') $$, 'run_sql_job runs it');
 select results_eq($$

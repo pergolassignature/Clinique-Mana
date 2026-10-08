@@ -736,9 +736,10 @@ async function settleDraft(
     if (failed.error) throw new SigningFailure('mark_failed_failed')
     return 'abandoned'
   } catch (error) {
-    // Release the claim (a no-op once the draft is recovered or abandoned).
-    const raw = (error as { code?: unknown }).code
-    await releaseClaim(ctx, row.id, typeof raw === 'string' ? raw : 'internal')
+    // Release the claim (a no-op once the draft is recovered or abandoned),
+    // with the reconcile's code: a Documenso failure split by what happened
+    // (`failureCode`), as « Signature électronique » reads it.
+    await releaseClaim(ctx, row.id, failureCode(error))
     throw error
   }
 }
@@ -921,7 +922,9 @@ export function isProviderNotFound(error: unknown): boolean {
 
 /**
  * Documenso refused the request itself: another client error (not 404,
- * 408 or 429; 401 and 403 are `not_configured`).
+ * 408 or 429; 401 and 403 are `not_configured`). A 400 here is a read's, or
+ * a cancel or delete the client read back first (the envelope is there, but
+ * not in a state that closes: E-8).
  */
 function isProviderRejected(error: unknown): boolean {
   if (!(error instanceof DocumensoError)) return false
@@ -932,18 +935,24 @@ function isProviderRejected(error: unknown): boolean {
 }
 
 /**
- * A failure's code (stored by `record_signature_sync`, reported, shown in
- * « Signature électronique »), or `internal` when it has none safe to store.
- * Documenso's `provider_error` is split by what happened, so a deleted
- * document and a broken instance never read alike: `provider_not_found`
- * (404), `provider_rejected` (another client error), `provider_unreachable`
- * (no complete answer, or an address `reach` refuses), else `provider_error`
- * (a redirect, 408, 429, a 5xx, or a 2xx we cannot use: not a PDF, over the
- * cap).
+ * A failure's code (stored by `record_signature_sync` and as a released
+ * draft's `last_error`, reported, shown in « Signature électronique »), or
+ * `internal` when it has none safe to store. Documenso's `provider_error` is
+ * split by what happened, so a deleted envelope and a broken instance never
+ * read alike: `provider_not_found` (Documenso's own 404, `notFound`),
+ * `provider_rejected` (another client error), `provider_unreachable` (no
+ * complete answer, or an address `reach` refuses), else `provider_error` (a
+ * redirect, a 404 that is not Documenso's, 408, 429, a 5xx, or a 2xx we
+ * cannot use: not a PDF, over the cap). Input the client refused before any
+ * request (`invalid_request`) is `provider_invalid_request`, the code
+ * `_shared/signing.ts` stores for a send.
  */
 export function failureCode(error: unknown): string {
   if (isProviderNotFound(error)) return 'provider_not_found'
   if (isProviderRejected(error)) return 'provider_rejected'
+  if (error instanceof DocumensoError && error.code === 'invalid_request') {
+    return 'provider_invalid_request'
+  }
   if (error instanceof DocumensoError && error.code === 'provider_error') {
     return error.status === null ? 'provider_unreachable' : 'provider_error'
   }
@@ -955,27 +964,38 @@ export function failureCode(error: unknown): string {
  * Whether a failure says Documenso cannot be used at all, rather than that
  * one request is bad: not configured or the key refused (`not_configured`:
  * no URL or key, 401, 403), no complete answer (network, timeout, an address
- * `reach` refuses), a redirect, 408, 429 or a 5xx. A 404 (the document was
- * deleted there), another 4xx, a signed PDF over the cap, or a failure of
- * ours (`signing_foreign_document`, `apply_failed`, …) is the request's own.
+ * `reach` refuses), a redirect, a 404 that is not Documenso's own (a proxy or
+ * another server at the address: `notFound` false, E-14), 408, 429 or a 5xx.
+ * Documenso's own 404 (the envelope was deleted there), another 4xx, input
+ * refused before any request (`invalid_request`, status null: no request was
+ * made), a signed PDF over the cap, or a failure of ours
+ * (`signing_foreign_document`, `apply_failed`, …) is the request's own.
  */
 export function isDocumensoOutage(error: unknown): boolean {
   if (error instanceof DocumensoError) {
+    if (error.code === 'not_configured') return true
+    if (error.code !== 'provider_error') return false
     const status = error.status
-    return error.code === 'not_configured' || status === null ||
-      (status >= 300 && status < 400) || status === 408 || status === 429 ||
-      status >= 500
+    return status === null || (status >= 300 && status < 400) ||
+      (status === 404 && !error.notFound) || status === 408 ||
+      status === 429 || status >= 500
   }
   return error instanceof SigningFailure && error.code === 'not_configured'
 }
 
 /**
- * Whether Documenso answered, but not with the request's document: a 404 or
- * another client error, or another document under its id
+ * Whether Documenso answered, but not with the request's envelope: its own
+ * 404 (`notFound`) or another client error, or another envelope under its id
  * (`signing_foreign_document`). One such failure is the request's own; when
- * every request fails this way and none was read, the documents are not
+ * every request fails this way and none was read, the envelopes are not
  * there: a key of another Documenso team, or an instance rebuilt without
- * its documents (`reconcileOrg`).
+ * its documents (`reconcileOrg`). Not `invalid_request` (no request was
+ * made) nor a 404 that is not Documenso's (`isDocumensoOutage`).
+ *
+ * A cancel or a delete never decides it: the client reads the envelope back
+ * after their 400 or 404 (E-8) and throws only when it is there in another
+ * state, and the reconcile only closes an envelope it has just read as the
+ * request's own, so such a request already counts as read (`trackOwnReads`).
  */
 export function isDocumentMissing(error: unknown): boolean {
   return isProviderNotFound(error) || isProviderRejected(error) ||
@@ -986,8 +1006,9 @@ export function isDocumentMissing(error: unknown): boolean {
 /**
  * `signing` whose `get` notes when it returns `requestId`'s own envelope
  * (`ownsEnvelope`): `seen()` then says Documenso was read for that request,
- * whatever the request's outcome. A 404, another document or no answer is
- * not a read.
+ * whatever the request's outcome. A 404, another envelope or no answer is
+ * not a read; nor is the read-back inside a cancel or a delete (E-8), which
+ * only follows a `get` that already counted.
  */
 export function trackOwnReads(
   signing: OrgSigning,
@@ -1061,13 +1082,13 @@ export async function recordAttempt(
  * `core.signing_unsaved_alert` tells a person when a request stays
  * unverified for 6 hours (« Signature électronique » lists them). The run
  * fails only when **no request was read** (no Documenso read returned a
- * request's own document, `trackOwnReads`; a draft skipped as `sending`
+ * request's own envelope, `trackOwnReads`; a draft skipped as `sending`
  * does not count) and either at least one failure says Documenso itself is
  * unusable (`isDocumensoOutage`: `reconcile_failed`), or at least two
- * requests failed and every one because its document is not there
+ * requests failed and every one because its envelope is not there
  * (`isDocumentMissing`: `reconcile_documents_missing`, a key of another
  * team or an instance rebuilt without its documents). A single missing
- * document stays a partial run: it is more likely deleted there.
+ * envelope stays a partial run: it is more likely deleted there.
  */
 export function reconcileOrg(
   deps: {

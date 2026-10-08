@@ -26,7 +26,11 @@ describe('signatureStatusLabel', () => {
     ['provider_unavailable', "Le service de signature n'a pas répondu."],
     ['provider_not_configured', "Le service de signature a refusé la clé d'API."],
     ['provider_invalid_request', 'Documenso a refusé le document (sujet ou message trop long, ou adresse en double).'],
-  ])('names the reason of a failed send (%s) in French, without its code', (code, detail) => {
+    ['provider_not_found', 'Le document est introuvable dans le service de signature (supprimé, ou connexion à une autre instance).'],
+    ['provider_rejected', 'Le service de signature a refusé la demande.'],
+    ['provider_unreachable', 'Le service de signature est injoignable.'],
+    ['not_configured', "Le service de signature a refusé la clé d'API."],
+  ])('names the reason of a failed send or settle (%s) in French, without its code', (code, detail) => {
     expect(signatureStatusLabel('draft', code)).toEqual({ label: "Échec de l'envoi", tone: 'error', detail })
   })
 

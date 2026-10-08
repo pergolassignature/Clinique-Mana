@@ -3,7 +3,7 @@
 -- =============================================================================
 -- Rule:    a person hears of it when a signed document may exist only on the Documenso VM, also
 --          when we cannot see the completion (ADR 0005, « Pas de sauvegarde de la VM Documenso »).
--- Amends:  20261008124818_core_signing_capture.sql (private.job_signing_unsaved_alert and the
+-- Amends:  20261008151625_core_signing_capture.sql (private.job_signing_unsaved_alert and the
 --          core.signing_unsaved_alert job's description); 20261007140517_core_access.sql
 --          (org_modules.disabled_at). Changed here to keep history clear.
 -- Rules:   docs/standards/database-conventions.md
@@ -20,18 +20,19 @@
 -- * The deploy guard. The outage and coverage cases need 6 hours of hourly reconcile runs to mean
 --   anything: right after the push, the last `ok` run is the old daily one and no request has a
 --   sync state yet. So both wait until core.signing_unsaved_alert's catalogue row (inserted by
---   20261008124818, with the hourly schedule) is over 6 hours old. A brand-new database waits the
+--   20261008151625, with the hourly schedule) is over 6 hours old. A brand-new database waits the
 --   same 6 hours.
 -- * `core.signing_reconcile_failing` (one notice per org and outage): the org has a sent or viewed
 --   request of an enabled module, sent over 6 hours ago, and core.signing_reconcile has no `ok`
 --   run for the org that started in the last 6 hours (or none at all). A run is `ok` as soon as
---   it read one request's own document at Documenso, even when other requests failed
+--   it read one request's own envelope at Documenso, even when other requests failed
 --   (signing-events.ts). It fails when nothing was read and either Documenso was unreachable or
---   refused the key (`reconcile_failed`), or at least two requests failed and every one of them
---   with a client error or another document under its id (`reconcile_documents_missing`: a key of
---   another Documenso team, an instance rebuilt without its documents; a single 404 stays a
---   partial run). So this case means one of those, the function down (`http_*`, `no_response`,
---   `configuration_missing`, logged with org null), or pg_net stuck; the notice says the address,
+--   refused the key (`reconcile_failed`, a proxy's 404 included), or at least two requests failed
+--   and every one of them with Documenso's own 404, a client error or another envelope under its
+--   id (`reconcile_documents_missing`: a key of another Documenso team, an instance rebuilt
+--   without its documents; a single 404 stays a partial run). So this case means one of those,
+--   the function down (`http_*`, `no_response`, `configuration_missing`, logged with org null), or
+--   pg_net stuck; the notice says the address,
 --   the key or the instance may be wrong. A healthy run always logs `ok`, even with nothing to
 --   follow, so a quiet clinic never trips it.
 --   The request must itself be over 6 hours old: a completion cannot have been invisible longer
@@ -42,12 +43,12 @@
 --   `ok` run finished after it was posted. A pg_cron outage stops this job too: not covered here.
 -- * `core.signing_requests_unverified` (one notice per org and episode): the reconcile works for
 --   the org (an `ok` run started in the last 6 hours) but a request of an enabled module, with a
---   Documenso document and no known completion (that is the unsaved case), has not been read
+--   Documenso envelope and no known completion (that is the unsaved case), has not been read
 --   successfully for 6 hours: a sent or viewed one whose last successful read
 --   (signature_request_syncs.synced_at, else its send) is over 6 hours old, or a draft that fails
 --   to settle for over 6 hours (failing_since; `orphan_completed` is the unsaved case). Either a
 --   request fails on its own (deleted at Documenso → 404, a signed PDF over 20 MB, another
---   instance's document), or the runs never reach it, or (a clinic with a single open request)
+--   instance's envelope), or the runs never reach it, or (a clinic with a single open request)
 --   the address, the key or the instance is wrong: the notice does not claim the reconcile works.
 --   The condition is private.signing_unverified_requests, shared by the post, the expiry and the
 --   list « Signature électronique » shows (list_unverified_signature_requests): the notice points
@@ -75,10 +76,10 @@
 --   like the existing clean-up.
 -- * list_unverified_signature_requests (definer, settings.integrations_manage, the caller's org):
 --   the requests behind the unverified notice, oldest successful read first, 100 at most (open
---   requests are bounded, see 20261008124818). A request's title is returned only when its
+--   requests are bounded, see 20261008151625). A request's title is returned only when its
 --   view_permission is among the caller's keys (null otherwise: the UI names the module instead),
 --   since a title may name a person. Codes only, never a provider message.
--- * Cost, per hourly run: the open requests (bounded, see 20261008124818) with one primary-key
+-- * Cost, per hourly run: the open requests (bounded, see 20261008151625) with one primary-key
 --   probe each into signature_request_syncs, grouped by org; for each such org the latest `ok`
 --   reconcile run (scheduled_job_runs_org_started_idx, newest first, stops at the first `ok`; at
 --   most 90 days of hourly runs during an outage, purged after) and its previous unverified notice
@@ -128,7 +129,7 @@ create trigger org_modules_disabled_at
 -- -----------------------------------------------------------------------------
 -- The requests no read reaches (one condition for the notice and the list)
 -- -----------------------------------------------------------------------------
--- The open requests of an enabled module, with a Documenso document and no known completion (that
+-- The open requests of an enabled module, with a Documenso envelope and no known completion (that
 -- is the unsaved case), not read successfully for 6 hours: a sent or viewed one whose last
 -- successful read (signature_request_syncs.synced_at, else its send) is over 6 hours old, or a
 -- draft failing to settle for over 6 hours (failing_since; `orphan_completed` is the unsaved
@@ -150,7 +151,7 @@ as $$
     from public.signature_requests r
     left join public.signature_request_syncs s on s.request_id = r.id
    where (p_org_id is null or r.org_id = p_org_id)
-     and r.documenso_document_id is not null
+     and r.envelope_id is not null
      and r.completed_event_at is null
      and ((r.status in ('sent', 'viewed')
            and coalesce(s.synced_at, r.sent_at) < pg_catalog.now() - interval '6 hours')
@@ -221,7 +222,7 @@ declare
   v_ended bigint;
   v_parts text[] := '{}';
 begin
-  -- 1. Completions we saw (20261008124818, unchanged).
+  -- 1. Completions we saw (20261008151625, unchanged: keyed `<request id>:<envelope id>`).
   begin
     select pg_catalog.count(private.notify(
              r.org_id, 'core', 'core.signed_document_unsaved', 'important',
@@ -231,14 +232,14 @@ begin
                || 'n''est pas faite, ce document n''existe que là-bas. Vérifiez la connexion dans '
                || '« Signature électronique » et le suivi des signatures dans « Tâches planifiées ».',
              '/parametres/signature-electronique', 'signature_request', r.id,
-             'settings.integrations_manage', null, r.id::text || ':' || r.documenso_document_id, null))
+             'settings.integrations_manage', null, r.id::text || ':' || r.envelope_id, null))
       into v_posted
       from public.signature_requests r
      where ((r.status in ('sent', 'viewed') and r.completed_event_at < pg_catalog.now() - interval '6 hours')
-            or (r.status = 'draft' and r.last_error = 'orphan_completed' and r.documenso_document_id is not null))
+            or (r.status = 'draft' and r.last_error = 'orphan_completed' and r.envelope_id is not null))
        and not exists (select 1 from public.notifications n
                         where n.org_id = r.org_id and n.kind = 'core.signed_document_unsaved'
-                          and n.dedupe_key = r.id::text || ':' || r.documenso_document_id);
+                          and n.dedupe_key = r.id::text || ':' || r.envelope_id);
 
     update public.notifications n
        set expires_at = pg_catalog.now()
@@ -247,7 +248,7 @@ begin
        and n.expires_at is null
        and not exists (select 1 from public.signature_requests r
                         where r.id = n.subject_id and r.org_id = n.org_id
-                          and n.dedupe_key = r.id::text || ':' || r.documenso_document_id
+                          and n.dedupe_key = r.id::text || ':' || r.envelope_id
                           and ((r.status in ('sent', 'viewed') and r.completed_event_at is not null)
                                or (r.status = 'draft' and r.last_error = 'orphan_completed')));
     get diagnostics v_ended = row_count;
@@ -402,7 +403,7 @@ begin
     v_parts := v_parts || ('module_error=' || sqlstate);
   end;
 
-  -- 5. Retention: the reconcile's state of requests no longer open (20261008124818).
+  -- 5. Retention: the reconcile's state of requests no longer open (20261008151625).
   begin
     delete from public.signature_request_syncs s
      where not exists (select 1 from public.signature_requests r

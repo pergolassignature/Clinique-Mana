@@ -252,7 +252,7 @@ Deno.test('signing-sync: a failed « Synchroniser » records its code (a 404 is 
   await run(async () => {
     const s = setup()
     const row = await sentRequest(s.fake, s.db)
-    s.fake.documents.delete(row.documenso_document_id!)
+    s.fake.documents.delete(row.envelope_id!)
     const res = await s.handler(post({ request_id: row.id }))
     assertEquals([res.status, (await res.json()).error.code], [
       502,

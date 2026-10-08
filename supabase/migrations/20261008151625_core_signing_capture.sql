@@ -4,8 +4,9 @@
 -- Rule:    every document Documenso produces (the signed PDF, with Documenso's certificate and
 --          audit pages) is copied into our private storage as soon as it exists; a Documenso link
 --          is never the only copy (ADR 0005, « Pas de sauvegarde de la VM Documenso »).
--- Amends:  20261008073909_core_signing.sql (list_signature_requests_to_reconcile, the
---          core.signing_reconcile job); applied there, so changed here.
+-- Amends:  20261008073909_core_signing.sql (the core.signing_reconcile job) and
+--          20261008133453_core_signing_envelope.sql (list_signature_requests_to_reconcile, whose
+--          latest body is the envelope one); applied there, so changed here.
 -- Rules:   docs/standards/database-conventions.md
 --
 -- Key choices
@@ -13,10 +14,12 @@
 --   20261008040525_core_scheduled_jobs.sql: same job, same command; « Tâches planifiées » reads the
 --   schedule from cron.job and shows « Toutes les heures »). The webhook still stores the PDF at
 --   once; the reconcile is the net for a lost webhook or a failed store.
--- * The list (same signature, so its grants stay): every sent or viewed request is read at each
---   run, not only after a day. Without a webhook, polling is the only way to learn that Documenso
---   completed a document, so an hour between polls is what « captured within about an hour »
---   costs. The volume stays small: one open request per record and purpose
+-- * The list (same signature, so its grants stay), rebuilt from 20261008133453's envelope body: a
+--   draft's Documenso state is its envelope id (the envelope API is the only reference; the
+--   deprecated document id output column is still returned, always null). Every sent or viewed
+--   request is read at each run, not only after a day. Without a webhook, polling is the only way
+--   to learn that Documenso completed a document, so an hour between polls is what « captured
+--   within about an hour » costs. The volume stays small: one open request per record and purpose
 --   (signature_requests_open_subject_idx) and an expiry of 60 days at most (7 by default) bound it
 --   to about one Documenso read per professional per hour while a contract is out (~50 at most,
 --   usually a handful), and a read with nothing new applies no event.
@@ -37,16 +40,16 @@
 --   Rows of closed requests are deleted by core.signing_unsaved_alert (retention), and cascade with
 --   the request. No client privilege, RLS on, no policy.
 -- * core.signing_unsaved_alert (SQL, maintenance, hourly at :55, after the reconcile): one
---   important core notice per request and Documenso document (dedupe key `<request id>:<document
---   id>`; « À surveiller » and the bell of settings.integrations_manage holders, i.e. whoever can
---   fix the Documenso connection) when Documenso completed it over 6 hours ago and its signed PDF is
---   still not stored (sent or viewed with completed_event_at), or when it is a draft left
---   `orphan_completed` (Documenso completed it but its recipients do not match: the reconcile
---   leaves it for a person). It runs in the database, so it still speaks when the edge function,
+--   important core notice per request and Documenso envelope (dedupe key `<request id>:<envelope
+--   id>`, at most 36 + 1 + 73 characters; « À surveiller » and the bell of
+--   settings.integrations_manage holders, i.e. whoever can fix the Documenso connection) when
+--   Documenso completed it over 6 hours ago and its signed PDF is still not stored (sent or viewed
+--   with completed_event_at), or when it is a draft left `orphan_completed` (Documenso completed
+--   it but its recipients do not match: the reconcile leaves it for a person). It runs in the database, so it still speaks when the edge function,
 --   pg_net or Documenso is what fails. The notice names no one (a request's title may name a
 --   person) and links to « Signature électronique ». It expires at the next run once the request
---   no longer meets that condition for that document: signed, but also an orphan draft cancelled
---   (`abandoned`) or re-sent; a later document of the same request is a new key, so a new notice
+--   no longer meets that condition for that envelope: signed, but also an orphan draft cancelled
+--   (`abandoned`) or re-sent; a later envelope of the same request is a new key, so a new notice
 --   (bounded to notices of the last 90 days, the window « À surveiller » shows).
 -- * Each part of the job (the notices, the retention) runs in its own block: one that fails is
 --   rolled back alone and logged in the run detail by its SQLSTATE (`unsaved_error=…`), the others
@@ -158,17 +161,19 @@ grant execute on function public.record_signature_sync(uuid, uuid, text, text[])
 -- and `abandon`, then by expiry (soonest first):
 --   `sync`     any sent or viewed request (read Documenso, apply its events, download the signed
 --              PDF when completed: a webhook may have been lost), including one Documenso
---              completed whose PDF is not stored yet (whatever its expiry); also a draft with a
---              Documenso document whose last send started over an hour ago (last_send_at, else
+--              completed whose PDF is not stored yet (whatever its expiry); also a draft with an
+--              envelope id whose last send started over an hour ago (last_send_at, else
 --              created_at): read it, recover it when Documenso completed it, else cancel it there
 --              and mark_signature_request_failed('abandoned');
 --   `expire`   sent or viewed past expires_at, not completed: sync first, then
 --              expire_signature_request, then cancel at Documenso;
---   `abandon`  a draft with no Documenso document whose last send started over a day ago (the
---              same clock), not abandoned: mark_signature_request_failed('abandoned').
+--   `abandon`  a draft with no envelope id whose last send started over a day ago (the same
+--              clock), not abandoned: mark_signature_request_failed('abandoned').
 -- A draft is acted on only after begin_signature_request_send claims it. A disabled module's
--- requests are skipped. Reads signature_requests_open_idx, then one primary-key probe per request
--- into signature_request_syncs.
+-- requests are skipped. 20261008133453's envelope body (the deprecated document id output is
+-- always null) with this file's rotation, every-sent-or-viewed condition and order. Reads
+-- signature_requests_open_idx, then one primary-key probe per request into
+-- signature_request_syncs.
 create or replace function public.list_signature_requests_to_reconcile(p_org_id uuid, p_limit int default 100)
 returns table (
   id uuid,
@@ -184,11 +189,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select r.id, r.module_key, r.status, r.documenso_document_id, r.envelope_id, r.expires_at, a.action
+  select r.id, r.module_key, r.status, null::text, r.envelope_id, r.expires_at, a.action
     from public.signature_requests r
     left join public.signature_request_syncs s on s.request_id = r.id
     cross join lateral (
-      select case when r.status = 'draft' then case when r.documenso_document_id is null then 'abandon' else 'sync' end
+      select case when r.status = 'draft' then case when r.envelope_id is null then 'abandon' else 'sync' end
                   when r.completed_event_at is not null then 'sync'
                   when r.expires_at < pg_catalog.now() then 'expire'
                   else 'sync' end as action) a
@@ -196,7 +201,7 @@ as $$
      and (r.status in ('sent', 'viewed') or (r.status = 'draft' and coalesce(r.last_error, '') <> 'abandoned'))
      and (r.status <> 'draft'
           or coalesce(r.last_send_at, r.created_at)
-             < pg_catalog.now() - case when r.documenso_document_id is null then interval '1 day'
+             < pg_catalog.now() - case when r.envelope_id is null then interval '1 day'
                                        else interval '1 hour' end)
      and public.module_enabled_for_org(r.org_id, r.module_key)
    order by (r.status <> 'draft' and r.completed_event_at is not null) desc,
@@ -220,7 +225,7 @@ update public.scheduled_jobs
 -- -----------------------------------------------------------------------------
 -- core.signing_unsaved_alert (private.run_sql_job)
 -- -----------------------------------------------------------------------------
--- Header. One notice per request and document (private.notify's dedupe), counted only when new;
+-- Header. One notice per request and envelope (private.notify's dedupe), counted only when new;
 -- then the notices whose condition has ended expire; then the retention of
 -- signature_request_syncs. A handful of rows: one statement each, one block per part.
 create function private.job_signing_unsaved_alert()
@@ -243,17 +248,17 @@ begin
                || 'n''est pas faite, ce document n''existe que là-bas. Vérifiez la connexion dans '
                || '« Signature électronique » et le suivi des signatures dans « Tâches planifiées ».',
              '/parametres/signature-electronique', 'signature_request', r.id,
-             'settings.integrations_manage', null, r.id::text || ':' || r.documenso_document_id, null))
+             'settings.integrations_manage', null, r.id::text || ':' || r.envelope_id, null))
       into v_notified
       from public.signature_requests r
      where ((r.status in ('sent', 'viewed') and r.completed_event_at < pg_catalog.now() - interval '6 hours')
-            or (r.status = 'draft' and r.last_error = 'orphan_completed' and r.documenso_document_id is not null))
+            or (r.status = 'draft' and r.last_error = 'orphan_completed' and r.envelope_id is not null))
        and not exists (select 1 from public.notifications n
                         where n.org_id = r.org_id and n.kind = 'core.signed_document_unsaved'
-                          and n.dedupe_key = r.id::text || ':' || r.documenso_document_id);
+                          and n.dedupe_key = r.id::text || ':' || r.envelope_id);
 
-    -- Ends once the request no longer meets the condition for the document the notice names:
-    -- signed, an orphan draft cancelled (`abandoned`) or re-sent, or another document since.
+    -- Ends once the request no longer meets the condition for the envelope the notice names:
+    -- signed, an orphan draft cancelled (`abandoned`) or re-sent, or another envelope since.
     update public.notifications n
        set expires_at = pg_catalog.now()
      where n.kind = 'core.signed_document_unsaved'
@@ -261,7 +266,7 @@ begin
        and n.expires_at is null
        and not exists (select 1 from public.signature_requests r
                         where r.id = n.subject_id and r.org_id = n.org_id
-                          and n.dedupe_key = r.id::text || ':' || r.documenso_document_id
+                          and n.dedupe_key = r.id::text || ':' || r.envelope_id
                           and ((r.status in ('sent', 'viewed') and r.completed_event_at is not null)
                                or (r.status = 'draft' and r.last_error = 'orphan_completed')));
     get diagnostics v_cleared = row_count;
