@@ -96,3 +96,10 @@ export async function clearPermissionOverride(userId: string, permissionKey: str
   const { error } = await supabase.rpc('clear_permission_override', { p_user_id: userId, p_permission_key: permissionKey })
   if (error) throw error
 }
+
+/** Removes all of the user's overrides at once (« Rétablir les permissions du rôle »); returns how many. */
+export async function clearPermissionOverrides(userId: string): Promise<number> {
+  const { data, error } = await supabase.rpc('clear_permission_overrides', { p_user_id: userId })
+  if (error) throw error
+  return data
+}

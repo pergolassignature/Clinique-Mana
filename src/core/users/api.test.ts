@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   clearPermissionOverride,
+  clearPermissionOverrides,
   fetchOrgUsers,
   fetchPermissionCatalog,
   fetchUserOverrides,
@@ -168,5 +169,14 @@ describe('write RPCs', () => {
 
     mocks.rpc.mockResolvedValue({ data: null, error: failure })
     await expect(call()).rejects.toBe(failure)
+  })
+
+  it('clearPermissionOverrides calls its RPC, returns the number removed and throws its error', async () => {
+    mocks.rpc.mockResolvedValue({ data: 3, error: null })
+    await expect(clearPermissionOverrides('u2')).resolves.toBe(3)
+    expect(mocks.rpc).toHaveBeenCalledWith('clear_permission_overrides', { p_user_id: 'u2' })
+
+    mocks.rpc.mockResolvedValue({ data: null, error: failure })
+    await expect(clearPermissionOverrides('u2')).rejects.toBe(failure)
   })
 })

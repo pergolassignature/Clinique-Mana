@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
-  allowedOverrideStates,
   assignableRoles,
+  canResetOverrides,
+  canTogglePermission,
+  effectivePermission,
   groupPermissionsByModule,
   orderRoles,
   overrideStateOf,
   roleGrants,
+  stateForSwitch,
 } from './permissions'
 
 const ROLE_PERMISSIONS = [
@@ -42,34 +45,60 @@ describe('overrideStateOf', () => {
   })
 })
 
-describe('allowedOverrideStates', () => {
+describe('effectivePermission', () => {
+  const overrides = [
+    { permission_key: 'audit.view', granted: true },
+    { permission_key: 'professionals.view', granted: false },
+  ]
+  it('is the role default without an override', () => {
+    expect(effectivePermission('settings.view', true, overrides)).toEqual({ on: true, override: null })
+    expect(effectivePermission('settings.view', false, overrides)).toEqual({ on: false, override: null })
+  })
+  it("is the override's value when there is one, whatever the role gives", () => {
+    expect(effectivePermission('audit.view', false, overrides)).toEqual({ on: true, override: true })
+    expect(effectivePermission('professionals.view', true, overrides)).toEqual({ on: false, override: false })
+  })
+})
+
+describe('stateForSwitch', () => {
+  it('back to the role value clears the override', () => {
+    expect(stateForSwitch(true, true)).toBe('role')
+    expect(stateForSwitch(false, false)).toBe('role')
+  })
+  it('away from the role value grants or revokes', () => {
+    expect(stateForSwitch(false, true)).toBe('granted')
+    expect(stateForSwitch(true, false)).toBe('revoked')
+  })
+})
+
+describe('canTogglePermission', () => {
   const holds = (keys: string[]) => (key: string) => keys.includes(key)
 
-  it('an admin may choose every state', () => {
-    expect(allowedOverrideStates({ callerIsAdmin: true, callerCan: holds([]), permissionKey: 'audit.view', current: 'revoked' })).toEqual(
-      new Set(['role', 'granted', 'revoked']),
-    )
+  it('an admin may always toggle', () => {
+    expect(canTogglePermission({ callerIsAdmin: true, callerCan: holds([]), permissionKey: 'audit.view', on: false })).toBe(true)
   })
-
-  it('a manager holding the permission may choose every state', () => {
-    expect(
-      allowedOverrideStates({ callerIsAdmin: false, callerCan: holds(['audit.view']), permissionKey: 'audit.view', current: 'revoked' }),
-    ).toEqual(new Set(['role', 'granted', 'revoked']))
+  it('a manager holding the permission may turn it on or off', () => {
+    expect(canTogglePermission({ callerIsAdmin: false, callerCan: holds(['audit.view']), permissionKey: 'audit.view', on: false })).toBe(true)
+    expect(canTogglePermission({ callerIsAdmin: false, callerCan: holds(['audit.view']), permissionKey: 'audit.view', on: true })).toBe(true)
   })
-
-  it('a manager lacking it may revoke, or clear a grant, but never grant', () => {
-    expect(
-      allowedOverrideStates({ callerIsAdmin: false, callerCan: holds([]), permissionKey: 'audit.view', current: 'granted' }),
-    ).toEqual(new Set(['role', 'revoked']))
-    expect(allowedOverrideStates({ callerIsAdmin: false, callerCan: holds([]), permissionKey: 'audit.view', current: 'role' })).toEqual(
-      new Set(['role', 'revoked']),
-    )
+  it('a manager lacking it may turn it off, never on (a grant, or a cleared revoke)', () => {
+    expect(canTogglePermission({ callerIsAdmin: false, callerCan: holds([]), permissionKey: 'audit.view', on: true })).toBe(true)
+    expect(canTogglePermission({ callerIsAdmin: false, callerCan: holds([]), permissionKey: 'audit.view', on: false })).toBe(false)
   })
+})
 
-  it('a manager lacking it may not clear a revoke (it could give the permission back)', () => {
-    expect(
-      allowedOverrideStates({ callerIsAdmin: false, callerCan: holds([]), permissionKey: 'audit.view', current: 'revoked' }),
-    ).toEqual(new Set(['revoked']))
+describe('canResetOverrides', () => {
+  const holds = (keys: string[]) => (key: string) => keys.includes(key)
+  const overrides = [
+    { permission_key: 'settings.manage', granted: true },
+    { permission_key: 'professionals.view', granted: false },
+  ]
+  it('an admin may always reset', () => {
+    expect(canResetOverrides({ callerIsAdmin: true, callerCan: holds([]), overrides })).toBe(true)
+  })
+  it('a manager may reset unless a revoke is on a permission they lack; grants do not matter', () => {
+    expect(canResetOverrides({ callerIsAdmin: false, callerCan: holds(['professionals.view']), overrides })).toBe(true)
+    expect(canResetOverrides({ callerIsAdmin: false, callerCan: holds([]), overrides })).toBe(false)
   })
 })
 
