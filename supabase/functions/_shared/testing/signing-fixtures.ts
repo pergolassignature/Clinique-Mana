@@ -3,7 +3,7 @@
  * (its document distributed in the fake Documenso, its row `sent` in the
  * fake database). Test-only: never deployed.
  */
-import { documensoClient } from '../documenso.ts'
+import { documensoClient, type DocumensoReach } from '../documenso.ts'
 import type { FakeDocumenso } from './fake-documenso.ts'
 import type { FakeSignatureRequest, FakeSigningDb } from './fake-signing-db.ts'
 
@@ -13,6 +13,40 @@ export const DOCUMENSO_KEY = 'local-dev-documenso-key'
 export const WEBHOOK_SECRET = 'local-dev-documenso-webhook-secret'
 export const SIGNER_EMAIL = 'ana.gagnon@example.test'
 export const CLINIC_EMAIL = 'direction@mana.test'
+
+/**
+ * Local dev (P3-34): the fake at `http://host.docker.internal` is allowed and
+ * no address is checked, so no DNS lookup is made (a lookup fails the test).
+ */
+export const LOCAL_REACH: DocumensoReach = {
+  local: true,
+  resolveDns: () => Promise.reject(new Error('no DNS lookup in local dev')),
+}
+
+/** A local `APP_URL`: handler deps whose `env` returns it get `LOCAL_REACH`'s rules. */
+export const LOCAL_APP_URL = 'http://localhost:5173'
+
+/**
+ * A deployed reach whose resolver answers `records` (by type; missing types
+ * have no record, as `Deno.resolveDns` throws `NotFound`), and logs every
+ * lookup in `lookups`.
+ */
+export function deployedReach(
+  records: { A?: string[]; AAAA?: string[] } = { A: ['93.184.215.14'] },
+): DocumensoReach & { lookups: string[] } {
+  const lookups: string[] = []
+  return {
+    local: false,
+    lookups,
+    resolveDns: (host, type) => {
+      lookups.push(`${type} ${host}`)
+      const answer = records[type]
+      return answer
+        ? Promise.resolve(answer)
+        : Promise.reject(new Error('NotFound'))
+    },
+  }
+}
 
 /** The smallest PDF `sniff` accepts: a version header and `%%EOF`. */
 export const MINIMAL_PDF = new TextEncoder().encode(
@@ -40,7 +74,9 @@ export async function sentRequest(
 ): Promise<FakeSignatureRequest> {
   const id = over.id ??
     `5a000000-0000-4000-8000-${String(++next).padStart(12, '0')}`
-  const client = documensoClient(fake.baseUrl, DOCUMENSO_KEY, fake.fetch)
+  const client = documensoClient(fake.baseUrl, DOCUMENSO_KEY, fake.fetch, {
+    reach: LOCAL_REACH,
+  })
   const created = await client.createDocument(MINIMAL_PDF, {
     title: 'Contrat',
     externalId: id,

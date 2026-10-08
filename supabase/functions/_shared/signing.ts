@@ -70,6 +70,7 @@ import {
   documensoClient,
   type DocumensoDocumentState,
   DocumensoError,
+  type DocumensoReach,
 } from './documenso.ts'
 import type { TemplateVariable } from './format.ts'
 import { type AssetRef, loadAssets } from './pdf/assets.ts'
@@ -171,6 +172,8 @@ export interface SigningDeps {
   /** A service-role client. */
   client: SupabaseClient
   fetch: typeof fetch
+  /** Where Documenso requests may go (`documensoReach`, P3-34). */
+  reach: DocumensoReach
   now: () => Date
   renderer?: PdfRenderer
 }
@@ -362,9 +365,11 @@ export async function createSignatureRequest(
     documenso: documensoClient(baseUrl, apiKey, deps.fetch, {
       signal,
       maxDownloadBytes: SIGNED_PDF_MAX_BYTES,
+      reach: deps.reach,
     }),
     cleanup: documensoClient(baseUrl, apiKey, deps.fetch, {
       timeoutMs: CANCEL_TIMEOUT_MS,
+      reach: deps.reach,
     }),
     markFailed: (code, ids) =>
       markDraftFailed(

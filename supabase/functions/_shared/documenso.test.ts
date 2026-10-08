@@ -11,6 +11,7 @@ import {
   documensoClient,
   DocumensoError,
   documensoEventId,
+  isPublicAddress,
 } from './documenso.ts'
 import { FunctionError } from './errors.ts'
 import {
@@ -18,6 +19,7 @@ import {
   type FetchCall,
   type Responder,
 } from './testing/fake-fetch.ts'
+import { deployedReach, LOCAL_REACH } from './testing/signing-fixtures.ts'
 
 const BASE = 'https://sign.cliniquemana.test'
 const KEY = 'local-dev-documenso-key'
@@ -90,8 +92,9 @@ const input = (
   ...over,
 })
 
+/** A deployed client whose host resolves to a public address. */
 const client = (fetchFn: typeof fetch, options = {}) =>
-  documensoClient(BASE, KEY, fetchFn, options)
+  documensoClient(BASE, KEY, fetchFn, { reach: deployedReach(), ...options })
 
 /** The multipart parts of a logged call. */
 function formOf(call: FetchCall): Promise<FormData> {
@@ -120,8 +123,245 @@ Deno.test('documensoClient: a missing key or a non-http(s) base URL → not_conf
 
 Deno.test('documensoClient: a trailing slash on the base URL is ignored', async () => {
   const { fetch, calls } = fakeFetch({ [LIST]: json(200, { data: [] }) })
-  await documensoClient(`${BASE}//`, KEY, fetch).ping()
+  await documensoClient(`${BASE}//`, KEY, fetch, { reach: deployedReach() })
+    .ping()
   assertEquals(calls[0].url, `${BASE}/api/v2/document?perPage=1`)
+})
+
+// ---------------------------------------------------------------------------
+// Reach (P3-34: SSRF and key exfiltration)
+// ---------------------------------------------------------------------------
+/** The `redirect` mode of every request `fetchFn` receives. */
+function tracingRedirects(fetchFn: typeof fetch) {
+  const modes: RequestRedirect[] = []
+  const traced = ((input: RequestInfo | URL, init?: RequestInit) => {
+    modes.push(new Request(input, init).redirect)
+    return fetchFn(input, init)
+  }) as typeof fetch
+  return { traced, modes }
+}
+
+Deno.test('reach: every request is sent with redirect: manual', async () => {
+  const { fetch } = fakeFetch({
+    [LIST]: json(200, { data: [] }),
+    [CREATE]: json(200, { id: 12, envelopeId: 'envelope_abc' }),
+    [GET_12]: json(200, documentBody()),
+    [route('POST', '/api/v2/document/distribute')]: json(200, {}),
+  })
+  const { traced, modes } = tracingRedirects(fetch)
+  const documenso = client(traced)
+  await documenso.ping()
+  await documenso.createDocument(PDF, input())
+  await documenso.distribute('12')
+  assertEquals(modes, ['manual', 'manual', 'manual', 'manual'])
+})
+
+Deno.test('reach: any 3xx is a provider_error, never followed (the key stays home)', async () => {
+  for (const status of [301, 302, 303, 307, 308]) {
+    const { fetch, calls } = fakeFetch({
+      [LIST]: () => Response.redirect('https://evil.test/collect', status),
+    })
+    const error = await assertRejects(
+      () => client(fetch).ping(),
+      DocumensoError,
+    )
+    assertEquals([error.code, error.status], ['provider_error', status])
+    assertFalse(error.message.includes('evil.test'))
+    assertEquals(calls.map((c) => c.url), [`${BASE}/api/v2/document?perPage=1`])
+  }
+  const { fetch, calls } = fakeFetch({
+    [GET_12]: () => Response.redirect('http://169.254.169.254/', 302),
+  })
+  await assertRejects(() => client(fetch).get('12'), DocumensoError)
+  assertEquals(calls.length, 1)
+})
+
+Deno.test('reach: a name resolving to a private address is refused before any request, the address never quoted', async () => {
+  const privates = [
+    '127.0.0.1',
+    '10.1.2.3',
+    '172.16.0.1',
+    '172.31.255.255',
+    '192.168.1.1',
+    '169.254.169.254',
+    '100.64.0.1',
+    '100.127.255.254',
+    '0.0.0.0',
+    '224.0.0.1',
+    '239.255.255.250',
+    '255.255.255.255',
+    '240.0.0.1',
+    '::',
+    '::1',
+    'fd00::1',
+    'fc00::1',
+    'fe80::1',
+    'fec0::1',
+    'ff02::1',
+    '::ffff:127.0.0.1',
+    '::ffff:7f00:1',
+    '::ffff:10.0.0.1',
+    '::127.0.0.1',
+    '64:ff9b::a00:1',
+    '2002:a00:1::1',
+    '2001:db8::1',
+  ]
+  for (const address of privates) {
+    const v6 = address.includes(':')
+    const reach = deployedReach(v6 ? { AAAA: [address] } : { A: [address] })
+    const { fetch, calls } = fakeFetch({ [LIST]: json(200, { data: [] }) })
+    const error = await assertRejects(
+      () => client(fetch, { reach }).ping(),
+      DocumensoError,
+      undefined,
+      address,
+    )
+    assertEquals([error.code, error.status], ['provider_error', null], address)
+    assertFalse(error.message.includes(address), address)
+    assertFalse(error.message.includes('sign.cliniquemana.test'), address)
+    assertEquals(calls.length, 0, address)
+    assertEquals(reach.lookups, [
+      'A sign.cliniquemana.test',
+      'AAAA sign.cliniquemana.test',
+    ])
+  }
+})
+
+Deno.test('reach: one private record among public ones refuses the request', async () => {
+  const reach = deployedReach({
+    A: ['93.184.215.14'],
+    AAAA: ['2606:2800:220:1::1', '::1'],
+  })
+  const { fetch, calls } = fakeFetch({ [LIST]: json(200, { data: [] }) })
+  await assertRejects(() => client(fetch, { reach }).ping(), DocumensoError)
+  assertEquals(calls.length, 0)
+})
+
+Deno.test('reach: public records → the request goes; the name is resolved again before every request', async () => {
+  const reach = deployedReach({
+    A: ['93.184.215.14'],
+    AAAA: ['2606:2800:220:1:248:1893:25c8:1946'],
+  })
+  const { fetch, calls } = fakeFetch({ [LIST]: json(200, { data: [] }) })
+  const documenso = client(fetch, { reach })
+  assertEquals(await documenso.ping(), { ok: true })
+  assertEquals(await documenso.ping(), { ok: true })
+  assertEquals(calls.length, 2)
+  assertEquals(reach.lookups.length, 4)
+})
+
+Deno.test('reach: a name that does not resolve → provider_error (unreachable), no request', async () => {
+  const reach = deployedReach({})
+  const { fetch, calls } = fakeFetch({ [LIST]: json(200, { data: [] }) })
+  const error = await assertRejects(
+    () => client(fetch, { reach }).ping(),
+    DocumensoError,
+  )
+  assertEquals([error.code, error.status], ['provider_error', null])
+  assertEquals(error.message, 'Documenso ping unreachable')
+  assertEquals(calls.length, 0)
+})
+
+Deno.test('reach: deployed, the local fake, http, private names and private IP literals are refused without a lookup', async () => {
+  for (
+    const base of [
+      'http://host.docker.internal:55390',
+      'https://host.docker.internal:55390',
+      'http://sign.cliniquemana.test',
+      'https://localhost:8443',
+      'https://sign.localhost',
+      'https://documenso.internal',
+      'https://sign.local',
+      'https://documenso',
+      'https://127.0.0.1',
+      'https://127.1',
+      'https://0x7f000001',
+      'https://[::1]',
+      'https://[::ffff:10.0.0.1]',
+    ]
+  ) {
+    const reach = deployedReach()
+    const { fetch, calls } = fakeFetch({})
+    const error = await assertRejects(
+      () => documensoClient(base, KEY, fetch, { reach }).ping(),
+      DocumensoError,
+      undefined,
+      base,
+    )
+    assertEquals(error.code, 'provider_error', base)
+    assertEquals([calls.length, reach.lookups.length], [0, 0], base)
+  }
+})
+
+Deno.test('reach: without options a client is deployed (fails closed): the local fake is refused', async () => {
+  const { fetch, calls } = fakeFetch({})
+  await assertRejects(
+    () =>
+      documensoClient('http://host.docker.internal:55390', KEY, fetch).ping(),
+    DocumensoError,
+  )
+  assertEquals(calls.length, 0)
+})
+
+Deno.test('reach: local dev allows the fake at host.docker.internal, with no lookup', async () => {
+  const base = 'http://host.docker.internal:55390'
+  const { fetch, calls } = fakeFetch({
+    [`GET ${base}/api/v2/document`]: json(200, { data: [] }),
+  })
+  assertEquals(
+    await documensoClient(base, KEY, fetch, { reach: LOCAL_REACH }).ping(),
+    { ok: true },
+  )
+  assertEquals(calls.length, 1)
+})
+
+Deno.test('isPublicAddress: public unicast only, IPv4-mapped IPv6 judged by its IPv4', () => {
+  for (
+    const address of [
+      '93.184.215.14',
+      '8.8.8.8',
+      '172.32.0.1',
+      '100.128.0.1',
+      '2606:2800:220:1:248:1893:25c8:1946',
+      '2a00:1450:4001:81c::200e',
+      '::ffff:93.184.215.14',
+      '::ffff:5db8:d70e',
+      '[2606:2800:220:1::1]',
+    ]
+  ) assert(isPublicAddress(address), address)
+  for (
+    const address of [
+      '127.0.0.1',
+      '10.0.0.1',
+      '172.16.0.1',
+      '192.168.0.1',
+      '169.254.1.1',
+      '100.64.0.1',
+      '0.0.0.0',
+      '224.0.0.1',
+      '255.255.255.255',
+      '192.0.0.8',
+      '198.18.0.1',
+      '::',
+      '::1',
+      '[::1]',
+      'fd12:3456::1',
+      'fe80::1%eth0',
+      'ff02::1',
+      '::ffff:192.168.0.1',
+      '::ffff:c0a8:1',
+      '64:ff9b::7f00:1',
+      '2002:7f00:1::',
+      '2001::1',
+      '2001:db8::1',
+      'not an address',
+      '1.2.3',
+      '256.1.1.1',
+      '1:2:3:4:5:6:7:8:9',
+      '1::2::3',
+      '',
+    ]
+  ) assertFalse(isPublicAddress(address), address)
 })
 
 // ---------------------------------------------------------------------------

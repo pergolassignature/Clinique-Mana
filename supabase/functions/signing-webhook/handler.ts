@@ -51,6 +51,7 @@ import { readCapped } from '../_shared/http.ts'
 import { reportError } from '../_shared/report.ts'
 import {
   applyEvents,
+  documensoReach,
   getSigningRequest,
   normaliseEventName,
   orgSigning,
@@ -231,7 +232,13 @@ export function createHandler(
         }
       } else if (applied.needsDownload) {
         const [signing, request] = await Promise.all([
-          orgSigning(client, orgId, deps.fetch, req.signal),
+          orgSigning(
+            client,
+            orgId,
+            deps.fetch,
+            documensoReach(deps),
+            req.signal,
+          ),
           getSigningRequest(client, orgId, applied.requestId!),
         ])
         if (!signing) throw new SigningFailure('not_configured')

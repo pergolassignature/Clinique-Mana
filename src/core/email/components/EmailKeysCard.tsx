@@ -1,11 +1,11 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
-import { Copy } from 'lucide-react'
+import { useRef, useState, type FormEvent } from 'react'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
 import { webhookUrl } from '@/core/email/api'
 import { useEmailSender, useLastWebhookEvent, useSetEmailSendingDomain } from '@/core/email/hooks'
 import { sendingDomainSchema } from '@/core/email/schemas'
 import { SecretField } from '@/core/settings/components/SecretField'
+import { WebhookAddressField } from '@/core/settings/components/WebhookAddressField'
 import { useOrgSecretKeys } from '@/core/settings/secrets/hooks'
 import { LoadError, Loading } from '@/shared/components/LoadState'
 import { SaveButton } from '@/shared/components/SaveButton'
@@ -22,11 +22,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
-import { Button } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
-import { Label } from '@/shared/ui/label'
-import { toast } from '@/shared/ui/sonner'
 
 /** The Resend secrets, in `org_secrets` (P3-12: `settings.integrations_manage`). */
 const SECRETS = [
@@ -68,7 +65,7 @@ export function EmailKeysCard({ readOnly }: { readOnly: boolean }) {
     <SettingsCard as="section" title={t('settings.email.keys.title')} description={t(readOnly ? 'settings.email.keys.readOnlyDescription' : 'settings.email.keys.description')}>
       {sender.data ? <DomainForm domain={sender.data.sending_domain} readOnly={readOnly} /> : sender.isPending && <Loading />}
       {secretFields}
-      <WebhookAddress url={webhookUrl(orgId)} />
+      <WebhookAddressField url={webhookUrl(orgId)} label={t('settings.email.keys.webhookUrl')} help={t('settings.email.keys.webhookUrlHelp')} />
       <p role="status" className="text-sm text-muted-foreground">
         {lastEvent.isPending
           ? t('common.loading')
@@ -152,33 +149,5 @@ function DomainForm({ domain, readOnly }: { domain: string; readOnly: boolean })
         </AlertDialogContent>
       </AlertDialog>
     </form>
-  )
-}
-
-/** The webhook address, read-only, with « Copier ». */
-function WebhookAddress({ url }: { url: string }) {
-  const id = useId()
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url)
-      toast.success(t('settings.email.keys.webhookCopied'))
-    } catch {
-      toast.error(t('settings.email.keys.webhookCopyError'))
-    }
-  }
-  return (
-    <div className="space-y-1">
-      <Label htmlFor={id}>{t('settings.email.keys.webhookUrl')}</Label>
-      <div className="flex min-w-0 items-center gap-2">
-        <Input id={id} readOnly value={url} aria-describedby={`${id}-help`} spellCheck={false} className="min-w-0 flex-1" />
-        <Button type="button" variant="outline" onClick={() => void copy()} className="max-sm:h-11">
-          <Copy aria-hidden className="size-3.5" />
-          {t('settings.email.keys.copy')}
-        </Button>
-      </div>
-      <p id={`${id}-help`} className="text-xs text-muted-foreground">
-        {t('settings.email.keys.webhookUrlHelp')}
-      </p>
-    </div>
   )
 }

@@ -14,7 +14,10 @@ import {
   ADMIN_ID,
   ADMIN_NAME,
 } from '../_shared/testing/email-fixtures.ts'
-import { SIGNING_ORG } from '../_shared/testing/signing-fixtures.ts'
+import {
+  LOCAL_APP_URL,
+  SIGNING_ORG,
+} from '../_shared/testing/signing-fixtures.ts'
 
 const URL_ = 'http://fn.test/functions/v1/signing-test-document'
 const KEY = '9b1c1b2e-3d4a-4b5c-8d9e-0f1a2b3c4d5e'
@@ -45,7 +48,7 @@ function setup(
     },
   })
   const deps: Deps = {
-    env: () => undefined,
+    env: (key) => key === 'APP_URL' ? LOCAL_APP_URL : undefined,
     fetch: fake.fetch,
     now: clock.now,
     serviceClient: () => service.client,

@@ -96,6 +96,13 @@
 --     cancel_signature_request and set_document_template_active are added (Phase 4, admin).
 --   - `base_url` also refuses whitespace, `?` and `#`; set_signing_settings trims the value and
 --     its trailing slashes.
+--   - P3-34 (Task 3.34 review, SSRF): `base_url` is `https://` to a public DNS name only
+--     (private.signing_base_url_valid: no IP literal, no single label, no localhost, .internal
+--     or .local), or exactly `http://host.docker.internal:<port>` for the local fake, which the
+--     functions refuse unless APP_URL is local (_shared/documenso.ts also resolves the host
+--     before every request). set_signing_settings takes a jsonb patch (each card sends its own
+--     field: no lost update between them), and deletes the `documenso_api_key` org secret when
+--     the address's origin changes, so a new address always needs its key typed again.
 -- =============================================================================
 select pg_catalog.set_config('app.audit_source', 'migration:core_signing', true);
 
@@ -133,14 +140,51 @@ revoke all on function private.signing_signers_valid(jsonb) from public, anon, a
 -- -----------------------------------------------------------------------------
 -- Signing settings
 -- -----------------------------------------------------------------------------
+-- A Documenso address the server may call (P3-30, P3-34; the functions send the API key there):
+-- - `https://` to a public DNS name: at least two labels of [a-z0-9-] (1–63 each, no leading or
+--   trailing hyphen, so no IPv6 literal, no empty label), not `localhost` nor under `.localhost`,
+--   `.internal` or `.local`, and a last label that is neither all digits nor `0x…` (URL parsers
+--   read such a host as an IPv4 literal: `1.2.3.4`, `127.1`, `0x7f.1`); an optional port; a path
+--   without whitespace, `?` or `#`; at most 2 048 characters;
+-- - or exactly `http://host.docker.internal:<port>`, the local fake (`npm run fake:documenso`,
+--   P3-23). A check cannot know the environment: the functions refuse this host unless APP_URL
+--   is local (_shared/documenso.ts, which also resolves every host and refuses private addresses).
+-- Null for null (a check passes it: no instance yet).
+create function private.signing_base_url_valid(p_url text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when p_url is null then null
+    when pg_catalog.length(p_url) > 2048 then false
+    when p_url ~ '^http://host\.docker\.internal:[0-9]{1,5}(/[^[:space:]?#]*)?$' then true
+    when p_url !~ '^https://[a-z0-9.-]+(:[0-9]{1,5})?(/[^[:space:]?#]*)?$' then false
+    else (select h ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'
+             and pg_catalog.length(h) <= 253
+             and h !~ '(^|\.)(localhost|internal|local)$'
+             and h !~ '(^|\.)([0-9]+|0x[0-9a-f]*)$'
+            from pg_catalog.substring(p_url, '^https://([a-z0-9.-]+)') h)
+  end
+$$;
+revoke all on function private.signing_base_url_valid(text) from public, anon, authenticated, service_role;
+
+-- The origin (scheme, host, port) of a valid base URL, `:443` dropped for https; null for null.
+create function private.signing_base_url_origin(p_url text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select pg_catalog.regexp_replace(pg_catalog.substring(p_url, '^([a-z]+://[^/]+)'), '^(https://[^/:]+):443$', '\1')
+$$;
+revoke all on function private.signing_base_url_origin(text) from public, anon, authenticated, service_role;
+
 create table public.signing_settings (
   org_id uuid primary key references public.organizations(id) on delete cascade,
-  -- The clinic's Documenso instance. The second form is the local fake only
-  -- (`npm run fake:documenso`, P3-23, P3-30): host.docker.internal resolves on dev machines only.
-  base_url text check (
-    pg_catalog.length(base_url) <= 2048
-    and (base_url ~ '^https://[a-z0-9.-]+(:[0-9]+)?(/[^[:space:]?#]*)?$'
-         or base_url ~ '^http://host\.docker\.internal:[0-9]+(/[^[:space:]?#]*)?$')),
+  -- The clinic's Documenso instance (private.signing_base_url_valid).
+  base_url text check (base_url is null or private.signing_base_url_valid(base_url)),
   -- Days before an invitation expires (Documenso's envelope expiry, and the reconcile job).
   expiry_days int not null default 7 check (expiry_days between 1 and 60),
   updated_at timestamptz not null default now(),
@@ -502,26 +546,75 @@ create policy signature_request_signers_select on public.signature_request_signe
 -- -----------------------------------------------------------------------------
 -- Settings RPC (« Signature électronique », Task 3.34)
 -- -----------------------------------------------------------------------------
--- Sets the instance address (trimmed, without trailing slashes; empty or null clears it) and the
--- expiry of the caller's org. The checks raise 23514 (the form mirrors them), a null expiry too.
-create function public.set_signing_settings(p_base_url text, p_expiry_days int)
-returns void
+-- Changes the signing settings of the caller's org, field by field (P3-34): `p` is a patch, an
+-- object with `base_url` and/or `expiry_days`; a field left out keeps its stored value, so each
+-- card sends only its own field. `base_url` is trimmed and stored without trailing slashes; an
+-- empty string or null clears it. `expiry_days` is a whole number (null → 23514 « obligatoire »).
+-- Another key, or no key → 22023; a value the checks refuse → 23514 (the form mirrors them).
+-- When the origin (scheme, host, port) of the address changes, the `documenso_api_key` org secret
+-- is deleted in the same transaction: a key is only ever sent to the address it was typed for.
+-- Returns `{"api_key_cleared": bool}` (true when a stored key was deleted).
+create function public.set_signing_settings(p jsonb)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_org uuid := private.current_user_org_id();
+  v_old text;
+  v_base_url text;
+  v_expiry int;
+  v_cleared boolean := false;
 begin
   if not private.has_permission('settings.integrations_manage') then
     raise exception 'Permission refusée : settings.integrations_manage' using errcode = '42501';
   end if;
-  if p_expiry_days is null then
-    raise exception 'Le délai d''expiration est obligatoire.' using errcode = '23514';
+  if p is null or pg_catalog.jsonb_typeof(p) <> 'object' or p = '{}'::jsonb
+     or exists (select 1 from pg_catalog.jsonb_object_keys(p) k where k not in ('base_url', 'expiry_days')) then
+    raise exception 'Réglages de signature invalides : base_url et/ou expiry_days attendus.' using errcode = '22023';
   end if;
+
+  select s.base_url, s.expiry_days into v_old, v_expiry
+    from public.signing_settings s
+   where s.org_id = v_org
+     for update;
+  if not found then
+    raise exception 'Réglages de signature introuvables.' using errcode = 'P0002';
+  end if;
+  v_base_url := v_old;
+
+  if p ? 'base_url' then
+    if pg_catalog.jsonb_typeof(p -> 'base_url') not in ('string', 'null') then
+      raise exception 'L''adresse de l''instance doit être un texte.' using errcode = '22023';
+    end if;
+    v_base_url := nullif(pg_catalog.rtrim(pg_catalog.btrim(p ->> 'base_url', E' \t\r\n'), '/'), '');
+    if v_base_url is not null and not private.signing_base_url_valid(v_base_url) then
+      raise exception 'L''adresse de l''instance doit être une adresse https:// publique (un nom de domaine complet, sans adresse IP).'
+        using errcode = '23514';
+    end if;
+  end if;
+  if p ? 'expiry_days' then
+    if pg_catalog.jsonb_typeof(p -> 'expiry_days') = 'null' then
+      raise exception 'Le délai d''expiration est obligatoire.' using errcode = '23514';
+    end if;
+    if pg_catalog.jsonb_typeof(p -> 'expiry_days') <> 'number' or (p ->> 'expiry_days') !~ '^[0-9]{1,9}$' then
+      raise exception 'Le délai d''expiration est un nombre entier de jours.' using errcode = '23514';
+    end if;
+    v_expiry := (p ->> 'expiry_days')::int;
+  end if;
+
   update public.signing_settings s
-     set base_url = nullif(pg_catalog.rtrim(pg_catalog.btrim(p_base_url, E' \t\r\n'), '/'), ''),
-         expiry_days = p_expiry_days,
+     set base_url = v_base_url,
+         expiry_days = v_expiry,
          updated_by = auth.uid()
-   where s.org_id = private.current_user_org_id();
+   where s.org_id = v_org;
+
+  if private.signing_base_url_origin(v_base_url) is distinct from private.signing_base_url_origin(v_old) then
+    delete from public.org_secrets s where s.org_id = v_org and s.key = 'documenso_api_key';
+    v_cleared := found;
+  end if;
+  return pg_catalog.jsonb_build_object('api_key_cleared', v_cleared);
 end;
 $$;
 
@@ -981,7 +1074,7 @@ as $$
 $$;
 
 revoke all on function
-  public.set_signing_settings(text, int),
+  public.set_signing_settings(jsonb),
   public.create_document_template(text, text, text, text, text, text),
   public.set_document_template_active(uuid, boolean),
   public.create_template_version(uuid),
@@ -993,7 +1086,7 @@ revoke all on function
   public.get_signature_request(uuid)
 from public, anon, authenticated, service_role;
 grant execute on function
-  public.set_signing_settings(text, int),
+  public.set_signing_settings(jsonb),
   public.create_document_template(text, text, text, text, text, text),
   public.set_document_template_active(uuid, boolean),
   public.create_template_version(uuid),

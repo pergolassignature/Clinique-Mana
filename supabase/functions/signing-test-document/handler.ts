@@ -47,7 +47,10 @@ import {
 } from '../_shared/pdf/test-document.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
-import type { SigningFailure } from '../_shared/signing-events.ts'
+import {
+  documensoReach,
+  type SigningFailure,
+} from '../_shared/signing-events.ts'
 import { createSignatureRequest } from '../_shared/signing.ts'
 
 const FN = 'signing-test-document'
@@ -96,6 +99,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       const result = await createSignatureRequest({
         client: service,
         fetch: deps.fetch,
+        reach: documensoReach(deps),
         now: deps.now,
       }, {
         orgId: access.org_id,

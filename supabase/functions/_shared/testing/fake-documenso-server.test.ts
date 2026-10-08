@@ -2,6 +2,7 @@ import { assert, assertEquals } from '@std/assert'
 import { documensoClient } from '../documenso.ts'
 import { fakeDocumensoServer } from './fake-documenso-server.ts'
 import { fakeFetch } from './fake-fetch.ts'
+import { LOCAL_REACH } from './signing-fixtures.ts'
 
 const KEY = 'local-dev-documenso-key'
 const HOOK = 'http://127.0.0.1:55321/functions/v1/signing-webhook?org=o'
@@ -19,7 +20,7 @@ function setup(hookStatus = 200) {
   const viaHttp =
     ((input: RequestInfo | URL, init?: RequestInit) =>
       server.handler(new Request(input, init))) as typeof fetch
-  const client = documensoClient(LOCAL, KEY, viaHttp)
+  const client = documensoClient(LOCAL, KEY, viaHttp, { reach: LOCAL_REACH })
   return { server, hooks, client, viaHttp }
 }
 
@@ -117,7 +118,7 @@ Deno.test('fake-documenso-server: the document list has no address; an unreachab
   const viaHttp =
     ((input: RequestInfo | URL, init?: RequestInit) =>
       server.handler(new Request(input, init))) as typeof fetch
-  const client = documensoClient(LOCAL, KEY, viaHttp)
+  const client = documensoClient(LOCAL, KEY, viaHttp, { reach: LOCAL_REACH })
   const { documentId } = await distributed(client)
   const list = await (await viaHttp(`${LOCAL}/__fake/documents`)).json()
   assertEquals(list[0].status, 'PENDING')

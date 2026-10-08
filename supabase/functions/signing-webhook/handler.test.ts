@@ -11,6 +11,7 @@ import {
 import { fixedClock } from '../_shared/testing/fixed-clock.ts'
 import { captureConsole, withEnv } from '../_shared/testing/env.ts'
 import {
+  LOCAL_APP_URL,
   OTHER_ORG,
   sentRequest,
   SIGNERS,
@@ -43,7 +44,7 @@ function setup(
   })
   const compared: [string, string][] = []
   const deps: Deps = {
-    env: () => undefined,
+    env: (key) => key === 'APP_URL' ? LOCAL_APP_URL : undefined,
     fetch: fake.fetch,
     now: clock.now,
     serviceClient: () => supabase.client,

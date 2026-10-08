@@ -3,7 +3,8 @@
 -- Covers: privileges (the tables select-only for authenticated, signers without `email`, nothing
 -- for anon and service_role; user RPCs for authenticated, service RPCs for service_role; the
 -- private helpers for no client role); indexes; the signing_source / signing_signed purposes;
--- the core.signing_reconcile job; signing_settings (seeded per org, base_url forms, expiry
+-- the core.signing_reconcile job; signing_settings (seeded per org, base_url forms: public https
+-- only, P3-34; the per-field patch; the API key cleared when the origin changes; expiry
 -- range, permission, visibility); document templates (create needs settings.manage, the module
 -- gate of their permissions, visibility through view_permission, a disabled module's template
 -- invisible, set_document_template_active); versions (one draft, one published, publish
@@ -23,7 +24,7 @@
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(239);
+select plan(290);
 
 -- =============================================================================
 -- Privileges, indexes, purposes, job
@@ -89,7 +90,7 @@ $$, $$ values
   ('mark_signature_request_sent(uuid,text,text,uuid,jsonb,timestamp with time zone)', false, false, true, true),
   ('publish_template_version(uuid)', false, true, false, true),
   ('set_document_template_active(uuid,boolean)', false, true, false, true),
-  ('set_signing_settings(text,integer)', false, true, false, true),
+  ('set_signing_settings(jsonb)', false, true, false, true),
   ('update_template_version(uuid,jsonb,jsonb,jsonb,text,text)', false, true, false, true)
 $$, 'user RPCs for authenticated (reads are invoker: RLS applies), service RPCs for service_role only');
 select results_eq($$
@@ -100,12 +101,15 @@ select results_eq($$
     from pg_proc p
    where p.pronamespace = 'private'::regnamespace
      and p.proname in ('signing_signers_valid', 'seed_org_signing_settings', 'guard_template_version',
-                       'guard_template_version_delete', 'signing_recipients_valid', 'signing_superseded')
+                       'guard_template_version_delete', 'signing_recipients_valid', 'signing_superseded',
+                       'signing_base_url_valid', 'signing_base_url_origin')
    order by p.proname collate "C"
 $$, $$ values
   ('private.guard_template_version()'::text, false, false, false),
   ('private.guard_template_version_delete()', false, false, false),
   ('private.seed_org_signing_settings()', false, false, false),
+  ('private.signing_base_url_origin(text)', false, false, false),
+  ('private.signing_base_url_valid(text)', false, false, false),
   ('private.signing_recipients_valid(uuid,jsonb)', false, false, false),
   ('private.signing_signers_valid(jsonb)', false, false, false),
   ('private.signing_superseded(text[],text,text)', false, false, false)
@@ -217,34 +221,132 @@ $$, $$ values ('b0000000-0000-0000-0000-00000000000a'::uuid, null::text, 7),
               ('b0000000-0000-0000-0000-00000000000b'::uuid, null::text, 7) $$,
   'every new org gets its signing settings (no instance, 7 days)');
 
+-- The check itself, whoever writes (P3-34).
+select throws_ok($$ update public.signing_settings set base_url = 'https://127.0.0.1'
+                     where org_id = 'b0000000-0000-0000-0000-00000000000a' $$, '23514', null,
+  'signing_settings_base_url_check refuses an IP literal, whoever writes');
+
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select throws_ok($$ select public.set_signing_settings('http://evil.test', 7) $$, '23514', null,
-  'base_url: plain http to any host but the local fake → 23514');
-select throws_ok($$ select public.set_signing_settings('https://sign.test/?x=1', 7) $$, '23514', null,
-  'base_url: no query string');
-select throws_ok($$ select public.set_signing_settings('https://sign.test', 61) $$, '23514', null,
+-- Every form the server must not call (P3-34: SSRF and key exfiltration).
+select throws_ok(pg_catalog.format('select public.set_signing_settings(%L::jsonb)', pg_catalog.jsonb_build_object('base_url', u)),
+                 '23514', null, 'base_url refused: ' || why)
+  from (values
+    ('http://evil.test', 'plain http to any host but the local fake'),
+    ('http://host.docker.internal', 'the local fake needs its port'),
+    ('http://host.docker.internal.evil.test:80', 'the local fake''s exact host only'),
+    ('https://sign.test/?x=1', 'a query string'),
+    ('https://sign.test/#top', 'a fragment'),
+    ('https://127.0.0.1', 'an IPv4 literal'),
+    ('https://10.0.0.8:8443/api', 'an IPv4 literal with a port and path'),
+    ('https://169.254.169.254', 'the metadata address'),
+    ('https://127.1', 'a shortened IPv4 literal'),
+    ('https://2130706433', 'an all-digit host'),
+    ('https://0x7f000001', 'a hex host'),
+    ('https://0x7f.0.0.1', 'a hex-looking IPv4 literal'),
+    ('https://sign.0x7f', 'a hex last label'),
+    ('https://[::1]', 'an IPv6 literal'),
+    ('https://[fd00::1]:8443', 'an IPv6 literal with a port'),
+    ('https://[::ffff:127.0.0.1]', 'an IPv4-mapped IPv6 literal'),
+    ('https://documenso', 'a single-label host'),
+    ('https://localhost', 'localhost'),
+    ('https://localhost:8443', 'localhost with a port'),
+    ('https://sign.localhost', 'a host under .localhost'),
+    ('https://documenso.internal', 'a host ending in .internal'),
+    ('https://host.docker.internal:55390', 'the local fake''s host over https (.internal)'),
+    ('https://sign.local', 'a host ending in .local'),
+    ('https://-sign.cliniquemana.com', 'a label starting with a hyphen'),
+    ('https://sign..cliniquemana.com', 'an empty label'),
+    ('https://sign.cliniquemana.com.', 'a trailing dot'),
+    ('https://sign.cliniquemana.com:123456', 'a port over 5 digits')
+  ) v(u, why);
+select throws_ok($$ select public.set_signing_settings('{"base_url": "https://127.0.0.1"}') $$, '23514',
+  'L''adresse de l''instance doit être une adresse https:// publique (un nom de domaine complet, sans adresse IP).',
+  'base_url: refused with its own French message');
+select throws_ok($$ select public.set_signing_settings('{"expiry_days": 61}') $$, '23514', null,
   'expiry_days: at most 60');
-select throws_ok($$ select public.set_signing_settings('https://sign.test', null) $$, '23514',
-  'Le délai d''expiration est obligatoire.', 'expiry_days: required (23514, like the other checks)');
-select lives_ok($$ select public.set_signing_settings(' http://host.docker.internal:55390 ', 7) $$,
-  'base_url: the local fake form');
-select lives_ok($$ select public.set_signing_settings('https://sign.cliniquemana.com/', 14) $$,
-  'base_url: https');
+select throws_ok($$ select public.set_signing_settings('{"expiry_days": null}') $$, '23514',
+  'Le délai d''expiration est obligatoire.', 'expiry_days: null refused (23514, like the other checks)');
+select throws_ok($$ select public.set_signing_settings('{"expiry_days": "7"}') $$, '23514', null,
+  'expiry_days: a JSON number only');
+select throws_ok($$ select public.set_signing_settings('{"expiry_days": 7.5}') $$, '23514', null,
+  'expiry_days: whole days only');
+select throws_ok($$ select public.set_signing_settings('{"base_url": 5}') $$, '22023', null,
+  'base_url: a string or null only');
+select throws_ok($$ select public.set_signing_settings('{}') $$, '22023', null, 'an empty patch → 22023');
+select throws_ok($$ select public.set_signing_settings('{"base_url": null, "webhook": "x"}') $$, '22023', null,
+  'an unknown field → 22023 (nothing applied)');
+select throws_ok($$ select public.set_signing_settings('[]') $$, '22023', null, 'not an object → 22023');
+select throws_ok($$ select public.set_signing_settings(null) $$, '22023', null, 'null → 22023');
+select results_eq($$ select base_url, expiry_days from public.signing_settings $$,
+  $$ values (null::text, 7) $$, 'nothing refused was applied');
+
+select is(public.set_signing_settings('{"base_url": " http://host.docker.internal:55390/ "}'),
+  '{"api_key_cleared": false}'::jsonb, 'base_url: the local fake form (no key to clear)');
+select is(public.set_signing_settings('{"base_url": "https://sign.cliniquemana.com/"}'),
+  '{"api_key_cleared": false}'::jsonb, 'base_url: https');
+select results_eq($$ select base_url, expiry_days, updated_by from public.signing_settings $$,
+  $$ values ('https://sign.cliniquemana.com'::text, 7, 'a0000000-0000-0000-0000-000000000001'::uuid) $$,
+  'trimmed, trailing slash removed, the expiry left as it was; admin A reads only her org''s row');
+
+-- Per field (P3-34): each card sends only its own field.
+select is(public.set_signing_settings('{"expiry_days": 14}'), '{"api_key_cleared": false}'::jsonb, 'the expiry alone');
+select results_eq($$ select base_url, expiry_days from public.signing_settings $$,
+  $$ values ('https://sign.cliniquemana.com'::text, 14) $$, 'the expiry changed, the address kept');
+
+-- A new address needs its key again (P3-34).
+do $$ begin
+  perform public.set_org_secret('documenso_api_key', 'local-dev-documenso-key');
+  perform public.set_org_secret('documenso_webhook_secret', 'local-dev-webhook-secret');
+end $$;
+select is(public.set_signing_settings('{"base_url": "https://sign.cliniquemana.com/api/"}'),
+  '{"api_key_cleared": false}'::jsonb, 'another path on the same origin keeps the key');
+select is(public.set_signing_settings('{"base_url": "https://sign.cliniquemana.com:443/api"}'),
+  '{"api_key_cleared": false}'::jsonb, 'the explicit default port is the same origin');
+select is(public.set_signing_settings('{"expiry_days": 14}'), '{"api_key_cleared": false}'::jsonb,
+  'saving the expiry keeps the key');
+select results_eq($$ select key from public.list_org_secret_keys() $$,
+  $$ values ('documenso_api_key'::text), ('documenso_webhook_secret') $$, 'the key is still there');
+select is(public.set_signing_settings('{"base_url": "https://autre.cliniquemana.com"}'),
+  '{"api_key_cleared": true}'::jsonb, 'another host clears the key');
+select results_eq($$ select key from public.list_org_secret_keys() $$,
+  $$ values ('documenso_webhook_secret'::text) $$, 'the API key is gone; the webhook secret stays');
+do $$ begin perform public.set_org_secret('documenso_api_key', 'local-dev-documenso-key'); end $$;
+select is(public.set_signing_settings('{"base_url": "https://autre.cliniquemana.com:8443"}'),
+  '{"api_key_cleared": true}'::jsonb, 'another port clears the key');
+do $$ begin perform public.set_org_secret('documenso_api_key', 'local-dev-documenso-key'); end $$;
+select is(public.set_signing_settings('{"base_url": "http://host.docker.internal:55390"}'),
+  '{"api_key_cleared": true}'::jsonb, 'another scheme clears the key');
+do $$ begin perform public.set_org_secret('documenso_api_key', 'local-dev-documenso-key'); end $$;
+select is(public.set_signing_settings('{"base_url": null}'), '{"api_key_cleared": true}'::jsonb,
+  'clearing the address clears the key');
+do $$ begin perform public.set_org_secret('documenso_api_key', 'local-dev-documenso-key'); end $$;
+select is(public.set_signing_settings('{"base_url": "https://sign.cliniquemana.com"}'), '{"api_key_cleared": true}'::jsonb,
+  'an address set where there was none clears a key typed before it');
+select results_eq($$ select key from public.list_org_secret_keys() $$,
+  $$ values ('documenso_webhook_secret'::text) $$, 'no API key left for the new address');
 select results_eq($$ select base_url, expiry_days, updated_by from public.signing_settings $$,
   $$ values ('https://sign.cliniquemana.com'::text, 14, 'a0000000-0000-0000-0000-000000000001'::uuid) $$,
-  'trimmed, trailing slash removed; admin A reads only her org''s row');
+  'the expiry kept through every address change');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select throws_ok($$ select public.set_signing_settings(null, 7) $$, '42501', null,
+select throws_ok($$ select public.set_signing_settings('{"base_url": null}') $$, '42501', null,
   'the adjointe (no settings.integrations_manage) cannot change them');
 select is((select count(*)::int from public.signing_settings), 1, 'the adjointe reads them (settings.view)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is((select count(*)::int from public.signing_settings), 0, 'the conseillère does not (no settings.view)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
-select lives_ok($$ select public.set_signing_settings('', 30) $$, 'admin B: an empty address clears it');
+select is(public.set_signing_settings('{"base_url": "", "expiry_days": 30}'), '{"api_key_cleared": false}'::jsonb,
+  'admin B: an empty address clears it, both fields in one patch');
 select results_eq($$ select org_id, base_url, expiry_days from public.signing_settings $$,
   $$ values ('b0000000-0000-0000-0000-00000000000b'::uuid, null::text, 30) $$, 'admin B changes and reads only her org''s row');
 reset role;
+select is((select count(*)::int from public.org_secrets
+            where org_id = 'b0000000-0000-0000-0000-00000000000a' and key = 'documenso_api_key'), 0,
+  'org A''s API key row is gone (and its Vault entry with it, through org_secrets_delete_vault)');
+select is((select count(*)::int from public.audit_log
+            where table_name = 'org_secrets' and action = 'delete'
+              and org_id = 'b0000000-0000-0000-0000-00000000000a'), 5,
+  'each key deletion is audited');
 
 -- =============================================================================
 -- Document templates

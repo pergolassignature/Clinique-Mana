@@ -17,6 +17,7 @@ import { fixedClock } from './testing/fixed-clock.ts'
 import { captureConsole, withEnv } from './testing/env.ts'
 import {
   DOCUMENSO_KEY,
+  LOCAL_REACH,
   sentRequest,
   SIGNERS,
   SIGNING_ORG,
@@ -31,7 +32,9 @@ function setup(options: { latencyMs?: number } = {}) {
   const fake = fakeDocumenso({ latencyMs: options.latencyMs })
   const db = fakeSigningDb({ orgId: SIGNING_ORG, now: clock.now })
   const supabase = fakeSupabase({ rpc: db.rpc, storage: db.storage })
-  const documenso = documensoClient(fake.baseUrl, DOCUMENSO_KEY, fake.fetch)
+  const documenso = documensoClient(fake.baseUrl, DOCUMENSO_KEY, fake.fetch, {
+    reach: LOCAL_REACH,
+  })
   const ctx = {
     client: supabase.client,
     orgId: SIGNING_ORG,
@@ -265,7 +268,12 @@ Deno.test('orgSigning: the settings and the key in parallel; either missing → 
       apiKey,
     })
     const supabase = fakeSupabase({ rpc: db.rpc })
-    const signing = await orgSigning(supabase.client, SIGNING_ORG, fetch)
+    const signing = await orgSigning(
+      supabase.client,
+      SIGNING_ORG,
+      fetch,
+      LOCAL_REACH,
+    )
     assertEquals(signing !== null, configured)
     assertEquals(rpcNames(supabase), ['get_signing_context', 'get_org_secret'])
     assertEquals(supabase.calls[0].args.p_template_version_id, null)
@@ -740,7 +748,7 @@ Deno.test('syncRequest: a stale draft whose document is gone at Documenso → ab
 // ---------------------------------------------------------------------------
 function cronSetup(latencyMs = 0) {
   const s = setup({ latencyMs })
-  const deps = { fetch: s.fake.fetch, now: s.clock.now }
+  const deps = { fetch: s.fake.fetch, now: s.clock.now, reach: LOCAL_REACH }
   const perOrg = reconcileOrg(deps, 'signing-sync')
   const signal = new AbortController().signal
   return { ...s, perOrg, signal }
@@ -795,7 +803,7 @@ Deno.test('reconcileOrg: an overdue pending request → synced, expired in the d
       return documensoFetch(input, init)
     }
     const perOrg = reconcileOrg(
-      { fetch: traced, now: s.clock.now },
+      { fetch: traced, now: s.clock.now, reach: LOCAL_REACH },
       'signing-sync',
     )
     const detail = await perOrg(SIGNING_ORG, client, s.signal)
@@ -903,6 +911,7 @@ Deno.test('reconcileOrg: past the soft deadline no new batch starts; the detail 
     const perOrg = reconcileOrg({
       fetch: s.fake.fetch,
       now: s.clock.now,
+      reach: LOCAL_REACH,
       softDeadlineMs: 1000,
       // The first batch takes the whole budget.
       elapsed: () => (t += 600),
