@@ -10,6 +10,13 @@
  * (P3-10), opaque on white so it stays legible when a client darkens the
  * card; there is no tracking pixel and no tracking parameter.
  *
+ * The ghost table is a conditional comment, so it reaches only the app emails.
+ * GoTrue renders the auth templates with Go's `html/template`, which strips
+ * every HTML comment (checked in Mailpit, Task 3.16): in classic Outlook for Windows
+ * the auth emails' card is fluid (full width) instead of 560 px. A
+ * comment-free fix (`width="560"` on the card table) would give phones a
+ * fixed 560 px card, so it is not used.
+ *
  * Everything passed in is escaped here except `contentHtml`, which callers
  * build from escaped parts (`markup.ts` / `render.ts`). Placeholders of other
  * template engines (`{{ .SiteURL }}`) contain nothing to escape and pass through.

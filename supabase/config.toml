@@ -50,8 +50,9 @@ minimum_password_length = 10
 # `[auth] enable_signup = false` (GOTRUE_DISABLE_SIGNUP); accounts come from invitations.
 enable_signup = true
 # Sends a confirmation email to both the old and the new address on an email change.
-# Locally (autoconfirm on) the new-address link alone completed the change: two-address
-# enforcement is NOT proven here and must be verified on staging (plan Task 1.21).
+# Locally (autoconfirm on) ONE link completes the change: the new-address link alone (Task 1.21),
+# and the old-address link alone (Task 3.16, through /connexion/confirmer); the other link is then
+# refused. Two-address enforcement is NOT proven here and must be verified on staging.
 # Keep the same value on staging/production.
 double_confirm_changes = true
 secure_password_change = true
