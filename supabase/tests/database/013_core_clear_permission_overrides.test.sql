@@ -1,17 +1,20 @@
 -- clear_permission_overrides (migration *_core_clear_permission_overrides.sql): removes all of
 -- one user's permission overrides at once (« Rétablir les permissions du rôle », decision #39).
 -- Covers: privileges and definition, the guards of clear_permission_override (manage right,
--- own account, other org, admin target, a revoke on a permission a non-admin manager lacks),
+-- a disabled caller, own account, other org, admin target, a revoke on a permission a
+-- non-admin manager lacks),
 -- atomicity (a refusal deletes nothing), the returned count, audit of each deletion.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(27);
 
 -- =============================================================================
 -- Fixtures (as postgres)
 -- Org A: admins A1 and A2, counselor C, adjointe D (overrides users.manage and users.view:
--- a non-admin manager; she holds settings.view and professionals.view by role), counselor F.
+-- a non-admin manager; she holds settings.view and professionals.view by role), counselor F,
+-- disabled admin G.
 -- Org B: admin B.
+-- The audit_log checks are limited to org A (the table is shared with the rest of the database).
 -- =============================================================================
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -20,24 +23,27 @@ values
   ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'c@a.test',  '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'd@a.test',  '', now(), '{}', '{}', now(), now()),
   ('a0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'b@b.test',  '', now(), '{}', '{}', now(), now()),
-  ('a0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'f@a.test',  '', now(), '{}', '{}', now(), now());
+  ('a0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'f@a.test',  '', now(), '{}', '{}', now(), now()),
+  ('a0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'g@a.test',  '', now(), '{}', '{}', now(), now());
 insert into public.organizations (id, name) values
   ('b0000000-0000-0000-0000-00000000000a', 'Org A'),
   ('b0000000-0000-0000-0000-00000000000b', 'Org B');
-insert into public.profiles (user_id, org_id, display_name, email) values
-  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A1',      'a1@a.test'),
-  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Admin A2',      'a2@a.test'),
-  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère C', 'c@a.test'),
-  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe D',    'd@a.test'),
-  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',       'b@b.test'),
-  ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère F', 'f@a.test');
+insert into public.profiles (user_id, org_id, display_name, email, status) values
+  ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'Admin A1',      'a1@a.test', 'active'),
+  ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'Admin A2',      'a2@a.test', 'active'),
+  ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère C', 'c@a.test',  'active'),
+  ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'Adjointe D',    'd@a.test',  'active'),
+  ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'Admin B',       'b@b.test',  'active'),
+  ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'Conseillère F', 'f@a.test',  'active'),
+  ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'Admin G (désactivée)', 'g@a.test', 'disabled');
 insert into public.user_roles (user_id, org_id, role) values
   ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
   ('a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-00000000000a', 'admin'),
   ('a0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-00000000000a', 'counselor'),
   ('a0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-00000000000a', 'admin_assistant'),
   ('a0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000b', 'admin'),
-  ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'counselor');
+  ('a0000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-00000000000a', 'counselor'),
+  ('a0000000-0000-0000-0000-000000000007', 'b0000000-0000-0000-0000-00000000000a', 'admin');
 insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'professionals', true);
 insert into public.user_permission_overrides (user_id, org_id, permission_key, granted) values
@@ -74,6 +80,11 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select throws_ok($$ select public.clear_permission_overrides('a0000000-0000-0000-0000-000000000006') $$,
   '42501', null, 'without users.manage the call is refused');
 
+-- G: a disabled admin holds no permission (has_permission checks the status).
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000007","role":"authenticated"}', true);
+select throws_ok($$ select public.clear_permission_overrides('a0000000-0000-0000-0000-000000000003') $$,
+  '42501', null, 'a disabled manager is refused');
+
 -- Adjointe D: a non-admin manager.
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select throws_ok($$ select public.clear_permission_overrides('a0000000-0000-0000-0000-000000000003') $$,
@@ -99,7 +110,8 @@ select is((select count(*)::int from public.user_permission_overrides where user
   'the refusals deleted none of C''s overrides (atomic)');
 select is((select count(*)::int from public.user_permission_overrides where user_id = 'a0000000-0000-0000-0000-000000000004'), 2,
   'D''s own overrides are untouched');
-select ok(not exists (select 1 from public.audit_log where table_name = 'user_permission_overrides' and action = 'delete'),
+select ok(not exists (select 1 from public.audit_log where table_name = 'user_permission_overrides' and action = 'delete'
+                        and org_id = 'b0000000-0000-0000-0000-00000000000a'),
   'nothing was deleted (no delete in the audit log)');
 
 -- =============================================================================
@@ -148,7 +160,8 @@ select is((select count(*)::int from public.audit_log
               and actor_id = 'a0000000-0000-0000-0000-000000000004'), 2,
   'F''s removed overrides are audited with D as actor');
 select is((select count(*)::int from public.audit_log
-            where table_name = 'user_permission_overrides' and action = 'delete'), 5,
+            where table_name = 'user_permission_overrides' and action = 'delete'
+              and org_id = 'b0000000-0000-0000-0000-00000000000a'), 5,
   'exactly the 5 removed overrides are audited');
 
 select * from finish();
