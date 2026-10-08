@@ -4,13 +4,15 @@ import {
   documentEvents,
   normaliseEventName,
   orgSigning,
+  readDraftEnvelope,
   reconcileOrg,
   storeSignedPdf,
   syncRequest,
   webhookEvents,
 } from './signing-events.ts'
-import { documensoClient } from './documenso.ts'
+import { documensoClient, DocumensoError } from './documenso.ts'
 import { fakeDocumenso } from './testing/fake-documenso.ts'
+import { fakeFetch } from './testing/fake-fetch.ts'
 import { fakeSigningDb } from './testing/fake-signing-db.ts'
 import { fakeSupabase } from './testing/fake-supabase.ts'
 import { fixedClock } from './testing/fixed-clock.ts'
@@ -481,7 +483,67 @@ Deno.test('syncRequest: a lost completion → events applied, signed PDF stored'
     assertEquals(await syncRequest(ctx, row, { settleDrafts: false }), 'signed')
     assertEquals(db.requests.get(row.id)!.status, 'signed')
     assert(rpcNames(supabase).includes('get_signing_request'))
+    // One envelope read: its item id goes straight to the download.
+    assertEquals(
+      fake.calls.map((c) => `${c.method} ${new URL(c.url).pathname}`),
+      [
+        `GET /api/v2/envelope/${row.envelope_id}`,
+        `GET /api/v2/envelope/item/${
+          fake.documents.get(row.envelope_id!)!.items[0].id
+        }/download`,
+      ],
+    )
   })
+})
+
+Deno.test("readDraftEnvelope: Documenso's NOT_FOUND → null (gone); a proxy's 404 or a 500 throws", async () => {
+  const base = 'http://host.docker.internal:55390'
+  const url = `GET ${base}/api/v2/envelope/${HELD}`
+  const report = { fn: 'test', orgId: SIGNING_ORG, fetch }
+  const cases = [
+    [
+      () =>
+        Response.json({ message: 'Envelope not found', code: 'NOT_FOUND' }, {
+          status: 404,
+        }),
+      null,
+    ],
+    [() => new Response('<html>404</html>', { status: 404 }), 404],
+    [
+      () =>
+        Response.json({ message: 'boom', code: 'NOT_FOUND' }, { status: 500 }),
+      500,
+    ],
+  ] as const
+  for (const [responder, status] of cases) {
+    const documenso = documensoClient(
+      base,
+      DOCUMENSO_KEY,
+      fakeFetch({ [url]: responder }).fetch,
+      {
+        reach: LOCAL_REACH,
+      },
+    )
+    const attempt = readDraftEnvelope(report, documenso, 'r1', HELD)
+    if (status === null) assertEquals(await attempt, null)
+    else {
+      const error = await assertRejects(() => attempt, DocumensoError)
+      assertEquals([error.status, error.notFound], [status, false])
+    }
+  }
+})
+
+Deno.test('fake signing db: one envelope per org, as the database (23505)', async () => {
+  const { db, supabase } = setup()
+  db.insertRequest({ id: 'r1', status: 'sent', envelope_id: HELD })
+  db.insertRequest({ id: 'r2' })
+  const { error } = await supabase.client.rpc('mark_signature_request_failed', {
+    p_id: 'r2',
+    p_error_code: 'provider_error',
+    p_envelope_id: HELD,
+  })
+  assertEquals(error?.code, '23505')
+  assertEquals(db.requests.get('r2')!.envelope_id, null)
 })
 
 Deno.test('syncRequest: an opened document → viewed; nothing new → unchanged', async () => {
@@ -625,6 +687,12 @@ Deno.test('syncRequest: a draft Documenso completed, its PDF still staged → cl
         c.url.includes('cancel') || c.url.includes('delete')
       ),
       [],
+    )
+    // The envelope read once; the recovery's download reuses its item id.
+    assertEquals(
+      s.fake.calls.filter((c) => c.url.includes(`/envelope/${row.envelope_id}`))
+        .length,
+      1,
     )
   })
 })

@@ -98,7 +98,8 @@ const webhookSchema = z.object({
   event: z.string().min(1).max(100),
   createdAt: text(64),
   payload: z.object({
-    envelopeId: z.string().max(100).optional(),
+    // Any value: `isEnvelopeId` decides, after the `externalId` check (6c).
+    envelopeId: z.unknown().optional(),
     externalId: text(200),
     status: z.string().max(32).optional(),
     updatedAt: text(64),

@@ -307,7 +307,8 @@
       "abandoned": "Abandonné",
       "failed": "Échec de l'envoi",
       "providerUnavailable": "Le service de signature n'a pas répondu.",
-      "providerRefused": "Le service de signature a refusé la clé d'API."
+      "providerRefused": "Le service de signature a refusé la clé d'API.",
+      "providerInvalidRequest": "Documenso a refusé le document (sujet ou message trop long, ou adresse en double)."
     },
     "errorCode": "Code : {code}"
   },

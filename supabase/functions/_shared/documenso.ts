@@ -12,7 +12,8 @@
  *   status (null when no complete answer arrived) and a code:
  *   `not_configured` when the key is refused (401/403) or the URL / key is
  *   missing, `invalid_request` for input refused before any request (two
- *   recipients with one address, a bad expiry), otherwise `provider_error`.
+ *   recipients with one address, a bad expiry, a subject over 254 or a
+ *   message over 5000 characters), otherwise `provider_error`.
  *   A response body is never read into an error, a log or a return value:
  *   Documenso quotes addresses in its messages. Transport errors (while
  *   connecting or while reading a body) are reduced to their kind (`timed
@@ -158,7 +159,7 @@ export interface DocumensoCancelOptions {
   draft?: boolean
 }
 
-/** An envelope's state, as `get` returns it: no address, name, token or item. */
+/** An envelope's state, as `get` returns it: no address, name or token. */
 export interface DocumensoEnvelopeState {
   status: DocumensoEnvelopeStatus
   completedAt: string | null
@@ -184,6 +185,12 @@ export interface DocumensoEnvelopeState {
     signedAt: string | null
     rejectionReason: string | null
   }[]
+  /**
+   * The envelope's one item id (`ITEM_ID`), for `downloadSigned` without a
+   * second read; null when it has none, several or a malformed one. In
+   * memory only, never stored (E-7).
+   */
+  itemId: string | null
 }
 
 /** The calls the signing functions make. Every method throws `DocumensoError`. */
@@ -212,17 +219,22 @@ export interface DocumensoClient {
   get(envelopeId: string): Promise<DocumensoEnvelopeState>
   /**
    * Closes the envelope (E-8): a draft is deleted, a pending one cancelled.
-   * Without `draft`, the cancel route first; on its 400 the envelope is read
-   * back: CANCELLED is done, DRAFT is deleted, anything else is the cancel's
-   * error. Already gone counts as done: a 404 whose body is Documenso's
-   * `NOT_FOUND` error (any other 404, e.g. a proxy's, is an error).
+   * Without `draft`, the cancel route first; on its 400, or its 404 whose
+   * body is Documenso's `NOT_FOUND` error, the envelope is read back:
+   * CANCELLED or gone (Documenso's 404 again) is done, DRAFT is deleted,
+   * anything else is the cancel's error. A single 404 is never taken for
+   * « already gone », and any other 404 (e.g. a proxy's) is an error.
    */
   cancel(envelopeId: string, options?: DocumensoCancelOptions): Promise<void>
   /**
    * The signed PDF of the envelope's one item (its certificate and audit log
-   * appended by Documenso). Reads the envelope for the item id first.
+   * appended by Documenso). `itemId` comes from a `get` just made; without
+   * it the envelope is read for the item id first.
    */
-  downloadSigned(envelopeId: string): Promise<Uint8Array>
+  downloadSigned(
+    envelopeId: string,
+    itemId?: string | null,
+  ): Promise<Uint8Array>
   /**
    * One authenticated read: ok, or the HTTP status. Throws when nothing
    * answered, or when a 2xx is not Documenso's list (`{ data: [...] }`, e.g.
@@ -574,6 +586,11 @@ function badResponse(operation: Operation, status: number): DocumensoError {
   )
 }
 
+/** The envelope's one item id, path-safe (`ITEM_ID`); null for none, several or a malformed one. */
+function oneItem(items: { id: string }[]): string | null {
+  return items.length === 1 && ITEM_ID.test(items[0].id) ? items[0].id : null
+}
+
 function invalidId(operation: Operation): DocumensoError {
   return new DocumensoError(
     'provider_error',
@@ -820,15 +837,39 @@ export function documensoClient(
     return notFoundSchema.safeParse(body).success
   }
 
-  /** Deletes a draft (E-8); already gone is done. */
+  /**
+   * The envelope's status read back after a refused close (E-8): `gone` for
+   * Documenso's own 404 (`notFound`), null when the read fails otherwise (the
+   * refusal's error is then the one to report).
+   */
+  async function statusAfter(
+    id: string,
+  ): Promise<DocumensoEnvelopeStatus | 'gone' | null> {
+    try {
+      return (await readEnvelope(id)).status
+    } catch (error) {
+      return error instanceof DocumensoError && error.notFound ? 'gone' : null
+    }
+  }
+
+  /**
+   * Deletes a draft (E-8). A Documenso 404 is never taken for « already gone »
+   * on its own: the envelope is read back, and only a second Documenso 404 or
+   * CANCELLED is done; anything else is the delete's error.
+   */
   async function remove(id: string): Promise<void> {
     const exchange = await send('delete', DOCUMENSO_PATHS.delete, {
       method: 'POST',
       json: { envelopeId: id },
     })
     if (exchange.res.ok) return await discard(exchange)
-    if (await gone(exchange)) return
-    throw statusError('delete', exchange.res.status)
+    const notFound = await gone(exchange)
+    if (
+      notFound && ['gone', 'CANCELLED'].includes(await statusAfter(id) ?? '')
+    ) {
+      return
+    }
+    throw statusError('delete', exchange.res.status, notFound)
   }
 
   /** Refuses input Documenso would accept wrongly, or refuse (`invalid_request`). */
@@ -965,6 +1006,7 @@ export function documensoClient(
           signedAt: r.signedAt,
           rejectionReason: r.rejectionReason,
         })),
+        itemId: oneItem(envelope.envelopeItems),
       }
     },
 
@@ -977,32 +1019,33 @@ export function documensoClient(
       })
       const { status } = exchange.res
       if (exchange.res.ok) return await discard(exchange)
-      if (await gone(exchange)) return
-      if (status === 400) {
-        // Documenso cancels only a pending envelope: already cancelled is
-        // done, a draft is deleted, anything else (completed, rejected) is
-        // the cancel's error. The read-back's own error never replaces it.
-        let current: DocumensoEnvelopeStatus | null = null
-        try {
-          current = (await readEnvelope(id)).status
-        } catch {
-          // The cancel's own error is the one to report.
-        }
-        if (current === 'CANCELLED') return
+      const notFound = await gone(exchange)
+      if (status === 400 || notFound) {
+        // Documenso cancels only a pending envelope, and one 404 is never
+        // taken for « already gone » on its own: the envelope is read back.
+        // Gone (Documenso's 404 again) or cancelled is done, a draft is
+        // deleted, anything else (completed, rejected, pending) is the
+        // cancel's error. The read-back's own error never replaces it.
+        const current = await statusAfter(id)
+        if (current === 'gone' || current === 'CANCELLED') return
         if (current === 'DRAFT') return await remove(id)
       }
-      throw statusError('cancel', status)
+      throw statusError('cancel', status, notFound)
     },
 
-    async downloadSigned(id) {
-      const { envelopeItems } = await readEnvelope(id)
+    async downloadSigned(id, knownItemId) {
+      envelopeId(id, 'download')
+      // The item id from a `get` just made skips a second read.
+      const item = knownItemId === undefined || knownItemId === null
+        ? oneItem((await readEnvelope(id)).envelopeItems)
+        : ITEM_ID.test(knownItemId)
+        ? knownItemId
+        : null
       // The app creates one file per envelope (R10: several → not stored).
-      if (envelopeItems.length !== 1 || !ITEM_ID.test(envelopeItems[0].id)) {
-        throw badResponse('download', 200)
-      }
+      if (item === null) throw badResponse('download', 200)
       const exchange = await ok(
         'download',
-        `${DOCUMENSO_PATHS.download(envelopeItems[0].id)}?version=signed`,
+        `${DOCUMENSO_PATHS.download(item)}?version=signed`,
         { method: 'GET' },
       )
       const bytes = await readCapped(exchange, maxDownloadBytes)

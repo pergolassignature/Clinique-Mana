@@ -137,6 +137,13 @@ const E22023 = { error: { code: '22023', message: 'Invalid' } }
 const ENVELOPE_ID = /^envelope_[A-Za-z0-9_-]{1,64}$/
 const envelopeArg = (value: unknown) =>
   typeof value === 'string' && ENVELOPE_ID.test(value) ? value : null
+/** `signature_requests_org_id_envelope_id_key`'s violation. */
+const E23505 = {
+  error: {
+    code: '23505',
+    message: 'duplicate key value violates unique constraint',
+  },
+}
 
 /** Builds the fake for one org (another org id finds nothing). */
 export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
@@ -150,6 +157,13 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
   let sequence = 0
   const uuid = (prefix: string) =>
     `${prefix}-0000-4000-8000-${String(++sequence).padStart(12, '0')}`
+
+  /** Another request of `r`'s org already holds `envelopeId` (one envelope per org). */
+  const envelopeTaken = (r: FakeSignatureRequest, envelopeId: string | null) =>
+    envelopeId !== null &&
+    [...requests.values()].some((o) =>
+      o.id !== r.id && o.org_id === r.org_id && o.envelope_id === envelopeId
+    )
 
   const open = (r: FakeSignatureRequest) =>
     ['sent', 'viewed'].includes(r.status) ||
@@ -432,6 +446,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       if (!(String(a.p_expires_at) > iso())) return E22023
       const envelopeId = envelopeArg(a.p_envelope_id)
       if (!envelopeId) return E22023
+      if (envelopeTaken(r, envelopeId)) return E23505
       source.retain_until = null
       for (const e of recipients) {
         r.signers.find((s) => s.role === e.role)!.recipient_id = e.recipient_id
@@ -490,6 +505,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       if (!r || r.status !== 'draft') return E22023
       const next = envelopeArg(a.p_envelope_id)
       if (a.p_envelope_id != null && !next) return E22023
+      if (envelopeTaken(r, next)) return E23505
       if (r.last_error !== 'abandoned') r.last_error = String(a.p_error_code)
       r.superseded_envelope_ids = supersede(
         r.superseded_envelope_ids,

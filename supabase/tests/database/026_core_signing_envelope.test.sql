@@ -1,6 +1,6 @@
 -- Signing on the Documenso envelope API (migration *_core_signing_envelope.sql, plan
 -- docs/plans/2026-10-08-documenso-envelope-api-plan.md §2.1, E-1…E-4).
--- Covers: superseded_envelope_ids (shape, its check); a sent request needs an envelope id
+-- Covers: the migration guard's condition; superseded_envelope_ids (shape, its check); a sent request needs an envelope id
 -- (signature_requests_sent_has_envelope replaces the document check); one envelope per org; the
 -- deprecated document columns' comments; the four RPCs keyed by document now take the envelope
 -- (one version each, service role only, definer); mark_signature_request_sent records the
@@ -12,7 +12,7 @@
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(58);
+select plan(59);
 
 -- =============================================================================
 -- Schema
@@ -45,6 +45,13 @@ $$, $$ values
   ('documenso_document_id'::text, 'Deprecated (envelope API, 2026-10-08): never written; dropped by a later migration.'::text),
   ('superseded_document_ids', 'Deprecated: superseded_envelope_ids replaces it.')
 $$, 'the document columns are marked deprecated');
+
+-- The migration's guard (it refused to run otherwise), on the rows present before any fixture.
+select is_empty($$
+  select 1 from public.signature_requests r
+   where (r.documenso_document_id is not null and r.envelope_id is null)
+      or cardinality(r.superseded_document_ids) > 0
+$$, 'no request holds a document id the envelope API cannot carry over (the migration guard)');
 
 -- =============================================================================
 -- Functions

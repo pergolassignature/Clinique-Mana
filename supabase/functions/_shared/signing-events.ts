@@ -495,9 +495,18 @@ export async function storeSignedPdf(
   client: SupabaseClient,
   documenso: DocumensoClient,
   orgId: string,
-  request: { id: string; envelopeId: string; viewPermission: string },
+  request: {
+    id: string
+    envelopeId: string
+    viewPermission: string
+    /** From the `get` the caller just made (no second read); absent, read. */
+    itemId?: string | null
+  },
 ): Promise<void> {
-  const bytes = await documenso.downloadSigned(request.envelopeId)
+  const bytes = await documenso.downloadSigned(
+    request.envelopeId,
+    request.itemId,
+  )
   if (sniff(bytes) !== 'pdf') throw new SigningFailure('signed_pdf_invalid')
   const fileId = await storeSystemFile(client, {
     orgId,
@@ -577,8 +586,9 @@ export function ownsEnvelope(
 }
 
 /**
- * A draft's envelope as Documenso has it: null when gone (404, deleted when
- * a send failed) or not the request's own (`ownsEnvelope`; reported
+ * A draft's envelope as Documenso has it: null when gone (Documenso's own
+ * 404, `notFound`: deleted when a send failed; a proxy's 404 throws like any
+ * failure) or not the request's own (`ownsEnvelope`; reported
  * `signing_foreign_document`, ids only, then treated as gone: never
  * recovered nor cancelled).
  */
@@ -592,7 +602,7 @@ export async function readDraftEnvelope(
   try {
     state = await documenso.get(envelopeId)
   } catch (error) {
-    if (error instanceof DocumensoError && error.status === 404) return null
+    if (error instanceof DocumensoError && error.notFound) return null
     throw error
   }
   if (ownsEnvelope(state, requestId)) return state
@@ -651,6 +661,7 @@ export async function syncRequest(
       id: row.id,
       envelopeId,
       viewPermission: request.view_permission,
+      itemId: state.itemId,
     })
     return 'signed'
   }
@@ -813,6 +824,7 @@ export async function recoverCompletedDraft(
     id: row.id,
     envelopeId,
     viewPermission: request.view_permission,
+    itemId: state.itemId,
   })
   return 'signed'
 }

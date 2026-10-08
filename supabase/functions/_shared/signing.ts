@@ -603,8 +603,14 @@ async function send(
     if (error instanceof DocumensoError) {
       envelopeId ??= error.envelopeId
       const refused = error.code === 'not_configured'
+      // Refused before any request (subject or message too long, two signers
+      // with one address): its own code, not an outage.
       await cancelAndMark(
-        refused ? 'provider_not_configured' : 'provider_unavailable',
+        refused
+          ? 'provider_not_configured'
+          : error.code === 'invalid_request'
+          ? 'provider_invalid_request'
+          : 'provider_unavailable',
       )
       return {
         ok: false,

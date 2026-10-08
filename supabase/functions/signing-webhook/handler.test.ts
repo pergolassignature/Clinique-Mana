@@ -292,6 +292,16 @@ Deno.test('signing-webhook: completed → claimed (ids only), signed PDF downloa
       request.view_permission,
     )
     assertEquals([...s.db.events.values()][0].status, 'completed')
+    // No get before it: the download reads the envelope once for its item.
+    assertEquals(
+      s.fake.calls.map((c) => `${c.method} ${new URL(c.url).pathname}`),
+      [
+        `GET /api/v2/envelope/${doc}`,
+        `GET /api/v2/envelope/item/${
+          s.fake.documents.get(doc)!.items[0].id
+        }/download`,
+      ],
+    )
   })
 })
 
@@ -612,20 +622,30 @@ Deno.test('signing-webhook: a missing or malformed envelopeId → 400 after the 
       })
       assertEquals((await s.handler(req)).status, 400, String(envelopeId))
     }
-    // An envelope made outside the app: ignored before its envelope id is read.
-    const outside = await edited(
-      s,
-      'DOCUMENT_OPENED',
-      row.envelope_id!,
-      (b) => {
-        b.payload.externalId = null
-        b.payload.envelopeId = 'not an envelope'
-      },
-    )
-    assertEquals(await outcome(await s.handler(outside)), {
-      status: 200,
-      outcome: 'ignored',
-    })
+    // An envelope made outside the app: ignored before its envelope id is
+    // read, whatever that holds (null included).
+    for (
+      const [externalId, envelopeId] of [
+        [null, 'not an envelope'],
+        ['not-a-uuid', null],
+        ['x', 12],
+      ]
+    ) {
+      const outside = await edited(
+        s,
+        'DOCUMENT_OPENED',
+        row.envelope_id!,
+        (b) => {
+          b.payload.externalId = externalId
+          b.payload.envelopeId = envelopeId
+        },
+      )
+      assertEquals(
+        await outcome(await s.handler(outside)),
+        { status: 200, outcome: 'ignored' },
+        String(envelopeId),
+      )
+    }
     assertFalse(rpcNames(s.supabase).includes('claim_webhook_event'))
   })
 })

@@ -10,8 +10,9 @@
  * completed without its PDF; a draft with an envelope whose send started
  * over an hour ago: claimed, read, then recovered when Documenso completed
  * it, else cancelled and abandoned), `expire` (sync first; still not
- * completed → expired here, then cancelled at Documenso, a 400 there
- * meaning Documenso expired it already) and `abandon` (a draft with no
+ * completed → expired here, then cancelled at Documenso, normally a 200:
+ * Documenso expires the signing links, not the envelope, E-6; a 400 means it
+ * left pending there in between) and `abandon` (a draft with no
  * envelope whose send started over a day ago, claimed first). A draft
  * whose send is under way is skipped (`sending`).
  *

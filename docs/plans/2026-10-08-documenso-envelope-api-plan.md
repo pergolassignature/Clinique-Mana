@@ -403,6 +403,7 @@ B=https://sign.cliniquemana.com/api/v2; H="Authorization: $DOCUMENSO_TOKEN"; PDF
    - GET → `status` PENDING, the recipient's `expiresAt` ≈ now + 1 day, `expired` false (E-6: expiry is on the recipient).
    - `POST /envelope/cancel` → 200; GET → CANCELLED; cancel again → 400 (the read-back path).
    - Optional, the next day: a probe left PENDING past its expiry still reads PENDING, `expired` true, and cancels with 200 (old VERIFY 8 inverted).
+6b. **Cancel a COMPLETED envelope.** Sign a probe to completion (or reuse one), then `POST /envelope/cancel {envelopeId}` → record the status and `.code`. E-8 expects 400 and a read-back of COMPLETED (the cancel's error); a 404 `NOT_FOUND` is also handled (read back, never « gone » on its own), anything else is a finding.
 
 ### 4.3 Through the app on staging (after Batch 3 is deployed)
 
@@ -440,6 +441,13 @@ Commits on `claude/documenso-clinique-mana-62cb9d`: the migration and pgTAP (Bat
 7. **The fake** refuses (400) a delete of a non-draft envelope and any download version but `signed`, so a test sees a call the client must never make; `fakeEnvelopeId(n)` names its envelopes in tests.
 8. **The parity test** (`ENVELOPE_ID equals the database check`) reads every `'^envelope_…'` literal of `*_core_signing.sql` and `*_core_signing_envelope.sql`.
 9. **Names:** `settleEarlierDocument` → `settleEarlierEnvelope` (E-11's rule); `DocumentSnapshot` / `documentEvents` keep their names (Documenso's events are `DOCUMENT_*`).
-10. **`CLAUDE.md` §7 is not edited by the implementing agent** (an agent cannot authorise a CLAUDE.md change): the §2.8 edit is left for Jonathan, as a ready patch.
+10. **`CLAUDE.md` §7** was applied by the coordinating session in 90abf52, on Jonathan's authority for this work (the implementing agent left it as a patch).
 11. **`deno fmt --check`** failed on `main` already (two email tests): fixed in its own commit.
+12. **Review fixes (2026-10-08):**
+    - **Never « gone » from one 404** (E-8): `cancel` reads the envelope back after a 400 *or* a Documenso `NOT_FOUND` 404: gone (Documenso's 404 again) or CANCELLED → done, DRAFT → delete, anything else → the cancel's error. The delete follows the same rule (a 404 is read back; only gone or CANCELLED is done). R2's fallback is taken too: a 400 whose read-back is Documenso's 404 is done. `readDraftEnvelope` treats an envelope as gone only on `error.notFound`; a proxy's 404 throws.
+    - The migration guard also refuses any `superseded_document_ids`; pgTAP 026 asserts its condition.
+    - The webhook reads `payload.envelopeId` as any value; `isEnvelopeId` decides after the `externalId` check (an outside envelope with `envelopeId: null` → 200 `ignored`).
+    - A `DocumensoError` `invalid_request` records `last_error = 'provider_invalid_request'` (shown « Documenso a refusé le document (sujet ou message trop long, ou adresse en double). »), no longer `provider_unavailable`.
+    - The fake database enforces one envelope per org (23505).
+    - `get` returns the envelope's one item id (`itemId`, in memory only), and `downloadSigned(envelopeId, itemId?)` skips its read when given one: the sync and the recovery download after a single read; the webhook (no `get` before) still reads once.
 

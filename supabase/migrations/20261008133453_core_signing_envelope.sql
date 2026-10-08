@@ -23,8 +23,9 @@
 --   Superseded envelopes go to `superseded_envelope_ids` (the same cap of 20, the same
 --   private.signing_superseded).
 -- * Staging holds no Documenso id (no Documenso is configured there): the guard below refuses to
---   run (P0001) if any request holds a document id without an envelope id, so "nothing to
---   migrate" is checked, not assumed.
+--   run (P0001) if any request holds a document id without an envelope id, or any superseded
+--   document id (the envelope API cannot match their late webhooks), so "nothing to migrate" is
+--   checked, not assumed.
 -- * The four service-role RPCs whose parameters name the document are dropped and re-created
 --   keyed by envelope (E-3): mark_signature_request_sent(p_id, p_envelope_id, p_source_file_id,
 --   p_signer_recipients, p_expires_at), mark_signature_request_failed(p_id, p_error_code,
@@ -45,8 +46,9 @@ select pg_catalog.set_config('app.audit_source', 'migration:core_signing_envelop
 do $$
 begin
   if exists (select 1 from public.signature_requests r
-              where r.documenso_document_id is not null and r.envelope_id is null) then
-    raise exception 'core_signing_envelope: a request holds a Documenso document id without an envelope id'
+              where (r.documenso_document_id is not null and r.envelope_id is null)
+                 or pg_catalog.cardinality(r.superseded_document_ids) > 0) then
+    raise exception 'core_signing_envelope: a request holds a Documenso document id the envelope API cannot carry over'
       using errcode = 'P0001';
   end if;
 end $$;

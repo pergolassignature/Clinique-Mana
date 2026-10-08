@@ -968,11 +968,28 @@ Deno.test('get: the status and each recipient, without addresses or tokens', asy
         rejectionReason: null,
       },
     ],
+    itemId: ITEM,
   })
   const text = JSON.stringify(state)
   assertFalse(text.includes('@'))
   assertFalse(text.includes('token'))
-  assertFalse(text.includes(ITEM))
+})
+
+Deno.test('get: itemId is the one path-safe item, else null', async () => {
+  const item = (id: string) => ({ id, envelopeId: E, documentDataId: 'd' })
+  for (
+    const [envelopeItems, itemId] of [
+      [[item(ITEM)], ITEM],
+      [[], null],
+      [[item(ITEM), item('envelope_item_b')], null],
+      [[item('../../x')], null],
+    ] as const
+  ) {
+    const { fetch } = fakeFetch({
+      [GET_E]: json(200, envelopeBody({ envelopeItems })),
+    })
+    assertEquals((await client(fetch).get(E)).itemId, itemId)
+  }
 })
 
 Deno.test('get: unknown fields in the read (the rest of Documenso 2.20 envelope) are ignored', async () => {
@@ -1134,10 +1151,59 @@ Deno.test('cancel: a pending envelope is cancelled with the reason', async () =>
   assertEquals(JSON.parse(calls[1].body), { envelopeId: E })
 })
 
-Deno.test("cancel: Documenso's 404 (already gone) resolves", async () => {
-  const { fetch, calls } = fakeFetch({ [CANCEL]: json(404, NOT_FOUND) })
+Deno.test("cancel: Documenso's 404, then the read-back's 404 too → done (never one 404 alone)", async () => {
+  const { fetch, calls } = fakeFetch({
+    [CANCEL]: json(404, NOT_FOUND),
+    [GET_E]: json(404, NOT_FOUND),
+  })
   await client(fetch).cancel(E)
-  assertEquals(calls.length, 1)
+  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CANCEL, GET_E])
+})
+
+Deno.test("cancel: Documenso's 404, then the envelope reads back COMPLETED → the cancel's error, nothing deleted", async () => {
+  for (const status of ['COMPLETED', 'PENDING', 'REJECTED']) {
+    const { fetch, calls } = fakeFetch({
+      [CANCEL]: json(404, NOT_FOUND),
+      [GET_E]: json(200, envelopeBody({ status })),
+    })
+    const error = await assertRejects(
+      () => client(fetch).cancel(E),
+      DocumensoError,
+    )
+    assertEquals([error.code, error.status, error.notFound], [
+      'provider_error',
+      404,
+      true,
+    ])
+    assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CANCEL, GET_E])
+  }
+})
+
+Deno.test("cancel: Documenso's 404, then the envelope reads back DRAFT → deleted; CANCELLED → done", async () => {
+  const draft = fakeFetch({
+    [CANCEL]: json(404, NOT_FOUND),
+    [GET_E]: json(200, envelopeBody({ status: 'DRAFT' })),
+    [DELETE]: json(200, { success: true }),
+  })
+  await client(draft.fetch).cancel(E)
+  assertEquals(draft.calls.map((c) => `${c.method} ${c.url}`), [
+    CANCEL,
+    GET_E,
+    DELETE,
+  ])
+  const cancelled = fakeFetch({
+    [CANCEL]: json(404, NOT_FOUND),
+    [GET_E]: json(200, envelopeBody({ status: 'CANCELLED' })),
+  })
+  await client(cancelled.fetch).cancel(E)
+})
+
+Deno.test("cancel: a 400 whose read-back is Documenso's 404 → done (the envelope is gone)", async () => {
+  const { fetch } = fakeFetch({
+    [CANCEL]: REFUSED,
+    [GET_E]: json(404, NOT_FOUND),
+  })
+  await client(fetch).cancel(E)
 })
 
 Deno.test("cancel: a 404 that is not Documenso's error (proxy, wrong URL) is an error", async () => {
@@ -1174,11 +1240,19 @@ Deno.test('cancel: a 400, then the envelope reads back CANCELLED → done', asyn
   assertEquals(calls.map((c) => `${c.method} ${c.url}`), [CANCEL, GET_E])
 })
 
-Deno.test('cancel: a 400, then the envelope reads back DRAFT → deleted (its 404 counts as done)', async () => {
-  for (const deleted of [json(200, { success: true }), json(404, NOT_FOUND)]) {
+Deno.test('cancel: a 400, then the envelope reads back DRAFT → deleted (its 404 done once the read-back is gone too)', async () => {
+  for (
+    const [deleted, after] of [
+      [json(200, { success: true }), []],
+      [json(404, NOT_FOUND), [GET_E]],
+    ] as const
+  ) {
     const { fetch, calls } = fakeFetch({
       [CANCEL]: REFUSED,
-      [GET_E]: json(200, envelopeBody({ status: 'DRAFT' })),
+      [GET_E]: [
+        json(200, envelopeBody({ status: 'DRAFT' })),
+        json(404, NOT_FOUND),
+      ],
       [DELETE]: deleted,
     })
     await client(fetch).cancel(E, { reason: 'Remplacé' })
@@ -1186,19 +1260,40 @@ Deno.test('cancel: a 400, then the envelope reads back DRAFT → deleted (its 40
       CANCEL,
       GET_E,
       DELETE,
+      ...after,
     ])
     assertEquals(JSON.parse(calls[2].body), { envelopeId: E })
   }
 })
 
-Deno.test('cancel: draft → deleted straight away, never cancelled', async () => {
+Deno.test('cancel: draft → deleted straight away, never cancelled; a delete 404 is read back', async () => {
   const { fetch, calls } = fakeFetch({
     [DELETE]: [json(200, { success: true }), json(404, NOT_FOUND)],
+    [GET_E]: json(404, NOT_FOUND),
   })
   await client(fetch).cancel(E, { draft: true })
   await client(fetch).cancel(E, { draft: true })
-  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [DELETE, DELETE])
+  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [
+    DELETE,
+    DELETE,
+    GET_E,
+  ])
   assertEquals(JSON.parse(calls[0].body), { envelopeId: E })
+})
+
+Deno.test('cancel: a delete 404 whose read-back still shows the envelope → the delete error', async () => {
+  const { fetch } = fakeFetch({
+    [DELETE]: json(404, NOT_FOUND),
+    [GET_E]: json(200, envelopeBody({ status: 'DRAFT' })),
+  })
+  const error = await assertRejects(
+    () => client(fetch).cancel(E, { draft: true }),
+    DocumensoError,
+  )
+  assertEquals([error.message, error.notFound], [
+    'Documenso delete failed (404)',
+    true,
+  ])
 })
 
 Deno.test("cancel: a 400 on a completed or rejected envelope, or an unreadable one, is the cancel's error; delete never sent", async () => {
@@ -1234,6 +1329,21 @@ Deno.test('cancel: a refused delete is its own error', async () => {
 // ---------------------------------------------------------------------------
 // downloadSigned (E-7)
 // ---------------------------------------------------------------------------
+Deno.test('downloadSigned: with the item id from a get, no second read; a malformed one is refused before any request', async () => {
+  const { fetch, calls } = fakeFetch({
+    [DOWNLOAD]: () => new Response(PDF),
+  })
+  assertEquals(await client(fetch).downloadSigned(E, ITEM), PDF)
+  assertEquals(calls.map((c) => `${c.method} ${c.url}`), [
+    `GET ${BASE}/api/v2/envelope/item/${ITEM}/download?version=signed`,
+  ])
+  const error = await assertRejects(
+    () => client(fetch).downloadSigned(E, '../../x'),
+    DocumensoError,
+  )
+  assertEquals([error.code, calls.length], ['provider_error', 1])
+})
+
 Deno.test("downloadSigned: reads the envelope, then the one item's signed version, as bytes", async () => {
   const { fetch, calls } = fakeFetch({
     [GET_E]: json(200, envelopeBody({ status: 'COMPLETED' })),
