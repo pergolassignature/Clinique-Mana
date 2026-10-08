@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import type { Access } from '@/core/access/access'
 import { accessKeys } from '@/core/access/access-context'
+import { userKeys } from '../hooks'
 import { renderWithContexts } from '@/test/contexts'
 import { accessForRole } from '@/test/role-fixtures'
 import { testCatalog, testUsers } from '@/test/users-fixtures'
@@ -63,15 +64,16 @@ const LAST_ADMIN = 'La clinique doit garder au moins un administrateur actif.'
 
 function renderSheet(user: OrgUser, caller: Access = adminCaller) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  const onClose = vi.fn()
   render(
     renderWithContexts(
       <QueryClientProvider client={queryClient}>
-        <UserSheet user={user} onClose={vi.fn()} />
+        <UserSheet user={user} onClose={onClose} />
       </QueryClientProvider>,
       { access: { access: caller } },
     ),
   )
-  return { queryClient }
+  return { queryClient, onClose }
 }
 
 /** The toggle group of one permission, by its description. */
@@ -107,6 +109,35 @@ describe('UserSheet', () => {
       await userEvent.click(screen.getByRole('button', { name: L.save }))
       await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.users.sheet.role.saved')))
       expect(mocks.setUserRole).toHaveBeenCalledWith('u-conseillere', 'admin_assistant')
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+
+    it('closing the sheet with an unsaved role asks first; « Rester » keeps the draft', async () => {
+      const { onClose } = renderSheet(conseillere)
+      await userEvent.selectOptions(await screen.findByRole('combobox', { name: L.role }), 'admin_assistant')
+      await userEvent.keyboard('{Escape}')
+      const ask = await screen.findByRole('alertdialog', { name: t('common.unsaved.title') })
+      expect(ask).toHaveAccessibleDescription(t('common.unsaved.body'))
+      expect(onClose).not.toHaveBeenCalled()
+
+      await userEvent.click(within(ask).getByRole('button', { name: t('common.unsaved.stay') }))
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      expect(roleSelect()).toHaveValue('admin_assistant')
+      await waitFor(() => expect(roleSelect()).toHaveFocus())
+      expect(onClose).not.toHaveBeenCalled()
+
+      await userEvent.click(screen.getByRole('button', { name: t('common.close') }))
+      await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: t('common.unsaved.leave') }))
+      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(mocks.setUserRole).not.toHaveBeenCalled()
+    })
+
+    it('closing without a draft (or after « Annuler ») does not ask', async () => {
+      const { onClose } = renderSheet(conseillere)
+      await userEvent.selectOptions(await screen.findByRole('combobox', { name: L.role }), 'admin_assistant')
+      await userEvent.click(screen.getByRole('button', { name: L.cancel }))
+      await userEvent.keyboard('{Escape}')
+      expect(onClose).toHaveBeenCalledTimes(1)
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     })
 
@@ -333,6 +364,22 @@ describe('UserSheet', () => {
       expect(choice(P.audit, L.byRoleNo)).toHaveAttribute('aria-pressed', 'true')
       expect(mocks.toast.error).toHaveBeenCalledWith("Vous ne pouvez pas accorder une permission que vous n'avez pas.")
       expect(mocks.toast.success).toHaveBeenCalledWith(savedToast(P.settings, 'revoked'))
+    })
+
+    it('refetches the users list (override_count) once the last of two overlapping saves settles', async () => {
+      const resolvers: (() => void)[] = []
+      mocks.setPermissionOverride.mockImplementation(() => new Promise<void>((resolve) => resolvers.push(resolve)))
+      const { queryClient } = renderSheet(conseillere)
+      await screen.findByRole('group', { name: P.audit })
+      await userEvent.click(choice(P.audit, L.granted))
+      await userEvent.click(choice(P.settings, L.revoked))
+      await waitFor(() => expect(resolvers).toHaveLength(2))
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      // Both answer in the same tick.
+      for (const resolve of resolvers) resolve()
+      await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: userKeys.list() }))
+      expect(invalidate.mock.calls.filter(([filters]) => JSON.stringify(filters?.queryKey) === JSON.stringify(userKeys.list())).length).toBe(2)
     })
 
     it('an admin has no permission controls, only the note', async () => {

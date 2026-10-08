@@ -7,7 +7,8 @@ import { focusRing } from './field-classes'
  * Page-level views (« Utilisateurs / Rôles »), drawn like NavTabs (13px, ink underline when
  * active, 1px baseline). Real tabs (decision #35): one tab stop, the arrow keys switch views,
  * Tab then goes into the panel. Section tabs inside a form or sheet use NavTabs instead
- * (CLAUDE.md §10).
+ * (CLAUDE.md §10). The tabs' focus ring is inset (2px teal): the strip scrolls sideways, so an
+ * outer ring would be clipped.
  */
 const Tabs = TabsPrimitive.Root
 
@@ -23,7 +24,7 @@ const TabsTrigger = React.forwardRef<React.ElementRef<typeof TabsPrimitive.Trigg
     <TabsPrimitive.Trigger
       ref={ref}
       className={cn(
-        `-mb-px mr-3 flex items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-0.5 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-ink data-[state=active]:font-medium data-[state=active]:text-foreground ${focusRing} [&_svg]:size-3.5 [&_svg]:shrink-0`,
+        `-mb-px mr-3 flex items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-1 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-ink data-[state=active]:font-medium data-[state=active]:text-foreground focus-visible:shadow-[inset_0_0_0_2px_rgb(var(--focus-ring))] focus-visible:outline-none [&_svg]:size-3.5 [&_svg]:shrink-0`,
         className
       )}
       {...props}

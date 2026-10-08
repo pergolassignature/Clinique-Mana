@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Info } from 'lucide-react'
 import { t } from '@/i18n'
@@ -22,7 +22,7 @@ import {
 } from '@/shared/ui/alert-dialog'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import { Badge } from '@/shared/ui/badge'
-import { buttonVariants } from '@/shared/ui/button'
+import { Button, buttonVariants } from '@/shared/ui/button'
 import { FormField } from '@/shared/ui/form-field'
 import { Label } from '@/shared/ui/label'
 import { SegmentedControl } from '@/shared/ui/segmented-control'
@@ -67,8 +67,21 @@ interface UserSheetProps {
  */
 export function UserSheet({ user, onClose, returnFocus }: UserSheetProps) {
   const contentRef = useRef<HTMLDivElement>(null)
+  // The role form's unsaved draft: closing the sheet (X, Escape, overlay) asks first. The sheet's
+  // own check, not the page guard (unsaved-changes-context.ts): only this form matters here.
+  const [roleDirty, setRoleDirty] = useState(false)
+  const [askLeave, setAskLeave] = useState(false)
+  const focusAfterStay = useRef<HTMLElement | null>(null)
+  const leaving = useRef(false)
+
+  const requestClose = () => {
+    if (!roleDirty) return onClose()
+    focusAfterStay.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setAskLeave(true)
+  }
+
   return (
-    <Sheet open={user !== null} onOpenChange={(open) => !open && onClose()}>
+    <Sheet open={user !== null} onOpenChange={(open) => !open && requestClose()}>
       {user && (
         <SheetContent
           ref={contentRef}
@@ -84,14 +97,47 @@ export function UserSheet({ user, onClose, returnFocus }: UserSheetProps) {
             returnFocus?.()
           }}
         >
-          <UserSheetContent user={user} />
+          <UserSheetContent user={user} onRoleDirtyChange={setRoleDirty} />
+          <AlertDialog open={askLeave} onOpenChange={setAskLeave}>
+            <AlertDialogContent
+              onCloseAutoFocus={(event) => {
+                // « Quitter »: the sheet closes and sends focus back to the row itself.
+                event.preventDefault()
+                if (leaving.current) {
+                  leaving.current = false
+                  return
+                }
+                const target = focusAfterStay.current?.isConnected ? focusAfterStay.current : contentRef.current
+                target?.focus()
+              }}
+            >
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('common.unsaved.title')}</AlertDialogTitle>
+                <AlertDialogDescription>{t('common.unsaved.body')}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                {/* Radix focuses Cancel first: « Rester » is the safe default. */}
+                <AlertDialogCancel>{t('common.unsaved.stay')}</AlertDialogCancel>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    leaving.current = true
+                    setAskLeave(false)
+                    onClose()
+                  }}
+                >
+                  {t('common.unsaved.leave')}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </SheetContent>
       )}
     </Sheet>
   )
 }
 
-function UserSheetContent({ user }: { user: OrgUser }) {
+function UserSheetContent({ user, onRoleDirtyChange }: { user: OrgUser; onRoleDirtyChange: (dirty: boolean) => void }) {
   const caller = useReadyAccess()
   const callerIsAdmin = caller.role === 'admin'
   const lock: Lock = user.user_id === caller.user_id ? 'self' : user.role === 'admin' && !callerIsAdmin ? 'admin' : null
@@ -120,7 +166,7 @@ function UserSheetContent({ user }: { user: OrgUser }) {
       </SheetHeader>
       <SheetBody className="space-y-6 pt-2">
         {lock && <LockNotice lock={lock} />}
-        <RoleSection user={user} locked={lock !== null} callerIsAdmin={callerIsAdmin} />
+        <RoleSection user={user} locked={lock !== null} callerIsAdmin={callerIsAdmin} onDirtyChange={onRoleDirtyChange} />
         <StatusSection user={user} locked={lock !== null} callerIsAdmin={callerIsAdmin} />
         <PermissionsSection user={user} locked={lock !== null} callerIsAdmin={callerIsAdmin} />
       </SheetBody>
@@ -163,7 +209,7 @@ interface SectionProps {
  * the arrow keys go through the options, so nothing is saved on change (decision #36). Making
  * someone admin, or removing the admin role, asks for confirmation first.
  */
-function RoleSection({ user, locked, callerIsAdmin }: SectionProps) {
+function RoleSection({ user, locked, callerIsAdmin, onDirtyChange }: SectionProps & { onDirtyChange: (dirty: boolean) => void }) {
   const { can } = useAccess()
   const catalog = usePermissionCatalog()
   const setRole = useSetUserRole()
@@ -183,7 +229,13 @@ function RoleSection({ user, locked, callerIsAdmin }: SectionProps) {
   const value = draft ?? user.role ?? ''
   const dirty = draft !== null && draft !== user.role
   const options = [...MANAGED_ROLES, ...(user.role && !(MANAGED_ROLES as readonly string[]).includes(user.role) ? [user.role] : [])]
+  // The page guard covers leaving the page (links, reload); the sheet asks on close (onDirtyChange).
   useUnsavedChanges(dirty)
+  // Layout effect: the sheet knows at once, even for an Escape pressed right after a change.
+  useLayoutEffect(() => {
+    onDirtyChange(dirty)
+    return () => onDirtyChange(false)
+  }, [dirty, onDirtyChange])
 
   // Either way the select then shows the saved role: the new one, or the old one after a refusal.
   const save = (role: string) => setRole.mutate({ userId: user.user_id, role }, { onSettled: () => setDraft(null) })

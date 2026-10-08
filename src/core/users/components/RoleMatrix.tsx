@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useState } from 'react'
 import { Check } from 'lucide-react'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
@@ -14,25 +14,28 @@ import { LoadError, Loading } from './LoadState'
 const STICKY = 'sticky left-0 z-10 bg-card'
 
 /**
- * Whether the table's scroll region (the Table wrapper inside `container`) has columns left to
- * scroll to on the right; follows scrolling and resizing.
+ * Whether the table's scroll region (the Table wrapper inside the container) has columns left to
+ * scroll to on the right. Returns a callback ref for the container: it subscribes when the
+ * container mounts (scroll, and resizes of the region and the table) and unsubscribes when it
+ * unmounts (React 19 ref cleanup).
  */
-function useMoreOnTheRight(container: RefObject<HTMLDivElement | null>) {
+function useMoreOnTheRight() {
   const [more, setMore] = useState(false)
-  useEffect(() => {
-    const region = container.current?.querySelector<HTMLElement>('[role=region]')
+  const track = useCallback((container: HTMLDivElement | null) => {
+    const region = container?.querySelector<HTMLElement>('[role=region]')
     if (!region) return
     const update = () => setMore(region.scrollLeft + region.clientWidth < region.scrollWidth - 1)
     update()
     region.addEventListener('scroll', update, { passive: true })
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : null
     observer?.observe(region)
+    if (region.firstElementChild) observer?.observe(region.firstElementChild)
     return () => {
       region.removeEventListener('scroll', update)
       observer?.disconnect()
     }
-  })
-  return more
+  }, [])
+  return [more, track] as const
 }
 
 /**
@@ -43,8 +46,7 @@ function useMoreOnTheRight(container: RefObject<HTMLDivElement | null>) {
 export function RoleMatrix() {
   const { modules: enabledModules } = useReadyAccess()
   const { data: catalog, isPending, isError, isFetching, refetch } = usePermissionCatalog()
-  const container = useRef<HTMLDivElement>(null)
-  const more = useMoreOnTheRight(container)
+  const [more, trackScroll] = useMoreOnTheRight()
 
   if (isPending) return <Loading />
   if (isError && !catalog) return <LoadError message={t('settings.users.matrix.loadError')} onRetry={() => void refetch()} retrying={isFetching} />
@@ -56,7 +58,7 @@ export function RoleMatrix() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">{t('settings.users.matrix.note')}</p>
-      <div ref={container} className="relative rounded-lg border border-border bg-card">
+      <div ref={trackScroll} className="relative rounded-lg border border-border bg-card">
         <Table scrollLabel={t('settings.users.matrix.tableLabel')}>
           <TableCaption className="sr-only">{t('settings.users.matrix.tableLabel')}</TableCaption>
           <TableHeader>

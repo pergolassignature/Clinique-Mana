@@ -116,8 +116,13 @@ interface PermissionStateVariables {
 /**
  * Sets one permission's state: back to the role default (clears the override), granted or revoked.
  * Optimistic: the overrides cache shows the new state at once; on failure only this permission
- * goes back (another row may be saving too). The user is refetched once the last change for them
- * has settled, so a refetch never overwrites a change still in flight.
+ * goes back (another row may be saving too).
+ *
+ * After each change settles, the users list is refetched (its `override_count`): every settle
+ * comes after its own write, so the last one to settle always refetches after all of them, even
+ * when two settle in the same tick. The overrides are refetched only when no other change for the
+ * user is running (a refetch must not overwrite an optimistic state still in flight); if two
+ * settle together and both skip it, the cache already holds what they wrote.
  */
 export function useSetPermissionState(userId: string) {
   const queryClient = useQueryClient()
@@ -141,8 +146,11 @@ export function useSetPermissionState(userId: string) {
       onUserMutationError(queryClient, error)
     },
     onSettled: async () => {
-      // This mutation still counts as running here: refetch only after the last one.
-      if (queryClient.isMutating({ mutationKey }) === 1) await invalidateUser(queryClient, userId, access?.user_id)
+      const invalidations = [queryClient.invalidateQueries({ queryKey: userKeys.list() })]
+      // This mutation still counts as running here, hence `<= 1`.
+      if (queryClient.isMutating({ mutationKey }) <= 1) invalidations.push(queryClient.invalidateQueries({ queryKey: userKeys.overrides(userId) }))
+      if (userId === access?.user_id) invalidations.push(queryClient.invalidateQueries({ queryKey: accessKeys.all }))
+      await Promise.all(invalidations)
     },
   })
 }
