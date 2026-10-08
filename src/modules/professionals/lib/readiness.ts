@@ -55,8 +55,11 @@ export function nextAction(record: Pick<ProfessionalRecord, 'professional' | 're
       action: kind ? { kind: 'activate', label: activationLabel(kind) } : null,
     }
   }
-  const firstGap = record.readiness.items.find((i) => !i.done)?.missing[0]
-  const tab = firstGap ? MISSING_TAB[firstGap] : 'jumelage'
+  // Matching gaps come first; items without `missing` keys (account, questionnaire: 4b.1) have no tab
+  // to fix them yet (4b.3 adds the invitation actions).
+  const firstGap = record.readiness.items.flatMap((i) => (i.done ? [] : i.missing))[0]
+  if (!firstGap) return { message: t(`${N}.awaitingOnboarding`), action: null }
+  const tab = MISSING_TAB[firstGap]
   const permission = TAB_PERMISSION[tab]
   return {
     message: t(tab === 'identite' ? `${N}.completeIdentity` : `${N}.completeMatching`),

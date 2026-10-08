@@ -64,7 +64,14 @@ begin
   get diagnostics v_count = row_count;
   raise notice 'professional_private : % ligne(s) re-chiffrée(s)', v_count;
 
-  -- À partir de la Task 4b.1 : professional_submission_private, même forme (clé de ligne submission_id).
+  update public.professional_submission_private s
+     set sin = private.encrypt_pii(private.decrypt_pii(s.sin, s.key_version), v_target),
+         bank_account = private.encrypt_pii(private.decrypt_pii(s.bank_account, s.key_version), v_target),
+         key_version = v_target
+   where s.submission_id in (select x.submission_id from public.professional_submission_private x
+                              where x.key_version <> v_target order by x.submission_id limit 500);
+  get diagnostics v_count = row_count;
+  raise notice 'professional_submission_private : % ligne(s) re-chiffrée(s)', v_count;
 end;
 $$;$runbook$),
   ('retire', $runbook$do $$

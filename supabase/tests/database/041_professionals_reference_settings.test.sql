@@ -449,14 +449,14 @@ select results_eq($$ select l.code from public.languages_catalog l order by l.so
 -- =============================================================================
 -- Module settings
 -- =============================================================================
-select is(public.get_professionals_settings(), '{"collect_sin": false}'::jsonb, 'collect_sin is off by default (P4-7)');
+select is(public.get_professionals_settings(), '{"collect_sin": false, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3}'::jsonb, 'collect_sin is off by default (P4-7)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select set_config('app.audit_source', 'test:outer', true);
-select is(public.set_professionals_settings('{"collect_sin": true}'), '{"collect_sin": true}'::jsonb,
+select is(public.set_professionals_settings('{"collect_sin": true}'), '{"collect_sin": true, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3}'::jsonb,
   'admin A turns SIN collection on and gets the effective settings');
 select is(current_setting('app.audit_source', true), 'test:outer', 'set_professionals_settings gives the audit source back');
 select set_config('app.audit_source', '', true);
-select is(public.get_professionals_settings(), '{"collect_sin": true}'::jsonb, 'the setting is stored');
+select is(public.get_professionals_settings(), '{"collect_sin": true, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3}'::jsonb, 'the setting is stored');
 select throws_ok($$ select public.set_professionals_settings('{"unknown": 1}') $$,
   '22023', 'Réglage inconnu : unknown', 'an unknown key is refused');
 select throws_ok($$ select public.set_professionals_settings('{"collect_sin": "yes"}') $$,
@@ -473,7 +473,7 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select throws_ok($$ select public.get_professionals_settings() $$,
   '42501', 'Accès refusé aux réglages des professionnels.', 'K, without a professionals key, cannot read the settings');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
-select is(public.get_professionals_settings(), '{"collect_sin": false}'::jsonb, 'org B keeps its own default');
+select is(public.get_professionals_settings(), '{"collect_sin": false, "invitation_expiry_days": 7, "invitation_reminder_after_days": 3}'::jsonb, 'org B keeps its own default');
 
 -- =============================================================================
 -- Permissions: only professionals.settings writes the lists

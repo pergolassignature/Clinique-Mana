@@ -642,6 +642,11 @@ end;
 $$;
 
 -- Only while no account exists; afterwards the professional changes it in « Mon compte ».
+-- A new address withdraws the invitation sent to the old one (4b.1 security review, P4-300): the
+-- file's live `professional_invite` links are revoked after the update (professional first, then
+-- links: the module's lock order), and an invited file is « À inviter » again (draft, as
+-- « Révoquer », P4-171). The purpose is seeded by …_professionals_onboarding.sql; before it, no
+-- link matches. The accept handlers also refuse a link whose bound address is no longer the file's.
 create function public.set_professional_email(p_id uuid, p_email text)
 returns void
 language plpgsql
@@ -669,6 +674,12 @@ begin
   perform 1 from public.organizations o where o.id = v_org for no key update;
   perform private.assert_professional_email_free(v_org, v_email, p_id);
   update public.professionals p set email = v_email where p.id = p_id;
+  if private.revoke_secure_links(v_org, 'professional_invite', 'professional', p_id, auth.uid()) > 0
+     and v_current.status = 'invited' then
+    update public.professionals p
+       set status = 'draft', status_changed_at = pg_catalog.now(), status_changed_by = auth.uid()
+     where p.id = p_id;
+  end if;
 end;
 $$;
 

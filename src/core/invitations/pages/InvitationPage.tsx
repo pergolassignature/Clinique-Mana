@@ -8,6 +8,7 @@ import { t } from '@/i18n'
 import { useAccess } from '@/core/access/access-context'
 import { useAuth } from '@/core/auth/auth-context'
 import { AuthCard, StatusNotice } from '@/core/auth/pages/AuthCard'
+import { safeRedirect } from '@/core/auth/redirect'
 import { newPasswordSchema, type NewPasswordValues } from '@/core/auth/password-schema'
 import { FunctionCallError } from '@/core/supabase/functions'
 import { retryInText } from '@/shared/lib/retry-after'
@@ -46,14 +47,15 @@ function report(error: unknown) {
 }
 
 /**
- * `/invitation#t=…`: where a staff invitation email lands (design §4, Task 3.21). Public, outside
- * RequireAuth, code-split.
+ * `/invitation#t=…`: where a staff or a professional invitation email lands (design §4, Task 3.21;
+ * Professionnels 4b.2). Public, outside RequireAuth, code-split.
  *
  * The token travels in the fragment, so it never reaches a server log. It is read once, kept in
  * memory, and removed from the URL before anything is requested (a layout effect runs before the
  * query's), so it stays out of history, and Sentry drops fragments anyway. `resolve-link` shows
  * whom the invitation is for; the invitee then chooses a password, `accept-invite` creates the
- * account, and the page signs her in and opens Accueil. Someone else signed in on this browser (a
+ * account, and the page signs her in and opens Accueil, or the page the purpose names (a
+ * professional's questionnaire), through `safeRedirect`. Someone else signed in on this browser (a
  * shared reception PC) is signed out locally first, once the account exists (decisions #10, #13).
  */
 export function InvitationPage() {
@@ -180,8 +182,9 @@ function AcceptForm({ token, invitation, onAccepted, onEnding }: AcceptFormProps
   const onSubmit = async ({ password }: NewPasswordValues) => {
     setError(null)
     let email: string
+    let redirect: string | null
     try {
-      ;({ email } = await acceptInvite(token, password))
+      ;({ email, redirect } = await acceptInvite(token, password))
     } catch (failure) {
       const code = codeOf(failure)
       if (isEnding(code)) return onEnding(code)
@@ -197,7 +200,8 @@ function AcceptForm({ token, invitation, onAccepted, onEnding }: AcceptFormProps
     if (session) await signOut({ reload: false })
     const signInError = await signInWithPassword(email, password)
     if (signInError) return onEnding('activated')
-    navigate('/accueil', { replace: true })
+    // The purpose's page (a professional's questionnaire), never off the app; Accueil otherwise.
+    navigate(safeRedirect(redirect), { replace: true })
   }
 
   return (

@@ -101,8 +101,8 @@ select set_config('test.default', public.import_professional(current_setting('te
 reset role;
 
 select is(current_setting('test.dry')::jsonb,
-  '{"status": "ok", "dry_run": true, "id": null, "activated": true, "complete": true, "missing": []}'::jsonb,
-  'dry run: ok, what the real run would do, no id');
+  '{"status": "ok", "dry_run": true, "id": null, "activated": true, "complete": false, "missing": []}'::jsonb,
+  'dry run: ok, what the real run would do, no id (not complete: no account nor questionnaire yet, 4b.1)');
 select is(current_setting('test.default')::jsonb ->> 'dry_run', 'true', 'without p_dry_run, the call is a dry run');
 select is((select count(*)::int from public.professionals where email = 'elise.bouchard@example.test'), 0, 'dry run: no professional');
 select is((select count(*)::int from public.professional_payer_numbers where number = 'IVAC-1234'), 0, 'dry run: no IVAC number');
@@ -125,19 +125,20 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select set_config('test.real', public.import_professional(current_setting('test.row')::jsonb, false)::text, true);
 select set_config('test.id', current_setting('test.real')::jsonb ->> 'id', true);
-select is(public.get_professional_readiness(current_setting('test.id')::uuid) ->> 'complete', 'true', 'the imported file is complete (readiness)');
+select is(public.get_professional_readiness(current_setting('test.id')::uuid) -> 'items' -> 0 ->> 'done', 'true',
+  'the imported matching profile is complete (readiness)');
 reset role;
 
 select is(current_setting('test.real')::jsonb - 'id',
-  '{"status": "ok", "dry_run": false, "activated": true, "complete": true, "missing": []}'::jsonb, 'real run: ok');
+  '{"status": "ok", "dry_run": false, "activated": true, "complete": false, "missing": []}'::jsonb, 'real run: ok');
 select ok(current_setting('test.id') ~ '^[0-9a-f-]{36}$', 'real run: the new id');
 select is(
   (select row(p.first_name, p.last_name, p.email, p.personal_phone, p.city, p.province, p.postal_code, p.years_experience,
               p.status, p.activation_override_reason, p.created_by, p.status_changed_by)::text
      from public.professionals p where p.id = current_setting('test.id')::uuid),
   row('Élise', 'Bouchard', 'elise.bouchard@example.test', '+15145550101', 'Montréal', 'QC', 'H2X 1Y4', 12::smallint,
-      'active', null::text, 'a0000000-0000-0000-0000-000000000001'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid)::text,
-  'identity and contact normalised as the forms store them; active without an override reason (complete file)');
+      'active', 'Dossier complété hors application'::text, 'a0000000-0000-0000-0000-000000000001'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid)::text,
+  'identity and contact normalised as the forms store them; active with the override reason (P4-20: no account or questionnaire yet, 4b.1)');
 select results_eq(
   $$ select t.key, pp.licence_number, pp.is_primary from public.professional_professions pp
        join public.profession_titles t on t.id = pp.profession_title_id

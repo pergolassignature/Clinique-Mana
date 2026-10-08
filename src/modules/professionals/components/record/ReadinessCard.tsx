@@ -34,7 +34,7 @@ export function ReadinessCard({ record }: { record: Pick<ProfessionalRecord, 'pr
                 key={item.key}
                 status={item.done ? 'complete' : 'pending'}
                 label={readinessItemLabel(item.key)}
-                description={item.done ? undefined : <Missing id={professional.id} item={item} />}
+                description={item.done || item.missing.length === 0 ? undefined : <Missing id={professional.id} item={item} />}
               />
             ))}
           </>

@@ -108,6 +108,13 @@ select functions_are('public', array[
   'record_monthly_sessions', 'decide_retention', 'delete_professional_retention',
   'set_professional_client_agreement', 'end_professional_client_agreement', 'delete_professional_client_agreement',
   'get_professional_compensation', 'list_retention_review',
+  'create_professional_invitation', 'revoke_professional_invitation', 'request_professional_update',
+  'resolve_professional_invitation', 'link_professional_account', 'list_professional_invitation_states', 'get_professional_onboarding',
+  'get_my_submission', 'save_my_submission_draft', 'save_my_submission_private', 'sign_my_consent', 'submit_my_submission',
+  'get_my_professional_private', 'start_my_profile_update',
+  'get_submission_review', 'apply_professional_submission', 'reject_professional_submission',
+  'list_professional_invitations_to_remind_for_service', 'reissue_professional_invitation_for_service',
+  'get_professional_submission_notice_for_service',
   'set_user_preference', 'delete_user_preference'
 ], 'public schema exposes exactly the intended RPCs');
 
