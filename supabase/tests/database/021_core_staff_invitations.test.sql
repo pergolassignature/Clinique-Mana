@@ -539,7 +539,7 @@ select is_empty($$ select 1 from public.profiles where user_id = 'a0000000-0000-
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000010","role":"authenticated"}', true);
 select results_eq($$ select public.get_my_access() ->> 'role', public.get_my_access() -> 'permissions' $$,
-  $$ values ('counselor'::text, '["professionals.view"]'::jsonb) $$,
+  $$ values ('counselor'::text, '["professionals.matching", "professionals.view"]'::jsonb) $$,
   'the new user''s access lists the role and its permissions');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);

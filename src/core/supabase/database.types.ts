@@ -48,6 +48,106 @@ export type Database = {
         }
         Relationships: []
       }
+      clienteles: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          max_age: number | null
+          min_age: number | null
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          max_age?: number | null
+          min_age?: number | null
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          max_age?: number | null
+          min_age?: number | null
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clienteles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deactivation_reasons: {
+        Row: {
+          created_at: string
+          disables_account: boolean
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          name: string
+          org_id: string
+          requires_note: boolean
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          disables_account?: boolean
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          name: string
+          org_id: string
+          requires_note?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          disables_account?: boolean
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          name?: string
+          org_id?: string
+          requires_note?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deactivation_reasons_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_template_versions: {
         Row: {
           archived_at: string | null
@@ -506,6 +606,50 @@ export type Database = {
           },
         ]
       }
+      languages: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "languages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       module_dependencies: {
         Row: {
           depends_on: string
@@ -553,6 +697,113 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      motif_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          icon: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          icon?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          icon?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "motif_categories_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      motifs: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          is_restricted: boolean
+          is_system: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_restricted?: boolean
+          is_system?: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_restricted?: boolean
+          is_system?: boolean
+          key?: string
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "motifs_category_fkey"
+            columns: ["org_id", "category_id"]
+            isOneToOne: false
+            referencedRelation: "motif_categories"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "motifs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notification_reads: {
         Row: {
@@ -1075,6 +1326,167 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "modules"
             referencedColumns: ["key"]
+          },
+        ]
+      }
+      profession_categories: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profession_categories_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profession_titles: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          name: string
+          order_id: string | null
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          name: string
+          order_id?: string | null
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          name?: string
+          order_id?: string | null
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profession_titles_category_fkey"
+            columns: ["org_id", "category_id"]
+            isOneToOne: false
+            referencedRelation: "profession_categories"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "profession_titles_order_fkey"
+            columns: ["org_id", "order_id"]
+            isOneToOne: false
+            referencedRelation: "professional_orders"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "profession_titles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      professional_orders: {
+        Row: {
+          acronym: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          licence_label: string
+          licence_pattern: string | null
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          acronym: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          licence_label?: string
+          licence_pattern?: string | null
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          acronym?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          licence_label?: string
+          licence_pattern?: string | null
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_orders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1735,6 +2147,50 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      specialties: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "specialties_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }

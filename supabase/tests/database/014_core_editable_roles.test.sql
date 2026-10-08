@@ -250,7 +250,8 @@ select throws_ok($$ select public.create_role(repeat('x', 61)) $$,
 select matches(public.create_role('Copie adjointe', 'admin_assistant'), '^custom_[0-9a-f]{8}$', 'create_role copies another role');
 select set_config('test.k2', (select key from public.roles where name = 'Copie adjointe'), true);
 select results_eq($$ select permission_key from public.org_role_permissions where role = current_setting('test.k2') order by 1 $$,
-  array['professionals.view', 'settings.view'], 'the copy starts with the adjointe''s permissions');
+  array['professionals.manage', 'professionals.matching', 'professionals.view', 'settings.view'],
+  'the copy starts with the adjointe''s permissions');
 -- Look-alike names
 select throws_ok($$ select public.create_role(E'Copie adjointe\u00A0') $$,
   'P0001', 'Un rôle porte déjà ce nom.', 'a no-break space at the end is stripped: same name');
@@ -341,13 +342,14 @@ select lives_ok($$ select public.set_role_permission('counselor', 'professionals
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select ok(private.has_permission('settings.view'), 'has_permission follows the org change at once (grant)');
 select ok(not private.has_permission('professionals.view'), 'has_permission follows the org change at once (removal)');
-select is(public.get_my_access() -> 'permissions', '["settings.view"]'::jsonb, 'get_my_access reads the org''s defaults');
+select is(public.get_my_access() -> 'permissions', '["professionals.matching", "settings.view"]'::jsonb,
+  'get_my_access reads the org''s defaults');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000008","role":"authenticated"}', true);
 select ok(not private.has_permission('settings.view'), 'org B''s counselors are unaffected');
 reset role;
-select results_eq($$ select permission_key from public.role_permissions where role = 'counselor' $$,
-  array['professionals.view'], 'the template is unaffected');
+select results_eq($$ select permission_key from public.role_permissions where role = 'counselor' order by 1 $$,
+  array['professionals.matching', 'professionals.view'], 'the template is unaffected');
 set local role authenticated;
 
 -- =============================================================================
