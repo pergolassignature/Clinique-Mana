@@ -207,6 +207,7 @@ const matchingProfileRowPayload = z
   }))
 export type MatchingProfile = z.output<typeof matchingProfileRowPayload>
 
+
 /**
  * One of the professional's titles (at most two, exactly one primary). Shared by the record and
  * `set_professional_professions`, whose generated type calls `licence_number` non-null.
@@ -446,23 +447,30 @@ export const historyEntryPayload = z
   }))
 export type HistoryEntry = z.output<typeof historyEntryPayload>
 
-// --- Status changes (activate_professional, deactivate_professional) -----------------------------
+// --- Status changes (professionals-set-status, Task 4b.6) -----------------------------------------
 
 /**
- * The one row the status RPCs return. `accountChange` is set only when the call disabled or
- * re-enabled the provider's account (4b.6 then bans or unbans it); `profileId` is null without
- * an account. The generated types call both non-null.
+ * `professionals-set-status`'s answer to « Activer » / « Désactiver »: the status RPC's row and
+ * whether the sign-in ban followed. `accountChange` is set only when the call disabled or
+ * re-enabled the provider's account (the function then bans or unbans it); `profileId` is null
+ * without an account change. `signinSynced` is false when Auth refused the ban or the unban
+ * (P4-381): the status change stands, and « Réessayer » sends `sync_signin`.
  */
 export const statusChangePayload = z
-  .tuple([
-    z.object({
-      status: z.enum(PROFESSIONAL_STATUSES),
-      account_change: z.enum(['disabled', 'enabled']).nullable(),
-      profile_id: z.string().nullable(),
-    }),
-  ])
-  .transform(([r]) => ({ status: r.status, accountChange: r.account_change, profileId: r.profile_id }))
+  .object({
+    status: z.enum(PROFESSIONAL_STATUSES),
+    account_change: z.enum(['disabled', 'enabled']).nullable(),
+    profile_id: z.string().nullable(),
+    signin_synced: z.boolean(),
+  })
+  .transform((r) => ({ status: r.status, accountChange: r.account_change, profileId: r.profile_id, signinSynced: r.signin_synced }))
 export type StatusChange = z.output<typeof statusChangePayload>
+
+/** `sync_signin`: the provider account's status (null without one) and whether the ban now follows it. */
+export const signinSyncPayload = z
+  .object({ account_status: z.enum(['active', 'disabled']).nullable(), signin_synced: z.boolean() })
+  .transform((r) => ({ accountStatus: r.account_status, signinSynced: r.signin_synced }))
+export type SigninSync = z.output<typeof signinSyncPayload>
 
 // --- Module settings (get_professionals_settings) ------------------------------------------------
 

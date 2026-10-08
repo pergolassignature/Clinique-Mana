@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { t } from '@/i18n'
 import { toast } from '@/shared/ui/sonner'
 import {
@@ -11,6 +11,7 @@ import {
   setPayerNumber,
   setProfessionalEmail,
   setProfessions,
+  syncProfessionalSignin,
   updateMatchingProfile,
   updateProfessional,
   updatePublicProfile,
@@ -52,6 +53,8 @@ interface RecordMutation<V extends { id: string }, R> {
   /** Other queries the change shows in (the gender: the title's form in Rémunération and the review, P4-342). */
   alsoRefetch?: (variables: V) => readonly (readonly unknown[])[]
   successMessage?: string
+  /** Says the outcome in place of `successMessage` (the status changes: the account's sign-in, P4-381). */
+  notify?: (result: R, variables: V, queryClient: QueryClient) => void
 }
 
 function useRecordMutation<V extends { id: string }, R>(config: RecordMutation<V, R>, feedback: MutationFeedback | undefined) {
@@ -69,7 +72,8 @@ function useRecordMutation<V extends { id: string }, R>(config: RecordMutation<V
         config.touchesUsage && queryClient.invalidateQueries({ queryKey: professionalCatalogKeys.usage() }),
         ...(config.alsoRefetch?.(variables) ?? []).map((queryKey) => queryClient.invalidateQueries({ queryKey })),
       ])
-      toast.success(config.successMessage ?? t('modules.professionals.toasts.saved'))
+      if (config.notify) config.notify(result, variables, queryClient)
+      else toast.success(config.successMessage ?? t('modules.professionals.toasts.saved'))
     },
     onError: (error) => showMutationError(queryClient, error, feedback),
   })
@@ -227,7 +231,44 @@ const withStatus = (record: ProfessionalRecord, change: StatusChange, fields: Pa
   professional: { ...record.professional, ...fields, status: change.status },
 })
 
-/** Resolves with the status change (`accountChange`: the provider's account was re-enabled). */
+const S = 'modules.professionals.toasts.signin'
+
+/**
+ * Auth refused the ban (or the unban) after the status change (P4-381): a warning that stays until
+ * closed, with « Réessayer » (`sync_signin`: the ban made to follow the account's status). A retry
+ * that fails again shows it again; one that succeeds says so. It runs even if the dialog or the
+ * page has closed meanwhile.
+ */
+function signinWarning(queryClient: QueryClient, id: string, change: 'disabled' | 'enabled'): void {
+  const retry = (): void => {
+    syncProfessionalSignin(id).then(
+      ({ accountStatus, signinSynced }) => {
+        if (!signinSynced) signinWarning(queryClient, id, accountStatus === 'active' ? 'enabled' : 'disabled')
+        else if (accountStatus === 'disabled') toast.success(t(`${S}.blocked`))
+        else if (accountStatus === 'active') toast.success(t(`${S}.restored`))
+        else toast.success(t(`${S}.noAccount`))
+      },
+      (error: unknown) => showMutationError(queryClient, error, undefined),
+    )
+  }
+  toast.warning(t(change === 'disabled' ? `${S}.notBlocked` : `${S}.notRestored`), {
+    duration: Infinity,
+    action: { label: t('common.retry'), onClick: retry },
+  })
+}
+
+/** The status change's toast: the account's part said when it changed (P4-113, P4-381). */
+function statusToast(change: StatusChange, id: string, queryClient: QueryClient, plain: string): void {
+  if (change.accountChange !== null && !change.signinSynced) signinWarning(queryClient, id, change.accountChange)
+  else if (change.accountChange === 'disabled') toast.success(t(`${S}.deactivatedClosed`))
+  else if (change.accountChange === 'enabled') toast.success(t(`${S}.reactivatedOpen`))
+  else toast.success(plain)
+}
+
+/**
+ * Resolves with the status change (`accountChange`: the provider's account was re-enabled, its
+ * sign-in ban lifted unless `signinSynced` is false).
+ */
 export function useActivateProfessional(feedback?: MutationFeedback) {
   return useRecordMutation(
     {
@@ -240,13 +281,16 @@ export function useActivateProfessional(feedback?: MutationFeedback) {
           activationOverrideReason: record.readiness.complete ? null : trimmed(overrideReason),
         }),
       touchesUsage: true,
-      successMessage: t('modules.professionals.toasts.activated'),
+      notify: (change, { id }, queryClient) => statusToast(change, id, queryClient, t('modules.professionals.toasts.activated')),
     },
     feedback,
   )
 }
 
-/** Resolves with the status change (`accountChange: 'disabled'` when the reason disables the account). */
+/**
+ * Resolves with the status change (`accountChange: 'disabled'` when the reason disables the
+ * account: its open sessions ended, new sign-ins banned unless `signinSynced` is false).
+ */
 export function useDeactivateProfessional(feedback?: MutationFeedback) {
   return useRecordMutation(
     {
@@ -259,7 +303,7 @@ export function useDeactivateProfessional(feedback?: MutationFeedback) {
           activationOverrideReason: null,
         }),
       touchesUsage: true,
-      successMessage: t('modules.professionals.toasts.deactivated'),
+      notify: (change, { id }, queryClient) => statusToast(change, id, queryClient, t('modules.professionals.toasts.deactivated')),
     },
     feedback,
   )

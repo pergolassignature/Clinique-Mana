@@ -152,3 +152,7 @@ verify_jwt = false
 # « Fiche PDF » → « Envoyer par courriel » (verifyAuth, module professionals).
 [functions.professionals-fiche]
 verify_jwt = false
+# « Activer », « Réactiver », « Désactiver » and the sign-in ban that follows the provider's account
+# (Task 4b.6; verifyAuth, module professionals, professionals.manage).
+[functions.professionals-set-status]
+verify_jwt = false

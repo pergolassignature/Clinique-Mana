@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { FunctionCallError } from '@/core/supabase/functions'
 import {
   activateProfessional,
   createProfessional,
@@ -10,6 +11,7 @@ import {
   setPayerNumber,
   setProfessionalEmail,
   setProfessions,
+  syncProfessionalSignin,
   updateMatchingProfile,
   updateProfessional,
   updatePublicProfile,
@@ -24,9 +26,14 @@ const mocks = vi.hoisted(() => {
   const update = vi.fn(() => ({ eq }))
   const from = vi.fn(() => ({ update }))
   const rpc = vi.fn()
-  return { from, update, eq, select, rpc }
+  const invokeFunction = vi.fn()
+  return { from, update, eq, select, rpc, invokeFunction }
 })
 vi.mock('@/core/supabase/client', () => ({ supabase: { from: mocks.from, rpc: mocks.rpc } }))
+vi.mock('@/core/supabase/functions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/supabase/functions')>()),
+  invokeFunction: mocks.invokeFunction,
+}))
 
 afterEach(() => vi.clearAllMocks())
 
@@ -186,37 +193,70 @@ describe('set RPCs', () => {
   })
 })
 
-describe('status RPCs', () => {
-  it('activateProfessional returns the change (no account change: nulls)', async () => {
-    ok([{ status: 'active', account_change: null, profile_id: null }])
-    await expect(activateProfessional(ID)).resolves.toEqual({ status: 'active', accountChange: null, profileId: null })
-    expect(mocks.rpc).toHaveBeenCalledWith('activate_professional', { p_id: ID })
+describe('status (professionals-set-status, Task 4b.6)', () => {
+  const answer = (status: string, change: string | null, synced = true) =>
+    mocks.invokeFunction.mockResolvedValue({ status, account_change: change, profile_id: change ? IDS.admin : null, signin_synced: synced })
+
+  it('activateProfessional goes through the function and returns the change (no account change: nulls)', async () => {
+    answer('active', null)
+    await expect(activateProfessional(ID)).resolves.toEqual({ status: 'active', accountChange: null, profileId: null, signinSynced: true })
+    expect(mocks.invokeFunction).toHaveBeenCalledExactlyOnceWith('professionals-set-status', { action: 'activate', professional_id: ID })
+    expect(mocks.rpc).not.toHaveBeenCalled()
   })
 
-  it('activateProfessional passes the override reason when given', async () => {
-    ok([{ status: 'active', account_change: 'enabled', profile_id: IDS.admin }])
+  it('activateProfessional passes the override reason when given; an unban Auth refused reads signinSynced false', async () => {
+    answer('active', 'enabled', false)
     await expect(activateProfessional(ID, 'Dossier complété hors application')).resolves.toEqual({
       status: 'active',
       accountChange: 'enabled',
       profileId: IDS.admin,
+      signinSynced: false,
     })
-    expect(mocks.rpc).toHaveBeenCalledWith('activate_professional', { p_id: ID, p_override_reason: 'Dossier complété hors application' })
+    expect(mocks.invokeFunction).toHaveBeenCalledWith('professionals-set-status', {
+      action: 'activate',
+      professional_id: ID,
+      override_reason: 'Dossier complété hors application',
+    })
   })
 
   it('deactivateProfessional passes the reason and the note when given', async () => {
-    ok([{ status: 'inactive', account_change: 'disabled', profile_id: IDS.admin }])
-    await expect(deactivateProfessional(ID, IDS.ended)).resolves.toMatchObject({ accountChange: 'disabled' })
-    expect(mocks.rpc).toHaveBeenCalledWith('deactivate_professional', { p_id: ID, p_reason_id: IDS.ended })
-    ok([{ status: 'inactive', account_change: null, profile_id: null }])
+    answer('inactive', 'disabled')
+    await expect(deactivateProfessional(ID, IDS.ended)).resolves.toMatchObject({ accountChange: 'disabled', signinSynced: true })
+    expect(mocks.invokeFunction).toHaveBeenCalledWith('professionals-set-status', { action: 'deactivate', professional_id: ID, reason_id: IDS.ended })
+    answer('inactive', null)
     await deactivateProfessional(ID, IDS.leave, null)
-    expect(mocks.rpc).toHaveBeenLastCalledWith('deactivate_professional', { p_id: ID, p_reason_id: IDS.leave })
+    expect(mocks.invokeFunction).toHaveBeenLastCalledWith('professionals-set-status', { action: 'deactivate', professional_id: ID, reason_id: IDS.leave })
     await deactivateProfessional(ID, IDS.other, 'Départ à l’étranger')
-    expect(mocks.rpc).toHaveBeenLastCalledWith('deactivate_professional', { p_id: ID, p_reason_id: IDS.other, p_note: 'Départ à l’étranger' })
+    expect(mocks.invokeFunction).toHaveBeenLastCalledWith('professionals-set-status', {
+      action: 'deactivate',
+      professional_id: ID,
+      reason_id: IDS.other,
+      note: 'Départ à l’étranger',
+    })
   })
 
-  it('throws the refusal unchanged', async () => {
-    const error = { code: 'P0001', message: 'Ce dossier est déjà actif.' }
-    fail(error)
+  it('syncProfessionalSignin (« Réessayer ») asks for sync_signin', async () => {
+    mocks.invokeFunction.mockResolvedValue({ account_status: 'disabled', signin_synced: true })
+    await expect(syncProfessionalSignin(ID)).resolves.toEqual({ accountStatus: 'disabled', signinSynced: true })
+    expect(mocks.invokeFunction).toHaveBeenCalledExactlyOnceWith('professionals-set-status', { action: 'sync_signin', professional_id: ID })
+  })
+
+  it('throws the function’s refusals as the RPC errors they pass on (P0001 with its HINT, 42501, 40001)', async () => {
+    mocks.invokeFunction.mockRejectedValue(
+      new FunctionCallError('invalid_request', 400, 'Ce dossier est déjà actif.', { refusal: true, field: 'status' }),
+    )
+    await expect(activateProfessional(ID)).rejects.toEqual({ code: 'P0001', message: 'Ce dossier est déjà actif.', hint: 'status' })
+    mocks.invokeFunction.mockRejectedValue(new FunctionCallError('forbidden', 403, 'Not allowed'))
+    await expect(activateProfessional(ID)).rejects.toMatchObject({ code: '42501' })
+    mocks.invokeFunction.mockRejectedValue(new FunctionCallError('conflict', 409, 'Record changed'))
+    await expect(deactivateProfessional(ID, IDS.leave)).rejects.toMatchObject({ code: '40001' })
+  })
+
+  it('throws anything else unchanged, and an unexpected answer as the shape error', async () => {
+    const error = new FunctionCallError('network', 0, 'Function unreachable')
+    mocks.invokeFunction.mockRejectedValue(error)
     await expect(activateProfessional(ID)).rejects.toBe(error)
+    mocks.invokeFunction.mockResolvedValue([{ status: 'active', account_change: null, profile_id: null }])
+    await expect(activateProfessional(ID)).rejects.toThrow(UNEXPECTED_SHAPE)
   })
 })

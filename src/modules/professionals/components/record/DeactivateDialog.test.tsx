@@ -29,7 +29,7 @@ beforeEach(() => {
   mocks.record.fetchProfessionalRecord.mockImplementation(async () => stored)
   mocks.record.deactivateProfessional.mockImplementation(async (): Promise<StatusChange> => {
     stored = { ...stored, professional: { ...stored.professional, status: 'inactive' } }
-    return { status: 'inactive', accountChange: null, profileId: null }
+    return { status: 'inactive', accountChange: null, profileId: null, signinSynced: true }
   })
 })
 afterEach(() => vi.clearAllMocks())
@@ -229,7 +229,7 @@ describe('DeactivateDialog', () => {
     expect(dialog()).toBeInTheDocument()
 
     stored = { ...stored, professional: { ...stored.professional, status: 'inactive' } }
-    finish({ status: 'inactive', accountChange: null, profileId: null })
+    finish({ status: 'inactive', accountChange: null, profileId: null, signinSynced: true })
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
     expect(mocks.record.deactivateProfessional).toHaveBeenCalledExactlyOnceWith(ID, IDS.leave, 'Retour en mars')
   })

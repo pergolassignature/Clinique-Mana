@@ -1,17 +1,21 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
 import type { TablesUpdate } from '@/core/supabase/database.types'
+import { invokeFunction } from '@/core/supabase/functions'
 import type { PayerType } from '../lib/constants'
+import { asRpcRefusal } from './function-errors'
 import {
   parseRpc,
   professionRowPayload,
   recordPayload,
+  signinSyncPayload,
   statusChangePayload,
   type MatchingProfile,
   type Professional,
   type ProfessionalRecord,
   type ProfessionRow,
   type PublicProfile,
+  type SigninSync,
   type SpecializedRef,
   type StatusChange,
 } from './parse'
@@ -187,25 +191,52 @@ export async function setProfessionalEmail(id: string, email: string): Promise<v
   if (error) throw error
 }
 
-// --- Status --------------------------------------------------------------------------------------
+// --- Status (professionals-set-status, Task 4b.6) ------------------------------------------------
+
+const STATUS_FUNCTION = 'professionals-set-status'
+
+/**
+ * One call to `professionals-set-status`, its answer parsed. The function runs the status RPC as
+ * the caller, then the Auth ban when the call changed the provider's account; its refusals are
+ * thrown as the RPC errors they pass on (`asRpcRefusal`: P0001 with its HINT, 42501, 40001).
+ */
+async function callStatusFunction<S extends z.ZodType>(body: Record<string, unknown>, schema: S): Promise<z.output<S>> {
+  let data: unknown
+  try {
+    data = await invokeFunction(STATUS_FUNCTION, body)
+  } catch (error) {
+    throw asRpcRefusal(error)
+  }
+  return parseRpc(schema, data)
+}
 
 /**
  * Activates (or reactivates) the professional. A complete file needs no reason; an incomplete one
  * needs `professionals.activate_override` and a reason of at least 5 characters. Re-enables the
- * account this module disabled (`accountChange: 'enabled'`).
+ * account this module disabled (`accountChange: 'enabled'`) and lifts its sign-in ban
+ * (`signinSynced: false` when Auth refused: « Réessayer » is `syncProfessionalSignin`).
  */
-export async function activateProfessional(id: string, overrideReason?: string): Promise<StatusChange> {
-  const { data, error } = await supabase.rpc('activate_professional', { p_id: id, ...(overrideReason !== undefined && { p_override_reason: overrideReason }) })
-  if (error) throw error
-  return parseRpc(statusChangePayload, data)
+export function activateProfessional(id: string, overrideReason?: string): Promise<StatusChange> {
+  return callStatusFunction(
+    { action: 'activate', professional_id: id, ...(overrideReason !== undefined && { override_reason: overrideReason }) },
+    statusChangePayload,
+  )
 }
 
 /**
  * Deactivates with an active reason of the clinic; the note is required when the reason says so.
- * A reason that disables the account disables the provider's profile (`accountChange: 'disabled'`).
+ * A reason that disables the account disables the provider's profile, which ends their open
+ * sessions at once (`accountChange: 'disabled'`), and bans new sign-ins (`signinSynced: false`
+ * when Auth refused the ban: « Réessayer » is `syncProfessionalSignin`).
  */
-export async function deactivateProfessional(id: string, reasonId: string, note?: string | null): Promise<StatusChange> {
-  const { data, error } = await supabase.rpc('deactivate_professional', { p_id: id, p_reason_id: reasonId, ...(note != null && { p_note: note }) })
-  if (error) throw error
-  return parseRpc(statusChangePayload, data)
+export function deactivateProfessional(id: string, reasonId: string, note?: string | null): Promise<StatusChange> {
+  return callStatusFunction(
+    { action: 'deactivate', professional_id: id, reason_id: reasonId, ...(note != null && { note }) },
+    statusChangePayload,
+  )
+}
+
+/** « Réessayer »: the sign-in ban made to follow the provider account's status (P4-381). */
+export function syncProfessionalSignin(id: string): Promise<SigninSync> {
+  return callStatusFunction({ action: 'sync_signin', professional_id: id }, signinSyncPayload)
 }

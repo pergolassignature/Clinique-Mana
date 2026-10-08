@@ -2141,7 +2141,16 @@
         "activated": "Dossier activé.",
         "deactivated": "Dossier désactivé.",
         "archived": "Élément archivé.",
-        "restored": "Élément restauré."
+        "restored": "Élément restauré.",
+        "signin": {
+          "deactivatedClosed": "Dossier désactivé. Le compte est fermé : ses sessions sont terminées et la connexion est bloquée.",
+          "reactivatedOpen": "Dossier réactivé. Le compte peut de nouveau se connecter.",
+          "notBlocked": "Dossier désactivé et sessions terminées, mais le blocage des nouvelles connexions n'a pas pu être appliqué. Réessayez.",
+          "notRestored": "Dossier réactivé, mais la connexion n'a pas pu être rétablie : le compte ne peut pas encore se connecter. Réessayez.",
+          "blocked": "Les nouvelles connexions sont bloquées.",
+          "restored": "La connexion est rétablie.",
+          "noAccount": "Ce dossier n'a plus de compte : il n'y a rien à bloquer ni à rétablir."
+        }
       },
       "errors": {
         "saveFailed": "L'enregistrement n'a pas fonctionné. Réessayez dans un instant.",

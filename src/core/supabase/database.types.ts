@@ -4686,6 +4686,13 @@ export type Database = {
           size_bytes: number
         }[]
       }
+      get_professional_account_status: {
+        Args: { p_id: string }
+        Returns: {
+          account_status: string
+          profile_id: string
+        }[]
+      }
       get_professional_compensation: {
         Args: { p_id: string; p_on?: string }
         Returns: Json
