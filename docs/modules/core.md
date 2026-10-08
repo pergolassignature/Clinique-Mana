@@ -229,15 +229,19 @@ Service-role RPCs are called by edge functions only (`grant execute … to servi
 |---|---|---|---|
 | `core.rate_limits_cleanup` | sql | `7 * * * *` | deletes windows older than 24 h |
 | `core.webhook_events_purge` | sql | `10 8 * * *` | clears payloads (failed ones after 7 days), deletes events after 90 days |
-| `core.scheduled_jobs_reconcile` | sql | `*/5 * * * *` | turns `pg_net` failures and silences into `error` runs (`http_<status>`, `timeout`, `network`, `no_response` after 1 h); closes `running` runs older than 15 min (`abandoned`); deletes reconciled dispatches older than 7 days |
+| `core.scheduled_jobs_reconcile` | sql | `*/15 * * * *` | turns `pg_net` failures and silences into `error` runs (`http_<status>`, `timeout`, `network`, `no_response` after 1 h); closes `running` runs older than 15 min (`abandoned`); deletes reconciled dispatches older than 7 days |
 | `core.scheduled_job_runs_purge` | sql | `20 8 * * *` | runs older than 90 days, `cron.job_run_details` older than 14 days |
 | `core.email_log_retention` | sql | `30 8 * * *` | nulls `to_email` after 24 months (P3-6), batches of 5 000 |
-| `core.email_log_stale_queued` | sql | `*/5 * * * *` | fails rows `queued` for over 15 min as `provider_unavailable` (outcome unknown) |
+| `core.email_log_stale_queued` | sql | `*/15 * * * *` | fails rows `queued` for over 15 min as `provider_unavailable` (outcome unknown) |
 | `core.notifications_purge` | sql | `0 9 * * *` | notices older than 12 months, or expired more than 30 days ago |
 | `core.secure_links_purge` | sql | `25 8 * * *` | links 12 months after their last event (use, revocation, expiry) |
 | `core.invite_orphans_purge` | sql | `17 * * * *` | auth users created by `accept-invite` (`app_metadata.invite_link_id`, removed on acceptance) with no profile and no sign-in after 1 h; also the account kept after an ambiguous `accept_rpc` error |
 | `core.storage_cleanup` | function `storage-cleanup` | `40 8 * * *` | purges files by the rules below, objects first (batches of 100), then rows `purged` |
 | `core.signing_reconcile` | function `signing-sync` | `50 8 * * *` | syncs requests silent for over a day, expires overdue ones, settles stale drafts (4 at a time per org) |
+
+**Cron times are in UTC**, whatever the clinic's timezone: `10 8 * * *` runs at 4:10 in Montréal in summer (EDT, UTC−4) and 3:10 in winter (EST, UTC−5). « Tâches planifiées » shows a daily time converted to the clinic's timezone (`scheduleLabel`). Only a `local_hour` job follows the clinic clock (P3-22).
+
+**The two frequent jobs run every 15 minutes** (final Phase 3 review; every 5 before): `core.scheduled_jobs_reconcile` and `core.email_log_stale_queued` almost always find nothing, and every run writes a `scheduled_job_runs` row. At 15 minutes a stuck email or a failed dispatch shows at most 15 minutes later than it did, an unfinished run is closed 15 to 30 minutes after its start, and `no_response` still waits for 1 hour (pg_net keeps responses 6 hours). Skipping the row of an empty run was the other option; it was not taken because the run log is how « Tâches planifiées » shows that pg_cron is alive.
 
 **Retiring a job:** never delete its row; in a new migration set `is_active = false` and `cron.unschedule('<cron_job_name>')` together.
 

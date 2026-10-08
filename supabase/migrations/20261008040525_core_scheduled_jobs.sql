@@ -49,7 +49,7 @@
 --   from code, and a dedicated internal secret is used instead of the service-role key (PS Hub's
 --   Vault copy of that key drifted after a rotation and every call got a 401).
 -- * HTTP outcomes. pg_net is asynchronous: each post's request id is kept in
---   `scheduled_job_dispatches`, and `core.scheduled_jobs_reconcile` (every 5 minutes) reads
+--   `scheduled_job_dispatches`, and `core.scheduled_jobs_reconcile` (every 15 minutes) reads
 --   `net._http_response` for dispatches older than 1 minute. A non-2xx status, a timeout or a
 --   network error becomes an `error` run (`http_<status>`, `timeout`, `network`) unless the
 --   function already logged a run for that job (and org) after the dispatch; no response after
@@ -58,6 +58,11 @@
 --   `running` runs older than 15 minutes (edge wall clock: 150 s) as `error` / `abandoned`; an
 --   abandoned local-hour run keeps its `run_local_date` and still counts for the day: the
 --   function may have sent part of its batch, and a second run would send it twice.
+--   Every 15 minutes, not 5 (final Phase 3 review: 288 run rows a day for a job that almost
+--   always finds nothing): a failure shows at most 15 minutes later, a run is closed as abandoned
+--   15 to 30 minutes after its start, and `no_response` still waits for the 1-hour mark, all well
+--   inside pg_net's 6 hours. Each run still writes its row, so « Tâches planifiées » keeps
+--   showing that the job runs (skipping empty runs would hide a stopped pg_cron).
 -- * Retiring a job: never delete its row (runs and switches cascade from it). In a new
 --   migration, `update public.scheduled_jobs set is_active = false where key = '<key>'` and
 --   `select cron.unschedule('<cron_job_name>')`, both in the same migration. Inactive jobs are
@@ -796,7 +801,7 @@ begin
 end;
 $$;
 
--- Every 5 minutes (header, « HTTP outcomes »):
+-- Every 15 minutes (header, « HTTP outcomes »):
 -- 1. `running` runs older than 15 minutes → `error` / `abandoned` (a local-hour run keeps its
 --    run_local_date: it still counts for the clinic day, so its batch is never sent twice);
 -- 2. dispatches older than 1 minute with a pg_net response (or none after 1 hour) are
@@ -922,7 +927,7 @@ select cron.schedule('core.rate_limits_cleanup', '7 * * * *',
   $$select private.run_sql_job('core.rate_limits_cleanup')$$);
 select cron.schedule('core.webhook_events_purge', '10 8 * * *',
   $$select private.run_sql_job('core.webhook_events_purge')$$);
-select cron.schedule('core.scheduled_jobs_reconcile', '*/5 * * * *',
+select cron.schedule('core.scheduled_jobs_reconcile', '*/15 * * * *',
   $$select private.run_sql_job('core.scheduled_jobs_reconcile')$$);
 select cron.schedule('core.scheduled_job_runs_purge', '20 8 * * *',
   $$select private.run_sql_job('core.scheduled_job_runs_purge')$$);

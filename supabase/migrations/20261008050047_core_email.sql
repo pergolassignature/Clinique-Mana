@@ -58,7 +58,8 @@
 -- * Jobs (Task 3.3 runner): `core.email_log_retention` nulls `to_email` after 24 months (P3-6),
 --   in batches of 5 000 so each statement stays bounded; `core.email_log_stale_queued` fails
 --   rows still `queued` after 15 minutes as `provider_unavailable` (a function killed between
---   queue and mark), every 5 minutes.
+--   queue and mark), every 15 minutes (a stuck row shows 15 to 30 minutes after it was queued;
+--   its outcome is unknown either way, and a late webhook still moves it on).
 -- * Send-path contract (supabase/functions/_shared/email/send.ts, lane F): `get_email_context`,
 --   `queue_email`, `mark_email_sent`, `mark_email_failed`, all service-role only, exactly as
 --   that file assumes. queue_email takes the version and view permission from that context
@@ -1091,7 +1092,7 @@ on conflict do nothing;
 
 select cron.schedule('core.email_log_retention', '30 8 * * *',
   $$select private.run_sql_job('core.email_log_retention')$$);
-select cron.schedule('core.email_log_stale_queued', '*/5 * * * *',
+select cron.schedule('core.email_log_stale_queued', '*/15 * * * *',
   $$select private.run_sql_job('core.email_log_stale_queued')$$);
 
 -- -----------------------------------------------------------------------------

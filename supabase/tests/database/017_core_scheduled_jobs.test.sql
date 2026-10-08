@@ -178,7 +178,7 @@ select results_eq(
                         'core.scheduled_jobs_reconcile', 'core.scheduled_job_runs_purge') order by jobname $$,
   $$ values ('core.rate_limits_cleanup'::text, '7 * * * *'::text, 'select private.run_sql_job(''core.rate_limits_cleanup'')'::text),
             ('core.scheduled_job_runs_purge', '20 8 * * *', 'select private.run_sql_job(''core.scheduled_job_runs_purge'')'),
-            ('core.scheduled_jobs_reconcile', '*/5 * * * *', 'select private.run_sql_job(''core.scheduled_jobs_reconcile'')'),
+            ('core.scheduled_jobs_reconcile', '*/15 * * * *', 'select private.run_sql_job(''core.scheduled_jobs_reconcile'')'),
             ('core.webhook_events_purge', '10 8 * * *', 'select private.run_sql_job(''core.webhook_events_purge'')') $$,
   'the cron entries run the SQL jobs on their schedules');
 select throws_ok($$ insert into public.scheduled_jobs (key, module_key, label, description, kind, function_name)
