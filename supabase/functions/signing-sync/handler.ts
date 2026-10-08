@@ -13,13 +13,14 @@
  * attempt is recorded, `record_signature_sync`); a request that fails is
  * counted and reported at most once a day, and only a real outage (nothing
  * read, Documenso unusable) fails the run; `sync` (every sent or viewed
- * request, completed without its PDF or not; a draft with a document whose send started
- * over an hour ago: claimed, read, then recovered when Documenso completed
- * it, else cancelled and abandoned), `expire` (sync first; still not
- * completed → expired here, then cancelled at Documenso, a 400 there
- * meaning Documenso expired it already) and `abandon` (a draft with no
- * document whose send started over a day ago, claimed first). A draft
- * whose send is under way is skipped (`sending`).
+ * request, completed without its PDF or not; a draft with an envelope whose
+ * send started over an hour ago: claimed, read, then recovered when
+ * Documenso completed it, else cancelled and abandoned), `expire` (sync
+ * first; still not completed → expired here, then cancelled at Documenso,
+ * normally a 200: Documenso expires the signing links, not the envelope,
+ * E-6; a 400 means it left pending there in between) and `abandon` (a draft
+ * with no envelope whose send started over a day ago, claimed first). A
+ * draft whose send is under way is skipped (`sending`).
  *
  * **User mode** (« Synchroniser »):
  * 1. CORS; `POST` only; `verifyAuth` (an active profile).
@@ -79,7 +80,6 @@ const rowSchema = z.object({
   id: z.string(),
   module_key: z.string(),
   status: z.string(),
-  documenso_document_id: z.string().nullable(),
   envelope_id: z.string().nullable(),
 })
 

@@ -137,8 +137,9 @@ Deno.test('placeholders: pathological input completes in under 50 ms', () => {
   const cases = {
     'open braces then 10 000 spaces': `{{${' '.repeat(10_000)}`,
     'open braces repeated to 60 000 chars': '{{'.repeat(30_000),
-    'spaces inside an unclosed placeholder, repeated':
-      `{{ ${' '.repeat(5_000)}x`.repeat(10),
+    'spaces inside an unclosed placeholder, repeated': `{{ ${
+      ' '.repeat(5_000)
+    }x`.repeat(10),
   }
   const pattern = new RegExp(PLACEHOLDER_SOURCE, 'g')
   for (const [name, text] of Object.entries(cases)) {

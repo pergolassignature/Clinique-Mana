@@ -239,7 +239,7 @@ Deno.test('signing-test-connection: a redirect is not followed → 502, the key 
     assertEquals(res.status, 502)
     assertEquals(JSON.parse(text).error.code, 'provider_error')
     assertEquals(sent, [{
-      url: `${PUBLIC_BASE}/api/v2/document?perPage=1`,
+      url: `${PUBLIC_BASE}/api/v2/envelope?perPage=1`,
       redirect: 'manual',
       auth: DOCUMENSO_KEY,
     }])

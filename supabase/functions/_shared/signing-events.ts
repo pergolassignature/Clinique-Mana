@@ -1,6 +1,6 @@
 /**
  * Following Documenso after a request is sent (design §6.3, Task 3.33):
- * mapping a document's state or a webhook to `apply_signing_event` calls,
+ * mapping an envelope's state or a webhook to `apply_signing_event` calls,
  * storing the signed PDF, syncing one request, and the hourly reconcile.
  * Used by `signing-webhook`, `signing-sync` and `_shared/signing.ts`.
  *
@@ -10,7 +10,7 @@
  * `signing.ts`.
  *
  * - **Events** use Documenso's raw names (`DOCUMENT_COMPLETED`); PS Hub's
- *   dot names (`document.completed`) are mapped to them. A document's state
+ *   dot names (`document.completed`) are mapped to them. An envelope's state
  *   becomes events per recipient (signed, else opened), then its terminal
  *   status; `apply_signing_event` is monotonic, so replaying them is safe.
  * - **Recipients** are matched to signers by Documenso's recipient id, or by
@@ -26,24 +26,24 @@
  *   (« Renvoyer ») or another settle; a draft whose claim is fresh is
  *   skipped (`sending`). A failure after the claim releases it
  *   (`mark_signature_request_failed` with the code).
- * - **Only the request's own document** is acted on: Documenso holds it
- *   under the request's id (`externalId`, set at creation). Another document
+ * - **Only the request's own envelope** is acted on: Documenso holds it
+ *   under the request's id (`externalId`, set at creation). Another envelope
  *   under a draft's recorded id (an org that changed Documenso instance) is
  *   reported `signing_foreign_document` (ids only), never recovered nor
  *   cancelled, and otherwise treated as one Documenso no longer has. For a
- *   sent request, another document fails the sync with
+ *   sent request, another envelope fails the sync with
  *   `signing_foreign_document` before any event is applied, and a signed
- *   PDF is only downloaded for the document the request still records.
+ *   PDF is only downloaded for the envelope the request still records.
  *   (`set_signing_settings` refuses an instance change while a request is
  *   open, so this is a last guard.)
  * - **A settle reads under its claim:** the draft is re-read
  *   (`get_signing_request`) once claimed, and settled against its current
- *   document (a send may have recorded another one since the list), read
+ *   envelope (a send may have recorded another one since the list), read
  *   again at Documenso when it changed.
  * - **A draft Documenso completed** (a send that died before
- *   `mark_signature_request_sent`, or a re-send's earlier document): with
+ *   `mark_signature_request_sent`, or a re-send's earlier envelope): with
  *   every signer matched by signing order, `recover_signature_request` makes
- *   it sent on its recorded document with its completion stamped, taking its rendered PDF when still
+ *   it sent on its recorded envelope with its completion stamped, taking its rendered PDF when still
  *   staged (else the source is recorded missing and reported
  *   `signing_source_missing`: the signed PDF is what matters), then the
  *   signed PDF is stored as usual. Unmatched, it is reported
@@ -53,7 +53,7 @@
  *   contract). Someone settles it by hand.
  *
  * Nothing here logs an address, a name or a body: failures are codes, and
- * reports carry the org, request and document ids.
+ * reports carry the org, request and envelope ids.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
@@ -62,7 +62,7 @@ import {
   denoResolveDns,
   type DocumensoClient,
   documensoClient,
-  type DocumensoDocumentState,
+  type DocumensoEnvelopeState,
   DocumensoError,
   type DocumensoReach,
   type ResolveDns,
@@ -115,7 +115,7 @@ export interface SigningEvent {
   reason: string | null
 }
 
-/** What a document state or a webhook payload says (no address needed). */
+/** What an envelope state or a webhook payload says (no address needed). */
 export interface DocumentSnapshot {
   status?: string
   completedAt?: string | null
@@ -248,15 +248,15 @@ const applyRowSchema = z.object({
 
 /**
  * Applies `events` in order (they lock one row, so never in parallel), each
- * to the request `ref.requestId` (the document's `externalId`: never found
- * by document id alone). `retry` and `not_found` stop at once. `applied`
+ * to the request `ref.requestId` (the envelope's `externalId`: never found
+ * by envelope id alone). `retry` and `not_found` stop at once. `applied`
  * when any call changed the row; `needsDownload` when any asked for the
  * signed PDF.
  */
 export async function applyEvents(
   client: SupabaseClient,
   orgId: string,
-  ref: { requestId: string; documentId: string | null },
+  ref: { requestId: string; envelopeId: string | null },
   events: SigningEvent[],
 ): Promise<ApplyResult> {
   const result: ApplyResult = {
@@ -268,7 +268,7 @@ export async function applyEvents(
     const { data, error } = await client.rpc('apply_signing_event', {
       p_org_id: orgId,
       p_request_id: ref.requestId,
-      p_documenso_document_id: ref.documentId,
+      p_envelope_id: ref.envelopeId,
       p_event: e.event,
       p_recipient_id: e.recipientId,
       p_at: e.at,
@@ -293,7 +293,6 @@ const signingRequestSchema = z.object({
   status: z.string(),
   last_error: z.string().nullable(),
   view_permission: z.string(),
-  documenso_document_id: z.string().nullable(),
   envelope_id: z.string().nullable(),
   staged_source_file_id: z.string().nullable(),
   signers: z.array(z.object({
@@ -344,7 +343,7 @@ export async function claimDraft(
 
 /**
  * Marks a draft failed with `code` (`mark_signature_request_failed`), which
- * releases its claim; the document ids are recorded when given. Best
+ * releases its claim; the envelope id is recorded when given. Best
  * effort: an error is reported (ids only), never thrown.
  */
 export async function markDraftFailed(
@@ -352,12 +351,11 @@ export async function markDraftFailed(
   report: SigningReporter,
   id: string,
   code: string,
-  ids: { documentId?: string | null; envelopeId?: string | null } = {},
+  ids: { envelopeId?: string | null } = {},
 ): Promise<void> {
   const { error } = await client.rpc('mark_signature_request_failed', {
     p_id: id,
     p_error_code: code,
-    p_documenso_document_id: ids.documentId ?? null,
     p_envelope_id: ids.envelopeId ?? null,
   })
   if (error) {
@@ -507,7 +505,7 @@ export async function storeSystemFile(
 }
 
 /**
- * Downloads the signed PDF of a completed document and completes the
+ * Downloads the signed PDF of a completed envelope and completes the
  * request with it (module comment). When `complete_signature_request`
  * refuses because another delivery (a webhook beside the sync) stored its
  * own PDF first, the request reads back `signed`: this file is discarded
@@ -519,9 +517,18 @@ export async function storeSignedPdf(
   client: SupabaseClient,
   documenso: DocumensoClient,
   orgId: string,
-  request: { id: string; documentId: string; viewPermission: string },
+  request: {
+    id: string
+    envelopeId: string
+    viewPermission: string
+    /** From the `get` the caller just made (no second read); absent, read. */
+    itemId?: string | null
+  },
 ): Promise<void> {
-  const bytes = await documenso.downloadSigned(request.documentId)
+  const bytes = await documenso.downloadSigned(
+    request.envelopeId,
+    request.itemId,
+  )
   if (sniff(bytes) !== 'pdf') throw new SigningFailure('signed_pdf_invalid')
   const fileId = await storeSystemFile(client, {
     orgId,
@@ -576,7 +583,6 @@ export type SyncOutcome =
 export interface SyncRow {
   id: string
   status: string
-  documenso_document_id: string | null
   envelope_id: string | null
 }
 
@@ -591,46 +597,47 @@ async function requireRequest(
 }
 
 /**
- * Whether `state` is the request's own document: Documenso holds it under
- * the request's id (`externalId`, set by `createDocument`).
+ * Whether `state` is the request's own envelope: Documenso holds it under
+ * the request's id (`externalId`, set by `createEnvelope`).
  */
-export function ownsDocument(
-  state: Pick<DocumensoDocumentState, 'externalId'>,
+export function ownsEnvelope(
+  state: Pick<DocumensoEnvelopeState, 'externalId'>,
   requestId: string,
 ): boolean {
   return state.externalId === requestId
 }
 
 /**
- * A draft's document as Documenso has it: null when gone (404, deleted when
- * a send failed) or not the request's own (`ownsDocument`; reported
+ * A draft's envelope as Documenso has it: null when gone (Documenso's own
+ * 404, `notFound`: deleted when a send failed; a proxy's 404 throws like any
+ * failure) or not the request's own (`ownsEnvelope`; reported
  * `signing_foreign_document`, ids only, then treated as gone: never
  * recovered nor cancelled).
  */
-export async function readDraftDocument(
+export async function readDraftEnvelope(
   report: SigningReporter,
   documenso: DocumensoClient,
   requestId: string,
-  documentId: string,
-): Promise<DocumensoDocumentState | null> {
-  let state: DocumensoDocumentState
+  envelopeId: string,
+): Promise<DocumensoEnvelopeState | null> {
+  let state: DocumensoEnvelopeState
   try {
-    state = await documenso.get(documentId)
+    state = await documenso.get(envelopeId)
   } catch (error) {
     if (isProviderNotFound(error)) return null
     throw error
   }
-  if (ownsDocument(state, requestId)) return state
+  if (ownsEnvelope(state, requestId)) return state
   await reportRequest(report, 'signing_foreign_document', {
     org_id: report.orgId,
     signature_request_id: requestId,
-    document_id: documentId,
+    envelope_id: envelopeId,
   })
   return null
 }
 
 /**
- * Reads the document at Documenso and applies what changed; stores the
+ * Reads the envelope at Documenso and applies what changed; stores the
  * signed PDF when the request is completed. A draft is settled by
  * `settleDraft`, once claimed: with `settleDrafts` (the reconcile, for a
  * draft whose send started over an hour ago) a completed one is recovered
@@ -642,36 +649,37 @@ export async function syncRequest(
   row: SyncRow,
   options: { settleDrafts: boolean },
 ): Promise<SyncOutcome> {
-  const documentId = row.documenso_document_id
-  if (!documentId) return 'unchanged'
+  const envelopeId = row.envelope_id
+  if (!envelopeId) return 'unchanged'
   const { documenso } = ctx.signing
   if (row.status === 'draft') {
-    const state = await readDraftDocument(ctx, documenso, row.id, documentId)
-    return await settleDraft(ctx, row, documentId, state, options.settleDrafts)
+    const state = await readDraftEnvelope(ctx, documenso, row.id, envelopeId)
+    return await settleDraft(ctx, row, envelopeId, state, options.settleDrafts)
   }
-  const state = await documenso.get(documentId)
-  // Only the request's own document (module comment): checked before any
+  const state = await documenso.get(envelopeId)
+  // Only the request's own envelope (module comment): checked before any
   // event is applied.
-  if (!ownsDocument(state, row.id)) {
+  if (!ownsEnvelope(state, row.id)) {
     throw new SigningFailure('signing_foreign_document', row.id)
   }
   const result = await applyEvents(ctx.client, ctx.orgId, {
     requestId: row.id,
-    documentId,
+    envelopeId,
   }, documentEvents(state))
   if (result.outcome === 'retry' || result.outcome === 'not_found') {
     throw new SigningFailure(`apply_${result.outcome}`)
   }
   if (result.needsDownload) {
     const request = await requireRequest(ctx, row.id)
-    // And the document the request records now, read before downloading.
-    if (request.documenso_document_id !== documentId) {
+    // And the envelope the request records now, read before downloading.
+    if (request.envelope_id !== envelopeId) {
       throw new SigningFailure('signing_foreign_document', row.id)
     }
     await storeSignedPdf(ctx.client, documenso, ctx.orgId, {
       id: row.id,
-      documentId,
+      envelopeId,
       viewPermission: request.view_permission,
+      itemId: state.itemId,
     })
     return 'signed'
   }
@@ -680,26 +688,26 @@ export async function syncRequest(
 
 /**
  * Settles a draft (`syncRequest`): `state` is what the caller read for
- * `documentId` (null: gone, or not the request's own), which only decides
+ * `envelopeId` (null: gone, or not the request's own), which only decides
  * whether to claim. Once claimed, the draft is re-read and settled against
- * its current document: a send that ended between the read and the claim
+ * its current envelope: a send that ended between the read and the claim
  * may have recorded another one, read again here.
  */
 async function settleDraft(
   ctx: SyncContext,
   row: SyncRow,
-  documentId: string,
-  state: DocumensoDocumentState | null,
+  envelopeId: string,
+  state: DocumensoEnvelopeState | null,
   cancelStale: boolean,
 ): Promise<SyncOutcome> {
   if (state?.status !== 'COMPLETED' && !cancelStale) return 'unchanged'
   if (!(await claimDraft(ctx.client, ctx.orgId, row.id))) return 'sending'
   try {
     const request = await requireRequest(ctx, row.id)
-    const currentId = request.documenso_document_id
+    const currentId = request.envelope_id
     let current = state
-    if (currentId !== documentId) {
-      current = currentId === null ? null : await readDraftDocument(
+    if (currentId !== envelopeId) {
+      current = currentId === null ? null : await readDraftEnvelope(
         ctx,
         ctx.signing.documenso,
         row.id,
@@ -710,15 +718,15 @@ async function settleDraft(
       return await recoverCompletedDraft(ctx, request, currentId!, current)
     }
     if (!cancelStale) {
-      // Read completed, but the draft's document changed under the claim
+      // Read completed, but the draft's envelope changed under the claim
       // (a send failed since) and this one is not: released, left as is.
       await markDraftFailed(ctx.client, ctx, row.id, 'send_failed')
       return 'unchanged'
     }
     if (current?.status === 'DRAFT' || current?.status === 'PENDING') {
-      // Documenso cancels only a distributed envelope; a draft goes by its id.
+      // Documenso cancels only a pending envelope: a draft is deleted (E-8).
       await ctx.signing.documenso.cancel(currentId!, {
-        envelopeId: current.status === 'PENDING' ? request.envelope_id : null,
+        draft: current.status === 'DRAFT',
       })
     }
     const failed = await ctx.client.rpc('mark_signature_request_failed', {
@@ -778,28 +786,28 @@ function recipientsByOrder(
 /**
  * A draft Documenso completed (module comment); the caller holds its claim,
  * read `request` under it, and read `state` COMPLETED for the draft's
- * recorded document. Only that document, held under the request's id, is
+ * recorded envelope. Only that envelope, held under the request's id, is
  * recovered: anything else throws `foreign_document` (the callers read
- * through `readDraftDocument`, so it never comes here). Throws like
+ * through `readDraftEnvelope`, so it never comes here). Throws like
  * `storeSignedPdf`, or `recover_failed`.
  */
 export async function recoverCompletedDraft(
   ctx: SyncContext,
   request: SigningRequest,
-  documentId: string,
-  state: DocumensoDocumentState,
+  envelopeId: string,
+  state: DocumensoEnvelopeState,
 ): Promise<'signed' | 'orphan_completed'> {
   const row = { id: request.id }
   if (
-    request.documenso_document_id !== documentId ||
-    !ownsDocument(state, request.id)
+    request.envelope_id !== envelopeId ||
+    !ownsEnvelope(state, request.id)
   ) {
     throw new SigningFailure('foreign_document', request.id)
   }
   const ids = {
     org_id: ctx.orgId,
     signature_request_id: row.id,
-    document_id: documentId,
+    envelope_id: envelopeId,
   }
   const recipients = recipientsByOrder(request.signers, state.recipients)
   if (!recipients) {
@@ -811,8 +819,7 @@ export async function recoverCompletedDraft(
   const recovered = await ctx.client.rpc('recover_signature_request', {
     p_org_id: ctx.orgId,
     p_id: row.id,
-    p_documenso_document_id: documentId,
-    p_envelope_id: request.envelope_id,
+    p_envelope_id: envelopeId,
     p_signer_recipients: recipients,
   })
   if (recovered.error) throw new SigningFailure('recover_failed')
@@ -822,13 +829,14 @@ export async function recoverCompletedDraft(
   }
   const result = await applyEvents(ctx.client, ctx.orgId, {
     requestId: row.id,
-    documentId,
+    envelopeId,
   }, documentEvents(state))
   if (!result.needsDownload) throw new SigningFailure('recover_failed')
   await storeSignedPdf(ctx.client, ctx.signing.documenso, ctx.orgId, {
     id: row.id,
-    documentId,
+    envelopeId,
     viewPermission: request.view_permission,
+    itemId: state.itemId,
   })
   return 'signed'
 }
@@ -836,7 +844,6 @@ export async function recoverCompletedDraft(
 const reconcileSchema = z.array(z.object({
   id: z.string(),
   status: z.string(),
-  documenso_document_id: z.string().nullable(),
   envelope_id: z.string().nullable(),
   action: z.enum(['sync', 'expire', 'abandon']),
 })).max(RECONCILE_LIMIT)
@@ -868,14 +875,11 @@ async function reconcileRow(
   if (expired.error) throw new SigningFailure('expire_failed')
   if (expired.data !== true) return outcome
   try {
-    await ctx.signing.documenso.cancel(row.documenso_document_id!, {
-      envelopeId: row.envelope_id,
-    })
+    await ctx.signing.documenso.cancel(row.envelope_id!)
   } catch (error) {
-    // VERIFY against the clinic instance (Mise en service): Documenso expires
-    // the envelope itself (`envelopeExpirationPeriod`, the same number of
-    // days) and then refuses to cancel it with a 400. It is over there too:
-    // done.
+    // Documenso expires the signing links, not the envelope (E-6), so this
+    // is normally 200. A 400 means it is no longer pending (completed,
+    // rejected or cancelled in between): over there too.
     if (!(error instanceof DocumensoError && error.status === 400)) throw error
   }
   return 'expired'
@@ -907,12 +911,12 @@ function detail(counts: Map<SyncOutcome, number>): string {
 const SAFE_CODE = /^[A-Za-z0-9_]{1,64}$/
 
 /**
- * Documenso answered that the document is not there (a 404). After the
- * envelope-API rebase this reads `error.notFound` (Documenso's own
- * `NOT_FOUND`) instead of the status.
+ * Documenso itself answered that the envelope is not there: a 404 whose body
+ * is its own `NOT_FOUND` (`DocumensoError.notFound`, E-14). A proxy's or
+ * another server's 404 is not (a wrong address, not a missing envelope).
  */
 export function isProviderNotFound(error: unknown): boolean {
-  return error instanceof DocumensoError && error.status === 404
+  return error instanceof DocumensoError && error.notFound
 }
 
 /**
@@ -980,8 +984,8 @@ export function isDocumentMissing(error: unknown): boolean {
 }
 
 /**
- * `signing` whose `get` notes when it returns `requestId`'s own document
- * (`ownsDocument`): `seen()` then says Documenso was read for that request,
+ * `signing` whose `get` notes when it returns `requestId`'s own envelope
+ * (`ownsEnvelope`): `seen()` then says Documenso was read for that request,
  * whatever the request's outcome. A 404, another document or no answer is
  * not a read.
  */
@@ -996,9 +1000,9 @@ export function trackOwnReads(
       ...signing,
       documenso: {
         ...documenso,
-        get: async (documentId) => {
-          const state = await documenso.get(documentId)
-          if (ownsDocument(state, requestId)) seen = true
+        get: async (envelopeId) => {
+          const state = await documenso.get(envelopeId)
+          if (ownsEnvelope(state, requestId)) seen = true
           return state
         },
       },

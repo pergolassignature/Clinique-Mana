@@ -228,9 +228,9 @@ describe('SigningSettingsPage', () => {
       renderPage(ADMIN)
       const field = await baseUrl()
       await user.clear(field)
-      await user.type(field, 'HTTPS://Signature.CliniqueMana.com/')
+      await user.type(field, 'HTTPS://Sign.CliniqueMana.com/')
       await user.click(within(connection()).getByRole('button', { name: t('common.save') }))
-      await waitFor(() => expect(mocks.signing.setSigningSettings).toHaveBeenCalledExactlyOnceWith({ base_url: 'https://signature.cliniquemana.com' }))
+      await waitFor(() => expect(mocks.signing.setSigningSettings).toHaveBeenCalledExactlyOnceWith({ base_url: 'https://sign.cliniquemana.com' }))
       expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.signing.connection.saved'))
     })
 

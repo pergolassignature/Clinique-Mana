@@ -135,7 +135,7 @@ Deno.test('signing-sync: a lost completion → 200 signed, the PDF stored', asyn
   await run(async () => {
     const s = setup()
     const row = await sentRequest(s.fake, s.db)
-    s.fake.complete(row.documenso_document_id!)
+    s.fake.complete(row.envelope_id!)
     const res = await s.handler(post({ request_id: row.id }))
     assertEquals(await json(res), {
       status: 200,
@@ -189,7 +189,7 @@ Deno.test('signing-sync: a draft under way is left alone (never cancelled from a
       outcome: 'unchanged',
     })
     assertEquals(
-      s.fake.documents.get(row.documenso_document_id!)!.status,
+      s.fake.documents.get(row.envelope_id!)!.status,
       'PENDING',
     )
   })
@@ -294,7 +294,7 @@ Deno.test('signing-sync: an internal failure → 500 internal, reported with ids
   await run(async () => {
     const s = setup()
     const row = await sentRequest(s.fake, s.db)
-    s.fake.complete(row.documenso_document_id!)
+    s.fake.complete(row.envelope_id!)
     s.db.storage.upload = () => ({ error: { message: 'boom' } })
     const lines = await captureConsole('error', async () => {
       const res = await s.handler(post({ request_id: row.id }))
@@ -317,7 +317,7 @@ Deno.test('signing-sync: the job, signed → each org reconciled, the run detail
   await run(async () => {
     const s = setup()
     const row = await sentRequest(s.fake, s.db)
-    s.fake.complete(row.documenso_document_id!)
+    s.fake.complete(row.envelope_id!)
     const res = await s.handler(await jobRequest())
     assertEquals(await json(res), { status: 200, runs: 1 })
     assertEquals(s.runs, [{

@@ -7,12 +7,12 @@
  * Never deployed.
  *
  * Admin routes (no key; each posts the webhook and answers its outcome):
- *   POST /__fake/open/:id[?recipient=101]         DOCUMENT_OPENED
- *   POST /__fake/sign/:id[?recipient=101]         DOCUMENT_SIGNED (stays pending)
- *   POST /__fake/complete/:id                     DOCUMENT_COMPLETED
- *   POST /__fake/reject/:id[?recipient=&reason=]  DOCUMENT_REJECTED
- *   GET  /__fake/documents                        ids, titles, statuses (no address)
- * Cancelling a pending document through the API posts DOCUMENT_CANCELLED
+ *   POST /__fake/open/:envelopeId[?recipient=101]         DOCUMENT_OPENED
+ *   POST /__fake/sign/:envelopeId[?recipient=101]         DOCUMENT_SIGNED (stays pending)
+ *   POST /__fake/complete/:envelopeId                     DOCUMENT_COMPLETED
+ *   POST /__fake/reject/:envelopeId[?recipient=&reason=]  DOCUMENT_REJECTED
+ *   GET  /__fake/documents              envelope ids, titles, statuses (no address)
+ * Cancelling a pending envelope through the API posts DOCUMENT_CANCELLED
  * after the answer, as Documenso does.
  */
 import {
@@ -30,13 +30,13 @@ export interface FakeDocumensoServerOptions
   fetch?: typeof fetch
   /** Per-webhook timeout (default 10 s). */
   webhookTimeoutMs?: number
-  /** One line per webhook outcome: event, document id, status. Never an address. */
+  /** One line per webhook outcome: event, envelope id, status. Never an address. */
   log?: (line: string) => void
 }
 
 /** A webhook delivery, as the admin routes answer it. */
 export type WebhookOutcome =
-  & { event: string; documentId: string }
+  & { event: string; envelopeId: string }
   & ({ webhookStatus: number } | { webhookError: string })
 
 /** The handler and its fake. */
@@ -69,22 +69,22 @@ export function fakeDocumensoServer(
   const timeoutMs = options.webhookTimeoutMs ?? 10_000
   const pending = new Set<Promise<unknown>>()
 
-  /** Posts `event` for the document; answers the outcome (never throws). */
+  /** Posts `event` for the envelope; answers the outcome (never throws). */
   async function emit(
     event: string,
-    documentId: string,
+    envelopeId: string,
   ): Promise<WebhookOutcome> {
-    const req = fake.webhookRequest(options.webhookUrl, event, documentId)
+    const req = fake.webhookRequest(options.webhookUrl, event, envelopeId)
     try {
       const res = await send(req, { signal: AbortSignal.timeout(timeoutMs) })
       await res.body?.cancel()
-      options.log?.(`webhook ${event} ${documentId} → ${res.status}`)
-      return { event, documentId, webhookStatus: res.status }
+      options.log?.(`webhook ${event} ${envelopeId} → ${res.status}`)
+      return { event, envelopeId, webhookStatus: res.status }
     } catch (error) {
-      options.log?.(`webhook ${event} ${documentId} → unreachable`)
+      options.log?.(`webhook ${event} ${envelopeId} → unreachable`)
       return {
         event,
-        documentId,
+        envelopeId,
         webhookError: error instanceof Error ? error.name : 'Error',
       }
     }
@@ -92,8 +92,8 @@ export function fakeDocumensoServer(
 
   const fake = fakeDocumenso({
     ...options,
-    onEvent(event, documentId) {
-      const delivery = emit(event, documentId)
+    onEvent(event, envelopeId) {
+      const delivery = emit(event, envelopeId)
       pending.add(delivery)
       delivery.finally(() => pending.delete(delivery))
     },
@@ -117,9 +117,10 @@ export function fakeDocumensoServer(
         })),
       )
     }
-    const match = /^\/__fake\/(open|sign|complete|reject)\/(\d+)$/.exec(
-      url.pathname,
-    )
+    const match = /^\/__fake\/(open|sign|complete|reject)\/(envelope_[a-z]+)$/
+      .exec(
+        url.pathname,
+      )
     if (req.method !== 'POST' || !match) {
       return json(404, { message: 'Not found', code: 'NOT_FOUND' })
     }
@@ -127,11 +128,11 @@ export function fakeDocumensoServer(
     const id = match[2]
     const doc = fake.documents.get(id)
     if (!doc) {
-      return json(404, { message: 'Document not found', code: 'NOT_FOUND' })
+      return json(404, { message: 'Envelope not found', code: 'NOT_FOUND' })
     }
     if (doc.status !== 'PENDING') {
       return json(400, {
-        message: `Document is ${doc.status}`,
+        message: `Envelope is ${doc.status}`,
         code: 'BAD_REQUEST',
       })
     }

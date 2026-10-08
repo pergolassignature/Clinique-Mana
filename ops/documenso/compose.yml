@@ -1,0 +1,59 @@
+# Clinique MANA — self-hosted Documenso (runbook: docs/runbooks/documenso-instance.md).
+# Lives in /opt/documenso-clinique on the shared droplet `documenso-sign` (TOR1),
+# next to Pergolas Signature's stack in /opt/documenso. Nothing is shared with it:
+# own project name, network, database volume, certificate, secrets and domain.
+name: documenso-clinique
+
+services:
+  database:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:?err}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?err}
+      - POSTGRES_DB=${POSTGRES_DB:?err}
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - database:/var/lib/postgresql/data
+    # No published port: only the app container reaches the database.
+
+  documenso:
+    # Pinned: upgrade deliberately (runbook « Upgrade »), never through `latest`.
+    image: documenso/documenso:v2.20.0
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      - PORT=3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?err}
+      - NEXT_PRIVATE_ENCRYPTION_KEY=${NEXT_PRIVATE_ENCRYPTION_KEY:?err}
+      - NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY=${NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY:?err}
+      - NEXT_PUBLIC_WEBAPP_URL=${NEXT_PUBLIC_WEBAPP_URL:?err}
+      - NEXT_PRIVATE_INTERNAL_WEBAPP_URL=http://localhost:3000
+      - NEXT_PRIVATE_DATABASE_URL=${NEXT_PRIVATE_DATABASE_URL:?err}
+      - NEXT_PRIVATE_DIRECT_DATABASE_URL=${NEXT_PRIVATE_DATABASE_URL:?err}
+      - NEXT_PUBLIC_UPLOAD_TRANSPORT=database
+      - NEXT_PUBLIC_DOCUMENT_SIZE_UPLOAD_LIMIT=${NEXT_PUBLIC_DOCUMENT_SIZE_UPLOAD_LIMIT:-20}
+      - NEXT_PRIVATE_SMTP_TRANSPORT=resend
+      - NEXT_PRIVATE_RESEND_API_KEY=${NEXT_PRIVATE_RESEND_API_KEY:?err}
+      - NEXT_PRIVATE_SMTP_FROM_NAME=${NEXT_PRIVATE_SMTP_FROM_NAME:?err}
+      - NEXT_PRIVATE_SMTP_FROM_ADDRESS=${NEXT_PRIVATE_SMTP_FROM_ADDRESS:?err}
+      - NEXT_PUBLIC_DISABLE_SIGNUP=${NEXT_PUBLIC_DISABLE_SIGNUP:?err}
+      - NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH=/opt/documenso/cert.p12
+      - NEXT_PRIVATE_SIGNING_PASSPHRASE=${NEXT_PRIVATE_SIGNING_PASSPHRASE:?err}
+      - DOCUMENSO_DISABLE_TELEMETRY=true
+    ports:
+      # Loopback only: Caddy is the single way in. A bare `3001:3000` would be
+      # public, since Docker's port rules bypass ufw.
+      - 127.0.0.1:3001:3000
+    volumes:
+      # Owned by the image's `nodejs` user (uid 1001), mode 0400 (setup.sh).
+      - ./cert.p12:/opt/documenso/cert.p12:ro
+
+volumes:
+  database:

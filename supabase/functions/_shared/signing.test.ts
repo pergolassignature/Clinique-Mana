@@ -12,7 +12,7 @@ import {
   type SigningField,
 } from './pdf/model.ts'
 import { SIGNING_TEST_EMAIL, signingTestDocument } from './pdf/test-document.ts'
-import { fakeDocumenso } from './testing/fake-documenso.ts'
+import { fakeDocumenso, fakeEnvelopeId } from './testing/fake-documenso.ts'
 import {
   type FakeSignatureRequest,
   fakeSigningDb,
@@ -35,6 +35,9 @@ const NOW = '2026-10-08T12:00:00.000Z'
 const VERSION_ID = '00000000-0000-4000-8000-0000000000e1'
 const SUBJECT_ID = '00000000-0000-4000-8000-0000000000b1'
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47])
+/** The fake's first and second envelopes. */
+const E1 = fakeEnvelopeId(1)
+const E2 = fakeEnvelopeId(2)
 
 const body: PdfDocument = {
   title: 'Contrat — {{professional.name}}',
@@ -241,7 +244,7 @@ function existingDraft(
 }
 
 /**
- * A draft whose earlier send created document 1 at Documenso (distributed:
+ * A draft whose earlier send created envelope E1 at Documenso (distributed:
  * PENDING) before failing, as the fixture `sentRequest` builds it.
  */
 async function draftWithDocument(s: ReturnType<typeof setup>) {
@@ -279,16 +282,15 @@ Deno.test('createSignatureRequest: the happy path, in order', async () => {
       'render (logo)',
       'register_system_file',
       'upload documents',
-      'documenso POST /api/v2/document/create',
-      'documenso GET /api/v2/document/1',
-      'documenso POST /api/v2/document/field/create-many',
-      'documenso POST /api/v2/document/distribute',
+      'documenso POST /api/v2/envelope/create',
+      `documenso GET /api/v2/envelope/${E1}`,
+      'documenso POST /api/v2/envelope/distribute',
       'mark_signature_request_sent',
     ])
     const row = s.db.requests.get(result.requestId)!
     assertEquals(row.status, 'sent')
-    assertEquals(row.documenso_document_id, '1')
-    assertEquals(row.envelope_id, 'envelope_1')
+    assertEquals(row.envelope_id, E1)
+    assertEquals(row.documenso_document_id, null)
     assertEquals(row.expires_at, '2026-10-15T12:00:00.000Z')
     const source = s.db.files.get(row.source_file_id!)!
     assertEquals(source.purpose, 'signing_source')
@@ -334,7 +336,7 @@ Deno.test('createSignatureRequest: Documenso gets the filled invitation, French,
     const s = setup()
     const result = await createSignatureRequest(s.deps, input())
     assert(result.ok)
-    const doc = s.fake.documents.get('1')!
+    const doc = s.fake.documents.get(E1)!
     assertEquals(doc.externalId, result.requestId)
     assertEquals(doc.title, 'Contrat de service — Ana Gagnon')
     assertEquals(doc.meta.subject, 'Votre contrat avec Clinique MANA (local)')
@@ -346,9 +348,10 @@ Deno.test('createSignatureRequest: Documenso gets the filled invitation, French,
     assertEquals(doc.recipients.map((r) => r.email), [SIGNER_EMAIL])
     // The clinic's box has no signer in this request: its field is dropped.
     assertEquals(
-      doc.fields.map((f) => [f.recipientId, f.type, f.page]),
-      [['101', 'INITIALS', 1], ['101', 'SIGNATURE', 2]],
+      doc.fields.map((f) => [f.recipientId, f.type, f.page, f.identifier]),
+      [['101', 'INITIALS', 1, 0], ['101', 'SIGNATURE', 2, 0]],
     )
+    assertEquals(doc.meta.emailSettings, { ownerRecipientExpired: false })
     const row = s.db.requests.get(result.requestId)!
     assertEquals(row.signers.map((x) => [x.role, x.recipient_id]), [
       ['professional', '101'],
@@ -368,7 +371,7 @@ Deno.test('createSignatureRequest: two signers → sequential, each recipient ke
       }),
     )
     assert(result.ok)
-    const doc = s.fake.documents.get('1')!
+    const doc = s.fake.documents.get(E1)!
     assertEquals(doc.meta.signingOrder, 'SEQUENTIAL')
     assertEquals(doc.recipients.map((r) => [r.email, r.signingOrder]), [
       [SIGNER_EMAIL, 1],
@@ -471,7 +474,7 @@ Deno.test('createSignatureRequest: the same key with other signers → invalid_r
   })
 })
 
-Deno.test('createSignatureRequest: re-send with a live earlier document (pending) → cancelled first, then a new document replaces it', async () => {
+Deno.test('createSignatureRequest: re-send with a live earlier envelope (pending) → cancelled first, then a new envelope replaces it', async () => {
   await run(async () => {
     const s = setup()
     await draftWithDocument(s)
@@ -479,39 +482,41 @@ Deno.test('createSignatureRequest: re-send with a live earlier document (pending
     assertEquals(result, { ok: true, requestId: 'r-draft', existing: true })
     const documenso = s.order.filter((o) => o.startsWith('documenso'))
     assertEquals(documenso.slice(0, 3), [
-      'documenso GET /api/v2/document/1',
+      `documenso GET /api/v2/envelope/${E1}`,
       'documenso POST /api/v2/envelope/cancel',
-      'documenso POST /api/v2/document/create',
+      'documenso POST /api/v2/envelope/create',
     ])
     assert(
       s.order.indexOf('documenso POST /api/v2/envelope/cancel') <
         s.order.findIndex((o) => o.startsWith('render')),
       'settled before rendering',
     )
-    assertEquals(s.fake.documents.get('1')!.status, 'CANCELLED')
-    assertEquals(s.fake.documents.get('2')!.status, 'PENDING')
+    assertEquals(s.fake.documents.get(E1)!.status, 'CANCELLED')
+    assertEquals(s.fake.documents.get(E2)!.status, 'PENDING')
     const row = s.db.requests.get('r-draft')!
     assertEquals(row.status, 'sent')
-    assertEquals(row.documenso_document_id, '2')
-    assertEquals(row.superseded_document_ids, ['1'])
+    assertEquals(row.envelope_id, E2)
+    assertEquals(row.superseded_envelope_ids, [E1])
     assertEquals(row.send_started_at, null)
   })
 })
 
-Deno.test('createSignatureRequest: re-send with an earlier document still a draft at Documenso → deleted by its id, then sent', async () => {
+Deno.test('createSignatureRequest: re-send with an earlier envelope still a draft at Documenso → deleted (never cancelled), then sent', async () => {
   await run(async () => {
     const s = setup()
     await draftWithDocument(s)
-    s.fake.documents.get('1')!.status = 'DRAFT'
+    s.fake.documents.get(E1)!.status = 'DRAFT'
     const result = await createSignatureRequest(s.deps, input())
     assert(result.ok)
-    assert(s.order.includes('documenso POST /api/v2/document/delete'))
-    assertEquals(s.fake.documents.has('1'), false)
-    assertEquals(s.db.requests.get('r-draft')!.documenso_document_id, '2')
+    assertEquals(s.order.filter((o) => /cancel|delete/.test(o)), [
+      'documenso POST /api/v2/envelope/delete',
+    ])
+    assertEquals(s.fake.documents.has(E1), false)
+    assertEquals(s.db.requests.get('r-draft')!.envelope_id, E2)
   })
 })
 
-Deno.test('createSignatureRequest: re-send whose earlier cancel fails → aborted (provider_error), retryable at once, no second document', async () => {
+Deno.test('createSignatureRequest: re-send whose earlier cancel fails → aborted (provider_error), retryable at once, no second envelope', async () => {
   await run(async () => {
     const s = setup()
     await draftWithDocument(s)
@@ -528,27 +533,89 @@ Deno.test('createSignatureRequest: re-send whose earlier cancel fails → aborte
     assertEquals(row.status, 'draft')
     assertEquals(row.last_error, 'previous_cancel_failed')
     assertEquals(row.send_started_at, null, 'the claim is released')
-    assertEquals(row.documenso_document_id, '1')
+    assertEquals(row.envelope_id, E1)
     delete s.fake.failures.cancel
     assert((await createSignatureRequest(s.deps, input())).ok, 'retried')
-    assertEquals(s.fake.documents.get('1')!.status, 'CANCELLED')
-    assertEquals(s.db.requests.get('r-draft')!.documenso_document_id, '2')
+    assertEquals(s.fake.documents.get(E1)!.status, 'CANCELLED')
+    assertEquals(s.db.requests.get('r-draft')!.envelope_id, E2)
   })
 })
 
-Deno.test('createSignatureRequest: re-send whose earlier document Documenso completed → recovered (signed), never sent again', async () => {
+Deno.test("createSignatureRequest: re-send whose earlier envelope's cancel answers Documenso's 404 but reads back COMPLETED → stops (previous_cancel_failed), no second envelope; the retry recovers it", async () => {
   await run(async () => {
     const s = setup()
     await draftWithDocument(s)
-    s.fake.complete('1')
+    // Completed at Documenso between the settle's read (PENDING) and its
+    // cancel, which answers 404: never taken for « already gone ».
+    const fetch: typeof globalThis.fetch = (input, init) => {
+      const req = new Request(input, init)
+      if (new URL(req.url).pathname === '/api/v2/envelope/cancel') {
+        s.order.push('documenso POST /api/v2/envelope/cancel')
+        s.fake.complete(E1)
+        return Promise.resolve(
+          Response.json({ message: 'Envelope not found', code: 'NOT_FOUND' }, {
+            status: 404,
+          }),
+        )
+      }
+      return s.deps.fetch(req)
+    }
+    const result = await createSignatureRequest({ ...s.deps, fetch }, input())
+    assertEquals(result, {
+      ok: false,
+      code: 'provider_error',
+      requestId: 'r-draft',
+    })
+    assertEquals(s.order.filter((o) => o.startsWith('documenso')), [
+      `documenso GET /api/v2/envelope/${E1}`,
+      'documenso POST /api/v2/envelope/cancel',
+      `documenso GET /api/v2/envelope/${E1}`,
+    ])
+    assertEquals(s.fake.documents.size, 1, 'no second envelope')
+    assertEquals(s.rendered.length, 0)
+    const row = s.db.requests.get('r-draft')!
+    assertEquals([row.status, row.last_error], [
+      'draft',
+      'previous_cancel_failed',
+    ])
+    assert((await createSignatureRequest(s.deps, input())).ok, 'retried')
+    assertEquals(s.db.requests.get('r-draft')!.status, 'signed')
+    assertEquals(s.fake.documents.size, 1)
+  })
+})
+
+Deno.test('createSignatureRequest: an invitation Documenso would refuse (message over 5000) → provider_invalid_request, no Documenso call', async () => {
+  await run(async () => {
+    const s = setup()
+    const result = await createSignatureRequest(
+      s.deps,
+      input({ values: { professional: { name: 'x'.repeat(5001) } } }),
+    )
+    assertEquals(result.ok, false)
+    assertEquals(!result.ok && result.code, 'provider_error')
+    const row = s.db.requests.get(result.requestId!)!
+    assertEquals([row.status, row.last_error, row.envelope_id], [
+      'draft',
+      'provider_invalid_request',
+      null,
+    ])
+    assertEquals(s.fake.calls.length, 0)
+  })
+})
+
+Deno.test('createSignatureRequest: re-send whose earlier envelope Documenso completed → recovered (signed), never sent again', async () => {
+  await run(async () => {
+    const s = setup()
+    await draftWithDocument(s)
+    s.fake.complete(E1)
     assertEquals(
-      s.fake.documents.get('1')!.externalId,
+      s.fake.documents.get(E1)!.externalId,
       'r-draft',
-      'held under the request id: its own document',
+      'held under the request id: its own envelope',
     )
     const result = await createSignatureRequest(s.deps, input())
     assertEquals(result, { ok: true, requestId: 'r-draft', existing: true })
-    assertEquals(s.fake.documents.size, 1, 'no second document')
+    assertEquals(s.fake.documents.size, 1, 'no second envelope')
     assertEquals(s.rendered.length, 0, 'nothing rendered')
     assertEquals(
       s.fake.calls.filter((c) => c.method === 'POST').map((c) => c.url),
@@ -557,19 +624,19 @@ Deno.test('createSignatureRequest: re-send whose earlier document Documenso comp
     )
     const row = s.db.requests.get('r-draft')!
     assertEquals(row.status, 'signed')
-    assertEquals(row.documenso_document_id, '1')
+    assertEquals(row.envelope_id, E1)
     assertEquals(row.source_file_id, null, 'no staged source: recorded missing')
     assertEquals(row.signers.map((x) => x.recipient_id), ['101'])
   })
 })
 
-Deno.test('createSignatureRequest: re-send whose earlier document id is held under another externalId → signing_foreign_document (ids only), never recovered nor cancelled, sent again', async () => {
+Deno.test('createSignatureRequest: re-send whose earlier envelope id is held under another externalId → signing_foreign_document (ids only), never recovered nor cancelled, sent again', async () => {
   await run(async () => {
     for (const status of ['COMPLETED', 'PENDING'] as const) {
       const s = setup()
       await draftWithDocument(s)
-      if (status === 'COMPLETED') s.fake.complete('1')
-      s.fake.documents.get('1')!.externalId = 'another-request'
+      if (status === 'COMPLETED') s.fake.complete(E1)
+      s.fake.documents.get(E1)!.externalId = 'another-request'
       let result
       const lines = await captureConsole('error', async () => {
         result = await createSignatureRequest(s.deps, input())
@@ -588,20 +655,20 @@ Deno.test('createSignatureRequest: re-send whose earlier document id is held und
         [],
         `${status}: not cancelled`,
       )
-      assertEquals(s.fake.documents.get('1')!.status, status)
+      assertEquals(s.fake.documents.get(E1)!.status, status)
       const row = s.db.requests.get('r-draft')!
       assertEquals(row.status, 'sent')
-      assertEquals(row.documenso_document_id, '2')
-      assertEquals(row.superseded_document_ids, ['1'])
+      assertEquals(row.envelope_id, E2)
+      assertEquals(row.superseded_envelope_ids, [E1])
     }
   })
 })
 
-Deno.test('createSignatureRequest: re-send whose earlier document reads without an externalId → previous_read_failed (provider_error, retryable), never taken for a foreign document', async () => {
+Deno.test('createSignatureRequest: re-send whose earlier envelope reads without an externalId → previous_read_failed (provider_error, retryable), never taken for a foreign envelope', async () => {
   await run(async () => {
     const s = setup()
     await draftWithDocument(s)
-    s.fake.documents.get('1')!.externalId = undefined
+    s.fake.documents.get(E1)!.externalId = undefined
     let result
     const lines = await captureConsole('error', async () => {
       result = await createSignatureRequest(s.deps, input())
@@ -615,34 +682,34 @@ Deno.test('createSignatureRequest: re-send whose earlier document reads without 
       !JSON.stringify(lines).includes('signing_foreign_document'),
       'not reported foreign',
     )
-    assertEquals(s.fake.documents.size, 1, 'no second document')
+    assertEquals(s.fake.documents.size, 1, 'no second envelope')
     assertEquals(s.rendered.length, 0, 'nothing rendered')
     assertEquals(
       s.order.filter((o) => /cancel|delete/.test(o)),
       [],
       'not cancelled',
     )
-    assertEquals(s.fake.documents.get('1')!.status, 'PENDING')
+    assertEquals(s.fake.documents.get(E1)!.status, 'PENDING')
     const row = s.db.requests.get('r-draft')!
     assertEquals(row.status, 'draft')
     assertEquals(row.last_error, 'previous_read_failed')
     assertEquals(row.send_started_at, null, 'the claim is released')
-    assertEquals(row.documenso_document_id, '1')
-    assertEquals(row.superseded_document_ids, [])
-    s.fake.documents.get('1')!.externalId = 'r-draft'
+    assertEquals(row.envelope_id, E1)
+    assertEquals(row.superseded_envelope_ids, [])
+    s.fake.documents.get(E1)!.externalId = 'r-draft'
     assert((await createSignatureRequest(s.deps, input())).ok, 'retried')
-    assertEquals(s.fake.documents.get('1')!.status, 'CANCELLED')
-    assertEquals(s.db.requests.get('r-draft')!.documenso_document_id, '2')
+    assertEquals(s.fake.documents.get(E1)!.status, 'CANCELLED')
+    assertEquals(s.db.requests.get('r-draft')!.envelope_id, E2)
   })
 })
 
-Deno.test('createSignatureRequest: re-send whose earlier document is cancelled, rejected or gone → sent again without a cancel', async () => {
+Deno.test('createSignatureRequest: re-send whose earlier envelope is cancelled, rejected or gone → sent again without a cancel', async () => {
   await run(async () => {
     for (const status of ['CANCELLED', 'REJECTED', 'gone'] as const) {
       const s = setup()
       await draftWithDocument(s)
-      if (status === 'gone') s.fake.documents.delete('1')
-      else s.fake.documents.get('1')!.status = status
+      if (status === 'gone') s.fake.documents.delete(E1)
+      else s.fake.documents.get(E1)!.status = status
       const result = await createSignatureRequest(s.deps, input())
       assert(result.ok, status)
       assertEquals(
@@ -650,7 +717,7 @@ Deno.test('createSignatureRequest: re-send whose earlier document is cancelled, 
         [],
         `${status}: no cancel`,
       )
-      assertEquals(s.db.requests.get('r-draft')!.documenso_document_id, '2')
+      assertEquals(s.db.requests.get('r-draft')!.envelope_id, E2)
     }
   })
 })
@@ -786,7 +853,7 @@ Deno.test('createSignatureRequest: a refusal of the database (P0001) → invalid
   })
 })
 
-Deno.test('createSignatureRequest: a distribute failure → the document is cancelled, the draft marked provider_unavailable', async () => {
+Deno.test('createSignatureRequest: a distribute failure → the envelope is closed (cancel, read back DRAFT, delete), the draft marked provider_unavailable', async () => {
   await run(async () => {
     const s = setup()
     s.fake.failures.distribute = 503
@@ -796,11 +863,16 @@ Deno.test('createSignatureRequest: a distribute failure → the document is canc
     const row = s.db.requests.get(result.requestId!)!
     assertEquals(row.status, 'draft')
     assertEquals(row.last_error, 'provider_unavailable')
-    assertEquals(row.documenso_document_id, '1')
-    assertEquals(row.envelope_id, 'envelope_1')
-    // Not distributed: cancelled by its document id (a draft is deleted).
-    assert(s.order.includes('documenso POST /api/v2/document/delete'))
-    assertEquals(s.fake.documents.has('1'), false)
+    assertEquals(row.envelope_id, E1)
+    // The distribute may have sent it: cancelled with the fallback (E-8);
+    // Documenso refuses a draft, which reads back DRAFT and is deleted.
+    assertEquals(s.order.filter((o) => /cancel|delete|GET/.test(o)), [
+      `documenso GET /api/v2/envelope/${E1}`,
+      'documenso POST /api/v2/envelope/cancel',
+      `documenso GET /api/v2/envelope/${E1}`,
+      'documenso POST /api/v2/envelope/delete',
+    ])
+    assertEquals(s.fake.documents.has(E1), false)
   })
 })
 
@@ -841,10 +913,10 @@ Deno.test('createSignatureRequest: mark_signature_request_sent failing → the d
     )
     assertEquals((error as { code: string }).code, 'mark_sent_failed')
     assert(s.order.includes('documenso POST /api/v2/envelope/cancel'))
-    assertEquals(s.fake.documents.get('1')!.status, 'CANCELLED')
+    assertEquals(s.fake.documents.get(E1)!.status, 'CANCELLED')
     const row = [...s.db.requests.values()][0]
     assertEquals(row.last_error, 'mark_sent_failed')
-    assertEquals(row.documenso_document_id, '1')
+    assertEquals(row.envelope_id, E1)
   })
 })
 
@@ -888,7 +960,7 @@ Deno.test('createSignatureRequest: the built-in test document renders for real, 
       }),
     )
     assert(result.ok)
-    const doc = s.fake.documents.get('1')!
+    const doc = s.fake.documents.get(E1)!
     assertEquals(doc.meta.subject, SIGNING_TEST_EMAIL.subject)
     assertEquals(
       new TextDecoder().decode(doc.pdf.subarray(0, 5)),

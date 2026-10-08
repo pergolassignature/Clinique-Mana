@@ -2666,6 +2666,7 @@ export type Database = {
           subject_id: string
           subject_type: string
           superseded_document_ids: string[]
+          superseded_envelope_ids: string[]
           template_version_id: string | null
           title: string
           updated_at: string
@@ -2701,6 +2702,7 @@ export type Database = {
           subject_id: string
           subject_type: string
           superseded_document_ids?: string[]
+          superseded_envelope_ids?: string[]
           template_version_id?: string | null
           title: string
           updated_at?: string
@@ -2736,6 +2738,7 @@ export type Database = {
           subject_id?: string
           subject_type?: string
           superseded_document_ids?: string[]
+          superseded_envelope_ids?: string[]
           template_version_id?: string | null
           title?: string
           updated_at?: string
@@ -3622,7 +3625,7 @@ export type Database = {
       apply_signing_event: {
         Args: {
           p_at: string
-          p_documenso_document_id: string
+          p_envelope_id: string
           p_event: string
           p_org_id: string
           p_reason: string
@@ -4247,17 +4250,11 @@ export type Database = {
       }
       mark_notifications_read: { Args: { p_ids: string[] }; Returns: undefined }
       mark_signature_request_failed: {
-        Args: {
-          p_documenso_document_id?: string
-          p_envelope_id?: string
-          p_error_code: string
-          p_id: string
-        }
+        Args: { p_envelope_id?: string; p_error_code: string; p_id: string }
         Returns: undefined
       }
       mark_signature_request_sent: {
         Args: {
-          p_documenso_document_id: string
           p_envelope_id: string
           p_expires_at: string
           p_id: string
@@ -4302,7 +4299,6 @@ export type Database = {
       }
       recover_signature_request: {
         Args: {
-          p_documenso_document_id: string
           p_envelope_id: string
           p_id: string
           p_org_id: string

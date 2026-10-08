@@ -1,0 +1,22 @@
+# /etc/caddy/Caddyfile on the droplet `documenso-sign` — both Documenso stacks.
+# Caddy obtains and renews each certificate (Let's Encrypt, HTTP-01): the DNS
+# records must point straight at the droplet ("DNS only" in Cloudflare).
+
+(documenso_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+sign.pergolassignature.ca {
+	import documenso_headers
+	reverse_proxy 127.0.0.1:3000
+}
+
+sign.cliniquemana.com {
+	import documenso_headers
+	reverse_proxy 127.0.0.1:3001
+}
