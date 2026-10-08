@@ -1,17 +1,10 @@
 import { matchPath } from 'react-router-dom'
 import { safeRedirect } from '@/core/auth/redirect'
-import type { PageComponent } from '@/core/modules/types'
 import { AUTH_STORAGE_KEY } from '@/core/supabase/client'
-import { settingsSectionPath } from '@/core/settings/paths'
+import { isUnder, settingsSectionPath } from '@/core/settings/paths'
 import { coreSettingsSections } from '@/core/settings/sections'
+import type { LazyPage } from '@/shared/lib/lazy-page'
 import { ALL_MODULES } from './modules'
-
-// Case-insensitive, like React Router's matching (and SettingsLayout's).
-const isUnder = (pathname: string, path: string) => {
-  const location = pathname.toLowerCase()
-  const target = path.toLowerCase()
-  return location === target || location.startsWith(`${target}/`)
-}
 
 /** The page a signed-in user is about to see: the login page's `?redirect=` target, else the URL. */
 function destination(location: Pick<Location, 'pathname' | 'search' | 'origin'>): string {
@@ -23,7 +16,7 @@ function destination(location: Pick<Location, 'pathname' | 'search' | 'origin'>)
 type RouteLocation = Pick<Location, 'pathname' | 'search' | 'origin'>
 
 /** The registered page (settings section or module route) at the URL, or the login redirect target. */
-export function routePage(location: RouteLocation = window.location): PageComponent | undefined {
+export function routePage(location: RouteLocation = window.location): LazyPage | undefined {
   const pathname = destination(location)
   const sections = [...coreSettingsSections, ...ALL_MODULES.flatMap((m) => m.settingsSections)]
   return (
@@ -40,7 +33,7 @@ export function routePage(location: RouteLocation = window.location): PageCompon
  * the same for every user, with no data in them.
  */
 export function preloadRouteCode(location: RouteLocation = window.location): void {
-  void routePage(location)?.preload?.().catch(() => {
+  void routePage(location)?.preload().catch(() => {
     // Ignored: rendering the page loads it again and reports a real failure.
   })
 }

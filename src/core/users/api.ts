@@ -20,20 +20,6 @@ export interface OrgUser {
   override_count: number
 }
 
-export interface CatalogPermission {
-  key: string
-  module_key: string
-  /** French, shown as is. */
-  description: string
-}
-
-export interface PermissionCatalog {
-  permissions: CatalogPermission[]
-  rolePermissions: RolePermission[]
-  roles: { key: string; name: string }[]
-  modules: { key: string; name: string }[]
-}
-
 /** The caller's org users, active first then by name (users.view; raises 42501 otherwise). */
 export async function fetchOrgUsers(): Promise<OrgUser[]> {
   const { data, error } = await supabase.rpc('list_org_users')
@@ -50,21 +36,14 @@ export async function fetchOrgUsers(): Promise<OrgUser[]> {
   }))
 }
 
-/** The permission catalogue, readable by every authenticated user: permissions, role defaults, roles, modules. */
-export async function fetchPermissionCatalog(): Promise<PermissionCatalog> {
-  const [permissions, rolePermissions, roles, modules] = await Promise.all([
-    supabase.from('permissions').select('key, module_key, description'),
-    supabase.from('role_permissions').select('role, permission_key'),
-    supabase.from('roles').select('key, name'),
-    supabase.from('modules').select('key, name'),
-  ])
-  for (const result of [permissions, rolePermissions, roles, modules]) if (result.error) throw result.error
-  return {
-    permissions: permissions.data ?? [],
-    rolePermissions: rolePermissions.data ?? [],
-    roles: roles.data ?? [],
-    modules: modules.data ?? [],
-  }
+/**
+ * What each role gives by default in the caller's clinic (`org_role_permissions`, what
+ * `has_permission` evaluates). Never `role_permissions`: that is the template for new clinics.
+ */
+export async function fetchRoleDefaults(orgId: string): Promise<RolePermission[]> {
+  const { data, error } = await supabase.from('org_role_permissions').select('role, permission_key').eq('org_id', orgId)
+  if (error) throw error
+  return data
 }
 
 /** One user's permission overrides (RLS: users.view, same org). */
@@ -75,7 +54,8 @@ export async function fetchUserOverrides(userId: string): Promise<PermissionOver
 }
 
 // The writes raise the SQL error: French P0001 messages for the guards (own account, last active
-// admin, provider role, admin-only changes, permissions the caller lacks).
+// admin, provider role, admin-only changes, permissions the caller lacks, a role that no longer
+// exists: HINT role_missing).
 
 export async function setUserRole(userId: string, role: string): Promise<void> {
   const { error } = await supabase.rpc('set_user_role', { p_user_id: userId, p_role: role })
@@ -102,4 +82,32 @@ export async function clearPermissionOverrides(userId: string): Promise<number> 
   const { data, error } = await supabase.rpc('clear_permission_overrides', { p_user_id: userId })
   if (error) throw error
   return data
+}
+
+// The role RPCs (roles.manage, own clinic) raise French P0001 messages for their guards: the admin
+// role is never edited, base roles are never renamed or deleted, a role someone has is never
+// deleted, names are unique, and a non-admin manager never gives a permission she lacks. Two carry
+// a HINT the UI keys on: `role_missing` (« Ce rôle n'existe plus. »: deleted meanwhile, or another
+// clinic's) and `copy_from` (create_role's copy refusal).
+
+export async function setRolePermission(role: string, permissionKey: string, granted: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_role_permission', { p_role: role, p_permission_key: permissionKey, p_granted: granted })
+  if (error) throw error
+}
+
+/** Creates a custom role, empty or with a copy of `copyFrom`'s defaults; returns its key. */
+export async function createRole(name: string, copyFrom: string | null): Promise<string> {
+  const { data, error } = await supabase.rpc('create_role', { p_name: name, ...(copyFrom !== null && { p_copy_from: copyFrom }) })
+  if (error) throw error
+  return data
+}
+
+export async function renameRole(role: string, name: string): Promise<void> {
+  const { error } = await supabase.rpc('rename_role', { p_role: role, p_name: name })
+  if (error) throw error
+}
+
+export async function deleteRole(role: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_role', { p_role: role })
+  if (error) throw error
 }

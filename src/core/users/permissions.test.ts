@@ -5,7 +5,13 @@ import {
   canTogglePermission,
   effectivePermission,
   groupPermissionsByModule,
+  holdsRoleDefaults,
+  isCustomRole,
+  confirmsSelfRemoval,
+  foldRoleName,
+  normalizeRoleName,
   orderRoles,
+  roleCellLock,
   overrideStateOf,
   roleGrants,
   stateForSwitch,
@@ -19,6 +25,14 @@ const ROLE_PERMISSIONS = [
   { role: 'admin_assistant', permission_key: 'settings.view' },
   { role: 'admin_assistant', permission_key: 'professionals.view' },
   { role: 'counselor', permission_key: 'professionals.view' },
+  { role: 'custom_0a1b2c3d', permission_key: 'settings.view' },
+]
+const ROLES = [
+  { key: 'admin', name: 'Administrateur', org_id: null },
+  { key: 'counselor', name: 'Conseillère', org_id: null },
+  { key: 'admin_assistant', name: 'Adjointe administrative', org_id: null },
+  { key: 'provider', name: 'Professionnel', org_id: null },
+  { key: 'custom_0a1b2c3d', name: 'Réception', org_id: 'o1' },
 ]
 
 describe('roleGrants', () => {
@@ -87,6 +101,54 @@ describe('canTogglePermission', () => {
   })
 })
 
+describe('roleCellLock', () => {
+  const holds = (keys: string[]) => (key: string) => keys.includes(key)
+  const admin = { callerIsAdmin: true, callerCan: holds([]), callerRole: 'admin' }
+  const manager = { callerIsAdmin: false, callerCan: holds(['audit.view']), callerRole: 'admin_assistant' }
+
+  it('locks the admin and provider columns for everyone', () => {
+    for (const role of ['admin', 'provider']) {
+      expect(roleCellLock({ ...admin, role, permissionKey: 'audit.view', on: false })).toBe('locked')
+      expect(roleCellLock({ ...admin, role, permissionKey: 'audit.view', on: true })).toBe('locked')
+    }
+  })
+
+  it('lets an admin toggle any other cell', () => {
+    expect(roleCellLock({ ...admin, role: 'counselor', permissionKey: 'users.manage', on: false })).toBeNull()
+  })
+
+  it('lets a manager turn any cell off, and on only for a permission she holds', () => {
+    expect(roleCellLock({ ...manager, role: 'counselor', permissionKey: 'users.manage', on: true })).toBeNull()
+    expect(roleCellLock({ ...manager, role: 'counselor', permissionKey: 'audit.view', on: false })).toBeNull()
+    expect(roleCellLock({ ...manager, role: 'counselor', permissionKey: 'users.manage', on: false })).toBe('lacked')
+  })
+
+  it('never lets a manager add to her own role; removing stays allowed', () => {
+    expect(roleCellLock({ ...manager, role: 'admin_assistant', permissionKey: 'audit.view', on: false })).toBe('ownRole')
+    expect(roleCellLock({ ...manager, role: 'admin_assistant', permissionKey: 'audit.view', on: true })).toBeNull()
+  })
+})
+
+describe('normalizeRoleName', () => {
+  it('trims and collapses inner whitespace', () => {
+    expect(normalizeRoleName('  Accueil \t  du   soir \n')).toBe('Accueil du soir')
+  })
+
+  it('uses the database\'s whitespace (Unicode White_Space), not JavaScript\'s \\s', () => {
+    expect(normalizeRoleName('\u00A0Accueil\u3000du\u2003soir\u0085')).toBe('Accueil du soir')
+    // U+FEFF is not whitespace for the database (it refuses it as invisible): kept, so it is refused there.
+    expect(normalizeRoleName('Accueil\uFEFF')).toBe('Accueil\uFEFF')
+  })
+})
+
+describe('foldRoleName', () => {
+  it('compares like the unique index: normalized, NFKC, case folded', () => {
+    expect(foldRoleName(' RÉCEPTION ')).toBe(foldRoleName('réception'))
+    expect(foldRoleName('\uFF21dministrateur')).toBe('administrateur')
+    expect(foldRoleName('conseille\u0300re')).toBe(foldRoleName('Conseillère'))
+  })
+})
+
 describe('canResetOverrides', () => {
   const holds = (keys: string[]) => (key: string) => keys.includes(key)
   const overrides = [
@@ -102,26 +164,49 @@ describe('canResetOverrides', () => {
   })
 })
 
+describe('isCustomRole', () => {
+  it("is true for a clinic's own role only", () => {
+    expect(isCustomRole({ org_id: 'o1' })).toBe(true)
+    expect(isCustomRole({ org_id: null })).toBe(false)
+  })
+})
+
+describe('holdsRoleDefaults', () => {
+  const holds = (keys: string[]) => (key: string) => keys.includes(key)
+
+  it('an admin holds every role', () => {
+    expect(holdsRoleDefaults({ callerIsAdmin: true, callerCan: holds([]), role: 'admin', rolePermissions: ROLE_PERMISSIONS })).toBe(true)
+  })
+
+  it('a manager holds a role when she has each of its defaults (an empty role included)', () => {
+    const manager = { callerIsAdmin: false, callerCan: holds(['settings.view', 'professionals.view']), rolePermissions: ROLE_PERMISSIONS }
+    expect(holdsRoleDefaults({ ...manager, role: 'admin_assistant' })).toBe(true)
+    expect(holdsRoleDefaults({ ...manager, role: 'provider' })).toBe(true)
+    expect(holdsRoleDefaults({ ...manager, role: 'admin' })).toBe(false)
+  })
+})
+
 describe('assignableRoles', () => {
   const holds = (keys: string[]) => (key: string) => keys.includes(key)
 
-  it('an admin may assign admin, counselor and admin_assistant (never provider)', () => {
-    expect(assignableRoles({ callerIsAdmin: true, callerCan: holds([]), rolePermissions: ROLE_PERMISSIONS })).toEqual(
-      new Set(['admin', 'counselor', 'admin_assistant']),
+  it('an admin may assign every base role but provider, and the custom roles', () => {
+    expect(assignableRoles({ callerIsAdmin: true, callerCan: holds([]), roles: ROLES, rolePermissions: ROLE_PERMISSIONS })).toEqual(
+      new Set(['admin', 'counselor', 'admin_assistant', 'custom_0a1b2c3d']),
     )
   })
 
   it('a manager may assign only the non-admin roles whose defaults they hold', () => {
     expect(
-      assignableRoles({ callerIsAdmin: false, callerCan: holds(['professionals.view']), rolePermissions: ROLE_PERMISSIONS }),
+      assignableRoles({ callerIsAdmin: false, callerCan: holds(['professionals.view']), roles: ROLES, rolePermissions: ROLE_PERMISSIONS }),
     ).toEqual(new Set(['counselor']))
     expect(
       assignableRoles({
         callerIsAdmin: false,
         callerCan: holds(['professionals.view', 'settings.view', 'settings.manage', 'audit.view']),
+        roles: ROLES,
         rolePermissions: ROLE_PERMISSIONS,
       }),
-    ).toEqual(new Set(['counselor', 'admin_assistant']))
+    ).toEqual(new Set(['counselor', 'admin_assistant', 'custom_0a1b2c3d']))
   })
 })
 
@@ -167,5 +252,19 @@ describe('groupPermissionsByModule', () => {
 
   it('leaves out an enabled module without permissions', () => {
     expect(groupPermissionsByModule(permissions.filter((p) => p.module_key === 'core'), modules, ['agenda']).map((g) => g.key)).toEqual(['core'])
+  })
+})
+
+describe('confirmsSelfRemoval', () => {
+  const own = { callerRole: 'admin_assistant', role: 'admin_assistant' }
+  it('asks before removing roles.manage or users.manage from the caller\'s own role', () => {
+    expect(confirmsSelfRemoval({ ...own, permissionKey: 'roles.manage', next: false })).toBe(true)
+    expect(confirmsSelfRemoval({ ...own, permissionKey: 'users.manage', next: false })).toBe(true)
+  })
+
+  it('does not ask for another permission, another role, or a grant', () => {
+    expect(confirmsSelfRemoval({ ...own, permissionKey: 'users.view', next: false })).toBe(false)
+    expect(confirmsSelfRemoval({ ...own, role: 'counselor', permissionKey: 'roles.manage', next: false })).toBe(false)
+    expect(confirmsSelfRemoval({ ...own, permissionKey: 'roles.manage', next: true })).toBe(false)
   })
 })

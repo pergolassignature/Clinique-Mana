@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { t } from '@/i18n'
@@ -7,7 +7,9 @@ import type { Access } from '@/core/access/access'
 import { renderWithContexts } from '@/test/contexts'
 import { testOrganization } from '@/test/organization'
 import { accessForRole } from '@/test/role-fixtures'
+import { coreSettingsSections } from '@/core/settings/sections'
 import { AuthenticatedApp } from './AuthenticatedApp'
+import { ALL_MODULES } from './modules'
 
 const mocks = vi.hoisted(() => ({ captureException: vi.fn() }))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
@@ -25,10 +27,10 @@ vi.mock('@/core/account/pages/AccountPage', () => ({ AccountPage: () => <p>ACCOU
 // The real module list, with one crashing settings section added to Professionals. It needs a
 // permission no role has ('test.crash'), so only the test that grants it sees it.
 vi.mock('./modules', async (importOriginal) => {
-  const { lazy } = await import('react')
+  const { lazyPage } = await import('@/shared/lib/lazy-page')
   const { Bug } = await import('lucide-react')
   const actual = await importOriginal<typeof import('./modules')>()
-  const crash = lazy(async () => ({
+  const crash = lazyPage(async () => ({
     default: () => {
       throw new Error('boom')
     },
@@ -40,6 +42,17 @@ vi.mock('./modules', async (importOriginal) => {
         : m,
     ),
   }
+})
+
+// Warm the module cache for the code-split pages the tests wait on: a cold transform of a page's
+// import graph can outlast findBy's 1 s timeout when the suite is shuffled. The pages themselves
+// still load lazily (their lazyPage is not preloaded).
+beforeAll(async () => {
+  await Promise.all([
+    import('@/core/settings/pages/IdentitySettingsPage'),
+    import('@/core/settings/pages/TaxSettingsPage'),
+    import('@/modules/professionals/pages/ProfessionalsPlaceholderPage'),
+  ])
 })
 
 afterEach(() => {
@@ -237,3 +250,65 @@ describe('AuthenticatedApp', () => {
     expect(button).toBeDisabled()
   })
 })
+
+// The shell prefetches, when the browser is idle, the code of the pages THIS user can open.
+describe('AuthenticatedApp — idle prefetch', () => {
+  let runIdle: () => void = () => {}
+
+  /** Spies on every registered page's preload (core sections, and module sections and routes). */
+  function spyOnPreloads() {
+    const pages = [
+      ...coreSettingsSections.map((s) => [s.id, s.component] as const),
+      ...ALL_MODULES.flatMap((m) => [
+        ...m.settingsSections.map((s) => [`${m.key}:${s.id}`, s.component] as const),
+        ...m.routes.map((r) => [`${m.key}:/${r.path}`, r.component] as const),
+      ]),
+    ]
+    const spies = pages.map(([name, page]) => [name, vi.spyOn(page, 'preload').mockResolvedValue(undefined)] as const)
+    return () => spies.filter(([, spy]) => spy.mock.calls.length > 0).map(([name]) => name)
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal('requestIdleCallback', (callback: IdleRequestCallback) => {
+      runIdle = () => callback({ didTimeout: false, timeRemaining: () => 50 })
+      return 1
+    })
+    vi.stubGlobal('cancelIdleCallback', () => {})
+  })
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+    runIdle = () => {}
+  })
+
+  it('waits for idle, then prefetches every section and module page an admin can open', () => {
+    const preloaded = spyOnPreloads()
+    render(appAt('/accueil'))
+    expect(preloaded()).toEqual([])
+    runIdle()
+    expect(preloaded()).toEqual([...coreSettingsSections.map((s) => s.id), 'professionals:/professionnels'])
+  })
+
+  it('skips the pages the user may not open', () => {
+    const preloaded = spyOnPreloads()
+    render(appAt('/accueil', accessForRole('admin_assistant', { modules: ['professionals'] })))
+    runIdle()
+    // The adjointe's clinic sections (no bank, users, modules or audit), and Professionnels.
+    expect(preloaded()).toEqual(['identity', 'tax', 'signatory', 'region', 'privacy', 'professionals:/professionnels'])
+  })
+
+  it("skips a disabled module's pages and sections", () => {
+    const preloaded = spyOnPreloads()
+    render(appAt('/accueil', { ...adminLike, modules: [], permissions: [...adminLike.permissions, 'test.crash'] }))
+    runIdle()
+    expect(preloaded()).toEqual(coreSettingsSections.map((s) => s.id))
+  })
+
+  it("prefetches an enabled module's section once the user may open it", () => {
+    const preloaded = spyOnPreloads()
+    render(appAt('/accueil', { ...adminLike, permissions: [...adminLike.permissions, 'test.crash'] }))
+    runIdle()
+    expect(preloaded()).toContain('professionals:crash')
+  })
+})
+

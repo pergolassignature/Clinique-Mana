@@ -37,11 +37,16 @@ export interface AuthContextValue {
    * null like a success (decision #38).
    */
   updateEmail: (email: string) => Promise<AuthErrorCode | null>
-  /** Signs out this device only (decision #13); always forgets the local session. */
-  signOut: () => Promise<void>
   /**
-   * Ends every session of the account, this one included. On failure the local session is kept
-   * and the code returned, so the user knows the other devices may still be signed in.
+   * Signs out this device only (decision #13); always forgets the local session. Then loads
+   * /connexion afresh (a full page load: a new deploy, nothing left in memory), unless
+   * `reload: false`, for a caller that navigates elsewhere itself.
+   */
+  signOut: (options?: { reload?: boolean }) => Promise<void>
+  /**
+   * Ends every session of the account, this one included, then loads /connexion like signOut. On
+   * failure the local session is kept and the code returned, so the user knows the other devices
+   * may still be signed in.
    */
   signOutEverywhere: () => Promise<AuthErrorCode | null>
 }

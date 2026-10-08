@@ -5,7 +5,7 @@ import { parseRate } from '@/shared/lib/format'
 import { TAXES } from './api'
 
 /** A date-only `yyyy-MM-dd` string (what `<input type="date">` gives). Digits as `[0-9]`, as in SQL. */
-export const DATE_ONLY = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
+const DATE_ONLY = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
 
 /** A `yyyy-MM-dd` string naming a real calendar day (parseISO refuses 2027-02-30). */
 export const isCalendarDate = (v: string) => DATE_ONLY.test(v) && isValid(parseISO(v))
@@ -27,5 +27,3 @@ export const newTaxRateSchema = z.object({
   }),
   effective_from: z.string().trim().refine(isCalendarDate, { error: t('settings.tax.validation.date') }),
 })
-
-export type NewTaxRateInput = z.input<typeof newTaxRateSchema>

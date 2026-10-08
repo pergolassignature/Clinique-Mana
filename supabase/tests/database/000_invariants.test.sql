@@ -3,7 +3,7 @@
 -- See docs/standards/database-conventions.md §12.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(10);
 
 select is_empty($$
   select c.relname from pg_class c
@@ -55,7 +55,12 @@ $$, 'every FK has a leading index');
 select is_empty($$
   select c.relname from pg_class c
     join pg_attribute a on a.attrelid = c.oid and a.attname = 'org_id' and not a.attisdropped
-   where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname <> 'audit_log'
+   where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
+     -- Operational logs, exempt on purpose (conventions §7): auditing them would copy recipient
+     -- addresses and payloads into the append-only audit_log forever (Loi 25). Phase 3 design §2.5.
+     -- scheduled_job_dispatches: one row per pg_net post, purged after 7 days; no business data.
+     and c.relname not in ('audit_log', 'webhook_events', 'email_log', 'scheduled_job_runs',
+                           'scheduled_job_dispatches', 'notifications', 'notification_reads')
      and not exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
                       where t.tgrelid = c.oid and p.proname = 'audit_trigger')
 $$, 'every org-scoped table is audited');
@@ -65,6 +70,15 @@ select is_empty($$
    where c.relnamespace = 'public'::regnamespace and c.relkind = 'v'
      and not coalesce('security_invoker=true' = any(c.reloptions), false)
 $$, 'views are security_invoker');
+
+-- A data invariant, kept here because every future module must respect it: admin holds
+-- every permission in every org (a module migration grants its new permissions to admin in
+-- the template, which propagates; the admin rows cannot be deleted except by cascade).
+select is_empty($$
+  select o.id, pm.key from public.organizations o cross join public.permissions pm
+  except
+  select x.org_id, x.permission_key from public.org_role_permissions x where x.role = 'admin'
+$$, 'admin holds every permission in every org');
 
 select * from finish();
 rollback;

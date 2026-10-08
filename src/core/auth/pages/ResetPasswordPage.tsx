@@ -54,8 +54,9 @@ export function ResetPasswordPage() {
     setError(null)
     const code = await updatePassword(password)
     if (code === 'reauthentication_needed') {
-      // No trap: this recovery session can no longer change the password. Start over.
-      await signOut()
+      // No trap: this recovery session can no longer change the password. Start over (no reload:
+      // the forgotten-password page reads the `expired` state).
+      await signOut({ reload: false })
       navigate('/mot-de-passe-oublie', { replace: true, state: { expired: true } })
       return
     }

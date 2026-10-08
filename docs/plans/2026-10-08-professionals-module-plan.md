@@ -111,7 +111,7 @@ Resolved above or handled by a task; listed so reviewers can check them.
 16. **Phase 2 plan commits use `git add -A`.** This worktree is shared with other agents: every commit in this plan stages explicit paths only (memory: subagent git hygiene).
 17. **Editable roles (decision #40, Task 2.20) are not on `feat/phase-2-core-settings` yet** (commit `18b07bd` is on `feat/phase-2-roles`). Role defaults inserted in `role_permissions` reach clinics only through 2.20's template-propagation trigger. → 4a.0 precondition.
 18. **Phase 3 `accept-invite` « purpose handler »** vs Phase 3's own rule « a core function never imports module code ». → settled by P3-16: `secure_link_purposes.resolve_rpc` / `accept_rpc` (Task 3.17).
-19. **`StarToggle`** (`src/shared/ui/star-toggle.tsx`) hard-codes French strings instead of `t()`. → fixed in 4a.12.
+19. **`StarToggle`** (`src/shared/ui/star-toggle.tsx`) hard-coded French strings instead of `t()`; unused, it was deleted in the Phase 2 review. → recreated with `t()` labels in 4a.12.
 20. **Conventions §5b example** shows `professionals_directory` with `display_name` / `is_active`, which the real view does not have. → updated in 4a.20.
 21. **The two untracked migrations would break a local `db reset` run from the main checkout**: they target the legacy schema (`label_fr`, `icon_name`, `display_order`, `document_instances`, `professional_questionnaire_submissions`). CI never sees them (untracked). → « Mise en service » item 14; not moved by this plan.
 22. **Phase 3 `/invitation` always navigates to `/accueil`** after acceptance (Task 3.21), while a new professional must land on the questionnaire. → 4b.2 passes an optional `redirect` (app path) from the `accept_rpc` result through `accept-invite` to the page, validated by `safeRedirect`; Accueil also shows « Complétez votre profil » to a provider with an open submission (fallback).
@@ -1706,7 +1706,8 @@ export function ProfessionalRecordPage() {
 
 **Files:**
 - Create: `components/record/tabs/MatchingTab.tsx` + test, `components/pickers/SetPickerSheet.tsx` + test, `components/record/AvailabilityCard.tsx` + test
-- Modify: `src/shared/ui/star-toggle.tsx` (labels through `t()`, inconsistency 19; `common.star.add` « Marquer comme spécialisé », `common.star.remove` « Retirer la spécialisation »), `fr-CA.json`
+- Create: `src/shared/ui/star-toggle.tsx` + test (deleted in Phase 2 as unused; rebuilt from the design system's StarToggle with labels through `t()`, inconsistency 19; `common.star.add` « Marquer comme spécialisé », `common.star.remove` « Retirer la spécialisation »)
+- Modify: `fr-CA.json`
 
 **Cards** (each a `SettingsCard`; read-only without `professionals.matching`):
 1. **Clientèles** — chips (★ first, then sort order), « Modifier » → picker with stars.

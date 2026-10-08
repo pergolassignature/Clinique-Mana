@@ -54,7 +54,7 @@ New core permission: **`settings.bank_manage`** — see and change the clinic's 
 | Coordonnées bancaires | `/parametres/banque` | `settings.bank_manage` | `settings.bank_manage` |
 | Région | `/parametres/region` | `settings.view` | `settings.manage` |
 | Confidentialité | `/parametres/confidentialite` | `settings.view` | `settings.manage` |
-| Utilisateurs et accès | `/parametres/utilisateurs` | `users.view` | `users.manage` |
+| Utilisateurs et accès | `/parametres/utilisateurs` | `users.view` or `roles.manage` | `users.manage` or `roles.manage` (each tab follows its own) |
 | Modules | `/parametres/modules` | `modules.manage` | `modules.manage` |
 | Journal d'audit | `/parametres/journal` | `audit.view` | — |
 
@@ -62,7 +62,7 @@ Decision #19 still holds: « Paramètres » appears when at least one section is
 
 ## 3. Data model
 
-Six migrations, each with its pgTAP file written first. `000_invariants` must stay green. Types are regenerated after each migration.
+Ten migrations, each with its pgTAP file written first. `000_invariants` must stay green. Types are regenerated after each migration.
 
 ### 3.1 `core_roles_split`
 
@@ -217,4 +217,4 @@ Phase 4 reuses the same helpers for professionals' SIN and bank accounts. The au
 - **Concurrent edits** of the same card by two admins: last write wins. The audit log shows both. Acceptable for a clinic of this size.
 - **`last_sign_in_at`** is read from `auth.users` inside a security-definer RPC. If Supabase restricts that read in future, the column disappears from the table and nothing else changes.
 - **The encryption key is per database,** not per org. Multi-clinic would still be safe (RLS plus RPC org checks); a per-org key can come later without changing the RPCs.
-- **Staging after merge:** CD applies the six migrations. Jonathan's admin account keeps working, since `admin` is unchanged.
+- **Staging after merge:** CD applies the ten migrations. Jonathan's admin account keeps working, since `admin` is unchanged.

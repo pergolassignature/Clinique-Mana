@@ -10,18 +10,11 @@ import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { cn } from '@/shared/lib/utils'
 import { focusRing } from '@/shared/ui/field-classes'
 import { usePageTitle } from '@/shared/lib/use-page-title'
-import { SETTINGS_BASE_PATH, settingsSectionPath } from './paths'
+import { isUnder, SETTINGS_BASE_PATH, settingsSectionPath } from './paths'
 import { isSectionReadOnly, SettingsSectionContext } from './section-context'
 import { SETTINGS_GROUP_ORDER, visibleSettingsSections } from './visible-sections'
 
 const sectionScope = (s: SettingsSection) => (s.moduleKey ? `settings:${s.moduleKey}:${s.id}` : `settings:${s.id}`)
-
-// Case-insensitive, like React Router's matching (/parametres/Identite opens the same section).
-const isUnder = (pathname: string, path: string) => {
-  const location = pathname.toLowerCase()
-  const target = path.toLowerCase()
-  return location === target || location.startsWith(`${target}/`)
-}
 
 /** Titles the browser tab. A leaf component: React runs child effects first, so a parent's title would win. */
 function PageTitle({ title }: { title: string }) {

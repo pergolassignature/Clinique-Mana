@@ -1,5 +1,5 @@
 import { t, type TranslationKey } from '@/i18n'
-import { roleLabel } from '@/core/access/roles'
+import { isBaseRoleKey, roleLabel } from '@/core/access/roles'
 import { formatRate } from '@/shared/lib/format'
 import { formatClinicDateTime, formatDateOnlyShort } from '@/shared/lib/timezone'
 import type { AuditEntry } from './api'
@@ -14,6 +14,8 @@ export const AUDITED_TABLES = [
   'profiles',
   'user_roles',
   'user_permission_overrides',
+  'roles',
+  'org_role_permissions',
   'org_modules',
   'org_module_settings',
   'org_secrets',
@@ -65,7 +67,7 @@ export function sourceLabel(source: string): string {
 }
 
 /** The value `private.audit_trigger` writes in place of a redacted column (decision #31). */
-export const REDACTED = '[redacted]'
+const REDACTED = '[redacted]'
 
 /** Columns holding a calendar date (`date`): shown without any timezone conversion. */
 const DATE_ONLY_COLUMNS = new Set(['effective_from', 'effective_to'])
@@ -121,6 +123,11 @@ export interface AuditLookups {
   permissions?: ReadonlyMap<string, string>
   /** module key → name (`modules` catalogue). */
   modules?: ReadonlyMap<string, string>
+  /**
+   * role key → stored name, for the clinic's custom roles (base roles use their i18n label): the
+   * current roles, plus the deleted ones' last names (`roleNamesFromEntries`).
+   */
+  roles?: ReadonlyMap<string, string>
 }
 
 /** A value as shown: its text, and the full value in `title` when the text shortens it. */
@@ -136,10 +143,11 @@ const PERSON_COLUMNS = new Set(['user_id', 'actor_id', 'created_by', 'updated_by
 const PROFILE_STATUSES = new Set(['active', 'disabled'])
 
 /**
- * One value of `table.column`, for reading. Stored codes become French (`role`, `profiles.status`,
- * `tax_rates.tax`, module and permission keys) and person ids become names, each falling back to
- * the raw value; a person not in `lookups.people` shows a short id, the full one in `title`.
- * Everything else goes through `formatAuditValue`.
+ * One value of `table.column`, for reading. Stored codes become French (`role` and `roles.key`,
+ * custom role names included, `profiles.status`, `tax_rates.tax`, module and permission keys) and
+ * person ids become names, each falling back to the raw value; a person not in `lookups.people`
+ * shows a short id, the full one in `title`. A custom role whose name is unknown shows « Rôle
+ * personnalisé », its key in `title`. Everything else goes through `formatAuditValue`.
  */
 export function auditValue(table: string, column: string, value: unknown, lookups: AuditLookups = {}): AuditValue {
   if (typeof value !== 'string' || value === '' || value === REDACTED) return { text: formatAuditValue(value, table, column) }
@@ -147,7 +155,11 @@ export function auditValue(table: string, column: string, value: unknown, lookup
     const name = lookups.people?.get(value)
     return name !== undefined ? { text: name, title: value } : { text: shortRecordId(value), title: value }
   }
-  if (column === 'role') return { text: roleLabel(value) }
+  if (column === 'role' || (table === 'roles' && column === 'key')) {
+    const name = lookups.roles?.get(value)
+    if (name === undefined && !isBaseRoleKey(value) && value.startsWith('custom_')) return { text: t('access.customRole'), title: value }
+    return { text: roleLabel(value, name) }
+  }
   if (table === 'profiles' && column === 'status' && PROFILE_STATUSES.has(value)) {
     return { text: t(`audit.values.status.${value as 'active' | 'disabled'}`) }
   }
@@ -157,6 +169,23 @@ export function auditValue(table: string, column: string, value: unknown, lookup
   if (column === 'module_key') return { text: lookups.modules?.get(value) ?? value }
   if (column === 'permission_key') return { text: lookups.permissions?.get(value) ?? value }
   return { text: formatAuditValue(value, table, column) }
+}
+
+/**
+ * The custom role names the entries' `roles` rows carry, by key, the newest first wins (`entries`
+ * come newest first). A deleted role is gone from the clinic's roles, but its rows keep its name:
+ * the creation's and deletion's values (`key`, `name`), and a rename's new name (`record_id` is
+ * the key). So the other rows naming it (user_roles, org_role_permissions) show its name.
+ */
+export function roleNamesFromEntries(entries: readonly Pick<AuditEntry, 'action' | 'table_name' | 'record_id' | 'changed_fields'>[]): Map<string, string> {
+  const names = new Map<string, string>()
+  for (const { action, table_name: table, record_id: recordId, changed_fields: fields } of entries) {
+    if (table !== 'roles' || !isRecord(fields)) continue
+    const name = action === 'update' ? (isRecord(fields.name) ? fields.name.after : undefined) : fields.name
+    const key = action === 'update' ? recordId : fields.key
+    if (typeof key === 'string' && typeof name === 'string' && !names.has(key)) names.set(key, name)
+  }
+  return names
 }
 
 /** One line of an entry's details. */
@@ -198,16 +227,4 @@ export function auditDetailLines(
     }
     return { kind: 'value', field, value: auditValue(table, column, value, lookups) }
   })
-}
-
-/** A detail line as plain text (« NEQ : (vide) → 1234567890 »). */
-export function auditDetailText(line: AuditDetailLine): string {
-  switch (line.kind) {
-    case 'change':
-      return t('audit.details.change', { field: line.field, before: line.before.text, after: line.after.text })
-    case 'value':
-      return t('audit.details.value', { field: line.field, value: line.value.text })
-    case 'text':
-      return line.text
-  }
 }

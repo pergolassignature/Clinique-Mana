@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import type { TranslationKey } from '@/i18n'
+import { isUnder } from '@/core/settings/paths'
 
 /** A page the shell can name in the topbar. */
 export interface ShellPage {
@@ -24,13 +25,6 @@ export const ACCOUNT_PAGE: ShellPage = {
 export interface ShellTitle {
   parent: ShellPage | null
   current: ShellPage
-}
-
-// Case-insensitive, like React Router's matching (/Parametres opens the same page).
-const isUnder = (pathname: string, path: string) => {
-  const location = pathname.toLowerCase()
-  const target = path.toLowerCase()
-  return location === target || location.startsWith(`${target}/`)
 }
 
 /**

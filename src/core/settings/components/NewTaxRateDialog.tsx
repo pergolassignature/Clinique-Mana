@@ -49,11 +49,17 @@ interface NewTaxRateDialogProps {
 export const NewTaxRateDialog = forwardRef<HTMLButtonElement, NewTaxRateDialogProps>(function NewTaxRateDialog({ tax, taxLabel, minDate }, ref) {
   const [open, setOpen] = useState(false)
   const add = useAddTaxRate()
+  // The refusal shown: computed once, when adding fails (moduleErrorMessage may report to Sentry,
+  // so never on each render).
+  const [refusal, setRefusal] = useState<string | null>(null)
   const rateRef = useRef<HTMLInputElement | null>(null)
 
   const onOpenChange = (next: boolean) => {
     if (add.isPending) return
-    if (!next) add.reset()
+    if (!next) {
+      add.reset()
+      setRefusal(null)
+    }
     setOpen(next)
   }
 
@@ -81,10 +87,17 @@ export const NewTaxRateDialog = forwardRef<HTMLButtonElement, NewTaxRateDialogPr
           minDate={minDate}
           rateRef={rateRef}
           pending={add.isPending}
-          error={add.isError ? moduleErrorMessage(add.error, t('common.errors.generic'), 'settings') : null}
-          onSubmit={({ rate, effective_from }) =>
-            add.mutate({ tax, rate, effectiveFrom: effective_from }, { onSuccess: () => setOpen(false) })
-          }
+          error={refusal}
+          onSubmit={({ rate, effective_from }) => {
+            setRefusal(null)
+            add.mutate(
+              { tax, rate, effectiveFrom: effective_from },
+              {
+                onSuccess: () => setOpen(false),
+                onError: (error) => setRefusal(moduleErrorMessage(error, t('common.errors.generic'), 'settings')),
+              },
+            )
+          }}
         />
       </DialogContent>
     </Dialog>

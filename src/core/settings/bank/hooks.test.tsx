@@ -15,7 +15,8 @@ vi.mock('@/shared/ui/sonner', () => ({ toast: mocks.toast }))
 vi.mock('@sentry/react', () => ({ captureException: mocks.captureException }))
 
 afterEach(() => {
-  vi.clearAllMocks()
+  // Restores spies too (document.visibilityState), even when the test that set one failed.
+  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 
@@ -176,7 +177,6 @@ describe('useRevealedAccountNumber', () => {
       document.dispatchEvent(new Event('visibilitychange'))
     })
     expect(result.current.accountNumber).toBeNull()
-    visibility.mockRestore()
   })
 
   it('shows a refusal in a toast and stays masked', async () => {

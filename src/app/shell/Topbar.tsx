@@ -2,7 +2,7 @@ import { useRef, type ComponentProps, type RefObject } from 'react'
 import { LogOut, PanelLeft, Search, UserRound } from 'lucide-react'
 import { t } from '@/i18n'
 import { useReadyAccess } from '@/core/access/access-context'
-import { roleLabel } from '@/core/access/roles'
+import { useRoleLabel } from '@/core/access/org-roles'
 import { GuardedNavLink } from '@/shared/components/GuardedNavLink'
 import { cn } from '@/shared/lib/utils'
 import {
@@ -61,6 +61,7 @@ export function Topbar({
   searchButtonRef,
 }: TopbarProps) {
   const { display_name, role } = useReadyAccess()
+  const roleText = useRoleLabel(role)
   const avatarButtonRef = useRef<HTMLButtonElement>(null)
   // A menu action runs once the menu has closed and focus is back on the avatar, so the
   // unsaved-changes dialog it may open returns focus there after « Rester ».
@@ -154,7 +155,7 @@ export function Topbar({
           <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={runAfterClose}>
             <DropdownMenuLabel className="text-sm">
               <span className="block truncate font-medium text-foreground">{display_name}</span>
-              <span className="block truncate text-xs font-normal text-muted-foreground">{roleLabel(role)}</span>
+              <span className="block min-h-4 truncate text-xs font-normal text-muted-foreground">{roleText}</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => (pendingAction.current = onOpenAccount)}>

@@ -32,6 +32,11 @@ export function parseAccess(raw: unknown): AccessResult {
   return { access: parsed as Access }
 }
 
-export function can(access: Access | null, permission: string): boolean {
-  return access?.permissions.includes(permission) ?? false
+/**
+ * The `can(permission)` check for this access: a Set lookup, built once per access payload (the
+ * provider memoizes it on `access`, so a refetch that returns the same data keeps it stable).
+ */
+export function permissionChecker(access: Access | null): (permission: string) => boolean {
+  const held = new Set(access?.permissions)
+  return (permission) => held.has(permission)
 }

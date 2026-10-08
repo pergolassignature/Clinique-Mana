@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { t } from '@/i18n'
 import { UnsavedChangesContext, type UnsavedChangesValue } from '@/shared/lib/unsaved-changes-context'
+import { registerUnsavedChangesCheck } from '@/shared/lib/unsaved-changes-registry'
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -33,6 +34,11 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const isDirty = useCallback(() => dirtyIds.current.size > 0, [])
+
+  // Lets the stale-chunk recovery see these forms (it must not reload over unsaved edits). A layout
+  // effect: when the whole provider unmounts (the app's error boundary took over), it unregisters
+  // before that boundary's componentDidCatch asks.
+  useLayoutEffect(() => registerUnsavedChangesCheck(isDirty), [isDirty])
 
   const confirmLeave = useCallback((proceed: () => void) => {
     if (dirtyIds.current.size === 0) {

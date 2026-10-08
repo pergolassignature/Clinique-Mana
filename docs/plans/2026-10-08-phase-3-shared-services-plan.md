@@ -40,7 +40,7 @@ Jonathan, 2026-10-08: « You will go on without asking me questions you have pha
 | P3-18 | **Attachments and free recipients are catalogue flags** on `email_template_defaults`: `recipient_mode` (`subject` \| `free`) and `allows_attachments` (PDF only, at most 3, 10 MB in total). `_shared/email` refuses anything else. A free-recipient send is limited to 20 per user per hour. | `professionals.fiche` (any address, with a PDF) without opening a generic relay. |
 | P3-19 | **One PDF path:** `_shared/pdf/` (`renderPdf(doc, assets) → { bytes, pageCount, fields }`) serves both signing (3f) and the Phase 4c fiche. Images (logo, signature) are read from storage by the service role. | Professionnels §7 asks for one rendering path. |
 | P3-20 | Where the two designs differ, **the Phase 3 design wins and Phase 4 aligns**: storage paths are `{org_id}/{module_key}/{subject_id}/{file_id}.{ext}` with no file name (Professionnels §7 said `{uuid}-{name}`); signed read URLs last 5 min (not 1 h); template keys use the module key, `professionals.*` (not `professional.*`), including document templates. | Loi 25 (no names in URLs), the A4 Change, and the key-prefix rule shared with permissions. |
-| P3-21 | **One permission source, evaluated once per statement.** New `private.current_permission_keys() → text[]` (stable, definer). `has_permission(k)` becomes `k = any(current_permission_keys())`, and `get_my_access().permissions` reads the same function. Row-level `view_permission` policies use `view_permission = any ((select private.current_permission_keys()))`. | A per-row `has_permission(column)` call cannot be hoisted out of the scan (design §2.3 wrote it that way); a single function also cannot drift. |
+| P3-21 | **One permission source, evaluated once per statement.** New `private.current_permission_keys() → text[]` (stable, definer). `has_permission(k)` becomes `k = any(current_permission_keys())`, and `get_my_access().permissions` reads the same function. Row-level `view_permission` policies use `view_permission = any ((select private.current_permission_keys())::text[])`. Note: `((select …))` alone does not compile (`text = text[]`); the `::text[]` cast is required. | A per-row `has_permission(column)` call cannot be hoisted out of the scan (design §2.3 wrote it that way); a single function also cannot drift. |
 | P3-22 | **Jobs at a clinic-local hour:** `scheduled_jobs.local_hour`. The cron entry runs hourly. `list_job_orgs` returns the orgs whose local hour (from `organizations.timezone`) equals `local_hour` and that have no run yet for that local date (unique index). Maintenance jobs keep fixed UTC schedules. | Professionnels wants 06:00 clinic time; the design's 11:00 UTC is 07:00 in summer (EDT). |
 | P3-23 | **Local fakes only, no real secret:** `EMAIL_TRANSPORT=mailpit` locally; `scripts/fake-documenso.mjs` (port 55390); `scripts/send-test-webhook.mjs` signs Resend/Documenso payloads with the local test secrets. Local-only values live in `supabase/seed.sql` (Vault rows) and `supabase/functions/.env` (gitignored, copied from the committed `.env.example`). Each is visibly fake (`local-dev-…`). | Jonathan pastes the real keys later (Mise en service). |
 | P3-24 | The bell **polls** (count every 60 s, on window focus, never in background tabs) instead of using Realtime. This deviates from PS Hub (Realtime on `notifications`). | Realtime would need a publication and per-change RLS checks on permission-addressed rows; one minute of latency is enough for insurance notices. |
@@ -332,7 +332,7 @@ on conflict do nothing;
 ```
 Then:
 - **`private.current_permission_keys() returns text[]`**: `language sql stable security definer set search_path = ''`. It uses the same CTEs as today's `has_permission` (the active caller, their role and org; permissions whose module is `core` or enabled for the org), with the role defaults read from `org_role_permissions` for the caller's org (as `has_permission` reads them after Task 2.20). It returns `coalesce(array_agg(key order by key), '{}')` of the keys where `coalesce(override.granted, role default exists)`. Grant execute to `authenticated` and `service_role` (policies run as the caller), revoke from `public, anon`.
-- **`private.has_permission(p_key)`**: `create or replace` with the same signature, grants and comment, body `select p_key = any (private.current_permission_keys())`.
+- **`private.has_permission(p_key)`**: `create or replace` with the same signature, grants and comment, body `select p_key = any (private.current_permission_keys())`. *Review of 3.1:* wrap in `coalesce(…, false)` (null key → false) and write it in `language plpgsql` (a definer SQL wrapper is not inlined: ~8× slower per call); done as a follow-up migration with Task 3.2.
 - **`public.get_my_access()`**: `create or replace`. Only the `permissions` field changes, to `to_jsonb(private.current_permission_keys())`; every other field stays byte-identical. Read the current definition first (`\sf public.get_my_access`).
 - **`set_org_secret` / `delete_org_secret`**: `create or replace` with `settings.integrations_manage` in the check and in the `42501` message. Keep the audit row and everything else.
 
@@ -423,7 +423,7 @@ declare
 begin
   if p_max is null or p_max < 1 or p_window_seconds is null or p_window_seconds not between 1 and 86400
      or p_key_hash is null or pg_catalog.length(p_key_hash) <> 32 then
-    raise exception 'Invalid rate limit arguments' using errcode = '22023';
+    raise exception 'Arguments invalides.' using errcode = '22023';
   end if;
   v_window := pg_catalog.make_interval(secs => p_window_seconds);
   v_start := pg_catalog.date_bin(v_window, pg_catalog.now(), timestamptz '2000-01-01 00:00:00+00');
@@ -517,10 +517,12 @@ git commit -m "feat(db): rate limits and leased webhook claims"
 - **`private.invoke_job_function(p_key text, p_org_id uuid default null, p_trigger text default 'cron') returns void`**:
   - reads `project_url` and `internal_function_secret` from `vault.decrypted_secrets` (database-level secrets, not org secrets);
   - if either is missing: inserts an `error` run with detail `configuration_missing` and returns;
-  - otherwise `net.http_post(url := project_url || '/functions/v1/' || function_name, headers := {Content-Type, Authorization: Bearer <secret>}, body := {job_key, org_id, trigger}, timeout_milliseconds := 10000)`.
+  - otherwise `net.http_post(url := project_url || '/functions/v1/' || function_name, headers := {Content-Type, X-Job-Signature}, body := {job_key, org_id, trigger}, timeout_milliseconds := 150000)`. *Review follow-up:* no raw secret in headers (pg_net's queue is readable by every role); `X-Job-Signature: t=<unix>,v1=<hex HMAC-SHA256(internal_function_secret, '<t>.<job_key>.<org_id or empty>.<trigger>')>`, verified by `_shared/jobs.ts` within ±300 s (lane F commit 9712fa1).
 - **Service-role RPCs** for the functions (Task 3.4 `jobs.ts`):
   - `public.list_job_orgs(p_key text) returns setof uuid`: orgs where the job is enabled and its module is enabled (`core` always). For `local_hour` jobs, it keeps only orgs where `extract(hour from now() at time zone o.timezone) = local_hour`;
   - `public.start_job_run(p_key text, p_org_id uuid, p_trigger text) returns uuid`: for `local_hour` jobs it sets `run_local_date = (now() at time zone tz)::date`, and returns **null** on the unique violation (already ran today) instead of raising;
+    - *Review of Task 3.4:* it also returns **null** when the job is disabled for the org or its module is disabled (`private.module_enabled`), so a manual run (`run_scheduled_job_now` → `runJob` with an explicit `org_id`) can never run a disabled module's job. `run_local_date` is set **only when `p_trigger = 'cron'`**: a manual « Exécuter maintenant » never uses up the clinic day's cron slot. Tests: a manual run on a disabled module → null; a manual run then the cron run the same day → both run.
+    - `runJob` calls it as `consume`-style typed wrappers from `_shared/jobs.ts` (Task 3.4, commit 672e577); `consume(client, LIMITS.x, keyParts)` takes a `LIMITS` entry and returns `{ allowed, hits, retryAfter, reason? }` (Tasks 3.8 and 3.20 use this form).
   - `public.finish_job_run(p_id uuid, p_status text, p_detail text) returns void`.
 - **User RPCs:**
   - `list_scheduled_jobs()` (`settings.view`, definer, one query):
@@ -567,6 +569,15 @@ This only checks that `pg_net` reaches Kong (`select status_code from net._http_
 
 **Commit:** `feat(db): scheduled jobs catalogue, per-org switch, run log, pg_cron and pg_net`.
 
+**Review follow-ups** (same migration, never pushed; `list_job_orgs` / `start_job_run` / `finish_job_run` signatures unchanged):
+- **Signed dispatch, no bearer.** pg_net's tables grant PUBLIC everything, so a queued request's headers are readable by any role. `invoke_job_function` sends no `Authorization` header, only:
+  `X-Job-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256(key = internal_function_secret, message = '<t>.<job_key>.<org_id or empty>.<trigger>')>`
+  (`org_id` as canonical lowercase uuid text, empty for a cron post). `_shared/jobs.ts` (Lane F) checks it: ±300 s, constant-time compare, signed fields equal to the body. Job functions are `verify_jwt = false`. Residual risk: replayable for 5 min, for the same job/org/trigger only. pg_net timeout: 150 000 ms (edge wall clock).
+- **Reconcile.** Each post's request id goes to `scheduled_job_dispatches` (service role only, operational log). `core.scheduled_jobs_reconcile` (SQL, `*/5 * * * *`) turns non-2xx / timeout / network responses (and no response after 1 h) into `error` runs (`http_<status>`, `timeout`, `network`, `no_response`) unless the function logged a run after the dispatch. It marks `running` runs older than 15 min `abandoned` (a local-hour run keeps its day: no double send) and deletes reconciled dispatches after 7 days.
+- **Retention.** `core.scheduled_job_runs_purge` (SQL, daily `20 8 * * *`): runs older than 90 days, `cron.job_run_details` older than 14 days (`skipped` if the platform refuses).
+- **`private.job_due(tz, local_hour, at, last_local_date)`** (P3-22 catch-up): due once the local hour is `>= local_hour` and no cron run exists for that local date. A 25 h day runs once, a missing hour runs at the next one, a missed tick catches up the same day. `start_job_run` re-checks it (no next-day stamp after midnight) and refuses a second run while one started < 15 min ago is `running` (advisory lock).
+- Also: `scheduled_jobs.is_active` (retire = `is_active = false` + `cron.unschedule` in one migration); `list_scheduled_job_runs(p_job_key, p_limit, p_before, p_before_id uuid)` keyset on `(started_at, id)`, hiding disabled modules and retired jobs; `set_scheduled_job_enabled` treats a disabled module's job as unknown (22023) and refuses a null value (22023 « Valeur manquante. »).
+
 ---
 
 ## Task 3.4: Shared function foundations
@@ -581,7 +592,7 @@ This only checks that `pg_net` reaches Kong (`select status_code from net._http_
   - `_shared/deps.ts`: `defaultDeps()`;
   - `_shared/webhooks.ts`: `webhookResponse(status, body?)`, without CORS, `Cache-Control: no-store`; `claimEvent(client, input)` and `completeEvent` / `failEvent`, typed wrappers of the Task 3.2 RPCs returning `{ status: 'claimed', id, token } | { status: 'duplicate' } | { status: 'in_progress' }`;
   - `_shared/rate-limit.ts`: `clientIp(req)` (first `x-forwarded-for` hop, trimmed, else `'unknown'`); `hashKey(parts: string[], secret)` (HMAC-SHA256 with a key derived as `HMAC(INTERNAL_FUNCTION_SECRET, 'rate-limit-v1')`, 32 bytes); `consume(client, bucket, keyParts, max, windowSeconds)` → `{ allowed, retryAfter }`; and `LIMITS` (the constants file of design §2.6 and §3.2, with P3-18's free-recipient limit);
-  - `_shared/jobs.ts`: `runJob(deps, req, jobKey, perOrg: (orgId: string, client) => Promise<string>)`. It runs `verifyServiceRoleAuth`, then reads `{ org_id?, trigger }`. The orgs are `[org_id]` for a manual run, else `list_job_orgs`. For each org: `start_job_run` (null → skip); `perOrg` inside try/catch; `finish_job_run` (`ok` + detail, or `error` + the error's `code` if it has one, else `internal`). It returns 200 with `{ runs: n }`;
+  - `_shared/jobs.ts`: `runJob(deps, req, jobKey, perOrg: (orgId: string, client) => Promise<string>)`. It verifies `X-Job-Signature` (see Task 3.3), then reads `{ job_key, org_id?, trigger }`. The orgs are `[org_id]` for a manual run, else `list_job_orgs`. For each org: `start_job_run` (null → skip); `perOrg` inside try/catch; `finish_job_run` (`ok` + detail, or `error` + the error's `code` if it has one, else `internal`). It returns 200 with `{ runs: n }`;
   - `_shared/report.ts`: `reportError({ fn, code, ids?: Record<string, string> })`. It posts a Sentry envelope when `SENTRY_DSN` is set, otherwise `console.error(JSON.stringify({ fn, code, ids }))`. It refuses keys named `email`, `to`, `token` or `password` (throws in tests; drops them in production);
   - `_shared/testing/fake-supabase.ts`, `fake-fetch.ts`, `fixed-clock.ts`.
 - Modify: `CLAUDE.md` §7:
@@ -651,6 +662,8 @@ Expected: `ok | N passed | 0 failed`.
 
 ## Task 3.6: Email schema
 
+**From lane F (Task 3.7 review):** the placeholder rule is `\{\{([^{}\r\n]*)\}\}` (exported as `PLACEHOLDER_SOURCE` in `_shared/email/render.ts`) with the captured path trimmed in code (linear; no newline inside a placeholder). `save_email_template`'s placeholder check in SQL must use exactly this rule so validation and rendering agree; probe it with `{{` + 10 000 spaces (must return fast). `get_email_context` must return `why_line`. Lane F's compose step maps `unknown_variable` → `missing_variable` and reports an invalid clinic timezone as a configuration error. **RPC contract assumed by lane F's send path (Task 3.8, commit 6ae5810; the comments in `_shared/email/send.ts` are authoritative), match it or change both:** `get_email_context(p_org_id uuid, p_template_key text) returns jsonb` (unknown key → 22023) with `{ module_key, module_enabled, timezone, template: { key, version, subject, body, button_label, why_line, variables[{path,label,sample,required,kind}], view_permission, recipient_mode 'subject'|'free', allows_attachments }, sender: { from_name, from_address, reply_to }, clinic: { name, address_line1, address_line2, city, province, postal_code, phone, website, privacy_officer_name, privacy_officer_email } }`; `queue_email(p_org_id, p_template_key, p_template_version int, p_to_email, p_to_profile_id, p_subject_type, p_subject_id, p_view_permission, p_sent_by, p_attachment_count smallint) returns uuid` (status `queued`); `mark_email_sent(p_id, p_resend_id, p_attempts int)`; `mark_email_failed(p_id, p_error_code, p_attempts int)`; all service-role only. **From the Task 3.8 review (DB side):** (1) `apply_email_event` treats `failed` as final **except** when `error_code = 'provider_unavailable'` (outcome unknown: timeout or network error on the last attempt): a later `email.sent`/`email.delivered` webhook may move it forward, so the timeline does not show a false failure and « Renvoyer » does not resend a delivered email. (2) A maintenance step (in the Task 3.3 jobs or the `email_log` retention job) moves rows still `queued` after 15 minutes to `failed` with `error_code = 'provider_unavailable'` (overridable the same way), so a function killed between queue and mark leaves no row stuck. (3) `email_sender_settings.reply_to` gets the same single-mailbox format check as `from_address`, and `from_address`'s check refuses `<>,` and whitespace in the local part.
+
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_email.sql`
 - Create: `supabase/tests/database/018_core_email.test.sql`
@@ -671,7 +684,7 @@ Expected: `ok | N passed | 0 failed`.
 create policy email_log_select on public.email_log for select to authenticated
   using (
     org_id = (select private.current_user_org_id())
-    and (view_permission = any ((select private.current_permission_keys()))
+    and (view_permission = any ((select private.current_permission_keys())::text[])
          or (select private.has_permission('settings.email_manage')))
   );
 create index email_log_org_created_idx on public.email_log (org_id, created_at desc);
@@ -712,6 +725,7 @@ create index email_log_retention_idx on public.email_log (created_at) where to_e
     - sets `last_event_at`.
   - `count_org_emails_today(p_org_id) returns int` (clinic day; feeds the 80 % warning).
 - **Job:** `core.email_log_retention` (sql, maintenance, `30 8 * * *`): `update … set to_email = null where to_email is not null and created_at < now() - interval '24 months'`, in batches of 5 000 (loop until fewer rows), so one run never holds a long lock.
+- **Job (from the Task 3.8 review; deferred here by Task 3.3 because `email_log` does not exist before this task):** `core.email_log_stale_queued` (sql, maintenance, `*/5 * * * *`): `update … set status = 'failed', error_code = 'provider_unavailable' where status = 'queued' and created_at < now() - interval '15 minutes'`, with a partial index `(created_at) where status = 'queued'`. Seed it like the Task 3.3 jobs (`scheduled_jobs` row + `cron.schedule`). Test: a `queued` row 16 minutes old becomes `failed` / `provider_unavailable`; one 14 minutes old stays `queued`.
 - **Seed:** `core.staff_invite` in `email_template_defaults`:
   - label « Invitation d'un membre du personnel », `why_line` « Vous recevez ce courriel parce que la clinique vous invite à créer votre accès. »;
   - subject « Votre accès à {{clinic.name}} », button « Créer mon accès »;
@@ -934,13 +948,11 @@ Rules:
 
 **Lane:** F (after Task 3.6 merges). The `[functions.*]` blocks in `config.toml` are added by the DB lane in the same merge window: ask the coordinator, or add them in this task's commit if the DB lane agrees.
 
-**Files:** `supabase/functions/{email-preview,email-test-send,send-email,resend-webhook}/{index.ts,handler.ts,handler.test.ts}`, and `supabase/config.toml`:
+**Files:** `supabase/functions/{email-preview,email-test-send,resend-webhook}/{index.ts,handler.ts,handler.test.ts}`, and `supabase/config.toml`:
 ```toml
 [functions.email-preview]
 verify_jwt = false
 [functions.email-test-send]
-verify_jwt = false
-[functions.send-email]
 verify_jwt = false
 [functions.resend-webhook]
 verify_jwt = false
@@ -958,10 +970,7 @@ verify_jwt = false
   - body `{ template_key, subject?, body?, button_label? }` (the draft, if any);
   - `sendTemplatedEmail` in test mode to `auth.access.email` (subject type `email_test`, id = the caller);
   - result codes map to HTTP statuses: `rate_limited` 429; `not_configured` 503; `provider_error` 502; `missing_variable` 400.
-- **`send-email`:**
-  - `verifyServiceRoleAuth`;
-  - body `{ org_id, template_key, to_profile_id?, to_email, subject: { type, id }, values, action_url, explicit_resend? }` (internal callers only: cron and Phase 4 jobs);
-  - `org_id` is accepted here because the caller is the service itself; the module gate comes from `get_email_context`.
+- **`send-email`: dropped (coordinator, after the Task 3.3 review).** Internal senders are edge functions (job functions, module functions); they import `sendTemplatedEmail` from `_shared/email/send.ts` and call it in-process, so no internal HTTP endpoint (and no service-key bearer on the wire) is needed. SQL never sends email directly: a job function does. If a future caller truly needs HTTP, it uses the `X-Job-Signature` scheme, never a raw bearer.
 - **`resend-webhook`:**
   1. `org` from `?org=`, a UUID, else 400.
   2. Read the raw body (≤ 64 KB).
@@ -981,7 +990,6 @@ verify_jwt = false
   - an unknown placeholder in the draft → 400 `invalid_request`, with the French message from the render code mapped in the UI;
   - an HTML response contains no `<script>` from the input.
 - **Test send:** the recipient is always the caller's address, even if the body has `to`; the 11th test in an hour → 429.
-- **`send-email`:** a user JWT → 401.
 - **Webhook:**
   - a bad signature → 401, and no RPC is called after `get_org_secret`;
   - no secret → 401;
@@ -1099,7 +1107,7 @@ Record the outputs (status codes only) in the task report.
   ```sql
   using (
     org_id = (select private.current_user_org_id())
-    and recipient_permission = any ((select private.current_permission_keys()))
+    and recipient_permission = any ((select private.current_permission_keys())::text[])
     and (recipient_user_id is null or recipient_user_id = (select auth.uid()))
     and (expires_at is null or expires_at > now())
   )
@@ -1673,6 +1681,8 @@ Content, 15–30 lines:
 
 ## Task 3.24: Storage (database)
 
+**From lane F (Task 3.25, `_shared/storage.ts`, commit 40fea35), match these:** MIME → extension map `application/pdf→pdf`, `image/png→png`, `image/jpeg→jpg`, `image/webp→webp`, `application/msword→doc`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document→docx` (exact MIME strings, no aliases); `stored_files.sha256` and `confirm_stored_file(p_sha256 text)` take **64 lower-case hex characters** (not `\x…` bytea); object paths `{org_id}/{module_key}/{subject_id}/{file_id}.{ext}` with canonical lower-case UUIDs; the DB stays the source of truth for the path. `get_pending_upload` also returns the purpose's `max_bytes` (the size cap `inspectStream` enforces). Allow `application/msword` only for purposes that truly need it (OLE sniffing accepts any compound file); Phase 4 purposes default to PDF and images.
+
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_storage.sql`
 - Create: `supabase/tests/database/022_core_storage.test.sql`
@@ -1711,9 +1721,9 @@ on conflict (id) do nothing;
       org_id = (select private.current_user_org_id())
       and status = 'ready'
       and (view_permission is null
-           or view_permission = any ((select private.current_permission_keys()))
+           or view_permission = any ((select private.current_permission_keys())::text[])
            or (owner_profile_id = (select auth.uid())
-               and owner_permission = any ((select private.current_permission_keys()))))
+               and owner_permission = any ((select private.current_permission_keys())::text[])))
     )
     ```
   - no client writes.
@@ -1737,8 +1747,8 @@ as $$
        and f.status = 'ready'
        and f.org_id = private.current_user_org_id()
        and (f.view_permission is null
-            or f.view_permission = any (private.current_permission_keys())
-            or (f.owner_profile_id = auth.uid() and f.owner_permission = any (private.current_permission_keys())))
+            or f.view_permission = any ((select private.current_permission_keys())::text[])
+            or (f.owner_profile_id = auth.uid() and f.owner_permission = any ((select private.current_permission_keys())::text[])))
   )
 $$;
 revoke all on function private.can_read_object(text, text) from public, anon;
@@ -1827,6 +1837,8 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string>
 
 ## Task 3.26: `storage-upload`, `storage-confirm`, `storage-cleanup`
 
+**From Task 3.25:** use `buildObjectPath` to check the path the RPC returns before signing it; `storage-confirm` also checks that the stored object's content type equals the declared MIME (the client sets that header on the signed upload), then streams the object through `inspectStream` (hash + sniff under the size cap).
+
 **Lane:** F (after Task 3.24 merges). **Files:** the three function folders; `config.toml` (`verify_jwt = false` for all three).
 
 **Behaviour:**
@@ -1868,6 +1880,8 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string>
 ---
 
 ## Task 3.27: Upload widget, logo, signatory email and signature image
+
+**From the Task 3.25 review:** about 7 % of real `.jpg` files are really PNG or WebP, and browsers derive `file.type` from the extension. The widget sniffs the first bytes on the client (same signatures as `_shared/storage.ts`) and sends the sniffed MIME when it is allowed for the purpose, so a misnamed image is not refused with « Ce fichier n'est pas du type annoncé ».
 
 **Lane:** U (after Task 3.26 merges). **Files:**
 - Create: `src/core/storage/api.ts` + test: `uploadFile({ purpose, subjectType, subjectId, file }): Promise<{ fileId }>`. It calls `storage-upload` → `supabase.storage.from(bucket).uploadToSignedUrl(path, token, file)` → `storage-confirm`. Also `signedFileUrl(fileId, { download?: boolean })`: reads `stored_files` (`object_path, bucket, original_name`) for one id, then `createSignedUrl(path, 300, download ? { download: original_name } : undefined)`.
@@ -1962,6 +1976,10 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 ## Task 3.30: `_shared/pdf/` renderer (P3-19)
 
+**Spike result (Task 3.29, commit 46a097f, ADR 0008 draft):** pdfmake 0.3.11 adopted. Warm contract median 134 ms, cold ≤ 246 ms, glyphs complete (fonts are WOFF, not WOFF2), byte-identical output. Two constraints carried into this task:
+- **Bundle isolation (decided by the coordinator).** With pdfmake in the shared `deno.json`/`deno.lock`, the CLI bundler packs it into **every** function (supabase-js-only function: 0.93 → 7.37 MB uploaded). Fix it here: only the PDF-rendering functions (`signing-*` that render, the fiche function) may pull pdfmake. Use a per-function `deno.json` for those functions (Supabase supports one per function folder), or a pre-built vendored pdfmake module imported only by `_shared/pdf/`. Adjust `scripts/` lint rules if they forbid it, and document the exception in CLAUDE.md §7. **Acceptance:** `supabase functions deploy --dry-run`/bundle of a non-PDF function is back to ≈ 1 MB; a PDF function stays ≤ 10 MB uploaded (compressed upload size is the measure: it is what the 20 MB CLI limit applies to). Deploys keep bundling with the CLI (never `--use-api`, 5 MB cap).
+- Fold in the spike notes: keep headings with the next block; images as data URLs only; pdfmake URL and local-file access both denied; the signature page must be the last block; convert U+202F to U+00A0 before rendering.
+
 **Lane:** F (after Task 3.29). **Files:**
 - `supabase/functions/_shared/pdf/model.ts`: the document model, a closed set of blocks (no HTML):
   ```ts
@@ -2003,6 +2021,8 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 ## Task 3.31: Signing (database)
 
+**From lane F (Task 3.32, commit a0cca70):** the local seed sets the signing base URL to `http://host.docker.internal:55390` (the fake started by `npm run fake:documenso`) and the two org secrets to `local-dev-documenso-key` / `local-dev-documenso-webhook-secret`. `signing-webhook` passes Documenso's raw event names (`DOCUMENT_COMPLETED`, `DOCUMENT_CANCELLED`, …) to `documensoEventId`. `signature_requests` keeps `provider_document_id` even when a later creation step fails (the client's error carries it) so the reconcile job can cancel it. **From lane F (Task 3.30, commit a03143c):** `get_signing_context` returns `{ bucket, object_path }` for the logo and signature images (the renderer's `loadAssets` takes `{ key, bucket, path }`); `update_template_version`'s placeholder check scans **every string** in the body JSON (the renderer fills all of them, with the same placeholder rule as emails); the logo and signature upload purposes (Task 3.24) accept **PNG and JPEG only**: pdfmake cannot embed WebP. Also: `signature_requests` stores Documenso's `envelope_id` next to `provider_document_id` (future move to the envelope API); the logo/signature upload purposes cap PNG dimensions at 4000×4000 (read from the header; a small PNG with alpha can decode to hundreds of MB).
+
 **Lane:** DB. **Files:**
 - Create: `supabase/migrations/<ts>_core_signing.sql`
 - Create: `supabase/tests/database/023_core_signing.test.sql`
@@ -2017,7 +2037,7 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   - audited.
 - **`document_templates`**:
   - `id, org_id, key (unique per org; must start with module_key || '.'), module_key → modules, title, description, view_permission → permissions, edit_permission → permissions, is_active, timestamps`;
-  - select: own org and `view_permission = any(current_permission_keys())`;
+  - select: own org and `view_permission = any ((select private.current_permission_keys())::text[])`;
   - audited.
 - **`document_template_versions`** as in design §6.2:
   - `body jsonb check (jsonb_typeof(body) = 'object' and pg_column_size(body) <= 262144)` (the `PdfDocument` model);
@@ -2034,7 +2054,7 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   - `source_file_id` / `signed_file_id → stored_files`;
   - `unique (org_id, idempotency_key)`;
   - indexes: `(org_id, subject_type, subject_id, created_at desc)`; `(status, sent_at) where status in ('sent','viewed')` (reconcile); FK indexes;
-  - select: own org and `view_permission = any(current_permission_keys())`;
+  - select: own org and `view_permission = any ((select private.current_permission_keys())::text[])`;
   - audited.
 - **`signature_request_signers`** as in design §6.2:
   - composite reference to the request's org;
@@ -2143,6 +2163,8 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 
 ## Task 3.33: `_shared/signing.ts` and the signing functions
 
+**From Task 3.30:** pdfmake is vendored at `_shared/pdf/vendor/pdfmake.js` and imported only by `_shared/pdf/render.ts`. Keep the code that renders (request creation) in a module that `signing-webhook` and `signing-sync` do not import, so those functions stay small (≈1.4 MB vs ≈1.9 MB uploaded).
+
 **Lane:** F (after Tasks 3.31 and 3.30 merge). **Files:**
 - `supabase/functions/_shared/signing.ts` + test:
   ```ts
@@ -2179,7 +2201,7 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   7. Exception → `failEvent` → 500.
 - `signing-sync/`:
   - **user mode:** `verifyAuth`; body `{ request_id }`; the row read through RLS with `get_signature_request(p_id)` (user client; no row → 404); module gate; Documenso `get` → map to events → `apply_signing_event` (and the download when completed);
-  - **cron mode:** `verifyServiceRoleAuth` → `runJob('core.signing_reconcile')`:
+  - **cron mode:** `runJob('core.signing_reconcile')` (which verifies `X-Job-Signature`):
     - each org's `list_signature_requests_to_reconcile` batch is processed with a concurrency of 4 (`Promise.all` over chunks), not one by one, and not unbounded;
     - overdue → `cancel` + `expire_signature_request`;
     - stale drafts → `cancel` if they have a document id, then `mark_signature_request_failed('abandoned')`.
@@ -2255,6 +2277,8 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
 ---
 
 ## Task 3.35: ADR 0005 status and ADR 0008
+
+**From Task 3.30:** update ADR 0008: pdfmake is vendored (`npm run build:pdfmake`, pinned by `scripts/build-pdfmake.lock`), not an npm import in `deno.json`; uploaded sizes are ≈1.35 MB for a non-PDF function and ≈1.86 MB for a rendering one; `isolation.test.ts` guards it.
 
 **Lane:** coordinator. **Files:** `docs/adr/0005-documenso-replaces-docuseal.md`, `docs/adr/0008-server-side-pdf-rendering.md`, `docs/adr/README.md`.
 - **ADR 0005:**
@@ -2368,7 +2392,7 @@ Nothing below is needed to build or test Phase 3. Each item is done by Jonathan,
 | 9 | **Function secrets** | `supabase secrets set --project-ref vnmbjbdsjxmpijyjmmkh …` | `INTERNAL_FUNCTION_SECRET` (a new random 32+ byte value, generated by Jonathan), `APP_URL=https://app.cliniquemana.com`, `ALLOWED_ORIGINS=https://app.cliniquemana.com`, `EMAIL_TRANSPORT=resend`, optional `SENTRY_DSN` |
 | 10 | **Database Vault secrets** (for `pg_net`) | SQL editor, run by Jonathan | `select vault.create_secret('https://vnmbjbdsjxmpijyjmmkh.supabase.co', 'project_url', 'pg_net → edge functions');` and `select vault.create_secret('<same value as INTERNAL_FUNCTION_SECRET>', 'internal_function_secret', 'pg_net → edge functions');`. Verify: « Tâches planifiées » shows `ok` runs the next morning, not `configuration_missing` |
 | 11 | **Anon key type** | Dashboard → API keys | The web app must use the legacy anon **JWT** key (`resolve-link` / `accept-invite` have `verify_jwt = true`). If the project has moved to publishable keys only, tell the agent: both functions switch to `verify_jwt = false` with an explicit `apikey` check (inconsistency #14) |
-| 12 | **Client IP header** | After deploy, one `resolve-link` call | Confirm that `x-forwarded-for`'s first hop is the client IP on the hosted edge runtime (design §3.2); the agent reads it from a temporary log, with the go-ahead |
+| 12 | **Client IP header** | After deploy, one `resolve-link` call | Send a request with a **forged** `X-Forwarded-For: 198.51.100.7` and log what the function receives (temporary log, with the go-ahead). If the forged value survives as the first hop, switch `clientIp` to the rightmost hop added by the trusted proxy (or `cf-connecting-ip` if present) before real use: otherwise per-IP limits on `resolve-link` / `accept-invite` can be bypassed (Task 3.4 review) |
 | 13 | **Disabled-user refresh** (P3-9) | Staging smoke test step 5 | Confirm that a banned user's refresh fails on hosted GoTrue too |
 | 14 | **Drop: legacy bucket** `professional-documents` (39 test files) | Runbook `docs/runbooks/legacy-professional-documents-bucket.md` | Back up into `clinique-mana-backups/`, then delete through the Storage API. **Only with Jonathan's OK**; no inventory feature is dropped |
 | 15 | **Loi 25** (Christine) | Privacy officer | EFVP for Resend (United States) and the Documenso host before real personal data is sent; list the processors in the privacy policy; confirm the 24-month `email_log` anonymisation (P3-6) |

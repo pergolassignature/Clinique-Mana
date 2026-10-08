@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
 import { t } from '@/i18n'
+import { useAccess } from '@/core/access/access-context'
 import { roleLabel } from '@/core/access/roles'
 import { useSettingsSection } from '@/core/settings/section-context'
 import type { OrgUser } from '@/core/users/api'
 import { RoleMatrix } from '@/core/users/components/RoleMatrix'
-import { LoadError, Loading } from '@/core/users/components/LoadState'
 import { UserSheet } from '@/core/users/components/UserSheet'
 import { useOrgUsers } from '@/core/users/hooks'
+import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { ReadOnlyNotice } from '@/shared/components/ReadOnlyNotice'
 import { initialsOf } from '@/shared/lib/format'
@@ -23,14 +24,23 @@ const TABS: Tab[] = ['users', 'roles']
 const isTab = (value: string): value is Tab => (TABS as string[]).includes(value)
 
 /**
- * Paramètres → Utilisateurs et accès: the clinic's users (tab « Utilisateurs ») and what each role
- * gives by default (tab « Rôles », read-only). With users.manage, a row opens the user's sheet
- * (role, status, permission overrides); with users.view only, the table is read-only. People are
- * added by hand until invitations exist (decision #22).
+ * Paramètres → Utilisateurs et accès: the clinic's users (tab « Utilisateurs », with users.view)
+ * and what each role gives by default (tab « Rôles », editable with roles.manage). The section opens
+ * with either permission, on the first tab the user can see. Each tab follows its own right: with
+ * users.manage, a row opens the user's sheet (role, status, permission overrides), else the table
+ * is read-only; the matrix follows roles.manage. The section is read-only (the lock, one notice
+ * for the page) only without either; otherwise a read-only users tab has its own notice.
+ * People are added by hand until invitations exist (decision #22).
  */
 export function UsersSettingsPage() {
   const { readOnly } = useSettingsSection()
-  const [tab, setTab] = useState<Tab>('users')
+  const { can } = useAccess()
+  const canManageUsers = can('users.manage')
+  // The users need users.view (list_org_users refuses otherwise); the roles show to whoever is here.
+  const tabs = TABS.filter((value) => value !== 'users' || can('users.view'))
+  const [selected, setTab] = useState<Tab | null>(null)
+  // The chosen tab while it is visible, else the first one (also after a permission change).
+  const tab = selected !== null && tabs.includes(selected) ? selected : (tabs[0] ?? 'roles')
 
   return (
     <div className="max-w-content space-y-5">
@@ -39,15 +49,18 @@ export function UsersSettingsPage() {
       {/* Page-level views: real tabs, reachable by keyboard (decision #35). */}
       <Tabs value={tab} onValueChange={(value) => isTab(value) && setTab(value)}>
         <TabsList>
-          {TABS.map((value) => (
+          {tabs.map((value) => (
             <TabsTrigger key={value} value={value}>
               {t(`settings.users.tabs.${value}`)}
             </TabsTrigger>
           ))}
         </TabsList>
-        <TabsContent value="users" className="mt-5">
-          <UsersTab canManage={!readOnly} />
-        </TabsContent>
+        {tabs.includes('users') && (
+          <TabsContent value="users" className="mt-5 space-y-5">
+            {!readOnly && !canManageUsers && <ReadOnlyNotice />}
+            <UsersTab canManage={canManageUsers} />
+          </TabsContent>
+        )}
         <TabsContent value="roles" className="mt-5">
           <RoleMatrix />
         </TabsContent>
@@ -64,6 +77,19 @@ function UsersTab({ canManage }: { canManage: boolean }) {
   // The name buttons, so focus returns to the opened row's button when the sheet closes (also
   // after a click elsewhere on the row).
   const nameButtons = useRef(new Map<string, HTMLButtonElement>())
+  // One stable callback ref per user (an inline one would detach and reattach on every render).
+  const buttonRefs = useRef(new Map<string, (button: HTMLButtonElement | null) => void>())
+  const buttonRef = (userId: string) => {
+    let ref = buttonRefs.current.get(userId)
+    if (!ref) {
+      ref = (button) => {
+        if (button) nameButtons.current.set(userId, button)
+        else nameButtons.current.delete(userId)
+      }
+      buttonRefs.current.set(userId, ref)
+    }
+    return ref
+  }
   const lastOpened = useRef<string | null>(null)
   const open = (userId: string) => {
     lastOpened.current = userId
@@ -83,10 +109,7 @@ function UsersTab({ canManage }: { canManage: boolean }) {
           canManage={canManage}
           selectedId={selected?.user_id ?? null}
           onOpen={open}
-          registerButton={(userId, button) => {
-            if (button) nameButtons.current.set(userId, button)
-            else nameButtons.current.delete(userId)
-          }}
+          buttonRef={buttonRef}
         />
       )}
       {canManage && (
@@ -107,7 +130,8 @@ interface UsersTableProps {
   canManage: boolean
   selectedId: string | null
   onOpen: (userId: string) => void
-  registerButton: (userId: string, button: HTMLButtonElement | null) => void
+  /** The name button's callback ref, the same function for a user on every render. */
+  buttonRef: (userId: string) => (button: HTMLButtonElement | null) => void
 }
 
 /**
@@ -116,7 +140,7 @@ interface UsersTableProps {
  * the status under the role, the last sign-in in the sheet. The name is a button for keyboard
  * users; a click anywhere on the row opens the sheet too.
  */
-function UsersTable({ users, canManage, selectedId, onOpen, registerButton }: UsersTableProps) {
+function UsersTable({ users, canManage, selectedId, onOpen, buttonRef }: UsersTableProps) {
   const lastSignIn = (u: OrgUser) => (u.last_sign_in_at ? formatClinicDateTime(u.last_sign_in_at) : t('settings.users.never'))
   return (
     <div className="rounded-lg border border-border bg-card">
@@ -166,7 +190,7 @@ function UsersTable({ users, canManage, selectedId, onOpen, registerButton }: Us
                     <div className="min-w-0">
                       {canManage ? (
                         <button
-                          ref={(button) => registerButton(u.user_id, button)}
+                          ref={buttonRef(u.user_id)}
                           type="button"
                           className={`block max-w-full truncate rounded-sm text-left font-medium hover:underline ${focusRing}`}
                           onClick={(event) => {

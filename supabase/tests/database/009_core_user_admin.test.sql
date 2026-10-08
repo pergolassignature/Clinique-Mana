@@ -6,7 +6,7 @@
 -- path, audit of override changes, org isolation.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(94);
+select plan(99);
 
 -- =============================================================================
 -- Fixtures (as postgres)
@@ -76,7 +76,10 @@ select function_privs_are('private', 'assert_can_manage_user', array['uuid'],   
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 
-select is((select count(*)::int from public.list_org_users()), 6, 'A1 lists the 6 users of org A');
+select set_eq($$ select user_id from public.list_org_users() $$,
+  array['a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000003',
+        'a0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000007']::uuid[],
+  'A1 lists exactly the 6 users of org A');
 select ok(not exists (select 1 from public.list_org_users() where user_id = 'a0000000-0000-0000-0000-000000000005'),
   'org B users are not listed');
 select results_eq(
@@ -94,6 +97,12 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select throws_ok($$ select * from public.list_org_users() $$, '42501', null, 'a counselor cannot list users');
 select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000007', 'counselor') $$,
   '42501', null, 'a counselor cannot change roles');
+select throws_ok($$ select public.set_user_status('a0000000-0000-0000-0000-000000000007', 'disabled') $$,
+  '42501', null, 'a counselor (no users.manage) cannot change a status');
+select throws_ok($$ select public.set_permission_override('a0000000-0000-0000-0000-000000000007', 'professionals.view', true) $$,
+  '42501', null, 'a counselor (no users.manage) cannot set an override');
+select throws_ok($$ select public.clear_permission_override('a0000000-0000-0000-0000-000000000004', 'users.view') $$,
+  '42501', null, 'a counselor (no users.manage) cannot clear an override');
 
 -- =============================================================================
 -- set_user_role as admin A1
@@ -113,7 +122,7 @@ select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-0000000
 select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000003', 'provider') $$,
   'P0001', 'Le rôle Professionnel se gère dans le module Professionnels.', 'the provider role cannot be given here');
 select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000003', 'staff') $$,
-  '22023', null, 'unknown role is a technical error');
+  'P0001', 'Ce rôle n''existe plus.', 'an unknown role: « Ce rôle n''existe plus. » (since core_editable_roles)');
 select throws_ok($$ select public.set_user_role('a0000000-0000-0000-0000-000000000005', 'counselor') $$,
   'P0001', 'Utilisateur introuvable.', 'a user of another org is not found');
 
@@ -286,11 +295,18 @@ select throws_ok($$ select public.set_user_status('a0000000-0000-0000-0000-00000
   'P0001', 'Utilisateur introuvable.', 'org B admin cannot disable an org A user');
 select throws_ok($$ select public.set_permission_override('a0000000-0000-0000-0000-000000000003', 'audit.view', true) $$,
   'P0001', 'Utilisateur introuvable.', 'org B admin cannot add an override in org A');
+select throws_ok($$ select public.clear_permission_override('a0000000-0000-0000-0000-000000000003', 'settings.manage') $$,
+  'P0001', 'Utilisateur introuvable.', 'org B admin cannot clear an override in org A');
 
 -- =============================================================================
 -- Audit (as postgres)
 -- =============================================================================
 reset role;
+
+select ok(exists (
+  select 1 from public.user_permission_overrides
+   where user_id = 'a0000000-0000-0000-0000-000000000003' and permission_key = 'settings.manage' and not granted
+), 'C''s revoke survives org B''s attempt to clear it');
 
 select ok(exists (
   select 1 from public.audit_log

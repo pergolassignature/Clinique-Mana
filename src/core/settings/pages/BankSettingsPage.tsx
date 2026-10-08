@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react'
 import { t } from '@/i18n'
 import { useBankDetails } from '@/core/settings/bank/hooks'
 import { EmptyState } from '@/shared/components/EmptyState'
+import { LoadError, Loading } from '@/shared/components/LoadState'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { Button } from '@/shared/ui/button'
 import { BankDetailsCard } from '../components/BankDetailsCard'
@@ -36,23 +37,14 @@ export function BankSettingsPage() {
 
   let content
   if (isPending) {
-    content = (
-      <p role="status" className="text-sm text-muted-foreground">
-        {t('common.loading')}
-      </p>
-    )
+    content = <Loading />
   } else if (isError && !details && !editing) {
     // Nothing to show and the last load failed: never the empty state, which would claim nothing is
     // stored (e.g. a first save succeeded but reloading the details did not). Stale details stay shown.
     // Intended: a failed background refetch with nothing stored also shows this banner, since we can
     // no longer vouch that nothing is stored.
     content = (
-      <div role="alert" className="flex flex-wrap items-center gap-3">
-        <p className="text-sm text-muted-foreground">{t('settings.bank.loadError')}</p>
-        <Button ref={actionRef} variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
-          {t('common.retry')}
-        </Button>
-      </div>
+      <LoadError message={t('settings.bank.loadError')} retrying={isFetching} onRetry={() => void refetch()} retryRef={actionRef} />
     )
   } else if (editing) {
     content = <BankDetailsForm details={details ?? null} onClose={close} />

@@ -209,3 +209,17 @@ export function formatDateOnlyFull(dateStr: string | null | undefined): string {
 export function formatDateOnlyShort(dateStr: string | null | undefined): string {
   return formatDateOnly(dateStr, 'd MMM yyyy')
 }
+
+/**
+ * A date-only `yyyy-MM-dd` string moved by `days` (negative: earlier), as a calendar date. Computed
+ * in UTC, so neither the host's timezone nor a DST change can shift it.
+ *
+ * @example
+ * shiftCalendarDay('2026-03-08', 1) // "2026-03-09"
+ * shiftCalendarDay('2026-03-01', -1) // "2026-02-28"
+ */
+export function shiftCalendarDay(date: string, days: number): string {
+  const day = new Date(`${date}T00:00:00Z`)
+  day.setUTCDate(day.getUTCDate() + days)
+  return day.toISOString().slice(0, 10)
+}

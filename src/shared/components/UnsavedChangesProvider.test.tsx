@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { t } from '@/i18n'
 import { ROUTER_FUTURE } from '@/shared/lib/router-future'
 import { useConfirmLeave, useUnsavedChanges } from '@/shared/lib/unsaved-changes-context'
+import { hasUnsavedChanges } from '@/shared/lib/unsaved-changes-registry'
 import { GuardedNavLink } from './GuardedNavLink'
 import { UnsavedChangesProvider } from './UnsavedChangesProvider'
 
@@ -287,5 +288,24 @@ describe('unsaved-changes guard', () => {
     expect(onLeave).toHaveBeenCalledOnce()
     await userEvent.click(link())
     expect(await screen.findByText('PAGE B')).toBeInTheDocument()
+  })
+
+  // Read by the stale-chunk recovery (app-update.ts), which must not reload over unsaved edits.
+  describe('hasUnsavedChanges (outside React)', () => {
+    it('follows the dirty forms', () => {
+      const { rerender } = render(<App forms={[false]} />)
+      expect(hasUnsavedChanges()).toBe(false)
+      rerender(<App forms={[true]} />)
+      expect(hasUnsavedChanges()).toBe(true)
+      rerender(<App forms={[false]} />)
+      expect(hasUnsavedChanges()).toBe(false)
+    })
+
+    it('forgets the provider when it unmounts', () => {
+      const { unmount } = render(<App forms={[true]} />)
+      expect(hasUnsavedChanges()).toBe(true)
+      unmount()
+      expect(hasUnsavedChanges()).toBe(false)
+    })
   })
 })

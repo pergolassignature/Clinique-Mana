@@ -30,11 +30,11 @@
 | Person | Role in the business | App role (design §2) |
 |---|---|---|
 | Christine (direction) | Runs the clinic, signs contracts, privacy officer (Loi 25) | `admin` |
-| Conseillères (e.g. Alicia, Nathalie) | First contact: free discovery call, needs evaluation, **matching** client ↔ professional. They know every professional's specialties and approach. | `staff` (+ overrides as needed) |
-| Adjointe administrative (e.g. Rachel) | Administration, billing, management tools | `staff` (+ overrides) |
+| Conseillères (e.g. Alicia, Nathalie) | First contact: free discovery call, needs evaluation, **matching** client ↔ professional. They know every professional's specialties and approach. | `counselor` « Conseillère » (+ overrides as needed) |
+| Adjointe administrative (e.g. Rachel) | Administration, billing, management tools | `admin_assistant` « Adjointe administrative » (+ overrides) |
 | Professionnels (~50) | Independent contractors, 100 % remote, set their own availability, no exclusivity, can keep a private practice | `provider` |
 
-Whether *conseillère* and *adjointe administrative* need distinct default permission sets is an open question (they could be two roles or one role with overrides).
+*Conseillère* and *adjointe administrative* are two roles with distinct defaults (decision #23); each clinic can adjust their defaults or add its own roles in « Utilisateurs et accès » (decision #40). The role defaults are in [the core module doc](../modules/core.md#permission-keys).
 
 ## 3. Client journey (what the app must support)
 

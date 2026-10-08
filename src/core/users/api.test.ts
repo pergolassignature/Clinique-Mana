@@ -2,10 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   clearPermissionOverride,
   clearPermissionOverrides,
+  createRole,
+  deleteRole,
   fetchOrgUsers,
-  fetchPermissionCatalog,
+  fetchRoleDefaults,
   fetchUserOverrides,
+  renameRole,
   setPermissionOverride,
+  setRolePermission,
   setUserRole,
   setUserStatus,
 } from './api'
@@ -99,35 +103,19 @@ describe('fetchOrgUsers', () => {
   })
 })
 
-describe('fetchPermissionCatalog', () => {
-  it('reads permissions, role defaults, roles and modules', async () => {
-    mocks.results.set('permissions', { data: [{ key: 'audit.view', module_key: 'core', description: "Consulter le journal d'audit" }], error: null })
-    mocks.results.set('role_permissions', { data: [{ role: 'admin', permission_key: 'audit.view' }], error: null })
-    mocks.results.set('roles', { data: [{ key: 'admin', name: 'Administrateur' }], error: null })
-    mocks.results.set('modules', { data: [{ key: 'core', name: 'Noyau' }], error: null })
-    await expect(fetchPermissionCatalog()).resolves.toEqual({
-      permissions: [{ key: 'audit.view', module_key: 'core', description: "Consulter le journal d'audit" }],
-      rolePermissions: [{ role: 'admin', permission_key: 'audit.view' }],
-      roles: [{ key: 'admin', name: 'Administrateur' }],
-      modules: [{ key: 'core', name: 'Noyau' }],
-    })
-    expect(mocks.select.mock.calls).toEqual(
-      expect.arrayContaining([
-        ['permissions', 'key, module_key, description'],
-        ['role_permissions', 'role, permission_key'],
-        ['roles', 'key, name'],
-        ['modules', 'key, name'],
-      ]),
-    )
+describe('fetchRoleDefaults', () => {
+  it("reads the clinic's role defaults (org_role_permissions), never the template", async () => {
+    mocks.results.set('org_role_permissions', { data: [{ role: 'counselor', permission_key: 'professionals.view' }], error: null })
+    await expect(fetchRoleDefaults('o1')).resolves.toEqual([{ role: 'counselor', permission_key: 'professionals.view' }])
+    expect(mocks.select).toHaveBeenCalledWith('org_role_permissions', 'role, permission_key')
+    expect(mocks.eq).toHaveBeenCalledWith('org_role_permissions', 'org_id', 'o1')
+    expect(mocks.from).not.toHaveBeenCalledWith('role_permissions')
   })
 
-  it('throws the first error', async () => {
-    const error = { code: 'PGRST301', message: 'JWT expired' }
-    mocks.results.set('permissions', { data: [], error: null })
-    mocks.results.set('role_permissions', { data: null, error })
-    mocks.results.set('roles', { data: [], error: null })
-    mocks.results.set('modules', { data: [], error: null })
-    await expect(fetchPermissionCatalog()).rejects.toBe(error)
+  it('throws the query error', async () => {
+    const error = { code: '42501', message: 'denied' }
+    mocks.results.set('org_role_permissions', { data: null, error })
+    await expect(fetchRoleDefaults('o1')).rejects.toBe(error)
   })
 })
 
@@ -162,6 +150,14 @@ describe('write RPCs', () => {
       'clear_permission_override',
       { p_user_id: 'u2', p_permission_key: 'audit.view' },
     ],
+    [
+      'setRolePermission',
+      () => setRolePermission('counselor', 'audit.view', false),
+      'set_role_permission',
+      { p_role: 'counselor', p_permission_key: 'audit.view', p_granted: false },
+    ],
+    ['renameRole', () => renameRole('custom_0a1b2c3d', 'Accueil'), 'rename_role', { p_role: 'custom_0a1b2c3d', p_name: 'Accueil' }],
+    ['deleteRole', () => deleteRole('custom_0a1b2c3d'), 'delete_role', { p_role: 'custom_0a1b2c3d' }],
   ])('%s calls its RPC and throws its error', async (_name, call, rpc, args) => {
     mocks.rpc.mockResolvedValue({ data: null, error: null })
     await expect(call()).resolves.toBeUndefined()
@@ -178,5 +174,16 @@ describe('write RPCs', () => {
 
     mocks.rpc.mockResolvedValue({ data: null, error: failure })
     await expect(clearPermissionOverrides('u2')).rejects.toBe(failure)
+  })
+
+  it('createRole sends the name, and the role to copy only when there is one; returns the new key', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'custom_0a1b2c3d', error: null })
+    await expect(createRole('Réception', null)).resolves.toBe('custom_0a1b2c3d')
+    expect(mocks.rpc).toHaveBeenLastCalledWith('create_role', { p_name: 'Réception' })
+    await createRole('Réception', 'admin_assistant')
+    expect(mocks.rpc).toHaveBeenLastCalledWith('create_role', { p_name: 'Réception', p_copy_from: 'admin_assistant' })
+
+    mocks.rpc.mockResolvedValue({ data: null, error: failure })
+    await expect(createRole('Réception', null)).rejects.toBe(failure)
   })
 })

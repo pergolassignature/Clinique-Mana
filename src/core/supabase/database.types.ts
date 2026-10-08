@@ -48,6 +48,271 @@ export type Database = {
         }
         Relationships: []
       }
+      email_log: {
+        Row: {
+          attachment_count: number
+          attempts: number
+          created_at: string
+          error_code: string | null
+          id: string
+          last_event_at: string | null
+          module_key: string
+          org_id: string
+          resend_id: string | null
+          sent_at: string | null
+          sent_by: string | null
+          status: string
+          subject_id: string
+          subject_type: string
+          template_key: string
+          template_version: number
+          to_email: string | null
+          to_profile_id: string | null
+          view_permission: string
+        }
+        Insert: {
+          attachment_count?: number
+          attempts?: number
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          last_event_at?: string | null
+          module_key: string
+          org_id: string
+          resend_id?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          subject_id: string
+          subject_type: string
+          template_key: string
+          template_version: number
+          to_email?: string | null
+          to_profile_id?: string | null
+          view_permission: string
+        }
+        Update: {
+          attachment_count?: number
+          attempts?: number
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          last_event_at?: string | null
+          module_key?: string
+          org_id?: string
+          resend_id?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          subject_id?: string
+          subject_type?: string
+          template_key?: string
+          template_version?: number
+          to_email?: string | null
+          to_profile_id?: string | null
+          view_permission?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_log_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "email_log_template_key_fkey"
+            columns: ["template_key"]
+            isOneToOne: false
+            referencedRelation: "email_template_defaults"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "email_log_to_profile_id_fkey"
+            columns: ["to_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "email_log_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      email_settings: {
+        Row: {
+          from_address: string
+          from_name: string
+          org_id: string
+          reply_to: string | null
+          sending_domain: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          from_address: string
+          from_name: string
+          org_id: string
+          reply_to?: string | null
+          sending_domain?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          from_address?: string
+          from_name?: string
+          org_id?: string
+          reply_to?: string | null
+          sending_domain?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      email_template_defaults: {
+        Row: {
+          allows_attachments: boolean
+          body: string
+          button_label: string | null
+          description: string
+          key: string
+          label: string
+          module_key: string
+          recipient_mode: string
+          subject: string
+          updated_at: string
+          variables: Json
+          view_permission: string
+          why_line: string
+        }
+        Insert: {
+          allows_attachments?: boolean
+          body: string
+          button_label?: string | null
+          description: string
+          key: string
+          label: string
+          module_key: string
+          recipient_mode?: string
+          subject: string
+          updated_at?: string
+          variables?: Json
+          view_permission: string
+          why_line: string
+        }
+        Update: {
+          allows_attachments?: boolean
+          body?: string
+          button_label?: string | null
+          description?: string
+          key?: string
+          label?: string
+          module_key?: string
+          recipient_mode?: string
+          subject?: string
+          updated_at?: string
+          variables?: Json
+          view_permission?: string
+          why_line?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_template_defaults_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "email_template_defaults_view_permission_fkey"
+            columns: ["view_permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          body: string
+          button_label: string | null
+          key: string
+          org_id: string
+          subject: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          body: string
+          button_label?: string | null
+          key: string
+          org_id: string
+          subject: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          body?: string
+          button_label?: string | null
+          key?: string
+          org_id?: string
+          subject?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_key_fkey"
+            columns: ["key"]
+            isOneToOne: false
+            referencedRelation: "email_template_defaults"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "email_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_templates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       module_dependencies: {
         Row: {
           depends_on: string
@@ -181,6 +446,92 @@ export type Database = {
           },
           {
             foreignKeyName: "org_modules_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      org_role_permissions: {
+        Row: {
+          org_id: string
+          permission_key: string
+          role: string
+        }
+        Insert: {
+          org_id: string
+          permission_key: string
+          role: string
+        }
+        Update: {
+          org_id?: string
+          permission_key?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_role_permissions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_role_permissions_permission_key_fkey"
+            columns: ["permission_key"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "org_role_permissions_role_fkey"
+            columns: ["role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      org_scheduled_jobs: {
+        Row: {
+          enabled: boolean
+          job_key: string
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled: boolean
+          job_key: string
+          org_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          job_key?: string
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_scheduled_jobs_job_key_fkey"
+            columns: ["job_key"]
+            isOneToOne: false
+            referencedRelation: "scheduled_jobs"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "org_scheduled_jobs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_scheduled_jobs_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -429,6 +780,27 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          bucket: string
+          hits: number
+          key_hash: string
+          window_start: string
+        }
+        Insert: {
+          bucket: string
+          hits?: number
+          key_hash: string
+          window_start: string
+        }
+        Update: {
+          bucket?: string
+          hits?: number
+          key_hash?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       role_permissions: {
         Row: {
           permission_key: string
@@ -465,20 +837,183 @@ export type Database = {
           is_system: boolean
           key: string
           name: string
+          org_id: string | null
         }
         Insert: {
           created_at?: string
           is_system?: boolean
           key: string
           name: string
+          org_id?: string | null
         }
         Update: {
           created_at?: string
           is_system?: boolean
           key?: string
           name?: string
+          org_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "roles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_job_dispatches: {
+        Row: {
+          dispatched_at: string
+          id: number
+          job_key: string
+          org_id: string | null
+          outcome: string | null
+          reconciled_at: string | null
+          request_id: number
+          trigger: string
+        }
+        Insert: {
+          dispatched_at?: string
+          id?: never
+          job_key: string
+          org_id?: string | null
+          outcome?: string | null
+          reconciled_at?: string | null
+          request_id: number
+          trigger: string
+        }
+        Update: {
+          dispatched_at?: string
+          id?: never
+          job_key?: string
+          org_id?: string | null
+          outcome?: string | null
+          reconciled_at?: string | null
+          request_id?: number
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_job_dispatches_job_key_fkey"
+            columns: ["job_key"]
+            isOneToOne: false
+            referencedRelation: "scheduled_jobs"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "scheduled_job_dispatches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_job_runs: {
+        Row: {
+          detail: string | null
+          finished_at: string | null
+          id: string
+          job_key: string
+          org_id: string | null
+          run_local_date: string | null
+          started_at: string
+          status: string
+          trigger: string
+        }
+        Insert: {
+          detail?: string | null
+          finished_at?: string | null
+          id?: string
+          job_key: string
+          org_id?: string | null
+          run_local_date?: string | null
+          started_at?: string
+          status?: string
+          trigger: string
+        }
+        Update: {
+          detail?: string | null
+          finished_at?: string | null
+          id?: string
+          job_key?: string
+          org_id?: string | null
+          run_local_date?: string | null
+          started_at?: string
+          status?: string
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_job_runs_job_key_fkey"
+            columns: ["job_key"]
+            isOneToOne: false
+            referencedRelation: "scheduled_jobs"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "scheduled_job_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_jobs: {
+        Row: {
+          created_at: string
+          cron_job_name: string | null
+          description: string
+          function_name: string | null
+          is_active: boolean
+          is_maintenance: boolean
+          key: string
+          kind: string
+          label: string
+          local_hour: number | null
+          module_key: string
+          sql_function: string | null
+        }
+        Insert: {
+          created_at?: string
+          cron_job_name?: string | null
+          description: string
+          function_name?: string | null
+          is_active?: boolean
+          is_maintenance?: boolean
+          key: string
+          kind: string
+          label: string
+          local_hour?: number | null
+          module_key: string
+          sql_function?: string | null
+        }
+        Update: {
+          created_at?: string
+          cron_job_name?: string | null
+          description?: string
+          function_name?: string | null
+          is_active?: boolean
+          is_maintenance?: boolean
+          key?: string
+          kind?: string
+          label?: string
+          local_hour?: number | null
+          module_key?: string
+          sql_function?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_jobs_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["key"]
+          },
+        ]
       }
       tax_rates: {
         Row: {
@@ -613,6 +1148,65 @@ export type Database = {
           },
         ]
       }
+      webhook_events: {
+        Row: {
+          attempts: number
+          claim_token: string | null
+          claimed_at: string | null
+          completed_at: string | null
+          event_id: string
+          event_type: string
+          id: string
+          last_error: string | null
+          lease_expires_at: string | null
+          org_id: string
+          payload: Json | null
+          provider: string
+          received_at: string
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          claim_token?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          event_id: string
+          event_type: string
+          id?: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          org_id: string
+          payload?: Json | null
+          provider: string
+          received_at?: string
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          claim_token?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          event_id?: string
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          org_id?: string
+          payload?: Json | null
+          provider?: string
+          received_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -622,6 +1216,31 @@ export type Database = {
         Args: { p_effective_from: string; p_rate: number; p_tax: string }
         Returns: string
       }
+      apply_email_event: {
+        Args: {
+          p_at: string
+          p_email_log_id: string
+          p_org_id: string
+          p_resend_id: string
+          p_status: string
+        }
+        Returns: string
+      }
+      claim_webhook_event: {
+        Args: {
+          p_event_id: string
+          p_event_type: string
+          p_lease_seconds?: number
+          p_org_id: string
+          p_payload: Json
+          p_provider: string
+        }
+        Returns: {
+          claim_token: string
+          id: string
+          status: string
+        }[]
+      }
       clear_permission_override: {
         Args: { p_permission_key: string; p_user_id: string }
         Returns: undefined
@@ -630,8 +1249,39 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: number
       }
+      complete_webhook_event: {
+        Args: { p_claim_token: string; p_id: string }
+        Returns: boolean
+      }
+      consume_rate_limit: {
+        Args: {
+          p_bucket: string
+          p_key_hash: string
+          p_max: number
+          p_window_seconds: number
+        }
+        Returns: {
+          allowed: boolean
+          hits: number
+          retry_after_seconds: number
+        }[]
+      }
+      count_org_emails_today: { Args: { p_org_id: string }; Returns: number }
+      create_role: {
+        Args: { p_copy_from?: string; p_name: string }
+        Returns: string
+      }
       delete_org_secret: { Args: { p_key: string }; Returns: undefined }
+      delete_role: { Args: { p_role: string }; Returns: undefined }
       delete_tax_rate: { Args: { p_id: string }; Returns: undefined }
+      fail_webhook_event: {
+        Args: { p_claim_token: string; p_error: string; p_id: string }
+        Returns: boolean
+      }
+      finish_job_run: {
+        Args: { p_detail: string; p_id: string; p_status: string }
+        Returns: undefined
+      }
       get_bank_details: {
         Args: never
         Returns: {
@@ -643,11 +1293,16 @@ export type Database = {
           updated_by_name: string
         }[]
       }
+      get_email_context: {
+        Args: { p_org_id: string; p_template_key: string }
+        Returns: Json
+      }
       get_my_access: { Args: never; Returns: Json }
       get_org_secret: {
         Args: { p_key: string; p_org_id: string }
         Returns: string
       }
+      last_webhook_event_at: { Args: { p_provider: string }; Returns: string }
       list_audit_actors: {
         Args: never
         Returns: {
@@ -677,6 +1332,48 @@ export type Database = {
           table_name: string
         }[]
       }
+      list_email_log: {
+        Args: {
+          p_before?: string
+          p_before_id?: string
+          p_from?: string
+          p_limit?: number
+          p_status?: string
+          p_template_key?: string
+          p_to?: string
+        }
+        Returns: {
+          created_at: string
+          error_code: string
+          id: string
+          last_event_at: string
+          sent_at: string
+          status: string
+          subject_id: string
+          subject_type: string
+          template_key: string
+          template_label: string
+          to_email: string
+        }[]
+      }
+      list_email_templates: {
+        Args: never
+        Returns: {
+          body: string
+          button_label: string
+          description: string
+          is_custom: boolean
+          key: string
+          label: string
+          module_key: string
+          subject: string
+          updated_at: string
+          updated_by_name: string
+          variables: Json
+          version: number
+        }[]
+      }
+      list_job_orgs: { Args: { p_key: string }; Returns: string[] }
       list_modules: {
         Args: never
         Returns: {
@@ -706,12 +1403,98 @@ export type Database = {
           user_id: string
         }[]
       }
+      list_scheduled_job_runs: {
+        Args: {
+          p_before?: string
+          p_before_id?: string
+          p_job_key?: string
+          p_limit?: number
+        }
+        Returns: {
+          detail: string
+          finished_at: string
+          id: string
+          job_key: string
+          started_at: string
+          status: string
+          trigger: string
+        }[]
+      }
+      list_scheduled_jobs: {
+        Args: never
+        Returns: {
+          description: string
+          enabled: boolean
+          is_maintenance: boolean
+          key: string
+          kind: string
+          label: string
+          last_detail: string
+          last_started_at: string
+          last_status: string
+          local_hour: number
+          schedule: string
+        }[]
+      }
+      list_subject_emails: {
+        Args: { p_limit?: number; p_subject_id: string; p_subject_type: string }
+        Returns: {
+          created_at: string
+          error_code: string
+          id: string
+          last_event_at: string
+          sent_at: string
+          sent_by: string
+          status: string
+          template_key: string
+          template_label: string
+          to_email: string
+        }[]
+      }
+      mark_email_failed: {
+        Args: { p_attempts: number; p_error_code: string; p_id: string }
+        Returns: undefined
+      }
+      mark_email_sent: {
+        Args: { p_attempts: number; p_id: string; p_resend_id: string }
+        Returns: undefined
+      }
       module_enabled: { Args: { p_key: string }; Returns: boolean }
       module_enabled_for_org: {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
       }
+      queue_email: {
+        Args: {
+          p_attachment_count: number
+          p_org_id: string
+          p_sent_by: string
+          p_subject_id: string
+          p_subject_type: string
+          p_template_key: string
+          p_template_version: number
+          p_to_email: string
+          p_to_profile_id: string
+          p_view_permission: string
+        }
+        Returns: string
+      }
+      rename_role: {
+        Args: { p_name: string; p_role: string }
+        Returns: undefined
+      }
+      reset_email_template: { Args: { p_key: string }; Returns: undefined }
       reveal_bank_account_number: { Args: never; Returns: string }
+      run_scheduled_job_now: { Args: { p_key: string }; Returns: undefined }
+      save_email_template: {
+        Args: {
+          p_body: string
+          p_button_label: string
+          p_key: string
+          p_subject: string
+        }
+        Returns: undefined
+      }
       set_bank_details: {
         Args: {
           p_account_number: string
@@ -719,6 +1502,18 @@ export type Database = {
           p_institution_number: string
           p_transit_number: string
         }
+        Returns: undefined
+      }
+      set_email_sender: {
+        Args: {
+          p_from_address: string
+          p_from_name: string
+          p_reply_to: string
+        }
+        Returns: undefined
+      }
+      set_email_sending_domain: {
+        Args: { p_domain: string }
         Returns: undefined
       }
       set_module_enabled: {
@@ -737,6 +1532,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_role_permission: {
+        Args: { p_granted: boolean; p_permission_key: string; p_role: string }
+        Returns: undefined
+      }
+      set_scheduled_job_enabled: {
+        Args: { p_enabled: boolean; p_key: string }
+        Returns: undefined
+      }
       set_user_role: {
         Args: { p_role: string; p_user_id: string }
         Returns: undefined
@@ -744,6 +1547,10 @@ export type Database = {
       set_user_status: {
         Args: { p_status: string; p_user_id: string }
         Returns: undefined
+      }
+      start_job_run: {
+        Args: { p_key: string; p_org_id: string; p_trigger: string }
+        Returns: string
       }
       tax_rate_on: { Args: { p_date: string; p_tax: string }; Returns: number }
     }

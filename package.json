@@ -4,12 +4,13 @@
   "version": "0.0.1",
   "type": "module",
   "engines": {
-    "node": ">=22 <23"
+    "node": ">=22.12 <23"
   },
   "scripts": {
     "dev": "vite",
-    "build": "npm run typecheck && vite build",
+    "build": "npm run typecheck && vite build && npm run check:entry",
     "build:only": "vite build",
+    "check:entry": "node scripts/check-entry-chunk.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . && npm run lint:tokens",

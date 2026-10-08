@@ -48,6 +48,9 @@ function toNeutralCode(error: AuthError | null): AuthErrorCode | null {
 
 const absolute = (path: string) => `${window.location.origin}${path}`
 
+/** Where an explicit sign-out lands (decision #17). */
+const LOGIN_PATH = '/connexion'
+
 // auth-js emits PASSWORD_RECOVERY once, possibly before our listener is registered, so the
 // recovery link's URL hash (implicit flow) is read when this module is evaluated. That is always
 // before auth-js strips it: auth-js clears the hash only after awaiting the server (auth-js 2.90).
@@ -80,6 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [isRecovery, setIsRecovery] = useState(false)
   const [signedOutHere, setSignedOutHere] = useState(false)
+  // Set when an explicit sign-out has finished: the page then loads /connexion afresh.
+  const [reloadToLogin, setReloadToLogin] = useState(false)
   const sessionRef = useRef<Session | null>(null)
 
   useEffect(() => {
@@ -104,6 +109,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     return () => data.subscription.unsubscribe()
   }, [])
+
+  // After an explicit sign-out, a full page load of /connexion (decisions #10, #17): a shared PC
+  // picks up a new deploy, and nothing of the previous user stays in memory. An effect, so it runs
+  // once the signed-out render has committed: the signed-in app (and its unsaved-changes
+  // beforeunload prompt) is already gone. replace(): Back does not return to a signed-in page.
+  useEffect(() => {
+    if (reloadToLogin) window.location.replace(LOGIN_PATH)
+  }, [reloadToLogin])
 
   // Another tab set or cleared the marker (or cleared all storage: key null).
   useEffect(() => {
@@ -180,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // so a failed call (offline, server error, lock timeout) must never leave the next person
       // signed in as the previous one. When the server can't be reached, the local session is
       // forgotten anyway; its refresh token stays valid server-side until it expires.
-      signOut: async () => {
+      signOut: async ({ reload = true } = {}) => {
         // First, so whichever render sees the session gone already knows the sign-out was explicit.
         setSignedOutHere(true)
         try {
@@ -199,6 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (stillStored) await forgetLocalSession()
         } finally {
           forgetSessionState()
+          if (reload) setReloadToLogin(true)
         }
       },
       // « Se déconnecter de tous les appareils » (« Mon compte », decision #33): revokes every refresh
@@ -229,6 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Again: a token refresh during the call emits a session, which resets the flag.
         setSignedOutHere(true)
         forgetSessionState()
+        setReloadToLogin(true)
         return null
       },
     }

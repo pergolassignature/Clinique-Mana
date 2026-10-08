@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { t } from '@/i18n'
+import { EMAIL_PATTERN } from '@/shared/lib/email'
 import { compactTaxNumber, formatPhone, formatPostalCode, formatTaxNumber, parsePhone } from '@/shared/lib/format'
 import type { Organization } from './api'
 
@@ -35,7 +36,6 @@ const NEQ = /^[0-9]{10}$/
 const GST = /^[0-9]{9}RT[0-9]{4}$/
 const QST = /^[0-9]{10}TQ[0-9]{4}$/
 const POSTAL_CODE = /^[A-Z][0-9][A-Z] [0-9][A-Z][0-9]$/
-export const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 const HTTPS_URL = /^https:\/\/\S+$/
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i
 /**
@@ -95,7 +95,7 @@ function isWebAddress(url: string): boolean {
 export const withoutControlChars = <T extends z.ZodType<unknown, string>>(schema: T) =>
   z.string().trim().refine((v) => !CONTROL_CHARS.test(v), { error: MESSAGES.controlChar, abort: true }).pipe(schema)
 
-const optionalEmail = () => withoutControlChars(optionalPattern(EMAIL, MESSAGES.email))
+const optionalEmail = () => withoutControlChars(optionalPattern(EMAIL_PATTERN, MESSAGES.email))
 
 /**
  * Optional `https://` address. Typed without a scheme it gets one; `http://` and other schemes

@@ -8,13 +8,13 @@ const at = (pathname: string, search = '') => ({ pathname, search, origin: windo
 
 const spyPreloads = () => {
   const pages = [...coreSettingsSections.map((s) => s.component), ...ALL_MODULES.flatMap((m) => m.routes.map((r) => r.component))]
-  return pages.map((page) => vi.spyOn(page as { preload: () => Promise<void> }, 'preload').mockResolvedValue(undefined))
+  return pages.map((page) => vi.spyOn(page, 'preload').mockResolvedValue(undefined))
 }
 
 const sectionPreload = (id: string) => {
   const section = coreSettingsSections.find((s) => s.id === id)
   if (!section) throw new Error(id)
-  return (section.component as { preload: () => Promise<void> }).preload
+  return section.component.preload
 }
 
 afterEach(() => vi.restoreAllMocks())
@@ -31,7 +31,7 @@ describe('preloadRouteCode', () => {
     spyPreloads()
     const route = ALL_MODULES.flatMap((m) => m.routes).find((r) => r.path === 'professionnels')
     preloadRouteCode(at('/professionnels'))
-    expect((route?.component as { preload: () => Promise<void> }).preload).toHaveBeenCalledTimes(1)
+    expect(route?.component.preload).toHaveBeenCalledTimes(1)
   })
 
   it("uses the login page's redirect target", () => {

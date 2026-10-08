@@ -78,8 +78,10 @@ export const coreSettingsSections: SettingsSection[] = [
     path: 'utilisateurs',
     labelKey: 'settings.sections.users',
     icon: Users,
-    permission: 'users.view',
-    editPermission: 'users.manage',
+    // The « Rôles » tab needs roles.manage only (UsersSettingsPage shows « Utilisateurs » with users.view).
+    permission: ['users.view', 'roles.manage'],
+    // Read-only (the lock) only without either: each tab then follows its own (UsersSettingsPage).
+    editPermission: ['users.manage', 'roles.manage'],
     group: 'plateforme',
     component: lazyPage(() => import('./pages/UsersSettingsPage'), 'UsersSettingsPage'),
   },

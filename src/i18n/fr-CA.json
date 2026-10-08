@@ -35,7 +35,6 @@
     "save": "Enregistrer",
     "saving": "Enregistrement…",
     "cancel": "Annuler",
-    "edit": "Modifier",
     "form": { "required": "(requis)" },
     "status": { "complete": "(terminé)", "pending": "(en attente)", "warning": "(à vérifier)" },
     "toast": { "region": "Notifications", "close": "Fermer la notification" },
@@ -51,7 +50,9 @@
       "leave": "Quitter sans enregistrer"
     },
     "notFound": { "title": "Page introuvable", "body": "Cette page n'existe pas ou a été déplacée." },
-    "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." }
+    "moduleError": { "title": "Cette section a rencontré un problème", "body": "Le reste de l'application fonctionne toujours. Réessayez ou revenez plus tard." },
+    "appError": { "title": "L'application a rencontré un problème", "body": "Réessayez dans un instant. Si le problème persiste, rechargez la page." },
+    "appUpdate": { "title": "Une nouvelle version de l'application est disponible.", "reload": "Recharger" }
   },
   "auth": {
     "login": {
@@ -155,7 +156,8 @@
       "no_role": "Aucun rôle n'est attribué à votre compte. Contactez la clinique.",
       "signOut": "Se déconnecter"
     },
-    "forbidden": { "title": "Accès refusé", "body": "Vous n'avez pas la permission d'ouvrir cette page." }
+    "forbidden": { "title": "Accès refusé", "body": "Vous n'avez pas la permission d'ouvrir cette page." },
+    "customRole": "Rôle personnalisé"
   },
   "pageTitles": {
     "login": "Connexion",
@@ -190,7 +192,6 @@
     "navReadOnlyHint": "(lecture seule)",
     "menuButtonPrefix": "Section des paramètres :",
     "modules": {
-      "title": "Modules",
       "description": "Activez un module lorsqu'il est prêt. Un module désactivé disparaît du menu et de l'application.",
       "dependsOn": "Requiert :",
       "saved": "Modules mis à jour.",
@@ -380,12 +381,57 @@
         }
       },
       "matrix": {
-        "note": "Les rôles par défaut sont fixes. Pour une exception, modifiez la personne.",
+        "note": "Les permissions que chaque rôle donne par défaut. Pour une exception, modifiez la personne.",
+        "noteManage": "Chaque changement s'applique aussitôt à toutes les personnes qui ont ce rôle. Pour une exception, modifiez la personne.",
+        "adminNote": "L'administrateur a toujours toutes les permissions.",
+        "providerNote": "Les permissions des professionnels se gèrent dans le module Professionnels.",
+        "managerLimit": "Vous ne pouvez accorder que les permissions que vous avez.",
+        "ownRoleNote": "Vous ne pouvez pas ajouter de permissions à votre propre rôle.",
         "tableLabel": "Permissions par rôle",
         "permission": "Permission",
         "yes": "Oui",
         "no": "Non",
-        "loadError": "Les rôles n'ont pas pu être chargés."
+        "cellLabel": "{role} : {permission}",
+        "saved": "{permission} : {value} pour le rôle {role}.",
+        "loadError": "Les rôles n'ont pas pu être chargés.",
+        "roleActions": "Actions du rôle {role}",
+        "newRole": "Nouveau rôle",
+        "rename": "Renommer",
+        "delete": "Supprimer",
+        "selfRemove": {
+          "title": "Retirer cette permission de votre rôle ?",
+          "body": "« {permission} » sera retirée du rôle {role} : vous la perdrez, comme les autres personnes qui ont ce rôle, sauf exception. Vous ne pourrez pas la remettre vous-même.",
+          "confirm": "Retirer"
+        }
+      },
+      "roleDialog": {
+        "createTitle": "Nouveau rôle",
+        "createDescription": "Le rôle s'ajoute comme une colonne du tableau. Vous choisirez ensuite ses permissions.",
+        "renameTitle": "Renommer le rôle",
+        "renameDescription": "Le nouveau nom s'affiche partout, aussi pour les personnes qui ont ce rôle.",
+        "name": "Nom du rôle",
+        "copyFrom": "Partir des permissions de",
+        "copyNone": "Aucune permission",
+        "copyHelp": "Les permissions sont copiées une seule fois : les deux rôles restent indépendants.",
+        "copyManagerLimit": "Vous ne pouvez partir que d'un rôle dont vous avez toutes les permissions.",
+        "create": "Créer",
+        "creating": "Création…",
+        "created": "Rôle « {name} » créé.",
+        "rename": "Renommer",
+        "renaming": "Enregistrement…",
+        "renamed": "Rôle renommé « {name} ».",
+        "validation": {
+          "nameRequired": "Le nom du rôle est requis.",
+          "nameTooLong": "Le nom du rôle ne peut pas dépasser 60 caractères.",
+          "nameTaken": "Un rôle porte déjà ce nom."
+        }
+      },
+      "roleDelete": {
+        "title": "Supprimer le rôle « {name} » ?",
+        "body": "Ses permissions par défaut seront supprimées. Un rôle encore attribué à quelqu'un ne peut pas être supprimé.",
+        "confirm": "Supprimer",
+        "deleting": "Suppression…",
+        "deleted": "Rôle « {name} » supprimé."
       }
     },
     "tax": {
@@ -528,8 +574,10 @@
     "tables": {
       "organizations": "Clinique",
       "profiles": "Utilisateurs",
-      "user_roles": "Rôles",
+      "user_roles": "Rôles attribués",
       "user_permission_overrides": "Exceptions de permissions",
+      "roles": "Rôles",
+      "org_role_permissions": "Permissions des rôles",
       "org_modules": "Modules",
       "org_module_settings": "Paramètres de module",
       "org_secrets": "Secrets",
@@ -583,6 +631,15 @@
       "user_permission_overrides": {
         "permission_key": "Permission",
         "granted": "Accordée"
+      },
+      "roles": {
+        "key": "Clé",
+        "name": "Nom",
+        "is_system": "Rôle de base"
+      },
+      "org_role_permissions": {
+        "role": "Rôle",
+        "permission_key": "Permission"
       },
       "org_modules": {
         "module_key": "Module",

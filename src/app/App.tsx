@@ -26,19 +26,28 @@ const queryClient = new QueryClient({
  */
 const AuthenticatedApp = lazyPage(() => import('./AuthenticatedApp'), 'AuthenticatedApp')
 
-// A session stored in this browser (reload, deep link, new tab): start the signed-in code while
-// auth-js is still reading it. Code only; whether the session is valid is still decided by
-// auth-js, and what renders by RequireAuth's verified access (#11).
-if (typeof window !== 'undefined' && hasStoredSession()) {
+/**
+ * Starts loading the signed-in chunk and the page the user is going to (a settings section or a
+ * module route at the URL, or the login page's redirect target). Code only, the same for every
+ * user. Failures are ignored here: SignedInApp loads again and reports a real failure.
+ */
+function preloadSignedInCode() {
   void AuthenticatedApp.preload().catch(() => {})
   preloadRouteCode()
 }
 
+// A session stored in this browser (reload, deep link, new tab): start the signed-in code while
+// auth-js is still reading it. Whether the session is valid is still decided by auth-js, and what
+// renders by RequireAuth's verified access (#11).
+if (typeof window !== 'undefined' && hasStoredSession()) preloadSignedInCode()
+
 /**
  * Shows RequireAuth's loading screen until the signed-in chunk, and the code of the page at the
  * URL, are in. No Suspense: a committed fallback would stay at least 300 ms (React 19), slowing
- * sign-in and reloads. A failed shell load reaches the app's error boundary, whose Retry reloads
- * the page; a failed page load is left to that page's own boundary.
+ * sign-in and reloads. The page's chunk is waited for at most ALSO_WAIT_FOR_MAX_MS (1 s); past
+ * that, the shell renders and the page's own Suspense boundary takes over. A failed shell load
+ * reaches the app's error boundary (a stale chunk reloads the page); a failed page load is left to
+ * that page's own boundary.
  */
 function SignedInApp() {
   const [page] = useState(() => routePage())
@@ -59,14 +68,11 @@ function PreloadSignedInCode() {
   const signedIn = Boolean(session) && !isRecovery
   const signedOut = !isLoading && !session
   useEffect(() => {
-    if (!signedIn) return
-    void AuthenticatedApp.preload().catch(() => {
-      // Ignored here: SignedInApp loads it again and reports a real failure.
-    })
-    preloadRouteCode()
+    if (signedIn) preloadSignedInCode()
   }, [signedIn])
   useEffect(() => {
     if (!signedOut) return
+    // Unconditional, even with Data Saver: the signed-in chunk is needed right after sign-in.
     const idle = whenIdle(() => void AuthenticatedApp.preload().catch(() => {}))
     return idle.cancel
   }, [signedOut])
@@ -75,7 +81,7 @@ function PreloadSignedInCode() {
 
 export function App() {
   return (
-    <ErrorBoundary scope="app">
+    <ErrorBoundary scope="app" root>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <AccessProvider>

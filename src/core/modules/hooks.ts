@@ -32,7 +32,7 @@ export function useSetModuleEnabled() {
       toast.success(t('settings.modules.saved'))
     },
     onError: (error) => {
-      toast.error(moduleErrorMessage(error, t('settings.modules.error')))
+      toast.error(moduleErrorMessage(error, t('settings.modules.error'), 'settings'))
     },
   })
 }

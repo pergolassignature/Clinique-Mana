@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { can, parseAccess, type Access } from './access'
+import { parseAccess, permissionChecker, type Access } from './access'
 
 const base = {
   user_id: '44444444-4444-4444-4444-444444444444',
@@ -47,18 +47,18 @@ describe('parseAccess', () => {
   })
 })
 
-describe('can', () => {
-  const access = base as Access
+describe('permissionChecker', () => {
+  const can = permissionChecker(base as Access)
 
   it('is true for a held permission', () => {
-    expect(can(access, 'settings.view')).toBe(true)
+    expect(can('settings.view')).toBe(true)
   })
 
   it('is false for a missing permission', () => {
-    expect(can(access, 'settings.manage')).toBe(false)
+    expect(can('settings.manage')).toBe(false)
   })
 
   it('is false without access', () => {
-    expect(can(null, 'settings.view')).toBe(false)
+    expect(permissionChecker(null)('settings.view')).toBe(false)
   })
 })
