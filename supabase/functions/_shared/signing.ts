@@ -32,7 +32,11 @@
  *    becomes signed) and nothing is sent again; DRAFT or PENDING → cancelled
  *    (a failed cancel ends the re-send: marked `previous_cancel_failed`,
  *    `provider_error`, retryable); CANCELLED, REJECTED or gone (404) → sent
- *    again. The new document then replaces it (the earlier id is superseded).
+ *    again. A document Documenso does not hold under the request's id
+ *    (`externalId`: another instance's under the same id) is reported
+ *    `signing_foreign_document` and treated as gone: never recovered nor
+ *    cancelled. The new document then replaces it (the earlier id is
+ *    superseded).
  * 4. The images (logo, signature) the document uses, in parallel → render.
  * 5. `register_system_file` (`documents`, `signing_source`, the request's
  *    view permission) → upload (`upsert: false`); a failed upload discards
@@ -82,6 +86,7 @@ import {
   claimDraft,
   getSigningRequest,
   markDraftFailed,
+  readDraftDocument,
   recoverCompletedDraft,
   SIGNED_PDF_MAX_BYTES,
   SigningFailure,
@@ -409,7 +414,7 @@ async function settleEarlierDocument(
   // Read under the claim: another attempt may have changed it since.
   const current = await getSigningRequest(client, input.orgId, requestId)
   const documentId = current?.documenso_document_id ?? null
-  if (!documentId) return null
+  if (!current || !documentId) return null
   const providerFailure = async (code: string, error: unknown) => {
     await plan.markFailed(code)
     const refused = error instanceof DocumensoError &&
@@ -421,14 +426,18 @@ async function settleEarlierDocument(
     }
   }
 
-  let state: DocumensoDocumentState | null = null
+  let state: DocumensoDocumentState | null
   try {
-    state = await documenso.get(documentId)
+    // Null when gone at Documenso (deleted when an earlier send failed), or
+    // not this request's own document (reported): either way, send again.
+    state = await readDraftDocument(
+      { fn: FN, orgId: input.orgId, fetch: deps.fetch },
+      documenso,
+      requestId,
+      documentId,
+    )
   } catch (error) {
-    // Gone at Documenso (deleted when an earlier send failed): send again.
-    if (!(error instanceof DocumensoError && error.status === 404)) {
-      return await providerFailure('previous_read_failed', error)
-    }
+    return await providerFailure('previous_read_failed', error)
   }
 
   if (state?.status === 'COMPLETED') {
@@ -444,7 +453,7 @@ async function settleEarlierDocument(
     try {
       const outcome = await recoverCompletedDraft(
         ctx,
-        { id: requestId },
+        current,
         documentId,
         state,
       )
@@ -481,7 +490,7 @@ async function settleEarlierDocument(
     try {
       // Documenso cancels only a distributed envelope; a draft goes by its id.
       await documenso.cancel(documentId, {
-        envelopeId: state.status === 'PENDING' ? current!.envelope_id : null,
+        envelopeId: state.status === 'PENDING' ? current.envelope_id : null,
       })
     } catch (error) {
       // Never two live contracts: the re-send stops here, retryable.

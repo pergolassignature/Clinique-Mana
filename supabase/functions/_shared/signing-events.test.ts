@@ -462,6 +462,11 @@ Deno.test('syncRequest: a draft Documenso completed, its PDF still staged → cl
     const row = await deadDraft(s, true)
     s.fake.complete(row.documenso_document_id!)
     assertEquals(
+      s.fake.documents.get(row.documenso_document_id!)!.externalId,
+      row.id,
+      'held under the request id: its own document',
+    )
+    assertEquals(
       await syncRequest(s.ctx, row, { settleDrafts: false }),
       'signed',
     )
@@ -551,6 +556,116 @@ Deno.test('syncRequest: a completed draft whose recipients do not match by signi
       [],
       'no cancel at Documenso',
     )
+  })
+})
+
+Deno.test('syncRequest: a draft whose document id is held under another externalId → signing_foreign_document (ids only), never recovered nor cancelled', async () => {
+  await run(async () => {
+    for (const status of ['COMPLETED', 'PENDING'] as const) {
+      const s = setup()
+      const row = await deadDraft(s, true)
+      const doc = row.documenso_document_id!
+      if (status === 'COMPLETED') s.fake.complete(doc)
+      s.fake.documents.get(doc)!.externalId = 'another-request'
+      const lines = await captureConsole('error', async () => {
+        assertEquals(
+          await syncRequest(s.ctx, row, { settleDrafts: false }),
+          'unchanged',
+          `${status}: user mode leaves it`,
+        )
+        assertEquals(
+          await syncRequest(s.ctx, row, { settleDrafts: true }),
+          'abandoned',
+          `${status}: the reconcile treats it as gone`,
+        )
+      })
+      const report = JSON.stringify(lines)
+      assert(report.includes('signing_foreign_document'), status)
+      assert(report.includes(row.id))
+      assert(report.includes(doc))
+      assert(!report.includes('@'), 'ids only')
+      assert(
+        !rpcNames(s.supabase).includes('recover_signature_request'),
+        `${status}: not recovered`,
+      )
+      assertEquals(
+        s.fake.calls.filter((c) => c.method === 'POST'),
+        [],
+        `${status}: nothing cancelled at Documenso`,
+      )
+      assertEquals(s.fake.documents.get(doc)!.status, status)
+      const draft = s.db.requests.get(row.id)!
+      assertEquals([draft.status, draft.last_error], ['draft', 'abandoned'])
+      assertEquals(s.db.files.get('f-src')!.retain_until !== null, true)
+    }
+  })
+})
+
+Deno.test('syncRequest: a settle re-reads the draft under its claim: a send that recorded another document since the list → that document is settled', async () => {
+  await run(async () => {
+    const s = setup()
+    // Listed with document 1 (PENDING then)…
+    const listed = await deadDraft(s, false)
+    const first = listed.documenso_document_id!
+    // …then a « Renvoyer » cancelled it and its new document 2 failed after
+    // distribute: the draft now records document 2.
+    await s.documenso.cancel(first, { envelopeId: listed.envelope_id })
+    const resent = await sentRequest(s.fake, s.db, {
+      id: listed.id,
+      status: 'draft',
+      sent_at: null,
+      expires_at: null,
+      last_error: 'mark_sent_failed',
+      created_at: listed.created_at,
+      superseded_document_ids: [first],
+    }, SIGNERS)
+    for (const signer of resent.signers) signer.recipient_id = null
+    const second = resent.documenso_document_id!
+    assert(second !== first)
+    assertEquals(
+      await syncRequest(s.ctx, listed, { settleDrafts: true }),
+      'abandoned',
+    )
+    assertEquals(s.fake.documents.get(second)!.status, 'CANCELLED')
+    const cancels = s.fake.calls.filter((c) => c.method === 'POST')
+    assertEquals(cancels.length, 1)
+    assertEquals(JSON.parse(cancels[0].body).envelopeId, resent.envelope_id)
+    const draft = s.db.requests.get(listed.id)!
+    assertEquals(draft.last_error, 'abandoned')
+    assertEquals(draft.documenso_document_id, second)
+  })
+})
+
+Deno.test('syncRequest: a completed draft re-read under its claim → recovered on its current document, never the one listed', async () => {
+  await run(async () => {
+    const s = setup()
+    const listed = await deadDraft(s, false)
+    const first = listed.documenso_document_id!
+    await s.documenso.cancel(first, { envelopeId: listed.envelope_id })
+    const resent = await sentRequest(s.fake, s.db, {
+      id: listed.id,
+      status: 'draft',
+      sent_at: null,
+      expires_at: null,
+      last_error: 'mark_sent_failed',
+      created_at: listed.created_at,
+      superseded_document_ids: [first],
+    }, SIGNERS)
+    for (const signer of resent.signers) signer.recipient_id = null
+    const second = resent.documenso_document_id!
+    s.fake.complete(second)
+    await captureConsole('error', async () => {
+      assertEquals(
+        await syncRequest(s.ctx, listed, { settleDrafts: true }),
+        'signed',
+      )
+    })
+    const recovered = s.supabase.calls.find((c) =>
+      c.fn === 'recover_signature_request'
+    )!
+    assertEquals(recovered.args.p_documenso_document_id, second)
+    assertEquals(recovered.args.p_envelope_id, resent.envelope_id)
+    assertEquals(s.db.requests.get(listed.id)!.status, 'signed')
   })
 })
 
@@ -716,24 +831,36 @@ Deno.test('reconcileOrg: a stale draft with no document is abandoned without Doc
 Deno.test('reconcileOrg: a draft with a document is settled after an hour (from its last send), one without after a day', async () => {
   await run(async () => {
     const s = cronSetup()
-    // Two hours since its send: listed; Documenso completed it, so recovered.
+    // Two hours since its send (failed, claim released): listed; Documenso
+    // completed it, so recovered.
     const completed = await sentRequest(s.fake, s.db, {
       status: 'draft',
       sent_at: null,
       expires_at: null,
       last_error: 'mark_sent_failed',
       created_at: '2026-10-05T12:00:00.000Z',
-      send_started_at: '2026-10-08T10:00:00.000Z',
+      last_send_at: '2026-10-08T10:00:00.000Z',
     })
     for (const signer of completed.signers) signer.recipient_id = null
     s.fake.complete(completed.documenso_document_id!)
-    // Re-sent 30 minutes ago: not listed yet.
+    // Re-sent 30 minutes ago, still sending: not listed yet.
     await sentRequest(s.fake, s.db, {
       status: 'draft',
       sent_at: null,
       expires_at: null,
       created_at: '2026-10-05T12:00:00.000Z',
       send_started_at: '2026-10-08T11:30:00.000Z',
+      last_send_at: '2026-10-08T11:30:00.000Z',
+    })
+    // Re-sent 30 minutes ago and failed (claim released): its last send
+    // still counts, not its creation, so not listed yet either.
+    await sentRequest(s.fake, s.db, {
+      status: 'draft',
+      sent_at: null,
+      expires_at: null,
+      last_error: 'provider_unavailable',
+      created_at: '2026-10-05T12:00:00.000Z',
+      last_send_at: '2026-10-08T11:30:00.000Z',
     })
     // No document, two hours old: not listed (a day for those).
     s.db.insertRequest({

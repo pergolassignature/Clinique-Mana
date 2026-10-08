@@ -53,8 +53,9 @@
 --   expiry, and the reconcile syncs it until the download succeeds.
 -- * Sends (Task 3.33 review): one at a time per request. begin_signature_request_send claims a
 --   draft under its row lock (`send_started_at`; a claim older than the caller's staleness is a
---   dead send), mark_signature_request_sent / _failed release it, and the reconcile claims a draft
---   before settling it. The same idempotency key must carry the same signers. A re-send
+--   dead send) and stamps `last_send_at` (never cleared: the reconcile's clock for drafts),
+--   mark_signature_request_sent / _failed release it, and the reconcile claims a draft before
+--   settling it. The same idempotency key must carry the same signers. A re-send
 --   (« Renvoyer ») settles the draft's earlier Documenso document first (recovered when
 --   completed, else cancelled) and the new document replaces it: the earlier id moves to
 --   `superseded_document_ids`, whose late webhooks apply_signing_event ignores.
@@ -85,7 +86,8 @@
 --     and each org configures its own instance.
 --   - create_signature_request also returns the row's status, its signers ([{role, signer_id}]),
 --     last_error, created_at and the Documenso ids (an existing draft: its earlier document);
---     begin_signature_request_send, `send_started_at` and `superseded_document_ids` are added;
+--     begin_signature_request_send, `send_started_at`, `last_send_at` and
+--     `superseded_document_ids` are added;
 --     mark_signature_request_sent takes the envelope id, and its recipients keyed by role
 --     ([{role, recipient_id}]: a role is unique per request); mark_signature_request_failed
 --     optionally records the document and envelope ids; list_subject_signature_requests takes
@@ -373,6 +375,10 @@ create table public.signature_requests (
   -- under way (mark_signature_request_sent and _failed release it). A claim older than the
   -- caller's staleness is a send that died.
   send_started_at timestamptz,
+  -- When the latest claim started (begin_signature_request_send: a send, or a settle); never
+  -- cleared, so a draft whose last send failed (its claim released) still counts from that send:
+  -- the reconcile's staleness for drafts.
+  last_send_at timestamptz,
   -- One per user action: a double click or a retry returns the same request.
   idempotency_key text not null check (idempotency_key ~ '^[A-Za-z0-9_:.-]{1,200}$'),
   source_file_id uuid references public.stored_files(id),
@@ -1277,11 +1283,11 @@ from public, anon, authenticated, service_role;
 
 -- Claims a live draft of the org for one send (createSignatureRequest, before rendering) or one
 -- settle (the reconcile, a completed draft's recovery), under the row lock, so two attempts never
--- run at once. True when it claimed: send_started_at = now() and last_error cleared. False for a
--- request that is not a live draft (sent, terminal, abandoned), or whose current claim is newer
--- than now() - p_stale_after (a send under way; an older one died). mark_signature_request_sent
--- and _failed release the claim. 22023: an unknown request of the org, a missing or negative
--- staleness.
+-- run at once. True when it claimed: send_started_at = last_send_at = now() and last_error
+-- cleared. False for a request that is not a live draft (sent, terminal, abandoned), or whose
+-- current claim is newer than now() - p_stale_after (a send under way; an older one died).
+-- mark_signature_request_sent and _failed release the claim (last_send_at stays). 22023: an
+-- unknown request of the org, a missing or negative staleness.
 create function public.begin_signature_request_send(p_org_id uuid, p_id uuid, p_stale_after interval)
 returns boolean
 language plpgsql
@@ -1304,7 +1310,7 @@ begin
     return false;
   end if;
   update public.signature_requests r
-     set send_started_at = pg_catalog.now(), last_error = null
+     set send_started_at = pg_catalog.now(), last_send_at = pg_catalog.now(), last_error = null
    where r.id = v_row.id;
   return true;
 end;
@@ -1629,12 +1635,13 @@ $$;
 --   `sync`     sent or viewed for over a day, or one Documenso completed whose signed PDF is not
 --              stored yet (whatever its expiry): read Documenso and apply the events, download
 --              when completed (a webhook may have been lost); also a draft with a Documenso
---              document whose send started over an hour ago (send_started_at, else created_at:
---              a send lasts minutes): read its status, then recover it when Documenso completed
---              it (soon, so the signed contract shows), else cancel it there and
---              mark_signature_request_failed('abandoned');
---   `abandon`  a draft with no Documenso document whose send started over a day ago, not
---              abandoned: mark_signature_request_failed('abandoned').
+--              document whose last send started over an hour ago (last_send_at, else
+--              created_at: a send lasts minutes, and a failed one keeps its last_send_at, so a
+--              « Renvoyer » that just failed is not settled at once): read its status, then
+--              recover it when Documenso completed it (soon, so the signed contract shows), else
+--              cancel it there and mark_signature_request_failed('abandoned');
+--   `abandon`  a draft with no Documenso document whose last send started over a day ago (the
+--              same clock), not abandoned: mark_signature_request_failed('abandoned').
 -- A draft is acted on only after begin_signature_request_send claims it (else skipped: a send
 -- is under way). A disabled module's requests are skipped. Reads signature_requests_open_idx.
 create function public.list_signature_requests_to_reconcile(p_org_id uuid, p_limit int default 100)
@@ -1662,7 +1669,7 @@ as $$
    where r.org_id = p_org_id
      and (r.status in ('sent', 'viewed') or (r.status = 'draft' and coalesce(r.last_error, '') <> 'abandoned'))
      and ((r.status = 'draft'
-           and coalesce(r.send_started_at, r.created_at)
+           and coalesce(r.last_send_at, r.created_at)
                < pg_catalog.now() - case when r.documenso_document_id is null then interval '1 day'
                                          else interval '1 hour' end)
           or (r.status <> 'draft'

@@ -21,7 +21,10 @@
 --     get_signing_request returns them. recover_signature_request then makes it `sent` with
 --     completed_event_at stamped, whether or not its rendered PDF is still staged: the signed
 --     PDF is what matters, so a source whose staging ended is recorded missing (source_file_id
---     null) instead of blocking the recovery.
+--     null) instead of blocking the recovery. Only the draft's own recorded document is
+--     recovered: the functions check Documenso's `externalId` (the request id) and this RPC the
+--     document id, so another document (another instance's under the same id, a stale read) is
+--     never adopted as this request's contract.
 --   - register_system_file's header says a caller whose upload fails soft-deletes the row through
 --     its module's service RPC; core had none. discard_system_file is that RPC for every system
 --     file still staged (P3-17), so a row whose object never arrived stops being readable at once
@@ -34,12 +37,13 @@
 -- * recover_signature_request(p_org_id, p_id, p_documenso_document_id, p_envelope_id,
 --   p_signer_recipients) → the source file it took (the draft's newest staged `signing_source`,
 --   as get_signing_request picks it), or null when none is left (recorded missing). The caller
---   read the document COMPLETED at Documenso and holds the draft's send claim. A live draft of the
---   org becomes `sent` (document and envelope ids, recipients keyed by role as for
---   mark_signature_request_sent, sent_at, no expiry) with completed_event_at stamped, so nothing
---   can expire, reject or cancel it before the signed PDF is stored (complete_signature_request);
---   its claim is released and an earlier document id joins superseded_document_ids. Anything
---   else → 22023.
+--   read the document COMPLETED at Documenso, checked its `externalId` is the request id, and
+--   holds the draft's send claim. p_documenso_document_id must be the draft's recorded
+--   documenso_document_id (a draft without one is never recovered). A live draft of the org
+--   becomes `sent` (envelope id, recipients keyed by role as for mark_signature_request_sent,
+--   sent_at, no expiry) with completed_event_at stamped, so nothing can expire, reject or cancel
+--   it before the signed PDF is stored (complete_signature_request); its claim is released.
+--   Anything else → 22023.
 -- * discard_system_file(p_org_id, p_file_id) → true when it soft-deleted the file: of that org,
 --   `ready`, a signing system file (`signing_source` or `signing_signed`, no uploader) still
 --   staged (`retain_until` set). A file a request or a module RPC took (retain_until cleared) is
@@ -124,6 +128,10 @@ begin
      or (p_envelope_id is not null and p_envelope_id !~ '^envelope_[A-Za-z0-9_-]{1,64}$') then
     raise exception 'Invalid document id or envelope id' using errcode = '22023';
   end if;
+  -- Only the draft's own document (header): never one it did not record.
+  if v_row.documenso_document_id is distinct from p_documenso_document_id then
+    raise exception 'Not the request''s document' using errcode = '22023';
+  end if;
   if not coalesce(private.signing_recipients_valid(v_row.id, p_signer_recipients), false) then
     raise exception 'One distinct recipient id per signer role of the request' using errcode = '22023';
   end if;
@@ -151,9 +159,6 @@ begin
    where s.request_id = v_row.id and s.role = e ->> 'role';
   update public.signature_requests r
      set status = 'sent',
-         superseded_document_ids = private.signing_superseded(r.superseded_document_ids, r.documenso_document_id,
-                                                              p_documenso_document_id),
-         documenso_document_id = p_documenso_document_id,
          envelope_id = p_envelope_id,
          source_file_id = v_source,
          sent_at = pg_catalog.now(),

@@ -147,6 +147,13 @@ export interface DocumensoFieldInput {
 export interface DocumensoDocumentState {
   status: DocumensoDocumentStatus
   completedAt: string | null
+  /**
+   * The `externalId` the document was created with (the request id, see
+   * `createDocument`), or null when it has none: how the signing functions
+   * tell their own document from another one under the same id (an org that
+   * changed Documenso instance).
+   */
+  externalId: string | null
   recipients: {
     id: string
     /**
@@ -306,6 +313,10 @@ const nullableString = z.string().nullish().transform((v) => v ?? null)
 const documentSchema = z.object({
   status: z.enum(['DRAFT', 'PENDING', 'COMPLETED', 'REJECTED', 'CANCELLED']),
   completedAt: nullableString,
+  // The v2 OpenAPI's document read: `externalId`, a string or null, always
+  // present (checked 2026-10-08); the create payload's `externalId` is a
+  // string of at most 255.
+  externalId: nullableString,
   recipients: z.array(z.object({
     id: z.number().int().positive(),
     email: z.string(),
@@ -652,6 +663,7 @@ export function documensoClient(
       return {
         status: doc.status,
         completedAt: doc.completedAt,
+        externalId: doc.externalId,
         recipients: doc.recipients.map((r) => ({
           id: String(r.id),
           signingOrder: r.signingOrder,

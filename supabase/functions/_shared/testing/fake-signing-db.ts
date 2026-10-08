@@ -51,6 +51,8 @@ export interface FakeSignatureRequest {
   expired_at: string | null
   /** `begin_signature_request_send`'s claim. */
   send_started_at: string | null
+  /** When the latest claim started; never cleared (the reconcile's clock for drafts). */
+  last_send_at: string | null
   /** Earlier documents a re-send replaced (the latest 20). */
   superseded_document_ids: string[]
   signers: FakeSigner[]
@@ -179,6 +181,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       completed_at: null,
       expired_at: null,
       send_started_at: null,
+      last_send_at: null,
       superseded_document_ids: [],
       signers: [],
       ...row,
@@ -368,6 +371,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
         r.send_started_at !== null && Date.parse(r.send_started_at) > stale
       ) return { data: false }
       r.send_started_at = iso()
+      r.last_send_at = r.send_started_at
       r.last_error = null
       return { data: true }
     },
@@ -445,6 +449,8 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
         !r || r.org_id !== a.p_org_id || r.status !== 'draft' ||
         r.last_error === 'abandoned'
       ) return E22023
+      // Only the draft's own recorded document.
+      if (r.documenso_document_id !== a.p_documenso_document_id) return E22023
       const recipients = a.p_signer_recipients as {
         role: string
         recipient_id: string
@@ -460,12 +466,6 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
       }
       Object.assign(r, {
         status: 'sent',
-        superseded_document_ids: supersede(
-          r.superseded_document_ids,
-          r.documenso_document_id,
-          a.p_documenso_document_id,
-        ),
-        documenso_document_id: a.p_documenso_document_id,
         envelope_id: a.p_envelope_id,
         source_file_id: sourceId,
         sent_at: iso(),
@@ -658,7 +658,7 @@ export function fakeSigningDb(options: FakeSigningDbOptions): FakeSigningDb {
         .filter((r) =>
           r.org_id === a.p_org_id && open(r) && modules.has(r.module_key) &&
           (r.status === 'draft'
-            ? (r.send_started_at ?? r.created_at) <
+            ? (r.last_send_at ?? r.created_at) <
               (r.documenso_document_id === null ? dayAgo : hourAgo)
             : (r.sent_at !== null && r.sent_at < dayAgo) ||
               (r.expires_at !== null && r.expires_at < iso()))

@@ -26,10 +26,19 @@
  *   (« Renvoyer ») or another settle; a draft whose claim is fresh is
  *   skipped (`sending`). A failure after the claim releases it
  *   (`mark_signature_request_failed` with the code).
+ * - **Only the request's own document** is acted on: Documenso holds it
+ *   under the request's id (`externalId`, set at creation). Another document
+ *   under the draft's recorded id (an org that changed Documenso instance) is
+ *   reported `signing_foreign_document` (ids only), never recovered nor
+ *   cancelled, and otherwise treated as one Documenso no longer has.
+ * - **A settle reads under its claim:** the draft is re-read
+ *   (`get_signing_request`) once claimed, and settled against its current
+ *   document (a send may have recorded another one since the list), read
+ *   again at Documenso when it changed.
  * - **A draft Documenso completed** (a send that died before
  *   `mark_signature_request_sent`, or a re-send's earlier document): with
  *   every signer matched by signing order, `recover_signature_request` makes
- *   it sent with its completion stamped, taking its rendered PDF when still
+ *   it sent on its recorded document with its completion stamped, taking its rendered PDF when still
  *   staged (else the source is recorded missing and reported
  *   `signing_source_missing`: the signed PDF is what matters), then the
  *   signed PDF is stored as usual. Unmatched, it is reported
@@ -46,6 +55,7 @@ import { z } from 'zod'
 import {
   type DocumensoClient,
   documensoClient,
+  type DocumensoDocumentState,
   DocumensoError,
 } from './documenso.ts'
 import type { PerOrg } from './jobs.ts'
@@ -516,6 +526,49 @@ async function requireRequest(
 }
 
 /**
+ * Whether `state` is the request's own document: Documenso holds it under
+ * the request's id (`externalId`, set by `createDocument`).
+ */
+export function ownsDocument(
+  state: Pick<DocumensoDocumentState, 'externalId'>,
+  requestId: string,
+): boolean {
+  return state.externalId === requestId
+}
+
+/**
+ * A draft's document as Documenso has it: null when gone (404, deleted when
+ * a send failed) or not the request's own (`ownsDocument`; reported
+ * `signing_foreign_document`, ids only, then treated as gone: never
+ * recovered nor cancelled).
+ */
+export async function readDraftDocument(
+  report: { fn: string; orgId: string; fetch: typeof fetch },
+  documenso: DocumensoClient,
+  requestId: string,
+  documentId: string,
+): Promise<DocumensoDocumentState | null> {
+  let state: DocumensoDocumentState
+  try {
+    state = await documenso.get(documentId)
+  } catch (error) {
+    if (error instanceof DocumensoError && error.status === 404) return null
+    throw error
+  }
+  if (ownsDocument(state, requestId)) return state
+  await reportError({
+    fn: report.fn,
+    code: 'signing_foreign_document',
+    ids: {
+      org_id: report.orgId,
+      signature_request_id: requestId,
+      document_id: documentId,
+    },
+  }, report.fetch)
+  return null
+}
+
+/**
  * Reads the document at Documenso and applies what changed; stores the
  * signed PDF when the request is completed. A draft is settled by
  * `settleDraft`, once claimed: with `settleDrafts` (the reconcile, for a
@@ -532,15 +585,7 @@ export async function syncRequest(
   if (!documentId) return 'unchanged'
   const { documenso } = ctx.signing
   if (row.status === 'draft') {
-    let state = null
-    try {
-      state = await documenso.get(documentId)
-    } catch (error) {
-      // A draft's document may be gone (deleted when the send failed).
-      if (!(error instanceof DocumensoError && error.status === 404)) {
-        throw error
-      }
-    }
+    const state = await readDraftDocument(ctx, documenso, row.id, documentId)
     return await settleDraft(ctx, row, documentId, state, options.settleDrafts)
   }
   const state = await documenso.get(documentId)
@@ -563,24 +608,47 @@ export async function syncRequest(
   return result.outcome === 'applied' ? 'updated' : 'unchanged'
 }
 
+/**
+ * Settles a draft (`syncRequest`): `state` is what the caller read for
+ * `documentId` (null: gone, or not the request's own), which only decides
+ * whether to claim. Once claimed, the draft is re-read and settled against
+ * its current document: a send that ended between the read and the claim
+ * may have recorded another one, read again here.
+ */
 async function settleDraft(
   ctx: SyncContext,
   row: SyncRow,
   documentId: string,
-  state: Awaited<ReturnType<DocumensoClient['get']>> | null,
+  state: DocumensoDocumentState | null,
   cancelStale: boolean,
 ): Promise<SyncOutcome> {
-  const completed = state?.status === 'COMPLETED'
-  if (!completed && !cancelStale) return 'unchanged'
+  if (state?.status !== 'COMPLETED' && !cancelStale) return 'unchanged'
   if (!(await claimDraft(ctx.client, ctx.orgId, row.id))) return 'sending'
   try {
-    if (completed) {
-      return await recoverCompletedDraft(ctx, row, documentId, state!)
+    const request = await requireRequest(ctx, row.id)
+    const currentId = request.documenso_document_id
+    let current = state
+    if (currentId !== documentId) {
+      current = currentId === null ? null : await readDraftDocument(
+        ctx,
+        ctx.signing.documenso,
+        row.id,
+        currentId,
+      )
     }
-    if (state?.status === 'DRAFT' || state?.status === 'PENDING') {
+    if (current?.status === 'COMPLETED') {
+      return await recoverCompletedDraft(ctx, request, currentId!, current)
+    }
+    if (!cancelStale) {
+      // Read completed, but the draft's document changed under the claim
+      // (a send failed since) and this one is not: released, left as is.
+      await markDraftFailed(ctx.client, ctx, row.id, 'send_failed')
+      return 'unchanged'
+    }
+    if (current?.status === 'DRAFT' || current?.status === 'PENDING') {
       // Documenso cancels only a distributed envelope; a draft goes by its id.
-      await ctx.signing.documenso.cancel(documentId, {
-        envelopeId: state.status === 'PENDING' ? row.envelope_id : null,
+      await ctx.signing.documenso.cancel(currentId!, {
+        envelopeId: current.status === 'PENDING' ? request.envelope_id : null,
       })
     }
     const failed = await ctx.client.rpc('mark_signature_request_failed', {
@@ -638,17 +706,26 @@ function recipientsByOrder(
 }
 
 /**
- * A draft Documenso completed (module comment); the caller holds its claim
- * and read `state` COMPLETED for the draft's current document. Throws like
+ * A draft Documenso completed (module comment); the caller holds its claim,
+ * read `request` under it, and read `state` COMPLETED for the draft's
+ * recorded document. Only that document, held under the request's id, is
+ * recovered: anything else throws `foreign_document` (the callers read
+ * through `readDraftDocument`, so it never comes here). Throws like
  * `storeSignedPdf`, or `recover_failed`.
  */
 export async function recoverCompletedDraft(
   ctx: SyncContext,
-  row: { id: string },
+  request: SigningRequest,
   documentId: string,
-  state: Awaited<ReturnType<DocumensoClient['get']>>,
+  state: DocumensoDocumentState,
 ): Promise<'signed' | 'orphan_completed'> {
-  const request = await requireRequest(ctx, row.id)
+  const row = { id: request.id }
+  if (
+    request.documenso_document_id !== documentId ||
+    !ownsDocument(state, request.id)
+  ) {
+    throw new SigningFailure('foreign_document', request.id)
+  }
   const ids = {
     org_id: ctx.orgId,
     signature_request_id: row.id,
@@ -668,9 +745,7 @@ export async function recoverCompletedDraft(
     p_org_id: ctx.orgId,
     p_id: row.id,
     p_documenso_document_id: documentId,
-    p_envelope_id: request.documenso_document_id === documentId
-      ? request.envelope_id
-      : null,
+    p_envelope_id: request.envelope_id,
     p_signer_recipients: recipients,
   })
   if (recovered.error) throw new SigningFailure('recover_failed')

@@ -560,6 +560,7 @@ Deno.test('get: the status and each recipient, without addresses', async () => {
   assertEquals(doc, {
     status: 'REJECTED',
     completedAt: null,
+    externalId: 'req-1',
     recipients: [
       {
         id: '51',
@@ -588,6 +589,13 @@ Deno.test('get: the status and each recipient, without addresses', async () => {
     ],
   })
   assertFalse(JSON.stringify(doc).includes('@'))
+})
+
+Deno.test('get: a document without an externalId reads null', async () => {
+  const { fetch } = fakeFetch({
+    [GET_12]: json(200, documentBody({ externalId: null })),
+  })
+  assertEquals((await client(fetch).get('12')).externalId, null)
 })
 
 Deno.test('get: an unknown document status → provider_error', async () => {

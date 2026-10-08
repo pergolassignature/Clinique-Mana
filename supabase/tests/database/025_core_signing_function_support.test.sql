@@ -5,14 +5,15 @@
 -- order with their recipient ids, the draft's staged source file: newest ready one still staged
 -- with the request's view permission), null for another org's or an unknown id;
 -- recover_signature_request makes a live draft of the org `sent` with completion stamped, taking
--- its newest staged source, or none (recorded missing) without blocking the recovery, and
--- refuses anything else; discard_system_file soft-deletes a staged signing system file of the
+-- its newest staged source, or none (recorded missing) without blocking the recovery, only for
+-- the draft's own recorded document (another document id, or a draft without one, is refused),
+-- and refuses anything else; discard_system_file soft-deletes a staged signing system file of the
 -- org only (never a file a request took, a client upload, another purpose's, another org's, a
 -- pending one), and is idempotent.
 -- The whole file is one transaction, so now() is constant.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(26);
 
 -- =============================================================================
 -- Privileges
@@ -33,8 +34,8 @@ $$, $$ values ('discard_system_file(uuid,uuid)'::text, false, false, true, true)
 
 -- =============================================================================
 -- Fixtures (as postgres)
--- Org A: admin A. Org B. Requests: R1 a draft of org A (two signers), R2 sent (recipient ids), R3
--- a draft (document 43) with no file at all.
+-- Org A: admin A. Org B. Requests: R1 a draft of org A (two signers, document 41), R2 sent
+-- (recipient ids), R3 a draft (document 43) with no file at all, R4 a draft with no document.
 -- Files of R1 (signing_source): F1 staged, older; F2 staged, newest (expected); F3 newer but its
 -- staging is over; F4 newer, another view permission; F5 newer, deleted. A client upload U1
 -- (staged, uploaded_by set), a file T1 a request took (retain_until null), a pending P1, and
@@ -60,13 +61,17 @@ values
    'settings.integrations_manage', now() - interval '2 days', now() + interval '5 days', null),
   ('c0000000-0000-0000-0000-0000000000a3', 'b0000000-0000-0000-0000-00000000000a', 'core', 'core.signing_test',
    'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Document test', 'draft', '43', null, 'key-a3',
-   'settings.integrations_manage', null, null, null);
+   'settings.integrations_manage', null, null, null),
+  ('c0000000-0000-0000-0000-0000000000a4', 'b0000000-0000-0000-0000-00000000000a', 'core', 'core.signing_test',
+   'signing_test', 'a0000000-0000-0000-0000-000000000001', 'Document test', 'draft', null, null, 'key-a4',
+   'settings.integrations_manage', null, null, 'provider_unavailable');
 insert into public.signature_request_signers (request_id, org_id, role, name, email, signing_order, documenso_recipient_id)
 values
   ('c0000000-0000-0000-0000-0000000000a1', 'b0000000-0000-0000-0000-00000000000a', 'clinic', 'Clinique', 'direction@a.test', 2, null),
   ('c0000000-0000-0000-0000-0000000000a1', 'b0000000-0000-0000-0000-00000000000a', 'professional', 'Pro', 'p@a.test', 1, null),
   ('c0000000-0000-0000-0000-0000000000a2', 'b0000000-0000-0000-0000-00000000000a', 'professional', 'Pro', 'p@a.test', 1, '201'),
-  ('c0000000-0000-0000-0000-0000000000a3', 'b0000000-0000-0000-0000-00000000000a', 'professional', 'Pro', 'p@a.test', 1, null);
+  ('c0000000-0000-0000-0000-0000000000a3', 'b0000000-0000-0000-0000-00000000000a', 'professional', 'Pro', 'p@a.test', 1, null),
+  ('c0000000-0000-0000-0000-0000000000a4', 'b0000000-0000-0000-0000-00000000000a', 'professional', 'Pro', 'p@a.test', 1, null);
 
 create temp table fx (k text primary key, id uuid, org uuid, subject uuid, view text, status text, retain interval,
                       uploaded_by uuid, age interval) on commit drop;
@@ -160,18 +165,26 @@ select throws_ok($$ select public.recover_signature_request('b0000000-0000-0000-
                       'c0000000-0000-0000-0000-0000000000a2', '52', null, '[{"role": "professional", "recipient_id": "301"}]') $$,
   '22023', null, 'recover: a sent request is not a draft');
 select throws_ok($$ select public.recover_signature_request('b0000000-0000-0000-0000-00000000000b',
-                      'c0000000-0000-0000-0000-0000000000a1', '51', null,
+                      'c0000000-0000-0000-0000-0000000000a1', '41', null,
                       '[{"role": "professional", "recipient_id": "301"}, {"role": "clinic", "recipient_id": "302"}]') $$,
   '22023', null, 'recover: another org''s request is unknown');
 select throws_ok($$ select public.recover_signature_request('b0000000-0000-0000-0000-00000000000a',
-                      'c0000000-0000-0000-0000-0000000000a1', '51', null, '[{"role": "professional", "recipient_id": "301"}]') $$,
+                      'c0000000-0000-0000-0000-0000000000a1', '41', null, '[{"role": "professional", "recipient_id": "301"}]') $$,
   '22023', null, 'recover: every signer gets a recipient id');
+select throws_ok($$ select public.recover_signature_request('b0000000-0000-0000-0000-00000000000a',
+                      'c0000000-0000-0000-0000-0000000000a1', '51', 'envelope_51',
+                      '[{"role": "professional", "recipient_id": "301"}, {"role": "clinic", "recipient_id": "302"}]') $$,
+  '22023', 'Not the request''s document',
+  'recover: a document the draft did not record (another one under the request''s id) is never adopted');
+select throws_ok($$ select public.recover_signature_request('b0000000-0000-0000-0000-00000000000a',
+                      'c0000000-0000-0000-0000-0000000000a4', '44', null, '[{"role": "professional", "recipient_id": "304"}]') $$,
+  '22023', 'Not the request''s document', 'recover: a draft without a recorded document cannot be recovered');
 select throws_ok($$ select public.recover_signature_request('b0000000-0000-0000-0000-00000000000a',
                       'c0000000-0000-0000-0000-0000000000a1', 'x', null,
                       '[{"role": "professional", "recipient_id": "301"}, {"role": "clinic", "recipient_id": "302"}]') $$,
   '22023', null, 'recover: a Documenso document id is numeric');
 select is(public.recover_signature_request('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000000a1',
-            '51', 'envelope_51', '[{"role": "professional", "recipient_id": "301"}, {"role": "clinic", "recipient_id": "302"}]'),
+            '41', 'envelope_41', '[{"role": "professional", "recipient_id": "301"}, {"role": "clinic", "recipient_id": "302"}]'),
   'f0000000-0000-0000-0000-000000000001'::uuid, 'recover takes the newest source still staged');
 select is(public.recover_signature_request('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000000a3',
             '43', null, '[{"role": "professional", "recipient_id": "303"}]'),
@@ -185,12 +198,12 @@ select results_eq($$
     from public.signature_requests r
    where r.id in ('c0000000-0000-0000-0000-0000000000a1', 'c0000000-0000-0000-0000-0000000000a3') order by r.id
 $$, $$ values
-  ('c0000000-0000-0000-0000-0000000000a1'::uuid, 'sent'::text, '51'::text, 'envelope_51'::text,
+  ('c0000000-0000-0000-0000-0000000000a1'::uuid, 'sent'::text, '41'::text, 'envelope_41'::text,
    'f0000000-0000-0000-0000-000000000001'::uuid, now(), null::timestamptz, now(), null::text, null::timestamptz,
-   array['41'], array['301', '302']),
+   array[]::text[], array['301', '302']),
   ('c0000000-0000-0000-0000-0000000000a3', 'sent', '43', null, null, now(), null, now(), null, null, array[]::text[],
    array['303']) $$,
-  'recovered: sent, completion stamped (nothing expires or cancels it now), recipients keyed by role; an earlier document superseded');
+  'recovered: sent on its own document, completion stamped (nothing expires or cancels it now), recipients keyed by role');
 select is((select retain_until from public.stored_files where id = 'f0000000-0000-0000-0000-000000000001'), null,
   'the source taken is no longer staged');
 set local role service_role;

@@ -1570,6 +1570,7 @@ export type Database = {
           id: string
           idempotency_key: string
           last_error: string | null
+          last_send_at: string | null
           module_key: string
           org_id: string
           purpose: string
@@ -1604,6 +1605,7 @@ export type Database = {
           id?: string
           idempotency_key: string
           last_error?: string | null
+          last_send_at?: string | null
           module_key: string
           org_id: string
           purpose: string
@@ -1638,6 +1640,7 @@ export type Database = {
           id?: string
           idempotency_key?: string
           last_error?: string | null
+          last_send_at?: string | null
           module_key?: string
           org_id?: string
           purpose?: string

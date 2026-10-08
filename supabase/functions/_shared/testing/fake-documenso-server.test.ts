@@ -56,7 +56,8 @@ Deno.test('fake-documenso-server: the API answers on any host (the client round 
   const { client, server } = setup()
   const { documentId, envelopeId } = await distributed(client)
   assertEquals([documentId, envelopeId], ['1', 'envelope_1'])
-  assertEquals((await client.get(documentId)).status, 'PENDING')
+  const read = await client.get(documentId)
+  assertEquals([read.status, read.externalId], ['PENDING', 'req-1'])
   assertEquals(await client.ping(), { ok: true })
   // Re-addressed to the fake's own origin.
   assert(server.fake.calls.every((c) => c.url.startsWith(server.fake.baseUrl)))

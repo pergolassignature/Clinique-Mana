@@ -19,7 +19,7 @@ import {
 } from './testing/fake-signing-db.ts'
 import { fakeSupabase, type RpcRoute } from './testing/fake-supabase.ts'
 import { fixedClock } from './testing/fixed-clock.ts'
-import { withEnv } from './testing/env.ts'
+import { captureConsole, withEnv } from './testing/env.ts'
 import {
   CLINIC_EMAIL,
   MINIMAL_PDF,
@@ -534,6 +534,11 @@ Deno.test('createSignatureRequest: re-send whose earlier document Documenso comp
     const s = setup()
     await draftWithDocument(s)
     s.fake.complete('1')
+    assertEquals(
+      s.fake.documents.get('1')!.externalId,
+      'r-draft',
+      'held under the request id: its own document',
+    )
     const result = await createSignatureRequest(s.deps, input())
     assertEquals(result, { ok: true, requestId: 'r-draft', existing: true })
     assertEquals(s.fake.documents.size, 1, 'no second document')
@@ -548,6 +553,40 @@ Deno.test('createSignatureRequest: re-send whose earlier document Documenso comp
     assertEquals(row.documenso_document_id, '1')
     assertEquals(row.source_file_id, null, 'no staged source: recorded missing')
     assertEquals(row.signers.map((x) => x.recipient_id), ['101'])
+  })
+})
+
+Deno.test('createSignatureRequest: re-send whose earlier document id is held under another externalId → signing_foreign_document (ids only), never recovered nor cancelled, sent again', async () => {
+  await run(async () => {
+    for (const status of ['COMPLETED', 'PENDING'] as const) {
+      const s = setup()
+      await draftWithDocument(s)
+      if (status === 'COMPLETED') s.fake.complete('1')
+      s.fake.documents.get('1')!.externalId = 'another-request'
+      let result
+      const lines = await captureConsole('error', async () => {
+        result = await createSignatureRequest(s.deps, input())
+      })
+      assertEquals(result, { ok: true, requestId: 'r-draft', existing: true })
+      const report = JSON.stringify(lines)
+      assert(report.includes('signing_foreign_document'), status)
+      assert(report.includes('r-draft'))
+      assert(!report.includes('@'), 'ids only')
+      assert(
+        !s.supabase.calls.some((c) => c.fn === 'recover_signature_request'),
+        `${status}: not recovered`,
+      )
+      assertEquals(
+        s.order.filter((o) => /cancel|delete/.test(o)),
+        [],
+        `${status}: not cancelled`,
+      )
+      assertEquals(s.fake.documents.get('1')!.status, status)
+      const row = s.db.requests.get('r-draft')!
+      assertEquals(row.status, 'sent')
+      assertEquals(row.documenso_document_id, '2')
+      assertEquals(row.superseded_document_ids, ['1'])
+    }
   })
 })
 

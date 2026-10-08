@@ -67,7 +67,9 @@ Deno.test('fake-documenso: the client round trip (create, fields, distribute, si
   assertEquals(documentId, '1')
   assertEquals(envelopeId, 'envelope_1')
   assertEquals(ids, ['101', '102'])
-  assertEquals((await client.get(documentId)).status, 'PENDING')
+  const read = await client.get(documentId)
+  assertEquals(read.status, 'PENDING')
+  assertEquals(read.externalId, 'req-1', 'the externalId round-trips')
 
   fake.open(documentId)
   fake.sign(documentId)
