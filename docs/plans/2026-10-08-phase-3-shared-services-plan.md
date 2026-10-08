@@ -517,7 +517,7 @@ git commit -m "feat(db): rate limits and leased webhook claims"
 - **`private.invoke_job_function(p_key text, p_org_id uuid default null, p_trigger text default 'cron') returns void`**:
   - reads `project_url` and `internal_function_secret` from `vault.decrypted_secrets` (database-level secrets, not org secrets);
   - if either is missing: inserts an `error` run with detail `configuration_missing` and returns;
-  - otherwise `net.http_post(url := project_url || '/functions/v1/' || function_name, headers := {Content-Type, Authorization: Bearer <secret>}, body := {job_key, org_id, trigger}, timeout_milliseconds := 10000)`.
+  - otherwise `net.http_post(url := project_url || '/functions/v1/' || function_name, headers := {Content-Type, X-Job-Signature}, body := {job_key, org_id, trigger}, timeout_milliseconds := 150000)`. *Review follow-up:* no raw secret in headers (pg_net's queue is readable by every role); `X-Job-Signature: t=<unix>,v1=<hex HMAC-SHA256(internal_function_secret, '<t>.<job_key>.<org_id or empty>.<trigger>')>`, verified by `_shared/jobs.ts` within ±300 s (lane F commit 9712fa1).
 - **Service-role RPCs** for the functions (Task 3.4 `jobs.ts`):
   - `public.list_job_orgs(p_key text) returns setof uuid`: orgs where the job is enabled and its module is enabled (`core` always). For `local_hour` jobs, it keeps only orgs where `extract(hour from now() at time zone o.timezone) = local_hour`;
   - `public.start_job_run(p_key text, p_org_id uuid, p_trigger text) returns uuid`: for `local_hour` jobs it sets `run_local_date = (now() at time zone tz)::date`, and returns **null** on the unique violation (already ran today) instead of raising;
@@ -583,7 +583,7 @@ This only checks that `pg_net` reaches Kong (`select status_code from net._http_
   - `_shared/deps.ts`: `defaultDeps()`;
   - `_shared/webhooks.ts`: `webhookResponse(status, body?)`, without CORS, `Cache-Control: no-store`; `claimEvent(client, input)` and `completeEvent` / `failEvent`, typed wrappers of the Task 3.2 RPCs returning `{ status: 'claimed', id, token } | { status: 'duplicate' } | { status: 'in_progress' }`;
   - `_shared/rate-limit.ts`: `clientIp(req)` (first `x-forwarded-for` hop, trimmed, else `'unknown'`); `hashKey(parts: string[], secret)` (HMAC-SHA256 with a key derived as `HMAC(INTERNAL_FUNCTION_SECRET, 'rate-limit-v1')`, 32 bytes); `consume(client, bucket, keyParts, max, windowSeconds)` → `{ allowed, retryAfter }`; and `LIMITS` (the constants file of design §2.6 and §3.2, with P3-18's free-recipient limit);
-  - `_shared/jobs.ts`: `runJob(deps, req, jobKey, perOrg: (orgId: string, client) => Promise<string>)`. It runs `verifyServiceRoleAuth`, then reads `{ org_id?, trigger }`. The orgs are `[org_id]` for a manual run, else `list_job_orgs`. For each org: `start_job_run` (null → skip); `perOrg` inside try/catch; `finish_job_run` (`ok` + detail, or `error` + the error's `code` if it has one, else `internal`). It returns 200 with `{ runs: n }`;
+  - `_shared/jobs.ts`: `runJob(deps, req, jobKey, perOrg: (orgId: string, client) => Promise<string>)`. It verifies `X-Job-Signature` (see Task 3.3), then reads `{ job_key, org_id?, trigger }`. The orgs are `[org_id]` for a manual run, else `list_job_orgs`. For each org: `start_job_run` (null → skip); `perOrg` inside try/catch; `finish_job_run` (`ok` + detail, or `error` + the error's `code` if it has one, else `internal`). It returns 200 with `{ runs: n }`;
   - `_shared/report.ts`: `reportError({ fn, code, ids?: Record<string, string> })`. It posts a Sentry envelope when `SENTRY_DSN` is set, otherwise `console.error(JSON.stringify({ fn, code, ids }))`. It refuses keys named `email`, `to`, `token` or `password` (throws in tests; drops them in production);
   - `_shared/testing/fake-supabase.ts`, `fake-fetch.ts`, `fixed-clock.ts`.
 - Modify: `CLAUDE.md` §7:
@@ -939,13 +939,11 @@ Rules:
 
 **Lane:** F (after Task 3.6 merges). The `[functions.*]` blocks in `config.toml` are added by the DB lane in the same merge window: ask the coordinator, or add them in this task's commit if the DB lane agrees.
 
-**Files:** `supabase/functions/{email-preview,email-test-send,send-email,resend-webhook}/{index.ts,handler.ts,handler.test.ts}`, and `supabase/config.toml`:
+**Files:** `supabase/functions/{email-preview,email-test-send,resend-webhook}/{index.ts,handler.ts,handler.test.ts}`, and `supabase/config.toml`:
 ```toml
 [functions.email-preview]
 verify_jwt = false
 [functions.email-test-send]
-verify_jwt = false
-[functions.send-email]
 verify_jwt = false
 [functions.resend-webhook]
 verify_jwt = false
@@ -963,10 +961,7 @@ verify_jwt = false
   - body `{ template_key, subject?, body?, button_label? }` (the draft, if any);
   - `sendTemplatedEmail` in test mode to `auth.access.email` (subject type `email_test`, id = the caller);
   - result codes map to HTTP statuses: `rate_limited` 429; `not_configured` 503; `provider_error` 502; `missing_variable` 400.
-- **`send-email`:**
-  - `verifyServiceRoleAuth`;
-  - body `{ org_id, template_key, to_profile_id?, to_email, subject: { type, id }, values, action_url, explicit_resend? }` (internal callers only: cron and Phase 4 jobs);
-  - `org_id` is accepted here because the caller is the service itself; the module gate comes from `get_email_context`.
+- **`send-email`: dropped (coordinator, after the Task 3.3 review).** Internal senders are edge functions (job functions, module functions); they import `sendTemplatedEmail` from `_shared/email/send.ts` and call it in-process, so no internal HTTP endpoint (and no service-key bearer on the wire) is needed. SQL never sends email directly: a job function does. If a future caller truly needs HTTP, it uses the `X-Job-Signature` scheme, never a raw bearer.
 - **`resend-webhook`:**
   1. `org` from `?org=`, a UUID, else 400.
   2. Read the raw body (≤ 64 KB).
@@ -986,7 +981,6 @@ verify_jwt = false
   - an unknown placeholder in the draft → 400 `invalid_request`, with the French message from the render code mapped in the UI;
   - an HTML response contains no `<script>` from the input.
 - **Test send:** the recipient is always the caller's address, even if the body has `to`; the 11th test in an hour → 429.
-- **`send-email`:** a user JWT → 401.
 - **Webhook:**
   - a bad signature → 401, and no RPC is called after `get_org_secret`;
   - no secret → 401;
@@ -2198,7 +2192,7 @@ It states clearly: **staging mutation, a Drop, only with Jonathan's explicit OK*
   7. Exception → `failEvent` → 500.
 - `signing-sync/`:
   - **user mode:** `verifyAuth`; body `{ request_id }`; the row read through RLS with `get_signature_request(p_id)` (user client; no row → 404); module gate; Documenso `get` → map to events → `apply_signing_event` (and the download when completed);
-  - **cron mode:** `verifyServiceRoleAuth` → `runJob('core.signing_reconcile')`:
+  - **cron mode:** `runJob('core.signing_reconcile')` (which verifies `X-Job-Signature`):
     - each org's `list_signature_requests_to_reconcile` batch is processed with a concurrency of 4 (`Promise.all` over chunks), not one by one, and not unbounded;
     - overdue → `cancel` + `expire_signature_request`;
     - stale drafts → `cancel` if they have a document id, then `mark_signature_request_failed('abandoned')`.
