@@ -1303,6 +1303,150 @@
           }
         }
       },
+      "history": {
+        "title": "Historique du dossier",
+        "filter": {
+          "label": "Afficher",
+          "all": "Tout",
+          "changes": "Modifications"
+        },
+        "actors": {
+          "system": "Le système",
+          "import": "L'importation",
+          "migration": "Une mise à jour du système",
+          "unknown": "Un utilisateur retiré"
+        },
+        "sentences": {
+          "created": "a créé le dossier",
+          "deleted": "a supprimé le dossier",
+          "createdPublicProfile": "a créé le profil public",
+          "createdMatchingProfile": "a créé le profil de jumelage",
+          "changedOne": "a modifié {field}",
+          "changedValue": "a modifié {field} : {before} → {after}",
+          "activated": "a activé le dossier",
+          "activatedOverride": "a activé le dossier incomplet (raison : {reason})",
+          "reactivated": "a réactivé le dossier",
+          "deactivated": "a désactivé le dossier (raison : {reason})",
+          "statusChanged": "a changé le statut : {before} → {after}",
+          "titleAdded": "a ajouté le titre {title}",
+          "titleRemoved": "a retiré le titre {title}",
+          "licenceChanged": "a modifié le numéro de permis ({title}) : {before} → {after}",
+          "primaryTitle": "a choisi {title} comme titre principal",
+          "payerAdded": "a ajouté le numéro {payer} {number}",
+          "payerChanged": "a modifié le numéro {payer} : {before} → {after}",
+          "payerRemoved": "a retiré le numéro {payer} {number}",
+          "privateChanged": "a modifié les coordonnées fiscales ou bancaires",
+          "privateRead": "a affiché le numéro de compte",
+          "other": "a modifié : {section}"
+        },
+        "sets": {
+          "professional_motifs": {
+            "addedOne": "a ajouté le motif {name}",
+            "addedFew": "a ajouté les motifs {names}",
+            "addedMany": "a ajouté {count} motifs",
+            "removedOne": "a retiré le motif {name}",
+            "removedFew": "a retiré les motifs {names}",
+            "removedMany": "a retiré {count} motifs"
+          },
+          "professional_languages": {
+            "addedOne": "a ajouté la langue {name}",
+            "addedFew": "a ajouté les langues {names}",
+            "addedMany": "a ajouté {count} langues",
+            "removedOne": "a retiré la langue {name}",
+            "removedFew": "a retiré les langues {names}",
+            "removedMany": "a retiré {count} langues"
+          },
+          "professional_clienteles": {
+            "addedOne": "a ajouté la clientèle {name}",
+            "addedFew": "a ajouté les clientèles {names}",
+            "addedMany": "a ajouté {count} clientèles",
+            "removedOne": "a retiré la clientèle {name}",
+            "removedFew": "a retiré les clientèles {names}",
+            "removedMany": "a retiré {count} clientèles",
+            "specializedFew": "a indiqué une spécialisation : {names}",
+            "specializedMany": "a indiqué une spécialisation pour {count} clientèles",
+            "unspecializedFew": "a retiré la spécialisation : {names}",
+            "unspecializedMany": "a retiré la spécialisation pour {count} clientèles"
+          },
+          "professional_specialties": {
+            "addedOne": "a ajouté l'approche {name}",
+            "addedFew": "a ajouté les approches {names}",
+            "addedMany": "a ajouté {count} approches",
+            "removedOne": "a retiré l'approche {name}",
+            "removedFew": "a retiré les approches {names}",
+            "removedMany": "a retiré {count} approches",
+            "specializedFew": "a indiqué une spécialisation : {names}",
+            "specializedMany": "a indiqué une spécialisation pour {count} approches",
+            "unspecializedFew": "a retiré la spécialisation : {names}",
+            "unspecializedMany": "a retiré la spécialisation pour {count} approches"
+          }
+        },
+        "fields": {
+          "professionals": {
+            "profile_id": "le compte de connexion",
+            "first_name": "le prénom",
+            "last_name": "le nom",
+            "email": "le courriel",
+            "personal_phone": "le téléphone personnel",
+            "address_line1": "l'adresse",
+            "address_line2": "le complément d'adresse",
+            "city": "la ville",
+            "province": "la province",
+            "postal_code": "le code postal",
+            "country": "le pays",
+            "years_experience": "les années d'expérience",
+            "gender": "le genre",
+            "status": "le statut",
+            "deactivation_reason_id": "la raison de la désactivation",
+            "deactivation_note": "la note de désactivation",
+            "deactivation_disabled_account": "le compte désactivé avec le dossier",
+            "activation_override_reason": "la raison de l'activation d'un dossier incomplet"
+          },
+          "professional_public_profiles": {
+            "bio": "la présentation",
+            "approach": "l'approche",
+            "public_email": "le courriel public",
+            "public_phone": "le téléphone public"
+          },
+          "professional_matching_profiles": {
+            "accepting_new_clients": "l'accueil de nouveaux clients",
+            "availability_periods": "les disponibilités générales",
+            "availability_note": "la note sur les disponibilités"
+          }
+        },
+        "values": {
+          "accountLinked": "Lié",
+          "accountNone": "Aucun",
+          "unknown": {
+            "motif": "Motif archivé",
+            "clientele": "Clientèle archivée",
+            "specialty": "Approche archivée",
+            "language": "Langue archivée",
+            "title": "Titre archivé",
+            "reason": "Raison archivée"
+          },
+          "payers": {
+            "ivac": "IVAC"
+          }
+        },
+        "lines": {
+          "accountDisabled": "Le compte de connexion a aussi été désactivé.",
+          "accountEnabled": "Le compte de connexion a aussi été réactivé."
+        },
+        "loadError": "L'historique n'a pas pu être chargé.",
+        "loadMore": "Charger plus",
+        "loadingMore": "Chargement…",
+        "loadMoreError": "La suite de l'historique n'a pas pu être chargée.",
+        "end": "Début de l'historique",
+        "empty": {
+          "title": "Aucun historique",
+          "body": "Les modifications du dossier apparaîtront ici."
+        },
+        "emptyFiltered": {
+          "title": "Aucune modification à afficher",
+          "body": "Choisissez « Tout » pour voir tout l'historique."
+        }
+      },
       "list": {
         "countOne": "{count} professionnel",
         "countOther": "{count} professionnels",

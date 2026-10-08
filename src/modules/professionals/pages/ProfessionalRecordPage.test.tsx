@@ -21,9 +21,11 @@ import { ProfessionalRecordPage } from './ProfessionalRecordPage'
 const mocks = vi.hoisted(() => ({
   catalog: { fetchProfessionalsCatalog: vi.fn() },
   record: { fetchProfessionalRecord: vi.fn() },
+  history: { fetchProfessionalHistory: vi.fn() },
 }))
 vi.mock('../api/catalog', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/catalog')>()), ...mocks.catalog }))
 vi.mock('../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/record')>()), ...mocks.record }))
+vi.mock('../api/history', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api/history')>()), ...mocks.history }))
 vi.mock('@sentry/react', () => ({ captureException: vi.fn() }))
 
 const R = 'modules.professionals.record'
@@ -86,6 +88,7 @@ const tab = (key: string) => screen.getByRole('tab', { name: t(`${R}.tabs.${key}
 beforeEach(() => {
   mocks.catalog.fetchProfessionalsCatalog.mockResolvedValue(CATALOG)
   mocks.record.fetchProfessionalRecord.mockResolvedValue(recordFixture())
+  mocks.history.fetchProfessionalHistory.mockResolvedValue([])
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -113,11 +116,14 @@ describe('ProfessionalRecordPage', () => {
   })
 
   it('opens the tab the URL names', async () => {
+    // The tab's chunk loaded first: a cold import may outlast findBy's wait.
+    await RECORD_TAB_DEFS.find((def) => def.tab === 'historique')?.panel.preload?.()
     renderPage({ path: `${base}/historique` })
     await screen.findByRole('heading', { level: 1, name: 'Marie Tremblay' })
     expect(tab('historique')).toHaveAttribute('aria-selected', 'true')
     expect(within(screen.getByRole('tabpanel')).getByRole('heading', { level: 2, name: t(`${R}.tabs.historique`) })).toBeInTheDocument()
-    expect(await screen.findByText(t(`${R}.tabInPreparation`))).toBeInTheDocument()
+    expect(await screen.findByText(t('modules.professionals.history.empty.title'))).toBeInTheDocument()
+    expect(mocks.history.fetchProfessionalHistory).toHaveBeenCalledTimes(1)
   })
 
   it('puts the chosen tab in the URL, replacing the history entry', async () => {
@@ -163,6 +169,19 @@ describe('ProfessionalRecordPage', () => {
     renderPage()
     await userEvent.hover(await screen.findByRole('tab', { name: t(`${R}.tabs.jumelage`) }))
     expect(preload).toHaveBeenCalled()
+  })
+
+  it('starts loading the history with its code when the pointer rests on Historique', async () => {
+    const historique = RECORD_TAB_DEFS.find((def) => def.tab === 'historique')?.panel
+    const preload = vi.spyOn(historique as Required<NonNullable<typeof historique>>, 'preload')
+    renderPage()
+    await userEvent.hover(await screen.findByRole('tab', { name: t(`${R}.tabs.historique`) }))
+    expect(preload).toHaveBeenCalled()
+    expect(mocks.history.fetchProfessionalHistory).toHaveBeenCalledWith(IDS.professional, undefined)
+    // Opening the tab then reads the prefetched page: no second request.
+    await userEvent.click(tab('historique'))
+    expect(await screen.findByText(t('modules.professionals.history.empty.title'))).toBeInTheDocument()
+    expect(mocks.history.fetchProfessionalHistory).toHaveBeenCalledTimes(1)
   })
 
   it('starts loading a tab’s code when it takes the focus', async () => {

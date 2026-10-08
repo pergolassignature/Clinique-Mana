@@ -60,9 +60,9 @@ export function MotifsSummary({ summary }: { summary: MotifSummary }) {
 
 /**
  * A button that unfolds its panel in place. The panel stays mounted (`hidden` while closed), so
- * `aria-controls` always points at an element.
+ * `aria-controls` always points at an element. The Historique tab's entries use it too.
  */
-function Disclosure({ label, children }: { label: ReactNode; children: ReactNode }) {
+export function Disclosure({ label, children }: { label: ReactNode; children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
   return (

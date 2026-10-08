@@ -1,0 +1,203 @@
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { t } from '@/i18n'
+import { EmptyState } from '@/shared/components/EmptyState'
+import { LoadError, Loading } from '@/shared/components/LoadState'
+import { SegmentedToggle } from '@/shared/components/SegmentedToggle'
+import { ignoreWhenInactive, softDisabledClasses } from '@/shared/components/soft-disabled'
+import { formatClinicTime } from '@/shared/lib/timezone'
+import { cn } from '@/shared/lib/utils'
+import { Button } from '@/shared/ui/button'
+import { Card, CardContent } from '@/shared/ui/card'
+import { useProfessionalHistory } from '../../../hooks/use-professional-record'
+import {
+  buildHistoryEvents,
+  filterHistory,
+  groupHistoryByDay,
+  HISTORY_FILTERS,
+  historyItemLabel,
+  professionTitlesByRow,
+  settledHistoryRows,
+  type HistoryEvent,
+  type HistoryFilter,
+  type HistoryLine,
+} from '../../../lib/history'
+import { Disclosure } from '../MotifsSummary'
+import { useRecordData } from '../record-context'
+
+const H = 'modules.professionals.history'
+
+/**
+ * « Historique » (Task 4a.15): the file's audit trail as one timeline, newest first, by clinic
+ * day. Each entry reads « {qui} {a fait quoi} » and unfolds to its details; nothing shows raw JSON,
+ * an id or a redacted value (D5, Loi 25). Fetched when the tab opens (or on its hover), 50 rows a
+ * page; « Charger plus » reads on.
+ */
+export function HistoryTab() {
+  const { record, catalog } = useRecordData()
+  const { data, isPending, isError, isFetching, refetch, hasNextPage, fetchNextPage, isFetchingNextPage, isFetchNextPageError } =
+    useProfessionalHistory(record.professional.id)
+  const [filter, setFilter] = useState<HistoryFilter>('all')
+  const endRef = useRef<HTMLParagraphElement>(null)
+  const loadMorePressed = useRef(false)
+
+  const rows = useMemo(() => data?.pages.flat() ?? [], [data])
+  const settled = useMemo(() => settledHistoryRows(rows, hasNextPage), [rows, hasNextPage])
+  const events = useMemo(
+    () => buildHistoryEvents(settled, { catalog, titleByRow: professionTitlesByRow(rows, record) }),
+    [settled, rows, catalog, record],
+  )
+  const days = useMemo(() => groupHistoryByDay(filterHistory(events, filter)), [events, filter])
+
+  // Pages that hold only one unfinished save show nothing yet: read on, page by page, until the
+  // save ends. Each new page re-runs this (`rows.length`): a quick fetch may never render as pending.
+  const waiting = hasNextPage && rows.length > 0 && settled.length === 0
+  useEffect(() => {
+    if (waiting && !isFetchingNextPage && !isFetchNextPageError) void fetchNextPage()
+  }, [waiting, rows.length, isFetchingNextPage, isFetchNextPageError, fetchNextPage])
+
+  // After « Charger plus » reaches the start, its button goes away: focus moves to « Début de l'historique ».
+  useEffect(() => {
+    if (isFetchingNextPage || !loadMorePressed.current) return
+    loadMorePressed.current = false
+    if (!hasNextPage) endRef.current?.focus()
+  }, [hasNextPage, isFetchingNextPage])
+
+  let content: ReactNode
+  if (isPending || (waiting && !isFetchNextPageError)) {
+    content = <Loading />
+  } else if (isError && !data) {
+    content = <LoadError message={t(`${H}.loadError`)} retrying={isFetching} onRetry={() => void refetch()} />
+  } else {
+    content = (
+      <>
+        {events.length === 0 && !hasNextPage ? (
+          <EmptyState title={t(`${H}.empty.title`)} body={t(`${H}.empty.body`)} />
+        ) : days.length === 0 ? (
+          <EmptyState title={t(`${H}.emptyFiltered.title`)} body={t(`${H}.emptyFiltered.body`)} />
+        ) : (
+          <div className="space-y-5">
+            {days.map((day) => (
+              <HistoryDaySection key={day.key} label={day.label} events={day.events} />
+            ))}
+          </div>
+        )}
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border-light pt-3 text-xs text-muted-foreground">
+          {hasNextPage ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-disabled={isFetchingNextPage || undefined}
+                onClick={ignoreWhenInactive(isFetchingNextPage, () => {
+                  loadMorePressed.current = true
+                  void fetchNextPage()
+                })}
+                className={cn(softDisabledClasses, 'max-sm:h-11 aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
+              >
+                {isFetchingNextPage ? t(`${H}.loadingMore`) : t(`${H}.loadMore`)}
+              </Button>
+              {isFetchNextPageError && !isFetchingNextPage && <p role="alert">{t(`${H}.loadMoreError`)}</p>}
+            </>
+          ) : (
+            events.length > 0 && (
+              <p ref={endRef} tabIndex={-1} className="outline-none">
+                {t(`${H}.end`)}
+              </p>
+            )
+          )}
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <SegmentedToggle
+        label={t(`${H}.filter.label`)}
+        options={HISTORY_FILTERS.map((value) => ({ value, label: t(`${H}.filter.${value}`) }))}
+        value={filter}
+        onChange={setFilter}
+      />
+      <Card>
+        <CardContent className="pt-4">{content}</CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function HistoryDaySection({ label, events }: { label: string; events: readonly HistoryEvent[] }) {
+  const headingId = useId()
+  return (
+    <section aria-labelledby={headingId}>
+      <h3 id={headingId} className="text-xs font-medium text-muted-foreground">
+        {label}
+      </h3>
+      <ol className="mt-2 space-y-2">
+        {events.map((event) => (
+          <HistoryItem key={event.id} event={event} />
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+/** « 14:30  Admin Local a modifié la ville », unfolding to its details when it has any. */
+function HistoryItem({ event }: { event: HistoryEvent }) {
+  const text = (
+    <>
+      <span className={cn('font-medium', !event.byPerson && 'text-muted-foreground')}>{event.actor}</span> {event.sentence}
+    </>
+  )
+  return (
+    <li className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-x-2 text-sm">
+      <time dateTime={event.createdAt} className="tabular-nums text-muted-foreground">
+        {formatClinicTime(event.createdAt)}
+      </time>
+      {/* Values (emails, reasons) may be long words: they wrap anywhere rather than widen the page. */}
+      <div className="min-w-0 [overflow-wrap:anywhere]">
+        {event.lines.length > 0 || event.groups.length > 0 ? (
+          <Disclosure label={text}>
+            <HistoryDetails event={event} />
+          </Disclosure>
+        ) : (
+          // Aligned with the text of the entries that have a chevron (14 px + 4 px gap).
+          <p className="pl-[18px]">{text}</p>
+        )}
+      </div>
+    </li>
+  )
+}
+
+function lineText(line: HistoryLine): string {
+  switch (line.kind) {
+    case 'change':
+      return t('audit.details.change', { field: line.field, before: line.before, after: line.after })
+    case 'value':
+      return t('audit.details.value', { field: line.field, value: line.value })
+    case 'text':
+      return line.text
+  }
+}
+
+/** « Champ : avant → après » lines, then the names a counted sentence stands for (by category for motifs). */
+function HistoryDetails({ event }: { event: HistoryEvent }) {
+  return (
+    <ul className="space-y-0.5 text-muted-foreground">
+      {event.lines.map((line, index) => (
+        <li key={index}>{lineText(line)}</li>
+      ))}
+      {event.groups.map((group) => (
+        <li key={group.key}>
+          {group.name !== null && (
+            <>
+              <span className="font-medium text-foreground">{group.name}</span>
+              {' : '}
+            </>
+          )}
+          {group.items.map(historyItemLabel).join(' · ')}
+        </li>
+      ))}
+    </ul>
+  )
+}
