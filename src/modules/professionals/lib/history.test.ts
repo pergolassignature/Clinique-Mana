@@ -444,6 +444,9 @@ describe('history — retention (P4-193)', () => {
     expect(only([rate('insert', { retention_pct: 28, decision: 'maintained', tier_threshold: 51, effective_from: '2026-09-01' })]).sentence).toBe(
       `a maintenu le taux à 28${NBSP}% au palier de 51 séances, dès le 1 sept. 2026`,
     )
+    expect(only([rate('insert', { retention_pct: 30, decision: 'maintained', tier_threshold: 0, effective_from: '2026-09-01' })]).sentence).toBe(
+      `a maintenu le taux à 30${NBSP}% au palier de 0 séance, dès le 1 sept. 2026`,
+    )
     expect(only([rate('insert', { retention_pct: 26, decision: 'custom', effective_from: '2026-09-01', note: 'Entente' })]).lines).toEqual([
       { kind: 'value', field: t('audit.fields.professional_retention.note'), value: 'Entente' },
     ])
@@ -463,10 +466,10 @@ describe('history — retention (P4-193)', () => {
     expect(only([months('delete', { month: '2026-09-01', sessions_50_60: 20 })]).sentence).toBe('a retiré les séances de septembre 2026')
   })
 
-  it('reads a client agreement with both amounts in dollars, never its future client id', () => {
+  it('reads a client agreement with both amounts in dollars, never its client reference (redacted, Loi 25) nor its future client id', () => {
     const event = only([
       agreement('insert', {
-        client_label: 'D-1042',
+        client_label: '[redacted]',
         client_id: '00000000-0000-4000-8000-00000000c11e',
         duration: 50,
         professional_amount_cents: 8500,
@@ -478,11 +481,11 @@ describe('history — retention (P4-193)', () => {
     ])
     expect(event.sentence).toBe('a ajouté une entente particulière (50 min) dès le 1 oct. 2026')
     expect(event.lines).toEqual([
-      { kind: 'value', field: t('audit.fields.professional_client_agreements.client_label'), value: 'D-1042' },
       { kind: 'value', field: t('modules.professionals.history.moneyFields.client_price_cents'), value: `120,00${NBSP}$` },
       { kind: 'value', field: t('modules.professionals.history.moneyFields.professional_amount_cents'), value: `85,00${NBSP}$` },
     ])
     expect(printed([event])).not.toMatch(UUID)
+    expect(printed([event])).not.toMatch(/redacted|masqué/i)
   })
 
   it('keeps an end-date change alone (an agreement ended) as a change, with readable values', () => {

@@ -65,8 +65,9 @@
 --   org-scoped); writes are RPCs only. Every statement is scoped to the caller's clinic.
 -- * The compensation tables are audited with their values (P4-149): the history and the
 --   Journal d'audit keep what a grid, a count or a rate was, even after a deletion. audit.view
---   (admin-only by default) therefore shows them too. The retention is internal: nothing here is
---   readable with professionals.self.
+--   (admin-only by default) therefore shows them too. Except a client agreement's client_label,
+--   redacted (Loi 25, P4-193): the log keeps the duration, dates and amounts only. The retention
+--   is internal: nothing here is readable with professionals.self.
 -- * import_professional (*_professionals_import.sql) is replaced at the end: two optional keys,
 --   retention_pct and cumulative_sessions (P4-192).
 -- * Permissions (4a.1): professionals.private for the private data, professionals.compensation
@@ -892,8 +893,10 @@ create trigger professional_session_counts_audit after insert or update or delet
   for each row execute function private.audit_trigger();
 create trigger professional_retention_audit after insert or update or delete on public.professional_retention
   for each row execute function private.audit_trigger();
+-- client_label is redacted (Loi 25): a client reference, even initials, stays out of the log;
+-- Historique shows the agreement's duration, dates and amounts only (P4-193).
 create trigger professional_client_agreements_audit after insert or update or delete on public.professional_client_agreements
-  for each row execute function private.audit_trigger();
+  for each row execute function private.audit_trigger('client_label');
 
 -- -----------------------------------------------------------------------------
 -- The clinic's program for every clinic (P4-181, P4-182, P4-184: Jonathan's sheet, from 2026-07-01)
@@ -1103,10 +1106,15 @@ $$;
 --   profession_unconfirmed  no grid for the primary title (or no title);
 --   gap                     « Écart à valider »: no rate yet, or applied ≠ suggested with no
 --                           decision covering it;
---   custom                  « Taux particulier »: never flagged again;
+--   custom                  « Taux particulier » (Jonathan, 2026-10-08): stands while the count
+--                           is still in the tier it was decided at (or a lower one, after a
+--                           correction), and always once that tier is the floor; a new tier
+--                           flags it again (gap), as does a grid applying to a rate decided
+--                           without one (no tier_threshold);
 --   floor                   « Palier maximum atteint »: applied = suggested = the floor;
 --   conforme                applied = suggested;
---   maintained              « Maintenu »: kept at the tier the count is still in.
+--   maintained              « Maintenu »: kept at the tier the count is still in (or a lower one,
+--                           after a correction); a new tier flags it again.
 create function private.retention_overview(p_org uuid, p_through date, p_on date)
 returns table (
   professional_id uuid,
@@ -1140,10 +1148,13 @@ as $$
          case
            when g.id is null then 'profession_unconfirmed'
            when a.id is null then 'gap'
-           when a.decision = 'custom' then 'custom'
+           when a.decision = 'custom' then
+             case when a.tier_threshold is not null
+                   and (sug.threshold_sessions <= a.tier_threshold or a.tier_threshold >= fl.threshold_sessions)
+                  then 'custom' else 'gap' end
            when a.retention_pct = sug.retention_pct then
              case when sug.retention_pct = fl.retention_pct then 'floor' else 'conforme' end
-           when a.decision = 'maintained' and a.tier_threshold = sug.threshold_sessions then 'maintained'
+           when a.decision = 'maintained' and sug.threshold_sessions <= a.tier_threshold then 'maintained'
            else 'gap'
          end
     from public.professionals p
@@ -1188,7 +1199,7 @@ as $$
        order by gt.threshold_sessions
        limit 1) nxt on true
     left join lateral (
-      select gt.retention_pct
+      select gt.threshold_sessions, gt.retention_pct
         from public.retention_grid_tiers gt
        where gt.grid_id = g.id and gt.org_id = p_org
        order by gt.threshold_sessions desc
@@ -1197,8 +1208,10 @@ as $$
 $$;
 
 -- Pay per duration of the grid, 60 then 50 then 30: [{duration, client_price_cents, applied_cents,
--- suggested_cents}]; an amount is null when its rate is unknown.
-create function private.retention_pay(p_org uuid, p_grid uuid, p_applied numeric, p_suggested numeric)
+-- suggested_cents, upcoming_cents}]. applied_cents is at the rate in force on the read model's date
+-- (what Facturation pays that day, P4-151), upcoming_cents at the latest decision when it starts
+-- later (null otherwise); an amount is null when its rate is unknown.
+create function private.retention_pay(p_org uuid, p_grid uuid, p_in_force numeric, p_suggested numeric, p_upcoming numeric)
 returns jsonb
 language sql
 stable
@@ -1207,8 +1220,9 @@ as $$
   select coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
            'duration', gp.duration,
            'client_price_cents', gp.client_price_cents,
-           'applied_cents', private.retention_pay_cents(gp.client_price_cents, p_applied),
-           'suggested_cents', private.retention_pay_cents(gp.client_price_cents, p_suggested)
+           'applied_cents', private.retention_pay_cents(gp.client_price_cents, p_in_force),
+           'suggested_cents', private.retention_pay_cents(gp.client_price_cents, p_suggested),
+           'upcoming_cents', private.retention_pay_cents(gp.client_price_cents, p_upcoming)
          ) order by gp.duration desc), '[]'::jsonb)
     from public.retention_grid_prices gp
    where gp.grid_id = p_grid and gp.org_id = p_org
@@ -1587,13 +1601,27 @@ $$;
 -- -----------------------------------------------------------------------------
 -- A new applied rate from p_effective_from (closes the open one on that date):
 --   initial     p_retention_pct required; only while the professional has no rate;
---   suggested   the grid's suggestion for the current count (p_retention_pct must be null);
+--   suggested   the grid's suggestion for the count (p_retention_pct must be null);
 --   maintained  the open rate again, remembering the tier the count is in (p_retention_pct null);
---   custom      p_retention_pct and a note required.
--- The suggestion uses every month's sessions and the grid in force on p_effective_from.
+--   custom      p_retention_pct and a note required; remembers the tier too (P4-188: a new tier
+--               flags it again).
+-- The count is every month through p_count_month (required; the reviewed month from « Révision
+-- mensuelle », the clinic's current month from the record; not after the clinic's month, HINT
+-- month), with the grid in force on p_effective_from: exactly what the caller showed, so applying
+-- the suggestion stores the rate the dialog announced (P4-187). p_expected_open_id is the open
+-- decision the caller read (null when there was none): another decision or deletion since then
+-- refuses the call (P0001, HINT stale), so two people never decide on different states.
 -- Returns {id, retention_pct, decreased}: decreased when the rate is lower than the open one
 -- (an « augmentation » for the professional; the notice email is 4b's, P4-191).
-create function public.decide_retention(p_id uuid, p_decision text, p_retention_pct numeric, p_effective_from date, p_note text)
+create function public.decide_retention(
+  p_id uuid,
+  p_decision text,
+  p_retention_pct numeric,
+  p_effective_from date,
+  p_note text,
+  p_count_month date,
+  p_expected_open_id uuid
+)
 returns jsonb
 language plpgsql
 security definer
@@ -1603,6 +1631,7 @@ declare
   v_org uuid := private.current_user_org_id();
   v_pct numeric := round(p_retention_pct, 2);
   v_note text;
+  v_month date;
   v_open public.professional_retention;
   v_state record;
   v_id uuid;
@@ -1621,11 +1650,23 @@ begin
   if p_decision = 'custom' and v_note is null then
     raise exception 'Précisez la raison du taux particulier.' using errcode = 'P0001', hint = 'note';
   end if;
-  perform private.assert_compensation_date(p_effective_from, 'effective_from');
+  -- Values before any lock: the start date (null and bounds; « after the open one » needs the lock).
+  perform private.assert_starts_after(p_effective_from, null, null);
+  if p_count_month is null then
+    raise exception 'Le mois du décompte est requis.' using errcode = 'P0001', hint = 'month';
+  end if;
+  perform private.assert_compensation_date(p_count_month, 'month');
+  v_month := pg_catalog.date_trunc('month', p_count_month)::date;
+  if v_month > pg_catalog.date_trunc('month', private.clinic_today())::date then
+    raise exception 'Le décompte ne peut pas porter sur un mois à venir.' using errcode = 'P0001', hint = 'month';
+  end if;
 
   perform private.lock_professional(p_id);
   select * into v_open from public.professional_retention r
    where r.professional_id = p_id and r.org_id = v_org and r.effective_to is null;
+  if v_open.id is distinct from p_expected_open_id then
+    raise exception 'Le taux de ce professionnel a été modifié depuis son affichage.' using errcode = 'P0001', hint = 'stale';
+  end if;
   if p_decision = 'initial' and exists (select 1 from public.professional_retention r
                                          where r.professional_id = p_id and r.org_id = v_org) then
     raise exception 'Un taux est déjà appliqué : choisissez une autre décision.' using errcode = 'P0001';
@@ -1636,7 +1677,7 @@ begin
   perform private.assert_starts_after(p_effective_from, v_open.effective_from, 'Le nouveau taux doit commencer après le');
 
   select o.* into v_state
-    from private.retention_overview(v_org, date '2100-12-01', p_effective_from) o
+    from private.retention_overview(v_org, v_month, p_effective_from) o
    where o.professional_id = p_id;
   if p_decision in ('suggested', 'maintained') and v_state.suggested_pct is null then
     raise exception 'Aucune grille ne s''applique à la profession principale de ce professionnel à cette date.'
@@ -1749,6 +1790,11 @@ begin
     get stacked diagnostics v_message = message_text;
     raise exception '%', v_message using errcode = 'P0001', hint = 'client_label';
   end;
+  -- A light guard against a full name (P4-183, Loi 25): two or more words of letters (2 or more
+  -- each, hyphens and apostrophes inside) and no digit. « AB-123 », « M.T. », « D-1042 » pass.
+  if v_label !~ '[0-9]' and v_label ~ '^[[:alpha:]][[:alpha:]''’-]+([[:space:]]+[[:alpha:]][[:alpha:]''’-]+)+$' then
+    raise exception 'Numéro de dossier ou initiales seulement.' using errcode = 'P0001', hint = 'client_label';
+  end if;
   if p_professional_amount_cents is null or p_professional_amount_cents not between 1 and 100000 then
     raise exception 'Le montant versé est compris entre 0,01 $ et 1 000 $.' using errcode = 'P0001', hint = 'professional_amount';
   end if;
@@ -1805,7 +1851,8 @@ as $$
 $$;
 
 -- Ends an agreement on p_effective_to (exclusive: the grid applies again from that day), or
--- reopens it with null. Only the last row of its client and duration.
+-- reopens it with null. Only the last row of its client and duration. The end may not be before
+-- the clinic's today (HINT effective_to): sessions already given under the agreement keep it.
 create function public.end_professional_client_agreement(p_row_id uuid, p_effective_to date)
 returns void
 language plpgsql
@@ -1818,6 +1865,9 @@ declare
 begin
   perform private.assert_compensation_access();
   perform private.assert_compensation_date(p_effective_to, 'effective_to');
+  if p_effective_to < private.clinic_today() then
+    raise exception 'La fin de l''entente ne peut pas précéder aujourd''hui.' using errcode = 'P0001', hint = 'effective_to';
+  end if;
   select * into v_row from public.professional_client_agreements a where a.id = p_row_id and a.org_id = v_org;
   if v_row.id is null then
     raise exception 'Entente introuvable.' using errcode = 'P0001';
@@ -1883,8 +1933,10 @@ $$;
 -- A professional's compensation on a date (clinic today by default, P4-194): the primary title,
 -- its grid in force (tiers, floor), the cumulative sessions (every month up to p_on's), the
 -- applied rate (the latest decision) with the one in force on p_on, the suggestion and the next
--- tier, the status, the pay per duration (applied and suggested), the client agreements in force
--- on p_on, and the other kinds' rates in force. Read model for the record, 4d and Facturation.
+-- tier, the status, the pay per duration (applied_cents at the rate in force on p_on, what
+-- Facturation pays that day; upcoming_cents at the latest decision when it starts after p_on;
+-- suggested_cents), the client agreements in force on p_on, and the other kinds' rates in force.
+-- Read model for the record, 4d and Facturation.
 create function public.get_professional_compensation(p_id uuid, p_on date default null)
 returns jsonb
 language plpgsql
@@ -1937,7 +1989,8 @@ begin
                  else pg_catalog.jsonb_build_object('threshold_sessions', v_state.next_threshold,
                                                     'retention_pct', v_state.next_pct) end,
     'status', v_state.status,
-    'pay', private.retention_pay(v_org, v_state.grid_id, v_state.applied_pct, v_state.suggested_pct),
+    'pay', private.retention_pay(v_org, v_state.grid_id, v_state.in_force_pct, v_state.suggested_pct,
+                                 case when v_state.applied_from > v_on then v_state.applied_pct end),
     'agreements', (
       select coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
                'id', a.id, 'client_label', a.client_label, 'client_id', a.client_id, 'duration', a.duration,
@@ -1963,8 +2016,8 @@ $$;
 -- month's entry (and its updated_at, for record_monthly_sessions), the count before the month and
 -- through it, the applied rate (latest decision) and the one in force on the first day of the
 -- next month, the suggestion, the next tier, the status, increase_decided (a « suggested »
--- decision lowering the rate from the next month: the sheet's green), the pay, and the number of
--- client agreements in force on that day.
+-- decision lowering the rate from the next month: the sheet's green), the pay on that day (in
+-- force, upcoming, suggested), and the number of client agreements in force on that day.
 create function public.list_retention_review(p_month date)
 returns jsonb
 language plpgsql
@@ -2013,7 +2066,8 @@ begin
                'increase_decided', coalesce(o.applied_decision = 'suggested' and o.applied_pct < o.previous_pct
                                             and o.applied_from >= v_on
                                             and o.applied_from < (v_on + interval '1 month')::date, false),
-               'pay', private.retention_pay(v_org, o.grid_id, o.applied_pct, o.suggested_pct),
+               'pay', private.retention_pay(v_org, o.grid_id, o.in_force_pct, o.suggested_pct,
+                                            case when o.applied_from > v_on then o.applied_pct end),
                'agreements', (select count(*) from public.professional_client_agreements a
                                where a.professional_id = p.id and a.org_id = v_org
                                  and a.effective_from <= v_on and (a.effective_to is null or v_on < a.effective_to))
@@ -2038,7 +2092,7 @@ revoke all on function
   private.agreement_has_successor(public.professional_client_agreements),
   private.retention_pay_cents(int, numeric),
   private.retention_overview(uuid, date, date),
-  private.retention_pay(uuid, uuid, numeric, numeric)
+  private.retention_pay(uuid, uuid, numeric, numeric, numeric)
 from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
@@ -2129,7 +2183,9 @@ revoke all on function private.professional_compensation_history_tables() from p
 -- Same signature, grants (authenticated), SECURITY INVOKER and results as before; the rest of
 -- the import (contract, helpers, all-or-nothing block) is unchanged. New optional keys:
 -- * retention_pct (number): the rate applied today, written as an « initial » decision from the
---   clinic's today through decide_retention;
+--   first day of the clinic's current month through decide_retention (so the first review's
+--   decision, for the first day of a later month, starts after it; the rate covers the whole
+--   import month);
 -- * cumulative_sessions (number, half sessions allowed): the count so far, written as the opening
 --   adjustment of the month before the clinic's current month (the last month the clinic's sheet
 --   counted) through record_monthly_sessions.
@@ -2225,7 +2281,9 @@ begin
       end if;
       if v_pct is not null then
         begin
-          perform public.decide_retention(v_result.id, 'initial', v_pct, private.clinic_today(), null);
+          perform public.decide_retention(v_result.id, 'initial', v_pct,
+                                          pg_catalog.date_trunc('month', private.clinic_today())::date, null,
+                                          pg_catalog.date_trunc('month', private.clinic_today())::date, null);
         exception when sqlstate 'P0001' then
           get stacked diagnostics v_message = message_text;
           v_errors := v_errors || pg_catalog.jsonb_build_object('field', 'retentionPct', 'message', v_message);
@@ -2279,7 +2337,7 @@ revoke all on function
   public.set_retention_grid(uuid, date, jsonb, jsonb, text),
   public.delete_retention_grid(uuid),
   public.record_monthly_sessions(date, jsonb),
-  public.decide_retention(uuid, text, numeric, date, text),
+  public.decide_retention(uuid, text, numeric, date, text, date, uuid),
   public.delete_professional_retention(uuid),
   public.set_professional_client_agreement(uuid, text, int, int, int, date, text),
   public.end_professional_client_agreement(uuid, date),
@@ -2299,7 +2357,7 @@ grant execute on function
   public.set_retention_grid(uuid, date, jsonb, jsonb, text),
   public.delete_retention_grid(uuid),
   public.record_monthly_sessions(date, jsonb),
-  public.decide_retention(uuid, text, numeric, date, text),
+  public.decide_retention(uuid, text, numeric, date, text, date, uuid),
   public.delete_professional_retention(uuid),
   public.set_professional_client_agreement(uuid, text, int, int, int, date, text),
   public.end_professional_client_agreement(uuid, date),

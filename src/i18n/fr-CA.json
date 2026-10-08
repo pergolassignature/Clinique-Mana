@@ -1334,15 +1334,15 @@
             "noRate": "Aucun taux",
             "since": "Depuis le {date}",
             "upcoming": "Dès le {date} · aujourd’hui : {rate}",
-            "tier": "Palier de {tier} séances",
-            "next": "prochain palier à {tier} séances ({rate})",
+            "tier": "Palier de {range}",
+            "next": "prochain palier à {tier} ({rate})",
             "maxTier": "palier maximum",
-            "pay": "Versé au professionnel par séance (taux appliqué → suggéré)",
+            "pay": "Versé au professionnel par séance (taux en vigueur → suggéré)",
             "otherRates": "Autres services, taux de la clinique : {rates}",
             "rateHistory": "Historique des taux",
             "monthHistory": "Séances par mois",
-            "snapshot": "À la décision : {sessions} séances, {rate} suggéré",
-            "snapshotNoGrid": "À la décision : {sessions} séances, aucune grille",
+            "snapshot": "À la décision : {sessions}, {rate} suggéré",
+            "snapshotNoGrid": "À la décision : {sessions}, aucune grille",
             "monthRow": "{long} de 50 ou 60 min · {short} de 30 min",
             "adjustment": "Ajustement {value}",
             "monthTotal": "+{count} · cumul {total}",
@@ -1354,8 +1354,8 @@
             "deleted": "Taux supprimé."
           },
           "decision": {
-            "saved": "Taux enregistré.",
-            "savedDecreased": "Taux enregistré : la retenue baisse, une augmentation pour le professionnel."
+            "saved": "Taux de {rate} enregistré.",
+            "savedDecreased": "Taux de {rate} enregistré : la retenue baisse, une augmentation pour le professionnel."
           },
           "sessions": {
             "add": "Ajouter les séances du mois",
@@ -1372,7 +1372,7 @@
               "shortHelp": "Comptent pour une demi-séance.",
               "adjustment": "Ajustement (facultatif)",
               "adjustmentHelp": "Un solde d’ouverture ou une correction, par demi-séance (ex. 237,5 ou -2).",
-              "newTotal": "Nouveau cumul : {total} séances."
+              "newTotal": "Nouveau cumul : {total}."
             }
           },
           "agreements": {
@@ -1695,7 +1695,7 @@
           "rateSet": {
             "initial": "a fixé le taux de départ à {rate} dès le {date}",
             "suggested": "a appliqué le taux suggéré de {rate} dès le {date}",
-            "maintained": "a maintenu le taux à {rate} au palier de {tier} séances, dès le {date}",
+            "maintained": "a maintenu le taux à {rate} au palier de {tier}, dès le {date}",
             "custom": "a fixé un taux particulier de {rate} dès le {date}"
           },
           "rateDeleted": "a supprimé le taux de {rate} (dès le {date})",
@@ -2017,10 +2017,12 @@
           "adjustment": "Un nombre de séances par demi-séance (ex. 12,5 ou -3), entre -100 000 et 100 000.",
           "customNote": "Indiquez la raison du taux particulier.",
           "clientLabel": "Indiquez la référence du client.",
+          "clientLabelName": "Numéro de dossier ou initiales seulement.",
           "duration": "Choisissez une durée.",
           "money": "Un montant entre 0,01 $ et 1 000 $.",
           "amountAbovePrice": "Le montant versé ne peut pas dépasser le prix client.",
           "endAfterStart": "La fin doit suivre le début ({date}).",
+          "endBeforeToday": "La fin de l’entente ne peut pas précéder aujourd’hui.",
           "threshold": "Un nombre entier de séances, de 0 à 100 000.",
           "tiersRequired": "Ajoutez au moins un palier.",
           "tiersDistinct": "Deux paliers ont le même seuil.",
@@ -2033,6 +2035,9 @@
           "50": "50 min",
           "30": "30 min"
         },
+        "sessionsCount": { "one": "{count} séance", "other": "{count} séances" },
+        "tierRange": "{from} à {to}",
+        "tierRangeOpen": "{from} et plus",
         "retentionStatus": {
           "gap": "Écart à valider",
           "conforme": "Conforme",
@@ -2067,22 +2072,24 @@
             "custom": "Taux particulier — {name}"
           },
           "describe": {
-            "suggested": "La retenue de la clinique passe de {from} à {to} (palier de {tier} séances).",
-            "suggestedFirst": "La retenue de la clinique sera de {to} (palier de {tier} séances).",
-            "maintained": "La retenue reste à {rate} au palier de {tier} séances. L’écart sera signalé de nouveau au prochain palier.",
-            "custom": "Un taux particulier n’est plus signalé comme un écart. Indiquez-en la raison.",
+            "suggested": "La retenue de la clinique passe de {from} à {to} (palier de {tier}).",
+            "suggestedFirst": "La retenue de la clinique sera de {to} (palier de {tier}).",
+            "maintained": "La retenue reste à {rate} au palier de {tier}. L’écart sera signalé de nouveau au prochain palier.",
+            "custom": "Signalé de nouveau au prochain palier, sauf au palier maximum. Indiquez-en la raison.",
             "initial": "Le taux appliqué jusqu’ici, avant le suivi dans l’application."
           },
           "rate": "Retenue de la clinique (%)",
           "fromHelp": "Le taux actuel se terminera la veille de cette date.",
           "customNoteHelp": "Sur une ligne : la raison du taux particulier.",
           "confirm": "Confirmer",
-          "confirming": "Enregistrement…"
+          "confirming": "Enregistrement…",
+          "stale": "Le taux de ce professionnel vient d’être modifié par une autre personne. Vérifiez la situation à jour, puis décidez de nouveau."
         },
         "pay": {
           "suggestedPrefix": "suggéré :",
           "clientPrice": "Prix client : {price}",
-          "minutes": "{duration} min"
+          "minutes": "{duration} min",
+          "upcoming": "À venir dès le {date} : {amount}"
         }
       },
       "settings": {
@@ -2262,7 +2269,7 @@
           "grids": {
             "title": "Grilles de rétention",
             "description": "Par profession : la retenue de la clinique selon les séances cumulées, et le prix client de chaque durée. Une modification crée une nouvelle version datée.",
-            "summary": "De {first} à {floor} (dès {tier} séances)",
+            "summary": "De {first} à {floor} (dès {tier})",
             "none": "Aucune grille : les professionnels de cette profession sont « Profession à confirmer ».",
             "coming": "Nouvelle version dès le {date}.",
             "details": "Paliers et prix ({count} version(s))",
@@ -2392,6 +2399,8 @@
         "description": "Les séances du mois, le taux appliqué et la suggestion de la grille, pour chaque professionnel actif.",
         "loadError": "La révision du mois n’a pas pu être chargée.",
         "month": "Mois",
+        "monthHelp": "Format AAAA-MM (ex. 2026-09).",
+        "monthPlaceholder": "AAAA-MM",
         "filter": "Afficher",
         "filters": {
           "all": "Tous ({count})",
@@ -2413,10 +2422,11 @@
         "shortLabel": "Séances de 30 min de {name}",
         "before": "{count} avant le mois",
         "adjustment": "Ajustement {value}",
+        "importedBalance": "Solde importé : {count} avant le suivi",
         "unsaved": "(non enregistré)",
         "applied": "Appliqué",
         "suggested": "Suggéré",
-        "tier": "palier {tier}",
+        "tier": "palier de {range}",
         "noTitle": "Aucune profession",
         "agreements": "{count} entente(s) particulière(s)",
         "increaseDecided": "Augmentation décidée pour le mois suivant.",

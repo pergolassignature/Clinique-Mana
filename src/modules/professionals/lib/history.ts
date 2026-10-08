@@ -5,7 +5,7 @@ import { formatClinicDateFull, formatDateOnlyShort, getClinicDateString } from '
 import { DECISIONS, DURATIONS, type Decision, type Duration } from '../api/compensation'
 import type { HistoryEntry, ProfessionalRecord } from '../api/parse'
 import { OTHER_MOTIF_GROUP, type CatalogView } from './catalog-view'
-import { durationLabel, formatCents, formatPercent, formatSessions, monthLabel } from './compensation'
+import { durationLabel, formatCents, formatPercent, formatSessions, monthLabel, sessionsLabel } from './compensation'
 import { PAYER_TYPES, PROFESSIONAL_STATUSES, type AvailabilityPeriod, type PayerType, type ProfessionalStatus } from './constants'
 import { listLabel, periodsLabel, statusLabel } from './display'
 import { FEW_MOTIFS, type HeldMotif } from './motif-summary'
@@ -40,6 +40,9 @@ const TECHNICAL = new Set([
   'status_changed_by',
   // A client agreement's future Clients id (P4-183): never shown.
   'client_id',
+  // A client agreement's client reference: redacted by the audit trigger (Loi 25, P4-193); the
+  // history shows the duration, the dates and the amounts only.
+  'client_label',
 ])
 /** Free texts: shown in the details only, never inside a sentence. */
 const LONG_TEXT = new Set(['bio', 'approach', 'availability_note', 'deactivation_note', 'activation_override_reason'])
@@ -392,7 +395,7 @@ function datedRow(ctx: HistoryContext, table: DatedTable, entry: HistoryEntry): 
     const rate = compensationValue(ctx, 'retention_pct', fields.retention_pct)
     if (!added) return { kind: 'change', sentence: t(`${S}.rateDeleted`, { rate, date }), lines: [] }
     const decision = isDecision(fields.decision) ? fields.decision : 'initial'
-    const tier = typeof fields.tier_threshold === 'number' ? formatSessions(fields.tier_threshold) : '—'
+    const tier = typeof fields.tier_threshold === 'number' ? sessionsLabel(fields.tier_threshold) : '—'
     return { kind: 'change', sentence: t(`${S}.rateSet.${decision}`, { rate, date, tier }), lines: valueLines(ctx, table, fields, ['sessions_total', 'suggested_pct', 'note']) }
   }
   const duration = compensationValue(ctx, 'duration', fields.duration)
@@ -400,7 +403,7 @@ function datedRow(ctx: HistoryContext, table: DatedTable, entry: HistoryEntry): 
   return {
     kind: 'change',
     sentence: t(`${S}.agreementAdded`, { duration, date }),
-    lines: valueLines(ctx, table, fields, ['client_label', 'client_price_cents', 'professional_amount_cents', 'effective_to', 'note']),
+    lines: valueLines(ctx, table, fields, ['client_price_cents', 'professional_amount_cents', 'effective_to', 'note']),
   }
 }
 

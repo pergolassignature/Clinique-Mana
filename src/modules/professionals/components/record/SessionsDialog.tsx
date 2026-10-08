@@ -11,7 +11,7 @@ import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import type { SessionRow } from '../../api/compensation'
 import { useRecordSessions } from '../../hooks/use-compensation'
-import { formatSessions, monthCount, monthOf, parseSessions, shiftMonth } from '../../lib/compensation'
+import { formatSessions, monthCount, monthOf, parseSessions, sessionsLabel, shiftMonth } from '../../lib/compensation'
 import { sessionsSchema, type SessionsFormValues, type SessionsInput } from '../../schemas/compensation'
 import { DialogForm } from '../compensation/DatedRowParts'
 
@@ -195,7 +195,7 @@ function SessionsForm({ rows, total, firstFieldRef, pending, refusal, stale, onS
         {(field) => <Input {...field} {...form.register('note')} autoComplete="off" maxLength={500} />}
       </FormField>
       <p role="status" className="text-sm text-muted-foreground">
-        {newTotal !== null && newTotal >= 0 && t(`${S}.dialog.newTotal`, { total: formatSessions(newTotal) })}
+        {newTotal !== null && newTotal >= 0 && t(`${S}.dialog.newTotal`, { total: sessionsLabel(newTotal) })}
       </p>
     </DialogForm>
   )

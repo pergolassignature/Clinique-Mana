@@ -6,7 +6,7 @@ import { REVEAL_DURATION_MS } from '@/shared/lib/use-revealed-value'
 import type { ProfessionalCompensation } from '../../../api/compensation'
 import type { ProfessionalPrivate } from '../../../api/private'
 import { professionalKeys } from '../../../hooks/keys'
-import { compensationFixture, EMPTY_PRIVATE, privateFixture, PRIVATE_UPDATED_AT } from '../../../test/fixtures-compensation'
+import { COMP_IDS, compensationFixture, EMPTY_PRIVATE, privateFixture, PRIVATE_UPDATED_AT } from '../../../test/fixtures-compensation'
 import { recordFixture } from '../../../test/fixtures-domain'
 import { renderRecordTab } from '../../../test/record-tab'
 import { CompensationTab } from './CompensationTab'
@@ -383,7 +383,7 @@ describe('CompensationTab — « Rétention » (P4-180…)', () => {
     // jest-dom reads a no-break space as a space.
     expect(card).toHaveTextContent('Séances cumulées55,5')
     expect(card).toHaveTextContent('28 % Taux de départ')
-    expect(card).toHaveTextContent('27,5 %Palier de 51 séances · prochain palier à 101 séances (27 %)')
+    expect(card).toHaveTextContent('27,5 %Palier de 51 à 100,5 séances · prochain palier à 101 séances (27 %)')
     expect(card).toHaveTextContent('50 min 126,00 $ →suggéré : 126,88 $')
     expect(card).toHaveTextContent('Prix client : 175,00 $')
     expect(card).toHaveTextContent('Ateliers et conférences 25 % · Annulation tardive 30 %')
@@ -395,13 +395,21 @@ describe('CompensationTab — « Rétention » (P4-180…)', () => {
     const card = await retention()
     await userEvent.click(within(card).getByRole('button', { name: t(`${W}.decision.action.suggested`) }))
     const dialog = screen.getByRole('dialog', { name: t(`${W}.decision.title.suggested`) })
-    expect(dialog).toHaveTextContent('La retenue de la clinique passe de 28 % à 27,5 % (palier de 51 séances).')
+    expect(dialog).toHaveTextContent('La retenue de la clinique passe de 28 % à 27,5 % (palier de 51 à 100,5 séances).')
     expect(within(dialog).getByLabelText(new RegExp(t(`${W}.from`)))).toHaveValue('2026-11-01')
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.decision.confirm`) }))
     await waitFor(() =>
-      expect(mocks.compensation.decideRetention).toHaveBeenCalledExactlyOnceWith(id, { decision: 'suggested', pct: null, effectiveFrom: '2026-11-01', note: null }),
+      // The record's count runs through the current month; the open decision is the one read.
+      expect(mocks.compensation.decideRetention).toHaveBeenCalledExactlyOnceWith(id, {
+        decision: 'suggested',
+        pct: null,
+        effectiveFrom: '2026-11-01',
+        note: null,
+        countMonth: '2026-10-01',
+        expectedOpenId: COMP_IDS.rate,
+      }),
     )
-    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.decision.savedDecreased`)))
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith('Taux de 27,5\u00A0% enregistré : la retenue baisse, une augmentation pour le professionnel.'))
     expect(invalidated()).toContainEqual(professionalKeys.compensation(id))
     expect(invalidated()).toContainEqual(professionalKeys.history(id))
     expect(invalidated()).toContainEqual(professionalKeys.reviews())
@@ -421,8 +429,55 @@ describe('CompensationTab — « Rétention » (P4-180…)', () => {
     await userEvent.type(within(dialog).getByRole('textbox', { name: `${t(`${W}.note`)} ${t('common.form.required')}` }), 'Entente fictive')
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.decision.confirm`) }))
     await waitFor(() =>
-      expect(mocks.compensation.decideRetention).toHaveBeenCalledExactlyOnceWith(id, { decision: 'custom', pct: 26, effectiveFrom: '2026-11-01', note: 'Entente fictive' }),
+      expect(mocks.compensation.decideRetention).toHaveBeenCalledExactlyOnceWith(id, {
+        decision: 'custom',
+        pct: 26,
+        effectiveFrom: '2026-11-01',
+        note: 'Entente fictive',
+        countMonth: '2026-10-01',
+        expectedOpenId: COMP_IDS.rate,
+      }),
     )
+  })
+
+  it('re-confirms a custom rate flagged at a new tier from its current rate', async () => {
+    storedCompensation = compensationFixture({
+      applied: { id: COMP_IDS.rate, pct: 27, decision: 'custom', effectiveFrom: '2026-07-01', tierThreshold: 0, note: 'Entente fictive' },
+      status: 'gap',
+    })
+    render(COMPENSATION_ONLY)
+    const card = await retention()
+    await userEvent.click(within(card).getByRole('button', { name: t(`${W}.decision.action.custom`) }))
+    const dialog = screen.getByRole('dialog', { name: t(`${W}.decision.title.custom`) })
+    expect(dialog).toHaveTextContent(t(`${W}.decision.describe.custom`))
+    expect(within(dialog).getByRole('textbox', { name: `${t(`${W}.decision.rate`)} ${t('common.form.required')}` })).toHaveValue('27')
+  })
+
+  it('closes the dialog on a decision taken meanwhile (HINT stale) and refetches the record and the reviews', async () => {
+    mocks.compensation.decideRetention.mockRejectedValue({ code: 'P0001', message: 'Le taux de ce professionnel a été modifié depuis son affichage.', hint: 'stale' })
+    const { invalidated } = render(COMPENSATION_ONLY)
+    const card = await retention()
+    await userEvent.click(within(card).getByRole('button', { name: t(`${W}.decision.action.suggested`) }))
+    const dialog = screen.getByRole('dialog', { name: t(`${W}.decision.title.suggested`) })
+    await userEvent.click(within(dialog).getByRole('button', { name: t(`${W}.decision.confirm`) }))
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith(t(`${W}.decision.stale`)))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(invalidated()).toContainEqual(professionalKeys.compensation(id))
+    expect(invalidated()).toContainEqual(professionalKeys.reviews())
+  })
+
+  it('shows the pay in force, and an upcoming decision’s pay labelled as such', async () => {
+    storedCompensation = compensationFixture({
+      applied: { id: COMP_IDS.rate, pct: 27.5, decision: 'suggested', effectiveFrom: '2026-11-01', tierThreshold: 51, note: null },
+      inForcePct: 28,
+      status: 'conforme',
+      pay: [{ duration: 50, clientPriceCents: 17500, appliedCents: 12600, suggestedCents: 12688, upcomingCents: 12688 }],
+    })
+    render(COMPENSATION_ONLY)
+    const card = await retention()
+    expect(card).toHaveTextContent(t(`${C}.retention.pay`))
+    expect(card).toHaveTextContent('50 min 126,00 $')
+    expect(card).toHaveTextContent('À venir dès le 1 nov. 2026 : 126,88 $')
   })
 
   it('puts a date refusal (HINT effective_from) under the date field', async () => {

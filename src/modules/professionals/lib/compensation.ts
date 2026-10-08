@@ -78,6 +78,9 @@ export function formatPercent(percent: number): string {
   return `${percentNumber.format(percent)}\u00A0%`
 }
 
+/** `27.5` → « 27,5 »: a stored percent as the rate fields take it (no sign, no grouping). */
+export const percentInput = (percent: number): string => percentNumber.format(percent).replace(/\s/g, '')
+
 /**
  * A typed percent (`28`, `27,5`, `27,5 %`) → the stored value, rounded to 2 decimals as
  * `numeric(5, 2)`; null when it is not a non-negative number (the range is the schema's job).
@@ -111,6 +114,24 @@ const sessionsNumber = new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 1
 
 /** `55.5` → « 55,5 ». */
 export const formatSessions = (sessions: number): string => sessionsNumber.format(sessions)
+
+const S = 'modules.professionals.compensation.sessionsCount'
+
+/** « 0 séance », « 1,5 séance », « 2 séances »: French keeps the singular below 2. */
+export const sessionsLabel = (sessions: number): string => t(Math.abs(sessions) < 2 ? `${S}.one` : `${S}.other`, { count: formatSessions(sessions) })
+
+/**
+ * The last count of a tier, the next tier's threshold less a half session (counts go by half
+ * sessions): the first tier of the clinic's sheet, « 50 et - », is 0 to 50,5.
+ */
+export const tierLastCount = (nextThreshold: number): number => nextThreshold - 0.5
+
+/** A tier as a range of cumulative sessions: « 0 à 50,5 séances », « 501 séances et plus » (the last). */
+export function tierRangeLabel(threshold: number, nextThreshold: number | null): string {
+  return nextThreshold === null
+    ? t('modules.professionals.compensation.tierRangeOpen', { from: sessionsLabel(threshold) })
+    : t('modules.professionals.compensation.tierRange', { from: formatSessions(threshold), to: sessionsLabel(tierLastCount(nextThreshold)) })
+}
 
 /** A month's count: a 50 or 60 minute session counts 1, a 30 minute one half (P4-186). */
 export const monthCount = (long: number, short: number, adjustment = 0): number => long + short * 0.5 + adjustment

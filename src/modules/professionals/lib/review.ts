@@ -73,6 +73,25 @@ export function liveTotal(row: ReviewRow, drafts: Drafts): number | null {
   return row.sessionsBefore + long + short * 0.5 + (row.entry?.adjustment ?? 0)
 }
 
+/**
+ * The note `import_professional` gives the opening balance it writes in the month before the
+ * import (P4-192): that month's « sessions » are the whole count so far, not the month's.
+ */
+export const IMPORTED_BALANCE_NOTE = 'Solde importé'
+
+/** Whether the month's entry is only an imported opening balance (no session typed for it). */
+export const isImportedBalance = (row: ReviewRow): boolean =>
+  row.entry !== null && row.entry.long === 0 && row.entry.short === 0 && row.entry.adjustment !== 0 && row.entry.note === IMPORTED_BALANCE_NOTE
+
+/**
+ * Whether a month holds nothing but imported balances (at least one): the clinic has nothing to
+ * review there yet, so the page opens on the current month instead.
+ */
+export function onlyImportedBalances(rows: readonly ReviewRow[]): boolean {
+  const entered = rows.filter((row) => row.entry !== null)
+  return entered.length > 0 && entered.every(isImportedBalance)
+}
+
 export const REVIEW_FILTERS = ['gap', 'all', 'conforme', 'maintained', 'custom', 'floor', 'profession_unconfirmed'] as const
 export type ReviewFilter = (typeof REVIEW_FILTERS)[number]
 

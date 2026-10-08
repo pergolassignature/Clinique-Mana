@@ -46,9 +46,26 @@ const appliedPayload = z
   .transform((a) => ({ id: a.id, pct: a.retention_pct, decision: a.decision, effectiveFrom: a.effective_from, tierThreshold: a.tier_threshold, note: a.note }))
 export type AppliedRate = z.output<typeof appliedPayload>
 
+/**
+ * Pay per session for one duration (P4-189): `appliedCents` at the rate in force on the read's
+ * date (what Facturation pays that day, P4-151), `upcomingCents` at the latest decision when it
+ * starts later (null otherwise), `suggestedCents` at the grid's suggestion.
+ */
 const payPayload = z
-  .object({ duration, client_price_cents: z.number(), applied_cents: z.number().nullable(), suggested_cents: z.number().nullable() })
-  .transform((p) => ({ duration: p.duration, clientPriceCents: p.client_price_cents, appliedCents: p.applied_cents, suggestedCents: p.suggested_cents }))
+  .object({
+    duration,
+    client_price_cents: z.number(),
+    applied_cents: z.number().nullable(),
+    suggested_cents: z.number().nullable(),
+    upcoming_cents: z.number().nullable(),
+  })
+  .transform((p) => ({
+    duration: p.duration,
+    clientPriceCents: p.client_price_cents,
+    appliedCents: p.applied_cents,
+    suggestedCents: p.suggested_cents,
+    upcomingCents: p.upcoming_cents,
+  }))
 export type PayLine = z.output<typeof payPayload>
 
 /** What both read models say about one professional's retention. */
@@ -254,6 +271,14 @@ export interface DecisionInput {
   pct: number | null
   effectiveFrom: string
   note: string | null
+  /**
+   * The month the count runs through (`yyyy-MM-01`): the reviewed month from « Révision
+   * mensuelle », the clinic's current month from the record. The suggestion is computed from it,
+   * so what is applied is what the dialog showed (P4-187).
+   */
+  countMonth: string
+  /** The open decision as read (null when there was none): another change since then is refused, HINT `stale`. */
+  expectedOpenId: string | null
 }
 
 /** `decreased`: the rate went down (an « augmentation » for the professional). */
@@ -266,6 +291,8 @@ export async function decideRetention(id: string, input: DecisionInput): Promise
       p_retention_pct: input.pct,
       p_effective_from: input.effectiveFrom,
       p_note: input.note,
+      p_count_month: input.countMonth,
+      p_expected_open_id: input.expectedOpenId,
     }),
   )
   if (error) throw error

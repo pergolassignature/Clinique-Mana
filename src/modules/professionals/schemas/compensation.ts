@@ -135,10 +135,18 @@ export type AgreementFormValues = {
   note: string
 }
 
+/**
+ * A client reference that reads like a full name (P4-183, Loi 25): two or more words of letters
+ * (two or more each; hyphens and apostrophes inside) and no digit, as
+ * `set_professional_client_agreement` refuses it. « AB-123 », « M.T. », « D-1042 » pass.
+ */
+const FULL_NAME = /^\p{L}[\p{L}'’-]+(?:\s+\p{L}[\p{L}'’-]+)+$/u
+export const looksLikeFullName = (label: string): boolean => !/[0-9]/.test(label) && FULL_NAME.test(label)
+
 export function agreementSchema(): z.ZodType<AgreementInput, AgreementFormValues> {
   return z
     .object({
-      clientLabel: tidyText({ max: 40, requiredMessage: t(`${V}.clientLabel`) }),
+      clientLabel: tidyText({ max: 40, requiredMessage: t(`${V}.clientLabel`) }).refine((v) => !looksLikeFullName(v), { error: t(`${V}.clientLabelName`) }),
       duration: z
         .string()
         .refine((v) => (DURATIONS as readonly number[]).includes(Number(v)), { error: t(`${V}.duration`) })
@@ -163,11 +171,16 @@ export function agreementSchema(): z.ZodType<AgreementInput, AgreementFormValues
     }))
 }
 
-/** An agreement's end: a real day after its start (`minDate` is the start's day after). */
-export function agreementEndSchema(minDate: string): z.ZodType<{ effectiveTo: string }, { effectiveTo: string }> {
+/**
+ * An agreement's end: a real day after its start (`minDate` is the start's day after) and not
+ * before the clinic's `today` (sessions already given keep their agreement), as the RPC checks.
+ */
+export function agreementEndSchema(minDate: string, today: string): z.ZodType<{ effectiveTo: string }, { effectiveTo: string }> {
   return z.object({ effectiveTo: calendarDate }).superRefine((values, ctx) => {
     if (values.effectiveTo < minDate) {
       ctx.addIssue({ code: 'custom', path: ['effectiveTo'], message: t(`${V}.endAfterStart`, { date: formatDateOnlyShort(shiftCalendarDay(minDate, -1)) }) })
+    } else if (values.effectiveTo < today) {
+      ctx.addIssue({ code: 'custom', path: ['effectiveTo'], message: t(`${V}.endBeforeToday`) })
     }
   })
 }

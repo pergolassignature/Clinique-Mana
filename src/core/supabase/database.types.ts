@@ -4345,8 +4345,10 @@ export type Database = {
       }
       decide_retention: {
         Args: {
+          p_count_month: string
           p_decision: string
           p_effective_from: string
+          p_expected_open_id: string
           p_id: string
           p_note: string
           p_retention_pct: number

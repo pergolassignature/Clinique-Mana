@@ -50,9 +50,9 @@ export const COMPENSATION_JSON = {
   next: { threshold_sessions: 101, retention_pct: 27 },
   status: 'gap',
   pay: [
-    { duration: 60, client_price_cents: 20000, applied_cents: 14400, suggested_cents: 14500 },
-    { duration: 50, client_price_cents: 17500, applied_cents: 12600, suggested_cents: 12688 },
-    { duration: 30, client_price_cents: 13000, applied_cents: 9360, suggested_cents: 9425 },
+    { duration: 60, client_price_cents: 20000, applied_cents: 14400, suggested_cents: 14500, upcoming_cents: null },
+    { duration: 50, client_price_cents: 17500, applied_cents: 12600, suggested_cents: 12688, upcoming_cents: null },
+    { duration: 30, client_price_cents: 13000, applied_cents: 9360, suggested_cents: 9425, upcoming_cents: null },
   ],
   agreements: [],
   other_rates: [
@@ -88,9 +88,9 @@ export function compensationFixture(overrides: Partial<ProfessionalCompensation>
     next: { threshold: 101, pct: 27 },
     status: 'gap',
     pay: [
-      { duration: 60, clientPriceCents: 20000, appliedCents: 14400, suggestedCents: 14500 },
-      { duration: 50, clientPriceCents: 17500, appliedCents: 12600, suggestedCents: 12688 },
-      { duration: 30, clientPriceCents: 13000, appliedCents: 9360, suggestedCents: 9425 },
+      { duration: 60, clientPriceCents: 20000, appliedCents: 14400, suggestedCents: 14500, upcomingCents: null },
+      { duration: 50, clientPriceCents: 17500, appliedCents: 12600, suggestedCents: 12688, upcomingCents: null },
+      { duration: 30, clientPriceCents: 13000, appliedCents: 9360, suggestedCents: 9425, upcomingCents: null },
     ],
     otherRates: [
       { kind: 'workshop', name: 'Ateliers et conférences', pct: 25, effectiveFrom: '2026-07-01' },

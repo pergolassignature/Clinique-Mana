@@ -392,6 +392,7 @@ begin
     v_last constant date := (date_trunc('month', private.clinic_today()) - interval '1 month')::date;
     v_before constant date := (date_trunc('month', private.clinic_today()) - interval '2 months')::date;
     r record;
+    v_decided jsonb;
   begin
     for r in select * from (values
         (1, 312.0, 0, 0), (3, 88.0, 14, 2), (4, 60.0, 0, 0), (5, 40.0, 0, 0), (7, 150.0, 8, 0)
@@ -407,16 +408,20 @@ begin
           'expected_updated_at', null)));
       end if;
     end loop;
-    perform public.decide_retention('5eed0000-0000-0000-0000-000000000001', 'initial', 25, date '2026-07-01', null);
-    perform public.decide_retention('5eed0000-0000-0000-0000-000000000003', 'initial', 27.5, date '2026-07-01', null);
-    perform public.decide_retention('5eed0000-0000-0000-0000-000000000004', 'initial', 30, date '2026-07-01', null);
-    perform public.decide_retention('5eed0000-0000-0000-0000-000000000004', 'maintained', null, v_this, null);
+    -- Each decision counts through last month (the month « Révision mensuelle » reviews) and names
+    -- the open decision it replaces (null for the first).
+    perform public.decide_retention('5eed0000-0000-0000-0000-000000000001', 'initial', 25, date '2026-07-01', null, v_last, null);
+    perform public.decide_retention('5eed0000-0000-0000-0000-000000000003', 'initial', 27.5, date '2026-07-01', null, v_last, null);
+    v_decided := public.decide_retention('5eed0000-0000-0000-0000-000000000004', 'initial', 30, date '2026-07-01', null, v_last, null);
+    perform public.decide_retention('5eed0000-0000-0000-0000-000000000004', 'maintained', null, v_this, null, v_last,
+                                    (v_decided ->> 'id')::uuid);
     perform public.decide_retention('5eed0000-0000-0000-0000-000000000005', 'custom', 27, date '2026-07-01',
-                                    'Entente particulière (fictive)');
+                                    'Entente particulière (fictive)', v_last, null);
     perform public.set_professional_client_agreement('5eed0000-0000-0000-0000-000000000005', 'D-1042', 50, 6000, 9000,
                                                      date '2026-07-01', 'Entente fictive');
-    perform public.decide_retention('5eed0000-0000-0000-0000-000000000007', 'initial', 29, date '2026-07-01', null);
-    perform public.decide_retention('5eed0000-0000-0000-0000-000000000007', 'suggested', null, v_this, null);
+    v_decided := public.decide_retention('5eed0000-0000-0000-0000-000000000007', 'initial', 29, date '2026-07-01', null, v_last, null);
+    perform public.decide_retention('5eed0000-0000-0000-0000-000000000007', 'suggested', null, v_this, null, v_last,
+                                    (v_decided ->> 'id')::uuid);
   end;
 
   perform set_config('request.jwt.claims', '', false);

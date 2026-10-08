@@ -12,10 +12,13 @@ import {
   parseDollars,
   parsePercent,
   parseSessions,
+  percentInput,
   periodLabel,
   retentionTone,
   rowsOf,
+  sessionsLabel,
   shiftMonth,
+  tierRangeLabel,
   withRunningTotals,
   type DatedRow,
 } from './compensation'
@@ -101,6 +104,29 @@ describe('sessions and months', () => {
     expect(shiftMonth('2026-01-01', -1)).toBe('2025-12-01')
     expect(shiftMonth('2026-12-01', 1)).toBe('2027-01-01')
     expect(monthLabel('2026-10-01')).toBe('octobre 2026')
+  })
+})
+
+describe('tiers and counts as the clinic reads them', () => {
+  it('keeps « séance » singular below 2', () => {
+    expect(sessionsLabel(0)).toBe('0 séance')
+    expect(sessionsLabel(1)).toBe('1 séance')
+    expect(sessionsLabel(1.5)).toBe('1,5 séance')
+    expect(sessionsLabel(2)).toBe('2 séances')
+    expect(sessionsLabel(237.5)).toBe('237,5 séances')
+  })
+
+  it('reads a tier as the sheet’s range, exact with half sessions', () => {
+    expect(tierRangeLabel(0, 51)).toBe('0 à 50,5 séances')
+    expect(tierRangeLabel(51, 101)).toBe('51 à 100,5 séances')
+    expect(tierRangeLabel(501, null)).toBe('501 séances et plus')
+    expect(tierRangeLabel(0, 1)).toBe('0 à 0,5 séance')
+  })
+
+  it('puts a stored percent back in a rate field', () => {
+    expect(percentInput(27.5)).toBe('27,5')
+    expect(percentInput(28)).toBe('28')
+    expect(parsePercent(percentInput(26.25))).toBe(26.25)
   })
 })
 

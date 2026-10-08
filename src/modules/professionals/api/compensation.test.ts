@@ -56,7 +56,7 @@ describe('fetchProfessionalCompensation', () => {
       next: { threshold: 101, pct: 27 },
       grid: { floorPct: 25, tiers: [{ threshold: 0, pct: 28 }, { threshold: 51, pct: 27.5 }, { threshold: 101, pct: 27 }] },
     })
-    expect(data.pay[1]).toEqual({ duration: 50, clientPriceCents: 17500, appliedCents: 12600, suggestedCents: 12688 })
+    expect(data.pay[1]).toEqual({ duration: 50, clientPriceCents: 17500, appliedCents: 12600, suggestedCents: 12688, upcomingCents: null })
     expect(data.sessionRows).toEqual([
       { id: SESSION_ROW_JSON.id, month: '2026-09-01', long: 20, short: 4, adjustment: 0, note: null, updatedAt: SESSION_ROW_JSON.updated_at },
     ])
@@ -88,13 +88,22 @@ describe('writes', () => {
 
   it('sends a decision and reads whether the rate went down', async () => {
     mocks.rpc.mockResolvedValue({ data: { id: 'r1', retention_pct: 27.5, decreased: true }, error: null })
-    const result = await decideRetention(IDS.professional, { decision: 'suggested', pct: null, effectiveFrom: '2026-11-01', note: null })
+    const result = await decideRetention(IDS.professional, {
+      decision: 'suggested',
+      pct: null,
+      effectiveFrom: '2026-11-01',
+      note: null,
+      countMonth: '2026-10-01',
+      expectedOpenId: 'r0',
+    })
     expect(mocks.rpc).toHaveBeenCalledWith('decide_retention', {
       p_id: IDS.professional,
       p_decision: 'suggested',
       p_retention_pct: null,
       p_effective_from: '2026-11-01',
       p_note: null,
+      p_count_month: '2026-10-01',
+      p_expected_open_id: 'r0',
     })
     expect(result).toEqual({ id: 'r1', pct: 27.5, decreased: true })
   })

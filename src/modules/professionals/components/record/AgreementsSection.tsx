@@ -109,7 +109,7 @@ export function AgreementsSection({ professionalId, rows, today, now }: Agreemen
           })}
         </ul>
       )}
-      <EndAgreementDialog professionalId={professionalId} row={toEnd} onClose={() => setToEnd(null)} triggerRef={trigger} fallbackRef={addButton} />
+      <EndAgreementDialog professionalId={professionalId} row={toEnd} today={today} onClose={() => setToEnd(null)} triggerRef={trigger} fallbackRef={addButton} />
       <ConfirmDeleteDialog
         open={toDelete !== null}
         title={t(`${A}.deleteTitle`)}
@@ -250,17 +250,19 @@ function AgreementForm({ firstFieldRef, pending, refusal, dateError, onSubmit }:
 interface EndAgreementDialogProps {
   professionalId: string
   row: AgreementRow | null
+  /** The clinic's date: the end may not be earlier. */
+  today: string
   onClose: () => void
   triggerRef: RefObject<HTMLButtonElement | null>
   fallbackRef: RefObject<HTMLElement | null>
 }
 
 /** The agreement's last day + 1 (exclusive end, as every dated row): the grid applies from that day. */
-function EndAgreementDialog({ professionalId, row, onClose, triggerRef, fallbackRef }: EndAgreementDialogProps) {
+function EndAgreementDialog({ professionalId, row, today, onClose, triggerRef, fallbackRef }: EndAgreementDialogProps) {
   const [refusal, setRefusal] = useState<string | null>(null)
   const end = useEndClientAgreement(professionalId, { onErrorMessage: (message) => setRefusal(message) })
   const minDate = row ? shiftCalendarDay(row.effectiveFrom, 1) : '2000-01-02'
-  const resolver = useMemo(() => zodResolver(agreementEndSchema(minDate)), [minDate])
+  const resolver = useMemo(() => zodResolver(agreementEndSchema(minDate, today)), [minDate, today])
   const form = useForm<{ effectiveTo: string }>({ resolver, values: { effectiveTo: '' } })
 
   const onOpenChange = (next: boolean) => {
@@ -299,7 +301,7 @@ function EndAgreementDialog({ professionalId, row, onClose, triggerRef, fallback
           pendingLabel={t(`${A}.ending`)}
         >
           <FormField label={t(`${A}.endDialog.to`)} help={t(`${A}.endDialog.toHelp`)} required error={form.formState.errors.effectiveTo?.message}>
-            {(field) => <Input {...field} {...form.register('effectiveTo')} type="date" min={minDate} max={LAST_DATE} />}
+            {(field) => <Input {...field} {...form.register('effectiveTo')} type="date" min={minDate > today ? minDate : today} max={LAST_DATE} />}
           </FormField>
         </DialogForm>
       </DialogContent>

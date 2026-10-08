@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { t } from '@/i18n'
+import { formatDateOnlyShort } from '@/shared/lib/timezone'
 import { Badge } from '@/shared/ui/badge'
 import type { PayLine, RetentionStatus } from '../../api/compensation'
 import { durationLabel, formatCents } from '../../lib/compensation'
@@ -36,11 +37,13 @@ export function Item({ term, children }: { term: string; children: ReactNode }) 
 }
 
 /**
- * Pay per duration: « 50 min · 126,88 $ », and the suggested amount next to it when it differs
- * (« → 127,75 $ »). `compact` (the review's narrow cell) drops the client price, shortens « 60 min /
- * couple » to « 60 min » and puts the suggested amount on its own line.
+ * Pay per duration: « 50 min · 126,88 $ » at the rate in force on the read's date (what is paid
+ * that day, P4-189), the suggested amount next to it when it differs (« → 127,75 $ »), and the
+ * amount of a decision starting later, labelled as such (« À venir dès le 1 nov. 2026 : 127,75 $ »,
+ * `upcomingFrom` being that decision's start). `compact` (the review's narrow cell) drops the client
+ * price, shortens « 60 min / couple » to « 60 min » and puts the other amounts on their own lines.
  */
-export function PayList({ pay, compact = false }: { pay: readonly PayLine[]; compact?: boolean }) {
+export function PayList({ pay, upcomingFrom = null, compact = false }: { pay: readonly PayLine[]; upcomingFrom?: string | null; compact?: boolean }) {
   if (pay.length === 0) return <span className="text-muted-foreground">—</span>
   return (
     <ul className="space-y-0.5">
@@ -55,6 +58,11 @@ export function PayList({ pay, compact = false }: { pay: readonly PayLine[]; com
                 {' '}
                 <span aria-hidden>→</span>
                 <span className="sr-only">{t(`${W}.pay.suggestedPrefix`)}</span> {formatCents(line.suggestedCents ?? 0)}
+              </span>
+            )}
+            {upcomingFrom !== null && line.upcomingCents !== null && line.upcomingCents !== line.appliedCents && (
+              <span className="block whitespace-normal text-xs text-muted-foreground tabular">
+                {t(`${W}.pay.upcoming`, { date: formatDateOnlyShort(upcomingFrom), amount: formatCents(line.upcomingCents) })}
               </span>
             )}
             {!compact && <span className="block text-xs text-muted-foreground">{t(`${W}.pay.clientPrice`, { price: formatCents(line.clientPriceCents) })}</span>}

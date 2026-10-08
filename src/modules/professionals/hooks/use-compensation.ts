@@ -22,6 +22,7 @@ import {
   type RateInput,
   type SessionEntryInput,
 } from '../api/compensation'
+import { formatPercent } from '../lib/compensation'
 import { compensationTermsKeys, professionalKeys } from './keys'
 import { showMutationError, type MutationFeedback } from './mutation-feedback'
 import { refreshProfessionalHistory } from './use-professional-record'
@@ -47,7 +48,8 @@ export function prefetchProfessionalCompensation(queryClient: QueryClient, id: s
 /**
  * A change to a professional's sessions, rate or agreements: the entry is refetched with the
  * history's first page (awaited, so the dialog closes onto fresh data); the monthly reviews
- * follow in the background. A refusal goes to the dialog (`feedback`), its HINT routing it.
+ * follow in the background. A refusal goes to the dialog (`feedback`), its HINT routing it; the
+ * entry and the reviews are refetched then too (a decision is taken from either).
  */
 function useProfessionalTermsMutation<V, Res>(id: string, mutationFn: (variables: V) => Promise<Res>, success: (result: Res) => string, feedback: MutationFeedback) {
   const queryClient = useQueryClient()
@@ -61,6 +63,7 @@ function useProfessionalTermsMutation<V, Res>(id: string, mutationFn: (variables
     onError: (error) => {
       // A refusal often means someone else changed the series: show what is stored now.
       void queryClient.invalidateQueries({ queryKey: professionalKeys.compensation(id) })
+      void queryClient.invalidateQueries({ queryKey: professionalKeys.reviews() })
       showMutationError(queryClient, error, feedback)
     },
   })
@@ -76,9 +79,17 @@ export function useRecordSessions(id: string, feedback: MutationFeedback) {
   )
 }
 
-/** A decision; the toast says when the rate went down (the notice email is 4b's, P4-191). */
+/**
+ * A decision; the toast names the rate the database stored and says when it went down (the
+ * notice email is 4b's, P4-191).
+ */
 export function useDecideRetention(id: string, feedback: MutationFeedback) {
-  return useProfessionalTermsMutation(id, (input: DecisionInput) => decideRetention(id, input), ({ decreased }) => t(decreased ? `${C}.decision.savedDecreased` : `${C}.decision.saved`), feedback)
+  return useProfessionalTermsMutation(
+    id,
+    (input: DecisionInput) => decideRetention(id, input),
+    ({ pct, decreased }) => t(decreased ? `${C}.decision.savedDecreased` : `${C}.decision.saved`, { rate: formatPercent(pct) }),
+    feedback,
+  )
 }
 
 export function useDeleteRetention(id: string, feedback: MutationFeedback) {

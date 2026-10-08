@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Handshake } from 'lucide-react'
 import { t } from '@/i18n'
@@ -19,7 +19,7 @@ import { DecisionDialog, type DecisionTarget } from '../components/compensation/
 import { RefusalAlert } from '../components/compensation/DatedRowParts'
 import { PayList, RetentionStatusBadge } from '../components/compensation/RetentionParts'
 import { useRetentionReview, useSaveReviewSessions } from '../hooks/use-compensation'
-import { formatPercent, formatSessions, monthLabel, monthOf, retentionTone, shiftMonth } from '../lib/compensation'
+import { formatPercent, formatSessions, monthLabel, monthOf, retentionTone, sessionsLabel, shiftMonth, tierRangeLabel } from '../lib/compensation'
 import {
   changedEntries,
   countByStatus,
@@ -27,7 +27,9 @@ import {
   filterRows,
   invalidRows,
   isChanged,
+  isImportedBalance,
   liveTotal,
+  onlyImportedBalances,
   REVIEW_FILTERS,
   shownCounts,
   type Drafts,
@@ -58,20 +60,26 @@ function decisionsFor(row: ReviewRow): Decision[] {
  * page. One read per month (`list_retention_review`), every active professional: the month's
  * 50/60 and 30-minute sessions (typed in place, saved in one batch, all or nothing), the
  * cumulative count, the applied and suggested rates, the pay, the status, and the decisions for a
- * gap. The filter starts on « Écart à valider »; a row being edited stays visible.
+ * gap (counted through the reviewed month). The filter starts on « Écart à valider »; a row being
+ * edited stays visible. The page opens on last month, or on the current month when last month
+ * holds only the opening balances an import wrote (P4-192: nothing to review there).
  */
 export function RetentionReviewPage() {
   usePageTitle(t(`${R}.title`))
   const today = useClinicDate()
   const currentMonth = monthOf(today)
   const [month, setMonth] = useState(() => shiftMonth(currentMonth, -1))
+  // Until the user picks a month, the default may still move to the current month (imports).
+  const monthChosen = useRef(false)
   const [filter, setFilter] = useState<ReviewFilter>('gap')
   const [drafts, setDrafts] = useState<Drafts>({})
   const [refusal, setRefusal] = useState<{ message: string; detail: string | null } | null>(null)
   const [staleId, setStaleId] = useState<string | null>(null)
   const [decision, setDecision] = useState<DecisionTarget | null>(null)
   const review = useRetentionReview(month)
-  const rows = useMemo(() => (review.data?.month === month ? review.data.rows : []), [review.data, month])
+  // While another month loads, the previous one is a placeholder: never shown as this month's.
+  const loaded = review.data?.month === month ? review.data : undefined
+  const rows = useMemo(() => loaded?.rows ?? [], [loaded])
   const nameOf = (id: string | undefined) => {
     const row = rows.find((r) => r.id === id)
     return row ? `${row.firstName} ${row.lastName}` : null
@@ -102,6 +110,13 @@ export function RetentionReviewPage() {
     setStaleId(null)
   }, [staleId, rows, drafts])
 
+  // Last month holds only imported opening balances: open the current month instead.
+  useEffect(() => {
+    if (monthChosen.current || !loaded || month !== shiftMonth(currentMonth, -1)) return
+    monthChosen.current = true
+    if (onlyImportedBalances(loaded.rows)) setMonth(currentMonth)
+  }, [loaded, month, currentMonth])
+
   const counts = countByStatus(rows)
   const shown = filterRows(rows, filter, drafts)
   const type = (row: ReviewRow, field: 'long' | 'short', value: string) =>
@@ -114,6 +129,7 @@ export function RetentionReviewPage() {
     const next = `${value}-01`
     if (next > currentMonth || next === month) return
     confirmLeave(() => {
+      monthChosen.current = true
       setDrafts({})
       setRefusal(null)
       setMonth(next)
@@ -125,16 +141,21 @@ export function RetentionReviewPage() {
       name: `${row.firstName} ${row.lastName}`,
       decision: kind,
       appliedPct: row.applied?.pct ?? null,
+      appliedDecision: row.applied?.decision ?? null,
       suggestedPct: row.suggested?.pct ?? null,
-      suggestedThreshold: row.suggested?.threshold ?? null,
+      tierLabel: row.suggested ? tierRangeLabel(row.suggested.threshold, row.next?.threshold ?? null) : null,
       // The open rate's start + 1 is checked by the database; the dialog only bounds the date.
       minDate: null,
       defaultFrom: shiftMonth(month, 1),
+      // The suggestion shown is the count through the reviewed month: the decision uses the same.
+      countMonth: month,
+      expectedOpenId: row.applied?.id ?? null,
     })
 
   let body
-  if (review.isPending) body = <Loading />
-  else if (!review.data) body = <LoadError message={t(`${R}.loadError`)} retrying={review.isFetching} onRetry={() => void review.refetch()} />
+  // A month being loaded (the first, or another one) shows the loader, never « Aucun écart ».
+  if (!loaded && (review.isPending || review.isFetching)) body = <Loading />
+  else if (!loaded) body = <LoadError message={t(`${R}.loadError`)} retrying={review.isFetching} onRetry={() => void review.refetch()} />
   else
     body = (
       <form
@@ -215,10 +236,15 @@ export function RetentionReviewPage() {
                     <span className="font-medium tabular">{total === null ? '—' : formatSessions(total)}</span>
                     {changed && <span className="ml-1 text-xs text-muted-foreground">{t(`${R}.unsaved`)}</span>}
                     <span className="block text-xs text-muted-foreground">{t(`${R}.before`, { count: formatSessions(row.sessionsBefore) })}</span>
-                    {row.entry && row.entry.adjustment !== 0 && (
-                      <span className="block text-xs text-muted-foreground">
-                        {t(`${R}.adjustment`, { value: `${row.entry.adjustment > 0 ? '+' : ''}${formatSessions(row.entry.adjustment)}` })}
-                      </span>
+                    {row.entry && isImportedBalance(row) ? (
+                      <span className="block text-xs text-muted-foreground">{t(`${R}.importedBalance`, { count: sessionsLabel(row.entry.adjustment) })}</span>
+                    ) : (
+                      row.entry &&
+                      row.entry.adjustment !== 0 && (
+                        <span className="block text-xs text-muted-foreground">
+                          {t(`${R}.adjustment`, { value: `${row.entry.adjustment > 0 ? '+' : ''}${formatSessions(row.entry.adjustment)}` })}
+                        </span>
+                      )
                     )}
                   </div>
                   <div className="text-sm">
@@ -229,11 +255,13 @@ export function RetentionReviewPage() {
                     <span className="block">
                       <span className="text-xs text-muted-foreground">{t(`${R}.suggested`)} </span>
                       <span className="tabular">{row.suggested ? formatPercent(row.suggested.pct) : '—'}</span>
-                      {row.suggested && <span className="text-xs text-muted-foreground"> · {t(`${R}.tier`, { tier: formatSessions(row.suggested.threshold) })}</span>}
+                      {row.suggested && (
+                        <span className="block text-xs text-muted-foreground">{t(`${R}.tier`, { range: tierRangeLabel(row.suggested.threshold, row.next?.threshold ?? null) })}</span>
+                      )}
                     </span>
                   </div>
                   <div>
-                    <PayList pay={row.pay} compact />
+                    <PayList pay={row.pay} upcomingFrom={row.applied && row.applied.effectiveFrom > (loaded?.on ?? '') ? row.applied.effectiveFrom : null} compact />
                   </div>
                   <div className="space-y-1.5">
                     <RetentionStatusBadge status={row.status} />
@@ -282,9 +310,19 @@ export function RetentionReviewPage() {
     <div className="space-y-4">
       <PageHeader level={1} title={t(`${R}.title`)} description={t(`${R}.description`)} />
       <div className="flex flex-wrap items-end gap-3">
-        <FormField label={t(`${R}.month`)}>
+        <FormField label={t(`${R}.month`)} help={t(`${R}.monthHelp`)}>
           {(field) => (
-            <Input {...field} type="month" value={month.slice(0, 7)} min="2000-01" max={currentMonth.slice(0, 7)} onChange={(event) => changeMonth(event.target.value)} className="w-44" />
+            <Input
+              {...field}
+              type="month"
+              // Browsers without a month picker show a text field: the format is the hint.
+              placeholder={t(`${R}.monthPlaceholder`)}
+              value={month.slice(0, 7)}
+              min="2000-01"
+              max={currentMonth.slice(0, 7)}
+              onChange={(event) => changeMonth(event.target.value)}
+              className="w-44"
+            />
           )}
         </FormField>
         <FormField label={t(`${R}.filter`)}>

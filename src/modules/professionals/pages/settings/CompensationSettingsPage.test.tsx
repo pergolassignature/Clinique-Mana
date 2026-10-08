@@ -102,13 +102,13 @@ describe('CompensationSettingsPage — grids (P4-185)', () => {
     expect(grids).not.toHaveTextContent('Ancien titre')
   })
 
-  it('shows the tiers as the sheet reads them, and deletes only the coming version', async () => {
+  it('shows the tiers as the sheet reads them (exact with half sessions), and deletes only the coming version', async () => {
     mocks.compensation.deleteRetentionGrid.mockResolvedValue(undefined)
     render()
     const grids = await region(t(`${S}.grids.title`))
     await userEvent.click(within(grids).getByRole('button', { name: t(`${S}.grids.details`, { count: '2' }) }))
     const table = within(grids).getByRole('table', { name: t(`${S}.grids.tiersLabel`, { title: 'Psychologue', date: '1 juil. 2026' }) })
-    expect(within(table).getAllByRole('row').map((row) => row.textContent?.replace(/\u00A0/g, ' '))).toEqual(['Séances cumuléesRetenue', '0 à 5028 %', '51 à 30027,5 %', '301 et plus25 %'])
+    expect(within(table).getAllByRole('row').map((row) => row.textContent?.replace(/\u00A0/g, ' '))).toEqual(['Séances cumuléesRetenue', '0 à 50,528 %', '51 à 300,527,5 %', '301 et plus25 %'])
     const deletes = within(grids).getAllByRole('button', { name: /Supprimer la grille/ })
     expect(deletes).toHaveLength(1)
     await userEvent.click(deletes[0] as HTMLElement)

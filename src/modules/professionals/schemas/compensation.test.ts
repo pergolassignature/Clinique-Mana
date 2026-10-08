@@ -73,9 +73,18 @@ describe('agreementSchema', () => {
     expect(issuesOf(agreementSchema(), { ...values, clientLabel: 'x'.repeat(41) })).toHaveProperty('clientLabel')
   })
 
-  it('ends after the start', () => {
-    expect(issuesOf(agreementEndSchema('2026-10-02'), { effectiveTo: '2026-10-01' })).toEqual({ effectiveTo: t(`${V}.endAfterStart`, { date: '1 oct. 2026' }) })
-    expect(agreementEndSchema('2026-10-02').parse({ effectiveTo: '2027-03-01' })).toEqual({ effectiveTo: '2027-03-01' })
+  it('refuses a client reference that reads like a full name (Loi 25), not a file number or initials', () => {
+    for (const label of ['Marie Tremblay', 'Élise Côté-Roy', "Jean d'Arc"]) {
+      expect(issuesOf(agreementSchema(), { ...values, clientLabel: label })).toEqual({ clientLabel: t(`${V}.clientLabelName`) })
+    }
+    for (const label of ['D-1042', 'M.T.', 'AB', 'Jean-Pierre', 'M. T. 2']) expect(agreementSchema().parse({ ...values, clientLabel: label }).clientLabel).toBe(label)
+  })
+
+  it('ends after the start, and not before today', () => {
+    expect(issuesOf(agreementEndSchema('2026-10-02', '2026-09-15'), { effectiveTo: '2026-10-01' })).toEqual({ effectiveTo: t(`${V}.endAfterStart`, { date: '1 oct. 2026' }) })
+    expect(agreementEndSchema('2026-10-02', '2026-10-08').parse({ effectiveTo: '2027-03-01' })).toEqual({ effectiveTo: '2027-03-01' })
+    expect(issuesOf(agreementEndSchema('2026-07-02', '2026-10-08'), { effectiveTo: '2026-10-07' })).toEqual({ effectiveTo: t(`${V}.endBeforeToday`) })
+    expect(agreementEndSchema('2026-07-02', '2026-10-08').parse({ effectiveTo: '2026-10-08' })).toEqual({ effectiveTo: '2026-10-08' })
   })
 })
 

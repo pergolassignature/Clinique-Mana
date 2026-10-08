@@ -2,12 +2,15 @@ import { useMemo, useRef, type RefObject } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { t } from '@/i18n'
+import { rpcErrorHint } from '@/core/modules/errors'
+import { toast } from '@/shared/ui/sonner'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import type { Decision, DecisionInput } from '../../api/compensation'
 import { useDecideRetention } from '../../hooks/use-compensation'
-import { formatPercent, formatSessions } from '../../lib/compensation'
+import type { MutationFeedback } from '../../hooks/mutation-feedback'
+import { formatPercent, percentInput } from '../../lib/compensation'
 import { decisionSchema, type DecisionFormOutput, type DecisionFormValues } from '../../schemas/compensation'
 import { DialogForm, EffectiveFromField } from './DatedRowParts'
 import { useDateErrorOnField, useDialogRefusal, type DateError } from './dialog-state'
@@ -22,12 +25,19 @@ export interface DecisionTarget {
   name: string | null
   decision: Decision
   appliedPct: number | null
+  /** How the open rate was decided: re-confirming a « Taux particulier » prefills its rate. */
+  appliedDecision: Decision | null
   suggestedPct: number | null
-  suggestedThreshold: number | null
+  /** The suggested tier as a range (« 51 à 100,5 séances », `tierRangeLabel`), or null. */
+  tierLabel: string | null
   /** The earliest start the RPC accepts (the day after the open rate's), or null. */
   minDate: string | null
   /** Prefilled « À partir du » (the first day of the month the decision is for). */
   defaultFrom: string
+  /** The month the count runs through (the reviewed month, or the record's current month). */
+  countMonth: string
+  /** The open decision as read, null when none (`decide_retention`'s optimistic check). */
+  expectedOpenId: string | null
 }
 
 interface DecisionDialogProps {
@@ -37,13 +47,26 @@ interface DecisionDialogProps {
 
 /**
  * The four decisions on the applied rate (P4-187), from the record or « Révision mensuelle »:
- * « Appliquer la suggestion » and « Maintenir » take only a date (the rate is the database's),
- * « Taux particulier » a rate and its reason, « Taux de départ » a rate. Controlled: open while
- * `target` is set; closing is ignored while saving.
+ * « Appliquer la suggestion » and « Maintenir » take only a date (the rate is the database's,
+ * from the count through `countMonth`: what the dialog announced), « Taux particulier » a rate and
+ * its reason, « Taux de départ » a rate. A decision taken meanwhile by someone else (HINT `stale`)
+ * closes the dialog with a message; the record and the reviews are refetched. Controlled: open
+ * while `target` is set; closing is ignored while saving.
  */
 export function DecisionDialog({ target, onClose }: DecisionDialogProps) {
   const { refusal, dateError, feedback, clear } = useDialogRefusal()
-  const save = useDecideRetention(target?.professionalId ?? '', feedback)
+  const decisionFeedback: MutationFeedback = {
+    onErrorMessage: (message, error) => {
+      if (rpcErrorHint(error) !== 'stale') {
+        feedback.onErrorMessage?.(message, error)
+        return
+      }
+      clear()
+      toast.error(t(`${D}.stale`))
+      onClose()
+    },
+  }
+  const save = useDecideRetention(target?.professionalId ?? '', decisionFeedback)
   const firstField = useRef<HTMLInputElement | null>(null)
 
   const onOpenChange = (next: boolean) => {
@@ -76,7 +99,14 @@ export function DecisionDialog({ target, onClose }: DecisionDialogProps) {
               dateError={dateError}
               onSubmit={(values) => {
                 clear()
-                const input: DecisionInput = { decision: target.decision, pct: values.pct, effectiveFrom: values.effectiveFrom, note: values.note }
+                const input: DecisionInput = {
+                  decision: target.decision,
+                  pct: values.pct,
+                  effectiveFrom: values.effectiveFrom,
+                  note: values.note,
+                  countMonth: target.countMonth,
+                  expectedOpenId: target.expectedOpenId,
+                }
                 save.mutate(input, { onSuccess: () => onClose() })
               }}
             />
@@ -91,7 +121,7 @@ export function DecisionDialog({ target, onClose }: DecisionDialogProps) {
 function describe(target: DecisionTarget): string {
   const applied = target.appliedPct === null ? null : formatPercent(target.appliedPct)
   const suggested = target.suggestedPct === null ? null : formatPercent(target.suggestedPct)
-  const tier = target.suggestedThreshold === null ? '' : formatSessions(target.suggestedThreshold)
+  const tier = target.tierLabel ?? '—'
   switch (target.decision) {
     case 'suggested':
       return applied ? t(`${D}.describe.suggested`, { from: applied, to: suggested ?? '—', tier }) : t(`${D}.describe.suggestedFirst`, { to: suggested ?? '—', tier })
@@ -118,7 +148,12 @@ function DecisionForm({ target, firstFieldRef, pending, refusal, dateError, onSu
   const resolver = useMemo(() => zodResolver(decisionSchema(target.decision, target.minDate)), [target.decision, target.minDate])
   const form = useForm<DecisionFormValues, unknown, DecisionFormOutput>({
     resolver,
-    defaultValues: { pct: '', effectiveFrom: target.defaultFrom, note: '' },
+    // Re-confirming a « Taux particulier » (flagged again at a new tier) starts from its rate.
+    defaultValues: {
+      pct: target.decision === 'custom' && target.appliedDecision === 'custom' && target.appliedPct !== null ? percentInput(target.appliedPct) : '',
+      effectiveFrom: target.defaultFrom,
+      note: '',
+    },
   })
   const { errors } = form.formState
   useDateErrorOnField(form.setError, 'effectiveFrom', dateError)

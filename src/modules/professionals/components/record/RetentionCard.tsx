@@ -17,7 +17,9 @@ import {
   monthLabel,
   monthOf,
   periodLabel,
+  sessionsLabel,
   shiftMonth,
+  tierRangeLabel,
   withRunningTotals,
 } from '../../lib/compensation'
 import { ConfirmDeleteDialog, DatedStatusBadge } from '../compensation/DatedRowParts'
@@ -71,10 +73,14 @@ export function RetentionCard({ professionalId, data }: RetentionCardProps) {
       name: null,
       decision: kind,
       appliedPct: applied?.pct ?? null,
+      appliedDecision: applied?.decision ?? null,
       suggestedPct: suggested?.pct ?? null,
-      suggestedThreshold: suggested?.threshold ?? null,
+      tierLabel: suggested ? tierRangeLabel(suggested.threshold, data.next?.threshold ?? null) : null,
       minDate: earliestStart(data.rateRows),
       defaultFrom: shiftMonth(monthOf(today), 1),
+      // The record's count runs through the current month (P4-194), as shown.
+      countMonth: monthOf(data.on),
+      expectedOpenId: applied?.id ?? null,
     })
 
   return (
@@ -109,11 +115,9 @@ export function RetentionCard({ professionalId, data }: RetentionCardProps) {
             <>
               <span className="tabular">{formatPercent(suggested.pct)}</span>
               <span className="block text-xs text-muted-foreground">
-                {t(`${R}.tier`, { tier: formatSessions(suggested.threshold) })}
+                {t(`${R}.tier`, { range: tierRangeLabel(suggested.threshold, data.next?.threshold ?? null) })}
                 {' · '}
-                {data.next
-                  ? t(`${R}.next`, { tier: formatSessions(data.next.threshold), rate: formatPercent(data.next.pct) })
-                  : t(`${R}.maxTier`)}
+                {data.next ? t(`${R}.next`, { tier: sessionsLabel(data.next.threshold), rate: formatPercent(data.next.pct) }) : t(`${R}.maxTier`)}
               </span>
             </>
           ) : (
@@ -136,7 +140,7 @@ export function RetentionCard({ professionalId, data }: RetentionCardProps) {
         <div>
           <h4 className="text-xs text-muted-foreground">{t(`${R}.pay`)}</h4>
           <div className="mt-1">
-            <PayList pay={data.pay} />
+            <PayList pay={data.pay} upcomingFrom={upcoming ? applied.effectiveFrom : null} />
           </div>
         </div>
       )}
@@ -166,8 +170,8 @@ export function RetentionCard({ professionalId, data }: RetentionCardProps) {
                 {row.sessionsTotal !== null && (
                   <span className="basis-full text-xs text-muted-foreground">
                     {row.suggestedPct === null
-                      ? t(`${R}.snapshotNoGrid`, { sessions: formatSessions(row.sessionsTotal) })
-                      : t(`${R}.snapshot`, { sessions: formatSessions(row.sessionsTotal), rate: formatPercent(row.suggestedPct) })}
+                      ? t(`${R}.snapshotNoGrid`, { sessions: sessionsLabel(row.sessionsTotal) })
+                      : t(`${R}.snapshot`, { sessions: sessionsLabel(row.sessionsTotal), rate: formatPercent(row.suggestedPct) })}
                   </span>
                 )}
                 {row.note && <span className="basis-full break-words text-xs text-muted-foreground">{row.note}</span>}

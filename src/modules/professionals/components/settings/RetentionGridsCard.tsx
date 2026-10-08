@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { GridRow } from '../../api/compensation'
 import type { ProfessionTitle } from '../../api/parse'
 import { useDeleteRetentionGrid } from '../../hooks/use-compensation'
-import { canDeleteDated, datedStatus, durationLabel, formatCents, formatPercent, formatSessions, periodLabel, rowsOf } from '../../lib/compensation'
+import { canDeleteDated, datedStatus, durationLabel, formatCents, formatPercent, formatSessions, periodLabel, rowsOf, sessionsLabel, tierLastCount } from '../../lib/compensation'
 import { ConfirmDeleteDialog, DatedStatusBadge } from '../compensation/DatedRowParts'
 import { Disclosure } from '../record/MotifsSummary'
 import { useToday } from '../compensation/use-today'
@@ -16,11 +16,16 @@ import { GridDialog } from './GridDialog'
 
 const G = 'modules.professionals.settings.compensation.grids'
 
-/** « 0 séance » … « 301 séances et plus », as the clinic's sheet reads its tiers. */
+/**
+ * « 0 à 50,5 » … « 301 et plus » (the column is « Séances cumulées »): the clinic's sheet's ranges
+ * (« 50 et - », « 51 à 100 »), exact with half sessions.
+ */
 function tierRange(tiers: GridRow['tiers'], index: number): string {
   const from = tiers[index]?.threshold ?? 0
   const next = tiers[index + 1]
-  return next ? t(`${G}.range`, { from: formatSessions(from), to: formatSessions(next.threshold - 1) }) : t(`${G}.rangeOpen`, { from: formatSessions(from) })
+  return next
+    ? t(`${G}.range`, { from: formatSessions(from), to: formatSessions(tierLastCount(next.threshold)) })
+    : t(`${G}.rangeOpen`, { from: formatSessions(from) })
 }
 
 /** The grid in force on `today`, else the coming one (the open row). */
@@ -67,7 +72,7 @@ export function RetentionGridsCard({ titles, grids }: RetentionGridsCardProps) {
                       {t(`${G}.summary`, {
                         first: formatPercent(grid.tiers[0]?.pct ?? 0),
                         floor: formatPercent(grid.tiers.at(-1)?.pct ?? 0),
-                        tier: formatSessions(grid.tiers.at(-1)?.threshold ?? 0),
+                        tier: sessionsLabel(grid.tiers.at(-1)?.threshold ?? 0),
                       })}
                       {' · '}
                       {grid.prices.map((price) => `${durationLabel(price.duration)} ${formatCents(price.clientPriceCents)}`).join(' · ')}
