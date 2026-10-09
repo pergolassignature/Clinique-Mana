@@ -79,6 +79,19 @@ export function documentsJson(over: Json = {}): Json {
     photo: { document_id: DOC_IDS.photo, file_id: DOC_IDS.photoFile },
     documents: [documentJson(), PHOTO_JSON],
     consent: CONSENT_JSON,
+    staged: [],
+    ...over,
+  }
+}
+
+/** One `staged` item (P4-495): the photo, sent with an update on 8 Oct. by default. */
+export function stagedJson(over: Json = {}): Json {
+  return {
+    type_key: 'photo',
+    kind: 'photo',
+    submission_id: '00000000-0000-4000-8000-00000000e501',
+    status: 'submitted',
+    submitted_at: '2026-10-08T14:00:00+00:00',
     ...over,
   }
 }

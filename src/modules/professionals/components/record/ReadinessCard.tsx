@@ -28,7 +28,17 @@ export function ReadinessCard({ record, onboarding, now }: ReadinessCardProps) {
   const describe = (item: ReadinessItem): ReactNode => {
     if (item.key === 'account_created') return professional.profileId === null || onboarding?.invitation?.state === 'used' ? invitationLine(onboarding?.invitation ?? null, now) : undefined
     if (item.key === 'submission_approved') return item.done ? undefined : (questionnaireLine(professional, onboarding, now) ?? undefined)
-    return item.done || item.missing.length === 0 ? undefined : <Missing id={professional.id} item={item} />
+    if (item.done || item.missing.length === 0) return undefined
+    // A questionnaire waiting for review may hold the photo, the insurance or the consent (P4-495):
+    // they count once it is approved, not before.
+    if (item.key === 'documents' && onboarding?.submission?.status === 'submitted') {
+      return (
+        <>
+          <Missing id={professional.id} item={item} />. {t(`${R}.questionnaireDocuments`)}
+        </>
+      )
+    }
+    return <Missing id={professional.id} item={item} />
   }
   return (
     <Card className="min-w-0">

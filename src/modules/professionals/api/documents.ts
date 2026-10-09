@@ -86,6 +86,29 @@ const consentPayload = z
   }))
 export type ProfessionalConsent = z.output<typeof consentPayload>
 
+const stagedPayload = z
+  .object({
+    type_key: z.enum(['photo', 'insurance', 'image_consent']),
+    kind: z.enum(['photo', 'insurance', 'consent']),
+    submission_id: z.string(),
+    status: z.enum(['draft', 'submitted']),
+    submitted_at: z.string().nullable(),
+  })
+  .transform((x) => ({
+    typeKey: x.type_key,
+    kind: x.kind,
+    submissionId: x.submission_id,
+    /** `draft`: not sent yet (or sent back); `submitted`: waiting for the clinic's review. */
+    status: x.status,
+    /** The last sending (a draft sent back keeps its earlier one; null if never sent). */
+    submittedAt: x.submitted_at,
+  }))
+/**
+ * What the open questionnaire holds for a document type (P4-495): its photo, its insurance (a
+ * staged file) or its signed image consent, not a document until the clinic approves it (P4-400).
+ */
+export type StagedDocument = z.output<typeof stagedPayload>
+
 export const documentsPayload = z
   .object({
     professional_id: z.string(),
@@ -93,6 +116,8 @@ export const documentsPayload = z
     photo: z.object({ document_id: z.string(), file_id: z.string() }).nullable(),
     documents: z.array(documentPayload),
     consent: consentPayload.nullable(),
+    // Absent from a database not yet migrated (the web app and the migration ship together).
+    staged: z.array(stagedPayload).default([]),
   })
   .transform((p) => ({
     professionalId: p.professional_id,
@@ -104,6 +129,8 @@ export const documentsPayload = z
     documents: p.documents,
     /** The latest e-consent (« droit à l'image »), if any. */
     consent: p.consent,
+    /** The open questionnaire's photo, insurance and image consent, by type key (P4-495). */
+    staged: p.staged,
   }))
   .nullable()
 export type ProfessionalDocuments = NonNullable<z.output<typeof documentsPayload>>

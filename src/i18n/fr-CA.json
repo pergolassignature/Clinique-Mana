@@ -1377,7 +1377,10 @@
           "inProgress": "En cours : pas encore envoyé.",
           "none": "Aucun questionnaire en cours.",
           "submitted": "Envoyé le {date}, à réviser.",
-          "submittedUndated": "Envoyé, à réviser."
+          "submittedUndated": "Envoyé, à réviser.",
+          "submittedUpdate": "Mise à jour envoyée le {date}, à réviser.",
+          "submittedUpdateUndated": "Mise à jour envoyée, à réviser.",
+          "inProgressUpdate": "Mise à jour en cours : pas encore envoyée."
         },
         "dialog": {
           "send": {
@@ -1814,7 +1817,8 @@
             "title": "Dossier",
             "complete": "Dossier complet",
             "override": "Activé sans dossier complet : {reason}",
-            "missing": "Il manque :"
+            "missing": "Il manque :",
+            "questionnaireDocuments": "Les documents envoyés avec le questionnaire compteront une fois celui-ci approuvé."
           },
           "watch": {
             "title": "À surveiller",
@@ -3291,6 +3295,7 @@
         "required": {
           "title": "Documents requis",
           "summary": "Documents requis en règle : {done} sur {total}",
+          "awaiting": "{count} en attente de vérification",
           "none": "La clinique ne demande aucun document pour l'instant."
         },
         "ownFile": "C'est votre propre dossier : une autre personne autorisée vérifie, refuse ou supprime vos documents.",
@@ -3302,6 +3307,12 @@
           "expired": "Expiré",
           "pending": "À vérifier",
           "pendingSelf": "En attente de vérification par la clinique",
+          "submitted": "Dans le questionnaire à réviser (envoyé le {date})",
+          "submittedConsent": "Signé dans le questionnaire à réviser (envoyé le {date})",
+          "submittedSelf": "Envoyé avec votre questionnaire le {date} · en attente de vérification par la clinique",
+          "submittedSelfConsent": "Signé dans votre questionnaire envoyé le {date} · en attente de vérification par la clinique",
+          "inDraftSelf": "Ajouté à votre questionnaire, pas encore envoyé",
+          "inDraftSelfConsent": "Signé dans votre questionnaire, pas encore envoyé",
           "rejected": "Refusé",
           "missing": "Manquant"
         },
@@ -3322,6 +3333,7 @@
           "consentNoName": "Signé électroniquement le {date} (version {version})",
           "consentWithdrawn": "Retrait demandé : il prend effet le {date}.",
           "newPending": "Nouveau document",
+          "showReview": "Voir le questionnaire à réviser",
           "none": "Aucun document pour l'instant."
         },
         "older": {
@@ -3441,7 +3453,8 @@
           "expiring": "Votre assurance expire le {date}. Téléversez la nouvelle preuve dès que possible.",
           "expiredTitle": "Votre assurance est expirée",
           "expired": "Votre assurance est expirée. Téléversez la nouvelle preuve pour continuer à recevoir de nouveaux clients.",
-          "renewalPending": "Merci : votre nouvelle preuve d'assurance attend la vérification de la clinique."
+          "renewalPending": "Merci : votre nouvelle preuve d'assurance attend la vérification de la clinique.",
+          "inQuestionnaire": "Votre nouvelle preuve d'assurance est dans votre questionnaire : envoyez-le pour que la clinique la vérifie."
         },
         "rejectedNote": "La clinique a refusé ce document. Téléversez-en un nouveau."
       },

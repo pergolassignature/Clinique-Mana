@@ -343,4 +343,32 @@ describe('OverviewTab — the onboarding (Task 4b.3)', () => {
     expect(within(card(t(`${O}.watch.title`))).getByText('Dossier à réviser')).toBeInTheDocument()
     expect(within(card(t(`${O}.nextAction.title`))).getByText(t(`${R}.nextAction.reviewOnboarding`, { firstName: 'Marie', date: '7 oct.' }))).toBeInTheDocument()
   })
+
+  it('a questionnaire sent: the documents gap says they count once it is approved; the review stays the next action (P4-495)', () => {
+    const submitted: Onboarding = { invitation: sent('used').invitation, submission: { id: 's1', kind: 'update', status: 'submitted', submittedAt: '2026-10-07T15:00:00Z' }, onboardingApproved: true }
+    const withDocuments = (r: ProfessionalRecord): ProfessionalRecord => ({
+      ...r,
+      professional: { ...r.professional, status: 'active', profileId: 'user-1' },
+      readiness: {
+        complete: false,
+        done: 3,
+        total: 4,
+        items: [...r.readiness.items.slice(0, 3), { key: 'documents', done: false, missing: ['photo', 'insurance'] }],
+        warnings: [],
+      },
+    })
+    renderOverview(withDocuments, 'admin', CATALOG_VIEW, submitted)
+    const dossier = card(t(`${O}.readiness.title`))
+    expect(within(dossier).getByRole('link', { name: t(`${R}.missing.photo`) })).toHaveAttribute('href', `${base}/documents`)
+    expect(dossier).toHaveTextContent(`la preuve d'assurance. ${t(`${O}.readiness.questionnaireDocuments`)}`)
+    expect(within(card(t(`${O}.nextAction.title`))).getByText(t(`${R}.nextAction.reviewUpdate`, { firstName: 'Marie', date: '7 oct.' }))).toBeInTheDocument()
+  })
+
+  it('an update sent on a file activated without an approved questionnaire: « Mise à jour envoyée le …, à réviser. » (P4-497)', () => {
+    const submitted: Onboarding = { invitation: sent('used').invitation, submission: { id: 's1', kind: 'update', status: 'submitted', submittedAt: '2026-10-07T15:00:00Z' }, onboardingApproved: false }
+    renderOverview((r) => ({ ...awaitingOnboarding(r), professional: { ...r.professional, status: 'active', profileId: 'user-1' } }), 'admin', CATALOG_VIEW, submitted)
+    const dossier = card(t(`${O}.readiness.title`))
+    expect(within(dossier).getByText('Mise à jour envoyée le 7 oct., à réviser.')).toBeInTheDocument()
+    expect(within(dossier).queryByText(t('modules.professionals.onboarding.questionnaire.none'))).not.toBeInTheDocument()
+  })
 })

@@ -445,6 +445,9 @@ Every decision is « déléguée — révisable ».
 | P4-491 | **« Copier le lien d'invitation »** (décidée par Jonathan, 2026-10-09; reverses P4-260). `copy_link`: a new link, the live one revoked, no email, the URL once (`no-store`), same gates, audited; the dialog keeps it in state only. | To hand the link over another way when the email fails. |
 | P4-492 | **The email-failure toast says the link exists**, why, and offers « Copier le lien ». | Plain next step. |
 | P4-493 | **A copied link gets no reminder.** | The job would revoke it. |
+| P4-495 | **The questionnaire's documents read « en attente », never « Manquant ».** `get_professional_documents.staged`; sent → « Envoyé avec votre questionnaire le … · en attente de vérification par la clinique » / « Dans le questionnaire à réviser (envoyé le …) »; her draft → « Ajouté à votre questionnaire, pas encore envoyé »; no upload offered to her meanwhile; « n en attente de vérification » next to the count. | Jonathan's test as a professional (2026-10-09). |
+| P4-496 | **No insurance reminder email while a sent questionnaire holds a new insurance.** Step 4 of `run_professionals_document_notices_for_service` skips it (file ready, last day not past); draft or sent back: emails resume; the staff notice stays. | Extends P4-408; « Mes documents » already thanked her. |
+| P4-497 | **Aperçu's questionnaire line reads an open update too.** « Mise à jour envoyée le …, à réviser. », « Mise à jour en cours : pas encore envoyée. ». | « Aucun questionnaire en cours. » while an update waited for review. |
 
 ---
 
