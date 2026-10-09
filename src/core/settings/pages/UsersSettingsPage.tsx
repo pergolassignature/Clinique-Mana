@@ -156,7 +156,10 @@ function UsersTab({ canManage }: { canManage: boolean }) {
           user={selected}
           onClose={() => setSelectedId(null)}
           returnFocus={() => {
-            if (lastOpened.current) nameButtons.current.get(lastOpened.current)?.focus()
+            // A deleted account's row is gone: focus goes to « Inviter » instead.
+            const row = lastOpened.current ? nameButtons.current.get(lastOpened.current) : undefined
+            const target = row ?? inviteButton.current
+            target?.focus()
           }}
         />
       )}

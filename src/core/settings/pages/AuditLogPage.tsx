@@ -69,9 +69,13 @@ function DetailLine({ line }: { line: AuditDetailLine }) {
   }
 }
 
-/** Who wrote the entry: the actor's name (same org only), else where it came from (« Données de test »). */
+/**
+ * Who wrote the entry: the actor's name (same org only); « Compte supprimé » for an actor id without a
+ * profile any more (its account was deleted: only the id stays, Loi 25); else where it came from
+ * (« Données de test »).
+ */
 function actorOf(entry: AuditEntry): string {
-  return entry.actor_name ?? sourceLabel(entry.source)
+  return entry.actor_name ?? (entry.actor_id ? t('audit.deletedAccount') : sourceLabel(entry.source))
 }
 
 /**

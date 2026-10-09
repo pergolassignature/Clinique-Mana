@@ -985,6 +985,22 @@
           "enabledSaved": "Compte réactivé.",
           "reenableFailed": "Le compte n'a pas pu être réactivé. Réessayez."
         },
+        "delete": {
+          "title": "Supprimer le compte",
+          "description": "Retire définitivement {name} de l'application. Pour une absence ou un départ temporaire, désactivez plutôt le compte.",
+          "button": "Supprimer le compte de {name}",
+          "disableFirst": "Désactivez d'abord le compte.",
+          "confirmTitle": "Supprimer le compte de {name} ?",
+          "confirmBody": "Cette suppression est définitive : le compte ne pourra pas être réactivé. Pour redonner accès à cette personne, il faudra l'inviter de nouveau.",
+          "removedLabel": "Supprimé",
+          "removed": "son accès à l'application, son rôle, ses exceptions de permissions, ses préférences et ses invitations.",
+          "keptLabel": "Conservé",
+          "kept": "l'historique de ce que ce compte a fait (Journal d'audit, historique des dossiers) : il y apparaîtra comme « Compte supprimé », sans son nom ni son courriel.",
+          "typeLabel": "Pour confirmer, tapez son courriel : {email}",
+          "deleting": "Suppression…",
+          "deleted": "Compte de {name} supprimé.",
+          "signinNotDeleted": "{name} a été retiré de l'application, mais sa connexion n'a pas pu être supprimée. Réessayez."
+        },
         "permissions": {
           "title": "Permissions",
           "description": "Chaque personne a les permissions de son rôle. Activez ou désactivez une permission pour créer une exception.",
@@ -1922,7 +1938,7 @@
           "system": "Le système",
           "import": "L'importation",
           "migration": "Une mise à jour du système",
-          "unknown": "Une personne qui n'a plus accès"
+          "unknown": "Un compte supprimé"
         },
         "sentences": {
           "created": "a créé le dossier",
@@ -4506,6 +4522,7 @@
       "delete": "Suppression",
       "read": "Consultation"
     },
+    "deletedAccount": "Compte supprimé",
     "sources": {
       "app": "Application",
       "seed": "Données de test",
