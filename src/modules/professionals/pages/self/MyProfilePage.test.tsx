@@ -85,8 +85,9 @@ describe('MyProfilePage', () => {
     renderPage()
     expect(await screen.findByText(t(`${P}.masks.account`, { last4: '4567' }))).toBeInTheDocument()
     expect(screen.getByText(t(`${P}.masks.sin`, { last3: '286' }))).toBeInTheDocument()
-    // Only what get_my_professional_private gives: masks, never a reveal.
-    expect(mocks.self.fetchMyProfessionalPrivate).toHaveBeenCalledOnce()
+    // Only what get_my_professional_private gives: masks, never a reveal. Started with the page
+    // (no waterfall); the tests' client keeps nothing fresh, so the card's mount may read it again.
+    expect(mocks.self.fetchMyProfessionalPrivate).toHaveBeenCalled()
   })
 
   it('shows nothing written for the clinic (no compensation, no staff note), although the record carries the notes', async () => {

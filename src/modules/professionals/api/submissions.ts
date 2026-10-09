@@ -136,3 +136,12 @@ export async function rejectProfessionalSubmission(submissionId: string, note: s
   const { error } = await supabase.rpc('reject_professional_submission', { p_submission_id: submissionId, p_note: note })
   if (error) throw error
 }
+
+/**
+ * « Fermer la demande » (P4-421, `professionals.invite`): closes an open update (draft or sent)
+ * without applying it. Refused for the onboarding questionnaire and for a closed submission.
+ */
+export async function cancelProfessionalSubmission(submissionId: string): Promise<void> {
+  const { error } = await supabase.rpc('cancel_professional_submission', { p_submission_id: submissionId })
+  if (error) throw error
+}

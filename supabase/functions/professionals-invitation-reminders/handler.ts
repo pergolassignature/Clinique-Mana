@@ -33,7 +33,9 @@
  *      provider (`provider_error`), the limits (`rate_limited`), the template
  *      (`missing_variable`), the re-issue or an internal error
  *      (`reminders_stopped_<code>`);
- *    - then batches of 25; after a batch, a `not_configured` /
+ *    - then batches of 2 (P4-424: the provider accepts about two requests a
+ *      second; 25 at once met its rate limit and lost the links they had
+ *      rotated); after a batch, a `not_configured` /
  *      `module_disabled` send still stops the run (`email_not_configured`),
  *      and so do `provider_error` and `rate_limited`
  *      (`reminders_stopped_<code>`): a provider outage or the clinic's daily
@@ -41,7 +43,11 @@
  *    A stopped run's failures are reported per file first (codes and ids).
  *    The run's timeout aborts the batches not yet started and the re-issues
  *    not yet made, never a send.
- * 5. The run's detail: `listed=… reminded=… skipped=… failed=…` (counts only).
+ *    No batch starts after SOFT_DEADLINE_MS (P4-424): a started send keeps
+ *    the time it needs (up to 30 s with its retries) before the job's 60 s
+ *    cut; the files left wait for the next run (`deferred`).
+ * 5. The run's detail: `listed=… reminded=… skipped=… failed=…` (counts
+ *    only), plus `deferred=…` when the soft deadline left files.
  *
  * The token never leaves memory but for the email; reports carry the org and
  * professional ids and a code, never an address or a token.
@@ -66,8 +72,14 @@ export const JOB_KEY = 'professionals.invitation_reminders'
 
 /** Files reminded per clinic and run; the rest wait for the next day. */
 export const MAX_PER_RUN = 100
-/** Sends in flight at once, after the first file. */
-export const BATCH_SIZE = 25
+/** Sends in flight at once, after the first file (the provider's ~2 requests a second). */
+export const BATCH_SIZE = 2
+/**
+ * No new batch after this long in the clinic's run: a started send keeps its
+ * own 30 s (retries included) before `runJob`'s 60 s cut, so a rotated link is
+ * never left without its email.
+ */
+export const SOFT_DEADLINE_MS = 25_000
 
 const idsSchema = z.array(z.guid()).max(MAX_PER_RUN)
 
@@ -196,9 +208,15 @@ export async function remindOrg(
   }
 
   const counts = { reminded: 0, skipped: 0, failed: 0 }
+  const startedAt = deps.now().getTime()
+  let deferred = 0
   // The probe: one file at a time until a reminder has gone out (step 4).
   let probing = true
   for (let start = 0; start < ids.length && !signal.aborted;) {
+    if (deps.now().getTime() - startedAt >= SOFT_DEADLINE_MS) {
+      deferred = ids.length - start
+      break
+    }
     const size = probing ? 1 : BATCH_SIZE
     const outcomes = await Promise.all(
       ids.slice(start, start + size).map(remindOne),
@@ -217,5 +235,7 @@ export async function remindOrg(
     if (fatal) stop(stopCode(fatal))
     if (counts.reminded > 0) probing = false
   }
-  return `listed=${ids.length} reminded=${counts.reminded} skipped=${counts.skipped} failed=${counts.failed}`
+  const detail =
+    `listed=${ids.length} reminded=${counts.reminded} skipped=${counts.skipped} failed=${counts.failed}`
+  return deferred > 0 ? `${detail} deferred=${deferred}` : detail
 }

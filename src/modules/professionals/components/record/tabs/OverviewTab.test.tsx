@@ -265,7 +265,7 @@ describe('OverviewTab — the onboarding (Task 4b.3)', () => {
 
   it('an expired link: the line says to send a new one, « Prochaine action » offers it, « À surveiller » flags it', () => {
     renderOverview(awaitingOnboarding, 'admin_assistant', CATALOG_VIEW, { ...sent('expired') })
-    expect(within(card(t(`${O}.readiness.title`))).getByText('Lien expiré le 12 oct. — envoyez un nouveau lien.')).toBeInTheDocument()
+    expect(within(card(t(`${O}.readiness.title`))).getByText('Lien expiré le 12 oct. : envoyez un nouveau lien.')).toBeInTheDocument()
     expect(within(card(t(`${O}.watch.title`))).getByText('Invitation expirée')).toBeInTheDocument()
     const next = card(t(`${O}.nextAction.title`))
     expect(within(next).getByText(t(`${R}.nextAction.invitationExpired`, { date: '12 oct.' }))).toBeInTheDocument()
@@ -309,10 +309,10 @@ describe('OverviewTab — the onboarding (Task 4b.3)', () => {
     expect(within(next).queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('a questionnaire sent: « Dossier à réviser » and « Envoyé le … — à réviser »', () => {
+  it('a questionnaire sent: « Dossier à réviser » and « Envoyé le …, à réviser »', () => {
     const submitted: Onboarding = { invitation: sent('used').invitation, submission: { id: 's1', kind: 'onboarding', status: 'submitted', submittedAt: '2026-10-07T15:00:00Z' }, onboardingApproved: false }
     renderOverview((r) => ({ ...awaitingOnboarding(r), professional: { ...r.professional, status: 'in_review', profileId: 'user-1' } }), 'admin', CATALOG_VIEW, submitted)
-    expect(within(card(t(`${O}.readiness.title`))).getByText('Envoyé le 7 oct. — à réviser.')).toBeInTheDocument()
+    expect(within(card(t(`${O}.readiness.title`))).getByText('Envoyé le 7 oct., à réviser.')).toBeInTheDocument()
     expect(within(card(t(`${O}.watch.title`))).getByText('Dossier à réviser')).toBeInTheDocument()
     expect(within(card(t(`${O}.nextAction.title`))).getByText(t(`${R}.nextAction.reviewOnboarding`, { firstName: 'Marie', date: '7 oct.' }))).toBeInTheDocument()
   })

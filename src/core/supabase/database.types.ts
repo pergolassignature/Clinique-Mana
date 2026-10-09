@@ -4715,6 +4715,10 @@ export type Database = {
         Args: { p_id: string; p_org_id: string; p_stale_after: string }
         Returns: boolean
       }
+      cancel_professional_submission: {
+        Args: { p_submission_id: string }
+        Returns: undefined
+      }
       cancel_signature_request: {
         Args: { p_by: string; p_id: string }
         Returns: boolean

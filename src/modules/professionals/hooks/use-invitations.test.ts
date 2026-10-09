@@ -5,7 +5,7 @@ import { emailProblemText, invitationFunctionMessage } from './use-invitations'
 
 const O = 'modules.professionals.onboarding'
 const UPDATE = { kind: 'update', firstName: 'Marie' } as const
-const ADVICE = "La demande reste ouverte : prévenez Marie qu'elle l'attend dans son questionnaire."
+const ADVICE = "La demande reste ouverte : dites à Marie qu'une mise à jour l'attend dans son questionnaire."
 
 describe('emailProblemText', () => {
   it('an invitation: « Renvoyer » advised only where it can help', () => {

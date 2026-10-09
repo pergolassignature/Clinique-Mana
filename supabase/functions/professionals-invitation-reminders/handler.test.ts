@@ -1,5 +1,12 @@
 import { assert, assertEquals } from '@std/assert'
-import { createHandler, JOB_KEY, MAX_PER_RUN, remindOrg } from './handler.ts'
+import {
+  BATCH_SIZE,
+  createHandler,
+  JOB_KEY,
+  MAX_PER_RUN,
+  remindOrg,
+  SOFT_DEADLINE_MS,
+} from './handler.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { hashToken } from '../_shared/links.ts'
 import { fakeFetch, type Responder } from '../_shared/testing/fake-fetch.ts'
@@ -234,7 +241,7 @@ Deno.test('professionals-invitation-reminders: re-issues each due file with a ne
   })
 })
 
-Deno.test('professionals-invitation-reminders: one file first, then batches of 25', async () => {
+Deno.test('professionals-invitation-reminders: one file first, then batches of 2', async () => {
   await run(async () => {
     const ids = Array.from({ length: 30 }, (_, i) => pid(i + 1))
     const { handler, service } = harness({ ids })
@@ -254,18 +261,17 @@ Deno.test('professionals-invitation-reminders: one file first, then batches of 2
       { kind: 'r', id: pid(1) },
       { kind: 'q', id: pid(1) },
     ])
-    // Then 25 in parallel: several re-issues start before the batch's first
-    // email (how many depends on when each token hash resolves), and the whole
-    // batch ends before the next one starts.
-    const second = new Set(ids.slice(1, 26))
+    // Then 2 in parallel (P4-424): both re-issues start before the batch's
+    // first email, and the whole batch ends before the next one starts.
+    const second = new Set(ids.slice(1, 1 + BATCH_SIZE))
     const firstQueued = order.indexOf('q', 2)
-    assert(order.slice(2, firstQueued).length > 1)
+    assertEquals(order.slice(2, firstQueued).length, BATCH_SIZE)
     const lastOfSecond = events.findLastIndex((e) => second.has(e.id))
     const firstOfThird = events.findIndex((e) =>
       !second.has(e.id) && e.id !== pid(1)
     )
-    assertEquals(lastOfSecond, 51)
-    assertEquals(firstOfThird, 52)
+    assertEquals(lastOfSecond, 1 + 2 * BATCH_SIZE)
+    assertEquals(firstOfThird, 2 + 2 * BATCH_SIZE)
     assertEquals(order.filter((o) => o === 'r').length, 30)
     assertEquals(finished(service.calls), [[
       'ok',
@@ -457,10 +463,12 @@ Deno.test('professionals-invitation-reminders: after the probe, a batch that hit
   await run(async () => {
     const ids = Array.from({ length: 60 }, (_, i) => pid(i + 1))
     let consumed = 0
-    const cases: [Parameters<typeof harness>[0], string][] = [
+    // [options, run code, files re-issued: the probe and every batch up to the failing one]
+    const cases: [Parameters<typeof harness>[0], string, number][] = [
       [
         { ids, mailpit: mailpitFailing([pid(7)], 500) },
         'reminders_stopped_provider_error',
+        7,
       ],
       [
         {
@@ -481,15 +489,16 @@ Deno.test('professionals-invitation-reminders: after the probe, a batch that hit
           },
         },
         'reminders_stopped_rate_limited',
+        11,
       ],
     ]
-    for (const [opts, code] of cases) {
+    for (const [opts, code, reissued] of cases) {
       const { handler, service } = harness(opts)
       const logged = await captureConsole('error', async () => {
         await handler(await jobRequest())
       })
-      // The probe and the whole first batch, never the second.
-      assertEquals(reissuedIds(service.calls).length, 26, code)
+      // The probe and the batches up to the failing one (2 files each), never the next.
+      assertEquals(reissuedIds(service.calls).length, reissued, code)
       assertEquals(finished(service.calls), [['error', code]], code)
       const lines = logged.map((l) => JSON.parse(String(l[0])))
       assert(
@@ -653,5 +662,44 @@ Deno.test('professionals-invitation-reminders: a manual run (« Exécuter mainte
     assertEquals(callsTo(service.calls, 'start_job_run'), [
       { p_key: JOB_KEY, p_org_id: ORG_ID, p_trigger: 'manual' },
     ])
+  })
+})
+
+Deno.test('professionals-invitation-reminders: no batch starts after the soft deadline; the files left wait (P4-424)', async () => {
+  await run(async () => {
+    const ids = Array.from({ length: 10 }, (_, i) => pid(i + 1))
+    const clock = fixedClock(NOW)
+    // Each re-issue takes 13 s of the run: the probe (13 s) leaves time for one batch of 2
+    // (39 s in all), after which no batch starts.
+    const h = harness({
+      ids,
+      reissue: (id) => {
+        clock.advance(13_000)
+        return {
+          data: {
+            link_id: pid(900),
+            email: addressOf(id),
+            first_name: 'Nadia',
+            expires_at: EXPIRES,
+            clinic_name: 'Clinique MANA',
+          },
+        }
+      },
+    })
+    assert(13_000 + 13_000 * BATCH_SIZE >= SOFT_DEADLINE_MS)
+    const detail = await remindOrg(
+      { ...h.deps, now: clock.now },
+      ORG_ID,
+      h.service.client,
+      new AbortController().signal,
+    )
+    assertEquals(
+      detail,
+      `listed=10 reminded=${1 + BATCH_SIZE} skipped=0 failed=0 deferred=${
+        10 - 1 - BATCH_SIZE
+      }`,
+    )
+    assertEquals(reissuedIds(h.service.calls).length, 1 + BATCH_SIZE)
+    assertEquals(h.http.calls.length, 1 + BATCH_SIZE)
   })
 })

@@ -103,7 +103,7 @@ export function clinicDaysSince(iso: string, now: number): number {
 
 /**
  * The invitation in one line (A2.5), for Aperçu: « Invitation envoyée le 8 oct. · ouverte le 9 oct.
- * · expire le 15 oct. », « Lien expiré le 15 oct. — envoyez un nouveau lien. », « Invitation
+ * · expire le 15 oct. », « Lien expiré le 15 oct. : envoyez un nouveau lien. », « Invitation
  * acceptée le 9 oct. », « Invitation révoquée : le lien ne fonctionne plus. », or « Aucune
  * invitation envoyée. ».
  */

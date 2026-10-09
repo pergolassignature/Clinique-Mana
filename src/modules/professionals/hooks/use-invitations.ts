@@ -17,7 +17,7 @@ import {
 import type { SubmissionSection } from '../lib/constants'
 import type { InviteAction } from '../lib/onboarding'
 import { professionalKeys } from './keys'
-import { showMutationError, type MutationFeedback } from './mutation-feedback'
+import { functionErrorMessage, showMutationError, type MutationFeedback } from './mutation-feedback'
 import { refreshProfessionalHistory } from './use-professional-record'
 
 const I = 'modules.professionals.onboarding'
@@ -65,21 +65,7 @@ export function prefetchProfessionalEmails(queryClient: QueryClient, id: string)
  * so the text names neither: « Trop de demandes en peu de temps. Réessayez dans … ».
  */
 export function invitationFunctionMessage(error: unknown): string | null {
-  if (!(error instanceof FunctionCallError)) return null
-  switch (error.code) {
-    case 'rate_limited':
-      return `${t(`${I}.errors.rateLimited`)} ${retryInText(error.retryAfter)}`
-    case 'module_disabled':
-      return t(`${I}.errors.moduleDisabled`)
-    case 'network':
-      return t(`${I}.errors.network`)
-    case 'unauthenticated':
-      return t(`${I}.errors.unauthenticated`)
-    case 'not_configured':
-      return t(`${I}.errors.unavailable`)
-    default:
-      return null
-  }
+  return functionErrorMessage(error)
 }
 
 const EMAIL_PROBLEMS = ['not_configured', 'rate_limited', 'provider_error', 'invalid_request', 'module_disabled'] as const

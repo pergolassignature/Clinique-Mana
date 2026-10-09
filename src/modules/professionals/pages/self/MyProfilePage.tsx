@@ -34,14 +34,17 @@ const P = 'modules.professionals.myProfile'
  * Nothing written for the clinic: no compensation, no retention, and the clinic's notes on her row
  * (deactivation note, activation reason) are not displayed, although the record carries them: she
  * may read them (Loi 25, P4-373), the page stays calm. The only note shown is the one the clinic
- * wrote to her when it sent her profile back. Three requests in one tick: her
- * record, her open questionnaire and the catalogue; the masks follow with their card.
+ * wrote to her when it sent her profile back. Four requests in one tick: her
+ * record, her open questionnaire, the catalogue and the masks (read by their card from the same
+ * query, so the card never starts a second round trip).
  */
 export function MyProfilePage() {
   usePageTitle(t(`${P}.pageTitle`))
   const record = useMyProfessionalRecord()
   const submission = useMySubmission()
   const catalog = useProfessionalsCatalog()
+  // The masks start with the page; the card shows their own loading or failure.
+  useMyProfessionalPrivate(true)
   const queries = [record, submission, catalog]
   if (queries.some((q) => q.isPending)) return <Loading />
   const failed = queries.filter((q) => q.isError && q.data === undefined)
