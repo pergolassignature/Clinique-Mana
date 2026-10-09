@@ -494,6 +494,14 @@
         "noEvent": "Aucun événement reçu",
         "lastEventError": "Impossible de vérifier le dernier événement reçu.",
         "secretsLoadError": "Impossible de charger l'état des clés.",
+        "test": {
+          "button": "M'envoyer un courriel de test ({email})",
+          "sending": "Envoi du courriel de test…",
+          "help": "Vérifie la clé et le domaine d'envoi. La confirmation de livraison s'affiche ci-dessous dès que Resend la renvoie (rechargez la page).",
+          "needsKey": "Enregistrez d'abord la clé d'API Resend.",
+          "subject": "Test d'envoi",
+          "body": "Ce courriel confirme que l'envoi de courriels de la clinique fonctionne. Aucune action n'est requise."
+        },
         "domain": {
           "label": "Domaine d'envoi",
           "help": "Le domaine vérifié chez Resend.",

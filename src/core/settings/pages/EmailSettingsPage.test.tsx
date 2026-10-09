@@ -77,13 +77,16 @@ const ADMIN = ['settings.view', 'settings.email_manage', 'settings.integrations_
 const ASSISTANT = ['settings.view']
 const ASSISTANT_EMAIL = ['settings.view', 'settings.email_manage']
 
-function renderPage(permissions: string[], { lastEvent = '2026-10-08T12:00:00Z' as string | null } = {}) {
+function renderPage(
+  permissions: string[],
+  { lastEvent = '2026-10-08T12:00:00Z' as string | null, secretKeys = [{ key: 'resend_api_key', updated_at: '2026-10-08T12:00:00Z' }] } = {},
+) {
   mocks.email.fetchEmailSender.mockResolvedValue(SENDER)
   mocks.email.listEmailTemplates.mockResolvedValue([TEMPLATE])
   mocks.email.lastWebhookEventAt.mockResolvedValue(lastEvent)
   mocks.email.listEmailLog.mockResolvedValue([])
   mocks.email.previewEmail.mockResolvedValue({ subject: 'Objet', html: '<p>x</p>', text: 'x' })
-  mocks.secrets.listOrgSecretKeys.mockResolvedValue([{ key: 'resend_api_key', updated_at: '2026-10-08T12:00:00Z' }])
+  mocks.secrets.listOrgSecretKeys.mockResolvedValue(secretKeys)
   const readOnly = !permissions.includes('settings.email_manage') && !permissions.includes('settings.integrations_manage')
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
@@ -147,6 +150,27 @@ describe('EmailSettingsPage', () => {
     it('says when no event was received yet', async () => {
       renderPage(ADMIN, { lastEvent: null })
       expect(await within(keysCard()).findByText(t('settings.email.keys.noEvent'))).toBeInTheDocument()
+    })
+
+    it('sends a test email to the caller, with its own text and no button', async () => {
+      mocks.email.sendTestEmail.mockResolvedValue(undefined)
+      renderPage(ADMIN)
+      const button = await within(keysCard()).findByRole('button', { name: t('settings.email.keys.test.button', { email: testAccess.email }) })
+      await userEvent.click(button)
+      await waitFor(() =>
+        expect(mocks.email.sendTestEmail).toHaveBeenCalledWith('core.staff_invite', {
+          subject: t('settings.email.keys.test.subject'),
+          body: t('settings.email.keys.test.body'),
+          button_label: null,
+        }),
+      )
+      expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.email.editor.testSent', { email: testAccess.email }))
+    })
+
+    it('asks for the API key before a test email', async () => {
+      renderPage(ADMIN, { secretKeys: [] })
+      expect(await within(keysCard()).findByText(t('settings.email.keys.test.needsKey'))).toBeInTheDocument()
+      expect(within(keysCard()).getByRole('button', { name: t('settings.email.keys.test.button', { email: testAccess.email }) })).toBeDisabled()
     })
 
     it('asks before changing the sending domain, then saves it', async () => {
