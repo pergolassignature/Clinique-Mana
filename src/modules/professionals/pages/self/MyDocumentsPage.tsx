@@ -73,7 +73,16 @@ export function MyDocumentsPage() {
         can={SELF_PERMISSIONS}
         verifiedAtOnce={false}
         focusFallback={() => heading.current?.focus()}
-        typeExtra={(type) => (type.key === 'image_consent' ? <ConsentSigning back={{ returnTo: 'documents' }} variant="documents" /> : null)}
+        typeExtra={(type) =>
+          type.key === 'image_consent' ? (
+            <ConsentSigning
+              back={{ returnTo: 'documents' }}
+              variant="documents"
+              // The card's state line says « Signé le … · valide jusqu'au … » once the signed PDF is on file.
+              cardSaysInForce={(documents.data?.documents ?? []).some((d) => d.typeId === type.id && d.signatureRequestId !== null && d.status === 'verified')}
+            />
+          ) : null
+        }
       />
     </div>
   )

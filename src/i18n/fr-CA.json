@@ -3339,6 +3339,7 @@
         "ownFile": "C'est votre propre dossier : une autre personne autorisée vérifie, refuse ou supprime vos documents.",
         "state": {
           "validUntil": "Valide jusqu'au {date}",
+          "signedValidUntil": "Signé le {date} · valide jusqu'au {until}",
           "verified": "Vérifié",
           "expiring": "Expire le {date}",
           "expiredOn": "Expiré : valide jusqu'au {date}",
@@ -3357,6 +3358,7 @@
         "lines": {
           "uploadedByClinic": "Téléversé le {date} par la clinique",
           "signedElectronically": "Signé électroniquement le {date} (Documenso)",
+          "signedPdf": "PDF signé électroniquement (Documenso)",
           "uploadedByProfessional": "Téléversé le {date} par {firstName}",
           "uploadedByYou": "Téléversé le {date} par vous",
           "uploadedForYou": "Téléversé le {date} par la clinique",

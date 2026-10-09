@@ -81,6 +81,7 @@ export function DocumentRow({ document, type, today, viewer, firstName, can, lab
   const download = useDocumentDownload()
   const actions = documentActions(document, type, can)
   const state = documentStateLabel(document, today, viewer === 'self')
+  const eSignedInForce = document.signatureRequestId !== null && document.status === 'verified' && !showType && !label
   const reviewed = reviewedLine(document)
   const inline: DocumentAction[] = []
   if (actions.includes('preview')) inline.push('preview')
@@ -104,15 +105,22 @@ export function DocumentRow({ document, type, today, viewer, firstName, can, lab
   return (
     <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="min-w-0 space-y-0.5">
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
-          {showType && <span className="font-medium text-foreground">{type?.name}</span>}
-          {label && <span className="font-medium text-foreground">{label}</span>}
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <StatusDot tone={documentStateTone(document, today)} />
-            {state}
-          </span>
-        </p>
-        <p className="text-xs text-muted-foreground">{[uploadedLine(document, viewer, firstName), reviewed].filter(Boolean).join(' · ')}</p>
+        {eSignedInForce ? (
+          // The card's state line already says « Signé le … · valide jusqu'au … »: the row names the file.
+          <p className="text-xs text-muted-foreground">{t(`${D}.lines.signedPdf`)}</p>
+        ) : (
+          <>
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
+              {showType && <span className="font-medium text-foreground">{type?.name}</span>}
+              {label && <span className="font-medium text-foreground">{label}</span>}
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <StatusDot tone={documentStateTone(document, today)} />
+                {state}
+              </span>
+            </p>
+            <p className="text-xs text-muted-foreground">{[uploadedLine(document, viewer, firstName), reviewed].filter(Boolean).join(' · ')}</p>
+          </>
+        )}
         {meta.length > 0 && <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{meta.join(' · ')}</p>}
         {document.status === 'rejected' && document.rejectionReason && (
           <p className="mt-1 whitespace-pre-line border-l-2 border-border pl-2 text-sm text-foreground [overflow-wrap:anywhere]">

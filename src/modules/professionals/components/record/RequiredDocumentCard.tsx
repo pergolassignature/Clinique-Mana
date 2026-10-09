@@ -48,6 +48,12 @@ export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onA
   // The questionnaire holds it: its state line says so, not « Aucun document pour l'instant ».
   const inQuestionnaire = kind === 'submitted' || (self && stagedInDraft(entry))
   const empty = !current && !pending && !rejected && !consent && !inQuestionnaire
+  // A consent signed through Documenso and in force: one line, « Signé le … · valide jusqu'au … »
+  // (its row and the signing block below do not repeat it).
+  const eSigned = current !== null && current.signatureRequestId !== null && kind === 'valid' && entry.until !== null
+  const stateText = eSigned
+    ? t(`${D}.state.signedValidUntil`, { date: formatClinicDateShort(current.uploadedAt), until: formatDateOnly(entry.until) })
+    : typeStateLabel(entry, self)
 
   return (
     <section aria-labelledby={titleId} className="min-w-0 rounded-lg border border-border bg-card p-4 text-card-foreground">
@@ -58,7 +64,7 @@ export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onA
           </h4>
           <p data-type-state className="inline-flex items-center gap-1.5 text-sm text-foreground">
             <StatusDot tone={typeCardTone(entry, self)} />
-            {typeStateLabel(entry, self)}
+            {stateText}
           </p>
           {!self && kind === 'submitted' && onShowReview && (
             <Button type="button" variant="link" size="sm" className="h-auto px-0" onClick={onShowReview}>
