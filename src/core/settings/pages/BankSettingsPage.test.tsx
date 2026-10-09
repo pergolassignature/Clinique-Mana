@@ -65,14 +65,14 @@ describe('BankSettingsPage', () => {
     expect(within(card()).getByText('••••4567')).toHaveAttribute('aria-hidden', 'true')
     expect(within(card()).getByText(t('settings.bank.display.masked', { last4: '4567' }))).toHaveClass('sr-only')
     expect(valueOf(t('settings.bank.display.email'))).toHaveTextContent('paiement@cliniquemana.test')
-    expect(within(card()).getByText('Modifié le 07 oct. 2026 à 14:30 par Marie Tremblay')).toBeInTheDocument()
+    expect(within(card()).getByText('Modifié le 7 oct. 2026 à 14:30 par Marie Tremblay')).toBeInTheDocument()
     expect(mocks.bank.revealAccountNumber).not.toHaveBeenCalled()
   })
 
   it('shows « — » without an Interac email, and the date alone without an author', async () => {
     await renderPage({ details: { ...DETAILS, etransfer_email: null, updated_by_name: null } })
     expect(valueOf(t('settings.bank.display.email'))).toHaveTextContent('—')
-    expect(within(card()).getByText('Modifié le 07 oct. 2026 à 14:30')).toBeInTheDocument()
+    expect(within(card()).getByText('Modifié le 7 oct. 2026 à 14:30')).toBeInTheDocument()
   })
 
   it('reveals the number once through the RPC, keeps it out of the query cache, and « Masquer » hides it', async () => {

@@ -138,7 +138,7 @@ describe('ScheduledJobsSettingsPage — reading', () => {
     // Its own column, and repeated under the label on a phone.
     expect(within(maintenance).getAllByText('Toutes les heures')).toHaveLength(2)
     // The last run too: its own column, and under the label on a phone.
-    expect(within(maintenance).getAllByText('08 oct. 2026 à 08:07')).toHaveLength(2)
+    expect(within(maintenance).getAllByText('8 oct. 2026 à 08:07')).toHaveLength(2)
     expect(within(maintenance).getAllByText('Réussie')).toHaveLength(2)
 
     const business = jobRow(BUSINESS.label)
@@ -167,7 +167,7 @@ describe('ScheduledJobsSettingsPage — reading', () => {
     const user = userEvent.setup()
     renderPage({ readOnly: true })
     const runs = await screen.findByRole('table', { name: t('settings.jobs.runs.title') })
-    await within(runs).findByText('07 oct. 2026 à 06:00')
+    await within(runs).findByText('7 oct. 2026 à 06:00')
     const [first, second] = within(runs).getAllByRole('row').slice(1)
     expect(within(first!).getByText(MAINTENANCE.label)).toBeInTheDocument()
     // The trigger has its own column, and repeats under the job on a phone.
@@ -277,7 +277,7 @@ describe('ScheduledJobsSettingsPage — with settings.manage', () => {
     mocks.api.runScheduledJobNow.mockResolvedValue(undefined)
     renderPage()
     await loaded()
-    await within(runsTable()).findByText('07 oct. 2026 à 06:00')
+    await within(runsTable()).findByText('7 oct. 2026 à 06:00')
     const runsBefore = mocks.api.listScheduledJobRuns.mock.calls.length
 
     await user.click(runNowOf(MAINTENANCE.label))

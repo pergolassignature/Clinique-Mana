@@ -124,7 +124,7 @@ export function formatClinicDateFull(date: DateInput): string {
  * @returns Formatted date string
  */
 export function formatClinicDateShort(date: DateInput): string {
-  return formatInClinicTimezone(date, 'dd MMM yyyy')
+  return formatInClinicTimezone(date, 'd MMM yyyy')
 }
 
 /**
@@ -146,7 +146,7 @@ export function formatClinicTime(date: DateInput): string {
  * @returns Formatted datetime string
  */
 export function formatClinicDateTime(date: DateInput): string {
-  return formatInClinicTimezone(date, "dd MMM yyyy 'à' HH:mm")
+  return formatInClinicTimezone(date, "d MMM yyyy 'à' HH:mm")
 }
 
 // =============================================================================
