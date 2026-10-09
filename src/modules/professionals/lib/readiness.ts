@@ -95,14 +95,15 @@ const N = 'modules.professionals.readiness.nextAction'
  *    never on the viewer's own file: P4-304, the database refuses it; `viewerId` is the signed-in
  *    user's id);
  * 2. an inactive file: reactivate it, or complete it first;
- * 3. no account and the link expired: « Envoyer un nouveau lien » (`professionals.invite`);
+ * 3. no account and the link expired: « Envoyer un nouveau lien » (`professionals.invite`); or its
+ *    email did not leave: why, « Renvoyer l'invitation » and « Copier le lien d'invitation » (P4-490);
  * 4. the first gap of the matching profile (its tab): staff complete it, then invite (or the
  *    invitation left with the creation);
  * 5. no account and no live link: « Envoyer l'invitation » (never invited, the link revoked, or
  *    used by an account that has since been removed: each says which);
  * 6. waiting for the professional: the link sent (or opened, or copied), or the questionnaire being
- *    filled in; a link whose email did not leave says so and why, with « Renvoyer l'invitation »
- *    and « Copier le lien d'invitation » (P4-490); an unknown outcome says « Résultat inconnu »;
+ *    filled in; an unknown outcome says « Résultat inconnu » (with « Copier le lien »), a copied
+ *    link « Lien d'invitation copié le … », a send still running « en cours d'envoi »;
  * 7. only the service contract left (4d.3): « Contrat de service à envoyer » or « En attente de la
  *    signature de … » (`contract`), else both in one sentence; « Voir le contrat » (Documents);
  * 8. a complete file: « Activer » (the header's dialog, P4-74), or nothing to do once active.
@@ -140,6 +141,17 @@ export function nextAction(
   if (noAccount && invitation && state === 'expired') {
     return { message: t(`${N}.invitationExpired`, { date: shortDate(invitation.expiresAt, now) }), action: inviteButton }
   }
+  const copyButton: NextActionButton | null = copyLink ? { kind: 'copyLink', label: onboardingActionLabel('copyLink') } : null
+  // An email that did not leave comes before the gaps too, as an expired link: the professional
+  // is waiting for a link she never received (P4-490).
+  const email = noAccount && invitation && state === 'sent' ? invitationEmail(invitation, now) : null
+  if (invitation && email?.kind === 'failed') {
+    return {
+      message: `${t(`${N}.invitationNotSent`, { firstName, date: shortDate(invitation.sentAt, now) })} ${emailFailureReason(email.reason)}`,
+      action: inviteButton,
+      secondary: copyButton,
+    }
+  }
   // The checklist's order: the file's own gaps (identity, matching) before the invitation; the
   // documents after the onboarding, which collects the photo and the insurance itself.
   const gap = readinessStep(record, can, (key) => key !== 'documents')
@@ -154,9 +166,7 @@ export function nextAction(
     if (state === 'opened' && invitation.openedAt) {
       return { message: t(`${N}.invitationOpened`, { firstName, date: shortDate(invitation.openedAt, now) }), action: null }
     }
-    const email = invitationEmail(invitation, now)
-    const copyButton: NextActionButton | null = copyLink ? { kind: 'copyLink', label: onboardingActionLabel('copyLink') } : null
-    switch (email.kind) {
+    switch (invitationEmail(invitation, now).kind) {
       case 'copied':
         return { message: t(`${N}.invitationCopied`, { firstName, date }), action: null }
       case 'pending':
@@ -166,11 +176,6 @@ export function nextAction(
         return { message: t(`${N}.invitationUnknown`, { firstName, date, outcome: label, detail }), action: null, secondary: copyButton }
       }
       case 'failed':
-        return {
-          message: `${t(`${N}.invitationNotSent`, { firstName, date })} ${emailFailureReason(email.reason)}`,
-          action: inviteButton,
-          secondary: copyButton,
-        }
       case 'sent':
         return { message: t(`${N}.invitationSent`, { firstName, date }), action: null }
     }

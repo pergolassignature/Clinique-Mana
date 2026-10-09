@@ -178,6 +178,8 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
       action: { kind: 'invite', label: "Renvoyer l'invitation", action: 'resend' },
       secondary: { kind: 'copyLink', label: "Copier le lien d'invitation" },
     })
+    // Before the matching gaps, as an expired link.
+    expect(nextAction(withReadiness(['motif'], 'invited'), failed, can(...INVITE), NOW).message).toMatch(/^Le courriel d'invitation du 8 oct\. n'est pas parti/)
     const bounced = nextAction(onboardingFile(), invitation('sent', { emailStatus: 'bounced' }), can(...INVITE), NOW)
     expect(bounced.message).toMatch(/n'est pas parti.*L'adresse a refusé le courriel\.$/)
     // Without professionals.invite: the sentence, no button.
