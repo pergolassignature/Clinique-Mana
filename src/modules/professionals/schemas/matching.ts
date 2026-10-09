@@ -7,7 +7,7 @@ import { longText } from './text'
 
 /**
  * « Jumelage » (`professionals.matching`), as the set RPCs and
- * `professional_matching_profiles_*_check` check it (20261008092451_professionals_core.sql).
+ * `professional_matching_profiles_*_check` check it (20261008133537_professionals_core.sql).
  * A row archived since may stay where it is, never be added; at most 500 items.
  */
 

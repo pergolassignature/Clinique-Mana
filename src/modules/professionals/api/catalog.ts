@@ -21,7 +21,7 @@ export type { ReferenceKind } from '../lib/constants'
 
 /**
  * The nine per-clinic lists (« Paramètres → Professionnels ») and their settings RPCs
- * (20261008084945_professionals_reference_settings.sql). Every function throws the PostgREST
+ * (20261008133523_professionals_reference_settings.sql). Every function throws the PostgREST
  * error unchanged; the hooks map it for users (`moduleErrorMessage`).
  */
 

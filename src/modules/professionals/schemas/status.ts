@@ -4,7 +4,7 @@ import type { DeactivationReason } from '../api/parse'
 
 /**
  * Activation and deactivation dialogs (4a.14), as `activate_professional` and
- * `deactivate_professional` (20261008100634) check them.
+ * `deactivate_professional` (20261008133549) check them.
  */
 
 const NOTE_MAX = 500

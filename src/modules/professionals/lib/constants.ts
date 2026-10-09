@@ -1,6 +1,6 @@
 /**
- * The module's fixed vocabularies, mirroring the SQL checks (migrations 20261008082847 to
- * 20261008100634). Identifiers are English; their French labels live in `modules.professionals.*`.
+ * The module's fixed vocabularies, mirroring the SQL checks (migrations 20261008133511 to
+ * 20261008133549). Identifiers are English; their French labels live in `modules.professionals.*`.
  */
 
 /** `professionals_status_check`, in lifecycle order. */

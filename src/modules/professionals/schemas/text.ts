@@ -2,8 +2,8 @@ import { z } from 'zod'
 import { t } from '@/i18n'
 
 /**
- * Text rules of `private.reference_text` (20261008084945) and `private.is_tidy_text`
- * (20261008082847), which names, labels and descriptions go through: Unicode White_Space stripped
+ * Text rules of `private.reference_text` (20261008133523) and `private.is_tidy_text`
+ * (20261008133511), which names, labels and descriptions go through: Unicode White_Space stripped
  * at both ends (not JavaScript's `trim`, which lacks U+0085 and strips U+FEFF), inner runs folded
  * to one space (except a licence pattern), at most `max` characters (code points, as
  * `char_length`), no control or invisible character.

@@ -20,9 +20,9 @@ import {
 
 const root = path.resolve(__dirname, '../../../..')
 const read = (file: string) => readFileSync(path.join(root, 'supabase/migrations', file), 'utf8')
-const REFERENCE = read('20261008082847_professionals_reference_data.sql')
-const CORE = read('20261008092451_professionals_core.sql')
-const LIFECYCLE = read('20261008100634_professionals_lifecycle.sql')
+const REFERENCE = read('20261008133511_professionals_reference_data.sql')
+const CORE = read('20261008133537_professionals_core.sql')
+const LIFECYCLE = read('20261008133549_professionals_lifecycle.sql')
 const DOCUMENTS = read('20261009000253_professionals_documents.sql')
 
 /** The quoted values of a SQL list, e.g. `in ('a', 'b')`. */

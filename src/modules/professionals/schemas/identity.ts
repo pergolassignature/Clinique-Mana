@@ -7,7 +7,7 @@ import { tidyText } from './text'
 
 /**
  * « Identité et permis » cards (`professionals.manage`), as the database checks them
- * (20261008092451_professionals_core.sql). Forms work on strings; each schema normalises them.
+ * (20261008133537_professionals_core.sql). Forms work on strings; each schema normalises them.
  */
 
 /** A first or last name: 1–80 characters, tidy like `create_professional`'s names. */

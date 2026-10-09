@@ -1,6 +1,6 @@
 /**
  * RPC payloads as the database returns them (snake_case JSON), shaped on the migrations'
- * `jsonb_build_object` calls (20261008084945 get_professionals_catalog, 20261008100634
+ * `jsonb_build_object` calls (20261008133523 get_professionals_catalog, 20261008133549
  * get_professional_record / get_professional_readiness / get_professional_public_profile, the
  * professionals_list view). Test-only: no production file imports this one.
  */

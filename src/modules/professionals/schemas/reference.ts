@@ -16,7 +16,7 @@ import { tidy, tidyText } from './text'
 
 /**
  * The settings lists' dialogs (4a.6–4a.9), one schema per list, as the `save_*` RPCs check them
- * (20261008084945_professionals_reference_settings.sql): names 1–120, tidy; an acronym and a
+ * (20261008133523_professionals_reference_settings.sql): names 1–120, tidy; an acronym and a
  * language code normalised as typed; ages 0–120 with max ≥ min and no max without a min. The
  * output is what `saveReference(kind, { id, ...output })` sends. `referenceSchema(kind, …)` adds
  * the checks that need the list: a name already taken (NFKC, ignoring case), a system clientèle

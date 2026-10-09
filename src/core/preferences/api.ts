@@ -2,7 +2,7 @@ import { supabase } from '@/core/supabase/client'
 import type { Json } from '@/core/supabase/database.types'
 
 /**
- * Per-user preferences (`user_preferences`, migration 20261008113715): small UI state that follows
+ * Per-user preferences (`user_preferences`, migration 20261008133602): small UI state that follows
  * the person, not the computer (remembered list filters). Read with a plain select (RLS: own rows
  * while active); written only through `set_user_preference` / `delete_user_preference`, which
  * take the user and the clinic from the session, and refuse a write made for another user

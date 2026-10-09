@@ -8,7 +8,7 @@ import type { Gender } from './constants'
  * (« Travailleuse sociale ou travailleur social », P4-341), never as a dotted form.
  *
  * Settings, filters and the title pickers keep the name: they name the title, not a person. The
- * SQL twin is `private.profession_title_label` (20261008082847_professionals_reference_data.sql),
+ * SQL twin is `private.profession_title_label` (20261008133511_professionals_reference_data.sql),
  * which the retention review, the directory and the public profile read.
  */
 export function titleLabel(title: Pick<ProfessionTitle, 'name' | 'nameFeminine' | 'nameMasculine'>, gender: Gender | null): string {

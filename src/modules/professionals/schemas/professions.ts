@@ -8,7 +8,7 @@ import type { ProfessionRow } from '../api/parse'
 
 /**
  * Titles and licences, as `set_professional_professions` and `professional_professions_guard`
- * (20261008092451) check them: at most two titles, each once, one primary (the first when none is
+ * (20261008133537) check them: at most two titles, each once, one primary (the first when none is
  * flagged), a licence when the title belongs to an order, in that order's format; a title archived
  * since may stay, never be added; the last regulated title stays while restricted motifs are held.
  */

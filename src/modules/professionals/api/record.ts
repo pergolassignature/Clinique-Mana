@@ -25,7 +25,7 @@ import { sqlArgs } from './sql-args'
 
 /**
  * One professional: the record bundle, its plain fields (column grants + RLS), its sets and its
- * status (RPCs; 20261008092451_professionals_core.sql, 20261008100634_professionals_lifecycle.sql).
+ * status (RPCs; 20261008133537_professionals_core.sql, 20261008133549_professionals_lifecycle.sql).
  * Every function throws the PostgREST error unchanged; the hooks map it for users.
  */
 

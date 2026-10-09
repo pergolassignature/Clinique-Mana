@@ -96,7 +96,7 @@ using (
 Cross-module reads go through views published by the owning module (design §6.2). A plain view runs as its **owner**, which bypasses RLS and leaks across orgs. Views are always `security_invoker = true` (enforced by `000_invariants`), and like tables they start with no client grants:
 
 ```sql
--- Shortened from 20261008100634_professionals_lifecycle.sql (the real view also publishes the
+-- Shortened from 20261008133549_professionals_lifecycle.sql (the real view also publishes the
 -- professions, clientèles with ages, the client limits, motif keys, years, gender, insurance_status, ready).
 create view public.professionals_directory with (security_invoker = true) as
 select p.id, p.org_id, p.status,
