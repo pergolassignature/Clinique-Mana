@@ -3,6 +3,10 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   AVAILABILITY_PERIODS,
+  DOCUMENT_EXPIRY_RULES,
+  DOCUMENT_MIME_TYPES,
+  DOCUMENT_STATUSES,
+  PHOTO_MIME_TYPES,
   GENDERS,
   MOTIF_CATEGORY_ICONS,
   PAYER_TYPES,
@@ -58,10 +62,21 @@ describe('constants mirror the SQL checks', () => {
     expect([...missing.matchAll(/'([a-z_]+)'/g)].map((m) => m[1])).toEqual([...READINESS_DOCUMENT_MISSING])
   })
 
-  it('reference kinds are the eight list tables (no approaches, P4-240)', () => {
-    for (const kind of REFERENCE_KINDS) expect(REFERENCE).toContain(`create table public.${kind} (`)
-    expect(REFERENCE_KINDS).toHaveLength(8)
+  it('reference kinds are the eight list tables (no approaches, P4-240) and the document types (4c.2)', () => {
+    for (const kind of REFERENCE_KINDS.filter((k) => k !== 'document_types')) expect(REFERENCE).toContain(`create table public.${kind} (`)
+    expect(DOCUMENTS).toContain('create table public.document_types (')
+    expect(REFERENCE_KINDS).toHaveLength(9)
     expect(REFERENCE).not.toContain('create table public.specialties')
+  })
+
+  it('document statuses, expiry rules and file types', () => {
+    expect(quoted(section(DOCUMENTS, /professional_documents_status_check check \(status in \(([^)]*)\)/))).toEqual([...DOCUMENT_STATUSES])
+    expect(quoted(section(DOCUMENTS, /document_types_expiry_rule_check check \(expiry_rule in \(([^)]*)\)/))).toEqual([...DOCUMENT_EXPIRY_RULES])
+    expect(quoted(section(DOCUMENTS, /accepted_mime <@ array\[([^\]]*)\]/))).toEqual([...DOCUMENT_MIME_TYPES])
+    expect(quoted(section(DOCUMENTS, /document_types_photo_mime_check check \(key <> 'photo' or accepted_mime <@ array\[([^\]]*)\]/))).toEqual([...PHOTO_MIME_TYPES])
+    expect(DOCUMENTS).toContain("('professional_document', 'professionals', 'documents', 'professionals.manage', 'professionals.view', null, 10485760")
+    expect(DOCUMENTS).toContain("('professional_self_document', 'professionals', 'documents', 'professionals.self', 'professionals.view',")
+    expect(DOCUMENTS).toContain('max_bytes between 102400 and 10485760')
   })
 
   it('record tabs are the seven of P4-13, as URL segments', () => {

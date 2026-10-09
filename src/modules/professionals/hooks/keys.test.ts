@@ -51,4 +51,12 @@ describe('query keys', () => {
     expect(professionalKeys.submissionReview('s1').slice(0, 3)).not.toEqual(professionalKeys.record('s1'))
     expect(professionalKeys.myRecord()).not.toEqual(professionalKeys.mySubmission())
   })
+
+  it('nest a file’s documents under its record; « Mes documents » and the consents apart (Task 4c.3, 4c.6)', () => {
+    startsWith(professionalKeys.documents('p1'), professionalKeys.record('p1'))
+    startsWith(professionalKeys.myDocumentsReadiness(), professionalKeys.myDocuments())
+    expect(professionalKeys.myDocuments()).not.toEqual(professionalKeys.myRecord())
+    startsWith(professionalsSettingsKeys.consents(), professionalsSettingsKeys.all)
+    expect(professionalsSettingsKeys.consents()).not.toEqual(professionalsSettingsKeys.settings())
+  })
 })

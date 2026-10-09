@@ -38,6 +38,13 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * |                                          | in place after a refusal); once applied, `private(id)` when a  |
  * |                                          | private field was, `usage()` when a set was (P4-374)           |
  * | « Mettre mon profil à jour » (4b.5)      | `mySubmission()`, `myRecord()`                                 |
+ * | a document uploaded, verified, refused,  | `record(id)` (its `documents(id)` and readiness), `lists()`,   |
+ * | redated or deleted (4c.3)                | `history(id)` (first page), `usage()` (« Documents requis »)   |
+ * | the provider's own upload (4c.6)         | `myDocuments()` (its readiness too)                            |
+ * | a document type saved or archived        | as any list row (`catalog()`, `usage()`, every record: the     |
+ * |                                          | readiness counts required types)                               |
+ * | a consent version saved, published or    | `professionalsSettingsKeys.consents()`                         |
+ * | discarded (« Consentements »)            |                                                                |
  *
  * Labels never live in records or list rows (ids only), so a rename touches the catalogue alone.
  */
@@ -65,6 +72,11 @@ export const professionalKeys = {
   submissions: (id: string) => [...professionalKeys.record(id), 'submissions'] as const,
   /** One submission's review (`get_submission_review`), read when its sheet opens; dropped once decided. */
   submissionReview: (submissionId: string) => [...professionalKeys.all, 'submission-review', submissionId] as const,
+  /**
+   * The Documents tab (`get_professional_documents`, Task 4c.3): under `record(id)`, so every record
+   * refresh (an approved questionnaire brings the photo and the insurance) refreshes it.
+   */
+  documents: (id: string) => [...professionalKeys.record(id), 'documents'] as const,
   history: (id: string) => [...professionalKeys.all, 'history', id] as const,
   /** The emails about the professional (`list_subject_emails`): under `history(id)`, refreshed with it. */
   emails: (id: string) => [...professionalKeys.history(id), 'emails'] as const,
@@ -88,9 +100,13 @@ export const professionalKeys = {
   myPrivate: () => [...professionalKeys.all, 'my-private'] as const,
   /** « Mon profil » (4b.5): the signed-in professional's own record (`get_my_professional_record`). */
   myRecord: () => [...professionalKeys.all, 'my-record'] as const,
+  /** « Mes documents » (4c.6): the signed-in professional's documents. */
+  myDocuments: () => [...professionalKeys.all, 'my-documents'] as const,
+  /** Her own readiness row (the banners): under `myDocuments()`, refreshed with it. */
+  myDocumentsReadiness: () => [...professionalKeys.myDocuments(), 'readiness'] as const,
 }
 
-/** The nine lists (one cached payload) and their usage counts. */
+/** The nine lists (one cached payload, « Documents requis » included) and their usage counts. */
 export const professionalCatalogKeys = {
   all: ['professionals-catalog'] as const,
   catalog: () => [...professionalCatalogKeys.all, 'catalog'] as const,
@@ -100,6 +116,8 @@ export const professionalCatalogKeys = {
 export const professionalsSettingsKeys = {
   all: ['professionals-settings'] as const,
   settings: () => [...professionalsSettingsKeys.all, 'settings'] as const,
+  /** « Paramètres → Consentements » (`get_consent_versions`). */
+  consents: () => [...professionalsSettingsKeys.all, 'consents'] as const,
 }
 
 /**

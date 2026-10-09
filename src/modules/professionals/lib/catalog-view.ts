@@ -3,6 +3,7 @@ import type { MotifCategoryIcon } from './constants'
 import type {
   Clientele,
   DeactivationReason,
+  DocumentType,
   Language,
   Motif,
   MotifCategory,
@@ -42,6 +43,7 @@ export interface CatalogView extends ProfessionalsCatalog {
     motifs: ReadonlyMap<string, Motif>
     languages: ReadonlyMap<string, Language>
     deactivationReasons: ReadonlyMap<string, DeactivationReason>
+    documentTypes: ReadonlyMap<string, DocumentType>
   }
   /** Active categories in their order (empty ones included), then « Sans catégorie » when it has motifs. */
   motifGroups: MotifGroup[]
@@ -76,6 +78,7 @@ export function buildCatalogView(catalog: ProfessionalsCatalog): CatalogView {
       motifs: byId(catalog.motifs),
       languages: byId(catalog.languages),
       deactivationReasons: byId(catalog.deactivationReasons),
+      documentTypes: byId(catalog.documentTypes),
     },
     motifGroups: groupMotifs(catalog),
   }

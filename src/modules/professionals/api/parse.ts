@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { PROVINCES } from '@/shared/lib/field-schemas'
 import {
   AVAILABILITY_PERIODS,
+  DOCUMENT_EXPIRY_RULES,
+  DOCUMENT_MIME_TYPES,
   GENDERS,
   INVITATION_STATES,
   MOTIF_CATEGORY_ICONS,
@@ -82,6 +84,28 @@ const deactivationReasonPayload = z
   .object({ ...keyedRow, requires_note: z.boolean(), disables_account: z.boolean() })
   .transform((r) => ({ ...keyed(r), requiresNote: r.requires_note, disablesAccount: r.disables_account }))
 
+const documentTypePayload = z
+  .object({
+    ...keyedRow,
+    required: z.boolean(),
+    expiry_rule: z.enum(DOCUMENT_EXPIRY_RULES),
+    reminder_days: z.array(z.number()),
+    weekly_after_expiry: z.boolean(),
+    // A type a later migration adds is ignored rather than breaking the catalogue.
+    accepted_mime: z.array(z.string()).transform((types) => types.filter((m): m is (typeof DOCUMENT_MIME_TYPES)[number] => (DOCUMENT_MIME_TYPES as readonly string[]).includes(m))),
+    max_bytes: z.number(),
+  })
+  .transform((r) => ({
+    ...keyed(r),
+    required: r.required,
+    expiryRule: r.expiry_rule,
+    /** Days before the last valid day, largest first (insurance only, P4-402). */
+    reminderDays: r.reminder_days,
+    weeklyAfterExpiry: r.weekly_after_expiry,
+    acceptedMime: r.accepted_mime,
+    maxBytes: r.max_bytes,
+  }))
+
 /** Professional orders (licensing bodies). A title with an order requires a licence (P4-6). */
 export type ProfessionalOrder = z.output<typeof orderPayload>
 export type ProfessionCategory = z.output<typeof categoryPayload>
@@ -97,8 +121,10 @@ export type MotifCategory = z.output<typeof motifCategoryPayload>
 export type Motif = z.output<typeof motifPayload>
 export type Language = z.output<typeof languagePayload>
 export type DeactivationReason = z.output<typeof deactivationReasonPayload>
+/** « Documents requis » (Task 4c.2): a document type, its rule and its file limits. System types are photo, insurance, image_consent. */
+export type DocumentType = z.output<typeof documentTypePayload>
 
-/** The eight lists of the caller's clinic, each in its sort order, archived rows included (`isActive`). */
+/** The nine lists of the caller's clinic, each in its sort order, archived rows included (`isActive`). */
 export const catalogPayload = z
   .object({
     orders: z.array(orderPayload),
@@ -109,11 +135,14 @@ export const catalogPayload = z
     motifs: z.array(motifPayload),
     languages: z.array(languagePayload),
     deactivation_reasons: z.array(deactivationReasonPayload),
+    // Task 4c.2; a payload without it (a fixture) has no types.
+    document_types: z.array(documentTypePayload).default([]),
   })
-  .transform(({ motif_categories, deactivation_reasons, ...lists }) => ({
+  .transform(({ motif_categories, deactivation_reasons, document_types, ...lists }) => ({
     ...lists,
     motifCategories: motif_categories,
     deactivationReasons: deactivation_reasons,
+    documentTypes: document_types,
   }))
 export type ProfessionalsCatalog = z.output<typeof catalogPayload>
 

@@ -1,0 +1,210 @@
+import { t } from '@/i18n'
+import { formatDateOnly, shiftCalendarDay } from '@/shared/lib/timezone'
+import type { StatusTone } from '@/shared/ui/status-dot'
+import type { ProfessionalConsent, ProfessionalDocument, ProfessionalDocuments } from '../api/documents'
+import type { DocumentType } from '../api/parse'
+import type { DocumentExpiryRule, DocumentMimeType } from './constants'
+import { nextMarch31 } from './questionnaire'
+
+/**
+ * The documents' states in plain words (Tasks 4c.3, 4c.6), shared by the Documents tab and « Mes
+ * documents », so both say the same thing. Every date comparison uses the clinic's `today` from
+ * `get_professional_documents` (a date-only `yyyy-MM-dd`), never the browser's clock; `expiresOn`
+ * is the last valid day (P4-2): valid all of that day, expired the next.
+ */
+
+const D = 'modules.professionals.documents'
+
+/** Whole days from `from` to `to` (date-only values; negative when `to` is earlier). */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
+}
+
+/** `date` + 12 months, as SQL's `(date + interval '12 months')::date` (Feb 29 → Feb 28). */
+export function addTwelveMonths(date: string): string {
+  const year = Number(date.slice(0, 4)) + 1
+  const month = Number(date.slice(5, 7))
+  const day = Number(date.slice(8, 10))
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return `${year}-${String(month).padStart(2, '0')}-${String(Math.min(day, last)).padStart(2, '0')}`
+}
+
+/**
+ * The end date an upload is proposed with (editable), as SQL `private.document_default_expiry`:
+ * the next March 31 (P4-412: January–February → this year's, from March 1 → next year's), the date
+ * + 12 months, or none.
+ */
+export function defaultExpiry(rule: DocumentExpiryRule, today: string): string | null {
+  if (rule === 'next_march_31') return nextMarch31(today)
+  if (rule === 'months_12') return addTwelveMonths(today)
+  return null
+}
+
+/** The largest reminder (days before the last valid day): the « bientôt échu » window; 0 without one. */
+export const reminderWindow = (type: DocumentType) => Math.max(0, ...type.reminderDays)
+
+/**
+ * The last day an e-consent is in force: its own last day, or the day before its withdrawal takes
+ * effect (as the readiness view, P4-405).
+ */
+export function consentLastDay(consent: ProfessionalConsent): string {
+  if (!consent.withdrawalEffectiveOn) return consent.expiresOn
+  const before = shiftCalendarDay(consent.withdrawalEffectiveOn, -1)
+  return before < consent.expiresOn ? before : consent.expiresOn
+}
+
+export type DocumentStateKind = 'valid' | 'expiring' | 'expired' | 'pending' | 'rejected' | 'missing'
+
+/** One type's documents, as a card shows them. */
+export interface TypeDocuments {
+  type: DocumentType
+  kind: DocumentStateKind
+  /** The verified (or expired) document that counts: for a type with a rule, the latest last day. */
+  current: ProfessionalDocument | null
+  /** The newest document waiting for a review, if any (a renewal while the current one is valid). */
+  pending: ProfessionalDocument | null
+  /** The newest document when it was refused (and nothing waits since). */
+  rejected: ProfessionalDocument | null
+  /** The image consent's e-consent while it is in force (it satisfies the type, P4-405). */
+  consent: ProfessionalConsent | null
+  /** The last valid day shown (the current document's, or the e-consent's), if any. */
+  until: string | null
+  /** The type's other documents (superseded, older refusals), newest first. */
+  older: ProfessionalDocument[]
+}
+
+/** A verified document, unexpired on `today`. */
+const isValid = (d: ProfessionalDocument, today: string) => d.status === 'verified' && (d.expiresOn === null || d.expiresOn >= today)
+
+/**
+ * The state of one type on the clinic's `today`: valid (or expiring within the type's largest
+ * reminder), expired, pending (nothing valid yet, a document waits), refused (the newest one,
+ * nothing waiting), missing. For the image consent, an e-consent in force counts as valid.
+ */
+export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocuments, 'documents' | 'consent' | 'today'>): TypeDocuments {
+  const { today } = data
+  const docs = data.documents.filter((d) => d.typeId === type.id)
+  const reviewed = docs.filter((d) => d.status === 'verified' || d.status === 'expired')
+  // Newest first already: `reduce` keeps the first of equal dates.
+  const current =
+    type.expiryRule === 'none'
+      ? (reviewed.find((d) => d.status === 'verified') ?? reviewed[0] ?? null)
+      : reviewed.reduce<ProfessionalDocument | null>((best, d) => (best === null || (d.expiresOn ?? '') > (best.expiresOn ?? '') ? d : best), null)
+  const pending = docs.find((d) => d.status === 'pending') ?? null
+  const rejected = pending === null && docs[0]?.status === 'rejected' ? docs[0] : null
+  const consent = type.key === 'image_consent' && data.consent && consentLastDay(data.consent) >= today ? data.consent : null
+  const older = docs.filter((d) => d !== current && d !== pending && d !== rejected)
+
+  let kind: DocumentStateKind
+  let until: string | null = null
+  if (current && isValid(current, today)) {
+    until = current.expiresOn
+    const window = reminderWindow(type)
+    kind = until !== null && window > 0 && daysBetween(today, until) <= window ? 'expiring' : 'valid'
+  } else if (consent) {
+    kind = 'valid'
+    until = consentLastDay(consent)
+  } else if (current) {
+    kind = 'expired'
+    until = current.expiresOn
+  } else if (pending) {
+    kind = 'pending'
+  } else if (rejected) {
+    kind = 'rejected'
+  } else {
+    kind = 'missing'
+  }
+  return { type, kind, current, pending, rejected, consent, until, older }
+}
+
+/** A type's state in words: « Valide jusqu'au 31 mars 2027 », « Vérifié », « Expire le … », « Expiré le … »… */
+export function typeStateLabel({ kind, until }: Pick<TypeDocuments, 'kind' | 'until'>): string {
+  switch (kind) {
+    case 'valid':
+      return until ? t(`${D}.state.validUntil`, { date: formatDateOnly(until) }) : t(`${D}.state.verified`)
+    case 'expiring':
+      return t(`${D}.state.expiring`, { date: formatDateOnly(until) })
+    case 'expired':
+      return until ? t(`${D}.state.expiredOn`, { date: formatDateOnly(until) }) : t(`${D}.state.expired`)
+    case 'pending':
+      return t(`${D}.state.pending`)
+    case 'rejected':
+      return t(`${D}.state.rejected`)
+    case 'missing':
+      return t(`${D}.state.missing`)
+  }
+}
+
+/** The dot next to the words: an expiry soon is a warning, an expired, refused or missing required document an error. */
+export function typeStateTone(kind: DocumentStateKind, required = true): StatusTone {
+  if (kind === 'valid') return 'success'
+  if (kind === 'expiring' || kind === 'pending') return 'warning'
+  if (kind === 'missing' && !required) return 'neutral'
+  return 'error'
+}
+
+/** One document's own state in words (the rows: « En attente de vérification », « Vérifié », « Expiré le … », « Refusé »). */
+export function documentStateLabel(document: ProfessionalDocument, today: string): string {
+  if (document.status === 'pending') return t(`${D}.state.pending`)
+  if (document.status === 'rejected') return t(`${D}.state.rejected`)
+  if (isValid(document, today)) return document.expiresOn ? t(`${D}.state.validUntil`, { date: formatDateOnly(document.expiresOn) }) : t(`${D}.state.verified`)
+  return document.expiresOn ? t(`${D}.state.expiredOn`, { date: formatDateOnly(document.expiresOn) }) : t(`${D}.state.expired`)
+}
+
+export function documentStateTone(document: ProfessionalDocument, today: string): StatusTone {
+  if (document.status === 'pending') return 'warning'
+  if (document.status === 'rejected') return 'error'
+  return isValid(document, today) ? 'success' : 'error'
+}
+
+/** « 2 / 3 documents requis valides »: the required active types that are valid (or expiring) on `today`. */
+export function requiredSummary(types: readonly TypeDocuments[]): { done: number; total: number } {
+  const required = types.filter((x) => x.type.required)
+  return { done: required.filter((x) => x.kind === 'valid' || x.kind === 'expiring').length, total: required.length }
+}
+
+/**
+ * The tab's two groups: the required active types (one card each, in the clinic's order), and the
+ * documents of every other type (optional or archived), newest first.
+ */
+export function groupDocuments(types: readonly DocumentType[], data: ProfessionalDocuments): { required: TypeDocuments[]; others: ProfessionalDocument[] } {
+  const required = types.filter((type) => type.isActive && type.required)
+  const requiredIds = new Set(required.map((type) => type.id))
+  return {
+    required: required.map((type) => typeDocuments(type, data)),
+    others: data.documents.filter((d) => !requiredIds.has(d.typeId)),
+  }
+}
+
+/** The types one may upload now (active), required ones first, each list in the clinic's order. */
+export function uploadableTypes(types: readonly DocumentType[]): DocumentType[] {
+  const active = types.filter((type) => type.isActive)
+  return [...active.filter((type) => type.required), ...active.filter((type) => !type.required)]
+}
+
+const MIME_LABEL: Readonly<Record<DocumentMimeType, string>> = {
+  'application/pdf': 'PDF',
+  'image/jpeg': 'JPEG',
+  'image/png': 'PNG',
+  'image/webp': 'WebP',
+  'application/msword': 'Word (.doc)',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word (.docx)',
+}
+
+/** « PDF, JPEG ou PNG ». */
+export function mimeListLabel(types: readonly DocumentMimeType[]): string {
+  const labels = types.map((m) => MIME_LABEL[m])
+  if (labels.length <= 1) return labels.join('')
+  return `${labels.slice(0, -1).join(', ')} ${t(`${D}.or`)} ${labels.at(-1)}`
+}
+
+export const mimeLabel = (type: DocumentMimeType) => MIME_LABEL[type]
+
+/** « 10 Mo », « 0,5 Mo » (French decimal comma). */
+export function megabytesLabel(bytes: number): string {
+  const mb = Math.round((bytes / 1_048_576) * 10) / 10
+  return `${String(mb).replace('.', ',')} Mo`
+}
+
+/** Whether a stored file can be shown in the preview sheet (an image or a PDF); Word files are downloaded. */
+export const isPreviewable = (mimeType: string) => mimeType === 'application/pdf' || mimeType.startsWith('image/')

@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import { supabase } from '@/core/supabase/client'
-import { REFERENCE_KINDS, type MotifCategoryIcon, type ReferenceKind } from '../lib/constants'
+import { REFERENCE_KINDS, type DocumentExpiryRule, type DocumentMimeType, type MotifCategoryIcon, type ReferenceKind } from '../lib/constants'
 import {
   catalogPayload,
   parseRpc,
   type Clientele,
   type DeactivationReason,
+  type DocumentType,
   type Language,
   type Motif,
   type MotifCategory,
@@ -19,13 +20,13 @@ import { sqlArgs } from './sql-args'
 export type { ReferenceKind } from '../lib/constants'
 
 /**
- * The eight per-clinic lists (« Paramètres → Professionnels ») and their settings RPCs
+ * The nine per-clinic lists (« Paramètres → Professionnels ») and their settings RPCs
  * (20261008084945_professionals_reference_settings.sql). Every function throws the PostgREST
  * error unchanged; the hooks map it for users (`moduleErrorMessage`).
  */
 
 /**
- * The eight lists in one payload, archived rows included (`isActive`), each in its sort order.
+ * The nine lists in one payload, archived rows included (`isActive`), each in its sort order.
  * A caller without a professionals permission (or with the module off) gets eight empty lists.
  */
 export async function fetchProfessionalsCatalog(): Promise<ProfessionalsCatalog> {
@@ -60,6 +61,7 @@ export interface ReferenceRows {
   motifs: Motif
   languages: Language
   deactivation_reasons: DeactivationReason
+  document_types: DocumentType
 }
 export type ReferenceRow<K extends ReferenceKind> = ReferenceRows[K]
 
@@ -73,6 +75,7 @@ const CATALOG_LIST = {
   motifs: 'motifs',
   languages: 'languages',
   deactivation_reasons: 'deactivationReasons',
+  document_types: 'documentTypes',
 } as const satisfies { [K in ReferenceKind]: keyof ProfessionalsCatalog }
 
 /** The catalogue's rows of one list, already sorted. */
@@ -108,6 +111,16 @@ export interface ReferenceFieldsByKind {
   /** The code is set on create; on update send the row's code (the RPC refuses a change). */
   languages: { name: string; code: string }
   deactivation_reasons: { name: string; requiresNote: boolean; disablesAccount: boolean }
+  /** « Documents requis » (save_document_type): reminders are the insurance's only (P4-402). */
+  document_types: {
+    name: string
+    required: boolean
+    expiryRule: DocumentExpiryRule
+    reminderDays: number[]
+    weeklyAfterExpiry: boolean
+    acceptedMime: DocumentMimeType[]
+    maxBytes: number
+  }
 }
 export type ReferenceFields<K extends ReferenceKind> = ReferenceFieldsByKind[K]
 /** A row to save: `id` null creates it (the key is derived from the name and never changes). */
@@ -161,6 +174,20 @@ const SAVERS: { [K in ReferenceKind]: Saver<K> } = {
         p_name: i.name,
         p_requires_note: i.requiresNote,
         p_disables_account: i.disablesAccount,
+      }),
+    ),
+  document_types: (i) =>
+    supabase.rpc(
+      'save_document_type',
+      sqlArgs<'save_document_type'>({
+        p_id: i.id,
+        p_name: i.name,
+        p_required: i.required,
+        p_expiry_rule: i.expiryRule,
+        p_reminder_days: i.reminderDays,
+        p_weekly_after_expiry: i.weeklyAfterExpiry,
+        p_accepted_mime: i.acceptedMime,
+        p_max_bytes: i.maxBytes,
       }),
     ),
 }
