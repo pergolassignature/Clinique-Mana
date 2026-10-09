@@ -50,6 +50,18 @@ function RunStatus({ status, detail }: { status: string; detail: string | null }
   )
 }
 
+/** When the job last ran (or « Jamais exécutée »), then the status dot and word and what went wrong. */
+function LastRun({ job }: { job: ScheduledJob }) {
+  return (
+    <>
+      <span className={cn('block whitespace-nowrap', !job.last_started_at && 'text-muted-foreground')}>
+        {job.last_started_at ? formatClinicDateTime(job.last_started_at) : t('settings.jobs.never')}
+      </span>
+      {job.last_status && <RunStatus status={job.last_status} detail={job.last_detail} />}
+    </>
+  )
+}
+
 interface JobsTableProps {
   jobs: ScheduledJob[]
   readOnly: boolean
@@ -66,20 +78,25 @@ function JobsTable({ jobs, readOnly, onConfirmRun, running }: JobsTableProps) {
 
   return (
     <div className="rounded-lg border border-border">
-      <Table aria-label={t('settings.sections.jobs')} scrollLabel={t('settings.jobs.scrollLabel')} className={PHONE_TABLE}>
+      {/* Fixed columns from `sm`: the task and its description take what the others leave. */}
+      <Table aria-label={t('settings.sections.jobs')} scrollLabel={t('settings.jobs.scrollLabel')} className={cn(PHONE_TABLE, 'sm:table-fixed')}>
         <TableHeader>
           <TableRow className="[&>th]:whitespace-nowrap">
             <TableHead>{t('settings.jobs.columns.job')}</TableHead>
-            <TableHead className="max-sm:hidden">{t('settings.jobs.columns.schedule')}</TableHead>
-            <TableHead>{t('settings.jobs.columns.lastRun')}</TableHead>
-            <TableHead>{t('settings.jobs.columns.active')}</TableHead>
-            {!readOnly && <TableHead className="sr-only">{t('settings.jobs.columns.actions')}</TableHead>}
+            <TableHead className="max-sm:hidden sm:w-36">{t('settings.jobs.columns.schedule')}</TableHead>
+            <TableHead className="max-sm:hidden sm:w-40">{t('settings.jobs.columns.lastRun')}</TableHead>
+            <TableHead className="sm:w-32">{t('settings.jobs.columns.active')}</TableHead>
+            {/* A real header cell (only its text is hidden), so the header row spans every column. */}
+            {!readOnly && (
+              <TableHead className="w-px sm:w-40">
+                <span className="sr-only">{t('settings.jobs.columns.actions')}</span>
+              </TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
           {jobs.map((job) => {
             const schedule = scheduleLabel(job.schedule, job.local_hour)
-            const lastRun = job.last_started_at ? formatClinicDateTime(job.last_started_at) : t('settings.jobs.never')
             const isRunning = running.has(job.key)
             // A disabled business job can't be run now (the server refuses it too).
             const needsEnabling = !job.is_maintenance && !job.enabled
@@ -87,17 +104,19 @@ function JobsTable({ jobs, readOnly, onConfirmRun, running }: JobsTableProps) {
             const enableFirstId = `${idBase}-${job.key}-enable-first`
             return (
               <TableRow key={job.key}>
-                <TableCell className="py-2 align-top sm:min-w-56">
+                <TableCell className="py-2 align-top">
                   <span className="font-medium">{job.label}</span>
                   <span className="block text-xs text-muted-foreground max-sm:hidden">{job.description}</span>
-                  {/* On a phone the schedule moves here. */}
+                  {/* On a phone the schedule and the last run move here, so the table fits the screen. */}
                   <span className="block text-xs text-muted-foreground sm:hidden">{schedule}</span>
+                  <span className="mt-1 block text-xs sm:hidden">
+                    <LastRun job={job} />
+                  </span>
                 </TableCell>
-                <TableCell className="min-w-40 align-top max-sm:hidden">{schedule}</TableCell>
+                <TableCell className="align-top max-sm:hidden">{schedule}</TableCell>
                 {/* When, then the status dot and word, then what went wrong. */}
-                <TableCell className="align-top">
-                  <span className={cn('block whitespace-nowrap', !job.last_started_at && 'text-muted-foreground')}>{lastRun}</span>
-                  {job.last_status && <RunStatus status={job.last_status} detail={job.last_detail} />}
+                <TableCell className="align-top max-sm:hidden">
+                  <LastRun job={job} />
                 </TableCell>
                 <TableCell className="align-top">
                   {readOnly ? (
@@ -109,7 +128,8 @@ function JobsTable({ jobs, readOnly, onConfirmRun, running }: JobsTableProps) {
                           : t('settings.jobs.disabled')}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-2">
+                    // « Toujours active » goes under the switch when the column is too narrow.
+                    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
                       {/* Optimistic: the switch shows the requested state while saving. */}
                       <Switch
                         checked={saving?.key === job.key ? saving.enabled : job.enabled}
@@ -124,7 +144,8 @@ function JobsTable({ jobs, readOnly, onConfirmRun, running }: JobsTableProps) {
                         }}
                       />
                       {job.is_maintenance && (
-                        <span id={alwaysOnId} className="whitespace-nowrap text-xs text-muted-foreground">
+                        // On a phone the words stay for screen readers (the switch's description) only.
+                        <span id={alwaysOnId} className="text-xs text-muted-foreground max-sm:sr-only">
                           {t('settings.jobs.alwaysOn')}
                         </span>
                       )}
@@ -132,7 +153,9 @@ function JobsTable({ jobs, readOnly, onConfirmRun, running }: JobsTableProps) {
                   )}
                 </TableCell>
                 {!readOnly && (
-                  <TableCell className="whitespace-nowrap text-right align-top">
+                  // w-px: the column is as wide as the button; the hint below it wraps. On a phone the
+                  // button's label takes two lines, so the table fits the screen.
+                  <TableCell className="w-px whitespace-nowrap text-right align-top">
                     <Button
                       type="button"
                       variant="outline"
@@ -144,12 +167,15 @@ function JobsTable({ jobs, readOnly, onConfirmRun, running }: JobsTableProps) {
                         const trigger = event.currentTarget
                         ignoreWhenInactive(isRunning || needsEnabling, () => onConfirmRun(job, trigger))(event)
                       }}
-                      className={cn(softDisabledClasses, 'max-sm:h-11 aria-disabled:hover:border-border aria-disabled:hover:bg-card')}
+                      className={cn(
+                        softDisabledClasses,
+                        'max-sm:h-11 max-sm:w-24 max-sm:whitespace-normal aria-disabled:hover:border-border aria-disabled:hover:bg-card',
+                      )}
                     >
                       {t('settings.jobs.runNow')}
                     </Button>
                     {needsEnabling && (
-                      <span id={enableFirstId} className="mt-1 block text-xs text-muted-foreground">
+                      <span id={enableFirstId} className="mt-1 block whitespace-normal text-xs text-muted-foreground">
                         {t('settings.jobs.enableFirst')}
                       </span>
                     )}

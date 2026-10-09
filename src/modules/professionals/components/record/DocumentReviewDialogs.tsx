@@ -87,7 +87,7 @@ function ReviewDialogFrame({ title, description, pending, refusal, confirmLabel,
       >
         <form
           noValidate
-          className="grid gap-4"
+          className="grid gap-3.5"
           onSubmit={(event) => {
             event.preventDefault()
             if (!pending && !refusal?.final) onConfirm()

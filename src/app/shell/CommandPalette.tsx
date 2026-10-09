@@ -43,6 +43,8 @@ export function CommandPalette({ open, onOpenChange, pages, searchProviders = []
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={contentRef}
+        // Anchored near the top: the palette does not jump while results arrive and the list grows.
+        position="top"
         hideClose
         aria-describedby={undefined}
         onCloseAutoFocus={onCloseAutoFocus}
@@ -87,7 +89,8 @@ function PaletteBody({
         onValueChange={setSearch}
         placeholder={searchProviders.length > 0 ? t('nav.palette.placeholderRecords') : t('nav.palette.placeholder')}
         trailing={
-          <kbd className="hidden shrink-0 rounded-lg border border-border px-[5px] font-sans text-xs text-muted-foreground sm:inline">
+          // The top bar's ⌘K key cap, the same here.
+          <kbd className="hidden shrink-0 rounded-md bg-muted px-1 py-px font-sans text-2xs text-muted-foreground sm:inline">
             {t('nav.palette.escape')}
           </kbd>
         }
@@ -115,7 +118,7 @@ function PaletteBody({
             {t('nav.palette.searchFailed', { group: t(g.provider.labelKey) })}
           </p>
         ))}
-        {empty && <p className="px-4 py-6 text-center text-sm text-muted-foreground">{t('nav.palette.empty', { query })}</p>}
+        {empty && <p className="px-4 py-6 text-sm text-muted-foreground">{t('nav.palette.empty', { query })}</p>}
       </div>
     </Command>
   )

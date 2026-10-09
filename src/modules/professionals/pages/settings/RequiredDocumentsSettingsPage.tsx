@@ -21,7 +21,7 @@ const COLUMNS: ReferenceColumn<'document_types'>[] = [
   {
     id: 'reminders',
     header: t(`${R}.reminders`),
-    cell: (row) => <span className={cn(row.reminderDays.length === 0 && !row.weeklyAfterExpiry && 'text-subtle')}>{remindersLabel(row)}</span>,
+    cell: (row) => <span className={cn(row.reminderDays.length === 0 && !row.weeklyAfterExpiry && 'text-muted-foreground')}>{remindersLabel(row)}</span>,
     className: 'max-sm:hidden',
   },
   {

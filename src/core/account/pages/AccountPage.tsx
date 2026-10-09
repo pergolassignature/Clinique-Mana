@@ -461,8 +461,8 @@ function SessionsCard() {
 export function AccountPage() {
   usePageTitle(t('pageTitles.account'))
   return (
-    <div className="w-full max-w-form space-y-4">
-      <PageHeader level={1} title={t('account.title')} description={t('account.description')} />
+    <div className="w-full max-w-form space-y-5">
+      <PageHeader level={1} title={t('account.title')} description={t('account.description')} fullWidthDescription />
       <NameCard />
       <EmailCard />
       <PasswordCard />

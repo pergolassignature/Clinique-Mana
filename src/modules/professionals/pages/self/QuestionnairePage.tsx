@@ -59,8 +59,16 @@ export function QuestionnairePage() {
   // Why the questionnaire disappeared while open (closed by the clinic): said on « Rien à compléter ».
   const [closed, setClosed] = useState<string | null>(null)
   const data = submission.data
+  // The tab and the topbar's last crumb (« Mon profil / … ») name what the page's h1 says.
   usePageTitle(
-    data?.status === 'submitted' ? t(`${Q}.states.submitted.pageTitle`) : data?.kind === 'update' ? t(`${Q}.title.update`) : t(`${Q}.title.onboarding`),
+    data === null
+      ? t(`${Q}.states.none.pageTitle`)
+      : data?.status === 'submitted'
+        ? t(`${Q}.states.submitted.pageTitle`)
+        : data?.kind === 'update'
+          ? t(`${Q}.title.update`)
+          : t(`${Q}.title.onboarding`),
+    { crumb: true },
   )
 
   if (submission.isPending) return <Loading />
@@ -365,7 +373,7 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
             <p className="hidden text-xs text-muted-foreground lg:block">
               {t(`${Q}.stepOf`, { current: String(index + 1), total: String(steps.length) })}
             </p>
-            <h2 id="questionnaire-step-title" ref={headingRef} tabIndex={-1} className="text-lg font-semibold tracking-tight text-foreground outline-none">
+            <h2 id="questionnaire-step-title" ref={headingRef} tabIndex={-1} className="text-lg font-semibold text-foreground outline-none">
               {t(`${Q}.steps.${step}.title`)}
             </h2>
             <p className="text-sm text-muted-foreground">{t(`${Q}.steps.${step}.description`)}</p>

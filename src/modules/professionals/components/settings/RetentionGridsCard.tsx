@@ -64,11 +64,11 @@ export function RetentionGridsCard({ titles, grids }: RetentionGridsCardProps) {
           const coming = open && datedStatus(open, today) === 'upcoming' && open !== grid ? open : null
           return (
             <li key={title.id} className="space-y-2 py-3 first:pt-0 last:pb-0">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
                   <h4 className="text-sm font-semibold">{title.name}</h4>
                   {grid ? (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs tabular text-muted-foreground">
                       {t(`${G}.summary`, {
                         first: formatPercent(grid.tiers[0]?.pct ?? 0),
                         floor: formatPercent(grid.tiers.at(-1)?.pct ?? 0),
@@ -82,7 +82,9 @@ export function RetentionGridsCard({ titles, grids }: RetentionGridsCardProps) {
                   )}
                   {coming && <p className="text-xs text-muted-foreground">{t(`${G}.coming`, { date: formatDateOnlyShort(coming.effectiveFrom) })}</p>}
                 </div>
-                <GridDialog titleId={title.id} titleName={title.name} series={series} />
+                <div className="shrink-0">
+                  <GridDialog titleId={title.id} titleName={title.name} series={series} />
+                </div>
               </div>
               {series.length > 0 && (
                 <Disclosure label={<span className="text-sm">{series.length === 1 ? t(`${G}.detailsOne`) : t(`${G}.details`, { count: String(series.length) })}</span>}>

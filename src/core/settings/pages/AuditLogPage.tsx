@@ -220,11 +220,11 @@ export function AuditLogPage() {
                         </span>
                       </button>
                     </TableCell>
-                    <TableCell className="max-w-48 truncate max-sm:hidden" title={who}>
+                    <TableCell className="max-w-56 truncate max-sm:hidden" title={who}>
                       <span className={cn(entry.actor_name === null && 'text-muted-foreground')}>{who}</span>
                     </TableCell>
                     {/* Truncated from `sm` up; on a phone a long name wraps, so the table fits. */}
-                    <TableCell className="sm:max-w-48 sm:truncate">
+                    <TableCell className="sm:max-w-72 sm:truncate" title={section}>
                       {section}
                       <span className="block text-xs text-muted-foreground sm:hidden">{action}</span>
                     </TableCell>

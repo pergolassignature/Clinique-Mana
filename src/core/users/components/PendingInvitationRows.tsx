@@ -109,7 +109,7 @@ export function PendingInvitationRows({ invitations, canManage, onRevokeConfirme
               {status}
               <EmailStatus status={invitation.last_email_status} errorCode={invitation.last_email_error_code} />
             </TableCell>
-            <TableCell className="text-muted-foreground max-sm:hidden">
+            <TableCell className="text-right text-muted-foreground max-sm:hidden">
               {invitation.expires_at && (
                 <span className="block">
                   {t(invitation.is_expired ? 'settings.users.invitations.expired' : 'settings.users.invitations.expires', {

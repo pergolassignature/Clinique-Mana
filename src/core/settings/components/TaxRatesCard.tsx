@@ -29,8 +29,13 @@ import { Button } from '@/shared/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table'
 import { NewTaxRateDialog } from './NewTaxRateDialog'
 
-/** Phone: 8 px cell padding, none at the edges (the columns line up with the card title). */
-const PHONE_TABLE = 'max-sm:[&_td]:px-2 max-sm:[&_th]:px-2 max-sm:[&_td:first-child]:pl-0 max-sm:[&_th:first-child]:pl-0 max-sm:[&_td:last-child]:pr-0 max-sm:[&_th:last-child]:pr-0'
+/**
+ * No padding at the table's edges, so the columns line up with the card's title and footer. From
+ * `sm` the layout is fixed (the widths below), so the TPS and TVQ tables line up with each other;
+ * on a phone, 8 px cell padding and widths from the content.
+ */
+const TABLE_CLASSES =
+  '[&_td:first-child]:pl-0 [&_th:first-child]:pl-0 [&_td:last-child]:pr-0 [&_th:last-child]:pr-0 sm:table-fixed max-sm:[&_td]:px-2 max-sm:[&_th]:px-2'
 
 /** Phone trash button: see the row's « Supprimer ». */
 const PHONE_TRASH =
@@ -86,16 +91,17 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
     content = (
       // On a phone the table fits the card: tighter cells, the end date under the start date (its
       // column hidden), an icon for « Supprimer ». It still scrolls sideways if a value is wider.
-      <Table scrollLabel={t('settings.tax.rates.scrollLabel', { tax: title })} className={PHONE_TABLE}>
+      <Table scrollLabel={t('settings.tax.rates.scrollLabel', { tax: title })} className={TABLE_CLASSES}>
         <TableHeader>
           {/* Headers on one line: on a phone the table scrolls sideways rather than wrapping them. */}
           <TableRow className="[&>th]:whitespace-nowrap">
-            <TableHead>{t('settings.tax.rates.rate')}</TableHead>
-            <TableHead>{t('settings.tax.rates.from')}</TableHead>
-            <TableHead className="max-sm:hidden">{t('settings.tax.rates.to')}</TableHead>
-            <TableHead>{t('settings.tax.rates.status')}</TableHead>
+            {/* Rates and dates right-aligned (tabular figures), so the digits line up. */}
+            <TableHead className="text-right sm:w-20">{t('settings.tax.rates.rate')}</TableHead>
+            <TableHead className="text-right sm:w-36">{t('settings.tax.rates.from')}</TableHead>
+            <TableHead className="text-right max-sm:hidden sm:w-36">{t('settings.tax.rates.to')}</TableHead>
+            <TableHead className="sm:pl-6">{t('settings.tax.rates.status')}</TableHead>
             {deletable.size > 0 && (
-              <TableHead>
+              <TableHead className="sm:w-28">
                 <span className="sr-only">{t('settings.tax.rates.actions')}</span>
               </TableHead>
             )}
@@ -107,8 +113,8 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
             const lastDay = lastDayOf(rate.effective_to)
             return (
               <TableRow key={rate.id}>
-                <TableCell className="whitespace-nowrap font-medium">{formatRate(rate.rate)}</TableCell>
-                <TableCell className="whitespace-nowrap">
+                <TableCell className="whitespace-nowrap text-right font-medium">{formatRate(rate.rate)}</TableCell>
+                <TableCell className="whitespace-nowrap text-right">
                   {formatDateOnlyShort(rate.effective_from)}
                   {lastDay !== null && (
                     <span className="block text-xs text-muted-foreground sm:hidden">
@@ -116,8 +122,8 @@ export function TaxRatesCard({ tax }: { tax: Tax }) {
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="whitespace-nowrap max-sm:hidden">{lastDay === null ? '—' : formatDateOnlyShort(lastDay)}</TableCell>
-                <TableCell>
+                <TableCell className="whitespace-nowrap text-right max-sm:hidden">{lastDay === null ? '—' : formatDateOnlyShort(lastDay)}</TableCell>
+                <TableCell className="sm:pl-6">
                   <Badge variant={STATUS_BADGE[status]}>{t(`settings.tax.rates.statuses.${status}`)}</Badge>
                 </TableCell>
                 {deletable.size > 0 && (

@@ -82,9 +82,9 @@ export function ContractsSettingsPage() {
             />
           ) : (
             <>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 {/* Five filters do not fit a phone: they scroll inside the card, never the page. */}
-                <div className="min-w-0 max-w-full overflow-x-auto">
+                <div className="max-w-full overflow-x-auto">
                   <SegmentedToggle
                     label={t(`${N}.list.filterLabel`)}
                     value={filter}
@@ -101,7 +101,7 @@ export function ContractsSettingsPage() {
                   placeholder={t(`${N}.list.search`)}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="sm:max-w-56"
+                  className="sm:w-56"
                 />
               </div>
               {shown.length === 0 ? (
@@ -134,7 +134,7 @@ export function ContractsSettingsPage() {
         <ClinicSignerCard />
       </div>
       {open && (
-        <section aria-label={t(`${N}.editorLabel`, { title: open.title })} className="max-w-4xl">
+        <section aria-label={t(`${N}.editorLabel`, { title: open.title })} className="max-w-form">
           <TemplateEditor template={open} readOnly={readOnly || !open.canEdit} />
         </section>
       )}

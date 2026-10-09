@@ -104,8 +104,8 @@ describe('ClientelesSettingsPage', () => {
     expect(cells('Aînés').slice(0, 1)).toEqual(['65 ans et plus'])
     // P4-52: « Sans âge », not « Sans limite d'âge » (which reads like « Tous les âges »); muted like the lists' « — ».
     expect(cells('Couples').slice(0, 2)).toEqual(['Sans âge', '2 professionnels'])
-    expect(within(rowOf('Couples')).getByText('Sans âge')).toHaveClass('text-subtle')
-    expect(within(rowOf('Enfants')).getByText('0 à 12 ans')).not.toHaveClass('text-subtle')
+    expect(within(rowOf('Couples')).getByText('Sans âge')).toHaveClass('text-muted-foreground')
+    expect(within(rowOf('Enfants')).getByText('0 à 12 ans')).not.toHaveClass('text-muted-foreground')
     expect(cells('Jeunes adultes').slice(0, 1)).toEqual(['18 à 25 ans'])
   })
 

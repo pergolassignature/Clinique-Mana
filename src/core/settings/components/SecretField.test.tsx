@@ -33,7 +33,7 @@ describe('SecretField', () => {
   it('says the secret is configured, when, and never shows a value', () => {
     const { container } = renderField()
     expect(screen.getByText(t('settings.secrets.configured'))).toBeInTheDocument()
-    expect(screen.getByText(/08 oct\. 2026/)).toBeInTheDocument()
+    expect(screen.getByText(/8 oct\. 2026/)).toBeInTheDocument()
     expect(container.querySelector('input')).toBeNull()
     expect(container.textContent).not.toContain(STORED_VALUE)
   })

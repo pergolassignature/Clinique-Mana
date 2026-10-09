@@ -98,7 +98,7 @@ const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center gap-2.5 rounded-lg p-2 text-sm outline-none [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-subtle',
+      'relative flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm outline-none [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-subtle',
       'data-[selected=true]:bg-muted-strong data-[selected=true]:text-foreground data-[selected=true]:shadow-highlight',
       'data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50',
       className

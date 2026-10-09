@@ -68,9 +68,9 @@ describe('Documents tab — states by the clinic’s date', () => {
     expect(stateOf(INSURANCE)).toBe("Valide jusqu'au 31 mars 2027")
     expect(stateOf(PHOTO)).toBe(t(`${D}.state.verified`))
     expect(stateOf(CONSENT)).toBe("Valide jusqu'au 8 octobre 2027")
-    expect(card(CONSENT)).toHaveTextContent('Signé électroniquement le 08 oct. 2026 par Marie Tremblay (version 1)')
+    expect(card(CONSENT)).toHaveTextContent('Signé électroniquement le 8 oct. 2026 par Marie Tremblay (version 1)')
     // The insurance's row: who sent it, who verified it.
-    expect(card(INSURANCE)).toHaveTextContent('Téléversé le 01 oct. 2026 par Marie · Vérifié le 02 oct. 2026 par Julie Adjointe')
+    expect(card(INSURANCE)).toHaveTextContent('Téléversé le 1 oct. 2026 par Marie · Vérifié le 2 oct. 2026 par Julie Adjointe')
   })
 
   it('« Expire le … » within the insurance’s reminder window (7 days), « Expiré » the day after its last day', async () => {
@@ -115,9 +115,9 @@ describe('Documents tab — states by the clinic’s date', () => {
       stagedJson({ type_key: 'image_consent', kind: 'consent' }),
     ]
     await openTab({ documents: documentsFixture({ documents: [], consent: null, staged }) })
-    expect(stateOf(PHOTO)).toBe('Dans le questionnaire à réviser (envoyé le 08 oct. 2026)')
-    expect(stateOf(INSURANCE)).toBe('Dans le questionnaire à réviser (envoyé le 08 oct. 2026)')
-    expect(stateOf(CONSENT)).toBe('Signé dans le questionnaire à réviser (envoyé le 08 oct. 2026)')
+    expect(stateOf(PHOTO)).toBe('Dans le questionnaire à réviser (envoyé le 8 oct. 2026)')
+    expect(stateOf(INSURANCE)).toBe('Dans le questionnaire à réviser (envoyé le 8 oct. 2026)')
+    expect(stateOf(CONSENT)).toBe('Signé dans le questionnaire à réviser (envoyé le 8 oct. 2026)')
     expect(card(PHOTO)).not.toHaveTextContent(t(`${D}.lines.none`))
     expect(screen.getByText('Documents requis en règle : 0 sur 3 · 3 en attente de vérification')).toBeInTheDocument()
     // Staff keep « Téléverser ».
@@ -157,7 +157,7 @@ describe('Documents tab — states by the clinic’s date', () => {
     const others = within(screen.getByRole('list', { name: t(`${D}.others.title`) }))
     const [cv] = others.getAllByRole('listitem') as [HTMLElement]
     expect(cv).toHaveTextContent('CV')
-    expect(cv).toHaveTextContent('Téléversé le 01 oct. 2026 par la clinique')
+    expect(cv).toHaveTextContent('Téléversé le 1 oct. 2026 par la clinique')
     expect(within(cv).queryByRole('button', { name: /^Aperçu/ })).not.toBeInTheDocument()
     expect(within(cv).getByRole('button', { name: /^Télécharger/ })).toBeInTheDocument()
   })

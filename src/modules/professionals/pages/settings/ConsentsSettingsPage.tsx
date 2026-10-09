@@ -81,7 +81,7 @@ export function ConsentsSettingsPage() {
   else {
     const data = versions.data
     content = (
-      <div className="space-y-4">
+      <div className="space-y-5">
         <CurrentVersionCard current={data.current} />
         <DraftCard data={data} readOnly={readOnly} />
         {data.previous.length > 0 && <PreviousVersionsCard previous={data.previous} />}
