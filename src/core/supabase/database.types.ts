@@ -6114,10 +6114,6 @@ export type Database = {
         Args: { p_status: string; p_user_id: string }
         Returns: undefined
       }
-      sign_my_consent: {
-        Args: { p_signer_name: string; p_version_id: string }
-        Returns: string
-      }
       start_job_run: {
         Args: { p_key: string; p_org_id: string; p_trigger: string }
         Returns: string

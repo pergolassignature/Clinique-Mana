@@ -26,7 +26,7 @@
 -- at apply; draft consent text; staged files of another submission; reminder before expiry.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(317);
+select plan(314);
 
 -- The HINT / DETAIL of the error p_sql raises (null when none): throws_ok checks code and message.
 create function private.test_error_hint(p_sql text) returns text
@@ -243,7 +243,7 @@ select is_empty($$
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public'
      and p.proname in ('revoke_professional_invitation', 'request_professional_update', 'list_professional_invitation_states',
-                       'get_professional_onboarding', 'get_my_submission', 'save_my_submission_draft', 'save_my_submission_private', 'sign_my_consent',
+                       'get_professional_onboarding', 'get_my_submission', 'save_my_submission_draft', 'save_my_submission_private',
                        'submit_my_submission', 'get_my_professional_private', 'start_my_profile_update', 'get_submission_review',
                        'apply_professional_submission', 'reject_professional_submission')
      and (p.proacl is null or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0)
@@ -254,10 +254,10 @@ select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.
             where n.nspname = 'public'
               and p.proname in ('create_professional_invitation', 'resolve_professional_invitation', 'link_professional_account',
                                 'revoke_professional_invitation', 'request_professional_update', 'list_professional_invitation_states',
-                                'get_professional_onboarding', 'get_my_submission', 'save_my_submission_draft', 'save_my_submission_private', 'sign_my_consent',
+                                'get_professional_onboarding', 'get_my_submission', 'save_my_submission_draft', 'save_my_submission_private',
                                 'submit_my_submission', 'get_my_professional_private', 'start_my_profile_update', 'get_submission_review',
                                 'apply_professional_submission', 'reject_professional_submission')),
-  17, 'seventeen new RPCs, none overloaded');
+  16, 'sixteen RPCs (sign_my_consent dropped since), none overloaded');
 select is_empty($$
   select p.oid::regprocedure::text
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -650,15 +650,13 @@ select is_empty($$ select 1 from public.audit_log a where a.id > current_setting
   'the answers and the prefill are redacted in the audit');
 
 -- Consent.
-set local role authenticated;
+-- sign_my_consent is dropped (*_professionals_drop_sign_my_consent.sql): the answer it wrote is
+-- put in the draft directly, as postgres, so the submission below is complete.
 select set_config('test.consent_v1', (select c.id::text from public.consent_versions c where c.org_id = current_setting('test.a')::uuid), true);
-select throws_ok($$ select public.sign_my_consent(current_setting('test.consent_v1')::uuid, 'Pierre Un') $$,
-  'P0001', 'Le nom saisi ne correspond pas au nom du dossier.', 'the typed name must be the file''s');
-select throws_ok($$ select public.sign_my_consent(gen_random_uuid(), 'Paul Un') $$,
-  'P0001', 'Le texte du consentement a changé. Relisez-le avant de signer.', 'only the latest published version is signed');
-select lives_ok($$ select public.sign_my_consent(current_setting('test.consent_v1')::uuid, '  paul   ÚN ') $$,
-  'accents, case and spaces aside, the name matches');
-reset role;
+update public.professional_submissions s
+   set submitted_values = s.submitted_values || jsonb_build_object('consent', jsonb_build_object(
+         'consent_version_id', current_setting('test.consent_v1')::uuid, 'signer_name', 'paul ÚN', 'signed_at', now()))
+ where s.professional_id = current_setting('test.p1')::uuid and s.status = 'draft';
 select results_eq($$ select s.submitted_values -> 'consent' ->> 'signer_name', (s.submitted_values -> 'consent' ->> 'consent_version_id')::uuid
                        from public.professional_submissions s where s.professional_id = current_setting('test.p1')::uuid $$,
   $$ values ('paul ÚN'::text, current_setting('test.consent_v1')::uuid) $$, 'the signature is in the draft, with the version');
