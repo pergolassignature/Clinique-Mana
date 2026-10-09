@@ -7,7 +7,7 @@ import { cn } from '@/shared/lib/utils'
 const avatarVariants = cva('relative flex shrink-0 overflow-hidden rounded-full font-medium', {
   variants: {
     size: {
-      sm: 'h-6 w-6 text-[10px] leading-none',
+      sm: 'h-6 w-6 text-[10px] leading-none', // design-tokens: allow (24 px avatar initials: 10 px in the design system)
       md: 'h-8 w-8 text-xs',
       lg: 'h-12 w-12 text-lg',
     },
