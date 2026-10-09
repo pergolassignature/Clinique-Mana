@@ -214,7 +214,8 @@ select ok((select body like '%vous autorisez Org A à utiliser%' and body like '
 -- =============================================================================
 -- Privileges (as postgres)
 -- =============================================================================
-select table_privs_are('public', 'professional_submissions', 'authenticated', array['SELECT'], 'authenticated: select only on submissions');
+select table_privs_are('public', 'professional_submissions', 'authenticated', array[]::text[],
+  'authenticated: no table-wide select on submissions (columns without answers only, P4-420)');
 select table_privs_are('public', 'professional_submissions', 'anon', array[]::text[], 'anon: nothing on submissions');
 select table_privs_are('public', 'professional_submission_private', 'authenticated', array[]::text[], 'authenticated: nothing on the private answers');
 select table_privs_are('public', 'professional_submission_private', 'anon', array[]::text[], 'anon: nothing on the private answers');
@@ -877,8 +878,8 @@ select set_eq($$ select distinct h.table_name from public.list_professional_hist
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
 select results_eq($$ select g.bank_account_last4, g.bank_institution, g.sin_last3 from public.get_my_professional_private() g $$,
   $$ values ('4567'::text, '815'::text, null::text) $$, 'get_my_professional_private: masks of her own row');
-select is((select count(*)::int from public.professional_consents c where c.professional_id = current_setting('test.p1')::uuid), 1,
-  'she reads her consent');
+select is((select count(*)::int from public.professional_consents c where c.professional_id = current_setting('test.p1')::uuid), 0,
+  'she reads no consent row through the table (P4-420: a re-linked account must not read the previous signer''s name)');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is((select count(*)::int from public.professional_consents c where c.professional_id = current_setting('test.p1')::uuid), 0,
   'another provider does not');

@@ -1309,7 +1309,7 @@
           "none": "Aucune invitation envoyée.",
           "sent": "Invitation envoyée le {sent} · expire le {expires}",
           "opened": "Invitation envoyée le {sent} · ouverte le {opened} · expire le {expires}",
-          "expired": "Lien expiré le {expires} — envoyez un nouveau lien.",
+          "expired": "Lien expiré le {expires} : envoyez un nouveau lien.",
           "used": "Invitation acceptée le {used}",
           "revoked": "Invitation révoquée : le lien ne fonctionne plus."
         },
@@ -1317,8 +1317,8 @@
           "afterInvitation": "S'ouvre quand l'invitation est acceptée.",
           "inProgress": "En cours : pas encore envoyé.",
           "none": "Aucun questionnaire en cours.",
-          "submitted": "Envoyé le {date} — à réviser.",
-          "submittedUndated": "Envoyé — à réviser."
+          "submitted": "Envoyé le {date}, à réviser.",
+          "submittedUndated": "Envoyé, à réviser."
         },
         "dialog": {
           "send": {
@@ -1372,7 +1372,7 @@
         },
         "emailAdvice": {
           "invitation": "Utilisez « Renvoyer l'invitation » dans un moment.",
-          "update": "La demande reste ouverte : prévenez {firstName} qu'elle l'attend dans son questionnaire."
+          "update": "La demande reste ouverte : dites à {firstName} qu'une mise à jour l'attend dans son questionnaire."
         },
         "errors": {
           "rateLimited": "Trop de demandes en peu de temps.",
@@ -2901,7 +2901,8 @@
           "note": "Note de la clinique :",
           "review": "Réviser",
           "reviewLabel": "Réviser : {kind}",
-          "ownFile": "C'est votre propre dossier : une autre personne autorisée doit le réviser."
+          "ownFile": "C'est votre propre dossier : une autre personne autorisée doit le réviser.",
+          "cancel": "Fermer la demande"
         },
         "sheet": {
           "title": "Réviser le profil de {name}",
@@ -2922,6 +2923,13 @@
           "unchangedMany": "{count} inchangés",
           "showUnchanged": "Voir les champs inchangés ({count})",
           "checkedCount": "{checked} changements cochés sur {total}. Les changements décochés ne seront pas appliqués.",
+          "checkedCountOne": "1 changement coché sur {total}. Les changements décochés ne seront pas appliqués.",
+          "discardNote": {
+            "title": "Abandonner la note ?",
+            "body": "La note pour {firstName} n'a pas été envoyée : elle sera perdue.",
+            "keep": "Continuer la note",
+            "confirm": "Abandonner"
+          },
           "noneChecked": "Cochez au moins un changement, ou renvoyez le profil au professionnel.",
           "warnings": {
             "insuranceExpired": "Cette assurance est échue depuis le {date} : elle ne peut pas être appliquée. Décochez-la, ou renvoyez le profil au professionnel pour qu'il joigne une preuve en vigueur.",
@@ -2953,7 +2961,14 @@
             "onboarding": "Questionnaire approuvé, sans changement au dossier.",
             "update": "Mise à jour approuvée, sans changement au dossier."
           },
-          "returned": "Profil renvoyé à {firstName} avec votre note."
+          "returned": "Profil renvoyé à {firstName} avec votre note.",
+          "cancelled": "Mise à jour fermée : les réponses de {firstName} ne sont pas appliquées au dossier."
+        },
+        "cancelDialog": {
+          "title": "Fermer la mise à jour de {name} ?",
+          "body": "Les réponses de {firstName} ne seront pas appliquées au dossier, et son questionnaire de mise à jour se fermera. Vous pourrez demander une nouvelle mise à jour.",
+          "confirm": "Fermer la demande",
+          "closing": "Fermeture…"
         }
       },
       "myProfile": {
@@ -3147,7 +3162,7 @@
           "submitted": {
             "pageTitle": "Profil envoyé",
             "sentOn": "Envoyé le {date}.",
-            "thanks": "Merci ! L'équipe de la clinique va réviser votre profil. Vous recevrez un courriel si une précision est nécessaire.",
+            "thanks": "Merci ! L'équipe de la clinique va réviser votre profil. Si elle a besoin d'une précision, vous la verrez ici et sur votre page d'accueil.",
             "summary": "Vos réponses"
           },
           "returned": {
@@ -3264,7 +3279,7 @@
           "accountSaved": "Enregistré (•••• {last4}). Laissez vide pour le garder.",
           "accountOnFile": "Déjà fourni (•••• {last4}). Laissez vide pour le garder.",
           "taxTitle": "Taxes",
-          "taxHelp": "Facultatif : seulement si vous êtes inscrit.",
+          "taxHelp": "Facultatif : seulement en cas d'inscription à la TPS ou à la TVQ.",
           "businessNumber": "Numéro d'entreprise (NE)",
           "gstNumber": "Numéro de TPS",
           "qstNumber": "Numéro de TVQ",
@@ -3309,6 +3324,7 @@
           "yes": "Oui",
           "no": "Non",
           "primary": "principal",
+          "year": "{count} an",
           "years": "{count} ans",
           "masked4": "•••• {last4}",
           "masked3": "••• {last3}",

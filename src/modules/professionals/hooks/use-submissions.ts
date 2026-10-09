@@ -3,6 +3,7 @@ import { t } from '@/i18n'
 import { toast } from '@/shared/ui/sonner'
 import {
   applyProfessionalSubmission,
+  cancelProfessionalSubmission,
   fetchProfessionalSubmissions,
   fetchSubmissionReview,
   rejectProfessionalSubmission,
@@ -113,6 +114,28 @@ export function useReturnSubmission(feedback?: MutationFeedback) {
     mutationFn: ({ submissionId, note }: ReturnVariables) => rejectProfessionalSubmission(submissionId, note),
     onSuccess: (_data, { firstName }) => {
       toast.success(t(`${T}.returned`, { firstName }))
+    },
+    onError: (error) => showMutationError(queryClient, error, feedback),
+    onSettled: (_data, error, { professionalId, submissionId }) => refreshAfterDecision(queryClient, professionalId, submissionId, !error),
+  })
+}
+
+export interface CancelVariables {
+  professionalId: string
+  submissionId: string
+  firstName: string
+}
+
+/**
+ * « Fermer la demande » (P4-421): an open update closed without being applied. Refreshes what a
+ * decision refreshes (the record with its submissions and onboarding line, the lists, the history).
+ */
+export function useCancelSubmission(feedback?: MutationFeedback) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ submissionId }: CancelVariables) => cancelProfessionalSubmission(submissionId),
+    onSuccess: (_data, { firstName }) => {
+      toast.success(t(`${T}.cancelled`, { firstName }))
     },
     onError: (error) => showMutationError(queryClient, error, feedback),
     onSettled: (_data, error, { professionalId, submissionId }) => refreshAfterDecision(queryClient, professionalId, submissionId, !error),
