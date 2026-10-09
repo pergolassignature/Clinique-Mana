@@ -47,6 +47,70 @@ export function MotifsSummary({ summary }: { summary: MotifSummary }) {
   )
 }
 
+/**
+ * Aperçu's lighter version (Jonathan, 2026-10-08): every category on its own line with its count,
+ * its names folded until it is opened; « Afficher les 72 motifs » opens them all. Never « Tous »:
+ * every name is one click away (P4-249). Jumelage keeps `MotifsSummary`, open.
+ */
+export function FoldedMotifsSummary({ summary }: { summary: MotifSummary }) {
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
+  const baseId = useId()
+  const held = summary.groups.reduce((sum, g) => sum + g.motifs.length, 0)
+  const allOpen = open.size === summary.groups.length
+  const toggle = (key: string) =>
+    setOpen((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  return (
+    <div className="flex flex-col gap-1.5">
+      <button
+        type="button"
+        aria-expanded={allOpen}
+        onClick={() => setOpen(allOpen ? new Set() : new Set(summary.groups.map((g) => g.key)))}
+        className={cn('self-start rounded-sm text-[13px] font-medium text-primary hover:underline', focusRing)}
+      >
+        {allOpen ? t(`${S}.hideAll`) : held === 1 ? t(`${S}.showOne`) : t(`${S}.showAll`, { count: String(held) })}
+      </button>
+      <ul className="divide-y divide-border-light border-y border-border-light text-[13px] leading-5">
+        {summary.groups.map((group) => {
+          const isOpen = open.has(group.key)
+          const panelId = `${baseId}-${group.key}`
+          return (
+            <li key={group.key}>
+              <button
+                type="button"
+                aria-expanded={isOpen}
+                aria-controls={panelId}
+                onClick={() => toggle(group.key)}
+                className={cn('flex w-full items-center gap-2 rounded-sm py-2 text-left', focusRing)}
+              >
+                <Chevron open={isOpen} />
+                {group.icon ? <CategoryIcon icon={group.icon} className="size-3.5 shrink-0 text-subtle" /> : <span aria-hidden className="size-3.5 shrink-0" />}
+                <span className="min-w-0 flex-1 break-words font-semibold text-foreground">{group.name}</span>
+                <span className="shrink-0 text-xs tabular text-muted-foreground">
+                  <span aria-hidden>{t(`${S}.countShort`, { selected: String(group.selected), total: String(group.total) })}</span>
+                  <span className="sr-only">{t(`${S}.countSr`, { selected: String(group.selected), total: String(group.total) })}</span>
+                </span>
+              </button>
+              <ul id={panelId} hidden={!isOpen} className={cn(NAME_COLUMNS, 'pb-2 pl-[44px]')}>
+                {group.motifs.map((item) => (
+                  <li key={item.id} className="min-w-0 break-words text-foreground">
+                    {item.name}
+                    {item.archived && <span className="text-muted-foreground"> ({t(`${M}.archived`)})</span>}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
 /** Categories and their names (the record's motifs, Historique's details). */
 export function CategoryNames({ groups, className }: { groups: NamedGroup[]; className?: string }) {
   return (

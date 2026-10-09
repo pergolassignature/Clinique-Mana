@@ -217,7 +217,7 @@ describe('ProfessionalRecordPage', () => {
     expect(screen.getByTestId('navigation')).toHaveTextContent('REPLACE')
   })
 
-  it('starts another record from the cache at once, every motif written out', async () => {
+  it('starts another record from the cache at once, with its own motifs', async () => {
     const otherId = '00000000-0000-4000-8000-0000000000b2'
     const big = seventyTwoMotifsCatalog()
     const allMotifs = big.motifs.filter((m) => m.isActive).map((m) => m.id)
@@ -229,11 +229,12 @@ describe('ProfessionalRecordPage', () => {
       extra: <GoTo path={`/professionnels/${otherId}/apercu`} />,
       before: ({ queryClient }) => queryClient.setQueryData(professionalKeys.record(otherId), second),
     })
-    expect(await screen.findByText('Motif 8.9', { selector: 'li' })).toBeVisible()
+    // Aperçu folds the names under their categories: present, not yet shown.
+    expect(await screen.findByText('Motif 8.9', { selector: 'li' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'go' }))
     // The cached record shows at once, with its own motifs.
     expect(screen.getByRole('heading', { level: 1, name: 'Julie Roy' })).toBeInTheDocument()
-    expect(screen.getByText('Motif 1.2', { selector: 'li' })).toBeVisible()
+    expect(screen.getByText('Motif 1.2', { selector: 'li' })).toBeInTheDocument()
     expect(screen.queryByText('Motif 8.9', { selector: 'li' })).not.toBeInTheDocument()
   })
 

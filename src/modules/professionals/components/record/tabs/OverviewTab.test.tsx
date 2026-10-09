@@ -85,32 +85,52 @@ describe('OverviewTab — Profil de jumelage', () => {
     }))
     const M = `${O}.matching`
     expect(value(t(`${M}.clienteles`))).toBe(`★ Couples ${t(`${M}.specialized`)} · Enfants (0 à 12 ans)`)
-    // Each category's name on its own line, its motifs named under it, nothing to unfold.
+    // Each category on its own line, its motifs named under it once opened (folded in Aperçu).
     const digest = card(t(`${M}.title`))
-    expect(within(digest).getByText('Vie intérieure')).toBeInTheDocument()
-    expect(within(digest).getByText('Anxiété', { selector: 'li' })).toBeInTheDocument()
-    expect(within(digest).getByText(t('modules.professionals.otherCategory'), { selector: 'span' })).toBeInTheDocument()
+    expect(within(digest).getByRole('button', { name: /Vie intérieure/, expanded: false })).toBeInTheDocument()
+    expect(within(digest).getByText('Anxiété', { selector: 'li' })).not.toBeVisible()
+    expect(within(digest).getByRole('button', { name: new RegExp(t('modules.professionals.otherCategory')) })).toBeInTheDocument()
     expect(within(digest).getByText('Sans catégorie', { selector: 'li' })).toBeInTheDocument()
-    expect(within(digest).queryAllByRole('button')).toEqual([])
     expect(value(t(`${M}.languages`))).toBe('Français · Anglais')
     expect(value(t(`${M}.availability`))).toBe('Matin · Soir')
     expect(value(t(`${M}.accepting`))).toBe(t(`${M}.yes`))
     expect(value(t(`${M}.note`))).toBe('Pas le vendredi.')
   })
 
-  it('writes out every motif of a professional holding them all: names, never « Tous » (P4-249)', () => {
+  it('folds every motif of a professional holding them all, one click from every name, never « Tous » (P4-249)', async () => {
+    const user = userEvent.setup()
     const big = websiteSizedCatalog()
     renderOverview((r) => ({ ...r, motifIds: big.motifs.map((m) => m.id) }), 'counselor', big)
     const digest = card(t(`${O}.matching.title`))
     const S = `${O}.matching.motifSummary`
-    // Every active motif is a visible line, the archived one marked in its category; nothing folds.
-    for (const motif of big.motifs.filter((m) => m.isActive)) expect(within(digest).getByText(motif.name, { selector: 'li' })).toBeVisible()
+    const active = big.motifs.filter((m) => m.isActive)
+    // Folded: the categories and their counts only.
+    for (const motif of active) expect(within(digest).getByText(motif.name, { selector: 'li' })).not.toBeVisible()
+    // « Afficher les N motifs » (archived one included) opens every category; the button then folds them back.
+    await user.click(within(digest).getByRole('button', { name: t(`${S}.showAll`, { count: String(big.motifs.length) }) }))
+    for (const motif of active) expect(within(digest).getByText(motif.name, { selector: 'li' })).toBeVisible()
     expect(within(digest).getAllByRole('listitem').find((li) => li.textContent === `Ancien motif (${t(`${O}.matching.archived`)})`)).toBeVisible()
-    expect(within(digest).queryAllByRole('button')).toEqual([])
+    await user.click(within(digest).getByRole('button', { name: t(`${S}.hideAll`) }))
+    for (const motif of active) expect(within(digest).getByText(motif.name, { selector: 'li' })).not.toBeVisible()
     expect(within(digest).queryByText(/^Tous/)).not.toBeInTheDocument()
     // A count beside each of the 13 titles, in addition to the names.
     expect(within(digest).getAllByText(t(`${S}.countShort`, { selected: '19', total: '19' }))).toHaveLength(1)
     expect(within(digest).getByText('Catégorie 13')).toBeInTheDocument()
+  })
+
+  it('opens one category at a time from its own line', async () => {
+    const user = userEvent.setup()
+    renderOverview((r) => ({ ...r, motifIds: [IDS.anxiete] }))
+    const digest = card(t(`${O}.matching.title`))
+    const category = within(digest).getByRole('button', { name: /Vie intérieure/ })
+    await user.click(category)
+    expect(category).toHaveAttribute('aria-expanded', 'true')
+    expect(within(digest).getByText('Anxiété', { selector: 'li' })).toBeVisible()
+    // One motif held: the global button names it in the singular, then folds it back once all are open.
+    expect(within(digest).getByRole('button', { name: t(`${O}.matching.motifSummary.hideAll`) })).toBeInTheDocument()
+    await user.click(category)
+    expect(within(digest).getByText('Anxiété', { selector: 'li' })).not.toBeVisible()
+    expect(within(digest).getByRole('button', { name: t(`${O}.matching.motifSummary.showOne`) })).toBeInTheDocument()
   })
 
   it('reads the client limits with the clientèles (P4-245)', () => {

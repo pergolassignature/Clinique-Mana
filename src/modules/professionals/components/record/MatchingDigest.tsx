@@ -7,7 +7,7 @@ import type { ProfessionalRecord } from '../../api/parse'
 import type { CatalogView } from '../../lib/catalog-view'
 import { minClientAgeLabel, placesLabel } from '../../lib/display'
 import { matchingDigest, type DigestItem, type MatchingDigest as Digest } from '../../lib/matching-digest'
-import { MotifsSummary } from './MotifsSummary'
+import { FoldedMotifsSummary } from './MotifsSummary'
 import { TabLink } from './TabLink'
 
 const M = 'modules.professionals.record.overview.matching'
@@ -44,9 +44,9 @@ export function MatchingDigest({ record, catalog, canEdit }: MatchingDigestProps
             <Items items={digest.clienteles} empty={t(`${M}.empty.clienteles`)} />
             <Limits digest={digest} />
           </Row>
-          {/* Stacked at every width: the motifs take the card's whole width, every name written out (P4-249). */}
+          {/* Stacked at every width: the categories take the card's whole width, folded; every name one click away (P4-249). */}
           <Row label={t(`${M}.motifs`)} stacked>
-            {digest.motifs.groups.length === 0 ? <Empty>{t(`${M}.empty.motifs`)}</Empty> : <MotifsSummary summary={digest.motifs} />}
+            {digest.motifs.groups.length === 0 ? <Empty>{t(`${M}.empty.motifs`)}</Empty> : <FoldedMotifsSummary summary={digest.motifs} />}
           </Row>
           <Row label={t(`${M}.languages`)}>
             <Items items={digest.languages} empty={t(`${M}.empty.languages`)} />

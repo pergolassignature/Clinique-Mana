@@ -1737,7 +1737,10 @@
             "archived": "archivé",
             "motifSummary": {
               "countShort": "{selected} / {total}",
-              "countSr": "({selected} sur {total})"
+              "countSr": "({selected} sur {total})",
+              "showAll": "Afficher les {count} motifs",
+              "showOne": "Afficher le motif",
+              "hideAll": "Masquer les motifs"
             },
             "empty": {
               "clienteles": "Aucune clientèle choisie",
