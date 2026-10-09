@@ -1,6 +1,6 @@
 # 0004 — Secrets in Vault, sensitive data in encrypted private tables
 
-**Status:** Accepted (secrets built; encrypted private tables built (`organization_bank_details`, Phase 2); key versions, canary and deploy health check built (Phase 4, Task 4a.16); `professional_private` built (Phase 4, Task 4a.17); `professional_submission_private` comes with 4b.1) · **Date:** 2026-10-06 · **Design:** [§3 Storage of settings](../plans/2026-10-06-foundation-rebuild-design.md#storage-of-settings) · **Conventions:** [§8](../standards/database-conventions.md#8-secrets-and-sensitive-data)
+**Status:** Accepted (secrets built; encrypted private tables built (`organization_bank_details`, Phase 2); key versions, canary and deploy health check built (Phase 4, Task 4a.16); `professional_private` built (Phase 4, Task 4a.17); `professional_submission_private` built (Phase 4, Task 4b.1)) · **Date:** 2026-10-06 · **Design:** [§3 Storage of settings](../plans/2026-10-06-foundation-rebuild-design.md#storage-of-settings) · **Conventions:** [§8](../standards/database-conventions.md#8-secrets-and-sensitive-data)
 
 ## Context
 Integrations (Documenso, Resend, Google) need per-clinic API keys, and legacy kept some in code and docs. Professionals are contractors: the app will hold SIN/BN and bank details (Loi 25).
