@@ -4064,6 +4064,7 @@
           "submit": "Envoyer mon profil",
           "submitting": "Envoi…",
           "notAnswered": "Non indiqué",
+          "addressNone": "Non indiquée",
           "notSigned": "Pas encore signé.",
           "signedVersion": "Signé (version {version}) le {date} par {name}.",
           "yes": "Oui",
