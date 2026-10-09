@@ -10,7 +10,9 @@
 --   a key version now. Granted to no role; a caller would break once version 1 is retired.
 --
 -- Nothing reads them (functions, views, policies, triggers, scheduled_jobs, edge functions, the
--- app), so dropping them changes no behaviour.
+-- app), so dropping them changes no behaviour. Conventions §1 (deprecate, then remove): the
+-- one-argument forms were deprecated by *_core_pii_key_versions.sql, and count_org_emails_today
+-- never had a caller.
 
 drop function public.count_org_emails_today(uuid);
 
