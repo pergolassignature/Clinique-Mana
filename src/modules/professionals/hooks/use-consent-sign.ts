@@ -16,7 +16,7 @@ export function useMyImageConsent(enabled = true) {
 }
 
 /** The French text of a failed « Signer » (P3-28): a refusal as written, else by code. */
-export function consentSignErrorMessage(error: unknown): string {
+function consentSignErrorMessage(error: unknown): string {
   if (rpcErrorCode(error) === 'P0001') return moduleErrorMessage(error, t(`${S}.errors.generic`), 'professionals')
   if (!(error instanceof FunctionCallError)) return moduleErrorMessage(error, t(`${S}.errors.generic`), 'professionals')
   switch (error.code) {

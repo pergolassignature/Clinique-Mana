@@ -37,7 +37,7 @@ export const MAX_SUGGESTIONS = 5
  * stopped at 47.5° N and −71°, so Québec City's east, the Saguenay and the
  * Bas-Saint-Laurent ranked low.
  */
-export const QUEBEC_BIAS = {
+const QUEBEC_BIAS = {
   rectangle: {
     low: { latitude: 44.9, longitude: -79.8 },
     high: { latitude: 49.5, longitude: -64.0 },

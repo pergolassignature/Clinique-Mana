@@ -17,7 +17,7 @@ const D = 'modules.professionals.documents'
 
 type OpenDialog = { kind: 'upload'; type: DocumentType | null } | { kind: DocumentDialogAction; document: ProfessionalDocument }
 
-export interface DocumentsPanelProps {
+interface DocumentsPanelProps {
   /** `get_professional_documents`'s payload (its `today` is the clinic's date). */
   data: ProfessionalDocuments
   /** The catalogue's document types, archived ones included (an old document keeps its type's name). */

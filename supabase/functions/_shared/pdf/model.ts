@@ -29,7 +29,7 @@ export const MAX_DOCUMENT_TABLE_ROWS = 400
 export const MAX_DOCUMENT_TEXT = 200_000
 
 /** Roles that sign a document (`document_template_versions.signers`). */
-export const SIGNER_ROLES = ['professional', 'clinic', 'client'] as const
+const SIGNER_ROLES = ['professional', 'clinic', 'client'] as const
 
 /** Who signs: one role per signer of a document. */
 export type SignerRole = (typeof SIGNER_ROLES)[number]
@@ -85,7 +85,7 @@ const blockSchema = z.discriminatedUnion('type', [
 ])
 
 /** The document model, with the cross-block rules of the module comment. */
-export const pdfDocumentSchema = z.strictObject({
+const pdfDocumentSchema = z.strictObject({
   /** PDF metadata title. */
   title: text(200).min(1),
   /** Top of every page; `initialsFor` = the signer roles that initial each page. */

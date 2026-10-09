@@ -29,7 +29,7 @@ interface SettingsFormOptions<TIn extends FlatFormValues, TOut> {
   values: TIn
 }
 
-export interface SettingsForm<TIn extends FlatFormValues, TOut> {
+interface SettingsForm<TIn extends FlatFormValues, TOut> {
   form: UseFormReturn<TIn, unknown, TOut>
   /**
    * « Annuler »: a full reset (clean, errors cleared) to the form's default values, i.e. the last

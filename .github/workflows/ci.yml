@@ -52,6 +52,7 @@ jobs:
       - run: npm run check:functions
       - run: npm run lint:functions
       - run: npm run test:functions
+      - run: deno fmt --check --config supabase/functions/deno.json supabase/functions/
       # supabase/templates/*.html are generated from _shared/email (P3-27):
       # fails when a committed template differs from the build output.
       - run: npm run check:auth-templates
@@ -62,13 +63,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
+      # Applies every migration, then supabase/seed.sql (local-only data). Excluded containers
+      # are not needed for pgTAP or type generation.
+      - uses: ./.github/actions/supabase-start
         with:
-          version: 2.98.2
-      # Applies every migration, then supabase/seed.sql (local-only data).
-      # Excluded containers are not needed for pgTAP or type generation
-      # (names from `supabase start --help` for CLI 2.98.2).
-      - run: supabase start -x studio,imgproxy,mailpit,logflare,vector,supavisor,edge-runtime,realtime
+          exclude: studio,imgproxy,mailpit,logflare,vector,supavisor,edge-runtime,realtime
       - run: supabase test db
       # Again on the migrations alone: staging has no seed, and no test may lean on it.
       - name: pgTAP without the seed
@@ -93,13 +92,12 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - uses: supabase/setup-cli@v1
-        with:
-          version: 2.98.2
       - run: npm ci
       # Every migration, then supabase/seed.sql: the specs sign in with its local logins. Mailpit stays:
       # the onboarding spec reads the invitation email there.
-      - run: supabase start -x studio,imgproxy,logflare,vector,supavisor,edge-runtime,realtime
+      - uses: ./.github/actions/supabase-start
+        with:
+          exclude: studio,imgproxy,logflare,vector,supavisor,edge-runtime,realtime
       - name: Point the app at the local stack
         run: |
           supabase status -o env \

@@ -45,8 +45,8 @@
  * Reports carry the calling function, a code and row ids (`org_id`,
  * `email_log_id`): never the address, the subject, the body or a value.
  *
- * Task 3.6 RPCs (DB lane), assumed until it merges; each call names its
- * assumed signature below. All are service-role only.
+ * Task 3.6 RPCs (*_core_email.sql); each call names its
+ * signature below. All are service-role only.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
@@ -193,7 +193,7 @@ const variableSchema = z.object({
 })
 
 /**
- * The assumed `get_email_context` result (Task 3.6, DB lane to confirm):
+ * The `get_email_context` result (*_core_email.sql):
  *
  *   get_email_context(p_org_id uuid, p_template_key text) returns jsonb
  *   {
@@ -431,7 +431,7 @@ export async function sendTemplatedEmail(
       return fail('email_timezone_invalid', 'server_misconfigured')
     }
     // An unknown placeholder means the catalogue lacks the value: the same
-    // outcome for the caller (compose.ts hand-off).
+    // outcome for the caller (compose.ts).
     return {
       ok: false,
       emailLogId: null,
@@ -501,7 +501,7 @@ export async function sendTemplatedEmail(
     return { ok: false, emailLogId: null, code: 'provider_error' }
   }
 
-  // 7. Queue. Assumed (Task 3.6):
+  // 7. Queue (*_core_email.sql):
   // queue_email(p_org_id uuid, p_template_key text, p_template_version int,
   //   p_to_email text, p_to_profile_id uuid, p_subject_type text,
   //   p_subject_id uuid, p_view_permission text, p_sent_by uuid,
@@ -539,7 +539,7 @@ export async function sendTemplatedEmail(
   }, { signal: deps.signal })
 
   if (sent.ok) {
-    // Assumed: mark_email_sent(p_id uuid, p_resend_id text, p_attempts int) returns void.
+    // SQL: mark_email_sent(p_id uuid, p_resend_id text, p_attempts int) returns void.
     const marked = await client.rpc('mark_email_sent', {
       p_id: emailLogId,
       p_resend_id: sent.providerId,
@@ -551,10 +551,10 @@ export async function sendTemplatedEmail(
     return { ok: true, emailLogId }
   }
 
-  // Assumed: mark_email_failed(p_id uuid, p_error_code text, p_attempts int) returns void.
+  // SQL: mark_email_failed(p_id uuid, p_error_code text, p_attempts int) returns void.
   // `provider_unavailable` (attempts > 0) means « outcome unknown »: the
   // provider may have accepted it, and a later webhook can move the row to
-  // `sent` / `delivered` (DB lane).
+  // `sent` / `delivered`.
   const marked = await client.rpc('mark_email_failed', {
     p_id: emailLogId,
     p_error_code: sent.code,

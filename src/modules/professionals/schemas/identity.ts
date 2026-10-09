@@ -19,7 +19,7 @@ export const identitySchema = z.object({
   lastName: personNameField(t('modules.professionals.validation.lastNameRequired')),
   gender: z.union([z.literal(''), z.enum(GENDERS)]).transform((v): Gender | null => (v === '' ? null : v)),
 })
-export type IdentityValues = z.input<typeof identitySchema>
+type IdentityValues = z.input<typeof identitySchema>
 
 export function toIdentityFormValues(p: Professional): IdentityValues {
   return { firstName: p.firstName, lastName: p.lastName, gender: p.gender ?? '' }
@@ -33,7 +33,7 @@ export const experienceSchema = z.object({
     .refine((v) => v === '' || (/^[0-9]{1,2}$/.test(v) && Number(v) <= 60), { error: t('modules.professionals.validation.yearsExperience') })
     .transform((v) => (v === '' ? null : Number(v))),
 })
-export type ExperienceValues = z.input<typeof experienceSchema>
+type ExperienceValues = z.input<typeof experienceSchema>
 
 export function toExperienceFormValues(p: Professional): ExperienceValues {
   return { yearsExperience: p.yearsExperience === null ? '' : String(p.yearsExperience) }
@@ -49,7 +49,7 @@ export const normalizeIvac = (value: string) => value.trim().toUpperCase()
 export const payerNumbersSchema = z.object({
   ivac: optionalPattern(IVAC, t('modules.professionals.validation.ivac'), normalizeIvac),
 })
-export type PayerNumbersValues = z.input<typeof payerNumbersSchema>
+type PayerNumbersValues = z.input<typeof payerNumbersSchema>
 
 export function toPayerNumbersFormValues(payerNumbers: readonly PayerNumber[]): PayerNumbersValues {
   return { ivac: payerNumbers.find((p) => p.type === 'ivac')?.number ?? '' }

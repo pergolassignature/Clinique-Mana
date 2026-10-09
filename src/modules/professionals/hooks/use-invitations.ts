@@ -73,7 +73,7 @@ const EMAIL_PROBLEMS = ['not_configured', 'rate_limited', 'provider_error', 'inv
 const isKnownProblem = (code: string): code is (typeof EMAIL_PROBLEMS)[number] => (EMAIL_PROBLEMS as readonly string[]).includes(code)
 
 /** What the email that did not leave was about: an invitation link, or an update request (and to whom). */
-export type EmailAbout = { kind: 'invitation' } | { kind: 'update'; firstName: string }
+type EmailAbout = { kind: 'invitation' } | { kind: 'update'; firstName: string }
 
 /**
  * Why the email did not leave, and what to do (the toast's second line).
@@ -131,7 +131,7 @@ function onActionError(queryClient: QueryClient, error: unknown, feedback: Mutat
   else toast.error(message)
 }
 
-export interface InvitationVariables {
+interface InvitationVariables {
   id: string
   action: InviteAction
   /** The file's address, for the confirmation (the function sends to the file's own address). */

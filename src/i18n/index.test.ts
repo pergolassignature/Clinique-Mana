@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { frenchSpacing, NNBSP, ofName, setFrenchSpacing, t } from './index'
+import { frenchSpacing, NNBSP, setFrenchSpacing, t } from './index'
 import frCA from './fr-CA.json'
 
 describe('t', () => {
@@ -82,14 +82,5 @@ describe('t and French spacing', () => {
     }
     walk(frCA, '')
     expect(left).toEqual([])
-  })
-})
-
-describe('ofName', () => {
-  it('« d’ » before a vowel or a y, « de » otherwise (h included)', () => {
-    expect(ofName('Aurélie')).toBe("d'Aurélie")
-    expect(ofName('Isabelle')).toBe("d'Isabelle")
-    expect(ofName('Marie')).toBe('de Marie')
-    expect(ofName('Hugo')).toBe('de Hugo')
   })
 })

@@ -43,7 +43,7 @@ const FIELD_BY_HINT = {
   title: 'titleId',
   licence: 'licenceNumber',
 } as const satisfies Record<string, keyof CreateProfessionalValues>
-export type CreateErrorField = (typeof FIELD_BY_HINT)[keyof typeof FIELD_BY_HINT]
+type CreateErrorField = (typeof FIELD_BY_HINT)[keyof typeof FIELD_BY_HINT]
 
 /**
  * Where a refusal of `create_professional` belongs: the field its HINT names (P0001 only, the

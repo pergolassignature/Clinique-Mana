@@ -93,7 +93,7 @@ export function changedFields(parsed: Values, current: Values): Record<string, u
  * The fields `submission_gaps` needs answered (P4-173), per section with a form. A file section
  * needs its file (and the insurance its expiry); availability needs only to be saved once.
  */
-export const REQUIRED_FIELDS: Readonly<Partial<Record<SubmissionSection, readonly string[]>>> = {
+const REQUIRED_FIELDS: Readonly<Partial<Record<SubmissionSection, readonly string[]>>> = {
   personal: ['personal_phone', 'address_line1', 'city', 'province', 'postal_code'],
   professional: ['professions'],
   portrait: ['bio'],
@@ -234,61 +234,3 @@ export function nextMarch31(today: string): string {
   const year = Number(today.slice(0, 4))
   return today < `${year}-03-01` ? `${year}-03-31` : `${year + 1}-03-31`
 }
-
-/**
- * The letters `unaccent` folds that Unicode decomposition does not (its rules file, checked by
- * 056_professionals_questionnaire_consent_answer.test.sql): ligatures, stroked and special letters,
- * and the typographic apostrophe.
- */
-const UNACCENT_FOLDS: Readonly<Record<string, string>> = {
-  ß: 'ss',
-  ẞ: 'SS',
-  Æ: 'AE',
-  æ: 'ae',
-  Œ: 'OE',
-  œ: 'oe',
-  Ĳ: 'IJ',
-  ĳ: 'ij',
-  Ł: 'L',
-  ł: 'l',
-  Ŀ: 'L',
-  ŀ: 'l',
-  Ø: 'O',
-  ø: 'o',
-  Đ: 'D',
-  đ: 'd',
-  Ð: 'D',
-  ð: 'd',
-  Ħ: 'H',
-  ħ: 'h',
-  ı: 'i',
-  Ŋ: 'N',
-  ŋ: 'n',
-  Þ: 'TH',
-  þ: 'th',
-  Ŧ: 'T',
-  ŧ: 't',
-  ĸ: 'q',
-  ſ: 's',
-  ŉ: "'n",
-  '\u2019': "'",
-  '\u2018': "'",
-}
-const FOLDABLE = new RegExp(`[${Object.keys(UNACCENT_FOLDS).join('')}]`, 'gu')
-
-/**
- * A name as `sign_my_consent` compares it (`lower(unaccent(…))`): accents, ligatures and special
- * letters (ß, Ł, Ø…), case and runs of spaces aside.
- */
-export const comparableName = (name: string): string =>
-  name
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(FOLDABLE, (letter) => UNACCENT_FOLDS[letter] ?? letter)
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim()
-
-/** Whether the typed name is the file's « Prénom Nom » (P4-273). */
-export const nameMatches = (typed: string, firstName: string, lastName: string): boolean =>
-  comparableName(typed) !== '' && comparableName(typed) === comparableName(`${firstName} ${lastName}`)

@@ -25,7 +25,7 @@ export interface DocumentOwner {
   name: string
 }
 
-export interface DocumentDialogProps extends StatusDialogProps {
+interface DocumentDialogProps extends StatusDialogProps {
   document: ProfessionalDocument
   /** Its type (its name and rule). */
   type: DocumentType | undefined

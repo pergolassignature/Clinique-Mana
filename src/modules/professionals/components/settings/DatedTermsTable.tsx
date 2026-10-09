@@ -14,7 +14,7 @@ const W = 'modules.professionals.compensation'
 const PHONE_TABLE =
   'max-sm:[&_td]:px-2 max-sm:[&_th]:px-2 max-sm:[&_td:first-child]:pl-0 max-sm:[&_th:first-child]:pl-0 max-sm:[&_td:last-child]:pr-0 max-sm:[&_th:last-child]:pr-0'
 
-export interface DatedTermsGroup<R extends DatedRow> {
+interface DatedTermsGroup<R extends DatedRow> {
   key: string
   /** A header row naming the group (a kind), or null for a single series. */
   name: string | null

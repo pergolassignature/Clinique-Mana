@@ -1,5 +1,5 @@
 import { t } from '@/i18n'
-import { PROVINCE_OPTIONS } from '@/core/settings/organization/provinces'
+import { provinceName } from '@/core/settings/organization/provinces'
 import { formatPhone } from '@/shared/lib/format'
 import type { StatusTone } from '@/shared/ui/status-dot'
 import type { SpecializedRef } from '../api/parse'
@@ -77,7 +77,7 @@ export function idList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []
 }
 
-export interface IdsDiff {
+interface IdsDiff {
   added: string[]
   removed: string[]
   kept: string[]
@@ -103,7 +103,7 @@ export function clienteleRefs(value: unknown): SpecializedRef[] {
   })
 }
 
-export interface ClienteleDiff extends IdsDiff {
+interface ClienteleDiff extends IdsDiff {
   /** Kept, and now ★ spécialisé. */
   starred: string[]
   /** Kept, and no longer ★. */
@@ -130,11 +130,6 @@ export function clienteleDiff(current: unknown, submitted: unknown): ClienteleDi
 }
 
 // --- Plain values in words -----------------------------------------------------------------------
-
-const provinceName = (code: string) => {
-  const option = PROVINCE_OPTIONS.find((o) => o.value === code)
-  return option ? t(option.labelKey) : code
-}
 
 const yesNo = (value: boolean) => t(value ? `${S}.values.yes` : `${S}.values.no`)
 
@@ -176,7 +171,7 @@ export function submissionKindLabel(kind: SubmissionKind): string {
   return t(`${S}.kinds.${kind}`)
 }
 
-export type SubmissionState = 'returned' | 'in_progress' | 'to_review' | 'applied' | 'approved_unchanged' | 'cancelled'
+type SubmissionState = 'returned' | 'in_progress' | 'to_review' | 'applied' | 'approved_unchanged' | 'cancelled'
 
 const STATE_TONE: Readonly<Record<SubmissionState, StatusTone>> = {
   returned: 'neutral',

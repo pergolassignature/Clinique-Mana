@@ -165,7 +165,7 @@ export function useProfessionalsFilters({ onChange }: { onChange?: (filters: Pro
 const known = (id: string | null, map: ReadonlyMap<string, unknown>) => (id !== null && map.has(id) ? id : null)
 
 /** The folded text the search looks in, per row: built once per list (`useMemo` on the rows), not per keystroke. */
-export type SearchHaystacks = ReadonlyMap<ProfessionalListRow, string>
+type SearchHaystacks = ReadonlyMap<ProfessionalListRow, string>
 
 /** Pure: each row's name (either order), email and primary licence, folded (accents and case ignored). */
 export function searchHaystacks(rows: readonly ProfessionalListRow[]): SearchHaystacks {

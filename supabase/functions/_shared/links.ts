@@ -3,7 +3,9 @@
  *
  * - A token is 32 bytes from `crypto.getRandomValues`, base64url without
  *   padding (43 characters). It exists only in the function's memory and in
- *   the email: it is never stored, logged, reported or returned to staff.
+ *   the email (or, once, in the answer of an explicit « copier le lien »,
+ *   `professionals-invite` `copy_link`, P4-491): it is never stored, logged
+ *   or reported.
  * - The database stores only the token's hash (`secure_links.token_hash
  *   bytea`, 32 bytes, Task 3.17): SHA-256 over the UTF-8 bytes of the
  *   43-character token string, not over the 32 decoded random bytes. A link
@@ -54,7 +56,8 @@ function base64Url(bytes: Uint8Array): string {
 
 /**
  * A new link token: 32 random bytes, base64url without padding (43 chars).
- * Exists only in memory and in the email: never log, store or return it.
+ * Exists only in memory and in the email (or one explicit copy-link answer):
+ * never log or store it.
  */
 export function generateToken(): string {
   return base64Url(crypto.getRandomValues(new Uint8Array(TOKEN_BYTES)))

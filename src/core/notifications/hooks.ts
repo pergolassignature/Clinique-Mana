@@ -136,7 +136,7 @@ export function useImportantNotices() {
  * Marks notices read; the count, the list and « À surveiller » then reload. The mutation stays
  * pending until they have (onSettled returns the invalidation).
  */
-export function useMarkNotificationsRead() {
+function useMarkNotificationsRead() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationKey: MARK_READ_KEY,

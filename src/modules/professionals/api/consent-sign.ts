@@ -61,7 +61,7 @@ export async function fetchMyImageConsent(): Promise<MyImageConsent | null> {
   return parseRpc(myImageConsentPayload, data)
 }
 
-export const CONSENT_SIGN_FUNCTION = 'professionals-consent-sign'
+const CONSENT_SIGN_FUNCTION = 'professionals-consent-sign'
 
 const linkPayload = z.object({ request_id: z.string(), token: z.string().min(1), signing_url: z.url(), host: z.url() })
 

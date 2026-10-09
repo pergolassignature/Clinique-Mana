@@ -75,7 +75,7 @@ export interface ReferenceListCardProps<K extends ReferenceKind> {
   description?: string
   /** The page holds this list alone and its header already says it: the heading is for screen readers only. */
   headingHidden?: boolean
-  /** From the catalogue (`referenceRows` or `CatalogView`), archived rows included, in their order. */
+  /** From the catalogue (`CatalogView`), archived rows included, in their order. */
   rows: readonly ReferenceRow<K>[]
   /** « Utilisé par » counts (`useReferenceUsage`), keyed by `usageKey(kind, id)`; absent = nobody. */
   usage: ReadonlyMap<string, number>

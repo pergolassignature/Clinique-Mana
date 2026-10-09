@@ -18,7 +18,7 @@ import type { ReferenceKind } from '../../api/catalog'
 import { useSetReferenceActive } from '../../hooks/use-reference-mutations'
 
 /** The row a confirmation acts on: an active row is archived, an archived one restored. */
-export interface ArchiveTarget {
+interface ArchiveTarget {
   id: string
   name: string
   isActive: boolean

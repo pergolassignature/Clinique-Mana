@@ -2,7 +2,7 @@
  * `professionals-insurance-expiry` (Task 4c.4, P4-1, P4-45): the job
  * `professionals.insurance_expiry_notice`, at 06:00 clinic time once per
  * clinic day. A job function (CLAUDE.md §7): `runJob` verifies
- * `X-Job-Signature` (never `verifyServiceRoleAuth`), lists the clinics (job
+ * `X-Job-Signature` (never a bearer key), lists the clinics (job
  * and module enabled, the local hour reached), and logs each clinic's run.
  *
  * Per clinic (`perOrg`):

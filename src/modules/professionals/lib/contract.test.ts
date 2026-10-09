@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
 import { parsedRequest, SIGNED_FILE } from '../test/fixtures-contract'
 import { parsedContract, contractJson, requestJson } from '../test/fixtures-contract'
-import { contractButtons, contractProgress, contractState, contractStateLabel, isContractSigned, signerRoleLabel, STALE_SEND_MS, type ContractState } from './contract'
+import { contractButtons, contractProgress, contractState, contractStateLabel, signerRoleLabel, STALE_SEND_MS, type ContractState } from './contract'
 
 const A = 'modules.professionals.contract.actions'
 const ALL = ['professionals.view', 'professionals.contracts.send', 'professionals.compensation']
@@ -144,12 +144,6 @@ describe('contractStateLabel', () => {
 })
 
 describe('helpers', () => {
-  it('a signed contract is what readiness counts', () => {
-    expect(isContractSigned(parsedRequest({ status: 'signed' }))).toBe(true)
-    expect(isContractSigned(parsedRequest({ status: 'viewed' }))).toBe(false)
-    expect(isContractSigned(null)).toBe(false)
-  })
-
   it('names the signer roles in French, never the code', () => {
     expect(signerRoleLabel('professional')).toBe('Professionnel')
     expect(signerRoleLabel('clinic')).toBe('Clinique')

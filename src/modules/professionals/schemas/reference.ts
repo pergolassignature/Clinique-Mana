@@ -221,7 +221,7 @@ export const referenceSchemas = {
 const nameKey = (name: string) => name.normalize('NFKC').toLowerCase()
 
 /** The row being edited (null for a new one) and the list it belongs to, archived rows included. */
-export interface ReferenceContext<K extends ReferenceKind> {
+interface ReferenceContext<K extends ReferenceKind> {
   rows: readonly ReferenceRow<K>[]
   current: ReferenceRow<K> | null
 }

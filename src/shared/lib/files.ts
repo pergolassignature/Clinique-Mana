@@ -49,7 +49,7 @@ export async function uploadMimeType(file: Blob, accept: readonly string[]): Pro
 }
 
 /** Width and height in pixels, as an image's header states them. */
-export interface ImageSize {
+interface ImageSize {
   width: number
   height: number
 }

@@ -43,7 +43,7 @@ export interface PlaceAddress {
 }
 
 /** The 13 codes `organizations_province_check` and the professionals' check allow. */
-export const PROVINCES = [
+const PROVINCES = [
   'AB',
   'BC',
   'MB',

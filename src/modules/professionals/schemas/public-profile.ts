@@ -18,7 +18,7 @@ export const publicProfileSchema = z.object({
     .refine((v) => v === null || v.length <= 254, { error: t('auth.errors.invalidEmail') }),
   publicPhone: optionalPhone(),
 })
-export type PublicProfileValues = z.input<typeof publicProfileSchema>
+type PublicProfileValues = z.input<typeof publicProfileSchema>
 
 export function toPublicProfileFormValues(p: PublicProfile): PublicProfileValues {
   return { bio: p.bio ?? '', approach: p.approach ?? '', publicEmail: p.publicEmail ?? '', publicPhone: formatPhone(p.publicPhone) }

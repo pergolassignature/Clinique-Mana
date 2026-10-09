@@ -24,9 +24,9 @@ const F = 'modules.professionals.questionnaire.files'
  * the submission as subject. The caps are `private.assert_submission_file`'s, stricter than the
  * purpose's (10 MB, PDF / JPEG / PNG, 4000 px).
  */
-export const SUBMISSION_FILE = { purpose: 'professional_submission_file', subjectType: 'professional_submission' } as const
-export const PHOTO_LIMITS = { mimeTypes: ['image/jpeg', 'image/png'], maxBytes: 5_242_880, maxImageSide: 4000 } as const
-export const INSURANCE_LIMITS = { mimeTypes: ['application/pdf', 'image/jpeg', 'image/png'], maxBytes: 10_485_760, maxImageSide: 4000 } as const
+const SUBMISSION_FILE = { purpose: 'professional_submission_file', subjectType: 'professional_submission' } as const
+const PHOTO_LIMITS = { mimeTypes: ['image/jpeg', 'image/png'], maxBytes: 5_242_880, maxImageSide: 4000 } as const
+const INSURANCE_LIMITS = { mimeTypes: ['application/pdf', 'image/jpeg', 'image/png'], maxBytes: 10_485_760, maxImageSide: 4000 } as const
 
 /**
  * The French text of a failed upload (the storage functions), or of the draft save that records it

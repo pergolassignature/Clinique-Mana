@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchProfessionalsCatalog,
   fetchReferenceUsage,
-  referenceRows,
   reorderedCatalog,
   reorderReference,
   saveReference,
@@ -58,19 +57,6 @@ describe('fetchReferenceUsage', () => {
     const error = { code: '42501', message: 'Permission refusée' }
     mocks.rpc.mockResolvedValue({ data: null, error })
     await expect(fetchReferenceUsage()).rejects.toBe(error)
-  })
-})
-
-describe('referenceRows', () => {
-  it('returns the catalogue list of each kind', () => {
-    const catalog = parseRpc(catalogPayload, CATALOG_JSON)
-    expect(referenceRows(catalog, 'professional_orders')).toBe(catalog.orders)
-    expect(referenceRows(catalog, 'profession_categories')).toBe(catalog.categories)
-    expect(referenceRows(catalog, 'profession_titles')).toBe(catalog.titles)
-    expect(referenceRows(catalog, 'motif_categories')).toBe(catalog.motifCategories)
-    expect(referenceRows(catalog, 'deactivation_reasons')).toBe(catalog.deactivationReasons)
-    expect(referenceRows(catalog, 'languages')[0]?.code).toBe('fr')
-    expect(referenceRows(catalog, 'document_types').map((row) => row.key)).toEqual(['photo', 'insurance', 'image_consent', 'cv', 'other', 'ancien_document'])
   })
 })
 

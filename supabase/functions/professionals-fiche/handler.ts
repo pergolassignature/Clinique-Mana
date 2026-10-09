@@ -70,7 +70,7 @@ const FN = 'professionals-fiche'
 const TEMPLATE = 'professionals.fiche'
 
 /** The `professional_fiche` purpose's cap (10 MB), and the send path's. */
-export const MAX_FICHE_BYTES = 10 * 1024 * 1024
+const MAX_FICHE_BYTES = 10 * 1024 * 1024
 
 /**
  * Control and formatting characters a message never carries: C0 but the
