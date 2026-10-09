@@ -24,7 +24,7 @@
  *    hour per caller; `request_update` too), on top of the email limits.
  *    Both are consumed before anything is created.
  * 5. The email's URL before anything is created (an unusable `APP_URL` →
- *    500): `send`, `resend`, `new_link` → `generateToken`, `hashToken`,
+ *    500, checked before the limits of step 4 so it uses up no count): `send`, `resend`, `new_link` → `generateToken`, `hashToken`,
  *    `linkUrl(APP_URL, '/invitation', token)`; `request_update` →
  *    `APP_URL/mon-profil/questionnaire` (no token, P4-44).
  * 6. `send`, `resend`, `new_link`: `create_professional_invitation` with the
@@ -38,8 +38,10 @@
  *    500, reported.
  * 7. `sendTemplatedEmail`: `professionals.invite` or
  *    `professionals.profile_update`, subject `professional` / id, to the
- *    address the RPC returned; `resend` and `new_link` are explicit re-sends
- *    (the 5 s double-click guard instead of the 60 s same-address limit).
+ *    address the RPC returned; `send`, `resend` and `new_link` are explicit
+ *    sends (the email's double-click guard instead of the 60 s same-address
+ *    limit, P4-425: « Révoquer » then « Envoyer l'invitation » within a
+ *    minute must not leave the new link without its email).
  *    The request's signal is not passed: once the link has rotated (or the
  *    submission exists), the email is sent even if the caller has gone, as
  *    `professionals-submit` does.
@@ -75,7 +77,12 @@ import type { Deps } from '../_shared/deps.ts'
 import { type SendResult, sendTemplatedEmail } from '../_shared/email/send.ts'
 import { FunctionError } from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
-import { generateToken, hashToken, linkUrl } from '../_shared/links.ts'
+import {
+  appOrigin,
+  generateToken,
+  hashToken,
+  linkUrl,
+} from '../_shared/links.ts'
 import {
   appPageUrl,
   invitationValues,
@@ -159,6 +166,19 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const service = deps.serviceClient()
     if (service instanceof Response) return service
     const client: SupabaseClient = service
+    const misconfigured = async () => {
+      await report('app_url_invalid')
+      return errorResponse(
+        'server_misconfigured',
+        'Server misconfigured',
+        500,
+        req,
+      )
+    }
+    const appUrl = deps.env('APP_URL')?.trim() ?? ''
+    // A misconfigured APP_URL answers before any limit: it must not use up
+    // the caller's hourly count.
+    if (!appOrigin(appUrl)) return misconfigured()
     // The file's guard first, so that a refused double click does not use
     // up the caller's hourly count.
     if (input.action !== 'request_update') {
@@ -176,17 +196,6 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       req,
     )
     if (refused) return refused
-
-    const misconfigured = async () => {
-      await report('app_url_invalid')
-      return errorResponse(
-        'server_misconfigured',
-        'Server misconfigured',
-        500,
-        req,
-      )
-    }
-    const appUrl = deps.env('APP_URL')?.trim() ?? ''
 
     if (input.action === 'request_update') {
       const actionUrl = appPageUrl(appUrl, QUESTIONNAIRE_PATH)
@@ -251,7 +260,11 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         expiresAt: row.data.expires_at,
       }),
       actionUrl,
-      explicitResend: input.action !== 'send',
+      // Every invitation email is an explicit act on the file (its 5 s guard
+      // stops a double click): the 60 s same-address limit would refuse
+      // « Envoyer l'invitation » right after « Révoquer », once the new link
+      // exists, leaving it without its email.
+      explicitResend: true,
     })
     return sent ??
       jsonResponse({ ok: true, expires_at: row.data.expires_at }, 200, req)
