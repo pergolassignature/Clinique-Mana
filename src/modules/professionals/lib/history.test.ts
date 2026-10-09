@@ -769,6 +769,14 @@ describe('history — the service contract (Task 4d.1)', () => {
     expect(events([row('signature_requests', 'insert', { status: 'draft' })])).toEqual([])
     expect(events([signer('pending', 'professional')])).toEqual([])
   })
+
+  it('a contract signed outside the app (P4-520): its upload with the signature date, a calendar date', () => {
+    const paper = (fields: Record<string, unknown>) =>
+      row('professional_paper_contracts', 'insert', { org_id: ORG, professional_id: P, stored_file_id: '00000000-0000-4000-8000-0000000f11e1', ...fields })
+    expect(only([paper({ signed_on: '2023-01-01' })]).sentence).toBe('a téléversé un contrat de service signé hors application (signé le 1 janv. 2023)')
+    expect(only([paper({ signed_on: null })]).sentence).toBe(t('modules.professionals.history.sentences.paperContract.uploadedNoDate'))
+    expect(JSON.stringify(only([paper({ signed_on: '2023-01-01' })]))).not.toContain('0f11e1')
+  })
 })
 
 describe('history — the documents (4c.2)', () => {

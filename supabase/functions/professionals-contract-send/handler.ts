@@ -10,10 +10,13 @@
  * it prints Annexe A. Nothing about a form is read from the body but its key.
  *
  * 1. CORS; `POST` only; `verifyAuth` with the module `professionals`.
- * 2. Body `{ professional_id, action: 'send' | 'regenerate' | 'resend',
- *    idempotency_key, form?, preview? }` (`form`: `service_contract`, the
- *    default, or `image_consent`; the key a uuid the page draws per action and
- *    keeps until it succeeds; `preview`: P4-502, below, never with `resend`).
+ * 2. Body `{ professional_id, action: 'send' | 'renew' | 'regenerate' |
+ *    'resend', idempotency_key, form?, preview? }` (`form`: `service_contract`,
+ *    the default, or `image_consent`; the key a uuid the page draws per action
+ *    and keeps until it succeeds; `preview`: P4-502, below, never with
+ *    `resend`; `renew`: « Préparer un nouveau contrat » on a contract in
+ *    force, P4-524, the service contract's only: a send the database allows
+ *    only then, the signed contract left as it is).
  *    Nothing else is read from the body: the values, the
  *    signers, the template version and the title come from the database.
  *    Then the form's permissions → 403 `forbidden` otherwise: the contract
@@ -146,7 +149,8 @@ export type FormKey = keyof typeof FORMS
 const bodySchema = z.strictObject({
   // guid, not uuid: seed and fixture ids are not RFC 4122 variants.
   professional_id: z.guid(),
-  action: z.enum(['send', 'regenerate', 'resend']),
+  /** `renew` (P4-524): « Préparer un nouveau contrat », the service contract's only. */
+  action: z.enum(['send', 'renew', 'regenerate', 'resend']),
   idempotency_key: z.guid(),
   form: z.enum(['service_contract', 'image_consent']).default(
     'service_contract',
@@ -154,6 +158,7 @@ const bodySchema = z.strictObject({
   /** P4-502: render what `action` would send under this key; send nothing. */
   preview: z.boolean().default(false),
 }).refine((b) => !(b.preview && b.action === 'resend'))
+  .refine((b) => !(b.action === 'renew' && b.form !== 'service_contract'))
 
 const signerSchema = z.object({
   role: z.enum(['professional', 'clinic', 'client']),

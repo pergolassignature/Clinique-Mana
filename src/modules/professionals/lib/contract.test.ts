@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
 import { parsedRequest, SIGNED_FILE } from '../test/fixtures-contract'
-import { parsedContract, contractJson, requestJson } from '../test/fixtures-contract'
-import { contractButtons, contractProgress, contractState, contractStateLabel, signerRoleLabel, STALE_SEND_MS, type ContractState } from './contract'
+import { parsedContract, contractJson, paperJson, requestJson, signedInForceJson } from '../test/fixtures-contract'
+import {
+  contractButtons,
+  contractProgress,
+  contractState,
+  contractStateLabel,
+  paperSignedOnError,
+  signerRoleLabel,
+  STALE_SEND_MS,
+  type ContractState,
+} from './contract'
 
 const A = 'modules.professionals.contract.actions'
 const ALL = ['professionals.view', 'professionals.contracts.send', 'professionals.compensation']
@@ -171,5 +180,35 @@ describe('the image consent (P4-481 – P4-486)', () => {
 
   it('words its own empty state', () => {
     expect(contractStateLabel(null, Date.now(), 'image_consent').label).toBe(t('modules.professionals.imageConsent.state.none'))
+  })
+})
+
+describe('a contract in force (P4-522, P4-524)', () => {
+  it('nothing at work: « Préparer un nouveau contrat » (renew), for senders only; a renewal keeps its own actions', () => {
+    expect(contractButtons('none', null, can(ALL), 'service_contract', true)).toEqual([{ kind: 'action', action: 'renew', label: t(`${A}.renew`) }])
+    expect(contractButtons('none', null, can(['professionals.view']), 'service_contract', true)).toEqual([])
+    expect(contractButtons('rejected', parsedRequest({ status: 'rejected' }), can(ALL), 'service_contract', true).map((b) => b.kind === 'action' && b.action)).toEqual(['regenerate'])
+    // The image consent's own renewal is unchanged (P4-486).
+    expect(contractButtons('none', null, can(['professionals.manage']), 'image_consent', true).map((b) => b.kind === 'action' && b.action)).toEqual(['send'])
+  })
+
+  it('« Prochaine action » has nothing to say once a contract is in force, whatever the renewal', () => {
+    expect(contractProgress(parsedContract(contractJson(requestJson(), { current: signedInForceJson() })))).toBeNull()
+    expect(contractProgress(parsedContract(contractJson(requestJson({ status: 'rejected' }), { current: paperJson() })))).toBeNull()
+  })
+})
+
+describe('paperSignedOnError (P4-520)', () => {
+  const today = '2026-10-09'
+  it('a day from 2000-01-01 to the clinic’s today', () => {
+    expect(paperSignedOnError('2023-05-01', today)).toBeNull()
+    expect(paperSignedOnError('2026-10-09', today)).toBeNull()
+    expect(paperSignedOnError('2000-01-01', today)).toBeNull()
+  })
+  it('refuses an empty or invalid value, a future day, a day before 2000', () => {
+    expect(paperSignedOnError('', today)).toBe(t('modules.professionals.contract.paper.errors.required'))
+    expect(paperSignedOnError('2023-13-45', today)).toBe(t('modules.professionals.contract.paper.errors.required'))
+    expect(paperSignedOnError('2026-10-10', today)).toBe(t('modules.professionals.contract.paper.errors.future'))
+    expect(paperSignedOnError('1999-12-31', today)).toBe(t('modules.professionals.contract.paper.errors.tooOld'))
   })
 })

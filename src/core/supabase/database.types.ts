@@ -2500,6 +2500,79 @@ export type Database = {
           },
         ]
       }
+      professional_paper_contracts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          org_id: string
+          professional_id: string
+          signed_on: string
+          stored_file_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id: string
+          professional_id: string
+          signed_on: string
+          stored_file_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          professional_id?: string
+          signed_on?: string
+          stored_file_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_paper_contracts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "professional_paper_contracts_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_paper_contracts_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_paper_contracts_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_paper_contracts_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "professional_paper_contracts_stored_file_id_fkey"
+            columns: ["stored_file_id"]
+            isOneToOne: true
+            referencedRelation: "stored_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       professional_payer_numbers: {
         Row: {
           created_at: string
@@ -5756,6 +5829,10 @@ export type Database = {
       record_professional_invitation_email_failure_for_service: {
         Args: { p_code: string; p_link_id: string; p_org: string }
         Returns: undefined
+      }
+      record_professional_paper_contract: {
+        Args: { p_file_id: string; p_id: string; p_signed_on: string }
+        Returns: string
       }
       record_signature_sync: {
         Args: {
