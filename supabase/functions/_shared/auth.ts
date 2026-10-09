@@ -27,6 +27,7 @@ import {
   type SupabaseClient,
   type User,
 } from '@supabase/supabase-js'
+import { isLocalAppUrl, LOCAL_HOSTS } from './local.ts'
 import { logErrorCode } from './log.ts'
 import { reportError } from './report.ts'
 
@@ -63,32 +64,22 @@ export type ErrorCode =
 // CORS and responses
 // ---------------------------------------------------------------------------
 
-/** `ALLOWED_ORIGINS` (comma-separated), or null when unset (then `*`). */
-function allowedOrigins(): string[] | null {
-  const raw = Deno.env.get('ALLOWED_ORIGINS')
+// Its callers import it from here (it lives in `local.ts`, dependency-free).
+export { isLocalAppUrl }
+
+/** An `ALLOWED_ORIGINS` value (comma-separated) as a list, or null when unset. */
+export function parseOrigins(raw: string | undefined): string[] | null {
   if (raw === undefined) return null
   return raw.split(',').map((o) => o.trim()).filter(Boolean)
 }
 
+/** `ALLOWED_ORIGINS`, or null when unset (then `*`). */
+function allowedOrigins(): string[] | null {
+  return parseOrigins(Deno.env.get('ALLOWED_ORIGINS'))
+}
+
 /** How long a browser may cache a preflight answer, in seconds. */
 const PREFLIGHT_MAX_AGE = '600'
-
-const LOCAL_HOSTS: ReadonlySet<string> = new Set([
-  'localhost',
-  '127.0.0.1',
-  '[::1]',
-])
-
-/**
- * True when `appUrl` is a local `http` URL (`http://localhost:5173`): local
- * dev. Gates what only a dev machine may do (the console email transport,
- * the local Documenso fake, P3-34).
- */
-export function isLocalAppUrl(appUrl: string | undefined): boolean {
-  if (!appUrl || !URL.canParse(appUrl.trim())) return false
-  const url = new URL(appUrl.trim())
-  return url.protocol === 'http:' && LOCAL_HOSTS.has(url.hostname)
-}
 
 /** True when `APP_URL` is set and is not a local origin. */
 function deployedAppUrl(): boolean {

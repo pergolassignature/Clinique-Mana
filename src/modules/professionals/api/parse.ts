@@ -300,6 +300,12 @@ const recordShape = z.object({
   motif_ids: z.array(z.string()),
   language_ids: z.array(z.string()),
   payer_numbers: z.array(payerNumberPayload),
+  /**
+   * The newest verified photo's stored file (`professional_public_profiles.photo_document_id`), null
+   * without one: shown only through `storage-sign` (P3-33). Optional: bundles older than
+   * *_professionals_record_photo.sql.
+   */
+  photo_file_id: z.string().nullish(),
 })
 const recordFields = (r: z.output<typeof recordShape>) => ({
   professional: r.professional,
@@ -311,6 +317,7 @@ const recordFields = (r: z.output<typeof recordShape>) => ({
   motifIds: r.motif_ids,
   languageIds: r.language_ids,
   payerNumbers: r.payer_numbers,
+  photoFileId: r.photo_file_id ?? null,
 })
 
 /** `get_professional_record`: the record page in one payload, null when the caller cannot read it. */

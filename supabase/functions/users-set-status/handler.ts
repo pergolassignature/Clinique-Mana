@@ -43,7 +43,7 @@ import {
   verifyAuth,
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
-import { rpcErrorResponse } from '../_shared/errors.ts'
+import { isExpectedRpcError, rpcErrorResponse } from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
 import { reportError } from '../_shared/report.ts'
 
@@ -89,7 +89,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     const changed = await setStatus(input.status)
     if (changed.error) {
-      if (!['P0001', '42501', '22023'].includes(changed.error.code ?? '')) {
+      if (!isExpectedRpcError(changed.error)) {
         await report('set_status_failed')
       }
       return rpcErrorResponse(changed.error, req)

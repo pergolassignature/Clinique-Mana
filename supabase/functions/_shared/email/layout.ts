@@ -20,7 +20,13 @@
  * Everything passed in is escaped here except `contentHtml`, which callers
  * build from escaped parts (`markup.ts` / `render.ts`). Placeholders of other
  * template engines (`{{ .SiteURL }}`) contain nothing to escape and pass through.
+ *
+ * French spacing (`../french.ts`): the layout's own words hold a U+202F before
+ * « : », and the « Pourquoi ce courriel » line (catalogue text, never a value)
+ * goes through `frenchSpacing`. The content and the button label arrive
+ * spaced (`render.ts`); clinic identity values are printed as stored.
  */
+import { frenchSpacing, NNBSP } from '../french.ts'
 import { escapeHtml } from './markup.ts'
 import { BODY_TEXT, COLOR, FONT_STACK, SMALL_TEXT } from './tokens.ts'
 
@@ -74,7 +80,7 @@ const WORDMARK = { width: 120, height: 53 }
 function privacyLine(footer: ClinicFooter): string | null {
   const parts = [footer.privacyOfficer?.name, footer.privacyOfficer?.email]
     .filter(Boolean)
-  return parts.length ? `Confidentialité : ${parts.join(', ')}` : null
+  return parts.length ? `Confidentialité${NNBSP}: ${parts.join(', ')}` : null
 }
 
 /** The footer's identity lines, in display order, without empty ones. */
@@ -98,7 +104,7 @@ function buttonHtml({ label, href }: LayoutButton): string {
     escapeHtml(label)
   }</a>
 </td></tr></table>
-<p style="margin:16px 0 0;${SMALL_TEXT}">Si le bouton ne fonctionne pas, copiez ce lien :<br><span style="word-break:break-all">${url}</span></p>
+<p style="margin:16px 0 0;${SMALL_TEXT}">Si le bouton ne fonctionne pas, copiez ce lien${NNBSP}:<br><span style="word-break:break-all">${url}</span></p>
 </td></tr>`
 }
 
@@ -107,7 +113,7 @@ export function renderLayout(input: LayoutInput): { html: string } {
   const footer = footerLines(input.footer).map(escapeHtml).join('<br>')
   const preheader = input.preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${
-      escapeHtml(input.preheader)
+      escapeHtml(frenchSpacing(input.preheader))
     }</div>\n`
     : ''
   const html = `<!doctype html>
@@ -136,7 +142,7 @@ ${input.button ? buttonHtml(input.button) : ''}
 <tr><td style="padding:24px 28px 0;${SMALL_TEXT}">
 <p style="margin:0 0 12px;${SMALL_TEXT}">${footer}</p>
 <p style="margin:0;padding:12px 0 0;border-top:1px solid ${COLOR.hairline};${SMALL_TEXT}">${
-    escapeHtml(input.whyLine)
+    escapeHtml(frenchSpacing(input.whyLine))
   }</p>
 </td></tr>
 </table>
@@ -153,8 +159,11 @@ ${input.button ? buttonHtml(input.button) : ''}
 export function renderLayoutText(input: LayoutTextInput): string {
   const sections = [input.contentText]
   if (input.button) {
-    sections.push(`${input.button.label} :\n${input.button.href}`)
+    sections.push(`${input.button.label}${NNBSP}:\n${input.button.href}`)
   }
-  sections.push(['--', ...footerLines(input.footer)].join('\n'), input.whyLine)
+  sections.push(
+    ['--', ...footerLines(input.footer)].join('\n'),
+    frenchSpacing(input.whyLine),
+  )
   return sections.join('\n\n')
 }

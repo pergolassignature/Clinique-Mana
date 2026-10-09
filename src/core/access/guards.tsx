@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { t } from '@/i18n'
 import { useAuth } from '@/core/auth/auth-context'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
@@ -40,10 +40,51 @@ function AccessDenied({ problem, signOut }: { problem: AccessProblem; signOut: (
   )
 }
 
-/** The « accès refusé » page: exported for guards that compute their own condition. */
-export function Forbidden() {
+interface PageMessageProps {
+  /** Inside a page that already has its title (the settings pane): pane-sized, under an h2. */
+  compact?: boolean
+}
+
+/** The way back from a page the user cannot open: Accueil, which every signed-in role has. */
+function BackHome() {
+  return (
+    <Button asChild variant="outline">
+      <Link to="/accueil">{t('common.backHome')}</Link>
+    </Button>
+  )
+}
+
+/**
+ * « Accès refusé »: every page that exists but that this user may not open reads the same (a
+ * module route without its permission, « Paramètres » without any section, a settings section
+ * the user does not see), with the same explanation and the way back to Accueil. A disabled
+ * module's pages and unknown URLs are `NotFound` instead.
+ */
+export function Forbidden({ compact = false }: PageMessageProps) {
   usePageTitle(t('pageTitles.forbidden'))
-  return <FullPageMessage title={t('access.forbidden.title')} body={t('access.forbidden.body')} />
+  return (
+    <FullPageMessage
+      title={t('access.forbidden.title')}
+      body={t('access.forbidden.body')}
+      action={<BackHome />}
+      headingLevel={compact ? 2 : 1}
+      compact={compact}
+    />
+  )
+}
+
+/** « Page introuvable »: a URL that names no page of this app (or of an enabled module). */
+export function NotFound({ compact = false }: PageMessageProps) {
+  usePageTitle(t('pageTitles.notFound'))
+  return (
+    <FullPageMessage
+      title={t('common.notFound.title')}
+      body={t('common.notFound.body')}
+      action={<BackHome />}
+      headingLevel={compact ? 2 : 1}
+      compact={compact}
+    />
+  )
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {

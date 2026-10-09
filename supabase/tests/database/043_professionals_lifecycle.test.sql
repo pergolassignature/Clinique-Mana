@@ -582,9 +582,9 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select public.set_professional_payer_number(current_setting('test.p2')::uuid, 'ivac', 'IV-123');
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select is((select array_agg(k order by k) from jsonb_object_keys(public.get_professional_record(current_setting('test.p1')::uuid)) k),
-  array['clienteles', 'language_ids', 'matching_note', 'matching_profile', 'motif_ids', 'payer_numbers', 'professional',
+  array['clienteles', 'language_ids', 'matching_note', 'matching_profile', 'motif_ids', 'payer_numbers', 'photo_file_id', 'professional',
         'professions', 'public_profile', 'readiness'],
-  'the record bundles the professional, its 1:1 rows, its sets and readiness');
+  'the record bundles the professional, its 1:1 rows, its sets, its photo and readiness');
 select ok(not (public.get_professional_record(current_setting('test.p1')::uuid) -> 'professional' ? 'org_id')
           and not (public.get_professional_record(current_setting('test.p1')::uuid) -> 'public_profile' ? 'org_id')
           and not (public.get_professional_record(current_setting('test.p1')::uuid) -> 'matching_profile' ? 'org_id'),

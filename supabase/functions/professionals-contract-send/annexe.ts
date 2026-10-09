@@ -18,10 +18,13 @@
  *   Clinique retient 25 %) »).
  * Every amount is « avant taxes » (P4-18: `TAX_WORDING`, one string to change
  * if the accountant says otherwise). French typography: no-break spaces
- * before « $ » and « % » and as the thousands separator; whole dollars
- * without decimals, cents with a comma.
+ * before « $ » and « % » and as the thousands separator, narrow ones (U+202F,
+ * `NNBSP`) before « : » and inside « » as the template's text gets
+ * (`frenchSpacing`, P4-433 blocks are never filled); whole dollars without
+ * decimals, cents with a comma.
  */
 import { z } from 'zod'
+import { NNBSP } from '../_shared/french.ts'
 import type { Block } from '../_shared/pdf/model.ts'
 
 /** P4-18: the amounts are before taxes. */
@@ -94,6 +97,9 @@ export function durationLabel(duration: number): string {
     : `Rencontre ${duration}${NBSP}min`
 }
 
+/** « text » with narrow no-break spaces inside the guillemets. */
+const quoted = (text: string) => `«${NNBSP}${text}${NNBSP}»`
+
 /** « 0 à 50 séances », « 301 séances et plus ». */
 export function tierLabel(tier: { from: number; to: number | null }): string {
   return tier.to === null
@@ -136,7 +142,7 @@ export function annexeBlocks(terms: AnnexeTerms): Block[] {
     {
       type: 'paragraph',
       runs: [
-        { text: 'Profession : ' },
+        { text: `Profession${NNBSP}: ` },
         { text: terms.title_label, bold: true },
         {
           text:
@@ -161,7 +167,7 @@ export function annexeBlocks(terms: AnnexeTerms): Block[] {
         type: 'paragraph',
         runs: [{
           text:
-            `Honoraires facturés au client par rencontre (${TAX_WORDING}) :`,
+            `Honoraires facturés au client par rencontre (${TAX_WORDING})${NNBSP}:`,
         }],
       },
       {
@@ -176,7 +182,7 @@ export function annexeBlocks(terms: AnnexeTerms): Block[] {
         type: 'paragraph',
         runs: [{
           text:
-            `Montant versé au Professionnel par rencontre (${TAX_WORDING}), selon le nombre cumulatif de séances réalisées avec les clients de la Clinique :`,
+            `Montant versé au Professionnel par rencontre (${TAX_WORDING}), selon le nombre cumulatif de séances réalisées avec les clients de la Clinique${NNBSP}:`,
         }],
       },
       {
@@ -201,7 +207,7 @@ export function annexeBlocks(terms: AnnexeTerms): Block[] {
       decimal(terms.sessions_total)
     } ${sessionsWord}`,
   ]
-  if (current) standing.push(` (palier « ${tierLabel(current)} »)`)
+  if (current) standing.push(` (palier ${quoted(tierLabel(current))})`)
   standing.push('. La Clinique fait le suivi du palier chaque mois.')
   blocks.push({ type: 'paragraph', runs: [{ text: standing.join('') }] })
 
@@ -217,11 +223,11 @@ export function annexeBlocks(terms: AnnexeTerms): Block[] {
       runs: [
         {
           text:
-            'Montant versé à la date du contrat, selon l’entente en vigueur : ',
+            `Montant versé à la date du contrat, selon l’entente en vigueur${NNBSP}: `,
         },
         {
           text: durations.map((d) =>
-            `${durationLabel(d)} : ${cell(payFor(inForce.pay, d))}`
+            `${durationLabel(d)}${NNBSP}: ${cell(payFor(inForce.pay, d))}`
           ).join(' · '),
           bold: true,
         },
@@ -276,7 +282,7 @@ export function annexeSummary(terms: AnnexeTerms): SummaryLine[] {
     {
       label: 'Séances cumulées',
       value: `${decimal(terms.sessions_total)}${
-        current ? ` (palier « ${tierLabel(current)} »)` : ''
+        current ? ` (palier ${quoted(tierLabel(current))})` : ''
       }`,
     },
   ]

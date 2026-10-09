@@ -14,6 +14,7 @@
  * Month names are a fixed table and the time is assembled from numeric parts,
  * so the output does not depend on the runtime's ICU locale data.
  */
+import { LOCAL_HOSTS } from './local.ts'
 
 const MONTHS = [
   'janvier',
@@ -160,8 +161,6 @@ export interface TemplateVariable {
   required: boolean
   kind: 'text' | 'date' | 'datetime' | 'url'
 }
-
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 /** The value at a dot path, through own properties only (never `constructor`, `__proto__`). */
 export function valueAt(

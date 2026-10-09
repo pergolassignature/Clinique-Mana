@@ -115,7 +115,7 @@ set local role service_role;
 select is(public.get_signing_request('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-0000000000a1'),
   jsonb_build_object(
     'id', 'c0000000-0000-0000-0000-0000000000a1', 'module_key', 'core', 'purpose', 'core.signing_test', 'title', 'Document test',
-    'status', 'draft', 'view_permission', 'settings.integrations_manage', 'documenso_document_id', null,
+    'status', 'draft', 'view_permission', 'settings.integrations_manage',
     'envelope_id', 'envelope_41', 'expires_at', null, 'completed_event_at', null, 'last_error', 'provider_unavailable',
     'staged_source_file_id', 'f0000000-0000-0000-0000-000000000002',
     'signers', '[{"role": "professional", "order": 1, "recipient_id": null},
@@ -125,7 +125,7 @@ select is(public.get_signing_request('b0000000-0000-0000-0000-00000000000a', 'c0
             - 'expires_at',
   jsonb_build_object(
     'id', 'c0000000-0000-0000-0000-0000000000a2', 'module_key', 'core', 'purpose', 'core.signing_test', 'title', 'Document test',
-    'status', 'sent', 'view_permission', 'settings.integrations_manage', 'documenso_document_id', null,
+    'status', 'sent', 'view_permission', 'settings.integrations_manage',
     'envelope_id', 'envelope_42', 'completed_event_at', null, 'last_error', null, 'staged_source_file_id', null,
     'signers', '[{"role": "professional", "order": 1, "recipient_id": "201"}]'::jsonb),
   'a sent request: no staged source file; its recipient ids');

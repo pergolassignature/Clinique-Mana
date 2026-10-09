@@ -464,3 +464,24 @@ Deno.test('urls: http://localhost only when the app itself is local', () => {
   assertEquals(urlInput('http://127.0.0.1:5173/x', true).ok, true)
   assertEquals(urlInput('http://evil.test/x', true).ok, false)
 })
+
+Deno.test('renderTemplate: French spacing on the template text (subject, body, button), never on a value', () => {
+  const r = ok({
+    subject: 'Rappel : {{clinic.name}} ?',
+    body:
+      'Bonjour {{ invitee.display_name }} !\n\nCliquez sur « Continuer » ; à 14:30, voir https://a.test/?x=1.',
+    buttonLabel: 'Ouvrir :',
+    values: {
+      clinic: { name: 'Clinique : MANA' },
+      invitee: { display_name: 'Ana ; Côté' },
+    },
+  })
+  const n = '\u202F'
+  assertEquals(r.subject, `Rappel${n}: Clinique : MANA${n}?`)
+  assertEquals(
+    r.text,
+    `Bonjour Ana ; Côté${n}!\n\nCliquez sur «${n}Continuer${n}»${n}; à 14:30, voir https://a.test/?x=1.`,
+  )
+  assertStringIncludes(r.html, `Bonjour Ana ; Côté${n}!</p>`)
+  assertEquals(r.buttonLabel, `Ouvrir${n}:`)
+})

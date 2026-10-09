@@ -154,6 +154,23 @@ Deno.test('authTemplates: the static clinic footer and why line', () => {
   })
 })
 
+Deno.test('authTemplates: French spacing (U+202F before « : »), never a plain space before ? ! ; :', () => {
+  assertStringIncludes(templates.email_change, 'ne cliquez pas\u202F: votre')
+  assertStringIncludes(templates.reauthentication, 'le code suivant\u202F:')
+  assertStringIncludes(templates.recovery, 'copiez ce lien\u202F:')
+  for (const name of AUTH_TEMPLATE_NAMES) {
+    // Visible text only: tags (styles, URLs) and Go placeholders set aside.
+    const text = templates[name].replace(/<[^>]*>/g, ' ').replace(
+      /\{\{[^}]*\}\}/g,
+      ' ',
+    )
+    assertFalse(
+      /[^\s] [?!;:]/.test(text),
+      `${name}: a plain space before a mark`,
+    )
+  }
+})
+
 Deno.test('authTemplates: deterministic output', () => {
   assertEquals(authTemplates(), templates)
 })
