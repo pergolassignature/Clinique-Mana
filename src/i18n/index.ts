@@ -40,9 +40,23 @@ function getNestedValue(obj: unknown, path: string): string {
   return typeof current === 'string' ? current : path
 }
 
+/** A name that takes « d' » / « qu' »: it starts with a vowel or a y. A h never elides (h muet ignored). */
+const ELIDING = /^[aeiouyàâäæéèêëîïôöœùûüÿ]/i
+
+/** « de » before a name: « d'Aurélie », « de Marie », « de Hélène ». */
+export function ofName(name: string): string {
+  return ELIDING.test(name) ? `d'${name}` : `de ${name}`
+}
+
+/** The placeholders that hold a person's name: « de {name} » and « que {firstName} » elide before a vowel. */
+const NAME_PLACEHOLDERS = new Set(['name', 'firstName', 'fullName'])
+
 /**
  * The French text of `key`. `{name}`-style placeholders are replaced from `values`
  * (`t('nav.userMenu', { name: 'Camille' })`); a placeholder without a value stays as written.
+ * « de » / « que » right before a name placeholder (`name`, `firstName`, `fullName`) elide when
+ * the name starts with a vowel: « Fiche de {name} » → « Fiche d'Aurélie Essai », « Ce que
+ * {firstName} a envoyé » → « Ce qu'Aurélie a envoyé » (`ofName`).
  */
 export function t(key: TranslationKey, values?: Record<string, string>): string {
   const dictionary = translations[currentLocale]
@@ -53,7 +67,12 @@ export function t(key: TranslationKey, values?: Record<string, string>): string 
 
   const text = getNestedValue(dictionary, key)
   if (!values) return text
-  return text.replace(/\{(\w+)\}/g, (placeholder, name: string) => (Object.hasOwn(values, name) ? (values[name] ?? placeholder) : placeholder))
+  return text.replace(/(\b(?:de|De|que|Que) )?\{(\w+)\}/g, (placeholder: string, before: string | undefined, name: string) => {
+    const value = Object.hasOwn(values, name) ? values[name] : undefined
+    if (value === undefined) return placeholder
+    if (before && NAME_PLACEHOLDERS.has(name) && ELIDING.test(value)) return `${before.trimEnd().slice(0, -1)}'${value}`
+    return `${before ?? ''}${value}`
+  })
 }
 
 export function useTranslation() {

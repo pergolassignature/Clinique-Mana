@@ -123,13 +123,65 @@ describe('watchFlags: the onboarding (Task 4b.3)', () => {
 describe('recordWatchSubject', () => {
   it('reads the record’s readiness item and warnings, its account and its onboarding', () => {
     const record = recordFixture()
-    expect(recordWatchSubject(record, null)).toEqual({ status: 'draft', matchingComplete: false, emailMatchesLogin: true, hasAccount: false, onboarding: null })
+    expect(recordWatchSubject(record, null)).toEqual({
+      status: 'draft',
+      matchingComplete: false,
+      emailMatchesLogin: true,
+      hasAccount: false,
+      onboarding: null,
+      insuranceStatus: null,
+      insuranceExpiresOn: null,
+    })
     const complete = {
       ...record,
       professional: { ...record.professional, profileId: 'user-1' },
       readiness: { ...record.readiness, items: [{ key: 'matching_profile' as const, done: true, missing: [] }], warnings: ['login_email_mismatch' as const] },
     }
     const onboarding = invited('used')
-    expect(recordWatchSubject(complete, onboarding)).toEqual({ status: 'draft', matchingComplete: true, emailMatchesLogin: false, hasAccount: true, onboarding })
+    expect(recordWatchSubject(complete, onboarding)).toEqual({
+      status: 'draft',
+      matchingComplete: true,
+      emailMatchesLogin: false,
+      hasAccount: true,
+      onboarding,
+      insuranceStatus: null,
+      insuranceExpiresOn: null,
+    })
+  })
+})
+
+describe('watchFlags: the insurance (4c, P4-406)', () => {
+  it('expiring: « Assurance expire le … », its last valid day, danger, after the review', () => {
+    const waiting: Onboarding = { invitation: null, submission: { id: 's1', kind: 'update', status: 'submitted', submittedAt: '2026-10-07T14:00:00Z' }, onboardingApproved: true }
+    expect(watchFlags(subject({ insuranceStatus: 'expiring', insuranceExpiresOn: '2026-10-12', onboarding: waiting }), NOW)).toEqual([
+      { key: 'update_to_review', label: 'Mise à jour à réviser', tone: 'muted' },
+      { key: 'insurance_expiring', label: 'Assurance expire le 12 oct. 2026', tone: 'danger' },
+    ])
+  })
+
+  it('expired: « Assurance expirée depuis le … », the day after its last valid day, first of all', () => {
+    const flags = watchFlags(subject({ insuranceStatus: 'expired', insuranceExpiresOn: '2026-10-05', matchingComplete: false }), NOW)
+    expect(flags[0]).toEqual({ key: 'insurance_expired', label: 'Assurance expirée depuis le 6 oct. 2026', tone: 'danger' })
+    expect(flags.map((f) => f.key)).toEqual(['insurance_expired', 'matching_incomplete'])
+  })
+
+  it('valid, missing, no date or an inactive file: nothing', () => {
+    expect(watchFlags(subject({ insuranceStatus: 'valid', insuranceExpiresOn: '2027-03-31' }), NOW)).toEqual([])
+    expect(watchFlags(subject({ insuranceStatus: 'missing', insuranceExpiresOn: null }), NOW)).toEqual([])
+    expect(watchFlags(subject({ insuranceStatus: 'expired', insuranceExpiresOn: null }), NOW)).toEqual([])
+    expect(watchFlags(subject({ status: 'inactive', insuranceStatus: 'expired', insuranceExpiresOn: '2026-10-05' }), NOW)).toEqual([])
+  })
+
+  it('both flags open « Documents »', () => {
+    expect(WATCH_TAB.insurance_expired).toBe('documents')
+    expect(WATCH_TAB.insurance_expiring).toBe('documents')
+  })
+
+  it('a list row and a record read the same state', () => {
+    const row = { ...listRowFixture(), insuranceStatus: 'expired' as const, insuranceExpiresOn: '2026-10-05' }
+    expect(watchFlags(row, NOW).map((f) => f.key)).toContain('insurance_expired')
+    const record = recordFixture()
+    const withInsurance = { ...record, readiness: { ...record.readiness, insurance: { status: 'expiring' as const, expires_on: '2026-10-12' } } }
+    expect(recordWatchSubject(withInsurance, null)).toMatchObject({ insuranceStatus: 'expiring', insuranceExpiresOn: '2026-10-12' })
   })
 })

@@ -22,3 +22,12 @@ export function ficheFileName(
     Array.from(base).slice(0, MAX_FILE_NAME - 4).join('').trimEnd()
   }.pdf`
 }
+
+/**
+ * « de » before the name, elided before a vowel or a y (never a h): « d'Aurélie Essai »,
+ * « de Marie Tremblay ». The template's `{{professional.of_name}}` (« Fiche d'Aurélie Essai »),
+ * the web app's `ofName` (`src/i18n/index.ts`).
+ */
+export function ofName(name: string): string {
+  return /^[aeiouyàâäæéèêëîïôöœùûüÿ]/i.test(name) ? `d'${name}` : `de ${name}`
+}

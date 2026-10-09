@@ -64,13 +64,13 @@ select results_eq(
 select results_eq(
   $$ select module_key, view_permission, recipient_mode, allows_attachments, button_label, subject
        from public.email_template_defaults where key = 'professionals.fiche' $$,
-  $$ values ('professionals', 'professionals.view', 'free', true, null::text, 'Fiche de {{professional.name}}') $$,
+  $$ values ('professionals', 'professionals.view', 'free', true, null::text, 'Fiche {{professional.of_name}}') $$,
   'professionals.fiche: free recipient, attachments allowed, logged under professionals.view, no button');
 select results_eq(
   $$ select v ->> 'path', (v ->> 'required')::boolean
        from public.email_template_defaults d, jsonb_array_elements(d.variables) v
       where d.key = 'professionals.fiche' order by 1 $$,
-  $$ values ('message', false), ('professional.name', true) $$,
+  $$ values ('message', false), ('professional.name', true), ('professional.of_name', true) $$,
   'professionals.fiche declares the name (required) and an optional message');
 
 -- =============================================================================

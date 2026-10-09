@@ -152,10 +152,9 @@ export function nextAction(
       secondary: copyButton,
     }
   }
-  // The checklist's order: the file's own gaps (identity, matching) before the invitation; the
-  // documents after the onboarding, which collects the photo and the insurance itself.
-  const gap = readinessStep(record, can, (key) => key !== 'documents')
-  if (gap) return gap
+  // A file without an account: the invitation first (P4-501, reverses bb98521's order for these
+  // files). The questionnaire collects the matching profile, the identity and the documents, so
+  // their gaps stay listed in « Dossier » but are not the next step; every branch below returns.
   if (noAccount && invitation && state === 'revoked') return { message: t(`${N}.invitationRevoked`, { firstName }), action: inviteButton }
   if (noAccount && invitation && state === 'used') {
     return { message: t(`${N}.invitationUsedNoAccount`, { firstName, date: shortDate(invitation.usedAt ?? invitation.sentAt, now) }), action: inviteButton }
@@ -180,6 +179,10 @@ export function nextAction(
         return { message: t(`${N}.invitationSent`, { firstName, date }), action: null }
     }
   }
+  // A file with an account (onboarded, imported or activated): its own gaps (identity, matching)
+  // first; the documents after the onboarding, which collects the photo and the insurance itself.
+  const gap = readinessStep(record, can, (key) => key !== 'documents')
+  if (gap) return gap
   if (submission?.status === 'draft') {
     return { message: t(submission.kind === 'onboarding' ? `${N}.questionnaireInProgress` : `${N}.updateInProgress`, { firstName }), action: null }
   }

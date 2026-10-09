@@ -28,7 +28,8 @@ const T = 'modules.professionals.documents.toasts'
 
 // --- Reads ---------------------------------------------------------------------------------------
 
-const documentsQuery = (id: string) =>
+/** The documents' read, shared with the fiche (its photo, P4-202). */
+export const documentsQuery = (id: string) =>
   queryOptions({ queryKey: professionalKeys.documents(id), queryFn: () => fetchProfessionalDocuments(id), staleTime: 30_000 })
 
 /** The Documents tab's one read (`get_professional_documents`): fetched with the tab, or on its hover. */

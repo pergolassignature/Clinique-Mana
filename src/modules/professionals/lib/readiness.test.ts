@@ -8,12 +8,16 @@ import type { ReadinessMissing } from './constants'
 
 const T = (key: Parameters<typeof t>[0]) => t(key)
 
-/** A complete file has an account (`account_created` is one of its items since 4b.1). */
-function withReadiness(missing: ReadinessMissing[], status: ProfessionalRecord['professional']['status'] = 'draft'): ProfessionalRecord {
+/**
+ * A complete file has an account (`account_created` is one of its items since 4b.1). A file with
+ * gaps has one too unless `account` is false: without an account, the invitation comes first
+ * (P4-501), so the gaps are tested on an onboarded, imported or activated file.
+ */
+function withReadiness(missing: ReadinessMissing[], status: ProfessionalRecord['professional']['status'] = 'draft', account = true): ProfessionalRecord {
   const record = recordFixture()
   return {
     ...record,
-    professional: { ...record.professional, status, profileId: missing.length === 0 ? 'user-1' : null },
+    professional: { ...record.professional, status, profileId: account ? 'user-1' : null },
     readiness: { ...record.readiness, complete: missing.length === 0, done: missing.length === 0 ? 1 : 0, items: [{ key: 'matching_profile', done: missing.length === 0, missing }] },
   }
 }
@@ -144,7 +148,7 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
   })
 
   it('an expired link comes before the matching gaps, with « Envoyer un nouveau lien »', () => {
-    const gaps = { ...withReadiness(['motif'], 'invited') }
+    const gaps = { ...withReadiness(['motif'], 'invited', false) }
     expect(nextAction(gaps, invitation('expired'), can(...INVITE), NOW)).toEqual({
       message: t(`${N}.invitationExpired`, { date: '15 oct.' }),
       action: { kind: 'invite', label: "Envoyer un nouveau lien", action: 'new_link' },
@@ -179,7 +183,7 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
       secondary: { kind: 'copyLink', label: "Copier le lien d'invitation" },
     })
     // Before the matching gaps, as an expired link.
-    expect(nextAction(withReadiness(['motif'], 'invited'), failed, can(...INVITE), NOW).message).toMatch(/^Le courriel d'invitation du 8 oct\. n'est pas parti/)
+    expect(nextAction(withReadiness(['motif'], 'invited', false), failed, can(...INVITE), NOW).message).toMatch(/^Le courriel d'invitation du 8 oct\. n'est pas parti/)
     const bounced = nextAction(onboardingFile(), invitation('sent', { emailStatus: 'bounced' }), can(...INVITE), NOW)
     expect(bounced.message).toMatch(/n'est pas parti.*L'adresse a refusé le courriel\.$/)
     // Without professionals.invite: the sentence, no button.
@@ -203,7 +207,19 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
     )
   })
 
-  it('matching gaps come before an invitation not yet sent', () => {
+  it('without an account, the invitation comes before the matching and identity gaps (P4-501)', () => {
+    const send = { kind: 'invite', label: "Envoyer l'invitation", action: 'send' }
+    for (const missing of [['motif'], ['licence', 'clientele']] as ReadinessMissing[][]) {
+      expect(nextAction(withReadiness(missing, 'draft', false), null, can(...INVITE, 'professionals.manage', 'professionals.matching'), NOW)).toEqual({
+        message: t(`${N}.notInvited`, { firstName: 'Marie' }),
+        action: send,
+      })
+    }
+    // Once sent, the file waits for the professional, whose questionnaire fills the gaps.
+    expect(nextAction(withReadiness(['motif'], 'invited', false), invitation('sent'), can(...INVITE), NOW).message).toBe(
+      t(`${N}.invitationSent`, { firstName: 'Marie', date: '8 oct.' }),
+    )
+    // With an account (onboarded, imported, activated), the gaps stay first.
     expect(nextAction(withReadiness(['motif'], 'draft'), null, can(...INVITE), NOW).message).toBe(t(`${N}.completeMatching`))
   })
 

@@ -187,9 +187,16 @@ describe('listRowPayload', () => {
       emailMatchesLogin: true,
       createdAt: '2026-10-08T12:00:00+00:00',
       updatedAt: '2026-10-08T12:00:00+00:00',
+      insuranceStatus: null,
+      insuranceExpiresOn: null,
       // Joined by the list page from list_professional_invitation_states (P4-270).
       onboarding: null,
     })
+  })
+
+  it('reads the insurance columns (4c.2) for « À surveiller »', () => {
+    const row = parseRpc(listRowPayload, { ...LIST_ROW_JSON, insurance_status: 'expiring', insurance_expires_on: '2026-10-12' })
+    expect(row).toMatchObject({ insuranceStatus: 'expiring', insuranceExpiresOn: '2026-10-12' })
   })
 
   it('reads a missing matching profile as not accepting new clients', () => {

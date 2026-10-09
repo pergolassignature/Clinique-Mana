@@ -10,7 +10,7 @@
 -- expire_notifications; audit and history.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(124);
+select plan(127);
 
 -- The HINT of the error p_sql raises (null when none): throws_ok checks code and message only.
 create function private.test_error_hint(p_sql text) returns text
@@ -505,6 +505,10 @@ select results_eq($$ select d.insurance_status, l.insurance_status, l.insurance_
                       where d.id = 'c0000000-0000-0000-0000-000000000001' $$,
   $$ values ('expiring'::text, 'expiring'::text, current_setting('test.today')::date + 3, 3, 3) $$,
   'within the reminder days: expiring (directory and list), still valid for readiness');
+-- The record's readiness carries the same state (*_professionals_readiness_insurance.sql).
+select is(public.get_professional_readiness('c0000000-0000-0000-0000-000000000001') -> 'insurance',
+  pg_catalog.jsonb_build_object('status', 'expiring', 'expires_on', current_setting('test.today')::date + 3),
+  'readiness: the insurance expiring, with its last day');
 reset role;
 update public.professional_documents set expires_on = current_setting('test.today')::date - 1 where id = current_setting('test.d_ins1')::uuid;
 set local role authenticated;
@@ -513,6 +517,11 @@ select results_eq($$ select d.insurance_status, r.insurance_ok, r.documents_miss
                       where d.id = 'c0000000-0000-0000-0000-000000000001' $$,
   $$ values ('expired'::text, false, array['insurance_expired']::text[], false) $$,
   'past its last day (even before the job marks it): expired, and readiness says so');
+select is(public.get_professional_readiness('c0000000-0000-0000-0000-000000000001') -> 'insurance',
+  pg_catalog.jsonb_build_object('status', 'expired', 'expires_on', current_setting('test.today')::date - 1),
+  'readiness: the insurance expired, with its last day');
+select is(public.get_professional_readiness('c0000000-0000-0000-0000-000000000004') -> 'insurance',
+  '{"status": "missing", "expires_on": null}'::jsonb, 'readiness: no insurance at all');
 select is((select insurance_status from public.professionals_directory where id = 'c0000000-0000-0000-0000-000000000004'), 'missing',
   'no insurance at all: missing');
 select is(public.get_professional_readiness('c0000000-0000-0000-0000-000000000004') -> 'items' -> 3 -> 'missing',

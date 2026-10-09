@@ -85,7 +85,7 @@ export function RetentionGridsCard({ titles, grids }: RetentionGridsCardProps) {
                 <GridDialog titleId={title.id} titleName={title.name} series={series} />
               </div>
               {series.length > 0 && (
-                <Disclosure label={<span className="text-sm">{t(`${G}.details`, { count: String(series.length) })}</span>}>
+                <Disclosure label={<span className="text-sm">{series.length === 1 ? t(`${G}.detailsOne`) : t(`${G}.details`, { count: String(series.length) })}</span>}>
                   <div className="space-y-3">
                     {series.map((version) => (
                       <div key={version.id} className="rounded-md border border-border-light p-3">

@@ -224,7 +224,7 @@
     "forbidden": "Accès refusé",
     "account": "Mon compte"
   },
-  "home": { "title": "Bienvenue", "body": "Les modules s'ajoutent ici au fur et à mesure qu'ils sont activés." },
+  "home": { "title": "Bienvenue", "body": "Ce qui demande votre attention s'affiche ici." },
   "storage": {
     "dropzone": {
       "drop": "Glissez un fichier ici, ou",
@@ -322,7 +322,7 @@
     "downloads": {
       "groupLabel": "Téléchargements du document signé",
       "certificate": "Télécharger le certificat et le journal",
-      "sealed": "PDF complet scellé (preuve)",
+      "sealed": "Télécharger le PDF complet scellé (preuve)",
       "sealedHelp": "Seul le PDF complet scellé porte la signature numérique de Documenso : c'est la preuve à conserver.",
       "working": "Préparation…",
       "noCertificate": "Ce PDF signé ne contient ni certificat ni journal de signature.",
@@ -700,7 +700,7 @@
       },
       "unverified": {
         "title": "Demandes non vérifiées",
-        "description": "Ces demandes n'ont pas pu être vérifiées auprès de Documenso depuis plus de 6 heures. Si l'une d'elles a été signée, le document n'existe peut-être que sur la VM Documenso, qui n'est pas sauvegardée. Si toutes les demandes en cours sont ici, vérifiez la connexion : l'adresse, la clé d'API ou l'instance n'est peut-être pas la bonne.",
+        "description": "Ces demandes n'ont pas pu être vérifiées auprès de Documenso depuis plus de 6 heures. Si l'une d'elles a été signée, le document n'existe peut-être que sur le serveur de signature (Documenso), qui n'est pas sauvegardé. Si toutes les demandes en cours sont ici, vérifiez la connexion : l'adresse, la clé d'API ou l'instance n'est peut-être pas la bonne.",
         "loadError": "Impossible de charger les demandes non vérifiées.",
         "hiddenTitle": "Demande du module {module} (vous ne pouvez pas la consulter)",
         "lastSuccess": "Dernière vérification réussie",
@@ -1330,7 +1330,9 @@
         "invitation_not_sent": "Courriel d'invitation non parti",
         "invitation_unknown": "Invitation : résultat inconnu",
         "matching_incomplete": "Profil de jumelage incomplet",
-        "login_email_mismatch": "Courriel de connexion différent"
+        "login_email_mismatch": "Courriel de connexion différent",
+        "insurance_expiring": "Assurance expire le {date}",
+        "insurance_expired": "Assurance expirée depuis le {date}"
       },
       "onboarding": {
         "actions": {
@@ -1408,13 +1410,13 @@
           "revoking": "Révocation…"
         },
         "copyLink": {
-          "title": "Copier le lien d'invitation de {name} ?",
+          "title": "Copier le lien d'invitation pour {name} ?",
           "body": "Un nouveau lien sera créé pour {firstName}, sans courriel : vous le lui transmettez vous-même (texto, votre propre courriel…).",
           "previous": "Le lien du {sent} ne fonctionnera plus.",
           "confirm": "Créer le lien",
           "creating": "Création…",
-          "readyTitle": "Lien d'invitation de {name}",
-          "warning": "Ce lien permet de créer l'accès de {firstName}. Ne le transmettez qu'à cette personne. Il expire le {date}.",
+          "readyTitle": "Lien d'invitation pour {name}",
+          "warning": "Ce lien permet à {firstName} de créer son accès. Ne le transmettez qu'à cette personne. Il expire le {date}.",
           "once": "Le lien ne sera plus affiché une fois cette fenêtre fermée : pour en obtenir un autre, créez-en un nouveau.",
           "label": "Lien d'invitation",
           "copy": "Copier",
@@ -1967,6 +1969,20 @@
               "sentBack": "a renvoyé la mise à jour du profil pour correction",
               "cancelled": "a fermé la demande de mise à jour sans l'appliquer"
             }
+          },
+          "document": {
+            "named": "le document « {type} »",
+            "unnamed": "un document",
+            "uploaded": "a téléversé {doc}",
+            "fromQuestionnaire": "a ajouté {doc} depuis le questionnaire",
+            "fromSignature": "a conservé au dossier {doc} (consentement signé électroniquement)",
+            "verified": "a vérifié {doc}",
+            "rejected": "a refusé {doc} (raison : {reason})",
+            "rejectedNoReason": "a refusé {doc}",
+            "expired": "a noté que {doc} est échu",
+            "expiry": "a modifié l'échéance du document « {type} » au {date}",
+            "expiryUnnamed": "a modifié l'échéance d'un document au {date}",
+            "deleted": "a supprimé {doc}"
           },
           "consent": {
             "recorded": "a enregistré le consentement au droit à l'image",
@@ -2805,7 +2821,8 @@
             "summary": "De {first} à {floor} (dès {tier})",
             "none": "Aucune grille : les professionnels de cette profession sont « Profession à confirmer ».",
             "coming": "Nouvelle version dès le {date}.",
-            "details": "Paliers et prix ({count} version(s))",
+            "details": "Paliers et prix ({count} versions)",
+            "detailsOne": "Paliers et prix (1 version)",
             "range": "{from} à {to}",
             "rangeOpen": "{from} et plus",
             "sessions": "Séances cumulées",
@@ -3091,8 +3108,8 @@
           "retention": "Retenue",
           "status": "Statut / décision"
         },
-        "long": "50/60",
-        "short": "30",
+        "long": "Séances de 50/60 min",
+        "short": "Séances de 30 min",
         "halfHint": "30 min = ½ séance",
         "longLabel": "Séances de 50/60 min — {name}",
         "shortLabel": "Séances de 30 min — {name}",
@@ -3106,6 +3123,9 @@
         "newTierLong": "nouveau palier ce mois-ci",
         "retentionChange": "{from} actuellement, {to} proposé par la grille",
         "retentionFirst": "aucune retenue fixée, {to} proposé par la grille",
+        "retentionMove": "Passe de {from} à {to}",
+        "retentionNone": "Aucun taux · {to} proposé",
+        "noRate": "Aucun taux",
         "grid": "Grille : {rate}",
         "startsOn": "Dès le {date}",
         "comesBack": "Revient au prochain palier ({count})",
@@ -3322,6 +3342,7 @@
         "ownFile": "C'est votre propre dossier : une autre personne autorisée vérifie, refuse ou supprime vos documents.",
         "state": {
           "validUntil": "Valide jusqu'au {date}",
+          "signedValidUntil": "Signé le {date} · valide jusqu'au {until}",
           "verified": "Vérifié",
           "expiring": "Expire le {date}",
           "expiredOn": "Expiré : valide jusqu'au {date}",
@@ -3340,6 +3361,7 @@
         "lines": {
           "uploadedByClinic": "Téléversé le {date} par la clinique",
           "signedElectronically": "Signé électroniquement le {date} (Documenso)",
+          "signedPdf": "PDF signé électroniquement (Documenso)",
           "uploadedByProfessional": "Téléversé le {date} par {firstName}",
           "uploadedByYou": "Téléversé le {date} par vous",
           "uploadedForYou": "Téléversé le {date} par la clinique",
@@ -3488,7 +3510,8 @@
           "none": "Aucun contrat",
           "sending": "Envoi en cours",
           "stalled": "L'envoi n'a pas abouti",
-          "stalledDetail": "L'envoi s'est arrêté sans réponse de Documenso. Réessayez l'envoi ou régénérez le contrat."
+          "stalledDetail": "L'envoi s'est arrêté sans réponse de Documenso. Réessayez l'envoi ou régénérez le contrat.",
+          "awaitingClinic": "Signé par {name} · en attente de la signature de la clinique"
         },
         "version": "Modèle, version {version}",
         "none": "Aucun contrat de service n'a encore été envoyé à {firstName}.",
@@ -3690,6 +3713,7 @@
           "matching": "Profil de jumelage",
           "matchingHelp": "Ce qui aide la clinique à vous proposer des clients qui vous correspondent.",
           "taxBankHelp": "Le numéro de compte et le NAS ne s'affichent jamais en entier.",
+          "taxBankHelpNoSin": "Le numéro de compte ne s'affiche jamais en entier.",
           "documents": "Documents"
         },
         "masks": {
@@ -3969,6 +3993,7 @@
         },
         "taxBank": {
           "privacy": "Le numéro de compte et le NAS sont chiffrés dès l'enregistrement. Ils ne s'affichent plus jamais en entier.",
+          "privacyNoSin": "Le numéro de compte est chiffré dès l'enregistrement. Il ne s'affiche plus jamais en entier.",
           "onFileError": "Impossible d'afficher les renseignements déjà fournis.",
           "errors": {
             "network": "Vos renseignements n'ont pas été enregistrés. Vérifiez votre connexion, puis réessayez.",

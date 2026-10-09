@@ -69,6 +69,23 @@ describe('contractProgress (« Prochaine action »)', () => {
   })
 })
 
+describe('contractStateLabel: the professional signed, the clinic not yet', () => {
+  const signers = (clinic: { signed_at: string | null; rejected_at: string | null }) => [
+    { role: 'professional', name: 'Marie Tremblay', status: 'signed', signing_order: 1, viewed_at: null, signed_at: '2026-10-09T13:05:00+00:00', rejected_at: null },
+    { role: 'clinic', name: 'Dominique Exemple', status: 'pending', signing_order: 2, viewed_at: null, ...clinic },
+  ]
+  it('reads « Signé par … · en attente de la signature de la clinique », never « Consulté »', () => {
+    const request = parsedContract(contractJson(requestJson({ status: 'viewed', signers: signers({ signed_at: null, rejected_at: null }) }))).request
+    expect(contractStateLabel(request).label).toBe('Signé par Marie Tremblay · en attente de la signature de la clinique')
+  })
+  it('core’s words otherwise: before the professional signs, or once the clinic has refused', () => {
+    const viewed = parsedContract(contractJson(requestJson({ status: 'viewed' }))).request
+    expect(contractStateLabel(viewed).label).not.toContain('Signé par')
+    const refused = parsedContract(contractJson(requestJson({ status: 'viewed', signers: signers({ signed_at: null, rejected_at: '2026-10-09T14:00:00+00:00' }) }))).request
+    expect(contractStateLabel(refused).label).not.toContain('Signé par')
+  })
+})
+
 describe('contractButtons (P4-436: sending needs contracts.send and compensation)', () => {
   it('offers « Préparer et envoyer » for no contract', () => {
     expect(words('none', parsedRequest())).toEqual([t(`${A}.send`)])

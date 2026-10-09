@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertFalse } from '@std/assert'
 import { createHandler } from './handler.ts'
-import { ficheFileName } from './file-name.ts'
+import { ficheFileName, ofName } from './file-name.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { fakeFetch, type Responder } from '../_shared/testing/fake-fetch.ts'
 import {
@@ -35,9 +35,9 @@ const FICHE_CONTEXT = emailContextFixture({
   module_key: 'professionals',
   template: {
     key: 'professionals.fiche',
-    subject: 'Fiche de {{professional.name}}',
+    subject: 'Fiche {{professional.of_name}}',
     body:
-      'Bonjour,\n{{message}}\n\nVoici la fiche de {{professional.name}}, en pièce jointe.\n\nRépondez simplement à ce courriel.',
+      'Bonjour,\n{{message}}\n\nVoici la fiche {{professional.of_name}}, en pièce jointe.\n\nRépondez simplement à ce courriel.',
     button_label: null,
     why_line:
       'Vous recevez ce courriel parce que la clinique vous transmet la fiche d’un professionnel.',
@@ -46,6 +46,13 @@ const FICHE_CONTEXT = emailContextFixture({
         path: 'professional.name',
         label: 'Nom',
         sample: 'Geneviève Tremblay',
+        required: true,
+        kind: 'text',
+      },
+      {
+        path: 'professional.of_name',
+        label: '« de » et le nom',
+        sample: 'de Geneviève Tremblay',
         required: true,
         kind: 'text',
       },
@@ -540,4 +547,12 @@ Deno.test('ficheFileName: « Fiche - Prénom Nom.pdf », safe for an attachment'
   const long = ficheFileName({ firstName: 'Anne'.repeat(30), lastName: 'Roy' })
   assertEquals(Array.from(long).length, 100)
   assert(/^[\p{L}\p{N}][\p{L}\p{N} '’()._-]{0,95}\.pdf$/iu.test(long))
+})
+
+Deno.test('ofName: « d’ » before a vowel or a y, « de » otherwise (a h included)', () => {
+  assertEquals(ofName('Aurélie Essai'), "d'Aurélie Essai")
+  assertEquals(ofName('Émilie Roy'), "d'Émilie Roy")
+  assertEquals(ofName('Yves Côté'), "d'Yves Côté")
+  assertEquals(ofName('Geneviève Tremblay'), 'de Geneviève Tremblay')
+  assertEquals(ofName('Hélène Roy'), 'de Hélène Roy')
 })

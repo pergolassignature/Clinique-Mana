@@ -247,6 +247,32 @@ describe('MyDocumentsPage — her own documents', () => {
     expect(await screen.findByText(/^Signé le .* · valide jusqu'au 8 octobre 2027$/)).toBeInTheDocument()
   })
 
+  it('a consent signed through Documenso and on file says its dates once: « Signé le … · valide jusqu’au … »', async () => {
+    mocks.consentSign.fetchMyImageConsent.mockResolvedValue({
+      available: true,
+      validUntil: '2027-10-08',
+      request: { status: 'signed', lastError: null, sentAt: '2026-10-08T14:00:00Z', completedAt: '2026-10-08T14:05:00Z', signedAt: '2026-10-08T14:05:00Z' },
+    })
+    const signed = documentJson({
+      id: '00000000-0000-4000-8000-0000000c0c01',
+      type_id: IDS.consentType,
+      type_key: 'image_consent',
+      expires_on: '2027-10-08',
+      uploaded_at: '2026-10-08T14:05:00+00:00',
+      uploaded_by_self: false,
+      reviewed_at: null,
+      reviewed_by_name: null,
+      signature_request_id: '00000000-0000-4000-8000-00000000c501',
+      file: { id: '00000000-0000-4000-8000-0000000c0c02', name: 'consentement.pdf', mime_type: 'application/pdf', size_bytes: 40_960 },
+    })
+    renderPage(documentsFixture({ consent: null, documents: [PHOTO_JSON, documentJson(), signed] }))
+    await loaded()
+    expect(await screen.findAllByText(/Signé le .* · valide jusqu'au 8 octobre 2027/)).toHaveLength(1)
+    expect(screen.getByText(t(`${D}.lines.signedPdf`))).toBeInTheDocument()
+    expect(screen.queryByText(/^Valide jusqu'au 8 octobre 2027$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Signé électroniquement le/)).not.toBeInTheDocument()
+  })
+
   it('an account without a professional file: says so', async () => {
     renderPage(null)
     expect(await screen.findByText(t(`${M}.noFile.title`))).toBeInTheDocument()

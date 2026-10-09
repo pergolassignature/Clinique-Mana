@@ -192,10 +192,14 @@ export function annexeBlocks(terms: AnnexeTerms): Block[] {
     )
   }
 
+  // French: singular below 2 (« 0 séance cumulée », « 1,5 séance cumulée »), plural from 2.
+  const sessionsWord = terms.sessions_total < 2
+    ? 'séance cumulée'
+    : 'séances cumulées'
   const standing: string[] = [
     `À la date du contrat, le Professionnel compte ${
       decimal(terms.sessions_total)
-    } séances cumulées`,
+    } ${sessionsWord}`,
   ]
   if (current) standing.push(` (palier « ${tierLabel(current)} »)`)
   standing.push('. La Clinique fait le suivi du palier chaque mois.')

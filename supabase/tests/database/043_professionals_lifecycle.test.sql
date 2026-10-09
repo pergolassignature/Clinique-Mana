@@ -194,14 +194,14 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select results_eq($$ select r.matching_complete, r.ready from public.professionals_readiness r where r.professional_id = current_setting('test.p1')::uuid $$,
   $$ values (false, false) $$, 'P1 (title, licence, French) is not ready');
-select is(public.get_professional_readiness(current_setting('test.p1')::uuid),
+select is(public.get_professional_readiness(current_setting('test.p1')::uuid) - 'insurance',
   '{"complete": false, "done": 1, "total": 5, "items": [{"key": "matching_profile", "done": false, "missing": ["clientele", "motif"]},
     {"key": "account_created", "done": false, "missing": []}, {"key": "submission_approved", "done": false, "missing": []},
     {"key": "documents", "done": true, "missing": []}, {"key": "contract_signed", "done": false, "missing": []}], "warnings": []}'::jsonb,
   'P1 misses a clientèle and a motif, an account, an approved questionnaire (4b.1) and a signed contract (4d.1); no document is required here (4c.2)');
 select is(public.get_professional_readiness(current_setting('test.p4')::uuid) -> 'items' -> 0 -> 'missing',
   '["profession", "clientele", "motif"]'::jsonb, 'without a title, the profession is missing too');
-select is(public.get_professional_readiness(current_setting('test.p2')::uuid),
+select is(public.get_professional_readiness(current_setting('test.p2')::uuid) - 'insurance',
   '{"complete": true, "done": 5, "total": 5, "items": [{"key": "matching_profile", "done": true, "missing": []},
     {"key": "account_created", "done": true, "missing": []}, {"key": "submission_approved", "done": true, "missing": []},
     {"key": "documents", "done": true, "missing": []}, {"key": "contract_signed", "done": true, "missing": []}], "warnings": []}'::jsonb,
@@ -251,7 +251,7 @@ update public.motifs set is_active = true, is_restricted = false where id = curr
 -- The login address differs from the professional's email (sync conflict): a warning, not a gap.
 update public.professionals set email = 'pia.autre@exemple.ca' where id = current_setting('test.p2')::uuid;
 set local role authenticated;
-select is(public.get_professional_readiness(current_setting('test.p2')::uuid) - 'items',
+select is(public.get_professional_readiness(current_setting('test.p2')::uuid) - 'items' - 'insurance',
   '{"complete": true, "done": 5, "total": 5, "warnings": ["login_email_mismatch"]}'::jsonb,
   'a login email mismatch is a warning; the file stays complete');
 select is((select l.email_matches_login from public.professionals_list l where l.id = current_setting('test.p2')::uuid), false,

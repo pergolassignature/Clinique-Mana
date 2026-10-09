@@ -36,7 +36,7 @@ $$, $$ values
 $$, 'the reconcile runs hourly at :50; the alert is an hourly SQL maintenance job at :55');
 
 select results_eq($$
-  select key, label, description like '%n''est pas sauvegardée%'
+  select key, label, description like '%n''est pas sauvegardé%'
     from public.scheduled_jobs where key in ('core.signing_reconcile', 'core.signing_unsaved_alert') order by key
 $$, $$ values ('core.signing_reconcile'::text, 'Suivi des signatures électroniques'::text, true),
               ('core.signing_unsaved_alert', 'Alerte : documents signés non sauvegardés', true) $$,

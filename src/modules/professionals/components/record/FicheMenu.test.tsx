@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   fetchPublicFees: vi.fn(),
   fetchOrganization: vi.fn(),
   fetchProfessionalsSettings: vi.fn(),
+  fetchProfessionalDocuments: vi.fn(),
   toastError: vi.fn(),
 }))
 vi.mock('../../pdf/generate-fiche-pdf', () => ({ renderFichePdf: mocks.renderFichePdf }))
@@ -22,6 +23,10 @@ vi.mock('@/shared/lib/files', async (importOriginal) => ({ ...(await importOrigi
 vi.mock('../../api/fiche', () => ({ markFicheGenerated: mocks.markFicheGenerated, fetchPublicFees: mocks.fetchPublicFees }))
 vi.mock('@/core/settings/organization/api', () => ({ fetchOrganization: mocks.fetchOrganization }))
 vi.mock('../../api/settings', () => ({ fetchProfessionalsSettings: mocks.fetchProfessionalsSettings }))
+vi.mock('../../api/documents', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/documents')>()),
+  fetchProfessionalDocuments: mocks.fetchProfessionalDocuments,
+}))
 vi.mock('@/shared/ui/sonner', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/shared/ui/sonner')>()),
   toast: { error: mocks.toastError, success: vi.fn() },
@@ -42,6 +47,7 @@ function renderMenu(record: ProfessionalRecord = recordWithStatus('active', true
   mocks.renderFichePdf.mockResolvedValue(PDF)
   mocks.markFicheGenerated.mockResolvedValue(undefined)
   mocks.fetchPublicFees.mockResolvedValue(FEES)
+  mocks.fetchProfessionalDocuments.mockResolvedValue(null)
   return renderRecordTab(<FicheMenu />, { record, role: 'counselor' })
 }
 
@@ -64,11 +70,31 @@ describe('FicheMenu', () => {
         fees: FEES,
         // The clinic's render options, from the module settings (P4-353).
         options: { showProContact: false, showClinicFooter: true, showClosing: true },
+        // No verified photo: the initials (P4-202).
+        photoFileId: null,
       }),
     )
     expect(mocks.saveBlob).toHaveBeenCalledWith(PDF, 'Fiche - Marie Tremblay.pdf')
     const [saved, stamped] = [mocks.saveBlob.mock.invocationCallOrder[0], mocks.markFicheGenerated.mock.invocationCallOrder[0]]
     expect(saved).toBeLessThan(stamped ?? 0)
+  })
+
+  it('prints the newest verified photo (P4-202); an unreadable one leaves the initials, never a failed fiche', async () => {
+    renderMenu()
+    mocks.fetchProfessionalDocuments.mockResolvedValue({ professionalId: IDS.professional, today: '2026-10-09', photo: { documentId: 'doc-photo', fileId: 'file-photo' }, documents: [], consent: null, staged: [] })
+    await open()
+    await userEvent.click(await screen.findByRole('menuitem', { name: t(`${M}.download`) }))
+    await waitFor(() => expect(mocks.renderFichePdf).toHaveBeenCalledWith(expect.objectContaining({ photoFileId: 'file-photo' })))
+    expect(mocks.fetchProfessionalDocuments).toHaveBeenCalledWith(IDS.professional)
+  })
+
+  it('a failed read of the documents still makes the fiche, without the photo', async () => {
+    renderMenu()
+    mocks.fetchProfessionalDocuments.mockRejectedValue(new Error('network'))
+    await open()
+    await userEvent.click(await screen.findByRole('menuitem', { name: t(`${M}.download`) }))
+    await waitFor(() => expect(mocks.renderFichePdf).toHaveBeenCalledWith(expect.objectContaining({ photoFileId: null })))
+    expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
   it('offers one download per title when there are two, the primary first', async () => {

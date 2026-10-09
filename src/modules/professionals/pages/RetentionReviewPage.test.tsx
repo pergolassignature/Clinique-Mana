@@ -142,7 +142,7 @@ describe('RetentionReviewPage (P4-190)', () => {
     expect(un).toHaveTextContent('51 à 100 séances')
     expect(un).toHaveTextContent('nouveau')
     // jest-dom reads a no-break space as a space.
-    expect(un).toHaveTextContent('28 % → 27,5 %')
+    expect(un).toHaveTextContent('Passe de 28 % à 27,5 %')
     expect(un).toHaveTextContent(t(`${W}.status.newTier`))
     expect(within(un).getByRole('button', decide(`Appliquer ${pct('27,5')}`, 'Paul Un'))).toHaveTextContent('Appliquer 27,5 %')
     expect(within(un).getByRole('button', decide(`Maintenir ${pct('28')}`, 'Paul Un'))).toBeInTheDocument()
@@ -173,7 +173,7 @@ describe('RetentionReviewPage (P4-190)', () => {
     expect(isa).toHaveTextContent(t(`${W}.status.noRate`))
     expect(isa).not.toHaveTextContent(t(`${W}.status.newTier`))
     expect(isa).not.toHaveClass('bg-warning/10')
-    expect(isa).toHaveTextContent('— → 30 %')
+    expect(isa).toHaveTextContent('Aucun taux · 30 % proposé')
     expect(within(isa).getByRole('button', decide('Autre taux…', 'Isa Quatre'))).toBeInTheDocument()
     await userEvent.click(within(isa).getByRole('button', decide(`Fixer à ${pct('30')}`, 'Isa Quatre')))
     const dialog = screen.getByRole('dialog', { name: `Fixer à ${pct('30')} — Isa Quatre` })

@@ -23,7 +23,7 @@ const S = 'modules.professionals.consentSign'
  * opens Documenso's page inside this one (`EmbeddedSigning`, with its fallback). Back from the full
  * signing page (`?consentement=signe`), the signature is synced at once.
  */
-export function ConsentSigning({ back, variant }: { back: SigningReturn; variant: 'step' | 'documents' }) {
+export function ConsentSigning({ back, variant, cardSaysInForce = false }: { back: SigningReturn; variant: 'step' | 'documents'; cardSaysInForce?: boolean }) {
   const consent = useMyImageConsent()
   const signing = useConsentSigning(back)
   const [params, setParams] = useSearchParams()
@@ -70,10 +70,13 @@ export function ConsentSigning({ back, variant }: { back: SigningReturn; variant
     const signed = data.request?.status === 'signed' && data.request.signedFileId ? data.request : null
     return (
       <div className="space-y-2">
-        <p role="status" className="flex items-start gap-2 text-sm text-foreground">
-          <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
-          <span>{inForce}</span>
-        </p>
+        {/* « Mes documents »: once the signed PDF is on file, the card's state line already reads it. */}
+        {!cardSaysInForce && (
+          <p role="status" className="flex items-start gap-2 text-sm text-foreground">
+            <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
+            <span>{inForce}</span>
+          </p>
+        )}
         {signed && (
           // Core's downloads (P4-500): « Consentement au droit à l'image - Prénom Nom - signé le … ».
           <SignedDocumentDownloads
