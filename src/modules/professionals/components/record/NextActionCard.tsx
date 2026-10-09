@@ -6,9 +6,10 @@ import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { useProfessionalContract } from '../../hooks/use-contracts'
 import { contractProgress } from '../../lib/contract'
-import { nextAction } from '../../lib/readiness'
+import { nextAction, type NextActionButton } from '../../lib/readiness'
 import type { InviteAction } from '../../lib/onboarding'
 import { ActivateDialog } from './ActivateDialog'
+import { CopyInvitationLinkDialog } from './CopyInvitationLinkDialog'
 import { InvitationDialog } from './InvitationDialog'
 import { useRecordData } from './record-context'
 import { focusAfterClose } from './status-dialog'
@@ -17,8 +18,10 @@ import { TabLink } from './TabLink'
 /**
  * Aperçu « Prochaine action »: one sentence and at most one small outline button (`nextAction`):
  * a link to the tab that fixes the first gap, « Activer » / « Réactiver » (the header's dialog,
- * P4-74), « Envoyer l'invitation » / « Envoyer un nouveau lien » (the invitation's confirmation),
- * or « Réviser le profil » (a link to `REVIEW_TAB`, « Documents », where the review sheet opens).
+ * P4-74), « Envoyer l'invitation » / « Envoyer un nouveau lien » / « Renvoyer l'invitation » (the
+ * invitation's confirmation), or « Réviser le profil » (a link to `REVIEW_TAB`, « Documents »,
+ * where the review sheet opens); beside it, when the email did not leave, « Copier le lien
+ * d'invitation » (P4-490, P4-491).
  */
 export function NextActionCard() {
   const { record, onboarding, focusHeading } = useRecordData()
@@ -31,10 +34,13 @@ export function NextActionCard() {
   const contractItem = readiness.items.find((i) => i.key === 'contract_signed')
   const contractLast = !readiness.complete && contractItem !== undefined && !contractItem.done && readiness.items.every((i) => i === contractItem || i.done)
   const contract = useProfessionalContract(record.professional.id, contractLast)
-  const { message, action } = nextAction(record, onboarding, can, now, user_id, contractLast ? contractProgress(contract.data, now) : null)
-  const [dialog, setDialog] = useState<'activate' | InviteAction | null>(null)
+  const { message, action, secondary } = nextAction(record, onboarding, can, now, user_id, contractLast ? contractProgress(contract.data, now) : null)
+  const [dialog, setDialog] = useState<'activate' | 'copyLink' | InviteAction | null>(null)
   const button = useRef<HTMLButtonElement>(null)
-  const restoreFocus = (event: Event) => focusAfterClose(event, [button.current], focusHeading)
+  const secondaryButton = useRef<HTMLButtonElement>(null)
+  const opener = dialog === 'copyLink' ? [secondaryButton, button] : [button, secondaryButton]
+  const restoreFocus = (event: Event) => focusAfterClose(event, opener.map((b) => b.current), focusHeading)
+  const open = (b: NextActionButton) => setDialog(b.kind === 'invite' ? b.action : b.kind === 'copyLink' ? 'copyLink' : 'activate')
   return (
     <Card className="min-w-0">
       <CardHeader>
@@ -49,20 +55,25 @@ export function NextActionCard() {
             </TabLink>
           </Button>
         )}
-        {(action?.kind === 'activate' || action?.kind === 'invite') && (
-          <Button
-            ref={button}
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={() => setDialog(action.kind === 'invite' ? action.action : 'activate')}
-          >
-            {action.label}
-          </Button>
+        {(action?.kind === 'activate' || action?.kind === 'invite' || action?.kind === 'copyLink' || secondary?.kind === 'copyLink') && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {action && action.kind !== 'tab' && (
+              <Button ref={button} type="button" variant="outline" size="sm" onClick={() => open(action)}>
+                {action.label}
+              </Button>
+            )}
+            {secondary && secondary.kind !== 'tab' && (
+              <Button ref={secondaryButton} type="button" variant="outline" size="sm" onClick={() => open(secondary)}>
+                {secondary.label}
+              </Button>
+            )}
+          </div>
         )}
         {dialog === 'activate' && <ActivateDialog onClose={() => setDialog(null)} onCloseAutoFocus={restoreFocus} />}
-        {dialog !== null && dialog !== 'activate' && <InvitationDialog action={dialog} onClose={() => setDialog(null)} onCloseAutoFocus={restoreFocus} />}
+        {dialog === 'copyLink' && <CopyInvitationLinkDialog onClose={() => setDialog(null)} onCloseAutoFocus={restoreFocus} />}
+        {dialog !== null && dialog !== 'activate' && dialog !== 'copyLink' && (
+          <InvitationDialog action={dialog} onClose={() => setDialog(null)} onCloseAutoFocus={restoreFocus} />
+        )}
       </CardContent>
     </Card>
   )

@@ -110,17 +110,17 @@ describe('RecordActions — the invitation menu (Task 4b.3)', () => {
   const A = 'modules.professionals.onboarding.actions'
   const DEACTIVATE = t('modules.professionals.record.actions.deactivate')
   const invitation = (state: InvitationInfo['state']): Onboarding => ({
-    invitation: { state, sentAt: '2026-10-05T14:00:00Z', expiresAt: '2099-10-12T14:00:00Z', openedAt: null, usedAt: null },
+    invitation: { state, sentAt: '2026-10-05T14:00:00Z', expiresAt: '2099-10-12T14:00:00Z', openedAt: null, usedAt: null, delivery: 'email', emailStatus: 'sent', emailError: null },
     submission: null,
     onboardingApproved: false,
   })
 
   it.each<[string, Onboarding | null, string[]]>([
-    ['no invitation: « Envoyer l’invitation »', null, [t(`${A}.send`), DEACTIVATE]],
-    ['a live link: « Renvoyer » and « Révoquer »', invitation('sent'), [t(`${A}.resend`), t(`${A}.revoke`), DEACTIVATE]],
-    ['an opened link: the same', invitation('opened'), [t(`${A}.resend`), t(`${A}.revoke`), DEACTIVATE]],
-    ['an expired link: « Envoyer un nouveau lien »', invitation('expired'), [t(`${A}.new_link`), DEACTIVATE]],
-    ['a revoked link: « Envoyer l’invitation » again', invitation('revoked'), [t(`${A}.send`), DEACTIVATE]],
+    ['no invitation: « Envoyer l’invitation »', null, [t(`${A}.send`), t(`${A}.copyLink`), DEACTIVATE]],
+    ['a live link: « Renvoyer » and « Révoquer »', invitation('sent'), [t(`${A}.resend`), t(`${A}.copyLink`), t(`${A}.revoke`), DEACTIVATE]],
+    ['an opened link: the same', invitation('opened'), [t(`${A}.resend`), t(`${A}.copyLink`), t(`${A}.revoke`), DEACTIVATE]],
+    ['an expired link: « Envoyer un nouveau lien »', invitation('expired'), [t(`${A}.new_link`), t(`${A}.copyLink`), DEACTIVATE]],
+    ['a revoked link: « Envoyer l’invitation » again', invitation('revoked'), [t(`${A}.send`), t(`${A}.copyLink`), DEACTIVATE]],
   ])('without an account, %s', async (_, onboarding, items) => {
     renderActions('invited', false, 'admin_assistant', onboarding)
     expect(await menuItems()).toEqual(items)
@@ -146,7 +146,7 @@ describe('RecordActions — the invitation menu (Task 4b.3)', () => {
     await userEvent.click(screen.getByRole('button', { name: MORE }))
     await userEvent.click(await screen.findByRole('menuitem', { name: t(`${A}.resend`) }))
     const dialog = await screen.findByRole('alertdialog', { name: "Renvoyer l'invitation à Marie Tremblay ?" })
-    expect(dialog).toHaveAccessibleDescription(/Un nouveau lien sera envoyé à marie\.t@exemple\.ca\. Le lien envoyé le 5 oct\. ne fonctionnera plus\./)
+    expect(dialog).toHaveAccessibleDescription(/Un nouveau lien sera envoyé à marie\.t@exemple\.ca\. Le lien du 5 oct\. ne fonctionnera plus\./)
     expect(within(dialog).getByRole('button', { name: t(`${A}.resend`) })).toHaveClass('bg-primary')
   })
 

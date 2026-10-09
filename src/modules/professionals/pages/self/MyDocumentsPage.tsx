@@ -49,7 +49,7 @@ export function MyDocumentsPage() {
   }
   if (!documents.data || !record.data) {
     return (
-      <div className="mx-auto max-w-form space-y-2">
+      <div className="w-full max-w-form space-y-2">
         <PageHeader level={1} title={t(`${M}.pageTitle`)} />
         <EmptyState title={t(`${M}.noFile.title`)} body={t(`${M}.noFile.body`)} />
       </div>
@@ -57,7 +57,7 @@ export function MyDocumentsPage() {
   }
   const { professional } = record.data
   return (
-    <div className="mx-auto max-w-form space-y-5">
+    <div className="w-full max-w-form space-y-5">
       <div ref={heading} tabIndex={-1} className="outline-none">
         <PageHeader level={1} title={t(`${M}.pageTitle`)} description={t(`${M}.description`)} />
       </div>

@@ -17,9 +17,30 @@ const subject = (overrides: Partial<WatchSubject> = {}): WatchSubject => ({
 const NOW = Date.parse('2026-10-08T20:00:00Z')
 
 const invited = (state: InvitationInfo['state'], sentAt = '2026-10-05T14:00:00Z'): Onboarding => ({
-  invitation: { state, sentAt, expiresAt: '2026-10-12T14:00:00Z', openedAt: null, usedAt: null },
+  invitation: { state, sentAt, expiresAt: '2026-10-12T14:00:00Z', openedAt: null, usedAt: null, delivery: 'email', emailStatus: 'sent', emailError: null },
   submission: null,
   onboardingApproved: false,
+})
+
+describe('watchFlags: the invitation email (P4-490)', () => {
+  const link = (extra: Partial<InvitationInfo>): Onboarding => {
+    const base = invited('sent', '2026-10-01T14:00:00Z')
+    return { ...base, invitation: base.invitation && { ...base.invitation, ...extra } }
+  }
+  const keys = (onboarding: Onboarding) => watchFlags(subject({ hasAccount: false, status: 'invited', onboarding }), NOW)
+
+  it('an email that did not leave: « Courriel d’invitation non parti », danger, never « sans réponse »', () => {
+    expect(keys(link({ emailStatus: null, emailError: 'not_configured' }))).toEqual([
+      { key: 'invitation_not_sent', label: "Courriel d'invitation non parti", tone: 'danger' },
+    ])
+    expect(keys(link({ emailStatus: 'bounced' })).map((f) => f.key)).toEqual(['invitation_not_sent'])
+  })
+
+  it('an unknown outcome: its own flag; a copied link waits like a sent one', () => {
+    expect(keys(link({ emailStatus: 'failed', emailError: 'provider_unavailable' })).map((f) => f.key)).toEqual(['invitation_unknown'])
+    expect(keys(link({ delivery: 'copied', emailStatus: null })).map((f) => f.key)).toEqual(['invitation_unanswered'])
+    expect(keys(link({ emailStatus: 'delivered' })).map((f) => f.key)).toEqual(['invitation_unanswered'])
+  })
 })
 
 describe('watchFlags', () => {

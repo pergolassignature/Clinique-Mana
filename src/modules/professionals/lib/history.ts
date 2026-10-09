@@ -446,6 +446,8 @@ function sessionsRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
 }
 
 const SUBMISSIONS_TABLE = 'professional_submissions'
+/** How each invitation link was handed over (P4-490): only a copy is an event (the emails have their own timeline). */
+const DELIVERIES_TABLE = 'professional_invitation_deliveries'
 const CONSENTS_TABLE = 'professional_consents'
 /** « Bon à savoir » (P4-384, P4-385): staff only, its text redacted in the audit and never shown here. */
 const MATCHING_NOTE_TABLE = 'professional_matching_notes'
@@ -543,6 +545,11 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   if (isDatedTable(entry.tableName)) return datedRow(ctx, entry.tableName, entry)
   if (entry.tableName === SESSIONS_TABLE) return sessionsRow(ctx, entry)
   if (entry.tableName === SUBMISSIONS_TABLE) return submissionRow(entry)
+  if (entry.tableName === DELIVERIES_TABLE) {
+    return entry.action === 'insert' && fieldsOf(entry).method === 'copied'
+      ? { kind: 'change', sentence: t(`${H}.sentences.invitationLinkCopied`), lines: [] }
+      : null
+  }
   if (entry.tableName === CONSENTS_TABLE) return consentRow(entry)
   if (entry.tableName === MATCHING_NOTE_TABLE) return matchingNoteRow(entry)
   if (entry.tableName === CONTRACT_TABLE || entry.tableName === CONTRACT_SIGNERS_TABLE) return contractRow(entry)
