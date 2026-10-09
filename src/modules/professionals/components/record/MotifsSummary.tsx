@@ -70,11 +70,11 @@ export function FoldedMotifsSummary({ summary }: { summary: MotifSummary }) {
         type="button"
         aria-expanded={allOpen}
         onClick={() => setOpen(allOpen ? new Set() : new Set(summary.groups.map((g) => g.key)))}
-        className={cn('self-start rounded-sm text-[13px] font-medium text-primary hover:underline', focusRing)}
+        className={cn('self-start rounded-sm text-sm font-medium text-primary hover:underline', focusRing)}
       >
         {allOpen ? t(`${S}.hideAll`) : held === 1 ? t(`${S}.showOne`) : t(`${S}.showAll`, { count: String(held) })}
       </button>
-      <ul className="divide-y divide-border-light border-y border-border-light text-[13px] leading-5">
+      <ul className="divide-y divide-border-light border-y border-border-light text-sm">
         {summary.groups.map((group) => {
           const isOpen = open.has(group.key)
           const panelId = `${baseId}-${group.key}`
@@ -114,7 +114,7 @@ export function FoldedMotifsSummary({ summary }: { summary: MotifSummary }) {
 /** Categories and their names (the record's motifs, Historique's details). */
 export function CategoryNames({ groups, className }: { groups: NamedGroup[]; className?: string }) {
   return (
-    <ul className={cn('divide-y divide-border-light border-y border-border-light text-[13px] leading-5', className)}>
+    <ul className={cn('divide-y divide-border-light border-y border-border-light text-sm', className)}>
       {groups.map((group) => (
         <li key={group.key} className="py-2">
           {group.name !== null && (
