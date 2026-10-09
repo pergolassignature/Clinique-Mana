@@ -100,7 +100,33 @@ Deno.test('fillTemplate: control characters in values become spaces', () => {
   const doc = filled(one('« {{name}} »'), [v('name')], {
     name: 'Ana\nCôté\u0007\tB\u2028x',
   })
-  assertEquals(firstRun(doc), '« Ana Côté  B x »')
+  // The template's guillemets get U+202F (French spacing); the value keeps its own spaces.
+  assertEquals(firstRun(doc), '«\u202FAna Côté  B x\u202F»')
+})
+
+Deno.test('fillTemplate: French spacing on the template text, never on a value', () => {
+  const doc = filled(one('Courriel : {{email}} ; heure : {{time}} ?'), [
+    v('email'),
+    v('time'),
+  ], { email: 'a@b.test', time: 'Note : 14:30' })
+  assertEquals(
+    firstRun(doc),
+    'Courriel\u202F: a@b.test\u202F; heure\u202F: Note : 14:30\u202F?',
+  )
+})
+
+Deno.test('fillTexts: the Documenso subject and message get French spacing too', () => {
+  const result = fillTexts(
+    { subject: 'Contrat : {{name}}', message: 'Merci !' },
+    [v('name')],
+    { name: 'Ana' },
+    'America/Toronto',
+  )
+  assert(result.ok)
+  assertEquals(result.texts, {
+    subject: 'Contrat\u202F: Ana',
+    message: 'Merci\u202F!',
+  })
 })
 
 Deno.test('fillTemplate: dates as in email (datetime in the clinic timezone, date-only as written)', () => {

@@ -58,10 +58,22 @@ describe('SettingsLayout', () => {
     expect(screen.getByRole('link', { name: t('settings.title') })).toHaveAttribute('href', '/parametres/visible-fr')
   })
 
-  it('does not route to a section the user cannot access', async () => {
+  it('refuses a section the user cannot access: « Accès refusé », the explanation and the way back', async () => {
     render(settingsAt('/parametres/modules'))
-    expect(await screen.findByText(t('common.notFound.title'))).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: t('access.forbidden.title') })).toBeInTheDocument()
+    expect(screen.getByText(t('access.forbidden.body'))).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t('common.backHome') })).toHaveAttribute('href', '/accueil')
+    expect(screen.queryByText(t('common.notFound.title'))).not.toBeInTheDocument()
     expect(screen.queryByText('MODULES PAGE')).not.toBeInTheDocument()
+  })
+
+  it('keeps « Page introuvable » for a path that names no section, matched case-insensitively', async () => {
+    const { unmount } = render(settingsAt('/parametres/nope'))
+    expect(await screen.findByRole('heading', { level: 2, name: t('common.notFound.title') })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t('common.backHome') })).toHaveAttribute('href', '/accueil')
+    unmount()
+    render(settingsAt('/parametres/Modules/sous-page'))
+    expect(await screen.findByRole('heading', { level: 2, name: t('access.forbidden.title') })).toBeInTheDocument()
   })
 
   it('routes to a section with several permissions when the user has any of them, and only then', async () => {
@@ -81,7 +93,7 @@ describe('SettingsLayout', () => {
 
     // users.manage alone opens neither (it never comes without users.view in practice).
     render(settingsAt('/parametres/utilisateurs', { access: { can: (p) => p === 'settings.view' || p === 'users.manage' } }, [usersSection, visibleSection]))
-    expect(await screen.findByText(t('common.notFound.title'))).toBeInTheDocument()
+    expect(await screen.findByText(t('access.forbidden.title'))).toBeInTheDocument()
     expect(screen.queryByText('USERS PAGE')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: t('settings.sections.users') })).not.toBeInTheDocument()
   })
@@ -290,10 +302,14 @@ describe('SettingsLayout', () => {
       await waitFor(() => expect(document.title).toBe(`${t('settings.title')} · ${t('pageTitles.settings')} · ${t('app.name')}`))
     })
 
-    it('falls back to Paramètres for an unknown section', async () => {
-      render(settingsAt('/parametres/nope'))
+    it('names what an unknown or a refused section shows', async () => {
+      const { unmount } = render(settingsAt('/parametres/nope'))
       expect(await screen.findByText(t('common.notFound.title'))).toBeInTheDocument()
-      await waitFor(() => expect(document.title).toBe(`${t('pageTitles.settings')} · ${t('app.name')}`))
+      await waitFor(() => expect(document.title).toBe(`${t('pageTitles.notFound')} · ${t('app.name')}`))
+      unmount()
+      render(settingsAt('/parametres/modules'))
+      expect(await screen.findByText(t('access.forbidden.title'))).toBeInTheDocument()
+      await waitFor(() => expect(document.title).toBe(`${t('pageTitles.forbidden')} · ${t('app.name')}`))
     })
   })
 

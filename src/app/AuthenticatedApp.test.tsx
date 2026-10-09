@@ -297,6 +297,34 @@ describe('AuthenticatedApp', () => {
     expect(mocks.mySubmissionReads).toBe(0)
   })
 
+  // Accueil with nothing to show: a calm card and the role's shortcuts (its menu, Accueil aside).
+  describe('Accueil when nothing needs attention', () => {
+    const shortcuts = async () =>
+      within(await screen.findByRole('navigation', { name: t('home.empty.shortcuts') }))
+        .getAllByRole('link')
+        .map((link) => [link.textContent, link.getAttribute('href')])
+
+    it.each([
+      ['an admin', adminLike, [[t('modules.professionals.name'), '/professionnels'], [t('nav.settings'), '/parametres']]],
+      ['the adjointe', accessForRole('admin_assistant', { modules: ['professionals'] }), [[t('modules.professionals.name'), '/professionnels'], [t('nav.settings'), '/parametres']]],
+      ['the conseillère', accessForRole('counselor', { modules: ['professionals'] }), [[t('modules.professionals.name'), '/professionnels']]],
+      ['a professional', accessForRole('provider', { modules: ['professionals'] }), [[t('modules.professionals.myProfile.nav'), '/mon-profil'], [t('modules.professionals.myDocuments.nav'), '/mes-documents']]],
+    ] as const)('%s: « Rien ne demande votre attention », with the role’s shortcuts', async (_role, access, expected) => {
+      render(appAt('/accueil', access))
+      expect(await screen.findByText(t('home.empty.title'))).toBeInTheDocument()
+      expect(await shortcuts()).toEqual(expected)
+    })
+
+    it('says nothing of the kind while a card has something to say (the professional’s open questionnaire)', async () => {
+      const { mySubmission } = await import('@/modules/professionals/test/fixtures-questionnaire')
+      mocks.mySubmission = mySubmission()
+      render(appAt('/accueil', accessForRole('provider', { modules: ['professionals'] })))
+      expect(await screen.findByRole('heading', { name: t('modules.professionals.myProfile.home.onboarding.title') })).toBeInTheDocument()
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(screen.queryByText(t('home.empty.title'))).not.toBeInTheDocument()
+    })
+  })
+
   // Outside Paramètres: a role with no settings section (here a provider) still reaches it.
   it('opens « Mon compte » for every role, titled in the topbar', async () => {
     render(appAt('/mon-compte', { ...adminLike, role: 'provider', permissions: [] }))
@@ -306,21 +334,25 @@ describe('AuthenticatedApp', () => {
   })
 
   // AccessProvider sets the new zone during its render, before this tree renders: done by hand here.
-  it('remounts the routed page when the clinic time zone changes, and only then', async () => {
+  it('remounts the shell and the routed page when the clinic time zone changes, and only then', async () => {
     try {
       mocks.accountMounts = 0
       const { rerender } = render(appAt('/mon-compte'))
       expect(await screen.findByTestId('account-timezone')).toHaveTextContent('America/Toronto')
       expect(mocks.accountMounts).toBe(1)
+      // The shell around the page (topbar, bell, menu) is remounted too: it formats dates outside the routes.
+      const banner = screen.getByRole('banner')
 
       rerender(appAt('/mon-compte', { ...adminLike, display_name: 'Camille A.' }))
       expect(mocks.accountMounts).toBe(1)
+      expect(screen.getByRole('banner')).toBe(banner)
 
       setClinicTimezone('America/Vancouver')
       rerender(appAt('/mon-compte', { ...adminLike, org_timezone: 'America/Vancouver' }))
       await waitFor(() => expect(mocks.accountMounts).toBe(2))
       expect(getClinicTimezone()).toBe('America/Vancouver')
       expect(screen.getByTestId('account-timezone')).toHaveTextContent('America/Vancouver')
+      expect(screen.getByRole('banner')).not.toBe(banner)
     } finally {
       resetClinicTimezone()
     }
@@ -329,6 +361,52 @@ describe('AuthenticatedApp', () => {
   it('shows not found for an unknown path', () => {
     render(appAt('/nulle-part'))
     expect(screen.getByText(t('common.notFound.title'))).toBeInTheDocument()
+  })
+
+  // Every « you may not see this » reads the same: « Accès refusé », its explanation and the way
+  // back to Accueil, whatever the role and wherever the page is (a module route, Paramètres, one of
+  // its sections). Only a URL that names nothing is « Page introuvable ».
+  describe('pages the user may not open, per role', () => {
+    const providerLike: Access = accessForRole('provider', { display_name: 'Félix Gauthier', modules: ['professionals'], has_professional_file: true })
+    const expectForbidden = async () => {
+      expect(await screen.findByRole('heading', { name: t('access.forbidden.title') })).toBeInTheDocument()
+      expect(screen.getByText(t('access.forbidden.body'))).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: t('common.backHome') })).toHaveAttribute('href', '/accueil')
+      expect(screen.queryByText(t('common.notFound.title'))).not.toBeInTheDocument()
+      await waitFor(() => expect(document.title).toBe(`${t('pageTitles.forbidden')} · ${t('app.name')}`))
+    }
+    const expectNotFound = async () => {
+      expect(await screen.findByRole('heading', { name: t('common.notFound.title') })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: t('common.backHome') })).toHaveAttribute('href', '/accueil')
+      expect(screen.queryByText(t('access.forbidden.title'))).not.toBeInTheDocument()
+    }
+
+    it.each([
+      ['the adjointe', 'a settings section she does not see', '/parametres/modules'],
+      ['the adjointe', 'the pay settings', '/parametres/remuneration'],
+      ['the conseillère', 'Paramètres', '/parametres'],
+      ['the conseillère', 'a settings section', '/parametres/identite'],
+      ['the professional', 'Paramètres', '/parametres'],
+      ['the professional', 'a settings section', '/parametres/region'],
+      ['the professional', 'the professionals list', '/professionnels'],
+    ] as const)('%s, on %s: « Accès refusé »', async (role, _page, path) => {
+      const access = role === 'the adjointe' ? assistantLike : role === 'the conseillère' ? counselorLike : providerLike
+      render(appAt(path, access))
+      await expectForbidden()
+    })
+
+    it.each([
+      ['the admin', adminLike],
+      ['the adjointe', assistantLike],
+      ['the conseillère', counselorLike],
+      ['the professional', providerLike],
+    ] as const)('%s: an unknown URL, in or out of Paramètres, is « Page introuvable »', async (_role, access) => {
+      const { unmount } = render(appAt('/nulle-part', access))
+      await expectNotFound()
+      unmount()
+      render(appAt('/parametres/nulle-part', access))
+      await expectNotFound()
+    })
   })
 
   it('shows who is signed in, and where', () => {

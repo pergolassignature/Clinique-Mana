@@ -20,6 +20,8 @@
 // Web Crypto has no incremental digest; node:crypto is built into Deno and
 // the Edge Runtime, so one hash serves both streamed and in-memory bytes.
 import { createHash } from 'node:crypto'
+import { latin1, le16 as u16, le32 as u32 } from './bytes.ts'
+import { LOWER_UUID as UUID } from './patterns.ts'
 
 /** What `sniff` recognised; `unknown` is always refused. */
 export type SniffedType =
@@ -118,7 +120,6 @@ const DOCX_PARTS = ['[Content_Types].xml', 'word/document.xml']
 /** The VBA project of a macro-enabled document, compared in lower case. */
 const DOCX_MACROS = 'word/vbaproject.bin'
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** The `modules.key` check (`20261007140517_core_access.sql`). */
 const MODULE_KEY = /^[a-z][a-z_]*$/
 
@@ -129,20 +130,6 @@ function startsWith(bytes: Uint8Array, prefix: number[], at = 0): boolean {
 
 function endsWith(bytes: Uint8Array, suffix: number[]): boolean {
   return startsWith(bytes, suffix, bytes.length - suffix.length)
-}
-
-/** `bytes` as a string of one char per byte (Latin-1), for ASCII matching. */
-function latin1(bytes: Uint8Array): string {
-  return String.fromCharCode(...bytes)
-}
-
-function u16(bytes: Uint8Array, at: number): number {
-  return bytes[at] | (bytes[at + 1] << 8)
-}
-
-function u32(bytes: Uint8Array, at: number): number {
-  return (bytes[at] | (bytes[at + 1] << 8) | (bytes[at + 2] << 16) |
-    (bytes[at + 3] << 24)) >>> 0
 }
 
 /** `%PDF-1.x` / `%PDF-2.x` at offset 0, and `%%EOF` near the end. */

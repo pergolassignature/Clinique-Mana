@@ -35,23 +35,10 @@ $$, 'signature_requests_check2 is gone; no check needs a document id');
 select is((select pg_get_constraintdef(c.oid) from pg_constraint c
             where c.conrelid = 'public.signature_requests'::regclass and c.conname = 'signature_requests_org_id_envelope_id_key'),
   'UNIQUE (org_id, envelope_id)', 'an envelope is unique per org');
-select results_eq($$
-  select a.attname::text collate "default", col_description(a.attrelid, a.attnum)
-    from pg_attribute a
-   where a.attrelid = 'public.signature_requests'::regclass
-     and a.attname in ('documenso_document_id', 'superseded_document_ids')
-   order by a.attname
-$$, $$ values
-  ('documenso_document_id'::text, 'Deprecated (envelope API, 2026-10-08): never written; dropped by a later migration.'::text),
-  ('superseded_document_ids', 'Deprecated: superseded_envelope_ids replaces it.')
-$$, 'the document columns are marked deprecated');
-
--- The migration's guard (it refused to run otherwise), on the rows present before any fixture.
-select is_empty($$
-  select 1 from public.signature_requests r
-   where (r.documenso_document_id is not null and r.envelope_id is null)
-      or cardinality(r.superseded_document_ids) > 0
-$$, 'no request holds a document id the envelope API cannot carry over (the migration guard)');
+-- The deprecated document columns (step 1 here) are dropped by *_core_signing_drop_document_columns
+-- (step 2; 080 tests it).
+select hasnt_column('public', 'signature_requests', 'documenso_document_id', 'the document id column is gone (step 2)');
+select hasnt_column('public', 'signature_requests', 'superseded_document_ids', 'the superseded document ids are gone (step 2)');
 
 -- =============================================================================
 -- Functions
@@ -199,11 +186,11 @@ select lives_ok($$ select public.mark_signature_request_sent('c0000000-0000-0000
   'mark_signature_request_sent with an envelope id');
 reset role;
 select results_eq($$
-  select r.status, r.envelope_id, r.documenso_document_id, r.superseded_envelope_ids, r.sent_at, r.send_started_at,
+  select r.status, r.envelope_id, r.superseded_envelope_ids, r.sent_at, r.send_started_at,
          (select array_agg(s.documenso_recipient_id) from public.signature_request_signers s where s.request_id = r.id)
     from public.signature_requests r where r.id = 'c0000000-0000-0000-0000-0000000000e1'
-$$, $$ values ('sent'::text, 'envelope_e1'::text, null::text, array[]::text[], now(), null::timestamptz, array['101']) $$,
-  'mark_sent records the envelope and its recipients, never a document id');
+$$, $$ values ('sent'::text, 'envelope_e1'::text, array[]::text[], now(), null::timestamptz, array['101']) $$,
+  'mark_sent records the envelope and its recipients');
 
 set local role service_role;
 select throws_ok($$ select public.mark_signature_request_failed('c0000000-0000-0000-0000-0000000000e2', 'provider_error', '12') $$,
@@ -218,9 +205,9 @@ select lives_ok($$ select public.mark_signature_request_failed('c0000000-0000-00
   'mark_failed without an envelope');
 reset role;
 select results_eq($$
-  select r.status, r.last_error, r.envelope_id, r.superseded_envelope_ids, r.documenso_document_id, r.superseded_document_ids
+  select r.status, r.last_error, r.envelope_id, r.superseded_envelope_ids
     from public.signature_requests r where r.id = 'c0000000-0000-0000-0000-0000000000e2'
-$$, $$ values ('draft'::text, 'render_failed'::text, 'envelope_e2b'::text, array['envelope_e2a'], null::text, array[]::text[]) $$,
+$$, $$ values ('draft'::text, 'render_failed'::text, 'envelope_e2b'::text, array['envelope_e2a']) $$,
   'mark_failed: the new envelope supersedes the recorded one; without one, the recorded one stays');
 set local role service_role;
 select lives_ok($$ select public.mark_signature_request_sent('c0000000-0000-0000-0000-0000000000e2', 'envelope_e2c',
@@ -292,10 +279,10 @@ select is(public.recover_signature_request('b0000000-0000-0000-0000-00000000000a
   null::uuid, 'recover: the draft''s own envelope (no staged source: recorded missing)');
 reset role;
 select results_eq($$
-  select r.status, r.envelope_id, r.completed_event_at, r.documenso_document_id,
+  select r.status, r.envelope_id, r.completed_event_at,
          (select array_agg(s.documenso_recipient_id) from public.signature_request_signers s where s.request_id = r.id)
     from public.signature_requests r where r.id = 'c0000000-0000-0000-0000-0000000000e3'
-$$, $$ values ('sent'::text, 'envelope_e3'::text, now(), null::text, array['301']) $$,
+$$, $$ values ('sent'::text, 'envelope_e3'::text, now(), array['301']) $$,
   'recovered: sent on its own envelope, completion stamped');
 
 -- =============================================================================

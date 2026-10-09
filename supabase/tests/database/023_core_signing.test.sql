@@ -650,7 +650,7 @@ select k, jsonb_build_object(
 
 -- What create_signature_request returned, per call.
 create temp table cr (k text primary key, id uuid, existing boolean, status text, signers jsonb, last_error text,
-  created_at timestamptz, documenso_document_id text, envelope_id text) on commit drop;
+  created_at timestamptz, envelope_id text) on commit drop;
 grant select, insert on cr to service_role;
 insert into cr select 'r1', c.* from public.create_signature_request((select p from rq where k = 'r1')) c;
 reset role;
@@ -849,20 +849,20 @@ select lives_ok($$ select public.mark_signature_request_failed((select id from t
 select throws_ok($$ select public.mark_signature_request_failed((select id from t where step = 'r1'), 'provider_error') $$,
   '22023', null, 'mark_failed: only a draft');
 insert into cr select 'r4_again', c.* from public.create_signature_request((select p from rq where k = 'r4')) c;
-select results_eq($$ select id, existing, status, last_error, created_at, documenso_document_id, envelope_id
+select results_eq($$ select id, existing, status, last_error, created_at, envelope_id
                       from cr where k = 'r4_again' $$,
-  $$ select (select id from t where step = 'r4'), true, 'draft'::text, 'provider_error'::text, now(), null::text,
+  $$ select (select id from t where step = 'r4'), true, 'draft'::text, 'provider_error'::text, now(),
             'envelope_14'::text $$,
-  'an existing draft comes back with last_error, created_at and its earlier envelope (a re-send settles it first; the deprecated document id is null)');
+  'an existing draft comes back with last_error, created_at and its earlier envelope (a re-send settles it first)');
 reset role;
 
 select results_eq($$
-  select r.status, r.envelope_id, r.documenso_document_id, r.source_file_id = (select id from t where step = 'src_r1'),
+  select r.status, r.envelope_id, r.source_file_id = (select id from t where step = 'src_r1'),
          r.sent_at, r.expires_at, r.last_error,
          (select array_agg(s.documenso_recipient_id order by s.signing_order) from public.signature_request_signers s where s.request_id = r.id),
          (select f.retain_until from public.stored_files f where f.id = r.source_file_id)
     from public.signature_requests r where r.id = (select id from t where step = 'r1')
-$$, $$ values ('sent'::text, 'envelope_11'::text, null::text, true, now(), now() + interval '14 days', null::text,
+$$, $$ values ('sent'::text, 'envelope_11'::text, true, now(), now() + interval '14 days', null::text,
                array['101', '102'], null::timestamptz) $$,
   'sent: envelope (no document id), recipients, expiry; the source file is no longer staged');
 select results_eq($$ select status, envelope_id, last_error from public.signature_requests
@@ -1081,10 +1081,10 @@ select results_eq($$ select id from public.list_subject_signature_requests('test
 select results_eq($$ select id from public.list_subject_signature_requests('test_subject', 'd0000000-0000-0000-0000-000000000001', 2,
                       now(), (select id from t where step in ('r1', 'r2', 'r3', 'r4') order by id desc offset 1 limit 1)) $$,
   $$ select id from t where step in ('r1', 'r2', 'r3', 'r4') order by id desc offset 2 $$, 'keyset: the next page after (created_at, id)');
-select results_eq($$ select id, org_id, module_key, status, documenso_document_id, envelope_id
+select results_eq($$ select id, org_id, module_key, status, envelope_id
                       from public.get_signature_request((select id from t where step = 'r1')) $$,
   $$ select (select id from t where step = 'r1'), 'b0000000-0000-0000-0000-00000000000a'::uuid, 'core'::text, 'signed'::text,
-            null::text, 'envelope_11'::text $$, 'get_signature_request: one row (the deprecated document id null)');
+            'envelope_11'::text $$, 'get_signature_request: one row');
 select is((select count(*)::int from public.signature_request_signers
             where request_id in (select id from t where step in ('r1', 'r2'))), 4, 'admin A reads the signers through the request');
 select throws_ok($$ select email from public.signature_request_signers where request_id = (select id from t where step = 'r1') $$,
@@ -1199,18 +1199,18 @@ select x.id, x.org, 'core', 'core.signing_test', 'signing_test', 'a0000000-0000-
 
 set local role service_role;
 select results_eq($$
-  select id, status, documenso_document_id, envelope_id, action
+  select id, status, envelope_id, action
     from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a')
 $$, $$ values
-  ('c0000000-0000-0000-0000-000000000007'::uuid, 'sent'::text, null::text, 'envelope_607'::text, 'expire'::text),
-  ('c0000000-0000-0000-0000-000000000004', 'viewed', null, 'envelope_604', 'expire'),
-  ('c0000000-0000-0000-0000-000000000008', 'draft', null, null, 'abandon'),
-  ('c0000000-0000-0000-0000-000000000001', 'sent', null, 'envelope_601', 'sync'),
-  ('c0000000-0000-0000-0000-000000000005', 'sent', null, 'envelope_605', 'sync'),
-  ((select id from t where step = 'r4'), 'sent', null, 'envelope_34', 'sync'),
-  ('c0000000-0000-0000-0000-000000000015', 'draft', null, 'envelope_615', 'sync'),
-  ('c0000000-0000-0000-0000-000000000002', 'draft', null, 'envelope_602', 'sync'),
-  ('c0000000-0000-0000-0000-000000000010', 'draft', null, 'envelope_610', 'sync')
+  ('c0000000-0000-0000-0000-000000000007'::uuid, 'sent'::text, 'envelope_607'::text, 'expire'::text),
+  ('c0000000-0000-0000-0000-000000000004', 'viewed', 'envelope_604', 'expire'),
+  ('c0000000-0000-0000-0000-000000000008', 'draft', null, 'abandon'),
+  ('c0000000-0000-0000-0000-000000000001', 'sent', 'envelope_601', 'sync'),
+  ('c0000000-0000-0000-0000-000000000005', 'sent', 'envelope_605', 'sync'),
+  ((select id from t where step = 'r4'), 'sent', 'envelope_34', 'sync'),
+  ('c0000000-0000-0000-0000-000000000015', 'draft', 'envelope_615', 'sync'),
+  ('c0000000-0000-0000-0000-000000000002', 'draft', 'envelope_602', 'sync'),
+  ('c0000000-0000-0000-0000-000000000010', 'draft', 'envelope_610', 'sync')
 $$, 'org A: expire and abandon first, then sync, each by expiry; a draft with a Documenso envelope after an hour → sync (read it before settling), one without after a day; both counted from the last send (last_send_at, kept after a failed send; else created_at)');
 select results_eq($$ select id from public.list_signature_requests_to_reconcile('b0000000-0000-0000-0000-00000000000a', 1) $$,
   $$ values ('c0000000-0000-0000-0000-000000000007'::uuid) $$, 'p_limit pages the list');
