@@ -100,7 +100,7 @@ function TaxBankForm({ ctx }: { ctx: StepContext }) {
 
   return (
     <StepForm onSubmit={(event) => void submit(event)} busy={mutation.isPending} className="space-y-6">
-      <p className="text-sm text-muted-foreground">{t(`${T}.privacy`)}</p>
+      <p className="text-sm text-muted-foreground">{t(submission.collectSin ? `${T}.privacy` : `${T}.privacyNoSin`)}</p>
       {onFile.failed && <OnFileError onFile={onFile} />}
       <FieldGroup title={t(`${T}.bankTitle`)} description={t(`${T}.bankHelp`)}>
         <div className="grid gap-3 min-[400px]:grid-cols-[minmax(0,6rem)_minmax(0,8rem)_minmax(0,1fr)]">

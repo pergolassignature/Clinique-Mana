@@ -3691,6 +3691,7 @@
           "matching": "Profil de jumelage",
           "matchingHelp": "Ce qui aide la clinique à vous proposer des clients qui vous correspondent.",
           "taxBankHelp": "Le numéro de compte et le NAS ne s'affichent jamais en entier.",
+          "taxBankHelpNoSin": "Le numéro de compte ne s'affiche jamais en entier.",
           "documents": "Documents"
         },
         "masks": {
@@ -3970,6 +3971,7 @@
         },
         "taxBank": {
           "privacy": "Le numéro de compte et le NAS sont chiffrés dès l'enregistrement. Ils ne s'affichent plus jamais en entier.",
+          "privacyNoSin": "Le numéro de compte est chiffré dès l'enregistrement. Il ne s'affiche plus jamais en entier.",
           "onFileError": "Impossible d'afficher les renseignements déjà fournis.",
           "errors": {
             "network": "Vos renseignements n'ont pas été enregistrés. Vérifiez votre connexion, puis réessayez.",

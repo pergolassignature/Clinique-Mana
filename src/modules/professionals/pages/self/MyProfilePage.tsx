@@ -229,7 +229,7 @@ function TaxBankCard() {
       ]
     : []
   return (
-    <ProfileCard title={sectionLabel('tax_bank')} description={t(`${P}.cards.taxBankHelp`)}>
+    <ProfileCard title={sectionLabel('tax_bank')} description={t(data?.sinLast3 ? `${P}.cards.taxBankHelp` : `${P}.cards.taxBankHelpNoSin`)}>
       {query.isPending ? (
         <Loading />
       ) : !data ? (
