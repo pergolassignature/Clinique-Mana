@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { t } from '@/i18n'
 import { optionalEmail, optionalPattern, optionalPhone, optionalPostalCode, PROVINCES } from '@/shared/lib/field-schemas'
 import { compactTaxNumber, formatPhone, formatTaxNumber } from '@/shared/lib/format'
+import { isCalendarDate } from '@/shared/lib/timezone'
 import { AVAILABILITY_PERIODS, type AvailabilityPeriod } from '../lib/constants'
 import type { CatalogView } from '../lib/catalog-view'
 import { ACCOUNT, BUSINESS_NUMBER, GST, INSTITUTION, isValidSin, QST, strip, TRANSIT } from './private'
@@ -54,7 +55,7 @@ export function toPersonalValues(values: Readonly<Record<string, unknown>>): Per
 // --- Profil professionnel -------------------------------------------------------------------------
 
 /** One title as the section stores it. */
-export interface SubmittedProfession {
+interface SubmittedProfession {
   title_id: string
   licence_number: string | null
   is_primary: boolean
@@ -161,8 +162,6 @@ export function toAvailabilityValues(values: Readonly<Record<string, unknown>>):
 
 // --- Assurance: the expiry (the file is the dropzone's) --------------------------------------------
 
-const ISO_DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
-
 /** The expiry: a real date, not before the clinic's `today`, at most 2100-12-31 (P4-177). */
 export function insuranceSchema(today: string) {
   return z.object({
@@ -171,7 +170,7 @@ export function insuranceSchema(today: string) {
       .trim()
       .superRefine((v, ctx) => {
         if (v === '') return ctx.addIssue({ code: 'custom', message: t(`${Q}.expiryRequired`) })
-        if (!ISO_DATE.test(v) || Number.isNaN(Date.parse(`${v}T00:00:00Z`)) || new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) !== v) {
+        if (!isCalendarDate(v)) {
           return ctx.addIssue({ code: 'custom', message: t(`${Q}.dateInvalid`) })
         }
         if (v < today) ctx.addIssue({ code: 'custom', message: t(`${Q}.expiryPast`) })

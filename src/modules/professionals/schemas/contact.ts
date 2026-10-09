@@ -34,7 +34,7 @@ export const contactSchema = z.object({
   province: z.enum(PROVINCES, { error: t('settings.validation.province') }),
   postalCode: optionalPostalCode(),
 })
-export type ContactValues = z.input<typeof contactSchema>
+type ContactValues = z.input<typeof contactSchema>
 
 export function toContactFormValues(p: Professional): ContactValues {
   return {

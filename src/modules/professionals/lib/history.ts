@@ -710,7 +710,7 @@ function sentenceNames({ groups, unknownCount }: BatchNames): string[] {
 }
 
 /** « Ancien motif (archivé) » inside a sentence. */
-export const historyItemLabel = (item: HeldMotif) =>
+const historyItemLabel = (item: HeldMotif) =>
   item.archived ? `${item.name} (${t('modules.professionals.record.overview.matching.archived')})` : item.name
 
 const isListBatch = (batch: SetBatch): batch is SetBatch & { table: ListTable } => batch.table !== 'professional_motifs'
@@ -884,7 +884,7 @@ export function buildTimeline(
   return [...eventEntries, ...shown].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
 }
 
-export interface HistoryDay<T extends { createdAt: string } = HistoryEvent> {
+interface HistoryDay<T extends { createdAt: string } = HistoryEvent> {
   /**
    * Unique among the days: `yyyy-MM-dd` in the clinic's timezone, then `-2`, `-3`… when the same
    * day comes back (rows are ordered by audit id, and a long transaction may commit after a

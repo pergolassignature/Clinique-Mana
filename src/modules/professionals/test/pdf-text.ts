@@ -12,7 +12,7 @@ interface PdfObject {
   stream: Buffer | null
 }
 
-export interface PdfReading {
+interface PdfReading {
   /** Each page's text: one line per laid-out line, in drawing order. */
   pages: string[]
   /** `/BaseFont` of every font object (`ABCDEF+Raleway-Regular`, `Helvetica`…). */

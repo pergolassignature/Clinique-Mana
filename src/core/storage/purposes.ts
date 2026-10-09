@@ -1,5 +1,5 @@
 /** What the client checks of an upload purpose before any network call. */
-export interface UploadPurposeLimits {
+interface UploadPurposeLimits {
   /** `upload_purposes.mime_types`. */
   mimeTypes: readonly string[]
   /** `upload_purposes.max_bytes`. */

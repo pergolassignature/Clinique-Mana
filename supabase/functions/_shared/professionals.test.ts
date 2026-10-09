@@ -4,8 +4,8 @@ import {
   documentExpiryValues,
   documentRejectedValues,
   invitationValues,
-  MY_DOCUMENTS_PATH,
   isExpectedRpcError,
+  MY_DOCUMENTS_PATH,
   professionalDocumentsPath,
   professionalsRpcError,
   profileUpdateValues,
@@ -25,7 +25,9 @@ async function declaredPaths(key: string): Promise<string[]> {
     if (!/_professionals_[a-z_]+\.sql$/.test(entry.name)) continue
     const text = await Deno.readTextFile(new URL(entry.name, MIGRATIONS))
     const seeds = text.indexOf('insert into public.email_template_defaults')
-    const start = seeds < 0 ? -1 : text.indexOf(`('${key}', 'professionals',`, seeds)
+    const start = seeds < 0
+      ? -1
+      : text.indexOf(`('${key}', 'professionals',`, seeds)
     if (start < 0) continue
     const end = text.indexOf("'professionals.view')", start)
     return [...text.slice(start, end).matchAll(/"path": "([a-z_.]+)"/g)]

@@ -80,7 +80,7 @@ async function cacheOrgAsset(queryClient: QueryClient, kind: OrgAssetKind, fileI
   await queryClient.invalidateQueries({ queryKey: organizationKeys.all, refetchType: 'none' })
 }
 
-export interface OrgAssetUpload {
+interface OrgAssetUpload {
   organizationId: string
   file: File
   mimeType: string

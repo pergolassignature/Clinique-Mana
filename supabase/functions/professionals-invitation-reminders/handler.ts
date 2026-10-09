@@ -2,7 +2,7 @@
  * `professionals-invitation-reminders` (Task 4b.2, P4-45): the job
  * `professionals.invitation_reminders`, at 08:00 clinic time once per clinic
  * day. A job function (CLAUDE.md §7): `runJob` verifies `X-Job-Signature`
- * (never `verifyServiceRoleAuth`), lists the clinics (job and module enabled,
+ * (never a bearer key), lists the clinics (job and module enabled,
  * the local hour reached), and logs each clinic's run.
  *
  * Per clinic (`perOrg`):

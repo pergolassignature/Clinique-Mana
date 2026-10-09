@@ -51,7 +51,7 @@ export interface FicheOptions {
   showClosing: boolean
 }
 
-export const DEFAULT_FICHE_OPTIONS: FicheOptions = { showProContact: true, showClinicFooter: true, showClosing: true }
+const DEFAULT_FICHE_OPTIONS: FicheOptions = { showProContact: true, showClinicFooter: true, showClosing: true }
 
 /** « Prochaine étape » (P4-352): who to plan a first meeting with, and how to reach the clinic. */
 export interface FicheClosing {

@@ -48,7 +48,7 @@ export function recordSectionValues(record: MyProfessionalRecord) {
  * - `sent`: the profile is with the clinic for review;
  * - `update`: nothing open, « Mettre mon profil à jour ».
  */
-export type ProfileAction = 'inactive' | 'continue' | 'sent' | 'update'
+type ProfileAction = 'inactive' | 'continue' | 'sent' | 'update'
 
 export function profileAction(status: ProfessionalRecord['professional']['status'], open: { status: 'draft' | 'submitted' } | null): ProfileAction {
   if (open?.status === 'draft') return status === 'inactive' ? 'inactive' : 'continue'

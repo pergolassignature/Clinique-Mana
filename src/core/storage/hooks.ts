@@ -12,7 +12,7 @@ export const storageKeys = {
   signedUrl: (userId: string, fileId: string) => [...storageKeys.all, 'signedUrl', userId, fileId] as const,
 }
 
-export interface SignedFileUrlOptions {
+interface SignedFileUrlOptions {
   /**
    * Replace the URL every 240 s while it is shown: for a download link, which must still work
    * when it is clicked. Off for an `<img>`: it has loaded by then, and a new URL would reload it.

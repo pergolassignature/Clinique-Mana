@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { t } from '@/i18n'
-import { PROVINCE_OPTIONS } from '@/core/settings/organization/provinces'
+import { provinceName } from '@/core/settings/organization/provinces'
 import { formatPhone, formatTaxNumber } from '@/shared/lib/format'
 import { formatClinicDateTime, formatDateOnly } from '@/shared/lib/timezone'
 import type { MySubmission, SectionValues } from '../../api/self'
@@ -19,11 +19,6 @@ import type { OnFilePrivate } from './use-step-form'
 
 const L = 'modules.professionals.questionnaire'
 const R = `${L}.review` as const
-
-const provinceName = (code: string | null) => {
-  const option = PROVINCE_OPTIONS.find((o) => o.value === code)
-  return option ? t(option.labelKey) : code
-}
 
 const text = (values: SectionValues, key: string): string | null => {
   const value = values[key]
@@ -77,7 +72,7 @@ export function ProfileSectionSummary({ section, values, catalog, gender }: Prof
   switch (section) {
     case 'personal': {
       const province = text(values, 'province')
-      const place = [text(values, 'city'), provinceName(province), text(values, 'postal_code')].filter(Boolean).join(', ')
+      const place = [text(values, 'city'), province && provinceName(province), text(values, 'postal_code')].filter(Boolean).join(', ')
       const street = [text(values, 'address_line1'), text(values, 'address_line2')].filter(Boolean).join(', ')
       return (
         <Rows

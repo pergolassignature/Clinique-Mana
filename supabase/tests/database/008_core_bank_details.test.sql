@@ -37,12 +37,12 @@ select table_privs_are('public', 'organization_bank_details', 'anon', array[]::t
 select table_privs_are('public', 'organization_bank_details', 'authenticated', array[]::text[], 'authenticated: no privileges on organization_bank_details');
 select table_privs_are('public', 'organization_bank_details', 'service_role', array[]::text[], 'service_role: no privileges on organization_bank_details');
 
-select function_privs_are('private', 'pii_key',     array[]::text[], 'authenticated', array[]::text[], 'authenticated has no EXECUTE on pii_key');
-select function_privs_are('private', 'pii_key',     array[]::text[], 'service_role',  array[]::text[], 'service_role has no EXECUTE on pii_key');
-select function_privs_are('private', 'encrypt_pii', array['text'],   'authenticated', array[]::text[], 'authenticated has no EXECUTE on encrypt_pii');
-select function_privs_are('private', 'encrypt_pii', array['text'],   'service_role',  array[]::text[], 'service_role has no EXECUTE on encrypt_pii');
-select function_privs_are('private', 'decrypt_pii', array['bytea'],  'authenticated', array[]::text[], 'authenticated has no EXECUTE on decrypt_pii');
-select function_privs_are('private', 'decrypt_pii', array['bytea'],  'service_role',  array[]::text[], 'service_role has no EXECUTE on decrypt_pii');
+select function_privs_are('private', 'pii_key',     array['integer'], 'authenticated', array[]::text[], 'authenticated has no EXECUTE on pii_key');
+select function_privs_are('private', 'pii_key',     array['integer'], 'service_role',  array[]::text[], 'service_role has no EXECUTE on pii_key');
+select function_privs_are('private', 'encrypt_pii', array['text', 'integer'], 'authenticated', array[]::text[], 'authenticated has no EXECUTE on encrypt_pii');
+select function_privs_are('private', 'encrypt_pii', array['text', 'integer'], 'service_role',  array[]::text[], 'service_role has no EXECUTE on encrypt_pii');
+select function_privs_are('private', 'decrypt_pii', array['bytea', 'integer'], 'authenticated', array[]::text[], 'authenticated has no EXECUTE on decrypt_pii');
+select function_privs_are('private', 'decrypt_pii', array['bytea', 'integer'], 'service_role',  array[]::text[], 'service_role has no EXECUTE on decrypt_pii');
 
 select function_privs_are('public', 'get_bank_details',           array[]::text[], 'anon', array[]::text[], 'anon cannot call get_bank_details');
 select function_privs_are('public', 'reveal_bank_account_number', array[]::text[], 'anon', array[]::text[], 'anon cannot call reveal_bank_account_number');
@@ -179,10 +179,10 @@ select is((select get_byte(account_number, 3) from public.organization_bank_deta
 select is((select get_byte(account_number, 5) from public.organization_bank_details
             where org_id = 'b0000000-0000-0000-0000-00000000000a'),
   8, 'the key derivation uses SHA-256');
-select is((select extensions.pgp_sym_decrypt(account_number, private.pii_key()) from public.organization_bank_details
+select is((select extensions.pgp_sym_decrypt(account_number, private.pii_key(1)) from public.organization_bank_details
             where org_id = 'b0000000-0000-0000-0000-00000000000a'),
   '7654321', 'the ciphertext decrypts with the Vault key');
-select is(private.decrypt_pii(extensions.pgp_sym_encrypt('7654321', private.pii_key(), 'cipher-algo=aes256')),
+select is(private.decrypt_pii(extensions.pgp_sym_encrypt('7654321', private.pii_key(1), 'cipher-algo=aes256'), 1),
   '7654321', 'values written with the earlier options (SHA-1 S2K) still decrypt');
 select results_eq(
   $$ select transit_number, account_last4 from public.organization_bank_details

@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   changedFields,
-  comparableName,
   confirmPayload,
   effectiveSection,
   incompleteSections,
-  nameMatches,
   nextMarch31,
   sameValue,
   sectionComplete,
@@ -174,7 +172,7 @@ describe('completeness (private.submission_gaps, P4-173)', () => {
   })
 })
 
-describe('insurance and consent', () => {
+describe('insurance', () => {
   it('proposes the end of the coming policy period: this March 31 in January and February, else next year’s (P4-412)', () => {
     expect(nextMarch31('2026-10-08')).toBe('2027-03-31')
     expect(nextMarch31('2027-01-01')).toBe('2027-03-31')
@@ -185,23 +183,5 @@ describe('insurance and consent', () => {
     expect(nextMarch31('2027-03-31')).toBe('2028-03-31')
     expect(nextMarch31('2027-04-01')).toBe('2028-03-31')
     expect(nextMarch31('2027-12-31')).toBe('2028-03-31')
-  })
-
-  it('compares the typed name with the file’s, accents, case and spaces aside', () => {
-    expect(nameMatches('  felix   GAUTHIER ', 'Félix', 'Gauthier')).toBe(true)
-    expect(nameMatches('Félix Gauthie', 'Félix', 'Gauthier')).toBe(false)
-    expect(nameMatches('', 'Félix', 'Gauthier')).toBe(false)
-    expect(comparableName('Hélène  Côté-Lœuvre')).toBe('helene cote-loeuvre')
-  })
-
-  it('folds what unaccent folds and decomposition does not (ß, Ł, Ø, Æ, Đ, Þ, ’…), as the database checks it', () => {
-    // The same string and result as 056_professionals_questionnaire_consent_answer.test.sql.
-    expect(comparableName('ß ẞ Ł Ø Đ Ħ ı Ŀ Ŋ Œ Æ Þ Ð ĸ ſ Ĳ ŉ Ŧ ’ é Ç ü')).toBe("ss ss l o d h i l n oe ae th d q s ij 'n t ' e c u")
-    expect(nameMatches('lukasz oster', 'Łukasz', 'Øster')).toBe(true)
-    expect(nameMatches('Anna Strauss', 'Anna', 'Strauß')).toBe(true)
-    expect(nameMatches("Siobhan O'Brien", 'Siobhán', 'O’Brien')).toBe(true)
-    expect(nameMatches('Dorte Aero', 'Dorte', 'Ærø')).toBe(true)
-    expect(nameMatches('Thora Dottir', 'Þóra', 'Dóttir')).toBe(true)
-    expect(nameMatches('Lukas Oster', 'Łukasz', 'Øster')).toBe(false)
   })
 })

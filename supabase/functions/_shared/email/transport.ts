@@ -132,7 +132,7 @@ const QUOTA_ERRORS = new Set(['daily_quota_exceeded', 'monthly_quota_exceeded'])
 const ERROR_NAME = /^[a-z][a-z0-9_]{0,47}$/
 
 /** The tag name a webhook reads to find its `email_log` row. */
-export const EMAIL_LOG_TAG = 'email_log_id'
+const EMAIL_LOG_TAG = 'email_log_id'
 
 /**
  * The `email_log_id` tag in each provider's form, from one place. Resend tags

@@ -89,7 +89,6 @@ export const mySubmissionPayload = z
     },
   }))
 export type MySubmission = z.output<typeof mySubmissionPayload>
-export type SubmissionPrivate = NonNullable<MySubmission['private']>
 
 /** The caller's open submission (draft or submitted), or null when there is nothing to complete. */
 export async function fetchMySubmission(): Promise<MySubmission | null> {
@@ -134,16 +133,6 @@ export async function saveMySubmissionPrivate(input: SubmissionPrivateInput): Pr
     }),
   )
   if (error) throw error
-}
-
-/**
- * Signs the latest published consent with the name as typed (the database compares it with the
- * file's, P4-273). Resolves with the signature's time, the server's (P4-336).
- */
-export async function signMyConsent(versionId: string, signerName: string): Promise<string> {
-  const { data, error } = await supabase.rpc('sign_my_consent', { p_version_id: versionId, p_signer_name: signerName })
-  if (error) throw error
-  return parseRpc(z.string(), data)
 }
 
 /** What the record already holds of the private data (`get_my_professional_private`): plain numbers and masks. */

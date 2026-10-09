@@ -1,7 +1,7 @@
 -- PII key versions, canary and health check (migration *_core_pii_key_versions.sql,
 -- ADR 0004 « Before Phase 4 », plan Task 4a.16):
--- private.pii_key(int) / encrypt_pii(text, int) / decrypt_pii(bytea, int), the one-argument forms
--- (version 1), private.pii_encrypted_values() / pii_key_versions_in_use() (the list of encrypted
+-- private.pii_key(int) / encrypt_pii(text, int) / decrypt_pii(bytea, int) (the one-argument forms
+-- are dropped: *_core_drop_unused_functions.sql), private.pii_encrypted_values() / pii_key_versions_in_use() (the list of encrypted
 -- columns), private.pii_current_key_version(), private.pii_seed_canary(int), private.pii_canary,
 -- public.pii_health_check(), organization_bank_details.key_version (one version per row), and the
 -- rotation runbook's blocks, replayed verbatim (forward, re-run, rollback, retiring a version).
@@ -144,7 +144,7 @@ select is((select count(*)::int from pg_proc p
             where p.pronamespace = 'private'::regnamespace
               and p.proname in ('pii_key', 'encrypt_pii', 'decrypt_pii', 'pii_encrypted_values', 'pii_key_versions_in_use',
                                 'pii_current_key_version', 'pii_seed_canary')),
-  10, 'the privilege check above sees all ten PII helpers');
+  7, 'the privilege check above sees all seven PII helpers');
 select function_privs_are('private', 'pii_key',     array['integer'],          'anon',          array[]::text[], 'anon has no EXECUTE on pii_key(int)');
 select function_privs_are('private', 'encrypt_pii', array['text', 'integer'],  'anon',          array[]::text[], 'anon has no EXECUTE on encrypt_pii(text, int)');
 select function_privs_are('private', 'decrypt_pii', array['bytea', 'integer'], 'anon',          array[]::text[], 'anon has no EXECUTE on decrypt_pii(bytea, int)');
@@ -194,15 +194,16 @@ select is((select c.column_default from information_schema.columns c
 -- =============================================================================
 -- Keys and helpers (as postgres)
 -- =============================================================================
-select ok(private.pii_key(1) is not null and private.pii_key(1) = private.pii_key(),
-  'version 1 is the Vault secret pii_encryption_key (same as pii_key())');
+select ok(private.pii_key(1) is not null
+          and private.pii_key(1) = (select ds.decrypted_secret from vault.decrypted_secrets ds where ds.name = 'pii_encryption_key'),
+  'version 1 is the Vault secret pii_encryption_key');
 select ok(private.pii_key(2) is null, 'no version 2 key yet: null');
 select ok(private.pii_key(0) is null and private.pii_key(-1) is null and private.pii_key(null) is null,
   'versions below 1 (and null) have no key');
 
 select is(private.decrypt_pii(private.encrypt_pii('046 454 286', 1), 1), '046 454 286', 'version 1 round trip');
-select is(private.decrypt_pii(private.encrypt_pii('1234567'), 1), '1234567', 'the one-argument encrypt is version 1');
-select is(private.decrypt_pii(private.encrypt_pii('1234567', 1)), '1234567', 'the one-argument decrypt is version 1');
+select hasnt_function('private', 'encrypt_pii', array['text'], 'no one-argument encrypt_pii: callers name the version');
+select hasnt_function('private', 'decrypt_pii', array['bytea'], 'no one-argument decrypt_pii: callers name the version');
 select ok(private.encrypt_pii(null, 1) is null and private.decrypt_pii(null, 7) is null,
   'null stays null (no key needed)');
 select throws_ok($$ select private.encrypt_pii('x', 7) $$, '55000', 'Clé de chiffrement introuvable (version 7)',

@@ -1,6 +1,6 @@
 import { t } from '@/i18n'
 import { formatMegabytes } from '@/shared/lib/files'
-import { formatClinicDateShort, formatDateOnly, shiftCalendarDay } from '@/shared/lib/timezone'
+import { formatClinicDateShort, formatDateOnly, isCalendarDate, shiftCalendarDay } from '@/shared/lib/timezone'
 import type { StatusTone } from '@/shared/ui/status-dot'
 import type { ProfessionalConsent, ProfessionalDocument, ProfessionalDocuments, StagedDocument } from '../api/documents'
 import type { DocumentType } from '../api/parse'
@@ -43,7 +43,7 @@ export function defaultExpiry(rule: DocumentExpiryRule, today: string): string |
 }
 
 /** The largest reminder (days before the last valid day): the « bientôt échu » window; 0 without one. */
-export const reminderWindow = (type: DocumentType) => Math.max(0, ...type.reminderDays)
+const reminderWindow = (type: DocumentType) => Math.max(0, ...type.reminderDays)
 
 /**
  * The last day an e-consent is in force: its own last day, or the day before its withdrawal takes
@@ -177,7 +177,7 @@ export function typeStateLabel(entry: Pick<TypeDocuments, 'kind' | 'until'> & Pa
 }
 
 /** The dot next to the words: an expiry soon is a warning, an expired, refused or missing required document an error. */
-export function typeStateTone(kind: DocumentStateKind, required = true): StatusTone {
+function typeStateTone(kind: DocumentStateKind, required = true): StatusTone {
   if (kind === 'valid') return 'success'
   if (kind === 'expiring' || kind === 'pending' || kind === 'submitted') return 'warning'
   if (kind === 'missing' && !required) return 'neutral'
@@ -303,15 +303,6 @@ export function documentActions(document: ProfessionalDocument, type: Pick<Docum
 /** The verify and redate dialogs' date: the document's own, else the rule's default from `today`. */
 export function proposedExpiry(document: Pick<ProfessionalDocument, 'expiresOn'>, type: Pick<DocumentType, 'expiryRule'>, today: string): string | null {
   return document.expiresOn ?? defaultExpiry(type.expiryRule, today)
-}
-
-const ISO_DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
-
-/** A real calendar date `yyyy-MM-dd` (what `<input type="date">` gives). */
-export function isCalendarDate(value: string): boolean {
-  if (!ISO_DATE.test(value)) return false
-  const parsed = new Date(`${value}T00:00:00Z`)
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
 /**

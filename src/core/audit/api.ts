@@ -36,7 +36,7 @@ const auditEntrySchema = z.object({
 export type AuditEntry = z.infer<typeof auditEntrySchema>
 
 const auditActorSchema = z.object({ actor_id: z.string(), actor_name: z.string() })
-export type AuditActor = z.infer<typeof auditActorSchema>
+type AuditActor = z.infer<typeof auditActorSchema>
 
 /**
  * One page of the org's journal, newest first (keyset on `id`): the entries before `beforeId`

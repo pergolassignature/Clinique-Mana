@@ -46,7 +46,7 @@ export const FRENCH_GENERICS: ReadonlySet<string> = new Set([
 ])
 
 /** A civic number at the start of a line: `1234`, `1234A`, `1234-1236`. */
-export const CIVIC_NUMBER = /^\s*(\d+[A-Za-z]?(?:-\d+)?)\b/
+const CIVIC_NUMBER = /^\s*(\d+[A-Za-z]?(?:-\d+)?)\b/
 
 /** `Rue Saint-Denis` → `rue Saint-Denis` when the first word is a French generic. */
 function lowerGeneric(route: string): string {

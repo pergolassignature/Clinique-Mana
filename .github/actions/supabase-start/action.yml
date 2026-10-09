@@ -1,0 +1,21 @@
+name: Start the local Supabase stack
+description: >
+  Installs the pinned Supabase CLI and runs `supabase start` (every migration, then
+  supabase/seed.sql), without the containers the job does not need. Used by ci.yml's
+  database and e2e jobs; run after actions/checkout.
+
+inputs:
+  exclude:
+    description: Containers to skip, comma-separated (names from `supabase start --help` for the pinned CLI).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: supabase/setup-cli@v1
+      with:
+        version: 2.98.2
+    - shell: bash
+      run: supabase start -x "$EXCLUDE"
+      env:
+        EXCLUDE: ${{ inputs.exclude }}

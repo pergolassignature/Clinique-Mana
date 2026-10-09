@@ -15,9 +15,7 @@ import {
   handleCors,
   jsonResponse,
   resetCorsReportForTests,
-  serviceKeys,
   verifyAuth,
-  verifyServiceRoleAuth,
 } from './auth.ts'
 import { captureConsole, withEnv } from './testing/env.ts'
 
@@ -550,77 +548,4 @@ Deno.test('getUserClient: a client when env is set', async () => {
       assert(!(getUserClient('tok') instanceof Response))
     },
   )
-})
-
-// ---------------------------------------------------------------------------
-// verifyServiceRoleAuth (several accepted keys)
-// ---------------------------------------------------------------------------
-const authReq = (h?: string) =>
-  new Request(
-    'http://x',
-    h === undefined ? undefined : { headers: { Authorization: h } },
-  )
-
-const ALL_KEYS = {
-  SUPABASE_SERVICE_ROLE_KEY: 'legacy-service-jwt',
-  SUPABASE_SECRET_KEYS: 'sb_secret_one, sb_secret_two',
-  INTERNAL_FUNCTION_SECRET: 'internal-secret',
-}
-
-Deno.test('serviceKeys: collects every configured key, ignoring empty values', async () => {
-  await withEnv(
-    { ...ALL_KEYS, SUPABASE_SECRET_KEYS: 'sb_secret_one,, ' },
-    () => {
-      assertEquals(serviceKeys(), [
-        'legacy-service-jwt',
-        'sb_secret_one',
-        'internal-secret',
-      ])
-    },
-  )
-  await withEnv({ ...NO_SERVICE_KEYS, INTERNAL_FUNCTION_SECRET: '' }, () => {
-    assertEquals(serviceKeys(), [])
-  })
-})
-
-Deno.test('verifyServiceRoleAuth: fails closed (500) when no key is configured', async () => {
-  await withEnv(NO_SERVICE_KEYS, async () => {
-    await captureConsole('error', async () => {
-      const res = verifyServiceRoleAuth(authReq('Bearer anything'))
-      assertEquals(res?.status, 500)
-      assertEquals((await errorOf(res!)).code, 'server_misconfigured')
-    })
-  })
-})
-
-Deno.test('verifyServiceRoleAuth: accepts the legacy service-role key', async () => {
-  await withEnv(ALL_KEYS, () => {
-    assertEquals(
-      verifyServiceRoleAuth(authReq('Bearer legacy-service-jwt')),
-      null,
-    )
-  })
-})
-
-Deno.test('verifyServiceRoleAuth: accepts each sb_secret_ key', async () => {
-  await withEnv(ALL_KEYS, () => {
-    assertEquals(verifyServiceRoleAuth(authReq('Bearer sb_secret_one')), null)
-    assertEquals(verifyServiceRoleAuth(authReq('Bearer sb_secret_two')), null)
-  })
-})
-
-Deno.test('verifyServiceRoleAuth: accepts the internal function secret', async () => {
-  await withEnv(ALL_KEYS, () => {
-    assertEquals(verifyServiceRoleAuth(authReq('Bearer internal-secret')), null)
-  })
-})
-
-Deno.test('verifyServiceRoleAuth: wrong or missing key gives 401 unauthenticated', async () => {
-  await withEnv(ALL_KEYS, async () => {
-    const wrong = verifyServiceRoleAuth(authReq('Bearer sb_secret_on'))
-    assertEquals(wrong?.status, 401)
-    assertEquals((await errorOf(wrong!)).code, 'unauthenticated')
-    assertEquals(verifyServiceRoleAuth(authReq('Bearer user-jwt'))?.status, 401)
-    assertEquals(verifyServiceRoleAuth(authReq())?.status, 401)
-  })
 })

@@ -63,7 +63,7 @@ function refreshAfterDecision(queryClient: QueryClient, professionalId: string, 
   ])
 }
 
-export interface ApplyVariables {
+interface ApplyVariables {
   professionalId: string
   submissionId: string
   kind: SubmissionKind
@@ -100,7 +100,7 @@ export function useApplySubmission(feedback?: MutationFeedback) {
   })
 }
 
-export interface ReturnVariables {
+interface ReturnVariables {
   professionalId: string
   submissionId: string
   note: string
@@ -120,7 +120,7 @@ export function useReturnSubmission(feedback?: MutationFeedback) {
   })
 }
 
-export interface CancelVariables {
+interface CancelVariables {
   professionalId: string
   submissionId: string
   firstName: string
