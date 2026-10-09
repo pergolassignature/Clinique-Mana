@@ -11,7 +11,7 @@
 -- it); the history (status moves only).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(78);
+select plan(90);
 
 create function private.test_error_hint(p_sql text) returns text
 language plpgsql set search_path = '' as $$
@@ -50,7 +50,11 @@ select function_privs_are('private', 'professional_contract_terms', array['uuid'
   'nor the service role (prepare_professional_contract does)');
 select function_privs_are('private', 'seed_professionals_contract_template', array['uuid'], 'authenticated', array[]::text[],
   'no client calls the template seed');
-select table_privs_are('public', 'professional_contract_snapshots', 'authenticated', array['SELECT'], 'authenticated: select only on the snapshots');
+select table_privs_are('public', 'professional_contract_snapshots', 'authenticated', array[]::text[], 'authenticated: nothing on the snapshots (no client reads them)');
+select function_privs_are('private', 'professional_contract_check', array['uuid', 'uuid', 'jsonb'], 'authenticated', array[]::text[],
+  'no client calls the send checks');
+select function_privs_are('private', 'professional_contract_check', array['uuid', 'uuid', 'jsonb'], 'service_role', array[]::text[],
+  'nor the service role (prepare_professional_contract does)');
 select table_privs_are('public', 'professional_contract_snapshots', 'anon', array[]::text[], 'anon: nothing on the snapshots');
 select results_eq($$ select role from public.role_permissions where permission_key = 'professionals.contracts.send' order by role $$,
   $$ values ('admin'::text) $$, 'professionals.contracts.send: admin by default');
@@ -277,6 +281,55 @@ update public.signature_requests set status = 'sent', envelope_id = 'envelope_co
 select is(public.prepare_professional_contract('a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'regenerate', 'k4') -> 'cancel',
   'null'::jsonb, 'regenerate with the same key never closes its own request');
 
+-- Review of 4d: « Régénérer » with a value cleared since the send is refused before anything is
+-- cancelled (the function cancels only what prepare names), and writes no snapshot.
+update public.organizations set signatory_title = null where id = 'b0000000-0000-0000-0000-00000000000a';
+select throws_ok($$ select public.prepare_professional_contract('a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'regenerate', 'k9') $$,
+  'P0001', 'Le contrat ne peut pas être préparé : « Titre du signataire » est vide. Complétez le dossier ou les paramètres, puis réessayez.',
+  'regenerate with an empty required value: refused, naming its label');
+select is(private.test_error_hint($$ select public.prepare_professional_contract('a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'regenerate', 'k9') $$),
+  'values', 'HINT values');
+select results_eq($$ select r.status, (select count(*)::int from public.professional_contract_snapshots s where s.idempotency_key like '%:k9')
+                       from public.signature_requests r where r.id = current_setting('test.r2')::uuid $$,
+  $$ values ('sent'::text, 0) $$, 'the live contract is untouched and no snapshot is written');
+update public.organizations set signatory_title = 'présidente' where id = 'b0000000-0000-0000-0000-00000000000a';
+-- Resend with no signer left to email (no Documenso recipient yet): a clear refusal, not a false 200.
+select throws_ok($$ select public.prepare_professional_contract('a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'resend', null) $$,
+  'P0001', 'Personne n''attend ce courriel : utilisez « Synchroniser » pour mettre le contrat à jour.', 'resend without a recipient to email: refused');
+
+-- The checks themselves: Annexe A's placeholder must be in the version; every required value set.
+insert into public.document_template_versions (id, template_id, org_id, version, status, body, variables, signers, email_subject, email_message)
+select 'd2000000-0000-0000-0000-000000000001', v.template_id, v.org_id, 2, 'draft',
+       jsonb_set(v.body, '{blocks}', (select jsonb_agg(b) from jsonb_array_elements(v.body -> 'blocks') b
+                                       where b -> 'runs' is distinct from '[{"text": "{{pricing.annexe_a}}"}]'::jsonb)),
+       v.variables, v.signers, v.email_subject, v.email_message
+  from public.document_template_versions v where v.id = current_setting('test.v1')::uuid;
+select is(private.test_error_hint($$ select private.professional_contract_check('b0000000-0000-0000-0000-00000000000a', 'd2000000-0000-0000-0000-000000000001', '{}'::jsonb) $$),
+  'template', 'a version without Annexe A''s placeholder: refused (HINT template)');
+select lives_ok($$ select private.professional_contract_check('b0000000-0000-0000-0000-00000000000a', current_setting('test.v1')::uuid, current_setting('test.prep4')::jsonb -> 'values') $$,
+  'the seeded version with complete values passes');
+select is(private.test_error_hint($$ select private.professional_contract_check('b0000000-0000-0000-0000-00000000000a', current_setting('test.v1')::uuid,
+                                           (current_setting('test.prep4')::jsonb -> 'values') #- '{professional,address}') $$),
+  'values', 'an absent required value: refused (HINT values)');
+delete from public.document_template_versions where id = 'd2000000-0000-0000-0000-000000000001';
+
+-- « Régénérer » while another send of the open draft holds a fresh claim: refused; once the claim
+-- is stale (10 minutes), the next check runs (here Nora's title has no grid).
+select set_config('test.r3', (select r.id::text from public.create_signature_request(jsonb_build_object(
+  'org_id', 'b0000000-0000-0000-0000-00000000000a', 'module_key', 'professionals', 'purpose', 'professionals.service_contract',
+  'template_version_id', current_setting('test.v1'), 'subject_type', 'professional', 'subject_id', 'c0000000-0000-0000-0000-000000000003',
+  'title', 'Contrat de service — Nora Trois', 'view_permission', 'professionals.compensation',
+  'idempotency_key', 'professionals.service_contract:c0000000-0000-0000-0000-000000000003:n1',
+  'sent_by', 'a0000000-0000-0000-0000-000000000001',
+  'signers', '[{"role": "professional", "name": "Nora Trois", "email": "provider@a.test", "order": 1}]'::jsonb)) r), true);
+update public.signature_requests set send_started_at = now() where id = current_setting('test.r3')::uuid;
+select throws_ok($$ select public.prepare_professional_contract('a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000003', 'regenerate', 'n2') $$,
+  'P0001', 'Un envoi est déjà en cours.', 'regenerate during another send''s fresh claim: refused');
+update public.signature_requests set send_started_at = now() - interval '11 minutes' where id = current_setting('test.r3')::uuid;
+select is(private.test_error_hint($$ select public.prepare_professional_contract('a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000003', 'regenerate', 'n2') $$),
+  'pricing', 'a stale claim no longer blocks (the next refusal is the terms'')');
+delete from public.signature_requests where id = current_setting('test.r3')::uuid;
+
 -- =============================================================================
 -- The card (get_professional_contract)
 -- =============================================================================
@@ -292,6 +345,8 @@ select results_eq($$ select c -> 'request' ->> 'id', c -> 'request' ->> 'status'
   $$ values (current_setting('test.r2'), 'viewed'::text, false, 'null'::jsonb, '1'::text) $$,
   'the conseillère sees the latest request''s state, never its file (the pay is in it, P4-435)');
 select is(current_setting('test.card')::jsonb -> 'request' -> 'signers' -> 0 ->> 'status', 'viewed', 'and each signer''s progress');
+select ok((current_setting('test.card')::jsonb -> 'request') ?& array['send_started_at', 'last_send_at'],
+  'the card has the send claim''s times (a dead send is shown failed after STALE_SEND_MS)');
 select results_eq($$ select (c -> 'template' ->> 'published_version')::int, (c ->> 'clinic_signer')::boolean
                        from (select current_setting('test.card')::jsonb c) x $$,
   $$ values (1, true) $$, 'the published version and whether the clinic signs');

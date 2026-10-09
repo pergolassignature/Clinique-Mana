@@ -23,7 +23,11 @@
  *    `pricing`, `profession`, `contract`, `status`, `regenerate`); 42501 →
  *    403; 22023 → 400.
  * 5. `resend`: Documenso `redistribute` to the next signer of the open request
- *    (the link renewed). 200 `{ request_id }`.
+ *    (the link renewed). 200 `{ request_id }`. No envelope or no signer left
+ *    to email → a French refusal (400), never a 200 that sent nothing.
+ *    `prepare_professional_contract` refuses, before anything is cancelled or
+ *    written, a version without Annexe A's placeholder and a required value
+ *    that is empty, and « Régénérer » while another send's claim is fresh.
  * 6. `regenerate` with an open request: its Documenso envelope cancelled
  *    first (a pending one cancelled, a draft deleted, E-8), then
  *    `cancel_signature_request(p_id, p_by)`. A failed Documenso cancel stops
@@ -120,6 +124,12 @@ const resendSchema = z.object({
   }),
 })
 
+/** The resend refusals, as `prepare_professional_contract` words them. */
+export const NO_ENVELOPE =
+  "Ce contrat n'a pas d'envoi Documenso à renvoyer : utilisez « Régénérer »."
+export const NO_RECIPIENT =
+  "Personne n'attend ce courriel : utilisez « Synchroniser » pour mettre le contrat à jour."
+
 const STATUS = {
   not_configured: 503,
   module_disabled: 403,
@@ -188,6 +198,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         }
         const { request_id: requestId, envelope_id, recipient_ids } =
           parsed.data.resend
+        // prepare_professional_contract refuses both (review of 4d); never a 200 that sent nothing.
+        if (!envelope_id) {
+          return refusalResponse(NO_ENVELOPE, req)
+        }
+        if (recipient_ids.length === 0) {
+          return refusalResponse(NO_RECIPIENT, req)
+        }
         const client = await documenso()
         if (!client) {
           return errorResponse(
@@ -197,12 +214,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
             req,
           )
         }
-        if (envelope_id) {
-          try {
-            await client.redistribute(envelope_id, recipient_ids)
-          } catch (error) {
-            return providerFailure(error, requestId)
-          }
+        try {
+          await client.redistribute(envelope_id, recipient_ids)
+        } catch (error) {
+          return providerFailure(error, requestId)
         }
         return jsonResponse({ request_id: requestId }, 200, req)
       }

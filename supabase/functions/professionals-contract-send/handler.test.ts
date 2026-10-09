@@ -1,5 +1,5 @@
 import { assert, assertEquals } from '@std/assert'
-import { createHandler } from './handler.ts'
+import { createHandler, NO_ENVELOPE, NO_RECIPIENT } from './handler.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { DOCUMENSO_PATHS } from '../_shared/documenso.ts'
 import type { PdfDocument } from '../_shared/pdf/model.ts'
@@ -471,6 +471,68 @@ Deno.test('professionals-contract-send: resend → Documenso resends to the next
       envelopeId: old.envelope_id,
       recipients: [Number(recipient)],
     })
+  })
+})
+
+Deno.test('professionals-contract-send: regenerate with a value cleared since the send → refused before anything is cancelled', async () => {
+  await run(async () => {
+    const message =
+      'Le contrat ne peut pas être préparé : « Titre du signataire » est vide. Complétez le dossier ou les paramètres, puis réessayez.'
+    const s = setup({
+      prepare: { error: { code: 'P0001', message, hint: 'values' } },
+    })
+    const old = await sentRequest(s.fake, s.db, contractOf)
+    const before = s.fake.calls.length
+    const res = await s.handler(
+      post({
+        professional_id: PRO,
+        action: 'regenerate',
+        idempotency_key: KEY,
+      }),
+    )
+    assertEquals(res.status, 400)
+    assertEquals(await res.json(), {
+      error: {
+        code: 'invalid_request',
+        message,
+        refusal: true,
+        field: 'values',
+      },
+    })
+    assertEquals(s.db.requests.get(old.id)!.status, 'sent')
+    assertEquals(s.fake.documents.get(old.envelope_id!)!.status, 'PENDING')
+    assertEquals(s.fake.calls.length, before, 'Documenso untouched')
+    assert(!s.service.calls.some((c) => c.fn === 'cancel_signature_request'))
+    assertEquals(s.db.requests.size, 1)
+  })
+})
+
+Deno.test('professionals-contract-send: resend without an envelope or a signer to email → a French refusal, never a 200', async () => {
+  await run(async () => {
+    for (
+      const [resend, message] of [
+        [
+          { request_id: 'r1', envelope_id: null, recipient_ids: ['11'] },
+          NO_ENVELOPE,
+        ],
+        [
+          { request_id: 'r1', envelope_id: 'envelope_x', recipient_ids: [] },
+          NO_RECIPIENT,
+        ],
+      ] as const
+    ) {
+      const s = setup({ prepare: { data: { resend } } })
+      const res = await s.handler(
+        post({ professional_id: PRO, action: 'resend', idempotency_key: KEY }),
+      )
+      assertEquals(res.status, 400)
+      assertEquals((await res.json()).error, {
+        code: 'invalid_request',
+        message,
+        refusal: true,
+      })
+      assertEquals(s.fake.calls.length, 0)
+    }
   })
 })
 

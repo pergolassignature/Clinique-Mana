@@ -36,7 +36,7 @@
 --   wins: a retry of the same action renders what the first attempt computed, and a signed contract
 --   never re-reads the compensation. Joined to signature_requests on (org_id, idempotency_key); a
 --   snapshot without a request is an attempt that never reached create_signature_request. Read with
---   professionals.compensation; audited with the values redacted (they hold the professional's
+--   no client (closed: the definer RPCs and the service role only); audited with the values redacted (they hold the professional's
 --   address and the signers' addresses), the terms kept (compensation is audited with its values,
 --   P4-149).
 -- * prepare_professional_contract (SERVICE ROLE, p_actor as Task 3.18): the actor re-checked (an
@@ -442,15 +442,72 @@ create index professional_contract_snapshots_org_idx on public.professional_cont
 create index professional_contract_snapshots_version_idx on public.professional_contract_snapshots (template_version_id);
 create index professional_contract_snapshots_created_by_idx on public.professional_contract_snapshots (created_by);
 
+-- No client reads it (least privilege): only the definer RPCs below and the service role do. A
+-- snapshot of an attempt that never became a request is kept with its professional (deleted with
+-- the file, `on delete cascade`): module doc, « Service contract », Loi 25 note.
 revoke all on public.professional_contract_snapshots from anon, authenticated;
-grant select on public.professional_contract_snapshots to authenticated;
 alter table public.professional_contract_snapshots enable row level security;
-create policy professional_contract_snapshots_select on public.professional_contract_snapshots
-  for select to authenticated
-  using (org_id = (select private.current_user_org_id()) and (select private.has_permission('professionals.compensation')));
 create trigger professional_contract_snapshots_audit
   after insert or update or delete on public.professional_contract_snapshots
   for each row execute function private.audit_trigger('template_values', 'signers');
+
+-- -----------------------------------------------------------------------------
+-- The checks a send needs before anything is written or cancelled (review of 4d)
+-- -----------------------------------------------------------------------------
+-- The version must print Annexe A: a paragraph whose only run is the block placeholder
+-- `{{pricing.annexe_a}}` (surrounding spaces allowed, as the filler's LONE_PLACEHOLDER), else the
+-- contract would go out without its amounts (HINT template). Every required variable but that one
+-- must have a value (a non-blank string or a number, as the filler's formatValue), else the
+-- filler would refuse after a « Régénérer » had already cancelled the live contract (HINT values;
+-- the message names the variable's French label, never a value). The values are the snapshot's
+-- with the clinic's identity over them, as createSignatureRequest fills them (`clinic.*` is read
+-- live from organizations, the same columns as core's get_signing_context).
+create function private.professional_contract_check(p_org uuid, p_version uuid, p_values jsonb)
+returns void
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  v_body jsonb;
+  v_variables jsonb;
+  v_label text;
+  v_all jsonb;
+begin
+  select v.body, v.variables into v_body, v_variables
+    from public.document_template_versions v where v.id = p_version and v.org_id = p_org;
+  select coalesce(p_values, '{}'::jsonb) || pg_catalog.jsonb_build_object('clinic', pg_catalog.jsonb_build_object(
+           'name', o.name, 'legal_name', o.legal_name, 'address_line1', o.address_line1,
+           'address_line2', o.address_line2, 'city', o.city, 'province', o.province,
+           'postal_code', o.postal_code, 'phone', o.phone, 'email', o.email, 'website', o.website,
+           'signatory_name', o.signatory_name, 'signatory_title', o.signatory_title,
+           'signatory_email', o.signatory_email))
+    into v_all
+    from public.organizations o where o.id = p_org;
+  if not exists (select 1 from pg_catalog.jsonb_array_elements(coalesce(v_body -> 'blocks', '[]'::jsonb)) b(block)
+                  where b.block ->> 'type' = 'paragraph'
+                    and pg_catalog.jsonb_typeof(b.block -> 'runs') = 'array'
+                    and pg_catalog.jsonb_array_length(b.block -> 'runs') = 1
+                    and (b.block -> 'runs' -> 0 ->> 'text') ~ '^\s*\{\{\s*pricing\.annexe_a\s*\}\}\s*$') then
+    raise exception 'Le modèle publié n''imprime pas l''Annexe A : ajoutez {{pricing.annexe_a}} seul sur une ligne dans Paramètres → Contrats, puis publiez la nouvelle version.'
+      using errcode = 'P0001', hint = 'template';
+  end if;
+  select x.v ->> 'label' into v_label
+    from pg_catalog.jsonb_array_elements(coalesce(v_variables, '[]'::jsonb)) with ordinality as x(v, ord)
+   cross join lateral (select v_all #> pg_catalog.string_to_array(x.v ->> 'path', '.') as value) val
+   where coalesce((x.v ->> 'required')::boolean, false)
+     and x.v ->> 'path' <> 'pricing.annexe_a'
+     and not coalesce(pg_catalog.jsonb_typeof(val.value) = 'number'
+                      or (pg_catalog.jsonb_typeof(val.value) = 'string' and (val.value #>> '{}') ~ '\S'), false)
+   order by x.ord
+   limit 1;
+  if v_label is not null then
+    raise exception 'Le contrat ne peut pas être préparé : « % » est vide. Complétez le dossier ou les paramètres, puis réessayez.', v_label
+      using errcode = 'P0001', hint = 'values';
+  end if;
+end;
+$$;
+revoke all on function private.professional_contract_check(uuid, uuid, jsonb) from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
 -- prepare_professional_contract (service role; the function's one read before a send)
@@ -467,8 +524,12 @@ create trigger professional_contract_snapshots_audit
 -- {request_id, envelope_id, status} | null} for send and regenerate (the snapshot's, written here
 -- the first time), {resend: {request_id, envelope_id, recipient_ids}} for resend. Refused (P0001,
 -- HINT): an inactive file (status), a signed contract (contract), no published template (template),
--- a draft whose version is no longer published (regenerate), and the terms' refusals; the actor
--- not allowed → 42501; bad arguments → 22023.
+-- a draft whose version is no longer published (regenerate), and the terms' refusals; a version
+-- without Annexe A's placeholder (template) or a required value empty (values), checked before the
+-- snapshot is written and before anything is cancelled (private.professional_contract_check);
+-- « Régénérer » while another send's claim is fresh (contract: « Un envoi est déjà en cours. »);
+-- a resend without an envelope or without a signer left to sign (contract); the actor not
+-- allowed → 42501; bad arguments → 22023.
 create function public.prepare_professional_contract(p_actor uuid, p_id uuid, p_action text, p_idempotency_key text)
 returns jsonb
 language plpgsql
@@ -486,6 +547,7 @@ declare
   v_snapshot public.professional_contract_snapshots;
   v_version uuid;
   v_terms jsonb;
+  v_recipients jsonb;
   v_prev_source text := pg_catalog.current_setting('app.audit_source', true);
   v_prev_actor text := pg_catalog.current_setting('app.audit_actor', true);
 begin
@@ -514,14 +576,23 @@ begin
     if v_open.id is null or v_open.status not in ('sent', 'viewed') then
       raise exception 'Aucun contrat n''attend de signature.' using errcode = 'P0001', hint = 'contract';
     end if;
+    if v_open.envelope_id is null then
+      raise exception 'Ce contrat n''a pas d''envoi Documenso à renvoyer : utilisez « Régénérer ».'
+        using errcode = 'P0001', hint = 'contract';
+    end if;
+    v_recipients := coalesce((select pg_catalog.jsonb_agg(s.documenso_recipient_id)
+                                from (select x.documenso_recipient_id from public.signature_request_signers x
+                                       where x.request_id = v_open.id and x.status in ('pending', 'viewed')
+                                         and x.documenso_recipient_id is not null
+                                       order by x.signing_order limit 1) s), '[]'::jsonb);
+    if pg_catalog.jsonb_array_length(v_recipients) = 0 then
+      raise exception 'Personne n''attend ce courriel : utilisez « Synchroniser » pour mettre le contrat à jour.'
+        using errcode = 'P0001', hint = 'contract';
+    end if;
     return pg_catalog.jsonb_build_object('resend', pg_catalog.jsonb_build_object(
       'request_id', v_open.id,
       'envelope_id', v_open.envelope_id,
-      'recipient_ids', coalesce((select pg_catalog.jsonb_agg(s.documenso_recipient_id)
-                                   from (select x.documenso_recipient_id from public.signature_request_signers x
-                                          where x.request_id = v_open.id and x.status in ('pending', 'viewed')
-                                            and x.documenso_recipient_id is not null
-                                          order by x.signing_order limit 1) s), '[]'::jsonb)));
+      'recipient_ids', v_recipients));
   end if;
 
   if v_row.status = 'inactive' then
@@ -548,6 +619,11 @@ begin
       v_key := v_open.idempotency_key;
     end if;
   elsif v_open.id is not null and v_open.idempotency_key <> v_key then
+    -- Another send of the open draft is under way (its claim younger than the functions'
+    -- STALE_SEND_MS, 10 minutes): cancelling now would race it.
+    if v_open.status = 'draft' and v_open.send_started_at > pg_catalog.now() - interval '10 minutes' then
+      raise exception 'Un envoi est déjà en cours.' using errcode = 'P0001', hint = 'contract';
+    end if;
     v_cancel := pg_catalog.jsonb_build_object('request_id', v_open.id, 'envelope_id', v_open.envelope_id,
                                               'status', v_open.status);
   end if;
@@ -561,6 +637,7 @@ begin
       raise exception 'Le modèle de contrat a changé depuis cet envoi. Utilisez « Régénérer ».'
         using errcode = 'P0001', hint = 'regenerate';
     end if;
+    perform private.professional_contract_check(v_org, v_snapshot.template_version_id, v_snapshot.template_values);
   else
     select v.id into v_version
       from public.document_templates t
@@ -571,6 +648,7 @@ begin
         using errcode = 'P0001', hint = 'template';
     end if;
     v_terms := private.professional_contract_terms(v_org, p_id);
+    perform private.professional_contract_check(v_org, v_version, v_terms -> 'values');
 
     perform pg_catalog.set_config('app.audit_source', 'rpc:prepare_professional_contract', true);
     perform pg_catalog.set_config('app.audit_actor', p_actor::text, true);
@@ -603,7 +681,8 @@ grant execute on function public.prepare_professional_contract(uuid, uuid, text,
 -- {template: {id, published_version_id, published_version, published_at, draft_version_id} | null
 -- (none, or retired), clinic_signer (Settings « Signataire » has a name and an address),
 -- request: the latest service-contract request or null: {id, status, last_error, template_version,
--- created_at, sent_at, viewed_at, completed_at, rejected_at, cancelled_at, expired_at, expires_at,
+-- created_at, send_started_at and last_send_at (the send claim: a draft whose claim is older than
+-- STALE_SEND_MS is shown failed, not « Envoi en cours »), sent_at, viewed_at, completed_at, rejected_at, cancelled_at, expired_at, expires_at,
 -- can_read (the caller holds its view permission), signed_file_id and rejection_reason (only then),
 -- signers: [{role, name, status, signing_order, viewed_at, signed_at, rejected_at}]}}. Null for a
 -- professional the caller cannot read (another clinic's).
@@ -628,7 +707,8 @@ begin
 
   select pg_catalog.jsonb_build_object(
            'id', r.id, 'status', r.status, 'last_error', r.last_error, 'template_version', v.version,
-           'created_at', r.created_at, 'sent_at', r.sent_at, 'viewed_at', r.viewed_at,
+           'created_at', r.created_at, 'send_started_at', r.send_started_at, 'last_send_at', r.last_send_at,
+           'sent_at', r.sent_at, 'viewed_at', r.viewed_at,
            'completed_at', r.completed_at, 'rejected_at', r.rejected_at, 'cancelled_at', r.cancelled_at,
            'expired_at', r.expired_at, 'expires_at', r.expires_at,
            'can_read', r.view_permission = any (v_perms),
