@@ -8,7 +8,6 @@ import {
   fetchMySubmission,
   saveMySubmissionDraft,
   saveMySubmissionPrivate,
-  signMyConsent,
   startMyProfileUpdate,
   submitMyProfile,
 } from './self'
@@ -106,12 +105,6 @@ describe('saves', () => {
       p_bank_transit: '30000',
       p_bank_account: null,
     })
-  })
-
-  it('signs the consent version with the name as typed, and answers the server’s time', async () => {
-    mocks.rpc.mockResolvedValue({ data: '2026-10-08T16:03:00.123+00:00', error: null })
-    await expect(signMyConsent('v1', 'Félix Gauthier')).resolves.toBe('2026-10-08T16:03:00.123+00:00')
-    expect(mocks.rpc).toHaveBeenCalledWith('sign_my_consent', { p_version_id: 'v1', p_signer_name: 'Félix Gauthier' })
   })
 
   it('reads the record’s masks', async () => {

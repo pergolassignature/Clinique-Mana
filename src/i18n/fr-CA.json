@@ -4019,17 +4019,7 @@
           "sinOnFile": "Déjà fourni (••• {last3}). Laissez vide pour le garder."
         },
         "consent": {
-          "version": "Version {version}",
-          "none": "La clinique n'a pas encore publié ce texte. Vous pourrez le signer, puis envoyer votre profil, dès qu'elle l'aura publié.",
-          "signed": "Signé le {date} par {name}.",
-          "newVersion": "Le texte a changé depuis votre signature. Relisez-le, puis signez de nouveau.",
-          "agree": "J'ai lu et j'accepte ce consentement.",
-          "agreeRequired": "Cochez la case pour accepter.",
-          "name": "Votre nom complet",
-          "nameHelp": "Écrivez « {name} », tel qu'à votre dossier.",
-          "nameRequired": "Écrivez votre nom complet.",
-          "nameMismatch": "Le nom saisi ne correspond pas au nom du dossier.",
-          "signAndContinue": "Signer et continuer"
+          "signed": "Signé le {date} par {name}."
         },
         "review": {
           "ready": "Toutes les étapes sont complètes. Vérifiez vos réponses, puis envoyez votre profil.",

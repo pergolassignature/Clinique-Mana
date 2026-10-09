@@ -8,7 +8,6 @@ import {
   fetchMySubmission,
   saveMySubmissionDraft,
   saveMySubmissionPrivate,
-  signMyConsent,
   submitMyProfile,
   type MySubmission,
   type SectionValues,
@@ -42,15 +41,6 @@ export function useSaveMyPrivate() {
         queryClient.invalidateQueries({ queryKey: professionalKeys.mySubmission() }),
         queryClient.invalidateQueries({ queryKey: professionalKeys.myPrivate() }),
       ]),
-  })
-}
-
-/** « Consentement »: the signature; resolves with the server's time (P4-336), then the submission is refetched. */
-export function useSignMyConsent() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ versionId, signerName }: { versionId: string; signerName: string }) => signMyConsent(versionId, signerName),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: professionalKeys.mySubmission() }),
   })
 }
 
