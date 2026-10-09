@@ -87,7 +87,7 @@ function categoryColumn(catalog: CatalogView): ReferenceColumn<'motifs'> {
     header: t(`${M}.category`),
     cell: (row, { highlight }) => {
       const found = category(row)
-      if (!found) return <span className="text-subtle">{t('modules.professionals.otherCategory')}</span>
+      if (!found) return <span className="text-muted-foreground">{t('modules.professionals.otherCategory')}</span>
       return highlight(found.isActive ? found.name : t(`${M}.archivedCategory`, { name: found.name }))
     },
     searchText: (row) => category(row)?.name ?? '',

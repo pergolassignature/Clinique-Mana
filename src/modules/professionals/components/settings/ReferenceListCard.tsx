@@ -468,7 +468,7 @@ export function ReferenceListCard<K extends ReferenceKind>({
     <TooltipProvider delayDuration={300}>
       <section aria-labelledby={titleId} className="rounded-lg border border-border bg-card p-4 text-card-foreground">
         <div className={cn('mb-3 min-w-0', headingHidden && 'sr-only')}>
-          <h3 id={titleId} className="text-base font-semibold tracking-tight">
+          <h3 id={titleId} className="text-base font-semibold">
             {title}
           </h3>
           {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}

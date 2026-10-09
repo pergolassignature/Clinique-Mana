@@ -40,7 +40,7 @@ export function ReferenceSettingsPage({ title, description, actions, children }:
 
   let content: ReactNode
   if (data) {
-    content = <div className="space-y-4">{children(data)}</div>
+    content = <div className="space-y-5">{children(data)}</div>
   } else if ((catalog.isError && !catalog.data) || (usage.isError && !usage.data)) {
     content = (
       <LoadError
