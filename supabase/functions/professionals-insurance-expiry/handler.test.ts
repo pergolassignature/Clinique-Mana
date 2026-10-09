@@ -41,7 +41,10 @@ type Template =
   | 'professionals.document_expired_reminder'
 
 /** One email row as the RPC answers it. */
-const due = (n: number, template: Template = 'professionals.document_expiring') => ({
+const due = (
+  n: number,
+  template: Template = 'professionals.document_expiring',
+) => ({
   document_id: did(n),
   professional_id: pid(n),
   profile_id: n % 2 === 0 ? null : pid(100 + n),
@@ -52,7 +55,10 @@ const due = (n: number, template: Template = 'professionals.document_expiring') 
 })
 
 /** The RPC's answer with these emails (counts are the SQL's). */
-const runAnswer = (emails: ReturnType<typeof due>[], over: Record<string, unknown> = {}) => ({
+const runAnswer = (
+  emails: ReturnType<typeof due>[],
+  over: Record<string, unknown> = {},
+) => ({
   data: {
     today: '2027-03-24',
     clinic_name: 'Clinique MANA',
@@ -216,10 +222,30 @@ Deno.test('professionals-insurance-expiry: one RPC for the clinic, then each due
     )
     // Queued per row: its template, the professional as subject and recipient profile, no sender.
     const queued = callsTo(service.calls, 'queue_email')
-      .sort((a, b) => String(a.p_subject_id).localeCompare(String(b.p_subject_id)))
+      .sort((a, b) =>
+        String(a.p_subject_id).localeCompare(String(b.p_subject_id))
+      )
     assertEquals(
-      queued.map((q) => [q.p_template_key, q.p_subject_type, q.p_subject_id, q.p_to_email, q.p_to_profile_id, q.p_sent_by]),
-      emails.map((e) => [e.template_key, 'professional', e.professional_id, e.email, e.profile_id, null]),
+      queued.map((
+        q,
+      ) => [
+        q.p_template_key,
+        q.p_subject_type,
+        q.p_subject_id,
+        q.p_to_email,
+        q.p_to_profile_id,
+        q.p_sent_by,
+      ]),
+      emails.map((
+        e,
+      ) => [
+        e.template_key,
+        'professional',
+        e.professional_id,
+        e.email,
+        e.profile_id,
+        null,
+      ]),
     )
     assertEquals(http.calls.length, 3)
     for (const call of http.calls) {
@@ -258,7 +284,10 @@ Deno.test('professionals-insurance-expiry: already ran today (start_job_run null
     const { handler, service, http } = harness({ start: { data: null } })
     const res = await handler(await jobRequest())
     assertEquals([res.status, await res.json()], [200, { runs: 0 }])
-    assertEquals(callsTo(service.calls, 'run_professionals_document_notices_for_service'), [])
+    assertEquals(
+      callsTo(service.calls, 'run_professionals_document_notices_for_service'),
+      [],
+    )
     assertEquals(finished(service.calls), [])
     assertEquals(http.calls, [])
   })
@@ -267,15 +296,30 @@ Deno.test('professionals-insurance-expiry: already ran today (start_job_run null
 Deno.test('professionals-insurance-expiry: module off, RPC failure, bad answer, unusable APP_URL → the run fails with a code; nothing sent', async () => {
   const cases: [string, Parameters<typeof harness>[0], string, boolean][] = [
     ['module off', { moduleEnabled: false }, 'module_disabled', false],
-    ['RPC error', { run: { error: { code: 'XX000' } } }, 'notices_failed', true],
+    [
+      'RPC error',
+      { run: { error: { code: 'XX000' } } },
+      'notices_failed',
+      true,
+    ],
     ['bad answer', { run: { data: { emails: 'x' } } }, 'notices_invalid', true],
     [
       'an address the schema refuses',
-      { run: runAnswer([{ ...due(1), template_key: 'core.staff_invite' as Template }]) },
+      {
+        run: runAnswer([{
+          ...due(1),
+          template_key: 'core.staff_invite' as Template,
+        }]),
+      },
       'notices_invalid',
       true,
     ],
-    ['APP_URL', { env: { APP_URL: 'http://evil.test' } }, 'app_url_invalid', true],
+    [
+      'APP_URL',
+      { env: { APP_URL: 'http://evil.test' } },
+      'app_url_invalid',
+      true,
+    ],
   ]
   await run(async () => {
     for (const [label, opts, code, called] of cases) {
@@ -285,7 +329,8 @@ Deno.test('professionals-insurance-expiry: module off, RPC failure, bad answer, 
         assertEquals(res.status, 200, label)
       })
       assertEquals(
-        callsTo(service.calls, 'run_professionals_document_notices_for_service').length,
+        callsTo(service.calls, 'run_professionals_document_notices_for_service')
+          .length,
         called ? 1 : 0,
         label,
       )
@@ -345,7 +390,9 @@ Deno.test('professionals-insurance-expiry: no batch starts after the soft deadli
     )
     assertEquals(
       detail,
-      `marked=2 expiring=3 expired=1 missing=4 emails=30 sent=${2 * BATCH_SIZE} failed=0 deferred=${30 - 2 * BATCH_SIZE}`,
+      `marked=2 expiring=3 expired=1 missing=4 emails=30 sent=${
+        2 * BATCH_SIZE
+      } failed=0 deferred=${30 - 2 * BATCH_SIZE}`,
     )
     assertEquals(h.http.calls.length, 2 * BATCH_SIZE)
     // A deferred email is never queued: nothing in email_log, so the RPC answers it again tomorrow.
@@ -356,8 +403,18 @@ Deno.test('professionals-insurance-expiry: no batch starts after the soft deadli
 Deno.test('professionals-insurance-expiry: a setup failure ends the run; a provider outage or the quota ends it after the batch', async () => {
   const emails = Array.from({ length: 30 }, (_, i) => due(i + 1))
   const cases: [string, Parameters<typeof harness>[0], string, number][] = [
-    ['not configured', { env: { EMAIL_TRANSPORT: 'carrier-pigeon' } }, 'email_not_configured', 0],
-    ['provider outage', { mailpit: mailpitFailing(emails.map((e) => e.professional_id), 500) }, 'emails_stopped_provider_error', BATCH_SIZE],
+    [
+      'not configured',
+      { env: { EMAIL_TRANSPORT: 'carrier-pigeon' } },
+      'email_not_configured',
+      0,
+    ],
+    [
+      'provider outage',
+      { mailpit: mailpitFailing(emails.map((e) => e.professional_id), 500) },
+      'emails_stopped_provider_error',
+      BATCH_SIZE,
+    ],
     [
       'quota',
       {
@@ -380,13 +437,16 @@ Deno.test('professionals-insurance-expiry: a setup failure ends the run; a provi
       assertEquals(finished(service.calls), [['error', code]], label)
       // Never past the first batch.
       assertEquals(http.calls.length, mails, label)
-      assert(callsTo(service.calls, 'get_email_context').length <= BATCH_SIZE, label)
+      assert(
+        callsTo(service.calls, 'get_email_context').length <= BATCH_SIZE,
+        label,
+      )
       assert(!JSON.stringify(logged).includes('@exemple.test'), label)
     }
   })
 })
 
-Deno.test("professionals-insurance-expiry: one address refused is counted and reported with ids only; the others go out", async () => {
+Deno.test('professionals-insurance-expiry: one address refused is counted and reported with ids only; the others go out', async () => {
   await run(async () => {
     const emails = [due(1), { ...due(2), email: 'pas une adresse' }, due(3)]
     const { handler, service, http } = harness({ emails })
@@ -399,7 +459,12 @@ Deno.test("professionals-insurance-expiry: one address refused is counted and re
       'marked=2 expiring=3 expired=1 missing=4 emails=3 sent=2 failed=1',
     ]])
     const lines = logged.map((l) => JSON.parse(String(l[0])))
-    assert(lines.some((l) => l.code === 'expiry_email_invalid_recipient' && l.ids?.professional_id === pid(2)))
+    assert(
+      lines.some((l) =>
+        l.code === 'expiry_email_invalid_recipient' &&
+        l.ids?.professional_id === pid(2)
+      ),
+    )
     assert(!JSON.stringify(logged).includes('pas une adresse'))
     assert(!JSON.stringify(logged).includes('@exemple.test'))
   })

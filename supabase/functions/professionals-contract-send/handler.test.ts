@@ -484,14 +484,21 @@ Deno.test('professionals-contract-send: « Renvoyer » twice within 10 s → one
   await run(async () => {
     let resend: Record<string, unknown> | null = null
     const limiter = countingLimiter()
-    const s = setup({ prepare: () => ({ data: { resend } }), limiter: limiter.route })
+    const s = setup({
+      prepare: () => ({ data: { resend } }),
+      limiter: limiter.route,
+    })
     const old = await sentRequest(s.fake, s.db, contractOf)
     resend = {
       request_id: old.id,
       envelope_id: old.envelope_id,
       recipient_ids: [old.signers[0].recipient_id!],
     }
-    const body = { professional_id: PRO, action: 'resend', idempotency_key: KEY }
+    const body = {
+      professional_id: PRO,
+      action: 'resend',
+      idempotency_key: KEY,
+    }
     assertEquals((await s.handler(post(body))).status, 200)
     const second = await s.handler(post(body))
     assertEquals(second.status, 429)

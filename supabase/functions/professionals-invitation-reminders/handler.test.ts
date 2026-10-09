@@ -625,7 +625,10 @@ Deno.test('professionals-invitation-reminders: the module off for the clinic →
       { p_org_id: ORG_ID, p_key: 'professionals' },
     ])
     assertEquals(
-      callsTo(off.service.calls, 'list_professional_invitations_to_remind_for_service'),
+      callsTo(
+        off.service.calls,
+        'list_professional_invitations_to_remind_for_service',
+      ),
       [],
     )
     assertEquals(reissuedIds(off.service.calls), [])

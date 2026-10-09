@@ -369,7 +369,11 @@ Deno.test('professionals-fiche: a 22023 from the lookup → 400 invalid_request,
 Deno.test('professionals-fiche: an error the send path throws keeps its own status (an unknown template → 404, P4-477)', async () => {
   await run(async () => {
     const unknown = harness({
-      serviceRpc: { get_email_context: { error: { code: '22023', message: 'unknown template' } } },
+      serviceRpc: {
+        get_email_context: {
+          error: { code: '22023', message: 'unknown template' },
+        },
+      },
     })
     const logged = await reported(async () => {
       const error = await errorOf(await unknown.handler(post(BODY)))
@@ -377,7 +381,9 @@ Deno.test('professionals-fiche: an error the send path throws keeps its own stat
     })
     assert(logged.some((line) => line.includes('email_template_unknown')))
     const broken = harness({
-      serviceRpc: { get_email_context: { error: { code: 'XX000', message: 'boom' } } },
+      serviceRpc: {
+        get_email_context: { error: { code: 'XX000', message: 'boom' } },
+      },
     })
     await reported(async () => {
       const error = await errorOf(await broken.handler(post(BODY)))
