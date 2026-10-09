@@ -1,12 +1,11 @@
 import type { ReactNode, Ref } from 'react'
 import { t } from '@/i18n'
-import { initialsOf } from '@/shared/lib/format'
-import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import { Badge } from '@/shared/ui/badge'
 import type { Onboarding, ProfessionalRecord } from '../../api/parse'
 import type { CatalogView } from '../../lib/catalog-view'
 import { fullName, languagesLabel, primaryProfession, professionLine, statusLabel, statusTone } from '../../lib/display'
 import { displayStatus } from '../../lib/onboarding'
+import { ProfessionalPhotoAvatar } from '../ProfessionalAvatar'
 import { Chip, ChipList } from './Chips'
 
 const H = 'modules.professionals.record.header'
@@ -23,7 +22,7 @@ interface RecordHeaderProps {
 }
 
 /**
- * The record's band (design §5.3): avatar 48 (initials until the photo, 4c), the name (the page's
+ * The record's band (design §5.3): avatar 48 (the newest verified photo, else the initials), the name (the page's
  * h1) with its status, « Travailleuse sociale · OTSTCFQ 12345 · courriel » (the title in the
  * professional's form, P4-342), then quiet chips for the languages
  * and « N'accepte pas de nouveaux clients »; the actions at the right. The identity keeps at least
@@ -38,9 +37,7 @@ export function RecordHeader({ record, onboarding, catalog, headingRef, actions 
   return (
     <header className="flex min-w-0 flex-wrap items-start gap-3">
       <div className="flex min-w-0 flex-1 basis-64 items-start gap-3">
-        <Avatar size="lg" aria-hidden>
-          <AvatarFallback className="text-muted-foreground">{initialsOf(name)}</AvatarFallback>
-        </Avatar>
+        <ProfessionalPhotoAvatar name={name} fileId={record.photoFileId} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {/* Focusable (not tabbable), like PageHeader's, so focus can be moved to the page. */}
