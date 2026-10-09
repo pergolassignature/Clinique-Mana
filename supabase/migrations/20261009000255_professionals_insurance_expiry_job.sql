@@ -24,7 +24,8 @@
 --      `professionals.insurance_expiring` « Assurance bientôt échue » from the largest reminder day
 --      (J-7 by default) to the last day, then `professionals.insurance_expired` « Assurance
 --      expirée » (the professional stays active, P4-1). Each run also closes that professional's
---      older insurance notices (a corrected date raised a new key);
+--      older insurance notices (a corrected date raised a new key), and those of a file no longer
+--      active;
 --   3. `professionals.documents_missing` (normal, professionals.manage, no name: a count, one per
 --      clinic and ISO week, 7 days; closed when the count is back to zero): active professionals
 --      whose required documents are not all in order (readiness `documents`, P4-407);
@@ -116,7 +117,15 @@ begin
      and exists (select 1 from public.professional_documents d
                   where d.professional_id = x.professional_id and d.id = x.photo_document_id and d.status <> 'verified');
 
-  -- 2. The insurance notices of active professionals.
+  -- 2. The insurance notices of active professionals. A file no longer active is not chased
+  -- (P4-408): its open insurance notices close.
+  update public.notifications n
+     set expires_at = pg_catalog.now()
+   where n.org_id = p_org and n.subject_type = 'professional'
+     and n.kind in ('professionals.insurance_expiring', 'professionals.insurance_expired')
+     and (n.expires_at is null or n.expires_at > pg_catalog.now())
+     and exists (select 1 from public.professionals p
+                  where p.id = n.subject_id and p.org_id = p_org and p.status <> 'active');
   for r in
     select s.professional_id, s.expires_on, s.state, s.dedupe_key, p.first_name, p.last_name
       from private.professional_insurance_state(p_org, v_today, null) s

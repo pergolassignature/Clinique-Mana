@@ -9,7 +9,7 @@
 -- twice; another clinic is never read; the module switched off.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(25);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A (admin 01, provider 03 linked to P2), org B (admin 05).
@@ -133,6 +133,11 @@ select ok((select p.prosecdef from pg_proc p where p.oid = 'public.run_professio
 -- =============================================================================
 -- The run on T
 -- =============================================================================
+-- An insurance notice still open for the inactive file (raised while it was active).
+select private.notify(current_setting('test.a')::uuid, 'professionals', 'professionals.insurance_expired', 'important',
+  'Assurance expirée', 'Avant la fin de collaboration.', '/professionnels/c0000000-0000-0000-0000-000000000011/documents',
+  'professional', 'c0000000-0000-0000-0000-000000000011', 'professionals.manage', null,
+  'insurance:f0000000-0000-0000-0000-000000000011:expired', now() + interval '60 days');
 select set_config('test.audit_start', (select coalesce(max(id), 0)::text from public.audit_log), true);
 set local role service_role;
 select set_config('test.run1', public.run_professionals_document_notices_for_service(current_setting('test.a')::uuid,
@@ -190,11 +195,15 @@ select results_eq($$ select n.title, n.body, n.dedupe_key from public.notificati
              'insurance:f0000000-0000-0000-0000-000000000005:expired'::text) $$,
   'the « expired » notice: the professional stays active (P4-1)');
 select set_eq($$ select subject_id from public.notifications where org_id = current_setting('test.a')::uuid
-                    and kind in ('professionals.insurance_expiring', 'professionals.insurance_expired') $$,
+                    and kind in ('professionals.insurance_expiring', 'professionals.insurance_expired')
+                    and (expires_at is null or expires_at > now()) $$,
   array['c0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000003', 'c0000000-0000-0000-0000-000000000004',
         'c0000000-0000-0000-0000-000000000005', 'c0000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000007',
         'c0000000-0000-0000-0000-000000000008', 'c0000000-0000-0000-0000-000000000010', 'c0000000-0000-0000-0000-000000000012']::uuid[],
   'notices for the due active files only (not J-8, the renewal, the inactive file)');
+select ok((select n.expires_at <= now() from public.notifications n
+            where n.kind = 'professionals.insurance_expired' and n.subject_id = 'c0000000-0000-0000-0000-000000000011'),
+  'an insurance notice of a file no longer active is closed (P4-408)');
 select results_eq($$ select n.title, n.body, n.importance, n.recipient_permission, n.link_path, n.subject_type, n.subject_id,
                             n.dedupe_key, n.expires_at > now() + interval '6 days'
                        from public.notifications n where n.kind = 'professionals.documents_missing' $$,
