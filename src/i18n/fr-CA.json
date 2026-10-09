@@ -1330,7 +1330,9 @@
         "invitation_not_sent": "Courriel d'invitation non parti",
         "invitation_unknown": "Invitation : résultat inconnu",
         "matching_incomplete": "Profil de jumelage incomplet",
-        "login_email_mismatch": "Courriel de connexion différent"
+        "login_email_mismatch": "Courriel de connexion différent",
+        "insurance_expiring": "Assurance expire le {date}",
+        "insurance_expired": "Assurance expirée depuis le {date}"
       },
       "onboarding": {
         "actions": {

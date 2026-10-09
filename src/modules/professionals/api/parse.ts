@@ -5,6 +5,7 @@ import {
   DOCUMENT_EXPIRY_RULES,
   DOCUMENT_MIME_TYPES,
   GENDERS,
+  INSURANCE_STATUSES,
   INVITATION_STATES,
   MOTIF_CATEGORY_ICONS,
   OPEN_SUBMISSION_STATUSES,
@@ -278,6 +279,11 @@ const readinessShape = z.object({
   total: z.number(),
   items: z.array(z.object({ key: z.enum(READINESS_ITEMS), done: z.boolean(), missing: z.array(z.enum([...READINESS_MISSING, ...READINESS_DOCUMENT_MISSING])) })),
   warnings: z.array(z.enum(READINESS_WARNINGS)),
+  /**
+   * The insurance's state for « À surveiller » (`professionals_readiness.insurance_status`,
+   * `expires_on` its last valid day). Optional: bundles older than *_professionals_readiness_insurance.sql.
+   */
+  insurance: z.object({ status: z.enum(INSURANCE_STATUSES), expires_on: z.string().nullable() }).optional(),
 })
 export type Readiness = z.output<typeof readinessShape>
 export type ReadinessItem = Readiness['items'][number]
@@ -461,6 +467,9 @@ export const listRowPayload = z
     email_matches_login: z.boolean(),
     created_at: z.string(),
     updated_at: z.string(),
+    // 4c.2 (P4-406): « À surveiller » flags an insurance expiring or expired.
+    insurance_status: z.enum(INSURANCE_STATUSES).nullish(),
+    insurance_expires_on: z.string().nullish(),
   })
   .transform((r) => ({
     id: r.id,
@@ -483,6 +492,8 @@ export const listRowPayload = z
     emailMatchesLogin: r.email_matches_login,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    insuranceStatus: r.insurance_status ?? null,
+    insuranceExpiresOn: r.insurance_expires_on ?? null,
     /**
      * Not a column of the view: the list joins `list_professional_invitation_states` in memory
      * (`withOnboarding`, P4-270); null until then, and for a file without link or submission.
