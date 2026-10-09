@@ -67,6 +67,15 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `users-delete` (« Supprimer le compte » and its retries), per caller: a
+   * brake on a runaway loop, far above what a clinic ever deletes.
+   */
+  usersDeleteUser: {
+    bucket: 'users.delete_user',
+    max: 20,
+    windowSeconds: 3_600,
+  },
+  /**
    * `professionals-invite` (send, « Renvoyer », « Nouveau lien », update
    * request), per caller: each call issues a link or opens a submission and
    * sends an email, on top of the email limits. « Révoquer » is not counted.

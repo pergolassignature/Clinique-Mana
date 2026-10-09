@@ -119,6 +119,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.users-set-status]
 verify_jwt = false
+[functions.users-delete]
+verify_jwt = false
 [functions.storage-upload]
 verify_jwt = false
 [functions.storage-confirm]
