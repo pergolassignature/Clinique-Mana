@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  clinicNow,
   clinicTimeToUTC,
   formatClinicDateShort,
   formatClinicTime,
@@ -89,7 +88,6 @@ describe('clinic timezone', () => {
     expect(isClinicToday('2026-01-15T15:00:00Z')).toBe(true)
     expect(isClinicToday('2026-01-16T06:00:00Z')).toBe(false)
     expect(isClinicToday(null)).toBe(false)
-    expect(clinicNow().getHours()).toBe(22)
   })
 
   it('converts clinic wall time to UTC regardless of the host timezone', () => {

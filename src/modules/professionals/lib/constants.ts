@@ -28,14 +28,12 @@ export type SubmissionKind = (typeof SUBMISSION_KINDS)[number]
 
 /** The statuses of an open submission (one per file at most): being filled in, or sent for review. */
 export const OPEN_SUBMISSION_STATUSES = ['draft', 'submitted'] as const
-export type OpenSubmissionStatus = (typeof OPEN_SUBMISSION_STATUSES)[number]
 
 /**
  * `professional_submissions_status_check`: being filled in (or sent back), sent for review,
  * applied, or closed without review (P4-301).
  */
 export const SUBMISSION_STATUSES = ['draft', 'submitted', 'approved', 'cancelled'] as const
-export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number]
 
 /**
  * `private.submission_fields()`: the thirty fields a submission can answer, in the questionnaire's
@@ -77,7 +75,6 @@ export type SubmissionField = (typeof SUBMISSION_FIELDS)[number]
 
 /** A field's kind in `private.submission_fields()`: how its value is shaped and applied. */
 export const SUBMISSION_FIELD_KINDS = ['plain', 'set', 'file', 'private', 'consent'] as const
-export type SubmissionFieldKind = (typeof SUBMISSION_FIELD_KINDS)[number]
 
 /** The `private` fields of `private.submission_fields()`: applied to `professional_private` (its masks change). */
 export const PRIVATE_SUBMISSION_FIELDS: ReadonlySet<SubmissionField> = new Set([
@@ -198,7 +195,6 @@ export const MAX_SET_SIZE = 500
 
 /** `professional_documents.status`: pending → verified | rejected; verified → expired. */
 export const DOCUMENT_STATUSES = ['pending', 'verified', 'rejected', 'expired'] as const
-export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number]
 
 /** `document_types.expiry_rule`: none, the next March 31 (P4-412), or the date + 12 months. */
 export const DOCUMENT_EXPIRY_RULES = ['none', 'next_march_31', 'months_12'] as const
@@ -217,9 +213,6 @@ export type DocumentMimeType = (typeof DOCUMENT_MIME_TYPES)[number]
 
 /** The photo is printed on the fiche: JPEG or PNG only (`document_types_photo_mime_check`). */
 export const PHOTO_MIME_TYPES: readonly DocumentMimeType[] = ['image/jpeg', 'image/png']
-
-/** The types the application follows (readiness, reminders): never archived, may be made optional (P4-405). */
-export const SYSTEM_DOCUMENT_TYPES = ['photo', 'insurance', 'image_consent'] as const
 
 /** The upload purposes (`upload_purposes`, 20261009000253_professionals_documents.sql): staff and the provider. */
 export const DOCUMENT_UPLOAD_PURPOSE = { staff: 'professional_document', self: 'professional_self_document' } as const

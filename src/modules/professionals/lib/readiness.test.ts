@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
-import { MISSING_TAB, missingLabel, nextAction, readinessItemLabel, warningLabel } from './readiness'
+import { MISSING_TAB, missingLabel, nextAction, readinessItemLabel } from './readiness'
 import { READINESS_DOCUMENT_MISSING, READINESS_MISSING } from './constants'
 import { recordFixture } from '../test/fixtures-domain'
 import type { InvitationInfo, Onboarding, ProfessionalRecord } from '../api/parse'
@@ -27,11 +27,10 @@ const can = (...keys: string[]) => (permission: string) => keys.includes(permiss
 const NOW = Date.parse('2026-10-08T20:00:00Z')
 
 describe('labels', () => {
-  it('names the item, each gap and the warning', () => {
+  it('names the item and each gap', () => {
     expect(readinessItemLabel('matching_profile')).toBe('Profil de jumelage complet')
     expect(missingLabel('profession')).toBe('un titre professionnel')
     expect(missingLabel('licence')).toBe('le numéro de permis')
-    expect(warningLabel('login_email_mismatch')).toBe(T('modules.professionals.readiness.warnings.login_email_mismatch'))
   })
 
   it('sends every gap to the tab that fixes it', () => {

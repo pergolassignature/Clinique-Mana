@@ -89,7 +89,6 @@ export const mySubmissionPayload = z
     },
   }))
 export type MySubmission = z.output<typeof mySubmissionPayload>
-export type SubmissionPrivate = NonNullable<MySubmission['private']>
 
 /** The caller's open submission (draft or submitted), or null when there is nothing to complete. */
 export async function fetchMySubmission(): Promise<MySubmission | null> {

@@ -4,7 +4,6 @@ import {
   prefetchProfessionalHistory,
   prefetchProfessionalRecord,
   useProfessionalHistory,
-  useProfessionalReadiness,
   useProfessionalRecord,
 } from './use-professional-record'
 import { professionalKeys } from './keys'
@@ -56,17 +55,6 @@ describe('useProfessionalRecord', () => {
     const { wrapper } = setupQueryClient()
     renderHook(() => useProfessionalRecord(''), { wrapper })
     expect(mocks.fetchProfessionalRecord).not.toHaveBeenCalled()
-  })
-})
-
-describe('useProfessionalReadiness', () => {
-  it('reads readiness from the record query: no second request', async () => {
-    const { wrapper } = setupQueryClient()
-    const record = recordFixture()
-    mocks.fetchProfessionalRecord.mockResolvedValue(record)
-    const { result } = renderHook(() => [useProfessionalRecord(ID), useProfessionalReadiness(ID)] as const, { wrapper })
-    await waitFor(() => expect(result.current[1].data).toBe(record.readiness))
-    expect(mocks.fetchProfessionalRecord).toHaveBeenCalledTimes(1)
   })
 })
 

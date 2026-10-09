@@ -113,7 +113,6 @@ export const reviewPayload = z
   }))
   .nullable()
 export type SubmissionReview = NonNullable<z.output<typeof reviewPayload>>
-export type ReviewSection = SubmissionReview['sections'][number]
 
 /** Per requested section and field: current and submitted values; null for another clinic's or an unknown submission. */
 export async function fetchSubmissionReview(submissionId: string): Promise<SubmissionReview | null> {

@@ -98,7 +98,6 @@ const state = (s: {
   status: s.status,
   pay: s.pay,
 })
-export type RetentionState = ReturnType<typeof state>
 
 const compensationPayload = z
   .object({

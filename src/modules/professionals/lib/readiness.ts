@@ -1,5 +1,5 @@
 import { t } from '@/i18n'
-import type { ReadinessItemKey, ReadinessMissing, ReadinessWarning, RecordTab } from './constants'
+import type { ReadinessItemKey, ReadinessMissing, RecordTab } from './constants'
 import type { Onboarding, ProfessionalRecord } from '../api/parse'
 import {
   emailFailureReason,
@@ -21,10 +21,6 @@ export function readinessItemLabel(key: ReadinessItemKey, done = true): string {
 /** What is missing, as the end of « Il manque … »: « un titre professionnel », « le numéro de permis »… */
 export function missingLabel(key: ReadinessMissing): string {
   return t(`modules.professionals.readiness.missing.${key}`)
-}
-
-export function warningLabel(key: ReadinessWarning): string {
-  return t(`modules.professionals.readiness.warnings.${key}`)
 }
 
 /** The tab where each gap is fixed (Aperçu links each missing part there). */

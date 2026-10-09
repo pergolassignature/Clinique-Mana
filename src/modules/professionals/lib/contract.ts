@@ -148,9 +148,6 @@ export function contractProgress(contract: ProfessionalContract | null | undefin
   return { kind: 'to_send' }
 }
 
-/** « Le contrat est signé » is what readiness counts (P4-435: the latest request only). */
-export const isContractSigned = (request: ContractRequest | null) => request?.status === 'signed'
-
 const ROLE = 'modules.professionals.contract.roles'
 
 /** « Professionnel », « Clinique », « Client » for a signer role; « Signataire » for any other (never the code). */

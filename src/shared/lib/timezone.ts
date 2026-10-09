@@ -53,13 +53,6 @@ export function toClinicTime(date: Date | string): Date {
 }
 
 /**
- * Current time as a Date whose local values reflect the clinic timezone.
- */
-export function clinicNow(): Date {
-  return toZonedTime(new Date(), getClinicTimezone())
-}
-
-/**
  * Whether a UTC date/ISO string falls on today's date in the clinic timezone.
  * Missing or invalid dates are never "today".
  */

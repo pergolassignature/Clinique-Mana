@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { infiniteQueryOptions, queryOptions, useInfiniteQuery, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query'
 import { fetchProfessionalHistory, PROFESSIONAL_HISTORY_PAGE_SIZE } from '../api/history'
 import { fetchProfessionalRecord } from '../api/record'
-import type { HistoryEntry, ProfessionalRecord } from '../api/parse'
+import type { HistoryEntry } from '../api/parse'
 import { professionalKeys } from './keys'
 
 /** The record page's one request (`get_professional_record`); null when the caller cannot read it. */
@@ -11,13 +11,6 @@ const recordQuery = (id: string) => queryOptions({ queryKey: professionalKeys.re
 /** The record, or null (not found / not readable). Run it in parallel with `useProfessionalsCatalog`. */
 export function useProfessionalRecord(id: string) {
   return useQuery({ ...recordQuery(id), enabled: id !== '' })
-}
-
-const selectReadiness = (record: ProfessionalRecord | null) => record?.readiness ?? null
-
-/** Readiness, read from the record query (same cache entry): no request of its own. */
-export function useProfessionalReadiness(id: string) {
-  return useQuery({ ...recordQuery(id), enabled: id !== '', select: selectReadiness })
 }
 
 /** Starts loading a record before it is opened (list row hover or focus). A fresh one is not refetched. */

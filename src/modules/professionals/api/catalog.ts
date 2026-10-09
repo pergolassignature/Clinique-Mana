@@ -78,11 +78,6 @@ const CATALOG_LIST = {
   document_types: 'documentTypes',
 } as const satisfies { [K in ReferenceKind]: keyof ProfessionalsCatalog }
 
-/** The catalogue's rows of one list, already sorted. */
-export function referenceRows<K extends ReferenceKind>(catalog: ProfessionalsCatalog, kind: K): ReferenceRow<K>[] {
-  return catalog[CATALOG_LIST[kind]] as ReferenceRow<K>[]
-}
-
 /**
  * The catalogue with one list in a new order (the optimistic write of a reorder): rows in `ids`
  * order with the sort orders the RPC gives them (10, 20…); rows missing from `ids` keep theirs, last.
