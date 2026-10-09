@@ -52,6 +52,44 @@ describe('scripts/check-design-tokens.sh', () => {
     expect(status).toBe(0)
   })
 
+  it.each([
+    'text-[13px]',
+    'sm:text-[15px]',
+    'text-[0.8rem]',
+    'text-[length:12px]',
+    'leading-[22px]',
+    'leading-[1.3]',
+    'font-bold',
+    'hover:font-bold',
+    'font-light',
+    'font-extrabold',
+  ])('fails on %s as type off the scale', (cls) => {
+    const { status, out } = check(`export const c = 'px-2 ${cls} py-1'\n`)
+    expect(status).toBe(1)
+    expect(out).toContain('Sample.tsx:1')
+    expect(out).toContain('off the design-system scale')
+    expect(out).toContain('text-sm 13/18')
+  })
+
+  it('passes on scale sizes, weights, bracketed colours and a line marked as a deliberate exception', () => {
+    const { status, out } = check(
+      [
+        "export const a = 'text-2xs text-xs text-sm text-base text-lg text-xl text-2xl font-normal font-medium font-semibold leading-none'",
+        "export const b = 'text-[rgb(var(--focus-ring))] text-[#fff] max-w-[12rem] w-[13px] font-sans font-mono'",
+        "export const c = 'text-[10px] leading-none' // design-tokens: allow (avatar initials)",
+      ].join('\n'),
+    )
+    expect(out).toContain('OK')
+    expect(status).toBe(0)
+  })
+
+  it('reports both families in one run', () => {
+    const { status, out } = check("export const c = 'text-muted text-[13px]'\n")
+    expect(status).toBe(1)
+    expect(out).toContain('not design-system tokens')
+    expect(out).toContain('off the design-system scale')
+  })
+
   it('passes on the app sources (its own fixtures in this file are skipped by path)', () => {
     const run = spawnSync('bash', [script, path.resolve(__dirname, '..')], { encoding: 'utf8' })
     expect(run.stdout).toContain('OK')
