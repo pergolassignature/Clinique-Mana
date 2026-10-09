@@ -82,7 +82,7 @@ select functions_are('public', array[
   'list_scheduled_jobs', 'list_scheduled_job_runs', 'set_scheduled_job_enabled', 'run_scheduled_job_now',
   'set_email_sender', 'set_email_sending_domain', 'list_email_templates', 'save_email_template', 'reset_email_template',
   'list_email_log', 'list_subject_emails',
-  'get_email_context', 'queue_email', 'mark_email_sent', 'mark_email_failed', 'apply_email_event', 'count_org_emails_today',
+  'get_email_context', 'queue_email', 'mark_email_sent', 'mark_email_failed', 'apply_email_event',
   'create_notification', 'list_my_notifications', 'count_my_unread_notifications', 'mark_notifications_read',
   'mark_all_notifications_read',
   'peek_secure_link',

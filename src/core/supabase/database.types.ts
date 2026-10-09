@@ -4965,7 +4965,6 @@ export type Database = {
           total: number
         }[]
       }
-      count_org_emails_today: { Args: { p_org_id: string }; Returns: number }
       create_document_template: {
         Args: {
           p_description: string
