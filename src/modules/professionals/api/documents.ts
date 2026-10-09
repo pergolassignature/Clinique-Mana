@@ -3,7 +3,7 @@ import { signedFileUrl, uploadFile } from '@/core/storage/api'
 import { supabase } from '@/core/supabase/client'
 import { FunctionCallError, invokeFunction } from '@/core/supabase/functions'
 import type { UploadStep } from '@/shared/lib/files'
-import { CONSENT_KEYS, DOCUMENT_STATUSES, DOCUMENT_UPLOAD_PURPOSE, type ConsentKey } from '../lib/constants'
+import { DOCUMENT_STATUSES, DOCUMENT_UPLOAD_PURPOSE } from '../lib/constants'
 import { asRpcRefusal } from './function-errors'
 import { parseRpc, UNEXPECTED_SHAPE } from './parse'
 import { sqlArgs } from './sql-args'
@@ -237,75 +237,4 @@ export async function rejectProfessionalDocument(documentId: string, reason: str
     if (error instanceof FunctionCallError) throw asRpcRefusal(error)
     throw error
   }
-}
-
-// --- « Paramètres → Consentements » ---------------------------------------------------------------
-
-const consentVersionPayload = z
-  .object({
-    id: z.string(),
-    version: z.number(),
-    title: z.string(),
-    body: z.string(),
-    published_at: z.string().nullable(),
-    published_by_name: z.string().nullable(),
-    signed_count: z.number(),
-    created_at: z.string(),
-    updated_at: z.string(),
-  })
-  .transform((v) => ({
-    id: v.id,
-    version: v.version,
-    title: v.title,
-    body: v.body,
-    /** Null while a draft. */
-    publishedAt: v.published_at,
-    publishedByName: v.published_by_name,
-    /** How many signatures this version holds. */
-    signedCount: v.signed_count,
-    createdAt: v.created_at,
-    updatedAt: v.updated_at,
-  }))
-export type ConsentVersion = z.output<typeof consentVersionPayload>
-
-const consentVersionsPayload = z
-  .object({ key: z.enum(CONSENT_KEYS), current_id: z.string().nullable(), versions: z.array(consentVersionPayload) })
-  .transform((p) => {
-    const current = p.versions.find((v) => v.id === p.current_id) ?? null
-    return {
-      key: p.key,
-      /** The version every new signature uses (the latest published). */
-      current,
-      /** The clinic's draft, if one is being written (one at most). */
-      draft: p.versions.find((v) => v.publishedAt === null) ?? null,
-      /** Published versions other than the current one, newest first. */
-      previous: p.versions.filter((v) => v.publishedAt !== null && v.id !== current?.id),
-    }
-  })
-export type ConsentVersions = z.output<typeof consentVersionsPayload>
-
-/** The versions of a consent (`professionals.manage` or `professionals.settings`). */
-export async function fetchConsentVersions(key: ConsentKey = 'image_rights'): Promise<ConsentVersions> {
-  const { data, error } = await supabase.rpc('get_consent_versions', { p_key: key })
-  if (error) throw error
-  return parseRpc(consentVersionsPayload, data)
-}
-
-/** « Enregistrer le brouillon » (`professionals.settings`): creates the next version or rewrites the draft; its id. */
-export async function saveConsentDraft(input: { key?: ConsentKey; title: string; body: string }): Promise<string> {
-  const { data, error } = await supabase.rpc('save_consent_draft', { p_key: input.key ?? 'image_rights', p_title: input.title, p_body: input.body })
-  if (error) throw error
-  return parseRpc(z.string(), data)
-}
-
-/** « Publier »: the draft becomes the version signing uses; signatures already given keep theirs. */
-export async function publishConsentVersion(id: string): Promise<void> {
-  const { error } = await supabase.rpc('publish_consent_version', { p_id: id })
-  if (error) throw error
-}
-
-/** « Supprimer le brouillon »: a draft only (never signed). */
-export async function discardConsentDraft(id: string): Promise<void> {
-  const { error } = await supabase.rpc('discard_consent_draft', { p_id: id })
-  if (error) throw error
 }

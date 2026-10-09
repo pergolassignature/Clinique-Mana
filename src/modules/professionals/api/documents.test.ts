@@ -2,14 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FunctionCallError } from '@/core/supabase/functions'
 import {
   deleteProfessionalDocument,
-  discardConsentDraft,
   documentDownloadUrl,
-  fetchConsentVersions,
   fetchMyDocuments,
   fetchProfessionalDocuments,
-  publishConsentVersion,
   rejectProfessionalDocument,
-  saveConsentDraft,
   setProfessionalDocumentExpiry,
   uploadProfessionalDocument,
   verifyProfessionalDocument,
@@ -136,40 +132,5 @@ describe('the reviewer’s actions', () => {
     mocks.signedFileUrl.mockResolvedValue({ url: 'https://files.test/d', expiresAt: '2026-10-09T12:05:00Z' })
     await expect(documentDownloadUrl(DOC_IDS.insuranceFile)).resolves.toBe('https://files.test/d')
     expect(mocks.signedFileUrl).toHaveBeenCalledWith(DOC_IDS.insuranceFile, { download: true })
-  })
-})
-
-describe('« Consentements »', () => {
-  it('splits the versions into the one in force, the draft and the earlier ones', async () => {
-    const v = (id: string, version: number, published: boolean) => ({
-      id,
-      version,
-      title: `Version ${version}`,
-      body: 'Texte',
-      published_at: published ? '2026-10-01T14:00:00+00:00' : null,
-      published_by_name: published ? 'Julie Roy' : null,
-      signed_count: published ? 2 : 0,
-      created_at: '2026-10-01T13:00:00+00:00',
-      updated_at: '2026-10-01T13:00:00+00:00',
-    })
-    ok({ key: 'image_rights', current_id: 'v2', versions: [v('v3', 3, false), v('v2', 2, true), v('v1', 1, true)] })
-    const result = await fetchConsentVersions()
-    expect(mocks.rpc).toHaveBeenCalledWith('get_consent_versions', { p_key: 'image_rights' })
-    expect(result.current?.id).toBe('v2')
-    expect(result.draft?.id).toBe('v3')
-    expect(result.previous.map((x) => x.id)).toEqual(['v1'])
-  })
-
-  it('save, publish and discard call their RPC', async () => {
-    ok('v3')
-    await expect(saveConsentDraft({ title: 'Titre', body: 'Texte' })).resolves.toBe('v3')
-    ok(null)
-    await publishConsentVersion('v3')
-    await discardConsentDraft('v3')
-    expect(mocks.rpc.mock.calls).toEqual([
-      ['save_consent_draft', { p_key: 'image_rights', p_title: 'Titre', p_body: 'Texte' }],
-      ['publish_consent_version', { p_id: 'v3' }],
-      ['discard_consent_draft', { p_id: 'v3' }],
-    ])
   })
 })

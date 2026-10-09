@@ -2712,59 +2712,6 @@
           "photoFilesHelp": "La photo figure sur la fiche : JPEG ou PNG seulement.",
           "maxBytes": "Taille maximale"
         },
-        "consents": {
-          "title": "Consentements",
-          "description": "Le texte du consentement au droit à l'image que les professionnels signent dans leur questionnaire. Le formulaire envoyé pour signature électronique (Documenso) se modifie dans Contrats et formulaires.",
-          "loadError": "Les versions du consentement n'ont pas pu être chargées.",
-          "current": {
-            "title": "Version en vigueur",
-            "description": "Le texte que signent les professionnels. Les consentements déjà signés gardent leur version.",
-            "none": "Aucune version publiée.",
-            "noneBody": "Les professionnels ne peuvent pas signer le consentement tant qu'aucune version n'est publiée.",
-            "meta": "Version {version} · publiée le {date}",
-            "metaBy": "Version {version} · publiée le {date} par {name}",
-            "signedNone": "Aucune signature",
-            "signedOne": "1 signature",
-            "signedOther": "{count} signatures"
-          },
-          "draft": {
-            "title": "Brouillon de la version {version}",
-            "description": "Pas encore publié : les professionnels signent toujours la version en vigueur.",
-            "titleField": "Titre",
-            "body": "Texte",
-            "bodyHelp": "Le texte exact que le professionnel lira et signera.",
-            "save": "Enregistrer le brouillon",
-            "saving": "Enregistrement…",
-            "publish": "Publier la version {version}",
-            "discard": "Supprimer le brouillon",
-            "unsavedBeforePublish": "Enregistrez le brouillon avant de le publier.",
-            "changedElsewhere": "Le brouillon a changé depuis l'ouverture de la page : la version à jour est affichée. Relisez-la, puis recommencez.",
-            "titleRequired": "Le titre est obligatoire.",
-            "titleTooLong": "Le titre ne peut pas dépasser 200 caractères.",
-            "bodyRequired": "Le texte du consentement est obligatoire.",
-            "bodyTooLong": "Le texte ne peut pas dépasser 20 000 caractères."
-          },
-          "newVersion": "Nouvelle version",
-          "newVersionHelp": "Un brouillon commence à partir du texte en vigueur. Rien ne change pour les professionnels avant sa publication.",
-          "cancelNew": "Annuler",
-          "publishDialog": {
-            "title": "Publier la version {version} ?",
-            "body": "Dès maintenant, les nouvelles signatures utiliseront ce texte. Les consentements déjà signés gardent leur version ; un questionnaire signé avec l'ancienne version et pas encore envoyé demandera de signer de nouveau.",
-            "confirm": "Publier la version {version}",
-            "pending": "Publication…"
-          },
-          "discardDialog": {
-            "title": "Supprimer le brouillon ?",
-            "body": "Le texte du brouillon sera perdu. La version en vigueur ne change pas.",
-            "confirm": "Supprimer le brouillon",
-            "pending": "Suppression…"
-          },
-          "previous": {
-            "title": "Versions précédentes",
-            "show": "Afficher le texte",
-            "hide": "Masquer le texte"
-          }
-        },
         "invitations": {
           "title": "Invitations",
           "description": "Le lien que reçoit un professionnel invité, et le rappel s'il ne l'ouvre pas.",
@@ -3482,10 +3429,7 @@
           "deleted": "Document supprimé.",
           "rejected": "Document refusé.",
           "rejectedEmailed": "Document refusé. {firstName} a reçu un courriel avec la raison.",
-          "rejectedNotEmailed": "Document refusé, mais le courriel n'a pas pu être envoyé. Prévenez {firstName} directement.",
-          "draftSaved": "Brouillon enregistré.",
-          "published": "Nouvelle version publiée.",
-          "draftDiscarded": "Brouillon supprimé."
+          "rejectedNotEmailed": "Document refusé, mais le courriel n'a pas pu être envoyé. Prévenez {firstName} directement."
         }
       },
       "myDocuments": {

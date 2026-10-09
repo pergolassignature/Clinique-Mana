@@ -122,21 +122,21 @@ const ALL_SECTIONS = [
 ] as const
 
 /**
- * Professionnels' list sections, « Documents requis » and « Consentements » (4c.3), « Fiche PDF »
+ * Professionnels' list sections, « Documents requis » (4c.3), « Fiche PDF »
  * (P4-353) and « Contrats » (Task 4d.3), read like them, after the core ones (group « Modules »).
  */
 const PROFESSIONALS_LIST_SECTIONS = [
   'modules.professionals.settings.professions.title', 'modules.professionals.settings.clienteles.title',
   'modules.professionals.settings.motifs.title', 'modules.professionals.settings.languages.title',
   'modules.professionals.settings.deactivationReasons.title', 'modules.professionals.settings.requiredDocuments.title',
-  'modules.professionals.settings.consents.title', 'modules.professionals.settings.fiche.title',
+  'modules.professionals.settings.fiche.title',
   'modules.professionals.settings.contracts.title',
 ] as const
 /** Then « Invitations » (seen with `professionals.invite`, changed with `.settings`; Task 4b.3). */
 const PROFESSIONALS_SEEN_SECTIONS = [...PROFESSIONALS_LIST_SECTIONS, 'modules.professionals.settings.invitations.title'] as const
 /** Then « Rémunération » (`professionals.compensation`: the admin only, by default). */
 const PROFESSIONALS_SECTIONS = [...PROFESSIONALS_SEEN_SECTIONS, 'modules.professionals.settings.compensation.title'] as const
-const PROFESSIONALS_LIST_SECTION_IDS = ['professions', 'clienteles', 'motifs', 'languages', 'deactivation-reasons', 'required-documents', 'consents', 'fiche', 'contracts', 'invitations'].map(
+const PROFESSIONALS_LIST_SECTION_IDS = ['professions', 'clienteles', 'motifs', 'languages', 'deactivation-reasons', 'required-documents', 'fiche', 'contracts', 'invitations'].map(
   (id) => `professionals:${id}`,
 )
 const PROFESSIONALS_SECTION_IDS = [...PROFESSIONALS_LIST_SECTION_IDS, 'professionals:compensation']

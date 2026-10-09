@@ -225,6 +225,3 @@ export const DOCUMENT_TYPE_MIN_BYTES = 102_400
 export const INSURANCE_STATUSES = ['valid', 'expiring', 'expired', 'missing'] as const
 export type InsuranceStatus = (typeof INSURANCE_STATUSES)[number]
 
-/** The consents « Paramètres → Consentements » versions (`consent_versions.key`). */
-export const CONSENT_KEYS = ['image_rights'] as const
-export type ConsentKey = (typeof CONSENT_KEYS)[number]
