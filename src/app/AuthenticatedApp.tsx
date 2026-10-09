@@ -1,34 +1,35 @@
 import { createElement, Suspense, useCallback, useEffect, useMemo, type ReactNode } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Home, Settings } from 'lucide-react'
 import { t } from '@/i18n'
 import type { Access } from '@/core/access/access'
 import { useAccess, useReadyAccess } from '@/core/access/access-context'
-import { Forbidden, RequireAccess } from '@/core/access/guards'
+import { Forbidden, NotFound, RequireAccess } from '@/core/access/guards'
 import { AccountPage } from '@/core/account/pages/AccountPage'
 import { resolveEnabledModules } from '@/core/modules/resolve'
+import type { SettingsSection } from '@/core/modules/types'
 import { SettingsLayout } from '@/core/settings/SettingsLayout'
-import { SETTINGS_BASE_PATH, settingsSectionPath } from '@/core/settings/paths'
+import { isUnder, SETTINGS_BASE_PATH, settingsSectionPath } from '@/core/settings/paths'
 import { coreSettingsSections } from '@/core/settings/sections'
 import { visibleSettingsSections } from '@/core/settings/visible-sections'
 import { FullPageMessage } from '@/shared/components/FullPageMessage'
 import { RouteBoundary } from '@/shared/components/RouteBoundary'
 import { UnsavedChangesProvider } from '@/shared/components/UnsavedChangesProvider'
 import { preloadWhenIdle } from '@/shared/lib/lazy-page'
-import { usePageTitle } from '@/shared/lib/use-page-title'
 import { AppShell, type ShellNavItem } from './AppShell'
 import { HomePage } from './HomePage'
 import { ALL_MODULES } from './modules'
 
-function NotFoundPage() {
-  usePageTitle(t('pageTitles.notFound'))
-  return <FullPageMessage title={t('common.notFound.title')} body={t('common.notFound.body')} />
-}
-
-/** Like RequireAccess, for a computed condition: the settings route opens when one section is accessible. */
-function RequireAnyAccess({ allowed, children }: { allowed: boolean; children: ReactNode }) {
-  if (!allowed) return <Forbidden />
-  return <>{children}</>
+/**
+ * Like RequireAccess, for a computed condition: the settings route opens when one section is
+ * accessible. Otherwise « Paramètres » and its sections are « Accès refusé », and a path under
+ * it that names no section is « Page introuvable », as everywhere else.
+ */
+function RequireAnySettings({ allowed, sections, children }: { allowed: boolean; sections: readonly SettingsSection[]; children: ReactNode }) {
+  const { pathname } = useLocation()
+  if (allowed) return <>{children}</>
+  const root = pathname.replace(/[/]+$/, '').toLowerCase() === SETTINGS_BASE_PATH
+  return root || sections.some((s) => isUnder(pathname, settingsSectionPath(s))) ? <Forbidden /> : <NotFound />
 }
 
 /** The signed-in app. Renders under RequireAuth, so access is ready (useReadyAccess throws otherwise). */
@@ -119,9 +120,9 @@ export function AuthenticatedApp() {
           <Route
             path="parametres/*"
             element={
-              <RequireAnyAccess allowed={canOpenSettings}>
+              <RequireAnySettings allowed={canOpenSettings} sections={settingsSections}>
                 <SettingsLayout sections={settingsSections} />
-              </RequireAnyAccess>
+              </RequireAnySettings>
             }
           />
           {modules.flatMap((m) =>
@@ -142,7 +143,7 @@ export function AuthenticatedApp() {
               />
             )),
           )}
-          <Route path="*" element={<NotFoundPage />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </AppShell>
     </UnsavedChangesProvider>

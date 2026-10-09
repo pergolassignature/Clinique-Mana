@@ -335,6 +335,52 @@ describe('AuthenticatedApp', () => {
     expect(screen.getByText(t('common.notFound.title'))).toBeInTheDocument()
   })
 
+  // Every « you may not see this » reads the same: « Accès refusé », its explanation and the way
+  // back to Accueil, whatever the role and wherever the page is (a module route, Paramètres, one of
+  // its sections). Only a URL that names nothing is « Page introuvable ».
+  describe('pages the user may not open, per role', () => {
+    const providerLike: Access = accessForRole('provider', { display_name: 'Félix Gauthier', modules: ['professionals'], has_professional_file: true })
+    const expectForbidden = async () => {
+      expect(await screen.findByRole('heading', { name: t('access.forbidden.title') })).toBeInTheDocument()
+      expect(screen.getByText(t('access.forbidden.body'))).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: t('common.backHome') })).toHaveAttribute('href', '/accueil')
+      expect(screen.queryByText(t('common.notFound.title'))).not.toBeInTheDocument()
+      await waitFor(() => expect(document.title).toBe(`${t('pageTitles.forbidden')} · ${t('app.name')}`))
+    }
+    const expectNotFound = async () => {
+      expect(await screen.findByRole('heading', { name: t('common.notFound.title') })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: t('common.backHome') })).toHaveAttribute('href', '/accueil')
+      expect(screen.queryByText(t('access.forbidden.title'))).not.toBeInTheDocument()
+    }
+
+    it.each([
+      ['the adjointe', 'a settings section she does not see', '/parametres/modules'],
+      ['the adjointe', 'the pay settings', '/parametres/remuneration'],
+      ['the conseillère', 'Paramètres', '/parametres'],
+      ['the conseillère', 'a settings section', '/parametres/identite'],
+      ['the professional', 'Paramètres', '/parametres'],
+      ['the professional', 'a settings section', '/parametres/region'],
+      ['the professional', 'the professionals list', '/professionnels'],
+    ] as const)('%s, on %s: « Accès refusé »', async (role, _page, path) => {
+      const access = role === 'the adjointe' ? assistantLike : role === 'the conseillère' ? counselorLike : providerLike
+      render(appAt(path, access))
+      await expectForbidden()
+    })
+
+    it.each([
+      ['the admin', adminLike],
+      ['the adjointe', assistantLike],
+      ['the conseillère', counselorLike],
+      ['the professional', providerLike],
+    ] as const)('%s: an unknown URL, in or out of Paramètres, is « Page introuvable »', async (_role, access) => {
+      const { unmount } = render(appAt('/nulle-part', access))
+      await expectNotFound()
+      unmount()
+      render(appAt('/parametres/nulle-part', access))
+      await expectNotFound()
+    })
+  })
+
   it('shows who is signed in, and where', () => {
     render(appAt('/accueil'))
     expect(screen.getByText('Camille Admin')).toBeInTheDocument()

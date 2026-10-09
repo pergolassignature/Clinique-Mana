@@ -104,6 +104,9 @@ describe('RequireAccess', () => {
 
   it('shows forbidden without the permission', () => {
     render(renderWithContexts(<RequireAccess permission="settings.manage"><p>SETTINGS</p></RequireAccess>))
-    expect(screen.getByText(t('access.forbidden.title'))).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: t('access.forbidden.title') })).toBeInTheDocument()
+    expect(screen.getByText(t('access.forbidden.body'))).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t('common.backHome') })).toHaveAttribute('href', '/accueil')
+    expect(screen.queryByText('SETTINGS')).not.toBeInTheDocument()
   })
 })
