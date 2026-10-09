@@ -510,7 +510,11 @@ function TierCell({ row, imported }: { row: ReviewRow; imported: boolean }) {
   )
 }
 
-/** « 27,5 % → 27 % » while a decision is due, else the applied rate (with the grid's when kept apart). */
+/**
+ * « Passe de 27,5 % à 27 % » (« Aucun taux · 28 % proposé » without one) while a decision is due,
+ * else the applied rate, « Aucun taux » without one (with the grid's when kept apart). No arrows
+ * nor dashes (« il faut toujours être clair »).
+ */
 function RetentionCell({ row, on }: { row: ReviewRow; on: string }) {
   const { applied, suggested } = row
   const due = needsDecision(row.status) && suggested !== null && suggested.pct !== applied?.pct
@@ -518,8 +522,10 @@ function RetentionCell({ row, on }: { row: ReviewRow; on: string }) {
     <>
       {due ? (
         <>
-          <span aria-hidden className="whitespace-nowrap tabular">
-            {applied ? formatPercent(applied.pct) : '—'} → <span className="font-semibold">{formatPercent(suggested.pct)}</span>
+          <span aria-hidden className="tabular">
+            {applied
+              ? t(`${R}.retentionMove`, { from: formatPercent(applied.pct), to: formatPercent(suggested.pct) })
+              : t(`${R}.retentionNone`, { to: formatPercent(suggested.pct) })}
           </span>
           <span className="sr-only">
             {applied
@@ -528,7 +534,7 @@ function RetentionCell({ row, on }: { row: ReviewRow; on: string }) {
           </span>
         </>
       ) : (
-        <span className="whitespace-nowrap font-medium tabular">{applied ? formatPercent(applied.pct) : '—'}</span>
+        <span className="whitespace-nowrap font-medium tabular">{applied ? formatPercent(applied.pct) : t(`${R}.noRate`)}</span>
       )}
       {!due && applied && suggested && suggested.pct !== applied.pct && (
         <span className="block text-xs text-muted-foreground">{t(`${R}.grid`, { rate: formatPercent(suggested.pct) })}</span>
