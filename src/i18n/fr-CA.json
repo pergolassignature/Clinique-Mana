@@ -318,7 +318,22 @@
       "providerRejected": "Le service de signature a refusé la demande.",
       "providerUnreachable": "Le service de signature est injoignable."
     },
-    "errorCode": "Code : {code}"
+    "errorCode": "Code : {code}",
+    "downloads": {
+      "groupLabel": "Téléchargements du document signé",
+      "certificate": "Télécharger le certificat et le journal",
+      "sealed": "PDF complet scellé (preuve)",
+      "sealedHelp": "Seul le PDF complet scellé porte la signature numérique de Documenso : c'est la preuve à conserver.",
+      "working": "Préparation…",
+      "noCertificate": "Ce PDF signé ne contient ni certificat ni journal de signature.",
+      "cannotSplit": "Le nombre de pages du document n'est pas connu : seul le PDF complet scellé peut être téléchargé.",
+      "errors": {
+        "failed": "Le fichier n'a pas pu être téléchargé. Réessayez dans un instant.",
+        "rateLimited": "Trop de téléchargements demandés.",
+        "splitFailed": "Le PDF signé n'a pas pu être séparé. Téléchargez le PDF complet scellé.",
+        "appUpdated": "Une nouvelle version de l'application est disponible. Rechargez la page, puis réessayez."
+      }
+    }
   },
   "address": {
     "line1Placeholder": "Commencez à saisir l'adresse",
@@ -3151,6 +3166,7 @@
           "confirmed": "Confirmé tel quel",
           "notAnswered": "Non répondu, le dossier garde sa valeur",
           "notSent": "Non transmis",
+          "notProvided": "Non fourni",
           "yes": "Oui",
           "no": "Non",
           "year": "{count} an",
@@ -3489,7 +3505,7 @@
           "viewed": "{name} a consulté le contrat le {date}",
           "signed": "{name} a signé le {date}",
           "completed": "Contrat complété et PDF signé conservé le {date}",
-          "pdfNote": "Le PDF signé contient aussi le certificat et le journal de Documenso."
+          "pdfNote": "Le certificat et le journal de Documenso se téléchargent à part, avec « Télécharger le certificat et le journal »."
         },
         "actions": {
           "send": "Préparer et envoyer",
@@ -3501,8 +3517,8 @@
           "working": "Envoi…",
           "journal": "Journal de signature",
           "hideJournal": "Masquer le journal",
-          "pdf": "Télécharger le PDF signé",
-          "pdfLabel": "Télécharger le PDF signé du contrat de {firstName}"
+          "pdf": "Télécharger le contrat signé",
+          "pdfLabel": "Télécharger le contrat signé de {firstName}"
         },
         "confirm": {
           "send": {
@@ -3540,6 +3556,10 @@
           "network": "Connexion impossible. Vérifiez votre connexion, puis réessayez.",
           "syncFailed": "La synchronisation n'a pas fonctionné. Réessayez plus tard."
         }
+      },
+      "sectionChecklist": {
+        "allLabel": "Tout cocher",
+        "noneLabel": "Tout décocher"
       },
       "myProfile": {
         "nav": "Mon profil",
@@ -3842,12 +3862,13 @@
             "failed": "Vos renseignements n'ont pas pu être enregistrés. Réessayez dans un instant."
           },
           "bankTitle": "Dépôt direct",
-          "bankHelp": "Les numéros figurent sur un spécimen de chèque ou dans votre institution en ligne.",
+          "bankHelp": "Facultatif. Vous pourrez l'ajouter plus tard. Pour l'ajouter maintenant, remplissez les trois numéros : ils figurent sur un spécimen de chèque ou dans votre institution en ligne.",
           "institution": "Institution",
           "transit": "Transit",
           "account": "Numéro de compte",
           "accountSaved": "Enregistré (•••• {last4}). Laissez vide pour le garder.",
           "accountOnFile": "Déjà fourni (•••• {last4}). Laissez vide pour le garder.",
+          "depositNone": "Non fourni",
           "taxTitle": "Taxes",
           "taxHelp": "Facultatif : seulement en cas d'inscription à la TPS ou à la TVQ.",
           "businessNumber": "Numéro d'entreprise (NE)",

@@ -453,12 +453,16 @@ function ChangedValue({ field, ctx, masks }: { field: ReviewField; ctx: ValueCon
   )
 }
 
+const DEPOSIT_FIELDS: readonly SubmissionField[] = ['bank_institution', 'bank_transit', 'bank_account']
+
 /** An unchanged field: the file's value, and whether the professional confirmed it or left it unanswered. */
 function UnchangedValue({ field, ctx }: { field: ReviewField; ctx: ValueContext }) {
   const key = field.field
   const status = <span className="text-muted-foreground"> ({t(field.answered ? `${V}.confirmed` : `${V}.notAnswered`).toLowerCase()})</span>
   if (field.kind === 'private' || field.kind === 'file') {
-    return <span className="text-muted-foreground">{t(field.answered ? `${V}.confirmed` : `${V}.notSent`)}</span>
+    // The deposit is optional (P4-480): left empty, it reads « Non fourni ».
+    const unanswered = DEPOSIT_FIELDS.includes(key) ? `${V}.notProvided` : `${V}.notSent`
+    return <span className="text-muted-foreground">{t(field.answered ? `${V}.confirmed` : unanswered)}</span>
   }
   if (isSetDiffField(key)) {
     return (

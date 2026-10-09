@@ -89,7 +89,7 @@ $$, $$ values
   ('list_signature_requests_to_reconcile(uuid,integer)', false, false, true, true),
   ('list_subject_signature_requests(text,uuid,integer,timestamp with time zone,uuid)', false, true, false, false),
   ('mark_signature_request_failed(uuid,text,text)', false, false, true, true),
-  ('mark_signature_request_sent(uuid,text,uuid,jsonb,timestamp with time zone)', false, false, true, true),
+  ('mark_signature_request_sent(uuid,text,uuid,jsonb,timestamp with time zone,integer)', false, false, true, true),
   ('publish_template_version(uuid)', false, true, false, true),
   ('set_document_template_active(uuid,boolean)', false, true, false, true),
   ('set_signing_settings(jsonb)', false, true, false, true),

@@ -210,9 +210,11 @@ export type TaxBankValues = {
 
 /**
  * The private step as `save_my_submission_private` checks it (4a.17's rules and messages): numbers
- * lose spaces and hyphens; institution and transit are required (the contract's deposit, P4-173);
- * the account and the SIN are never prefilled, required only when nothing is on file (then blank
- * keeps what is stored). The SIN is asked only while the clinic collects it (P4-272).
+ * lose spaces and hyphens. « Dépôt direct » is optional but whole or empty (P4-480, as
+ * `private.submission_gaps`): once one of institution, transit and account is given (an account on
+ * file counts), the missing ones are required. The account and the SIN are never prefilled (blank
+ * keeps what is stored); the SIN is required only when nothing is on file, and asked only while the
+ * clinic collects it (P4-272).
  */
 export function taxBankSchema({ accountOnFile, sinOnFile, collectSin }: { accountOnFile: boolean; sinOnFile: boolean; collectSin: boolean }) {
   const secret = (pattern: RegExp | null, valid: (digits: string) => boolean, messages: { required: string | null; invalid: string }) =>
@@ -232,16 +234,24 @@ export function taxBankSchema({ accountOnFile, sinOnFile, collectSin }: { accoun
     business_number: optionalPattern(BUSINESS_NUMBER, t('modules.professionals.validation.businessNumber'), strip),
     gst_number: optionalPattern(GST, t('modules.professionals.validation.gstNumber'), compactTaxNumber),
     qst_number: optionalPattern(QST, t('modules.professionals.validation.qstNumber'), compactTaxNumber),
-    bank_institution: required(optionalPattern(INSTITUTION, t('settings.bank.validation.institution'), strip), t(`${Q}.institutionRequired`)),
-    bank_transit: required(optionalPattern(TRANSIT, t('settings.bank.validation.transit'), strip), t(`${Q}.transitRequired`)),
-    bank_account: secret(ACCOUNT, () => true, {
-      required: accountOnFile ? null : t(`${Q}.accountRequired`),
-      invalid: t('settings.bank.validation.account'),
-    }),
+    bank_institution: optionalPattern(INSTITUTION, t('settings.bank.validation.institution'), strip),
+    bank_transit: optionalPattern(TRANSIT, t('settings.bank.validation.transit'), strip),
+    bank_account: secret(ACCOUNT, () => true, { required: null, invalid: t('settings.bank.validation.account') }),
     sin: collectSin
       ? secret(null, isValidSin, { required: sinOnFile ? null : t(`${Q}.sinRequired`), invalid: t('modules.professionals.validation.sinInvalid') })
       : z.string().transform(() => null),
+  }).superRefine((v, ctx) => {
+    const account = v.bank_account !== null || accountOnFile
+    if (v.bank_institution === null && v.bank_transit === null && !account) return
+    if (v.bank_institution === null) ctx.addIssue({ code: 'custom', path: ['bank_institution'], message: t(`${Q}.institutionRequired`) })
+    if (v.bank_transit === null) ctx.addIssue({ code: 'custom', path: ['bank_transit'], message: t(`${Q}.transitRequired`) })
+    if (!account) ctx.addIssue({ code: 'custom', path: ['bank_account'], message: t(`${Q}.accountRequired`) })
   })
+}
+
+/** Whether « Dépôt direct » is started (one value typed, or an account on file): its three fields are then required (P4-480). */
+export function depositStarted(values: { bank_institution?: string; bank_transit?: string; bank_account?: string }, accountOnFile: boolean): boolean {
+  return accountOnFile || [values.bank_institution, values.bank_transit, values.bank_account].some((v) => strip(v ?? '') !== '')
 }
 
 /** The plain numbers shown (the submission's, else the record's); the account and the SIN always empty. */

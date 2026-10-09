@@ -74,15 +74,15 @@ $$, $$ values
   ('apply_signing_event(uuid,uuid,text,text,text,timestamp with time zone,text)'::text,
    array['p_org_id', 'p_request_id', 'p_envelope_id', 'p_event', 'p_recipient_id', 'p_at', 'p_reason'], true),
   ('mark_signature_request_failed(uuid,text,text)', array['p_id', 'p_error_code', 'p_envelope_id'], true),
-  ('mark_signature_request_sent(uuid,text,uuid,jsonb,timestamp with time zone)',
-   array['p_id', 'p_envelope_id', 'p_source_file_id', 'p_signer_recipients', 'p_expires_at'], true),
+  ('mark_signature_request_sent(uuid,text,uuid,jsonb,timestamp with time zone,integer)',
+   array['p_id', 'p_envelope_id', 'p_source_file_id', 'p_signer_recipients', 'p_expires_at', 'p_page_count'], true),
   ('recover_signature_request(uuid,uuid,text,jsonb)', array['p_org_id', 'p_id', 'p_envelope_id', 'p_signer_recipients'], true)
 $$, 'the envelope signatures exist, one version each, definer');
 select function_privs_are('public', f.name, f.args, r.role,
          case when r.role = 'service_role' then array['EXECUTE'] else array[]::text[] end,
          f.name || ': ' || case when r.role = 'service_role' then 'EXECUTE for ' else 'nothing for ' end || r.role)
   from (values
-          ('mark_signature_request_sent', array['uuid', 'text', 'uuid', 'jsonb', 'timestamp with time zone']),
+          ('mark_signature_request_sent', array['uuid', 'text', 'uuid', 'jsonb', 'timestamp with time zone', 'integer']),
           ('mark_signature_request_failed', array['uuid', 'text', 'text']),
           ('apply_signing_event', array['uuid', 'uuid', 'text', 'text', 'text', 'timestamp with time zone', 'text']),
           ('recover_signature_request', array['uuid', 'uuid', 'text', 'jsonb'])) f (name, args)

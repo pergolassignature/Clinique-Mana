@@ -7,7 +7,9 @@
 // - date-fns: its default (en-US) and fr locales' « less than a second » texts;
 // - cmdk: its DOM attribute names;
 // - @react-pdf/renderer (the fiche PDF, P4-58: a chunk of its own, loaded on « Fiche PDF »): a
-//   method of its font store, a public name minification keeps.
+//   method of its font store, a public name minification keeps;
+// - pdf-lib (the signed-PDF split, P4-500: a chunk of its own, loaded on a download press): the
+//   start of its parser's error message.
 // Each marker must still appear in SOME built chunk: if a library update renames one, this script
 // fails instead of silently checking nothing.
 //
@@ -24,6 +26,7 @@ const MARKERS = {
   "date-fns": ["less than a second", "moins d’une seconde"],
   cmdk: ["cmdk-item", "cmdk-group-heading"],
   "@react-pdf/renderer": ["registerHyphenationCallback"],
+  "pdf-lib": ["Failed to parse PDF document"],
 };
 
 const fail = (message) => {

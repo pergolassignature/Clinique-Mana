@@ -114,3 +114,28 @@ export async function signedFileUrl(fileId: string, { download = false, ...optio
   const data = signedSchema.parse(await invokeFunction('storage-sign', { file_id: fileId, ...(download && { download: true }) }, options))
   return { url: data.url, expiresAt: data.expires_at }
 }
+
+/** The stored file could not be read through its signed URL (the network, or storage answered an error). */
+export class StoredFileReadError extends Error {
+  constructor(readonly status: number | null) {
+    super(status === null ? 'Stored file unreachable' : `Stored file read failed (${status})`)
+    this.name = 'StoredFileReadError'
+  }
+}
+
+/**
+ * A stored file's bytes, for a file the page transforms before saving it (a signed PDF split in
+ * the browser, P4-500): a new 5-minute URL from `storage-sign` (never cached), read at once.
+ * Throws `FunctionCallError` (404 not readable, 429) or `StoredFileReadError`.
+ */
+export async function fetchStoredFile(fileId: string, options: InvokeOptions = {}): Promise<Uint8Array> {
+  const { url } = await signedFileUrl(fileId, options)
+  let response: Response
+  try {
+    response = await fetch(url, { signal: options.signal, cache: 'no-store' })
+  } catch {
+    throw new StoredFileReadError(null)
+  }
+  if (!response.ok) throw new StoredFileReadError(response.status)
+  return new Uint8Array(await response.arrayBuffer())
+}

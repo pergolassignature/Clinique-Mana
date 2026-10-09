@@ -282,6 +282,7 @@ export function createHandler(
           id: request.id,
           envelopeId,
           viewPermission: request.view_permission,
+          title: request.title,
         })
         outcome = 'signed'
       }
