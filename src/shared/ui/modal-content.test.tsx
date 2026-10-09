@@ -52,4 +52,32 @@ describe('modal content', () => {
     )
     expect(screen.getByRole('dialog', { name: 'Options' })).not.toHaveAttribute('aria-modal')
   })
+
+  it('a dialog is centred by default; position="top" anchors it 15vh from the top without the vertical centring', () => {
+    const { unmount } = render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Centré</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    )
+    const centred = screen.getByRole('dialog', { name: 'Centré' })
+    expect(centred).toHaveAttribute('data-position', 'center')
+    expect(centred).toHaveClass('top-1/2', '-translate-y-1/2', 'animate-dialog-in')
+    unmount()
+
+    render(
+      <Dialog open>
+        <DialogContent position="top" className="max-w-[600px]">
+          <DialogTitle>En haut</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    )
+    const top = screen.getByRole('dialog', { name: 'En haut' })
+    expect(top).toHaveAttribute('data-position', 'top')
+    expect(top).toHaveClass('top-[15vh]', 'translate-y-0', 'animate-dialog-in-top', '-translate-x-1/2', 'max-w-[600px]')
+    expect(top).not.toHaveClass('top-1/2')
+    expect(top).not.toHaveClass('-translate-y-1/2')
+    expect(top).not.toHaveClass('animate-dialog-in')
+  })
 })
