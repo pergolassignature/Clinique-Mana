@@ -101,7 +101,7 @@ select set_config('test.default', public.import_professional(current_setting('te
 reset role;
 
 select is(current_setting('test.dry')::jsonb,
-  '{"status": "ok", "dry_run": true, "id": null, "activated": true, "complete": false, "missing": []}'::jsonb,
+  '{"status": "ok", "dry_run": true, "id": null, "activated": true, "complete": false, "missing": ["photo", "insurance", "image_consent"]}'::jsonb,
   'dry run: ok, what the real run would do, no id (not complete: no account nor questionnaire yet, 4b.1)');
 select is(current_setting('test.default')::jsonb ->> 'dry_run', 'true', 'without p_dry_run, the call is a dry run');
 select is((select count(*)::int from public.professionals where email = 'elise.bouchard@example.test'), 0, 'dry run: no professional');
@@ -130,7 +130,7 @@ select is(public.get_professional_readiness(current_setting('test.id')::uuid) ->
 reset role;
 
 select is(current_setting('test.real')::jsonb - 'id',
-  '{"status": "ok", "dry_run": false, "activated": true, "complete": false, "missing": []}'::jsonb, 'real run: ok');
+  '{"status": "ok", "dry_run": false, "activated": true, "complete": false, "missing": ["photo", "insurance", "image_consent"]}'::jsonb, 'real run: ok');
 select ok(current_setting('test.id') ~ '^[0-9a-f-]{36}$', 'real run: the new id');
 select is(
   (select row(p.first_name, p.last_name, p.email, p.personal_phone, p.city, p.province, p.postal_code, p.years_experience,
@@ -294,7 +294,7 @@ select is((select count(*)::int from public.professionals where email = 'lea.roy
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select is(public.import_professional('{"first_name": "Nora", "last_name": "Gagné", "email": "nora.gagne@example.test", "professions": [{"title_key": "naturopathe"}], "activate": true}', true),
-  '{"status": "ok", "dry_run": true, "id": null, "activated": true, "complete": false, "missing": ["clientele", "motif"]}'::jsonb,
+  '{"status": "ok", "dry_run": true, "id": null, "activated": true, "complete": false, "missing": ["clientele", "motif", "photo", "insurance", "image_consent"]}'::jsonb,
   'an incomplete file: the dry run says it is activated with what it lacks');
 select set_config('test.nora', public.import_professional('{"first_name": "Nora", "last_name": "Gagné", "email": "nora.gagne@example.test", "professions": [{"title_key": "naturopathe"}], "activate": true}', false) ->> 'id', true);
 select set_config('test.paul', public.import_professional('{"first_name": "Paul", "last_name": "Ouellet", "email": "paul.ouellet@example.test", "activate": false}', false) ->> 'id', true);

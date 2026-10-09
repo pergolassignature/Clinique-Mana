@@ -141,7 +141,12 @@ describe('record readiness', () => {
   })
 
   it('refuses an unknown gap', () => {
-    expect(() => withReadiness({ ...READINESS_JSON, items: [{ key: 'matching_profile', done: false, missing: ['photo'] }] })).toThrow(SHAPE_ERROR)
+    expect(() => withReadiness({ ...READINESS_JSON, items: [{ key: 'matching_profile', done: false, missing: ['contract'] }] })).toThrow(SHAPE_ERROR)
+  })
+
+  it('reads the documents item and its fixed gaps (4c.2)', () => {
+    const items = [{ key: 'documents', done: false, missing: ['photo', 'insurance_expired', 'other_documents'] }]
+    expect(withReadiness({ ...READINESS_JSON, items })?.items).toEqual(items)
   })
 })
 

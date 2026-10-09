@@ -64,6 +64,9 @@ insert into public.user_roles (user_id, org_id, role) values
 insert into public.org_modules (org_id, module_key, enabled) values
   ('b0000000-0000-0000-0000-00000000000a', 'professionals', true),
   ('b0000000-0000-0000-0000-00000000000b', 'professionals', true);
+-- Documents are 059's (4c.2): no type is required here, so the documents item is done and this
+-- suite keeps testing the matching profile, the account and the questionnaire.
+update public.document_types set required = false where org_id = 'b0000000-0000-0000-0000-00000000000a';
 
 select set_config('test.p2', 'c0000000-0000-0000-0000-000000000002', true);
 select set_config('test.p3', 'c0000000-0000-0000-0000-000000000003', true);
@@ -172,14 +175,16 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select results_eq($$ select r.matching_complete, r.ready from public.professionals_readiness r where r.professional_id = current_setting('test.p1')::uuid $$,
   $$ values (false, false) $$, 'P1 (title, licence, French) is not ready');
 select is(public.get_professional_readiness(current_setting('test.p1')::uuid),
-  '{"complete": false, "done": 0, "total": 3, "items": [{"key": "matching_profile", "done": false, "missing": ["clientele", "motif"]},
-    {"key": "account_created", "done": false, "missing": []}, {"key": "submission_approved", "done": false, "missing": []}], "warnings": []}'::jsonb,
-  'P1 misses a clientèle and a motif, an account and an approved questionnaire (4b.1)');
+  '{"complete": false, "done": 1, "total": 4, "items": [{"key": "matching_profile", "done": false, "missing": ["clientele", "motif"]},
+    {"key": "account_created", "done": false, "missing": []}, {"key": "submission_approved", "done": false, "missing": []},
+    {"key": "documents", "done": true, "missing": []}], "warnings": []}'::jsonb,
+  'P1 misses a clientèle and a motif, an account and an approved questionnaire (4b.1); no document is required here (4c.2)');
 select is(public.get_professional_readiness(current_setting('test.p4')::uuid) -> 'items' -> 0 -> 'missing',
   '["profession", "clientele", "motif"]'::jsonb, 'without a title, the profession is missing too');
 select is(public.get_professional_readiness(current_setting('test.p2')::uuid),
-  '{"complete": true, "done": 3, "total": 3, "items": [{"key": "matching_profile", "done": true, "missing": []},
-    {"key": "account_created", "done": true, "missing": []}, {"key": "submission_approved", "done": true, "missing": []}], "warnings": []}'::jsonb,
+  '{"complete": true, "done": 4, "total": 4, "items": [{"key": "matching_profile", "done": true, "missing": []},
+    {"key": "account_created", "done": true, "missing": []}, {"key": "submission_approved", "done": true, "missing": []},
+    {"key": "documents", "done": true, "missing": []}], "warnings": []}'::jsonb,
   'P2 is complete');
 
 -- P5 (naturopathe, no licence needed) completes its matching profile.
@@ -227,7 +232,7 @@ update public.motifs set is_active = true, is_restricted = false where id = curr
 update public.professionals set email = 'pia.autre@exemple.ca' where id = current_setting('test.p2')::uuid;
 set local role authenticated;
 select is(public.get_professional_readiness(current_setting('test.p2')::uuid) - 'items',
-  '{"complete": true, "done": 3, "total": 3, "warnings": ["login_email_mismatch"]}'::jsonb,
+  '{"complete": true, "done": 4, "total": 4, "warnings": ["login_email_mismatch"]}'::jsonb,
   'a login email mismatch is a warning; the file stays complete');
 select is((select l.email_matches_login from public.professionals_list l where l.id = current_setting('test.p2')::uuid), false,
   'the list flags the mismatch');
@@ -475,7 +480,7 @@ select results_eq($$ select d.display_name, d.primary_title_key, d.category_key,
                        from public.professionals_directory d where d.id = current_setting('test.p2')::uuid $$,
   $$ values ('Pia Deux'::text, 'psychologue'::text, 'psychologie'::text, 'OPQ'::text, 'OPQ-2000'::text, array['fr']::text[],
              jsonb_build_array(jsonb_build_object('id', current_setting('test.adults'), 'key', 'adults', 'specialized', true, 'min_age', 18, 'max_age', null)),
-             array[current_setting('test.anxiete')::uuid], array['anxiete']::text[], 'unknown'::text, true) $$,
+             array[current_setting('test.anxiete')::uuid], array['anxiete']::text[], 'missing'::text, true) $$,
   'a directory row carries what matching needs');
 select is((select d.professions from public.professionals_directory d where d.id = current_setting('test.p2')::uuid),
   jsonb_build_array(jsonb_build_object('id', (select pp.id from public.professional_professions pp where pp.professional_id = current_setting('test.p2')::uuid),

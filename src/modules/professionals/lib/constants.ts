@@ -100,12 +100,17 @@ export const REFERENCE_KINDS = [
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 
 /** `get_professional_readiness` items (4a: one; 4b–4d append theirs; an item without `missing` keys names its own gap). */
-export const READINESS_ITEMS = ['matching_profile', 'account_created', 'submission_approved'] as const
+export const READINESS_ITEMS = ['matching_profile', 'account_created', 'submission_approved', 'documents'] as const
 export type ReadinessItemKey = (typeof READINESS_ITEMS)[number]
 
-/** What a readiness item can lack, in the order the RPC lists them. */
+/** What the matching profile can lack, in the order the RPC lists them. */
 export const READINESS_MISSING = ['profession', 'licence', 'regulated_title', 'language', 'clientele', 'motif'] as const
-export type ReadinessMissing = (typeof READINESS_MISSING)[number]
+/**
+ * What « Documents requis » can lack (Task 4c.2, P4-405), in the order the RPC lists them: fixed
+ * keys, never a clinic's type key; the clinic's other required types are `other_documents`.
+ */
+export const READINESS_DOCUMENT_MISSING = ['photo', 'insurance', 'insurance_expired', 'image_consent', 'other_documents'] as const
+export type ReadinessMissing = (typeof READINESS_MISSING)[number] | (typeof READINESS_DOCUMENT_MISSING)[number]
 
 /** Readiness warnings: noted, but not gaps (`complete` stays true). */
 export const READINESS_WARNINGS = ['login_email_mismatch'] as const
