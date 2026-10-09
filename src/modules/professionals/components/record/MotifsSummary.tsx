@@ -85,12 +85,12 @@ export function FoldedMotifsSummary({ summary }: { summary: MotifSummary }) {
                 aria-expanded={isOpen}
                 aria-controls={panelId}
                 onClick={() => toggle(group.key)}
-                className={cn('flex w-full items-center gap-2 rounded-sm py-2 text-left', focusRing)}
+                className={cn('flex w-full items-start gap-2 rounded-sm py-2 text-left', focusRing)}
               >
                 <Chevron open={isOpen} />
-                {group.icon ? <CategoryIcon icon={group.icon} className="size-3.5 shrink-0 text-subtle" /> : <span aria-hidden className="size-3.5 shrink-0" />}
+                {group.icon ? <CategoryIcon icon={group.icon} className="mt-0.5 size-3.5 shrink-0 text-subtle" /> : <span aria-hidden className="mt-0.5 size-3.5 shrink-0" />}
                 <span className="min-w-0 flex-1 break-words font-semibold text-foreground">{group.name}</span>
-                <span className="shrink-0 text-xs tabular text-muted-foreground">
+                <span className="mt-px shrink-0 text-xs tabular text-muted-foreground">
                   <span aria-hidden>{t(`${S}.countShort`, { selected: String(group.selected), total: String(group.total) })}</span>
                   <span className="sr-only">{t(`${S}.countSr`, { selected: String(group.selected), total: String(group.total) })}</span>
                 </span>
@@ -159,7 +159,7 @@ export function Disclosure({ label, children, className }: { label: ReactNode; c
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
-        className={cn('group inline-flex max-w-full items-start gap-1 rounded-sm text-left', focusRing, className)}
+        className={cn('group inline-flex max-w-full items-start gap-1 rounded-sm text-left align-top', focusRing, className)}
       >
         <Chevron open={open} />
         <span className="min-w-0">{label}</span>
@@ -174,6 +174,6 @@ export function Disclosure({ label, children, className }: { label: ReactNode; c
 const Chevron = ({ open }: { open: boolean }) => (
   <ChevronRight
     aria-hidden
-    className={cn('mt-[3px] size-3.5 shrink-0 text-subtle transition-transform motion-reduce:transition-none', open && 'rotate-90')}
+    className={cn('mt-0.5 size-3.5 shrink-0 text-subtle transition-transform motion-reduce:transition-none', open && 'rotate-90')}
   />
 )

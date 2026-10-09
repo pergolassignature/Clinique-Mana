@@ -600,5 +600,21 @@ describe('CompensationTab — « Rétention » (P4-180…)', () => {
     expect(within(card).getByText(t(`${C}.retention.noGrid`))).toBeInTheDocument()
     expect(within(card).queryByRole('button', { name: /^Appliquer/ })).not.toBeInTheDocument()
     expect(within(card).getByRole('button', { name: t(`${C}.sessions.add`) })).toBeInTheDocument()
+    // No suggested rate is said in words, never a dash (« il faut toujours être clair »).
+    expect(card).not.toHaveTextContent('—')
+  })
+
+  it('says « Aucun taux » in the pay table while no rate is in force, never a dash', async () => {
+    storedCompensation = compensationFixture({
+      applied: null,
+      inForcePct: null,
+      status: 'no_rate',
+      pay: [{ duration: 50, clientPriceCents: 17500, appliedCents: null, suggestedCents: 12600, upcomingCents: null }],
+    })
+    render(COMPENSATION_ONLY)
+    const card = await retention()
+    const pay = within(card).getByRole('table', { name: t(`${C}.retention.pay`) })
+    expect(within(pay).getByRole('row', { name: /^50 min/ })).toHaveTextContent(`50 min175,00 $${t(`${C}.retention.noRate`)}`)
+    expect(pay).not.toHaveTextContent('—')
   })
 })

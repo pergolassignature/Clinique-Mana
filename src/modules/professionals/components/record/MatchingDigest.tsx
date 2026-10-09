@@ -76,7 +76,7 @@ export function MatchingDigest({ record, catalog, canEdit }: MatchingDigestProps
 /** Label above the value on phones, beside it from `sm` up (`stacked`: above it at every width). */
 function Row({ label, stacked = false, children }: { label: string; stacked?: boolean; children: ReactNode }) {
   return (
-    <div className={cn('grid gap-x-4 gap-y-0.5 py-2 first:pt-0 last:pb-0', stacked ? 'gap-y-1.5' : 'sm:grid-cols-[minmax(0,160px)_minmax(0,1fr)]')}>
+    <div className={cn('grid gap-x-4 gap-y-0.5 py-2 first:pt-0 last:pb-0', stacked ? 'gap-y-1.5' : 'sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]')}>
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="min-w-0 break-words text-foreground">{children}</dd>
     </div>

@@ -44,7 +44,7 @@ function CharacterCount({ control, name }: { control: PortraitControl; name: 'bi
 export function PublicProfileTab() {
   const readOnly = !useAccess().can('professionals.manage')
   return (
-    <div className="max-w-form space-y-4">
+    <div className="max-w-form space-y-5">
       {readOnly && <ReadOnlyNotice body={t('modules.professionals.record.identity.readOnly')} />}
       <ProfessionalCard
         title={t(`${P}.portrait.title`)}

@@ -86,7 +86,7 @@ function MyProfile({ record, submission, catalog }: { record: MyProfessionalReco
       />
       <QuestionnaireCard record={record} submission={submission} />
       <ProfileCard title={t(`${P}.cards.contact`)}>
-        <dl className="mb-1.5 grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
+        <dl className="mb-1.5 grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
           <dt className="text-muted-foreground">{t('modules.professionals.questionnaire.personal.name')}</dt>
           <dd className="min-w-0 break-words text-foreground">{fullName(professional)}</dd>
           <dt className="text-muted-foreground">{t('modules.professionals.questionnaire.personal.loginEmail')}</dt>
@@ -235,7 +235,7 @@ function TaxBankCard() {
       ) : !data ? (
         <LoadError message={t(`${P}.taxBankError`)} retrying={query.isFetching} onRetry={() => void query.refetch()} />
       ) : (
-        <dl className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
+        <dl className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
           {rows.map((row) => (
             <div key={row.label} className="contents">
               <dt className="text-muted-foreground">{row.label}</dt>

@@ -46,7 +46,7 @@ export function DocumentsTab() {
   }
 
   return (
-    <div className="max-w-form space-y-4">
+    <div className="max-w-form space-y-5">
       <ContractCard />
       <SubmissionsCard id={submissionsId} />
       {documents.isPending ? (
