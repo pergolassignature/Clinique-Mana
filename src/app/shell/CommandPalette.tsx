@@ -43,6 +43,8 @@ export function CommandPalette({ open, onOpenChange, pages, searchProviders = []
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={contentRef}
+        // Anchored near the top: the palette does not jump while results arrive and the list grows.
+        position="top"
         hideClose
         aria-describedby={undefined}
         onCloseAutoFocus={onCloseAutoFocus}
