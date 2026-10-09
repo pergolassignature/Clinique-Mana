@@ -1,14 +1,17 @@
 /**
  * `professionals-invite` (Task 4b.2, design §3.7): « Inviter », « Renvoyer
- * l'invitation », « Nouveau lien », « Révoquer l'invitation » and « Demander
- * une mise à jour » on a professional's file.
+ * l'invitation », « Nouveau lien », « Copier le lien d'invitation »,
+ * « Révoquer l'invitation » and « Demander une mise à jour » on a
+ * professional's file.
  *
- * The inviter never learns the token (Task 3.18's actor model, P4-260): the
- * link proves that the invitee controls the file's address only if nobody
- * else knows it, and an inviter holding it could create the account herself.
- * The token is generated and hashed here, in memory, travels only in the
- * email, and is never returned, logged, reported or stored (only its SHA-256
- * reaches the database). There is therefore no « Copier le lien ».
+ * The token is generated and hashed here, in memory; only its SHA-256 reaches
+ * the database, and it is never logged, reported or stored. It travels in the
+ * email, or, for `copy_link` only (P4-491, Jonathan reverses P4-260), in that
+ * one answer (`Cache-Control: no-store`): someone with `professionals.invite`
+ * takes the link to hand it over another way (SMS, her own email) when the
+ * email cannot reach the professional. The copy issues a new link (the live
+ * one revoked, as `new_link`), sends no email, and is audited in the database
+ * (`professional_invitation_deliveries`: who, when, which file).
  *
  * 1. CORS; `POST` only; `verifyAuth` with the module `professionals` and
  *    `professionals.invite`.
@@ -17,7 +20,7 @@
  *    address) is ignored: the recipient is the file's address, from the RPC.
  * 3. `revoke`: `revoke_professional_invitation` as the caller → 200
  *    `{ ok: true }`. Nothing else below applies.
- * 4. `send`, `resend`, `new_link`: `professionals.invite_file` first (1 per
+ * 4. `send`, `resend`, `new_link`, `copy_link`: `professionals.invite_file` first (1 per
  *    5 s per file, whoever clicks), since each call revokes the live link:
  *    a double click on « Renvoyer » or « Nouveau lien » must not kill the
  *    link the first click emailed. Then `professionals.invite_user` (30 per
@@ -32,6 +35,9 @@
  *    a body value); it re-checks her (active, `professionals.invite`, the
  *    module) in her clinic, issues the link (revoking the previous one) and
  *    answers `{ link_id, submission_id, email, first_name, expires_at }`.
+ *    `copy_link`: `copy_professional_invitation_link` the same way, then 200
+ *    `{ ok: true, url, expires_at }` with `Cache-Control: no-store`; nothing
+ *    below applies.
  *    `request_update`: `request_professional_update` as the caller →
  *    `{ submission_id, email, first_name }`. P0001 → 400 with its French
  *    message, its HINT as `field`; 42501 → 403; 22023 → 400; another shape →
@@ -46,7 +52,13 @@
  *    submission exists), the email is sent even if the caller has gone, as
  *    `professionals-submit` does.
  * 8. 200 `{ ok: true, expires_at }` (an invitation) or `{ ok: true,
- *    submission_id }` (an update request).
+ *    submission_id }` (an update request); `copy_link` answered at step 6.
+ *
+ * An invitation email that was not even queued (the send path's code before
+ * `queue_email`, or `internal` when it threw) is stamped on the link's
+ * delivery (`record_professional_invitation_email_failure_for_service`), so
+ * the record says « Le courriel d'invitation n'est pas parti » and why
+ * (P4-490); a queued one is `email_log`'s.
  *
  * Once the link or the submission exists, an email failure answers with
  * `professional_id` (and `submission_id` for an update request) next to the
@@ -100,15 +112,19 @@ const FN = 'professionals-invite'
 const INVITE_ACTIONS = ['send', 'resend', 'new_link'] as const
 
 const bodySchema = z.object({
-  action: z.enum([...INVITE_ACTIONS, 'revoke', 'request_update']),
+  action: z.enum([...INVITE_ACTIONS, 'copy_link', 'revoke', 'request_update']),
   // guid, not uuid: seed and fixture ids are not RFC 4122 variants.
   professional_id: z.guid(),
   sections: z.array(z.string().regex(/^[a-z_]{1,32}$/)).min(1).max(11)
     .optional(),
 }).refine((b) => (b.action === 'request_update') === (b.sections !== undefined))
 
-/** `create_professional_invitation`'s answer (4b.1); other fields are ignored. */
+/**
+ * `create_professional_invitation`'s and `copy_professional_invitation_link`'s
+ * answer (4b.1); other fields are ignored.
+ */
 const invitationSchema = z.object({
+  link_id: z.guid(),
   email: z.string(),
   first_name: z.string(),
   expires_at: z.string(),
@@ -231,7 +247,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       )
     }
 
-    // In memory only: the token goes into the email, its hash to the RPC.
+    // In memory only: the token goes into the email (or `copy_link`'s
+    // answer), its hash to the RPC.
     const token = generateToken()
     const tokenHash = await hashToken(token)
     let actionUrl: string
@@ -240,32 +257,50 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     } catch {
       return misconfigured()
     }
-    const { data, error } = await client.rpc('create_professional_invitation', {
-      p_actor: actor,
-      p_id: professionalId,
-      p_token_hash: tokenHash,
-    })
-    if (error) return rpcFailed(error, 'invite_failed')
+    const copy = input.action === 'copy_link'
+    const { data, error } = await client.rpc(
+      copy
+        ? 'copy_professional_invitation_link'
+        : 'create_professional_invitation',
+      { p_actor: actor, p_id: professionalId, p_token_hash: tokenHash },
+    )
+    if (error) return rpcFailed(error, copy ? 'copy_failed' : 'invite_failed')
     const row = invitationSchema.safeParse(data)
     if (!row.success) {
-      await report('invite_invalid')
+      await report(copy ? 'copy_invalid' : 'invite_invalid')
       return errorResponse('internal', 'Invitation failed', 500, req)
     }
-    const sent = await send({
-      templateKey: 'professionals.invite',
-      email: row.data.email,
-      values: invitationValues({
-        firstName: row.data.first_name,
-        clinicName: auth.access.org_name,
-        expiresAt: row.data.expires_at,
-      }),
-      actionUrl,
-      // Every invitation email is an explicit act on the file (its 5 s guard
-      // stops a double click): the 60 s same-address limit would refuse
-      // « Envoyer l'invitation » right after « Révoquer », once the new link
-      // exists, leaving it without its email.
-      explicitResend: true,
-    })
+    if (copy) {
+      // The one place the link leaves the server (P4-491): this answer, never
+      // stored by the browser nor by a cache on the way.
+      const res = jsonResponse(
+        { ok: true, url: actionUrl, expires_at: row.data.expires_at },
+        200,
+        req,
+      )
+      res.headers.set('Cache-Control', 'no-store')
+      return res
+    }
+    const linkId = row.data.link_id
+    const sent = await send(
+      {
+        templateKey: 'professionals.invite',
+        email: row.data.email,
+        values: invitationValues({
+          firstName: row.data.first_name,
+          clinicName: auth.access.org_name,
+          expiresAt: row.data.expires_at,
+        }),
+        actionUrl,
+        // Every invitation email is an explicit act on the file (its 5 s guard
+        // stops a double click): the 60 s same-address limit would refuse
+        // « Envoyer l'invitation » right after « Révoquer », once the new link
+        // exists, leaving it without its email.
+        explicitResend: true,
+      },
+      {},
+      linkId,
+    )
     return sent ??
       jsonResponse({ ok: true, expires_at: row.data.expires_at }, 200, req)
 
@@ -282,6 +317,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         explicitResend: boolean
       },
       created: Record<string, string> = {},
+      /** An invitation's link: a failure before queueing is stamped on it. */
+      linkId: string | null = null,
     ): Promise<Response | null> {
       const ids = { professional_id: professionalId, ...created }
       let result: SendResult
@@ -305,9 +342,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         if (!(error instanceof FunctionError)) {
           await report('unexpected', created)
         }
+        await stampFailure(linkId, 'internal')
         return createdError('internal', 500, ids)
       }
       if (result.ok) return null
+      // Not queued: no email_log row says it, so the link's delivery does.
+      if (result.emailLogId === null) await stampFailure(linkId, result.code)
       switch (result.code) {
         case 'rate_limited': {
           const res = createdError('rate_limited', 429, ids)
@@ -326,6 +366,19 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           await report(`email_${result.code}`, created)
           return createdError('internal', 500, ids)
       }
+    }
+
+    /**
+     * Records on the link's delivery why its email was not queued (P4-490).
+     * Best effort: a failure here is reported, the answer stays the send's.
+     */
+    async function stampFailure(linkId: string | null, code: string) {
+      if (linkId === null) return
+      const { error } = await client.rpc(
+        'record_professional_invitation_email_failure_for_service',
+        { p_org: orgId, p_link_id: linkId, p_code: code },
+      )
+      if (error) await report('email_failure_stamp_failed')
     }
 
     /** An error answer that keeps what was created, for « Renvoyer ». */

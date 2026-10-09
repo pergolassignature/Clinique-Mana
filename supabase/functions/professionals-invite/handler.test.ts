@@ -23,6 +23,7 @@ const URL_ = 'http://fn.test/functions/v1/professionals-invite'
 const APP = 'http://localhost:5173'
 const LOG_ID = '6f1c1b2e-3d4a-4b5c-8d9e-0f1a2b3c4d5e'
 const OTHER_ID = '00000000-0000-4000-8000-0000000000f9'
+const COPY_LINK_ID = '00000000-0000-4000-8000-00000000011b'
 const MAILPIT = 'POST http://mailpit.test:8025/api/v1/send'
 const ENV: Record<string, string> = {
   APP_URL: APP,
@@ -91,6 +92,16 @@ function harness(opts: {
           expires_at: EXPIRES,
         },
       },
+      copy_professional_invitation_link: {
+        data: {
+          link_id: COPY_LINK_ID,
+          submission_id: SUBMISSION_ID,
+          email: PROFESSIONAL_EMAIL,
+          first_name: 'Nadia',
+          expires_at: EXPIRES,
+        },
+      },
+      record_professional_invitation_email_failure_for_service: { data: null },
       get_email_context: (args) => ({
         data: professionalsEmailContext(String(args.p_template_key)),
       }),
@@ -704,6 +715,7 @@ Deno.test('professionals-invite: an email failure keeps what was created: 502, 5
       rpc: {
         create_professional_invitation: {
           data: {
+            link_id: LINK_ID,
             email: 'pas une adresse',
             first_name: 'Nadia',
             expires_at: EXPIRES,
@@ -744,5 +756,194 @@ Deno.test('professionals-invite: no token or address in any log or report', asyn
     assert(!text.includes(token))
     assert(!text.includes(PROFESSIONAL_EMAIL))
     assert(!text.includes('#t='))
+  })
+})
+
+const STAMP = 'record_professional_invitation_email_failure_for_service'
+
+Deno.test('professionals-invite: an invitation email not even queued is stamped on its link; a queued one is not (P4-490)', async () => {
+  await run(async () => {
+    const unconfigured = harness({ env: { EMAIL_TRANSPORT: 'carrier-pigeon' } })
+    await captureConsole('error', async () => {
+      assertEquals((await unconfigured.handler(send())).status, 503)
+    })
+    assertEquals(args(unconfigured.service.calls, STAMP), {
+      p_org: ORG_ID,
+      p_link_id: LINK_ID,
+      p_code: 'not_configured',
+    })
+
+    const limited = harness({
+      limits: { 'emails.repeat_guard': { allowed: false } },
+    })
+    assertEquals((await limited.handler(send())).status, 429)
+    assertEquals(args(limited.service.calls, STAMP)?.p_code, 'rate_limited')
+
+    // Queued, then refused by the provider: email_log holds the outcome.
+    const provider = harness({ mailpit: json(500, {}) })
+    await captureConsole('error', async () => {
+      assertEquals((await provider.handler(send())).status, 502)
+    })
+    assertEquals(args(provider.service.calls, STAMP), undefined)
+
+    // An update request has no link: nothing to stamp.
+    const update = harness({ env: { EMAIL_TRANSPORT: 'carrier-pigeon' } })
+    await captureConsole('error', async () => {
+      await update.handler(post({
+        action: 'request_update',
+        professional_id: PROFESSIONAL_ID,
+        sections: ['portrait'],
+      }))
+    })
+    assertEquals(args(update.service.calls, STAMP), undefined)
+
+    // A failed stamp is reported; the answer stays the send's.
+    const broken = harness({
+      env: { EMAIL_TRANSPORT: 'carrier-pigeon' },
+      rpc: { [STAMP]: { error: { code: 'XX000', message: 'boom' } } },
+    })
+    const lines = await captureConsole('error', async () => {
+      const error = await errorOf(await broken.handler(send()))
+      assertEquals([error.status, error.code], [503, 'not_configured'])
+    })
+    assert(JSON.stringify(lines).includes('email_failure_stamp_failed'))
+  })
+})
+
+Deno.test('professionals-invite: copy_link → the copy RPC with the verified actor, the URL once (no-store), no email', async () => {
+  await run(async () => {
+    const { handler, user, service, http } = harness()
+    const lines: unknown[][] = []
+    let text = ''
+    lines.push(
+      ...await captureConsole('log', async () => {
+        lines.push(
+          ...await captureConsole('error', async () => {
+            const res = await handler(post({
+              action: 'copy_link',
+              professional_id: PROFESSIONAL_ID,
+              p_actor: OTHER_ID,
+              email: 'attaquant@exemple.test',
+            }))
+            assertEquals(res.status, 200)
+            assertEquals(res.headers.get('Cache-Control'), 'no-store')
+            text = await res.text()
+          }),
+        )
+      }),
+    )
+    const body = JSON.parse(text)
+    assertEquals(Object.keys(body).sort(), ['expires_at', 'ok', 'url'])
+    assertEquals([body.ok, body.expires_at], [true, EXPIRES])
+    const match = new RegExp(
+      `^${APP}/invitation#t=([A-Za-z0-9_-]{43})$`,
+    ).exec(body.url)
+    assert(match, 'the invitation URL')
+
+    const copied = args(service.calls, 'copy_professional_invitation_link')!
+    assertEquals(copied.p_actor, ADMIN_ID)
+    assertEquals(copied.p_id, PROFESSIONAL_ID)
+    assertEquals(await hashToken(match[1]), copied.p_token_hash)
+    // The link of an invitation (the previous one revoked by the RPC), not an email.
+    assertEquals(
+      args(service.calls, 'create_professional_invitation'),
+      undefined,
+    )
+    for (const fn of ['get_email_context', 'queue_email', STAMP]) {
+      assertEquals(args(service.calls, fn), undefined)
+    }
+    assertEquals(http.calls, [])
+    // The same gates as every invitation: the file's guard, then the caller's limit, first.
+    assertEquals(buckets(service.calls), [
+      'professionals.invite_file',
+      'professionals.invite_user',
+    ])
+    assertEquals(user.calls.map((c) => c.fn), ['get_my_access'])
+    // Nothing logged, let alone the token.
+    assertEquals(lines, [])
+
+    // A second copy is a new token.
+    const again = await handler(
+      post({ action: 'copy_link', professional_id: PROFESSIONAL_ID }),
+    )
+    const second = (await again.json()).url
+    assert(second !== body.url)
+  })
+})
+
+Deno.test('professionals-invite: copy_link keeps the permission, module and rate-limit gates, and passes refusals on', async () => {
+  await run(async () => {
+    const copy = post({ action: 'copy_link', professional_id: PROFESSIONAL_ID })
+    const denied = harness({
+      access: professionalsAccess(['professionals.view']),
+    })
+    const error = await errorOf(await denied.handler(copy.clone()))
+    assertEquals([error.status, error.code], [403, 'forbidden'])
+    const off = harness({
+      access: professionalsAccess(INVITE, { modules: [] }),
+    })
+    const disabled = await errorOf(await off.handler(copy.clone()))
+    assertEquals([disabled.status, disabled.code], [403, 'module_disabled'])
+    for (const h of [denied, off]) assertEquals(h.service.calls, [])
+
+    for (
+      const bucket of ['professionals.invite_file', 'professionals.invite_user']
+    ) {
+      const limited = harness({ limits: { [bucket]: { allowed: false } } })
+      const res = await limited.handler(copy.clone())
+      assertEquals(res.status, 429)
+      assertEquals(res.headers.get('Retry-After'), '900')
+      const answer = await res.json()
+      assertEquals(answer.url, undefined)
+      assertEquals(
+        args(limited.service.calls, 'copy_professional_invitation_link'),
+        undefined,
+      )
+    }
+
+    const account = harness({
+      rpc: {
+        copy_professional_invitation_link: {
+          error: {
+            code: 'P0001',
+            message: 'Ce professionnel a déjà un compte.',
+            hint: 'account',
+          },
+        },
+      },
+    })
+    const refused = await errorOf(await account.handler(copy.clone()))
+    assertEquals([refused.status, refused.code, refused.field], [
+      400,
+      'invalid_request',
+      'account',
+    ])
+    assertEquals(refused.body.url, undefined)
+  })
+})
+
+Deno.test('professionals-invite: a failed copy reports ids only, never the token', async () => {
+  await run(async () => {
+    const { handler } = harness({
+      rpc: {
+        copy_professional_invitation_link: {
+          error: { code: 'XX000', message: 'boom' },
+        },
+      },
+    })
+    let text = ''
+    const lines = await captureConsole('error', async () => {
+      const res = await handler(
+        post({ action: 'copy_link', professional_id: PROFESSIONAL_ID }),
+      )
+      assertEquals(res.status, 500)
+      text = await res.text()
+    })
+    const logged = JSON.stringify(lines)
+    assert(logged.includes('copy_failed'))
+    for (const out of [logged, text]) {
+      assert(!out.includes('#t=') && !out.includes('/invitation'))
+      assert(!out.includes(PROFESSIONAL_EMAIL))
+    }
   })
 })
