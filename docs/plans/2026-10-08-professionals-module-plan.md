@@ -344,6 +344,15 @@ Task 4b.6 and three extras Jonathan approved: the places a professional offers t
 - **Browser check** (port 5197, own Vite cache, as `adjointe@mana.test`): Sophie Lavoie, 4 places saved → « Indiqué le 8 oct. (la date change quand le nombre change). »; a note saved; Aperçu « 4 places offertes · depuis le 8 oct. » and the note; Historique « a modifié le nombre de places offertes : (vide) → 4 » and « a ajouté la note Bon à savoir », the text nowhere on the page; in the database the audit row holds `[redacted]` and no audit row contains the text; Jumelage at 375 px: Clientèles, Limites, Places offertes, Bon à savoir, Motifs, Langues, Disponibilités, no sideways scroll. Found and fixed there: « 8 oct.. » (the date's abbreviation point before the sentence's).
 - **Checks:** `typecheck`, `lint`, `lint:migrations`, `lint:supabase`, `vitest run` (all files), `build`, `test:functions`, `check:functions`; locked block: `db:reset`, `db:test` (46 files, 4211 tests, after fixing `043` and `048` for the record's new key and the import's message), `db:types` (no diff), the live sign-in check, the browser walk; then the main branch's DB restored (`db:reset` from `phase-4-professionals`, REST / Auth / Kong restarted) and the token released. `lint:functions` reports 2 errors in `professionals-fiche/handler.ts` (pre-existing, not this lane's).
 
+### Service contract (2026-10-08, branch `feat/phase-4d-contract`)
+
+Batch 4d (Tasks 4d.0–4d.3). Every decision is « déléguée — révisable » unless it says it is Jonathan's.
+
+| # | Decision | Rationale |
+|---|---|---|
+| P4-430 | **4d.0: the Phase 3 signing names, as built.** `create_document_template(p_key, p_module_key, p_title, p_description, p_view_permission, p_edit_permission)` needs `settings.manage`, so the contract template is inserted by the module's migration (its header allows it); `create_template_version(p_template_id)` (a copy of the published version, else empty), `update_template_version(p_id, p_body, p_variables, p_signers, p_email_subject, p_email_message)`, `publish_template_version(p_id)` (title, footer, block types, one last `signaturePage` whose roles are the version's signers, `initialsFor` among them, a subject), `archive_template_version(p_id)`, `list_document_templates(p_module_key)`; `create_signature_request(p jsonb)` (no column for the values: the snapshot is the module's, P4-434), `list_subject_signature_requests(p_subject_type, p_subject_id, p_limit, p_before, p_before_id)`, `get_signature_request(p_id)`, `cancel_signature_request(p_id, p_by)` (service role), `get_signing_request(p_org_id, p_id)` (service role: the envelope and the recipients by role); `createSignatureRequest(deps, input)` with `CreateSignatureRequestInput` as 4d.2 lists it. The filler has no table or repeated row: placeholders are text only (`text`, `date`, `datetime`, `url`, at most 40 per version). | The built code wins (as 4b.0). |
+| P4-431 | **Initials (P4-17): kept on.** The 3.29 spike measured the renderer only and recorded no finding on Documenso's `INITIALS` field; the envelope API's field types include it (`DocumensoFieldInput.type`, the fake accepts it), and the renderer returns one `INITIALS` box per page for each `header.initialsFor` role. The template seeds `initialsFor: ['professional']`; the editor has a switch « Initiales du professionnel sur chaque page » (on), so the Drop « signature et date seulement » is one click if the live check fails. Live check added to « Mise en service » item 15: send the test contract to the clinic's Documenso and initial a page. | No evidence that the clinic's Documenso refuses initials; the fallback costs nothing to keep ready. |
+
 ---
 
 ## Écarts relevés entre les documents (inconsistencies found)
@@ -2993,6 +3002,14 @@ Same shape as 4b.7: all suites green; Playwright `e2e/documents.spec.ts` (adjoin
 
 As 4b.0 for Phase 3 Tasks 3.29–3.34: `create_document_template` and the version RPCs (Task 3.31), `create_signature_request`, `list_subject_signature_requests` (P3-26), `_shared/signing.ts` `createSignatureRequest` (Task 3.33, input `CreateSignatureRequestInput`), `signing-webhook` transitions, `signing-sync`, the renderer's initials boxes (`header.initialsFor`, Task 3.30) and the 3.29 spike's finding on Documenso `INITIALS` fields (P4-17).
 
+**As built (2026-10-08, branch `feat/phase-4d-contract` from `feat/phase-4-professionals` at `305d8c3`, which holds `main`: Phase 3 signing on the envelope API and the signing capture; no merge needed):** the names are P4-430's. Differences that change 4d.1–4d.3 (the built code wins):
+- **No template RPC for a migration:** `create_document_template` is a `settings.manage` RPC; the module's migration inserts its template and draft version directly, as the core migration's header allows.
+- **No dynamic rows in the filler:** `fillTemplate` replaces text placeholders only, so Annexe A (one row per tier of the professional's grid) cannot come from a `{{pricing.annexe_a}}` text value. 4d.2 adds a block placeholder to the shared filler (P4-433).
+- **No values column on `signature_requests`:** the printed amounts are snapshotted in a module table (P4-434).
+- **The compensation model changed** (P4-180): there are no margins; Annexe A prints the retention grid's pay per tier (P4-432).
+- **Initials:** no spike finding exists; kept on (P4-431).
+- **pgTAP numbers:** 070–074 for this batch (the coordinator's numbering; 4c's lane uses 06x).
+
 ---
 
 ## Task 4d.1: Migration `professionals_contracts` (lane A)
@@ -3074,7 +3091,7 @@ Nothing below is done by the executor. Each item needs Jonathan (or Christine, o
 12. **Consent text:** Christine confirms version 1 of « Consentement au droit à l'image » (Paramètres → Consentements).
 13. **Loi 25:** Christine (privacy officer) acknowledges the new personal data held for professionals (bank, possibly SIN) and the processors (Resend, Documenso host, and Google Places: the address typed in « Adresse » is sent to Google for suggestions, P4-220) in the EFVP and the privacy policy. Clients will send client addresses to Google the same way: its own EFVP must cover it.
 14. **Untracked legacy migrations in the main checkout** (`supabase/migrations/20260207000001_…`, `…000003_…`): move them out of `supabase/migrations/` (for example into `_legacy/wip/`) or delete them; a `supabase db reset` run from the main checkout would apply them and fail against the rebuilt schema. Not done by this plan.
-15. **Initials on contract pages:** if the Task 3.29 spike shows the clinic's Documenso cannot take per-page initials, approve the Drop « signature et date seulement » (P4-17).
+15. **Initials on contract pages (P4-17, P4-431):** the spike recorded no finding, so initials stay on. Live check on the clinic's Documenso: publish a test version of « Contrat de service », send it to a test professional address you control and initial a page. If Documenso refuses the `INITIALS` fields, turn off « Initiales du professionnel sur chaque page » in Paramètres → Contrats and approve the Drop « signature et date seulement ».
 16. **Retention program (P4-185–P4-188):** confirm that a « Taux particulier » is never flagged again (P4-188), that « Coach certifié PNL » is the title « Coach professionnel.le certifié.e », and that `nutritionniste` has no grid (« Profession à confirmer » until one is created in Paramètres → Rémunération).
 
 ---
