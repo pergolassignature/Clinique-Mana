@@ -16,6 +16,7 @@
  * Auth emails cannot read Settings: the footer is static. Subjects live in
  * `supabase/config.toml`; the build script checks they equal `AUTH_SUBJECTS`.
  */
+import { frenchSpacing } from '../french.ts'
 import { type ClinicFooter, renderLayout } from './layout.ts'
 import { escapeHtml, toHtml } from './markup.ts'
 import { COLOR, FONT_STACK } from './tokens.ts'
@@ -129,13 +130,16 @@ const EMAILS: Record<AuthTemplateName, AuthEmail> = {
   },
 }
 
-/** The body: heading, text, then the code block and its note when there is one. */
+/**
+ * The body: heading, text, then the code block and its note when there is
+ * one. The texts get French spacing (`../french.ts`) like the app emails' templates.
+ */
 function contentHtml(email: AuthEmail): string {
   return [
-    `<h1 style="${H1_STYLE}">${escapeHtml(email.heading)}</h1>`,
-    toHtml(email.body),
+    `<h1 style="${H1_STYLE}">${escapeHtml(frenchSpacing(email.heading))}</h1>`,
+    toHtml(frenchSpacing(email.body)),
     email.code ? `<p style="${CODE_STYLE}">{{ .Token }}</p>` : '',
-    email.after ? toHtml(email.after) : '',
+    email.after ? toHtml(frenchSpacing(email.after)) : '',
   ].join('')
 }
 
@@ -148,7 +152,8 @@ export function authTemplates(): Record<AuthTemplateName, string> {
         title: AUTH_SUBJECTS[name],
         preheader: email.preheader,
         contentHtml: contentHtml(email),
-        button: email.button,
+        button: email.button &&
+          { ...email.button, label: frenchSpacing(email.button.label) },
         footer: FOOTER,
         whyLine: WHY_LINE,
         wordmarkUrl: WORDMARK_URL,

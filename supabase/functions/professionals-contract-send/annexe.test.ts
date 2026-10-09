@@ -1,4 +1,5 @@
 import { assert, assertEquals } from '@std/assert'
+import { NNBSP } from '../_shared/french.ts'
 import { checkDocument } from '../_shared/pdf/model.ts'
 import {
   annexeBlocks,
@@ -110,7 +111,7 @@ Deno.test('annexe: the client prices, then the pay per tier, every amount « ava
     ['301 séances et plus', `150${NBSP}$`, `131,25${NBSP}$`, `97,50${NBSP}$`],
   ])
   assert(texts(blocks)[0].includes(TAX_WORDING))
-  assert(texts(blocks)[0].startsWith('Profession : Psychologue.'))
+  assert(texts(blocks)[0].startsWith(`Profession${NNBSP}: Psychologue.`))
   // What the professional reads is what they are paid: never a margin or a retention as the subject.
   assert(!JSON.stringify(blocks).includes('marge'))
   assertEquals(
@@ -125,7 +126,7 @@ Deno.test("annexe: where the professional stands, and the rate in force only whe
   assert(
     same.some((t) =>
       t ===
-        'À la date du contrat, le Professionnel compte 78 séances cumulées (palier « 51 à 100 séances »). La Clinique fait le suivi du palier chaque mois.'
+        `À la date du contrat, le Professionnel compte 78 séances cumulées (palier «${NNBSP}51 à 100 séances${NNBSP}»). La Clinique fait le suivi du palier chaque mois.`
     ),
   )
   assert(
@@ -143,11 +144,11 @@ Deno.test("annexe: where the professional stands, and the rate in force only whe
     },
   }))
   assert(custom.includes(
-    `Montant versé à la date du contrat, selon l’entente en vigueur : ${
+    `Montant versé à la date du contrat, selon l’entente en vigueur${NNBSP}: ${
       durationLabel(60)
-    } : 140${NBSP}$ · ${durationLabel(50)} : 122,50${NBSP}$ · ${
+    }${NNBSP}: 140${NBSP}$ · ${durationLabel(50)}${NNBSP}: 122,50${NBSP}$ · ${
       durationLabel(30)
-    } : 91${NBSP}$.`,
+    }${NNBSP}: 91${NBSP}$.`,
   ))
 })
 

@@ -110,7 +110,7 @@ Deno.test('composeEmail: subject, HTML and text from template, values and layout
   assertStringIncludes(r.text, 'valide jusqu’au 15 octobre 2026 à 14 h 30.')
   assertStringIncludes(
     r.text,
-    'Créer mon accès :\nhttps://app.cliniquemana.com/invitation#t=abc',
+    'Créer mon accès\u202F:\nhttps://app.cliniquemana.com/invitation#t=abc',
   )
   assertFalse(r.text.includes('**'))
 })
@@ -138,7 +138,7 @@ Deno.test('composeEmail: footer from the clinic identity (formatted phone, addre
       'Montréal QC H2X 1Y4',
       '514 555-1234',
       'https://cliniquemana.com',
-      'Confidentialité : Christine Tremblay, confidentialite@cliniquemana.com',
+      'Confidentialité\u202F: Christine Tremblay, confidentialite@cliniquemana.com',
       '',
       context.template.whyLine,
     ].join('\n'),
@@ -167,7 +167,7 @@ Deno.test('composeEmail: an incomplete identity leaves the missing lines out', (
   assert(r.ok)
   assertStringIncludes(
     r.text,
-    '--\nClinique MANA\nMontréal\nConfidentialité : p@c.test\n',
+    '--\nClinique MANA\nMontréal\nConfidentialité\u202F: p@c.test\n',
   )
 })
 
@@ -304,7 +304,7 @@ Deno.test('composeEmail: a URL from code without a label gets the default label'
     { values, actionUrl: 'https://a.test/x', appUrl: 'https://a.test' },
   )
   assert(r.ok)
-  assertStringIncludes(r.text, 'Ouvrir le lien :\nhttps://a.test/x')
+  assertStringIncludes(r.text, 'Ouvrir le lien\u202F:\nhttps://a.test/x')
 })
 
 Deno.test('composeEmail: a blank button label counts as none', () => {
