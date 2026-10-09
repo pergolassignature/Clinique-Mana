@@ -991,7 +991,33 @@ begin
                        where f.value in ('"sin"'::jsonb, '"bank_account"'::jsonb)))
            end,
            a.actor_id, pr.display_name, a.actor_role, a.source
-      from public.audit_log a
+      -- Two branches, so neither scans the clinic's whole log: the file's own rows through
+      -- audit_log_org_record_prefix_idx (org, prefix, id desc) with the cursor, and the contract's
+      -- requests and signers through audit_log_record_idx (table, record id: their record id is
+      -- their own uuid, a single-column key). They never share a row, so union all is the OR it
+      -- replaces.
+      from ((select x.* from public.audit_log x
+              where x.org_id = v_org
+                and left(x.record_id, 36) = v_prefix
+                and x.id < v_before
+                and x.table_name = any (v_tables)
+                and not (x.table_name = 'professional_submissions' and x.action = 'update'
+                         and pg_catalog.jsonb_typeof(x.changed_fields) = 'object'
+                         and not exists (select 1 from pg_catalog.jsonb_object_keys(x.changed_fields) k(key)
+                                          where k.key not in ('submitted_values', 'secure_link_id')))
+              order by x.id desc
+              limit v_limit)
+            union all
+            (select x.* from public.audit_log x
+              where x.org_id = v_org
+                and x.table_name in ('signature_requests', 'signature_request_signers')
+                and x.record_id = any (v_contract_ids)
+                and x.id < v_before
+                and x.action = 'update'
+                and pg_catalog.jsonb_typeof(x.changed_fields) = 'object'
+                and x.changed_fields ? 'status'
+              order by x.id desc
+              limit v_limit)) a
       left join public.profiles pr on pr.user_id = a.actor_id and pr.org_id = a.org_id
       -- record_id is '<professional_id>:<submission id>' (the primary key's columns).
       left join lateral (select s.kind from public.professional_submissions s
@@ -1001,19 +1027,6 @@ begin
       left join lateral (select s.role from public.signature_request_signers s
                           where a.table_name = 'signature_request_signers' and s.org_id = v_org
                             and s.id::text = a.record_id) sr on true
-     where a.org_id = v_org
-       and a.id < v_before
-       and ((left(a.record_id, 36) = v_prefix
-             and a.table_name = any (v_tables)
-             and not (a.table_name = 'professional_submissions' and a.action = 'update'
-                      and pg_catalog.jsonb_typeof(a.changed_fields) = 'object'
-                      and not exists (select 1 from pg_catalog.jsonb_object_keys(a.changed_fields) k(key)
-                                       where k.key not in ('submitted_values', 'secure_link_id'))))
-            or (left(a.record_id, 36) = any (v_contract_ids)
-                and a.table_name in ('signature_requests', 'signature_request_signers')
-                and a.action = 'update'
-                and pg_catalog.jsonb_typeof(a.changed_fields) = 'object'
-                and a.changed_fields ? 'status'))
      order by a.id desc
      limit v_limit;
 end;
