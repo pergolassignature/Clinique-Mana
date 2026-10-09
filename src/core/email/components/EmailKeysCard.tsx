@@ -1,8 +1,8 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { t } from '@/i18n'
-import { useReadyAccess } from '@/core/access/access-context'
+import { useAccess, useReadyAccess } from '@/core/access/access-context'
 import { webhookUrl } from '@/core/email/api'
-import { useEmailSender, useLastWebhookEvent, useSetEmailSendingDomain } from '@/core/email/hooks'
+import { useEmailSender, useLastWebhookEvent, useSendTestEmail, useSetEmailSendingDomain } from '@/core/email/hooks'
 import { sendingDomainSchema } from '@/core/email/schemas'
 import { SecretField } from '@/core/settings/components/SecretField'
 import { WebhookAddressField } from '@/core/settings/components/WebhookAddressField'
@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/shared/ui/alert-dialog'
 import { FormField } from '@/shared/ui/form-field'
+import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 
 /** The Resend secrets, in `org_secrets` (P3-12: `settings.integrations_manage`). */
@@ -66,6 +67,7 @@ export function EmailKeysCard({ readOnly }: { readOnly: boolean }) {
       {sender.data ? <DomainForm domain={sender.data.sending_domain} readOnly={readOnly} /> : sender.isPending && <Loading />}
       {secretFields}
       <WebhookAddressField url={webhookUrl(orgId)} label={t('settings.email.keys.webhookUrl')} help={t('settings.email.keys.webhookUrlHelp')} />
+      <ConnectionTest apiKeyConfigured={Boolean(secrets.data?.some((secret) => secret.key === 'resend_api_key'))} />
       <p role="status" className="text-sm text-muted-foreground">
         {lastEvent.isPending
           ? t('common.loading')
@@ -78,6 +80,41 @@ export function EmailKeysCard({ readOnly }: { readOnly: boolean }) {
     </SettingsCard>
   )
 }
+
+/**
+ * « M'envoyer un courriel de test »: one email through the configured sender, to the caller's own
+ * address (`email-test-send` never takes a recipient), built on the staff invitation's layout with
+ * its own text and no button. The delivery event then shows on the line below once Resend posts it.
+ * Needs `settings.email_manage` (the function's permission) and a saved API key.
+ */
+function ConnectionTest({ apiKeyConfigured }: { apiKeyConfigured: boolean }) {
+  const { can } = useAccess()
+  const { email } = useReadyAccess()
+  const sendTest = useSendTestEmail()
+  if (!can('settings.email_manage')) return null
+  const T = 'settings.email.keys.test'
+  return (
+    <div className="space-y-1.5">
+      <Button
+        type="button"
+        variant="outline"
+        disabled={!apiKeyConfigured || sendTest.isPending}
+        onClick={() =>
+          sendTest.mutate({
+            key: TEST_TEMPLATE_KEY,
+            draft: { subject: t(`${T}.subject`), body: t(`${T}.body`), button_label: null },
+          })
+        }
+      >
+        {sendTest.isPending ? t(`${T}.sending`) : t(`${T}.button`, { email })}
+      </Button>
+      <p className="text-sm text-muted-foreground">{apiKeyConfigured ? t(`${T}.help`) : t(`${T}.needsKey`)}</p>
+    </div>
+  )
+}
+
+/** Any core template works: the test sends its own subject and text in that template's layout. */
+const TEST_TEMPLATE_KEY = 'core.staff_invite'
 
 /** « Domaine d'envoi », saved after a confirmation: the from address moves onto the new domain. */
 function DomainForm({ domain, readOnly }: { domain: string; readOnly: boolean }) {
