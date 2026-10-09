@@ -1408,13 +1408,13 @@
           "revoking": "Révocation…"
         },
         "copyLink": {
-          "title": "Copier le lien d'invitation de {name} ?",
+          "title": "Copier le lien d'invitation pour {name} ?",
           "body": "Un nouveau lien sera créé pour {firstName}, sans courriel : vous le lui transmettez vous-même (texto, votre propre courriel…).",
           "previous": "Le lien du {sent} ne fonctionnera plus.",
           "confirm": "Créer le lien",
           "creating": "Création…",
-          "readyTitle": "Lien d'invitation de {name}",
-          "warning": "Ce lien permet de créer l'accès de {firstName}. Ne le transmettez qu'à cette personne. Il expire le {date}.",
+          "readyTitle": "Lien d'invitation pour {name}",
+          "warning": "Ce lien permet à {firstName} de créer son accès. Ne le transmettez qu'à cette personne. Il expire le {date}.",
           "once": "Le lien ne sera plus affiché une fois cette fenêtre fermée : pour en obtenir un autre, créez-en un nouveau.",
           "label": "Lien d'invitation",
           "copy": "Copier",

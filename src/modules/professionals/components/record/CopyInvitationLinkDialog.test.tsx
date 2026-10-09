@@ -63,7 +63,7 @@ async function openDialog(onboarding: Onboarding | null = notSent) {
 describe('CopyInvitationLinkDialog (P4-491)', () => {
   it('confirms first: a new link without email, the live one stopping, its lifetime; nothing called yet', async () => {
     const { dialog } = await openDialog()
-    expect(dialog).toHaveAccessibleName("Copier le lien d'invitation de Marie Tremblay ?")
+    expect(dialog).toHaveAccessibleName("Copier le lien d'invitation pour Marie Tremblay ?")
     await waitFor(() =>
       expect(dialog).toHaveAccessibleDescription(
         'Un nouveau lien sera créé pour Marie, sans courriel : vous le lui transmettez vous-même (texto, votre propre courriel…). Le lien du 5 oct. ne fonctionnera plus. Le lien sera valide 7 jours.',
@@ -83,9 +83,9 @@ describe('CopyInvitationLinkDialog (P4-491)', () => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
     const { dialog, queryClient } = await openDialog()
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${D}.confirm`) }))
-    const ready = await screen.findByRole('alertdialog', { name: "Lien d'invitation de Marie Tremblay" })
+    const ready = await screen.findByRole('alertdialog', { name: "Lien d'invitation pour Marie Tremblay" })
     expect(mocks.invitations.copyProfessionalInvitationLink).toHaveBeenCalledWith(IDS.professional)
-    expect(ready).toHaveAccessibleDescription("Ce lien permet de créer l'accès de Marie. Ne le transmettez qu'à cette personne. Il expire le 15 oct. 2026.")
+    expect(ready).toHaveAccessibleDescription("Ce lien permet à Marie de créer son accès. Ne le transmettez qu'à cette personne. Il expire le 15 oct. 2026.")
     const field = within(ready).getByRole('textbox', { name: t(`${D}.label`) })
     expect(field).toHaveValue(URL_)
     expect(field).toHaveAttribute('readonly')
