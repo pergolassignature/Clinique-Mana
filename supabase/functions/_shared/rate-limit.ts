@@ -437,6 +437,37 @@ export async function consume(
 }
 
 /**
+ * Gives back one hit that `consume` allowed on `limit` for `keyParts`, when a
+ * later check refused the call (e.g. `places`: the clinic's ceiling after the
+ * caller's own limit), so a refused call never spends that quota. Best
+ * effort: `refund_rate_limit` (*_core_refund_rate_limit.sql) takes it off the
+ * current window, never below zero; a failure is reported, never thrown (the
+ * caller is already answering a refusal). Needs a service-role client.
+ */
+export async function refund(
+  client: SupabaseClient,
+  limit: RateLimit,
+  keyParts: string[],
+): Promise<void> {
+  const secret = Deno.env.get('INTERNAL_FUNCTION_SECRET')
+  // consume() cannot have allowed a hit without the secret.
+  if (!secret) return
+  // refund_rate_limit(p_bucket text, p_key_hash bytea, p_window_seconds int) returns void
+  const { error } = await client.rpc('refund_rate_limit', {
+    p_bucket: limit.bucket,
+    p_key_hash: byteaHex(await hashKey(keyParts, secret)),
+    p_window_seconds: limit.windowSeconds,
+  })
+  if (error) {
+    await reportError({
+      fn: 'rate-limit',
+      code: 'rate_limit_refund_failed',
+      ids: { bucket: limit.bucket },
+    })
+  }
+}
+
+/**
  * The answer for a refused hit, or null when allowed: 429 `rate_limited`
  * with `Retry-After`, or 503 `not_configured` when the limiter itself failed.
  */

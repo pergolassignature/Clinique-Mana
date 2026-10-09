@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
+import { resetClinicTimezone, setClinicTimezone } from './timezone'
 import { useClinicDate } from './use-clinic-date'
 
 afterEach(() => vi.useRealTimers())
@@ -44,5 +45,26 @@ describe('useClinicDate (America/Toronto)', () => {
     })
     expect(result.current).toBe('2026-10-07')
     expect(vi.getTimerCount()).toBe(1)
+  })
+})
+
+describe('useClinicDate after a « Région » change', () => {
+  afterEach(() => resetClinicTimezone())
+
+  it('reads the date again in the new zone on the next render, and times the next midnight in it', () => {
+    vi.useFakeTimers()
+    // 22:30 on 7 October in Montréal, 11:30 on the 8th in Tokyo.
+    vi.setSystemTime(new Date('2026-10-08T02:30:00Z'))
+    const { result, rerender } = renderHook(() => useClinicDate())
+    expect(result.current).toBe('2026-10-07')
+
+    setClinicTimezone('Asia/Tokyo')
+    rerender()
+    expect(result.current).toBe('2026-10-08')
+    // Tokyo's next midnight is 15:00 UTC on the 8th, not Montréal's (04:00 UTC).
+    act(() => vi.advanceTimersByTime(2 * 60 * 60_000))
+    expect(result.current).toBe('2026-10-08')
+    act(() => vi.advanceTimersByTime(10 * 60 * 60_000 + 30 * 60_000 + 2_000))
+    expect(result.current).toBe('2026-10-09')
   })
 })

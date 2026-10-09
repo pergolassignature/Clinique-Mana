@@ -14,6 +14,10 @@
  *   in values (line breaks included) become spaces;
  * - values are inserted in a single pass: a value is never read as a
  *   placeholder;
+ * - French spacing (`../french.ts`): every text of the template gets a U+202F
+ *   before « ? ! ; : » and inside « » before its values are inserted, so a
+ *   value is never rewritten (the renderer prints U+202F as U+00A0, which
+ *   Inter has);
  * - **block placeholders** (P4-433): a paragraph whose only run is exactly one
  *   placeholder (`{{pricing.annexe_a}}`, surrounding spaces allowed) whose
  *   path is a key of `blocks` is replaced by those blocks, which the caller
@@ -34,6 +38,7 @@ import {
   type TemplateVariable,
   valueAt,
 } from '../format.ts'
+import { frenchSpacing } from '../french.ts'
 import type { Block, PdfDocument, Run } from './model.ts'
 
 /** The filled document, or the first variable that prevented filling. */
@@ -144,7 +149,10 @@ function prepare(
   return {
     ok: true,
     fill: (text) =>
-      text.replace(PLACEHOLDER, (_, raw: string) => resolved.get(raw.trim())!),
+      frenchSpacing(text).replace(
+        PLACEHOLDER,
+        (_, raw: string) => resolved.get(raw.trim())!,
+      ),
   }
 }
 
@@ -188,7 +196,7 @@ export function fillTemplate(
 /**
  * Fills plain strings (a version's Documenso email subject and message,
  * whose placeholders the database checks like the body's) under the same
- * rules as `fillTemplate`. The strings themselves keep their line breaks;
+ * rules as `fillTemplate` (French spacing included). The strings themselves keep their line breaks;
  * control characters are removed from values only. A path of `blocks` (the
  * body's block placeholders) is never `missing_variable` here either: in a
  * text it reads as its value, or empty.

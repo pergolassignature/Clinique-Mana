@@ -48,6 +48,7 @@
  * served locally by `scripts/fake-documenso.ts`) mirrors this table exactly.
  */
 import { z } from 'zod'
+import { readStreamCapped } from './bytes.ts'
 import { FunctionError } from './errors.ts'
 
 /** Every Documenso path this client calls, relative to the instance's base URL. */
@@ -700,31 +701,11 @@ async function readCapped(
     await discard(exchange)
     return null
   }
-  if (!res.body) return new Uint8Array()
-  const chunks: Uint8Array[] = []
-  let size = 0
   try {
-    const reader = res.body.getReader()
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      size += value.length
-      if (size > maxBytes) {
-        await reader.cancel().catch(() => {})
-        return null
-      }
-      chunks.push(value)
-    }
+    return await readStreamCapped(res.body, maxBytes)
   } catch {
     throw exchange.failure(true)
   }
-  const bytes = new Uint8Array(size)
-  let offset = 0
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset)
-    offset += chunk.length
-  }
-  return bytes
 }
 
 /** The body as JSON, or undefined when it is not JSON (read errors throw). */

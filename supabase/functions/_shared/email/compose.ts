@@ -16,6 +16,7 @@
  * « [Test] ».
  */
 import { formatPhone } from '../format.ts'
+import { isLocalAppUrl } from '../local.ts'
 import { type ClinicFooter, renderLayout, renderLayoutText } from './layout.ts'
 import { renderTemplate, safeUrl, type TemplateVariable } from './render.ts'
 
@@ -103,8 +104,7 @@ export function composeEmail(
 ): ComposeResult {
   const mode = input.mode ?? 'send'
   // `APP_URL` itself is a local `http:` address only in development.
-  const allowLocalHttp = safeUrl(input.appUrl, true)?.startsWith('http:') ??
-    false
+  const allowLocalHttp = isLocalAppUrl(input.appUrl)
   const { template } = context
 
   const rendered = renderTemplate({

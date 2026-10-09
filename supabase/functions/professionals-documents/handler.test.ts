@@ -291,7 +291,7 @@ Deno.test('professionals-documents: refuse as the caller, then the email to the 
       const part of [
         'Bonjour Nadia',
         'Clinique MANA',
-        '« Photo professionnelle »',
+        '«\u202FPhoto professionnelle\u202F»',
         REASON,
         `${APP}/mes-documents`,
       ]

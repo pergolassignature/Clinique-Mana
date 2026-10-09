@@ -18,6 +18,7 @@
  * Optional secrets: `SENTRY_DSN` (`https://<key>@<host>/<projectId>`) and
  * `SENTRY_ENVIRONMENT` (Sentry's default `production` when unset).
  */
+import { SAFE_CODE } from './patterns.ts'
 
 type ForbiddenKey = 'email' | 'to' | 'token' | 'password'
 
@@ -35,11 +36,6 @@ export interface ErrorReport {
 
 const FORBIDDEN_SEGMENT = /(?:^|_)(?:email|to|token|password)(?:_|$)/i
 const ROW_ID = /_id$/
-/**
- * A function name or error code. Upper case is allowed on purpose: codes can be
- * a SQLSTATE (`42P01`) or a PostgREST code (`PGRST202`).
- */
-const SAFE_CODE = /^[a-zA-Z0-9_.-]{1,64}$/
 /** Longest id value kept: uuids, bucket names, short keys. */
 const MAX_ID_LENGTH = 100
 /** How long Sentry gets before the console line is written instead. */

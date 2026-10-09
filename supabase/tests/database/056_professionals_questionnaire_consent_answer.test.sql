@@ -1,11 +1,11 @@
 -- Professionnels: the questionnaire's consent answer (migration *_professionals_questionnaire_consent_answer.sql,
--- review of plan Phase 4 Task 4b.4). Covers: sign_my_consent's new return type and privileges, the
--- server time it answers (the one stored in the draft), get_my_submission's signed_consent_version
+-- review of plan Phase 4 Task 4b.4). Covers: the time stored in the draft (sign_my_consent, which
+-- wrote it, is dropped since: *_professionals_drop_sign_my_consent.sql), get_my_submission's signed_consent_version
 -- (null before a signature, the signed version once a newer text is published), and the unaccent
 -- folds the questionnaire mirrors in the browser (lib/questionnaire.ts, comparableName).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(5);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A, the provider 03 linked to P2 (active), an update asking for the consent.
@@ -29,25 +29,21 @@ select set_config('test.v1', (select c.id::text from public.consent_versions c
                                where c.org_id = 'b0000000-0000-0000-0000-00000000000a' and c.key = 'image_rights' and c.version = 1), true);
 
 -- =============================================================================
--- Shape and privileges (as postgres)
--- =============================================================================
-select function_returns('public', 'sign_my_consent', array['uuid', 'text'], 'timestamp with time zone', 'sign_my_consent answers the signature''s time');
-select is_definer('public', 'sign_my_consent', array['uuid', 'text'], 'sign_my_consent is security definer');
-select function_privs_are('public', 'sign_my_consent', array['uuid', 'text'], 'authenticated', array['EXECUTE'], 'authenticated may sign');
-select function_privs_are('public', 'sign_my_consent', array['uuid', 'text'], 'anon', array[]::text[], 'anon may not sign');
-select function_privs_are('public', 'sign_my_consent', array['uuid', 'text'], 'service_role', array[]::text[], 'the service role may not sign');
-select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-            where n.nspname = 'public' and p.proname = 'sign_my_consent'), 1, 'one sign_my_consent, not overloaded');
-
--- =============================================================================
 -- As the provider
 -- =============================================================================
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select ok(public.get_my_submission() ? 'signed_consent_version' and public.get_my_submission() -> 'signed_consent_version' = 'null'::jsonb,
   'no version signed before the signature');
-select is(public.sign_my_consent(current_setting('test.v1')::uuid, 'pia  DEUX'), now(), 'the signature answers the server''s time');
-select is((public.get_my_submission() -> 'values' -> 'consent' ->> 'signed_at')::timestamptz, now(), '… the time stored in the draft');
+reset role;
+-- sign_my_consent is dropped (*_professionals_drop_sign_my_consent.sql): its answer is put in the
+-- draft directly, as postgres.
+update public.professional_submissions s
+   set submitted_values = s.submitted_values || jsonb_build_object('consent', jsonb_build_object(
+         'consent_version_id', current_setting('test.v1')::uuid, 'signer_name', 'pia DEUX', 'signed_at', now()))
+ where s.professional_id = 'c0000000-0000-0000-0000-000000000002' and s.status = 'draft';
+set local role authenticated;
+select is((public.get_my_submission() -> 'values' -> 'consent' ->> 'signed_at')::timestamptz, now(), 'the time stored in the draft is answered');
 select is((public.get_my_submission() ->> 'signed_consent_version')::int, 1, 'the version signed is named');
 reset role;
 

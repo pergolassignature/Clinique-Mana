@@ -58,6 +58,7 @@ import { type SendResult, sendTemplatedEmail } from '../_shared/email/send.ts'
 import {
   FunctionError,
   functionErrorResponse,
+  isExpectedRpcError,
   rpcErrorResponse,
 } from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
@@ -198,7 +199,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     })
     if (checked.error) {
       // A refusal (P0001, passed on in French), 42501 → 403, 22023 → 400 (never its message).
-      if (['P0001', '42501', '22023'].includes(checked.error.code ?? '')) {
+      if (isExpectedRpcError(checked.error)) {
         return rpcErrorResponse(checked.error, req)
       }
       return await fail('fiche_upload_lookup_failed')

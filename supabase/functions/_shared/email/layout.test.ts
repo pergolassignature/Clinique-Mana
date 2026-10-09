@@ -120,7 +120,10 @@ Deno.test('renderLayout: the button href is attribute-escaped', () => {
 
 Deno.test('renderLayout: the fallback line repeats the URL as text', () => {
   const { html } = renderLayout(layout())
-  assertStringIncludes(html, 'Si le bouton ne fonctionne pas, copiez ce lien :')
+  assertStringIncludes(
+    html,
+    'Si le bouton ne fonctionne pas, copiez ce lien\u202F:',
+  )
   assertStringIncludes(html, '>https://app.cliniquemana.com/invitation#t=abc<')
 })
 
@@ -150,7 +153,7 @@ Deno.test('renderLayout: the footer lists identity, privacy officer and why line
       'Montréal QC H2X 1Y4',
       '514 555-1234',
       'https://cliniquemana.com',
-      'Confidentialité : Christine Tremblay, confidentialite@cliniquemana.com',
+      'Confidentialité\u202F: Christine Tremblay, confidentialite@cliniquemana.com',
       'parce que la clinique vous invite',
     ]
   ) assertStringIncludes(html, part)
@@ -207,7 +210,7 @@ Deno.test('renderLayoutText: content, button URL, footer and why line, no HTML',
       '',
       'À bientôt.',
       '',
-      'Créer mon accès :',
+      'Créer mon accès\u202F:',
       'https://app.test/x?a=1&b=2',
       '',
       '--',
@@ -216,7 +219,7 @@ Deno.test('renderLayoutText: content, button URL, footer and why line, no HTML',
       'Montréal QC H2X 1Y4',
       '514 555-1234',
       'https://cliniquemana.com',
-      'Confidentialité : Christine Tremblay, confidentialite@cliniquemana.com',
+      'Confidentialité\u202F: Christine Tremblay, confidentialite@cliniquemana.com',
       '',
       'Pourquoi.',
     ].join('\n'),
@@ -238,5 +241,22 @@ Deno.test('renderLayoutText: without a button or optional footer lines', () => {
       whyLine: 'Pourquoi.',
     }),
     'Bonjour.\n\n--\nClinique MANA\n\nPourquoi.',
+  )
+})
+
+Deno.test('renderLayout / renderLayoutText: the why line gets French spacing', () => {
+  const input = {
+    contentText: 'Bonjour.',
+    contentHtml: '<p>Bonjour.</p>',
+    title: 'Sujet',
+    wordmarkUrl: 'https://app.test/email/wordmark.png',
+    footer,
+    whyLine: 'Pourquoi ? Parce que « vous » êtes inscrite.',
+  }
+  const spaced = 'Pourquoi\u202F? Parce que «\u202Fvous\u202F» êtes inscrite.'
+  assertStringIncludes(renderLayoutText(input), spaced)
+  assertStringIncludes(
+    renderLayout(input).html,
+    'Pourquoi\u202F? Parce que «\u202Fvous\u202F» êtes inscrite.',
   )
 })
