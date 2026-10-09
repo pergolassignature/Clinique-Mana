@@ -111,12 +111,13 @@ jobs:
         run: |
           cp supabase/functions/.env.example supabase/functions/.env
           nohup supabase functions serve --env-file supabase/functions/.env > functions.log 2>&1 &
-          for i in $(seq 1 90); do
+          # Up to 6 min: the first run pulls the edge-runtime image, then bundles every function.
+          for i in $(seq 1 180); do
             code=$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS -H 'Origin: http://localhost:5190' http://127.0.0.1:55321/functions/v1/professionals-invite || true)
-            if [ "$code" = "200" ] || [ "$code" = "204" ]; then echo "functions ready ($code)"; exit 0; fi
+            if [ "$code" = "200" ] || [ "$code" = "204" ]; then echo "functions ready ($code) after $((i * 2)) s"; exit 0; fi
             sleep 2
           done
-          echo "functions not ready"; tail -50 functions.log; exit 1
+          echo "functions not ready (last answer: $code)"; tail -80 functions.log; exit 1
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
       - uses: actions/upload-artifact@v4

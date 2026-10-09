@@ -318,7 +318,22 @@
       "providerRejected": "Le service de signature a refusé la demande.",
       "providerUnreachable": "Le service de signature est injoignable."
     },
-    "errorCode": "Code : {code}"
+    "errorCode": "Code : {code}",
+    "downloads": {
+      "groupLabel": "Téléchargements du document signé",
+      "certificate": "Télécharger le certificat et le journal",
+      "sealed": "PDF complet scellé (preuve)",
+      "sealedHelp": "Seul le PDF complet scellé porte la signature numérique de Documenso : c'est la preuve à conserver.",
+      "working": "Préparation…",
+      "noCertificate": "Ce PDF signé ne contient ni certificat ni journal de signature.",
+      "cannotSplit": "Le nombre de pages du document n'est pas connu : seul le PDF complet scellé peut être téléchargé.",
+      "errors": {
+        "failed": "Le fichier n'a pas pu être téléchargé. Réessayez dans un instant.",
+        "rateLimited": "Trop de téléchargements demandés.",
+        "splitFailed": "Le PDF signé n'a pas pu être séparé. Téléchargez le PDF complet scellé.",
+        "appUpdated": "Une nouvelle version de l'application est disponible. Rechargez la page, puis réessayez."
+      }
+    }
   },
   "address": {
     "line1Placeholder": "Commencez à saisir l'adresse",
@@ -3477,7 +3492,7 @@
           "viewed": "{name} a consulté le contrat le {date}",
           "signed": "{name} a signé le {date}",
           "completed": "Contrat complété et PDF signé conservé le {date}",
-          "pdfNote": "Le PDF signé contient aussi le certificat et le journal de Documenso."
+          "pdfNote": "Le certificat et le journal de Documenso se téléchargent à part, avec « Télécharger le certificat et le journal »."
         },
         "actions": {
           "send": "Préparer et envoyer",
@@ -3489,8 +3504,8 @@
           "working": "Envoi…",
           "journal": "Journal de signature",
           "hideJournal": "Masquer le journal",
-          "pdf": "Télécharger le PDF signé",
-          "pdfLabel": "Télécharger le PDF signé du contrat de {firstName}"
+          "pdf": "Télécharger le contrat signé",
+          "pdfLabel": "Télécharger le contrat signé de {firstName}"
         },
         "confirm": {
           "send": {

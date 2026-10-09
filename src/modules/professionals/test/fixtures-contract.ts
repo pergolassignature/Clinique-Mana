@@ -9,6 +9,7 @@ import { contractPayload, templatePayload, versionPayload, type ContractRequest,
 
 export const REQUEST_ID = '00000000-0000-4000-8000-00000000c501'
 export const SIGNED_FILE = '00000000-0000-4000-8000-00000000f501'
+export const SOURCE_FILE = '00000000-0000-4000-8000-00000000f502'
 export const TEMPLATE_ID = '00000000-0000-4000-8000-00000000d501'
 export const DRAFT_ID = '00000000-0000-4000-8000-00000000d511'
 export const PUBLISHED_ID = '00000000-0000-4000-8000-00000000d512'
@@ -33,7 +34,10 @@ export function requestJson(over: Json = {}): Json {
     expired_at: null,
     expires_at: '2026-10-15T14:00:00+00:00',
     can_read: true,
+    title: 'Contrat de service — Marie Tremblay',
     signed_file_id: null,
+    source_file_id: null,
+    page_count: null,
     rejection_reason: null,
     signers: [
       { role: 'professional', name: 'Marie Tremblay', status: 'pending', signing_order: 1, viewed_at: null, signed_at: null, rejected_at: null },
@@ -59,6 +63,8 @@ export const SIGNED_REQUEST = requestJson({
   viewed_at: '2026-10-09T13:00:00+00:00',
   completed_at: '2026-10-09T15:00:00+00:00',
   signed_file_id: SIGNED_FILE,
+  source_file_id: SOURCE_FILE,
+  page_count: 7,
   signers: [
     { role: 'professional', name: 'Marie Tremblay', status: 'signed', signing_order: 1, viewed_at: '2026-10-09T13:00:00+00:00', signed_at: '2026-10-09T13:05:00+00:00', rejected_at: null },
     { role: 'clinic', name: 'Dominique Exemple', status: 'signed', signing_order: 2, viewed_at: '2026-10-09T14:55:00+00:00', signed_at: '2026-10-09T15:00:00+00:00', rejected_at: null },
@@ -86,7 +92,10 @@ export function parsedRequest(over: Partial<ContractRequest> = {}): ContractRequ
     expiredAt: null,
     expiresAt: '2026-10-15T14:00:00+00:00',
     canRead: true,
+    title: 'Contrat de service — Marie Tremblay',
     signedFileId: null,
+    sourceFileId: null,
+    pageCount: null,
     rejectionReason: null,
     signers: [],
     ...over,
