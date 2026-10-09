@@ -62,7 +62,7 @@ const COLUMNS = {
   ],
   professional_documents: [
     'id', 'org_id', 'professional_id', 'document_type_id', 'stored_file_id', 'status', 'expires_on', 'metadata', 'uploaded_by', 'uploaded_at',
-    'reviewed_by', 'reviewed_at', 'rejection_reason', 'submission_id', 'created_at', 'updated_at',
+    'reviewed_by', 'reviewed_at', 'rejection_reason', 'submission_id', 'signature_request_id', 'created_at', 'updated_at',
   ],
 } as const
 

@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { Upload } from 'lucide-react'
 import { t } from '@/i18n'
 import { Button } from '@/shared/ui/button'
@@ -29,6 +29,8 @@ export interface DocumentsPanelProps {
   verifiedAtOnce: boolean
   /** Where focus goes when the button that opened a dialog is gone (the page's heading). */
   focusFallback: () => void
+  /** Extra content of a required type's card (the record's image-consent signing, P4-484). */
+  typeExtra?: (type: DocumentType) => ReactNode
 }
 
 /**
@@ -39,7 +41,7 @@ export interface DocumentsPanelProps {
  * time (upload, preview, verify, refuse, redate, delete); focus goes back to the button that
  * opened it, else to the page's heading.
  */
-export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce, focusFallback }: DocumentsPanelProps) {
+export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce, focusFallback, typeExtra }: DocumentsPanelProps) {
   const requiredId = useId()
   const [open, setOpen] = useState<OpenDialog | null>(null)
   const opener = useRef<HTMLElement | null>(null)
@@ -73,7 +75,13 @@ export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce
           <p className="text-sm text-muted-foreground">{t(`${D}.required.none`)}</p>
         ) : (
           required.map((entry) => (
-            <RequiredDocumentCard key={entry.type.id} entry={entry} {...rowProps} onUpload={(button) => onUpload(entry.type, button)} />
+            <RequiredDocumentCard
+              key={entry.type.id}
+              entry={entry}
+              {...rowProps}
+              onUpload={(button) => onUpload(entry.type, button)}
+              extra={typeExtra?.(entry.type)}
+            />
           ))
         )}
       </section>

@@ -55,7 +55,7 @@ describe('ContractCard (Task 4d.3)', () => {
     const dialog = await screen.findByRole('alertdialog', { name: t(`${C}.confirm.send.title`, { firstName: 'Marie' }) })
     expect(dialog).toHaveTextContent(t(`${C}.confirm.send.body`, { firstName: 'Marie', version: '2' }))
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${C}.confirm.send.action`) }))
-    await waitFor(() => expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledExactlyOnceWith(IDS.professional, 'send', expect.any(String)))
+    await waitFor(() => expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledExactlyOnceWith(IDS.professional, 'send', expect.any(String), 'service_contract'))
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.toasts.send`, { firstName: 'Marie' })))
   })
 
@@ -107,7 +107,7 @@ describe('ContractCard (Task 4d.3)', () => {
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveTextContent(t(`${C}.confirm.regenerate.body`, { firstName: 'Marie', version: '2' }))
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${C}.confirm.regenerate.action`) }))
-    await waitFor(() => expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledWith(IDS.professional, 'regenerate', expect.any(String)))
+    await waitFor(() => expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledWith(IDS.professional, 'regenerate', expect.any(String), 'service_contract'))
   })
 
   it('« Renvoyer » names the next signer: the clinic once the professional has signed', async () => {
@@ -127,7 +127,7 @@ describe('ContractCard (Task 4d.3)', () => {
     const dialog = await screen.findByRole('alertdialog', { name: t(`${C}.confirm.resend.title`, { firstName: 'Dominique Exemple' }) })
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${C}.confirm.resend.action`) }))
     await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith(t(`${C}.toasts.resend`, { firstName: 'Dominique Exemple' })))
-    expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledWith(IDS.professional, 'resend', expect.any(String))
+    expect(mocks.contracts.sendProfessionalContract).toHaveBeenCalledWith(IDS.professional, 'resend', expect.any(String), 'service_contract')
   })
 
   it('a failed send shows its reason in the card', async () => {

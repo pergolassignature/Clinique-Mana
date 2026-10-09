@@ -514,7 +514,8 @@ const SIGNER_STATUSES = ['viewed', 'signed', 'rejected'] as const
 const isOneOf = <T extends string>(list: readonly T[], value: string): value is T => (list as readonly string[]).includes(value)
 
 /**
- * The service contract (Task 4d.1): `list_professional_history` returns only the rows that move a
+ * The service contract (Task 4d.1) and the image consent (P4-484, `purpose` in the row):
+ * `list_professional_history` returns only the rows that move a
  * status, a signer's with its `role`, each a verb after its actor (« Le système a envoyé le
  * contrat de service pour signature », « … a noté que le professionnel a signé le contrat de
  * service »): envoyé, signé (the PDF stored), refusé, annulé, expiré; consulté / signé / refusé
@@ -522,8 +523,9 @@ const isOneOf = <T extends string>(list: readonly T[], value: string): value is 
  * names, addresses and reasons are redacted by core's audit and never shown.
  */
 function contractRow(entry: HistoryEntry): Described | null {
-  const S = `${H}.sentences.contract`
   const fields = fieldsOf(entry)
+  // The image consent's rows (P4-484) name their purpose; the contract's older rows may not.
+  const S = fields.purpose === 'professionals.image_consent' ? `${H}.sentences.imageConsent` : `${H}.sentences.contract`
   const status = pairOf(fields.status)?.after
   if (entry.action !== 'update' || typeof status !== 'string') return null
   if (entry.tableName === CONTRACT_SIGNERS_TABLE) {

@@ -1974,6 +1974,7 @@ export type Database = {
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          signature_request_id: string | null
           status: string
           stored_file_id: string
           submission_id: string | null
@@ -1992,6 +1993,7 @@ export type Database = {
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          signature_request_id?: string | null
           status?: string
           stored_file_id: string
           submission_id?: string | null
@@ -2010,6 +2012,7 @@ export type Database = {
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          signature_request_id?: string | null
           status?: string
           stored_file_id?: string
           submission_id?: string | null
@@ -2052,6 +2055,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "professional_documents_signature_request_fkey"
+            columns: ["signature_request_id"]
+            isOneToOne: true
+            referencedRelation: "signature_requests"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "professional_documents_stored_file_fkey"
@@ -5092,6 +5102,7 @@ export type Database = {
         Args: { p_file_id: string; p_id: string }
         Returns: Json
       }
+      get_professional_image_consent: { Args: { p_id: string }; Returns: Json }
       get_professional_onboarding: { Args: { p_id: string }; Returns: Json }
       get_professional_private: {
         Args: { p_id: string }
@@ -5576,6 +5587,15 @@ export type Database = {
       }
       pii_health_check: { Args: never; Returns: boolean }
       prepare_professional_contract: {
+        Args: {
+          p_action: string
+          p_actor: string
+          p_id: string
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
+      prepare_professional_image_consent: {
         Args: {
           p_action: string
           p_actor: string

@@ -113,9 +113,10 @@ function versionLabel(version: TemplateVersion): string {
 /**
  * One template's versions (Task 4d.3, A5.7; core RPCs): the draft is edited here (title, header and
  * its initials, footer, the body as markup, Documenso's subject and message), with the variables
- * and a live preview; « Publier » (confirmed: « Les prochains contrats utiliseront cette
- * version. ») is offered once the draft is saved, without the validation line and with Annexe A's
- * table. Without a draft, « Nouvelle version » copies the published one. Read-only without the
+ * and a live preview; « Publier » (confirmed: « Les prochains envois utiliseront cette
+ * version. ») is offered once the draft is saved, without the validation line and, for a template
+ * that declares Annexe A (`pricing.annexe_a`: the service contract; the image consent has none,
+ * P4-480), with Annexe A's table. Without a draft, « Nouvelle version » copies the published one. Read-only without the
  * template's edit permission.
  */
 export function TemplateEditor({ template, readOnly }: { template: ContractTemplate; readOnly: boolean }) {
@@ -200,7 +201,9 @@ function VersionForm({ version, editable, published }: { version: TemplateVersio
   const paths = version.variables.map((v) => v.path)
   const unknown = unknownPlaceholders([draft.title, draft.header, draft.footer, draft.markup, draft.emailSubject, draft.emailMessage], paths)
   const banner = hasValidationBanner(draft.markup)
-  const annexe = hasAnnexePlaceholder(draft.markup)
+  // Only a template that declares Annexe A must print it (the contract; not the image consent).
+  const needsAnnexe = paths.includes('pricing.annexe_a')
+  const annexe = !needsAnnexe || hasAnnexePlaceholder(draft.markup)
   const pending = save.isPending || publish.isPending || archive.isPending
   const publishBlocked = dirty ? t(`${N}.publishBlocked.unsaved`) : banner ? t(`${N}.publishBlocked.banner`) : !annexe ? t(`${N}.publishBlocked.annexe`, { placeholder: ANNEXE_PLACEHOLDER }) : null
 

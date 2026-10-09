@@ -139,3 +139,26 @@ describe('helpers', () => {
     expect(signerRoleLabel('witness')).toBe('Signataire')
   })
 })
+
+describe('the image consent (P4-480 – P4-486)', () => {
+  const I = 'modules.professionals.imageConsent.actions'
+  const MANAGE = ['professionals.view', 'professionals.manage']
+  const consentWords = (state: ContractState, keys: string[], request = parsedRequest()) =>
+    contractButtons(state, request, can(keys), 'image_consent').map((b) => (b.kind === 'action' ? b.label : b.kind))
+
+  it('is sent by whoever manages the file, not by the contract senders (P4-483)', () => {
+    expect(consentWords('none', MANAGE)).toEqual([t(`${I}.send`)])
+    expect(consentWords('none', ALL)).toEqual([])
+    expect(consentWords('sent', MANAGE)).toEqual(['sync', t(`${I}.resend`), t(`${I}.regenerate`)])
+  })
+
+  it('once signed offers a renewal, never the contract PDF button (the document row opens it)', () => {
+    const signed = parsedRequest({ status: 'signed', signedFileId: SIGNED_FILE })
+    expect(contractButtons('signed', signed, can(MANAGE), 'image_consent')).toEqual([{ kind: 'action', action: 'send', label: t(`${I}.renew`) }])
+    expect(consentWords('signed', ['professionals.view'], signed)).toEqual([])
+  })
+
+  it('words its own empty state', () => {
+    expect(contractStateLabel(null, Date.now(), 'image_consent').label).toBe(t('modules.professionals.imageConsent.state.none'))
+  })
+})

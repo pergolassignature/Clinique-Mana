@@ -21,8 +21,8 @@ import {
 import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 import { StatusDot } from '@/shared/ui/status-dot'
-import type { ContractAction, ContractRequest, ContractSigner, ProfessionalContract } from '../../api/contracts'
-import { useProfessionalContract, useSendContract, useSyncContract } from '../../hooks/use-contracts'
+import type { ContractAction, ContractRequest, ContractSigner, ProfessionalContract, SigningForm } from '../../api/contracts'
+import { formTextRoot, useProfessionalContract, useSendContract, useSyncContract } from '../../hooks/use-contracts'
 import { useDocumentDownload } from '../../hooks/use-documents'
 import { contractButtons, contractState, contractStateLabel, signerRoleLabel, type ContractState } from '../../lib/contract'
 import { RefusalAlert } from '../compensation/DatedRowParts'
@@ -58,7 +58,7 @@ export function ContractCard() {
             onRetry={() => void contract.refetch()}
           />
         ) : contract.data === null ? null : (
-          <ContractBody contract={contract.data} />
+          <SigningBody form="service_contract" contract={contract.data} />
         )}
       </CardContent>
     </Card>
@@ -94,23 +94,34 @@ function signerProgress(signer: ContractSigner): string {
   return t(`${C}.signer.pending`)
 }
 
-function ContractBody({ contract }: { contract: ProfessionalContract }) {
+/**
+ * A form's signing state and actions (the contract's card; the image consent's part of its
+ * required-document card, P4-484): the words come from the form's own root (`formTextRoot`) where
+ * they name the document, from the contract's where they do not.
+ */
+export function SigningBody({ form, contract }: { form: SigningForm; contract: ProfessionalContract }) {
   const { record } = useRecordData()
   const { professional } = record
   const { can } = useAccess()
+  const F = formTextRoot(form)
   const [refusal, setRefusal] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<ContractAction | null>(null)
   const [journal, setJournal] = useState(false)
   const journalId = useId()
   const opener = useRef<HTMLButtonElement | null>(null)
-  const send = useSendContract(professional.id, professional.firstName, { onErrorMessage: (message) => setRefusal(message) })
+  const send = useSendContract(professional.id, professional.firstName, { onErrorMessage: (message) => setRefusal(message) }, form)
   const sync = useSyncContract(professional.id)
   const { request } = contract
   // A minute is enough: a send that died shows its retry once its claim is 10 minutes old.
   const now = useNow(60_000)
   const state = contractState(request, now)
-  const status = contractStateLabel(request, now)
-  const buttons = contractButtons(state, request, can)
+  const status = contractStateLabel(request, now, form)
+  const buttons = contractButtons(state, request, can, form)
+  // The confirmation's words; the image consent's renewal after a signature has its own.
+  const confirmText = (action: ContractAction, part: 'title' | 'body' | 'action', values?: Record<string, string>) =>
+    form === 'image_consent'
+      ? t(`modules.professionals.imageConsent.confirm.${state === 'signed' ? 'renew' : action}.${part}`, values)
+      : t(`${C}.confirm.${action}.${part}`, values)
   const sends = buttons.some((b) => b.kind === 'action')
   const noTemplate = sends && contract.publishedVersion === null
   const pending = send.isPending || sync.isPending
@@ -142,7 +153,7 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
           )}
         </p>
         {request === null ? (
-          <p className="text-xs text-muted-foreground">{t(`${C}.none`, { firstName: professional.firstName })}</p>
+          <p className="text-xs text-muted-foreground">{t(`${F}.none`, { firstName: professional.firstName })}</p>
         ) : (
           <p className="text-xs text-muted-foreground">{datesLine(state, request)}</p>
         )}
@@ -171,7 +182,7 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
 
       {noTemplate && (
         <p className="text-sm text-muted-foreground">
-          {t(`${C}.noTemplate`)}{' '}
+          {t(`${F}.noTemplate`)}{' '}
           {can('professionals.manage') || can('professionals.settings') ? (
             <GuardedNavLink to={`${SETTINGS_BASE_PATH}/contrats`} className="text-link underline-offset-[3px] hover:underline">
               {t(`${C}.noTemplateLink`)}
@@ -179,9 +190,12 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
           ) : null}
         </p>
       )}
-      {sends && !noTemplate && state === 'none' && !contract.clinicSigner && <p className="text-xs text-muted-foreground">{t(`${C}.noClinicSigner`)}</p>}
-      {state === 'signed' && !request?.canRead && <p className="text-xs text-muted-foreground">{t(`${C}.restricted`)}</p>}
-      {state === 'failed' && sends && <p className="text-xs text-muted-foreground">{t(`${C}.failedHelp`)}</p>}
+      {form === 'service_contract' && sends && !noTemplate && state === 'none' && !contract.clinicSigner && (
+        <p className="text-xs text-muted-foreground">{t(`${C}.noClinicSigner`)}</p>
+      )}
+      {form === 'service_contract' && state === 'signed' && !request?.canRead && <p className="text-xs text-muted-foreground">{t(`${C}.restricted`)}</p>}
+      {form === 'image_consent' && state === 'signed' && <p className="text-xs text-muted-foreground">{t('modules.professionals.imageConsent.signedHelp')}</p>}
+      {state === 'failed' && sends && <p className="text-xs text-muted-foreground">{t(`${F}.failedHelp`)}</p>}
 
       {refusal && <RefusalAlert message={refusal} />}
 
@@ -191,10 +205,10 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
           <ul className="space-y-0.5 text-xs text-muted-foreground">
             {request.sentAt && <li>{t(`${C}.journal.sent`, { date: formatClinicDateShort(request.sentAt) })}</li>}
             {request.signers.flatMap((s) => [
-              ...(s.viewedAt ? [<li key={`${s.order}v`}>{t(`${C}.journal.viewed`, { name: s.name, date: formatClinicDateShort(s.viewedAt) })}</li>] : []),
+              ...(s.viewedAt ? [<li key={`${s.order}v`}>{t(`${F}.journal.viewed`, { name: s.name, date: formatClinicDateShort(s.viewedAt) })}</li>] : []),
               ...(s.signedAt ? [<li key={`${s.order}s`}>{t(`${C}.journal.signed`, { name: s.name, date: formatClinicDateShort(s.signedAt) })}</li>] : []),
             ])}
-            {request.completedAt && <li>{t(`${C}.journal.completed`, { date: formatClinicDateShort(request.completedAt) })}</li>}
+            {request.completedAt && <li>{t(`${F}.journal.completed`, { date: formatClinicDateShort(request.completedAt) })}</li>}
           </ul>
           <p className="mt-2 text-xs text-muted-foreground">{t(`${C}.journal.pdfNote`)}</p>
         </div>
@@ -219,7 +233,7 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
                 </Button>
               )
             }
-            const primary = button.action === 'send'
+            const primary = button.action === 'send' && !(form === 'image_consent' && state === 'signed')
             const unavailable = noTemplate && button.action !== 'resend'
             return (
               <Button
@@ -257,9 +271,9 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
           {confirming !== null && (
             <>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t(`${C}.confirm.${confirming}.title`, { firstName: recipientOf(confirming) })}</AlertDialogTitle>
+                <AlertDialogTitle>{confirmText(confirming, 'title', { firstName: recipientOf(confirming) })}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {t(`${C}.confirm.${confirming}.body`, {
+                  {confirmText(confirming, 'body', {
                     firstName: recipientOf(confirming),
                     version: String(contract.publishedVersion ?? ''),
                   })}
@@ -268,7 +282,7 @@ function ContractBody({ contract }: { contract: ProfessionalContract }) {
               <AlertDialogFooter>
                 <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                 <Button type="button" onClick={run}>
-                  {t(`${C}.confirm.${confirming}.action`)}
+                  {confirmText(confirming, 'action')}
                 </Button>
               </AlertDialogFooter>
             </>

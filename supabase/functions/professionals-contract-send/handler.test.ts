@@ -80,6 +80,42 @@ const version = {
   email_message: 'Bonjour {{professional.full_name}}',
 }
 
+/** The image consent's published version: no Annexe A, the professional alone (P4-480). */
+const CONSENT_VERSION_ID = '00000000-0000-4000-8000-0000000000e2'
+const CONSENT_KEY = `professionals.image_consent:${PRO}:${KEY}`
+const consentVersion = {
+  ...version,
+  id: CONSENT_VERSION_ID,
+  body: {
+    title: 'Consentement au droit à l’image',
+    footer: { text: 'Consentement' },
+    blocks: [
+      {
+        type: 'paragraph',
+        runs: [{
+          text:
+            'J’autorise {{clinic.name}} à utiliser ma photo, {{professional.full_name}}.',
+        }],
+      },
+      {
+        type: 'signaturePage',
+        signers: [{
+          role: 'professional',
+          label: '{{professional.full_name}}',
+        }],
+      },
+    ],
+  } satisfies PdfDocument,
+  variables: [
+    variable('clinic.name', 'Nom de la clinique'),
+    variable('professional.full_name', 'Nom du professionnel'),
+  ],
+  signers: [
+    { role: 'professional', label: 'Professionnel', order: 1, required: true },
+  ],
+  email_subject: 'Votre consentement au droit à l’image pour {{clinic.name}}',
+}
+
 const annexe = {
   title_label: 'Psychologue',
   prices: [{ duration: 50, client_price_cents: 17500 }],
@@ -115,11 +151,23 @@ const prepared = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
+/** What `prepare_professional_image_consent` answers: no Annexe A. */
+const preparedConsent = (over: Record<string, unknown> = {}) => ({
+  idempotency_key: CONSENT_KEY,
+  template_version_id: CONSENT_VERSION_ID,
+  title: 'Consentement au droit à l’image — Ana Gagnon',
+  values: { professional: { full_name: 'Ana Gagnon' } },
+  signers: [{ ...SIGNERS[0] }],
+  cancel: null,
+  ...over,
+})
+
 function setup(
   options: {
     permissions?: string[]
     modules?: string[]
     prepare?: RpcRoute
+    prepareConsent?: RpcRoute
     limiter?: RpcRoute
   } = {},
 ) {
@@ -129,12 +177,14 @@ function setup(
     orgId: SIGNING_ORG,
     now: clock.now,
     modules: ['professionals'],
-    versions: { [VERSION_ID]: version },
+    versions: { [VERSION_ID]: version, [CONSENT_VERSION_ID]: consentVersion },
   })
   const service = fakeSupabase({
     rpc: {
       ...db.rpc,
       prepare_professional_contract: options.prepare ?? { data: prepared() },
+      prepare_professional_image_consent: options.prepareConsent ??
+        { data: preparedConsent() },
       ...(options.limiter ? { consume_rate_limit: options.limiter } : {}),
     },
     storage: db.storage,
@@ -587,5 +637,137 @@ Deno.test('professionals-contract-send: an unexpected answer from the database �
     const res = await s.handler(post())
     assertEquals(res.status, 500)
     assertEquals(s.fake.calls.length, 0)
+  })
+})
+
+// --- The image consent (form `image_consent`, P4-480 – P4-486) ----------------------------------
+
+const consentPost = (action = 'send') =>
+  post({
+    professional_id: PRO,
+    action,
+    idempotency_key: KEY,
+    form: 'image_consent',
+  })
+
+Deno.test('professionals-contract-send: image consent → its own prepare RPC, purpose and view permission, no Annexe A', async () => {
+  await run(async () => {
+    const s = setup({
+      permissions: ['professionals.view', 'professionals.manage'],
+    })
+    const res = await s.handler(consentPost())
+    const answer = await res.json()
+    assertEquals(res.status, 200)
+    assertEquals(prepareCalls(s).length, 0, "never the contract's RPC")
+    assertEquals(
+      s.service.calls.filter((c) =>
+        c.fn === 'prepare_professional_image_consent'
+      )
+        .map((c) => c.args),
+      [{
+        p_actor: ADMIN_ID,
+        p_id: PRO,
+        p_action: 'send',
+        p_idempotency_key: KEY,
+      }],
+    )
+    const row = s.db.requests.get(answer.request_id)!
+    assertEquals(row.status, 'sent')
+    assertEquals(row.purpose, 'professionals.image_consent')
+    assertEquals(
+      row.view_permission,
+      'professionals.view',
+      'no pay in it (P4-483)',
+    )
+    assertEquals(row.idempotency_key, CONSENT_KEY)
+    assertEquals(row.signers.map((x) => x.role), ['professional'])
+    assertEquals(
+      s.fake.documents.get(row.envelope_id!)!.meta.subject,
+      'Votre consentement au droit à l’image pour Clinique MANA (local)',
+    )
+  })
+})
+
+Deno.test('professionals-contract-send: each form has its own permissions; nothing is prepared without them', async () => {
+  await run(async () => {
+    for (
+      const [permissions, body] of [
+        [
+          [
+            'professionals.view',
+            'professionals.contracts.send',
+            'professionals.compensation',
+          ],
+          'consent',
+        ],
+        [['professionals.view', 'professionals.manage'], 'contract'],
+      ] as const
+    ) {
+      const s = setup({ permissions: [...permissions] })
+      const res = await s.handler(body === 'consent' ? consentPost() : post())
+      assertEquals(res.status, 403)
+      assertEquals((await res.json()).error.code, 'forbidden')
+      assertEquals(
+        s.service.calls.filter((c) => c.fn.startsWith('prepare_')).length,
+        0,
+      )
+    }
+  })
+})
+
+Deno.test('professionals-contract-send: an unknown form is a bad request, never a purpose', async () => {
+  await run(async () => {
+    const s = setup()
+    const res = await s.handler(
+      post({
+        professional_id: PRO,
+        action: 'send',
+        idempotency_key: KEY,
+        form: 'professionals.service_contract',
+      }),
+    )
+    assertEquals(res.status, 400)
+    assertEquals((await res.json()).error.code, 'invalid_request')
+    assertEquals(
+      s.service.calls.filter((c) => c.fn.startsWith('prepare_')).length,
+      0,
+    )
+  })
+})
+
+Deno.test('professionals-contract-send: a contract answer without its Annexe A terms → 500, nothing sent', async () => {
+  await run(async () => {
+    const { annexe: _annexe, ...withoutAnnexe } = prepared()
+    const s = setup({ prepare: { data: withoutAnnexe } })
+    const res = await s.handler(post())
+    assertEquals(res.status, 500)
+    assertEquals(s.fake.calls.length, 0)
+  })
+})
+
+Deno.test('professionals-contract-send: « Renvoyer » is limited per file and form: the consent and the contract each email once', async () => {
+  await run(async () => {
+    let resend: Record<string, unknown> | null = null
+    const limiter = countingLimiter()
+    const s = setup({
+      permissions: [...PERMISSIONS, 'professionals.manage'],
+      prepare: () => ({ data: { resend } }),
+      prepareConsent: () => ({ data: { resend } }),
+      limiter: limiter.route,
+    })
+    const old = await sentRequest(s.fake, s.db, contractOf)
+    resend = {
+      request_id: old.id,
+      envelope_id: old.envelope_id,
+      recipient_ids: [old.signers[0].recipient_id!],
+    }
+    assertEquals(
+      (await s.handler(
+        post({ professional_id: PRO, action: 'resend', idempotency_key: KEY }),
+      )).status,
+      200,
+    )
+    assertEquals((await s.handler(consentPost('resend'))).status, 200)
+    assertEquals((await s.handler(consentPost('resend'))).status, 429)
   })
 })

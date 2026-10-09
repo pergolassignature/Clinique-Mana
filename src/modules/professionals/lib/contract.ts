@@ -1,7 +1,7 @@
 import { t } from '@/i18n'
 import { signatureStatusLabel } from '@/core/signing/status'
 import type { StatusTone } from '@/shared/ui/status-dot'
-import type { ContractAction, ContractRequest, ProfessionalContract } from '../api/contracts'
+import type { ContractAction, ContractRequest, ProfessionalContract, SigningForm } from '../api/contracts'
 import type { ContractProgress } from './readiness'
 
 /**
@@ -20,6 +20,10 @@ import type { ContractProgress } from './readiness'
  * - `rejected`, `expired`, `cancelled`, `abandoned` → « Régénérer » (a new contract).
  * Sending needs `professionals.contracts.send` and `professionals.compensation` (P4-436);
  * « Synchroniser » and the PDF need to read the request (`canRead`, P4-435).
+ *
+ * The image consent (P4-480 – P4-486) has the same states, with two differences: sending needs
+ * `professionals.manage` (P4-483), and once signed it offers « Envoyer un nouveau consentement »
+ * (the renewal, P4-485) instead of the PDF, which its document row opens (P4-484).
  */
 export type ContractState =
   | 'none'
@@ -66,13 +70,20 @@ export type ContractButton = { kind: 'action'; action: ContractAction; label: st
 type Can = (permission: string) => boolean
 
 const A = 'modules.professionals.contract.actions'
+const C = 'modules.professionals.imageConsent.actions'
+
+/** Whoever may send the form (the function checks again). */
+export function canSendForm(form: SigningForm, can: Can): boolean {
+  return form === 'image_consent' ? can('professionals.manage') : can('professionals.contracts.send') && can('professionals.compensation')
+}
 
 /** The card's buttons for a state, in order (module comment). */
-export function contractButtons(state: ContractState, request: ContractRequest | null, can: Can): ContractButton[] {
-  const sender = can('professionals.contracts.send') && can('professionals.compensation')
+export function contractButtons(state: ContractState, request: ContractRequest | null, can: Can, form: SigningForm = 'service_contract'): ContractButton[] {
+  const sender = canSendForm(form, can)
   const reader = request?.canRead === true
-  const send = (action: ContractAction, label: 'send' | 'retry' | 'regenerate' | 'resend'): ContractButton[] =>
-    sender ? [{ kind: 'action', action, label: t(`${A}.${label}`) }] : []
+  const consent = form === 'image_consent'
+  const send = (action: ContractAction, label: 'send' | 'retry' | 'regenerate' | 'resend' | 'renew'): ContractButton[] =>
+    sender ? [{ kind: 'action', action, label: consent ? t(`${C}.${label}`) : t(`${A}.${label === 'renew' ? 'send' : label}`) }] : []
   switch (state) {
     case 'none':
       return send('send', 'send')
@@ -84,6 +95,7 @@ export function contractButtons(state: ContractState, request: ContractRequest |
     case 'viewed':
       return [...(reader ? [{ kind: 'sync' } as const] : []), ...send('resend', 'resend'), ...send('regenerate', 'regenerate')]
     case 'signed':
+      if (consent) return send('send', 'renew')
       return reader && request?.signedFileId ? [{ kind: 'pdf' }] : []
     case 'rejected':
     case 'expired':
@@ -99,10 +111,15 @@ const S = 'modules.professionals.contract.state'
  * The state in words and its tone: core's label, « Aucun contrat » when there is none, « Envoi en
  * cours » while a send runs, « L'envoi n'a pas abouti » once a send died without a word.
  */
-export function contractStateLabel(request: ContractRequest | null, now: number = Date.now()): { label: string; tone: StatusTone; detail: string | null } {
-  if (request === null) return { label: t(`${S}.none`), tone: 'default', detail: null }
+export function contractStateLabel(
+  request: ContractRequest | null,
+  now: number = Date.now(),
+  form: SigningForm = 'service_contract',
+): { label: string; tone: StatusTone; detail: string | null } {
+  const F = form === 'image_consent' ? 'modules.professionals.imageConsent.state' : S
+  if (request === null) return { label: t(`${F}.none`), tone: 'default', detail: null }
   if (request.status === 'draft' && request.lastError === null) {
-    return sendDied(request, now) ? { label: t(`${S}.stalled`), tone: 'error', detail: t(`${S}.stalledDetail`) } : { label: t(`${S}.sending`), tone: 'neutral', detail: null }
+    return sendDied(request, now) ? { label: t(`${S}.stalled`), tone: 'error', detail: t(`${F}.stalledDetail`) } : { label: t(`${S}.sending`), tone: 'neutral', detail: null }
   }
   return signatureStatusLabel(request.status, request.lastError)
 }

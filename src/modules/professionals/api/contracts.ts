@@ -5,13 +5,18 @@ import { asRpcRefusal } from './function-errors'
 import { parseRpc } from './parse'
 
 /**
- * The service contract (Batch 4d; migration *_professionals_contracts.sql, function
- * `professionals-contract-send`): the record's card (`get_professional_contract`,
- * `professionals.view`), the send actions (`professionals.contracts.send` and
- * `professionals.compensation`), and « Paramètres → Contrats »: the module's document templates
- * and their versions (core signing RPCs, the template's edit permission). Every function throws
- * the PostgREST error unchanged, or the function's error as an RPC refusal (`asRpcRefusal`).
+ * The forms a professional signs through Documenso (function `professionals-contract-send`): the
+ * service contract (Batch 4d; *_professionals_contracts.sql: its card `get_professional_contract`,
+ * sent with `professionals.contracts.send` and `professionals.compensation`) and the image consent
+ * (P4-480 – P4-486; *_professionals_image_consent.sql: its card `get_professional_image_consent`,
+ * sent with `professionals.manage`), both read with `professionals.view`; and « Paramètres →
+ * Contrats et formulaires »: the module's document templates and their versions (core signing
+ * RPCs, the template's edit permission). Every function throws the PostgREST error unchanged, or
+ * the function's error as an RPC refusal (`asRpcRefusal`).
  */
+
+/** The forms the function sends (its `FORMS`): the service contract and the image consent. */
+export type SigningForm = 'service_contract' | 'image_consent'
 
 // --- The card (get_professional_contract) --------------------------------------------------------
 
@@ -73,7 +78,10 @@ const requestPayload = z
     cancelledAt: r.cancelled_at,
     expiredAt: r.expired_at,
     expiresAt: r.expires_at,
-    /** The caller holds the request's view permission (`professionals.compensation`, P4-435). */
+    /**
+     * The caller holds the request's view permission (`professionals.compensation` for the
+     * contract, P4-435; `professionals.view` for the image consent, P4-483).
+     */
     canRead: r.can_read,
     /** Only when `canRead`. */
     signedFileId: r.signed_file_id,
@@ -94,7 +102,8 @@ export const contractPayload = z
         draft_version_id: z.string().nullable(),
       })
       .nullable(),
-    clinic_signer: z.boolean(),
+    // The contract's only (the image consent is signed by the professional alone).
+    clinic_signer: z.boolean().default(false),
     request: requestPayload.nullable(),
   })
   .transform((c) => ({
@@ -102,7 +111,7 @@ export const contractPayload = z
     publishedVersion: c.template?.published_version ?? null,
     /** Settings « Signataire » has a name and an address: the clinic signs second. */
     clinicSigner: c.clinic_signer,
-    /** The latest service-contract request, or null. */
+    /** The latest request of the form, or null. */
     request: c.request,
   }))
 export type ProfessionalContract = z.output<typeof contractPayload>
@@ -110,6 +119,13 @@ export type ProfessionalContract = z.output<typeof contractPayload>
 /** The record's contract card; null for a file the caller cannot read. */
 export async function fetchProfessionalContract(id: string): Promise<ProfessionalContract | null> {
   const { data, error } = await supabase.rpc('get_professional_contract', { p_id: id })
+  if (error) throw error
+  return data === null ? null : parseRpc(contractPayload, data)
+}
+
+/** The image consent's card (the same shape, the latest image-consent request); null likewise. */
+export async function fetchProfessionalImageConsent(id: string): Promise<ProfessionalContract | null> {
+  const { data, error } = await supabase.rpc('get_professional_image_consent', { p_id: id })
   if (error) throw error
   return data === null ? null : parseRpc(contractPayload, data)
 }
@@ -129,10 +145,17 @@ const sentPayload = z.object({ request_id: z.string() })
  * French `label` in `extra`). A 409 stays the `FunctionCallError`: here it means « un envoi est
  * déjà en cours » (the send claim), not the record's « le dossier vient de changer » (40001).
  */
-export async function sendProfessionalContract(professionalId: string, action: ContractAction, idempotencyKey: string): Promise<string> {
+export async function sendProfessionalContract(
+  professionalId: string,
+  action: ContractAction,
+  idempotencyKey: string,
+  form: SigningForm = 'service_contract',
+): Promise<string> {
   let data: unknown
   try {
-    data = await invokeFunction(CONTRACT_FUNCTION, { professional_id: professionalId, action, idempotency_key: idempotencyKey })
+    // The contract's body stays as it was (the function's default form).
+    const body = { professional_id: professionalId, action, idempotency_key: idempotencyKey, ...(form === 'image_consent' && { form }) }
+    data = await invokeFunction(CONTRACT_FUNCTION, body)
   } catch (error) {
     throw error instanceof FunctionCallError && error.code === 'conflict' ? error : asRpcRefusal(error)
   }
@@ -141,7 +164,7 @@ export async function sendProfessionalContract(professionalId: string, action: C
   return parsed.data.request_id
 }
 
-// --- « Paramètres → Contrats »: templates and versions ---------------------------------------------
+// --- « Paramètres → Contrats et formulaires »: templates and versions -------------------------------
 
 export const templatePayload = z
   .object({
@@ -268,7 +291,7 @@ export async function updateTemplateVersion(versionId: string, content: DraftCon
   if (error) throw error
 }
 
-/** « Publier »: the previous published version is archived; the next contracts use this one. */
+/** « Publier »: the previous published version is archived; the next sends use this one. */
 export async function publishTemplateVersion(versionId: string): Promise<void> {
   const { error } = await supabase.rpc('publish_template_version', { p_id: versionId })
   if (error) throw error

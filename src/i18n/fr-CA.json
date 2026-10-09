@@ -1932,6 +1932,27 @@
               }
             }
           },
+          "imageConsent": {
+            "sent": "a envoyé le consentement au droit à l'image pour signature",
+            "signed": "a conservé au dossier le consentement au droit à l'image signé (PDF signé)",
+            "rejected": "a enregistré le refus du consentement au droit à l'image",
+            "cancelled": "a annulé l'envoi du consentement au droit à l'image",
+            "expired": "a constaté que le consentement au droit à l'image envoyé a expiré sans signature",
+            "signer": {
+              "viewed": {
+                "professional": "a noté que le professionnel a consulté le consentement au droit à l'image",
+                "clinic": "a noté que la clinique a consulté le consentement au droit à l'image"
+              },
+              "signed": {
+                "professional": "a noté que le professionnel a signé le consentement au droit à l'image",
+                "clinic": "a noté que la clinique a signé le consentement au droit à l'image"
+              },
+              "rejected": {
+                "professional": "a noté que le professionnel a refusé le consentement au droit à l'image",
+                "clinic": "a noté que la clinique a refusé le consentement au droit à l'image"
+              }
+            }
+          },
           "otherRead": "a consulté une section du dossier",
           "rateSet": {
             "initial": "a fixé le taux de départ à {rate} dès le {date}",
@@ -2611,7 +2632,7 @@
         },
         "consents": {
           "title": "Consentements",
-          "description": "Le texte du consentement au droit à l'image que les professionnels signent dans leur questionnaire.",
+          "description": "Le texte du consentement au droit à l'image que les professionnels signent dans leur questionnaire. Le formulaire envoyé pour signature électronique (Documenso) se modifie dans Contrats et formulaires.",
           "loadError": "Les versions du consentement n'ont pas pu être chargées.",
           "current": {
             "title": "Version en vigueur",
@@ -2790,8 +2811,8 @@
           "showClosingHelp": "À la fin de la fiche, une invitation à communiquer avec une conseillère pour planifier une première rencontre, avec le téléphone, le courriel et le site Web de la clinique."
         },
         "contracts": {
-          "title": "Contrats",
-          "description": "Le modèle du contrat de service envoyé aux professionnels pour signature électronique. Une version publiée ne change plus : les prochains contrats utilisent la version publiée.",
+          "title": "Contrats et formulaires",
+          "description": "Les modèles envoyés aux professionnels pour signature électronique : le contrat de service et le consentement au droit à l'image. Une version publiée ne change plus : les prochains envois utilisent la version publiée.",
           "editorLabel": "Modèle « {title} »",
           "list": {
             "title": "Modèles",
@@ -2810,14 +2831,14 @@
             "emptyTitle": "Aucun modèle ne correspond.",
             "emptyBody": "Changez le statut ou la recherche.",
             "published": "Version {version} publiée le {date}",
-            "notPublished": "Non publié : aucun contrat ne peut être envoyé",
+            "notPublished": "Non publié : rien ne peut être envoyé avec ce modèle",
             "draft": "Brouillon en cours",
             "retired": "Retiré",
             "open": "Ouvrir « {title} »"
           },
           "signer": {
             "title": "Signataire de la clinique",
-            "description": "Quand un nom et une adresse courriel sont configurés, la clinique signe le contrat après le professionnel.",
+            "description": "Quand un nom et une adresse courriel sont configurés, la clinique signe le contrat de service après le professionnel. Le consentement au droit à l'image est signé par le professionnel seul.",
             "loadError": "Le signataire n'a pas pu être chargé.",
             "signsSecond": "Signe en deuxième, à l'adresse {email}.",
             "none": "Aucun signataire configuré : seul le professionnel signe.",
@@ -2864,7 +2885,7 @@
               "initialsHelp": "Une case d'initiales en haut de chaque page. Désactivez seulement si Documenso refuse les initiales : la signature et la date restent sur la dernière page.",
               "initialsOn": "Oui",
               "initialsOff": "Non (signature et date seulement)",
-              "body": "Texte du contrat",
+              "body": "Texte du document",
               "bodyHelp": "Une ligne vide sépare les paragraphes. # Titre, ## Sous-titre, ### Intertitre; - pour une liste, 1. pour une liste numérotée; | a | b | pour un tableau; --- pour un saut de page; **gras**. La page des signatures est ajoutée à la fin.",
               "emailSubject": "Objet du courriel de signature",
               "emailSubjectHelp": "Envoyé par Documenso, en français, avec le lien de signature.",
@@ -2879,7 +2900,7 @@
             "preview": {
               "title": "Aperçu",
               "description": "Avec des valeurs d'exemple. Le PDF envoyé suit la même structure, mis en page en format lettre.",
-              "frameTitle": "Aperçu du contrat",
+              "frameTitle": "Aperçu du document",
               "annexeCaption": "Exemple : les tableaux réels viennent de la grille de rémunération du professionnel.",
               "annexeColumns": {
                 "sessions": "Séances cumulées",
@@ -2900,7 +2921,7 @@
             "confirm": {
               "publish": {
                 "title": "Publier la version {version} ?",
-                "body": "Les prochains contrats utiliseront cette version. Les contrats déjà envoyés ne changent pas.",
+                "body": "Les prochains envois utiliseront cette version. Les documents déjà envoyés ne changent pas.",
                 "action": "Publier la version {version}"
               },
               "discard": {
@@ -3249,6 +3270,7 @@
         },
         "lines": {
           "uploadedByClinic": "Téléversé le {date} par la clinique",
+          "signedElectronically": "Signé électroniquement le {date} (Documenso)",
           "uploadedByProfessional": "Téléversé le {date} par {firstName}",
           "uploadedByYou": "Téléversé le {date} par vous",
           "uploadedForYou": "Téléversé le {date} par la clinique",
@@ -3424,7 +3446,7 @@
           "other": "Signataire"
         },
         "noTemplate": "Aucun modèle de contrat publié : publiez « Contrat de service » avant d'envoyer.",
-        "noTemplateLink": "Ouvrir Paramètres → Contrats",
+        "noTemplateLink": "Ouvrir Paramètres → Contrats et formulaires",
         "failedHelp": "« Réessayer l'envoi » renvoie le contrat tel qu'il a été préparé. Si le dossier a changé depuis (adresse, signataire, rémunération), corrigez-le, puis utilisez « Régénérer ».",
         "noClinicSigner": "Seul le professionnel signera : aucun signataire de la clinique n'est configuré (Paramètres → Signataire).",
         "restricted": "Le PDF signé est réservé aux personnes qui gèrent la rémunération : il contient les montants versés.",
@@ -3472,7 +3494,7 @@
           "resend": "Courriel de signature renvoyé à {firstName}.",
           "versionCreated": "Nouvelle version créée : un brouillon à modifier.",
           "draftSaved": "Brouillon enregistré.",
-          "published": "Version publiée : les prochains contrats l'utiliseront.",
+          "published": "Version publiée : les prochains envois l'utiliseront.",
           "archived": "Version retirée."
         },
         "errors": {
@@ -3484,6 +3506,62 @@
           "rateLimited": "Trop d'envois en peu de temps.",
           "network": "Connexion impossible. Vérifiez votre connexion, puis réessayez.",
           "syncFailed": "La synchronisation n'a pas fonctionné. Réessayez plus tard."
+        }
+      },
+      "imageConsent": {
+        "loadError": "L'envoi du consentement n'a pas pu être chargé.",
+        "heading": "Signature électronique (Documenso)",
+        "standaloneTitle": "Consentement droit à l'image : signature électronique",
+        "state": {
+          "none": "Aucun envoi pour signature",
+          "stalledDetail": "L'envoi s'est arrêté sans réponse de Documenso. Réessayez l'envoi ou régénérez le consentement."
+        },
+        "none": "Aucun formulaire de consentement n'a encore été envoyé à {firstName} pour signature électronique.",
+        "noTemplate": "Aucun modèle de consentement publié : publiez « Consentement au droit à l'image » avant d'envoyer.",
+        "failedHelp": "« Réessayer l'envoi » renvoie le consentement tel qu'il a été préparé. Si le nom ou l'adresse courriel du dossier a changé depuis, corrigez-le, puis utilisez « Régénérer ».",
+        "signedHelp": "Le PDF signé est au dossier ci-dessous : il compte comme consentement valide pendant 12 mois.",
+        "journal": {
+          "viewed": "{name} a consulté le consentement le {date}",
+          "completed": "Consentement signé et PDF signé conservé le {date}"
+        },
+        "actions": {
+          "send": "Envoyer pour signature",
+          "retry": "Réessayer l'envoi",
+          "regenerate": "Régénérer",
+          "resend": "Renvoyer le courriel",
+          "renew": "Envoyer un nouveau consentement"
+        },
+        "confirm": {
+          "send": {
+            "title": "Envoyer le consentement à {firstName} ?",
+            "body": "Le formulaire de consentement au droit à l'image (version {version} du modèle) est envoyé par courriel à {firstName} pour signature électronique.",
+            "action": "Envoyer pour signature"
+          },
+          "regenerate": {
+            "title": "Régénérer le consentement de {firstName} ?",
+            "body": "L'envoi en cours, s'il y en a un, est annulé. Un nouveau formulaire est préparé avec la version {version} du modèle, puis envoyé à {firstName}.",
+            "action": "Régénérer et envoyer"
+          },
+          "resend": {
+            "title": "Renvoyer le courriel de signature à {firstName} ?",
+            "body": "Documenso renvoie le courriel avec un lien de signature renouvelé. Le formulaire ne change pas.",
+            "action": "Renvoyer le courriel"
+          },
+          "renew": {
+            "title": "Envoyer un nouveau consentement à {firstName} ?",
+            "body": "Un nouveau formulaire (version {version} du modèle) est envoyé à {firstName} pour signature. Le consentement signé reste au dossier; le nouveau le remplacera une fois signé, pour 12 mois.",
+            "action": "Envoyer pour signature"
+          }
+        },
+        "toasts": {
+          "send": "Consentement envoyé à {firstName} pour signature.",
+          "regenerate": "Nouveau consentement envoyé à {firstName}.",
+          "resend": "Courriel de signature renvoyé à {firstName}."
+        },
+        "errors": {
+          "missingVariable": "Le consentement ne peut pas être préparé : « {label} » est vide. Complétez le dossier ou les paramètres, puis réessayez.",
+          "missingVariableUnknown": "Le consentement ne peut pas être préparé : une information requise par le modèle est vide.",
+          "inProgress": "Un envoi est déjà en cours pour ce consentement."
         }
       },
       "myProfile": {
@@ -4124,7 +4202,8 @@
         "reviewed_by": "Vérifié par",
         "reviewed_at": "Vérifié le",
         "rejection_reason": "Raison du refus",
-        "submission_id": "Questionnaire"
+        "submission_id": "Questionnaire",
+        "signature_request_id": "Signature électronique"
       },
       "professionals": {
         "profile_id": "Compte",

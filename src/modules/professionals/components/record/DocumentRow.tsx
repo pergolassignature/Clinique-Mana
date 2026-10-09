@@ -44,13 +44,16 @@ export interface DocumentRowProps {
 /** Who sent it and when, in the viewer's words. */
 function uploadedLine(document: ProfessionalDocument, viewer: DocumentViewer, firstName: string): string {
   const date = formatClinicDateShort(document.uploadedAt)
+  // A consent signed through Documenso (P4-484): when she signed, not who uploaded.
+  if (document.signatureRequestId !== null) return t(`${D}.lines.signedElectronically`, { date })
   if (viewer === 'self') return t(document.uploadedBySelf ? `${D}.lines.uploadedByYou` : `${D}.lines.uploadedForYou`, { date })
   return document.uploadedBySelf ? t(`${D}.lines.uploadedByProfessional`, { date, firstName }) : t(`${D}.lines.uploadedByClinic`, { date })
 }
 
 /** The review's line: « Vérifié le … par Julie Adjointe », « Refusé le … » (the reviewer's name reaches staff only). */
 function reviewedLine(document: ProfessionalDocument): string | null {
-  if (!document.reviewedAt || document.status === 'pending') return null
+  // A signed consent is verified by its signature, never by a reviewer.
+  if (!document.reviewedAt || document.status === 'pending' || document.signatureRequestId !== null) return null
   const date = formatClinicDateShort(document.reviewedAt)
   const name = document.reviewedByName
   if (document.status === 'rejected') return name ? t(`${D}.lines.rejectedBy`, { date, name }) : t(`${D}.lines.rejectedOn`, { date })
@@ -88,6 +91,9 @@ export function DocumentRow({ document, type, today, viewer, firstName, can, lab
   const menu = actions.filter((a) => !inline.includes(a))
   const name = t(`${D}.actions.documentName`, { type: type?.name ?? '', state })
 
+  // TODO(signing-split-downloads): a document signed through Documenso (`signatureRequestId`)
+  // should offer core's split downloads (the signed pages, the certificate and journal, the sealed
+  // original) instead of the one « Télécharger » of the stored file.
   const press = (action: DocumentAction, opener: HTMLButtonElement) => {
     if (action !== 'download') return onAction(action, document, opener)
     if (document.file && !download.isPending) download.mutate(document.file.id)

@@ -36,6 +36,7 @@ const documentPayload = z
     reviewed_by_name: z.string().nullable(),
     rejection_reason: z.string().nullable(),
     submission_id: z.string().nullable(),
+    signature_request_id: z.string().nullable().default(null),
     file: filePayload.nullable(),
   })
   .transform((d) => ({
@@ -56,6 +57,8 @@ const documentPayload = z
     rejectionReason: d.rejection_reason,
     /** The questionnaire that brought it (P4-177). */
     submissionId: d.submission_id,
+    /** The Documenso request it was signed through (an image consent, P4-484); null for an upload. */
+    signatureRequestId: d.signature_request_id,
     /** Null once the file is gone (refused, P4-404; deleted). */
     file: d.file,
   }))

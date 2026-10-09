@@ -80,7 +80,7 @@ describe('ContractsSettingsPage (Task 4d.3)', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
-  it('saves the edited draft, then publishes it after « Les prochains contrats utiliseront cette version »', async () => {
+  it('saves the edited draft, then publishes it after « Les prochains envois utiliseront cette version »', async () => {
     // The draft as seeded, then, once saved, without the line.
     mocks.contracts.fetchTemplateVersions
       .mockResolvedValueOnce([parsedVersion()])
@@ -99,7 +99,7 @@ describe('ContractsSettingsPage (Task 4d.3)', () => {
     await waitFor(() => expect(publishButton()).not.toHaveAttribute('aria-disabled'))
     await userEvent.click(publishButton())
     const dialog = await screen.findByRole('alertdialog', { name: t(`${E}.confirm.publish.title`, { version: '1' }) })
-    expect(dialog).toHaveTextContent('Les prochains contrats utiliseront cette version.')
+    expect(dialog).toHaveTextContent('Les prochains envois utiliseront cette version.')
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${E}.confirm.publish.action`, { version: '1' }) }))
     await waitFor(() => expect(mocks.contracts.publishTemplateVersion).toHaveBeenCalledOnce())
     expect(mocks.contracts.publishTemplateVersion.mock.calls[0]?.[0]).toBe(DRAFT_ID)
