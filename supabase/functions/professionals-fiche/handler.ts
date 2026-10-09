@@ -64,7 +64,7 @@ import { readJson } from '../_shared/http.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
 import { isMissingObject, sniff } from '../_shared/storage.ts'
-import { ficheFileName } from './file-name.ts'
+import { ficheFileName, ofName } from './file-name.ts'
 
 const FN = 'professionals-fiche'
 const TEMPLATE = 'professionals.fiche'
@@ -244,7 +244,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           to: { email: input.to, profileId: null },
           subject: { type: 'professional', id: input.professional_id },
           values: {
-            professional: { name: `${person.firstName} ${person.lastName}` },
+            professional: {
+              name: `${person.firstName} ${person.lastName}`,
+              of_name: ofName(`${person.firstName} ${person.lastName}`),
+            },
             ...(message ? { message } : {}),
           },
           actionUrl: null,
