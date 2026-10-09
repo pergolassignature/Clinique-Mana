@@ -137,8 +137,9 @@ export const uploadOffered = (entry: Pick<TypeDocuments, 'staged'>, viewer: Docu
   can.upload && !(viewer === 'self' && entry.staged !== null)
 
 /**
- * A type's state in words: « Valide jusqu'au 31 mars 2027 », « Vérifié », « Expire le … »,
- * « Expiré : valide jusqu'au … » (the last valid day, never « expiré le », a day off, P4-413).
+ * A type's state in words: « Valide jusqu'au 31 mars 2027 », « Vérifié », « Expire bientôt : valide
+ * jusqu'au … », « Expiré : valide jusqu'au … » (always the last valid day, never « expiré le », a
+ * day off, P4-413, P4-456, P4-511).
  * `self`: the professional reads it (« En attente de vérification par la clinique », not « À vérifier »).
  */
 export function typeStateLabel(entry: Pick<TypeDocuments, 'kind' | 'until'> & Partial<Pick<TypeDocuments, 'staged'>>, self = false): string {

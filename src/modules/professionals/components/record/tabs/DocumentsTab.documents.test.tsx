@@ -73,15 +73,15 @@ describe('Documents tab — states by the clinic’s date', () => {
     expect(card(INSURANCE)).toHaveTextContent('Téléversé le 1 oct. 2026 par Marie · Vérifié le 2 oct. 2026 par Julie Adjointe')
   })
 
-  it('« Expire le … » within the insurance’s reminder window (7 days), « Expiré » the day after its last day', async () => {
+  it('« Expire bientôt : valide jusqu’au … » within the insurance’s reminder window (7 days), « Expiré » the day after its last day (P4-511)', async () => {
     await openTab({ documents: documentsFixture({ today: '2027-03-23' }) })
     expect(stateOf(INSURANCE)).toBe("Valide jusqu'au 31 mars 2027")
     cleanup()
     await openTab({ documents: documentsFixture({ today: '2027-03-24' }) })
-    expect(stateOf(INSURANCE)).toBe('Expire le 31 mars 2027')
+    expect(stateOf(INSURANCE)).toBe(t(`${D}.state.expiring`, { date: '31 mars 2027' }))
     cleanup()
     await openTab({ documents: documentsFixture({ today: '2027-03-31' }) })
-    expect(stateOf(INSURANCE)).toBe('Expire le 31 mars 2027')
+    expect(stateOf(INSURANCE)).toBe(t(`${D}.state.expiring`, { date: '31 mars 2027' }))
     cleanup()
     await openTab({ documents: documentsFixture({ today: '2027-04-01' }) })
     expect(stateOf(INSURANCE)).toBe("Expiré : valide jusqu'au 31 mars 2027")

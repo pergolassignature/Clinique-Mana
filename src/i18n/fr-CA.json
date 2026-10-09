@@ -3466,7 +3466,7 @@
         },
         "banners": {
           "expiringTitle": "Votre assurance arrive à échéance",
-          "expiring": "Votre assurance expire le {date}. Téléversez la nouvelle preuve dès que possible.",
+          "expiring": "Votre assurance expire bientôt : elle est valide jusqu'au {date}. Téléversez la nouvelle preuve dès que possible.",
           "expiredTitle": "Votre assurance est expirée",
           "expired": "Votre assurance est expirée. Téléversez la nouvelle preuve pour continuer à recevoir de nouveaux clients.",
           "renewalPending": "Merci : votre nouvelle preuve d'assurance attend la vérification de la clinique.",
