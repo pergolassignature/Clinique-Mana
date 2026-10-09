@@ -68,7 +68,7 @@ const TONE_CLASSES = {
 
 /** Six columns on a wide screen; one card per professional below `lg` (P4-199). */
 const COLUMNS =
-  'lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.35fr)_minmax(0,0.75fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,1.6fr)]'
+  'lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_minmax(0,0.85fr)_minmax(0,2.1fr)]'
 
 /** The decisions a row offers (the database checks them again). */
 function decisionsFor(row: ReviewRow): Decision[] {
@@ -89,7 +89,7 @@ function decisionsFor(row: ReviewRow): Decision[] {
  * month when last month holds only the opening balances an import wrote (P4-192).
  */
 export function RetentionReviewPage() {
-  usePageTitle(t(`${R}.title`))
+  usePageTitle(t(`${R}.title`), { crumb: true })
   const today = useClinicDate()
   const currentMonth = monthOf(today)
   const [month, setMonth] = useState(() => shiftMonth(currentMonth, -1))
@@ -260,7 +260,7 @@ export function RetentionReviewPage() {
     )
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <PageHeader level={1} title={t(`${R}.title`)} description={t(`${R}.description`)} />
       <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
         <MonthPicker month={month} min={FIRST_MONTH} max={currentMonth} onChange={changeMonth} />
@@ -352,7 +352,7 @@ function ReviewItem({ row, drafts, on, halfHintId, onType, onDecide }: ReviewIte
 
       <div className="min-w-0">
         <span className={cellLabel}>{t(`${R}.columns.sessions`)}</span>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5 lg:mt-0">
+        <div className="mt-1 grid w-fit grid-cols-[auto_auto] items-center gap-x-1.5 gap-y-1.5 lg:mt-0">
           <CountInput
             short={t(`${R}.long`)}
             label={t(`${R}.longLabel`, { name })}
@@ -411,7 +411,7 @@ function ReviewItem({ row, drafts, on, halfHintId, onType, onDecide }: ReviewIte
 
         <div className="min-w-0 text-sm">
           <span className={cellLabel}>{t(`${R}.columns.tier`)}</span>
-          {row.suggested ? <TierCell row={row} imported={imported} /> : <span className="text-muted-foreground">—</span>}
+          {row.suggested ? <TierCell row={row} imported={imported} /> : <span className="text-muted-foreground">{t(`${R}.noTier`)}</span>}
           {changed && row.suggested && <span className="block text-xs text-muted-foreground">{t(`${R}.recalculated`)}</span>}
         </div>
 
@@ -470,7 +470,7 @@ function CountInput({
 }) {
   const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <>
       <span aria-hidden className="text-xs text-muted-foreground">
         {short}
       </span>
@@ -484,7 +484,7 @@ function CountInput({
         autoComplete="off"
         className="w-14 tabular"
       />
-    </span>
+    </>
   )
 }
 
@@ -501,7 +501,7 @@ function TierCell({ row, imported }: { row: ReviewRow; imported: boolean }) {
       </span>
       <span className="sr-only">{tierRangeLabel(suggested.threshold, next)}</span>
       {isNew && (
-        <span className="ml-1.5 inline-block rounded-sm bg-warning/20 px-1 text-2xs font-medium text-foreground">
+        <span className="block text-xs font-medium text-foreground">
           <span aria-hidden>{t(`${R}.newTier`)}</span>
           <span className="sr-only">, {t(`${R}.newTierLong`)}</span>
         </span>

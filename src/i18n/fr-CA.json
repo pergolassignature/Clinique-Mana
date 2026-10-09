@@ -2178,7 +2178,7 @@
         "add": "Ajouter",
         "search": {
           "label": "Rechercher un professionnel",
-          "placeholder": "Rechercher par nom, courriel ou permis…"
+          "placeholder": "Nom, courriel ou n° de permis…"
         },
         "statusFilter": { "label": "Statut", "all": "Tous les statuts" },
         "filters": {
@@ -3100,8 +3100,8 @@
         },
         "todoGap": { "one": "{count} écart à valider", "other": "{count} écarts à valider" },
         "todoNoRate": { "one": "{count} taux de départ à fixer", "other": "{count} taux de départ à fixer" },
-        "legend": "Retenue = part conservée par la clinique.",
-        "help": "Cumul = séances depuis le début du suivi. Une rencontre de 30 min compte pour ½ séance : un cumul de 100,5 reste dans le palier qui se termine à 100.",
+        "legend": "Retenue : la part conservée par la clinique.",
+        "help": "Cumul : les séances depuis le début du suivi. Une rencontre de 30 min compte pour ½ séance : un cumul de 100,5 reste dans le palier qui se termine à 100.",
         "listLabel": "Professionnels, {month}",
         "columns": {
           "professional": "Professionnel",
@@ -3111,9 +3111,9 @@
           "retention": "Retenue",
           "status": "Statut / décision"
         },
-        "long": "Séances de 50/60 min",
-        "short": "Séances de 30 min",
-        "halfHint": "30 min = ½ séance",
+        "long": "50/60 min",
+        "short": "30 min",
+        "halfHint": "30 min compte pour ½ séance",
         "longLabel": "Séances de 50/60 min — {name}",
         "shortLabel": "Séances de 30 min — {name}",
         "breakdown": "({before} + {month})",
@@ -3122,7 +3122,8 @@
         "importedBalance": "Solde importé : {count} avant le suivi",
         "unsaved": "(non enregistré)",
         "recalculated": "Recalculé à l’enregistrement",
-        "newTier": "nouveau",
+        "newTier": "nouveau ce mois-ci",
+        "noTier": "Aucun palier",
         "newTierLong": "nouveau palier ce mois-ci",
         "retentionChange": "{from} actuellement, {to} proposé par la grille",
         "retentionFirst": "aucune retenue fixée, {to} proposé par la grille",
