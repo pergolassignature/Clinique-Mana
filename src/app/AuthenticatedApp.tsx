@@ -67,6 +67,9 @@ export function AuthenticatedApp() {
     return idle.cancel
   }, [visibleSections, routeComponents])
 
+  // The palette's record groups (⌘K): the enabled modules' providers this user may search.
+  const searchProviders = useMemo(() => modules.flatMap((m) => m.search ?? []).filter((p) => can(p.permission)), [modules, can])
+
   // Accueil's module cards this user may see (each loads its own chunk when it renders).
   const homeCards = useMemo(() => modules.flatMap((m) => (m.homeCards ?? []).filter(shown)), [modules, shown])
 
@@ -94,7 +97,7 @@ export function AuthenticatedApp() {
 
   return (
     <UnsavedChangesProvider>
-      <AppShell navItems={navItems}>
+      <AppShell navItems={navItems} searchProviders={searchProviders}>
         {/* Keyed on the clinic time zone: a « Région » change remounts every page, so dates memoised
             with the old zone are formatted again (AccessProvider sets the zone before this renders). */}
         <Routes key={org_timezone}>

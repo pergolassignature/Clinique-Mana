@@ -23,7 +23,8 @@ const T = 'modules.professionals.list.table'
  * (the email stays under the name); then Profession; from 720px À surveiller; from 880px Langues
  * (design system: `minmax(0,2fr) minmax(0,1.6fr) 96px 120px minmax(0,1.4fr)`; the status column is 136px
  * so the longest status, « En préparation » (P4-43), is never cut). Every flexible
- * column is `minmax(0, …)` and every text ellipsed, so the table never scrolls sideways.
+ * column is `minmax(0, …)` and every text ellipsed, so the table never scrolls sideways, except
+ * « À surveiller », which wraps: its sentence (« Assurance expirée depuis le 5 oct. 2026 ») must read whole.
  */
 const GRID = cn(
   'grid grid-cols-[minmax(0,1fr)_136px]',
@@ -148,10 +149,10 @@ const ProfessionalRow = memo(function ProfessionalRow({
       <div role="cell" className={cn(CELL, 'flex')}>
         <Badge variant={statusTone(status)}>{statusLabel(status)}</Badge>
       </div>
+      {/* Wraps (two lines at most in practice), never ellipsed: « Assurance expirée depuis le 5 oct. 2026 » reads whole. */}
       <div
         role="cell"
-        title={flag?.label}
-        className={cn(CELL, 'truncate text-xs', WATCH_COLUMN, flag?.tone === 'danger' ? 'text-destructive' : 'text-muted-foreground')}
+        className={cn(CELL, 'text-pretty break-words text-xs', WATCH_COLUMN, flag?.tone === 'danger' ? 'text-destructive' : 'text-muted-foreground')}
       >
         {flag ? flag.label : <Nothing label={t(`${T}.nothingToWatch`)} />}
       </div>
