@@ -153,15 +153,17 @@ revoke all on function private.expire_notifications(uuid, text, uuid, text[], te
 -- -----------------------------------------------------------------------------
 -- Dates (date-only values: no time zone, P4-2)
 -- -----------------------------------------------------------------------------
--- The coming March 31: this year's when today is on or before it, else next year's (legacy rule,
--- _legacy getNextMarch31: insurance policies run to March 31).
+-- The end of the coming policy period (insurance policies run April 1 – March 31; P4-412, decided
+-- by Jonathan 2026-10-08): uploaded in January or February, this year's March 31; from March 1 on,
+-- the renewal for the period that starts next, so next year's March 31. The same rule as the
+-- questionnaire's nextMarch31 (src/modules/professionals/lib/questionnaire.ts).
 create function private.next_march_31(p_today date)
 returns date
 language sql
 immutable
 set search_path = ''
 as $$
-  select case when p_today <= pg_catalog.make_date(extract(year from p_today)::int, 3, 31)
+  select case when extract(month from p_today) <= 2
               then pg_catalog.make_date(extract(year from p_today)::int, 3, 31)
               else pg_catalog.make_date(extract(year from p_today)::int + 1, 3, 31) end
 $$;

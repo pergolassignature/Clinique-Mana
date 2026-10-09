@@ -10,7 +10,7 @@
 -- expire_notifications; audit and history.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(117);
+select plan(122);
 
 -- The HINT of the error p_sql raises (null when none): throws_ok checks code and message only.
 create function private.test_error_hint(p_sql text) returns text
@@ -174,9 +174,17 @@ select is((select accepted_mime from public.document_types where org_id = curren
 -- =============================================================================
 -- Dates
 -- =============================================================================
-select is(private.next_march_31('2026-03-31'), date '2026-03-31', 'on March 31: the same day');
-select is(private.next_march_31('2026-04-01'), date '2027-03-31', 'from April 1: next year''s');
-select is(private.next_march_31('2027-02-28'), date '2027-03-31', 'before March 31: this year''s');
+-- P4-412 (Jonathan, 2026-10-08): January and February → this year's March 31; from March 1 → next year's.
+select is(private.next_march_31('2027-01-01'), date '2027-03-31', 'January 1: this year''s March 31');
+select is(private.next_march_31('2027-02-28'), date '2027-03-31', 'February 28: this year''s March 31');
+select is(private.next_march_31('2028-02-29'), date '2028-03-31', 'February 29 (leap year): this year''s March 31');
+select is(private.next_march_31('2027-03-01'), date '2028-03-31', 'March 1: the renewal, next year''s March 31');
+select is(private.next_march_31('2027-03-31'), date '2028-03-31', 'March 31: next year''s March 31');
+select is(private.next_march_31('2026-04-01'), date '2027-03-31', 'April 1: next year''s March 31');
+select is(private.next_march_31('2026-12-31'), date '2027-03-31', 'December 31: next year''s March 31');
+-- On the clinic's date, not UTC's: 2027-03-01 03:00 UTC is still February 28 in Toronto.
+select is(private.document_default_expiry('next_march_31', ('2027-03-01 03:00+00'::timestamptz at time zone 'America/Toronto')::date),
+  date '2027-03-31', 'the clinic''s February 28 evening (already March 1 in UTC): this year''s March 31');
 select is(private.document_default_expiry('months_12', '2026-10-08'), date '2027-10-08', 'months_12: the date + 12 months');
 select is(private.document_default_expiry('none', '2026-10-08'), null::date, 'none: no default');
 select is(private.format_date_fr('2027-03-31'), '31 mars 2027', 'French date');
