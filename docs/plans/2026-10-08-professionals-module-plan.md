@@ -424,6 +424,23 @@ Batch 4d (Tasks 4d.0–4d.3). Every decision is « déléguée — révisable »
 | P4-443 | **Snapshots are closed and kept with the file** (least privilege, Loi 25). `professional_contract_snapshots` has no client grant; a snapshot of an attempt that never became a request (a refused or failed fill) stays with the professional's file and goes with it (`on delete cascade`). It holds the address and the pay that were about to be printed; no purge job yet: listed as a follow-up for the retention policy (P4-411: nothing is deleted automatically for now). | One less readable copy of the pay; the retention rule is Jonathan's. |
 | P4-440 | **The card's journal and the stored PDF.** « Journal de signature » lists the request's own dates (sent, each signer's viewed and signed, completed and stored); Documenso's certificate and audit log are the pages of the signed PDF, which core's capture stores in our bucket as soon as the envelope completes (webhook, else the hourly reconcile; ADR 0005: the Documenso VM is not backed up). « Voir le PDF signé » is a 5-minute signed URL (`useSignedFileUrl`), for compensation holders only. | One stored copy that counts, never a Documenso id alone. |
 
+### Final review of Phase 4 (2026-10-09)
+
+Every decision is « déléguée — révisable ».
+
+| # | Decision | Rationale |
+|---|---|---|
+| P4-470 | **Insurance emails two at a time.** Batches of 2, no batch after 25 s; the rest counted `deferred` and due again the next day (never queued, so the dedupe keeps them due). | P4-424: the provider takes about 2 requests a second. |
+| P4-471 | **The reminders job checks the module first.** `requireModuleForOrg` before any list, revoke or re-issue, as the insurance job. | A clinic whose module is off must not have links rotated. |
+| P4-472 | **The provider's consent comes without the signer's name.** `get_professional_documents` gives her `signer_name` null (version and dates kept; staff read the name); « Signé électroniquement le … (version n) ». | P4-420: a re-linked account would read the previous holder's name. |
+| P4-473 | **« Mon profil »'s record has no readiness.** `get_my_professional_record` leaves it out (`myRecordPayload`). | Computed with her permissions it read her image consent and contract as missing; no self page shows it. |
+| P4-474 | **The sent-back note is for reviewers.** `list_professional_submissions` returns `decision_note` to `professionals.review` only, plus `returned` for « Renvoyé »; the submissions' audit redacts it. The provider reads it in her questionnaire. | P4-420 lists the note as an answer; Historique is read with `professionals.view`. |
+| P4-475 | **The history reads two bounded branches.** `list_professional_history`: `union all` of the file's rows (prefix index) and the contract's rows (`audit_log_record_idx`), same result; no new index (`audit_log_org_record_prefix_idx` exists). | The OR scanned beyond the record's prefix. |
+| P4-476 | **A record opened on a tab loads that tab with the record.** The page preloads the open tab's chunk and runs its prefetch at mount (`preloadRecordTab`). | A deep link to Documents waited for the record, then its chunk, then its data. |
+| P4-477 | **Fiche email status codes.** A 22023 from the upload lookup → 400 `invalid_request`; a thrown `FunctionError` keeps its code's status (`functionErrorResponse`). | A bad id read as a reported 500; an unknown template as a 500. |
+| P4-478 | **One « Renvoyer » per contract every 10 s.** `LIMITS.professionalContractResend` (org + professional), before the database; the second press answers 429. | A double click emailed the signer twice. |
+| P4-479 | **« Télécharger le PDF signé » signs at the press.** `useDocumentDownload` (as P4-455), never on render nor every 240 s. | `storage-sign` allows 120 an hour per person. |
+
 ---
 
 ## Écarts relevés entre les documents (inconsistencies found)
