@@ -106,7 +106,7 @@ export function AuthenticatedApp() {
       <AppShell key={org_timezone} navItems={navItems} searchProviders={searchProviders}>
         <Routes>
           <Route index element={<Navigate to="/accueil" replace />} />
-          <Route path="accueil" element={<HomePage cards={homeCards} />} />
+          <Route path="accueil" element={<HomePage cards={homeCards} shortcuts={navItems.filter((item) => item.path !== '/accueil')} />} />
           {/* « Mon compte »: outside Paramètres, so every role reaches it (ACCOUNT_PAGE in the shell). */}
           <Route
             path="mon-compte"

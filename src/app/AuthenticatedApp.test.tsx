@@ -297,6 +297,34 @@ describe('AuthenticatedApp', () => {
     expect(mocks.mySubmissionReads).toBe(0)
   })
 
+  // Accueil with nothing to show: a calm card and the role's shortcuts (its menu, Accueil aside).
+  describe('Accueil when nothing needs attention', () => {
+    const shortcuts = async () =>
+      within(await screen.findByRole('navigation', { name: t('home.empty.shortcuts') }))
+        .getAllByRole('link')
+        .map((link) => [link.textContent, link.getAttribute('href')])
+
+    it.each([
+      ['an admin', adminLike, [[t('modules.professionals.name'), '/professionnels'], [t('nav.settings'), '/parametres']]],
+      ['the adjointe', accessForRole('admin_assistant', { modules: ['professionals'] }), [[t('modules.professionals.name'), '/professionnels'], [t('nav.settings'), '/parametres']]],
+      ['the conseillère', accessForRole('counselor', { modules: ['professionals'] }), [[t('modules.professionals.name'), '/professionnels']]],
+      ['a professional', accessForRole('provider', { modules: ['professionals'] }), [[t('modules.professionals.myProfile.nav'), '/mon-profil'], [t('modules.professionals.myDocuments.nav'), '/mes-documents']]],
+    ] as const)('%s: « Rien ne demande votre attention », with the role’s shortcuts', async (_role, access, expected) => {
+      render(appAt('/accueil', access))
+      expect(await screen.findByText(t('home.empty.title'))).toBeInTheDocument()
+      expect(await shortcuts()).toEqual(expected)
+    })
+
+    it('says nothing of the kind while a card has something to say (the professional’s open questionnaire)', async () => {
+      const { mySubmission } = await import('@/modules/professionals/test/fixtures-questionnaire')
+      mocks.mySubmission = mySubmission()
+      render(appAt('/accueil', accessForRole('provider', { modules: ['professionals'] })))
+      expect(await screen.findByRole('heading', { name: t('modules.professionals.myProfile.home.onboarding.title') })).toBeInTheDocument()
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(screen.queryByText(t('home.empty.title'))).not.toBeInTheDocument()
+    })
+  })
+
   // Outside Paramètres: a role with no settings section (here a provider) still reaches it.
   it('opens « Mon compte » for every role, titled in the topbar', async () => {
     render(appAt('/mon-compte', { ...adminLike, role: 'provider', permissions: [] }))

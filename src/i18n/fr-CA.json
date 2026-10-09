@@ -230,7 +230,11 @@
     "forbidden": "Accès refusé",
     "account": "Mon compte"
   },
-  "home": { "title": "Bienvenue", "body": "Ce qui demande votre attention s'affiche ici." },
+  "home": {
+    "title": "Bienvenue",
+    "body": "Ce qui demande votre attention s'affiche ici.",
+    "empty": { "title": "Rien ne demande votre attention pour l'instant.", "shortcuts": "Accès rapide" }
+  },
   "storage": {
     "dropzone": {
       "drop": "Glissez un fichier ici, ou",
