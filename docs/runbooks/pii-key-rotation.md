@@ -175,7 +175,7 @@ $$;
 
 select public.pii_health_check();   -- true
 ```
-Une erreur (« … rien n'est retiré ») : lire le message, corriger (souvent : finir l'étape 4), relancer le bloc. Les fonctions à un argument (`encrypt_pii(text)`, `decrypt_pii(bytea)`) sont la version 1 : elles cessent de fonctionner ici. Le code n'utilise que les formes versionnées (conventions §8) ; le coordinateur le confirme avant l'étape 7. Pour l'entrée du gestionnaire, voir l'étape 6.
+Une erreur (« … rien n'est retiré ») : lire le message, corriger (souvent : finir l'étape 4), relancer le bloc. Le code n'utilise que les formes versionnées (`encrypt_pii(text, int)`, `decrypt_pii(bytea, int)` ; les formes à un argument, qui valaient la version 1, ont été retirées). Pour l'entrée du gestionnaire, voir l'étape 6.
 
 ## Revenir en arrière (avant l'étape 7)
 

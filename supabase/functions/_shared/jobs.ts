@@ -59,7 +59,7 @@ export interface JobRequest {
 }
 
 /** How far the signature's timestamp may be from `now`, in seconds. */
-export const JOB_SIGNATURE_TOLERANCE_S = 300
+const JOB_SIGNATURE_TOLERANCE_S = 300
 /** `t=<unix seconds>,v1=<64 lowercase hex>`, nothing else. */
 const JOB_SIGNATURE = /^t=([0-9]{1,12}),v1=([0-9a-f]{64})$/
 
@@ -180,7 +180,7 @@ async function runForOrg(
   perOrg: PerOrg,
   timeoutMs: number,
 ): Promise<boolean> {
-  // Assumed signature (Task 3.3, DB lane to confirm):
+  // Signature (*_core_scheduled_jobs.sql):
   // start_job_run(p_key text, p_org_id uuid, p_trigger text) returns uuid
   // → null when the job already ran for this clinic's local date.
   const start = await client.rpc('start_job_run', {
@@ -215,7 +215,7 @@ async function runForOrg(
       ids: { org_id: orgId, run_id: runId },
     })
   }
-  // Assumed: finish_job_run(p_id uuid, p_status text, p_detail text) returns void.
+  // SQL: finish_job_run(p_id uuid, p_status text, p_detail text) returns void.
   const finish = await client.rpc('finish_job_run', {
     p_id: runId,
     p_status: status,
@@ -236,7 +236,7 @@ async function listJobOrgs(
   client: SupabaseClient,
   jobKey: string,
 ): Promise<string[] | Response> {
-  // Assumed signature (Task 3.3, DB lane to confirm):
+  // Signature (*_core_scheduled_jobs.sql):
   // list_job_orgs(p_key text) returns setof uuid → PostgREST answers an array of strings.
   const { data, error } = await client.rpc('list_job_orgs', { p_key: jobKey })
   if (error || !Array.isArray(data)) {

@@ -15,10 +15,10 @@ import type { ResolveDns } from './documenso.ts'
 /** The injected dependencies of a handler. */
 export interface Deps {
   env: (key: string) => string | undefined
-  /** Every outbound HTTP call (Resend, Documenso, Gotenberg) goes through this. */
+  /** Every outbound HTTP call (Resend, Documenso, Google Places, Sentry…) goes through this. */
   fetch: typeof fetch
   now: () => Date
-  /** Bypasses RLS: only after `verifyServiceRoleAuth` or a verified signature. */
+  /** Bypasses RLS: only once the caller is authenticated (or a signature verified). */
   serviceClient: () => SupabaseClient | Response
   /** Acts as the caller (RLS applies). */
   userClient: (token: string) => SupabaseClient | Response

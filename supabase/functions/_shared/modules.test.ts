@@ -1,6 +1,6 @@
 import { assertEquals } from '@std/assert'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { requireModule, requireModuleForOrg } from './modules.ts'
+import { requireModuleForOrg } from './modules.ts'
 
 type RpcResult = {
   data: unknown
@@ -27,56 +27,6 @@ async function silenced<T>(fn: () => Promise<T>): Promise<T> {
     console.error = original
   }
 }
-
-// ---------------------------------------------------------------------------
-// requireModule (caller's client, caller's org)
-// ---------------------------------------------------------------------------
-Deno.test('requireModule: enabled module passes (null) and calls module_enabled', async () => {
-  const { client, calls } = fakeClient({ data: true, error: null })
-  assertEquals(await requireModule(client, 'professionals'), null)
-  assertEquals(calls, [{
-    fn: 'module_enabled',
-    args: { p_key: 'professionals' },
-  }])
-})
-
-Deno.test('requireModule: disabled module gives 403 module_disabled', async () => {
-  const { client } = fakeClient({ data: false, error: null })
-  const res = await requireModule(client, 'professionals')
-  assertEquals(res?.status, 403)
-  assertEquals(await res?.json(), {
-    error: {
-      code: 'module_disabled',
-      message: 'Module disabled: professionals',
-    },
-  })
-})
-
-Deno.test('requireModule: non-boolean result fails closed (403)', async () => {
-  const { client } = fakeClient({ data: null, error: null })
-  assertEquals((await requireModule(client, 'professionals'))?.status, 403)
-})
-
-Deno.test('requireModule: RPC error gives 500 internal, logged with its code only', async () => {
-  const { client } = fakeClient({
-    data: null,
-    error: { code: 'PGRST000', message: 'boom: ana@example.com' },
-  })
-  const logged: unknown[][] = []
-  const original = console.error
-  console.error = (...args: unknown[]) => logged.push(args)
-  let res: Response | null
-  try {
-    res = await requireModule(client, 'professionals')
-  } finally {
-    console.error = original
-  }
-  assertEquals(res?.status, 500)
-  assertEquals((await res?.json()).error.code, 'internal')
-  assertEquals(logged, [[
-    '[requireModule] module_enabled failed (code=PGRST000)',
-  ]])
-})
 
 // ---------------------------------------------------------------------------
 // requireModuleForOrg (service-role client, org resolved from a database row)
@@ -108,15 +58,25 @@ Deno.test('requireModuleForOrg: non-boolean result fails closed (403)', async ()
   )
 })
 
-Deno.test('requireModuleForOrg: RPC error gives 500 internal', async () => {
+Deno.test('requireModuleForOrg: RPC error gives 500 internal, logged with its code only', async () => {
   const { client } = fakeClient({
     data: null,
-    error: { code: '42501', message: 'denied' },
+    error: { code: 'PGRST000', message: 'boom: ana@example.com' },
   })
-  const res = await silenced(() =>
-    requireModuleForOrg(client, 'org-1', 'professionals')
-  )
+  const logged: unknown[][] = []
+  const original = console.error
+  console.error = (...args: unknown[]) => logged.push(args)
+  let res: Response | null
+  try {
+    res = await requireModuleForOrg(client, 'org-1', 'professionals')
+  } finally {
+    console.error = original
+  }
   assertEquals(res?.status, 500)
+  assertEquals((await res?.json()).error.code, 'internal')
+  assertEquals(logged, [[
+    '[requireModule] module_enabled_for_org failed (code=PGRST000)',
+  ]])
 })
 
 Deno.test('requireModuleForOrg: missing org id fails closed without an RPC', async () => {
