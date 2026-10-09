@@ -237,7 +237,7 @@ function UsersTable({ users, invitations, canManage, selectedId, onOpen, buttonR
           <span className="block sm:hidden">{status}</span>
         </TableCell>
         <TableCell className="max-sm:hidden">{status}</TableCell>
-        <TableCell className="text-muted-foreground max-sm:hidden">
+        <TableCell className="text-right text-muted-foreground max-sm:hidden">
           <span className="sr-only">{t('settings.users.lastSignIn')} </span>
           {lastSignIn(u)}
         </TableCell>
@@ -265,7 +265,8 @@ function UsersTable({ users, invitations, canManage, selectedId, onOpen, buttonR
             <TableHead scope="col" className="max-sm:hidden">
               {t('settings.users.columns.status')}
             </TableHead>
-            <TableHead scope="col" className="max-sm:hidden">
+            {/* Dates: right-aligned, tabular (the cells' default). */}
+            <TableHead scope="col" className="text-right max-sm:hidden">
               {t('settings.users.columns.activity')}
             </TableHead>
             {actionsColumn && (

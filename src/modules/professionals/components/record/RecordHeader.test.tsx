@@ -1,13 +1,21 @@
+import type { ReactElement } from 'react'
 import { describe, expect, it } from 'vitest'
-import { screen, within } from '@testing-library/react'
-import { render } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render as rtlRender, screen, within } from '@testing-library/react'
 import { t } from '@/i18n'
+import { renderWithContexts } from '@/test/contexts'
 import { CATALOG_VIEW, GENDERED_CATALOG_VIEW, recordFixture, socialWorkerRecord } from '../../test/fixtures-domain'
 import { IDS } from '../../test/fixtures'
 import type { ProfessionalRecord } from '../../api/parse'
 import { RecordHeader } from './RecordHeader'
 
 const H = 'modules.professionals.record.header'
+
+/** The avatar signs the photo (`useSignedFileUrl`): a query client and a session. */
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={client}>{renderWithContexts(ui)}</QueryClientProvider>)
+}
 
 function renderHeader(change: (record: ProfessionalRecord) => ProfessionalRecord = (r) => r) {
   render(<RecordHeader record={change(recordFixture())} onboarding={null} catalog={CATALOG_VIEW} />)

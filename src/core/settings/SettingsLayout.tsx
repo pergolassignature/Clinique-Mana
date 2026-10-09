@@ -140,7 +140,8 @@ export function SettingsLayout({ sections, basePath = SETTINGS_BASE_PATH }: Sett
     <div>
       {title}
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:gap-6">
-        <div className="xl:w-[200px] xl:shrink-0">
+        {/* 212, not the handoff's 200: the longest label with its icon and a « Lecture seule » lock fits on one line. */}
+        <div className="xl:w-[212px] xl:shrink-0">
           <button
             type="button"
             aria-expanded={menuOpen}

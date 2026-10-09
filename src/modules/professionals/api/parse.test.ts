@@ -4,6 +4,7 @@ import {
   historyEntryPayload,
   invitationStateRowPayload,
   listRowPayload,
+  myRecordPayload,
   onboardingPayload,
   parseRpc,
   recordPayload,
@@ -101,6 +102,7 @@ describe('recordPayload', () => {
       updatedAt: '2026-10-08T12:00:00+00:00',
     })
     expect(record?.matchingNote).toBeNull()
+    expect(record?.photoFileId).toBeNull()
     expect(record?.professions).toEqual([{ id: IDS.professionRow, titleId: IDS.psychologue, licenceNumber: '12345', isPrimary: true }])
     expect(record?.clienteles).toEqual([{ id: IDS.couples, specialized: true }])
     expect(record?.motifIds).toEqual([IDS.anxiete])
@@ -127,6 +129,20 @@ describe('recordPayload', () => {
     })
     expect(record?.matchingProfile).toMatchObject({ newClientPlaces: 4, newClientPlacesSetAt: '2026-10-08T14:00:00+00:00' })
     expect(record?.matchingNote).toEqual({ note: 'Écrire avant de réserver.', updatedAt: '2026-10-08T15:00:00+00:00' })
+  })
+
+  it('reads the photo\'s stored file id, null without a photo or from a bundle older than the field (A2.1)', () => {
+    expect(parseRpc(recordPayload, { ...RECORD_JSON, photo_file_id: 'file-photo' })?.photoFileId).toBe('file-photo')
+    expect(parseRpc(recordPayload, { ...RECORD_JSON, photo_file_id: null })?.photoFileId).toBeNull()
+    expect(RECORD_JSON).not.toHaveProperty('photo_file_id')
+    expect(parseRpc(recordPayload, RECORD_JSON)?.photoFileId).toBeNull()
+    expect(() => parseRpc(recordPayload, { ...RECORD_JSON, photo_file_id: 42 })).toThrow(SHAPE_ERROR)
+  })
+
+  it('reads the photo in « Mon profil »\'s own record too', () => {
+    const own: Record<string, unknown> = { ...RECORD_JSON, photo_file_id: 'file-photo' }
+    delete own.readiness
+    expect(parseRpc(myRecordPayload, own)?.photoFileId).toBe('file-photo')
   })
 
   it('ignores columns added by later batches', () => {
