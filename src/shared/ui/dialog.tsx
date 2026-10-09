@@ -3,7 +3,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { t } from '@/i18n'
 import { cn } from '@/shared/lib/utils'
-import { closeButtonClasses, overlayClasses, overlayContentClasses } from './overlay-classes'
+import { closeButtonClasses, overlayClasses, overlayContentClasses, overlayTopClasses } from './overlay-classes'
 import { keepOpenForCombobox } from './overlay-escape'
 
 const Dialog = DialogPrimitive.Root
@@ -27,12 +27,17 @@ interface DialogContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
   /** Hide the default close button (use when providing custom header with close) */
   hideClose?: boolean
+  /**
+   * `center` (default): centred in the window. `top`: anchored 15vh from the top, for a dialog
+   * whose height changes while open (the ⌘K palette), so it grows downwards instead of jumping.
+   */
+  position?: 'center' | 'top'
 }
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, hideClose = false, onEscapeKeyDown, ...props }, ref) => (
+>(({ className, children, hideClose = false, position = 'center', onEscapeKeyDown, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -40,7 +45,8 @@ const DialogContent = React.forwardRef<
       // Radix makes the rest of the page inert but does not say so; the app shell relies on it
       // (⌘K stays closed while another modal is open), and it is the correct ARIA for a modal.
       aria-modal="true"
-      className={cn(overlayContentClasses, className)}
+      className={cn(overlayContentClasses, position === 'top' && overlayTopClasses, className)}
+      data-position={position}
       {...props}
       // Échap from an open address list closes the list, not the dialog (P4-223).
       onEscapeKeyDown={keepOpenForCombobox(onEscapeKeyDown)}
