@@ -19,8 +19,23 @@ const requestPayload = z
     sent_at: z.string().nullable(),
     completed_at: z.string().nullable(),
     signed_at: z.string().nullable(),
+    // Core's downloads of her signed PDF (P4-500): the files' names and the document's pages.
+    title: z.string().nullable().default(null),
+    signed_file_id: z.string().nullable().default(null),
+    source_file_id: z.string().nullable().default(null),
+    page_count: z.number().nullable().default(null),
   })
-  .transform((r) => ({ status: r.status, lastError: r.last_error, sentAt: r.sent_at, completedAt: r.completed_at, signedAt: r.signed_at }))
+  .transform((r) => ({
+    status: r.status,
+    lastError: r.last_error,
+    sentAt: r.sent_at,
+    completedAt: r.completed_at,
+    signedAt: r.signed_at,
+    title: r.title,
+    signedFileId: r.signed_file_id,
+    sourceFileId: r.source_file_id,
+    pageCount: r.page_count,
+  }))
 
 export const myImageConsentPayload = z
   .object({

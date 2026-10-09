@@ -31,6 +31,8 @@ export interface DocumentsPanelProps {
   focusFallback: () => void
   /** Extra content of a required type's card (the record's image-consent signing, P4-485). */
   typeExtra?: (type: DocumentType) => ReactNode
+  /** Staff: brings « Questionnaire et mises à jour » into view (a card's « Voir le questionnaire à réviser », P4-495). */
+  onShowReview?: () => void
 }
 
 /**
@@ -41,7 +43,7 @@ export interface DocumentsPanelProps {
  * time (upload, preview, verify, refuse, redate, delete); focus goes back to the button that
  * opened it, else to the page's heading.
  */
-export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce, focusFallback, typeExtra }: DocumentsPanelProps) {
+export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce, focusFallback, typeExtra, onShowReview }: DocumentsPanelProps) {
   const requiredId = useId()
   const [open, setOpen] = useState<OpenDialog | null>(null)
   const opener = useRef<HTMLElement | null>(null)
@@ -68,7 +70,11 @@ export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce
             {t(`${D}.required.title`)}
           </h3>
           {summary.total > 0 && (
-            <p className="text-sm text-muted-foreground">{t(`${D}.required.summary`, { done: String(summary.done), total: String(summary.total) })}</p>
+            <p className="text-sm text-muted-foreground">
+              {t(`${D}.required.summary`, { done: String(summary.done), total: String(summary.total) })}
+              {/* Not in order yet, but waiting for the clinic (P4-495): the count is no failure. */}
+              {summary.awaiting > 0 && ` · ${t(`${D}.required.awaiting`, { count: String(summary.awaiting) })}`}
+            </p>
           )}
         </div>
         {required.length === 0 ? (
@@ -83,6 +89,7 @@ export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce
               can={viewer === 'self' && entry.type.key === 'image_consent' ? { ...can, upload: false } : can}
               onUpload={(button) => onUpload(entry.type, button)}
               extra={typeExtra?.(entry.type)}
+              onShowReview={onShowReview}
             />
           ))
         )}

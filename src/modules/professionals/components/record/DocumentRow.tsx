@@ -91,9 +91,6 @@ export function DocumentRow({ document, type, today, viewer, firstName, can, lab
   const menu = actions.filter((a) => !inline.includes(a))
   const name = t(`${D}.actions.documentName`, { type: type?.name ?? '', state })
 
-  // TODO(signing-split-downloads): a document signed through Documenso (`signatureRequestId`)
-  // should offer core's split downloads (the signed pages, the certificate and journal, the sealed
-  // original) instead of the one « Télécharger » of the stored file.
   const press = (action: DocumentAction, opener: HTMLButtonElement) => {
     if (action !== 'download') return onAction(action, document, opener)
     if (document.file && !download.isPending) download.mutate(document.file.id)

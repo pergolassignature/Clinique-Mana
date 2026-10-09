@@ -187,16 +187,20 @@ export function invitationLine(invitation: InvitationInfo | null, now: number): 
 
 /**
  * « Questionnaire approuvé »'s line while it is not: sent and waiting for review, being filled
- * in, or not yet opened (no account). Null once approved.
+ * in, or not yet opened (no account). Null once approved. The open submission may be an update
+ * (a file activated without an approved questionnaire, P4-179): it reads the same way, as
+ * « Mise à jour envoyée le …, à réviser. » or « Mise à jour en cours : pas encore envoyée. »
+ * (P4-497), never « Aucun questionnaire en cours ».
  */
 export function questionnaireLine(professional: Pick<Professional, 'profileId'>, onboarding: Onboarding | null, now: number): string | null {
   if (onboarding?.onboardingApproved) return null
-  const submission = onboarding?.submission?.kind === 'onboarding' ? onboarding.submission : null
+  const submission = onboarding?.submission ?? null
+  const update = submission?.kind === 'update' ? 'Update' : ''
   if (submission?.status === 'submitted') {
     return submission.submittedAt
-      ? t(`${O}.questionnaire.submitted`, { date: shortDate(submission.submittedAt, now) })
-      : t(`${O}.questionnaire.submittedUndated`)
+      ? t(`${O}.questionnaire.submitted${update}`, { date: shortDate(submission.submittedAt, now) })
+      : t(`${O}.questionnaire.submitted${update}Undated`)
   }
   if (professional.profileId === null) return t(`${O}.questionnaire.afterInvitation`)
-  return submission ? t(`${O}.questionnaire.inProgress`) : t(`${O}.questionnaire.none`)
+  return submission ? t(`${O}.questionnaire.inProgress${update}`) : t(`${O}.questionnaire.none`)
 }

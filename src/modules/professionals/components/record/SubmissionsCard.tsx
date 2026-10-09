@@ -27,8 +27,10 @@ const C = 'modules.professionals.submission.card'
  * A submission waiting for review offers « Réviser » to reviewers (`professionals.review`), except
  * on their own file (P4-304: the database refuses it, so the button is not offered). An open update
  * offers « Fermer la demande » to those who ask for updates (`professionals.invite`, P4-421).
+ * `id`: the card's element, which a document card's « Voir le questionnaire à réviser » scrolls to
+ * and focuses (P4-495).
  */
-export function SubmissionsCard() {
+export function SubmissionsCard({ id }: { id?: string } = {}) {
   const { record, focusHeading } = useRecordData()
   const { professional } = record
   const submissions = useProfessionalSubmissions(professional.id)
@@ -36,7 +38,7 @@ export function SubmissionsCard() {
   const [closing, setClosing] = useState<string | null>(null)
   const opener = useRef<HTMLButtonElement | null>(null)
   return (
-    <Card className="min-w-0">
+    <Card id={id} tabIndex={id ? -1 : undefined} className="min-w-0 outline-none">
       <CardHeader>
         <CardTitle>{t(`${C}.title`)}</CardTitle>
         <CardDescription>{t(`${C}.description`, { firstName: professional.firstName })}</CardDescription>

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { t } from '@/i18n'
+import { formatClinicDateShort } from '@/shared/lib/timezone'
 import { CATALOG } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
-import { CONSENT_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON } from '../test/fixtures-documents'
+import { CONSENT_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON, stagedJson } from '../test/fixtures-documents'
 import {
   addTwelveMonths,
   consentLastDay,
@@ -17,8 +18,12 @@ import {
   mimeListLabel,
   remindersLabel,
   requiredSummary,
+  stagedInDraft,
+  typeCardTone,
   typeDocuments,
+  typeStateLabel,
   uploadableTypes,
+  uploadOffered,
 } from './documents'
 
 const types = CATALOG.documentTypes
@@ -102,13 +107,94 @@ describe('typeDocuments', () => {
   })
 })
 
+describe('the questionnaire’s documents (P4-495)', () => {
+  const D = 'modules.professionals.documents'
+  const SENT = '2026-10-08T14:00:00+00:00'
+  const date = formatClinicDateShort(SENT)
+  const SELF = { upload: true }
+  // A first questionnaire: nothing on file yet, no e-consent.
+  const empty = { documents: [], consent: null }
+  const staged = (status: 'draft' | 'submitted', over: Record<string, unknown> = {}) => [
+    stagedJson({ status, ...over }),
+    stagedJson({ type_key: 'insurance', kind: 'insurance', status, ...over }),
+    stagedJson({ type_key: 'image_consent', kind: 'consent', status, ...over }),
+  ]
+
+  it('no questionnaire: the cards read their own state', () => {
+    const entry = typeDocuments(type('photo'), documentsFixture(empty))
+    expect(entry).toMatchObject({ kind: 'missing', staged: null })
+    expect(typeStateLabel(entry, true)).toBe(t(`${D}.state.missing`))
+    expect(uploadOffered(entry, 'self', SELF)).toBe(true)
+  })
+
+  it('sent and waiting: never « Manquant », in the professional’s words and in staff’s', () => {
+    const data = documentsFixture({ ...empty, staged: staged('submitted') })
+    const { required } = groupDocuments(types, data)
+    expect(required.map((x) => x.kind)).toEqual(['submitted', 'submitted', 'submitted'])
+    const [photo, insurance, consent] = required as [NonNullable<(typeof required)[0]>, NonNullable<(typeof required)[0]>, NonNullable<(typeof required)[0]>]
+    expect(typeStateLabel(photo, true)).toBe(t(`${D}.state.submittedSelf`, { date }))
+    expect(typeStateLabel(insurance, true)).toBe(`Envoyé avec votre questionnaire le ${date} · en attente de vérification par la clinique`)
+    expect(typeStateLabel(insurance, false)).toBe(`Dans le questionnaire à réviser (envoyé le ${date})`)
+    expect(typeStateLabel(consent, true)).toBe(t(`${D}.state.submittedSelfConsent`, { date }))
+    expect(typeStateLabel(consent, false)).toBe(t(`${D}.state.submittedConsent`, { date }))
+    expect(typeCardTone(photo, true)).toBe('warning')
+    expect(typeCardTone(photo, false)).toBe('warning')
+    // She is not offered a second copy; staff keep their upload.
+    expect(uploadOffered(photo, 'self', SELF)).toBe(false)
+    expect(uploadOffered(photo, 'staff', SELF)).toBe(true)
+    // Not in order yet, but waiting: « 0 sur 3 · 3 en attente de vérification ».
+    expect(requiredSummary(required)).toEqual({ done: 0, total: 3, awaiting: 3 })
+  })
+
+  it('sent and waiting over a refused or an expired document; a valid one keeps its state', () => {
+    const refused = documentsFixture({ ...empty, documents: [documentJson({ status: 'rejected', rejection_reason: 'Illisible.' })], staged: staged('submitted') })
+    expect(typeDocuments(type('insurance'), refused).kind).toBe('submitted')
+    const expired = documentsFixture({ today: '2027-04-01', staged: staged('submitted') })
+    expect(typeDocuments(type('insurance'), expired)).toMatchObject({ kind: 'submitted', until: '2027-03-31' })
+    // An update renewing a valid photo: still valid (the review decides), and still no upload for her.
+    const valid = typeDocuments(type('photo'), documentsFixture({ staged: staged('submitted') }))
+    expect(valid.kind).toBe('valid')
+    expect(uploadOffered(valid, 'self', SELF)).toBe(false)
+  })
+
+  it('a draft (not sent, or sent back): « Ajouté à votre questionnaire » for her; staff read the card as is', () => {
+    for (const data of [documentsFixture({ ...empty, staged: staged('draft', { submitted_at: null }) }), documentsFixture({ ...empty, staged: staged('draft') })]) {
+      const { required } = groupDocuments(types, data)
+      const [photo, , consent] = required as [NonNullable<(typeof required)[0]>, unknown, NonNullable<(typeof required)[0]>]
+      expect(photo.kind).toBe('missing')
+      expect(stagedInDraft(photo)).toBe(true)
+      expect(typeStateLabel(photo, true)).toBe('Ajouté à votre questionnaire, pas encore envoyé')
+      expect(typeStateLabel(consent, true)).toBe(t(`${D}.state.inDraftSelfConsent`))
+      expect(typeCardTone(photo, true)).toBe('warning')
+      expect(typeStateLabel(photo, false)).toBe(t(`${D}.state.missing`))
+      expect(typeCardTone(photo, false)).toBe('error')
+      expect(uploadOffered(photo, 'self', SELF)).toBe(false)
+      expect(requiredSummary(required)).toEqual({ done: 0, total: 3, awaiting: 0 })
+    }
+  })
+
+  it('approved: nothing staged, the real documents count', () => {
+    const { required } = groupDocuments(types, documentsFixture())
+    expect(required.map((x) => x.kind)).toEqual(['valid', 'valid', 'valid'])
+    expect(required.every((x) => x.staged === null)).toBe(true)
+  })
+
+  it('the insurance banner: a renewal sent with the questionnaire thanks her; one in her draft asks to send it', () => {
+    expect(insuranceBanner(types, documentsFixture({ today: '2027-04-01', staged: staged('submitted') }))).toEqual({ kind: 'renewal_pending' })
+    expect(insuranceBanner(types, documentsFixture({ today: '2027-03-26', staged: staged('submitted') }))).toEqual({ kind: 'renewal_pending' })
+    expect(insuranceBanner(types, documentsFixture({ today: '2027-04-01', staged: staged('draft') }))).toEqual({ kind: 'in_questionnaire' })
+    // A first insurance sent: the card says so, no banner.
+    expect(insuranceBanner(types, documentsFixture({ ...empty, staged: staged('submitted') }))).toBeNull()
+  })
+})
+
 describe('groups and summary', () => {
   it('one card per required active type, every other document under « Autres documents »', () => {
     const data = documentsFixture({ documents: [documentJson(), PHOTO_JSON, documentJson({ id: DOC_IDS.cv, type_id: IDS.cvType, type_key: 'cv', expires_on: null })] })
     const { required, others } = groupDocuments(types, data)
     expect(required.map((x) => x.type.key)).toEqual(['photo', 'insurance', 'image_consent'])
     expect(others.map((d) => d.id)).toEqual([DOC_IDS.cv])
-    expect(requiredSummary(required)).toEqual({ done: 3, total: 3 })
+    expect(requiredSummary(required)).toEqual({ done: 3, total: 3, awaiting: 0 })
   })
 
   it('offers required types first, never an archived one', () => {
@@ -133,7 +219,8 @@ describe('documentActions', () => {
   it('a consent signed through Documenso is never refused (its file is the signature’s copy, P4-485)', () => {
     const signed = doc({ type_id: IDS.consentType, signature_request_id: '00000000-0000-4000-8000-00000000c501' })
     expect(signed.signatureRequestId).toBe('00000000-0000-4000-8000-00000000c501')
-    expect(documentActions(signed, type('image_consent'), ALL)).toEqual(['preview', 'download', 'redate', 'delete'])
+    // Downloaded from its signing part (core's split downloads), not from the row.
+    expect(documentActions(signed, type('image_consent'), ALL)).toEqual(['preview', 'redate', 'delete'])
     expect(doc({}).signatureRequestId).toBeNull()
   })
 })

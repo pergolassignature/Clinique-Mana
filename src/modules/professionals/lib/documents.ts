@@ -1,8 +1,8 @@
 import { t } from '@/i18n'
 import { formatMegabytes } from '@/shared/lib/files'
-import { formatDateOnly, shiftCalendarDay } from '@/shared/lib/timezone'
+import { formatClinicDateShort, formatDateOnly, shiftCalendarDay } from '@/shared/lib/timezone'
 import type { StatusTone } from '@/shared/ui/status-dot'
-import type { ProfessionalConsent, ProfessionalDocument, ProfessionalDocuments } from '../api/documents'
+import type { ProfessionalConsent, ProfessionalDocument, ProfessionalDocuments, StagedDocument } from '../api/documents'
 import type { DocumentType } from '../api/parse'
 import type { DocumentExpiryRule, DocumentMimeType } from './constants'
 import { listLabel } from './display'
@@ -55,7 +55,8 @@ export function consentLastDay(consent: ProfessionalConsent): string {
   return before < consent.expiresOn ? before : consent.expiresOn
 }
 
-export type DocumentStateKind = 'valid' | 'expiring' | 'expired' | 'pending' | 'rejected' | 'missing'
+/** `submitted`: nothing counts yet, but the questionnaire waiting for review holds it (P4-495). */
+export type DocumentStateKind = 'valid' | 'expiring' | 'expired' | 'pending' | 'submitted' | 'rejected' | 'missing'
 
 /** One type's documents, as a card shows them. */
 export interface TypeDocuments {
@@ -73,6 +74,8 @@ export interface TypeDocuments {
   until: string | null
   /** The type's other documents (superseded, older refusals), newest first. */
   older: ProfessionalDocument[]
+  /** What the open questionnaire holds for this type (a draft, or sent and waiting), if anything (P4-495). */
+  staged: StagedDocument | null
 }
 
 /**
@@ -87,7 +90,7 @@ const isValid = (d: ProfessionalDocument, today: string, rule: DocumentExpiryRul
  * reminder), expired, pending (nothing valid yet, a document waits), refused (the newest one,
  * nothing waiting), missing. For the image consent, an e-consent in force counts as valid.
  */
-export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocuments, 'documents' | 'consent' | 'today'>): TypeDocuments {
+export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocuments, 'documents' | 'consent' | 'today'> & Partial<Pick<ProfessionalDocuments, 'staged'>>): TypeDocuments {
   const { today } = data
   const docs = data.documents.filter((d) => d.typeId === type.id)
   const reviewed = docs.filter((d) => d.status === 'verified' || d.status === 'expired')
@@ -102,6 +105,7 @@ export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocumen
   // same unless a newer one ends sooner, a case the questionnaire does not produce).
   const consent = type.key === 'image_consent' && data.consent && consentLastDay(data.consent) >= today ? data.consent : null
   const older = docs.filter((d) => d !== current && d !== pending && d !== rejected)
+  const staged = data.staged?.find((x) => x.typeKey === type.key) ?? null
 
   let kind: DocumentStateKind
   let until: string | null = null
@@ -124,15 +128,34 @@ export function typeDocuments(type: DocumentType, data: Pick<ProfessionalDocumen
   } else {
     kind = 'missing'
   }
-  return { type, kind, current, pending, rejected, consent, until, older }
+  // Sent with the questionnaire, waiting for review: never « Manquant » (nor « Refusé », « Expiré »).
+  if (staged?.status === 'submitted' && (kind === 'missing' || kind === 'rejected' || kind === 'expired')) kind = 'submitted'
+  return { type, kind, current, pending, rejected, consent, until, older, staged }
 }
+
+/**
+ * The professional's own draft holds this type while nothing counts (P4-495): « Ajouté à votre
+ * questionnaire, pas encore envoyé » on her side; staff read the card's own state (not sent yet).
+ */
+export const stagedInDraft = ({ kind, staged }: Pick<TypeDocuments, 'kind' | 'staged'>) =>
+  staged?.status === 'draft' && (kind === 'missing' || kind === 'rejected' || kind === 'expired')
+
+/**
+ * Whether the card offers « Téléverser » / « Remplacer » (P4-495): never to the professional while
+ * her open questionnaire holds the type (a second copy would bypass its review); staff keep it.
+ */
+export const uploadOffered = (entry: Pick<TypeDocuments, 'staged'>, viewer: DocumentViewer, can: Pick<DocumentPermissions, 'upload'>) =>
+  can.upload && !(viewer === 'self' && entry.staged !== null)
 
 /**
  * A type's state in words: « Valide jusqu'au 31 mars 2027 », « Vérifié », « Expire le … »,
  * « Expiré : valide jusqu'au … » (the last valid day, never « expiré le », a day off, P4-413).
  * `self`: the professional reads it (« En attente de vérification par la clinique », not « À vérifier »).
  */
-export function typeStateLabel({ kind, until }: Pick<TypeDocuments, 'kind' | 'until'>, self = false): string {
+export function typeStateLabel(entry: Pick<TypeDocuments, 'kind' | 'until'> & Partial<Pick<TypeDocuments, 'staged'>>, self = false): string {
+  const { kind, until, staged = null } = entry
+  const consent = staged?.kind === 'consent' ? 'Consent' : ''
+  if (self && stagedInDraft({ kind, staged })) return t(`${D}.state.inDraftSelf${consent}`)
   switch (kind) {
     case 'valid':
       return until ? t(`${D}.state.validUntil`, { date: formatDateOnly(until) }) : t(`${D}.state.verified`)
@@ -142,6 +165,10 @@ export function typeStateLabel({ kind, until }: Pick<TypeDocuments, 'kind' | 'un
       return until ? t(`${D}.state.expiredOn`, { date: formatDateOnly(until) }) : t(`${D}.state.expired`)
     case 'pending':
       return t(self ? `${D}.state.pendingSelf` : `${D}.state.pending`)
+    case 'submitted': {
+      const date = staged?.submittedAt ? formatClinicDateShort(staged.submittedAt) : ''
+      return t(self ? `${D}.state.submittedSelf${consent}` : `${D}.state.submitted${consent}`, { date })
+    }
     case 'rejected':
       return t(`${D}.state.rejected`)
     case 'missing':
@@ -152,7 +179,7 @@ export function typeStateLabel({ kind, until }: Pick<TypeDocuments, 'kind' | 'un
 /** The dot next to the words: an expiry soon is a warning, an expired, refused or missing required document an error. */
 export function typeStateTone(kind: DocumentStateKind, required = true): StatusTone {
   if (kind === 'valid') return 'success'
-  if (kind === 'expiring' || kind === 'pending') return 'warning'
+  if (kind === 'expiring' || kind === 'pending' || kind === 'submitted') return 'warning'
   if (kind === 'missing' && !required) return 'neutral'
   return 'error'
 }
@@ -171,10 +198,23 @@ export function documentStateTone(document: ProfessionalDocument, today: string)
   return isValid(document, today) ? 'success' : 'error'
 }
 
-/** « 2 / 3 documents requis valides »: the required active types that are valid (or expiring) on `today`. */
-export function requiredSummary(types: readonly TypeDocuments[]): { done: number; total: number } {
+/** The card's dot for the viewer: the professional's own draft holding the type is a warning, not an error (P4-495). */
+export function typeCardTone(entry: Pick<TypeDocuments, 'kind' | 'staged'>, self = false): StatusTone {
+  return self && stagedInDraft(entry) ? 'warning' : typeStateTone(entry.kind)
+}
+
+/**
+ * « Documents requis en règle : 2 sur 3 »: the required active types that are valid (or expiring)
+ * on `today`; `awaiting` those that wait for the clinic's review (a document uploaded, or sent with
+ * the questionnaire, P4-495), so the count does not read as a failure.
+ */
+export function requiredSummary(types: readonly TypeDocuments[]): { done: number; total: number; awaiting: number } {
   const required = types.filter((x) => x.type.required)
-  return { done: required.filter((x) => x.kind === 'valid' || x.kind === 'expiring').length, total: required.length }
+  return {
+    done: required.filter((x) => x.kind === 'valid' || x.kind === 'expiring').length,
+    total: required.length,
+    awaiting: required.filter((x) => x.kind === 'pending' || x.kind === 'submitted').length,
+  }
 }
 
 /**
@@ -249,7 +289,9 @@ export type DocumentAction = 'preview' | 'download' | 'verify' | 'reject' | 'red
 export function documentActions(document: ProfessionalDocument, type: Pick<DocumentType, 'expiryRule'> | undefined, can: DocumentPermissions): DocumentAction[] {
   const actions: DocumentAction[] = []
   if (document.file && isPreviewable(document.file.mimeType)) actions.push('preview')
-  if (document.file) actions.push('download')
+  // A consent signed through Documenso is downloaded from its signing part (core's split
+  // downloads, P4-500: the document, the certificate and journal, the sealed proof), never here.
+  if (document.file && document.signatureRequestId === null) actions.push('download')
   if (can.review && document.status === 'pending') actions.push('verify')
   // A consent signed through Documenso is never refused: its file is the signature's copy (P4-485).
   if (can.review && document.signatureRequestId === null && (document.status === 'pending' || document.status === 'verified')) actions.push('reject')
@@ -286,19 +328,27 @@ export function expiryError(value: string, { min }: { min?: string } = {}): stri
 }
 
 /** « Mes documents »' banner about the insurance (P4-454), if any. */
-export type InsuranceBanner = { kind: 'expiring'; until: string } | { kind: 'expired' } | { kind: 'renewal_pending' }
+export type InsuranceBanner = { kind: 'expiring'; until: string } | { kind: 'expired' } | { kind: 'renewal_pending' } | { kind: 'in_questionnaire' }
 
 /**
  * The insurance's banner on « Mes documents », by the tab's own rule (`typeDocuments`, the same
- * window as the reminders): expiring or expired; once a new proof waits for the clinic's review,
- * a thank-you instead (the reminders stop then too, P4-408). None otherwise.
+ * window as the reminders): expiring or expired; once a new proof waits for the clinic's review
+ * (uploaded, or sent with the questionnaire, P4-495), a thank-you instead (the reminders stop then
+ * too, P4-408); while it sits in her questionnaire not sent yet, a nudge to send it. None otherwise.
  */
-export function insuranceBanner(types: readonly DocumentType[], data: Pick<ProfessionalDocuments, 'documents' | 'consent' | 'today'>): InsuranceBanner | null {
+export function insuranceBanner(
+  types: readonly DocumentType[],
+  data: Pick<ProfessionalDocuments, 'documents' | 'consent' | 'today'> & Partial<Pick<ProfessionalDocuments, 'staged'>>,
+): InsuranceBanner | null {
   const type = types.find((x) => x.key === 'insurance' && x.isActive)
   if (!type) return null
   const entry = typeDocuments(type, data)
+  // An expired one renewed in the questionnaire sent (P4-495): the thank-you, as for an upload.
+  if (entry.kind === 'submitted') return entry.current ? { kind: 'renewal_pending' } : null
   if (entry.kind !== 'expiring' && entry.kind !== 'expired') return null
-  if (entry.pending) return { kind: 'renewal_pending' }
+  if (entry.pending || entry.staged?.status === 'submitted') return { kind: 'renewal_pending' }
+  // The new proof is in her questionnaire, not sent yet (« Téléverser » is not offered then).
+  if (entry.staged) return { kind: 'in_questionnaire' }
   return entry.kind === 'expiring' && entry.until ? { kind: 'expiring', until: entry.until } : { kind: 'expired' }
 }
 

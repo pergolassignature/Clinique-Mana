@@ -8,7 +8,7 @@ import { accessForRole } from '@/test/role-fixtures'
 import type { ProfessionalDocuments } from '../../api/documents'
 import { professionalKeys } from '../../hooks/keys'
 import { IDS } from '../../test/fixtures'
-import { CONSENT_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON } from '../../test/fixtures-documents'
+import { CONSENT_JSON, DOC_IDS, documentJson, documentsFixture, PHOTO_JSON, stagedJson } from '../../test/fixtures-documents'
 import { CATALOG, recordFixture } from '../../test/fixtures-domain'
 import { setupQueryClient } from '../../test/query-client'
 import { MyDocumentsPage } from './MyDocumentsPage'
@@ -90,6 +90,56 @@ describe('MyDocumentsPage — banners by the clinic’s date', () => {
     await loaded()
     expect(screen.queryByText(t(`${M}.banners.expired`))).not.toBeInTheDocument()
     expect(screen.getByText(t(`${M}.banners.renewalPending`))).toBeInTheDocument()
+  })
+})
+
+describe('MyDocumentsPage — documents sent with her questionnaire (P4-495)', () => {
+  const PHOTO = 'Photo professionnelle'
+  const CONSENT = "Consentement droit à l'image"
+  const staged = (status: 'draft' | 'submitted', submittedAt: string | null = '2026-10-08T14:00:00+00:00') => [
+    stagedJson({ status, submitted_at: submittedAt }),
+    stagedJson({ type_key: 'insurance', kind: 'insurance', status, submitted_at: submittedAt }),
+    stagedJson({ type_key: 'image_consent', kind: 'consent', status, submitted_at: submittedAt }),
+  ]
+  const region = (name: string) => screen.getByRole('region', { name })
+
+  it('sent: « en attente de vérification », never « Manquant », and no second upload', async () => {
+    renderPage(documentsFixture({ documents: [], consent: null, staged: staged('submitted') }))
+    await loaded()
+    for (const name of [PHOTO, INSURANCE]) {
+      expect(region(name)).toHaveTextContent('Envoyé avec votre questionnaire le 08 oct. 2026 · en attente de vérification par la clinique')
+      expect(region(name)).not.toHaveTextContent(t(`${D}.state.missing`))
+      expect(region(name)).not.toHaveTextContent(t(`${D}.lines.none`))
+      expect(within(region(name)).queryByRole('button', { name: /^(Téléverser|Remplacer)/ })).not.toBeInTheDocument()
+    }
+    expect(region(CONSENT)).toHaveTextContent('Signé dans votre questionnaire envoyé le 08 oct. 2026 · en attente de vérification par la clinique')
+    expect(screen.getByText('Documents requis en règle : 0 sur 3 · 3 en attente de vérification')).toBeInTheDocument()
+    // No link to the review on her side; « Téléverser un document » (other types) stays.
+    expect(screen.queryByRole('button', { name: t(`${D}.lines.showReview`) })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t(`${D}.actions.uploadOther`) })).toBeInTheDocument()
+  })
+
+  it('in her draft (not sent, or sent back): « Ajouté à votre questionnaire, pas encore envoyé »', async () => {
+    renderPage(documentsFixture({ documents: [], consent: null, staged: staged('draft', null) }))
+    await loaded()
+    expect(region(PHOTO)).toHaveTextContent('Ajouté à votre questionnaire, pas encore envoyé')
+    expect(region(CONSENT)).toHaveTextContent('Signé dans votre questionnaire, pas encore envoyé')
+    expect(within(region(PHOTO)).queryByRole('button', { name: /^(Téléverser|Remplacer)/ })).not.toBeInTheDocument()
+    expect(screen.getByText(t(`${D}.required.summary`, { done: '0', total: '3' }))).toBeInTheDocument()
+  })
+
+  it('an expired insurance renewed in her draft: the banner asks her to send the questionnaire', async () => {
+    renderPage(documentsFixture({ today: '2027-04-01', staged: staged('draft') }))
+    await loaded()
+    expect(screen.getByText(t(`${M}.banners.inQuestionnaire`))).toBeInTheDocument()
+    expect(screen.queryByText(t(`${M}.banners.expired`))).not.toBeInTheDocument()
+  })
+
+  it('no questionnaire: « Manquant » and « Téléverser » as before', async () => {
+    renderPage(documentsFixture({ documents: [], consent: null }))
+    await loaded()
+    expect(region(PHOTO)).toHaveTextContent(t(`${D}.state.missing`))
+    expect(within(region(PHOTO)).getByRole('button', { name: t(`${D}.actions.uploadLabel`, { type: PHOTO }) })).toBeInTheDocument()
   })
 })
 

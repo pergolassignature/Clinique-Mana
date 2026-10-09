@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { CircleCheck } from 'lucide-react'
 import { t } from '@/i18n'
 import { moduleErrorMessage } from '@/core/modules/errors'
+import { SignedDocumentDownloads } from '@/core/signing/components/SignedDocumentDownloads'
 import { Loading, LoadError } from '@/shared/components/LoadState'
 import { softDisabledClasses } from '@/shared/components/soft-disabled'
 import { Button } from '@/shared/ui/button'
@@ -66,11 +67,22 @@ export function ConsentSigning({ back, variant }: { back: SigningReturn; variant
     )
   }
   if (inForce) {
+    const signed = data.request?.status === 'signed' && data.request.signedFileId ? data.request : null
     return (
-      <p role="status" className="flex items-start gap-2 text-sm text-foreground">
-        <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
-        <span>{inForce}</span>
-      </p>
+      <div className="space-y-2">
+        <p role="status" className="flex items-start gap-2 text-sm text-foreground">
+          <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
+          <span>{inForce}</span>
+        </p>
+        {signed && (
+          // Core's downloads (P4-500): « Consentement au droit à l'image - Prénom Nom - signé le … ».
+          <SignedDocumentDownloads
+            key={signed.signedFileId}
+            files={{ title: signed.title, completedAt: signed.completedAt, signedFileId: signed.signedFileId!, sourceFileId: signed.sourceFileId, pageCount: signed.pageCount }}
+            documentLabel={t('modules.professionals.imageConsent.actions.pdf')}
+          />
+        )}
+      </div>
     )
   }
   if (!data.available) {

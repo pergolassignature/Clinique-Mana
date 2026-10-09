@@ -457,7 +457,9 @@ grant execute on function public.prepare_professional_image_consent(uuid, uuid, 
 -- -----------------------------------------------------------------------------
 -- The consent card (professionals.view)
 -- -----------------------------------------------------------------------------
--- get_professional_contract's shape for the latest image-consent request, without clinic_signer:
+-- get_professional_contract's shape (with *_professionals_contract_signed_files.sql's title,
+-- source_file_id and page_count for core's downloads) for the latest image-consent request,
+-- without clinic_signer:
 -- {template: {id, published_version_id, published_version, published_at, draft_version_id} | null,
 -- request: {…, can_read, signed_file_id, rejection_reason, signers} | null}. Null for a
 -- professional the caller cannot read.
@@ -487,7 +489,10 @@ begin
            'completed_at', r.completed_at, 'rejected_at', r.rejected_at, 'cancelled_at', r.cancelled_at,
            'expired_at', r.expired_at, 'expires_at', r.expires_at,
            'can_read', r.view_permission = any (v_perms),
+           'title', case when r.view_permission = any (v_perms) then r.title end,
            'signed_file_id', case when r.view_permission = any (v_perms) then r.signed_file_id end,
+           'source_file_id', case when r.view_permission = any (v_perms) then r.source_file_id end,
+           'page_count', case when r.view_permission = any (v_perms) then r.page_count end,
            'rejection_reason', case when r.view_permission = any (v_perms) then r.rejection_reason end,
            'signers', coalesce((select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
                                          'role', s.role, 'name', s.name, 'status', s.status,
@@ -671,9 +676,9 @@ begin
 end;
 $$;
 
--- The Documents tab and « Mes documents »: *_professionals_documents.sql's payload, each document
--- with `signature_request_id` (null for an uploaded file; set for a consent signed through
--- Documenso).
+-- The Documents tab and « Mes documents »: *_professionals_documents_staged.sql's payload (P4-495),
+-- each document with `signature_request_id` (null for an uploaded file; set for a consent signed
+-- through Documenso), and the staged consent also her Documenso signature not completed yet.
 create or replace function public.get_professional_documents(p_id uuid default null)
 returns jsonb
 language plpgsql
@@ -728,7 +733,34 @@ begin
         join public.consent_versions cv on cv.org_id = k.org_id and cv.id = k.consent_version_id
        where k.professional_id = v_pid and k.org_id = v_org
        order by k.signed_at desc, k.id desc
-       limit 1)
+       limit 1),
+    'staged', coalesce((
+      select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+               'type_key', x.type_key, 'kind', x.kind, 'submission_id', s.id, 'status', s.status,
+               'submitted_at', s.submitted_at)
+             order by x.ord)
+        from public.professional_submissions s
+       cross join lateral (values
+               (1, 'photo', 'photo', s.submitted_values #>> '{photo,file_id}'),
+               (2, 'insurance', 'insurance', s.submitted_values #>> '{insurance,file_id}'),
+               (3, 'image_consent', 'consent', null)) as x(ord, type_key, kind, file_id)
+       where s.professional_id = v_pid and s.org_id = v_org and s.status in ('draft', 'submitted')
+         and x.kind = any (s.requested_sections)
+         -- The consent: the former e-consent in the answers, or (P4-487) her signature through
+         -- Documenso while the request awaits its completion (it becomes a document then).
+         and case when x.kind = 'consent' then s.submitted_values #>> '{consent,consent_version_id}' is not null
+                    or exists (select 1 from public.signature_requests r
+                                 join public.signature_request_signers g on g.request_id = r.id and g.role = 'professional'
+                                where r.org_id = v_org and r.subject_type = 'professional' and r.subject_id = v_pid
+                                  and r.purpose = 'professionals.image_consent' and r.status in ('sent', 'viewed')
+                                  and g.signed_at is not null)
+                  else exists (
+                    select 1 from public.stored_files f
+                     where f.id = x.file_id::uuid and f.org_id = v_org and f.status = 'ready'
+                       and f.purpose = 'professional_submission_file'
+                       and f.subject_type = 'professional_submission' and f.subject_id = s.id
+                       and (f.retain_until is null or f.retain_until > pg_catalog.now())
+                       and (v_staff or f.uploaded_by = auth.uid())) end), '[]'::jsonb)
   );
 end;
 $$;
@@ -848,7 +880,8 @@ $$;
 -- The « Consentement » step: what the professional sees (professionals.self, her own file only):
 -- {available: the clinic published the form, valid_until: the last day of the consent in force (a
 -- signed document or the e-consent) or null, request: her latest image-consent request {status,
--- last_error, sent_at, completed_at, signed_at (her own signature)} or null}. Null without a file.
+-- last_error, sent_at, completed_at, title, signed_file_id, source_file_id, page_count (core's
+-- downloads), signed_at (her own signature)} or null}. Null without a file.
 create function public.get_my_image_consent()
 returns jsonb
 language plpgsql
@@ -870,6 +903,9 @@ begin
     'request', (select pg_catalog.jsonb_build_object(
                          'status', r.status, 'last_error', r.last_error, 'sent_at', r.sent_at,
                          'completed_at', r.completed_at,
+                         -- Core's downloads of her signed PDF (her own file, P4-485): the names and N.
+                         'title', r.title, 'signed_file_id', r.signed_file_id, 'source_file_id', r.source_file_id,
+                         'page_count', r.page_count,
                          'signed_at', (select max(x.signed_at) from public.signature_request_signers x
                                         where x.request_id = r.id and x.role = 'professional'))
                   from public.signature_requests r
