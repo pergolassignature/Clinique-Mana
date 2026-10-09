@@ -60,7 +60,7 @@ All are callable by `authenticated` only unless noted. The permission check come
 
 | Function | Needs | Does |
 |---|---|---|
-| `get_my_access() → jsonb` | — (also service_role) | `user_id, org_id, org_name, org_timezone, display_name, email, status, role, permissions, modules`. `null` without a profile; `permissions` and `modules` empty unless the profile is active. Permissions come from the org's defaults (`org_role_permissions`) plus overrides; permissions of disabled modules are left out. |
+| `get_my_access() → jsonb` | — (also service_role) | `user_id, org_id, org_name, org_timezone, display_name, email, status, role, permissions, modules, has_professional_file` (the last since 4b.5, P4-376: the account is linked to a professional file; nav items and Accueil cards may add `shownWhen(access)` to their permission). `null` without a profile; `permissions` and `modules` empty unless the profile is active. Permissions come from the org's defaults (`org_role_permissions`) plus overrides; permissions of disabled modules are left out. |
 | `module_enabled(p_key) → boolean` | — (also service_role) | true for `core` or a module enabled in the caller's org |
 | `list_modules() → (key, name, depends_on[], enabled)` | — (also service_role) | catalogue (without `core`) with the caller's org state |
 | `set_module_enabled(p_key, p_enabled)` | `modules.manage` | locks the org row; refuses `core` and unknown keys (`22023`), a missing dependency or an enabled dependent (`P0001`, module names) |
