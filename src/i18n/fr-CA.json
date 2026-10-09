@@ -1345,7 +1345,10 @@
           "inProgress": "En cours : pas encore envoyé.",
           "none": "Aucun questionnaire en cours.",
           "submitted": "Envoyé le {date}, à réviser.",
-          "submittedUndated": "Envoyé, à réviser."
+          "submittedUndated": "Envoyé, à réviser.",
+          "submittedUpdate": "Mise à jour envoyée le {date}, à réviser.",
+          "submittedUpdateUndated": "Mise à jour envoyée, à réviser.",
+          "inProgressUpdate": "Mise à jour en cours : pas encore envoyée."
         },
         "dialog": {
           "send": {

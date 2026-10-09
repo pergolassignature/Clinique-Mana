@@ -127,4 +127,13 @@ describe('questionnaireLine', () => {
     expect(questionnaireLine({ profileId: 'u1' }, null, NOW)).toBe('Aucun questionnaire en cours.')
     expect(questionnaireLine({ profileId: 'u1' }, onboarding({ onboardingApproved: true }), NOW)).toBeNull()
   })
+
+  it('an update open on a file without an approved questionnaire reads the same way, never « Aucun questionnaire en cours » (P4-497)', () => {
+    const update = (status: 'draft' | 'submitted', submittedAt: string | null) => onboarding({ submission: { id: 's', kind: 'update', status, submittedAt } })
+    expect(questionnaireLine({ profileId: 'u1' }, update('submitted', '2026-10-07T14:00:00Z'), NOW)).toBe('Mise à jour envoyée le 7 oct., à réviser.')
+    expect(questionnaireLine({ profileId: 'u1' }, update('submitted', null), NOW)).toBe('Mise à jour envoyée, à réviser.')
+    expect(questionnaireLine({ profileId: 'u1' }, update('draft', null), NOW)).toBe('Mise à jour en cours : pas encore envoyée.')
+    // Once the onboarding questionnaire was approved, the item is done: no line.
+    expect(questionnaireLine({ profileId: 'u1' }, { ...update('submitted', '2026-10-07T14:00:00Z'), onboardingApproved: true }, NOW)).toBeNull()
+  })
 })

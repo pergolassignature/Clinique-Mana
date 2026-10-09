@@ -441,6 +441,8 @@ Every decision is « déléguée — révisable ».
 | P4-478 | **One « Renvoyer » per contract every 10 s.** `LIMITS.professionalContractResend` (org + professional), before the database; the second press answers 429. | A double click emailed the signer twice. |
 | P4-479 | **« Télécharger le PDF signé » signs at the press.** `useDocumentDownload` (as P4-455), never on render nor every 240 s. | `storage-sign` allows 120 an hour per person. |
 | P4-495 | **The questionnaire's documents read « en attente », never « Manquant ».** `get_professional_documents.staged`; sent → « Envoyé avec votre questionnaire le … · en attente de vérification par la clinique » / « Dans le questionnaire à réviser (envoyé le …) »; her draft → « Ajouté à votre questionnaire, pas encore envoyé »; no upload offered to her meanwhile; « n en attente de vérification » next to the count. | Jonathan's test as a professional (2026-10-09). |
+| P4-496 | **No insurance reminder email while a sent questionnaire holds a new insurance.** Step 4 of `run_professionals_document_notices_for_service` skips it (file ready, last day not past); draft or sent back: emails resume; the staff notice stays. | Extends P4-408; « Mes documents » already thanked her. |
+| P4-497 | **Aperçu's questionnaire line reads an open update too.** « Mise à jour envoyée le …, à réviser. », « Mise à jour en cours : pas encore envoyée. ». | « Aucun questionnaire en cours. » while an update waited for review. |
 
 ---
 

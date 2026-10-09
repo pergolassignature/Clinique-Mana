@@ -5,10 +5,13 @@
 -- update with the three items (the provider, the admin, the conseillère); a draft (status draft);
 -- a staged file not ready, past its staging or uploaded by someone else (the provider's view: her
 -- own file only); a section not requested; sent back (draft again); approved (nothing staged);
--- another clinic; another professional.
+-- another clinic; another professional. And the insurance reminders (migration
+-- *_professionals_insurance_reminders_questionnaire.sql, P4-496): no email to a professional whose
+-- sent questionnaire holds a new insurance still in force; the staff notice stays; a draft (or a
+-- questionnaire sent back) or an insurance already ended does not stop it.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(20);
 
 -- =============================================================================
 -- Fixtures (as postgres): org A (admin 01, conseillère 02, provider 03 linked to P1, provider 05
@@ -83,6 +86,54 @@ values
      'photo', jsonb_build_object('file_id', 'e0000000-0000-0000-0000-000000000003'),
      'insurance', jsonb_build_object('file_id', 'e0000000-0000-0000-0000-000000000004', 'expires_on', '2099-03-31')),
    null, 'a0000000-0000-0000-0000-000000000001');
+
+-- =============================================================================
+-- The insurance reminders (as postgres, the job's service RPC): P1's insurance ends in 3 days, and
+-- her sent update holds a new one (to 2099-03-31).
+-- =============================================================================
+select set_config('test.today', (select (now() at time zone o.timezone)::date::text from public.organizations o
+                                  where o.id = 'b0000000-0000-0000-0000-00000000000a'), true);
+insert into public.stored_files
+  (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id, original_name, mime_type, ext,
+   size_bytes, sha256, status, view_permission, owner_profile_id, owner_permission, retain_until, uploaded_by, confirmed_at)
+values ('e0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-00000000000a', 'documents',
+        'b0000000-0000-0000-0000-00000000000a/professionals/c0000000-0000-0000-0000-000000000001/e0000000-0000-0000-0000-000000000005.pdf',
+        'professionals', 'professional_document', 'professional', 'c0000000-0000-0000-0000-000000000001', 'fichier.pdf',
+        'application/pdf', 'pdf', 2048, repeat('a', 64), 'ready', 'professionals.view', 'a0000000-0000-0000-0000-000000000003',
+        'professionals.self', null, 'a0000000-0000-0000-0000-000000000001', now());
+insert into public.professional_documents
+  (org_id, professional_id, document_type_id, stored_file_id, status, expires_on, uploaded_by, uploaded_at, reviewed_by, reviewed_at)
+select 'b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001', t.id, 'e0000000-0000-0000-0000-000000000005',
+       'verified', current_setting('test.today')::date + 3, 'a0000000-0000-0000-0000-000000000001', now(),
+       'a0000000-0000-0000-0000-000000000001', now()
+  from public.document_types t where t.org_id = 'b0000000-0000-0000-0000-00000000000a' and t.key = 'insurance';
+
+-- The templates the run would email P1 today (null when none).
+create function private.test_p1_emails() returns text
+language sql set search_path = '' as $$
+  select pg_catalog.string_agg(x ->> 'template_key', ',')
+    from pg_catalog.jsonb_array_elements(
+           public.run_professionals_document_notices_for_service('b0000000-0000-0000-0000-00000000000a') -> 'emails') x
+   where x ->> 'professional_id' = 'c0000000-0000-0000-0000-000000000001'
+$$;
+
+select is(private.test_p1_emails(), null, 'a new insurance in her sent questionnaire: no reminder email (P4-496)');
+select is((select count(*)::int from public.notifications n
+            where n.subject_id = 'c0000000-0000-0000-0000-000000000001' and n.kind = 'professionals.insurance_expiring'
+              and (n.expires_at is null or n.expires_at > now())), 1,
+  '… the staff notice « Assurance bientôt échue » stays');
+update public.professional_submissions
+   set submitted_values = jsonb_set(submitted_values, '{insurance,expires_on}', to_jsonb((current_setting('test.today')::date - 1)::text))
+ where id = 'd0000000-0000-0000-0000-000000000001';
+select is(private.test_p1_emails(), 'professionals.document_expiring', 'an insurance already ended renews nothing: the email is due');
+update public.professional_submissions
+   set submitted_values = jsonb_set(submitted_values, '{insurance,expires_on}', '"2099-03-31"'), status = 'draft',
+       decision_note = 'Précisez.', reviewed_at = now(), reviewed_by = 'a0000000-0000-0000-0000-000000000001'
+ where id = 'd0000000-0000-0000-0000-000000000001';
+select is(private.test_p1_emails(), 'professionals.document_expiring', 'sent back (a draft again): the email is due');
+update public.professional_submissions
+   set status = 'submitted', decision_note = null, reviewed_at = null, reviewed_by = null
+ where id = 'd0000000-0000-0000-0000-000000000001';
 
 -- The staged items, as text rows ordered by type key: `type_key:kind:status`.
 create function private.test_staged(p_id uuid default null) returns text
