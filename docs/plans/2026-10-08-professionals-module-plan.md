@@ -440,6 +440,7 @@ Every decision is « déléguée — révisable ».
 | P4-477 | **Fiche email status codes.** A 22023 from the upload lookup → 400 `invalid_request`; a thrown `FunctionError` keeps its code's status (`functionErrorResponse`). | A bad id read as a reported 500; an unknown template as a 500. |
 | P4-478 | **One « Renvoyer » per contract every 10 s.** `LIMITS.professionalContractResend` (org + professional), before the database; the second press answers 429. | A double click emailed the signer twice. |
 | P4-479 | **« Télécharger le PDF signé » signs at the press.** `useDocumentDownload` (as P4-455), never on render nor every 240 s. | `storage-sign` allows 120 an hour per person. |
+| P4-480 | **« Dépôt direct » is optional in the questionnaire** (« décidée par Jonathan (2026-10-09) », reverses the deposit part of P4-173): « Fiscalité et banque » is complete when institution, transit and account are all empty or all present (entered here or on file); one or two given makes the others required (`private.submission_gaps`, `taxBankSchema` and `sectionComplete`, the existing messages); format checks unchanged; an empty deposit reads « Non fourni ». The contract (4d) neither prints nor requires the deposit, so nothing blocks « Préparer et envoyer ». | « Dépôt direct doit être facultatif. » A partial deposit is useless. |
 
 ---
 

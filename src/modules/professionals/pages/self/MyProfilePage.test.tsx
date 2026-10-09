@@ -95,6 +95,16 @@ describe('MyProfilePage', () => {
     expect(mocks.self.fetchMyProfessionalPrivate).toHaveBeenCalled()
   })
 
+  it('reads an empty deposit « Dépôt direct : Non fourni » (optional, P4-480)', async () => {
+    mocks.self.fetchMyProfessionalPrivate.mockResolvedValue({
+      sinLast3: null, businessNumber: null, gstNumber: null, qstNumber: null, bankInstitution: null, bankTransit: null, bankAccountLast4: null,
+    })
+    renderPage()
+    const label = await screen.findByText(t('modules.professionals.questionnaire.taxBank.bankTitle'), { selector: 'dt' })
+    expect(label.nextElementSibling).toHaveTextContent(t('modules.professionals.questionnaire.taxBank.depositNone'))
+    expect(screen.queryByText(t('modules.professionals.questionnaire.taxBank.institution'), { selector: 'dt' })).not.toBeInTheDocument()
+  })
+
   it('shows nothing written for the clinic (no compensation, no staff note), although the record carries the notes', async () => {
     // get_my_professional_record returns both notes (Loi 25, P4-373): the page does not display them.
     record = nadia({ deactivationNote: 'Note interne de la clinique', activationOverrideReason: 'Activée avant la fin du questionnaire' })
