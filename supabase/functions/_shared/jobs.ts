@@ -59,7 +59,7 @@ export interface JobRequest {
 }
 
 /** How far the signature's timestamp may be from `now`, in seconds. */
-export const JOB_SIGNATURE_TOLERANCE_S = 300
+const JOB_SIGNATURE_TOLERANCE_S = 300
 /** `t=<unix seconds>,v1=<64 lowercase hex>`, nothing else. */
 const JOB_SIGNATURE = /^t=([0-9]{1,12}),v1=([0-9a-f]{64})$/
 

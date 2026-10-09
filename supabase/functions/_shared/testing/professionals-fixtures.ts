@@ -8,7 +8,6 @@ import { accessFixture, emailContextFixture } from './email-fixtures.ts'
 
 export const PROFESSIONAL_ID = '00000000-0000-4000-8000-0000000000b1'
 export const SUBMISSION_ID = '00000000-0000-4000-8000-0000000000b2'
-export const LINK_ID_2 = '00000000-0000-4000-8000-0000000000b3'
 export const PROFESSIONAL_EMAIL = 'nadia.cote@exemple.test'
 export const PROVIDER_ID = '00000000-0000-4000-8000-0000000000c3'
 export const REVIEWER_IDS = [

@@ -81,7 +81,7 @@ export type ComposeResult =
 const DEFAULT_BUTTON_LABEL = 'Ouvrir le lien'
 
 /** The footer lines from the stored identity: formatted phone, Canada Post city line. */
-export function clinicFooter(clinic: ClinicIdentity): ClinicFooter {
+function clinicFooter(clinic: ClinicIdentity): ClinicFooter {
   const cityLine = [clinic.city, clinic.province, clinic.postalCode].filter(
     Boolean,
   ).join(' ')
