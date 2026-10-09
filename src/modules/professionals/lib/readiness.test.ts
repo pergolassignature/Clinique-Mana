@@ -200,3 +200,34 @@ describe('nextAction with the onboarding (Task 4b.3)', () => {
     expect(nextAction(onboardingFile('user-1'), null, can(...INVITE), NOW)).toEqual({ message: t(`${N}.awaitingQuestionnaire`, { firstName: 'Marie' }), action: null })
   })
 })
+
+describe('nextAction with the service contract (Task 4d.3)', () => {
+  const N = 'modules.professionals.readiness.nextAction'
+  /** An account, the questionnaire approved, the documents in order; `signed` the contract. */
+  function contractFile(signed: boolean, documents = true): ProfessionalRecord {
+    const record = withReadiness([], 'invited')
+    const items = [
+      ...record.readiness.items,
+      { key: 'account_created' as const, done: true, missing: [] },
+      { key: 'submission_approved' as const, done: true, missing: [] },
+      { key: 'documents' as const, done: documents, missing: [] },
+      { key: 'contract_signed' as const, done: signed, missing: [] },
+    ]
+    return { ...record, readiness: { ...record.readiness, complete: items.every((i) => i.done), items } }
+  }
+
+  it('only the contract left: says so, with a link to Documents, where it is sent', () => {
+    expect(nextAction(contractFile(false), null, can('professionals.view'), NOW)).toEqual({
+      message: t(`${N}.contractToSign`, { firstName: 'Marie' }),
+      action: { kind: 'tab', label: t(`${N}.openContract`), tab: 'documents' },
+    })
+  })
+
+  it('another item missing too: not the contract’s message', () => {
+    expect(nextAction(contractFile(false, false), null, can('professionals.view'), NOW).message).not.toBe(t(`${N}.contractToSign`, { firstName: 'Marie' }))
+  })
+
+  it('names the item', () => {
+    expect(readinessItemLabel('contract_signed')).toBe('Contrat de service signé')
+  })
+})

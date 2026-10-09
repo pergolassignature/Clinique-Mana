@@ -58,11 +58,11 @@ describe('visibleRecordTabs', () => {
     expect(infinite).toHaveBeenCalledOnce()
   })
 
-  it('prefetches the file’s submissions with « Documents » (Task 4b.5)', async () => {
+  it('prefetches the file’s submissions (Task 4b.5) and the contract card (Task 4d.3) with « Documents »', async () => {
     const queryClient = new QueryClient()
     const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined)
     const def = RECORD_TAB_DEFS.find((d) => d.tab === 'documents')
     await def?.prefetch?.(queryClient, 'p1', () => true)
-    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual([professionalKeys.submissions('p1')])
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual([professionalKeys.submissions('p1'), professionalKeys.contract('p1')])
   })
 })

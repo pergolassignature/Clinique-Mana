@@ -78,7 +78,7 @@ const requestPayload = z
   }))
 export type ContractRequest = z.output<typeof requestPayload>
 
-const contractPayload = z
+export const contractPayload = z
   .object({
     template: z
       .object({
@@ -121,14 +121,15 @@ const sentPayload = z.object({ request_id: z.string() })
  * idempotency key per user action: the same key returns the same request. A refusal (P0001: no
  * published template, prices to configure, a contract already out…) comes back as an RPC refusal
  * with its HINT; a missing template value as the `FunctionCallError` (`missing_variable`, its
- * French `label` in `extra`).
+ * French `label` in `extra`). A 409 stays the `FunctionCallError`: here it means « un envoi est
+ * déjà en cours » (the send claim), not the record's « le dossier vient de changer » (40001).
  */
 export async function sendProfessionalContract(professionalId: string, action: ContractAction, idempotencyKey: string): Promise<string> {
   let data: unknown
   try {
     data = await invokeFunction(CONTRACT_FUNCTION, { professional_id: professionalId, action, idempotency_key: idempotencyKey })
   } catch (error) {
-    throw asRpcRefusal(error)
+    throw error instanceof FunctionCallError && error.code === 'conflict' ? error : asRpcRefusal(error)
   }
   const parsed = sentPayload.safeParse(data)
   if (!parsed.success) throw new FunctionCallError('internal', 200, 'Unexpected answer')
@@ -137,7 +138,7 @@ export async function sendProfessionalContract(professionalId: string, action: C
 
 // --- « Paramètres → Contrats »: templates and versions ---------------------------------------------
 
-const templatePayload = z
+export const templatePayload = z
   .object({
     id: z.string(),
     key: z.string(),
@@ -188,7 +189,7 @@ const versionSignerPayload = z.object({
 })
 export type VersionSigner = z.output<typeof versionSignerPayload>
 
-const versionPayload = z
+export const versionPayload = z
   .object({
     id: z.string(),
     version: z.number(),

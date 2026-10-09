@@ -736,3 +736,27 @@ describe('history — the questionnaire (Task 4b.3)', () => {
     )
   })
 })
+
+describe('history — the service contract (Task 4d.1)', () => {
+  const S = 'modules.professionals.history.sentences.contract'
+  const request = (status: string) => row('signature_requests', 'update', { status: { before: 'draft', after: status } })
+  const signer = (status: string, role: string) => row('signature_request_signers', 'update', { status: { before: 'pending', after: status }, role })
+
+  it('names each status move of the request', () => {
+    for (const status of ['sent', 'signed', 'rejected', 'cancelled', 'expired'] as const) {
+      expect(only([request(status)]).sentence).toBe(t(`${S}.${status}`))
+    }
+  })
+
+  it('names each signer’s step with its role', () => {
+    expect(only([signer('viewed', 'professional')]).sentence).toBe(t(`${S}.signer.viewed.professional`))
+    expect(only([signer('signed', 'clinic')]).sentence).toBe(t(`${S}.signer.signed.clinic`))
+    expect(only([signer('rejected', 'professional')]).sentence).toBe(t(`${S}.signer.rejected.professional`))
+  })
+
+  it('a request’s « viewed » (the signer’s already says it), an insert or another move is not an event', () => {
+    expect(events([request('viewed')])).toEqual([])
+    expect(events([row('signature_requests', 'insert', { status: 'draft' })])).toEqual([])
+    expect(events([signer('pending', 'professional')])).toEqual([])
+  })
+})
