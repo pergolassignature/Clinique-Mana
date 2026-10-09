@@ -2670,6 +2670,7 @@ export type Database = {
           prefill: Json
           private_saved_at: string | null
           professional_id: string
+          requested_by: string | null
           requested_sections: string[]
           reviewed_at: string | null
           reviewed_by: string | null
@@ -2689,6 +2690,7 @@ export type Database = {
           prefill?: Json
           private_saved_at?: string | null
           professional_id: string
+          requested_by?: string | null
           requested_sections: string[]
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -2708,6 +2710,7 @@ export type Database = {
           prefill?: Json
           private_saved_at?: string | null
           professional_id?: string
+          requested_by?: string | null
           requested_sections?: string[]
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -2745,6 +2748,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "professionals_readiness"
             referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "professional_submissions_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "professional_submissions_reviewed_by_fkey"

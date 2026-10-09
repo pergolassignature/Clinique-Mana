@@ -26,7 +26,7 @@
 -- at apply; draft consent text; staged files of another submission; reminder before expiry.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(314);
+select plan(317);
 
 -- The HINT / DETAIL of the error p_sql raises (null when none): throws_ok checks code and message.
 create function private.test_error_hint(p_sql text) returns text
@@ -783,6 +783,12 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['consent']) $$,
   'P0001', 'Le texte du consentement a changé depuis la signature.', 'apply: a consent signed on a version that is no longer the latest');
+select is(private.test_error_hint($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['consent']) $$),
+  'Renvoyez le profil au professionnel : il signera la nouvelle version.', '… with the sheet''s button in its hint (P4-369)');
+select is((select f -> 'submitted' ->> 'is_latest'
+             from jsonb_array_elements(public.get_submission_review(current_setting('test.s1')::uuid) -> 'sections') sec,
+                  jsonb_array_elements(sec -> 'fields') f
+            where f ->> 'field' = 'consent'), 'false', 'the review says the consent names an older text, before « Appliquer » (P4-378)');
 reset role;
 delete from public.consent_versions where org_id = current_setting('test.a')::uuid and version = 2;
 update public.professional_submissions
@@ -791,6 +797,8 @@ update public.professional_submissions
 set local role authenticated;
 select throws_ok($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['insurance']) $$,
   'P0001', 'Cette assurance est échue depuis l''envoi du profil.', 'apply: an insurance that expired since it was sent');
+select is(private.test_error_hint($$ select public.apply_professional_submission(current_setting('test.s1')::uuid, array['insurance']) $$),
+  'Renvoyez le profil au professionnel : il joindra une preuve en vigueur.', '… with the sheet''s button in its hint (P4-369)');
 reset role;
 update public.professional_submissions
    set submitted_values = jsonb_set(submitted_values, '{insurance,expires_on}', to_jsonb((current_date + 200)::text))
