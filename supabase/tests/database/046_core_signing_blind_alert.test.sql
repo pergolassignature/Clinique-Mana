@@ -69,6 +69,8 @@ insert into public.org_modules (org_id, module_key, enabled, disabled_at) values
   ('b0000000-0000-0000-0000-00000000001a', 'professionals', false, now() - interval '7 hours'),
   ('b0000000-0000-0000-0000-00000000001b', 'professionals', false, now() - interval '2 hours');
 
+-- Professionnels seeds « Contrat de service » (a draft) in every new clinic (4d.1): replaced here.
+delete from public.document_templates where key = 'professionals.service_contract';
 insert into public.document_templates (id, org_id, key, module_key, title, view_permission, edit_permission)
 values
   ('d0000000-0000-0000-0000-00000000001a', 'b0000000-0000-0000-0000-00000000001a', 'professionals.service_contract',

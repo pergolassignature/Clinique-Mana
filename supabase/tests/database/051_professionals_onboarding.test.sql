@@ -854,9 +854,10 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select is(public.reveal_professional_private(current_setting('test.p1')::uuid, 'bank_account'), '1234567', 'the admin reveals the applied account');
 select is(public.get_professional_readiness(current_setting('test.p1')::uuid) -> 'items',
   '[{"key": "matching_profile", "done": true, "missing": []}, {"key": "account_created", "done": true, "missing": []},
-    {"key": "submission_approved", "done": true, "missing": []}]'::jsonb, 'readiness: matching, account, questionnaire');
+    {"key": "submission_approved", "done": true, "missing": []}, {"key": "contract_signed", "done": false, "missing": []}]'::jsonb,
+  'readiness: matching, account, questionnaire; the contract (4d.1) still to sign');
 select is(public.get_professional_readiness(current_setting('test.p1')::uuid) - 'items',
-  '{"complete": true, "done": 3, "total": 3, "warnings": []}'::jsonb, 'the file is complete');
+  '{"complete": false, "done": 3, "total": 4, "warnings": []}'::jsonb, 'the onboarding''s three items are done');
 select results_eq($$ select r.account_created, r.submission_approved, r.ready from public.professionals_readiness r
                       where r.professional_id in (current_setting('test.p5')::uuid, current_setting('test.p2')::uuid) order by r.professional_id $$,
   $$ values (true, false, false), (false, false, false) $$, 'P2 (account, no questionnaire) and P5 (neither) are not ready');

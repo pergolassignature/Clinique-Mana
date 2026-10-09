@@ -1815,6 +1815,91 @@ export type Database = {
           },
         ]
       }
+      professional_contract_snapshots: {
+        Row: {
+          annexe: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          idempotency_key: string
+          org_id: string
+          professional_id: string
+          signers: Json
+          template_values: Json
+          template_version_id: string
+          title: string
+        }
+        Insert: {
+          annexe: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          idempotency_key: string
+          org_id: string
+          professional_id: string
+          signers: Json
+          template_values: Json
+          template_version_id: string
+          title: string
+        }
+        Update: {
+          annexe?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          professional_id?: string
+          signers?: Json
+          template_values?: Json
+          template_version_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_contract_snapshots_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "professional_contract_snapshots_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_contract_snapshots_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_contract_snapshots_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_contract_snapshots_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+          {
+            foreignKeyName: "professional_contract_snapshots_version_fkey"
+            columns: ["template_version_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "document_template_versions"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
       professional_languages: {
         Row: {
           created_at: string
@@ -4422,6 +4507,7 @@ export type Database = {
       professionals_readiness: {
         Row: {
           account_created: boolean | null
+          contract_signed: boolean | null
           email_matches_login: boolean | null
           has_clientele: boolean | null
           has_language: boolean | null
@@ -4770,6 +4856,7 @@ export type Database = {
         Args: { p_id: string; p_on?: string }
         Returns: Json
       }
+      get_professional_contract: { Args: { p_id: string }; Returns: Json }
       get_professional_fiche_upload: {
         Args: { p_file_id: string; p_id: string }
         Returns: Json
@@ -5253,6 +5340,15 @@ export type Database = {
         Returns: Json
       }
       pii_health_check: { Args: never; Returns: boolean }
+      prepare_professional_contract: {
+        Args: {
+          p_action: string
+          p_actor: string
+          p_id: string
+          p_idempotency_key: string
+        }
+        Returns: Json
+      }
       publish_template_version: { Args: { p_id: string }; Returns: undefined }
       queue_email: {
         Args: {

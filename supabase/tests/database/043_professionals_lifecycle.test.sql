@@ -108,6 +108,26 @@ insert into public.professional_clienteles (org_id, professional_id, clientele_i
 -- Since 4b.1 a complete file also has an account (P2 has one) and an approved onboarding questionnaire.
 insert into public.professional_submissions (org_id, professional_id, kind, status, requested_sections, submitted_at, reviewed_at, applied_fields)
 values ('b0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000002', 'onboarding', 'approved', array['personal'], now(), now(), '{}');
+-- Since 4d.1 it also has a signed service contract: the clinic's seeded template published, a signed
+-- request with its stored PDF.
+update public.document_template_versions v set status = 'published', published_at = now()
+  from public.document_templates t
+ where t.id = v.template_id and t.org_id = 'b0000000-0000-0000-0000-00000000000a' and t.key = 'professionals.service_contract';
+insert into public.stored_files (id, org_id, bucket, object_path, module_key, purpose, subject_type, subject_id, view_permission,
+                                 original_name, mime_type, ext, size_bytes, sha256, status, confirmed_at)
+values ('f0000000-0000-0000-0000-0000000000c2', 'b0000000-0000-0000-0000-00000000000a', 'signed-documents',
+        'b0000000-0000-0000-0000-00000000000a/core/e0000000-0000-0000-0000-0000000000c2/f0000000-0000-0000-0000-0000000000c2.pdf',
+        'core', 'signing_signed', 'signature_request', 'e0000000-0000-0000-0000-0000000000c2', 'professionals.compensation',
+        'Contrat signé.pdf', 'application/pdf', 'pdf', 1000, repeat('a', 64), 'ready', now());
+insert into public.signature_requests (id, org_id, module_key, purpose, template_version_id, subject_type, subject_id, title, status,
+                                       envelope_id, idempotency_key, view_permission, sent_at, completed_event_at, completed_at,
+                                       signed_file_id, signed_sha256)
+select 'e0000000-0000-0000-0000-0000000000c2', 'b0000000-0000-0000-0000-00000000000a', 'professionals', 'professionals.service_contract', v.id,
+       'professional', 'c0000000-0000-0000-0000-000000000002', 'Contrat de service — Pia Deux', 'signed', 'envelope_pdeux', 'contract-p2',
+       'professionals.compensation', now(), now(), now(), 'f0000000-0000-0000-0000-0000000000c2', repeat('a', 64)
+  from public.document_template_versions v
+  join public.document_templates t on t.id = v.template_id
+ where t.org_id = 'b0000000-0000-0000-0000-00000000000a' and t.key = 'professionals.service_contract' and v.status = 'published';
 
 -- P1, P4, P5 through the RPC, as the adjointe (1:1 rows and French come with it).
 set local role authenticated;
@@ -172,14 +192,16 @@ select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-0000000
 select results_eq($$ select r.matching_complete, r.ready from public.professionals_readiness r where r.professional_id = current_setting('test.p1')::uuid $$,
   $$ values (false, false) $$, 'P1 (title, licence, French) is not ready');
 select is(public.get_professional_readiness(current_setting('test.p1')::uuid),
-  '{"complete": false, "done": 0, "total": 3, "items": [{"key": "matching_profile", "done": false, "missing": ["clientele", "motif"]},
-    {"key": "account_created", "done": false, "missing": []}, {"key": "submission_approved", "done": false, "missing": []}], "warnings": []}'::jsonb,
-  'P1 misses a clientèle and a motif, an account and an approved questionnaire (4b.1)');
+  '{"complete": false, "done": 0, "total": 4, "items": [{"key": "matching_profile", "done": false, "missing": ["clientele", "motif"]},
+    {"key": "account_created", "done": false, "missing": []}, {"key": "submission_approved", "done": false, "missing": []},
+    {"key": "contract_signed", "done": false, "missing": []}], "warnings": []}'::jsonb,
+  'P1 misses a clientèle and a motif, an account, an approved questionnaire (4b.1) and a signed contract (4d.1)');
 select is(public.get_professional_readiness(current_setting('test.p4')::uuid) -> 'items' -> 0 -> 'missing',
   '["profession", "clientele", "motif"]'::jsonb, 'without a title, the profession is missing too');
 select is(public.get_professional_readiness(current_setting('test.p2')::uuid),
-  '{"complete": true, "done": 3, "total": 3, "items": [{"key": "matching_profile", "done": true, "missing": []},
-    {"key": "account_created", "done": true, "missing": []}, {"key": "submission_approved", "done": true, "missing": []}], "warnings": []}'::jsonb,
+  '{"complete": true, "done": 4, "total": 4, "items": [{"key": "matching_profile", "done": true, "missing": []},
+    {"key": "account_created", "done": true, "missing": []}, {"key": "submission_approved", "done": true, "missing": []},
+    {"key": "contract_signed", "done": true, "missing": []}], "warnings": []}'::jsonb,
   'P2 is complete');
 
 -- P5 (naturopathe, no licence needed) completes its matching profile.
@@ -227,7 +249,7 @@ update public.motifs set is_active = true, is_restricted = false where id = curr
 update public.professionals set email = 'pia.autre@exemple.ca' where id = current_setting('test.p2')::uuid;
 set local role authenticated;
 select is(public.get_professional_readiness(current_setting('test.p2')::uuid) - 'items',
-  '{"complete": true, "done": 3, "total": 3, "warnings": ["login_email_mismatch"]}'::jsonb,
+  '{"complete": true, "done": 4, "total": 4, "warnings": ["login_email_mismatch"]}'::jsonb,
   'a login email mismatch is a warning; the file stays complete');
 select is((select l.email_matches_login from public.professionals_list l where l.id = current_setting('test.p2')::uuid), false,
   'the list flags the mismatch');
