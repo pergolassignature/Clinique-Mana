@@ -137,3 +137,43 @@ Deno.test('fake-documenso-server: the envelope list has no address; an unreachab
     webhookError: 'TypeError',
   })
 })
+
+Deno.test('fake-documenso-server: the embed page is framable, posts its messages, and « Signer » completes the envelope (P4-488)', async () => {
+  const { client, hooks, viaHttp } = setup()
+  const { envelopeId, recipients } = await distributed(client)
+  const token = await client.signingToken(envelopeId, recipients[0].id)
+  assert(token)
+  const embed = await viaHttp(`${LOCAL}/embed/sign/${token}`)
+  assertEquals(embed.status, 200)
+  assert(embed.headers.get('content-security-policy')?.includes('localhost'))
+  const html = await embed.text()
+  assert(html.includes("action: 'document-ready'"))
+  assert(html.includes("action: 'document-completed'"))
+  const signed = await viaHttp(`${LOCAL}/__fake/sign-token/${token}`, {
+    method: 'POST',
+  })
+  assertEquals((await signed.json()).event, 'DOCUMENT_COMPLETED')
+  assertEquals((await client.get(envelopeId)).status, 'COMPLETED')
+  assertEquals(
+    hooks.calls.map((c) => JSON.parse(c.body).event),
+    ['DOCUMENT_SIGNED', 'DOCUMENT_COMPLETED'],
+  )
+  assertEquals((await viaHttp(`${LOCAL}/embed/sign/unknown`)).status, 404)
+})
+
+Deno.test('fake-documenso-server: denyFraming refuses to be framed (the app falls back to the full page)', async () => {
+  const hooks = fakeFetch({})
+  const server = fakeDocumensoServer({
+    webhookUrl: HOOK,
+    fetch: hooks.fetch,
+    denyFraming: true,
+  })
+  const viaHttp =
+    ((input: RequestInfo | URL, init?: RequestInit) =>
+      server.handler(new Request(input, init))) as typeof fetch
+  const client = documensoClient(LOCAL, KEY, viaHttp, { reach: LOCAL_REACH })
+  const { envelopeId, recipients } = await distributed(client)
+  const token = await client.signingToken(envelopeId, recipients[0].id)
+  const embed = await viaHttp(`${LOCAL}/embed/sign/${token}`)
+  assertEquals(embed.headers.get('x-frame-options'), 'DENY')
+})

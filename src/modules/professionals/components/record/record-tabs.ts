@@ -60,6 +60,7 @@ async function prefetchDocumentsTab(queryClient: QueryClient, id: string): Promi
     submissions.prefetchProfessionalSubmissions(queryClient, id),
     documents.prefetchProfessionalDocuments(queryClient, id),
     contracts.prefetchProfessionalContract(queryClient, id),
+    contracts.prefetchProfessionalImageConsent(queryClient, id),
   ])
 }
 

@@ -1555,3 +1555,82 @@ Deno.test('documensoEventId: the worst-case id is 200 characters (webhook_events
   assert(isEnvelopeId(`envelope_${'a'.repeat(64)}`))
   assertEquals(worst.length, 200)
 })
+
+// --- Signing in the app (P4-488) -----------------------------------------------------------
+
+Deno.test("createEnvelope: NONE with a redirect is sent as Documenso's meta; a non-http redirect is refused first", async () => {
+  const { fetch, calls } = fakeFetch({
+    [CREATE]: json(200, { id: E }),
+    [GET_E]: json(200, envelopeBody()),
+  })
+  await client(fetch).createEnvelope(
+    PDF,
+    input({
+      meta: {
+        ...input().meta,
+        distributionMethod: 'NONE',
+        redirectUrl:
+          'https://app.cliniquemana.com/mes-documents?consentement=signe',
+      },
+    }),
+  )
+  const payload = JSON.parse(String((await formOf(calls[0])).get('payload')))
+  assertEquals(payload.meta.distributionMethod, 'NONE')
+  assertEquals(
+    payload.meta.redirectUrl,
+    'https://app.cliniquemana.com/mes-documents?consentement=signe',
+  )
+  await assertRejects(
+    () =>
+      client(fetch).createEnvelope(
+        PDF,
+        input({
+          meta: { ...input().meta, redirectUrl: 'javascript:alert(1)' },
+        }),
+      ),
+    DocumensoError,
+  )
+})
+
+Deno.test("distributeForSigning: each recipient's token from the answer, nothing else kept", async () => {
+  const { fetch } = fakeFetch({
+    [DISTRIBUTE]: json(200, {
+      success: true,
+      id: E,
+      recipients: [{
+        id: 51,
+        name: 'Ana Gagnon',
+        email: ADDRESS,
+        token: 'tok_51',
+        role: 'SIGNER',
+        signingOrder: 1,
+        signingUrl: `${BASE}/sign/tok_51`,
+      }],
+    }),
+  })
+  assertEquals(await client(fetch).distributeForSigning(E), [{
+    recipientId: '51',
+    token: 'tok_51',
+  }])
+})
+
+Deno.test("signingToken: the recipient's token from the envelope read; a malformed token is a bad response", async () => {
+  const good = fakeFetch({
+    [GET_E]: json(200, envelopeBody({ status: 'PENDING' })),
+  })
+  assertEquals(
+    await client(good.fetch).signingToken(E, '52'),
+    'secret-signing-token-52',
+  )
+  assertEquals(await client(good.fetch).signingToken(E, '99'), null)
+  const bad = fakeFetch({
+    [GET_E]: json(
+      200,
+      envelopeBody({ recipients: [recipient({ token: 'a b/c' })] }),
+    ),
+  })
+  await assertRejects(
+    () => client(bad.fetch).signingToken(E, '51'),
+    DocumensoError,
+  )
+})

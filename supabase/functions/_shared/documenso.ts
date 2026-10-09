@@ -134,7 +134,19 @@ export interface CreateEnvelopeInput {
     subject: string
     message: string
     language: 'fr'
-    distributionMethod: 'EMAIL'
+    /**
+     * `EMAIL`: Documenso emails each signer; `NONE`: no email, the caller
+     * hands the signer the signing link (`distributeForSigning`, P4-488).
+     */
+    distributionMethod: 'EMAIL' | 'NONE'
+    /**
+     * Where Documenso sends the signer once she has signed (its document
+     * setting « Redirect URL »): the questionnaire, for a link opened from
+     * the app.
+     */
+    // VERIFY against the clinic instance: the envelope meta's `redirectUrl`
+    // (Documenso's documentMeta.redirectUrl) is honoured by /sign/<token>.
+    redirectUrl?: string
     signingOrder: 'SEQUENTIAL' | 'PARALLEL'
     /** The clinic timezone (`organizations.timezone`), for DATE fields. */
     timezone: string
@@ -213,6 +225,21 @@ export interface DocumensoClient {
   }>
   /** Sends the envelope (Documenso emails the first signer). */
   distribute(envelopeId: string): Promise<void>
+  /**
+   * Sends an envelope created with `distributionMethod: 'NONE'` (no email)
+   * and answers each recipient's signing token (P4-488). A token is a
+   * credential: the caller hands it to its signer once and never stores,
+   * logs or reports it.
+   */
+  distributeForSigning(
+    envelopeId: string,
+  ): Promise<{ recipientId: string; token: string }[]>
+  /**
+   * The signing token of one recipient of a pending envelope (read), to
+   * resume a signature started earlier; null when the read has none. A
+   * credential, as `distributeForSigning`'s.
+   */
+  signingToken(envelopeId: string, recipientId: string): Promise<string | null>
   /** Resends the invitation to these recipients; an empty list makes no request. */
   redistribute(envelopeId: string, recipientIds: string[]): Promise<void>
   /** The envelope's status and recipients. */
@@ -563,6 +590,20 @@ const envelopeSchema = z.object({
   envelopeItems: z.array(z.object({ id: z.string() })),
 })
 
+/** A Documenso signing token (the path segment of `/sign/<token>`). */
+const SIGNING_TOKEN = /^[A-Za-z0-9_-]{1,128}$/
+
+/**
+ * The recipients' tokens of a distribute answer or an envelope read: only
+ * the id and the token are kept (never the address or the signing URL).
+ */
+const tokensSchema = z.object({
+  recipients: z.array(z.object({
+    id: z.number().int().positive(),
+    token: z.string().regex(SIGNING_TOKEN),
+  })),
+})
+
 type Operation =
   | 'create'
   | 'read'
@@ -911,6 +952,13 @@ export function documensoClient(
     // The OpenAPI's limits (R8): refused here rather than as Documenso's 400.
     if (input.meta.subject.length > 254) refuse('the subject is too long')
     if (input.meta.message.length > 5000) refuse('the message is too long')
+    const redirect = input.meta.redirectUrl
+    if (
+      redirect !== undefined &&
+      !(redirect.length <= 1000 && /^https?:\/\/[^\s]+$/.test(redirect))
+    ) {
+      refuse('the redirect URL is not an http(s) URL')
+    }
   }
 
   return {
@@ -997,6 +1045,35 @@ export function documensoClient(
         method: 'POST',
         json: { envelopeId: envelopeId(id, 'distribute') },
       })
+    },
+
+    async distributeForSigning(id) {
+      const exchange = await ok('distribute', DOCUMENSO_PATHS.distribute, {
+        method: 'POST',
+        json: { envelopeId: envelopeId(id, 'distribute') },
+      })
+      const answer = await parsed(exchange, tokensSchema)
+      return answer.recipients.map((r) => ({
+        recipientId: String(r.id),
+        token: r.token,
+      }))
+    },
+
+    async signingToken(id, recipient) {
+      const wanted = recipientId(recipient, 'read')
+      const exchange = await ok(
+        'read',
+        DOCUMENSO_PATHS.envelope(envelopeId(id, 'read')),
+        { method: 'GET' },
+      )
+      const envelope = await parsed(
+        exchange,
+        tokensSchema.extend({ id: z.string() }),
+      )
+      if (envelope.id !== id) {
+        throw badResponse('read', exchange.res.status, true)
+      }
+      return envelope.recipients.find((r) => r.id === wanted)?.token ?? null
     },
 
     async redistribute(id, recipientIds) {

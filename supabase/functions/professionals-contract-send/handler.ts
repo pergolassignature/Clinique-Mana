@@ -1,29 +1,38 @@
 /**
- * `professionals-contract-send` (Task 4d.2, design §3.8, A5): « Préparer et
- * envoyer », « Réessayer l'envoi », « Renvoyer » and « Régénérer » on a
- * professional's service contract. This function renders
+ * `professionals-contract-send` (Task 4d.2, design §3.8, A5; P4-483): « Préparer
+ * et envoyer », « Réessayer l'envoi », « Renvoyer » and « Régénérer » on a
+ * professional's form to sign: the service contract, or the image consent
+ * (« Consentement au droit à l'image »). This function renders
  * (`_shared/signing.ts`), so it carries pdfmake (ADR 0008).
  *
- * 1. CORS; `POST` only; `verifyAuth` with the module `professionals` and
- *    `professionals.contracts.send`; the caller must also hold
- *    `professionals.compensation` (the contract prints the professional's pay,
- *    P4-436) → 403 `forbidden` otherwise.
+ * The form comes from a closed list (`FORMS`): each one names its purpose,
+ * its permissions, its prepare RPC, the request's view permission and whether
+ * it prints Annexe A. Nothing about a form is read from the body but its key.
+ *
+ * 1. CORS; `POST` only; `verifyAuth` with the module `professionals`.
  * 2. Body `{ professional_id, action: 'send' | 'regenerate' | 'resend',
- *    idempotency_key }` (a uuid the page draws per action and keeps until it
- *    succeeds). Nothing else is read from the body: the values, the signers,
- *    the template version and the title come from the database.
- * 3. One hit on `LIMITS.professionalContractUser` (30 an hour per caller);
- *    `resend` also takes `LIMITS.professionalContractResend` (one per file
- *    every 10 s, P4-478), so a double click emails the signer once.
- * 4. `prepare_professional_contract` with the **service** client, `p_actor` =
+ *    idempotency_key, form? }` (`form`: `service_contract`, the default, or
+ *    `image_consent`; the key a uuid the page draws per action and keeps
+ *    until it succeeds). Nothing else is read from the body: the values, the
+ *    signers, the template version and the title come from the database.
+ *    Then the form's permissions → 403 `forbidden` otherwise: the contract
+ *    needs `professionals.contracts.send` and `professionals.compensation`
+ *    (it prints the professional's pay, P4-436), the image consent
+ *    `professionals.manage` (P4-484).
+ * 3. One hit on `LIMITS.professionalContractUser` (30 an hour per caller,
+ *    both forms); `resend` also takes `LIMITS.professionalContractResend`
+ *    (one per file and form every 10 s, P4-478), so a double click emails the
+ *    signer once.
+ * 4. The form's prepare RPC (`prepare_professional_contract`,
+ *    `prepare_professional_image_consent`) with the **service** client, `p_actor` =
  *    the caller `verifyAuth` verified: it re-checks her, then answers the
  *    request key (the open draft's own for `send`: a failed send is retried
  *    as the same request), the published version, the title, the values, the
  *    Annexe A terms and the signers of the snapshot (written once per key,
  *    P4-151), and for `regenerate` the open request to close first. P0001 →
  *    400 with its French message and its HINT as `field` (`template`,
- *    `pricing`, `profession`, `contract`, `status`, `regenerate`); 42501 →
- *    403; 22023 → 400.
+ *    `pricing`, `profession`, `contract`, `consent`, `status`, `regenerate`);
+ *    42501 → 403; 22023 → 400. The image consent has no Annexe A.
  * 5. `resend`: Documenso `redistribute` to the next signer of the open request
  *    (the link renewed). 200 `{ request_id }`. No envelope or no signer left
  *    to email → a French refusal (400), never a 200 that sent nothing.
@@ -34,10 +43,12 @@
  *    first (a pending one cancelled, a draft deleted, E-8), then
  *    `cancel_signature_request(p_id, p_by)`. A failed Documenso cancel stops
  *    here (502 `provider_error`): never two live contracts.
- * 7. `createSignatureRequest` (purpose `professionals.service_contract`,
- *    subject `professional`, view permission `professionals.compensation`
- *    (P4-435), the snapshot's values, and Annexe A's blocks for the block
- *    placeholder `pricing.annexe_a`, P4-433). Documenso sends the French
+ * 7. `createSignatureRequest` (the form's purpose, subject `professional`,
+ *    the form's view permission: `professionals.compensation` for the
+ *    contract (P4-435), `professionals.view` for the consent (P4-484); the
+ *    snapshot's values, and for the contract Annexe A's blocks for the block
+ *    placeholder `pricing.annexe_a`, P4-433). A signed image consent becomes a
+ *    verified document in the database (P4-485). Documenso sends the French
  *    signing email with the version's subject and message (P3-3); the expiry
  *    is « Signature électronique »'s. 200 `{ request_id, existing }`.
  *
@@ -90,11 +101,35 @@ export const PURPOSE = 'professionals.service_contract'
 /** P4-435: the contract prints the pay. */
 export const VIEW_PERMISSION = 'professionals.compensation'
 
+/** The forms this function sends (P4-483): a closed list, never a purpose from the body. */
+export const FORMS = {
+  service_contract: {
+    purpose: PURPOSE,
+    prepare: 'prepare_professional_contract',
+    /** P4-436: whoever sends the contract reads the pay it prints. */
+    permissions: ['professionals.contracts.send', VIEW_PERMISSION],
+    viewPermission: VIEW_PERMISSION,
+    annexe: true,
+  },
+  image_consent: {
+    purpose: 'professionals.image_consent',
+    prepare: 'prepare_professional_image_consent',
+    /** P4-484: not a pay document; whoever manages the file's documents. */
+    permissions: ['professionals.manage'],
+    viewPermission: 'professionals.view',
+    annexe: false,
+  },
+} as const
+export type FormKey = keyof typeof FORMS
+
 const bodySchema = z.strictObject({
   // guid, not uuid: seed and fixture ids are not RFC 4122 variants.
   professional_id: z.guid(),
   action: z.enum(['send', 'regenerate', 'resend']),
   idempotency_key: z.guid(),
+  form: z.enum(['service_contract', 'image_consent']).default(
+    'service_contract',
+  ),
 })
 
 const signerSchema = z.object({
@@ -109,7 +144,8 @@ const preparedSchema = z.object({
   template_version_id: z.string(),
   title: z.string(),
   values: z.record(z.string(), z.unknown()),
-  annexe: annexeSchema,
+  /** The contract's only (the image consent prints no Annexe A). */
+  annexe: annexeSchema.optional(),
   signers: z.array(signerSchema).min(1),
   cancel: z.object({
     request_id: z.string(),
@@ -126,7 +162,7 @@ const resendSchema = z.object({
   }),
 })
 
-/** The resend refusals, as `prepare_professional_contract` words them. */
+/** The contract's resend refusals, as `prepare_professional_contract` words them. */
 export const NO_ENVELOPE =
   "Ce contrat n'a pas d'envoi Documenso à renvoyer : utilisez « Régénérer »."
 export const NO_RECIPIENT =
@@ -148,15 +184,18 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     }
     const auth = await verifyAuth(
       req,
-      { module: 'professionals', permission: 'professionals.contracts.send' },
+      { module: 'professionals' },
       deps.userClient,
     )
     if (auth instanceof Response) return auth
-    if (!auth.access.permissions.includes(VIEW_PERMISSION)) {
-      return errorResponse('forbidden', 'Forbidden', 403, req)
-    }
     const input = await readJson(req, bodySchema)
     if (input instanceof Response) return input
+    const form = FORMS[input.form]
+    if (
+      !form.permissions.every((key) => auth.access.permissions.includes(key))
+    ) {
+      return errorResponse('forbidden', 'Forbidden', 403, req)
+    }
     const service = deps.serviceClient()
     if (service instanceof Response) return service
 
@@ -180,13 +219,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         await consume(service, LIMITS.professionalContractResend, [
           orgId,
           professionalId,
+          input.form,
         ]),
         req,
       )
       if (again) return again
     }
 
-    const prepared = await service.rpc('prepare_professional_contract', {
+    const prepared = await service.rpc(form.prepare, {
       p_actor: actor,
       p_id: professionalId,
       p_action: input.action,
@@ -211,7 +251,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         }
         const { request_id: requestId, envelope_id, recipient_ids } =
           parsed.data.resend
-        // prepare_professional_contract refuses both (review of 4d); never a 200 that sent nothing.
+        // The prepare RPCs refuse both (review of 4d); never a 200 that sent nothing.
         if (!envelope_id) {
           return refusalResponse(NO_ENVELOPE, req)
         }
@@ -236,7 +276,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }
 
       const parsed = preparedSchema.safeParse(prepared.data)
-      if (!parsed.success) {
+      // The contract never goes out without its Annexe A terms.
+      if (!parsed.success || (form.annexe && !parsed.data.annexe)) {
         await report('prepare_invalid')
         return errorResponse('internal', 'Contract send failed', 500, req)
       }
@@ -288,13 +329,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       }, {
         orgId,
         moduleKey: 'professionals',
-        purpose: PURPOSE,
+        purpose: form.purpose,
         templateVersionId: contract.template_version_id,
         subject: { type: 'professional', id: professionalId },
         title: contract.title,
-        viewPermission: VIEW_PERMISSION,
+        viewPermission: form.viewPermission,
         values: contract.values,
-        blocks: { [ANNEXE_PATH]: annexeBlocks(contract.annexe) },
+        ...(form.annexe && contract.annexe &&
+          { blocks: { [ANNEXE_PATH]: annexeBlocks(contract.annexe) } }),
         signers: contract.signers,
         idempotencyKey: contract.idempotency_key,
         sentBy: actor,

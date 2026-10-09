@@ -58,11 +58,11 @@ describe('visibleRecordTabs', () => {
     expect(infinite).toHaveBeenCalledOnce()
   })
 
-  it('prefetches the contract card (Task 4d.3), the file’s submissions (Task 4b.5) and documents (Task 4c.3) with « Documents »', async () => {
+  it('prefetches the contract and image-consent cards (Task 4d.3, P4-485), the file’s submissions (Task 4b.5) and documents (Task 4c.3) with « Documents »', async () => {
     const queryClient = new QueryClient()
     const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined)
     const def = RECORD_TAB_DEFS.find((d) => d.tab === 'documents')
     await def?.prefetch?.(queryClient, 'p1', () => true)
-    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual([professionalKeys.submissions('p1'), professionalKeys.documents('p1'), professionalKeys.contract('p1')])
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual([professionalKeys.submissions('p1'), professionalKeys.documents('p1'), professionalKeys.contract('p1'), professionalKeys.imageConsent('p1')])
   })
 })

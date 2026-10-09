@@ -17,6 +17,10 @@
 //   POST /__fake/reject/:envelopeId[?recipient=&reason=]  DOCUMENT_REJECTED
 //   GET  /__fake/documents              envelope ids, titles, statuses (no address)
 //
+// Signing pages (P4-488): GET /embed/sign/:token (what the app frames; FAKE_DOCUMENSO_DENY_FRAMING=1
+// refuses framing, to see the fallback) and GET /sign/:token (the full page, back to the envelope's
+// redirectUrl); « Signer » signs and completes the envelope and posts the webhooks.
+//
 // Envelope ids look like Documenso's (`envelope_aaaaaaaaaaaaaaab`, …ac, …):
 // read them from GET /__fake/documents.
 //
@@ -46,6 +50,7 @@ const port = Number(env('FAKE_DOCUMENSO_PORT') ?? 55390)
 
 const server = fakeDocumensoServer({
   webhookUrl,
+  denyFraming: env('FAKE_DOCUMENSO_DENY_FRAMING') === '1',
   log: (line) => console.log(`[fake-documenso] ${line}`),
 })
 

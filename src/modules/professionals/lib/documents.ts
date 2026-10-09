@@ -283,15 +283,18 @@ export type DocumentAction = 'preview' | 'download' | 'verify' | 'reject' | 'red
 /**
  * A document's actions, in the order they are offered: the file's (an image or a PDF opens in the
  * preview sheet; any file downloads), then the reviewer's: Vérifier a pending one, Refuser a
- * pending or verified one, Modifier l'échéance for a type with a rule (not once refused), and
+ * pending or verified one (never a consent signed through Documenso), Modifier l'échéance for a type with a rule (not once refused), and
  * Supprimer. A refused document has no file left (P4-404).
  */
 export function documentActions(document: ProfessionalDocument, type: Pick<DocumentType, 'expiryRule'> | undefined, can: DocumentPermissions): DocumentAction[] {
   const actions: DocumentAction[] = []
   if (document.file && isPreviewable(document.file.mimeType)) actions.push('preview')
-  if (document.file) actions.push('download')
+  // A consent signed through Documenso is downloaded from its signing part (core's split
+  // downloads, P4-500: the document, the certificate and journal, the sealed proof), never here.
+  if (document.file && document.signatureRequestId === null) actions.push('download')
   if (can.review && document.status === 'pending') actions.push('verify')
-  if (can.review && (document.status === 'pending' || document.status === 'verified')) actions.push('reject')
+  // A consent signed through Documenso is never refused: its file is the signature's copy (P4-485).
+  if (can.review && document.signatureRequestId === null && (document.status === 'pending' || document.status === 'verified')) actions.push('reject')
   if (can.review && type !== undefined && type.expiryRule !== 'none' && document.status !== 'rejected') actions.push('redate')
   if (can.delete) actions.push('delete')
   return actions

@@ -215,6 +215,14 @@ describe('documentActions', () => {
     const word = doc({ type_id: IDS.cvType, expires_on: null, file: { id: DOC_IDS.cvFile, name: 'cv.doc', mime_type: 'application/msword', size_bytes: 10 } })
     expect(documentActions(word, type('cv'), ALL)).toEqual(['download', 'reject', 'delete'])
   })
+
+  it('a consent signed through Documenso is never refused (its file is the signature’s copy, P4-485)', () => {
+    const signed = doc({ type_id: IDS.consentType, signature_request_id: '00000000-0000-4000-8000-00000000c501' })
+    expect(signed.signatureRequestId).toBe('00000000-0000-4000-8000-00000000c501')
+    // Downloaded from its signing part (core's split downloads), not from the row.
+    expect(documentActions(signed, type('image_consent'), ALL)).toEqual(['preview', 'redate', 'delete'])
+    expect(doc({}).signatureRequestId).toBeNull()
+  })
 })
 
 describe('insuranceBanner (P4-454)', () => {

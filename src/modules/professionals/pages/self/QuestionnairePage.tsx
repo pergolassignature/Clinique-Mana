@@ -28,6 +28,7 @@ import { TaxBankStep } from '../../components/questionnaire/TaxBankStep'
 import type { OnFilePrivate, StepContext } from '../../components/questionnaire/use-step-form'
 import { useProfessionalsCatalog } from '../../hooks/use-catalog'
 import { useMyProfessionalPrivate, useMySubmission, useQuestionnaireAutosave } from '../../hooks/use-my-submission'
+import { useMyImageConsent } from '../../hooks/use-consent-sign'
 import type { CatalogView } from '../../lib/catalog-view'
 import { MY_PROFILE_PATH } from '../../lib/my-profile'
 import {
@@ -205,6 +206,8 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
   })
   const today = useClinicDate()
   const onFile = useOnFilePrivate(submission)
+  // The consent step's state (P4-487), only when the consent is requested.
+  const imageConsent = useMyImageConsent(submission.requestedSections.includes('consent'))
   const [params, setParams] = useSearchParams()
   const headingRef = useRef<HTMLHeadingElement>(null)
   const steps = useMemo(() => stepsFor(submission.requestedSections), [submission.requestedSections])
@@ -215,6 +218,7 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
     onFile: submission.onFile,
     collectSin: submission.collectSin,
     consentId: submission.consent?.id ?? null,
+    imageConsent: imageConsent.data ? { available: imageConsent.data.available, validUntil: imageConsent.data.validUntil } : null,
     today,
   }
   const incomplete = incompleteSections(submission.requestedSections, completeness)

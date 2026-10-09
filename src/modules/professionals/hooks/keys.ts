@@ -45,11 +45,12 @@ import type { ProfessionalsPageQuery } from '../api/list'
  * |                                          | readiness counts required types)                               |
  * | a consent version saved, published or    | `professionalsSettingsKeys.consents()`                         |
  * | discarded (« Consentements »)            |                                                                |
- * | a contract sent, re-sent, regenerated or | `record(id)` (its `contract(id)` too: readiness follows the    |
- * | synchronised (4d.3)                      | contract), `lists()`, `history(id)` (first page)               |
+ * | a contract or an image consent sent,     | `record(id)` (its `contract(id)` / `imageConsent(id)` and the  |
+ * | re-sent, regenerated or synchronised     | documents too: readiness follows them), `lists()`,             |
+ * | (4d.3, P4-485)                           | `history(id)` (first page)                                     |
  * | a fiche emailed (4c.5)                   | `history(id)` (first page, its `emails(id)` too)               |
  * | a contract template's version saved,     | `contractTemplateKeys.all` (the list and the versions), and    |
- * | published or archived (4d.3)             | for a publication every `contract(…)` alone (`isContractKey`,  |
+ * | published or archived (4d.3)             | for a publication every signing card alone (`isContractKey`,   |
  * |                                          | « Aucun modèle publié »), never the records around them        |
  *
  * Labels never live in records or list rows (ids only), so a rename touches the catalogue alone.
@@ -81,6 +82,8 @@ export const professionalKeys = {
    * record refresh refreshes it (a signed contract completes the readiness).
    */
   contract: (id: string) => [...professionalKeys.record(id), 'contract'] as const,
+  /** The image consent's signing card (`get_professional_image_consent`, P4-485): the same rule. */
+  imageConsent: (id: string) => [...professionalKeys.record(id), 'image-consent'] as const,
   /** One submission's review (`get_submission_review`), read when its sheet opens; dropped once decided. */
   submissionReview: (submissionId: string) => [...professionalKeys.all, 'submission-review', submissionId] as const,
   /**
@@ -113,6 +116,12 @@ export const professionalKeys = {
   myRecord: () => [...professionalKeys.all, 'my-record'] as const,
   /** « Mes documents » (4c.6): the signed-in professional's documents. */
   myDocuments: () => [...professionalKeys.all, 'my-documents'] as const,
+  /**
+   * Her image consent step (`get_my_image_consent`, P4-487): states and dates only, never a signing
+   * link. A signature (the embed's completion, the return from the signing page) refetches it,
+   * `myDocuments()` and `mySubmission()`.
+   */
+  myImageConsent: () => [...professionalKeys.all, 'my-image-consent'] as const,
 }
 
 /** The nine lists (one cached payload, « Documents requis » included) and their usage counts. */
@@ -139,11 +148,11 @@ export const compensationTermsKeys = {
   terms: () => [...compensationTermsKeys.all, 'terms'] as const,
 }
 
-/** Every record's contract card (`professionalKeys.contract(id)`), and nothing else of the records. */
+/** Every record's signing cards (`contract(id)`, `imageConsent(id)`), and nothing else of the records. */
 export const isContractKey = (queryKey: readonly unknown[]) =>
-  queryKey.length === 4 && queryKey[0] === professionalKeys.all[0] && queryKey[1] === 'record' && queryKey[3] === 'contract'
+  queryKey.length === 4 && queryKey[0] === professionalKeys.all[0] && queryKey[1] === 'record' && (queryKey[3] === 'contract' || queryKey[3] === 'image-consent')
 
-/** « Paramètres → Contrats » (Task 4d.3): the module's document templates and each one's versions. */
+/** « Paramètres → Contrats et formulaires » (Task 4d.3): the module's document templates and each one's versions. */
 export const contractTemplateKeys = {
   all: ['contract-templates'] as const,
   list: () => [...contractTemplateKeys.all, 'list'] as const,

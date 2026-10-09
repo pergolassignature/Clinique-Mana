@@ -53,7 +53,8 @@ export interface UploadDocumentDialogProps {
  * as the storage functions' (`uploadErrorMessage`). While a file is sent the dialog stays open.
  */
 export function UploadDocumentDialog({ professionalId, professionalName, today, type: fixedType, types, self, verifiedAtOnce, onClose, onCloseAutoFocus }: UploadDocumentDialogProps) {
-  const choices = uploadableTypes(types)
+  // The professional fills in and signs her image consent online, never uploads it (P4-489).
+  const choices = uploadableTypes(types).filter((x) => !(self && x.key === 'image_consent'))
   const [typeId, setTypeId] = useState(fixedType?.id ?? '')
   const type = fixedType ?? choices.find((x) => x.id === typeId) ?? null
   const [expiresOn, setExpiresOn] = useState(fixedType ? (defaultExpiry(fixedType.expiryRule, today) ?? '') : '')

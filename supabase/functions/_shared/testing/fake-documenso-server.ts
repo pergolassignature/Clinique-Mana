@@ -12,6 +12,15 @@
  *   POST /__fake/complete/:envelopeId                     DOCUMENT_COMPLETED
  *   POST /__fake/reject/:envelopeId[?recipient=&reason=]  DOCUMENT_REJECTED
  *   GET  /__fake/documents              envelope ids, titles, statuses (no address)
+ * Signing pages, for the app's own signing (P4-488; a recipient's token in the path):
+ *   GET  /embed/sign/:token   what `@documenso/embed-react` `EmbedSignDocument` frames: posts
+ *                             `document-ready` to its parent, and « Signer » signs and completes
+ *                             the envelope (the webhooks), then posts `document-completed`;
+ *                             `denyFraming` refuses to be framed (`X-Frame-Options: DENY`,
+ *                             `frame-ancestors 'none'`), to test the app's fallback
+ *   GET  /sign/:token         the full page: « Signer » completes, then goes to the envelope's
+ *                             `redirectUrl` (meta), as Documenso does
+ *   POST /__fake/sign-token/:token  what both pages' « Signer » calls
  * Cancelling a pending envelope through the API posts DOCUMENT_CANCELLED
  * after the answer, as Documenso does.
  */
@@ -32,6 +41,8 @@ export interface FakeDocumensoServerOptions
   webhookTimeoutMs?: number
   /** One line per webhook outcome: event, envelope id, status. Never an address. */
   log?: (line: string) => void
+  /** The embed page refuses to be framed (the app's fallback, P4-488). */
+  denyFraming?: boolean
 }
 
 /** A webhook delivery, as the admin routes answer it. */
@@ -99,7 +110,83 @@ export function fakeDocumensoServer(
     },
   })
 
+  /** The envelope and recipient a signing token names. */
+  function byToken(token: string) {
+    for (const doc of fake.documents.values()) {
+      const recipient = doc.recipients.find((r) => r.token === token)
+      if (recipient) return { doc, recipient }
+    }
+    return null
+  }
+
+  const page = (script: string, frame: boolean) =>
+    new Response(
+      '<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Signer</title>' +
+        '<style>body{font-family:system-ui,sans-serif;margin:0;padding:24px;background:#f7f7f5;color:#222}main{max-width:560px;margin:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:24px}button{font:inherit;padding:10px 16px;border-radius:6px;border:0;background:#1f6f5c;color:#fff;cursor:pointer}</style>' +
+        '</head><body><main><h1 style="font-size:18px">Documenso (local)</h1><p>Document de test du faux Documenso.</p><p id="state"></p><button id="sign" type="button">Signer</button></main><script>' +
+        script + '</script></body></html>',
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+          ...(frame && !options.denyFraming
+            ? {
+              'Content-Security-Policy':
+                'frame-ancestors http://localhost:* http://127.0.0.1:*',
+            }
+            : {
+              'X-Frame-Options': 'DENY',
+              'Content-Security-Policy': "frame-ancestors 'none'",
+            }),
+        },
+      },
+    )
+
+  function signingPage(url: URL): Response | null {
+    const match = /^\/(embed\/)?sign\/([A-Za-z0-9_-]{1,128})$/.exec(
+      url.pathname,
+    )
+    if (!match) return null
+    const embedded = match[1] !== undefined
+    const found = byToken(match[2])
+    if (!found) return json(404, { message: 'Not found', code: 'NOT_FOUND' })
+    const token = JSON.stringify(match[2])
+    const done = embedded
+      ? `parent.postMessage({ action: 'document-completed', data: { token: ${token}, documentId: ${found.doc.legacyId}, recipientId: ${
+        Number(found.recipient.id)
+      } } }, '*')`
+      : `location.href = ${
+        JSON.stringify(String(found.doc.meta.redirectUrl ?? '/'))
+      }`
+    const script =
+      (embedded
+        ? "parent.postMessage({ action: 'document-ready' }, '*');"
+        : '') +
+      "document.getElementById('sign').onclick = async () => {" +
+      `const res = await fetch('/__fake/sign-token/' + ${token}, { method: 'POST' });` +
+      "document.getElementById('state').textContent = res.ok ? 'Signé.' : 'Erreur ' + res.status;" +
+      `if (res.ok) { ${done} } };`
+    return page(script, embedded)
+  }
+
   async function admin(req: Request, url: URL): Promise<Response> {
+    const signToken = /^\/__fake\/sign-token\/([A-Za-z0-9_-]{1,128})$/.exec(
+      url.pathname,
+    )
+    if (req.method === 'POST' && signToken) {
+      const found = byToken(signToken[1])
+      if (!found || found.doc.status !== 'PENDING') {
+        return json(400, { message: 'Nothing to sign', code: 'BAD_REQUEST' })
+      }
+      fake.sign(found.doc.id, found.recipient.id)
+      await emit('DOCUMENT_SIGNED', found.doc.id)
+      if (found.doc.recipients.every((r) => r.signingStatus === 'SIGNED')) {
+        fake.complete(found.doc.id)
+        return json(200, await emit('DOCUMENT_COMPLETED', found.doc.id))
+      }
+      return json(200, { signed: true })
+    }
     if (req.method === 'GET' && url.pathname === '/__fake/documents') {
       return json(
         200,
@@ -155,6 +242,10 @@ export function fakeDocumensoServer(
     async handler(req) {
       const url = new URL(req.url)
       if (url.pathname.startsWith('/__fake/')) return await admin(req, url)
+      if (req.method === 'GET') {
+        const signing = signingPage(url)
+        if (signing) return signing
+      }
       // The functions container calls host.docker.internal, a browser
       // 127.0.0.1: the fake answers its own origin, so re-address.
       const hasBody = !['GET', 'HEAD'].includes(req.method)

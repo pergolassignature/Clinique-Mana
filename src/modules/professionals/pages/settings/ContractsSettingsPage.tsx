@@ -48,8 +48,8 @@ function publicationLabel(template: ContractTemplate): string {
 }
 
 /**
- * Paramètres → Contrats (Task 4d.3, A5.7): the module's document templates (« Contrat de service »
- * today) with a status filter and a search, the selected one's editor (`TemplateEditor`), and the
+ * Paramètres → Contrats et formulaires (Task 4d.3, A5.7; P4-482): the module's document templates
+ * (« Contrat de service », « Consentement au droit à l'image ») with a status filter and a search, the selected one's editor (`TemplateEditor`), and the
  * clinic's signer from « Signataire ». Seen with `professionals.manage` or `.settings`, changed
  * with `professionals.settings` (the template's edit permission; read-only otherwise, one notice).
  */
@@ -63,7 +63,7 @@ export function ContractsSettingsPage() {
   const all = templates.data ?? []
   const needle = query.trim().toLocaleLowerCase('fr-CA')
   const shown = all.filter((tpl) => matches(tpl, filter) && (needle === '' || tpl.title.toLocaleLowerCase('fr-CA').includes(needle)))
-  // A clinic has one template today: it opens by itself.
+  // A single template opens by itself; with several, « Ouvrir » picks one.
   const open = all.find((tpl) => tpl.id === selected) ?? (all.length === 1 ? all[0] : null)
 
   return (

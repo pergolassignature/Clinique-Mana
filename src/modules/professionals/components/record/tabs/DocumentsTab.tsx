@@ -8,12 +8,15 @@ import { fullName } from '../../../lib/display'
 import { DocumentsPanel } from '../DocumentsPanel'
 import { useRecordData } from '../record-context'
 import { ContractCard } from '../ContractCard'
+import { ImageConsentSigning } from '../ImageConsentSigning'
 import { SubmissionsCard } from '../SubmissionsCard'
 
 const D = 'modules.professionals.documents'
 
 /**
  * « Documents » (P4-13, Tasks 4b.5, 4c.3, 4d.3): « Contrat de service » first (`ContractCard`, A5.1),
+ * the image consent's Documenso signing inside its required card (`ImageConsentSigning`, P4-485;
+ * its own card when the clinic made the type optional),
  * then « Questionnaire et mises à jour » (where a submission is reviewed, `REVIEW_TAB`), then the
  * documents themselves (`get_professional_documents`, one read): « Documents requis » and « Autres
  * documents » (`DocumentsPanel`). Actions by permission: Téléverser (`professionals.manage`),
@@ -35,6 +38,7 @@ export function DocumentsTab() {
     card?.focus({ preventScroll: true })
   }
   const ownFile = professional.profileId !== null && professional.profileId === user_id
+  const consentRequired = catalog.documentTypes.some((type) => type.key === 'image_consent' && type.isActive && type.required)
   const permissions = {
     upload: can('professionals.manage'),
     review: can('professionals.documents.review') && !ownFile,
@@ -67,8 +71,10 @@ export function DocumentsTab() {
             can={permissions}
             verifiedAtOnce={can('professionals.documents.review') && !ownFile}
             focusFallback={focusHeading}
+            typeExtra={(type) => (type.key === 'image_consent' ? <ImageConsentSigning /> : null)}
             onShowReview={showReview}
           />
+          {!consentRequired && <ImageConsentSigning standalone />}
         </>
       )}
     </div>

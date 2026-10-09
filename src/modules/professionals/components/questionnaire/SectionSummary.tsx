@@ -13,6 +13,7 @@ import type { SubmissionSection } from '../../lib/questionnaire'
 import { submittedProfessions } from '../../schemas/questionnaire'
 import { HeldChips } from '../record/Chips'
 import { MotifsSummary } from '../record/MotifsSummary'
+import { MyConsentSummary } from '../self/ConsentSigning'
 import { OnFileError } from './StepParts'
 import type { OnFilePrivate } from './use-step-form'
 
@@ -232,13 +233,11 @@ export function SectionSummary({ section, values, submission, catalog, onFile }:
       const params = { date: at ? formatClinicDateTime(at) : '', name: text(values, 'signer_name') ?? '' }
       // Signed on an older text (the clinic published a newer one since): its version is named.
       const older = !current && signedId !== null && submission.signedConsentVersion !== null
+      // Without the former e-consent: the consent signed through Documenso (P4-487).
+      if (!current && !older) return <MyConsentSummary />
       return (
         <p className="text-sm text-foreground">
-          {current
-            ? t(`${L}.consent.signed`, params)
-            : older
-              ? t(`${R}.signedVersion`, { ...params, version: String(submission.signedConsentVersion) })
-              : t(`${R}.notSigned`)}
+          {current ? t(`${L}.consent.signed`, params) : t(`${R}.signedVersion`, { ...params, version: String(submission.signedConsentVersion) })}
         </p>
       )
     }

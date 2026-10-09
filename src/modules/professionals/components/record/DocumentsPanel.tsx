@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { Upload } from 'lucide-react'
 import { t } from '@/i18n'
 import { Button } from '@/shared/ui/button'
@@ -29,6 +29,8 @@ export interface DocumentsPanelProps {
   verifiedAtOnce: boolean
   /** Where focus goes when the button that opened a dialog is gone (the page's heading). */
   focusFallback: () => void
+  /** Extra content of a required type's card (the record's image-consent signing, P4-485). */
+  typeExtra?: (type: DocumentType) => ReactNode
   /** Staff: brings « Questionnaire et mises à jour » into view (a card's « Voir le questionnaire à réviser », P4-495). */
   onShowReview?: () => void
 }
@@ -41,7 +43,7 @@ export interface DocumentsPanelProps {
  * time (upload, preview, verify, refuse, redate, delete); focus goes back to the button that
  * opened it, else to the page's heading.
  */
-export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce, focusFallback, onShowReview }: DocumentsPanelProps) {
+export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce, focusFallback, typeExtra, onShowReview }: DocumentsPanelProps) {
   const requiredId = useId()
   const [open, setOpen] = useState<OpenDialog | null>(null)
   const opener = useRef<HTMLElement | null>(null)
@@ -83,7 +85,10 @@ export function DocumentsPanel({ data, types, viewer, owner, can, verifiedAtOnce
               key={entry.type.id}
               entry={entry}
               {...rowProps}
+              // The professional never uploads her image consent: she fills it in and signs it (P4-489).
+              can={viewer === 'self' && entry.type.key === 'image_consent' ? { ...can, upload: false } : can}
               onUpload={(button) => onUpload(entry.type, button)}
+              extra={typeExtra?.(entry.type)}
               onShowReview={onShowReview}
             />
           ))

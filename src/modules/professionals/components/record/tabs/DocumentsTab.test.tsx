@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   },
   private: { fetchProfessionalPrivate: vi.fn() },
   documents: { fetchProfessionalDocuments: vi.fn() },
-  contracts: { fetchProfessionalContract: vi.fn() },
+  contracts: { fetchProfessionalContract: vi.fn(), fetchProfessionalImageConsent: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 vi.mock('../../../api/record', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../../api/record')>()), ...mocks.record }))
@@ -44,6 +44,7 @@ beforeEach(() => {
   mocks.private.fetchProfessionalPrivate.mockResolvedValue({ bankAccountLast4: '4567', sinLast3: null })
   mocks.documents.fetchProfessionalDocuments.mockResolvedValue(documentsFixture())
   mocks.contracts.fetchProfessionalContract.mockResolvedValue({ publishedVersion: null, clinicSigner: false, request: null })
+  mocks.contracts.fetchProfessionalImageConsent.mockResolvedValue({ publishedVersion: null, clinicSigner: false, request: null })
 })
 afterEach(() => vi.clearAllMocks())
 

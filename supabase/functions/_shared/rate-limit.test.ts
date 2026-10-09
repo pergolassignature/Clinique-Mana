@@ -267,6 +267,7 @@ Deno.test('LIMITS: the design values, with valid bucket names', () => {
     professionalSubmitUser: ['professionals.submit_user', 10, 3_600],
     professionalContractUser: ['professionals.contract_user', 30, 3_600],
     professionalContractResend: ['professionals.contract_resend', 1, 10],
+    professionalConsentSignUser: ['professionals.consent_sign_user', 20, 3_600],
     storageUploadUser: ['storage.upload_user', 60, 3_600],
     storageConfirmUser: ['storage.confirm_user', 120, 3_600],
     storageSignUser: ['storage.sign_user', 120, 3_600],

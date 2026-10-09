@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { Upload } from 'lucide-react'
 import { t } from '@/i18n'
 import { formatClinicDateShort, formatDateOnly } from '@/shared/lib/timezone'
@@ -19,6 +19,8 @@ interface RequiredDocumentCardProps {
   onAction: DocumentRowProps['onAction']
   /** « Téléverser » / « Remplacer » for this type (the upload dialog, its type fixed). */
   onUpload: (opener: HTMLButtonElement) => void
+  /** Below the state: the image consent's Documenso signing on the record (P4-485). */
+  extra?: ReactNode
   /** Staff: « Voir le questionnaire à réviser », for a type the questionnaire holds (P4-495). */
   onShowReview?: () => void
 }
@@ -36,7 +38,7 @@ interface RequiredDocumentCardProps {
  * « Manquant »; in her draft, « Ajouté à votre questionnaire, pas encore envoyé ». She is not
  * offered an upload then (the questionnaire's review settles it).
  */
-export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onAction, onUpload, onShowReview }: RequiredDocumentCardProps) {
+export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onAction, onUpload, extra, onShowReview }: RequiredDocumentCardProps) {
   const titleId = useId()
   const [showOlder, setShowOlder] = useState(false)
   const { type, kind, current, pending, rejected, consent, older } = entry
@@ -88,6 +90,7 @@ export function RequiredDocumentCard({ entry, today, viewer, firstName, can, onA
           {consent.withdrawalEffectiveOn && <p>{t(`${D}.lines.consentWithdrawn`, { date: formatDateOnly(consent.withdrawalEffectiveOn) })}</p>}
         </div>
       )}
+      {extra}
       {viewer === 'self' && kind === 'rejected' && <p className="mt-2 text-sm text-foreground">{t('modules.professionals.myDocuments.rejectedNote')}</p>}
       {empty ? (
         <p className="mt-2 text-sm text-muted-foreground">{t(`${D}.lines.none`)}</p>

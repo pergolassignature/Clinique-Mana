@@ -18,7 +18,9 @@ const mocks = vi.hoisted(() => ({
   catalog: { fetchProfessionalsCatalog: vi.fn() },
   documents: { fetchMyDocuments: vi.fn(), uploadProfessionalDocument: vi.fn(), documentDownloadUrl: vi.fn() },
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+  consentSign: { fetchMyImageConsent: vi.fn(), startConsentSigning: vi.fn(), syncMyConsent: vi.fn() },
 }))
+vi.mock('../../api/consent-sign', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/consent-sign')>()), ...mocks.consentSign }))
 vi.mock('../../api/self', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/self')>()), ...mocks.self }))
 vi.mock('../../api/catalog', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/catalog')>()), ...mocks.catalog }))
 vi.mock('../../api/documents', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/documents')>()), ...mocks.documents }))
@@ -51,6 +53,7 @@ const loaded = () => screen.findByRole('heading', { name: t(`${D}.required.title
 beforeEach(() => {
   mocks.self.fetchMyProfessionalRecord.mockResolvedValue(recordFixture())
   mocks.catalog.fetchProfessionalsCatalog.mockResolvedValue(CATALOG)
+  mocks.consentSign.fetchMyImageConsent.mockResolvedValue({ available: true, validUntil: null, request: null })
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -210,6 +213,38 @@ describe('MyDocumentsPage — her own documents', () => {
     const file = new File([new TextEncoder().encode('%PDF-1.7\n')], 'assurance.pdf', { type: 'application/pdf' })
     fireEvent.change(dialog.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [file] } })
     await waitFor(() => expect(mocks.documents.uploadProfessionalDocument).toHaveBeenCalledWith(expect.objectContaining({ self: false, professionalId: IDS.professional })))
+  })
+
+  it('the image consent is filled in and signed, never uploaded (P4-489): « Remplir et signer »', async () => {
+    renderPage(documentsFixture({ consent: null, documents: [] }))
+    await loaded()
+    const consent = screen.getByRole('region', { name: "Consentement droit à l'image" })
+    expect(await within(consent).findByRole('button', { name: t('modules.professionals.consentSign.fill') })).toBeInTheDocument()
+    expect(within(consent).queryByRole('button', { name: /^Téléverser/ })).not.toBeInTheDocument()
+    // Nor in « Téléverser un document »'s list of types.
+    await userEvent.click(screen.getByRole('button', { name: t(`${D}.actions.uploadOther`) }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).not.toHaveTextContent("Consentement droit à l'image")
+  })
+
+  it('an expired consent reads « Renouveler : remplir et signer »; a signed one its dates', async () => {
+    mocks.consentSign.fetchMyImageConsent.mockResolvedValue({
+      available: true,
+      validUntil: null,
+      request: { status: 'signed', lastError: null, sentAt: '2025-10-01T14:00:00Z', completedAt: '2025-10-01T14:05:00Z', signedAt: '2025-10-01T14:05:00Z' },
+    })
+    renderPage(documentsFixture({ consent: null, documents: [] }))
+    await loaded()
+    expect(await screen.findByRole('button', { name: t('modules.professionals.consentSign.renew') })).toBeInTheDocument()
+    cleanup()
+    mocks.consentSign.fetchMyImageConsent.mockResolvedValue({
+      available: true,
+      validUntil: '2027-10-08',
+      request: { status: 'signed', lastError: null, sentAt: '2026-10-08T14:00:00Z', completedAt: '2026-10-08T14:05:00Z', signedAt: '2026-10-08T14:05:00Z' },
+    })
+    renderPage(documentsFixture({ consent: null, documents: [] }))
+    await loaded()
+    expect(await screen.findByText(/^Signé le .* · valide jusqu'au 8 octobre 2027$/)).toBeInTheDocument()
   })
 
   it('an account without a professional file: says so', async () => {
