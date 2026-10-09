@@ -126,7 +126,7 @@ describe('AuditLogPage', () => {
       'Élément',
     ])
     const [first] = rows()
-    expect(within(first!).getByText('07 oct. 2026 à 14:30')).toBeInTheDocument()
+    expect(within(first!).getByText('7 oct. 2026 à 14:30')).toBeInTheDocument()
     expect(within(first!).getAllByText('Marie Tremblay')[0]).toBeInTheDocument()
     expect(within(first!).getAllByText('Clinique')[0]).toBeInTheDocument()
     expect(within(first!).getAllByText('Modification')[0]).toBeInTheDocument()
@@ -143,7 +143,7 @@ describe('AuditLogPage', () => {
   it('expands an update into « Champ : avant → après » with French labels', async () => {
     const user = userEvent.setup()
     await renderPage()
-    const button = toggle('07 oct. 2026 à 14:30')
+    const button = toggle('7 oct. 2026 à 14:30')
     expect(button).toHaveAttribute('aria-expanded', 'false')
     await user.click(button)
     expect(button).toHaveAttribute('aria-expanded', 'true')
@@ -166,9 +166,9 @@ describe('AuditLogPage', () => {
       changed_fields: { module_key: 'professionals', enabled: true, updated_by: MARIE, org_id: 'c0000000-0000-0000-0000-000000000009' },
     })
     await renderPage({ pages: [[ROLE, MODULE]] })
-    await user.click(toggle('07 oct. 2026 à 14:30'))
+    await user.click(toggle('7 oct. 2026 à 14:30'))
     expect(screen.getByText(`Rôle${NB}: Conseillère → Adjointe administrative`)).toBeInTheDocument()
-    await user.click(toggle('07 oct. 2026 à 13:00'))
+    await user.click(toggle('7 oct. 2026 à 13:00'))
     await waitFor(() => expect(screen.getByText(`Module${NB}: Professionnels`)).toBeInTheDocument())
     expect(screen.getByText(`Activé${NB}: Oui`)).toBeInTheDocument()
     expect(screen.getByText('Marie Tremblay', { selector: 'li span' })).toHaveAttribute('title', MARIE)
@@ -178,7 +178,7 @@ describe('AuditLogPage', () => {
     const user = userEvent.setup()
     const CUSTOM = entry({ table_name: 'org_role_permissions', action: 'insert', changed_fields: { role: 'custom_0a1b2c3d' } })
     await renderPage({ pages: [[CUSTOM]] })
-    await user.click(toggle('07 oct. 2026 à 14:30'))
+    await user.click(toggle('7 oct. 2026 à 14:30'))
     await waitFor(() => expect(screen.getByText(`Rôle${NB}: Réception`)).toBeInTheDocument())
   })
 
@@ -196,12 +196,12 @@ describe('AuditLogPage', () => {
     })
     const UNKNOWN = entry({ id: 4, created_at: '2026-10-07T17:00:00Z', table_name: 'org_role_permissions', action: 'delete', changed_fields: { role: 'custom_0e0e0e0e' } })
     await renderPage({ pages: [[REMOVED, ASSIGNED, UNKNOWN]] })
-    await user.click(toggle('07 oct. 2026 à 15:00'))
+    await user.click(toggle('7 oct. 2026 à 15:00'))
     // The deletion row itself: its key reads as the role's name.
     expect(await screen.findByText(`Clé${NB}: Soutien`)).toBeInTheDocument()
-    await user.click(toggle('07 oct. 2026 à 14:30'))
+    await user.click(toggle('7 oct. 2026 à 14:30'))
     expect(screen.getByText(`Rôle${NB}: Soutien`)).toBeInTheDocument()
-    await user.click(toggle('07 oct. 2026 à 13:00'))
+    await user.click(toggle('7 oct. 2026 à 13:00'))
     // A role whose name no row on screen carries: a generic label, its key in title only.
     expect(screen.getByText(t('access.customRole'), { selector: 'li span' })).toHaveAttribute('title', 'custom_0e0e0e0e')
     // The details never show the key (the record id column does: it is the row's identifier).
@@ -211,7 +211,7 @@ describe('AuditLogPage', () => {
   it('shows a secret rotation as « Secret remplacé »', async () => {
     const user = userEvent.setup()
     await renderPage({ pages: [[entry({ table_name: 'org_secrets', changed_fields: { value: { rotated: true } }, source: 'rpc:set_org_secret' })]] })
-    await user.click(toggle('07 oct. 2026 à 14:30'))
+    await user.click(toggle('7 oct. 2026 à 14:30'))
     expect(screen.getByText('Secret remplacé')).toBeInTheDocument()
     expect(screen.queryByText(/rotated/)).not.toBeInTheDocument()
   })
@@ -221,9 +221,9 @@ describe('AuditLogPage', () => {
     await renderPage({ pages: [[BANK_READ, BANK_UPDATE]] })
     expect(within(rows()[0]!).getAllByText('Consultation')[0]).toBeInTheDocument()
     expect(within(rows()[0]!).getAllByText('Coordonnées bancaires')[0]).toBeInTheDocument()
-    await user.click(toggle('07 oct. 2026 à 13:00'))
+    await user.click(toggle('7 oct. 2026 à 13:00'))
     expect(screen.getByText('Consultation du numéro de compte')).toBeInTheDocument()
-    await user.click(toggle('07 oct. 2026 à 12:00'))
+    await user.click(toggle('7 oct. 2026 à 12:00'))
     expect(screen.getByText(`Numéro de transit${NB}: (masqué)`)).toBeInTheDocument()
   })
 
@@ -317,14 +317,14 @@ describe('AuditLogPage', () => {
     await renderPage({ pages: [[UPDATE, BANK_READ], [SEED], [BANK_READ]] })
     await user.click(screen.getByRole('button', { name: t('audit.loadMore') }))
     await waitFor(() => expect(rows()).toHaveLength(3))
-    await user.click(toggle('07 oct. 2026 à 13:00'))
+    await user.click(toggle('7 oct. 2026 à 13:00'))
     await user.selectOptions(filter('Section'), 'Coordonnées bancaires')
     await waitFor(() =>
       expect(mocks.api.fetchAuditEntries).toHaveBeenLastCalledWith({ ...NO_FILTERS, table: 'organization_bank_details' }, null),
     )
     await waitFor(() => expect(rows()).toHaveLength(1))
     expect(screen.getByText('1 entrée affichée')).toBeInTheDocument()
-    expect(toggle('07 oct. 2026 à 13:00')).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle('7 oct. 2026 à 13:00')).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('says when the journal is empty', async () => {
@@ -370,7 +370,7 @@ describe('AuditLogPage', () => {
     mocks.api.fetchAuditEntries.mockResolvedValueOnce([UPDATE, BANK_READ])
     render(ui())
     // UPDATE (14:30) was written while the person was away.
-    await waitFor(() => expect(toggle('07 oct. 2026 à 14:30')).toBeInTheDocument())
+    await waitFor(() => expect(toggle('7 oct. 2026 à 14:30')).toBeInTheDocument())
     expect(rows()).toHaveLength(2)
     // One page, not every page loaded before.
     expect(mocks.api.fetchAuditEntries.mock.calls).toEqual([[NO_FILTERS, null]])
@@ -384,23 +384,23 @@ describe('AuditLogPage', () => {
     await user.selectOptions(filter('Période'), "Aujourd'hui")
     await waitFor(() => expect(mocks.api.fetchAuditEntries).toHaveBeenLastCalledWith({ ...NO_FILTERS, from: '2026-10-07T04:00:00.000Z' }, null))
     await waitFor(() => expect(rows()).toHaveLength(2))
-    await user.click(toggle('07 oct. 2026 à 14:30'))
-    expect(toggle('07 oct. 2026 à 14:30')).toHaveAttribute('aria-expanded', 'true')
+    await user.click(toggle('7 oct. 2026 à 14:30'))
+    expect(toggle('7 oct. 2026 à 14:30')).toHaveAttribute('aria-expanded', 'true')
     mocks.clinicDate.value = '2026-10-08'
     rerenderPage()
     await waitFor(() => expect(mocks.api.fetchAuditEntries).toHaveBeenLastCalledWith({ ...NO_FILTERS, from: '2026-10-08T04:00:00.000Z' }, null))
     await waitFor(() => expect(rows()).toHaveLength(2))
-    expect(toggle('07 oct. 2026 à 14:30')).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle('7 oct. 2026 à 14:30')).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('keeps the open rows at midnight while « Tout » is selected', async () => {
     mocks.clinicDate.value = '2026-10-07'
     const user = userEvent.setup()
     const { rerenderPage } = await renderPage()
-    await user.click(toggle('07 oct. 2026 à 14:30'))
+    await user.click(toggle('7 oct. 2026 à 14:30'))
     mocks.clinicDate.value = '2026-10-08'
     rerenderPage()
-    expect(toggle('07 oct. 2026 à 14:30')).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle('7 oct. 2026 à 14:30')).toHaveAttribute('aria-expanded', 'true')
     // Same query: nothing to reload.
     expect(mocks.api.fetchAuditEntries).toHaveBeenCalledTimes(1)
   })
@@ -409,7 +409,7 @@ describe('AuditLogPage', () => {
     await renderPage()
     expect(screen.getByRole('status')).toHaveTextContent('2 entrées affichées')
     // (The person's name follows: on a phone it is shown in the button; CSS is not applied here.)
-    expect(toggle('07 oct. 2026 à 14:30').textContent).toMatch(/^07 oct\. 2026 à 14:30 Détails.: Modification, Clinique/)
+    expect(toggle('7 oct. 2026 à 14:30').textContent).toMatch(/^7 oct\. 2026 à 14:30 Détails.: Modification, Clinique/)
     expect(screen.getByRole('button', { name: t('audit.loadMore') })).toHaveClass('max-sm:h-11')
   })
 

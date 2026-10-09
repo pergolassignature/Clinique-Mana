@@ -62,8 +62,8 @@ describe('EmailLogTable', () => {
 
   it('lists date, template, recipient and status in French', async () => {
     renderLog()
-    await within(await screen.findByRole('table', { name: t('settings.email.log.title') })).findByText('08 oct. 2026 à 08:00')
-    const delivered = rowOf('08 oct. 2026 à 08:00')
+    await within(await screen.findByRole('table', { name: t('settings.email.log.title') })).findByText('8 oct. 2026 à 08:00')
+    const delivered = rowOf('8 oct. 2026 à 08:00')
     expect(within(delivered).getByText("Invitation d'un membre du personnel")).toBeInTheDocument()
     // Its own column, and repeated under the template on a phone.
     expect(within(delivered).getAllByText('marie@exemple.ca')).toHaveLength(2)
@@ -72,22 +72,22 @@ describe('EmailLogTable', () => {
 
   it('reads a bounced email as « Adresse introuvable »', async () => {
     renderLog()
-    await screen.findByText('07 oct. 2026 à 08:00')
-    expect(within(rowOf('07 oct. 2026 à 08:00')).getByText('Adresse introuvable')).toBeInTheDocument()
+    await screen.findByText('7 oct. 2026 à 08:00')
+    expect(within(rowOf('7 oct. 2026 à 08:00')).getByText('Adresse introuvable')).toBeInTheDocument()
   })
 
   it('« Charger plus » asks for the rows before the last one seen (both cursor fields), then shows the end', async () => {
     const user = userEvent.setup()
     renderLog()
-    await screen.findByText('07 oct. 2026 à 08:00')
+    await screen.findByText('7 oct. 2026 à 08:00')
     await user.click(screen.getByRole('button', { name: t('settings.email.log.loadMore') }))
-    await screen.findByText('07 janv. 2024 à 07:00')
+    await screen.findByText('7 janv. 2024 à 07:00')
     expect(mocks.api.listEmailLog).toHaveBeenLastCalledWith(
       { templateKey: null, status: null, from: null },
       { before: BOUNCED.created_at, beforeId: BOUNCED.id },
     )
     // Anonymised after 24 months; failed, but the provider may have accepted it: not « Échec ».
-    const failed = rowOf('07 janv. 2024')
+    const failed = rowOf('7 janv. 2024')
     expect(within(failed).getAllByText('Adresse retirée')).toHaveLength(2)
     expect(within(failed).getByText('Résultat inconnu')).toBeInTheDocument()
     expect(within(failed).getByText(plain(t('email.failure.unknownOutcomeHint')))).toBeInTheDocument()
@@ -104,11 +104,11 @@ describe('EmailLogTable', () => {
         row({ id: 'f2', status: 'failed', error_code: 'something_new', created_at: '2026-10-07T12:00:00Z' }),
       ],
     ])
-    await screen.findByText('08 oct. 2026 à 08:00')
-    const known = rowOf('08 oct. 2026 à 08:00')
+    await screen.findByText('8 oct. 2026 à 08:00')
+    const known = rowOf('8 oct. 2026 à 08:00')
     expect(within(known).getByText('Adresse invalide')).toBeInTheDocument()
     expect(within(known).queryByText(/^Code/)).not.toBeInTheDocument()
-    const unknown = rowOf('07 oct. 2026 à 08:00')
+    const unknown = rowOf('7 oct. 2026 à 08:00')
     expect(within(unknown).getByText('Échec')).toBeInTheDocument()
     expect(within(unknown).getByText(/^Code.:.something_new$/)).toBeInTheDocument()
   })
@@ -122,13 +122,13 @@ describe('EmailLogTable', () => {
     expect(await screen.findByText(hint)).toBeInTheDocument()
     expect(screen.getByLabelText(t('settings.email.log.filters.template'))).toHaveAccessibleDescription(t('settings.email.log.filters.templatesError'))
     // The log itself still loads.
-    expect(await screen.findByText('08 oct. 2026 à 08:00')).toBeInTheDocument()
+    expect(await screen.findByText('8 oct. 2026 à 08:00')).toBeInTheDocument()
   })
 
   it('filters by template and status, from the first page again', async () => {
     const user = userEvent.setup()
     renderLog()
-    await screen.findByText('07 oct. 2026 à 08:00')
+    await screen.findByText('7 oct. 2026 à 08:00')
     await user.selectOptions(screen.getByLabelText(t('settings.email.log.filters.status')), 'bounced')
     await waitFor(() =>
       expect(mocks.api.listEmailLog).toHaveBeenLastCalledWith({ templateKey: null, status: 'bounced', from: null }, null),
@@ -143,7 +143,7 @@ describe('EmailLogTable', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-10-08T16:00:00Z') })
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderLog()
-    await screen.findByText('07 oct. 2026 à 08:00')
+    await screen.findByText('7 oct. 2026 à 08:00')
     await user.selectOptions(screen.getByLabelText(t('settings.email.log.filters.period')), '7d')
     // 2 Oct 2026, 00:00 in Toronto (EDT) = 04:00 UTC.
     await waitFor(() =>

@@ -358,7 +358,7 @@ describe('SigningSettingsPage', () => {
       await user.click(within(webhook()).getByRole('button', { name: t('settings.webhook.copy') }))
       expect(writeText).toHaveBeenCalledWith(url)
       expect(mocks.toast.success).toHaveBeenCalledWith(t('settings.webhook.copied'))
-      expect(await within(webhook()).findByText(t('settings.signing.webhook.lastEvent', { date: '08 oct. 2026 à 08:00' }))).toBeInTheDocument()
+      expect(await within(webhook()).findByText(t('settings.signing.webhook.lastEvent', { date: '8 oct. 2026 à 08:00' }))).toBeInTheDocument()
     })
 
     it('says when no event was received yet, without announcing it (it is what the page loaded)', async () => {
@@ -423,7 +423,7 @@ describe('SigningSettingsPage', () => {
       it('shows the last test’s status in French', async () => {
         renderPage(ADMIN, { lastTest: TEST_REQUEST })
         expect(await within(sending()).findByText(t('signing.status.signed'))).toBeInTheDocument()
-        expect(within(sending()).getByText(plain(t('settings.signing.send.lastTest', { date: '08 oct. 2026 à 08:00' })))).toBeInTheDocument()
+        expect(within(sending()).getByText(plain(t('settings.signing.send.lastTest', { date: '8 oct. 2026 à 08:00' })))).toBeInTheDocument()
         // A closed request has nothing to update.
         expect(within(sending()).queryByRole('button', { name: t('settings.signing.send.refresh') })).not.toBeInTheDocument()
       })
@@ -512,7 +512,7 @@ describe('SigningSettingsPage', () => {
       const table = await screen.findByRole('table')
       const rows = within(table).getAllByRole('row').slice(1)
       expect(within(rows[0]!).getByText('Contrat de service')).toBeInTheDocument()
-      expect(within(rows[0]!).getByText(t('settings.signing.templates.published', { version: '3', date: '08 oct. 2026' }))).toBeInTheDocument()
+      expect(within(rows[0]!).getByText(t('settings.signing.templates.published', { version: '3', date: '8 oct. 2026' }))).toBeInTheDocument()
       expect(within(rows[0]!).getByText(t('settings.signing.templates.draft'))).toBeInTheDocument()
       expect(within(rows[1]!).getByText(t('settings.signing.templates.notPublished'))).toBeInTheDocument()
       expect(within(rows[1]!).getByText(t('settings.signing.templates.inactive'))).toBeInTheDocument()
