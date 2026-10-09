@@ -137,7 +137,7 @@ select ok((select p.prosecdef from pg_proc p where p.oid = 'public.run_professio
 select private.notify(current_setting('test.a')::uuid, 'professionals', 'professionals.insurance_expired', 'important',
   'Assurance expirée', 'Avant la fin de collaboration.', '/professionnels/c0000000-0000-0000-0000-000000000011/documents',
   'professional', 'c0000000-0000-0000-0000-000000000011', 'professionals.manage', null,
-  'insurance:f0000000-0000-0000-0000-000000000011:expired', now() + interval '60 days');
+  'insurance:f0000000-0000-0000-0000-000000000013:expired', now() + interval '60 days');
 select set_config('test.audit_start', (select coalesce(max(id), 0)::text from public.audit_log), true);
 set local role service_role;
 select set_config('test.run1', public.run_professionals_document_notices_for_service(current_setting('test.a')::uuid,
