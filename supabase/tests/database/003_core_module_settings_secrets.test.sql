@@ -125,6 +125,7 @@ select functions_are('public', array[
   'get_consent_versions', 'save_consent_draft', 'publish_consent_version', 'discard_consent_draft',
   'get_professional_document_rejection_for_service',
   'prepare_professional_contract', 'get_professional_contract',
+  'copy_professional_invitation_link', 'record_professional_invitation_email_failure_for_service',
   'prepare_professional_image_consent', 'get_professional_image_consent', 'prepare_my_image_consent', 'get_my_image_consent'
 ], 'public schema exposes exactly the intended RPCs');
 

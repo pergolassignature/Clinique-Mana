@@ -27,7 +27,7 @@ const O = 'modules.professionals.onboarding'
 const ID = IDS.professional
 
 const live: Onboarding = {
-  invitation: { state: 'sent', sentAt: '2026-10-05T14:00:00Z', expiresAt: '2026-10-12T14:00:00Z', openedAt: null, usedAt: null },
+  invitation: { state: 'sent', sentAt: '2026-10-05T14:00:00Z', expiresAt: '2026-10-12T14:00:00Z', openedAt: null, usedAt: null, delivery: 'email', emailStatus: 'sent', emailError: null },
   submission: null,
   onboardingApproved: false,
 }
@@ -69,7 +69,7 @@ describe('InvitationDialog', () => {
   it('« Envoyer un nouveau lien »: the dates of the expired link, never « oct.. »', async () => {
     const expired: Onboarding = { ...live, invitation: { ...live.invitation!, state: 'expired', sentAt: '2026-09-28T14:00:00Z', expiresAt: '2026-10-05T14:00:00Z' } }
     const { dialog } = await choose(t(`${A}.new_link`), { onboarding: expired })
-    await waitFor(() => expect(dialog).toHaveAccessibleDescription(/Le lien envoyé le 28 sept\. a expiré le 5 oct\. : un nouveau lien sera envoyé à marie\.t@exemple\.ca\./))
+    await waitFor(() => expect(dialog).toHaveAccessibleDescription(/Le lien du 28 sept\. a expiré le 5 oct\. : un nouveau lien sera envoyé à marie\.t@exemple\.ca\./))
     expect(dialog.textContent).not.toMatch(/\.\./)
   })
 
@@ -78,7 +78,7 @@ describe('InvitationDialog', () => {
     const { dialog } = await choose(t(`${A}.resend`), { onboarding: live })
     await userEvent.click(within(dialog).getByRole('button', { name: t(`${A}.resend`) }))
     await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledWith(t(`${O}.toasts.createdNotSent`), {
-      description: `${t(`${O}.emailProblems.provider_error`)} ${t(`${O}.emailAdvice.invitation`)}`,
+      description: `${t(`${O}.emailProblems.provider_error`)} ${t(`${O}.emailAdvice.invitation`)} ${t(`${O}.emailAdvice.copyLink`)}`,
     }))
   })
 
@@ -139,7 +139,7 @@ describe('InvitationDialog', () => {
   it('« Révoquer l’invitation » mentions the questionnaire only when one was sent', async () => {
     const { dialog } = await choose(t(`${A}.revoke`), { onboarding: live })
     expect(dialog).toHaveAccessibleDescription(
-      'Le lien envoyé à marie.t@exemple.ca ne fonctionnera plus. Vous pourrez inviter Marie de nouveau. Le dossier redeviendra « À inviter ».',
+      "Le lien d'invitation de Marie ne fonctionnera plus. Vous pourrez inviter Marie de nouveau. Le dossier redeviendra « À inviter ».",
     )
     cleanup()
     const sent: Onboarding = { ...live, submission: { id: 's1', kind: 'onboarding', status: 'submitted', submittedAt: '2026-10-07T14:00:00Z' } }

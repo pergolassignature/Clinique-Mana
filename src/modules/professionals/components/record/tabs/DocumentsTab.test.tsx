@@ -329,6 +329,18 @@ describe('SubmissionReviewSheet', () => {
     expect(sheet).toHaveAccessibleDescription("Questionnaire d'accueil envoyé le 08 oct. 2026 à 10:00.")
   })
 
+  it('reads a deposit left empty « Non fourni » (optional, P4-480), the other private fields « Non transmis »', async () => {
+    const unanswered = { answered: false, changed: false }
+    mocks.submissions.fetchSubmissionReview.mockResolvedValue(
+      submissionReviewWithFields({ bank_institution: unanswered, bank_transit: unanswered, bank_account: unanswered }),
+    )
+    const { sheet } = await openSheet({ summary: t(`${S}.summary`, { count: String(REVIEW_CHANGED_FIELDS.length - 1) }) })
+    expect(within(sheet).queryByRole('checkbox', { name: t(`${F}.bank_account`) })).not.toBeInTheDocument()
+    await userEvent.click(within(sheet).getByRole('button', { name: t(`${S}.showUnchanged`, { count: '7' }) }))
+    expect(within(sheet).getAllByText(t(`${V}.notProvided`))).toHaveLength(3)
+    expect(within(sheet).getAllByText(t(`${V}.notSent`)).length).toBeGreaterThanOrEqual(3)
+  })
+
   // P4-378: what « Appliquer » would refuse is said on the field first (the database still decides).
   it('flags an insurance already expired and a consent signed on an older text, before « Appliquer »', async () => {
     mocks.submissions.fetchSubmissionReview.mockResolvedValue(

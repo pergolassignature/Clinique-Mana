@@ -120,7 +120,7 @@ export function confirmPayload(section: SubmissionSection, parsed: Values, prefi
   return section === 'availability' && answered === undefined ? {} : null
 }
 
-// --- Completeness (private.submission_gaps, P4-173) ---------------------------------------------
+// --- Completeness (private.submission_gaps, P4-173, P4-480) -------------------------------------
 
 export interface CompletenessContext {
   /** The answers saved (submitted_values). */
@@ -181,11 +181,12 @@ export function sectionComplete(section: SubmissionSection, ctx: CompletenessCon
     case 'tax_bank': {
       const row = ctx.privateRow
       if (!row) return false
-      const institution = row.bankInstitution ?? ctx.onFilePrivate?.bankInstitution ?? null
-      const transit = row.bankTransit ?? ctx.onFilePrivate?.bankTransit ?? null
+      const institution = (row.bankInstitution ?? ctx.onFilePrivate?.bankInstitution ?? null) !== null
+      const transit = (row.bankTransit ?? ctx.onFilePrivate?.bankTransit ?? null) !== null
       const account = row.bankAccountLast4 !== null || ctx.onFile.hasBankAccount
       const sin = !ctx.collectSin || row.sinLast3 !== null || ctx.onFile.hasSin
-      return institution !== null && transit !== null && account && sin
+      // The deposit is optional, but whole or empty (P4-480).
+      return institution === transit && transit === account && sin
     }
     case 'consent':
       // As private.submission_gaps (P4-487): a consent in force on the file (signed through

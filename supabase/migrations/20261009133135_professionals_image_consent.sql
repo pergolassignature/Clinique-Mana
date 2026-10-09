@@ -969,8 +969,8 @@ $$;
 revoke all on function public.prepare_my_image_consent(uuid, text, text) from public, anon, authenticated, service_role;
 grant execute on function public.prepare_my_image_consent(uuid, text, text) to service_role;
 
--- The questionnaire's completeness (*_professionals_onboarding.sql, P4-173), the consent section
--- now complete when the file holds a consent in force (signed through Documenso), or the draft
+-- The questionnaire's completeness (*_professionals_bank_optional.sql's, P4-173 and P4-480), the
+-- consent section now complete when the file holds a consent in force (signed through Documenso), or the draft
 -- holds an e-consent of the current text signed before the switch, or the clinic has published no
 -- form (P4-487). The rest unchanged.
 create or replace function private.submission_gaps(p_sub public.professional_submissions)
@@ -983,9 +983,15 @@ as $$
   sp as (select s.* from public.professional_submission_private s
           where s.submission_id = p_sub.id and s.org_id = p_sub.org_id),
   pp as (select x.* from public.professional_private x
-          where x.professional_id = p_sub.professional_id and x.org_id = p_sub.org_id)
+          where x.professional_id = p_sub.professional_id and x.org_id = p_sub.org_id),
+  bank as (
+    select coalesce((select sp.bank_institution from sp), (select pp.bank_institution from pp)) is not null as has_institution,
+           coalesce((select sp.bank_transit from sp), (select pp.bank_transit from pp)) is not null as has_transit,
+           (exists (select 1 from sp where sp.bank_account is not null)
+            or exists (select 1 from pp where pp.bank_account is not null)) as has_account
+  )
   select coalesce(pg_catalog.array_agg(s.section order by s.ord), '{}')
-    from pg_catalog.unnest(private.submission_sections()) with ordinality as s(section, ord), v
+    from pg_catalog.unnest(private.submission_sections()) with ordinality as s(section, ord), v, bank b
    where s.section = any (p_sub.requested_sections)
      and not coalesce(case s.section
        when 'personal' then
@@ -1009,9 +1015,8 @@ as $$
             and f.subject_type = 'professional_submission' and f.subject_id = p_sub.id
             and (f.retain_until is null or f.retain_until > pg_catalog.now()))
        when 'tax_bank' then exists (select 1 from sp)
-         and coalesce((select sp.bank_institution from sp), (select pp.bank_institution from pp)) is not null
-         and coalesce((select sp.bank_transit from sp), (select pp.bank_transit from pp)) is not null
-         and (exists (select 1 from sp where sp.bank_account is not null) or exists (select 1 from pp where pp.bank_account is not null))
+         -- All three or none (P4-480).
+         and b.has_institution = b.has_transit and b.has_transit = b.has_account
          and (not coalesce((private.professionals_setting(p_sub.org_id, 'collect_sin'))::boolean, false)
               or exists (select 1 from sp where sp.sin is not null) or exists (select 1 from pp where pp.sin is not null))
        -- P4-487: signed through Documenso (a consent in force on the file), or the e-consent of a

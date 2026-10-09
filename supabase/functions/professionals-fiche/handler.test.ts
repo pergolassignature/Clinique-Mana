@@ -237,12 +237,15 @@ Deno.test('professionals-fiche: sends the uploaded file to the typed address, na
     assertEquals(queued.p_attachment_count, 1)
 
     // A deliberate send: the double-click guard and the free-recipient limit, not one per minute per address.
-    assertEquals(buckets(service.calls), [
-      'professionals.fiche_email_user',
-      'emails.repeat_guard',
+    // The function's own limit first, the two narrow email limits in parallel (any order), then
+    // the clinic's daily count once they pass.
+    const used = buckets(service.calls)
+    assertEquals(used[0], 'professionals.fiche_email_user')
+    assertEquals([...used.slice(1, 3)].sort(), [
       'emails.free_recipient',
-      'emails.org_day',
+      'emails.repeat_guard',
     ])
+    assertEquals(used.slice(3), ['emails.org_day'])
 
     assertEquals(http.calls.length, 1)
     const sent = JSON.parse(http.calls[0].body)

@@ -11,7 +11,7 @@ import { FormField } from '@/shared/ui/form-field'
 import { Input } from '@/shared/ui/input'
 import type { SubmissionPrivateInput } from '../../api/self'
 import { isRefusal, isTransient, reportQuestionnaireError, useSaveMyPrivate } from '../../hooks/use-my-submission'
-import { taxBankSchema, toTaxBankValues, type TaxBankValues } from '../../schemas/questionnaire'
+import { depositStarted, taxBankSchema, toTaxBankValues, type TaxBankValues } from '../../schemas/questionnaire'
 import { FIELD_GRID, FieldGroup, OnFileError, StepActions, StepAlert, StepForm } from './StepParts'
 import { refusalTarget, type StepContext } from './use-step-form'
 
@@ -61,6 +61,9 @@ function TaxBankForm({ ctx }: { ctx: StepContext }) {
   const mutation = useSaveMyPrivate()
   const [alert, setAlert] = useState<string | null>(null)
   const { register, formState: { errors, isDirty } } = form
+  // « Dépôt direct » is optional, but whole once started (P4-480): the markers follow what is typed.
+  const [institution, transit, account] = form.watch(['bank_institution', 'bank_transit', 'bank_account'])
+  const bankRequired = depositStarted({ bank_institution: institution, bank_transit: transit, bank_account: account }, accountKept)
   // Typed numbers are never autosaved: leaving with them asks first.
   useUnsavedChanges(isDirty)
 
@@ -100,15 +103,15 @@ function TaxBankForm({ ctx }: { ctx: StepContext }) {
       {onFile.failed && <OnFileError onFile={onFile} />}
       <FieldGroup title={t(`${T}.bankTitle`)} description={t(`${T}.bankHelp`)}>
         <div className="grid gap-3 min-[400px]:grid-cols-[minmax(0,6rem)_minmax(0,8rem)_minmax(0,1fr)]">
-          <FormField label={t(`${T}.institution`)} required error={errors.bank_institution?.message}>
+          <FormField label={t(`${T}.institution`)} required={bankRequired} error={errors.bank_institution?.message}>
             {(field) => <Input {...field} {...register('bank_institution')} inputMode="numeric" maxLength={5} {...SENSITIVE_INPUT_PROPS} className="tabular" />}
           </FormField>
-          <FormField label={t(`${T}.transit`)} required error={errors.bank_transit?.message}>
+          <FormField label={t(`${T}.transit`)} required={bankRequired} error={errors.bank_transit?.message}>
             {(field) => <Input {...field} {...register('bank_transit')} inputMode="numeric" maxLength={7} {...SENSITIVE_INPUT_PROPS} className="tabular" />}
           </FormField>
           <FormField
             label={t(`${T}.account`)}
-            required={!accountKept}
+            required={bankRequired && !accountKept}
             help={accountMask ? t(saved?.bankAccountLast4 ? `${T}.accountSaved` : `${T}.accountOnFile`, { last4: accountMask }) : undefined}
             error={errors.bank_account?.message}
           >

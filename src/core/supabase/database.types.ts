@@ -2093,6 +2093,82 @@ export type Database = {
           },
         ]
       }
+      professional_invitation_deliveries: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email_failure: string | null
+          id: string
+          link_id: string
+          method: string
+          org_id: string
+          professional_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email_failure?: string | null
+          id?: string
+          link_id: string
+          method: string
+          org_id: string
+          professional_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email_failure?: string | null
+          id?: string
+          link_id?: string
+          method?: string
+          org_id?: string
+          professional_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_invitation_deliveries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "professional_invitation_deliveries_link_fkey"
+            columns: ["link_id"]
+            isOneToOne: true
+            referencedRelation: "secure_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_invitation_deliveries_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_invitation_deliveries_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_directory"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_invitation_deliveries_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_list"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "professional_invitation_deliveries_professional_fkey"
+            columns: ["org_id", "professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals_readiness"
+            referencedColumns: ["org_id", "professional_id"]
+          },
+        ]
+      }
       professional_languages: {
         Row: {
           created_at: string
@@ -4875,6 +4951,10 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      copy_professional_invitation_link: {
+        Args: { p_actor: string; p_id: string; p_token_hash: string }
+        Returns: Json
+      }
       count_my_unread_notifications: {
         Args: never
         Returns: {
@@ -5347,6 +5427,9 @@ export type Database = {
       list_professional_invitation_states: {
         Args: never
         Returns: {
+          delivery: string
+          email_error: string
+          email_status: string
           expires_at: string
           onboarding_approved: boolean
           opened_at: string
@@ -5629,6 +5712,10 @@ export type Database = {
       record_monthly_sessions: {
         Args: { p_entries: Json; p_month: string }
         Returns: number
+      }
+      record_professional_invitation_email_failure_for_service: {
+        Args: { p_code: string; p_link_id: string; p_org: string }
+        Returns: undefined
       }
       record_signature_sync: {
         Args: {

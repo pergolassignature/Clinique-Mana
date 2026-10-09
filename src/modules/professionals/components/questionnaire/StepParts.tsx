@@ -16,6 +16,9 @@ const A = 'modules.professionals.questionnaire.actions'
  * autosaved steps (`DraftActionContext`), and the step form's submit, « Continuer » by default
  * (« Enregistrement… » while it saves; `aria-disabled`, so focus stays on it). Full width and stacked
  * on a phone, the forward action on top; the draft button comes after the fields in the tab order.
+ * The row is the same on every step: 24 px under what precedes it, whatever spacing the step's form
+ * uses (`!mt-6` wins over the form's `space-y-*`), its separator, « Retour » on the column's left edge
+ * (its place kept empty on the first step) and the forward action on its right edge.
  */
 export function StepActions({
   back,
@@ -39,7 +42,7 @@ export function StepActions({
   const disabled = pending || inactive
   const saveDraft = useContext(DraftActionContext)
   return (
-    <div className="mt-6 flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="!mt-6 flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
       {back ? (
         <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={back}>
           {t(`${A}.back`)}
@@ -70,11 +73,14 @@ export function StepActions({
   )
 }
 
-/** A refusal or an error of the step that names no field: above the buttons, announced. */
+/**
+ * A refusal or an error of the step that names no field: above the buttons, announced; 24 px under
+ * the fields on every step (`!mt-6`, like the buttons' row).
+ */
 export function StepAlert({ message, children }: { message: string | null; children?: ReactNode }) {
   if (!message) return null
   return (
-    <Alert variant="destructive" role="alert" className="mt-4">
+    <Alert variant="destructive" role="alert" className="!mt-6">
       <CircleAlert aria-hidden />
       <AlertDescription className="text-foreground">
         {message}

@@ -62,7 +62,7 @@ export function MyProfilePage() {
   }
   if (!record.data) {
     return (
-      <div className="mx-auto max-w-form space-y-2">
+      <div className="w-full max-w-form space-y-2">
         <PageHeader level={1} title={t(`${P}.pageTitle`)} />
         <EmptyState title={t(`${P}.noFile.title`)} body={t(`${P}.noFile.body`)} />
       </div>
@@ -78,7 +78,7 @@ function MyProfile({ record, submission, catalog }: { record: MyProfessionalReco
   const title = primary ? catalog.byId.titles.get(primary.titleId) : undefined
   const summary = (section: ProfileSection) => <ProfileSectionSummary section={section} values={values[section]} catalog={catalog} gender={professional.gender} />
   return (
-    <div className="mx-auto max-w-form space-y-5">
+    <div className="w-full max-w-form space-y-5">
       <PageHeader
         level={1}
         title={t(`${P}.pageTitle`)}
@@ -211,11 +211,17 @@ function TaxBankCard() {
   const query = useMyProfessionalPrivate(true)
   const data = query.data
   const L = 'modules.professionals.questionnaire'
+  // An empty deposit (optional, P4-480) reads « Dépôt direct : Non fourni », one plain line.
+  const depositEmpty = data != null && !data.bankInstitution && !data.bankTransit && !data.bankAccountLast4
   const rows: { label: string; value: string | null }[] = data
     ? [
-        { label: t(`${L}.taxBank.institution`), value: data.bankInstitution },
-        { label: t(`${L}.taxBank.transit`), value: data.bankTransit },
-        { label: t(`${L}.taxBank.account`), value: data.bankAccountLast4 && t(`${P}.masks.account`, { last4: data.bankAccountLast4 }) },
+        ...(depositEmpty
+          ? [{ label: t(`${L}.taxBank.bankTitle`), value: t(`${L}.taxBank.depositNone`) }]
+          : [
+              { label: t(`${L}.taxBank.institution`), value: data.bankInstitution },
+              { label: t(`${L}.taxBank.transit`), value: data.bankTransit },
+              { label: t(`${L}.taxBank.account`), value: data.bankAccountLast4 && t(`${P}.masks.account`, { last4: data.bankAccountLast4 }) },
+            ]),
         { label: t(`${L}.taxBank.businessNumber`), value: data.businessNumber },
         { label: t(`${L}.taxBank.gstNumber`), value: data.gstNumber && formatTaxNumber(data.gstNumber) },
         { label: t(`${L}.taxBank.qstNumber`), value: data.qstNumber && formatTaxNumber(data.qstNumber) },

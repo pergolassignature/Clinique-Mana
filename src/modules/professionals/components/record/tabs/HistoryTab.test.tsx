@@ -363,7 +363,7 @@ describe('HistoryTab — Courriels (Task 4b.3)', () => {
     ...over,
   })
   const live: Onboarding = {
-    invitation: { state: 'sent', sentAt: '2026-10-08T17:00:00Z', expiresAt: '2026-10-15T17:00:00Z', openedAt: null, usedAt: null },
+    invitation: { state: 'sent', sentAt: '2026-10-08T17:00:00Z', expiresAt: '2026-10-15T17:00:00Z', openedAt: null, usedAt: null, delivery: 'email', emailStatus: 'sent', emailError: null },
     submission: null,
     onboardingApproved: false,
   }

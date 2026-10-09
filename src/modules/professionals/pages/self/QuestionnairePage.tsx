@@ -93,7 +93,7 @@ export function QuestionnairePage() {
 
 function NothingToComplete({ closed }: { closed: string | null }) {
   return (
-    <div className="mx-auto max-w-form space-y-2">
+    <div className="w-full max-w-form space-y-2">
       <PageHeader level={1} title={t(`${Q}.states.none.pageTitle`)} />
       {closed && (
         <Alert variant="warning" role="status">
@@ -135,7 +135,7 @@ function useOnFilePrivate(submission: MySubmission): OnFilePrivate & { loading: 
 function SentProfile({ submission, catalog }: { submission: MySubmission; catalog: CatalogView }) {
   const onFile = useOnFilePrivate(submission)
   return (
-    <div className="mx-auto max-w-form space-y-5">
+    <div className="w-full max-w-form space-y-5">
       <PageHeader
         level={1}
         title={t(`${Q}.states.submitted.pageTitle`)}
@@ -164,16 +164,32 @@ function SentProfile({ submission, catalog }: { submission: MySubmission; catalo
   )
 }
 
+/**
+ * The questionnaire's widths, the same on every step. Below `lg`: one column of the form's width
+ * (`max-w-form`), the steps folded above the step. From `lg`: the steps in a 15rem column (« Renseignements
+ * personnels » on one line), 2rem apart from the form column (`--form-max` at most, narrower only when
+ * the window is), and the header and the alerts above as wide as both. Every width is fixed, none
+ * follows the step's content: `w-full` keeps the page from shrinking to it.
+ */
+const QUESTIONNAIRE_LAYOUT = {
+  page: 'w-full max-w-form space-y-5 lg:max-w-[calc(15rem+2rem+var(--form-max))]',
+  columns: 'grid gap-5 lg:grid-cols-[15rem_minmax(0,var(--form-max))] lg:gap-8',
+} as const
+
 /** The steps saved only on « Continuer »: leaving them with typed values asks first (P4-332). */
 const GUARDED: ReadonlySet<QuestionnaireStep> = new Set(['tax_bank', 'consent'])
 
 /**
- * The steps: the list (left from `md`, folded on a phone), the current step with its title,
+ * The steps: the list (left from `lg`, folded above the step below it), the current step with its title,
  * « Étape 3 sur 12 » and the autosave's state, its form and « Retour » / « Continuer ». The step is
  * in the URL (`?etape=`), so the browser's back button and a reload keep it; without one the
  * questionnaire opens on the first step to complete. Pending autosaves are sent when the page is
  * hidden (a phone switching apps) or left (`pagehide`); a failed save keeps the leave guard armed.
  * A change refused (whatever sent it) is named on top, with a link to its step, until it is fixed.
+ *
+ * One layout for every step (`QUESTIONNAIRE_LAYOUT`): the page is left-aligned in the shell's content
+ * column like every signed-in page, never centred, and its columns have fixed widths, so the
+ * header, the list and the form column never move nor resize from one step to the next.
  */
 function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmission; catalog: CatalogView; onClosed: (reason: string) => void }) {
   const autosave = useQuestionnaireAutosave(submission, {
@@ -303,9 +319,10 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
   const savesOnContinue = GUARDED.has(step)
 
   return (
-    <div className="mx-auto max-w-[960px] space-y-5">
+    <div className={QUESTIONNAIRE_LAYOUT.page}>
       <PageHeader
         level={1}
+        fullWidthDescription
         title={t(`${Q}.title.${kind}`)}
         description={
           kind === 'onboarding'
@@ -333,13 +350,13 @@ function Questionnaire({ submission, catalog, onClosed }: { submission: MySubmis
         </Alert>
       )}
       {refused.length > 0 && <RefusedAlert refused={refused} messages={autosave.state.refused} onSelect={leaveTo} />}
-      <div className="grid gap-5 md:grid-cols-[200px_minmax(0,1fr)] md:gap-8">
-        <div className="md:sticky md:top-4 md:self-start">
+      <div className={QUESTIONNAIRE_LAYOUT.columns}>
+        <div className="lg:sticky lg:top-4 lg:self-start">
           <QuestionnaireNav steps={steps} current={step} incomplete={incomplete} refused={refused} onSelect={leaveTo} />
         </div>
-        <section aria-labelledby="questionnaire-step-title" className="min-w-0 max-w-form">
+        <section aria-labelledby="questionnaire-step-title" className="min-w-0">
           <header className="mb-5 space-y-1">
-            <p className="hidden text-xs text-muted-foreground md:block">
+            <p className="hidden text-xs text-muted-foreground lg:block">
               {t(`${Q}.stepOf`, { current: String(index + 1), total: String(steps.length) })}
             </p>
             <h2 id="questionnaire-step-title" ref={headingRef} tabIndex={-1} className="text-lg font-semibold tracking-tight text-foreground outline-none">

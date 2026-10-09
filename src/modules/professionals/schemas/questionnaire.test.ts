@@ -4,6 +4,7 @@ import { CATALOG_VIEW } from '../test/fixtures-domain'
 import { IDS } from '../test/fixtures'
 import {
   availabilitySchema,
+  depositStarted,
   insuranceSchema,
   parseValidFields,
   personalSchema,
@@ -97,9 +98,51 @@ describe('insuranceSchema', () => {
 describe('taxBankSchema', () => {
   const blank = toTaxBankValues(null)
 
-  it('requires institution, transit and an account while none is on file', () => {
-    const result = taxBankSchema({ accountOnFile: false, sinOnFile: false, collectSin: false }).safeParse(blank)
-    expect(result.error?.issues.map((i) => i.path[0])).toEqual(['bank_institution', 'bank_transit', 'bank_account'])
+  const schema = taxBankSchema({ accountOnFile: false, sinOnFile: false, collectSin: false })
+  const issues = (values: typeof blank, s = schema) => s.safeParse(values).error?.issues.map((i) => [i.path[0], i.message]) ?? []
+
+  it('accepts an empty deposit (« Dépôt direct » is optional, P4-480)', () => {
+    expect(schema.parse(blank)).toMatchObject({ bank_institution: null, bank_transit: null, bank_account: null })
+    expect(schema.safeParse({ ...blank, bank_institution: ' ', bank_transit: '-' }).success).toBe(true)
+  })
+
+  it('requires the missing ones once the deposit is started, with the existing messages', () => {
+    expect(issues({ ...blank, bank_institution: '815' })).toEqual([
+      ['bank_transit', t(`${V}.transitRequired`)],
+      ['bank_account', t(`${V}.accountRequired`)],
+    ])
+    expect(issues({ ...blank, bank_account: '1234567' })).toEqual([
+      ['bank_institution', t(`${V}.institutionRequired`)],
+      ['bank_transit', t(`${V}.transitRequired`)],
+    ])
+    expect(issues({ ...blank, bank_institution: '815', bank_transit: '30000', bank_account: '1234567' })).toEqual([])
+  })
+
+  it('counts an account on file as started: institution and transit are then required', () => {
+    const kept = taxBankSchema({ accountOnFile: true, sinOnFile: false, collectSin: false })
+    expect(issues(blank, kept)).toEqual([
+      ['bank_institution', t(`${V}.institutionRequired`)],
+      ['bank_transit', t(`${V}.transitRequired`)],
+    ])
+  })
+
+  it('keeps the format checks', () => {
+    expect(issues({ ...blank, bank_institution: '81', bank_transit: '30000', bank_account: '1234567' })).toEqual([
+      ['bank_institution', t('settings.bank.validation.institution')],
+    ])
+    expect(issues({ ...blank, bank_institution: '815', bank_transit: '3000', bank_account: '1234567' })).toEqual([
+      ['bank_transit', t('settings.bank.validation.transit')],
+    ])
+    expect(issues({ ...blank, bank_institution: '815', bank_transit: '30000', bank_account: '123456' })).toEqual([
+      ['bank_account', t('settings.bank.validation.account')],
+    ])
+  })
+
+  it('says when the deposit is started', () => {
+    expect(depositStarted(blank, false)).toBe(false)
+    expect(depositStarted({ ...blank, bank_transit: ' - ' }, false)).toBe(false)
+    expect(depositStarted({ ...blank, bank_transit: '3' }, false)).toBe(true)
+    expect(depositStarted(blank, true)).toBe(true)
   })
 
   it('keeps an account on file when left blank, and strips separators', () => {

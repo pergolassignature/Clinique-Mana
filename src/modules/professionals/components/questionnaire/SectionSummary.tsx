@@ -201,14 +201,22 @@ export function SectionSummary({ section, values, submission, catalog, onFile }:
       const plain = saved ?? onFilePrivate
       const account = saved?.bankAccountLast4 ?? (submission.onFile.hasBankAccount ? onFilePrivate?.bankAccountLast4 : null)
       const sin = saved?.sinLast3 ?? (submission.onFile.hasSin ? onFilePrivate?.sinLast3 : null)
+      const institution = plain?.bankInstitution ?? null
+      const transit = plain?.bankTransit ?? null
+      // An empty deposit (optional, P4-480) reads « Dépôt direct : Non fourni », one plain line.
+      const deposit: Row[] = !institution && !transit && !account
+        ? [{ label: t(`${L}.taxBank.bankTitle`), value: t(`${L}.taxBank.depositNone`) }]
+        : [
+            { label: t(`${L}.taxBank.institution`), value: institution },
+            { label: t(`${L}.taxBank.transit`), value: transit },
+            { label: t(`${L}.taxBank.account`), value: account ? t(`${R}.masked4`, { last4: account }) : null },
+          ]
       return (
         <div className="space-y-2">
           {onFile.failed && <OnFileError onFile={onFile} />}
           <Rows
           rows={[
-            { label: t(`${L}.taxBank.institution`), value: plain?.bankInstitution ?? null },
-            { label: t(`${L}.taxBank.transit`), value: plain?.bankTransit ?? null },
-            { label: t(`${L}.taxBank.account`), value: account ? t(`${R}.masked4`, { last4: account }) : null },
+            ...deposit,
             { label: t(`${L}.taxBank.businessNumber`), value: plain?.businessNumber ?? null },
             { label: t(`${L}.taxBank.gstNumber`), value: plain?.gstNumber ? formatTaxNumber(plain.gstNumber) : null },
             { label: t(`${L}.taxBank.qstNumber`), value: plain?.qstNumber ? formatTaxNumber(plain.qstNumber) : null },

@@ -263,7 +263,7 @@ describe('CreateProfessionalDialog — invite now (Task 4b.3)', () => {
     await open()
     await create()
     expect(mocks.toast.warning).toHaveBeenCalledWith(t('modules.professionals.onboarding.toasts.createdNotSent'), {
-      description: `${t('modules.professionals.onboarding.emailProblems.provider_error')} ${t('modules.professionals.onboarding.emailAdvice.invitation')}`,
+      description: `${t('modules.professionals.onboarding.emailProblems.provider_error')} ${t('modules.professionals.onboarding.emailAdvice.invitation')} ${t('modules.professionals.onboarding.emailAdvice.copyLink')}`,
     })
   })
 
