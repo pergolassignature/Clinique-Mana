@@ -193,3 +193,26 @@ Deno.test('annexe: a grid without prices prints a sentence, never a table withou
     true,
   )
 })
+
+Deno.test('annexe: « séance cumulée » below 2, « séances cumulées » from 2', () => {
+  const standing = (sessions: number) =>
+    texts(annexeBlocks({ ...terms, sessions_total: sessions })).find((t) =>
+      t.startsWith('À la date du contrat')
+    )
+  assert(
+    standing(0)?.startsWith(
+      'À la date du contrat, le Professionnel compte 0 séance cumulée',
+    ),
+  )
+  assert(
+    standing(1)?.startsWith(
+      'À la date du contrat, le Professionnel compte 1 séance cumulée',
+    ),
+  )
+  assert(standing(1.5)?.includes('1,5 séance cumulée'))
+  assert(
+    standing(2)?.startsWith(
+      'À la date du contrat, le Professionnel compte 2 séances cumulées',
+    ),
+  )
+})
