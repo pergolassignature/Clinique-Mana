@@ -507,6 +507,31 @@ function matchingNoteRow(entry: HistoryEntry): Described | null {
   return null
 }
 
+const CONTRACT_TABLE = 'signature_requests'
+const CONTRACT_SIGNERS_TABLE = 'signature_request_signers'
+const CONTRACT_STATUSES = ['sent', 'signed', 'rejected', 'cancelled', 'expired'] as const
+const SIGNER_STATUSES = ['viewed', 'signed', 'rejected'] as const
+const isOneOf = <T extends string>(list: readonly T[], value: string): value is T => (list as readonly string[]).includes(value)
+
+/**
+ * The service contract (Task 4d.1): `list_professional_history` returns only the rows that move a
+ * status, a signer's with its `role`. « Contrat de service envoyé pour signature », « signé »,
+ * « refusé », « annulé », « expiré »; « consulté / signé / refusé par le professionnel (la
+ * clinique) ». The request's own « consulté » is the signer's, so it is not repeated. Titles,
+ * names, addresses and reasons are redacted by core's audit and never shown.
+ */
+function contractRow(entry: HistoryEntry): Described | null {
+  const S = `${H}.sentences.contract`
+  const fields = fieldsOf(entry)
+  const status = pairOf(fields.status)?.after
+  if (entry.action !== 'update' || typeof status !== 'string') return null
+  if (entry.tableName === CONTRACT_SIGNERS_TABLE) {
+    const role = fields.role === 'clinic' ? 'clinic' : 'professional'
+    return isOneOf(SIGNER_STATUSES, status) ? { kind: 'change', sentence: t(`${S}.signer.${status}.${role}`), lines: [] } : null
+  }
+  return isOneOf(CONTRACT_STATUSES, status) ? { kind: 'change', sentence: t(`${S}.${status}`), lines: [] } : null
+}
+
 /** One audit row of a table that is not a set, as a sentence and its details. */
 function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null {
   if (entry.tableName === PRIVATE_TABLE) {
@@ -519,6 +544,7 @@ function describeRow(ctx: HistoryContext, entry: HistoryEntry): Described | null
   if (entry.tableName === SUBMISSIONS_TABLE) return submissionRow(entry)
   if (entry.tableName === CONSENTS_TABLE) return consentRow(entry)
   if (entry.tableName === MATCHING_NOTE_TABLE) return matchingNoteRow(entry)
+  if (entry.tableName === CONTRACT_TABLE || entry.tableName === CONTRACT_SIGNERS_TABLE) return contractRow(entry)
   switch (entry.tableName) {
     case 'professionals':
       return professionalRow(ctx.catalog, entry)

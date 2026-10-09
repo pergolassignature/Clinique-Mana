@@ -163,7 +163,7 @@ export const REFERENCE_KINDS = [
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 
 /** `get_professional_readiness` items (4a: one; 4b–4d append theirs; an item without `missing` keys names its own gap). */
-export const READINESS_ITEMS = ['matching_profile', 'account_created', 'submission_approved', 'documents'] as const
+export const READINESS_ITEMS = ['matching_profile', 'account_created', 'submission_approved', 'documents', 'contract_signed'] as const
 export type ReadinessItemKey = (typeof READINESS_ITEMS)[number]
 
 /** What the matching profile can lack, in the order the RPC lists them. */

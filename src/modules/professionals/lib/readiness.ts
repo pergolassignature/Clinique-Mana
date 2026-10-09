@@ -46,6 +46,9 @@ const TAB_PERMISSION: Partial<Record<RecordTab, string>> = { identite: 'professi
  */
 export const REVIEW_TAB: RecordTab = 'documents'
 
+/** Where the service contract is sent and followed (the card atop Documents, Task 4d.3). */
+export const CONTRACT_TAB: RecordTab = 'documents'
+
 /**
  * The button of « Prochaine action »: a link to a tab (the one that fixes a gap, or the review's),
  * the activation dialog, or the invitation's confirmation (`InvitationDialog`).
@@ -78,7 +81,8 @@ const N = 'modules.professionals.readiness.nextAction'
  * 5. no account and no live link: « Envoyer l'invitation » (never invited, the link revoked, or
  *    used by an account that has since been removed: each says which);
  * 6. waiting for the professional: the link sent (or opened), or the questionnaire being filled in;
- * 7. a complete file: « Activer » (the header's dialog, P4-74), or nothing to do once active.
+ * 7. only the service contract left to sign (4d.3): « Voir le contrat » (Documents, where it is sent);
+ * 8. a complete file: « Activer » (the header's dialog, P4-74), or nothing to do once active.
  */
 export function nextAction(record: NextActionSubject, onboarding: Onboarding | null, can: Can, now: number, viewerId: string | null = null): NextAction {
   const { professional, readiness } = record
@@ -124,6 +128,10 @@ export function nextAction(record: NextActionSubject, onboarding: Onboarding | n
   }
   if (submission?.status === 'draft') {
     return { message: t(submission.kind === 'onboarding' ? `${N}.questionnaireInProgress` : `${N}.updateInProgress`, { firstName }), action: null }
+  }
+  const contract = readiness.items.find((i) => i.key === 'contract_signed')
+  if (!readiness.complete && contract && !contract.done && readiness.items.every((i) => i === contract || i.done)) {
+    return { message: t(`${N}.contractToSign`, { firstName }), action: { kind: 'tab', label: t(`${N}.openContract`), tab: CONTRACT_TAB } }
   }
   if (!readiness.complete) return { message: t(`${N}.awaitingQuestionnaire`, { firstName }), action: null }
   return activationStep(record, can)

@@ -1236,7 +1236,8 @@
           "matching_profile": "Profil de jumelage complet",
           "account_created": "Compte créé (invitation acceptée)",
           "submission_approved": "Questionnaire approuvé",
-          "documents": "Documents requis en règle"
+          "documents": "Documents requis en règle",
+          "contract_signed": "Contrat de service signé"
         },
         "missing": {
           "profession": "un titre professionnel",
@@ -1272,6 +1273,8 @@
           "questionnaireInProgress": "{firstName} n'a pas encore envoyé son questionnaire. Il apparaîtra ici, à réviser, dès son envoi.",
           "updateInProgress": "Une demande de mise à jour est en cours : {firstName} ne l'a pas encore envoyée.",
           "awaitingQuestionnaire": "Le questionnaire de {firstName} n'a pas encore été approuvé.",
+          "contractToSign": "Le dossier de {firstName} est complet, sauf le contrat de service : il reste à l'envoyer ou à le faire signer.",
+          "openContract": "Voir le contrat",
           "reviewOnboarding": "{firstName} a envoyé son questionnaire le {date} : il attend votre révision.",
           "reviewOnboardingUndated": "{firstName} a envoyé son questionnaire. Il attend votre révision.",
           "reviewUpdate": "{firstName} a envoyé une mise à jour de son profil le {date} : elle attend votre révision.",
@@ -1398,7 +1401,7 @@
           "files": {
             "title": "Documents",
             "emptyTitle": "Les documents arrivent bientôt.",
-            "emptyBody": "L'assurance, la photo et le contrat s'afficheront ici, avec leurs dates d'échéance."
+            "emptyBody": "L'assurance et la photo s'afficheront ici, avec leurs dates d'échéance."
           }
         },
         "notFound": {
@@ -1902,6 +1905,27 @@
           "consent": {
             "recorded": "a enregistré le consentement au droit à l'image",
             "withdrawn": "a enregistré le retrait du consentement au droit à l'image"
+          },
+          "contract": {
+            "sent": "Contrat de service envoyé pour signature",
+            "signed": "Contrat de service signé (PDF signé conservé au dossier)",
+            "rejected": "Contrat de service refusé",
+            "cancelled": "Contrat de service annulé",
+            "expired": "Contrat de service expiré sans signature",
+            "signer": {
+              "viewed": {
+                "professional": "Contrat de service consulté par le professionnel",
+                "clinic": "Contrat de service consulté par la clinique"
+              },
+              "signed": {
+                "professional": "Contrat de service signé par le professionnel",
+                "clinic": "Contrat de service signé par la clinique"
+              },
+              "rejected": {
+                "professional": "Contrat de service refusé par le professionnel",
+                "clinic": "Contrat de service refusé par la clinique"
+              }
+            }
           },
           "otherRead": "a consulté une section du dossier",
           "rateSet": {
@@ -2662,6 +2686,128 @@
           "showClosing": "Bloc « Prochaine étape »",
           "showClosingHelp": "À la fin de la fiche, une invitation à communiquer avec une conseillère pour planifier une première rencontre, avec le téléphone, le courriel et le site Web de la clinique."
         },
+        "contracts": {
+          "title": "Contrats",
+          "description": "Le modèle du contrat de service envoyé aux professionnels pour signature électronique. Une version publiée ne change plus : les prochains contrats utilisent la version publiée.",
+          "editorLabel": "Modèle « {title} »",
+          "list": {
+            "title": "Modèles",
+            "description": "Les modèles de documents à signer du module Professionnels.",
+            "loadError": "Les modèles n'ont pas pu être chargés.",
+            "filterLabel": "Statut",
+            "filter": "{label} ({count})",
+            "filters": {
+              "all": "Tous",
+              "published": "Publiés",
+              "draft": "Brouillon en cours",
+              "unpublished": "Non publiés",
+              "retired": "Retirés"
+            },
+            "search": "Rechercher un modèle",
+            "emptyTitle": "Aucun modèle ne correspond.",
+            "emptyBody": "Changez le statut ou la recherche.",
+            "published": "Version {version} publiée le {date}",
+            "notPublished": "Non publié : aucun contrat ne peut être envoyé",
+            "draft": "Brouillon en cours",
+            "retired": "Retiré",
+            "open": "Ouvrir « {title} »"
+          },
+          "signer": {
+            "title": "Signataire de la clinique",
+            "description": "Quand un nom et une adresse courriel sont configurés, la clinique signe le contrat après le professionnel.",
+            "loadError": "Le signataire n'a pas pu être chargé.",
+            "signsSecond": "Signe en deuxième, à l'adresse {email}.",
+            "none": "Aucun signataire configuré : seul le professionnel signe.",
+            "link": "Modifier dans Paramètres → Signataire"
+          },
+          "editor": {
+            "loadError": "Les versions du modèle n'ont pas pu être chargées.",
+            "unreadable": "Cette version n'a pas la forme attendue : elle ne peut pas être affichée ici.",
+            "versions": {
+              "title": "Versions",
+              "description": "Une seule version est publiée à la fois; un brouillon se modifie jusqu'à sa publication.",
+              "draft": "Version {version} · brouillon, modifié le {date}",
+              "published": "Version {version} · publiée le {date}",
+              "archived": "Version {version} · retirée le {date}",
+              "inUse": "Utilisée pour les envois",
+              "editing": "En modification"
+            },
+            "newVersion": "Nouvelle version",
+            "newVersionFrom": "Nouvelle version (copie de la version {version})",
+            "discard": "Supprimer le brouillon {version}",
+            "save": "Enregistrer le brouillon",
+            "saving": "Enregistrement…",
+            "publish": "Publier la version {version}",
+            "publishBlocked": {
+              "unsaved": "Enregistrez le brouillon avant de le publier.",
+              "banner": "Retirez la ligne de validation avant de publier : le texte doit d'abord être validé par la direction.",
+              "annexe": "Ajoutez {placeholder} seul sur une ligne avant de publier : c'est là que s'imprime l'Annexe A."
+            },
+            "bannerNotice": "Ce brouillon commence par « {banner} ». Faites valider le texte par la direction, retirez cette ligne, enregistrez, puis publiez.",
+            "unknownPlaceholders": "Ces variables n'existent pas : {names}. Utilisez celles de la liste « Variables ».",
+            "annexeMissing": "Le tableau de l'Annexe A ({placeholder}, seul sur une ligne) n'apparaît pas dans le texte : il ne serait pas imprimé.",
+            "form": {
+              "titleDraft": "Brouillon de la version {version}",
+              "titlePublished": "Version {version} publiée (lecture seule)",
+              "titleArchived": "Version {version} retirée (lecture seule)",
+              "descriptionDraft": "Modifiez le texte, enregistrez, vérifiez l'aperçu, puis publiez.",
+              "descriptionReadOnly": "Une version publiée ou retirée ne change plus. Créez une nouvelle version pour modifier le texte.",
+              "title": "Titre du document",
+              "header": "En-tête des pages",
+              "headerHelp": "Affiché en haut de chaque page.",
+              "footer": "Pied de page",
+              "footerHelp": "Affiché au bas de chaque page, avant « Page x de y ».",
+              "initials": "Initiales du professionnel sur chaque page",
+              "initialsHelp": "Une case d'initiales en haut de chaque page. Désactivez seulement si Documenso refuse les initiales : la signature et la date restent sur la dernière page.",
+              "initialsOn": "Oui",
+              "initialsOff": "Non (signature et date seulement)",
+              "body": "Texte du contrat",
+              "bodyHelp": "Une ligne vide sépare les paragraphes. # Titre, ## Sous-titre, ### Intertitre; - pour une liste, 1. pour une liste numérotée; | a | b | pour un tableau; --- pour un saut de page; **gras**. La page des signatures est ajoutée à la fin.",
+              "emailSubject": "Objet du courriel de signature",
+              "emailSubjectHelp": "Envoyé par Documenso, en français, avec le lien de signature.",
+              "emailMessage": "Message du courriel de signature"
+            },
+            "variables": {
+              "title": "Variables",
+              "description": "Copiez une variable telle quelle dans le texte : elle est remplacée par la valeur du dossier ou des paramètres au moment de l'envoi.",
+              "annexe": "Seule sur une ligne, elle devient les tableaux des honoraires et des montants versés du professionnel.",
+              "markup": "Une valeur requise vide empêche l'envoi, avec le nom de l'information à compléter."
+            },
+            "preview": {
+              "title": "Aperçu",
+              "description": "Avec des valeurs d'exemple. Le PDF envoyé suit la même structure, mis en page en format lettre.",
+              "frameTitle": "Aperçu du contrat",
+              "annexeCaption": "Exemple : les tableaux réels viennent de la grille de rémunération du professionnel.",
+              "annexeColumns": {
+                "sessions": "Séances cumulées",
+                "d60": "Rencontre 60 min (couple ou famille)",
+                "d50": "Rencontre 50 min",
+                "d30": "Rencontre 30 min"
+              },
+              "annexeRows": {
+                "first": "0 à 50 séances",
+                "second": "51 à 100 séances",
+                "last": "301 séances et plus"
+              },
+              "initials": "Initiales",
+              "signature": "Signature",
+              "date": "Date",
+              "page": "Page 1 de 7"
+            },
+            "confirm": {
+              "publish": {
+                "title": "Publier la version {version} ?",
+                "body": "Les prochains contrats utiliseront cette version. Les contrats déjà envoyés ne changent pas.",
+                "action": "Publier la version {version}"
+              },
+              "discard": {
+                "title": "Supprimer le brouillon {version} ?",
+                "body": "Les modifications de ce brouillon seront perdues. La version publiée ne change pas.",
+                "action": "Supprimer le brouillon"
+              }
+            }
+          }
+        },
         "list": {
           "loadError": "La liste n'a pas pu être chargée.",
           "table": "Tableau « {list} »",
@@ -2976,6 +3122,103 @@
           "body": "Les réponses de {firstName} ne seront pas appliquées au dossier, et son questionnaire de mise à jour se fermera. Vous pourrez demander une nouvelle mise à jour.",
           "confirm": "Fermer la demande",
           "closing": "Fermeture…"
+        }
+      },
+      "contract": {
+        "title": "Contrat de service",
+        "description": "Envoyé à {firstName} pour signature électronique. Le PDF signé est conservé au dossier dès qu'il existe.",
+        "loadError": "Le contrat n'a pas pu être chargé.",
+        "state": {
+          "none": "Aucun contrat",
+          "sending": "Envoi en cours"
+        },
+        "version": "Modèle, version {version}",
+        "none": "Aucun contrat de service n'a encore été envoyé à {firstName}.",
+        "dates": {
+          "prepared": "Préparé le {date}",
+          "sent": "Envoyé le {date}",
+          "viewed": "Consulté le {date}",
+          "expires": "Expire le {date}",
+          "signed": "Signé le {date}",
+          "rejected": "Refusé le {date}",
+          "expired": "Expiré le {date}",
+          "cancelled": "Annulé le {date}"
+        },
+        "reason": "Raison du refus :",
+        "signersLabel": "Signataires",
+        "signer": {
+          "pending": "En attente de signature",
+          "viewed": "Consulté le {date}",
+          "signed": "Signé le {date}",
+          "rejected": "Refusé le {date}"
+        },
+        "roles": {
+          "professional": "Professionnel",
+          "clinic": "Clinique",
+          "client": "Client"
+        },
+        "noTemplate": "Aucun modèle de contrat publié : publiez « Contrat de service » avant d'envoyer.",
+        "noTemplateLink": "Ouvrir Paramètres → Contrats",
+        "noClinicSigner": "Seul le professionnel signera : aucun signataire de la clinique n'est configuré (Paramètres → Signataire).",
+        "restricted": "Le PDF signé est réservé aux personnes qui gèrent la rémunération : il contient les montants versés.",
+        "journal": {
+          "title": "Journal de signature",
+          "sent": "Envoyé pour signature le {date}",
+          "viewed": "{name} a consulté le contrat le {date}",
+          "signed": "{name} a signé le {date}",
+          "completed": "Contrat complété et PDF signé conservé le {date}",
+          "pdfNote": "Le PDF signé contient aussi le certificat et le journal de Documenso."
+        },
+        "actions": {
+          "send": "Préparer et envoyer",
+          "retry": "Réessayer l'envoi",
+          "regenerate": "Régénérer",
+          "resend": "Renvoyer le courriel",
+          "sync": "Synchroniser",
+          "syncing": "Synchronisation…",
+          "working": "Envoi…",
+          "journal": "Journal de signature",
+          "hideJournal": "Masquer le journal",
+          "pdf": "Voir le PDF signé",
+          "pdfLabel": "Voir le PDF signé du contrat de {firstName} (nouvel onglet)",
+          "pdfLoading": "Préparation du PDF…",
+          "pdfUnavailable": "PDF indisponible"
+        },
+        "confirm": {
+          "send": {
+            "title": "Envoyer le contrat à {firstName} ?",
+            "body": "Le contrat est préparé avec la version {version} du modèle et les honoraires de {firstName} en vigueur aujourd'hui, puis envoyé par courriel pour signature électronique.",
+            "action": "Préparer et envoyer"
+          },
+          "regenerate": {
+            "title": "Régénérer le contrat de {firstName} ?",
+            "body": "Le contrat en cours, s'il y en a un, est annulé. Un nouveau contrat est préparé avec la version {version} du modèle et les honoraires en vigueur aujourd'hui, puis envoyé à {firstName}.",
+            "action": "Régénérer et envoyer"
+          },
+          "resend": {
+            "title": "Renvoyer le courriel de signature à {firstName} ?",
+            "body": "Documenso renvoie le courriel avec un lien de signature renouvelé. Le contrat ne change pas.",
+            "action": "Renvoyer le courriel"
+          }
+        },
+        "toasts": {
+          "send": "Contrat envoyé à {firstName} pour signature.",
+          "regenerate": "Nouveau contrat envoyé à {firstName}.",
+          "resend": "Courriel de signature renvoyé à {firstName}.",
+          "versionCreated": "Nouvelle version créée : un brouillon à modifier.",
+          "draftSaved": "Brouillon enregistré.",
+          "published": "Version publiée : les prochains contrats l'utiliseront.",
+          "archived": "Version retirée."
+        },
+        "errors": {
+          "missingVariable": "Le contrat ne peut pas être préparé : « {label} » est vide. Complétez le dossier ou les paramètres, puis réessayez.",
+          "missingVariableUnknown": "Le contrat ne peut pas être préparé : une information requise par le modèle est vide.",
+          "notConfigured": "La signature électronique n'est pas configurée (Paramètres → Signature électronique).",
+          "providerError": "Documenso n'a pas répondu correctement. Réessayez dans quelques minutes : le même envoi sera repris.",
+          "inProgress": "Un envoi est déjà en cours pour ce contrat.",
+          "rateLimited": "Trop d'envois en peu de temps.",
+          "network": "Connexion impossible. Vérifiez votre connexion, puis réessayez.",
+          "syncFailed": "La synchronisation n'a pas fonctionné. Réessayez plus tard."
         }
       },
       "myProfile": {
