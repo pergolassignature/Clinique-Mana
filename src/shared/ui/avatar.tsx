@@ -27,6 +27,18 @@ const Avatar = React.forwardRef<
 ))
 Avatar.displayName = AvatarPrimitive.Root.displayName
 
+/**
+ * A photo filling the circle (`object-cover`). Radix shows it only once loaded: until then, and
+ * on error, the `AvatarFallback` (the initials) stays.
+ */
+const AvatarImage = React.forwardRef<
+  React.ElementRef<typeof AvatarPrimitive.Image>,
+  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
+>(({ className, ...props }, ref) => (
+  <AvatarPrimitive.Image ref={ref} className={cn('h-full w-full object-cover', className)} {...props} />
+))
+AvatarImage.displayName = AvatarPrimitive.Image.displayName
+
 /** Two-letter initials on grey, with a 1px inner ring. */
 const AvatarFallback = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Fallback>,
@@ -43,4 +55,4 @@ const AvatarFallback = React.forwardRef<
 ))
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName
 
-export { Avatar, AvatarFallback }
+export { Avatar, AvatarFallback, AvatarImage }
