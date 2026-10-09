@@ -89,7 +89,7 @@ describe('invitationLine (A2.5)', () => {
     [null, 'Aucune invitation envoyée.'],
     [invitation('sent'), 'Invitation envoyée le 5 oct. · expire le 12 oct.'],
     [invitation('opened', { openedAt: '2026-10-06T14:00:00Z' }), 'Invitation envoyée le 5 oct. · ouverte le 6 oct. · expire le 12 oct.'],
-    [invitation('expired'), 'Lien expiré le 12 oct. — envoyez un nouveau lien.'],
+    [invitation('expired'), 'Lien expiré le 12 oct. : envoyez un nouveau lien.'],
     [invitation('used', { usedAt: '2026-10-07T14:00:00Z' }), 'Invitation acceptée le 7 oct.'],
     [invitation('revoked'), 'Invitation révoquée : le lien ne fonctionne plus.'],
   ])('%o', (link, line) => {
@@ -111,7 +111,7 @@ describe('invitationState: the link as of now', () => {
   })
 
   it('« Lien expiré » for a link past its expiry, before the server says so', () => {
-    expect(invitationLine(invitation('sent', { expiresAt: '2026-10-08T14:00:00Z' }), NOW)).toBe('Lien expiré le 8 oct. — envoyez un nouveau lien.')
+    expect(invitationLine(invitation('sent', { expiresAt: '2026-10-08T14:00:00Z' }), NOW)).toBe('Lien expiré le 8 oct. : envoyez un nouveau lien.')
   })
 })
 
@@ -123,7 +123,7 @@ describe('questionnaireLine', () => {
     )
     expect(
       questionnaireLine({ profileId: 'u1' }, onboarding({ submission: { id: 's', kind: 'onboarding', status: 'submitted', submittedAt: '2026-10-07T14:00:00Z' } }), NOW),
-    ).toBe('Envoyé le 7 oct. — à réviser.')
+    ).toBe('Envoyé le 7 oct., à réviser.')
     expect(questionnaireLine({ profileId: 'u1' }, null, NOW)).toBe('Aucun questionnaire en cours.')
     expect(questionnaireLine({ profileId: 'u1' }, onboarding({ onboardingApproved: true }), NOW)).toBeNull()
   })

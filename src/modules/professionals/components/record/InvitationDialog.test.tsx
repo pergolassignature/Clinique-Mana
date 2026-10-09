@@ -193,7 +193,7 @@ describe('RequestUpdateDialog', () => {
     await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalledWith(t(`${O}.toasts.updateNotSent`), {
       description:
         "Le service d'envoi a refusé l'adresse du dossier. Marie a un compte : c'est dans « Mon compte » que cette adresse se modifie (il n'y a pas d'invitation à renvoyer). " +
-        "La demande reste ouverte : prévenez Marie qu'elle l'attend dans son questionnaire.",
+        "La demande reste ouverte : dites à Marie qu'une mise à jour l'attend dans son questionnaire.",
     }))
   })
 })

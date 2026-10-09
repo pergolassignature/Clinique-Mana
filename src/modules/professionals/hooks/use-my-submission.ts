@@ -146,6 +146,8 @@ const hasFailed = (q: SectionQueue) => q.failed.form !== undefined || q.failed.e
 export interface AutosaveState {
   /** A save is in flight. */
   saving: boolean
+  /** An edit waits for its autosave delay (not sent yet): closing the tab now asks first. */
+  scheduled: boolean
   /** The submission's `updated_at` after the last save (« Enregistré à 14:32 »). */
   savedAt: string | null
   /** A save failed in transit: the banner with « Réessayer ». */
@@ -247,6 +249,7 @@ export function useQuestionnaireAutosave(submission: MySubmission, options: Auto
   optionsRef.current = options
   const [state, setState] = useState<AutosaveState>(() => ({
     saving: false,
+    scheduled: false,
     savedAt: Object.keys(submission.values).length > 0 ? submission.updatedAt : null,
     failed: false,
     refused: {},
@@ -356,6 +359,7 @@ export function useQuestionnaireAutosave(submission: MySubmission, options: Auto
       const q = queue(section)
       if (q.timer !== null) clearTimeout(q.timer)
       q.timer = null
+      if (![...queues.current.values()].some((other) => other.timer !== null)) setState((st) => (st.scheduled ? { ...st, scheduled: false } : st))
       const collect = q.collect
       q.collect = null
       return collect ? enqueue(section, collect, 'form') : q.chain.then(() => OK)
@@ -369,6 +373,7 @@ export function useQuestionnaireAutosave(submission: MySubmission, options: Auto
       q.collect = collect
       if (q.timer !== null) clearTimeout(q.timer)
       q.timer = setTimeout(() => void run(section), AUTOSAVE_DELAY_MS)
+      setState((st) => (st.scheduled ? st : { ...st, scheduled: true }))
     },
     [queue, run],
   )
