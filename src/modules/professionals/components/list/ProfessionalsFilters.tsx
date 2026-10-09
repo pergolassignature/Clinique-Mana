@@ -148,7 +148,13 @@ function SearchField({ value, onChange }: { value: string; onChange: (value: str
 
 /** How many of the popover's filters narrow the list (each motif counts). */
 function popoverCount(f: ProfessionalsFilters): number {
-  return [f.titleId, f.languageId, f.clienteleId].filter(Boolean).length + f.motifIds.length + Number(f.acceptingNewClients) + Number(f.watch)
+  return (
+    [f.titleId, f.languageId, f.clienteleId].filter(Boolean).length +
+    f.motifIds.length +
+    Number(f.acceptingNewClients) +
+    Number(f.watch) +
+    Number(f.documentsIncomplete)
+  )
 }
 
 function MoreFilters({ filters, catalog, onChange, onToggleMotif, filtersButtonRef }: ProfessionalsFiltersProps) {
@@ -197,6 +203,11 @@ function MoreFilters({ filters, catalog, onChange, onToggleMotif, filtersButtonR
               onCheckedChange={(acceptingNewClients) => onChange({ acceptingNewClients })}
             />
             <CheckboxField label={t(`${F}.watch`)} checked={filters.watch} onCheckedChange={(watch) => onChange({ watch })} />
+            <CheckboxField
+              label={t(`${F}.documentsIncomplete`)}
+              checked={filters.documentsIncomplete}
+              onCheckedChange={(documentsIncomplete) => onChange({ documentsIncomplete })}
+            />
           </div>
         ) : null}
       </PopoverContent>
@@ -291,5 +302,6 @@ function activeChips(f: ProfessionalsFilters, catalog: CatalogView, { onChange, 
   }
   if (f.acceptingNewClients) chips.push({ key: 'new', label: t(`${F}.acceptingNewClients`), remove: () => onChange({ acceptingNewClients: false }) })
   if (f.watch) chips.push({ key: 'watch', label: t(`${F}.watch`), remove: () => onChange({ watch: false }) })
+  if (f.documentsIncomplete) chips.push({ key: 'documents', label: t(`${F}.documentsIncomplete`), remove: () => onChange({ documentsIncomplete: false }) })
   return chips
 }

@@ -2191,6 +2191,7 @@
           "motifsEmpty": "Aucun motif ne correspond.",
           "acceptingNewClients": "Accepte de nouveaux clients",
           "watch": "À surveiller",
+          "documentsIncomplete": "Documents incomplets",
           "archived": "{name} (archivé)"
         },
         "chips": {
@@ -2212,7 +2213,13 @@
           "languages": "Langues",
           "status": "Statut",
           "watch": "À surveiller",
-          "nothingToWatch": "Rien à surveiller"
+          "nothingToWatch": "Rien à surveiller",
+          "documents": "Documents",
+          "documentsCount": "Documents {done} / {required}",
+          "documentsShort": "{done} / {required}",
+          "documentsLabelOne": "{done} document requis sur {required} en règle",
+          "documentsLabelOther": "{done} documents requis sur {required} en règle",
+          "documentsNone": "Aucun document requis"
         },
         "footer": {
           "countOne": "{shown} sur {total} professionnel",

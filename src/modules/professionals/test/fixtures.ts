@@ -247,6 +247,8 @@ export const LIST_ROW_JSON = {
   email_matches_login: true,
   created_at: '2026-10-08T12:00:00+00:00',
   updated_at: '2026-10-08T12:00:00+00:00',
+  documents_done: 3,
+  documents_required: 3,
 }
 
 export const HISTORY_ROW_JSON = {

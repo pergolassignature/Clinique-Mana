@@ -189,9 +189,17 @@ describe('listRowPayload', () => {
       updatedAt: '2026-10-08T12:00:00+00:00',
       insuranceStatus: null,
       insuranceExpiresOn: null,
+      documentsDone: 3,
+      documentsRequired: 3,
       // Joined by the list page from list_professional_invitation_states (P4-270).
       onboarding: null,
     })
+  })
+
+  it('reads the documents counts, 0 / 0 when absent', () => {
+    const { documents_done: _done, documents_required: _required, ...without } = LIST_ROW_JSON
+    expect(parseRpc(listRowPayload, without)).toMatchObject({ documentsDone: 0, documentsRequired: 0 })
+    expect(parseRpc(listRowPayload, { ...LIST_ROW_JSON, documents_done: 1, documents_required: 4 })).toMatchObject({ documentsDone: 1, documentsRequired: 4 })
   })
 
   it('reads the insurance columns (4c.2) for « À surveiller »', () => {
