@@ -43,17 +43,22 @@ export function TemplatesTable({ templates, onOpen }: TemplatesTableProps) {
 function TemplateGroup({ title, rows, onOpen }: { title: string; rows: EmailTemplate[]; onOpen: TemplatesTableProps['onOpen'] }) {
   const headingId = useId()
   return (
-    <section className="space-y-2">
+    <section className="space-y-3">
       <h3 id={headingId} className="text-base font-semibold text-foreground">
         {title}
       </h3>
       <div className="rounded-lg border border-border">
-        <Table aria-labelledby={headingId} scrollLabel={t('settings.email.templates.scrollLabel')} className="max-sm:[&_td]:px-2 max-sm:[&_th]:px-2">
+        {/* Fixed layout from `sm`: every module's table has its columns at the same place. */}
+        <Table
+          aria-labelledby={headingId}
+          scrollLabel={t('settings.email.templates.scrollLabel')}
+          className="sm:table-fixed max-sm:[&_td]:px-2 max-sm:[&_th]:px-2"
+        >
           <TableHeader>
             <TableRow className="[&>th]:whitespace-nowrap">
               <TableHead>{t('settings.email.templates.columns.template')}</TableHead>
-              <TableHead>{t('settings.email.templates.columns.state')}</TableHead>
-              <TableHead className="max-sm:hidden">{t('settings.email.templates.columns.lastChange')}</TableHead>
+              <TableHead className="sm:w-32">{t('settings.email.templates.columns.state')}</TableHead>
+              <TableHead className="text-right max-sm:hidden sm:w-60">{t('settings.email.templates.columns.lastChange')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -68,7 +73,7 @@ function TemplateGroup({ title, rows, onOpen }: { title: string; rows: EmailTemp
                   if (button) onOpen(template.key, button)
                 }}
               >
-                <TableCell className="align-top sm:min-w-64">
+                <TableCell className="align-top">
                   <button
                     type="button"
                     className={`rounded-sm text-left font-medium hover:underline ${focusRing}`}
@@ -84,7 +89,7 @@ function TemplateGroup({ title, rows, onOpen }: { title: string; rows: EmailTemp
                 <TableCell className="whitespace-nowrap align-top">
                   {template.is_custom ? t('settings.email.templates.custom') : t('settings.email.templates.default')}
                 </TableCell>
-                <TableCell className="whitespace-nowrap align-top text-muted-foreground max-sm:hidden">
+                <TableCell className="text-right align-top text-muted-foreground max-sm:hidden">
                   {template.is_custom && template.updated_at
                     ? template.updated_by_name
                       ? t('settings.email.templates.changedBy', { date: formatClinicDateShort(template.updated_at), name: template.updated_by_name })

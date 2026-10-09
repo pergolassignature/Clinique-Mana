@@ -137,18 +137,19 @@ describe('ScheduledJobsSettingsPage — reading', () => {
     expect(within(maintenance).getByText(MAINTENANCE.description)).toBeInTheDocument()
     // Its own column, and repeated under the label on a phone.
     expect(within(maintenance).getAllByText('Toutes les heures')).toHaveLength(2)
-    expect(within(maintenance).getByText('08 oct. 2026 à 08:07')).toBeInTheDocument()
-    expect(within(maintenance).getByText('Réussie')).toBeInTheDocument()
+    // The last run too: its own column, and under the label on a phone.
+    expect(within(maintenance).getAllByText('08 oct. 2026 à 08:07')).toHaveLength(2)
+    expect(within(maintenance).getAllByText('Réussie')).toHaveLength(2)
 
     const business = jobRow(BUSINESS.label)
     // Testing Library reads non-breaking spaces as spaces.
     expect(within(business).getAllByText('Tous les jours à 6 h (heure de la clinique)')).toHaveLength(2)
-    expect(within(business).getByText('Erreur')).toBeInTheDocument()
-    expect(within(business).getByText('Configuration manquante (voir Mise en service)')).toBeInTheDocument()
+    expect(within(business).getAllByText('Erreur')).toHaveLength(2)
+    expect(within(business).getAllByText('Configuration manquante (voir Mise en service)')).toHaveLength(2)
 
     const never = jobRow(NEVER_RAN.label)
     expect(within(never).getAllByText('Non planifiée')).toHaveLength(2)
-    expect(within(never).getByText(t('settings.jobs.never'))).toBeInTheDocument()
+    expect(within(never).getAllByText(t('settings.jobs.never'))).toHaveLength(2)
   })
 
   it('is read-only with settings.view: the notice, the state as words, no switch, no « Exécuter maintenant »', async () => {

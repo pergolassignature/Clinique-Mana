@@ -58,7 +58,7 @@ import {
 } from '../permissions'
 import { permissionGroupName } from './group-name'
 
-const SECTION_TITLE = 'text-base font-semibold tracking-tight'
+const SECTION_TITLE = 'text-base font-semibold'
 
 /** What the caller may do with the target: everything, or nothing (and why). */
 type Lock = null | 'self' | 'admin'
