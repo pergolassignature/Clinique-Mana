@@ -97,10 +97,13 @@ export function AuthenticatedApp() {
 
   return (
     <UnsavedChangesProvider>
-      <AppShell navItems={navItems} searchProviders={searchProviders}>
-        {/* Keyed on the clinic time zone: a « Région » change remounts every page, so dates memoised
-            with the old zone are formatted again (AccessProvider sets the zone before this renders). */}
-        <Routes key={org_timezone}>
+      {/* Keyed on the clinic time zone: a « Région » change remounts the whole shell (the bell, the
+          palette, every page), so dates memoised or computed once with the old zone (useClinicDate,
+          useMemo, a query key built from the clinic's date) are computed again. AccessProvider sets
+          the zone before this renders; the save writes it into the cached access at once
+          (useUpdateOrganization), so a failed refetch does not keep the old one. */}
+      <AppShell key={org_timezone} navItems={navItems} searchProviders={searchProviders}>
+        <Routes>
           <Route index element={<Navigate to="/accueil" replace />} />
           <Route path="accueil" element={<HomePage cards={homeCards} />} />
           {/* « Mon compte »: outside Paramètres, so every role reaches it (ACCOUNT_PAGE in the shell). */}

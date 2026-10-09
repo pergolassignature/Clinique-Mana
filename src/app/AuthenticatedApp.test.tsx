@@ -306,21 +306,25 @@ describe('AuthenticatedApp', () => {
   })
 
   // AccessProvider sets the new zone during its render, before this tree renders: done by hand here.
-  it('remounts the routed page when the clinic time zone changes, and only then', async () => {
+  it('remounts the shell and the routed page when the clinic time zone changes, and only then', async () => {
     try {
       mocks.accountMounts = 0
       const { rerender } = render(appAt('/mon-compte'))
       expect(await screen.findByTestId('account-timezone')).toHaveTextContent('America/Toronto')
       expect(mocks.accountMounts).toBe(1)
+      // The shell around the page (topbar, bell, menu) is remounted too: it formats dates outside the routes.
+      const banner = screen.getByRole('banner')
 
       rerender(appAt('/mon-compte', { ...adminLike, display_name: 'Camille A.' }))
       expect(mocks.accountMounts).toBe(1)
+      expect(screen.getByRole('banner')).toBe(banner)
 
       setClinicTimezone('America/Vancouver')
       rerender(appAt('/mon-compte', { ...adminLike, org_timezone: 'America/Vancouver' }))
       await waitFor(() => expect(mocks.accountMounts).toBe(2))
       expect(getClinicTimezone()).toBe('America/Vancouver')
       expect(screen.getByTestId('account-timezone')).toHaveTextContent('America/Vancouver')
+      expect(screen.getByRole('banner')).not.toBe(banner)
     } finally {
       resetClinicTimezone()
     }

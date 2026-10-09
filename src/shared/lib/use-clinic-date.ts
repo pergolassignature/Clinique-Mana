@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { clinicTimeToUTC, getClinicDateString, shiftCalendarDay } from './timezone'
+import { clinicTimeToUTC, getClinicDateString, getClinicTimezone, shiftCalendarDay } from './timezone'
 
 /** A small margin past midnight, so the timer never fires on the last millisecond of the day. */
 const MARGIN_MS = 1000
@@ -13,6 +13,14 @@ export function useClinicDate(): string {
   const [date, setDate] = useState(() => getClinicDateString(new Date()))
   // Bumped when the timer fired but the date had not changed yet, to schedule it again.
   const [attempt, setAttempt] = useState(0)
+  // The zone the date was read in: a « Région » change re-reads it on the next render (the shell
+  // also remounts on it, AuthenticatedApp; this keeps the hook right wherever it is used).
+  const [zone, setZone] = useState(getClinicTimezone)
+  const currentZone = getClinicTimezone()
+  if (zone !== currentZone) {
+    setZone(currentZone)
+    setDate(getClinicDateString(new Date()))
+  }
 
   useEffect(() => {
     const delay = Math.max(0, Date.parse(clinicTimeToUTC(shiftCalendarDay(date, 1), '00:00')) - Date.now()) + MARGIN_MS
@@ -22,7 +30,7 @@ export function useClinicDate(): string {
       else setDate(today)
     }, delay)
     return () => clearTimeout(id)
-  }, [date, attempt])
+  }, [date, attempt, zone])
 
   return date
 }
