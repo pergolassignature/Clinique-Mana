@@ -11,7 +11,7 @@ import { IDS } from './fixtures'
 export const SUBMISSION_ID = '00000000-0000-4000-8000-00000000e101'
 const PHOTO_FILE = '00000000-0000-4000-8000-00000000f001'
 export const INSURANCE_FILE = '00000000-0000-4000-8000-00000000f002'
-const CONSENT_V1 = '00000000-0000-4000-8000-00000000c001'
+const CONSENT_REQUEST = '00000000-0000-4000-8000-00000000c001'
 
 const label = (field: string) => `modules.professionals.submission.fields.${field}`
 const plain = (field: string, current: unknown, submitted: unknown, changed: boolean, answered = true) => ({
@@ -28,7 +28,8 @@ const plain = (field: string, current: unknown, submitted: unknown, changed: boo
  * Marie Tremblay's onboarding, sent: a new phone and city (changed), the postal code confirmed as is,
  * line 2 never answered; a second title; English added and nothing removed; Aînés added, Couples
  * kept but no longer ★; Psychose added and Anxiété removed; a photo and an insurance; the bank
- * account entered (private: no value); the consent signed.
+ * account entered (private: no value); the consent signed through Documenso during the
+ * questionnaire (on file and the step's answer, never applied: P4-505, P4-507).
  */
 export const REVIEW_JSON = {
   submission: {
@@ -135,10 +136,10 @@ export const REVIEW_JSON = {
           field: 'consent',
           label_key: label('consent'),
           kind: 'consent',
-          answered: true,
-          current: null,
-          submitted: { consent_version_id: CONSENT_V1, signer_name: 'Marie Tremblay', signed_at: '2026-10-08T13:58:00+00:00', version: 1 },
-          changed: true,
+          answered: false,
+          current: { source: 'signature', request_id: CONSENT_REQUEST, signed_at: '2026-10-08T13:58:00+00:00' },
+          submitted: { source: 'signature', request_id: CONSENT_REQUEST, signed_at: '2026-10-08T13:58:00+00:00' },
+          changed: false,
         },
       ],
     },
@@ -156,7 +157,6 @@ export const REVIEW_CHANGED_FIELDS = [
   'photo',
   'insurance',
   'bank_account',
-  'consent',
 ] as const
 
 /** `list_professional_submissions`: the onboarding sent for review, an update Marie started herself, applied. */

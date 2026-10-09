@@ -46,10 +46,10 @@ export function fieldsToApply(review: Pick<SubmissionReview, 'sections'>, checke
 
 /**
  * What « Appliquer » would refuse for a field, said on it before the click (P4-378; the database
- * still decides, P4-305): an insurance whose expiry is before the clinic's today, or a consent signed
- * on a text the clinic has replaced since (`is_latest` false). Null otherwise.
+ * still decides, P4-305): an insurance whose last valid day is before the clinic's today. Null
+ * otherwise (the consent is never applied since P4-507: nothing to warn about).
  */
-export type FieldWarning = { kind: 'insurance_expired'; expiresOn: string } | { kind: 'consent_outdated' }
+export type FieldWarning = { kind: 'insurance_expired'; expiresOn: string }
 
 export function fieldWarning(field: Pick<ReviewField, 'field' | 'submitted'>, today: string): FieldWarning | null {
   const submitted = field.submitted as Record<string, unknown> | null
@@ -57,7 +57,6 @@ export function fieldWarning(field: Pick<ReviewField, 'field' | 'submitted'>, to
     const expiresOn = submitted?.expires_on
     return typeof expiresOn === 'string' && expiresOn < today ? { kind: 'insurance_expired', expiresOn } : null
   }
-  if (field.field === 'consent') return submitted?.is_latest === false ? { kind: 'consent_outdated' } : null
   return null
 }
 

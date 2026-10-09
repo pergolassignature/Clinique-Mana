@@ -3232,15 +3232,17 @@
           "maskSin": "Au dossier : se termine par {last3}",
           "photoAlt": "Photo transmise par le professionnel",
           "photoSent": "Nouvelle photo transmise. Une fois appliquée, elle est jointe au dossier.",
-          "insuranceSent": "Preuve d'assurance transmise, échéance le {date}.",
+          "insuranceSent": "Preuve d'assurance transmise, valide jusqu'au {date}.",
           "insuranceSentUndated": "Preuve d'assurance transmise.",
           "openFile": "Ouvrir le fichier",
           "newTab": "(nouvel onglet)",
           "fileUnavailable": "Le fichier ne peut pas être affiché pour l'instant.",
           "consentNone": "Aucun consentement au dossier.",
           "consentUnsigned": "Pas encore signé.",
-          "consentOnFile": "Signé le {date} (version {version}), valide jusqu'au {until}.",
-          "consentSigned": "Signé le {date} par {name} (version {version})."
+          "consentSignedElectronically": "Signé électroniquement le {date} (Documenso).",
+          "consentPaper": "Consentement papier au dossier, téléversé le {date}.",
+          "consentSignedHere": "signé avec ce questionnaire",
+          "consentAlreadyOnFile": "déjà au dossier"
         },
         "card": {
           "title": "Questionnaire et mises à jour",
@@ -3297,7 +3299,7 @@
           },
           "noneChecked": "Cochez au moins un changement, ou renvoyez le profil au professionnel.",
           "warnings": {
-            "insuranceExpired": "Cette assurance est échue depuis le {date} : elle ne peut pas être appliquée. Décochez-la, ou renvoyez le profil au professionnel pour qu'il joigne une preuve en vigueur.",
+            "insuranceExpired": "Cette assurance est expirée (valide jusqu'au {date}) : elle ne peut pas être appliquée. Décochez-la, ou renvoyez le profil au professionnel pour qu'il joigne une preuve en vigueur.",
             "consentOutdated": "Le texte du consentement a changé depuis la signature : ce consentement ne peut pas être appliqué. Décochez-le, ou renvoyez le profil au professionnel pour qu'il signe la nouvelle version."
           },
           "apply": "Appliquer les changements sélectionnés ({count})",
