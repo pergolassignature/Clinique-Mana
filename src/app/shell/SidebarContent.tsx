@@ -82,7 +82,9 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
               {display_name}
             </p>
             {/* min-h-4: the line keeps its height while a custom role's name loads (no layout shift). */}
-            <p className="min-h-4 truncate text-xs text-muted-foreground">{roleText}</p>
+            <p className="min-h-4 truncate text-xs text-muted-foreground" title={roleText || undefined}>
+              {roleText}
+            </p>
           </div>
           {!collapsed && (
             <button
@@ -93,7 +95,7 @@ export function SidebarContent({ navItems, collapsed, variant, signingOut, onSig
               title={t('nav.logout')}
               className={cn(
                 `flex shrink-0 items-center justify-center rounded-md text-subtle transition-colors duration-120 hover:bg-ink/5 hover:text-foreground ${focusRing} disabled:pointer-events-none disabled:opacity-50`,
-                touch ? 'h-10 w-10' : 'p-1',
+                touch ? 'h-10 w-10' : '-mr-1 p-1',
               )}
             >
               <LogOut className="h-3.5 w-3.5" aria-hidden />
