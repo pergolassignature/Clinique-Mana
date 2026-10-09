@@ -121,6 +121,14 @@ export function contractStateLabel(
   if (request.status === 'draft' && request.lastError === null) {
     return sendDied(request, now) ? { label: t(`${S}.stalled`), tone: 'error', detail: t(`${F}.stalledDetail`) } : { label: t(`${S}.sending`), tone: 'neutral', detail: null }
   }
+  // The professional signed, the clinic has not yet (P4-432's order): say so, never « Consulté ».
+  if (request.status === 'sent' || request.status === 'viewed') {
+    const professional = request.signers.find((s) => s.role === 'professional')
+    const clinic = request.signers.find((s) => s.role === 'clinic')
+    if (professional?.signedAt && clinic && clinic.signedAt === null && clinic.rejectedAt === null) {
+      return { ...signatureStatusLabel(request.status, request.lastError), label: t(`${S}.awaitingClinic`, { name: professional.name }), detail: null }
+    }
+  }
   return signatureStatusLabel(request.status, request.lastError)
 }
 

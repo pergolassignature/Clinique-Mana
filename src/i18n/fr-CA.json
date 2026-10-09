@@ -3505,7 +3505,8 @@
           "none": "Aucun contrat",
           "sending": "Envoi en cours",
           "stalled": "L'envoi n'a pas abouti",
-          "stalledDetail": "L'envoi s'est arrêté sans réponse de Documenso. Réessayez l'envoi ou régénérez le contrat."
+          "stalledDetail": "L'envoi s'est arrêté sans réponse de Documenso. Réessayez l'envoi ou régénérez le contrat.",
+          "awaitingClinic": "Signé par {name} · en attente de la signature de la clinique"
         },
         "version": "Modèle, version {version}",
         "none": "Aucun contrat de service n'a encore été envoyé à {firstName}.",
