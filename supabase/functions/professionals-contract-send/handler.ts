@@ -12,7 +12,9 @@
  *    idempotency_key }` (a uuid the page draws per action and keeps until it
  *    succeeds). Nothing else is read from the body: the values, the signers,
  *    the template version and the title come from the database.
- * 3. One hit on `LIMITS.professionalContractUser` (30 an hour per caller).
+ * 3. One hit on `LIMITS.professionalContractUser` (30 an hour per caller);
+ *    `resend` also takes `LIMITS.professionalContractResend` (one per file
+ *    every 10 s, P4-478), so a double click emails the signer once.
  * 4. `prepare_professional_contract` with the **service** client, `p_actor` =
  *    the caller `verifyAuth` verified: it re-checks her, then answers the
  *    request key (the open draft's own for `send`: a failed send is retried
@@ -172,6 +174,17 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       req,
     )
     if (limited) return limited
+    if (input.action === 'resend') {
+      // One « Renvoyer » per file every 10 s: a double click emails the signer once (P4-478).
+      const again = limitResponse(
+        await consume(service, LIMITS.professionalContractResend, [
+          orgId,
+          professionalId,
+        ]),
+        req,
+      )
+      if (again) return again
+    }
 
     const prepared = await service.rpc('prepare_professional_contract', {
       p_actor: actor,

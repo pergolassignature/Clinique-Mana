@@ -17,7 +17,8 @@
  * 4. `get_professional_fiche_upload` **with the caller's client**: the
  *    professional is of the caller's clinic and active, and the file is the
  *    caller's own ready upload of that purpose, for that professional, still
- *    staged. Its French refusals (P0001) are passed on (400, `refusal`).
+ *    staged. Its French refusals (P0001) are passed on (400, `refusal`);
+ *    42501 → 403, 22023 → 400 `invalid_request` (P4-477).
  * 5. The object, read by the service role from the bucket and path the RPC
  *    returned (never from the body): at most 10 MB, sniffed as a PDF.
  * 6. `sendTemplatedEmail` (`professionals.fiche`, a free-recipient template
@@ -39,7 +40,9 @@
  * send lacks); 401 / 403 / 503 from `verifyAuth` (403 `module_disabled`
  * too from the send path); 403 `forbidden` (42501, or the catalogue no
  * longer allows a free recipient or an attachment: reported); 404
- * `not_found` (the object is gone: purged or never stored, reported); 405;
+ * `not_found` (the object is gone: purged or never stored, reported; or the
+ * template, from the send path); a `FunctionError` thrown by the send path
+ * keeps its code's status (P4-477); 405;
  * 413; 429 `rate_limited` with `Retry-After`; 502 `provider_error`; 503
  * `not_configured`; 500 `internal` (reported).
  */
@@ -52,7 +55,11 @@ import {
 } from '../_shared/auth.ts'
 import type { Deps } from '../_shared/deps.ts'
 import { type SendResult, sendTemplatedEmail } from '../_shared/email/send.ts'
-import { FunctionError, rpcErrorResponse } from '../_shared/errors.ts'
+import {
+  FunctionError,
+  functionErrorResponse,
+  rpcErrorResponse,
+} from '../_shared/errors.ts'
 import { readJson } from '../_shared/http.ts'
 import { consume, limitResponse, LIMITS } from '../_shared/rate-limit.ts'
 import { reportError } from '../_shared/report.ts'
@@ -190,7 +197,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       p_file_id: input.file_id,
     })
     if (checked.error) {
-      if (checked.error.code === 'P0001' || checked.error.code === '42501') {
+      // A refusal (P0001, passed on in French), 42501 → 403, 22023 → 400 (never its message).
+      if (['P0001', '42501', '22023'].includes(checked.error.code ?? '')) {
         return rpcErrorResponse(checked.error, req)
       }
       return await fail('fiche_upload_lookup_failed')
@@ -253,12 +261,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     } catch (error) {
       // The send path reports its own failures before throwing them.
       if (error instanceof FunctionError) {
-        return errorResponse(
-          error.code,
-          'The fiche could not be sent',
-          500,
-          req,
-        )
+        return functionErrorResponse(error, 'The fiche could not be sent', req)
       }
       return await fail('unexpected')
     }

@@ -12,6 +12,7 @@ import {
 import { fixedClock } from '../_shared/testing/fixed-clock.ts'
 import { withEnv } from '../_shared/testing/env.ts'
 import { accessFixture, ADMIN_ID } from '../_shared/testing/email-fixtures.ts'
+import { countingLimiter } from '../_shared/testing/link-fixtures.ts'
 import {
   CLINIC_EMAIL,
   LOCAL_APP_URL,
@@ -115,8 +116,12 @@ const prepared = (over: Record<string, unknown> = {}) => ({
 })
 
 function setup(
-  options: { permissions?: string[]; modules?: string[]; prepare?: RpcRoute } =
-    {},
+  options: {
+    permissions?: string[]
+    modules?: string[]
+    prepare?: RpcRoute
+    limiter?: RpcRoute
+  } = {},
 ) {
   const clock = fixedClock('2026-10-08T12:00:00.000Z')
   const fake = fakeDocumenso()
@@ -130,6 +135,7 @@ function setup(
     rpc: {
       ...db.rpc,
       prepare_professional_contract: options.prepare ?? { data: prepared() },
+      ...(options.limiter ? { consume_rate_limit: options.limiter } : {}),
     },
     storage: db.storage,
   })
@@ -471,6 +477,38 @@ Deno.test('professionals-contract-send: resend → Documenso resends to the next
       envelopeId: old.envelope_id,
       recipients: [Number(recipient)],
     })
+  })
+})
+
+Deno.test('professionals-contract-send: « Renvoyer » twice within 10 s → one email; the second answers 429 (P4-478)', async () => {
+  await run(async () => {
+    let resend: Record<string, unknown> | null = null
+    const limiter = countingLimiter()
+    const s = setup({ prepare: () => ({ data: { resend } }), limiter: limiter.route })
+    const old = await sentRequest(s.fake, s.db, contractOf)
+    resend = {
+      request_id: old.id,
+      envelope_id: old.envelope_id,
+      recipient_ids: [old.signers[0].recipient_id!],
+    }
+    const body = { professional_id: PRO, action: 'resend', idempotency_key: KEY }
+    assertEquals((await s.handler(post(body))).status, 200)
+    const second = await s.handler(post(body))
+    assertEquals(second.status, 429)
+    assertEquals((await second.json()).error.code, 'rate_limited')
+    const redistributes = s.fake.calls.filter((c) =>
+      new URL(c.url).pathname === DOCUMENSO_PATHS.redistribute
+    )
+    assertEquals(redistributes.length, 1)
+    // Keyed by the file: the bucket is per org and professional, before the database is asked.
+    assertEquals(
+      s.service.calls.filter((c) =>
+        c.fn === 'consume_rate_limit' &&
+        c.args.p_bucket === 'professionals.contract_resend'
+      ).length,
+      2,
+    )
+    assertEquals(prepareCalls(s).length, 1)
   })
 })
 

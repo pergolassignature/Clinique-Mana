@@ -346,6 +346,47 @@ Deno.test('professionals-fiche: the RPC refusals are passed on in French; nothin
   })
 })
 
+Deno.test('professionals-fiche: a 22023 from the lookup → 400 invalid_request, not a 500 (P4-477)', async () => {
+  await run(async () => {
+    const { handler, service, http } = harness({
+      userRpc: {
+        get_professional_fiche_upload: {
+          error: { code: '22023', message: 'p_file_id: bad value' },
+        },
+      },
+    })
+    const logged = await reported(async () => {
+      const error = await errorOf(await handler(post(BODY)))
+      assertEquals([error.status, error.code], [400, 'invalid_request'])
+      // The RPC's message may hold an argument: never passed on.
+      assert(!String(error.message).includes('p_file_id'))
+    })
+    assertEquals(logged, [])
+    assertEquals([service.storageCalls, http.calls], [[], []])
+  })
+})
+
+Deno.test('professionals-fiche: an error the send path throws keeps its own status (an unknown template → 404, P4-477)', async () => {
+  await run(async () => {
+    const unknown = harness({
+      serviceRpc: { get_email_context: { error: { code: '22023', message: 'unknown template' } } },
+    })
+    const logged = await reported(async () => {
+      const error = await errorOf(await unknown.handler(post(BODY)))
+      assertEquals([error.status, error.code], [404, 'not_found'])
+    })
+    assert(logged.some((line) => line.includes('email_template_unknown')))
+    const broken = harness({
+      serviceRpc: { get_email_context: { error: { code: 'XX000', message: 'boom' } } },
+    })
+    await reported(async () => {
+      const error = await errorOf(await broken.handler(post(BODY)))
+      assertEquals([error.status, error.code], [500, 'internal'])
+    })
+    assertEquals(unknown.http.calls, [])
+  })
+})
+
 Deno.test('professionals-fiche: an object gone → 404; not a PDF or a failed lookup → 500; reported, never sent', async () => {
   await run(async () => {
     const cases: [Parameters<typeof harness>[0], number, string][] = [

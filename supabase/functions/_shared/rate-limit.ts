@@ -109,6 +109,17 @@ export const LIMITS = {
     windowSeconds: 3_600,
   },
   /**
+   * `professionals-contract-send` « Renvoyer », per file (org + professional),
+   * whoever clicks (P4-478): each call has Documenso email the signer again,
+   * so a double click, or two colleagues at once, would email her twice.
+   * Consumed before the database is asked.
+   */
+  professionalContractResend: {
+    bucket: 'professionals.contract_resend',
+    max: 1,
+    windowSeconds: 10,
+  },
+  /**
    * `storage-upload`, per caller: each call creates a pending row and signs
    * an upload of up to the purpose's size cap.
    */
